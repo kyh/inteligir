@@ -371,8 +371,6 @@ const InlineComboboxItem = ({
     if (visible) {
       return registerVisibleItem();
     }
-    // oxlint-disable-next-line no-useless-return -- noImplicitReturns rejects falling off the end when the other arm returns a cleanup
-    return;
   }, [visible, registerVisibleItem]);
 
   if (!visible) {

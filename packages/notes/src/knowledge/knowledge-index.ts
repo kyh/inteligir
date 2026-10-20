@@ -3,14 +3,14 @@
 // link graph) can drive the knowledge engine. Production composes
 // LinkGraphIndex with a KnowledgeStore instead.
 
+import type { ItemPage, ItemQuery, ItemRow, ItemScopes, UrlMatches } from "../items/library-index";
 import { LinkGraphIndex } from "./link-graph-index";
 import type { BacklinkEntry, ForwardLinkEntry, WikiTarget } from "./link-graph-index";
 import { SEARCH_DEFAULT_LIMIT } from "./default-limits";
 import { docStem } from "./doc-file";
-import { projectDoc } from "./projection";
 import { relatedNotes } from "./related-notes";
 import type { RelatedNoteEntry, RelatedNotesOpts } from "./related-notes";
-import { searchFieldsOf } from "./search-columns";
+import { projectForIndex, searchBodyOf, searchFieldsOf } from "./search-columns";
 import { SearchIndex } from "./search-index";
 import { searchExcerpt } from "./search-excerpt";
 import { planSearchQuery } from "./search-query";
@@ -19,19 +19,19 @@ import type { TagCount } from "./tag-index";
 import { notesInTagFamily } from "./tag-notes";
 import { collectVaultMatches } from "./text-matches";
 import type { TextMatchOptions, VaultMatches } from "./text-matches";
-import { collectVaultProblems } from "./vault-problems";
-import type { VaultProblems, VaultProblemsOptions } from "./vault-problems";
 
 export class KnowledgeIndex {
   private readonly linkGraph = new LinkGraphIndex();
   private readonly searchIndex = new SearchIndex();
   private readonly bodies = new Map<string, string>();
 
+  // both engines read the body with its frontmatter's lines blanked, as the store's fts row does
   setDoc(path: string, content: string): void {
-    const projection = projectDoc(path, content);
-    this.bodies.set(path, content);
+    const { projection } = projectForIndex(path, content);
+    const body = searchBodyOf(content);
+    this.bodies.set(path, body);
     this.linkGraph.applyDoc(path, projection);
-    this.searchIndex.set(path, searchFieldsOf(projection, content));
+    this.searchIndex.set(path, searchFieldsOf(projection, body));
   }
 
   setOther(path: string): void {
@@ -54,16 +54,36 @@ export class KnowledgeIndex {
     this.linkGraph.clear();
   }
 
+  setStat(path: string, stat: { size: number; mtimeMs: number } | null): void {
+    this.linkGraph.setStat(path, stat);
+  }
+
+  items(q: ItemQuery): ItemPage {
+    return this.linkGraph.items(q);
+  }
+
+  itemsAt(paths: readonly string[]): ItemRow[] {
+    return this.linkGraph.itemsAt(paths);
+  }
+
+  findByUrl(url: string, limit: number): UrlMatches {
+    return this.linkGraph.findByUrl(url, limit);
+  }
+
+  scopes(extraFolders: readonly string[], hiddenFolders: readonly string[]): ItemScopes {
+    return this.linkGraph.scopes(extraFolders, hiddenFolders);
+  }
+
+  pathForNoteId(id: string, lastPath: string): string | null {
+    return this.linkGraph.pathForNoteId(id, lastPath);
+  }
+
   backlinks(path: string): BacklinkEntry[] {
     return this.linkGraph.backlinks(path);
   }
 
   forwardLinks(path: string): ForwardLinkEntry[] {
     return this.linkGraph.forwardLinks(path);
-  }
-
-  problems(options: VaultProblemsOptions): VaultProblems {
-    return collectVaultProblems(this.linkGraph, options);
   }
 
   wikiTargets(): WikiTarget[] {

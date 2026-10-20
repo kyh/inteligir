@@ -3,7 +3,7 @@
 // stays text and the serializer escapes it to `\[\[Note]]` on save.
 
 import { Suspense, lazy } from "react";
-import { KEYS, NodeApi, TextApi, createSlatePlugin } from "platejs";
+import { KEYS, NodeApi, TextApi } from "platejs";
 import type { SlateEditor } from "platejs";
 import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
@@ -13,20 +13,10 @@ import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { stringProp } from "@repo/editor/node-props";
 import { wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
 
+import { wikiEmbedBasePlugin, wikiLinkBasePlugin } from "./headless/wiki-link-base";
+
 const WikiChip = lazy(async () => await import("@repo/editor/wiki/wiki-chip"));
 const Transclusion = lazy(async () => await import("@repo/editor/transclusion"));
-
-const wikiLinkBasePlugin = createSlatePlugin({
-  key: WIKI_LINK_KEY,
-  node: { isElement: true, isInline: true, isVoid: true },
-});
-
-const wikiEmbedBasePlugin = createSlatePlugin({
-  key: WIKI_EMBED_KEY,
-  node: { isElement: true, isInline: true, isVoid: true },
-});
-
-export const WikiLinkBaseKit = [wikiLinkBasePlugin, wikiEmbedBasePlugin];
 
 // mirrors the remark-wiki-link grammar so the chip and the bytes agree.
 const WIKI_COMPLETION_RE = /(?<bang>!?)\[\[(?<body>[^[\]\n]+)\]$/u;

@@ -9,13 +9,15 @@ import type { ORPCError } from "@orpc/server";
 import { implement } from "@orpc/server";
 import type { AgentsService } from "./agents/agents-service";
 import type { BrowserSession } from "./browser-session";
-import type { CommentsService } from "./comments/comments-service";
-import type { CloudPrefsStore } from "./cloud/cloud-prefs-store";
+import type { AnnotationsService } from "./annotations/annotations-service";
 import type { CloudRuntime } from "./cloud/sync-runtime";
 import type { ConnectorsService } from "./connectors/connectors-service";
 import type { FoldersService } from "./folders/folders-service";
+import type { ImportService } from "./imports/import-service";
+import type { ItemsService } from "./items/items-service";
 import type { RenameTag } from "./knowledge/knowledge-router";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
+import type { ImageDownscale } from "./media/image-downscale";
 import type { ThreadService } from "./threads/service";
 import type { RecordAgentWrites } from "./threads/turn-driver";
 import type { TurnUndo } from "./threads/turn-undo";
@@ -29,6 +31,8 @@ interface SystemFacts {
   vaultDir: string;
   schemaVersion: number;
   startedAt: number;
+  // this boot's media token (MEDIA_TOKEN_PARAM), which only the byte routes read
+  mediaToken: string;
   // false in a checkout whose UI was never built: no page answers a browser.
   servesUi: boolean;
   // read per request: a bundled runtime removed from under a running app is the next answer.
@@ -39,12 +43,15 @@ export interface AppContext {
   // per request: the thread whose agent shell sent it (`agent-thread-header.ts`), else null.
   agentThreadId: string | null;
   agents: AgentsService;
+  annotations: AnnotationsService;
   browserSession: BrowserSession;
   cloud: CloudRuntime;
-  cloudPrefs: CloudPrefsStore;
-  comments: CommentsService;
   connectors: ConnectorsService;
+  // the one downscaler, a grid thumbnail's and a cover's, so the system's image tool runs one queue
+  downscale: ImageDownscale;
   folders: FoldersService;
+  imports: ImportService;
+  items: ItemsService;
   knowledge: KnowledgeRuntime;
   recordAgentWrites: RecordAgentWrites;
   renameNote: RenameNote;

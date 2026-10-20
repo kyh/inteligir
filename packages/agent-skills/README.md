@@ -1,7 +1,7 @@
 # @repo/agent-skills
 
-The inteligir dialect's spec, served to agents as files: eight `SKILL.md`
-documents — one hub and seven focused contracts — that tell a coding agent
+The inteligir dialect's spec, served to agents as files: nine `SKILL.md`
+documents — one hub and eight focused contracts — that tell a coding agent
 exactly which bytes the editor round-trips, so what it writes is what the app
 parses. No code, no scripts, no build; the package is a directory of markdown
 and an `exports` map.
@@ -9,7 +9,7 @@ and an `exports` map.
 ## Why it exists
 
 The agent edits the vault with its own shell, and the dialect — `[[wiki
-links]]`, `{{formula}}` pills, `%%i:id%%` comment anchors, the `inteligir-*`
+links]]`, `{{formula}}` pills, `%%i:id%%` annotation markers, the `inteligir-*`
 fences — is not something a model guesses right. Content the agent consumes
 lives in files it reads with its own tools, never inlined into a prompt (the
 rule behind the "agent memory is removed" decision in
@@ -29,6 +29,9 @@ skills/
   inteligir-notes/SKILL.md        # THE HUB: the rules that never bend, the block
                                   # chooser, document syntax, and the index of
                                   # the focused contracts below
+  inteligir-items/SKILL.md        # a library's items: kinds and keys, the cover
+                                  # and the wrapper, Unsorted, folders and tags,
+                                  # saving, filing and tagging one
   inteligir-writing/SKILL.md      # how a note should READ — answer first, shape
                                   # fits the information, when to stop
   inteligir-frontmatter/SKILL.md  # YAML frontmatter as the only property store;
@@ -37,8 +40,8 @@ skills/
                                   # external links, embeds and vault media
   inteligir-formulas/SKILL.md     # {{source|display|meta}} pills and named
                                   # variables: grammar, identity, references
-  inteligir-comments/SKILL.md     # %%i:id:start/end%% markers, the
-                                  # .inteligir/comments store, attribution
+  inteligir-annotations/SKILL.md  # %%i:id:start/end%% markers, the
+                                  # .inteligir/annotations store, attribution
   inteligir-canvas/SKILL.md       # inteligir-canvas fences: when a sketch is the
                                   # answer, and the exact grid payload
   inteligir-html/SKILL.md         # inteligir-html fences: the shell, the sandbox
@@ -84,7 +87,7 @@ No suite of its own — `package.json` has no scripts.
 `SKILL.md` names it, the hub names every focused skill and no phantom, the
 resolver's probe file exists) and holds every `inteligir-*` fence an example
 opens to `@repo/notes/markdown/fence-langs`, and
-`packages/editor/src/__tests__/skill-examples.test.ts` opens each example
+`packages/editor/src/skill-examples.test.ts` opens each example
 through the editor. Both smokes fail a packaged install carrying no
 `dist/skills/inteligir-notes/SKILL.md`, because a missing directory silently
 disables the capability rather than erroring.

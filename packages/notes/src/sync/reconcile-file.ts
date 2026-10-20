@@ -3,17 +3,14 @@
 // the same words. Bytes in, bytes out: the caller reads the sides and lands the answer, so nothing
 // here knows git, a disk or a network.
 
-import { mergeCommentStores } from "../comments/merge-comment-stores";
-import { isCommentsStorePath } from "../comments/sidecar-schema";
+import { mergeAnnotationStores } from "../annotations/merge-annotation-stores";
+import { isAnnotationsStorePath } from "../annotations/store-schema";
 import { isDocPath, isVaultMetadataPath } from "../knowledge/doc-file";
 import { removeFrontmatterId } from "../markdown/frontmatter";
 import { diff3 } from "../text/diff3";
 import { conflictCopyPath } from "./conflict-copy";
 import type { SyncConflictReport } from "./conflict-copy";
-
-// The root one alone: the app appends phone captures to it from every signed-in desktop, so two
-// appends are two captures, never a conflict. A nested Inbox.md is a note like any other.
-export const CAPTURE_INBOX_PATH = "Inbox.md";
+import { urlItemVerdict } from "./url-item-verdict";
 
 export type FileSide =
   | { readonly kind: "absent" }
@@ -115,14 +112,14 @@ const withCopyOfTheirs = (
 // reads would be comments nobody sees. Beside a deletion the present store stays whole: the note
 // it belongs to carries the report, and a store cut down to its edited entries would leave the
 // kept note's other anchors with no bodies.
-const reconcileCommentStore = ({ base, mine, theirs }: ReconcileInput): Reconciled => {
+const reconcileAnnotationStore = ({ base, mine, theirs }: ReconcileInput): Reconciled => {
   if (mine.kind === "absent") {
     return keep("theirs", theirs);
   }
   if (theirs.kind === "absent" || mine.kind !== "text" || theirs.kind !== "text") {
     return keep("mine", mine);
   }
-  const merged = mergeCommentStores({
+  const merged = mergeAnnotationStores({
     base: base.kind === "text" ? base.text : null,
     mine: mine.text,
     theirs: theirs.text,
@@ -132,10 +129,10 @@ const reconcileCommentStore = ({ base, mine, theirs }: ReconcileInput): Reconcil
     : resolved(settle(merged.text, mine, theirs));
 };
 
-// Asked in this order: identical sides, a change on one side only, the comment store, every
-// other dot-folder, an edit beside a deletion (the edit stays), two texts (a line merge whose
-// overlaps keep mine and copy theirs whole), and anything else both changed (mine stays, theirs
-// is copied).
+// Asked in this order: identical sides, a change on one side only, the annotation store, every
+// other dot-folder, an edit beside a deletion (the edit stays), two versions of one saved link
+// (the url-item verdict), two texts (a line merge whose overlaps keep mine and copy theirs whole),
+// and anything else both changed (mine stays, theirs is copied).
 export const reconcileFile = (input: ReconcileInput): Reconciled => {
   const { path, base, mine, theirs, thisDevice, theirDevice } = input;
   if (sameSide(mine, theirs) || sameSide(theirs, base)) {
@@ -144,8 +141,8 @@ export const reconcileFile = (input: ReconcileInput): Reconciled => {
   if (sameSide(mine, base)) {
     return keep("theirs", theirs);
   }
-  if (isCommentsStorePath(path)) {
-    return reconcileCommentStore(input);
+  if (isAnnotationsStorePath(path)) {
+    return reconcileAnnotationStore(input);
   }
   // another app's settings or the OS's litter: nobody reads a copy of `.obsidian/workspace.json`
   if (isVaultMetadataPath(path)) {
@@ -166,11 +163,18 @@ export const reconcileFile = (input: ReconcileInput): Reconciled => {
     };
   }
   if (mine.kind === "text" && theirs.kind === "text") {
-    const baseText = base.kind === "text" ? base.text : "";
-    if (path === CAPTURE_INBOX_PATH) {
-      const union = diff3(baseText, mine.text, theirs.text, { overlap: "union" });
-      return resolved(settle(union.merged, mine, theirs));
+    // two versions of one saved link settle on one text, with no copy (url-item-verdict)
+    const item = isDocPath(path)
+      ? urlItemVerdict({
+          base: base.kind === "text" ? base.text : null,
+          mine: mine.text,
+          theirs: theirs.text,
+        })
+      : null;
+    if (item !== null) {
+      return resolved(settle(item, mine, theirs));
     }
+    const baseText = base.kind === "text" ? base.text : "";
     const { conflicted, merged } = diff3(baseText, mine.text, theirs.text);
     const stays = settle(merged, mine, theirs);
     return conflicted ? withCopyOfTheirs(input, stays, theirs) : resolved(stays);

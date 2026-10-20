@@ -12,7 +12,7 @@ import type {
   VaultConflictAnswer,
 } from "@repo/contract/cloud/vault/vault-commit-schema";
 import {
-  assetMediaType,
+  takesBytes,
   VAULT_ASSET_MAX_BYTES,
   VAULT_FILE_MAX_BYTES,
 } from "@repo/contract/cloud/vault/vault-schema";
@@ -69,8 +69,10 @@ const decodeChange = (change: VaultChangeRequest): Decoded => {
     }
     return { change: { base, bytes, op: "put", path }, kind: "change" };
   }
-  if (assetMediaType(path) === null) {
-    return refusedWith(refuse("bad-request", `${path}: only an image path takes base64 content.`));
+  // any file a library stores, as the desktop's own write takes it: a PDF, an archive, a video.
+  // never a note, a highlight store or a dot-path, which are text the app writes as text
+  if (!takesBytes(path)) {
+    return refusedWith(refuse("bad-request", `${path}: a note is saved as text, not as a file.`));
   }
   const bytes = bytesFromBase64(content.data);
   if (bytes.length > VAULT_ASSET_MAX_BYTES) {
@@ -94,20 +96,20 @@ const answer = (result: CommitChangesResult): Response => {
       const body: VaultConflictAnswer = {
         ...cloudError(
           "vault-conflict",
-          "The vault changed under this change set; none of it landed.",
+          "The library changed under this change set; none of it landed.",
         ),
         conflict: { conflicts: result.conflicts, head: result.head },
       };
       return Response.json(body, { status: CLOUD_ERROR_STATUS["vault-conflict"] });
     }
     case "no-head": {
-      return refuse("not-found", "This account has no hosted vault yet.");
+      return refuse("not-found", "This account has no online library yet.");
     }
     case "exhausted": {
-      return refuse("internal", "The vault kept moving under this change set; send it again.");
+      return refuse("internal", "The library kept moving under this change set; send it again.");
     }
     case "full": {
-      return refuse("vault-full", "Your cloud vault is full. This change stays on your phone.");
+      return refuse("vault-full", "Your online library is full. This change stays on your phone.");
     }
     // the cell refusing a pack this Worker built is a bug, logged like any other throw
     case "refused": {
@@ -144,7 +146,7 @@ export const handleVaultCommitRoute = async (
   }
 
   if (!(await spendDeviceBudget(env, db, "vaultWrite", verified.deviceId))) {
-    return refuse("rate-limited", "Too many vault writes from this device — wait a minute.");
+    return refuse("rate-limited", "Too many saves from this device — wait a minute.");
   }
 
   // the Mac's first push creates the hosted vault; a write never does, since getByName would
@@ -152,7 +154,7 @@ export const handleVaultCommitRoute = async (
   const repo = vaultRepoName(verified.userId);
   const registry = vaultRegistry(env);
   if ((await registry.get(repo)) === null) {
-    return refuse("not-found", "This account has no hosted vault yet.");
+    return refuse("not-found", "This account has no online library yet.");
   }
 
   const body = vaultCommitRequestSchema.safeParse(await request.json().catch(() => null));

@@ -1,7 +1,8 @@
+import type { ActionPreset } from "@repo/domain/action-preset";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { SendMessageRequest } from "@repo/contract/local/threads/threads-schema";
+import type { LocalClient } from "@repo/contract/local";
 import { isDefinedError, refusalMessage, safe } from "../api";
-import type { client } from "../api";
 
 export type ComposerSendOutcome =
   | { kind: "started"; turnId: string }
@@ -15,6 +16,7 @@ export interface SendToThreadArgs {
   // carried on the retry too: start-vs-queue is the server's call, and it drops a queued message's context.
   viewContext?: ViewContext;
   contextPaths?: readonly string[];
+  preset?: ActionPreset;
 }
 
 const SEND_REFUSED = "The send was refused.";
@@ -31,12 +33,15 @@ const sendRequest = (args: SendToThreadArgs, expectedTurnId: string | null): Sen
   if (args.contextPaths !== undefined && args.contextPaths.length > 0) {
     request.contextPaths = [...args.contextPaths];
   }
+  if (args.preset !== undefined) {
+    request.preset = args.preset;
+  }
   return request;
 };
 
 // one retry on a stale guard, rather than racing a thread that keeps moving.
 export const sendToThread = async (
-  api: typeof client,
+  api: LocalClient,
   args: SendToThreadArgs,
 ): Promise<ComposerSendOutcome> => {
   const [error, sent] = await safe(api.threads.send(sendRequest(args, args.activeTurnId)));

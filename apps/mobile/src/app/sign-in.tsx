@@ -1,45 +1,32 @@
 import { Stack } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { login, useLoginState, useSyncStatus } from "@/lib/app-runtime";
-import { RADIUS, SPACE, useTheme } from "@/lib/theme";
+import { useTheme } from "@/lib/theme";
+import type { Palette } from "@/lib/palette";
 import { defaultDeviceName } from "@/login/device-name";
 
-const styles = StyleSheet.create({
-  body: { alignSelf: "stretch", gap: SPACE.md, paddingHorizontal: SPACE.xxl },
-  bodyText: { fontSize: 16, textAlign: "center" },
-  buttonLabel: { fontSize: 16, fontWeight: "600" },
-  disabled: { opacity: 0.5 },
-  input: {
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    fontSize: 16,
-    paddingHorizontal: SPACE.lg,
-    paddingVertical: SPACE.md,
-  },
-  pressed: { opacity: 0.8 },
-  primaryButton: {
+// a value, not a class: className draws nothing on a SafeAreaView
+const screenOf = (theme: Palette) =>
+  ({
     alignItems: "center",
-    borderRadius: RADIUS.md,
-    marginTop: SPACE.sm,
-    paddingHorizontal: SPACE.xxl,
-    paddingVertical: SPACE.md,
-  },
-  screen: { alignItems: "center", flex: 1, justifyContent: "center" },
-  smallText: { fontSize: 14 },
-  title: { fontSize: 30, fontWeight: "700" },
-});
+    backgroundColor: theme.background,
+    flex: 1,
+    justifyContent: "center",
+  }) as const;
+
+const FIELD_CLASS = "rounded-lg border border-input bg-card px-4 py-3 text-16 text-foreground";
 
 // the sign-in stands and what the phone holds is kept: the update picks up where it left off
 const UpdateNeeded = () => {
   const theme = useTheme();
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={screenOf(theme)}>
       <Stack.Screen options={{ title: "inteligir" }} />
-      <View style={styles.body}>
-        <Text style={[styles.title, { color: theme.foreground }]}>Update Inteligir</Text>
-        <Text style={[styles.bodyText, { color: theme.mutedForeground }]}>
+      <View className="gap-3 self-stretch px-6">
+        <Text className="text-30 font-bold text-foreground">Update Inteligir</Text>
+        <Text className="text-center text-16 text-muted-foreground">
           This version can&apos;t sync with your account anymore. Update the app to pick up where
           you left off.
         </Text>
@@ -60,23 +47,19 @@ const SignInScreen = () => {
   const reason =
     status.state === "unauthorized"
       ? "This device was signed out. Sign in again to resume syncing."
-      : "Sign in with your account to read your notes and threads, and capture ideas.";
-  const fieldStyle = [
-    styles.input,
-    { backgroundColor: theme.card, borderColor: theme.input, color: theme.foreground },
-  ];
+      : "Sign in with your account to see and edit your library.";
   if (status.state === "outdated") {
     return <UpdateNeeded />;
   }
 
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={screenOf(theme)}>
       <Stack.Screen options={{ title: "inteligir" }} />
-      <View style={styles.body}>
-        <Text style={[styles.title, { color: theme.foreground }]}>inteligir</Text>
-        <Text style={[styles.bodyText, { color: theme.mutedForeground }]}>{reason}</Text>
+      <View className="gap-3 self-stretch px-6">
+        <Text className="text-30 font-bold text-foreground">inteligir</Text>
+        <Text className="text-center text-16 text-muted-foreground">{reason}</Text>
         <TextInput
-          style={fieldStyle}
+          className={FIELD_CLASS}
           placeholder="Email"
           placeholderTextColor={theme.mutedForeground}
           value={email}
@@ -88,7 +71,7 @@ const SignInScreen = () => {
           editable={!busy}
         />
         <TextInput
-          style={fieldStyle}
+          className={FIELD_CLASS}
           placeholder="Password"
           placeholderTextColor={theme.mutedForeground}
           value={password}
@@ -98,7 +81,7 @@ const SignInScreen = () => {
           editable={!busy}
         />
         <TextInput
-          style={fieldStyle}
+          className={FIELD_CLASS}
           placeholder="This device's name"
           placeholderTextColor={theme.mutedForeground}
           value={deviceName}
@@ -106,15 +89,10 @@ const SignInScreen = () => {
           editable={!busy}
         />
         {signIn.kind === "failed" ? (
-          <Text style={[styles.smallText, { color: theme.destructive }]}>{signIn.message}</Text>
+          <Text className="text-14 text-destructive">{signIn.message}</Text>
         ) : null}
         <Pressable
-          style={({ pressed }) => [
-            styles.primaryButton,
-            { backgroundColor: theme.primary },
-            pressed && styles.pressed,
-            (busy || !ready) && styles.disabled,
-          ]}
+          className="mt-2 items-center rounded-lg bg-primary px-6 py-3 active:opacity-80 disabled:opacity-50"
           disabled={busy || !ready}
           onPress={() => {
             void login({ deviceName, email, password });
@@ -123,7 +101,7 @@ const SignInScreen = () => {
           {busy ? (
             <ActivityIndicator color={theme.primaryForeground} />
           ) : (
-            <Text style={[styles.buttonLabel, { color: theme.primaryForeground }]}>Sign in</Text>
+            <Text className="text-16 font-semibold text-primary-foreground">Sign in</Text>
           )}
         </Pressable>
       </View>

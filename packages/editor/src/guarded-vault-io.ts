@@ -3,7 +3,7 @@
 // now there and retried once against them, and a create carries no base. A host adapts its store
 // to the port and keeps nothing of the policy.
 
-import { diff3 } from "@repo/notes/text/diff3";
+import { mergeItemTexts } from "@repo/notes/sync/url-item-verdict";
 import type { CreateOutcome, VaultIO, WriteOutcome } from "@repo/editor/vault-editor";
 
 // `absent` is a create, and carries no base: bytes not yet on disk are nothing a CAS could match.
@@ -34,7 +34,7 @@ export interface GuardedVaultPort {
 }
 
 const refused = (what: string, result: GuardedWriteResult): Error =>
-  new Error(`${what}: the vault answered ${result.kind}`);
+  new Error(`${what}: the library answered ${result.kind}`);
 
 export const createGuardedVaultIo = (port: GuardedVaultPort): VaultIO => {
   const bases = new Map<string, string>();
@@ -79,7 +79,7 @@ export const createGuardedVaultIo = (port: GuardedVaultPort): VaultIO => {
     if (result.kind === "exists") {
       throw refused(`write ${path}`, result);
     }
-    const { conflicted, merged } = diff3(base, content, result.current);
+    const { conflicted, merged } = mergeItemTexts(base, content, result.current);
     const retry = await port.write(path, merged, { base: result.current, kind: "expected" });
     if (retry.kind === "written") {
       return landed(path, merged, conflicted);

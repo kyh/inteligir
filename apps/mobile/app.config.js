@@ -17,7 +17,7 @@ const easFields =
       };
 
 // Apple refuses a build that calls a required-reason API its own manifest does not declare, and
-// does not reliably read the manifests static pods carry; src/__tests__/app-config.test.ts holds
+// does not reliably read the manifests static pods carry; src/app-config.test.ts holds
 // this list to every autolinked module's.
 const accessedApiTypes = [
   {
@@ -29,10 +29,19 @@ const accessedApiTypes = [
     NSPrivacyAccessedAPITypeReasons: ["0A2A.1", "3B52.1"],
   },
   {
+    // 1C8F.1: the share extension hands what was shared over through the App Group's defaults
     NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryUserDefaults",
-    NSPrivacyAccessedAPITypeReasons: ["CA92.1"],
+    NSPrivacyAccessedAPITypeReasons: ["CA92.1", "1C8F.1"],
   },
 ];
+
+// what the share sheet offers Save to Inteligir for: a page or a link, and text that may hold one;
+// never a photo or a file, which the phone keeps from its own photo picker
+const shareActivationRules = {
+  NSExtensionActivationSupportsText: true,
+  NSExtensionActivationSupportsWebPageWithMaxCount: 1,
+  NSExtensionActivationSupportsWebURLWithMaxCount: 1,
+};
 
 /** @param {import("expo/config").ConfigContext} ctx the config expo read from app.json
  *  @returns {import("expo/config").ExpoConfig} the config expo builds the app from */
@@ -67,13 +76,23 @@ const appConfig = ({ config }) => ({
     [
       "expo-image-picker",
       {
-        cameraPermission: "Inteligir uses the camera when you take a photo to add to your notes.",
+        cameraPermission: "Inteligir uses the camera when you take a photo to add to your library.",
         microphonePermission: false,
-        photosPermission:
-          "Inteligir opens your photo library when you choose a photo to add to your notes.",
+        photosPermission: "Inteligir opens your photos when you choose one to add to your library.",
       },
     ],
     ["expo-secure-store", { faceIDPermission: false }],
+    // the share extension only hands what was shared to the app, through the App Group and the
+    // app's own link; the app saves it (src/items/share-inbox.tsx). The App Group and the
+    // extension's id are the plugin's defaults, and EAS signs both.
+    [
+      "expo-share-intent",
+      {
+        disableAndroid: true,
+        iosActivationRules: shareActivationRules,
+        iosShareExtensionName: "Save to Inteligir",
+      },
+    ],
     [
       "expo-splash-screen",
       {

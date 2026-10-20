@@ -21,7 +21,7 @@ import { createDb } from "../db/client";
 import type { Db } from "../db/client";
 import { device } from "../db/schema";
 import { forgetDeviceBudgets, spendCallerBudget } from "../rate-limit";
-import { severDeviceSockets } from "../sync/thread-sync-stub";
+import { severDeviceSockets } from "../sync/account-socket-stub";
 
 // login and sign-up ARE the authentication; sign-out is a device's alone, since a session naming
 // no device has nothing to sign out

@@ -1,23 +1,13 @@
 // an ingest reads, validates, appends, projects lifecycle and touches the queue inside ONE
-// transaction, whichever device the events came from: a crash between two of those writes would
-// leave the log saying one thing and the thread row or its queue another.
+// transaction: a crash between two of those writes would leave the log saying one thing and the
+// thread row or its queue another.
 
 import type { DbTransaction } from "@repo/db/connection";
-import {
-  appendSyncedEventsInTransaction,
-  listThreadMetaEvents,
-  storedTurnFailure,
-} from "@repo/db/events";
-import type { SyncedEventInput } from "@repo/db/events";
+import { storedTurnFailure } from "@repo/db/events";
 import { claimNextQueuedThreadMessageInTransaction } from "@repo/db/queued-messages";
 import type { ClaimedQueuedThreadMessageRow } from "@repo/db/queued-messages";
-import { writeSyncCursor } from "@repo/db/sync-outbox";
 import {
   applyThreadLifecycleEventInTransaction,
-  applyThreadMetaInTransaction,
-  archiveThreadInTransaction,
-  ensureThreadInTransaction,
-  getThread,
   nameUntitledThreadInTransaction,
 } from "@repo/db/threads";
 import type { NotificationBuffer } from "@repo/domain/notifier";
@@ -36,12 +26,11 @@ export class ThreadEventThreadIdMismatchError extends Error {
 }
 
 // one write transaction as every thread step sees it. its notifications wait for the commit, and
-// every local append goes through `appendLocal` so the outbox enqueue rides the same transaction;
-// a site that skipped it would drop events out of sync with no symptom.
+// every append goes through `append`, the one path a thread's log grows by.
 export interface ThreadWrite {
   tx: DbTransaction;
   buffer: NotificationBuffer;
-  appendLocal: (events: readonly ThreadEvent[]) => void;
+  append: (events: readonly ThreadEvent[]) => void;
 }
 
 const lifecycleEventFor = (event: ThreadEvent): ThreadLifecycleEvent | null => {
@@ -61,16 +50,14 @@ const lifecycleEventFor = (event: ThreadEvent): ThreadLifecycleEvent | null => {
     case "item/completed":
     case "item/reasoning/textDelta":
     case "item/started":
-    case "provider/error":
-    case "thread/archived":
-    case "thread/meta": {
+    case "provider/error": {
       return null;
     }
     // no default
   }
 };
 
-// the first message a thread carries names it, whichever client sent it and on whichever device.
+// the first message a thread carries names it, whichever client sent it.
 export const nameThreadFromRequestsInTransaction = (
   write: ThreadWrite,
   threadId: string,
@@ -89,30 +76,6 @@ export const nameThreadFromRequestsInTransaction = (
     }
     return;
   }
-};
-
-// the thread's own facts, whichever device stated them; answers whether a row archived it here.
-const projectThreadFactsInTransaction = (
-  write: ThreadWrite,
-  threadId: string,
-  events: readonly ThreadEvent[],
-): boolean => {
-  let archived = false;
-  for (const event of events) {
-    if (event.type === "thread/meta") {
-      const change = applyThreadMetaInTransaction(write.tx, { facts: event, threadId });
-      if (change.title) {
-        write.buffer.notifyThread(threadId, ["title-changed"]);
-      }
-      if (change.origin) {
-        write.buffer.notifyThread(threadId, ["origin-changed"]);
-      }
-    } else if (event.type === "thread/archived" && archiveThreadInTransaction(write.tx, threadId)) {
-      write.buffer.notifyThread(threadId, ["archived-changed"]);
-      archived = true;
-    }
-  }
-  return archived;
 };
 
 const failureHoldsQueue = (
@@ -158,66 +121,31 @@ export const projectLifecycleInTransaction = (
   return claimed;
 };
 
-// a provider started a turn here, so the harness the row names is bound: the log states it once,
-// and another device keeps it. the session id is this device's alone and never travels.
-const stateHarnessInTransaction = (write: ThreadWrite, threadId: string): void => {
-  const providerId = getThread(write.tx, threadId)?.providerId ?? null;
-  if (
-    providerId === null ||
-    listThreadMetaEvents(write.tx, threadId).some((meta) => meta.providerId !== undefined)
-  ) {
-    return;
-  }
-  write.appendLocal([{ providerId, scope: threadScope(), threadId, type: "thread/meta" }]);
-};
-
-export type IngestArgs =
-  | { origin: "local" | "recovery"; threadId: string; events: readonly ThreadEvent[] }
-  | { origin: "remote"; threadId: string; rows: readonly SyncedEventInput[]; cursor: number };
-
-// what the commit leaves to do: stop a thread another device archived, and start what the settles
-// claimed from the queue.
-export interface IngestResult {
-  archived: boolean;
-  drains: ClaimedQueuedThreadMessageRow[];
+export interface IngestArgs {
+  origin: "local" | "recovery";
+  threadId: string;
+  events: readonly ThreadEvent[];
 }
 
 export const ingestEvents = (args: IngestArgs): readonly ThreadEvent[] => {
-  const events = args.origin === "remote" ? args.rows.map((row) => row.event) : args.events;
-  const mismatched = events.find((event) => event.threadId !== args.threadId);
+  const mismatched = args.events.find((event) => event.threadId !== args.threadId);
   if (mismatched !== undefined) {
     throw new ThreadEventThreadIdMismatchError(args.threadId, mismatched.threadId);
   }
-  return events;
+  return args.events;
 };
 
-export const ingestInTransaction = (write: ThreadWrite, args: IngestArgs): IngestResult => {
-  const { threadId } = args;
-  // lifecycle projects over the rows that landed, so a full replay after signing in again is a no-op rather than a status flap.
-  let projected: readonly ThreadEvent[];
-  if (args.origin === "remote") {
-    if (ensureThreadInTransaction(write.tx, threadId).created) {
-      write.buffer.notifyThread(threadId, ["thread-created"]);
-    }
-    const landed = appendSyncedEventsInTransaction(write.tx, args.rows);
-    projected = landed.applied.map((row) => row.event);
-    // the cursor moves in this transaction: as a second write it leaves a
-    // window a crash replays into duplicate rows. it advances even when
-    // nothing landed — seen, not new.
-    writeSyncCursor(write.tx, args.cursor);
-    if (projected.length === 0) {
-      return { archived: false, drains: [] };
-    }
-  } else {
-    projected = args.events;
-    write.appendLocal(projected);
-  }
+// what the commit leaves to do: start what the settles claimed from the queue.
+export const ingestInTransaction = (
+  write: ThreadWrite,
+  args: IngestArgs,
+): ClaimedQueuedThreadMessageRow[] => {
+  const { events, threadId } = args;
+  write.append(events);
   write.buffer.notifyThread(threadId, ["events-appended"]);
-  // before the naming: a stated title outranks the one a first line would give.
-  const archived = projectThreadFactsInTransaction(write, threadId, projected);
-  nameThreadFromRequestsInTransaction(write, threadId, projected);
+  nameThreadFromRequestsInTransaction(write, threadId, events);
   const drains: ClaimedQueuedThreadMessageRow[] = [];
-  for (const event of projected) {
+  for (const event of events) {
     const lifecycleEvent = lifecycleEventFor(event);
     if (lifecycleEvent === null) {
       continue;
@@ -233,10 +161,7 @@ export const ingestInTransaction = (write: ThreadWrite, args: IngestArgs): Inges
       drains.push(claimed);
     }
   }
-  if (args.origin === "local" && projected.some((event) => event.type === "turn/started")) {
-    stateHarnessInTransaction(write, threadId);
-  }
-  return { archived, drains };
+  return drains;
 };
 
 // not routed through ingest: a thread-scoped provider/error projects no
@@ -247,7 +172,7 @@ export const failTurnlessRunInTransaction = (
   threadId: string,
   message: string,
 ): void => {
-  write.appendLocal([{ message, scope: threadScope(), threadId, type: "provider/error" }]);
+  write.append([{ message, scope: threadScope(), threadId, type: "provider/error" }]);
   write.buffer.notifyThread(threadId, ["events-appended"]);
   const outcome = applyThreadLifecycleEventInTransaction(write.tx, {
     event: { turnId: null, type: "run.failed" },

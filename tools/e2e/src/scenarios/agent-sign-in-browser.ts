@@ -1,12 +1,12 @@
 import path from "node:path";
+import type { LocalClient } from "@repo/contract/local";
 import { z } from "zod";
 import { clickButtonIn, modChord, parseEval, untilBodyHolds } from "../harness/agent-browser";
 import type { AgentBrowser } from "../harness/agent-browser";
 import { expectEq } from "../harness/assert";
-import type { InstanceApi } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { COMPOSER, EDITOR, PALETTE_INPUT } from "../harness/selectors";
+import { COMPOSER, PALETTE_INPUT } from "../harness/selectors";
 
 // what the fake claude's sign-in page would show, and the only code its login takes.
 const PAGE_CODE = "e2e-code#e2e-state";
@@ -45,7 +45,7 @@ const untilComposerHolds = async (
   );
 };
 
-const accountState = async (api: InstanceApi, id: string): Promise<string | null> => {
+const accountState = async (api: LocalClient, id: string): Promise<string | null> => {
   const status = await api.agents.status();
   const harness = status.harnesses.find((candidate) => candidate.id === id);
   return harness?.runtime === "bundled" ? harness.account.state : null;
@@ -125,7 +125,6 @@ export const agentSignInBrowser: Scenario = {
 
     ctx.log("the action's panel puts ChatGPT's sign-in above the reply");
     await agentBrowser.openWorkspace(app);
-    await agentBrowser(["click", EDITOR]);
     await agentBrowser(["press", modChord("p")]);
     await agentBrowser(["wait", PALETTE_INPUT], 30_000);
     await agentBrowser(["find", "role", "option", "click", "--name", "Actions", "--exact"]);

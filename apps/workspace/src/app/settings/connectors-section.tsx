@@ -20,6 +20,7 @@ import { Spinner } from "@repo/ui/components/spinner";
 import { Textarea } from "@repo/ui/components/textarea";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState } from "react";
+import type { ReactElement } from "react";
 import type { z } from "zod";
 import { failed, orpc, refusalMessage } from "../api";
 import { LabelledField } from "../labelled-field";
@@ -156,7 +157,7 @@ export const offersSignIn = (server: ConnectorView): boolean =>
   server.signIn.state !== "pending" &&
   (server.auth === "needs-sign-in" || server.auth === "unknown");
 
-const SignInLine = ({ signIn }: { signIn: ConnectorSignIn }) => {
+const SignInLine = ({ signIn }: { signIn: ConnectorSignIn }): ReactElement | null => {
   switch (signIn.state) {
     case "idle": {
       return null;
@@ -278,7 +279,7 @@ export const ConnectorsSection = () => {
   const remove = (name: string): void => {
     void (async () => {
       const confirmed = await confirm({
-        body: `${agentName} stops using it from the next action, in every vault.`,
+        body: `${agentName} stops using it from the next action, in every library.`,
         confirmLabel: "Remove",
         destructive: true,
         title: `Remove ${name}?`,
@@ -397,8 +398,8 @@ export const ConnectorsSection = () => {
     <section className="space-y-2">
       <SectionHeading>Connectors</SectionHeading>
       <p className="text-body text-muted-foreground">
-        Apps and services {agentName} can use while it works on your notes. They belong to{" "}
-        {agentName} on this Mac, so every vault shares them, and a change reaches the next action.
+        Apps and services {agentName} can use while it works on your library. They belong to{" "}
+        {agentName} on this Mac, so every library shares them, and a change reaches the next action.
       </p>
 
       {list()}

@@ -64,7 +64,6 @@ const MOVES_THE_TIMELINE = {
   "changes-committed": false,
   "events-appended": true,
   "interactions-changed": false,
-  "origin-changed": false,
   "queue-changed": false,
   "status-changed": true,
   "thread-created": false,

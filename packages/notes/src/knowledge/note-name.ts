@@ -76,22 +76,22 @@ export const checkNoteName = (raw: string): NoteNameVerdict => {
 export const noteNameErrorMessage = (reason: NoteNameReason): string => {
   switch (reason) {
     case "empty": {
-      return "Note names can't be empty.";
+      return "Names can't be empty.";
     }
     case "separator": {
-      return "Note names can't contain / or \\.";
+      return "Names can't contain / or \\.";
     }
     case "illegal-char": {
-      return "Note names can't contain : * ? \" < > | or control characters.";
+      return "Names can't contain : * ? \" < > | or control characters.";
     }
     case "bracket": {
-      return "Note names can't contain [ or ], which would end a link to them.";
+      return "Names can't contain [ or ], which would end a link to them.";
     }
     case "reserved": {
       return "That name is reserved on Windows (CON, PRN, AUX, NUL, COM1–9, LPT1–9).";
     }
     case "dot-edge": {
-      return "Note names can't start with a dot or end with a dot.";
+      return "Names can't start with a dot or end with a dot.";
     }
     case "too-long": {
       return "That name is too long (255 bytes max).";

@@ -36,6 +36,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "catalog:",
     "@cloudflare/vitest-pool-workers": "catalog:",
+    "@kyh/tsconfig": "catalog:",
     "@libsql/client": "^0.18.0",
     "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",

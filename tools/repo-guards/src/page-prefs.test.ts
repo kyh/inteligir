@@ -16,7 +16,7 @@ const ROW_KEY = /\b(?:pref|unsetPref)\(\s*"(?<key>[^"]+)"/gu;
 
 const ELSEWHERE = new Map<string, string>([
   [
-    "apps/workspace/src/app/__tests__/prefs.test.ts",
+    "apps/workspace/src/app/prefs.test.ts",
     "pins the keys and bytes a window's storage already holds, so it spells them rather than reading them off the table",
   ],
   [

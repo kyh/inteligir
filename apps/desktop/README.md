@@ -71,7 +71,7 @@ folder the shell handed out, plans the choice as a boot would, writes the
 selector unless the choice is the default vault, boots, and opens the app
 window at `/welcome` before closing the first run's; a boot that fails stops
 what it started, removes the selector it wrote, and answers the page why. A
-picked switch (File › Open Vault…, Settings) asks first when another service
+picked switch (File › Open Library…, Settings) asks first when another service
 syncs the folder, in the first run's words (`outsideSyncWarning` in
 `@repo/contract/local/vault/vault-folder`).
 
@@ -108,7 +108,7 @@ from the row, parsing every answer and every event against it. Its
 `underShell()` says whether the page runs inside the shell; a browser tab on
 the same server does not, and every surface that needs the shell draws
 nothing there. The suites answer those calls through Tauri's own IPC mock
-(`apps/workspace/src/shell/__tests__/mock-shell.ts`), so they run the real command names
+(`apps/workspace/src/shell/test-support/mock-shell.ts`), so they run the real command names
 and the answer parse. The commands are granted when the shell
 opens the window, to that window and the server's exact origin alone
 (`grant_app_window` in `src-tauri/src/window.rs`), since the port is the

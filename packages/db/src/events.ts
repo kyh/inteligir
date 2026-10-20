@@ -3,12 +3,11 @@
 import type { ProviderFailure, ThreadEvent } from "@repo/domain/provider-event";
 import { getThreadEventItemRef, threadEventSchema } from "@repo/domain/provider-event";
 import { getThreadEventScopeTurnId } from "@repo/domain/thread-event-scope";
-import { and, desc, eq, gt, inArray, isNull, lt, max, sql } from "drizzle-orm";
-import type { SQL } from "drizzle-orm";
+import { and, desc, eq, gt, max, sql } from "drizzle-orm";
 import type { DbConnection, DbExecutor, DbTransaction } from "./connection";
 import { createEventId } from "./ids";
 import { readJsonColumn } from "./json-column";
-import { events, queuedThreadMessages } from "./schema";
+import { events } from "./schema";
 
 export type EventRow = typeof events.$inferSelect;
 
@@ -20,13 +19,6 @@ export interface StoredThreadEvent {
 
 export interface AppendEventsResult {
   sequences: number[];
-}
-
-export interface AppendSyncedEventsResult extends AppendEventsResult {
-  // the rows that landed, not a count: lifecycle projection runs over exactly these, and
-  // replaying a turn/started whose completion fell past a page boundary would leave a finished
-  // turn active.
-  applied: readonly SyncedEventInput[];
 }
 
 export interface MissingTurnStartedDetails {
@@ -64,36 +56,18 @@ const hasStoredTurnStarted = (
     .limit(1)
     .get() !== undefined;
 
-export interface SyncedEventOrigin {
-  deviceId: string;
-  deviceSeq: number;
-}
-
-export interface SyncedEventInput {
-  event: ThreadEvent;
-  origin: SyncedEventOrigin;
-}
-
-interface AppendInput {
-  event: ThreadEvent;
-  origin: SyncedEventOrigin | null;
-}
-
-// one query per writing device, not one per row.
-const originKey = (deviceId: string, deviceSeq: number): string => `${deviceId} ${deviceSeq}`;
-
 // the high-water read and the inserts share the caller's writeTransaction, whose write lock is
 // taken up front, so two writers cannot allocate the same (threadId, sequence); the unique index
 // is only the backstop.
-const appendInTransaction = (
+export const appendEventsInTransaction = (
   tx: DbTransaction,
-  eventInputs: readonly AppendInput[],
+  eventInputs: readonly ThreadEvent[],
 ): AppendEventsResult => {
   if (eventInputs.length === 0) {
     return { sequences: [] };
   }
 
-  const threadIds = [...new Set(eventInputs.map((input) => input.event.threadId))];
+  const threadIds = [...new Set(eventInputs.map((input) => input.threadId))];
   const nextSequenceByThreadId = new Map<string, number>();
   for (const threadId of threadIds) {
     const row = tx
@@ -116,8 +90,6 @@ const appendInTransaction = (
       id: sql.placeholder("id"),
       itemId: sql.placeholder("itemId"),
       itemKind: sql.placeholder("itemKind"),
-      originDeviceId: sql.placeholder("originDeviceId"),
-      originDeviceSeq: sql.placeholder("originDeviceSeq"),
       scopeKind: sql.placeholder("scopeKind"),
       sequence: sql.placeholder("sequence"),
       threadId: sql.placeholder("threadId"),
@@ -130,7 +102,7 @@ const appendInTransaction = (
   for (const input of eventInputs) {
     // the static type pairs each event with its scope but admits an empty turn id; this parse
     // refuses one, and the sql CHECK is only a backstop.
-    const event = threadEventSchema.parse(input.event);
+    const event = threadEventSchema.parse(input);
     const turnId = getThreadEventScopeTurnId(event.scope) ?? null;
     if (turnId !== null) {
       const key = `${event.threadId}\u0000${turnId}`;
@@ -159,8 +131,6 @@ const appendInTransaction = (
       id: createEventId(),
       itemId: itemRef.itemId,
       itemKind: itemRef.itemKind,
-      originDeviceId: input.origin?.deviceId ?? null,
-      originDeviceSeq: input.origin?.deviceSeq ?? null,
       scopeKind: event.scope.kind,
       sequence,
       threadId: event.threadId,
@@ -173,57 +143,6 @@ const appendInTransaction = (
   }
 
   return { sequences };
-};
-
-const storedOrigins = (tx: DbTransaction, origins: readonly SyncedEventOrigin[]): Set<string> => {
-  const byDevice = new Map<string, number[]>();
-  for (const origin of origins) {
-    const positions = byDevice.get(origin.deviceId) ?? [];
-    positions.push(origin.deviceSeq);
-    byDevice.set(origin.deviceId, positions);
-  }
-  const stored = new Set<string>();
-  for (const [deviceId, positions] of byDevice) {
-    const rows = tx
-      .select({ deviceSeq: events.originDeviceSeq })
-      .from(events)
-      .where(and(eq(events.originDeviceId, deviceId), inArray(events.originDeviceSeq, positions)))
-      .all();
-    for (const row of rows) {
-      if (row.deviceSeq !== null) {
-        stored.add(originKey(deviceId, row.deviceSeq));
-      }
-    }
-  }
-  return stored;
-};
-
-export const appendEventsInTransaction = (
-  tx: DbTransaction,
-  eventInputs: readonly ThreadEvent[],
-): AppendEventsResult =>
-  appendInTransaction(
-    tx,
-    eventInputs.map((event) => ({ event, origin: null })),
-  );
-
-// a row whose (device, position) is already stored is skipped: a re-pair resets the cursor and
-// replays the whole log.
-export const appendSyncedEventsInTransaction = (
-  tx: DbTransaction,
-  inputs: readonly SyncedEventInput[],
-): AppendSyncedEventsResult => {
-  if (inputs.length === 0) {
-    return { applied: [], sequences: [] };
-  }
-  const stored = storedOrigins(
-    tx,
-    inputs.map((input) => input.origin),
-  );
-  const applied = inputs.filter(
-    (input) => !stored.has(originKey(input.origin.deviceId, input.origin.deviceSeq)),
-  );
-  return { ...appendInTransaction(tx, applied), applied };
 };
 
 export interface UnreadableStoredEvent {
@@ -273,32 +192,6 @@ export const listStoredThreadEvents = (
   return stored;
 };
 
-// a thread-scoped row names no turn and no item, so spelling out both nulls seeks the
-// (thread, turn, type, item) index, where (thread, type) alone walks the whole thread inside every
-// turn start's write lock.
-const threadScopedRows = (threadId: string, type: ThreadEvent["type"]): SQL | undefined =>
-  and(
-    eq(events.threadId, threadId),
-    isNull(events.turnId),
-    eq(events.type, type),
-    isNull(events.itemId),
-  );
-
-type ThreadMetaEvent = Extract<ThreadEvent, { type: "thread/meta" }>;
-
-// the facts a thread's log has stated about it, oldest first.
-export const listThreadMetaEvents = (db: DbExecutor, threadId: string): ThreadMetaEvent[] =>
-  db
-    .select({ data: events.data })
-    .from(events)
-    .where(threadScopedRows(threadId, "thread/meta"))
-    .orderBy(events.sequence)
-    .all()
-    .flatMap((row) => {
-      const event = readStoredEvent(row.data);
-      return event?.type === "thread/meta" ? [event] : [];
-    });
-
 // the class of the latest error a turn's own rows record, or null when none carries one.
 export const storedTurnFailure = (
   db: DbExecutor,
@@ -321,100 +214,6 @@ export const storedTurnFailure = (
   return event?.type === "provider/error" ? (event.failure ?? null) : null;
 };
 
-const requestDispatchId = sql`json_extract(${events.data}, '$.dispatchId')`;
-
-// a phone's dispatch runs once on this device, and its ledger is what the send already writes: the
-// request that carries it, pulled from another device's log or appended here, or the queued message
-// that will become one. so a claim that lapsed before its ack, handed over again, finds itself here.
-export const threadHoldsDispatch = (
-  db: DbExecutor,
-  args: { threadId: string; dispatchId: string },
-): boolean =>
-  db
-    .select({ id: events.id })
-    .from(events)
-    .where(
-      and(
-        threadScopedRows(args.threadId, "client/turn/requested"),
-        eq(requestDispatchId, args.dispatchId),
-      ),
-    )
-    .limit(1)
-    .get() !== undefined ||
-  db
-    .select({ id: queuedThreadMessages.id })
-    .from(queuedThreadMessages)
-    .where(
-      and(
-        eq(queuedThreadMessages.threadId, args.threadId),
-        eq(queuedThreadMessages.dispatchId, args.dispatchId),
-      ),
-    )
-    .limit(1)
-    .get() !== undefined;
-
-// the dispatch a turn carries out: the one its request named, which is the last request the thread
-// held when the turn started, since a request is recorded before any turn id exists. both rows are
-// this device's own: a request pulled from another device's log lands between them by arrival, and
-// was never this turn's.
-export const turnDispatchId = (
-  db: DbExecutor,
-  args: { threadId: string; turnId: string },
-): string | null => {
-  const started = db
-    .select({ sequence: events.sequence })
-    .from(events)
-    .where(
-      and(
-        eq(events.threadId, args.threadId),
-        eq(events.turnId, args.turnId),
-        eq(events.type, "turn/started"),
-        isNull(events.originDeviceId),
-      ),
-    )
-    .limit(1)
-    .get();
-  if (started === undefined) {
-    return null;
-  }
-  const request = db
-    .select({ data: events.data })
-    .from(events)
-    .where(
-      and(
-        threadScopedRows(args.threadId, "client/turn/requested"),
-        isNull(events.originDeviceId),
-        lt(events.sequence, started.sequence),
-      ),
-    )
-    .orderBy(desc(events.sequence))
-    .limit(1)
-    .get();
-  const event = request === undefined ? null : readStoredEvent(request.data);
-  return event?.type === "client/turn/requested" ? (event.dispatchId ?? null) : null;
-};
-
 export const threadHasEvents = (db: DbExecutor, threadId: string): boolean =>
   db.select({ id: events.id }).from(events).where(eq(events.threadId, threadId)).limit(1).get() !==
   undefined;
-
-// crash recovery asks this before failing a turn: a turn another device started is running
-// elsewhere, and failing it here would sync a fabricated failure back to it.
-export const turnStartOriginDeviceId = (
-  db: DbExecutor,
-  args: { threadId: string; turnId: string },
-): string | null => {
-  const row = db
-    .select({ deviceId: events.originDeviceId })
-    .from(events)
-    .where(
-      and(
-        eq(events.threadId, args.threadId),
-        eq(events.turnId, args.turnId),
-        eq(events.type, "turn/started"),
-      ),
-    )
-    .limit(1)
-    .get();
-  return row?.deviceId ?? null;
-};

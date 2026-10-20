@@ -1,5 +1,4 @@
-import type { ContractRouterClient } from "@orpc/contract";
-import type { LocalContract } from "@repo/contract/local";
+import type { LocalClient } from "@repo/contract/local";
 import { THREAD_ID_ENV_VAR } from "@repo/domain/agent-shell-env";
 import { systemOpenExternalUrl } from "./server/browser-opener";
 import type { OpenExternalUrl } from "./server/browser-opener";
@@ -10,8 +9,6 @@ import type { LocalClientArgs } from "./server/local-client";
 import { readCliVersion } from "./paths";
 import { resolveServer } from "./server-discovery";
 import type { ResolvedServer } from "./server-discovery";
-
-export type Api = ContractRouterClient<LocalContract>;
 
 export interface CliDeps {
   env: NodeJS.ProcessEnv;
@@ -53,7 +50,7 @@ export const contextThreadId = (env: NodeJS.ProcessEnv): string | undefined => {
 
 // from an agent's shell every call names its thread, so a vault write it makes joins that turn's
 // commit like one the agent's own tools made.
-export const apiFor = (deps: Pick<CliDeps, "env" | "resolveServer">): Api => {
+export const apiFor = (deps: Pick<CliDeps, "env" | "resolveServer">): LocalClient => {
   const server = deps.resolveServer();
   const client: LocalClientArgs = {
     origin: server.baseUrl,

@@ -6,15 +6,16 @@
 
 import { nativeFrameScript, parsePageFrame } from "@repo/mobile-editor/bridge-protocol";
 import type {
+  EditInit,
   NativeFrame,
   PageFrame,
-  PageInit,
   RequestKind,
   RequestPayload,
   RequestResult,
   Unstamped,
 } from "@repo/mobile-editor/bridge-protocol";
 import { messageOf } from "../lib/error-message";
+import { sameDocument } from "../lib/same-document";
 
 // every question the page asks, answered by the phone
 export type EditorRequestPorts = {
@@ -26,7 +27,7 @@ export type EditorPageEvent = Exclude<PageFrame, { type: "request" | "ready" | "
 
 // what the phone tells a loaded page on its own
 export type EditorNativeEvent = Unstamped<
-  Extract<NativeFrame, { type: "vaultChanged" | "commentMeta" | "commentsRemoved" }>
+  Extract<NativeFrame, { type: "vaultChanged" | "annotationMeta" | "annotationsRemoved" }>
 >;
 
 // the part of the WebView the host drives
@@ -41,7 +42,7 @@ export interface EditorHostArgs {
   // what the first load's `init` says; a later load opens the note the page last said it shows,
   // which a rename moves, with no focus, since the keyboard it would raise is one the user never
   // asked for again
-  init: Omit<PageInit, "nonce" | "type">;
+  init: Omit<EditInit, "mode" | "nonce" | "type">;
   mintNonce: () => string;
   ports: EditorRequestPorts;
   onEvent: (event: EditorPageEvent) => void;
@@ -66,20 +67,6 @@ export interface EditorHost {
 // long enough for a serialize and a write through the bridge, short enough that leaving a note
 // never waits on a page that stopped answering
 const FLUSH_TIMEOUT_MS = 3000;
-
-// a fragment never names another document, and WebKit may hand back escapes the uri was given raw
-const documentOf = (url: string): string => {
-  const hash = url.indexOf("#");
-  const bare = hash === -1 ? url : url.slice(0, hash);
-  try {
-    return decodeURI(bare);
-  } catch {
-    return bare;
-  }
-};
-
-const sameDocument = (url: string, pageUrl: string): boolean =>
-  documentOf(url) === documentOf(pageUrl);
 
 const isHttpUrl = (url: string): boolean => /^https?:\/\//iu.test(url);
 
@@ -185,6 +172,7 @@ export const createEditorHost = (args: EditorHostArgs): EditorHost => {
     deliver({
       ...args.init,
       focus: first ? args.init.focus : null,
+      mode: "edit",
       nonce,
       path,
       type: "init",

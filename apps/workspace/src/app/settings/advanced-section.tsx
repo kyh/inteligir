@@ -10,7 +10,6 @@ import { describeSyncConflict } from "@repo/notes/sync/conflict-copy";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { Switch } from "@repo/ui/components/switch";
-import { plural } from "@repo/ui/lib/plural";
 import { useState } from "react";
 import type { DiagnosticsState } from "../../shell/diagnostics-state";
 import { useCloudSession } from "../cloud-session";
@@ -114,14 +113,8 @@ export const VaultSyncRows = ({
   );
 };
 
-export interface ThreadSyncRowsProps {
-  status: CloudStatusResponse | undefined;
-  nowMs: number;
-  pending: boolean;
-  onSync: () => void;
-}
-
-export const ThreadSyncRows = ({ status, nowMs, pending, onSync }: ThreadSyncRowsProps) => {
+// the account's own state: the library rides it as the hosted remote, read above
+export const AccountRows = ({ status }: { status: CloudStatusResponse | undefined }) => {
   if (status === undefined) {
     return <Waiting />;
   }
@@ -164,40 +157,19 @@ export const ThreadSyncRows = ({ status, nowMs, pending, onSync }: ThreadSyncRow
     }
     case "signed-in": {
       return (
-        <div className="space-y-2">
-          <dl className="space-y-1.5">
-            <Row label="State">
-              <Raw>
-                {status.state} · {status.connected ? "following" : "polling"}
-              </Raw>
-            </Row>
-            <Row label="Device">
-              <Raw>{status.deviceId}</Raw>
-            </Row>
-            <Row label="Queued">
-              <span className="text-body">{plural(status.pending, "event")}</span>
-            </Row>
-            <Row label="Dropped">
-              <span className="text-body">
-                {status.dropped === 0
-                  ? "None"
-                  : `${plural(status.dropped, "event")} never reached the cloud`}
-              </span>
-            </Row>
-            <Row label="Cursor">
-              <Raw>{status.cursor}</Raw>
-            </Row>
-            <Row label="Last sync">
-              <span className="text-body">{lastSyncLabel(status.lastSyncedAt, nowMs)}</span>
-            </Row>
-            <Row label="Last error">
-              <RawError error={status.lastError} />
-            </Row>
-          </dl>
-          <Button size="compact" variant="tertiary" disabled={pending} onClick={onSync}>
-            Sync threads now
-          </Button>
-        </div>
+        <dl className="space-y-1.5">
+          <Row label="State">
+            <Raw>
+              {status.state} · {status.connected ? "following" : "polling"}
+            </Raw>
+          </Row>
+          <Row label="Device">
+            <Raw>{status.deviceId}</Raw>
+          </Row>
+          <Row label="Last error">
+            <RawError error={status.lastError} />
+          </Row>
+        </dl>
       );
     }
     default: {
@@ -303,7 +275,7 @@ export const DiagnosticsRows = ({ system }: { system: SystemStatusResponse | und
 export const AdvancedSection = () => {
   const vault = useVaultStatus().data;
   const system = useSystemStatus().data;
-  const { status: cloud, pending, syncThreads } = useCloudSession();
+  const { status: cloud } = useCloudSession();
   const now = useNow(LAST_SYNC_TICK_MS);
 
   return (
@@ -315,8 +287,8 @@ export const AdvancedSection = () => {
         </dl>
         <VaultSyncRows status={vault} nowMs={now} />
       </Group>
-      <Group title="Thread sync">
-        <ThreadSyncRows status={cloud} nowMs={now} pending={pending} onSync={syncThreads} />
+      <Group title="Account">
+        <AccountRows status={cloud} />
       </Group>
       <Group title="Diagnostics">
         <DiagnosticsRows system={system} />

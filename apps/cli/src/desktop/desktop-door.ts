@@ -65,7 +65,7 @@ type DoorTarget = ReturnType<typeof describeTarget>;
 type DoorOpening = Omit<Extract<FirstRunPlan, { kind: "open" }>, "kind">;
 
 // what each question answers: the shell's serde types in launch.rs read these, held to them by the
-// door's test schemas (__tests__/door-answers.ts) and tools/repo-guards/src/desktop-shell-wire.test.ts
+// door's test schemas (test-support/door-answers.ts) and tools/repo-guards/src/desktop-shell-wire.test.ts
 export interface DoorAnswers {
   launch: {
     env: Record<string, string>;

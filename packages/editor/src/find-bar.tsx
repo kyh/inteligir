@@ -33,6 +33,7 @@ import { platformShortcutModifier, spellHotkey } from "@repo/ui/lib/hotkey-spell
 
 import { editorShortcutFor } from "@repo/editor/editor-shortcuts";
 import type { EditorShortcut } from "@repo/editor/editor-shortcuts";
+import { revealCentered } from "@repo/editor/scroll-reveal";
 
 export type FindBarShortcutAction = "find-next" | "find-previous" | "open-replace" | "replace-all";
 
@@ -47,7 +48,7 @@ const REPLACE_ALL_SHORTCUT: EditorShortcut<FindBarShortcutAction> = {
 export const FIND_BAR_SHORTCUTS: readonly EditorShortcut<FindBarShortcutAction>[] = [
   { action: "find-next", hotkey: "mod+g", label: "Next match" },
   { action: "find-previous", hotkey: "mod+shift+g", label: "Previous match" },
-  { action: "open-replace", hotkey: "mod+alt+f", label: "Find and replace in the note" },
+  { action: "open-replace", hotkey: "mod+alt+f", label: "Find and replace" },
   REPLACE_ALL_SHORTCUT,
 ];
 
@@ -164,7 +165,9 @@ const scrollToMatch = (editor: SlateEditor, match: TRange): void => {
     const domRange = editor.api.toDOMRange(match);
     const container = domRange?.startContainer;
     const target = container instanceof Element ? container : (container?.parentElement ?? null);
-    target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (target !== null) {
+      revealCentered(target);
+    }
   } catch {
     // a leaf the view has not drawn has no DOM range
   }
@@ -354,8 +357,8 @@ const OpenFindBar = () => {
         <SearchIcon className="size-3.5 shrink-0 text-muted-foreground" />
         <input
           ref={inputRef}
-          aria-label="Find in note"
-          placeholder="Find in note"
+          aria-label="Find"
+          placeholder="Find…"
           value={search.query}
           onChange={(event) => {
             setFindQuery(editor, event.target.value);

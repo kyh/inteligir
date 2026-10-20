@@ -1,6 +1,6 @@
 import { configDefaults, defineConfig } from "vitest/config";
 
-// the workspace UI's own suites under the server they boot in-process (src/workspace/__tests__)
+// the workspace UI's own suites under the server they boot in-process (src/workspace/)
 const BOOTED_DOM_SUITES = "src/**/*.booted.test.tsx";
 // the workspace UI's modules driven over that server, with nothing rendered
 const WORKSPACE_MODULE_SUITES = "src/workspace/**/*.test.ts";
@@ -29,7 +29,7 @@ export default defineConfig({
         // transform these run under. No console.error gate either: the server logs every refused
         // call by design.
         test: {
-          environment: "./src/workspace/__tests__/jsdom-ssr-environment.ts",
+          environment: "./src/workspace/test-support/jsdom-ssr-environment.ts",
           include: [BOOTED_DOM_SUITES],
           name: "workspace-booted",
           setupFiles: [

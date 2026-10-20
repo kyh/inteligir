@@ -9,6 +9,9 @@ import { useEditorRef, useEditorSelector } from "platejs/react";
 import { cn } from "@repo/ui/lib/cn";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 
+import { holdInView } from "@repo/editor/run-anchoring";
+import { isNearInScroller } from "@repo/editor/scroll-reveal";
+
 export interface HeadingItem {
   id: string;
   path: Path;
@@ -26,11 +29,17 @@ const HEADER_OFFSET = 64;
 
 const SCROLL_DURATION_MS = 200;
 
-// `behavior: "smooth"` is ignored by scrollIntoView and scrollTo on this scroller.
+// `behavior: "smooth"` is ignored by scrollIntoView and scrollTo on this scroller. A far heading is
+// jumped to, since a tween across runs not yet drawn aims where the heading was before they drew.
 const tweenScrollTo = (scroller: Element, el: HTMLElement): void => {
   const from = scroller.scrollTop;
   const to =
     el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + from - HEADER_OFFSET;
+  if (!isNearInScroller(el, scroller)) {
+    scroller.scrollTop = to;
+    holdInView(el);
+    return;
+  }
   const start = performance.now();
   const step = (now: number) => {
     const t = Math.min(1, (now - start) / SCROLL_DURATION_MS);
@@ -146,6 +155,69 @@ const sameHeadings = (a: readonly HeadingItem[], b: readonly HeadingItem[]): boo
 // every heading
 const TOC_MIN_HEADINGS = 3;
 
+const RUN = "[data-slate-chunk]";
+
+// the last of these boxes whose top is at or above the line, by bisection; -1 when none is
+const lastAtOrAbove = (boxes: readonly Element[], y: number): number => {
+  let low = 0;
+  let high = boxes.length - 1;
+  let found = -1;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const box = boxes[mid];
+    if (box !== undefined && box.getBoundingClientRect().top <= y) {
+      found = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return found;
+};
+
+// the last heading at or above the scanner line, found by bisection. A long note's run off screen
+// holds its estimated height while a heading measured inside it lays out at its real one, past
+// the box, so a heading's top orders only within its run: the runs' own boxes, which stack in
+// order, place the line first, and only the headings of the run it falls in are measured. A
+// heading the dom does not hold reads as above the line, so the predicate stays monotone.
+export const activeHeadingAt = (
+  editor: SlateEditor,
+  headings: readonly HeadingItem[],
+  scroller: Element,
+): number => {
+  const scannerY = scroller.getBoundingClientRect().top + HEADER_OFFSET + 8;
+  const editable = editor.api.toDOMNode(editor);
+  const runs = editable === undefined ? [] : [...editable.querySelectorAll(`:scope > ${RUN}`)];
+  const runOf = new Map(runs.map((run, index) => [run, index]));
+  const scannerRun = lastAtOrAbove(runs, scannerY);
+  const above = (index: number): boolean => {
+    const heading = headings[index];
+    const el = heading === undefined ? null : headingElement(editor, heading);
+    if (el === null) {
+      return true;
+    }
+    const run = el.closest(RUN);
+    const at = run === null ? undefined : runOf.get(run);
+    if (at !== undefined && at !== scannerRun) {
+      return at < scannerRun;
+    }
+    return el.getBoundingClientRect().top <= scannerY;
+  };
+  let low = 0;
+  let high = headings.length - 1;
+  let active = 0;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    if (above(mid)) {
+      active = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return active;
+};
+
 export const TableOfContents = () => {
   const editor = useEditorRef();
   const headings = useEditorSelector(() => collectHeadings(editor), [], {
@@ -161,21 +233,26 @@ export const TableOfContents = () => {
     if (!scroller || headings.length === 0) {
       return;
     }
-    const onScroll = () => {
-      const scannerY = scroller.getBoundingClientRect().top + HEADER_OFFSET + 8;
-      let active = 0;
-      for (const [i, heading] of headings.entries()) {
-        const el = headingElement(editor, heading);
-        if (el !== null && el.getBoundingClientRect().top <= scannerY) {
-          active = i;
-        }
-      }
-      setActiveIndex(active);
+    // once per frame however many scroll events it holds, and by bisection, since the headings
+    // sit in document order: measuring each one per event laid out the whole note, where a long
+    // note's runs off screen skip their layout until something asks
+    let frame: number | null = null;
+    const spy = () => {
+      frame = null;
+      setActiveIndex(activeHeadingAt(editor, headings, scroller));
     };
-    onScroll();
+    const onScroll = () => {
+      if (frame === null) {
+        frame = requestAnimationFrame(spy);
+      }
+    };
+    spy();
     scroller.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       scroller.removeEventListener("scroll", onScroll);
+      if (frame !== null) {
+        cancelAnimationFrame(frame);
+      }
     };
   }, [headings, editor]);
 

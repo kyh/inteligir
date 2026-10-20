@@ -12,7 +12,9 @@ import type { HarnessId } from "@repo/domain/harness";
 import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
 import type { AppConfig } from "../config";
 import type { DebugLog } from "../debug-log";
+import type { ItemsService } from "../items/items-service";
 import type { VaultRuntime } from "../vault/vault-runtime";
+import { promptFactsFor } from "./agent-instructions";
 import { createBoundedAgentLog } from "./agent-log";
 import type { AgentSessionFacts } from "./agent-shell-env";
 import { AcpTurnDriver } from "./runtime-manager";
@@ -27,6 +29,8 @@ export interface ResolveAgentDriverArgs {
   notifier: DbNotifier;
   vault: VaultRuntime;
   sink: ProviderEventSink;
+  // the scripted driver's save directive; the acp agents save through their own shell
+  items: Pick<ItemsService, "saveLink" | "saveFile">;
   // a getter, read per session open, so a Settings edit reaches the next session without a reboot.
   sessionFacts: () => AgentSessionFacts;
   // the stored default, read per thread start for the same reason.
@@ -59,8 +63,10 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
   if (mode === "scripted") {
     const scripted: ScriptedDriverDeps = {
       git: args.vault.git,
+      items: args.items,
       notifier: args.notifier,
       onError: onDebug,
+      promptFacts: () => promptFactsFor(args.sessionFacts(), args.config.vaultDir),
       vault: args.vault.service,
     };
     return { driver: new ScriptedTurnDriver(args.sink, scripted), status: () => ({ mode }) };

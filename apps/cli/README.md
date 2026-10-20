@@ -82,13 +82,14 @@ agent shells are given.
 
 ## Command surface
 
-`serve` · `open` · `vault
+`serve` · `open` · `save` · `items` · `item show|find|refresh` · `vault
 list|read|history|revision|restore|write|rename|delete|deleted|mkdir|new-id|attachments|remote|open|status|sync`
 · `search` (`tag:` terms pass through) · `matches` · `backlinks` · `related` ·
-`unlinked` · `problems` · `tags` · `tag notes|rename` · `action
-list|new|send|show|stop|wait|archive|changes|undo` · `comment list|add|reply|resolve|remove` ·
+`tags` · `tag add|remove|rename` · `import raindrop|status|cancel` · `action
+list|new|send|show|stop|wait|archive|changes|undo` · `annotation list|add|edit|reply|remove` ·
 `interactions list|answer` · `agents list|default` · `folders
-list|add|remove` · `cloud status|login|sync` · `status` · `guide`.
+list|add|remove` · `cloud status|login` · `status` · `guide` ·
+`native-host` (hidden: the browser extension's door, which Chrome starts).
 
 Exit codes: 0 success · 1 error (including an action settling in error) ·
 2 `action wait` timeout · 3 no server reachable · 4 `action wait
@@ -145,7 +146,7 @@ admitted the call, and a thread with no turn running records nothing.
 
 The served manual (`src/server/guide/cli-skill.ts`) must name every leaf
 command AND every flag those leaves accept —
-`src/__tests__/guide-covers-commands.test.ts` walks the real citty tree against
+`src/guide-covers-commands.test.ts` walks the real citty tree against
 the guide's rendered bytes, never its source, and against § Command surface
 above, which must list every leaf and no other.
 `json-flag-enforcement.test.ts` (bb's pattern, MIT) walks the same tree and
@@ -247,28 +248,31 @@ The published surface is the bin and nothing else: `publishConfig.exports` is
 `package.json` is a WORKSPACE seam — apps/desktop's smoke compiles against
 `inteligir/scripts/smoke-lib`, tools/e2e and tools/repo-guards against
 `inteligir/server/*`, and repo-guards' shell-wire guard against
-`inteligir/desktop/door-answers`, the door's answer schemas kept beside its
-tests in `src/desktop/__tests__/` — and it is unshippable
-as written, since those modules target `src/`, which `files` does not carry,
-and import devDependencies and unpublished `@repo/*` packages. Advertising a
-subpath a real install answers with ERR_MODULE_NOT_FOUND is the failure this
-closes.
+`inteligir/desktop/door-answers`, the door's answer schemas its tests share
+(`src/desktop/test-support/`) — and it is unshippable as written, since those
+modules target `src/`, which `files` does not carry, and import devDependencies
+and unpublished `@repo/*` packages. Advertising a subpath a real install
+answers with ERR_MODULE_NOT_FOUND is the failure this closes.
 
 ## Tests
 
-Unit suites run the real program object against an in-process server built from
-the SAME contract (so the fixture cannot drift) — output goldens, `action wait`
-exit codes, discovery resolution. Where the fixture answers from a rule, it runs
-the server's own: the knowledge index over its vault, and the guarded write's
-verdict (`src/server/vault/write-guard.ts`). The server's own suites sit under
-`src/server/__tests__/`; the cloud ones run against a fake cloud that answers
-the inbox table the Worker's suite runs
-(`@repo/contract/cloud/test-support/inbox-scenarios`). The workspace UI's
-suites that boot this server in-process sit under `src/workspace/__tests__/`,
-beside the harness they use (`src/server/__tests__/boot-app.ts`), so the page
-never depends on this package: the `.booted.test.tsx` ones render the page
-under jsdom, the rest drive its modules with nothing rendered and fail a test
-that logs a `console.error`, as the page's own suites do (`vitest.config.ts`,
-a project each), and `src/workspace/tsconfig.json` compiles them with the DOM.
-The real-server integration lives in `e2e` (`cli-drive`): the CLI drives a
-booted instance under the scripted agent.
+Unit suites run the real program object against the real composition, booted
+in-process and listening on loopback (`src/test-support/booted-cli.ts`): each
+verb finds the server through the `server.json` in its data dir and sends its
+bearer, as the binary does, and what a case reads back the server produced from
+state the case put there through its own services — output goldens, `action
+wait` exit codes, a guarded write's refusal. The one thing no real state gives,
+every route refusing at once, is the real router's own handler refusing before
+any procedure runs (`json-flag-enforcement.test.ts`). There is no second
+implementation of `/local` to drift from it. The server's own suites sit beside
+the modules they test under `src/server/`; the cloud ones run against a fake
+cloud that answers the device and account routes as the Worker does
+(`src/server/cloud/test-support/fake-cloud.ts`). The workspace UI's suites
+that boot this server in-process sit under `src/workspace/`, in the package that
+holds the harness they use (`src/server/test-support/boot-app.ts`), so the page
+never depends on this package: the `.booted.test.tsx` ones render the page under
+jsdom, the rest drive its modules with nothing rendered and fail a test that
+logs a `console.error`, as the page's own suites do (`vitest.config.ts`, a
+project each), and `src/workspace/tsconfig.json` compiles them with the DOM.
+The binary as a process of its own lives in `e2e` (`cli-drive`): it drives a
+served instance under the scripted agent.

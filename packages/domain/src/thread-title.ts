@@ -1,5 +1,5 @@
-// one reading of a message's first line, so the server naming a thread from its first message
-// and the phone projecting a synced one agree on every device.
+// one reading of a message's first line, so every place that names a thread from its first
+// message names it alike.
 
 const THREAD_TITLE_MAX_CHARS = 60;
 

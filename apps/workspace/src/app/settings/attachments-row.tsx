@@ -1,4 +1,4 @@
-import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/templates/folders";
+import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/knowledge/asset-name";
 import type { AttachmentLocation } from "@repo/contract/local/vault/vault-schema";
 import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
@@ -11,8 +11,8 @@ type Choice = AttachmentLocation["kind"];
 
 const CHOICES: readonly { value: Choice; label: string }[] = [
   { label: "A folder", value: "folder" },
-  { label: "Beside the note", value: "beside-note" },
-  { label: "Vault root", value: "root" },
+  { label: "Beside the item", value: "beside-note" },
+  { label: "Top of the library", value: "root" },
 ];
 
 export const AttachmentsRow = () => {

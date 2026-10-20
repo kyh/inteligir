@@ -39,15 +39,30 @@ export const usePinnedPaths = (): ReadonlySet<string> => {
   return new Set(targets.filter((target) => target.pinned === true).map((target) => target.path));
 };
 
-// a listing by path, not a search: the family's first `limit` notes and the whole count
-export const useNotesWithTag = (tag: string, limit: number) =>
-  useQuery(orpc.knowledge.tagNotes.queryOptions({ input: { limit, tag } }));
-
 export const useVaultStatus = () => useQuery(orpc.vault.status.queryOptions());
 
 // No change kind names this query, so it re-reads on every mount.
 export const useSystemStatus = () =>
   useQuery({ ...orpc.system.status.queryOptions(), staleTime: 0 });
+
+// the boot's media token every byte-route url carries; read from the cached status, which a
+// reconnect (a new boot, a new token) sweeps
+export const readMediaToken = async (queryClient: QueryClient): Promise<string> => {
+  const { mediaToken } = await queryClient.ensureQueryData(orpc.system.status.queryOptions());
+  return mediaToken;
+};
+
+// where the page's byte routes answer, and the token they take
+export interface MediaOrigin {
+  readonly origin: string;
+  readonly token: string;
+}
+
+// null until the status has answered once: no byte-route url is built without its token
+export const useMediaOrigin = (): MediaOrigin | null => {
+  const { data } = useQuery(orpc.system.status.queryOptions());
+  return data === undefined ? null : { origin: window.location.origin, token: data.mediaToken };
+};
 
 // Every sentence here is the user's, never the engine's: its own error text names git's
 // machinery, so the rail and a toast never show it, and Settings › Advanced shows it raw.
@@ -91,11 +106,11 @@ export const syncStateLabel = (status: VaultStatusResponse): string => {
     }
     case "full": {
       return status.remoteSource === "account"
-        ? "Cloud vault full — notes stay on this Mac"
+        ? "Online library full — new saves stay on this Mac"
         : SYNC_PAUSED;
     }
     case "account-mismatch": {
-      return "This vault belongs to a different account";
+      return "This library belongs to a different account";
     }
     case "rejected":
     case "detached":
@@ -192,7 +207,7 @@ export const syncStateNote = (status: VaultStatusResponse): SyncStateNote | null
   switch (status.state) {
     case "no-remote": {
       return status.externalSync === null
-        ? { message: "Sign in to sync your notes across devices.", tone: "info" }
+        ? { message: "Sign in to sync your library across devices.", tone: "info" }
         : {
             message: `${externalSyncName(status.externalSync)} syncs this folder, so Inteligir leaves its sync to it.`,
             tone: "info",
@@ -227,8 +242,8 @@ export const syncStateNote = (status: VaultStatusResponse): SyncStateNote | null
       return {
         message:
           status.remoteSource === "account"
-            ? "Your vault is larger than your account can sync."
-            : `Your vault is too large for your sync server. ${DETAILS_IN_ADVANCED}`,
+            ? "Your library is larger than your account can sync."
+            : `Your library is too large for your sync server. ${DETAILS_IN_ADVANCED}`,
         tone: "error",
       };
     }
@@ -236,7 +251,7 @@ export const syncStateNote = (status: VaultStatusResponse): SyncStateNote | null
       return {
         message:
           status.remoteSource === "account"
-            ? "Your cloud vault is full. New changes stay on this Mac."
+            ? "Your online library is full. New saves stay on this Mac."
             : `Your sync server is out of space. ${DETAILS_IN_ADVANCED}`,
         tone: "error",
       };
@@ -244,7 +259,7 @@ export const syncStateNote = (status: VaultStatusResponse): SyncStateNote | null
     case "account-mismatch": {
       return {
         message:
-          "This vault last synced with a different account — sign out, or move the vault aside.",
+          "This library last synced with a different account — sign out, or move the library aside.",
         tone: "warning",
       };
     }

@@ -37,14 +37,24 @@ const closeServer = async (server: Server): Promise<void> => {
   });
 };
 
+// every port this run has handed out: lanes reserve in one process, and the kernel may hand one
+// lane's port, released for its child to bind, to the next lane's reservation before the child
+// has bound it. A run hands out a few hundred of some 28,000, so none is ever handed out twice
+const handedOut = new Set<number>();
+
 // held all at once before releasing: sequential reserve/release can hand the same port back twice.
 // concrete ports because the app refuses INTELIGIR_PORT=0; the release→spawn window is a race the
-// boot loop retries.
+// boot loop retries, against what another process binds meanwhile.
 export const reserveFreePorts = async (count: number): Promise<number[]> => {
   const held: HeldPort[] = [];
+  const fresh: number[] = [];
   try {
-    for (let index = 0; index < count; index += 1) {
-      held.push(await listenOnEphemeral());
+    while (fresh.length < count) {
+      const next = await listenOnEphemeral();
+      held.push(next);
+      if (!handedOut.has(next.port)) {
+        fresh.push(next.port);
+      }
     }
   } finally {
     await Promise.all(
@@ -53,5 +63,8 @@ export const reserveFreePorts = async (count: number): Promise<number[]> => {
       }),
     );
   }
-  return held.map(({ port }) => port);
+  for (const port of fresh) {
+    handedOut.add(port);
+  }
+  return fresh;
 };

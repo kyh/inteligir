@@ -31,7 +31,7 @@ export default defineConfig({
         d1Databases: ["DB"],
         r2Buckets: ["PACK_CACHE"],
         durableObjects: {
-          THREAD_SYNC: { className: "ThreadSyncDO", useSQLite: true },
+          ACCOUNT_SOCKET: { className: "ThreadSyncDO", useSQLite: true },
           REPO: { className: "RepoCell", useSQLite: true },
           REGISTRY: { className: "Registry", useSQLite: true },
         },
@@ -56,6 +56,6 @@ export default defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
     maxWorkers: 1,
-    setupFiles: ["./src/worker/__tests__/apply-schema.ts"],
+    setupFiles: ["./src/worker/test-support/apply-schema.ts"],
   },
 });

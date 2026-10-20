@@ -3,8 +3,8 @@
 
 import { deferred } from "@repo/editor/deferred";
 import type { Deferred } from "@repo/editor/deferred";
-import { diff3 } from "@repo/notes/text/diff3";
 import type { Diff3Result } from "@repo/notes/text/diff3";
+import { mergeItemTexts } from "@repo/notes/sync/url-item-verdict";
 
 // `landed` carries the bytes that landed: a host that merges in a concurrent change lands more than
 // it was sent, and `conflicted` says that merge kept the sent lines where both changed the same
@@ -75,7 +75,7 @@ const rebase = (from: string, buffer: string, landed: string): Diff3Result => {
   if (landed === from) {
     return { conflicted: false, merged: buffer };
   }
-  return diff3(from, buffer, landed);
+  return mergeItemTexts(from, buffer, landed);
 };
 
 // an echo of the buffer's own bytes (every save's) replaces nothing, so it leaves the seq alone.

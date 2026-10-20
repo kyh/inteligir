@@ -8,5 +8,5 @@
     "types": ["vite/client"],
     "tsBuildInfoFile": "${configDir}/../.cache/tsbuildinfo.page.json"
   },
-  "exclude": ["**/__tests__"]
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/test-support"]
 }

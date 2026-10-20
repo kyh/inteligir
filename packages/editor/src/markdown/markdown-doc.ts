@@ -44,7 +44,7 @@ export const gateReasonFor = (analysis: DocAnalysis): GateReason | null => {
 export const describeGateReason = (reason: GateReason): string => {
   switch (reason.kind) {
     case "too-deep": {
-      return "This note nests deeper than the rich editor can hold — opened in Raw";
+      return "This item nests deeper than the rich editor can hold — opened in Raw";
     }
     case "unstable": {
       return "Rich editing cannot settle this file's formatting — opened in Raw to protect it";
@@ -212,3 +212,33 @@ export const roundTrip = (md: string): string => {
 };
 
 export const toCanonical = (md: string): string => `${roundTrip(md).trimEnd()}\n`;
+
+// an imported page (the fill's article) written as the editor's own fixpoint: the bytes a rich
+// save of it would write, so the item opens rich and its first edit is a minimal diff.
+export interface ImportedDoc {
+  markdown: string;
+  // the share of the source's letters and digits the fixpoint still holds, which the caller weighs
+  // against a plainer spelling of the same page (an entity decoded, a mailto link unwrapped)
+  kept: number;
+}
+
+// null when the pipeline cannot settle the page (too deep, never stable, or a throw): a page is
+// hostile input, so no failure of the editor's own escapes the fill
+export const canonicalizeImported = (md: string): ImportedDoc | null => {
+  const sourceLetters = letters(md).length;
+  if (md.trim() === "") {
+    return { kept: 1, markdown: "" };
+  }
+  let markdown: string;
+  try {
+    markdown = toCanonical(md);
+    if (analyzeMarkdown(markdown).kind !== "canonical") {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+  const keptLetters = letters(markdown).length;
+  const kept = sourceLetters === 0 ? 1 : Math.min(keptLetters, sourceLetters) / sourceLetters;
+  return { kept, markdown };
+};

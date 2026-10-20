@@ -95,7 +95,8 @@ export const accountHosted: Scenario = {
     ctx.log("B's next request is refused: B reaches unauthorized");
     await pollUntil(
       async () => {
-        await b.api.cloud.syncNow();
+        // any request under B's credential hears the revocation; the refusal itself is expected
+        await safe(b.api.cloud.devices());
         return await b.api.cloud.status();
       },
       (status) => status.state === "unauthorized",

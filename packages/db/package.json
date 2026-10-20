@@ -12,7 +12,6 @@
     "./migrate": "./src/migrate.ts",
     "./pending-interactions": "./src/pending-interactions.ts",
     "./queued-messages": "./src/queued-messages.ts",
-    "./sync-outbox": "./src/sync-outbox.ts",
     "./threads": "./src/threads.ts"
   },
   "scripts": {
@@ -28,6 +27,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@kyh/tsconfig": "catalog:",
     "@types/better-sqlite3": "catalog:",
     "@types/node": "catalog:",
     "drizzle-kit": "catalog:",

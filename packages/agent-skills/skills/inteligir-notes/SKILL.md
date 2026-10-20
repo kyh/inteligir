@@ -1,14 +1,16 @@
 ---
 name: inteligir-notes
-description: The persisted note syntax for inteligir vaults. Read this before creating or editing any note, choosing a block, or writing a construct the editor must round-trip.
+description: The persisted syntax of every item in an inteligir library, notes and saved links alike. Read this before creating or editing any item, choosing a block, or writing a construct the editor must round-trip.
 ---
 
 # inteligir Notes
 
-A vault is a git repository of ordinary markdown files. Every note is one `.md`
-file; the app reads and writes those bytes and nothing else. Anything you write
-here a person can read in a plain text editor, and anything that survives a save
-is what this skill describes.
+A library is a folder of ordinary markdown files (a git repository the app
+calls the vault). Every item in it, a note the person wrote or a link, an
+image or a PDF they saved, is one `.md` file; the app reads and writes those
+bytes and nothing else. Anything you write here a person can read in a plain
+text editor, and anything that survives a save is what this skill describes.
+Before saving, filing or tagging an item, read `inteligir-items`.
 
 Read this first. Focused skills own the exact contract for the constructs that
 need one — they are listed at the bottom.
@@ -20,17 +22,21 @@ need one — they are listed at the bottom.
 2. **Bytes round-trip.** Every construct below survives an open-and-save
    unchanged. A construct spelled wrong does not error — it stays literal text,
    which is a silent failure. Follow the grammar exactly.
-3. **Preserve what you did not come to change.** Frontmatter keys, comment
+3. **Preserve what you did not come to change.** Frontmatter keys, annotation
    markers, formula identities, and unfamiliar syntax all stay as found.
 
 ## Layout
 
 ```plaintext
-vault/
+library/
+  AGENTS.md                      # the library's own filing rules, the person's
   Some Note.md
   Projects/Roadmap.md            # folders nest freely
-  assets/diagram.png             # images and media
-  .inteligir/comments/<id>.json  # a note's comments, keyed by its frontmatter id
+  Unsorted/File over app.md      # where a save lands until it is filed
+  assets/diagram.png             # images and media, and the originals of file items
+  assets/covers/<hash>.jpg       # saved links' covers, named by their bytes
+  assets/pages/<hash>.html       # kept copies of saved pages; never edit one
+  .inteligir/annotations/<id>.json  # an item's annotations, keyed by its frontmatter id
 ```
 
 The title is the filename, not a frontmatter field and not the H1. Renaming a
@@ -54,7 +60,7 @@ never invent, copy, or reassign one.
 | Source, logs, literal text, ASCII diagrams        | Fenced code                         | An image of text                             |
 | Rough spatial sketch with position and connectors | Canvas                              | Canvas for a generic diagram — use ASCII     |
 | Real interaction that must be clicked             | HTML block                          | Rebuilding tables, tabs, or callouts in HTML |
-| A question needing an answer                      | Comment                             | A `TODO:` line in the body                   |
+| A question needing an answer                      | Annotation                          | A `TODO:` line in the body                   |
 | A value reused or computed                        | Formula pill                        | Retyping the number                          |
 
 When two fit, take the one that reads faster.
@@ -204,7 +210,7 @@ otherwise read the marker as one of its own lines, and after a marker that a
 
 Code — inline or fenced — is inert: nothing inside it is parsed as a construct,
 which is how you write an example of any syntax on this page. In prose, a
-backslash before a date, a pill, a comment marker or a `:::` line keeps it
+backslash before a date, a pill, an annotation marker or a `:::` line keeps it
 plain text: `\@2026-08-22`, `\{{2+2}}`, `\:::`.
 
 Raw HTML beyond `<mark>`, `<u>`, and an existing preserved `<blockquote>`
@@ -213,10 +219,11 @@ belongs in an `inteligir-html` fence.
 ## Focused Contracts
 
 - Structure and readability: `inteligir-writing`
+- Items, saving, filing and tagging: `inteligir-items`
 - Frontmatter: `inteligir-frontmatter`
 - Links, embeds, media: `inteligir-links`
 - Formulas and variables: `inteligir-formulas`
-- Comments and the sidecar: `inteligir-comments`
+- Annotations and their store: `inteligir-annotations`
 - Canvas: `inteligir-canvas`
 - HTML blocks: `inteligir-html`
 
@@ -224,6 +231,7 @@ belongs in an `inteligir-html` fence.
 
 - Frontmatter (if any) opens the file, one H1 follows, then the body.
 - Every construct is spelled exactly as above — a callout is an alert.
-- Frontmatter, comment markers, and formula identities you did not come to
+- Frontmatter, annotation markers, and formula identities you did not come to
   change are byte-identical to what you found.
-- Nothing outside the vault's `.md` files and `assets/` was created.
+- Nothing outside the library's `.md` files and `assets/` was created, and a
+  saved link went through `inteligir save`, never a hand-written file.

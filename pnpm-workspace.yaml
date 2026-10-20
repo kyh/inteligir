@@ -24,7 +24,11 @@ catalog:
   # node-server held on 1.x: @hono/node-ws has no 2.x-compatible release; lift both together
   "@hono/node-server": ~1.19.17
   "@hono/node-ws": ^1.3.1
+  # every workspace's tsconfig extends its base.json, as kyh/init's do
+  "@kyh/tsconfig": ^1.3.0
   "@parcel/watcher": ^2.6.0
+  # the phone's stylesheet compiles through PostCSS under Metro, the web's through the vite plugin
+  "@tailwindcss/postcss": ^4.3.3
   "@tailwindcss/vite": ^4.3.3
   "@testing-library/dom": ^10.4.2
   "@testing-library/react": ^16.3.3
@@ -48,6 +52,8 @@ catalog:
   citty: ^0.2.2
   cn: ^0.4.0
   consola: ^3.4.2
+  # exact: 0.x output moves between patches; the fill corpus pins it
+  defuddle: 0.19.5
   drizzle-kit: 1.0.0-rc.4
   drizzle-orm: 1.0.0-rc.4
   # exact: `pnpm testflight:mobile` uploads the build through it, and apps/mobile/eas.json floors
@@ -60,9 +66,14 @@ catalog:
   expo-file-system: ~57.0.7
   expo-image-manipulator: ~57.0.21
   expo-image-picker: ~57.0.20
+  expo-linking: ~57.0.12
   expo-network: ~57.0.2
   expo-router: ~57.0.25
   expo-secure-store: ~57.0.4
+  # third-party (achorein/expo-share-intent), so `npx expo install --fix` does not manage it; its
+  # major tracks the Expo SDK (8.x peers expo ^57), and the `expo-*` ignore below skips it, so an
+  # SDK upgrade bumps it by hand
+  expo-share-intent: ~8.0.1
   expo-splash-screen: ~57.0.9
   expo-sqlite: ~57.0.4
   expo-status-bar: ~57.0.1
@@ -71,6 +82,13 @@ catalog:
   jsdom: ^30.1.2
   lucide-react: ^1.55.0
   nanoid: ^6.0.2
+  # exact: nativewind's one Tailwind 4 line is a preview, which moves between previews, and
+  # react-native-css is the build that preview is tested against; lift both when nativewind 5
+  # ships stable
+  nativewind: 5.0.0-preview.4
+  react-native-css: 3.0.7
+  # the PostCSS Expo runs the phone's sheet through, which the sheet's suite runs it through too
+  postcss: ^8.5.29
   # held under 19.3: @react-three/fiber 9 peers react <19.3
   react: ~19.2.8
   react-dom: ~19.2.8
@@ -79,6 +97,11 @@ catalog:
   react-native-screens: ~4.26.2
   # exact: the SDK's bundledNativeModules pins it, and `npx expo install --check` holds it there
   react-native-webview: 13.16.1
+  # exact, as react-native-webview is: the phone draws no animation, but react-native-css's runtime
+  # requires reanimated for a transition class and Metro resolves that require at bundle time, and
+  # worklets is reanimated 4's own peer
+  react-native-reanimated: 4.5.1
+  react-native-worklets: 0.10.1
   remark-frontmatter: ^5.0.0
   remark-gfm: ^4.0.1
   remark-parse: ^11.0.0
@@ -106,8 +129,14 @@ catalogs:
     react: 19.2.3
     typescript: ~6.0.3
 
+# a workspace's name written as a version range links this checkout's copy wherever that copy
+# satisfies it, rather than the registry's (`inteligir` is published); every manifest spells
+# `workspace:*`, so this decides only a slip
+linkWorkspacePackages: true
+
 # Expo-SDK-versioned names: `pnpm up --latest` must not move them past the SDK. Matched by name,
-# so react and typescript (shared with web) cannot be listed; their `expo:` rows are reverted by hand
+# so react and typescript (shared with web) cannot be listed; their `expo:` rows are reverted by hand.
+# nativewind too: its `latest` is the Tailwind 3 line, so a sweep would move the phone off Tailwind 4
 update:
   ignoreDeps:
     - expo
@@ -116,6 +145,7 @@ update:
     - react-native
     - react-native-*
     - "@react-native/*"
+    - nativewind
 
 # 24h supply-chain cooldown
 minimumReleaseAge: 1440
@@ -151,6 +181,11 @@ allowBuilds:
 overrides:
   # the adapter's auto-installed peer would otherwise resolve a second, newer core beside better-auth's
   "@better-auth/core": 1.7.2
+  # react-native-css compiles the phone's sheet with the lightningcss @expo/metro-config carries
+  # (its own peer only when that one is missing), and 3.0's visitor fails to deserialize under 1.30.2
+  # and later; scoped, since Tailwind pins its own, exactly. Lifted with react-native-css
+  "@expo/metro-config>lightningcss": 1.30.1
+  "react-native-css>lightningcss": 1.30.1
   "@types/react": "catalog:"
   # the catalog alone does not bind importers that don't spell `catalog:` (vitest's vite)
   vite: "catalog:"
@@ -172,3 +207,7 @@ patchedDependencies:
   # quadratic in its lines; the patch is upstream's open fix (micromark/micromark#233), dropped once a
   # release carries it
   micromark@4.0.3: patches/micromark@4.0.3.patch
+  # before every commit React reads the focused element's selection as text offsets, which for a
+  # contenteditable walks every node of the open note; the editor keeps its own selection, so the
+  # patch reads none there, dropped once a release stops walking it
+  react-dom@19.2.8: patches/react-dom@19.2.8.patch

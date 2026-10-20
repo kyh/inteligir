@@ -41,7 +41,7 @@ import type {
 import type { OpaqueInline } from "@repo/notes/markdown/remark-opaque";
 import { parseFormulaRaw } from "@repo/notes/markdown/remark-inline-constructs";
 import type {
-  CommentMarker,
+  AnnotationMarker,
   DateChip,
   FormulaPill,
 } from "@repo/notes/markdown/remark-inline-constructs";
@@ -57,7 +57,7 @@ import type { WikiEmbed, WikiLink } from "@repo/notes/markdown/remark-wiki-link"
 import {
   CANVAS_BLOCK_KEY,
   CHART_BLOCK_KEY,
-  COMMENT_MARKER_KEY,
+  ANNOTATION_MARKER_KEY,
   FORMULA_PILL_KEY,
   FRONTMATTER_KEY,
   HTML_BLOCK_KEY,
@@ -417,17 +417,17 @@ export const MD_RULES: MdRules = {
     }),
   },
 
-  [COMMENT_MARKER_KEY]: {
-    deserialize: (node: CommentMarker): TElement => ({
+  [ANNOTATION_MARKER_KEY]: {
+    deserialize: (node: AnnotationMarker): TElement => ({
       children: [{ text: "" }],
       edge: node.edge,
       ids: node.ids,
-      type: COMMENT_MARKER_KEY,
+      type: ANNOTATION_MARKER_KEY,
     }),
-    serialize: (node: TElement): CommentMarker => ({
+    serialize: (node: TElement): AnnotationMarker => ({
       edge: node.edge === "end" ? "end" : "start",
       ids: stringProp(node, "ids") ?? "",
-      type: "commentMarker",
+      type: "annotationMarker",
     }),
   },
 

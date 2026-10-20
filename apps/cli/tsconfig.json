@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
     "lib": ["ES2024"],
     "types": ["node"],
@@ -11,6 +11,11 @@
     "customConditions": ["node"]
   },
   "include": ["src", "vitest.config.ts"],
-  // the workspace UI's suites, a DOM program of their own (src/workspace/tsconfig.json)
-  "exclude": ["src/workspace"]
+  // the workspace UI's suites, a DOM program of their own (src/workspace/tsconfig.json), and the
+  // fill worker's sources, another (src/server/items/capture/fill/tsconfig.json)
+  "exclude": [
+    "src/workspace",
+    "src/server/items/capture/fill",
+    "src/server/items/capture/item-fill-worker.ts"
+  ]
 }

@@ -1,302 +1,456 @@
-import { Stack, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Stack } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import {
+  ActionSheetIOS,
   Alert,
   FlatList,
   Pressable,
   RefreshControl,
-  StyleSheet,
+  ScrollView,
   Text,
   TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { UNSORTED_FOLDER } from "@repo/notes/items/item-kind";
+import type { ItemKind } from "@repo/notes/items/item-kind";
+import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
+import { basenamePath, extnamePath } from "@repo/notes/knowledge/vault-path";
+import type { SavedItem } from "@/items/item-ops";
 import {
-  capture,
-  dismissDispatch,
-  logout,
-  syncNow,
-  usePendingCaptures,
-  useSyncStatus,
-  useThreadList,
+  createNote,
+  deleteNote,
+  refreshNotes,
+  renameNote,
+  listsNow,
+  saveText,
+  useLibrary,
 } from "@/lib/app-runtime";
-import { RADIUS, SPACE, useTheme } from "@/lib/theme";
-import type { Theme } from "@/lib/theme";
-import type { RefusedCapture } from "@/dispatch/dispatch-projection";
-import type { SyncStatus } from "@/sync/sync-runtime";
-import { TextButton } from "@/ui/text-button";
+import { messageOf } from "@/lib/error-message";
+import { openItem, openViewer } from "@/lib/routes";
+import { SPACE, useTheme } from "@/lib/theme";
+import { LibraryCardRow } from "@/library/library-card";
+import type { LibraryCard, LibraryFilter, PhoneScope } from "@/library/library-view";
+import { confirmDeleteNote } from "@/notes/confirm-delete-note";
+import { linksKeptLine } from "@/notes/file-ops";
+import type { NotesTreeState } from "@/notes/notes-store";
+import { OutboxBanner } from "@/notes/outbox-banner";
+import { confirmSignOut } from "@/ui/confirm-sign-out";
 
-const styles = StyleSheet.create({
-  bodyText: { fontSize: 16, textAlign: "center" },
-  captionText: { fontSize: 12 },
-  captureBox: { gap: SPACE.sm, paddingHorizontal: SPACE.lg, paddingTop: SPACE.md },
-  captureMeta: { alignItems: "center", flexDirection: "row", gap: SPACE.md },
-  empty: { alignItems: "center", gap: SPACE.sm, paddingVertical: 96 },
-  footer: { borderTopWidth: 1, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md },
-  input: {
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    fontSize: 16,
-    paddingHorizontal: SPACE.lg,
-    paddingVertical: SPACE.md,
-  },
-  list: { paddingBottom: 32, paddingHorizontal: SPACE.lg },
-  pressed70: { opacity: 0.7 },
-  pressed80: { opacity: 0.8 },
-  screen: { flex: 1 },
-  shrink: { flexShrink: 1 },
-  smallLabel: { fontSize: 14, fontWeight: "600" },
-  smallText: { fontSize: 14 },
-  syncActions: { flexDirection: "row", gap: SPACE.sm },
-  syncButton: { borderRadius: RADIUS.md, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.sm },
-  syncRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: SPACE.md,
-    justifyContent: "space-between",
-    paddingHorizontal: SPACE.lg,
-    paddingVertical: SPACE.md,
-  },
-  threadRow: {
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    gap: 2,
-    marginBottom: SPACE.sm,
-    paddingHorizontal: SPACE.lg,
-    paddingVertical: SPACE.md,
-  },
-});
+// the chips over the list, in the order a person scans them
+const KIND_CHIPS: readonly { kind: ItemKind; label: string }[] = [
+  { kind: "link", label: "Links" },
+  { kind: "video", label: "Videos" },
+  { kind: "audio", label: "Audio" },
+  { kind: "image", label: "Images" },
+  { kind: "pdf", label: "PDFs" },
+  { kind: "file", label: "Files" },
+  { kind: "note", label: "Notes" },
+];
 
-const describeStatus = (status: SyncStatus): string => {
-  if (status.state !== "signed-in") {
-    return "";
-  }
-  if (status.lastError !== null) {
-    return `Sync issue: ${status.lastError}`;
-  }
-  return status.lastSyncedAt === null ? "Not synced yet" : "Synced";
-};
+const LOADING = "Loading your library…";
 
-type CaptureNotice =
-  | { kind: "idle" }
-  | { kind: "keeping" }
-  | { kind: "captured" }
-  | { kind: "failed"; message: string };
-
-const captureNoticeLine = (
-  notice: CaptureNotice,
-  theme: Theme,
-): { text: string; color: string } | null => {
-  switch (notice.kind) {
-    case "captured": {
-      return { color: theme.mutedForeground, text: "Captured" };
+const scopeTitle = (scope: PhoneScope): string => {
+  switch (scope.kind) {
+    case "all": {
+      return "Library";
     }
-    case "failed": {
-      return { color: theme.destructive, text: notice.message };
+    case "unsorted": {
+      return UNSORTED_FOLDER;
     }
-    case "idle":
-    case "keeping": {
-      return null;
+    case "folder": {
+      return scope.path.split("/").at(-1) ?? scope.path;
+    }
+    case "tag": {
+      return `#${scope.tag}`;
     }
     // no default
   }
 };
 
-// the words stay on screen with the cloud's reason, for the user to copy before dismissing them
-const RefusedCaptureRow = ({ refused }: { refused: RefusedCapture }) => {
-  const theme = useTheme();
-  return (
-    <View>
-      <Text selectable style={[styles.smallText, { color: theme.foreground }]}>
-        {refused.text}
-      </Text>
-      <View style={styles.captureMeta}>
-        <Text style={[styles.captionText, styles.shrink, { color: theme.destructive }]}>
-          {refused.message}
-        </Text>
-        <TextButton
-          fontSize={14}
-          label="Dismiss"
-          onPress={() => {
-            void dismissDispatch(refused.id);
-          }}
-        />
-      </View>
-    </View>
-  );
-};
-
-const CaptureBox = () => {
-  const theme = useTheme();
-  const [text, setText] = useState("");
-  const [notice, setNotice] = useState<CaptureNotice>({ kind: "idle" });
-  const pending = usePendingCaptures();
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (timer.current !== null) {
-        clearTimeout(timer.current);
-      }
-    },
-    [],
-  );
-
-  const submit = useCallback(async () => {
-    const value = text.trim();
-    if (value === "" || notice.kind === "keeping") {
-      return;
-    }
-    if (timer.current !== null) {
-      clearTimeout(timer.current);
-    }
-    setNotice({ kind: "keeping" });
-    const result = await capture(value);
-    if (!result.ok) {
-      setNotice({ kind: "failed", message: result.message });
-      return;
-    }
-    // clear only the words that were kept; text typed while they were being kept stays.
-    setText((current) => (current === text ? "" : current));
-    setNotice({ kind: "captured" });
-    timer.current = setTimeout(() => {
-      setNotice({ kind: "idle" });
-    }, 2500);
-  }, [text, notice.kind]);
-
-  const line = captureNoticeLine(notice, theme);
-  return (
-    <View style={styles.captureBox}>
-      <TextInput
-        style={[
-          styles.input,
-          { backgroundColor: theme.card, borderColor: theme.input, color: theme.foreground },
-        ]}
-        placeholder="Capture to your inbox…"
-        placeholderTextColor={theme.mutedForeground}
-        value={text}
-        onChangeText={setText}
-        returnKeyType="done"
-        submitBehavior="blurAndSubmit"
-        onSubmitEditing={() => {
-          void submit();
-        }}
-      />
-      {line === null ? null : (
-        <Text style={[styles.captionText, { color: line.color }]}>{line.text}</Text>
-      )}
-      {pending.caption === null ? null : (
-        <Text style={[styles.captionText, { color: theme.mutedForeground }]}>
-          {pending.caption}
-        </Text>
-      )}
-      {pending.refused.map((refused) => (
-        <RefusedCaptureRow key={refused.id} refused={refused} />
-      ))}
-    </View>
-  );
-};
-
-const unsentLines = (edits: number, requests: number): string[] => {
-  const lines: string[] = [];
-  if (edits > 0) {
-    lines.push(
-      edits === 1
-        ? "1 change on this phone has not reached your vault yet."
-        : `${String(edits)} changes on this phone have not reached your vault yet.`,
-    );
+const emptyLabel = (tree: NotesTreeState, filtered: boolean): string => {
+  if (tree.state === "idle" || tree.state === "loading") {
+    return LOADING;
   }
-  if (requests > 0) {
-    lines.push(
-      requests === 1
-        ? "1 request to your Mac has not reached it yet."
-        : `${String(requests)} requests to your Mac have not reached it yet.`,
-    );
+  if (tree.state === "empty" || tree.state === "error") {
+    return tree.message;
   }
-  return lines;
+  return filtered
+    ? "Nothing here matches."
+    : "Nothing saved yet. Share a page to Inteligir, or type a link or a thought above.";
 };
 
-// a sign-out that would discard edits the vault has not taken, or requests no Mac holds yet, asks
-// first, naming how many
-const signOut = async (): Promise<void> => {
-  const outcome = await logout();
-  if (outcome.kind === "signed-out") {
+// a folder scope's new note lands in that folder; every other scope's in Unsorted
+const folderOf = (scope: PhoneScope): string =>
+  scope.kind === "folder" ? scope.path : UNSORTED_FOLDER;
+
+// an image or a PDF opens full size, and so does a file that is an item of its own; everything
+// else opens in the editor
+const openCard = (card: LibraryCard): void => {
+  const bare = card.file === card.path;
+  if ((card.kind === "image" || card.kind === "pdf" || bare) && card.file !== null) {
+    openViewer(card.file, bare ? null : card.path);
     return;
   }
-  Alert.alert(
-    "Sign out and discard them?",
-    [...unsentLines(outcome.edits, outcome.requests), "Signing out discards them."].join(" "),
+  openItem(card.path);
+};
+
+// the name a rename starts from: a note's title, a file's name without its extension, which the
+// rename keeps
+const renameStem = (path: string): string => {
+  if (isDocPath(path)) {
+    return docStem(path);
+  }
+  const name = basenamePath(path);
+  return name.slice(0, name.length - extnamePath(path).length);
+};
+
+const rename = (path: string): void => {
+  Alert.prompt(
+    "Rename",
+    undefined,
     [
       { style: "cancel", text: "Cancel" },
       {
-        onPress: () => {
-          void logout({ discardUnsent: true });
+        onPress: (name?: string) => {
+          void (async () => {
+            const outcome = await renameNote(path, name ?? "");
+            if (outcome.kind === "refused") {
+              Alert.alert("Couldn't rename", outcome.message);
+            } else if (outcome.unlinked.length > 0) {
+              Alert.alert("Renamed", linksKeptLine(outcome.unlinked));
+            }
+          })();
         },
-        style: "destructive",
-        text: "Discard and sign out",
+        text: "Rename",
       },
     ],
+    "plain-text",
+    renameStem(path),
   );
 };
 
-const HomeScreen = () => {
+const confirmDelete = (path: string): void => {
+  confirmDeleteNote(path, () => {
+    void (async () => {
+      try {
+        await deleteNote(path);
+      } catch (error) {
+        Alert.alert("Couldn't delete", messageOf(error));
+      }
+    })();
+  });
+};
+
+interface CardAction {
+  readonly label: string;
+  readonly role?: "cancel" | "destructive";
+  readonly run: ((card: LibraryCard) => void) | null;
+}
+
+const CARD_ACTIONS: readonly CardAction[] = [
+  { label: "Cancel", role: "cancel", run: null },
+  { label: "Open", run: openCard },
+  {
+    label: "Rename",
+    run: (card) => {
+      rename(card.path);
+    },
+  },
+  {
+    label: "Delete",
+    role: "destructive",
+    run: (card) => {
+      confirmDelete(card.path);
+    },
+  },
+];
+
+const showCardActions = (card: LibraryCard): void => {
+  ActionSheetIOS.showActionSheetWithOptions(
+    {
+      cancelButtonIndex: CARD_ACTIONS.findIndex((action) => action.role === "cancel"),
+      destructiveButtonIndex: CARD_ACTIONS.findIndex((action) => action.role === "destructive"),
+      options: CARD_ACTIONS.map((action) => action.label),
+      title: card.title,
+    },
+    (index) => {
+      CARD_ACTIONS[index]?.run?.(card);
+    },
+  );
+};
+
+// a saved link or thought just lists; one the list in view leaves out (a scope, a kind or a
+// search hides Unsorted's newest), one already here, and one that could not be, each say so
+const tellSaved = (saved: SavedItem, filter: LibraryFilter): void => {
+  if (saved.kind === "refused") {
+    Alert.alert("Couldn't save", saved.message);
+    return;
+  }
+  if (saved.kind === "saved" && !listsNow(filter, saved.path)) {
+    Alert.alert(`Saved to ${UNSORTED_FOLDER}`, docStem(saved.path), [
+      { style: "cancel", text: "OK" },
+      {
+        onPress: () => {
+          openItem(saved.path);
+        },
+        text: "Open",
+      },
+    ]);
+    return;
+  }
+  if (saved.kind === "already") {
+    Alert.alert("Already in your library", docStem(saved.path), [
+      { style: "cancel", text: "OK" },
+      {
+        onPress: () => {
+          openItem(saved.path);
+        },
+        text: "Open",
+      },
+    ]);
+  }
+};
+
+const SaveField = ({ filter }: { filter: LibraryFilter }) => {
   const theme = useTheme();
-  const router = useRouter();
-  const status = useSyncStatus();
-  const threads = useThreadList();
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const save = (): void => {
+    if (draft.trim() === "" || saving) {
+      return;
+    }
+    void (async () => {
+      setSaving(true);
+      let saved: SavedItem;
+      try {
+        saved = await saveText(draft);
+      } catch (error) {
+        saved = { kind: "refused", message: messageOf(error) };
+      }
+      setSaving(false);
+      if (saved.kind !== "refused") {
+        setDraft("");
+      }
+      tellSaved(saved, filter);
+    })();
+  };
+  return (
+    <View className="flex-row items-center gap-3">
+      <TextInput
+        accessibilityLabel="Save a link or a thought"
+        className="grow basis-0 rounded-lg border border-input bg-card px-3 py-2 text-16 text-foreground"
+        placeholder="Save a link or a thought"
+        placeholderTextColor={theme.mutedForeground}
+        value={draft}
+        editable={!saving}
+        autoCapitalize="none"
+        returnKeyType="done"
+        submitBehavior="blurAndSubmit"
+        onChangeText={setDraft}
+        onSubmitEditing={save}
+      />
+      <Pressable accessibilityRole="button" disabled={saving} hitSlop={SPACE.sm} onPress={save}>
+        <Text className="text-16 font-semibold text-foreground">Save</Text>
+      </Pressable>
+    </View>
+  );
+};
+
+const KindChips = ({
+  kinds,
+  toggle,
+}: {
+  kinds: ReadonlySet<ItemKind>;
+  toggle: (kind: ItemKind) => void;
+}) => (
+  <ScrollView
+    horizontal
+    showsHorizontalScrollIndicator={false}
+    contentContainerClassName="gap-2 py-2"
+  >
+    {KIND_CHIPS.map(({ kind, label }) => {
+      const on = kinds.has(kind);
+      return (
+        <Pressable
+          key={kind}
+          accessibilityRole="button"
+          accessibilityState={{ selected: on }}
+          className={`rounded-full border px-3 py-1 active:opacity-70 ${on ? "border-primary bg-primary" : "border-border bg-card"}`}
+          onPress={() => {
+            toggle(kind);
+          }}
+        >
+          <Text className={`text-14 ${on ? "text-primary-foreground" : "text-foreground"}`}>
+            {label}
+          </Text>
+        </Pressable>
+      );
+    })}
+  </ScrollView>
+);
+
+const NOTICE_CLASS = "mb-2 text-13 text-muted-foreground";
+
+const Notices = ({ tree }: { tree: NotesTreeState }) => {
+  if (tree.state !== "ready") {
+    return null;
+  }
+  return (
+    <>
+      {tree.progress === null ? null : (
+        <Text className={NOTICE_CLASS}>
+          {LOADING} {String(tree.progress.fetched)} of {String(tree.progress.total)}
+        </Text>
+      )}
+      {tree.refreshError === null ? null : (
+        <Text className={NOTICE_CLASS}>Refresh issue: {tree.refreshError}</Text>
+      )}
+    </>
+  );
+};
+
+const isFolderScope = (scope: PhoneScope, path: string): boolean =>
+  scope.kind === "folder" && scope.path === path;
+
+const isTagScope = (scope: PhoneScope, tag: string): boolean =>
+  scope.kind === "tag" && scope.tag === tag;
+
+// Home: everything saved, newest first. A scope from the menu, the kind chips and the header's
+// search narrow it; the field above saves a link or a thought into Unsorted. FlatList, not a
+// ScrollView: a library holds thousands of items and an eager row each janks the open.
+const LibraryScreen = () => {
+  const theme = useTheme();
+  // a value, not a class: className draws nothing on a SafeAreaView
+  const screen = { backgroundColor: theme.background, flex: 1 };
+  const [scope, setScope] = useState<PhoneScope>({ kind: "all" });
+  const [kinds, setKinds] = useState<ReadonlySet<ItemKind>>(() => new Set());
+  const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const filter = useMemo(() => ({ kinds, query, scope }), [kinds, query, scope]);
+  const { cards, scopes, tree } = useLibrary(filter);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    await syncNow();
+    await refreshNotes();
     setRefreshing(false);
   }, []);
 
+  const toggleKind = useCallback((kind: ItemKind) => {
+    setKinds((held) => {
+      const next = new Set(held);
+      if (next.has(kind)) {
+        next.delete(kind);
+      } else {
+        next.add(kind);
+      }
+      return next;
+    });
+  }, []);
+
+  const newNote = useCallback(async () => {
+    const created = await createNote(folderOf(scope));
+    if (created.kind === "refused") {
+      Alert.alert("Couldn't create a note", created.message);
+      return;
+    }
+    openItem(created.path, "title");
+  }, [scope]);
+
+  const filtered = scope.kind !== "all" || kinds.size > 0 || query.trim() !== "";
+
   return (
-    <SafeAreaView
-      style={[styles.screen, { backgroundColor: theme.background }]}
-      edges={["top", "left", "right"]}
-    >
-      <Stack.Screen options={{ title: "inteligir" }} />
-      <CaptureBox />
-      <View style={styles.syncRow}>
-        <Text style={[styles.smallText, { color: theme.mutedForeground }]} numberOfLines={1}>
-          {describeStatus(status)}
-        </Text>
-        <View style={styles.syncActions}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.syncButton,
-              { borderColor: theme.border, borderWidth: 1 },
-              pressed && styles.pressed80,
-            ]}
+    <SafeAreaView style={screen} edges={["left", "right"]}>
+      <Stack.Screen
+        options={{
+          headerSearchBarOptions: {
+            autoCapitalize: "none",
+            hideWhenScrolling: true,
+            onChangeText: (event) => {
+              setQuery(event.nativeEvent.text);
+            },
+            placeholder: "Search titles, sites and links",
+          },
+          title: scopeTitle(scope),
+        }}
+      />
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Menu accessibilityLabel="Library" icon="line.3.horizontal.decrease.circle">
+          <Stack.Toolbar.Menu inline title="Show">
+            <Stack.Toolbar.MenuAction
+              isOn={scope.kind === "all"}
+              onPress={() => {
+                setScope({ kind: "all" });
+              }}
+            >
+              All
+            </Stack.Toolbar.MenuAction>
+            <Stack.Toolbar.MenuAction
+              isOn={scope.kind === "unsorted"}
+              onPress={() => {
+                setScope({ kind: "unsorted" });
+              }}
+            >
+              {UNSORTED_FOLDER}
+            </Stack.Toolbar.MenuAction>
+            <Stack.Toolbar.Menu title="Folders" hidden={scopes.folders.length === 0}>
+              {scopes.folders.map((folder) => (
+                <Stack.Toolbar.MenuAction
+                  key={folder}
+                  isOn={isFolderScope(scope, folder)}
+                  onPress={() => {
+                    setScope({ kind: "folder", path: folder });
+                  }}
+                >
+                  {folder}
+                </Stack.Toolbar.MenuAction>
+              ))}
+            </Stack.Toolbar.Menu>
+            <Stack.Toolbar.Menu title="Tags" hidden={scopes.tags.length === 0}>
+              {scopes.tags.map(({ count, tag }) => (
+                <Stack.Toolbar.MenuAction
+                  key={tag}
+                  isOn={isTagScope(scope, tag)}
+                  subtitle={String(count)}
+                  onPress={() => {
+                    setScope({ kind: "tag", tag });
+                  }}
+                >
+                  {`#${tag}`}
+                </Stack.Toolbar.MenuAction>
+              ))}
+            </Stack.Toolbar.Menu>
+          </Stack.Toolbar.Menu>
+          <Stack.Toolbar.MenuAction
+            disabled={tree.state !== "ready"}
             onPress={() => {
-              router.push("/notes");
+              void newNote();
             }}
           >
-            <Text style={[styles.smallLabel, { color: theme.foreground }]}>Notes</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [
-              styles.syncButton,
-              { backgroundColor: theme.primary },
-              pressed && styles.pressed80,
-            ]}
-            disabled={refreshing}
+            New note
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
             onPress={() => {
               void refresh();
             }}
           >
-            <Text style={[styles.smallLabel, { color: theme.primaryForeground }]}>
-              {refreshing ? "Syncing…" : "Sync"}
-            </Text>
-          </Pressable>
-        </View>
-      </View>
-
+            Sync now
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
+            destructive
+            onPress={() => {
+              void confirmSignOut();
+            }}
+          >
+            Sign out
+          </Stack.Toolbar.MenuAction>
+        </Stack.Toolbar.Menu>
+      </Stack.Toolbar>
       <FlatList
-        style={styles.screen}
-        contentContainerStyle={styles.list}
+        className="grow basis-0"
+        contentContainerClassName="px-4 pt-3 pb-8"
+        contentInsetAdjustmentBehavior="automatic"
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -305,58 +459,37 @@ const HomeScreen = () => {
             }}
           />
         }
-        data={threads}
-        keyExtractor={(thread) => thread.threadId}
+        data={cards}
+        keyExtractor={(card) => card.path}
+        ListHeaderComponent={
+          <>
+            <OutboxBanner onOpen={openItem} />
+            <SaveField filter={filter} />
+            <KindChips kinds={kinds} toggle={toggleKind} />
+            <Notices tree={tree} />
+          </>
+        }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={[styles.bodyText, { color: theme.mutedForeground }]}>No threads yet.</Text>
-            <Text style={[styles.smallText, { color: theme.mutedForeground }]}>
-              Pull to refresh, or open a note and ask the agent.
+          <View className="items-center gap-2 px-6 py-24">
+            <Text className="text-center text-16 text-muted-foreground">
+              {emptyLabel(tree, filtered)}
             </Text>
           </View>
         }
-        renderItem={({ item: thread }) => {
-          const { caption } = thread;
-          return (
-            <Pressable
-              style={({ pressed }) => [
-                styles.threadRow,
-                { backgroundColor: theme.card, borderColor: theme.border },
-                pressed && styles.pressed70,
-              ]}
-              onPress={() => {
-                router.push({ params: { id: thread.threadId }, pathname: "/thread/[id]" });
-              }}
-            >
-              <Text style={[styles.bodyText, { color: theme.cardForeground }]} numberOfLines={1}>
-                {thread.title}
-              </Text>
-              {caption === "" ? null : (
-                <Text
-                  style={[styles.smallText, { color: theme.mutedForeground }]}
-                  numberOfLines={1}
-                >
-                  {caption}
-                </Text>
-              )}
-            </Pressable>
-          );
-        }}
+        renderItem={({ item: card }) => (
+          <LibraryCardRow
+            card={card}
+            onPress={() => {
+              openCard(card);
+            }}
+            onLongPress={() => {
+              showCardActions(card);
+            }}
+          />
+        )}
       />
-
-      <View style={[styles.footer, { borderTopColor: theme.border }]}>
-        <Pressable
-          onPress={() => {
-            void signOut();
-          }}
-        >
-          <Text style={[styles.smallText, { color: theme.mutedForeground }]}>
-            Sign this device out
-          </Text>
-        </Pressable>
-      </View>
     </SafeAreaView>
   );
 };
 
-export default HomeScreen;
+export default LibraryScreen;

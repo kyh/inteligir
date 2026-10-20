@@ -1,4 +1,4 @@
-import type { ViewContext } from "@repo/domain/view-context";
+import type { DocViewContext } from "@repo/domain/view-context";
 import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 
 export interface OpenNoteView {
@@ -10,7 +10,7 @@ export interface OpenNoteView {
 export const readNoteViewContext = async (
   path: string,
   view: OpenNoteView,
-): Promise<ViewContext | null> => {
+): Promise<DocViewContext | null> => {
   // Flush first: the agent reads from disk, and a debounce of keystrokes may
   // not be there yet. A failed flush still answers — the revision hashes the
   // buffer, and the disk mismatch is what a revision lets the agent notice.

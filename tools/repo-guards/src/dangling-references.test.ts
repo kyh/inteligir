@@ -16,7 +16,7 @@ const GENERATED_FILE = /(?:\.gen\.ts|pnpm-lock\.yaml)$/u;
 const DATA_DIR = /(?:^|\/)(?:fixtures|__fixtures__|seed)\//u;
 const DATA_FILES = new Map<string, string>([
   [
-    "packages/editor/src/__tests__/sample-notes.ts",
+    "packages/editor/src/test-support/sample-notes.ts",
     "sample note BODIES — the package names inside them are prose in a fake roadmap note, which is the input the parse is asserted against",
   ],
 ]);

@@ -1,0 +1,16 @@
+{
+  "seed-user-highlight": {
+    "text": "A highlight with a note: reply to it, or remove it, from the Annotations tab.",
+    "quote": "sentence carries a highlight with a note",
+    "createdAt": 1792238160,
+    "updatedAt": 1792238160,
+    "source": "user"
+  },
+  "seed-agent-highlight": {
+    "text": "The agent's highlights are labelled as its own.",
+    "quote": "one carries the agent's",
+    "createdAt": 1792238160,
+    "updatedAt": 1792238160,
+    "source": "agent"
+  }
+}

@@ -1,6 +1,6 @@
-// A new note steps past a taken name, a delete leaves a comment store another note carries the id
-// of, and a photo lands under a free name in the attachments folder. Platform-free: the scenario
-// suite runs it under node.
+// A new note steps past a taken name and says when it was saved, a delete takes the files only it
+// links and leaves an annotation store another note carries the id of, and a photo lands under a
+// free name in the attachments folder. Platform-free: the scenario suite runs it under node.
 
 import {
   VAULT_COMMIT_MAX_BYTES,
@@ -12,8 +12,11 @@ import {
   VAULT_FILE_MAX_BYTES,
 } from "@repo/contract/cloud/vault/vault-schema";
 import { utf8ByteLength } from "@repo/contract/cloud/bytes";
-import { commentStoresFreedBy } from "@repo/notes/comments/store-removal";
-import { freeAssetPath } from "@repo/notes/knowledge/asset-name";
+import { annotationStoresFreedBy } from "@repo/notes/annotations/store-removal";
+import { composeItemFile, NOTE_FACTS } from "@repo/notes/items/item-frontmatter";
+import { formatItemTime } from "@repo/notes/items/item-time";
+import { attachmentsFreedBy } from "@repo/notes/knowledge/attachment-removal";
+import { DEFAULT_ATTACHMENTS_FOLDER, freeAssetPath } from "@repo/notes/knowledge/asset-name";
 import {
   docExtension,
   docStem,
@@ -28,10 +31,9 @@ import type { RenameSource } from "@repo/notes/knowledge/plan-rename";
 import { projectDoc } from "@repo/notes/knowledge/projection";
 import { moveCandidates } from "@repo/notes/knowledge/rename-candidates";
 import { computeMoveEdits } from "@repo/notes/knowledge/rename-links";
-import { dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
+import { dirnamePath, extnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import { addFrontmatterAlias } from "@repo/notes/markdown/frontmatter";
-import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/templates/folders";
-import { NOTE_GONE } from "./comment-ops";
+import { NOTE_GONE } from "./annotation-ops";
 import type { HeldFile, NotesStore, RenameEdits } from "./notes-store";
 
 export type FileOpsStore = Pick<
@@ -53,15 +55,24 @@ export interface FileOps {
   create: (dir: string) => Promise<CreatedNote>;
   // `name` is the title as typed, refused rather than cleaned up: a title is what the file is called
   rename: (from: string, name: string) => Promise<RenamedNote>;
+  // the files a delete of `path` takes with it, which only it links; the confirm names how many
+  freedBy: (path: string) => Promise<readonly string[]>;
+  // the doc, its annotation store and the files only it links, as one change set
   remove: (path: string) => Promise<void>;
   writeAsset: (baseName: string, bytes: Uint8Array) => Promise<WrittenAsset>;
+}
+
+export interface FileOpsDeps {
+  now?: () => Date;
+  // @repo/notes' rule, injected so a test can hold what the phone hands it and does with its answer
+  attachmentsFreedBy?: typeof attachmentsFreedBy;
 }
 
 // what a rename says of the notes whose links still name the note as it was
 export const linksKeptLine = (unlinked: readonly string[]): string =>
   unlinked.length === 1
-    ? "1 note changed first, so its link keeps the old name, which still opens this note."
-    : `${String(unlinked.length)} notes changed first, so their links keep the old name, which still opens this note.`;
+    ? "1 item changed first, so its link keeps the old name, which still opens this item."
+    : `${String(unlinked.length)} items changed first, so their links keep the old name, which still opens this item.`;
 
 const UNTITLED = "Untitled";
 
@@ -96,9 +107,11 @@ const linkGraphOf = (
         ? {
             aliases: [...file.aliases],
             headings: [],
+            item: NOTE_FACTS,
             links: [],
             noteId: file.noteId,
             pinned: false,
+            preview: "",
             tags: [],
             title: docStem(file.path),
           }
@@ -108,12 +121,19 @@ const linkGraphOf = (
   return graph;
 };
 
-// a typed title keeps the note's own extension; a typed doc extension is taken as written
-const renamedPath = (from: string, name: string): string =>
-  joinPath(
+// a typed title keeps the note's own extension; a typed doc extension is taken as written. A
+// file that is no note keeps its own extension whatever is typed, so a picture stays a picture
+const renamedPath = (from: string, name: string): string => {
+  if (!isDocPath(from)) {
+    const extension = extnamePath(from);
+    const typed = extension !== "" && name.toLowerCase().endsWith(extension.toLowerCase());
+    return joinPath(dirnamePath(from), typed ? name : `${name}${extension}`);
+  }
+  return joinPath(
     dirnamePath(from),
     isDocPath(name) ? name : `${name}${docExtension(from) || DEFAULT_DOC_EXTENSION}`,
   );
+};
 
 type PlannedRewrite = RenameEdits["rewrites"][number];
 
@@ -178,72 +198,114 @@ const planRename = async (
   return { edits: { note, rewrites }, unplanned };
 };
 
-export const createFileOps = (store: FileOpsStore): FileOps => ({
-  async create(dir) {
-    const refused: string[] = [];
-    for (let attempt = 0; attempt < MAX_NAME_ATTEMPTS; attempt += 1) {
-      const taken = [...store.heldFiles().map((file) => file.path), ...refused];
-      const path = freeDocPath(dir, UNTITLED, taken);
-      const outcome = await store.create(path, "");
-      if (outcome.kind === "created") {
-        return { kind: "created", path };
-      }
-      refused.push(path);
-    }
-    return { kind: "refused", message: NAME_TAKEN };
-  },
+const uniquePaths = (paths: Iterable<string>): string[] => [...new Set(paths)];
 
-  async remove(path) {
+export const createFileOps = (store: FileOpsStore, deps: FileOpsDeps = {}): FileOps => {
+  const now = deps.now ?? (() => new Date());
+  const freedFrom = deps.attachmentsFreedBy ?? attachmentsFreedBy;
+
+  // the files only `path` links, over the phone's own link graph; a held doc whose text has not
+  // downloaded could link any of them, so while one is missing nothing else is known to be freed
+  const freedBy = async (path: string): Promise<readonly string[]> => {
+    if (!isDocPath(path)) {
+      return [];
+    }
     const files = store.heldFiles();
-    const noteId = files.find((file) => file.path === path)?.noteId ?? null;
-    const stores = commentStoresFreedBy([{ noteId, path }], (id) =>
-      files.filter((file) => file.noteId === id).map((file) => file.path),
+    const texts = await store.noteTexts();
+    if (files.some((file) => isDocPath(file.path) && !texts.has(file.path))) {
+      return [];
+    }
+    const graph = linkGraphOf(files, texts);
+    const linked = uniquePaths(
+      graph
+        .forwardLinks(path)
+        .flatMap((link) =>
+          link.targetPath === null || isDocPath(link.targetPath) ? [] : [link.targetPath],
+        ),
     );
-    await store.remove(path, stores);
-  },
+    if (linked.length === 0) {
+      return [];
+    }
+    return freedFrom([{ linked, path }], (file) =>
+      uniquePaths(graph.backlinks(file).map((backlink) => backlink.sourcePath)),
+    );
+  };
 
-  async rename(from, name) {
-    const verdict = checkNoteName(name);
-    if (!verdict.ok) {
-      return { kind: "refused", message: noteNameErrorMessage(verdict.reason) };
-    }
-    const to = renamedPath(from, verdict.name);
-    if (to === from) {
-      return { kind: "renamed", path: from, unlinked: [] };
-    }
-    const planned = await planRename(store, from, to);
-    const outcome = await store.rename(from, to, planned.edits);
-    switch (outcome.kind) {
-      case "renamed": {
-        return { kind: "renamed", path: to, unlinked: [...planned.unplanned, ...outcome.skipped] };
+  return {
+    async create(dir) {
+      const content = composeItemFile({ saved: formatItemTime(now().getTime()) }, "");
+      const refused: string[] = [];
+      for (let attempt = 0; attempt < MAX_NAME_ATTEMPTS; attempt += 1) {
+        const taken = [...store.heldFiles().map((file) => file.path), ...refused];
+        const path = freeDocPath(dir, UNTITLED, taken);
+        const outcome = await store.create(path, content);
+        if (outcome.kind === "created") {
+          return { kind: "created", path };
+        }
+        refused.push(path);
       }
-      case "exists": {
-        return { kind: "refused", message: `A note named ${docStem(to)} is already here.` };
-      }
-      case "vanished": {
-        return { kind: "refused", message: NOTE_GONE };
-      }
-      // no default
-    }
-  },
+      return { kind: "refused", message: NAME_TAKEN };
+    },
 
-  async writeAsset(baseName, bytes) {
-    if (bytes.length > VAULT_ASSET_MAX_BYTES) {
-      return { kind: "refused", message: "This file is too large to add from your phone." };
-    }
-    const refused: string[] = [];
-    for (let attempt = 0; attempt < MAX_NAME_ATTEMPTS; attempt += 1) {
-      const taken = [...store.heldFiles().map((file) => file.path), ...refused];
-      const path = freeAssetPath(DEFAULT_ATTACHMENTS_FOLDER, baseName, taken);
-      if (assetMediaType(path) === null) {
-        return { kind: "refused", message: "Your vault cannot hold this kind of file." };
+    freedBy,
+
+    async remove(path) {
+      const files = store.heldFiles();
+      const noteId = files.find((file) => file.path === path)?.noteId ?? null;
+      const stores = annotationStoresFreedBy([{ noteId, path }], (id) =>
+        files.filter((file) => file.noteId === id).map((file) => file.path),
+      );
+      const freed = await freedBy(path);
+      await store.remove(path, uniquePaths([...stores, ...freed]));
+    },
+
+    async rename(from, name) {
+      const verdict = checkNoteName(name);
+      if (!verdict.ok) {
+        return { kind: "refused", message: noteNameErrorMessage(verdict.reason) };
       }
-      const outcome = await store.putAsset(path, bytes);
-      if (outcome.kind === "created") {
-        return { kind: "written", path };
+      const to = renamedPath(from, verdict.name);
+      if (to === from) {
+        return { kind: "renamed", path: from, unlinked: [] };
       }
-      refused.push(path);
-    }
-    return { kind: "refused", message: NAME_TAKEN };
-  },
-});
+      const planned = await planRename(store, from, to);
+      const outcome = await store.rename(from, to, planned.edits);
+      switch (outcome.kind) {
+        case "renamed": {
+          return {
+            kind: "renamed",
+            path: to,
+            unlinked: [...planned.unplanned, ...outcome.skipped],
+          };
+        }
+        case "exists": {
+          return { kind: "refused", message: `Something named ${docStem(to)} is already here.` };
+        }
+        case "vanished": {
+          return { kind: "refused", message: NOTE_GONE };
+        }
+        // no default
+      }
+    },
+
+    async writeAsset(baseName, bytes) {
+      if (bytes.length > VAULT_ASSET_MAX_BYTES) {
+        return { kind: "refused", message: "This file is too large to add from your phone." };
+      }
+      const refused: string[] = [];
+      for (let attempt = 0; attempt < MAX_NAME_ATTEMPTS; attempt += 1) {
+        const taken = [...store.heldFiles().map((file) => file.path), ...refused];
+        const path = freeAssetPath(DEFAULT_ATTACHMENTS_FOLDER, baseName, taken);
+        if (assetMediaType(path) === null) {
+          return { kind: "refused", message: "Your library cannot hold this kind of file." };
+        }
+        const outcome = await store.putAsset(path, bytes);
+        if (outcome.kind === "created") {
+          return { kind: "written", path };
+        }
+        refused.push(path);
+      }
+      return { kind: "refused", message: NAME_TAKEN };
+    },
+  };
+};

@@ -1,6 +1,6 @@
 // One rule for what a guarded write refuses and the words it refuses in: the vault service judges
-// under its lock and the CLI's fixture server over its map, so a command's suite cannot pass
-// against a guard the server does not have.
+// under its lock, and the router names that verdict on the wire, so the two cannot disagree on
+// which write a guard lets through.
 
 import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 import type { VaultWriteGuard } from "@repo/contract/local/vault/vault-schema";

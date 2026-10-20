@@ -1,14 +1,18 @@
 # @repo/contract
 
-ONE contract package, TWO entry points. `@repo/contract/local` is the oRPC contract
+ONE contract package, THREE entry points. `@repo/contract/local` is the oRPC contract
 the workspace UI and the CLI compile against and `inteligir serve`
-implements. `@repo/contract/cloud` is the wire between an install and the Cloudflare
+implements; a client of it, the page's, the CLI's or the e2e harness's, is typed as
+its `LocalClient`, never a `RouterContractClient` spelled again.
+`@repo/contract/cloud` is the wire between an install and the Cloudflare
 Worker — and the client runtime core both the CLI and the phone run over it.
+`@repo/contract/browser` is the wire between the browser extension and
+`inteligir native-host`, and the extension's identity.
 
 ## Why it exists
 
-Two entries rather than one router because their compatibility obligations are
-OPPOSITE. `/local`'s two ends ship in one bundle, so it may break freely on any
+Three entries rather than one router because their compatibility obligations
+differ. `/local`'s two ends ship in one bundle, so it may break freely on any
 commit; a CLI installed apart from the app is refused by the release the
 server's `server.json` names, not kept compatible. `/cloud` is a deployed
 Worker answering installs that may be months stale, so it breaks only behind
@@ -19,7 +23,14 @@ owner holds an install (`AGENTS.md` § Project Overview). That is also why
 `/cloud` is zod + REST paths and NOT oRPC, diverging from the decision record
 (#611 phase 6) deliberately: the deployed wire is hand-owned because it must
 not break, and oRPC is beta, owning the serializer and the error shape the
-wire would hand it.
+wire would hand it. `/browser` is its own entry, not a corner of either:
+the extension ships on the Web Store's cadence, apart from both the app and
+the Worker, so its wire breaks only behind a version of its own
+(`BROWSER_WIRE_VERSION`, a peer below `BROWSER_WIRE_FLOOR` told to update),
+which neither the `/cloud` client build floor nor `/local`'s free breaks could
+carry; the native host adapts it to `/local`. It imports zod alone, so through
+it the extension's bundle carries nothing of the contract beyond the production
+origin it links.
 
 The package is platform-neutral by construction (`lib: ["ES2023",
 "WebWorker"]`, `types: []`): it loads in the desktop page, on node, on workerd
@@ -31,7 +42,7 @@ here, `tools/repo-guards` a `@tauri-apps` one.
 ```
 src/
   local/               the oRPC contract, one folder per domain
-    local-contract.ts  # the router every domain's rows hang from
+    local-contract.ts  # the router every domain's rows hang from, and the client and shapes over it
     <domain>/          # a `<domain>-contract.ts` of rows beside a `<domain>-schema.ts`
     local-errors.ts    # each error code's status, which oRPC does not carry
     local-routes.ts    # the paths that are not procedures
@@ -44,27 +55,34 @@ src/
     cloud-origin.ts    # the production origin both clients fall back to
     bytes.ts           # the byte primitives, on globals every target has
     device/            # the device credential and the one login flow
-    sync/              # the merged log's rows, its one page planner, session and socket
-    dispatch/          # the inbox a phone asks a Mac through
+    sync/              # the session fence and the account socket that says the vault moved
     account/           # the account's deletion and the sign-up doors
     vault/             # the hosted vault's paths and shapes, and the phone's write
+  browser/             the extension's wire, behind its own version
+    browser-wire.ts    # the native host's frames, BROWSER_WIRE_VERSION and its floor
+    extension-identity.ts # the extension's key, id, origin, host names and store link
 ```
 
-## Who consumes which half
+## Who consumes which entry
 
 - **apps/web** SERVES every `/cloud` row and reaches nothing under `/local`;
   `dep-dag.test.ts` pins that per import.
-- **apps/cli** implements `/local` and, in `src/server/cloud/`, consumes all
-  of `/cloud` — push, pull, the dispatch claims and acks, the approvals it
-  relays, the git remote.
-- **apps/mobile** pulls threads, produces dispatches (its captures among them),
-  answers a phone-started turn's approvals and commits vault change sets
-  (`vaultCommit`), and never pushes thread events, claims a dispatch or speaks
-  git, because the desktop runs the turns and owns applying a capture to the
-  vault. It reaches nothing under `/local` either, pinned by
+- **apps/cli** implements `/local` and, in `src/server/cloud/`, consumes the
+  device routes, the account socket and the hosted vault's git remote. Its `inteligir native-host`
+  (`apps/cli/src/native-host/`) answers every `/browser` frame and adapts it
+  to `/local`, and the desktop door writes the browsers' host manifests from
+  the extension's identity (`apps/cli/src/desktop/native-hosts.ts`).
+- **apps/mobile** reads the hosted vault and commits change sets to it
+  (`vaultCommit`), and never speaks git, which a phone does not hold. It
+  reaches nothing under `/local` either, pinned by
   the same `dep-dag.test.ts` table (`CLOUD_ONLY_CLIENTS`) as apps/web: a phone
   install may be months stale against the deployed Worker.
-- **apps/workspace** compiles against `/local` alone.
+- **apps/workspace** compiles against `/local` alone, and the extension's
+  identity (`browser/extension-identity`) for the store link Settings shows,
+  as the site does.
+- **apps/extension** speaks `/browser` and links `cloud/origin`, and nothing
+  else of the contract (`BROWSER_WIRE_CLIENTS` in `dep-dag.test.ts`): a
+  browser install updates on the Web Store's cadence, not the app's.
 
 ## Invariants
 
@@ -74,43 +92,39 @@ src/
   to retry in the Worker's own words, never a verdict on the credential.
   Requests stay `z.strictObject`: only the always-newest Worker parses them. The
   Worker's tests hold every answer to exactly the declared shape (`emitted` in
-  `apps/web/src/worker/__tests__/cloud-helpers.ts`), since a stripping client
-  would let a leaked column through. A field that changes what a row MEANS (a
-  new dispatch kind) still reaches only a client whose request declares it,
-  because stripped, the row reads as the old kind: a dispatch claim names the
-  kinds it takes.
+  `apps/web/src/worker/test-support/cloud-helpers.ts`), since a stripping client
+  would let a leaked column through. A field that changes what a row MEANS
+  still reaches only a client whose request declares it, because stripped,
+  the row reads as something else.
 - **Every request names its build, and the Worker refuses one below its
   floor.** `x-inteligir-build` rides the REST calls, the two that ask for a
   credential, the socket's upgrade and the hosted vault's git `extraHeader`
-  (`client-build.ts`; `__tests__/client-build.test.ts` walks every
+  (`client-build.ts`; `client-build.test.ts` walks every
   `CloudClient` method). `client-outdated` ends a session as `outdated`, not
   `unauthorized`: the credential stands, and only an update moves past it
   (`sync/sync-session.ts`).
-- **`src/` holds exactly two buckets.** The cloud-never-reaches-local guard
-  populates itself from `src/cloud`, so a file outside both halves is one no
-  guard reads; `dep-dag.test.ts` refuses a third. The sanctioned crossing is
-  `local` importing a `cloud` constant (`local/vault/vault-schema.ts` takes the
-  asset media-type allowlist and the hash helpers; `local/cloud/cloud-schema.ts`
-  the device name bound) — a number copied by hand passes locally and is
-  refused at the Worker as a shape error. The other direction never.
+- **`src/` holds exactly three buckets.** The cloud-never-reaches-local and
+  browser-reaches-only-zod guards populate themselves from `src/cloud` and
+  `src/browser`, so a file outside the three is one no guard reads;
+  `dep-dag.test.ts` refuses a fourth. The sanctioned crossing is
+  `local` importing a `cloud` or `browser` constant (`local/vault/vault-schema.ts`
+  takes the asset media-type allowlist and the hash helpers;
+  `local/cloud/cloud-schema.ts` the device name bound;
+  `local/items/items-schema.ts` the captured page's size cap) — a number copied
+  by hand passes locally and is refused at the far end as a shape error. The
+  other direction never: `/cloud` reaches no `/local` file, and `/browser`
+  reaches only its own.
 - **Every local row declares only the error classes it can raise.** A base
   carrying every class hands each client switch unreachable branches; the
   vault rows' declared set is held against the handlers by
-  `apps/cli/src/server/vault/__tests__/vault-contract-errors.test.ts`.
-- **One page planner.** Two copies of `sync/plan-page.ts` would be two answers
-  to "did this row move the cursor?", and a mis-set cursor is a duplicated
-  conversation. The same reason keeps the session fence, the login flow and
-  the single-flight pass here rather than in each client: a security
-  discipline with two spellings is two to audit. A skip step names the lowest
-  foreign row it moves past unread (`firstUnparsed`), so a client that keeps
-  its cursor can pull that row again under a build that reads it. A row filed
-  under one thread whose event names another is skipped here too, never
-  recorded for a pull again, since no build reads it differently: a client
-  applying it would file it under whichever id it keyed by.
+  `apps/cli/src/server/vault/vault-contract-errors.test.ts`.
+- **One session fence, one login flow, one socket.** Each lives here rather
+  than in each client: a security discipline with two spellings is two to
+  audit.
 - **The cloud client never throws a refusal.** `CloudResult` carries
   `refused` (a code this build names, `internal` for one it does not),
   `unreachable` (no verdict on the credential) or `malformed` (a body this
-  build cannot read); an `Error("HTTP 409")` would retry a batch the server
+  build cannot read); an `Error("HTTP 409")` would retry a request the server
   refuses forever. One refusal is an answer: `vaultCommit` reads a 409
   `vault-conflict` as the value `{ kind: "conflict" }`, since it carries the
   bytes to merge against, while any reader that knows only the envelope,
@@ -151,6 +165,6 @@ src/
 ## Testing
 
 `pnpm --filter @repo/contract test` — vitest, no platform.
-`knowledge/__tests__/engine-mirror.test.ts` is type-level and fails under
+`knowledge/engine-mirror.test.ts` is type-level and fails under
 `tsc`, not `vitest`. The delta algebra is pinned over the projections it
-diffs, beside the server's fold in `apps/cli/src/server/threads/__tests__/`.
+diffs, beside the server's fold in `apps/cli/src/server/threads/`.

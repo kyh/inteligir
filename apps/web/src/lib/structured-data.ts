@@ -38,7 +38,7 @@ export const siteGraph = () => ({
       "@type": "SoftwareApplication",
       applicationCategory: "ProductivityApplication",
       description:
-        "A local-first notes app for the Mac in which an AI agent, running on your own Claude or ChatGPT plan, edits your markdown notes with you.",
+        "A Mac app that keeps the links, articles, images, PDFs and files you save, and the notes you write, in one library of files you own, with an AI agent on your own Claude or ChatGPT plan that files, tags and edits it with you.",
       downloadUrl,
       license: "https://opensource.org/licenses/MIT",
       name,

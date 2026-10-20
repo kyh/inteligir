@@ -3,10 +3,10 @@ import { statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-// a resolver miss on a broken staging degrades to this, never to an empty vault.
+// a resolver miss on a broken staging degrades to this, never to an empty library.
 const FALLBACK_WELCOME = `# Welcome to inteligir
 
-This folder is your vault: your notes are ordinary files in it, and they belong to you. Edit them here or in any other app — changes show up either way.
+This folder is your library: everything you save and write is an ordinary file in it, and it belongs to you. Open an item here or in any other app — changes show up either way.
 `;
 
 export const resolveSeedDir = (moduleUrl: string = import.meta.url): string | null => {

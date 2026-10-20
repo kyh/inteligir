@@ -28,13 +28,16 @@ owner's.
 pnpm dev                # THE PRODUCT — the shell over its own server
 pnpm dev:desktop        # Alias of dev
 pnpm dev:workspace      # The page alone in a browser tab, on this checkout's server; no Rust
-pnpm dev:mobile         # apps/mobile: expo start
+pnpm dev:mobile         # apps/mobile: expo start, in a terminal (turbo refuses it piped or under CI;
+                        #   pnpm --filter @repo/mobile dev runs it without one)
 pnpm cli serve          # The server ALONE, from source, no window; a shell adopts it
 pnpm cli <verb>         # Every other verb, against this checkout's instance
 pnpm dev:web            # apps/web: vite + miniflare on :5174 (pinned, strictPort)
 pnpm dev:gallery        # tools/ui-gallery: the @repo/ui gallery alone, at localhost:5175 (never deployed)
+pnpm dev:extension      # apps/extension: this checkout's browser door, then WXT's dev loop, rebuilding and reloading on change
 pnpm package:cli        # The npm artifact (apps/cli) — `npx inteligir serve`
 pnpm package:desktop    # The macOS arm64 .app and dmg, signed + notarized when the keys are present
+pnpm package:extension  # The Web Store zip (wxt zip, checked) and the unpacked store build, under apps/extension/.output
 pnpm smoke:cli          # Pack, install into a scratch prefix, boot, probe, stop
 pnpm smoke:desktop      # Package the .app, launch it, drive its server and an agent turn, SIGTERM (macOS only)
 pnpm testflight:mobile  # The phone: EAS builds it for iOS and submits it to TestFlight (owner; docs/releasing.md)
@@ -123,10 +126,40 @@ the git a Mac without the developer tools runs (both fetched and pinned at
 package time), signed when the keychain holds a Developer ID and notarized when
 `.release/` is present (`apps/desktop/README.md` § Packaging).
 
-`pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, thread sync,
-the dispatch inbox, the hosted vault git remote — over a local D1 file and
+`pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, device
+login, the account's socket, the hosted vault git remote — over a local D1 file and
 miniflare's Durable Objects. Sign-up is invite-only and there is no seeded account — `AGENTS.md`
 § "There is no seeded login" has the exact commands.
+
+## Browser extension
+
+`apps/extension` is the browser's Save: a Chromium extension that captures the
+page and hands it to the app on the same machine through `inteligir
+native-host`, which Chrome starts by the manifest a browser keeps for it
+(`apps/extension/README.md`). `pnpm dev:extension` writes this checkout's door
+once (`pnpm cli native-host --install`), then runs WXT's dev loop (`wxt`), which
+builds the extension into `apps/extension/.output/chrome-mv3-dev`, rebuilds it
+on every change and reloads it in the browser; load that folder once with Load
+unpacked on `chrome://extensions` (Developer mode on). `pnpm --filter
+@repo/extension build` writes the same flavor, without the dev server, to
+`.output/chrome-mv3`, which the e2e loads. Its committed key gives the unpacked
+build the id `EXTENSION_ID`
+(`packages/contract/src/browser/extension-identity.ts`), the one origin the
+door allows.
+
+THE DEV BUILD DIALS `com.inteligir.desktop.dev`, the manifest `--install`
+writes, whose launcher runs this checkout's `apps/cli/bin/inteligir
+native-host` from the checkout, so it reaches this checkout's instance (a
+`pnpm cli serve` or `pnpm dev`). The store builds (`pnpm package:extension`:
+the Web Store zip and `.output/chrome-mv3-store-unpacked`, the same files with
+the key) dial `com.inteligir.desktop`, which the packaged app writes for every
+Chromium browser at each launch (`apps/cli/src/desktop/native-hosts.ts`), so
+they reach the installed app and never a checkout. `--install` writes a
+manifest only where a browser's folder exists, so open the browser once first;
+on Linux it writes Chrome's and Chromium's under `~/.config`. `--install` is
+refused in the packaged mode, and the e2e's `browser-extension` scenario writes
+its own door into a scratch profile
+(`tools/e2e/src/harness/native-host-fixture.ts`).
 
 ## Where state lives
 
@@ -137,14 +170,21 @@ miniflare's Durable Objects. Sign-up is invite-only and there is no seeded accou
 | The page's vite dev server                        | 31000 (pinned — `strictPort`; `tauri dev` waits)                                   |
 | Site + cloud Worker (`pnpm dev:web`)              | 5174 (pinned — `strictPort`)                                                       |
 | UI gallery (`pnpm dev:gallery`)                   | 5175 (pinned — `strictPort`)                                                       |
+| Extension dev server (`pnpm dev:extension`)       | 3000, or the first free port to 3010 (WXT's own probe)                             |
 | The vault selector, config.json                   | `~/.inteligir-dev/<hash>/data/` (prod: `~/.inteligir`)                             |
 | Each vault's SQLite and sign-in                   | `<that dir>/vaults/<hash of its physical path>/`                                   |
-| Folders, agent, vault and phone-request prefs     | JSON files beside them (the app writes these)                                      |
+| Folders, agent and vault prefs                    | JSON files beside them (the app writes these)                                      |
 | Connectors                                        | the agent's own: `~/.claude.json`, `~/.codex`                                      |
 | The desktop's server log                          | `<data dir>/logs/server.log` (+ one `.1`)                                          |
 | The desktop's own folder                          | `desktop/` beside config.json: recent vaults, the debug choice, Linux's web stores |
+| The fills a save still owes                       | the `pending_fills` table in that vault's `inteligir.db`                           |
+| The grid's thumbnails                             | `<that vault's data dir>/thumbs/`, a cache pruned to 256 MiB                       |
+| A Raindrop import's copy of its CSV and its job   | `<that vault's data dir>/imports/` (`job.json`), until the import ends             |
+| The browsers' door                                | `native-host/` beside config.json: the launcher the app writes at each boot        |
+| Highlights and their notes                        | `.inteligir/annotations/<item id>.json` in the vault itself                        |
+| The library's filing rules                        | `AGENTS.md` at the vault's root, which the agent reads                             |
 | Accounts, sessions, devices, invites              | D1 (local file under `apps/web/.wrangler`)                                         |
-| Thread log, dispatch inbox, hosted vault          | Durable Objects (same `.wrangler` dir)                                             |
+| The account's sockets, hosted vault               | Durable Objects (same `.wrangler` dir)                                             |
 
 ## Quality gates
 
@@ -166,7 +206,8 @@ CI then runs a few more that `verify` cannot: it installs agent-browser
 and the shell's WebDriver (`tauri-driver`, each pinned by hand, over
 `webkit2gtk-driver` from the runner's apt), and
 runs the scenario suite under `xvfb-run`, since the desktop shell's scenarios
-open a real window. ONE run, because there is one build —
+open a real window, in two lanes, half its four cores. ONE run, because there
+is one build —
 the workspace is a plain SPA served as files, so the suite drives the same
 bytes and the same policy a user gets. So a green `verify` is not a green CI;
 run `pnpm e2e` too before claiming one. A second job runs on macOS, where the
@@ -186,4 +227,7 @@ references, the per-export orphan guard over `@repo/ui`).
 End-to-end: `pnpm e2e` boots real app instances on scratch dirs (fixture
 vaults, scratch git remotes, a headless browser, and the desktop shell itself,
 driven over WebDriver on Linux) and is deliberately outside
-`pnpm verify` — `tools/e2e/README.md` is the one-pager.
+`pnpm verify` — `tools/e2e/README.md` is the one-pager. It runs scenarios in
+lanes, half the machine's cores and at most four at once, each printed whole
+when it ends; `--lanes 1` runs them one at a time and streams every line, and
+`--only <names>` runs just the ones a change touches.

@@ -1,6 +1,7 @@
 // The first run's offer of an account, over the one AccountForm and `useCloudSession`, opening on
 // Create: the cohort joins with an invite. A device signed in has nothing left to be offered,
-// which is also how a sign-up or a sign-in moves the step on.
+// which is also how a sign-up or a sign-in moves the step on, and a library that syncs elsewhere
+// is offered nothing, since an account does nothing for it.
 
 import { Button } from "@repo/ui/components/button";
 import { Spinner } from "@repo/ui/components/spinner";
@@ -14,7 +15,8 @@ export const AccountStep = ({ onNext }: { onNext: () => void }) => {
   const session = useCloudSession();
   const vault = useVaultStatus().data;
   const cloud = session.status;
-  const settled = cloud !== undefined && cloud.state !== "signed-out";
+  const offer = vault === undefined ? null : accountOffer(vault);
+  const settled = (cloud !== undefined && cloud.state !== "signed-out") || offer?.kind === "none";
   const moveOn = useEffectEvent(onNext);
   useEffect(() => {
     if (settled) {
@@ -28,7 +30,7 @@ export const AccountStep = ({ onNext }: { onNext: () => void }) => {
     </Button>
   );
   // skipping needs nothing from either status, so a slow one never holds the step
-  if (cloud?.state !== "signed-out" || vault === undefined) {
+  if (cloud?.state !== "signed-out" || vault === undefined || offer?.kind !== "offer") {
     return (
       <>
         <Spinner className="text-muted-foreground" />
@@ -38,7 +40,7 @@ export const AccountStep = ({ onNext }: { onNext: () => void }) => {
   }
   return (
     <>
-      <h1 className="text-title font-medium">{accountOffer(vault).title}</h1>
+      <h1 className="text-title font-medium">{offer.title}</h1>
       <AccountForm cloudUrl={cloud.cloudUrl} initialMode="create" session={session} vault={vault} />
       {skip}
     </>

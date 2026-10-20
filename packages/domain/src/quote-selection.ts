@@ -1,5 +1,4 @@
-// A selection the agent is asked about, quoted as the start of the message, so the Mac's composer
-// and the phone's start a question the same way.
+// A selection the agent is asked about, quoted as the start of the message.
 export const quoteSelection = (text: string): string =>
   `${text
     .split("\n")

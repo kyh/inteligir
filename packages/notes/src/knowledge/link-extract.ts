@@ -7,6 +7,8 @@
 
 import type { Nodes } from "mdast";
 
+import { readItemFacts } from "../items/item-frontmatter";
+import type { ItemFacts } from "../items/item-frontmatter";
 import { parseBare } from "../markdown/bare-parse";
 import {
   noteIdOfProperties,
@@ -16,6 +18,7 @@ import {
   yamlStringEntries,
 } from "../markdown/frontmatter";
 import type { ParsedProperties, YamlStringEntry } from "../markdown/frontmatter";
+import { ANNOTATION_MARKER_STRIP_RE } from "../markdown/remark-inline-constructs";
 import { isOpaqueSource } from "../markdown/remark-opaque";
 import type { PlateDeclaredType } from "../markdown/remark-opaque";
 import { parseWikiBodyRange } from "../markdown/remark-wiki-link";
@@ -52,6 +55,9 @@ export interface DocScan {
   aliases: string[];
   pinned: boolean;
   noteId: string | null;
+  item: ItemFacts;
+  // the first paragraph's text that holds any, whitespace collapsed; null when none does
+  preview: string | null;
 }
 
 type ScannedLink = ExtractedLink & { targetSpan?: Span };
@@ -66,6 +72,7 @@ interface BodyScan {
   headings: string[];
   links: ScannedLink[];
   tags: ExtractedTag[];
+  preview: string | null;
 }
 
 interface NodePosition {
@@ -126,6 +133,37 @@ const textOf = (node: Nodes): string => {
     return node.children.map(textOf).join("");
   }
   return "";
+};
+
+// what a card shows of a paragraph: its words, a wiki link by the name it shows, never an embed
+const previewTextOf = (node: Nodes): string => {
+  switch (node.type) {
+    case "text":
+    case "inlineCode": {
+      return node.value;
+    }
+    case "wikiLink": {
+      const { alias, target } = parseWikiBodyRange(node.body);
+      return alias ?? target;
+    }
+    case "date": {
+      return node.value;
+    }
+    default: {
+      return "children" in node ? node.children.map(previewTextOf).join("") : "";
+    }
+  }
+};
+
+const collectPreview = (node: Extract<Nodes, { type: "paragraph" }>, scan: BodyScan): void => {
+  // the bare parse leaves an annotation's markers as text, which a card never shows
+  const text = previewTextOf(node)
+    .replaceAll(ANNOTATION_MARKER_STRIP_RE, "")
+    .replaceAll(/\s+/gu, " ")
+    .trim();
+  if (text !== "") {
+    scan.preview = text;
+  }
 };
 
 const isSpace = (c: string): boolean => c === " " || c === "\t" || c === "\n" || c === "\r";
@@ -543,7 +581,7 @@ const collectDefinition = (
 type ScanMode = "index" | "rewrite";
 
 const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
-  const scan: BodyScan = { headings: [], links: [], tags: [], title: null };
+  const scan: BodyScan = { headings: [], links: [], preview: null, tags: [], title: null };
   const doc: ScanContext = { scan, source, spans: mode === "rewrite" };
   const verbatim: ScanContext = { scan, source, spans: false };
   // oxlint-disable-next-line complexity -- the count is the node-type enumeration the default holds total, not branching: every arm delegates
@@ -577,12 +615,18 @@ const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
         collectDefinition(node, ctx);
         break;
       }
+      case "paragraph": {
+        if (!at.verbatim && scan.preview === null) {
+          collectPreview(node, scan);
+        }
+        break;
+      }
       case "blockquote":
       case "break":
       case "code":
       case "column":
       case "columnGroup":
-      case "commentMarker":
+      case "annotationMarker":
       case "date":
       case "delete":
       case "emphasis":
@@ -599,7 +643,6 @@ const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
       case "listItem":
       case "math":
       case "opaqueInline":
-      case "paragraph":
       case "root":
       case "strong":
       case "tabGroup":
@@ -626,16 +669,18 @@ export const scanDoc = (source: string): DocScan => {
   const yaml = frontmatterText(tree);
   const frontmatter = yaml === null ? null : parseProperties(yaml);
   const body = scanBody(source, tree, "index");
+  const item = readItemFacts(frontmatter);
+  const ownTags = yaml === null ? [] : frontmatterTags(yaml).map(({ tag }) => tag);
   return {
     aliases: frontmatterAliases(frontmatter),
     headings: body.headings,
+    item,
     links: body.links,
     noteId: noteIdOfProperties(frontmatter),
     pinned: frontmatterPinned(frontmatter),
-    tags: [
-      ...(yaml === null ? [] : frontmatterTags(yaml).map(({ tag }) => tag)),
-      ...body.tags.map(({ tag }) => tag),
-    ],
+    preview: body.preview,
+    // a saved page's hashtags are the page's, not the person's: only a note's text adds tags
+    tags: item.kind === "note" ? [...ownTags, ...body.tags.map(({ tag }) => tag)] : ownTags,
     title: body.title,
   };
 };

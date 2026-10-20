@@ -7,8 +7,7 @@ import { radius } from "@repo/ui/lib/radius";
 import { spring } from "@repo/ui/lib/springs";
 
 interface ProximityFocusRingProps {
-  // `| undefined` spelled out for the same sparse itemRects[i] read
-  rect: ItemRect | null | undefined;
+  rect: ItemRect | null;
 }
 
 const ProximityFocusRing = ({ rect }: ProximityFocusRingProps) => (
@@ -31,8 +30,7 @@ const ProximityFocusRing = ({ rect }: ProximityFocusRingProps) => (
 );
 
 interface ProximityOverlaysProps {
-  // `| undefined` spelled out so a sparse itemRects[i] read passes under exactOptionalPropertyTypes
-  activeRect?: ItemRect | null | undefined;
+  activeRect?: ItemRect | null;
   hoverRect: ItemRect | null;
   focusRect: ItemRect | null;
   // keys the hover overlay so re-entering fades in at the current row instead of sliding from the last

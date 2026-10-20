@@ -1,4 +1,4 @@
-import { KEYS, createSlatePlugin } from "platejs";
+import { KEYS } from "platejs";
 import type { SlateEditor } from "platejs";
 import { createPlatePlugin } from "platejs/react";
 
@@ -7,14 +7,6 @@ import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { isLiveEditor } from "@repo/editor/live-editor";
 import { ImageElement } from "@repo/editor/nodes/image-node";
 import { toast } from "@repo/ui/components/sonner";
-
-// The live half is a separate plugin on the same key: DOM paste/drop handlers exist only on React plugins.
-const imageBasePlugin = createSlatePlugin({
-  key: KEYS.img,
-  node: { isElement: true, isVoid: true },
-});
-
-export const ImageBaseKit = [imageBasePlugin];
 
 const extFromMime = (mime: string): string => {
   const subtype = mime.slice("image/".length).split("+")[0] ?? "";
@@ -44,7 +36,7 @@ const writeAsset = async (file: File, name: string): Promise<string> => {
 // no note, and the toast says where it went.
 export const insertVaultImage = (editor: SlateEditor, path: string): boolean => {
   if (!isLiveEditor(editor)) {
-    toast.warning(`Added ${path} to the vault, but its note closed before the image landed`);
+    toast.warning(`Added ${path} to the library, but its item closed before the image landed`);
     return false;
   }
   insertVoidAndEscape(editor, { children: [{ text: "" }], type: KEYS.img, url: path });
@@ -68,6 +60,8 @@ export const ingestImageFiles = async (editor: SlateEditor, files: File[]): Prom
   }
 };
 
+// a separate plugin on the base half's key (headless/image-base.ts): DOM paste/drop handlers exist
+// only on React plugins.
 export const ImageKit = [
   createPlatePlugin({
     key: KEYS.img,

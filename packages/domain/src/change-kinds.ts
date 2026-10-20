@@ -1,6 +1,15 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-export const VAULT_CHANGE_KINDS = ["files-changed", "sync-status-changed"] as const;
+// import-changed: an import job's counts or state moved. targets-changed: a settle added,
+// removed or renamed a path, or changed a doc's aliases, id, pin or title (its first heading), so
+// the link targets' rows moved; any other body edit does not, which is most of every fill's and
+// every keystroke's change.
+export const VAULT_CHANGE_KINDS = [
+  "files-changed",
+  "sync-status-changed",
+  "import-changed",
+  "targets-changed",
+] as const;
 export type VaultChangeKind = (typeof VAULT_CHANGE_KINDS)[number];
 
 export const DOC_CHANGE_KINDS = ["content-changed"] as const;
@@ -13,7 +22,6 @@ export const THREAD_CHANGE_KINDS = [
   "archived-changed",
   "queue-changed",
   "interactions-changed",
-  "origin-changed",
   "title-changed",
   "changes-committed",
 ] as const;

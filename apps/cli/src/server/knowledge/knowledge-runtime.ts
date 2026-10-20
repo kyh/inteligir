@@ -3,6 +3,16 @@
 // of that settle until it lands.
 
 import nodePath from "node:path";
+import { COVERS_DIR, UNSORTED_FOLDER } from "@repo/notes/items/item-kind";
+import type {
+  ItemPage,
+  ItemPaths,
+  ItemQuery,
+  ItemRow,
+  ItemScopes,
+  UrlMatches,
+} from "@repo/notes/items/library-index";
+import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { LinkGraphIndex } from "@repo/notes/knowledge/link-graph-index";
 import type { BacklinkEntry, WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { moveCandidates } from "@repo/notes/knowledge/rename-candidates";
@@ -18,15 +28,7 @@ import type { SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-stor
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import { bodyPrefilters, collectVaultMatches } from "@repo/notes/knowledge/text-matches";
 import type { TextMatchOptions, VaultMatches } from "@repo/notes/knowledge/text-matches";
-import {
-  findUnlinkedMentions,
-  mentionLinkTarget,
-  mentionNames,
-} from "@repo/notes/knowledge/unlinked-mentions";
-import type { LinkableMentions } from "@repo/notes/knowledge/unlinked-mentions";
-import { collectVaultProblems } from "@repo/notes/knowledge/vault-problems";
-import type { VaultProblems, VaultProblemsOptions } from "@repo/notes/knowledge/vault-problems";
-import { normalizePath } from "@repo/notes/knowledge/vault-path";
+import { dirnamePath, normalizePath } from "@repo/notes/knowledge/vault-path";
 import { searchVaultNotes } from "@repo/notes/knowledge/vault-search";
 import { createCoalescingTimer } from "../coalescing-timer";
 import type { DebugLog } from "../debug-log";
@@ -50,8 +52,13 @@ export interface KnowledgeRuntimeArgs {
   // owned: dispose() disposes it first, so a pass mid-projection is released, not waited out
   projector: Projector;
   // a suite shortens it rather than stalling a read for seconds
-  readDeadlineMs?: number;
+  readDeadlineMs?: number | undefined;
   debugLog?: DebugLog | undefined;
+  // the attachments pref's folder when it names one, which the rail's folder tree leaves out
+  attachmentsFolder?: () => string | null;
+  // told once after each pass that added, removed or renamed a path or moved a doc's aliases, id,
+  // pin or title: what the bus announces as `targets-changed`
+  onTargetsChanged?: () => void;
 }
 
 export interface KnowledgeRuntime {
@@ -68,23 +75,16 @@ export interface KnowledgeRuntime {
   }) => Promise<VaultMatches>;
   backlinks: (path: string) => Promise<BacklinkEntry[]>;
   wikiTargets: () => Promise<WikiTarget[]>;
-  // notes naming this one in prose without a link, one row per note on its first mention
-  unlinkedMentions: (path: string, limit: number) => Promise<LinkableMentions>;
-  // what the resolver cannot answer, from the index alone
-  problems: (options: VaultProblemsOptions) => Promise<VaultProblems>;
   // every doc whose frontmatter `id` is this one, by path
   noteIdOwners: (id: string) => Promise<string[]>;
   // the doc whose frontmatter `id` this is: `lastPath` while it still is, else the id tier's own
   // pick; null when no indexed doc carries it
   pathForNoteId: (id: string, lastPath: string) => Promise<string | null>;
+  // a doc read the deadline deferred has not landed yet: a null from `pathForNoteId` may be a
+  // move whose new path the index has not read, rather than an id no doc carries
+  readsOutstanding: () => boolean;
   relatedNotes: (path: string, limit: number) => Promise<RelatedNoteEntry[]>;
   tags: () => Promise<TagCount[]>;
-  // the tag's family by path: a page of it and the whole count
-  tagNotes: (
-    tag: string,
-    limit: number,
-    offset: number,
-  ) => Promise<{ paths: string[]; total: number }>;
   // pre-move path to post-move path: one entry for a note, one per file under a folder
   renameCandidates: (moves: ReadonlyMap<string, string>) => Promise<string[]>;
   // every doc holding the tag or one nested under it, computed with no reads
@@ -92,9 +92,27 @@ export interface KnowledgeRuntime {
   // the rewrite sets' byte surgery scans every candidate, so it runs where projection does
   renameEdits: (job: RenameEditsJob) => Promise<Map<string, string>>;
   tagRenameEdits: (job: TagRenameEditsJob) => Promise<Map<string, string>>;
+  // the library listing, answered from the in-memory mirror: no sql read and no walk
+  items: (q: ItemQuery) => Promise<ItemPage>;
+  itemPaths: (q: ItemQuery) => Promise<ItemPaths>;
+  // in request order; a path that is not an item is left out
+  itemsAt: (paths: readonly string[]) => Promise<ItemRow[]>;
+  findByUrl: (url: string, limit: number) => Promise<UrlMatches>;
+  // the folders are the walk's own directory set, which a folder change refreshes
+  scopes: () => Promise<ItemScopes>;
+  // the files that are not docs this doc links or embeds, deduplicated in link order
+  linkedFiles: (path: string) => Promise<string[]>;
   readonly lastReconcile: ReconcileStats | null;
   dispose: () => Promise<void>;
 }
+
+// what the rail's folder tree never lists: the attachments and covers folder, a chosen
+// attachments folder, and Unsorted, which is a scope row of its own
+const hiddenFoldersOf = (attachmentsFolder: string | null): string[] => [
+  dirnamePath(COVERS_DIR),
+  UNSORTED_FOLDER,
+  ...(attachmentsFolder === null ? [] : [normalizePath(attachmentsFolder)]),
+];
 
 export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRuntime => {
   const store: SqlKnowledgeStore = createSqlKnowledgeStore(
@@ -123,12 +141,19 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     vault: args.vault,
   });
 
+  const announceTargets = (): void => {
+    if (graph.takeTargetsChanged()) {
+      args.onTargetsChanged?.();
+    }
+  };
+
   const pass = async (): Promise<void> => {
     if (indexPass.disposed) {
       return;
     }
     try {
       await indexPass.run();
+      announceTargets();
     } catch (error) {
       // however it ended: dispose() stops the worker under a pass mid-projection, and nothing is
       // rebuilt for a runtime that is going away.
@@ -142,6 +167,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       console.warn("[knowledge] the index store failed — rebuilding it:", messageOf(error));
       indexPass.recover();
       await indexPass.run();
+      announceTargets();
     }
   };
 
@@ -231,8 +257,38 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       debounce.arm();
     },
 
+    async findByUrl(url, limit) {
+      await settle();
+      return graph.findByUrl(url, limit);
+    },
+
+    async itemPaths(q) {
+      await settle();
+      return graph.itemPaths(q);
+    },
+
+    async items(q) {
+      await settle();
+      return graph.items(q);
+    },
+
+    async itemsAt(paths) {
+      await settle();
+      return graph.itemsAt(paths.map(normalizePath));
+    },
+
     get lastReconcile() {
       return indexPass.lastReconcile;
+    },
+
+    async linkedFiles(path) {
+      await settle();
+      const targets = graph
+        .forwardLinks(normalizePath(path))
+        .flatMap(({ targetPath }) =>
+          targetPath === null || isDocPath(targetPath) ? [] : [targetPath],
+        );
+      return [...new Set(targets)];
     },
 
     // the literal scan, off the fts index: fts5 cannot say where inside a line a hit sits
@@ -257,10 +313,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       return graph.pathForNoteId(id, normalizePath(lastPath));
     },
 
-    async problems(options) {
-      await settle();
-      return collectVaultProblems(graph, options);
-    },
+    readsOutstanding: () => indexPass.readsOutstanding(),
 
     // the ranked read: the probe runs once per title token and keeps only the score, so search's excerpts would be wasted.
     async relatedNotes(path, limit) {
@@ -282,6 +335,11 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
 
     renameEdits: projector.renameEdits,
 
+    async scopes() {
+      await settle();
+      return graph.scopes([...indexPass.dirs], hiddenFoldersOf(args.attachmentsFolder?.() ?? null));
+    },
+
     async search(params) {
       return await readThroughIndex("search", () =>
         searchVaultNotes(
@@ -297,12 +355,6 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
 
     settle,
 
-    async tagNotes(tag, limit, offset) {
-      await settle();
-      const all = notesInTagFamily(graph, tag);
-      return { paths: all.slice(offset, offset + limit), total: all.length };
-    },
-
     async tagRenameCandidates(from) {
       await settle();
       return notesInTagFamily(graph, from);
@@ -313,24 +365,6 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     async tags() {
       await settle();
       return graph.tags();
-    },
-
-    // the literal scan again, over the stem and the aliases; ascii names let the store
-    // pre-narrow to the docs holding one of them
-    async unlinkedMentions(path, limit) {
-      const normalized = normalizePath(path);
-      return await readThroughIndex("unlinked mentions", () => {
-        const names = mentionNames(normalized, graph.aliasesOf(normalized));
-        const exclude = new Set([
-          normalized,
-          ...graph.backlinks(normalized).map((backlink) => backlink.sourcePath),
-        ]);
-        const docs = store.docTexts(bodyPrefilters(names));
-        return {
-          ...findUnlinkedMentions(docs, { exclude, limit, names }),
-          linkTarget: mentionLinkTarget(normalized, (name) => graph.resolveWiki(name)),
-        };
-      });
     },
 
     async wikiTargets() {

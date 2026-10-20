@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { CodeIcon, EyeIcon } from "lucide-react";
 import { KEYS, NodeApi } from "platejs";
 import { PlateElement, PlateLeaf } from "platejs/react";
 import type { PlateEditor, PlateElementProps, PlateLeafProps } from "platejs/react";
-import { BaseCodeBlockPlugin, BaseCodeLinePlugin, CodeBlockRules } from "@platejs/code-block";
+import { CodeBlockRules } from "@platejs/code-block";
 import { CodeBlockPlugin, CodeLinePlugin, CodeSyntaxPlugin } from "@platejs/code-block/react";
 import { common, createLowlight } from "lowlight";
 
@@ -11,9 +11,9 @@ import { cn } from "@repo/ui/lib/cn";
 
 import { turnIntoOption, turnIntoSelection } from "@repo/editor/block-transforms";
 import { stringProp } from "@repo/editor/node-props";
-import { MermaidPreview } from "@repo/editor/nodes/code-block-mermaid";
 
-export const CodeBlockBaseKit = [BaseCodeBlockPlugin, BaseCodeLinePlugin];
+// pele loads with the first diagram a note shows, never with the editor
+const MermaidPreview = lazy(async () => await import("@repo/editor/nodes/code-block-mermaid"));
 
 const lowlight = createLowlight(common);
 // lowlight ships no mermaid/math grammar; without the alias CodeSyntaxPlugin logs "not registered" per fence.
@@ -61,7 +61,9 @@ const MermaidCodeBlock = (props: PlateElementProps) => {
         </button>
       </div>
       <pre className={cn("mt-0", mode === "preview" && "hidden")}>{props.children}</pre>
-      <MermaidPreview code={codeText(props.element)} />
+      <Suspense fallback={null}>
+        <MermaidPreview code={codeText(props.element)} />
+      </Suspense>
     </PlateElement>
   );
 };

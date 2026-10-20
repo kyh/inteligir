@@ -1,0 +1,299 @@
+import { router, Stack, useLocalSearchParams, useNavigation, useRoute } from "expo-router";
+import type { NativeStackNavigationProp } from "expo-router";
+import {
+  useHeaderHeight,
+  useNavigationState,
+  usePreventRemove,
+} from "expo-router/react-navigation";
+import type { ParamListBase } from "expo-router/react-navigation";
+import { useEffect, useState } from "react";
+import { Alert, KeyboardAvoidingView, Linking, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { WebView } from "react-native-webview";
+import type { EditInit } from "@repo/mobile-editor/bridge-protocol";
+import { docStem } from "@repo/notes/knowledge/doc-file";
+import { loadVerdict, openWindowVerdict } from "@/editor/editor-host";
+import type { LoadVerdict } from "@/editor/editor-host";
+import type { EditorRoute, PageEditorState } from "@/editor/editor-ports";
+import { ItemInfoSheet } from "@/items/item-info-sheet";
+import { deleteNote, useLibraryCard } from "@/lib/app-runtime";
+import { firstParam, openItem, openViewer } from "@/lib/routes";
+import { useTheme } from "@/lib/theme";
+import { AnnotationsSheet } from "@/notes/annotations-view";
+import { confirmDeleteNote } from "@/notes/confirm-delete-note";
+import { OutboxBanner } from "@/notes/outbox-banner";
+import { useNoteEditor } from "@/notes/use-note-editor";
+import { useSheetAnnotations } from "@/notes/use-sheet-annotations";
+import type { SheetRequest } from "@/notes/use-sheet-annotations";
+import { TextButton } from "@/ui/text-button";
+
+// a value, not a class: className draws nothing on a SafeAreaView or a WebView
+const screenOf = (background: string) => ({ backgroundColor: background, flex: 1 });
+
+// the WebView hands anything its list does not admit to the OS itself, before the handler below
+// runs, so the list admits every address and `loadVerdict` is the one policy
+const EVERY_ORIGIN = ["*"];
+
+// one screen down is what the back gesture reveals, so it keeps its page; further down a page holds
+// a WebView's memory for nothing on screen, and loads again when the user comes back
+const RELEASE_DEPTH = 2;
+
+const focusOf = (value: string | null): EditInit["focus"] =>
+  value === "title" || value === "body" ? value : null;
+
+// how many screens sit above this one in its stack
+const depthOf = (routes: readonly { key: string }[], key: string): number => {
+  const index = routes.findIndex((route) => route.key === key);
+  return index === -1 ? 0 : routes.length - 1 - index;
+};
+
+const openOutside = async (url: string): Promise<void> => {
+  try {
+    await Linking.openURL(url);
+  } catch {
+    // no handler for the URL is the OS's answer, not an app error
+  }
+};
+
+const followVerdict = (verdict: LoadVerdict): boolean => {
+  if (verdict.kind === "open-outside") {
+    void openOutside(verdict.url);
+  }
+  return verdict.kind === "allow";
+};
+
+const pushRoute = (route: EditorRoute): void => {
+  if (route.kind === "note") {
+    openItem(route.path);
+    return;
+  }
+  openViewer(route.path, route.item);
+};
+
+type SaveError = NonNullable<PageEditorState["saveError"]>;
+
+const unsavedLine = (error: SaveError): string =>
+  error.kind === "vanished"
+    ? "This item was deleted while it had edits that are not saved."
+    : `Your last edits couldn't be saved: ${error.message}`;
+
+// One item in the desktop's editor: the page the app bundle carries, in a WebView that reaches the
+// phone only through the bridge (editor-host.ts) and loads nothing but itself. Leaving the screen
+// or the app writes what the page holds first. The menu opens the saved page in Safari, the item's
+// Info and its annotations.
+const ItemScreen = () => {
+  const theme = useTheme();
+  const headerHeight = useHeaderHeight();
+  const params = useLocalSearchParams<{ path: string[]; focus?: string | string[] }>();
+  const path = Array.isArray(params.path) ? params.path.join("/") : (params.path ?? "");
+  const route = useRoute();
+  const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
+  const depth = useNavigationState((state) => depthOf(state.routes, route.key));
+  const [opened, setOpened] = useState<string | null>(path);
+  const [sheet, setSheet] = useState<SheetRequest | null>(null);
+  const [released, setReleased] = useState(false);
+  const [saveError, setSaveError] = useState<SaveError | null>(null);
+  const [openFailed, setOpenFailed] = useState<string | null>(null);
+  const [showInfo, setShowInfo] = useState(false);
+  const card = useLibraryCard(opened);
+  const original = card?.url ?? null;
+
+  const { host, ports, source } = useNoteEditor(
+    { focus: focusOf(firstParam(params.focus)), path },
+    {
+      editorState: (state) => {
+        setSaveError(state.saveError);
+      },
+      go: pushRoute,
+      notify: (title, message) => {
+        Alert.alert(title, message);
+      },
+      openFailed: setOpenFailed,
+      opened: setOpened,
+      showAnnotations: (ids) => {
+        setSheet({ ids });
+      },
+    },
+  );
+  // the WebView's ref, one function for the screen's life: a fresh one each render would detach
+  // the view and attach it again, and a detach forgets the loaded page
+  const { attach: attachView } = host;
+  const { annotations, edits: annotationEdits } = useSheetAnnotations(
+    sheet,
+    opened,
+    ports.annotations,
+  );
+
+  // A save the page could not make is held only by the page, so leaving then asks first. An
+  // ordinary edit inside the autosave's pause needs no ask: the flush on the way out writes it.
+  usePreventRemove(saveError !== null, ({ data }) => {
+    const leave = (): void => {
+      navigation.dispatch(data.action);
+    };
+    void (async () => {
+      if (saveError === null || (await host.flush())) {
+        leave();
+        return;
+      }
+      Alert.alert("Leave without saving?", unsavedLine(saveError), [
+        { style: "cancel", text: "Stay" },
+        { onPress: leave, style: "destructive", text: "Discard edits" },
+      ]);
+    })();
+  });
+
+  const deep = depth >= RELEASE_DEPTH;
+  useEffect(() => {
+    if (!deep) {
+      return;
+    }
+    let live = true;
+    void (async () => {
+      // a page whose edits could not be written holds the only copy, so it stays loaded
+      const flushed = await host.flush();
+      if (live && flushed) {
+        setReleased(true);
+        // the page loads afresh on the way back, and says again if it cannot open the note
+        setOpenFailed(null);
+      }
+    })();
+    return () => {
+      live = false;
+      setReleased(false);
+    };
+  }, [deep, host]);
+
+  const deleteOpened = (): void => {
+    if (opened === null) {
+      return;
+    }
+    confirmDeleteNote(opened, () => {
+      void (async () => {
+        await host.flush();
+        try {
+          await deleteNote(opened);
+        } catch (error) {
+          Alert.alert("Couldn't delete", error instanceof Error ? error.message : String(error));
+          return;
+        }
+        router.back();
+      })();
+    });
+  };
+
+  // a fresh load reads the note again and holds no edits yet; it says again if it still cannot
+  const loadPageAgain = (): void => {
+    setOpenFailed(null);
+    setSaveError(null);
+    host.reload();
+  };
+
+  let body = null;
+  if (source === null) {
+    body = (
+      <Text className="px-6 py-24 text-center text-16 text-muted-foreground">
+        This build has no editor to open items with.
+      </Text>
+    );
+  } else if (!released) {
+    body = (
+      <WebView
+        ref={attachView}
+        style={screenOf(theme.background)}
+        source={{ uri: source.uri }}
+        allowingReadAccessToURL={source.readAccess}
+        originWhitelist={EVERY_ORIGIN}
+        onShouldStartLoadWithRequest={(request) => followVerdict(loadVerdict(request, source.uri))}
+        onOpenWindow={(event) => {
+          followVerdict(openWindowVerdict(event.nativeEvent.targetUrl));
+        }}
+        onMessage={(event) => {
+          host.receive({ data: event.nativeEvent.data, url: event.nativeEvent.url });
+        }}
+        onContentProcessDidTerminate={loadPageAgain}
+        hideKeyboardAccessoryView
+        keyboardDisplayRequiresUserAction={false}
+        allowsLinkPreview={false}
+        dataDetectorTypes="none"
+        decelerationRate="normal"
+        webviewDebuggingEnabled={__DEV__}
+      />
+    );
+  }
+
+  return (
+    <SafeAreaView style={screenOf(theme.background)} edges={["left", "right"]}>
+      <Stack.Screen options={{ title: opened === null ? "Deleted" : docStem(opened) }} />
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Menu
+          accessibilityLabel="More"
+          hidden={opened === null}
+          icon="ellipsis.circle"
+        >
+          <Stack.Toolbar.MenuAction
+            hidden={original === null}
+            onPress={() => {
+              if (original !== null) {
+                void openOutside(original);
+              }
+            }}
+          >
+            Open original
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
+            hidden={card === null}
+            onPress={() => {
+              setShowInfo(true);
+            }}
+          >
+            Info
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
+            onPress={() => {
+              setSheet({ ids: null });
+            }}
+          >
+            Annotations
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction destructive onPress={deleteOpened}>
+            Delete
+          </Stack.Toolbar.MenuAction>
+        </Stack.Toolbar.Menu>
+      </Stack.Toolbar>
+      <OutboxBanner className="px-4 pt-2" onOpen={openItem} />
+      <KeyboardAvoidingView
+        className="grow basis-0"
+        behavior="padding"
+        keyboardVerticalOffset={headerHeight}
+      >
+        {body}
+        {openFailed === null ? null : (
+          <View className="absolute inset-0 items-center gap-4 bg-background px-6 py-24">
+            <Text className="text-center text-16 text-muted-foreground">
+              {`Couldn't open this item: ${openFailed}`}
+            </Text>
+            <TextButton fontSize={16} label="Retry" onPress={loadPageAgain} />
+          </View>
+        )}
+      </KeyboardAvoidingView>
+      <AnnotationsSheet
+        annotations={annotations}
+        edits={annotationEdits}
+        ids={sheet?.ids ?? null}
+        visible={sheet !== null}
+        onClose={() => {
+          setSheet(null);
+        }}
+      />
+      <ItemInfoSheet
+        card={card}
+        visible={showInfo}
+        onClose={() => {
+          setShowInfo(false);
+        }}
+      />
+    </SafeAreaView>
+  );
+};
+
+export default ItemScreen;

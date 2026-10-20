@@ -1,4 +1,4 @@
-// CLAUDE.md § THE NOTE STORE OWNS THE OPEN NOTE. The child draws in a full-window layer here
+// CLAUDE.md § THE NOTE STORE OWNS THE OPEN ITEM. The child draws in a full-window layer here
 // rather than in its own component, so its crash boundary lands in the layer too instead of below
 // a workspace it left inert.
 
@@ -9,11 +9,11 @@ import { Workspace } from "../app/workspace";
 
 const workspaceSearchSchema = z.object({
   // oxlint-disable-next-line unicorn/no-useless-undefined, promise/valid-params, promise/prefer-await-to-then -- zod's catch, not a promise's: it takes the fallback positionally and undefined IS the fallback
-  note: z.catch(z.string().min(1).optional(), undefined),
+  item: z.catch(z.string().min(1).optional(), undefined),
 });
 
 const WorkspaceLayout = () => {
-  const { note } = Route.useSearch();
+  const { item } = Route.useSearch();
   const navigate = useNavigate();
   // any child but the index draws over the workspace
   const covered = useMatch({ from: "/_workspace/", shouldThrow: false }) === undefined;
@@ -23,15 +23,15 @@ const WorkspaceLayout = () => {
   return (
     <>
       <Workspace
-        bootNote={note ?? null}
+        bootItem={item ?? null}
         covered={covered}
-        onOpenNote={(path) => {
+        onOpenItem={(path) => {
           // replace, and on the current route: the note store keeps the one back/forward history,
-          // and a note that moves while Settings shows must not take Settings down, nor a boot
-          // that lands under /welcome drop the step it is on
+          // where the library is a step with no param, and an item that moves while Settings
+          // shows must not take Settings down, nor a boot that lands under /welcome drop its step
           void navigate({
             replace: true,
-            search: (prior) => ({ ...prior, note: path ?? undefined }),
+            search: (prior) => ({ ...prior, item: path ?? undefined }),
             to: ".",
           });
         }}

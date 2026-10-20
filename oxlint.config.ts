@@ -4,7 +4,7 @@ import core from "ultracite/oxlint/core";
 import react from "ultracite/oxlint/react";
 import tanstack from "ultracite/oxlint/tanstack";
 
-const tests = ["**/__tests__/**", "**/*.test.ts", "**/*.test.tsx"];
+const tests = ["**/test-support/**", "**/*.test.ts", "**/*.test.tsx"];
 
 // A regex, not a group: a group matches gitignore-style, so "react" would also refuse
 // "@platejs/react".
@@ -26,10 +26,12 @@ export default defineConfig({
   extends: [core, react, tanstack, antiSlop],
   ignorePatterns: [
     ...(core.ignorePatterns ?? []),
+    ".agents",
     ".claude",
     ".codex",
     "*.tsbuildinfo",
     ".tanstack",
+    ".wxt",
   ],
   overrides: [
     {
@@ -44,6 +46,15 @@ export default defineConfig({
       files: tests,
       rules: {
         "require-await": "off",
+      },
+    },
+    {
+      // ultracite's own test override names `*.test.*` and `__tests__/`, never test-support/, so
+      // the stubs and fakes the suites share keep a test's allowances here: a stub's no-op body.
+      files: ["**/test-support/**"],
+      rules: {
+        "no-empty-function": "off",
+        "promise/prefer-await-to-then": "off",
       },
     },
     {
@@ -76,7 +87,17 @@ export default defineConfig({
     platformPurity(
       "packages/editor",
       NODE,
-      "@repo/editor is browser-only: Plate/Slate in the page, never in the Node process",
+      "@repo/editor imports no node module: it runs in the page, and its headless kits in the fill worker's DOM-shimmed thread (apps/cli/src/server/items/capture/fill/)",
+    ),
+    platformPurity(
+      "packages/page-reader",
+      NODE_OR_REACT,
+      "@repo/page-reader reads a page over the DOM its host hands it, in the Mac's network-less fill worker and in the phone's WebView, so it imports no node module (no socket a page could reach) and no React",
+    ),
+    platformPurity(
+      "apps/extension",
+      NODE,
+      "@repo/extension runs in the browser: its pages and its service worker reach the Mac only through the native host",
     ),
     platformPurity(
       "apps/mobile-editor",
@@ -122,6 +143,10 @@ export default defineConfig({
                   "@repo/notes names no platform and not every runtime it ships to has crypto; take the random bytes or the id from the caller",
                 name: "crypto",
               },
+              {
+                message: "React Native's URL is not WHATWG; parse with @repo/notes/items/item-url",
+                name: "URL",
+              },
             ],
           },
         ],
@@ -135,9 +160,10 @@ export default defineConfig({
     // Sequential awaits in loops are deliberate here (ordered vault writes, rate-limited reads).
     "no-await-in-loop": "off",
     // Both shapes it flags are load-bearing idioms: an exhaustive `switch` over a
-    // union with no `default` (the fall-off-the-end is what makes tsc reject the
-    // function when a member is added) and `useEffect(() => { if (x) return; …;
-    // return cleanup; })`, React's own contract for a conditional cleanup.
+    // union with no `default` (in a function whose return type excludes
+    // undefined, the fall-off-the-end is what makes tsc reject it when a member
+    // is added) and `useEffect(() => { if (x) return; …; return cleanup; })`,
+    // React's own contract for a conditional cleanup.
     "typescript/consistent-return": "off",
     // No type assertion and no escape comment: parse at the boundary or narrow with a
     // type guard. `as const` asserts no other type and stays legal.

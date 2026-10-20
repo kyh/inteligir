@@ -5,15 +5,16 @@ import { E2E_INVITE_CODE, WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-wo
 import { hostedVaultEnv, syncUntil } from "../harness/hosted-vault";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { EDITOR, WELCOME_STEP, welcomeStep } from "../harness/selectors";
+import { EDITOR, LIBRARY_GRID, WELCOME_STEP, libraryCard, welcomeStep } from "../harness/selectors";
 
 const WELCOME_NOTE = "Welcome.md";
 // the seeded note's heading (apps/cli/seed/Welcome.md)
 const WELCOME_HEADING = "Welcome to inteligir";
 const ACCOUNT_STEP = welcomeStep("account");
-const PAGE_STATE = `JSON.stringify({ step: document.querySelector('${WELCOME_STEP}')?.dataset.welcomeStep ?? null, path: location.pathname, note: new URLSearchParams(location.search).get("note") })`;
+const PAGE_STATE = `JSON.stringify({ step: document.querySelector('${WELCOME_STEP}')?.dataset.welcomeStep ?? null, path: location.pathname, item: new URLSearchParams(location.search).get("item"), grid: document.querySelector('${LIBRARY_GRID}') !== null })`;
 const pageStateSchema = z.object({
-  note: z.string().nullable(),
+  grid: z.boolean(),
+  item: z.string().nullable(),
   path: z.string(),
   step: z.string().nullable(),
 });
@@ -21,7 +22,7 @@ const DEADLINE_MS = 30_000;
 
 export const onboardingAccountBrowser: Scenario = {
   description:
-    "`/welcome`'s account step against a Miniflare Worker opens on Create; an account made there with the invite code signs the instance in, its vault syncs through that account, and the page moves on by itself to Welcome.md",
+    "`/welcome`'s account step against a Miniflare Worker opens on Create; an account made there with the invite code signs the instance in, its library syncs through that account, and the page moves on by itself to the library, where Welcome opens",
   name: "onboarding-account-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -43,7 +44,7 @@ export const onboardingAccountBrowser: Scenario = {
     }
     await clickButtonIn(browser, ACCOUNT_STEP, "Create account");
 
-    ctx.log("the instance is signed in as the new account, and its notes sync through it");
+    ctx.log("the instance is signed in as the new account, and its library syncs through it");
     await pollUntil(
       async () => await app.api.cloud.status(),
       (status) => status.state === "signed-in" && status.accountEmail === OWNER.email,
@@ -56,17 +57,22 @@ export const onboardingAccountBrowser: Scenario = {
     );
     await syncUntil(app.api, "the new account's first sync", "clean");
 
-    ctx.log("the step moves on by itself, to the notes on Welcome.md");
+    ctx.log("the step moves on by itself, to the library, with nothing open");
     await pollUntil(
       async () => parseEval(await browser(["eval", PAGE_STATE]), pageStateSchema),
-      (page) => page.step === null && page.path === "/" && page.note === WELCOME_NOTE,
+      (page) => page.step === null && page.path === "/" && page.item === null && page.grid,
       {
         deadlineMs: DEADLINE_MS,
         describe: (page) =>
-          `the page never left the account step for the notes: ${JSON.stringify(page)}`,
+          `the page never left the account step for the library: ${JSON.stringify(page)}`,
         intervalMs: 250,
       },
     );
+
+    ctx.log("Welcome's card opens it");
+    await browser(["wait", libraryCard(WELCOME_NOTE)], DEADLINE_MS);
+    await browser(["dblclick", libraryCard(WELCOME_NOTE)]);
+    await browser(["wait", EDITOR], DEADLINE_MS);
     await pollUntil(
       async () => await browser(["get", "text", EDITOR]),
       (text) => text.includes(WELCOME_HEADING),

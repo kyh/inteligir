@@ -149,29 +149,12 @@ const deleteAccount = base.cloud.deleteAccount.handler(async ({ context, input, 
   }
 });
 
-const syncNow = base.cloud.syncNow.handler(async ({ context }) => await context.cloud.syncNow());
-
-const prefs = base.cloud.prefs.handler(({ context }) => ({
-  phoneRequests: context.cloudPrefs.phoneRequests(),
-}));
-
-// a pass reads the choice as it starts; the socket dials again to announce it, and its opening
-// runs the pass that answers a request waiting for a Mac that takes them
-const setPrefs = base.cloud.setPrefs.handler(({ context, input }) => {
-  context.cloudPrefs.write({ ...context.cloudPrefs.read(), phoneRequests: input.phoneRequests });
-  context.cloud.phoneRequestsChanged();
-  return { phoneRequests: context.cloudPrefs.phoneRequests() };
-});
-
 export const cloudRouter = {
   deleteAccount,
   devices,
   login,
   logout,
-  prefs,
   revokeDevice,
-  setPrefs,
   signUp,
   status,
-  syncNow,
 };

@@ -1,14 +1,13 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { parseEval } from "../harness/agent-browser";
+import { dragSelectParagraph, parseEval } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import { readOrNull } from "../harness/exec";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { EDITOR } from "../harness/selectors";
 
-// the only note, so the virgin boot opens it.
 const NOTE = "Aardvark plan.md";
 const FIRST = "First paragraph.";
 const SECOND = "Second paragraph.";
@@ -30,24 +29,16 @@ export const extractNoteBrowser: Scenario = {
     });
     const agentBrowser = await ctx.browser("extract");
 
-    ctx.log(`opening ${app.baseUrl}/`);
-    await agentBrowser.openWorkspace(app);
+    ctx.log(`opening ${NOTE} by its deep link`);
+    await agentBrowser.openWorkspace(app, {
+      path: `/?item=${encodeURIComponent(NOTE)}`,
+      ready: EDITOR,
+    });
 
     ctx.log("selecting the second paragraph with the mouse, which raises the toolbar");
     // a drag across the text, as a user selects: a key chord lands nowhere until the editor
     // has taken focus, and the toolbar opens on a pointer-made selection either way
-    const box = parseEval(
-      await agentBrowser([
-        "eval",
-        `JSON.stringify((() => { const el = [...document.querySelectorAll('${EDITOR} p')].find((p) => p.textContent === ${JSON.stringify(SECOND)}); const r = el.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top + r.height / 2), right: Math.round(r.right) }; })())`,
-      ]),
-      z.object({ right: z.number(), x: z.number(), y: z.number() }),
-    );
-    await agentBrowser(["mouse", "move", String(box.x + 1), String(box.y)]);
-    await agentBrowser(["mouse", "down"]);
-    await agentBrowser(["mouse", "move", String(box.x + 40), String(box.y)]);
-    await agentBrowser(["mouse", "move", String(box.right - 1), String(box.y)]);
-    await agentBrowser(["mouse", "up"]);
+    await dragSelectParagraph(agentBrowser, EDITOR, SECOND);
     // the toolbar floats in after the selection settles; the failure names what the page holds
     await pollUntil(
       async () =>
@@ -88,8 +79,10 @@ export const extractNoteBrowser: Scenario = {
           `the extract never landed: ${EXTRACTED} ${notes.extracted === null ? "absent" : "present"}; source:\n${notes.source}`,
       },
     );
+    // the block under the header every note the app makes carries, saying when it was saved
     expect(
-      landed.extracted === `${SECOND}\n`,
+      /^---\nsaved: \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\n---\n\n/u.test(landed.extracted ?? "") &&
+        landed.extracted?.endsWith(`\n\n${SECOND}\n`) === true,
       `the extracted note is not the block:\n${String(landed.extracted)}`,
     );
     expect(landed.source.includes(FIRST), `the first paragraph was lost:\n${landed.source}`);

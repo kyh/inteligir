@@ -5,8 +5,9 @@ import api, { ownsPath } from "./index";
 // bindings, and a ServerEntry's (request, opts?) has nowhere to put them. cloudflare.config.ts's
 // `entrypoint` must be this file, for the reason noted there.
 
-// the runtime instantiates Durable Objects from the deployed entry's exports
-export { ThreadSyncDO } from "./sync/thread-sync-do";
+// the runtime instantiates Durable Objects from the deployed entry's exports, the account socket
+// under its deployed class name (cloudflare.config.ts)
+export { AccountSocketDO as ThreadSyncDO } from "./sync/account-socket-do";
 export { RepoCell, Registry } from "durable-git";
 
 export default {

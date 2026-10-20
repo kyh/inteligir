@@ -1,0 +1,560 @@
+import {
+  applyTimelineDelta,
+  COMMAND_OUTPUT_LINE_CHARS,
+  COMMAND_OUTPUT_LINES,
+  computeTimelineDelta,
+  threadTimelineSchema,
+  timelineDeltaSchema,
+} from "@repo/contract/local/thread-timeline";
+import type { ThreadTimeline, TimelineTurnRow } from "@repo/contract/local/thread-timeline";
+import type { StoredThreadEvent } from "@repo/db/events";
+import type { ThreadEvent } from "@repo/domain/provider-event";
+import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
+import { describe, expect, it } from "vitest";
+import { buildThreadTimeline } from "./build-thread-timeline";
+
+const THREAD_ID = "thr_test";
+
+const stored = (events: readonly ThreadEvent[]): StoredThreadEvent[] =>
+  events.map((event, index) => ({
+    createdAt: 1000 + index,
+    event,
+    sequence: index + 1,
+  }));
+
+const streamedTurnEvents = (): ThreadEvent[] => {
+  const turn = turnScope("turn_1");
+  return [
+    {
+      scope: threadScope(),
+      text: "What changed today?",
+      threadId: THREAD_ID,
+      type: "client/turn/requested",
+    },
+    { scope: turn, threadId: THREAD_ID, type: "turn/started" },
+    {
+      item: { id: "item_r", text: "", type: "reasoning" },
+      scope: turn,
+      threadId: THREAD_ID,
+      type: "item/started",
+    },
+    {
+      delta: "Scanning the vault…",
+      itemId: "item_r",
+      scope: turn,
+      threadId: THREAD_ID,
+      type: "item/reasoning/textDelta",
+    },
+    {
+      item: { id: "item_r", text: "Scanning the vault…", type: "reasoning" },
+      scope: turn,
+      threadId: THREAD_ID,
+      type: "item/completed",
+    },
+    {
+      item: {
+        approvalStatus: null,
+        command: "git log --oneline -3",
+        cwd: "/vault",
+        id: "item_c",
+        status: "pending",
+        type: "commandExecution",
+      },
+      scope: turn,
+      threadId: THREAD_ID,
+      type: "item/started",
+    },
+    {
+      item: {
+        aggregatedOutput: "abc123 fix\ndef456 feat\n",
+        approvalStatus: null,
+        command: "git log --oneline -3",
+        cwd: "/vault",
+        id: "item_c",
+        status: "completed",
+        type: "commandExecution",
+      },
+      scope: turn,
+      threadId: THREAD_ID,
+      type: "item/completed",
+    },
+    {
+      item: { id: "item_a", text: "", type: "agentMessage" },
+      scope: turn,
+      threadId: THREAD_ID,
+      type: "item/started",
+    },
+    {
+      delta: "Two commits ",
+      itemId: "item_a",
+      scope: turn,
+      threadId: THREAD_ID,
+      type: "item/agentMessage/delta",
+    },
+    {
+      delta: "landed today.",
+      itemId: "item_a",
+      scope: turn,
+      threadId: THREAD_ID,
+      type: "item/agentMessage/delta",
+    },
+    {
+      item: { id: "item_a", text: "Two commits landed today.", type: "agentMessage" },
+      scope: turn,
+      threadId: THREAD_ID,
+      type: "item/completed",
+    },
+    { scope: turn, status: "completed", threadId: THREAD_ID, type: "turn/completed" },
+  ];
+};
+
+describe("buildThreadTimeline", () => {
+  it("projects the golden streamed turn", () => {
+    const timeline = buildThreadTimeline(stored(streamedTurnEvents()));
+    expect(threadTimelineSchema.parse(timeline)).toEqual(timeline);
+    expect(timeline.maxSequence).toBe(12);
+
+    expect(timeline.rows.map((row) => ({ id: row.id, kind: row.kind }))).toEqual([
+      { id: "user:1", kind: "conversation" },
+      { id: "turn:turn_1", kind: "turn" },
+      { id: "item:turn_1:item_a", kind: "conversation" },
+    ]);
+
+    const [user, turn, assistant] = timeline.rows;
+    if (
+      user?.kind !== "conversation" ||
+      turn?.kind !== "turn" ||
+      assistant?.kind !== "conversation"
+    ) {
+      throw new Error("unexpected row kinds");
+    }
+    expect(user.role).toBe("user");
+    expect(user.text).toBe("What changed today?");
+    expect(assistant.role).toBe("assistant");
+    expect(assistant.text).toBe("Two commits landed today.");
+
+    expect(turn.status).toBe("completed");
+    expect(turn.completedAt).not.toBeNull();
+    expect(turn.children.map((child) => child.id)).toEqual([
+      "item:turn_1:item_r",
+      "item:turn_1:item_c",
+    ]);
+    const [reasoning, command] = turn.children;
+    if (reasoning?.kind !== "work" || command?.kind !== "work") {
+      throw new Error("unexpected child kinds");
+    }
+    if (reasoning.workKind !== "reasoning" || command.workKind !== "command") {
+      throw new Error("unexpected work kinds");
+    }
+    expect(reasoning.text).toBe("Scanning the vault…");
+    expect(command.outputHead).toEqual(["abc123 fix", "def456 feat"]);
+    expect(command.outputLineCount).toBe(2);
+    expect(command.status).toBe("completed");
+  });
+
+  it("renders the streaming buffer while the item is open, then the final text", () => {
+    const events = stored(streamedTurnEvents());
+    const midStream = buildThreadTimeline(events.slice(0, 9));
+    const assistant = midStream.rows.find((row) => row.id === "item:turn_1:item_a");
+    if (assistant?.kind !== "conversation") {
+      throw new Error("expected the streaming assistant row");
+    }
+    expect(assistant.text).toBe("Two commits ");
+    const turn = midStream.rows.find((row) => row.id === "turn:turn_1");
+    if (turn?.kind !== "turn") {
+      throw new Error("expected the turn row");
+    }
+    expect(turn.status).toBe("pending");
+  });
+
+  it("places provider errors with their scope", () => {
+    const turn = turnScope("turn_1");
+    const timeline = buildThreadTimeline(
+      stored([
+        { scope: turn, threadId: THREAD_ID, type: "turn/started" },
+        {
+          message: "in-turn failure",
+          scope: turn,
+          threadId: THREAD_ID,
+          type: "provider/error",
+        },
+        {
+          error: { message: "in-turn failure" },
+          scope: turn,
+          status: "failed",
+          threadId: THREAD_ID,
+          type: "turn/completed",
+        },
+        {
+          detail: "socket closed",
+          message: "session failure",
+          scope: threadScope(),
+          threadId: THREAD_ID,
+          type: "provider/error",
+        },
+      ]),
+    );
+    const [turnRow, errorRow] = timeline.rows;
+    if (turnRow?.kind !== "turn" || errorRow?.kind !== "error") {
+      throw new Error("unexpected rows");
+    }
+    expect(turnRow.status).toBe("error");
+    expect(turnRow.children.map((child) => child.kind)).toEqual(["error"]);
+    expect(errorRow.message).toBe("session failure");
+    expect(errorRow.detail).toBe("socket closed");
+  });
+
+  it("keeps delta application identical to a full rebuild — the WHOLE timeline value — at every prefix", () => {
+    const events = stored(streamedTurnEvents());
+    const full = buildThreadTimeline(events);
+    for (let cut = 0; cut <= events.length; cut += 1) {
+      const base = buildThreadTimeline(events.slice(0, cut));
+      const delta = computeTimelineDelta(base, full);
+      expect(timelineDeltaSchema.parse(delta)).toEqual(delta);
+      expect(delta.fromSequence).toBe(base.maxSequence);
+      expect(applyTimelineDelta(base, delta)).toEqual(full);
+    }
+  });
+
+  it("refuses a delta whose base is not the held timeline", () => {
+    const events = stored(streamedTurnEvents());
+    const full = buildThreadTimeline(events);
+    const held = buildThreadTimeline(events.slice(0, 8));
+    const staleDelta = computeTimelineDelta(buildThreadTimeline(events.slice(0, 5)), full);
+    expect(applyTimelineDelta(held, staleDelta)).toBeNull();
+    const freshDelta = computeTimelineDelta(buildThreadTimeline(events.slice(0, 8)), full);
+    expect(applyTimelineDelta(held, freshDelta)).toEqual(full);
+  });
+
+  it("converges to the full rebuild under any interleaving of stale and fresh responses", () => {
+    const events = stored(streamedTurnEvents());
+    const prefixes = Array.from({ length: events.length + 1 }, (_, cut) =>
+      buildThreadTimeline(events.slice(0, cut)),
+    );
+    const full = prefixes[events.length];
+    if (!full) {
+      throw new Error("expected the full projection");
+    }
+    for (let seed = 1; seed <= 50; seed += 1) {
+      // MINSTD: the interleaving has to be reproducible across runs, not statistically strong,
+      // and its multiply stays exact in a double
+      let state = seed;
+      const random = () => {
+        state = (state * 48_271) % 2_147_483_647;
+        return state / 2_147_483_647;
+      };
+      const prefixAt = (index: number) => {
+        const prefix = prefixes[index];
+        if (!prefix) {
+          throw new Error("prefix out of range");
+        }
+        return prefix;
+      };
+      let held = prefixAt(Math.floor(random() * prefixes.length));
+      for (let step = 0; step < 20; step += 1) {
+        const base = prefixAt(Math.floor(random() * prefixes.length));
+        const target = prefixAt(Math.floor(random() * prefixes.length));
+        const applied = applyTimelineDelta(held, computeTimelineDelta(base, target));
+        held = applied ?? full;
+        const heldMaxSequence = held.maxSequence;
+        const expected = prefixes.find((prefix) => prefix.maxSequence === heldMaxSequence);
+        expect(held).toEqual(expected);
+      }
+      const finalDelta = computeTimelineDelta(
+        prefixes.find((prefix) => prefix.maxSequence === held.maxSequence) ?? full,
+        full,
+      );
+      held = applyTimelineDelta(held, finalDelta) ?? full;
+      expect(held).toEqual(full);
+    }
+  });
+
+  it("a streaming delta carries ONLY what the streaming row gained", () => {
+    const events = stored(streamedTurnEvents());
+    // between events 9 and 10 only the assistant row's text grows
+    const before = buildThreadTimeline(events.slice(0, 9));
+    const after = buildThreadTimeline(events.slice(0, 10));
+    const delta = computeTimelineDelta(before, after);
+    expect(delta.rowOrder).toBeUndefined();
+    expect(delta.upsertRows).toEqual([]);
+    expect(delta.textAppends).toEqual([
+      {
+        fromLength: "Two commits ".length,
+        id: "item:turn_1:item_a",
+        sourceSeqEnd: 10,
+        text: "landed today.",
+      },
+    ]);
+    expect(delta.turnPatches).toEqual([]);
+  });
+
+  it("a turn moves as a patch carrying only the child that changed", () => {
+    const events = stored(streamedTurnEvents());
+    // event 7 completes the command, a child of the turn row
+    const streamed = computeTimelineDelta(
+      buildThreadTimeline(events.slice(0, 6)),
+      buildThreadTimeline(events.slice(0, 7)),
+    );
+    expect(streamed.upsertRows).toEqual([]);
+    expect(
+      streamed.turnPatches.map((patch) => ({
+        childOrder: patch.childOrder,
+        id: patch.id,
+        upsertChildren: patch.upsertChildren.map((child) => child.id),
+      })),
+    ).toEqual([
+      { childOrder: undefined, id: "turn:turn_1", upsertChildren: ["item:turn_1:item_c"] },
+    ]);
+
+    // event 6 starts the command, so the turn gains a child and names its new order
+    const joined = computeTimelineDelta(
+      buildThreadTimeline(events.slice(0, 5)),
+      buildThreadTimeline(events.slice(0, 6)),
+    );
+    const [patch] = joined.turnPatches;
+    expect(patch?.childOrder).toEqual(["item:turn_1:item_r", "item:turn_1:item_c"]);
+    expect(patch?.upsertChildren.map((child) => child.id)).toEqual(["item:turn_1:item_c"]);
+  });
+
+  it("projects an empty log to an empty timeline", () => {
+    expect(buildThreadTimeline([])).toEqual({ maxSequence: 0, rows: [] });
+  });
+});
+
+const LONG_TURN = turnScope("turn_long");
+
+// a turn that has run many commands, then opens a thought that streams
+const longTurnEvents = (commands: number): ThreadEvent[] => {
+  const output = Array.from(
+    { length: COMMAND_OUTPUT_LINES },
+    (_, line) => `line ${line} of the build log`,
+  ).join("\n");
+  return [
+    { scope: LONG_TURN, threadId: THREAD_ID, type: "turn/started" },
+    ...Array.from({ length: commands }, (_, index): ThreadEvent => ({
+      item: {
+        aggregatedOutput: output,
+        approvalStatus: null,
+        command: `make step-${index}`,
+        cwd: "/vault",
+        id: `item_c${index}`,
+        status: "completed",
+        type: "commandExecution",
+      },
+      scope: LONG_TURN,
+      threadId: THREAD_ID,
+      type: "item/completed",
+    })),
+    {
+      item: { id: "item_r", text: "", type: "reasoning" },
+      scope: LONG_TURN,
+      threadId: THREAD_ID,
+      type: "item/started",
+    },
+    {
+      delta: "Checking the last step",
+      itemId: "item_r",
+      scope: LONG_TURN,
+      threadId: THREAD_ID,
+      type: "item/reasoning/textDelta",
+    },
+  ];
+};
+
+const turnOf = (timeline: ThreadTimeline): TimelineTurnRow => {
+  const turn = timeline.rows.find((row) => row.kind === "turn");
+  if (turn?.kind !== "turn") {
+    throw new Error("expected a turn row");
+  }
+  return turn;
+};
+
+describe("a delta into a long turn", () => {
+  const events = stored(longTurnEvents(200));
+  const before = buildThreadTimeline(events.slice(0, -1));
+  const after = buildThreadTimeline(events);
+  const delta = computeTimelineDelta(before, after);
+
+  it("carries the one thought that streamed, not the turn that holds it", () => {
+    expect(JSON.stringify(turnOf(after)).length).toBeGreaterThan(100_000);
+    expect(JSON.stringify(delta).length).toBeLessThan(1000);
+    expect(delta.upsertRows).toEqual([]);
+    expect(
+      delta.turnPatches.map((patch) => ({
+        appended: patch.textAppends.map((append) => [append.id, append.text]),
+        upserted: patch.upsertChildren,
+      })),
+    ).toEqual([{ appended: [["item:turn_long:item_r", "Checking the last step"]], upserted: [] }]);
+    expect(applyTimelineDelta(before, delta)).toEqual(after);
+  });
+
+  it("keeps every child it did not carry the same object", () => {
+    const applied = applyTimelineDelta(before, delta);
+    if (applied === null) {
+      throw new Error("expected the delta to apply");
+    }
+    const held = turnOf(before).children;
+    const patched = turnOf(applied).children;
+    expect(patched.slice(0, -1).every((child, index) => child === held[index])).toBe(true);
+    expect(patched.at(-1)).not.toBe(held.at(-1));
+  });
+
+  it("refuses a patch whose turn or child the held timeline lacks", () => {
+    const withoutTurn = { ...before, rows: before.rows.filter((row) => row.kind !== "turn") };
+    expect(applyTimelineDelta(withoutTurn, delta)).toBeNull();
+    const [patch] = delta.turnPatches;
+    if (patch === undefined) {
+      throw new Error("expected a turn patch");
+    }
+    const unknownChild = { ...patch, childOrder: ["item:turn_long:item_gone"] };
+    expect(applyTimelineDelta(before, { ...delta, turnPatches: [unknownChild] })).toBeNull();
+  });
+});
+
+const THOUGHT_TURN = turnScope("turn_thought");
+
+const streamedThought = (tokens: number): StoredThreadEvent[] =>
+  stored([
+    { scope: THOUGHT_TURN, threadId: THREAD_ID, type: "turn/started" },
+    {
+      item: { id: "item_t", text: "", type: "reasoning" },
+      scope: THOUGHT_TURN,
+      threadId: THREAD_ID,
+      type: "item/started",
+    },
+    ...Array.from({ length: tokens }, (_, index): ThreadEvent => ({
+      delta: `token ${String(index)} of the thought `,
+      itemId: "item_t",
+      scope: THOUGHT_TURN,
+      threadId: THREAD_ID,
+      type: "item/reasoning/textDelta",
+    })),
+  ]);
+
+interface FollowedStream {
+  // every delta's wire length, summed
+  bytes: number;
+  held: ThreadTimeline;
+}
+
+// a client that asks after every event, applying each delta as it lands
+const followStream = (events: readonly StoredThreadEvent[]): FollowedStream => {
+  let held = buildThreadTimeline([]);
+  let bytes = 0;
+  for (let cut = 1; cut <= events.length; cut += 1) {
+    const next = buildThreadTimeline(events.slice(0, cut));
+    const delta = computeTimelineDelta(held, next);
+    bytes += JSON.stringify(delta).length;
+    const applied = applyTimelineDelta(held, delta);
+    expect(applied).toEqual(next);
+    held = applied ?? next;
+  }
+  return { bytes, held };
+};
+
+describe("a streamed text", () => {
+  it("costs bytes linear in its tokens: twice the tokens, about twice the bytes", () => {
+    const short = followStream(streamedThought(200));
+    const long = followStream(streamedThought(400));
+    expect(long.bytes / short.bytes).toBeLessThan(2.5);
+  });
+
+  it("lands every token as the full rebuild does", () => {
+    const events = streamedThought(50);
+    expect(followStream(events).held).toEqual(buildThreadTimeline(events));
+  });
+
+  it("refetches when the held text is not the length an append grew from", () => {
+    const thought = streamedThought(3);
+    const before = buildThreadTimeline(thought.slice(0, -1));
+    const delta = computeTimelineDelta(before, buildThreadTimeline(thought));
+    const [patch] = delta.turnPatches;
+    const [append] = patch?.textAppends ?? [];
+    if (patch === undefined || append === undefined) {
+      throw new Error("expected the thought to move as an append");
+    }
+    const misfit = { ...patch, textAppends: [{ ...append, fromLength: append.fromLength - 1 }] };
+    expect(applyTimelineDelta(before, { ...delta, turnPatches: [misfit] })).toBeNull();
+
+    const message = stored(streamedTurnEvents());
+    const held = buildThreadTimeline(message.slice(0, 9));
+    const streamed = computeTimelineDelta(held, buildThreadTimeline(message.slice(0, 10)));
+    const shorter = streamed.textAppends.map((row) => ({ ...row, fromLength: 0 }));
+    expect(applyTimelineDelta(held, { ...streamed, textAppends: shorter })).toBeNull();
+  });
+
+  it("moves a thought whole once more than its text changed", () => {
+    const thought = streamedThought(3);
+    const settled = stored([
+      ...thought.map((entry) => entry.event),
+      {
+        item: { id: "item_t", text: "settled", type: "reasoning" },
+        scope: THOUGHT_TURN,
+        threadId: THREAD_ID,
+        type: "item/completed",
+      },
+    ]);
+    const delta = computeTimelineDelta(buildThreadTimeline(thought), buildThreadTimeline(settled));
+    expect(
+      delta.turnPatches.map((patch) => ({
+        appended: patch.textAppends,
+        upserted: patch.upsertChildren.map((child) => child.id),
+      })),
+    ).toEqual([{ appended: [], upserted: ["item:turn_thought:item_t"] }]);
+  });
+});
+
+const commandRow = (output: string) => {
+  const turn = turnScope("turn_out");
+  const [turnRow] = buildThreadTimeline(
+    stored([
+      { scope: turn, threadId: THREAD_ID, type: "turn/started" },
+      {
+        item: {
+          aggregatedOutput: output,
+          approvalStatus: null,
+          command: "make",
+          cwd: "/vault",
+          id: "item_c",
+          status: "completed",
+          type: "commandExecution",
+        },
+        scope: turn,
+        threadId: THREAD_ID,
+        type: "item/completed",
+      },
+    ]),
+  ).rows;
+  const [row] = turnRow?.kind === "turn" ? turnRow.children : [];
+  if (row?.kind !== "work" || row.workKind !== "command") {
+    throw new Error("expected the command row");
+  }
+  return row;
+};
+
+describe("a command row", () => {
+  it("carries a bounded head and the count of a 10k-line output", () => {
+    const lines = Array.from({ length: 10_000 }, (_, index) => `${index}:${"=".repeat(500)}`);
+    const row = commandRow(`${lines.join("\n")}\n`);
+    expect(row.outputLineCount).toBe(10_000);
+    expect(row.outputHead).toHaveLength(COMMAND_OUTPUT_LINES);
+    expect(row.outputHead[0]).toBe(lines[0]?.slice(0, COMMAND_OUTPUT_LINE_CHARS));
+    // each line's quotes and comma, plus the row's other fields
+    const bound = COMMAND_OUTPUT_LINES * (COMMAND_OUTPUT_LINE_CHARS + 3) + 1000;
+    expect(JSON.stringify(row).length).toBeLessThan(bound);
+  });
+
+  it("cuts a one-line blob at the line cap, never inside a character", () => {
+    // the cap lands between the first emoji's two halves
+    const lead = "x".repeat(COMMAND_OUTPUT_LINE_CHARS - 1);
+    const row = commandRow(`${lead}${"😀".repeat(100_000)}`);
+    expect(row.outputLineCount).toBe(1);
+    expect(row.outputHead).toEqual([lead]);
+  });
+
+  it("carries no lines for an output of whitespace", () => {
+    const row = commandRow(" \n\n");
+    expect(row.outputHead).toEqual([]);
+    expect(row.outputLineCount).toBe(0);
+  });
+});

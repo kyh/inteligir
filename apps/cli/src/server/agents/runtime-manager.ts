@@ -39,7 +39,7 @@ import type {
 import type { GitEngine } from "../vault/git-engine";
 import { beginAgentTurnWrites, createVaultPathResolver } from "./agent-commits";
 import type { AgentTurnWrites, VaultPathResolver } from "./agent-commits";
-import { toInstructions } from "./agent-instructions";
+import { promptFactsFor, toInstructions } from "./agent-instructions";
 import { toShellEnv } from "./agent-shell-env";
 import type { AgentSessionFacts } from "./agent-shell-env";
 import { ProviderEventCoalescer } from "./event-coalescer";
@@ -327,7 +327,11 @@ export class AcpTurnDriver implements TurnDriver {
       : await this.openThreadSession(args, harness);
     this.assertDispatching(args);
     await this.runtime.runTurn({
-      input: turnPromptInput(args, instructions),
+      input: turnPromptInput(
+        args,
+        promptFactsFor(this.deps.sessionFacts(), this.deps.vaultDir),
+        instructions,
+      ),
       threadId: args.threadId,
       turnId: args.turnId,
     });

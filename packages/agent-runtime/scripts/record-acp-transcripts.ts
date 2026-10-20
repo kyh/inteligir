@@ -2,7 +2,7 @@
 // itself, so the replay suite pins AcpTurnMapper to the wire rather than to a fake's beliefs. needs
 // both vendors signed in; spends real model calls, except a staged scenario's. `pnpm --filter
 // @repo/agent-runtime record:transcripts [claude|codex] [scenario…]` rewrites
-// src/acp/__tests__/fixtures/<adapter>@<version>/, or only the named scenarios' files.
+// src/acp/test-support/fixtures/<adapter>@<version>/, or only the named scenarios' files.
 
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -25,7 +25,14 @@ import { createAcpAgentRuntime } from "../src/acp/acp-runtime.js";
 import { HARNESSES } from "../src/acp/harness-registry.js";
 import type { HarnessDefinition } from "../src/acp/harness-registry.js";
 
-const FIXTURES_DIR = path.resolve(import.meta.dirname, "..", "src", "acp", "__tests__", "fixtures");
+const FIXTURES_DIR = path.resolve(
+  import.meta.dirname,
+  "..",
+  "src",
+  "acp",
+  "test-support",
+  "fixtures",
+);
 const TURN_TIMEOUT_MS = 5 * 60_000;
 
 // the scrubbed spellings every fixture uses, so a re-record diffs only where the wire moved.

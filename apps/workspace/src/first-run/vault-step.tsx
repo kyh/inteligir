@@ -16,7 +16,7 @@ import { shellFirstRun } from "../shell/shell-commands";
 type VaultMode = "create" | "open";
 
 const MODES: readonly { value: VaultMode; label: string }[] = [
-  { label: "Create a new vault", value: "create" },
+  { label: "Create a new library", value: "create" },
   { label: "Open a folder", value: "open" },
 ];
 
@@ -30,12 +30,12 @@ const BRIDGE_FAILED = "Inteligir did not answer. Try again.";
 
 const noteCountLine = ({ capped, count }: FolderFacts["noteCount"]): string => {
   if (capped) {
-    return `More than ${count.toLocaleString()} notes`;
+    return `More than ${count.toLocaleString()} items`;
   }
   if (count === 0) {
-    return "No notes in it yet";
+    return "Nothing in it yet";
   }
-  return count === 1 ? "1 note" : `${count.toLocaleString()} notes`;
+  return count === 1 ? "1 item" : `${count.toLocaleString()} items`;
 };
 
 const ownSyncLine = (sync: OwnSync): string =>
@@ -106,13 +106,13 @@ export const VaultStep = ({ proposal }: VaultStepProps) => {
   return (
     <div className="flex w-full max-w-md flex-col gap-5">
       <div className="space-y-1">
-        <h1 className="text-title font-medium">Where should your notes live?</h1>
+        <h1 className="text-title font-medium">Where should your library live?</h1>
         <p className="text-body text-muted-foreground">
-          A vault is a folder of notes on your Mac. Inteligir reads and writes the files in it.
+          Your library is a folder on your Mac. Everything you save and write is a file in it.
         </p>
       </div>
       <RadioGroup
-        aria-label="Vault"
+        aria-label="Library"
         value={mode}
         onValueChange={(next: VaultMode) => {
           setMode(next);
@@ -181,14 +181,15 @@ export const VaultStep = ({ proposal }: VaultStepProps) => {
             <p className="text-body text-destructive">{nameProblem}</p>
           )}
           <Button type="submit" disabled={busy !== null || nameProblem !== null}>
-            {busy === "opening" ? "Opening…" : "Create vault"}
+            {busy === "opening" ? "Opening…" : "Create library"}
           </Button>
         </form>
       ) : (
         <div className="space-y-3">
           {picked === null ? (
             <p className="text-body text-muted-foreground">
-              Pick a folder of markdown notes. They stay where they are, as they are.
+              Pick a folder of markdown files, such as one Obsidian opens. They stay where they are,
+              as they are.
             </p>
           ) : (
             <div className="space-y-2">

@@ -174,13 +174,14 @@ const boot = async (
       openSocket: createCloudSocketOpener((url, headers) => new WebSocket(url, { headers })),
     },
     config,
-    driver: ({ config: driverConfig, db, bus, vault, folders, agentPrefs, sink }) => {
+    driver: ({ config: driverConfig, db, bus, vault, folders, agentPrefs, items, sink }) => {
       const cliBinDir = options.cliBinDir ?? resolveCliBinDir();
       const skillsDir = resolveSkillsDir();
       const driverArgs: ResolveAgentDriverArgs = {
         config: driverConfig,
         db,
         debugLog: debugLog(driverConfig.debug, "acp"),
+        items,
         notifier: bus,
         defaultHarness: () => agentPrefs.defaultHarness(),
         sessionFacts: () => ({
@@ -215,6 +216,7 @@ const boot = async (
     port: config.port,
     probeOnBusyPort: config.mode === "dev" && config.portSource === "default",
   });
+  runtime.setOwnPort(port);
   // removed inside the listener step: a row pointing at a closing port is worse than none.
   addTeardownStep(teardown, "listener", async () => {
     removeServerFile(config.dataDir, serverToken);

@@ -73,7 +73,7 @@ turn as the host's id over one prompt and an adapter's teardown
 (`acp-runtime.ts`), the turn's item ids and kinds (`acp-event-mapping.ts`), an
 answer as one of the agent's own options (`acp-permission-mapping.ts`), a
 refusal's class (`provider-error.ts`), and each field of a harness row
-(`harness-registry.ts`). `CONTEXT.md` "event means four things" holds the four
+(`harness-registry.ts`). `CONTEXT.md` "event means three things" holds the three
 layers apart.
 
 ## Seams
@@ -99,7 +99,7 @@ pnpm --filter @repo/agent-runtime test
 
 The mapper is tested twice: against hand-written notifications for the pure
 halves, and against what the pinned adapters REALLY sent, replayed from
-`src/acp/__tests__/fixtures/<adapter>@<version>/*.ndjson` through the SDK's
+`src/acp/test-support/fixtures/<adapter>@<version>/*.ndjson` through the SDK's
 own client and snapshotted. The fake agent encodes beliefs about the adapters;
 the transcripts encode the adapters. Bumping an adapter pin re-records them,
 which spends real model calls and needs both vendors signed in, except a

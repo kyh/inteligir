@@ -1,13 +1,15 @@
 # AGENTS.md
 
-**inteligir** is Obsidian where an agent edits your notes with you: a Mac app
-for general knowledge workers, not developers, on Apple silicon, that nobody
-uses yet. The vault is a folder of markdown files on the user's own disk; one
+**inteligir** is a library of everything you save, with an agent that files
+and edits it with you: links, articles, images, PDFs and your own markdown
+notes, one app in place of a bookmark manager like Raindrop and a notes app
+like Obsidian. It is a Mac app for general knowledge workers, not developers,
+on Apple silicon, that nobody uses yet. The vault is a folder of markdown files
+on the user's own disk, and every item in the library is one of them; one
 local Node process owns that vault, indexes it, answers one API and drives the
 agent that edits those same files. The only hosted piece is a Cloudflare
-Worker carrying the marketing site, accounts, cross-device sync, the dispatch
-inbox a phone asks a Mac and hands it captures through, and the account's
-hosted vault.
+Worker carrying the marketing site, accounts, the account's hosted vault and
+the socket that tells each device the library moved.
 
 This is the root guide for every coding agent; `CLAUDE.md` imports it. Each
 workspace's durable decisions live in a `CLAUDE.md` beside its code
@@ -33,16 +35,28 @@ The premises every change builds from, each with its reason:
   and no product surface says git, commit, remote, repo, terminal, CLI, PATH or
   MCP, because none of those words is the user's. Settings › Advanced is the one
   exception, for the user who brings their own sync server.
-- **The phone is a full editor.** It writes through a guarded Worker endpoint
-  and asks a Mac to run the agent, because a phone holds neither git nor a
-  model.
+- **The phone is a full editor, and asks no agent.** It saves, reads and
+  writes through a guarded Worker endpoint, because a phone holds no git; the
+  agent is the Mac's alone, because a phone holds no model, and a request
+  relayed to a Mac would be a second sync beside the library's. Threads stay on
+  the Mac that ran them.
 - **Connectors are the default agent's own MCP config**, because one registry,
   the vendor's, with the vendor's own sign-in, beats a second one beside it.
 - **Dictation is the operating system's**, because the Mac's and the phone
   keyboard's are already there and cost the app no speech model.
-- **Every feature is core.** Nothing sits behind a tier or a flag, and nothing
-  already built is cut for the persona: the persona changes the words.
-- **An account is optional, and offered.** Without one the app is a local notes
+- **Every item is one markdown file.** A link is a note whose frontmatter holds
+  its url, site and saved date and whose body is the page's readable text; an
+  image or PDF is the original file beside a note that embeds it; a note the
+  user writes is an item too. One shape is what lets search, History, sync,
+  the phone and the agent's verbs work on every item without a second store.
+- **Saving calls no model, and the device that saves reads the page.** The Mac's
+  own server, or the phone itself, fetches a page's title, cover and text, and
+  the agent files, tags and summarizes only when asked, because a save should
+  be instant and free on whichever device made it.
+- **Every feature is core, and a feature serves saving, reading or writing or
+  goes.** Nothing sits behind a tier or a flag; a feature that serves none of
+  the three is removed, never hidden, and the persona changes the words.
+- **An account is optional, and offered.** Without one the app is a local library
   app that makes no cloud request; with one it syncs, and the hosted vault is
   free up to about 1 GB.
 - **No users yet, so every format may change.** Nobody but the owner holds an
@@ -52,12 +66,13 @@ The premises every change builds from, each with its reason:
   no legacy-name warning: what an older build wrote is replaced, never read.
   `/local` and `/cloud` may both break, a `/cloud` break raising the client
   build floor in the same change. Until the premise ends, a decision bullet
-  or a note issue's decline that keeps a shape for an older install yields to
-  it. The one exception is the phone's database, which appends a step once
-  EAS has built the app, since it cannot yet replace a file it cannot read
-  (THE PHONE HOLDS EVERY NOTE'S TEXT IN SQLITE, in `apps/mobile/CLAUDE.md`).
-  The first outside tester ends the premise: strike this bullet before their
-  first build, and from then on a format change migrates.
+  or a line of the declines register that keeps a shape for an older install
+  yields to it. The one exception is the phone's database, which appends a
+  step once EAS has built the app, since it cannot yet replace a file it
+  cannot read (THE PHONE HOLDS EVERY NOTE'S TEXT IN SQLITE, in
+  `apps/mobile/CLAUDE.md`). The first outside tester ends the premise: strike
+  this bullet before their first build, and from then on a format change
+  migrates.
 
 **Two programs.** `apps/desktop` is the shipped product, installed as the
 signed dmg: a Tauri window on the local server, which it runs as its one child
@@ -66,16 +81,18 @@ on the node the .app carries, showing the SPA `apps/workspace` builds.
 verb but `vault open` is a client of a running one. The CLI is the agent's
 door and the developer's, which is how an agent drives the product from bash;
 nothing the user does needs a terminal. `apps/mobile` is the iPhone app: the
-same editor over the hosted vault, offline, asking a Mac to run the agent.
+same editor over the hosted vault, offline.
+`apps/extension` is the browser's Save, talking only to the Mac app on the same
+machine through `inteligir native-host`.
 
 **The decision record is GitHub issues
 [#542](https://github.com/kyh/inteligir/issues/542),
 [#611](https://github.com/kyh/inteligir/issues/611) and
 [#889](https://github.com/kyh/inteligir/issues/889)**: what was chosen, and
 what was rejected and why. Where two disagree the later wins. Where any of
-them, or a decision bullet, assumes a developer at the keyboard, this overview
-wins, and the change that touches that code rewrites the bullet in the same
-commit.
+them, or a decision bullet, assumes a developer at the keyboard, or a notes
+app whose window is always one open note, this overview wins, and the change
+that touches that code rewrites the bullet in the same commit.
 
 ## Map
 
@@ -83,14 +100,16 @@ commit.
 apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the Tauri window around the SPA
 apps/workspace          @repo/workspace — the SPA: the page every vault's server answers, and the first run
 apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the server, every other verb a client
-apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, dispatch, hosted vault
-apps/mobile             @repo/mobile — the iPhone app: notes in the editor page, offline, and asking a Mac's agent
+apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, the account's socket, hosted vault
+apps/mobile             @repo/mobile — the iPhone app: the library in the editor page, offline
 apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
+apps/extension          @repo/extension — the Chromium extension: toolbar and right-click Save, handing the page to the Mac app
 packages/domain         @repo/domain — zod-only leaf vocabulary
-packages/contract       @repo/contract — ONE contract, TWO entries: /local and /cloud
+packages/contract       @repo/contract — ONE contract, THREE entries: /local, /cloud and /browser
 packages/db             @repo/db — drizzle + better-sqlite3, migrations, notifier
 packages/notes          @repo/notes — the pure, platform-neutral domain
 packages/editor         @repo/editor — the Plate WYSIWYG over the fixpoint serializer
+packages/page-reader    @repo/page-reader — a saved page read into an item, over the DOM its host hands it
 packages/agent-runtime  @repo/agent-runtime — the ACP runtime over the harnesses
 packages/agent-skills   @repo/agent-skills — the dialect spec, as files agents read
 packages/ui             @repo/ui — the shared component vocabulary on Base UI
@@ -164,7 +183,10 @@ per IP; a script creating several users sets `RATE_LIMIT_DISABLED=true` in
 
 Drive the running site with
 [agent-browser](https://github.com/vercel-labs/agent-browser)
-(`agent-browser open http://localhost:5174/`).
+(`agent-browser open http://localhost:5174/`). Its skill is committed as a stub
+(`.agents/skills/agent-browser`, linked from `.claude/skills/` and pinned by
+`skills-lock.json`) that points at `agent-browser skills get core`, the guide
+for the installed version.
 
 ## Verify a change
 
@@ -176,9 +198,56 @@ pnpm format:fix && pnpm verify
 `lint`, `knip`, `format`, `test`, `build`, one turbo run that reports every
 red task) is check-only for that reason. CI runs `pnpm verify` plus the steps
 it cannot (`docs/development.md` § Quality gates), so run `pnpm e2e` too before
-claiming a green CI. Releasing is the owner's: a change whose proof needs a device, an
-account or a credential adds its check to `docs/releasing.md` § 5, under its
-surface.
+claiming a green CI; it runs its scenarios in lanes, one per two cores and at
+most four (`--lanes 1` runs them one at a time).
+
+Inside a work stream (§ Rules that matter), run what the change reaches: the
+gates of the workspaces it touched since the stream's base and of their
+dependents, and the stream's own scenarios. `verify:affected` is `verify`'s
+run over those workspaces, under the same concurrency cap and reporting every
+red task, `build` included, since only the build runs the CLI bundle's
+refusals; `format:fix` has already done `format`'s part.
+
+```sh
+pnpm format:fix
+TURBO_SCM_BASE=<the stream's base> pnpm verify:affected
+pnpm e2e --only <the stream's scenarios>
+```
+
+The full `pnpm verify` and a full `pnpm e2e` run once per PR, on its last
+commit, before it is called green, and so does this check of the declines
+register (§ Decisions), which no guard can read: every file a line ends by
+naming is still in the tree, and a line whose file the PR removed is deleted
+or repointed in the same PR.
+
+```sh
+gh api repos/kyh/inteligir/issues/912 --jq .body | grep -oE '\(`[^`]+`\)$' | tr -d '()`' |
+  sort -u | while read -r p; do git ls-files --error-unmatch -- "$p" >/dev/null 2>&1 || echo "gone: $p"; done
+```
+
+Releasing is the owner's: a change whose proof needs a device, an account or a
+credential adds its check to `docs/releasing.md` § 5, under its surface.
+
+### Platform matrix
+
+Every surface, and how an agent sees it run; a scenario is one of
+`tools/e2e/src/scenarios`, run as `pnpm e2e --only <name>`.
+
+| Surface                 | Dev command          | Agent-verifiable at runtime?                                                                              |
+| ----------------------- | -------------------- | --------------------------------------------------------------------------------------------------------- |
+| The desktop window      | `pnpm dev`           | **On Linux**: `desktop-shell`, `desktop-onboarding` (under `xvfb-run -a`); on a Mac, `pnpm smoke:desktop` |
+| The page alone          | `pnpm dev:workspace` | **Yes**: agent-browser on the link `pnpm cli open --json` prints; `browser-smoke`, `library-browser`      |
+| The server and the CLI  | `pnpm cli serve`     | **Yes**: every verb with `--json`; `cli-drive`, `built-cli-boot`                                          |
+| The site and the Worker | `pnpm dev:web`       | **Yes**: agent-browser or curl on `localhost:5174`; `built-worker-boot`, `account-hosted`                 |
+| The browser extension   | `pnpm dev:extension` | **In Chromium**: `browser-extension` loads the dev build beside a running app                             |
+| The phone               | `pnpm dev:mobile`    | **Its parts**: `phone-editor-page` (its editor page), `phone-offline-edit` (its runtime under node)       |
+
+What no agent can run is the owner's, in `docs/releasing.md` § 5: the signed
+.app opened from Finder, the store extension in Chrome, Arc, Brave and Edge, and
+the phone app itself, which needs the simulator or the device. `pnpm dev:mobile`
+also needs a terminal: turbo hands `expo start` the keyboard
+(`apps/mobile/turbo.json`) and refuses to start it without one, or under `CI`,
+where `pnpm --filter @repo/mobile dev` runs it bare.
 
 ## Rules that matter
 
@@ -189,11 +258,14 @@ surface.
   `## Unreleased`, in the words of someone who takes notes, saying what to do
   about a behaviour that changed or went away; a release's notes are that
   section. A command-line change goes under `### On the command line`.
-- **Product surfaces speak the user's words.** The window, the phone,
-  onboarding, the seed notes, the site and the changelog (outside its
-  `### On the command line` heading) never say git, commit, remote, repo,
-  terminal, CLI, PATH or MCP. Settings › Advanced, the CLI, the agent manual
-  and code keep their words.
+- **Product surfaces speak the user's words.** The window, the phone, the
+  browser extension, onboarding, the starter library, the site and the
+  changelog (outside its `### On the command line` heading) never say git,
+  commit, remote, repo, terminal, CLI, PATH or MCP, and call the folder the
+  library and what is in it items; `vault` stays code's and the CLI's word, and
+  "note" stays the name of what the person writes. Settings › Advanced, the
+  CLI, the agent manual and code keep their words
+  (`tools/repo-guards/src/product-words.test.ts`).
 - **No `any`, no non-null `!`, no type assertions** (lint-enforced, no escape
   comment; `as const` and `satisfies` are fine): parse at the boundary or
   narrow with a guard. Kebab-case filenames. Make illegal states
@@ -206,6 +278,10 @@ surface.
   what they cannot see, `ignoreDependencies` included.
 - **The record is the decision files and GitHub Issues.** No `plans/`, ADR docs
   or `*_GAPS.md`.
+- **A large change goes as stacked PRs, one per work stream**, each based on
+  the one before it and reviewable alone. A repo-wide convention move, or a
+  tooling change the stream does not need, is its own PR off `main`, so
+  neither hides in the other's diff.
 
 ## Across workspaces
 
@@ -220,8 +296,9 @@ is in the file named.
 - **`/local` breaks freely, `/cloud` only behind the client build floor**: a
   `/cloud` client ignores what it does not know and the Worker refuses an older
   build (`apps/web/CLAUDE.md`).
-- **The phone runs no agent and speaks no git**: it asks a Mac through the
-  claimable dispatch inbox, and the thread is the ledger (`apps/web/CLAUDE.md`).
+- **The phone runs no agent and speaks no git**: it writes through the
+  guarded commit route, asks no Mac, and the account carries no thread
+  (`apps/web/CLAUDE.md`).
 - **One write policy**: every vault write carries the base it was computed
   from and names its guard, and the editor's diff3-on-409 runs in every host
   (`apps/cli/src/server/vault/CLAUDE.md`, `packages/editor/CLAUDE.md`).
@@ -232,6 +309,12 @@ is in the file named.
   React Compiler on for every bundle (`tools/repo-guards/CLAUDE.md`).
 - **A value has one spelling**: a key binding comes from the table its listener
   reads (`packages/editor/CLAUDE.md`), a page preference is a `PREFS` row
+  (`apps/workspace/CLAUDE.md`).
+- **/browser breaks only behind its own version**: the extension ships on the
+  Web Store's cadence and the host adapts it to /local
+  (`apps/extension/CLAUDE.md`).
+- **A library scope has one spelling**: `@repo/domain/library-scope`, read by
+  the page's pref, the items listing and the view context
   (`apps/workspace/CLAUDE.md`).
 
 ## Decisions
@@ -246,24 +329,27 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 
 - [`packages/editor/CLAUDE.md`](packages/editor/CLAUDE.md) — Editor and dialect, and the open note's saves and renames
 - [`packages/ui/CLAUDE.md`](packages/ui/CLAUDE.md) — floating surfaces, type roles, popup motion, row order, the orphan guard
-- [`packages/notes/CLAUDE.md`](packages/notes/CLAUDE.md) — Knowledge: the scan, search, links, tags and problems
+- [`packages/notes/CLAUDE.md`](packages/notes/CLAUDE.md) — Items, annotations, and Knowledge: the scan, search, links and tags
+- [`packages/page-reader/CLAUDE.md`](packages/page-reader/CLAUDE.md) — reading a saved page into an item: the one reader, over its host's DOM
 - [`packages/agent-runtime/CLAUDE.md`](packages/agent-runtime/CLAUDE.md) — the provider grammar, and what a session may load from the vault
 - [`apps/cli/CLAUDE.md`](apps/cli/CLAUDE.md) — the server process: its lock, composition, credential, shutdown, CSP, database, and a vault's data dir
 - [`apps/cli/src/server/vault/CLAUDE.md`](apps/cli/src/server/vault/CLAUDE.md) — Vault: writes, git and containment
 - [`apps/cli/src/server/knowledge/CLAUDE.md`](apps/cli/src/server/knowledge/CLAUDE.md) — the index's persistence, its worker and its read deadline
+- [`apps/cli/src/server/items/CLAUDE.md`](apps/cli/src/server/items/CLAUDE.md) — Items: capture and fill
 - [`apps/cli/src/server/agents/CLAUDE.md`](apps/cli/src/server/agents/CLAUDE.md) — Agents and threads
 - [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) — Cloud, sync and accounts
-- [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its editor page, store, queue and comments, and how it ships
+- [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its editor page, store, queue and annotations, its look, and how it ships
 - [`apps/desktop/CLAUDE.md`](apps/desktop/CLAUDE.md) — the desktop shell, dictation, and the shell's e2e
+- [`apps/extension/CLAUDE.md`](apps/extension/CLAUDE.md) — the browser extension and its wire
 - [`apps/workspace/CLAUDE.md`](apps/workspace/CLAUDE.md) — Desktop workspace surfaces
 - [`tools/repo-guards/CLAUDE.md`](tools/repo-guards/CLAUDE.md) — Repo guards, vendoring and tooling
 
 A citation of `CLAUDE.md § X` names the bullet or group titled X in whichever
 of these files holds it: `git grep -F 'X' -- '*CLAUDE.md'` finds it.
 
-**Before raising a "new" finding**, read the decision record and the `note`
-issues, the declines register (every `note` issue titled "do not re-raise"
-among them): #902, #877, #881, #788, #645, #674, #485 (agent-native), #603
-(Moss parity) and #705 (the CodeMirror trade); #446, #453, #472 and #474
-decline findings against the hosted architecture this one replaced. A decline that
-weighs a migration's cost or an older install yields to the no-users premise.
+**Before raising a "new" finding**, read the decision record and the declines
+register, [#912](https://github.com/kyh/inteligir/issues/912): one line per
+proposal already refused, with its reason and the file that carries it. A
+finding that matches a line is not new, and a new decline is a line added
+there, not an issue. A decline that weighs a migration's cost or an older
+install yields to the no-users premise.

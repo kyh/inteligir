@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
     // lib: ES2023 is a ceiling here, not just a floor — this is the sharing seam,
     // so it also runs on Hermes, which ships no ES2024+ stdlib

@@ -5,7 +5,9 @@ import { parseTheme } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
 import { useCallback, useState } from "react";
 import { z } from "zod";
+import { libraryScopeSchema } from "@repo/domain/library-scope";
 import { APPEARANCE_DEFAULTS, appearanceSchema } from "./appearance-options";
+import type { LibrarySort } from "./library/library-items";
 
 export interface PagePref<Value, Fallback> {
   readonly key: string;
@@ -57,21 +59,23 @@ const themeName = z.string().refine((raw): raw is Theme => parseTheme(raw) === r
 
 const epochMs = z.codec(z.string(), z.int().nonnegative(), { decode: Number, encode: String });
 
-// in the order the rail's view menu lists them
-export const RAIL_VIEWS = ["recent", "files", "deleted"] as const;
-export type RailView = (typeof RAIL_VIEWS)[number];
-
-const TREE_SORTS = ["name", "modified"] as const;
-export type TreeSort = (typeof TREE_SORTS)[number];
+// the orders the grid offers; a search ranks, so it takes none of them
+export const LIBRARY_SORTS = [
+  "saved",
+  "modified",
+  "title",
+] as const satisfies readonly LibrarySort[];
 
 export const PREFS = {
   appearance: pref("inteligir.appearance", json(appearanceSchema), APPEARANCE_DEFAULTS),
-  lastOpenNote: unsetPref("inteligir.last-open-note", z.string()),
-  // closed until asked for: a comment focus or the top bar's Comments opens it
+  // the scope the library opens on; a folder that is no longer listed reads as every item
+  libraryScope: pref("inteligir.library-scope", json(libraryScopeSchema), { kind: "all" }),
+  librarySort: pref("inteligir.library-sort", z.enum(LIBRARY_SORTS), "saved"),
+  // closed until asked for: an annotation focus or the top bar's Annotations opens it
   panelOpen: pref("inteligir.panel-open", flag, false),
   // the right panel is the same primitive as the rail, dragged by the same handle
   panelWidth: pref("inteligir.panel-width", railWidth, 320),
-  railView: pref("inteligir.rail-view", z.enum(RAIL_VIEWS), "files"),
+  railTagsOpen: pref("inteligir.rail-tags-open", flag, true),
   relatedOpen: pref("inteligir.related-open", flag, true),
   sidebarWidth: pref("inteligir.sidebar-width", railWidth, 260),
   // the document's own `spellcheck`, which every field inherits unless it sets its own
@@ -79,7 +83,6 @@ export const PREFS = {
   // the `at` of the newest sync conflict this window announced, on the server's clock
   syncConflictSeenAt: unsetPref("inteligir.sync-conflict-seen-at", epochMs),
   theme: pref("inteligir.theme", themeName, "system"),
-  treeSort: pref("inteligir.tree-sort", z.enum(TREE_SORTS), "name"),
 };
 
 const store = (key: string, value: string | null): void => {

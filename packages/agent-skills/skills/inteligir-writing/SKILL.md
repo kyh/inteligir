@@ -23,15 +23,15 @@ delete them.
 
 ## Match The Shape To The Information
 
-| The information is                                | Write it as                 |
-| ------------------------------------------------- | --------------------------- |
-| One connected idea                                | A paragraph                 |
-| Related points or ordered steps                   | A list                      |
-| Attributes compared across items                  | A table                     |
-| Peer views read one at a time                     | Tabs                        |
-| Context, caution, or priority worth setting apart | A callout                   |
-| A numeric trend                                   | A chart                     |
-| A question that needs an answer                   | A comment on the exact text |
+| The information is                                | Write it as                     |
+| ------------------------------------------------- | ------------------------------- |
+| One connected idea                                | A paragraph                     |
+| Related points or ordered steps                   | A list                          |
+| Attributes compared across items                  | A table                         |
+| Peer views read one at a time                     | Tabs                            |
+| Context, caution, or priority worth setting apart | A callout                       |
+| A numeric trend                                   | A chart                         |
+| A question that needs an answer                   | An annotation on the exact text |
 
 Two rules that save the most rework: keep block content out of table cells (a
 cell holds inline content only), and give every fact exactly one home — a
@@ -46,13 +46,13 @@ different requirements.
 - **Reference** — one-line definition, rules, examples.
 - **Status** — where it stands, what changed, what happens next.
 
-## Comment, Or Just Fix It
+## Annotate, Or Just Fix It
 
-Comment when a person has to decide something, approve something, or answer a
+Annotate when a person has to decide something, approve something, or answer a
 question only they can answer — anchored to the exact evidence.
 
 Fix directly: wording, ordering, duplication, a heading that buries its section.
-A comment saying "this is unclear" on text you could have clarified is work
+An annotation saying "this is unclear" on text you could have clarified is work
 handed back to the reader.
 
 ## Before You Finish

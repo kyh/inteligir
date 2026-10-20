@@ -1,5 +1,4 @@
-import { Alert, StyleSheet, Text, View } from "react-native";
-import type { StyleProp, ViewStyle } from "react-native";
+import { Alert, Text, View } from "react-native";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import {
   discardUnsent,
@@ -8,24 +7,15 @@ import {
   saveUnsentAsNew,
   useOutboxStatus,
 } from "@/lib/app-runtime";
-import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 import { TextButton } from "@/ui/text-button";
 import { outboxNotices, PARKED_ACTION_LABELS } from "./outbox-notices";
 import type { OutboxNotice, ParkedAction } from "./outbox-notices";
 
-const styles = StyleSheet.create({
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.lg },
-  banner: { gap: SPACE.sm, paddingBottom: SPACE.sm },
-  message: { fontSize: 14, lineHeight: 20 },
-  notice: {
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    gap: SPACE.sm,
-    paddingHorizontal: SPACE.md,
-    paddingVertical: SPACE.md,
-  },
-  title: { fontSize: 14, fontWeight: "600" },
-});
+// a notice's card, the same for each kind
+const FRAME = "gap-2 rounded-lg border border-border bg-card p-3";
+
+// a line height stays a style value: react-native-css 3.0.7 resolves a line-height class to nothing
+const MESSAGE_LINE = { lineHeight: 20 } as const;
 
 type ParkedNotice = Extract<OutboxNotice, { kind: "parked" }>;
 
@@ -69,14 +59,14 @@ const runParked = async (
 };
 
 const Notice = ({ notice, onOpen }: { notice: OutboxNotice; onOpen: (path: string) => void }) => {
-  const theme = useTheme();
-  const frame = [styles.notice, { backgroundColor: theme.card, borderColor: theme.border }];
   if (notice.kind === "parked") {
     return (
-      <View style={frame}>
-        <Text style={[styles.title, { color: theme.cardForeground }]}>{notice.title}</Text>
-        <Text style={[styles.message, { color: theme.mutedForeground }]}>{notice.reason}</Text>
-        <View style={styles.actions}>
+      <View className={FRAME}>
+        <Text className="text-14 font-semibold text-card-foreground">{notice.title}</Text>
+        <Text className="text-14 text-muted-foreground" style={MESSAGE_LINE}>
+          {notice.reason}
+        </Text>
+        <View className="flex-row flex-wrap gap-4">
           {notice.actions.map((action) => (
             <TextButton
               key={action}
@@ -92,9 +82,11 @@ const Notice = ({ notice, onOpen }: { notice: OutboxNotice; onOpen: (path: strin
     );
   }
   return (
-    <View style={frame}>
-      <Text style={[styles.message, { color: theme.cardForeground }]}>{notice.message}</Text>
-      <View style={styles.actions}>
+    <View className={FRAME}>
+      <Text className="text-14 text-card-foreground" style={MESSAGE_LINE}>
+        {notice.message}
+      </Text>
+      <View className="flex-row flex-wrap gap-4">
         <TextButton
           fontSize={14}
           label="Open"
@@ -114,20 +106,21 @@ const Notice = ({ notice, onOpen }: { notice: OutboxNotice; onOpen: (path: strin
   );
 };
 
-// the phone's unsent edits that need the user, above the notes list and the open note
+// the phone's unsent edits that need the user, above the notes list and the open note; the
+// caller's classes place it
 export const OutboxBanner = ({
+  className = "",
   onOpen,
-  style,
 }: {
+  className?: string;
   onOpen: (path: string) => void;
-  style?: StyleProp<ViewStyle>;
 }) => {
   const notices = outboxNotices(useOutboxStatus());
   if (notices.length === 0) {
     return null;
   }
   return (
-    <View style={[styles.banner, style]}>
+    <View className={`gap-2 pb-2 ${className}`}>
       {notices.map((notice) => (
         <Notice key={notice.key} notice={notice} onOpen={onOpen} />
       ))}

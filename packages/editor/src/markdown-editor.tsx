@@ -27,6 +27,10 @@ export const PROFILE_KITS: Record<
   ((typeof EDITOR_KIT)[number] | (typeof TOUCH_EDITOR_KIT)[number])[]
 > = { desktop: EDITOR_KIT, touch: TOUCH_EDITOR_KIT };
 
+// a long note's top level renders in runs of this many blocks, so a keystroke re-renders one run
+// and a run off screen skips its layout and paint (EditorChunk, in editor-chrome.tsx).
+const CHUNK_BLOCKS = 100;
+
 // bounds per-keystroke work; the 600ms autosave debounce downstream gates the write.
 const SERIALIZE_DEBOUNCE_MS = 150;
 
@@ -49,6 +53,10 @@ interface Props {
 export const MarkdownEditor = ({ path, value, onChange, onRegisterSerializeFlush }: Props) => {
   const profile = useEditorProfile();
   const editor = usePlateEditor({
+    chunking: { chunkSize: CHUNK_BLOCKS, contentVisibilityAuto: false },
+    // Plate's navigation flash, which no surface uses, subscribes every element to the editor:
+    // one store atom per element, each recomputed on every change.
+    navigationFeedback: false,
     plugins: PROFILE_KITS[profile],
     value: () => seedValue(value),
   });

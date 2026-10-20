@@ -14,6 +14,7 @@ const ANSWERS = new Map([
 ]);
 const THREAD_OPENS = new Set(["thread/resume", "thread/start"]);
 
+/** @param {unknown} message The frame to write. */
 const send = (message) => {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 };

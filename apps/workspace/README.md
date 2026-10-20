@@ -38,10 +38,11 @@ printing, the diagnostics) draws nothing in a tab: `underShell()` in
 
 `pnpm --filter @repo/workspace test` runs the page's own suites under jsdom,
 compiled by the React Compiler as the bundle is, and fails any test that logs a
-`console.error` (`src/app/__tests__/console-error-gate.ts`). The shell's
-commands answer through Tauri's own IPC mock (`src/shell/__tests__/mock-shell.ts`).
+`console.error` (`src/app/test-support/console-error-gate.ts`). The shell's
+commands answer through Tauri's own IPC mock (`src/shell/test-support/mock-shell.ts`).
 
-The suites that boot a real server in-process live in the CLI, beside the
-harness they use (`apps/cli/src/workspace/__tests__`), and import the modules
-they drive through this package's `exports`, so the page never depends on the
-server it talks to.
+The suites that boot a real server in-process live in the CLI, in
+`apps/cli/src/workspace` beside the harness they use
+(`apps/cli/src/workspace/test-support`), and import the modules they drive
+through this package's `exports`, so the page never depends on the server it
+talks to.

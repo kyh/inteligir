@@ -2,7 +2,7 @@
 // index is React state, never a node prop, because switching is not an edit.
 
 import { createContext, useContext, useMemo, useState } from "react";
-import { createSlatePlugin, ElementApi } from "platejs";
+import { ElementApi } from "platejs";
 import type { SlateEditor, TElement } from "platejs";
 import { PlateElement, useEditorRef, useElement, usePath } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
@@ -15,6 +15,8 @@ import { TAB_GROUP_KEY, TAB_PANEL_KEY } from "@repo/editor/dialect-node-keys";
 import { useRichBlocksLocked } from "@repo/editor/kits/rich-block-lock-kit";
 import { stringProp } from "@repo/editor/node-props";
 import { LockedContent } from "@repo/editor/nodes/rich-block-chrome";
+
+import { tabGroupBasePlugin, tabPanelBasePlugin } from "./headless/tabs-base";
 
 const ActiveTabContext = createContext(0);
 
@@ -151,18 +153,6 @@ const TabPanelElement = (props: PlateElementProps) => {
     </PlateElement>
   );
 };
-
-const tabGroupBasePlugin = createSlatePlugin({
-  key: TAB_GROUP_KEY,
-  node: { isElement: true },
-});
-
-const tabPanelBasePlugin = createSlatePlugin({
-  key: TAB_PANEL_KEY,
-  node: { isElement: true },
-});
-
-export const TabsBaseKit = [tabGroupBasePlugin, tabPanelBasePlugin];
 
 export const TabsKit = [
   tabGroupBasePlugin.withComponent(TabGroupElement),

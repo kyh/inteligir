@@ -66,10 +66,10 @@ export const selectionRefusalMessage = (reason: VaultSelectionRefusal): string =
       return "INTELIGIR_DATA_DIR pins one data dir for this launch, and a second vault would share it; unset it to switch from here.";
     }
     case "already-open": {
-      return "That vault is already open.";
+      return "That library is already open.";
     }
     case "not-a-directory": {
-      return "That vault is not an existing folder.";
+      return "That library is not an existing folder.";
     }
     // no default
   }

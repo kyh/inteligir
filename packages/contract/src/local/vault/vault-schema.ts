@@ -4,7 +4,7 @@ import {
   syncConflictCopiedSchema,
   syncConflictKeptEditSchema,
 } from "@repo/notes/sync/conflict-copy";
-import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/templates/folders";
+import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/knowledge/asset-name";
 import { z } from "zod";
 import { remoteUrlSchema } from "./remote-url";
 
@@ -59,8 +59,13 @@ export const contentHashBytesHex = async (
 };
 
 // re-exported from the cloud side: local importing cloud is the direction the dep guard allows,
-// and one table keeps both routes accepting the same images.
-export { assetMediaType } from "@repo/contract/cloud/vault/vault-schema";
+// and one table and one cap keep both routes accepting the same files.
+export {
+  assetKind,
+  assetMediaType,
+  takesBytes,
+  VAULT_ASSET_MAX_BYTES,
+} from "@repo/contract/cloud/vault/vault-schema";
 
 export const vaultReadRequestSchema = z.strictObject({ path: vaultPathSchema });
 export type VaultReadRequest = z.infer<typeof vaultReadRequestSchema>;
@@ -118,6 +123,17 @@ export type VaultRevisionRequest = z.infer<typeof vaultRevisionRequestSchema>;
 export const vaultRevisionResponseSchema = z.strictObject({ content: z.string() });
 export type VaultRevisionResponse = z.infer<typeof vaultRevisionResponseSchema>;
 
+// a file's bytes at a revision, exactly: what a binary restore and its Undo read back. the same
+// fields as `revision`'s request
+export const vaultRevisionBytesRequestSchema = z.strictObject({
+  path: vaultPathSchema,
+  sha: vaultRevisionShaSchema,
+});
+export type VaultRevisionBytesRequest = z.infer<typeof vaultRevisionBytesRequestSchema>;
+
+// an octet-stream Blob; nothing renders it
+export const vaultRevisionBytesResponseSchema = z.instanceof(Blob);
+
 // no paths commits the whole dirty tree, a running agent turn's writes included; a caller
 // checkpointing one note names it, so the turn's writes stay for the turn's own commit.
 export const vaultCommitRequestSchema = z
@@ -170,10 +186,6 @@ export const vaultRenameResponseSchema = z.strictObject({
 });
 export type VaultRenameResponse = z.infer<typeof vaultRenameResponseSchema>;
 
-// gates the write and the read alike, and must not exceed the cloud route's own ceiling: an
-// image accepted here and refused there renders on one device only.
-export const VAULT_ASSET_MAX_BYTES = 10 * 1024 * 1024;
-
 // "" is the vault root: a vault path is never empty, and the root is a place an attachment can land.
 export const vaultDirSchema = z.union([z.literal(""), vaultPathSchema]);
 
@@ -188,6 +200,17 @@ export type VaultAssetWriteRequest = z.infer<typeof vaultAssetWriteRequestSchema
 
 export const vaultAssetWriteResponseSchema = z.strictObject({ path: z.string().min(1) });
 export type VaultAssetWriteResponse = z.infer<typeof vaultAssetWriteResponseSchema>;
+
+// the byte twin of a write's `absent` guard: the file is created at exactly this path or refused,
+// never renamed to a free name as an attachment is
+export const vaultCreateFileRequestSchema = z.strictObject({
+  file: z.instanceof(Blob).refine((f) => f.size > 0, "a file holds no bytes"),
+  path: vaultPathSchema,
+});
+export type VaultCreateFileRequest = z.infer<typeof vaultCreateFileRequestSchema>;
+
+export const vaultCreateFileResponseSchema = z.strictObject({ path: z.string().min(1) });
+export type VaultCreateFileResponse = z.infer<typeof vaultCreateFileResponseSchema>;
 
 // where a pasted image lands: the vault root, the note's own folder, or one named folder
 export const attachmentLocationSchema = z.discriminatedUnion("kind", [
@@ -214,12 +237,16 @@ export type VaultMkdirRequest = z.infer<typeof vaultMkdirRequestSchema>;
 export const vaultMkdirResponseSchema = z.strictObject({ path: z.string().min(1) });
 export type VaultMkdirResponse = z.infer<typeof vaultMkdirResponseSchema>;
 
-// doc paths no longer on disk. `sha` names the revision whose tree still holds the bytes — the
+// paths no longer on disk. `sha` names the revision whose tree still holds the bytes — the
 // deleting commit's parent, or HEAD for a deletion the auto-commit has not flushed yet — so a
-// restore is `revision` read plus an `absent` write. latest deletion per path, newest first.
+// doc's restore is `revision` read plus an `absent` write, and a file's is `revisionBytes` plus
+// `createFile`. latest deletion per path, newest first.
 export const vaultDeletedEntrySchema = z.strictObject({
   // git's `%aI` of the deleting commit; the read time for an unflushed deletion.
   deletedAt: z.string().min(1),
+  // the deleted doc this file was embedded by, deleted with it, so restoring the doc restores it
+  heldBy: z.string().min(1).nullable(),
+  kind: z.enum(["doc", "file"]),
   path: z.string().min(1),
   sha: vaultRevisionShaSchema,
 });
@@ -295,6 +322,9 @@ export const externalSyncName = (sync: ExternalSync): string => {
   }
 };
 
+// the most a status names of the files kept off history for their size; `count` counts them all
+export const VAULT_TOO_LARGE_LISTED = 20;
+
 const syncStatusFields = {
   conflicts: z.array(vaultSyncConflictSchema).max(VAULT_SYNC_CONFLICTS_MAX),
   // the name a report's devices are told against: "yours" and "here" when one of them is this one.
@@ -305,6 +335,13 @@ const syncStatusFields = {
   externalSync: externalSyncSchema.nullable(),
   lastError: z.string().nullable(),
   lastSyncAt: z.number().int().nullable(),
+  // files over the cap a commit never stages: they stay on this Mac's disk alone
+  tooLarge: z.strictObject({
+    count: z.number().int().min(0),
+    files: z
+      .array(z.strictObject({ bytes: z.number().int().min(0), path: z.string().min(1) }))
+      .max(VAULT_TOO_LARGE_LISTED),
+  }),
 };
 
 // "account" is the remote derived from the signed-in account (signing out removes it); "explicit"

@@ -35,15 +35,17 @@ export const osDictationBrowser: Scenario = {
     const app = await ctx.boot({
       extraEnv: { INTELIGIR_AGENT: "scripted" },
       name: "solo",
-      // the only note, so the virgin boot opens it.
       seedVault: async (vaultDir) => {
         await writeFile(path.join(vaultDir, DOC_PATH), DOC, "utf-8");
       },
     });
     const agentBrowser = await ctx.browser("os-dictation");
 
-    ctx.log(`opening ${app.baseUrl}/`);
-    await agentBrowser.openWorkspace(app);
+    ctx.log(`opening ${DOC_PATH} by its deep link`);
+    await agentBrowser.openWorkspace(app, {
+      path: `/?item=${encodeURIComponent(DOC_PATH)}`,
+      ready: EDITOR,
+    });
     ctx.log("a caret on a new line of the note, for the composer to hand back");
     await agentBrowser(["click", EDITOR]);
     await agentBrowser(["press", "End"]);

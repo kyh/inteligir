@@ -141,14 +141,37 @@ export const parseProperties = (yamlText: string): ParsedProperties => {
 
 // A line cut, not a re-serialization: serializeProperties restyles what it re-emits (a flow
 // list's spacing), and a key edit must leave the other keys byte-exact. The key's own lines are
-// its `key:` line and the indented or `- ` lines that continue a block value under it, and
-// `replacement` stands where they stood. The key may be quoted: the parse reads `"id":` as `id`.
-const withTopLevelKeyAs = (
+// its `key:` line and the indented or `- ` lines that continue a block value under it. The key
+// may be quoted: the parse reads `"id":` as `id`. `end` is one past its last line.
+const topLevelKeyLine = (key: string): RegExp =>
+  new RegExp(`^(?:${key}|"${key}"|'${key}')[ \\t]*:`, "u");
+
+const CONTINUES_VALUE = /^[ \t-]/u;
+
+export const topLevelKeyRange = (
+  lines: readonly string[],
+  key: string,
+): { start: number; end: number } | null => {
+  const keyLine = topLevelKeyLine(key);
+  const start = lines.findIndex((line) => keyLine.test(line));
+  if (start === -1) {
+    return null;
+  }
+  let end = start + 1;
+  while (end < lines.length && CONTINUES_VALUE.test(lines[end] ?? "")) {
+    end += 1;
+  }
+  return { end, start };
+};
+
+// The top-level key line cut every frontmatter key writer runs: `replacement` stands where the
+// key's own lines (topLevelKeyRange) stood, and every other line is kept as it was.
+export const replaceTopLevelKey = (
   lines: readonly string[],
   key: string,
   replacement: readonly string[],
 ): string[] => {
-  const keyLine = new RegExp(`^(?:${key}|"${key}"|'${key}')[ \\t]*:`, "u");
+  const keyLine = topLevelKeyLine(key);
   const kept: string[] = [];
   let inValue = false;
   for (const line of lines) {
@@ -157,7 +180,7 @@ const withTopLevelKeyAs = (
       kept.push(...replacement);
       continue;
     }
-    if (inValue && /^[ \t-]/u.test(line)) {
+    if (inValue && CONTINUES_VALUE.test(line)) {
       continue;
     }
     inValue = false;
@@ -167,7 +190,7 @@ const withTopLevelKeyAs = (
 };
 
 const withoutTopLevelKey = (lines: readonly string[], key: string): string[] =>
-  withTopLevelKeyAs(lines, key, []);
+  replaceTopLevelKey(lines, key, []);
 
 // the note's identity: frontmatter `id`, the value `[[Title|uuid]]` resolves and the comment
 // store is keyed by. Text only: a number or a list is not a name.
@@ -260,12 +283,12 @@ export const reassignFrontmatterId = (
   if (yaml === null || noteIdOfProperties(parsed) !== from) {
     return { kind: "changed" };
   }
-  const lines = withTopLevelKeyAs(splitLines(yaml), "id", [`id: ${to}`]);
+  const lines = replaceTopLevelKey(splitLines(yaml), "id", [`id: ${to}`]);
   return { content: replaceFrontmatterYaml(content, lines.join("\n")), kind: "written" };
 };
 
-// a note minted from a template must not inherit the template's identity: two notes with one
-// `id:` make the `[[Title|uuid]]` tier ambiguous.
+// a copy of a note, such as a sync conflict's, must not inherit the note's identity: two notes
+// with one `id:` make the `[[Title|uuid]]` tier ambiguous.
 export const removeFrontmatterId = (content: string): string => {
   const yaml = frontmatterYaml(content);
   if (yaml === null) {
@@ -432,10 +455,14 @@ export const yamlStringEntries = (yamlText: string, key: string): YamlStringEntr
   return entries;
 };
 
+// where the scalar stands: an entry of a flow list (`[a, b]`), or a block value of its own
+// (`key: value`), where a comma or a bracket inside the value splits nothing
+export type YamlScalarContext = "flow" | "block";
+
 // a flow indicator would split a flow list, and a spelling yaml reads as something else (`true`,
 // `2026`, `#x`) would change the value's type
-const plainReadsAsItself = (value: string): boolean => {
-  if (/[,[\]{}]/u.test(value)) {
+const plainReadsAsItself = (value: string, context: YamlScalarContext): boolean => {
+  if (context === "flow" && /[,[\]{}]/u.test(value)) {
     return false;
   }
   try {
@@ -447,11 +474,15 @@ const plainReadsAsItself = (value: string): boolean => {
 
 // a value spelled in the style its scalar was written in, so a splice restyles nothing; a plain
 // scalar that cannot hold it plainly is double-quoted instead.
-export const yamlScalarText = (value: string, style: YamlScalarStyle): string => {
+export const yamlScalarText = (
+  value: string,
+  style: YamlScalarStyle,
+  context: YamlScalarContext = "flow",
+): string => {
   if (style === "single") {
     return `'${value.replaceAll("'", "''")}'`;
   }
-  if (style === "plain" && plainReadsAsItself(value)) {
+  if (style === "plain" && plainReadsAsItself(value, context)) {
     return value;
   }
   return JSON.stringify(value);

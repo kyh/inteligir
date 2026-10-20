@@ -1,4 +1,5 @@
-import type { ViewContext } from "@repo/domain/view-context";
+import type { LibraryViewContext, ViewContext } from "@repo/domain/view-context";
+import { isItemKind } from "@repo/notes/items/item-kind";
 import type {
   TimelineErrorRow,
   TimelineFileChange,
@@ -19,8 +20,9 @@ import { Undo2Icon } from "lucide-react";
 import { memo } from "react";
 import type { ReactNode } from "react";
 
+import { KIND_CHIP_LABELS, formatCount } from "../library/item-labels";
+import { scopeTitle } from "../library/library-header";
 import { NoteBadge } from "./note-badge";
-import { turnNotePaths } from "./undo-turn";
 
 const CHANGE_MARKS = {
   add: "+",
@@ -30,9 +32,19 @@ const CHANGE_MARKS = {
 
 const firstLine = (text: string): string => text.split("\n", 1)[0] ?? "";
 
+// "Unsorted · PDFs · “q” · 3 selected": the screen the message left from, never the selection's
+// names, which the thread's event does not carry
+export const libraryAttribution = (context: LibraryViewContext): string =>
+  [
+    scopeTitle(context.scope),
+    ...(context.kinds ?? []).map((kind) => (isItemKind(kind) ? KIND_CHIP_LABELS[kind] : kind)),
+    ...(context.q === undefined ? [] : [`“${context.q}”`]),
+    ...(context.selected === 0 ? [] : [`${formatCount(context.selected)} selected`]),
+  ].join(" · ");
+
 const ViewContextAttribution = ({ context }: { context: ViewContext }) => (
   <div className="max-w-[85%] truncate px-3 text-body text-muted-foreground">
-    {context.resource}
+    {context.surface === "library" ? libraryAttribution(context) : context.resource}
   </div>
 );
 
@@ -254,7 +266,7 @@ const TurnChangesFooterContent = ({ status, changes, undo, onUndo }: TurnChanges
   if (status === "pending" || changes === undefined) {
     return null;
   }
-  const paths = turnNotePaths(changes);
+  const paths = changes.items;
   if (paths.length === 0) {
     return null;
   }
@@ -270,7 +282,7 @@ const TurnChangesFooterContent = ({ status, changes, undo, onUndo }: TurnChanges
     <div className="flex flex-col gap-1.5">
       <div className="flex min-h-7 items-center justify-between gap-2">
         <span className="text-body text-muted-foreground">
-          Edited {plural(paths.length, "note")}
+          Edited {plural(paths.length, "item")}
         </span>
         {undo === "withheld" ? null : (
           <Button

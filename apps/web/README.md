@@ -2,10 +2,9 @@
 
 One Cloudflare Worker serving the marketing site and the whole cloud from
 one origin: the TanStack Start pages, Better Auth on D1, device login, the
-per-user thread-sync Durable Object, the dispatch inbox (a phone's turns,
-answers and captures) and the hosted vault git remote. The wire contract is
-`@repo/contract/cloud` — the Worker implements it, the local app's sync client
-consumes it.
+per-account socket Durable Object (it stores nothing) and the hosted vault git
+remote. The wire contract is `@repo/contract/cloud` — the Worker implements
+it, the local app's and the phone's clients consume it.
 
 ## Layout
 
@@ -28,10 +27,10 @@ src/
     auth/            Better Auth factory, invite gate, reset email
     device/          Device login and sign-up, credential verification,
                      account deletion
-    sync/            ThreadSyncDO + the device-authed route chokepoint + the
-                     dispatch inbox's SQL (dispatch-inbox.ts) + the calls
-                     the rest of the Worker makes on the object
-                     (thread-sync-stub.ts)
+    sync/            AccountSocketDO, the account's sockets and nothing else
+                     (account-socket-do.ts) + the device-authed upgrade
+                     route + the calls the rest of the Worker makes on the
+                     object (account-socket-stub.ts)
     vault/           The hosted vault git remote (durable-git behind the
                      wrapper) + the repo's one name and its purge
                      (vault-repo.ts) + the git-less /v1/vault/* read
@@ -43,7 +42,9 @@ src/
     rate-limit.ts    The D1 fixed window every throttled route spends
     types/           The hand-authored durable-git .d.ts (it ships untyped TS
                      source) — re-check on every version bump
-    __tests__/       vitest-pool-workers suites (real miniflare + D1 + DO)
+    *.test.ts        vitest-pool-workers suites (real miniflare + D1 + DO)
+    test-support/    Their shared harness: the schema setup, the client
+                     helpers, a pack builder and the test env's types
 ```
 
 `src/worker/` compiles without `lib.dom` on purpose: workerd and the DOM both
@@ -54,53 +55,43 @@ its own `tsconfig.json`.
 
 ## Routes
 
-| Route                                   | Auth              | What                                                                |
-| --------------------------------------- | ----------------- | ------------------------------------------------------------------- |
-| `/`                                     | —                 | Marketing page (SSR); markdown to `Accept: text/markdown`           |
-| `/about`, `/contact`                    | —                 | Trust pages from `lib/site-content.ts`, negotiated the same way     |
-| `/privacy`                              | —                 | Renders `docs/privacy.md` itself (SSR) — never a copy               |
-| `/terms`                                | —                 | Renders `docs/terms.md` itself (SSR) — never a copy                 |
-| `/llms.txt`, `/sitemap.xml`             | —                 | Agent and crawler files, beside `/robots.txt`                       |
-| `/*` (anything else)                    | —                 | 404; a markdown recovery body to `Accept: text/markdown`            |
-| `/app/sign-in`                          | —                 | Sign-in (SSR when signed out — see `lib/session-guard.ts`)          |
-| `/app/sign-up`                          | —                 | Sign-up form; submits to the invite gate                            |
-| `/app/forgot-password`                  | —                 | Requests the reset link                                             |
-| `/app/reset-password`                   | —                 | Where the emailed link lands (client-only, `no-store`, no referrer) |
-| `/app/devices`                          | session           | The device table: list and revoke                                   |
-| `/api/auth/*`                           | —                 | Better Auth (email+password, session cookie)                        |
-| `/v1/auth/sign-up`                      | —                 | The invite gate in front of Better Auth's sign-up                   |
-| `POST /v1/device/login`                 | —                 | Email + password in, the device credential and its account out      |
-| `POST /v1/device/sign-up`               | —                 | Sign-up from the app: account + device credential out               |
-| `GET /v1/device/list`                   | session or device | The device table (revoked rows included)                            |
-| `POST /v1/device/revoke`                | session or device | Cut a device off — bites on its next request                        |
-| `POST /v1/device/sign-out`              | device            | The same revoke, for the device the credential names                |
-| `POST /v1/sync/push`                    | device            | Outbox batch in — idempotent, conflict-aware                        |
-| `GET /v1/sync/pull`                     | device            | Page the merged log by global `seq`                                 |
-| `GET /v1/sync/ws`                       | device            | Invalidation socket (Bearer on the upgrade; hibernatable)           |
-| `POST /v1/sync/dispatch`                | device            | A phone's turn, approval answer or capture in, deduped on its id    |
-| `POST /v1/sync/dispatch/claim`          | device            | Take waiting rows of the kinds named, for two minutes               |
-| `POST /v1/sync/dispatch/ack`            | device            | Settle what that claim owns, delivered or refused — per-id outcomes |
-| `POST /v1/sync/dispatch/status`         | device            | Each dispatch's state, and how many desktops are listening          |
-| `POST /v1/sync/dispatch/cancel`         | device            | Withdraw a dispatch no Mac holds                                    |
-| `POST /v1/sync/dispatch/approval`       | device            | A Mac opens an approval a phone-started turn waits on               |
-| `POST /v1/sync/dispatch/approval/close` | device            | That Mac closes it: answered there, or its turn ended               |
-| `GET /v1/sync/dispatch/approvals`       | device            | The approvals waiting for the phone's answer                        |
-| `/v1/git/vault.git/*`                   | device            | The hosted vault git remote — smart HTTP, 90 MiB push, 1 GiB stored |
-| `POST /v1/vault/tree`                   | device            | Flat listing — path, size, blob oid — at one commit                 |
-| `POST /v1/vault/file`                   | device            | One note's bytes at that commit — 2 MB ceiling                      |
-| `POST /v1/vault/files`                  | device            | Up to 40 notes at a pinned commit — 4 MiB, rest deferred            |
-| `POST /v1/vault/asset`                  | device            | One embedded binary at that commit                                  |
-| `POST /v1/vault/commit`                 | device            | A change set, each change CAS'd on its blob — one commit            |
-| `POST /v1/account/delete`               | device + password | Delete the account through Better Auth's `deleteUser`               |
+| Route                       | Auth              | What                                                                |
+| --------------------------- | ----------------- | ------------------------------------------------------------------- |
+| `/`                         | —                 | Marketing page (SSR); markdown to `Accept: text/markdown`           |
+| `/about`, `/contact`        | —                 | Trust pages from `lib/site-content.ts`, negotiated the same way     |
+| `/privacy`                  | —                 | Renders `docs/privacy.md` itself (SSR) — never a copy               |
+| `/terms`                    | —                 | Renders `docs/terms.md` itself (SSR) — never a copy                 |
+| `/llms.txt`, `/sitemap.xml` | —                 | Agent and crawler files, beside `/robots.txt`                       |
+| `/*` (anything else)        | —                 | 404; a markdown recovery body to `Accept: text/markdown`            |
+| `/app/sign-in`              | —                 | Sign-in (SSR when signed out — see `lib/session-guard.ts`)          |
+| `/app/sign-up`              | —                 | Sign-up form; submits to the invite gate                            |
+| `/app/forgot-password`      | —                 | Requests the reset link                                             |
+| `/app/reset-password`       | —                 | Where the emailed link lands (client-only, `no-store`, no referrer) |
+| `/app/devices`              | session           | The device table: list and revoke                                   |
+| `/api/auth/*`               | —                 | Better Auth (email+password, session cookie)                        |
+| `/v1/auth/sign-up`          | —                 | The invite gate in front of Better Auth's sign-up                   |
+| `POST /v1/device/login`     | —                 | Email + password in, the device credential and its account out      |
+| `POST /v1/device/sign-up`   | —                 | Sign-up from the app: account + device credential out               |
+| `GET /v1/device/list`       | session or device | The device table (revoked rows included)                            |
+| `POST /v1/device/revoke`    | session or device | Cut a device off — bites on its next request                        |
+| `POST /v1/device/sign-out`  | device            | The same revoke, for the device the credential names                |
+| `GET /v1/sync/ws`           | device            | Invalidation socket (Bearer on the upgrade; hibernatable)           |
+| `/v1/git/vault.git/*`       | device            | The hosted vault git remote — smart HTTP, 90 MiB push, 1 GiB stored |
+| `POST /v1/vault/tree`       | device            | Flat listing — path, size, blob oid — at one commit                 |
+| `POST /v1/vault/file`       | device            | One note's bytes at that commit — 2 MB ceiling                      |
+| `POST /v1/vault/files`      | device            | Up to 40 notes at a pinned commit — 4 MiB, rest deferred            |
+| `POST /v1/vault/asset`      | device            | One embedded binary at that commit                                  |
+| `POST /v1/vault/commit`     | device            | A change set, each change CAS'd on its blob — one commit            |
+| `POST /v1/account/delete`   | device + password | Delete the account through Better Auth's `deleteUser`               |
 
 "device" auth is the `igd_…` credential a login minted, verified per request by
 hash compare against D1 — never cached, so revocation is immediate; its
 `last_seen_at` is written at most every five minutes
 (`LAST_SEEN_RESOLUTION_MS`), so a verify is one read. The
 VERIFIED credential's userId — never a path or a body — names the state it
-reaches: the sync and dispatch routes fan out to that user's own
-`ThreadSyncDO` by RPC (the Worker parses each body and hands the object the
-verified deviceId; only the socket upgrade is a forwarded request), the git
+reaches: the socket upgrade to that user's own `AccountSocketDO` (the one
+forwarded request, carrying the verified deviceId; a push, a revoke and a
+deletion call the object by RPC), the git
 remote and the `/v1/vault/*` reads and commits to that user's own durable-git
 `RepoCell`, and the account deletion reads D1 directly. A commit is authored by the
 verified device row's name, and a stale base answers 409 `vault-conflict` with
@@ -234,10 +225,11 @@ other method is refused `bad-request` (`src/worker/vault/read-routes.ts`).
   so a failed step aborts the deletion rather than orphaning data. THE ORDER IS
   LOAD-BEARING: device rows first (while one lives its credential still
   verifies, and a request on it can rebuild whatever was deleted before it),
-  then the hosted vault git repo, then the
-  ThreadSyncDO — purged whole and TOMBSTONED, which refuses the request that
-  authenticated microseconds before step one — then the deleted email off the
-  invite it spent (`redeemed_at` stays set, so the code stays burned).
+  then the hosted vault git repo, then every socket the account's
+  AccountSocketDO holds is closed (it stores nothing, so a request that
+  authenticated microseconds before step one leaves nothing behind there) —
+  then the deleted email off the invite it spent (`redeemed_at` stays set, so
+  the code stays burned).
   The app asks it at `POST /v1/account/delete` (`src/worker/device/account.ts`),
   holding a device credential and no session: the credential, a per-device
   window of 5 a minute, the password checked again through `signInEmail`, then
@@ -275,11 +267,7 @@ pnpm --filter @repo/web db:push
 Tests run in a real in-process Workers runtime (`@cloudflare/vitest-pool-workers`)
 against the bindings `cloudflare.config.ts` declares, restated in
 `vitest.config.ts` because the pool reads only wrangler's config format; the
-schema DDL is derived from `src/worker/db/schema.ts` at config load. The
-inboxes' refusal and ordering rules are one table,
-`@repo/contract/cloud/test-support/inbox-scenarios`, which
-`src/worker/__tests__/inbox-scenarios.test.ts` runs against the object and the
-CLI's suites run against their fake cloud.
+schema DDL is derived from `src/worker/db/schema.ts` at config load.
 
 ## Build & deploy (owner-only)
 

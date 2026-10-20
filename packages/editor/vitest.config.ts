@@ -8,14 +8,19 @@ const alias = { "@repo/editor": path.resolve(import.meta.dirname, "src") };
 // import is stubbed.
 const inlineDeps = [/@platejs\/math/u];
 
-const TYPING_BUDGET = "src/__tests__/typing-budget.test.tsx";
+const TYPING_BUDGET = "src/typing-budget.test.tsx";
 
 // a 10k-line note mounted in jsdom under React's dev build peaks near 4 GB, past the heap V8 sizes
 // for a 7 GB CI runner; only this suite's worker gets the larger ceiling. Beside the other suites
 // on the macOS runner that note swaps, and a keystroke's cost there measures the swap rather than
 // the editor, so that job sets SKIP_TYPING_BUDGET and the Linux job holds the budget alone.
 const budgetProject = {
-  plugins: [react({ compiler: true, exclude: [/\/node_modules\//u, /\/__tests__\//u] })],
+  plugins: [
+    react({
+      compiler: true,
+      exclude: [/\/node_modules\//u, /\.test\.tsx?$/u, /\/test-support\//u],
+    }),
+  ],
   resolve: { alias },
   test: {
     environment: "jsdom",
@@ -23,7 +28,7 @@ const budgetProject = {
     include: [TYPING_BUDGET],
     name: "editor-budget",
     server: { deps: { inline: inlineDeps } },
-    setupFiles: ["src/__tests__/dom-cleanup.ts"],
+    setupFiles: ["src/test-support/dom-cleanup.ts"],
     // unmounting a 10k-line tree outlasts the 10s default on a slow runner
     hookTimeout: 120_000,
     testTimeout: 120_000,
@@ -49,7 +54,12 @@ export default defineConfig({
         // Compiled like the shipped page, so a component the compiler memoizes wrongly fails
         // here rather than only in the built app. Test files stay uncompiled: a fixture hook
         // minted inside a factory is hoisted to module scope with no diagnostic.
-        plugins: [react({ compiler: true, exclude: [/\/node_modules\//u, /\/__tests__\//u] })],
+        plugins: [
+          react({
+            compiler: true,
+            exclude: [/\/node_modules\//u, /\.test\.tsx?$/u, /\/test-support\//u],
+          }),
+        ],
         resolve: { alias },
         test: {
           environment: "jsdom",
@@ -57,7 +67,7 @@ export default defineConfig({
           include: ["src/**/*.test.tsx"],
           name: "editor-dom",
           server: { deps: { inline: inlineDeps } },
-          setupFiles: ["src/__tests__/dom-cleanup.ts"],
+          setupFiles: ["src/test-support/dom-cleanup.ts"],
           // real Plate trees mount beside the Workers pool; 5s is a coin-flip under a full run.
           testTimeout: 20_000,
         },

@@ -3,15 +3,14 @@
 // guarded-vault-io does for the open buffer): the caller named exact bytes, and a merge would be
 // a guess about a note that moved.
 
+import type { LocalClient } from "@repo/contract/local";
 import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 import { isDefinedError, refusalMessage, safe } from "../api";
-import type { client } from "../api";
 
 export interface RewriteNoteApi {
-  vault: Pick<(typeof client)["vault"], "read" | "write">;
+  vault: Pick<LocalClient["vault"], "read" | "write">;
 }
 
-// null from the edit means "nothing to write" — the bytes no longer hold what the edit expected;
 // an edit that answers the same bytes is `unchanged`, and still carries what it found
 export type RewriteNoteOutcome<TWritten> =
   | { kind: "written"; result: TWritten }
@@ -23,7 +22,7 @@ export type RewriteNoteOutcome<TWritten> =
 export const rewriteNote = async <TWritten>(
   api: RewriteNoteApi,
   path: string,
-  edit: (content: string) => { content: string; result: TWritten } | null,
+  edit: (content: string) => { content: string; result: TWritten },
 ): Promise<RewriteNoteOutcome<TWritten>> => {
   const read = await safe(api.vault.read({ path }));
   if (read.error !== null) {
@@ -31,9 +30,6 @@ export const rewriteNote = async <TWritten>(
   }
   const { content } = read.data;
   const edited = edit(content);
-  if (edited === null) {
-    return { kind: "changed" };
-  }
   if (edited.content === content) {
     return { kind: "unchanged", result: edited.result };
   }

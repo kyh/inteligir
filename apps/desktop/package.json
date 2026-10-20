@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit -p scripts && cargo clippy --locked --all-targets --manifest-path src-tauri/Cargo.toml -- -D warnings"
   },
   "devDependencies": {
+    "@kyh/tsconfig": "catalog:",
     "@repo/contract": "workspace:*",
     "@repo/workspace": "workspace:*",
     "@tauri-apps/cli": "^2.12.2",

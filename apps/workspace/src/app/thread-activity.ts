@@ -26,10 +26,9 @@ export const threadActivity = (thread: Thread): ThreadActivity => {
   }
 };
 
-// archived threads are not exempt: a turn still running on one is still writing the vault. a turn
-// another device runs is that device's to stop.
+// archived threads are not exempt: a turn still running on one is still writing the vault.
 export const threadStopControl = (thread: Thread): ThreadStopControl =>
-  thread.runsElsewhere ? "none" : threadStopControlFor(thread.status);
+  threadStopControlFor(thread.status);
 
 export const THREAD_ACTIVITY_LABELS = {
   archived: "archived",

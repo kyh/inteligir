@@ -17,8 +17,8 @@ export const HARNESS_NAMES = {
   codex: { displayName: "ChatGPT", vendorApp: "Codex" },
 } as const satisfies Record<HarnessId, HarnessNames>;
 
-// a thread's provider id as its row and its log hold it: those stay open, since another device's
-// newer build can start a thread on a harness this build does not ship.
+// a thread's provider id as its row holds it: open, so a harness id this build no longer ships
+// reads as unknown rather than costing the thread its parse.
 export type ThreadHarness = { kind: "known"; id: HarnessId } | { kind: "unknown"; id: string };
 
 export const parseHarnessId = (id: string): ThreadHarness => {

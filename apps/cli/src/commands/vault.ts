@@ -7,9 +7,11 @@ import {
   contentHashHex,
   contentHashSchema,
   externalSyncName,
+  takesBytes,
 } from "@repo/contract/local/vault/vault-schema";
 import type {
   ExternalSync,
+  VaultDeletedEntry,
   VaultHistoryRequest,
   VaultSetRemoteRequest,
   VaultStatusResponse,
@@ -22,7 +24,8 @@ import {
   formatAttachmentLocation,
   parseAttachmentLocation,
 } from "@repo/contract/local/vault/attachment-location";
-import type { CommentStoreRestore } from "@repo/contract/local/vault/restore-comment-store";
+import type { AnnotationStoreRestore } from "@repo/contract/local/vault/restore-annotation-store";
+import type { HeldFilesRestore } from "@repo/contract/local/vault/restore-held-files";
 import { describeSyncConflict } from "@repo/notes/sync/conflict-copy";
 import { parseBoundedInteger } from "../args";
 import { defineCommand } from "citty";
@@ -49,6 +52,24 @@ const REMOTE_SOURCE_LABELS = {
 } satisfies Record<RemoteSource, string>;
 
 const ACCOUNT_REMOTE_ARG = "account";
+
+// why a file a deleted note held stayed in Deleted when the note came back
+const HELD_FILE_REFUSALS = {
+  exists: "something is at its path now",
+  failed: "the library refused it",
+  gone: "that revision no longer holds it",
+  "too-large": "it is over 10 MB",
+} satisfies Record<HeldFilesRestore["failed"][number]["reason"], string>;
+
+// ", with its annotations and 2 files": what came back beside the note
+const restoredWith = (annotations: boolean, files: HeldFilesRestore | null): string => {
+  const count = files?.restored.length ?? 0;
+  const parts = [
+    ...(annotations ? ["its annotations"] : []),
+    ...(count === 0 ? [] : [count === 1 ? "1 file" : `${String(count)} files`]),
+  ];
+  return parts.length === 0 ? "" : `, with ${parts.join(" and ")}`;
+};
 
 const describeVaultRemote = (status: VaultStatusResponse): string => {
   if (status.state !== "no-remote") {
@@ -284,7 +305,7 @@ export const vaultCommand = (deps: CliDeps) =>
         args: { ...jsonArg },
         meta: {
           description:
-            "Docs no longer on disk, newest deletion first, with the sha that holds them",
+            "Docs and files no longer on disk, newest deletion first, with the sha that holds them",
           name: "deleted",
         },
         run: async ({ args }) => {
@@ -298,8 +319,16 @@ export const vaultCommand = (deps: CliDeps) =>
             return;
           }
           // sha first so `cut -f1` feeds `vault restore`.
+          // a file a deleted note held names it last: it comes back with that note
           writeLines(
-            body.entries.map((entry) => [entry.sha, entry.deletedAt, entry.path].join("\t")),
+            body.entries.map((entry) =>
+              [
+                entry.sha,
+                entry.deletedAt,
+                entry.path,
+                ...(entry.heldBy === null ? [] : [`held by ${entry.heldBy}`]),
+              ].join("\t"),
+            ),
           );
         },
       }),
@@ -414,7 +443,7 @@ export const vaultCommand = (deps: CliDeps) =>
         },
         meta: {
           description:
-            "Give a note that shares another's id (a copied file) its own, with a copy of its comments",
+            "Give a note that shares another's id (a copied file) its own, with a copy of its annotations",
           name: "new-id",
         },
         run: async ({ args }) => {
@@ -449,12 +478,12 @@ export const vaultCommand = (deps: CliDeps) =>
               failureFrom(result.error, "UNEXPECTED"),
             );
           }
-          const body = { comments: result.comments, id: result.id, path: args.path };
+          const body = { annotations: result.annotations, id: result.id, path: args.path };
           if (outputJson(args, body)) {
             return;
           }
           out.success(
-            `${args.path} has its own id, ${result.id}${result.comments === "copied" ? ", and a copy of its comments" : ""}`,
+            `${args.path} has its own id, ${result.id}${result.annotations === "copied" ? ", and a copy of its annotations" : ""}`,
           );
         },
       }),
@@ -577,7 +606,7 @@ export const vaultCommand = (deps: CliDeps) =>
       restore: defineCommand({
         args: {
           path: {
-            description: "The note's path TODAY, or the path `vault deleted` lists",
+            description: "The note's or file's path TODAY, or the path `vault deleted` lists",
             required: true,
             type: "positional",
           },
@@ -585,7 +614,8 @@ export const vaultCommand = (deps: CliDeps) =>
           ...jsonArg,
         },
         meta: {
-          description: "Put a note back to what it held at one revision",
+          description:
+            "Put a note back to what it held at one revision, or bring a deleted file back",
           name: "restore",
         },
         // an ordinary guarded write of older bytes, never a server-side restore (a second write path with its own CAS):
@@ -593,8 +623,18 @@ export const vaultCommand = (deps: CliDeps) =>
         // the checkpoint names the note alone: a whole-tree one would sweep a running turn's writes into an auto-commit.
         run: async ({ args }) => {
           const api = apiFor(deps);
+          if (takesBytes(args.path)) {
+            // a file comes back byte-exact, and only where nothing stands: there is no older
+            // version of a file to write over a newer one, since nothing merges bytes
+            const bytes = await api.vault.revisionBytes({ path: args.path, sha: args.sha });
+            const created = await api.vault.createFile({ file: bytes, path: args.path });
+            if (outputJson(args, created)) {
+              return;
+            }
+            out.success(`Restored ${created.path} from ${args.sha}`);
+            return;
+          }
           const revision = await api.vault.revision({ path: args.path, sha: args.sha });
-          await api.vault.commitNow({ paths: [args.path] });
           const current = await safe(api.vault.read({ path: args.path }));
           let guard: VaultWriteGuard;
           if (current.error === null) {
@@ -606,28 +646,50 @@ export const vaultCommand = (deps: CliDeps) =>
           } else {
             throw current.error;
           }
+          // the files the deleted note held, read before the checkpoint, which commits the note's
+          // own deletion apart from theirs, and before the write brings it back
+          let held: VaultDeletedEntry[] = [];
+          if (guard.kind === "absent") {
+            const { entries } = await api.vault.deleted();
+            held = entries.filter((entry) => entry.heldBy === args.path);
+          }
+          await api.vault.commitNow({ paths: [args.path] });
           const body = await api.vault.write({ content: revision.content, guard, path: args.path });
-          let comments: CommentStoreRestore = { kind: "none" };
+          let annotations: AnnotationStoreRestore = { kind: "none" };
+          let files: HeldFilesRestore | null = null;
           if (guard.kind === "absent") {
             // dynamic import: it reads frontmatter, and a static one would load yaml before every
             // client verb reads argv (the build refuses that, scripts/build.ts).
-            const { restoreCommentStore } =
-              await import("@repo/contract/local/vault/restore-comment-store");
-            comments = await restoreCommentStore(api, revision.content, args.sha);
+            const { restoreAnnotationStore } =
+              await import("@repo/contract/local/vault/restore-annotation-store");
+            annotations = await restoreAnnotationStore(api, revision.content, args.sha);
+            if (held.length > 0) {
+              const { restoreHeldFiles } =
+                await import("@repo/contract/local/vault/restore-held-files");
+              files = await restoreHeldFiles(api, held);
+            }
           }
-          if (comments.kind === "failed") {
+          if (annotations.kind === "failed") {
             // the note is back either way, so the failure keeps the store refusal's own class, like a send's.
             throw new CliExitError(
-              `Restored ${body.path} to ${args.sha}, but not its comments: ${getErrorMessage(comments.error)}`,
-              failureFrom(comments.error, "UNEXPECTED"),
+              `Restored ${body.path} to ${args.sha}, but not its annotations: ${getErrorMessage(annotations.error)}`,
+              failureFrom(annotations.error, "UNEXPECTED"),
             );
           }
-          if (outputJson(args, { ...body, comments: comments.kind })) {
+          // `files` only for a note that came back from Deleted holding some
+          const answer =
+            files === null
+              ? { ...body, annotations: annotations.kind }
+              : { ...body, annotations: annotations.kind, files };
+          if (outputJson(args, answer)) {
             return;
           }
           out.success(
-            `Restored ${body.path} to ${args.sha}${comments.kind === "restored" ? ", with its comments" : ""}`,
+            `Restored ${body.path} to ${args.sha}${restoredWith(annotations.kind === "restored", files)}`,
           );
+          for (const failed of files?.failed ?? []) {
+            out.warn(`${failed.path} did not come back: ${HELD_FILE_REFUSALS[failed.reason]}`);
+          }
         },
       }),
 

@@ -82,6 +82,9 @@ export interface WebDriverSession {
   // in it has loaded, so a scenario waits for what it is about to use
   waitUntil: (expression: string, deadlineMs: number) => Promise<void>;
   textOf: (selector: string) => Promise<string>;
+  // the window as WebKit drew it, a PNG: what a frame shows that no script in the page can read
+  // (a PDF's viewer, another origin's document), read with png-pixels.ts
+  screenshot: () => Promise<Uint8Array>;
   close: () => Promise<void>;
 }
 
@@ -191,6 +194,14 @@ export const openSession = async (
         },
         schema,
       ),
+    screenshot: async () => {
+      const encoded = await command(
+        origin,
+        { method: "GET", path: `${at}/screenshot` },
+        z.string().min(1),
+      );
+      return new Uint8Array(Buffer.from(encoded, "base64"));
+    },
     textOf: async (selector) =>
       await run(
         `return document.querySelector(${JSON.stringify(selector)})?.innerText ?? ""`,

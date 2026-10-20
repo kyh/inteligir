@@ -15,10 +15,7 @@ export interface TargetResolver {
   resolveNoteId: (id: string) => string | null;
 }
 
-const pickBest = (candidates: readonly string[]): string | null => {
-  if (candidates.length === 0) {
-    return null;
-  }
+const pickBest = (candidates: Iterable<string>): string | null => {
   let best: string | null = null;
   let bestSegments = Number.POSITIVE_INFINITY;
   for (const path of candidates) {
@@ -45,69 +42,128 @@ export const wikiNameKeys = (path: string): readonly string[] => {
   return name === base ? [base] : [base, name];
 };
 
-const push = (map: Map<string, string[]>, key: string, path: string): void => {
-  const list = map.get(key);
-  if (list) {
-    list.push(path);
+const add = (map: Map<string, Set<string>>, key: string, path: string): void => {
+  const owners = map.get(key);
+  if (owners) {
+    owners.add(path);
   } else {
-    map.set(key, [path]);
+    map.set(key, new Set([path]));
   }
 };
 
-// alias keys are normalized like written targets so an alias containing `/` matches the same clean form
-export const buildResolver = (
-  paths: Iterable<string>,
-  aliasEntries?: Iterable<readonly [alias: string, path: string]>,
-  idEntries?: Iterable<readonly [id: string, path: string]>,
-): TargetResolver => {
-  const exact = new Set<string>();
-  const exactLower = new Map<string, string[]>();
-  const byName = new Map<string, string[]>();
-  const byNameLower = new Map<string, string[]>();
-  const aliasCs = new Map<string, string[]>();
-  const aliasCi = new Map<string, string[]>();
-  const idOwners = new Map<string, string[]>();
+const drop = (map: Map<string, Set<string>>, key: string, path: string): void => {
+  const owners = map.get(key);
+  if (owners === undefined) {
+    return;
+  }
+  owners.delete(path);
+  if (owners.size === 0) {
+    map.delete(key);
+  }
+};
 
-  for (const raw of paths) {
+const ownersOf = (map: Map<string, Set<string>>, key: string): Iterable<string> =>
+  map.get(key) ?? [];
+
+// a resolver kept live as the vault moves: each path, alias and id is filed and unfiled on its
+// own, so a new note costs its own keys rather than a rebuild over every path (the index asks
+// this once per save). every answer is the one `buildResolver` gives over the same final sets.
+export type PathResolver = TargetResolver & {
+  addPath: (path: string) => void;
+  removePath: (path: string) => void;
+  // replaces every alias the path owned
+  setAliases: (path: string, aliases: readonly string[]) => void;
+  setNoteId: (path: string, id: string | null) => void;
+};
+
+// alias keys are normalized like written targets so an alias containing `/` matches the same clean form
+interface FilingResolver {
+  resolver: PathResolver;
+  setNoteIds: (path: string, ids: readonly string[]) => void;
+}
+
+const filingResolver = (): FilingResolver => {
+  const exact = new Set<string>();
+  const exactLower = new Map<string, Set<string>>();
+  const byName = new Map<string, Set<string>>();
+  const byNameLower = new Map<string, Set<string>>();
+  const aliasCs = new Map<string, Set<string>>();
+  const aliasCi = new Map<string, Set<string>>();
+  const aliasKeysOf = new Map<string, readonly string[]>();
+  const idOwners = new Map<string, Set<string>>();
+  const idsOf = new Map<string, readonly string[]>();
+
+  const addPath = (raw: string): void => {
     const path = normalizePath(raw);
     if (path === "" || exact.has(path)) {
-      continue;
+      return;
     }
     exact.add(path);
-    push(exactLower, path.toLowerCase(), path);
+    add(exactLower, path.toLowerCase(), path);
     for (const key of wikiNameKeys(path)) {
-      push(byName, key, path);
-      push(byNameLower, key.toLowerCase(), path);
+      add(byName, key, path);
+      add(byNameLower, key.toLowerCase(), path);
     }
-  }
+  };
 
-  if (aliasEntries) {
-    for (const [alias, rawOwner] of aliasEntries) {
-      const key = normalizePath(alias.trim());
-      const owner = normalizePath(rawOwner);
-      if (key === "" || owner === "") {
-        continue;
-      }
-      push(aliasCs, key, owner);
-      push(aliasCi, key.toLowerCase(), owner);
+  const removePath = (raw: string): void => {
+    const path = normalizePath(raw);
+    if (!exact.delete(path)) {
+      return;
     }
-  }
+    drop(exactLower, path.toLowerCase(), path);
+    for (const key of wikiNameKeys(path)) {
+      drop(byName, key, path);
+      drop(byNameLower, key.toLowerCase(), path);
+    }
+  };
 
-  if (idEntries) {
-    for (const [id, rawOwner] of idEntries) {
-      const owner = normalizePath(rawOwner);
-      if (id === "" || owner === "") {
-        continue;
-      }
-      push(idOwners, id, owner);
+  const setAliases = (raw: string, aliases: readonly string[]): void => {
+    const owner = normalizePath(raw);
+    if (owner === "") {
+      return;
     }
-  }
+    for (const key of aliasKeysOf.get(owner) ?? []) {
+      drop(aliasCs, key, owner);
+      drop(aliasCi, key.toLowerCase(), owner);
+    }
+    const keys = aliases.map((alias) => normalizePath(alias.trim())).filter((key) => key !== "");
+    for (const key of keys) {
+      add(aliasCs, key, owner);
+      add(aliasCi, key.toLowerCase(), owner);
+    }
+    if (keys.length === 0) {
+      aliasKeysOf.delete(owner);
+    } else {
+      aliasKeysOf.set(owner, keys);
+    }
+  };
+
+  // a copy carries its original's id, and an owner listed under two ids answers to both
+  const setNoteIds = (raw: string, ids: readonly string[]): void => {
+    const owner = normalizePath(raw);
+    if (owner === "") {
+      return;
+    }
+    for (const prior of idsOf.get(owner) ?? []) {
+      drop(idOwners, prior, owner);
+    }
+    const kept = ids.filter((id) => id !== "");
+    for (const id of kept) {
+      add(idOwners, id, owner);
+    }
+    if (kept.length === 0) {
+      idsOf.delete(owner);
+    } else {
+      idsOf.set(owner, kept);
+    }
+  };
 
   const lookupExact = (candidate: string): string | null => {
     if (exact.has(candidate)) {
       return candidate;
     }
-    return pickBest(exactLower.get(candidate.toLowerCase()) ?? []);
+    return pickBest(ownersOf(exactLower, candidate.toLowerCase()));
   };
 
   // the basename tier: exact spelling first, then case-insensitively
@@ -118,26 +174,26 @@ export const buildResolver = (
       const suffixes = [`/${clean}`, `/${clean}${IMPLIED_LINK_EXTENSION}`];
       const key = basenamePath(clean);
       const cs = pickBest(
-        (byName.get(key) ?? []).filter((p) => suffixes.some((s) => p.endsWith(s))),
+        [...ownersOf(byName, key)].filter((p) => suffixes.some((s) => p.endsWith(s))),
       );
       if (cs !== null) {
         return cs;
       }
       const lowerSuffixes = suffixes.map((s) => s.toLowerCase());
       return pickBest(
-        (byNameLower.get(key.toLowerCase()) ?? []).filter((p) =>
+        [...ownersOf(byNameLower, key.toLowerCase())].filter((p) =>
           lowerSuffixes.some((s) => p.toLowerCase().endsWith(s)),
         ),
       );
     }
-    const cs = pickBest(byName.get(clean) ?? []);
+    const cs = pickBest(ownersOf(byName, clean));
     if (cs !== null) {
       return cs;
     }
-    return pickBest(byNameLower.get(clean.toLowerCase()) ?? []);
+    return pickBest(ownersOf(byNameLower, clean.toLowerCase()));
   };
 
-  const resolveNoteId = (id: string): string | null => pickBest(idOwners.get(id) ?? []);
+  const resolveNoteId = (id: string): string | null => pickBest(ownersOf(idOwners, id));
 
   const resolveWiki = (target: string, alias?: string): string | null => {
     // a uuid-shaped alias names the target by frontmatter id; a display alias never does
@@ -165,11 +221,11 @@ export const buildResolver = (
     }
 
     // a real filename always beats an alias, and an alias may contain `/`
-    const aliasHit = pickBest(aliasCs.get(clean) ?? []);
+    const aliasHit = pickBest(ownersOf(aliasCs, clean));
     if (aliasHit !== null) {
       return aliasHit;
     }
-    return pickBest(aliasCi.get(clean.toLowerCase()) ?? []);
+    return pickBest(ownersOf(aliasCi, clean.toLowerCase()));
   };
 
   const resolveMd = (target: string, fromPath: string): string | null => {
@@ -198,7 +254,51 @@ export const buildResolver = (
     return null;
   };
 
-  return { resolveMd, resolveNoteId, resolveWiki };
+  const setNoteId = (path: string, id: string | null): void => {
+    setNoteIds(path, id === null ? [] : [id]);
+  };
+
+  return {
+    resolver: { addPath, removePath, resolveMd, resolveNoteId, resolveWiki, setAliases, setNoteId },
+    setNoteIds,
+  };
+};
+
+export const createPathResolver = (): PathResolver => filingResolver().resolver;
+
+// one alias list and one id per owner, as a doc carries them
+const groupByOwner = <T>(
+  entries: Iterable<readonly [value: T, owner: string]>,
+): Map<string, T[]> => {
+  const owned = new Map<string, T[]>();
+  for (const [value, rawOwner] of entries) {
+    const owner = normalizePath(rawOwner);
+    const list = owned.get(owner);
+    if (list) {
+      list.push(value);
+    } else {
+      owned.set(owner, [value]);
+    }
+  }
+  return owned;
+};
+
+export const buildResolver = (
+  paths: Iterable<string>,
+  aliasEntries?: Iterable<readonly [alias: string, path: string]>,
+  idEntries?: Iterable<readonly [id: string, path: string]>,
+): TargetResolver => {
+  const { resolver, setNoteIds } = filingResolver();
+  for (const path of paths) {
+    resolver.addPath(path);
+  }
+  for (const [owner, aliases] of groupByOwner(aliasEntries ?? [])) {
+    resolver.setAliases(owner, aliases);
+  }
+  for (const [owner, ids] of groupByOwner(idEntries ?? [])) {
+    setNoteIds(owner, ids);
+  }
+  return resolver;
 };
 
 // the shortest target that resolves back to `path`: its name, else its path, spelled without the

@@ -39,7 +39,7 @@ const componentNames = (dir: string): string[] => {
   }
   return fs
     .readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".tsx"))
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".tsx") && !isTestFile(entry.name))
     .map((entry) => entry.name.replace(COMPONENT_FILE, ""));
 };
 

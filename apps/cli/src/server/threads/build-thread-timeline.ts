@@ -332,11 +332,6 @@ export const buildThreadTimeline = (events: readonly StoredThreadEvent[]): Threa
         place(row, entry.sequence, scopeTurnId);
         break;
       }
-      // the thread row carries these; the transcript draws what was said and done.
-      case "thread/archived":
-      case "thread/meta": {
-        break;
-      }
       default: {
         const exhaustive: never = event;
         return exhaustive;

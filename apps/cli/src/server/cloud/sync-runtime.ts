@@ -1,6 +1,7 @@
-// the credential file is the switch: no second "enabled" flag, because two
-// values that must agree can disagree. a pass is single-flight and coalescing —
-// two concurrent drains push one batch twice. the socket is latency, never correctness.
+// the credential file is the switch: no second "enabled" flag, because two values that must agree
+// can disagree. the account socket says another device moved the hosted vault, and a revoked
+// device's socket is closed; neither is the verdict on the sign-in, which only a request under
+// the credential hears, so a check runs at start, on the socket's open and close and on a timer.
 
 import type { ClientBuild } from "@repo/contract/cloud/client-build";
 import { createCloudClient, describeCloudFailure } from "@repo/contract/cloud/client";
@@ -19,18 +20,7 @@ import type {
 import { CREDENTIAL_REFUSED_CODES } from "@repo/contract/cloud/errors";
 import type { CloudSocketOpener } from "@repo/contract/cloud/sync/cloud-socket";
 import { createSocketLink } from "@repo/contract/cloud/sync/socket-link";
-import { createSingleFlight, createSyncSession } from "@repo/contract/cloud/sync/sync-session";
-import type { SyncOutcome } from "@repo/contract/cloud/sync/sync-session";
-import type { DbConnection, DbTransaction } from "@repo/db/connection";
-import {
-  countSyncOutbox,
-  ownDeviceIds,
-  readSyncState,
-  recordOwnDevice,
-  resetSyncState,
-  takeRewindIfBuildChanged,
-} from "@repo/db/sync-outbox";
-import type { ThreadEvent } from "@repo/domain/provider-event";
+import { checkSignIn, createSyncSession } from "@repo/contract/cloud/sync/sync-session";
 import type {
   CloudDevicesResponse,
   CloudLoginRequest,
@@ -38,7 +28,6 @@ import type {
   CloudStatusResponse,
 } from "@repo/contract/local/cloud/cloud-schema";
 import type { DebugLog } from "../debug-log";
-import { messageOf } from "../error-message";
 import { createAccountCalls, SHUTTING_DOWN } from "./account-calls";
 import type { AccountCallOutcome, RevokeDeviceOutcome } from "./account-calls";
 import {
@@ -47,47 +36,38 @@ import {
   writeDeviceCredential,
 } from "./credential-store";
 import type { DeviceCredential } from "./credential-store";
-import type { InboxVault } from "./dispatches";
-import { enqueueThreadEvents } from "./outbox";
-import { createSyncCadence } from "./sync-cadence";
-import type { SyncCadenceArgs } from "./sync-cadence";
-import { runSyncPass } from "./sync-pass";
-import type { PassContext, SyncedEventSink, SyncPassDeps } from "./sync-pass";
 
 // a shutdown's wait for a sign-out in flight: the client's own deadline is 30s, far past the
 // cloud teardown step's budget, and a quit that overran it would exit non-zero.
 const SIGN_OUT_GRACE_MS = 3000;
 
+// a revocation that came while the socket was down, which no close reported, is heard by then.
+const CHECK_INTERVAL_MS = 60_000;
+
 export interface CloudTransport {
   fetch?: CloudFetch;
-  /** absent means poll-only. injected rather than defaulted because node's dial
+  /** absent means no socket. injected rather than defaulted because node's dial
    *  cannot be typed here (browser tsconfig). */
   openSocket?: CloudSocketOpener;
-  /** null disables the poll timer and the push debounce. */
+  /** null disables the check's timer. */
   pollIntervalMs?: number | null;
 }
 
 export interface CloudRuntimeArgs {
-  db: DbConnection;
   dataDir: string;
   cloudUrl: string;
-  /** the running build's version: every request names it, and a log row one build could not read
-   *  is pulled again by the next. */
+  /** the running build's version: every request names it. */
   build: string;
   /** the name a sign-in that names none gives this device (`readMachineName`). */
   machineName: string;
-  vault: InboxVault;
   transport?: CloudTransport;
   /** the vault ping's handler; also kicked once after a login so the derived remote syncs now. */
   onVaultPing?: () => void;
-  /** what status() answers moved: a sign-in or out, a revocation, the socket, a pass's end. never
-   *  per enqueue: the queued count rides the drain pass that follows it. */
+  /** what status() answers moved: a sign-in or out, a revocation, the socket, a check's end. */
   onStatusChanged?: () => void;
   onDebug?: (message: string) => void;
   /** INTELIGIR_DEBUG's sync trace, beside onDebug's always-on warnings. */
   debugLog?: DebugLog | undefined;
-  /** read per pass: whether this Mac takes a phone's requests. absent, it does, as it ships. */
-  phoneRequests?: () => boolean;
 }
 
 export type LoginOutcome =
@@ -96,13 +76,6 @@ export type LoginOutcome =
 
 export interface CloudRuntime {
   status: () => CloudStatusResponse;
-  enqueue: (tx: DbTransaction, events: readonly ThreadEvent[]) => void;
-  /** an approval opened or settled here: a phone-started turn's is offered or taken back soon. */
-  approvalsChanged: () => void;
-  /** whether this Mac takes a phone's requests moved; its socket says so only when it dials. */
-  phoneRequestsChanged: () => void;
-  /** late-bound: the thread service needs enqueue at construction. */
-  attach: (sink: SyncedEventSink) => void;
   start: () => void;
   login: (request: CloudLoginRequest) => Promise<LoginOutcome>;
   /** creates the account and keeps its first credential, exactly as login keeps one. */
@@ -114,7 +87,6 @@ export interface CloudRuntime {
   revokeDevice: (deviceId: string) => Promise<RevokeDeviceOutcome>;
   /** ends the account and forgets this device's sign-in; the vault is left as it is. */
   deleteAccount: (password: string) => Promise<AccountCallOutcome<CloudStatusResponse>>;
-  syncNow: () => Promise<CloudStatusResponse>;
   /** the account socket is up, so another device's vault push pings this one. */
   pingsReach: () => boolean;
   dispose: () => Promise<void>;
@@ -122,17 +94,18 @@ export interface CloudRuntime {
 
 export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
   const transport = args.transport ?? {};
+  const checkIntervalMs =
+    transport.pollIntervalMs === undefined ? CHECK_INTERVAL_MS : transport.pollIntervalMs;
   const debug =
     args.onDebug ??
     ((message: string) => {
       console.error(`cloud: ${message}`);
     });
 
-  let sink: SyncedEventSink | null = null;
   let lastError: string | null = null;
   let revokeError: string | null = null;
   let disposed = false;
-  const flight = createSingleFlight();
+  let checkTimer: ReturnType<typeof setInterval> | null = null;
 
   const notifyStatus = (): void => {
     args.onStatusChanged?.();
@@ -195,18 +168,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
 
   const live = (): boolean => !disposed && session.current().kind === "live";
 
-  const fenced = (context: PassContext): boolean => sessionAlive(context.sessionId);
-
-  // at boot as well as at sign-in: a database migrated under a live credential never saw that
-  // sign-in happen, and a pull under it would re-apply everything this install pushed.
   const openSession = (credential: DeviceCredential): void => {
-    recordOwnDevice(args.db, credential.deviceId);
-    const replayFrom = takeRewindIfBuildChanged(args.db, args.build);
-    if (replayFrom !== null) {
-      debug(
-        `a different build is running: pulling again from log row ${replayFrom}, which the last one could not read`,
-      );
-    }
     session.open(credential);
     notifyStatus();
   };
@@ -216,20 +178,9 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     openSession(stored);
   }
 
-  // the socket and the timer both request a pass, and a pass tears both down on a
-  // refusal; the request is bound once the pass exists, before either can fire.
-  let requestPass: (() => void) | null = null;
-
-  const phoneRequests = args.phoneRequests ?? (() => true);
-  // an unreadable choice is not announced as on: the person may have turned it off
-  const announcesPhoneRequests = (): boolean => {
-    try {
-      return phoneRequests();
-    } catch (error) {
-      debug(`reading whether this Mac takes phone requests failed: ${messageOf(error)}`);
-      return false;
-    }
-  };
+  // the socket and the timer both ask for a check, and a check's refusal tears both down; it is
+  // bound once the check exists, before either can fire.
+  let requestCheck: (() => void) | null = null;
 
   const link = createSocketLink({
     baseUrl: args.cloudUrl,
@@ -239,56 +190,46 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       const current = session.current();
       return current.kind === "live" ? current.credential.credential : null;
     },
-    // this process owns the vault and drives the agent, so a phone's turn is addressed to it
-    // while it takes them.
-    listener: () => ({ phoneRequests: announcesPhoneRequests(), platform: "desktop" }),
-    onPing: (ping) => {
-      // pings carry no payload; a sync ping's seq is the log's high-water, so one
-      // the cursor covers is skipped. vault is another device's push — the git
-      // engine's pass, not this one's.
-      if (ping.type === "vault") {
-        args.onVaultPing?.();
-        return;
-      }
-      if (ping.type === "sync") {
-        const { cursor } = readSyncState(args.db);
-        if (ping.seq <= cursor) {
-          args.debugLog?.(`sync ping at ${ping.seq} skipped: the cursor ${cursor} covers it`);
-          return;
-        }
-      }
-      requestPass?.();
+    // another device's push: the git engine's pass, not this runtime's.
+    onPing: () => {
+      args.onVaultPing?.();
     },
     onConnectionChanged: (connected) => {
       notifyStatus();
-      // a ping sent while this socket was not up reached nothing; the pull carries what it
-      // announced, and the vault's pass what another device pushed meanwhile.
+      // a ping sent while this socket was not up reached nothing, so the vault's pass runs for
+      // what another device pushed meanwhile, and a revocation it missed is heard now.
       if (connected) {
-        requestPass?.();
+        requestCheck?.();
         args.onVaultPing?.();
       }
     },
     onSevered: () => {
       // a hint; only an http refusal is authoritative.
-      requestPass?.();
+      requestCheck?.();
     },
     openSocket: transport.openSocket ?? null,
   });
 
-  const cadenceArgs: SyncCadenceArgs = {
-    canRun: live,
-    run: () => {
-      requestPass?.();
-    },
+  const clearTimer = (): void => {
+    if (checkTimer !== null) {
+      clearInterval(checkTimer);
+      checkTimer = null;
+    }
   };
-  if (transport.pollIntervalMs !== undefined) {
-    cadenceArgs.pollIntervalMs = transport.pollIntervalMs;
-  }
-  const cadence = createSyncCadence(cadenceArgs);
+
+  const armTimer = (): void => {
+    if (!live() || checkIntervalMs === null || checkTimer !== null) {
+      return;
+    }
+    checkTimer = setInterval(() => {
+      requestCheck?.();
+    }, checkIntervalMs);
+    checkTimer.unref?.();
+  };
 
   const haltTransport = (): void => {
     link.close();
-    cadence.clear();
+    clearTimer();
   };
 
   // the session ends only through here, so its end and the transport's teardown stay one event.
@@ -304,37 +245,28 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     return outcome;
   };
 
-  const passDeps: SyncPassDeps = {
-    build: args.build,
-    db: args.db,
-    debug,
-    debugLog: args.debugLog,
-    fenced,
-    heldAck: { current: null },
-    phoneRequests,
-    recordFailure,
-    setLastError: (message) => {
-      lastError = message;
-    },
-    sink: () => sink,
-    vault: args.vault,
+  // a refusal is the revocation the socket's close only hinted at, and any other failure is no
+  // verdict on the sign-in.
+  const check = async (): Promise<void> => {
+    const sessionId = session.current().id;
+    if (disposed) {
+      return;
+    }
+    const checked = await checkSignIn(session);
+    if (checked.kind === "fenced" || disposed) {
+      return;
+    }
+    if (checked.kind === "live") {
+      lastError = null;
+    } else {
+      recordFailure(checked.failure);
+    }
+    args.debugLog?.(`session ${sessionId} check: ${checked.kind === "live" ? "live" : "refused"}`);
+    notifyStatus();
   };
 
-  const runPass = async (): Promise<SyncOutcome> => {
-    const current = session.current();
-    if (current.kind !== "live" || disposed) {
-      return "fenced";
-    }
-    // captured once; every step re-checks it rather than re-reading the session.
-    const context: PassContext = {
-      client: current.client,
-      ownDeviceIds: ownDeviceIds(args.db),
-      sessionId: current.id,
-    };
-    const outcome = await runSyncPass(passDeps, context);
-    args.debugLog?.(`session ${context.sessionId} pass: ${outcome}`);
-    notifyStatus();
-    return outcome;
+  requestCheck = (): void => {
+    void check();
   };
 
   const status = (): CloudStatusResponse => {
@@ -359,17 +291,12 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
         };
       }
       case "live": {
-        const state = readSyncState(args.db);
         return {
           accountEmail: current.credential.email,
           cloudUrl: args.cloudUrl,
           connected: link.isConnected(),
-          cursor: state.cursor,
           deviceId: current.credential.deviceId,
-          dropped: state.droppedEvents,
           lastError,
-          lastSyncedAt: state.lastSyncedAt,
-          pending: countSyncOutbox(args.db),
           state: "signed-in",
         };
       }
@@ -380,24 +307,14 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     }
   };
 
-  const syncNow = async (): Promise<CloudStatusResponse> => {
+  // the transport a live sign-in runs
+  const runTransport = (): void => {
     if (!live()) {
-      return status();
+      return;
     }
-    await flight.run({
-      onError: (message) => {
-        lastError = message;
-        debug(`sync pass failed: ${message}`);
-        notifyStatus();
-      },
-      pass: runPass,
-      repeat: live,
-    });
-    return status();
-  };
-
-  requestPass = (): void => {
-    void syncNow();
+    armTimer();
+    link.connect();
+    requestCheck?.();
   };
 
   const adoptCredential = async (credential: DeviceCredential): Promise<void> => {
@@ -406,11 +323,8 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       throw new Error("This app is shutting down; the credential was not kept.");
     }
     const previous = session.current();
-    // clean slate: the outbox and both positions describe an account this device
-    // may have left. openSession ends the old session, which stops a running pass
-    // from acking into the emptied queue.
+    // openSession ends the old session, which fences an answer still in flight under it.
     haltTransport();
-    resetSyncState(args.db);
     writeDeviceCredential(args.dataDir, credential);
     revokeError = null;
     openSession(credential);
@@ -420,18 +334,18 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     }
     lastError = null;
     link.resetBackoff();
-    cadence.armPoll();
+    armTimer();
     link.connect();
-    await syncNow();
     // the login just derived a hosted remote; sync it now.
     args.onVaultPing?.();
+    // answered once the cloud has taken the new credential, as the status the login returns says
+    await check();
   };
 
   const forgetSignIn = (): CloudStatusResponse => {
     session.close();
     haltTransport();
     clearDeviceCredential(args.dataDir);
-    resetSyncState(args.db);
     lastError = null;
     link.resetBackoff();
     notifyStatus();
@@ -474,14 +388,6 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
   };
 
   return {
-    approvalsChanged() {
-      cadence.scheduleDrain();
-    },
-
-    attach(next) {
-      sink = next;
-    },
-
     deleteAccount: accountCalls.deleteAccount,
 
     devices: accountCalls.devices,
@@ -490,18 +396,8 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       disposed = true;
       haltTransport();
       accountCalls.dispose();
-      // without the abort the teardown budget is a hope: the pass would wait out
-      // every round trip and keep writing.
+      // a check in flight observes the abort rather than being waited out.
       session.abort();
-      // let a pass mid-flight finish so the outbox's ack and its push agree.
-      const inflight = flight.inflight();
-      if (inflight !== null) {
-        try {
-          await inflight;
-        } catch {
-          // the pass reported through onError; the teardown has nothing to add.
-        }
-      }
       const grace = setTimeout(() => {
         signOutAbort.abort();
       }, SIGN_OUT_GRACE_MS);
@@ -511,26 +407,6 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       } finally {
         clearTimeout(grace);
       }
-    },
-
-    enqueue(tx, events) {
-      if (session.current().kind !== "live" || events.length === 0) {
-        // a signed-out install queues nothing: signing in later syncs from that
-        // moment, not a backlog no other device has a base for.
-        return;
-      }
-      enqueueThreadEvents(tx, events);
-      cadence.scheduleDrain();
-    },
-
-    phoneRequestsChanged() {
-      if (!live()) {
-        return;
-      }
-      link.close();
-      notifyStatus();
-      link.resetBackoff();
-      link.connect();
     },
 
     async login(request) {
@@ -557,6 +433,8 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       return forgetSignIn();
     },
 
+    pingsReach: () => session.current().kind === "live" && link.isConnected(),
+
     revokeDevice: accountCalls.revokeDevice,
 
     async signUp(request) {
@@ -575,19 +453,8 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       );
     },
 
-    start() {
-      if (session.current().kind !== "live") {
-        return;
-      }
-      cadence.armPoll();
-      link.connect();
-      void syncNow();
-    },
-
-    pingsReach: () => session.current().kind === "live" && link.isConnected(),
+    start: runTransport,
 
     status,
-
-    syncNow,
   };
 };

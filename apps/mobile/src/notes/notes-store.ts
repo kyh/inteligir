@@ -1,15 +1,16 @@
-import { commentKeyOf, commentStoreKey } from "@repo/notes/comments/comment-key";
-import { foldThreads } from "@repo/notes/comments/comment-threads";
-import type { AddResult, CommentThread } from "@repo/notes/comments/comment-threads";
-import { markerRootIds } from "@repo/notes/comments/marker-ids";
+import { annotationKeyOf, annotationStoreKey } from "@repo/notes/annotations/annotation-key";
+import { foldAnnotations } from "@repo/notes/annotations/annotation-threads";
+import type { AddResult, AnnotationThread } from "@repo/notes/annotations/annotation-threads";
+import { markerRootIds } from "@repo/notes/annotations/marker-ids";
 import {
-  commentsStorePath,
-  parseSidecar,
-  serializeSidecar,
-} from "@repo/notes/comments/sidecar-schema";
-import type { CommentSidecar } from "@repo/notes/comments/sidecar-schema";
+  annotationsStorePath,
+  parseAnnotationStore,
+  serializeAnnotationStore,
+} from "@repo/notes/annotations/store-schema";
+import type { AnnotationStore } from "@repo/notes/annotations/store-schema";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { extnamePath } from "@repo/notes/knowledge/vault-path";
+import { z } from "zod";
 import { describeCloudFailure } from "@repo/contract/cloud/client";
 import type { CloudClient, CloudFailure } from "@repo/contract/cloud/client";
 import { createSingleFlight } from "@repo/contract/cloud/sync/sync-session";
@@ -17,36 +18,53 @@ import { vaultCollisionKey } from "@repo/contract/cloud/vault/vault-commit-schem
 import { messageOf } from "../lib/error-message";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
+import { fencedExclusive } from "../lib/phone-db";
 import type { Fence } from "../lib/phone-db";
 import { createSignInFence, NOT_SIGNED_IN } from "../lib/sign-in-fence";
 import type { SignInSource } from "../lib/sign-in-fence";
 import { createSerialLock } from "../lib/sql-driver";
-import type { SqlDriver } from "../lib/sql-driver";
+import type { SqlDriver, SqlExecutor } from "../lib/sql-driver";
 import type { SessionPort } from "../sync/sync-runtime";
 import type { AttachmentFiles } from "./attachment-files";
 import { blobOid, isTextOp, leavesAt, opPaths, rebaseEdit, textBlobOid } from "./outbox-ops";
-import type { CommentOp, GuardedText, OutboxRow, Sha1, VaultOp } from "./outbox-ops";
+import type {
+  AnnotationOp,
+  GuardedText,
+  OutboxRow,
+  Sha1,
+  StagedAsset,
+  VaultOp,
+} from "./outbox-ops";
 import type { OutboxFiles } from "./outbox-files";
 import { createVaultOutbox, STAGED_FILE_GONE } from "./vault-outbox";
 import type { CreateVaultOutboxArgs, OutboxStatus } from "./vault-outbox";
-import { landOnRows, createVaultMirror } from "./vault-mirror";
-import type { MirrorLanding, MirrorProgress, MirrorRow, MirrorText } from "./vault-mirror";
+import { landOnRows, createVaultMirror, textFactsOf } from "./vault-mirror";
+import type {
+  ItemCard,
+  MirrorLanding,
+  MirrorProgress,
+  MirrorRow,
+  MirrorText,
+  NoteFacts,
+} from "./vault-mirror";
 import { overlayEntries } from "./vault-overlay";
-import type { OverlayEntry } from "./vault-overlay";
+import type { OverlayEntry, TextFacts } from "./vault-overlay";
 
-const INCOMPLETE = "Some notes did not download. Pull down to try again.";
+const INCOMPLETE = "Some items did not download. Pull down to try again.";
 
-const UNREADABLE_NOTE = "This note has not downloaded to your phone yet.";
+const UNREADABLE_NOTE = "This item has not downloaded to your phone yet.";
 
-const UNREADABLE_COMMENTS = "This note's comments could not be read.";
+const UNREADABLE_ANNOTATIONS = "This item's annotations could not be read.";
 
 // an account whose hosted vault no Mac has pushed yet answers 404 until one does
-const NO_HOSTED_VAULT = "Your notes aren't here yet — open inteligir on your Mac while signed in.";
+const NO_HOSTED_VAULT = "Your library isn't here yet — open Inteligir on your Mac while signed in.";
 
 const DEFAULT_RETRY_BASE_MS = 2000;
 
+// a listed file, and a doc's card once its text is held
 interface NoteEntry {
   path: string;
+  item: ItemCard | null;
 }
 
 // a refresh that fails keeps the listing it has and says why in `refreshError`; `error` and
@@ -69,17 +87,17 @@ export interface NoteText {
   content: string;
 }
 
-export type NoteRead = ({ ok: true } & NoteText) | { ok: false; message: string };
+// `notFound` is the one failure a reader may treat as the note being gone; any other is for now
+export type NoteRead =
+  | ({ ok: true } & NoteText)
+  | { ok: false; notFound: boolean; message: string };
 
-// a note without an id, or with no store yet, has no comments; only an unreadable store is a failure
-export type CommentsRead =
-  | { ok: true; threads: readonly CommentThread[] }
+// a note without an id, or with no store yet, has no annotations; only an unreadable store is a failure
+export type AnnotationsRead =
+  | { ok: true; annotations: readonly AnnotationThread[] }
   | { ok: false; message: string };
 
 type AttachmentRead = { ok: true; uri: string } | { ok: false; message: string };
-
-// `notFound` is the one refusal a reader may treat as absence
-type FileRead = ({ ok: true } & NoteText) | { ok: false; notFound: boolean; message: string };
 
 // the write surface is @repo/editor's GuardedVaultPort, whose one write policy the editor page
 // runs: `absent` is a create, and `expected` names the text the write was computed from. A write
@@ -110,26 +128,54 @@ export interface RenameEdits {
 
 const NO_EDITS: RenameEdits = { note: null, rewrites: [] };
 
-// one change to a note's comment store, planned from the texts the phone holds when it is queued:
-// `anchor` is the note's new text with a new comment's markers in it, computed from the text it
-// `expected` the note to hold, and null for a reply or a resolve, which leave the note alone
-interface CommentEdit {
+// one change to a note's annotation store, planned from the texts the phone holds when it is queued:
+// `anchor` is the note's new text with a new annotation's markers in it, computed from the text it
+// `expected` the note to hold, and null for a reply, an edit or a delete, which leave the note alone
+interface AnnotationEdit {
   path: string;
   anchor: { expected: string; content: string } | null;
-  edit: (sidecar: CommentSidecar) => AddResult;
+  edit: (entries: AnnotationStore) => AddResult;
 }
 
-// `note`: the note's text on the phone now, which an id minted for its first comment adds to
-export type CommentEditOutcome =
+// `note`: the note's text on the phone now, which an id minted for its first annotation adds to
+export type AnnotationEditOutcome =
   | { kind: "edited"; note: string }
   | { kind: "changed"; current: string }
   | { kind: "vanished" }
   | { kind: "refused"; message: string };
 
+// a link this phone saved and has not read yet: phone-db's pending_fills, written in the transaction
+// that queues its stub and wiped with the rest of a sign-in's rows
+export interface PendingFill {
+  itemId: string;
+  // where the stub was saved; a fill finds a moved one by its id
+  path: string;
+  url: string;
+  // the reads that failed in a way a later one may get past
+  attempts: number;
+  // unix ms: not read before this
+  notBefore: number;
+}
+
+const pendingFillRowSchema = z.object({
+  attempts: z.number().int(),
+  item_id: z.string(),
+  not_before: z.number(),
+  path: z.string(),
+  url: z.string(),
+});
+
+// a file a fill keeps beside the item it writes: a cover, or the original a link answered with
+export interface FillFile {
+  path: string;
+  bytes: Uint8Array;
+}
+
 export interface HeldFile {
   path: string;
   noteId: string | null;
   aliases: readonly string[];
+  item: ItemCard | null;
 }
 
 export interface NotesStore {
@@ -149,11 +195,35 @@ export interface NotesStore {
   create: (path: string, content: string) => Promise<CreateOutcome>;
   // the move and its edits are one change set
   rename: (from: string, to: string, edits?: RenameEdits) => Promise<RenameOutcome>;
-  // the note and the comment `stores` that go with it are one change set
-  remove: (path: string, stores?: readonly string[]) => Promise<void>;
+  // the note and the files that go `alongside` it (its annotation store, the files only it links)
+  // are one change set
+  remove: (path: string, alongside?: readonly string[]) => Promise<void>;
   putAsset: (path: string, bytes: Uint8Array) => Promise<CreateOutcome>;
+  // a saved link's stub and its pending fill, queued in one transaction
+  saveStub: (
+    path: string,
+    content: string,
+    fill: { itemId: string; url: string; notBefore: number },
+  ) => Promise<CreateOutcome>;
+  // a fill's write: the item's text computed from `base` and the files it embeds, one change set
+  writeFill: (
+    path: string,
+    content: string,
+    base: string,
+    files: readonly FillFile[],
+  ) => Promise<Exclude<GuardedWriteResult, { kind: "exists" }>>;
+  pendingFills: {
+    list: () => Promise<readonly PendingFill[]>;
+    // a later try, or where the stub went
+    update: (row: PendingFill) => Promise<void>;
+    remove: (itemId: string) => Promise<void>;
+  };
   // every file the phone lists, unsent changes laid over; none before the first listing
   heldFiles: () => readonly HeldFile[];
+  // resolves once the sign-in's rows are read back (a restore) or wiped (a new sign-in), so a
+  // lookup in `heldFiles` after it sees what the phone holds: a share the app opens with is read
+  // before the boot's listing is
+  ready: () => Promise<void>;
   // the text the phone holds for each note it lists; a note whose text has not downloaded is
   // left out
   noteTexts: () => Promise<ReadonlyMap<string, string>>;
@@ -162,6 +232,9 @@ export interface NotesStore {
   watchPath: (path: string, onChange: () => void) => () => void;
   // what has not reached the vault, parked rows included; the sign-out asks before discarding it
   unsentCount: () => Promise<number>;
+  // the links this phone saved whose stub reached the library and whose page it has not read: a
+  // sign-out leaves them unread, since no other device reads a phone's save unasked
+  unreadCount: () => Promise<number>;
   outbox: {
     status: ReadableStore<OutboxStatus>;
     retry: (seq: number) => Promise<void>;
@@ -170,10 +243,14 @@ export interface NotesStore {
     dismiss: (noticeId: number) => void;
   };
   // the store at the id of a note the caller already read, folded against that read's markers
-  readComments: (note: NoteText) => Promise<CommentsRead>;
+  readAnnotations: (note: NoteText) => Promise<AnnotationsRead>;
+  // the same store's entries as they are, for a fill placing the highlights that wait on a stub
+  readAnnotationStore: (
+    note: NoteText,
+  ) => Promise<{ ok: true; entries: AnnotationStore } | { ok: false; message: string }>;
   // the store's edit and the note's anchored text, one change set; a note without an id takes one
-  // with its first comment
-  editComments: (edit: CommentEdit) => Promise<CommentEditOutcome>;
+  // with its first annotation
+  editAnnotations: (edit: AnnotationEdit) => Promise<AnnotationEditOutcome>;
   // the bytes on this phone, downloaded on the first ask
   attachmentFile: (path: string) => Promise<AttachmentRead>;
 }
@@ -182,8 +259,8 @@ type LiveSession = Extract<ReturnType<SessionPort["current"]>, { kind: "live" }>
 
 interface QueuedWrite {
   fence: Fence;
-  // throws when the sign-in the write began under has ended
-  enqueue: (op: VaultOp) => Promise<void>;
+  // throws when the sign-in the write began under has ended; `alongside` runs in its transaction
+  enqueue: (op: VaultOp, alongside?: (tx: SqlExecutor) => Promise<void>) => Promise<void>;
 }
 
 interface Listing {
@@ -198,13 +275,13 @@ export interface CreateNotesStoreArgs {
   outboxFiles: OutboxFiles;
   sha1: Sha1;
   deviceName: string;
-  // a note's new frontmatter id, uuid-shaped, for its first comment made here
+  // a note's new frontmatter id, uuid-shaped, for its first annotation made here
   mintNoteId: () => string;
   retryBaseMs?: CreateVaultOutboxArgs["retryBaseMs"];
 }
 
 const storageMessage = (cause: unknown): string =>
-  `This phone could not keep your notes: ${messageOf(cause)}`;
+  `This phone could not keep your library: ${messageOf(cause)}`;
 
 const listingOf = (entries: readonly OverlayEntry[]): Listing => ({
   files: new Map(entries.map((entry) => [entry.path, entry])),
@@ -262,6 +339,10 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     }
   };
 
+  // what each unsent text said of itself the last time it was listed: a relist reads only the texts
+  // that changed since, so a note being typed is scanned once per save, never every row per save
+  let unsentFacts = new Map<string, { text: string; facts: NoteFacts }>();
+
   // the listing is the mirror with the unsent rows laid over it; nothing held and nothing unsent
   // is no listing, so the screen keeps loading rather than drawing an empty vault
   const relist = (
@@ -272,14 +353,26 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       listing = null;
       return;
     }
-    const entries = overlayEntries(mirrorRows ?? [], rows);
+    const read = new Map<string, { text: string; facts: NoteFacts }>();
+    const factsOf: TextFacts = (path, text) => {
+      const held = unsentFacts.get(path);
+      const facts = held?.text === text ? held.facts : textFactsOf(path, text);
+      read.set(path, { facts, text });
+      return facts;
+    };
+    const entries = overlayEntries(mirrorRows ?? [], rows, factsOf);
+    unsentFacts = read;
     listing = listingOf(entries);
     const view = tree.get();
     const kept = notices ?? {
       progress: view.state === "ready" ? view.progress : null,
       refreshError: view.state === "ready" ? view.refreshError : null,
     };
-    tree.set({ entries: entries.map((entry) => ({ path: entry.path })), ...kept, state: "ready" });
+    tree.set({
+      entries: entries.map((entry) => ({ item: entry.item, path: entry.path })),
+      ...kept,
+      state: "ready",
+    });
     notifyWatchers();
   };
 
@@ -411,7 +504,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
         return;
       }
       case "too-large": {
-        refreshFailed("This vault is too large for the notes list.");
+        refreshFailed("This library is too large to list on your phone.");
         return;
       }
       case "current": {
@@ -459,6 +552,13 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   const wipe = async (): Promise<void> => {
     await outbox.wipe();
     try {
+      await args.db.exclusive(async (tx) => {
+        await tx.run("DELETE FROM pending_fills");
+      });
+    } catch {
+      // a sign-in after this one wipes again, and a fill writes only through a live session
+    }
+    try {
       await mirror.wipe();
     } catch {
       // a sign-in after this one wipes again, and a stale row is only served to a live session
@@ -478,8 +578,8 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
         throw new Error(NOT_SIGNED_IN);
       }
       return await work({
-        enqueue: async (op) => {
-          if (!(await outbox.enqueue(op, fence))) {
+        enqueue: async (op, alongside) => {
+          if (!(await outbox.enqueue(op, fence, alongside))) {
             throw new Error(NOT_SIGNED_IN);
           }
         },
@@ -498,7 +598,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   };
 
   // a row the mirror names but has not filled is read at the commit that named its blob, and kept
-  const readFromMirror = async (path: string, row: MirrorRow | null): Promise<FileRead> => {
+  const readFromMirror = async (path: string, row: MirrorRow | null): Promise<NoteRead> => {
     const current = session.current();
     if (current.kind !== "live") {
       return { message: NOT_SIGNED_IN, notFound: false, ok: false };
@@ -547,14 +647,14 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     return { content: result.value.content, ok: true, path };
   };
 
-  const readFile = async (path: string): Promise<FileRead> => {
+  const readFile = async (path: string): Promise<NoteRead> => {
     await signIn.ready();
     const entry = listing?.files.get(path);
     if (entry?.source.kind === "text") {
       return { content: entry.source.text, ok: true, path };
     }
     if (entry?.source.kind === "staged" || goneHere(path)) {
-      return { message: "This is not a note on this phone.", notFound: true, ok: false };
+      return { message: "This is not an item on this phone.", notFound: true, ok: false };
     }
     return await readFromMirror(path, entry?.source.row ?? null);
   };
@@ -585,10 +685,16 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     switch (op.op) {
       case "write":
       case "create": {
+        if (path !== op.path) {
+          const asset = op.assets?.find((each) => each.path === path);
+          return asset === undefined
+            ? null
+            : { content: null, oid: await blobOid(args.sha1, await outboxBytes(asset.stagedFile)) };
+        }
         return { content: op.content, oid: await textBlobOid(args.sha1, op.content) };
       }
       case "rename":
-      case "comment": {
+      case "annotation": {
         return await leavesAt(args.sha1, op, path);
       }
       case "putAsset": {
@@ -599,6 +705,16 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       }
       // no default
     }
+  };
+
+  // the blob a delete is guarded by: the mirror's row as listed, with no read of a file's bytes
+  const heldOid = async (path: string): Promise<string | null> => {
+    if (lastRowOn(outbox.rows(), path) === undefined) {
+      const entry = listing?.files.get(path);
+      return entry?.source.kind === "vault" ? entry.source.row.oid : null;
+    }
+    const held = await heldText(path);
+    return held?.oid ?? null;
   };
 
   const isTakenHere = (path: string): boolean =>
@@ -619,6 +735,22 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       }
       expectOwn(path, content);
       await enqueue({ content, op: "create", path });
+      return { kind: "created" };
+    });
+
+  const saveStub: NotesStore["saveStub"] = async (path, content, fill) =>
+    await queued(async ({ enqueue }) => {
+      if (isTakenHere(path)) {
+        return { kind: "exists" };
+      }
+      expectOwn(path, content);
+      await enqueue({ content, op: "create", path }, async (tx) => {
+        await tx.run(
+          `INSERT OR REPLACE INTO pending_fills (item_id, path, url, attempts, not_before, created_at)
+           VALUES (?, ?, ?, 0, ?, ?)`,
+          [fill.itemId, path, fill.url, fill.notBefore, fill.notBefore],
+        );
+      });
       return { kind: "created" };
     });
 
@@ -680,6 +812,103 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     return created.kind === "created" ? { kind: "written" } : created;
   };
 
+  // staged under the blob's name, as a photo is; a file the vault already holds at its path is the
+  // same bytes (a cover is named by them), so it rides no set
+  const stageFiles = async (files: readonly FillFile[]): Promise<StagedAsset[]> => {
+    const staged: StagedAsset[] = [];
+    for (const file of files) {
+      if (listing?.files.get(file.path)?.source.kind === "vault") {
+        continue;
+      }
+      const stagedFile = `${await blobOid(args.sha1, file.bytes)}${extnamePath(file.path)}`;
+      await outbox.stage(stagedFile, file.bytes);
+      staged.push({ path: file.path, size: file.bytes.length, stagedFile });
+    }
+    return staged;
+  };
+
+  // compared and queued under the write lock as a guarded write is, the files joining the row the
+  // text goes in, so a fill landing behind an unsent create or edit of the stub still lands whole
+  const writeFill: NotesStore["writeFill"] = async (path, content, base, files) =>
+    await queued(async ({ enqueue, fence }) => {
+      const held = await heldNote(path);
+      if (held.kind === "missing") {
+        return held;
+      }
+      if (held.content !== base) {
+        return { current: held.content, kind: "changed" };
+      }
+      const assets = await stageFiles(files);
+      const last = lastRowOn(outbox.rows(), path);
+      expectOwn(path, content);
+      if (last !== undefined && isTextOp(last.op) && last.op.path === path) {
+        const verdict = await outbox.coalesce(last.seq, last.op.content, content, fence, assets);
+        if (verdict === "fenced") {
+          throw new Error(NOT_SIGNED_IN);
+        }
+        if (verdict === "stale") {
+          const now = await heldNote(path);
+          return now.kind === "missing" ? now : { current: now.content, kind: "changed" };
+        }
+      } else {
+        await enqueue({
+          assets,
+          baseContent: held.content,
+          baseOid: held.oid,
+          content,
+          op: "write",
+          path,
+        });
+      }
+      return { kind: "written" };
+    });
+
+  // fenced like every other change: a row of an earlier sign-in is never written for the next
+  const fencedFill = async (work: (tx: SqlExecutor) => Promise<void>): Promise<void> => {
+    await signIn.ready();
+    const fence = signIn.live();
+    if (fence === null) {
+      return;
+    }
+    await fencedExclusive(args.db, fence, work);
+  };
+
+  const pendingFills: NotesStore["pendingFills"] = {
+    async list() {
+      await signIn.ready();
+      const raw = await args.db.all(
+        "SELECT item_id, path, url, attempts, not_before FROM pending_fills ORDER BY not_before, created_at",
+      );
+      return raw.flatMap((row) => {
+        const parsed = pendingFillRowSchema.safeParse(row);
+        return parsed.success
+          ? [
+              {
+                attempts: parsed.data.attempts,
+                itemId: parsed.data.item_id,
+                notBefore: parsed.data.not_before,
+                path: parsed.data.path,
+                url: parsed.data.url,
+              },
+            ]
+          : [];
+      });
+    },
+    async remove(itemId) {
+      await fencedFill(async (tx) => {
+        await tx.run("DELETE FROM pending_fills WHERE item_id = ?", [itemId]);
+      });
+    },
+    async update(row) {
+      await fencedFill(async (tx) => {
+        await tx.run(
+          "UPDATE pending_fills SET path = ?, attempts = ?, not_before = ? WHERE item_id = ?",
+          [row.path, row.attempts, row.notBefore, row.itemId],
+        );
+      });
+    },
+  };
+
   // a note that no longer holds the text its rewrite was planned from is left out, never merged,
   // as the server's rewrite leaves one; the renamed note's alias still answers its link
   const heldRewrites = async (
@@ -736,7 +965,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       return { kind: "renamed", skipped };
     });
 
-  const remove: NotesStore["remove"] = async (path, stores = []) => {
+  const remove: NotesStore["remove"] = async (path, alongside = []) => {
     await queued(async ({ enqueue }) => {
       if (listing?.files.has(path) !== true) {
         return;
@@ -745,14 +974,14 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       if (base === null) {
         return;
       }
-      const storeBases: { baseOid: string; path: string }[] = [];
-      for (const store of stores) {
-        const held = listing?.files.has(store) === true ? await heldText(store) : null;
-        if (held !== null) {
-          storeBases.push({ baseOid: held.oid, path: store });
+      const bases: { baseOid: string; path: string }[] = [];
+      for (const file of alongside) {
+        const oid = await heldOid(file);
+        if (oid !== null) {
+          bases.push({ baseOid: oid, path: file });
         }
       }
-      await enqueue({ baseOid: base.oid, op: "remove", path, stores: storeBases });
+      await enqueue({ alongside: bases, baseOid: base.oid, op: "remove", path });
     });
   };
 
@@ -771,32 +1000,32 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   // the store's text after the edit, from what the phone holds of it: nothing where it lists none
   const editedStore = async (
     path: string,
-    edit: CommentEdit["edit"],
+    edit: AnnotationEdit["edit"],
   ): Promise<
-    | { kind: "planned"; store: CommentOp["store"] }
-    | Extract<CommentEditOutcome, { kind: "refused" }>
+    | { kind: "planned"; store: AnnotationOp["store"] }
+    | Extract<AnnotationEditOutcome, { kind: "refused" }>
   > => {
     const held = listing?.files.has(path) === true ? await heldText(path) : null;
-    let base: CommentOp["store"]["base"] = null;
+    let base: AnnotationOp["store"]["base"] = null;
     if (held !== null) {
       if (held.content === null) {
-        return { kind: "refused", message: UNREADABLE_COMMENTS };
+        return { kind: "refused", message: UNREADABLE_ANNOTATIONS };
       }
       base = { content: held.content, oid: held.oid };
     }
-    const parsed = base === null ? null : parseSidecar(base.content);
+    const parsed = base === null ? null : parseAnnotationStore(base.content);
     if (parsed !== null && !parsed.ok) {
-      return { kind: "refused", message: `${UNREADABLE_COMMENTS} ${parsed.error}` };
+      return { kind: "refused", message: `${UNREADABLE_ANNOTATIONS} ${parsed.error}` };
     }
-    const edited = edit(parsed?.sidecar ?? {});
+    const edited = edit(parsed?.store ?? {});
     return edited.ok
-      ? { kind: "planned", store: { base, content: serializeSidecar(edited.sidecar), path } }
+      ? { kind: "planned", store: { base, content: serializeAnnotationStore(edited.store), path } }
       : { kind: "refused", message: edited.error };
   };
 
   // read, planned and queued under the write lock, so no write lands between the texts the edit
   // was made from and the row that carries it
-  const editComments: NotesStore["editComments"] = async ({ anchor, edit, path }) =>
+  const editAnnotations: NotesStore["editAnnotations"] = async ({ anchor, edit, path }) =>
     await queued(async ({ enqueue }) => {
       const note = goneHere(path) ? null : await heldText(path);
       if (note === null) {
@@ -808,14 +1037,14 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       if (anchor !== null && anchor.expected !== note.content) {
         return { current: note.content, kind: "changed" };
       }
-      const key = commentKeyOf(
+      const key = annotationKeyOf(
         anchor?.content ?? note.content,
         anchor === null ? null : args.mintNoteId,
       );
       if (key.kind === "refused") {
         return key;
       }
-      const planned = await editedStore(commentsStorePath(key.id), edit);
+      const planned = await editedStore(annotationsStorePath(key.id), edit);
       if (planned.kind === "refused") {
         return planned;
       }
@@ -826,9 +1055,33 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
           : { baseContent: note.content, baseOid: note.oid, content: key.content, path };
       expectOwn(path, key.content);
       expectOwn(store.path, store.content);
-      await enqueue({ anchored, op: "comment", store });
+      await enqueue({ anchored, op: "annotation", store });
       return { kind: "edited", note: key.content };
     });
+
+  // the annotation store at a note's id, as its entries; a note without an id, or with no store
+  // yet, has none
+  const storeOf = async (
+    note: NoteText,
+  ): Promise<{ ok: true; entries: AnnotationStore } | { ok: false; message: string }> => {
+    const id = annotationStoreKey(note.content);
+    if (id === null) {
+      return { entries: {}, ok: true };
+    }
+    const storePath = annotationsStorePath(id);
+    // the mirror names every path its tree held; a store it does not name is none
+    if (listing !== null && !listing.files.has(storePath)) {
+      return { entries: {}, ok: true };
+    }
+    const store = await readFile(storePath);
+    if (!store.ok) {
+      return store.notFound ? { entries: {}, ok: true } : { message: store.message, ok: false };
+    }
+    const parsed = parseAnnotationStore(store.content);
+    return parsed.ok
+      ? { entries: parsed.store, ok: true }
+      : { message: `The annotations could not be read: ${parsed.error}`, ok: false };
+  };
 
   return {
     async attachmentFile(path) {
@@ -838,7 +1091,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
         return { message: NOT_SIGNED_IN, ok: false };
       }
       if (entry === undefined || entry.source.kind === "text") {
-        return { message: "This attachment is not in your vault.", ok: false };
+        return { message: "This file is not in your library.", ok: false };
       }
       const fence = signIn.fenceFor(current.id);
       try {
@@ -876,13 +1129,18 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       await outbox.drain();
     },
 
-    editComments,
+    editAnnotations,
+
+    ready: async () => {
+      await signIn.ready();
+    },
 
     heldFiles: () =>
       listing === null
         ? []
         : [...listing.files.values()].map((entry) => ({
             aliases: entry.aliases,
+            item: entry.item,
             noteId: entry.noteId,
             path: entry.path,
           })),
@@ -920,35 +1178,24 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       status: outbox.status,
     },
 
+    pendingFills,
+
     putAsset,
 
-    async readComments(note) {
-      const id = commentStoreKey(note.content);
-      if (id === null) {
-        return { ok: true, threads: [] };
-      }
-      const storePath = commentsStorePath(id);
-      // the mirror names every path its tree held; a store it does not name is none
-      if (listing !== null && !listing.files.has(storePath)) {
-        return { ok: true, threads: [] };
-      }
-      const store = await readFile(storePath);
-      if (!store.ok) {
-        return store.notFound ? { ok: true, threads: [] } : { message: store.message, ok: false };
-      }
-      const parsed = parseSidecar(store.content);
-      if (!parsed.ok) {
-        return { message: `The comments could not be read: ${parsed.error}`, ok: false };
-      }
-      return {
-        ok: true,
-        threads: foldThreads(parsed.sidecar, markerRootIds(note.content)).threads,
-      };
+    async readAnnotations(note) {
+      const store = await storeOf(note);
+      return store.ok
+        ? {
+            annotations: foldAnnotations(store.entries, markerRootIds(note.content)).annotations,
+            ok: true,
+          }
+        : store;
     },
 
+    readAnnotationStore: storeOf,
+
     async readNote(path) {
-      const read = await readFile(path);
-      return read.ok ? read : { message: read.message, ok: false };
+      return await readFile(path);
     },
 
     async refresh() {
@@ -975,6 +1222,8 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
 
     rename,
 
+    saveStub,
+
     reset(next) {
       signIn.restart(next, { hydrate, wipe });
       listing = null;
@@ -988,6 +1237,12 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     async unsentCount() {
       await signIn.ready();
       return await outbox.unsent();
+    },
+
+    // a stub still waiting to be sent is counted as unsent, never twice
+    async unreadCount() {
+      const rows = await pendingFills.list();
+      return rows.filter((row) => lastRowOn(outbox.rows(), row.path)?.op.op !== "create").length;
     },
 
     watchPath(path, onChange) {
@@ -1006,5 +1261,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     },
 
     write,
+
+    writeFill,
   };
 };

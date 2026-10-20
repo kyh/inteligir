@@ -5,15 +5,22 @@ import { z } from "zod";
 import type { DbConnection, DbTransaction } from "./connection";
 import { createPrefixedId, createQueuedThreadMessageId } from "./ids";
 import { readJsonColumn } from "./json-column";
+import { actionPresetSchema } from "@repo/domain/action-preset";
+import type { ActionPreset } from "@repo/domain/action-preset";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { queuedThreadMessages } from "./schema";
 
 type StoredQueuedThreadMessage = typeof queuedThreadMessages.$inferSelect;
 
-export interface QueuedThreadMessageRow extends Omit<StoredQueuedThreadMessage, "contextPaths"> {
+export interface QueuedThreadMessageRow extends Omit<
+  StoredQueuedThreadMessage,
+  "contextPaths" | "preset"
+> {
   // null for none, and for bytes that no longer parse: those cost the message its attachments,
   // never the message.
   contextPaths: string[] | null;
+  // null for none, and for a name this build has no preset for: the message still runs as typed.
+  preset: ActionPreset | null;
 }
 
 export interface ClaimedQueuedThreadMessageRow extends QueuedThreadMessageRow {
@@ -23,12 +30,18 @@ export interface ClaimedQueuedThreadMessageRow extends QueuedThreadMessageRow {
 
 const storedContextPathsSchema = z.array(z.string().min(1)).min(1);
 
+const readPreset = (stored: string | null): ActionPreset | null => {
+  const parsed = actionPresetSchema.safeParse(stored);
+  return parsed.success ? parsed.data : null;
+};
+
 const readRow = (stored: StoredQueuedThreadMessage): QueuedThreadMessageRow => ({
   ...stored,
   contextPaths:
     stored.contextPaths === null
       ? null
       : readJsonColumn(stored.contextPaths, storedContextPathsSchema),
+  preset: readPreset(stored.preset),
 });
 
 const requireClaimedQueuedThreadMessage = (
@@ -44,8 +57,8 @@ export interface CreateQueuedThreadMessageInput {
   threadId: string;
   text: string;
   contextPaths: readonly string[] | null;
-  // the phone's dispatch this message carries out, null for one typed here
-  dispatchId: string | null;
+  // the named action the message asks for, null for none
+  preset: ActionPreset | null;
 }
 
 // fixed-width ms timestamp so lexicographic order is arrival order; extended past the tail when
@@ -77,8 +90,8 @@ export const createQueuedThreadMessageInTransaction = (
       claimedAt: null,
       contextPaths: input.contextPaths === null ? null : JSON.stringify(input.contextPaths),
       createdAt: now,
-      dispatchId: input.dispatchId,
       id: createQueuedThreadMessageId(),
+      preset: input.preset,
       sortKey: createSortKeyAfter(tail?.sortKey ?? null, now),
       text: input.text,
       threadId: input.threadId,

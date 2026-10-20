@@ -65,7 +65,7 @@ export const MentionCombobox = ({
     <div
       id={id}
       role="listbox"
-      aria-label="Mention a note"
+      aria-label="Mention an item"
       className="absolute inset-x-0 bottom-full z-10 mb-1 overflow-hidden rounded-lg border border-line bg-surface-raised py-1 shadow-surface-2"
     >
       {options.map((option, index) => (

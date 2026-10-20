@@ -48,7 +48,7 @@ export const CODE_MARK_SHORTCUT: EditorShortcut<"toggle-code-mark"> = {
 };
 
 export const EDITOR_SHORTCUTS: readonly EditorShortcut[] = [
-  { action: "focus-note-title", hotkey: "mod+t", label: "Edit the note title" },
+  { action: "focus-note-title", hotkey: "mod+t", label: "Edit the title" },
   CODE_MARK_SHORTCUT,
   { action: "toggle-todo-list", hotkey: "mod+shift+c", label: "To-do list" },
   { action: "toggle-numbered-list", hotkey: "mod+shift+l", label: "Numbered list" },

@@ -50,8 +50,7 @@ const Fact = ({
   children,
 }: {
   label: string;
-  // `| undefined` spelled out so a caller may pass an absent time under exactOptionalPropertyTypes
-  title?: string | undefined;
+  title?: string;
   children: React.ReactNode;
 }) => (
   <div className="grid grid-cols-[6rem_1fr] items-baseline gap-x-3 text-body">

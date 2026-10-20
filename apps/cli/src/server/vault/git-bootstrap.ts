@@ -2,7 +2,6 @@ import { existsSync } from "node:fs";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
-import { CAPTURE_INBOX_PATH } from "@repo/notes/sync/reconcile-file";
 import type { VaultRemoteSpec } from "../cloud/vault-remote";
 import { REMOTE_MARKER_ACCOUNT, REMOTE_MARKER_KEY } from "./folder-facts";
 import {
@@ -120,16 +119,6 @@ export const ensureVaultRepo = async (
     await git(["init", "-b", "main"]);
   }
   await ensureLocalInfoLine(git, args.root, "info/exclude", `${VAULT_TMP_PREFIX}*`);
-  // the app writes both sides: two desktops each append their captures to the end of one file,
-  // and a line merge of those appends overlaps, so the inbox would be copied aside over a
-  // conflict nobody made. union keeps both; a bullet deleted upstream beside the other device's
-  // append comes back. anchored, so a nested Inbox.md merges like any note.
-  await ensureLocalInfoLine(
-    git,
-    args.root,
-    "info/attributes",
-    `/${CAPTURE_INBOX_PATH} merge=union`,
-  );
   if (created && cloned && remote?.source === "account") {
     // the clone's origin is the hosted vault, marked as the app's so no pass adopts it as the
     // user's own.

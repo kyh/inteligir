@@ -1,4 +1,4 @@
-// The dialect reads its pills, dates, comment markers and `:::` lines out of finished text, where
+// The dialect reads its pills, dates, annotation markers and `:::` lines out of finished text, where
 // micromark has already folded a backslash escape into the character it spells. So the parse
 // keeps, on each text node, which characters an escape wrote, and a construct whose first
 // character is one stays text: the escape the serializer writes before a text that would read

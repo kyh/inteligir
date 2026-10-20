@@ -86,11 +86,10 @@ const TranscriptRows = ({
   });
 };
 
-// A thread not started yet runs on the default; one another device runs needs nothing from here.
-// null is a thread not read yet.
+// A thread not started yet runs on the default. null is a thread not read yet.
 const SignInBanner = ({ thread }: { thread: Thread | null }) => {
   const signedOut = useSignedOutHarness(thread?.providerId ?? null);
-  if (thread === null || signedOut === null || thread.runsElsewhere) {
+  if (thread === null || signedOut === null) {
     return null;
   }
   return (
@@ -123,8 +122,17 @@ export const ActionDetail = ({
   const pending = detailQuery.data?.pendingInteractions ?? [];
   const queued = detailQuery.data?.queuedMessages ?? [];
 
-  const invalidate = (): void => {
-    void queryClient.invalidateQueries({ queryKey: orpc.threads.key() });
+  // what each write here moves, as the bus's tables weigh its kinds (change-batch.ts): this
+  // thread's detail and, but for an answer, its row in every list. The transcript reads its own
+  // deltas off the bus, and what a turn changed moves only with its commit, so neither is re-read.
+  const rereadDetail = (): void => {
+    void queryClient.invalidateQueries({
+      queryKey: orpc.threads.get.key({ input: { threadId } }),
+    });
+  };
+  const rereadThread = (): void => {
+    rereadDetail();
+    void queryClient.invalidateQueries({ queryKey: orpc.threads.list.key() });
   };
 
   const submit = (): void => {
@@ -149,7 +157,7 @@ export const ActionDetail = ({
         failed(error, "Could not reach the agent.");
       }
       setSending(false);
-      invalidate();
+      rereadThread();
     })();
   };
 
@@ -161,7 +169,7 @@ export const ActionDetail = ({
     const { error } = await safe(
       client.threads.answerInteraction({ decision, interactionId, threadId }),
     );
-    invalidate();
+    rereadDetail();
     if (error !== null) {
       failed(error, "Could not answer the approval.");
       throw error;
@@ -176,7 +184,7 @@ export const ActionDetail = ({
       } catch (error) {
         failed(error, "Could not archive the action.");
       }
-      invalidate();
+      rereadThread();
     })();
   };
 
@@ -188,7 +196,7 @@ export const ActionDetail = ({
       if (error !== null) {
         failed(error, "Could not stop the action.");
       }
-      invalidate();
+      rereadThread();
     })();
   };
 
@@ -209,11 +217,6 @@ export const ActionDetail = ({
           >
             {thread.originDocPath}
           </button>
-        ) : null}
-        {thread?.runsElsewhere === true ? (
-          <span className="shrink-0 px-1 text-caption text-muted-foreground">
-            Running on another device
-          </span>
         ) : null}
         {stopControl === "none" ? null : (
           <Button
