@@ -7,6 +7,7 @@ import { shellBinary } from "./harness/desktop-shell";
 import { buildProcessEnv, describeExecError, exec } from "./harness/exec";
 import { ScenarioSkipError } from "./harness/scenario-skip-error";
 import { killAllLiveGroups } from "./harness/tracked-child";
+import { hearingBuildQueueWaits } from "./harness/turbo-build";
 import type { TrackedProcess } from "./harness/tracked-child";
 import { createScenarioContext } from "./harness/scenario";
 import type { ExclusiveResource, Scenario, ScenarioContext } from "./harness/scenario";
@@ -247,20 +248,33 @@ const streamedOutput = (): ScenarioOutput => ({
   },
 });
 
-const heldOutput = (): ScenarioOutput => {
+// what each held output whose scenario has not ended would print, so a run that dies first (a
+// signal, a crash, a job's timeout) still shows the steps of every scenario it cut off
+const unfinished = new Set<() => void>();
+
+const heldOutput = (scenarioName: string): ScenarioOutput => {
   const held: { stream: "out" | "err"; line: string }[] = [];
+  const print = (): void => {
+    for (const { line, stream } of held.splice(0)) {
+      if (stream === "out") {
+        console.log(line);
+      } else {
+        console.error(line);
+      }
+    }
+  };
+  const interrupted = (): void => {
+    console.error(`${timestamp()} [${scenarioName}] INTERRUPTED: what it had written so far`);
+    print();
+  };
+  unfinished.add(interrupted);
   return {
     err: (line) => {
       held.push({ line, stream: "err" });
     },
     flush: () => {
-      for (const { line, stream } of held.splice(0)) {
-        if (stream === "out") {
-          console.log(line);
-        } else {
-          console.error(line);
-        }
-      }
+      unfinished.delete(interrupted);
+      print();
     },
     out: (line) => {
       held.push({ line, stream: "out" });
@@ -268,17 +282,40 @@ const heldOutput = (): ScenarioOutput => {
   };
 };
 
+// `exit` runs on process.exit and on an uncaught throw or rejection alike, and writes to a pipe or
+// a file are synchronous there, so the lines land before the process ends
+const printUnfinished = (): void => {
+  for (const interrupted of unfinished) {
+    interrupted();
+  }
+  unfinished.clear();
+};
+
 // the losing run is abandoned, not cancelled: the teardown after it kills the processes it awaits,
-// which settles it, and the race has already taken its rejection.
+// which settles it, and the race has already taken its rejection. Time the scenario's build spends
+// queued behind another lane's moves its deadline out by as much: the budget is for its own work.
 const runWithinDeadline = async (scenario: Scenario, context: ScenarioContext): Promise<void> => {
   const timeoutMs = scenario.timeoutMs ?? DEFAULT_SCENARIO_TIMEOUT_MS;
+  const startedAt = Date.now();
+  let queuedMs = 0;
   const deadline = new AbortController();
   const expire = async (): Promise<never> => {
-    await delay(timeoutMs, undefined, { signal: deadline.signal });
-    throw new Error(`still running after ${seconds(timeoutMs)}: abandoned and torn down`);
+    for (let left = timeoutMs; left > 0; left = startedAt + timeoutMs + queuedMs - Date.now()) {
+      await delay(left, undefined, { signal: deadline.signal });
+    }
+    const queued = queuedMs > 0 ? ` (and ${seconds(queuedMs)} queued behind other builds)` : "";
+    throw new Error(`still running after ${seconds(timeoutMs)}${queued}: abandoned and torn down`);
+  };
+  const run = async (): Promise<void> => {
+    await scenario.run(context);
   };
   try {
-    await Promise.race([scenario.run(context), expire()]);
+    await Promise.race([
+      hearingBuildQueueWaits((waitedMs) => {
+        queuedMs += waitedMs;
+      }, run),
+      expire(),
+    ]);
   } finally {
     deadline.abort();
   }
@@ -380,7 +417,7 @@ const runScenario = async ({
 // the scenario's header, its run and its verdict, through its own output
 const runAndReport = async (args: Omit<RunScenarioArgs, "output">): Promise<ScenarioResult> => {
   const { options, scenario } = args;
-  const output = options.lanes === 1 ? streamedOutput() : heldOutput();
+  const output = options.lanes === 1 ? streamedOutput() : heldOutput(scenario.name);
   if (options.lanes > 1) {
     console.log(`${timestamp()} [${scenario.name}] started`);
   }
@@ -449,6 +486,7 @@ const runInLanes = async (
 // SIGKILL of the runner itself cannot be trapped; those orphans are accepted (scratch is per-run
 // under tmpdir).
 const installSignalCleanup = (): void => {
+  process.on("exit", printUnfinished);
   const signals: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
   for (const signal of signals) {
     process.on(signal, () => {

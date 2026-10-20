@@ -73,17 +73,17 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
 
 - **THE VAULT DIR AND THE DATA DIR ARE DISJOINT**, refused at boot, since a data
   dir inside the vault gets committed and pushed.
-  `apps/cli/src/server/vault/vault-service.ts`.
+  `assertVaultAndDataDirDisjoint` in `apps/cli/src/server/path-containment.ts`.
 
-- **THE ENGINE'S GIT IGNORES THE VAULT'S OWN GIT HABITS, AND A PASS REPORTS ONE
-  OUTCOME.** Every invocation turns off what the vault's config could do to an
-  engine commit, rebase or push: glob pathspecs, hooks (`--no-verify` reaches
-  only pre-commit and commit-msg), signing, recorded resolutions; every status
-  read names its untracked-files mode, since a config hiding untracked files
-  would hold every sync. Every git the vault runs goes through one injected
-  runner, which a suite builds over a hermetic config. Rejected: an env threaded
-  through each layer. Residual: a git-lfs upload is a pre-push hook, so it does
-  not run. `apps/cli/src/server/vault/git-run.ts`, `git-porcelain.ts`.
+- **THE ENGINE'S GIT IGNORES THE VAULT'S OWN GIT HABITS.** Every invocation
+  turns off what the vault's config could do to an engine commit, rebase or
+  push: glob pathspecs, hooks (`--no-verify` reaches only pre-commit and
+  commit-msg), signing, recorded resolutions; every status read names its
+  untracked-files mode, since a config hiding untracked files would hold every
+  sync. Every git the vault runs goes through one injected runner, which a suite
+  builds over a hermetic config. Rejected: an env threaded through each layer.
+  Residual: a git-lfs upload is a pre-push hook, so it does not run.
+  `apps/cli/src/server/vault/git-run.ts`, `git-porcelain.ts`.
 
 - **A PASS REPORTS ONE OUTCOME, AND EACH VERDICT CARRIES ITS OWN MESSAGE**, so
   the error shown cannot drift; a path two devices changed is never an outcome.
@@ -215,8 +215,9 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   the vault and `info/exclude` or a global excludes file is one machine's.
   Rejected: one matcher rooted at the vault (re-scopes a nested `*` to `**/*`)
   and a hardcoded skip list (misses the next tool's folder). Residual: a folder
-  moved in whole is re-read at the next reload, and the hosted vault's listing
-  honours only the floor. `apps/cli/src/server/vault/vault-ignore-files.ts`.
+  moved in whole with its own `.gitignore` is honoured from the next reload, and
+  the hosted vault's listing honours only the floor.
+  `apps/cli/src/server/vault/vault-ignore-files.ts`.
 
 - **AN OPENED FOLDER'S OWN ORIGIN IS ITS BYO REMOTE, AND A FOLDER ANOTHER
   SERVICE SYNCS NEVER TAKES THE HOSTED VAULT.** Where a vault syncs has one

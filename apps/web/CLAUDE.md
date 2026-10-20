@@ -23,8 +23,9 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   a password oracle. No social providers: an in-app login can only be a
   password. Rejected: a second call to learn the account (a pending state
   readers must fail closed on); a browser approve page with one-time code, PKCE
-  and loopback callback (residual: the password crosses the app once, over
-  HTTPS). `@repo/contract/cloud/device/login-flow.ts`,
+  and loopback callback (a ceremony to keep the password out of the app).
+  Residual: the password crosses the app once, over HTTPS.
+  `@repo/contract/cloud/device/login-flow.ts`,
   `apps/web/src/worker/device/login.ts`.
 
 - **A DEVICE CAN ALSO CREATE THE ACCOUNT** (owner decision: sign up in the app,
@@ -114,22 +115,24 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 - **A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, the Worker is held to exactly
   what it declares, and the wire breaks only behind the client build floor**
-  (owner decision). Responses under `@repo/contract/cloud` strip undeclared
-  fields and read an unknown refusal code as a fault to retry, not a credential
-  verdict; requests stay `z.strictObject` (only the newest Worker reads them),
-  and the Worker's tests parse every answer through its declared schema, lest
-  stripping hide a leaked column. A shape retires only once the floor passes
-  every build reading it, and a field that changes what a row MEANS reaches
-  only clients declaring it. Rejected: a wire final at birth behind strict
-  readers (every addition a new route; a revoked device read `unauthorized` as
-  `malformed` and kept retrying); per-route versions (every old shape kept).
+  (owner decision; the floor is EVERY INSTALL'S REQUEST NAMES ITS BUILD).
+  Responses under `@repo/contract/cloud` strip undeclared fields and read an
+  unknown refusal code as a fault to retry, not a credential verdict; requests
+  stay `z.strictObject` (only the newest Worker reads them), and the Worker's
+  tests parse every answer through its declared schema, lest stripping hide a
+  leaked column. A shape retires only once the floor passes every build reading
+  it, and a field that changes what a row MEANS reaches only clients declaring
+  it. Rejected: a wire final at birth behind strict readers (every addition a
+  new route; a revoked device read `unauthorized` as `malformed` and kept
+  retrying); per-route versions (every old shape kept).
+  `packages/contract/src/cloud/cloud-errors.ts`.
 
 - **EVERY INSTALL'S REQUEST NAMES ITS BUILD, AND THE WORKER REFUSES ONE BELOW
-  THE FLOOR.** The tolerant reader is forward negotiation only, so a request
-  with no build or one below `MIN_CLIENT_BUILD` is refused, terminally and with
-  the credential left live, so the next build resumes as the same device; a
-  page the Worker served needs none, since it ships in the same deploy.
-  `packages/contract/src/cloud/client-build.ts`,
+  THE FLOOR** (owner decision). The tolerant reader is forward negotiation only,
+  so a request with no build or one below `MIN_CLIENT_BUILD` is refused,
+  terminally and with the credential left live, so the next build resumes as the
+  same device; a page the Worker served needs none, since it ships in the same
+  deploy. `packages/contract/src/cloud/client-build.ts`,
   `apps/web/src/worker/client-floor.ts`.
 
 - **A SIGN-IN IS FENCED BY SESSION IDENTITY, not by "is a session live?".**

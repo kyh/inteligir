@@ -203,18 +203,30 @@ most four (`--lanes 1` runs them one at a time).
 
 Inside a work stream (§ Rules that matter), run what the change reaches: the
 gates of the workspaces it touched since the stream's base and of their
-dependents, and the stream's own scenarios.
+dependents, and the stream's own scenarios. `verify:affected` is `verify`'s
+run over those workspaces, under the same concurrency cap and reporting every
+red task, `build` included, since only the build runs the CLI bundle's
+refusals; `format:fix` has already done `format`'s part.
 
 ```sh
 pnpm format:fix
-TURBO_SCM_BASE=<the stream's base> pnpm turbo run typecheck lint knip test --affected
+TURBO_SCM_BASE=<the stream's base> pnpm verify:affected
 pnpm e2e --only <the stream's scenarios>
 ```
 
 The full `pnpm verify` and a full `pnpm e2e` run once per PR, on its last
-commit, before it is called green. Releasing is the owner's: a change whose
-proof needs a device, an account or a credential adds its check to
-`docs/releasing.md` § 5, under its surface.
+commit, before it is called green, and so does this check of the declines
+register (§ Decisions), which no guard can read: every file a line ends by
+naming is still in the tree, and a line whose file the PR removed is deleted
+or repointed in the same PR.
+
+```sh
+gh api repos/kyh/inteligir/issues/912 --jq .body | grep -oE '\(`[^`]+`\)$' | tr -d '()`' |
+  sort -u | while read -r p; do git ls-files --error-unmatch -- "$p" >/dev/null 2>&1 || echo "gone: $p"; done
+```
+
+Releasing is the owner's: a change whose proof needs a device, an account or a
+credential adds its check to `docs/releasing.md` § 5, under its surface.
 
 ### Platform matrix
 

@@ -59,18 +59,28 @@ answer is parsed in `src/shell/shell-commands.ts` and mirrored through one
   note lives in another note's bytes (`app/change-batch.ts`). Rejected: outgoing
   links (they are on screen); a graph view.
 
+- **THE PAGE REFETCHES `knowledge.wikiTargets` ONLY ON A TARGET CHANGE, AT MOST
+  ONCE PER 5 S** (A TARGET CHANGE IS ITS OWN KIND, in
+  `apps/cli/src/server/knowledge/CLAUDE.md`), outside the knowledge sweep a body
+  edit or a listing change makes, since that answer holds every doc and asset
+  (about 7.5 MB at 50k items) and a fill storm is one body change per item; a
+  fill that gives a stub its first heading marks once, and the throttle folds a
+  storm of those. Rejected: the knowledge-family sweep on every content change
+  (it refetched every target per keystroke and per fill).
+  `apps/workspace/src/app/change-batch.ts`.
+
 ## Agents and threads
 
-- **THE AGENT SURFACE IS THE ⌘K ACTION COMPOSER AND THE RIGHT PANEL**
-  (declines: #912). An action is an ordinary thread on the item it was composed
-  over (AN ACTION'S ORIGIN); the agent edits the library directly, highlights
-  are the review channel, and the panel's tabs are Info | Annotations | Actions
-  | History. With no item open the subject is the library: ONE detachable chip
-  for the selection or the scope, the send carrying the library view context
-  (scope, chip, search, count, first 200 names; none from Deleted) as it leaves
-  (`readViewContext`); its attribution names only screen and count. "Ask agent" seeds the composer through
-  `packages/editor/src/host-io.ts`, so the editor never imports the shell.
-  Rejected: "Share with agent" (engine words).
+- **THE AGENT SURFACE IS THE ⌘K ACTION COMPOSER AND THE RIGHT PANEL** (declines:
+  #912). An action is an ordinary thread on the item it was composed over (AN
+  ACTION'S ORIGIN); the agent edits the library directly, highlights are the
+  review channel, and the panel's tabs are Info | Annotations | Actions |
+  History. With no item open the subject is the library: ONE detachable chip for
+  the selection or the scope, the send carrying the library view context (scope,
+  chip, search, count, first 200 names; none from Deleted) as it leaves
+  (`readViewContext`); its attribution names only screen and count. "Ask agent"
+  seeds the composer through `packages/editor/src/host-io.ts`, so the editor
+  never imports the shell. Rejected: "Share with agent" (engine words).
   `apps/workspace/src/app/actions/action-composer.tsx`.
 
 - **TIDY MY LIBRARY IS THE COMPOSER OPENED ON A PRESET** (A NAMED ACTION IS A
@@ -93,6 +103,12 @@ answer is parsed in `src/shell/shell-commands.ts` and mirrored through one
   it last read. Both undos flush the open item first, so a line inside the
   autosave debounce is merged around, not missed (`undo-turn.ts`).
 
+- **THE COMPOSER MINTS THE OPEN NOTE'S ID THROUGH THE LIVE EDITOR** (AN ACTION'S
+  ORIGIN IS ITS NOTE'S ID, in `apps/cli/src/server/agents/CLAUDE.md`), since a
+  server mint under the buffer would make the revision name bytes no longer on
+  disk, and outside the undo history, since an undo would unbind the action just
+  sent. `apps/workspace/src/app/note/open-note-id.ts`.
+
 ## Desktop workspace surfaces
 
 - **WINDOW-LEVEL HOSTS MOUNT AT THE ROOT ROUTE.** `ConfirmDialogHost`, `Toaster`
@@ -100,16 +116,18 @@ answer is parsed in `src/shell/shell-commands.ts` and mirrored through one
   a host mounted by one route leaves another route's `confirm()` parked on a
   dialog that never opens.
 
-- **THE RAIL CHOOSES THE LIBRARY'S SCOPE, AMBIENT STATE LIVES IN ITS FOOTER,
-  AND THE TOP BAR IS THE PAGE'S.** A header (the vault row, Search), the groups
+- **THE RAIL CHOOSES THE LIBRARY'S SCOPE, AMBIENT STATE LIVES IN ITS FOOTER, AND
+  THE TOP BAR IS THE PAGE'S.** A header (the vault row, Search), the groups
   Library (All items, Unsorted), Folders, Tags (folding) and Deleted, then a
   footer of the sync state, the agent's spinner and Settings. Each `SidebarMenu`
-  row sets the grid's scope (`libraryScope`) and goes back to the library; every other verb is a right-click, as in Finder. The library's header
-  and an item's bar share the top bar's ends
-  (`apps/workspace/src/app/topbar-lead.tsx`); under the macOS shell the rail
-  keeps the traffic-light corner (`apps/workspace/src/app/title-bar.ts`).
-  Rejected: the Recent | Files | Deleted view menu (each list answered "what is
-  this?" differently); a window-wide strip (a second bar under the rail).
+  row sets the grid's scope (`libraryScope`) and goes back to the library; every
+  other verb is a right-click, as in Finder. The library's header and an item's
+  bar share the top bar's ends (`apps/workspace/src/app/topbar-lead.tsx`); under
+  the macOS shell the rail keeps the traffic-light corner
+  (`apps/workspace/src/app/title-bar.ts`). Rejected: the Recent | Files |
+  Deleted view menu (each list answered "what is this?" differently); a
+  window-wide strip (a second bar under the rail).
+  `apps/workspace/src/app/sidebar/sidebar.tsx`.
 
 - **THE RAIL'S ACCOUNT ROW IS SETTINGS › ACCOUNT'S SESSION, AND SYNCS ONLY THE
   LIBRARY.** It runs the one `useCloudSession` (`app/cloud-session.ts`) that
@@ -181,22 +199,21 @@ answer is parsed in `src/shell/shell-commands.ts` and mirrored through one
   note session hears one `files` event however many paths moved
   (`packages/editor/src/host-io.ts`) and lists through the rail's tree query; a
   content change moves no listing row; `import-changed` only the import's
-  status. The grid reads one
-  100-row `knowledge.items` window per window in view
+  status. The grid reads one 100-row `knowledge.items` window per window in view
   (`apps/workspace/src/app/library/library-items.ts`) and unmounts while an item
   is open, so a sweep refetches the item's rows alone. A reconnect sweeps every
   family. Rejected: an infinite query (every page refetches); a window-focus
-  re-walk. `apps/workspace/src/app/change-batch.ts`, `app/workspace-context.tsx`.
+  re-walk. `apps/workspace/src/app/change-batch.ts`,
+  `app/actions/thread-hooks.ts`, `app/workspace-context.tsx`.
 
 - **A WRITE FROM THE PAGE REFETCHES ONLY WHAT IT MOVES.** A reply, a stop or an
   archive refetches the thread's detail and the lists, an answer the detail
-  alone (`apps/workspace/src/app/actions/action-detail.tsx`,
-  `app/actions/thread-hooks.ts`), and an annotation
+  alone (`apps/workspace/src/app/actions/action-detail.tsx`), and an annotation
   write nothing: its answer is the item's fresh listing, held as that path's
   list, and a refusal re-reads that list alone
-  (`apps/workspace/src/app/actions/annotation-hooks.ts`). Rejected: a family-wide
-  sweep after a write (every thread, or every item's highlights, re-read for one
-  card's change).
+  (`apps/workspace/src/app/actions/annotation-hooks.ts`). Rejected: a
+  family-wide sweep after a write (every thread, or every item's highlights,
+  re-read for one card's change).
 
 - **THE NOTE STORE OWNS THE OPEN ITEM, THE URL MIRRORS IT, AND SETTINGS COVERS A
   WORKSPACE THAT STAYS MOUNTED** (owner decision). `?item=` is read once, as
@@ -219,7 +236,8 @@ answer is parsed in `src/shell/shell-commands.ts` and mirrored through one
   `dial()` row naming its `--editor-*` token
   (`apps/workspace/src/app/appearance-options.ts`). Labels and layout stay out:
   Settings is laid out by hand. Rejected: one table shared with the data dir (no
-  preference is read by both programs).
+  preference is read by both programs, and a data-dir preference reaches the
+  page through `@repo/contract/local`).
   `tools/repo-guards/src/page-prefs.test.ts` refuses a keyed read outside it.
 
 - **A LIBRARY SCOPE HAS ONE SPELLING, `@repo/domain/library-scope`.** Which
@@ -307,9 +325,10 @@ answer is parsed in `src/shell/shell-commands.ts` and mirrored through one
   so it opens as "Not read yet" with Read it on this Mac, and its card says the
   same (`PendingStage` in `apps/workspace/src/app/item/item-stages.tsx`); a
   keystroke in it would race the fill that rewrites it. The fill's rename moves
-  the stub under the open window, and the session follows it by id (A RENAME
-  HOLDS THE OPEN NOTE THROUGH THE MOVE). Rejected: "Filling in…" on every stub
-  (it claimed a read no Mac would make).
+  the stub under the open window, and the session follows it by id (A MOVE THE
+  PAGE DID NOT MAKE IS FOLLOWED BY THE ITEM'S ID, in
+  `packages/editor/CLAUDE.md`). Rejected: "Filling in…" on every stub (it
+  claimed a read no Mac would make).
 
 ## Repo guards, vendoring and tooling
 

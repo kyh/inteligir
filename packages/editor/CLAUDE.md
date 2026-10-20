@@ -73,6 +73,8 @@ alone, and no walk narrows structurally.
   finished text, so a backslash before one's first character keeps it text
   (`\@2026-08-22`), and the serializer writes that escape before typed text the
   next parse would read as one, so what a person types stays text.
+  `packages/notes/src/markdown/text-escapes.ts`,
+  `packages/notes/src/markdown/remark-inline-constructs.ts`.
 
 - **THE DIALECT HAS NO JSX**: its blocks are one `:::` line grammar that nests
   in any flow container, a `:::` closing the innermost, and every tag is html,
@@ -141,15 +143,15 @@ alone, and no walk narrows structurally.
 
 - **GO TO HEADING IS THE PALETTE OVER THE TOC'S WALK, AND AN EXTRACT IS ONE
   HISTORY BATCH.** ⌘⇧O opens the palette on the outline and lands through the
-  TOC's jump (`packages/editor/src/toc.tsx`); the outline is walked when the
-  page opens, never in render, which nothing outside the Plate provider
-  refreshes. An extract creates its note exclusively before touching the buffer,
-  refuses blocks anchoring an annotation (its entry would stay behind), and
-  lands the removal and the `[[link]]` in one flush, so one undo restores both;
-  the created file stays, since the vault has no transaction, stamped `saved`
-  like every note the session seeds
-  (`packages/editor/src/note/vault-session.ts`). Rejected: create-or-reuse (an
-  existing file counts as success and the blocks are lost).
+  TOC's jump (`packages/editor/src/toc.tsx`); the outline is walked once, by
+  whatever opens the palette page, never in render: the workspace sits outside
+  the Plate provider, so nothing would refresh a render-time read. An extract
+  creates its note exclusively before touching the buffer, refuses blocks
+  anchoring an annotation (its entry would stay behind), and lands the removal
+  and the `[[link]]` in one flush, so one undo restores both; the created file
+  stays, since the vault has no transaction, stamped `saved` like every note the
+  session seeds (`packages/editor/src/note/vault-session.ts`). Rejected:
+  create-or-reuse (an existing file counts as success and the blocks are lost).
   `packages/editor/src/extract-note.ts`.
 
 - **A FORMULA RECOMPUTE IS NOT AN EDIT, AND A BOUND REF'S NOTE IS FOUND BY ID.**

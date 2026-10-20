@@ -1,5 +1,5 @@
-// CLAUDE.md § THE GRID'S SELECTION IS A STORE, A CLICK SELECTS AND A DOUBLE-CLICK OPENS. The
-// listing as cards: `count` is the listing's total and only the windows in view are loaded, so a
+// CLAUDE.md § THE GRID KEEPS ITS FOCUS AND ANCHOR BY THEIR PLACE IN THE LISTING. The listing as
+// cards: `count` is the listing's total and only the windows in view are loaded, so a
 // cell outside them draws a skeleton. The grid owns the gestures (the selection, the focus, the
 // keys of LIBRARY_SHORTCUTS' grid rows, the drag and the menu); what a verb does is the caller's.
 

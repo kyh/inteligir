@@ -29,7 +29,8 @@
     "test": "turbo run test --concurrency=${TEST_CONCURRENCY:-4}",
     "testflight:mobile": "pnpm --filter @repo/mobile testflight",
     "typecheck": "turbo run typecheck",
-    "verify": "turbo run typecheck lint knip format test build --continue=dependencies-successful --concurrency=${TEST_CONCURRENCY:-4}"
+    "verify": "turbo run typecheck lint knip format test build --continue=dependencies-successful --concurrency=${TEST_CONCURRENCY:-4}",
+    "verify:affected": "turbo run typecheck lint knip test build --affected --continue=dependencies-successful --concurrency=${TEST_CONCURRENCY:-4}"
   },
   "devDependencies": {
     "dotenv-cli": "^11.0.0",

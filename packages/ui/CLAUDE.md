@@ -28,13 +28,17 @@ nobody, and git keeps it. A single export beside a drawn component is a reasoned
   `inline-combobox.tsx`); a missing primitive lands there first, with a gallery
   demo. Selection-anchored surfaces take a virtual anchor
   (`annotations/annotation-kit.tsx`, `block-menu.tsx`), the find bar the top
-  bar's Find (`setFindBarAnchor`); the wiki-link preview is a HoverCard (Popover
-  has no hover); the ⌘K composer and Quick Look are `Dialog`s, the composer
-  non-modal, its `finalFocus` the editor
-  (`apps/workspace/src/app/actions/action-composer.tsx`). Not popups: the
-  selection toolbar (`packages/editor/src/selection-toolbar.tsx`), no
-  open/dismiss lifecycle; the drop layer and the selection strip (over the
-  grid's foot, so selecting moves no card), no anchor or dismissal.
+  bar's Find (`setFindBarAnchor` in `packages/editor/src/find-bar.tsx`); the
+  wiki-link preview is a HoverCard, since Popover has no hover
+  (`packages/editor/src/wiki/wiki-chip.tsx`); the ⌘K composer and Quick Look are
+  `Dialog`s, the composer non-modal, its `finalFocus` the editor
+  (`apps/workspace/src/app/actions/action-composer.tsx`,
+  `apps/workspace/src/app/library/quick-look.tsx`). The one exception is the
+  selection toolbar (`packages/editor/src/selection-toolbar.tsx`): with no
+  open/dismiss lifecycle, a Popover would still need its selection-driven `open`
+  and its `frozen` hold. Not popups: the drop layer and the selection strip
+  (over the grid's foot, so selecting moves no card), which have no anchor or
+  dismissal of their own.
 
 - **THE CHROME HAS FIVE TYPE ROLES, AND THEY ARE FLUID'S LADDER.** caption 11,
   body 12, subtitle 13, title 15, display 24: `typeScale`'s compact column

@@ -233,6 +233,8 @@ ships.
   the web's 16px rem (`p-4` is 16), the phone's sizes named by their px, each a
   size alone. Rejected: the 5.0 release candidate (it fixes 3.0.7's faults, but
   is not the template's pin before nativewind 5 is stable).
+  `pnpm-workspace.yaml` holds the pins; `apps/mobile/src/styles.css` is the
+  sheet.
 
 - **A PHONE LINE HEIGHT STAYS IN `style`, AND A MULTI-LINE FIELD IS PADDED
   `pt-*` AND `pb-*`.** react-native-css 3.0.7 resolves a line-height class to

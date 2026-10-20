@@ -120,13 +120,13 @@ and cited.
   bundle (lost once the app moves).
 
 - **NO MANIFEST IS WRITTEN FOR A LAUNCH WHOSE DATA DIR AN ENV PINS, OR FOR A
-  TRANSLOCATED APP.** A pinned data dir (a harness, the smoke's first launch)
-  is a server the browser's door, which finds one through the root, could not
-  find; the shell pins every child's vault and never its data dir, so a vault
-  pin is no reason to skip. A translocated app's node is gone once it quits.
-  The packaged smoke reads both browsers' manifests from the default vault's
-  launch, drives the launcher with frames, and finds no launcher after its
-  pinned first launch.
+  TRANSLOCATED APP.** A pinned data dir (a harness, the smoke's first launch) is
+  a server the browser's door, which finds one through the root, could not find;
+  the shell pins every child's vault and never its data dir, so a vault pin is
+  no reason to skip. A translocated app's node is gone once it quits. The
+  packaged smoke reads both browsers' manifests from the default vault's launch,
+  drives the launcher with frames, and finds no launcher after its pinned first
+  launch. `installsNativeHost` in `apps/cli/src/desktop/native-hosts.ts`.
 
 - **DIAGNOSTICS ARE `INTELIGIR_DEBUG`'S NAMED TRACES, SHIPPED IN EVERY BUILD,
   AND IN THE PACKAGED APP A SWITCH AND A FILE, BOTH THE SHELL'S.** The watcher,
@@ -185,8 +185,9 @@ and cited.
   but a Mac without Xcode or its command-line tools, which is most people's, has
   only `/usr/bin/git`'s stub, which fails and offers the install. So the pack
   carries a pinned, signed and notarized git, set on the env of every node child
-  the shell starts, though a dev or e2e launch keeps the host's. Never
-  `GIT_CONFIG_COUNT`: the hosted remote's bearer rides those rows per
+  the shell starts on such a Mac, or on one whose own git is too old (A MAC WITH
+  THE DEVELOPER TOOLS KEEPS ITS OWN GIT); a dev or e2e launch keeps the host's.
+  Never `GIT_CONFIG_COUNT`: the hosted remote's bearer rides those rows per
   invocation. `apps/cli/src/desktop/bundled-git.ts`; the smoke's first launch
   plays such a Mac and proves the host's git never ran.
 

@@ -5,17 +5,18 @@ says how a bullet is written and cited.
 
 ## Agents and threads
 
-- **THE PROVIDER GRAMMAR IS WHAT THE ACP MAPPER EMITS, AND THE MAPPER IS PINNED
-  TO THE ADAPTERS' REAL WIRE** (owner decision). `ProviderEvent` carries exactly
-  what `AcpTurnMapper` constructs, and the persisted `ThreadEvent` what the
-  mapper emits as the host narrows it, plus the host's own facts. So an update
-  no adapter sends (a plan) or one the timeline would only drop (a tool call
-  still running) maps to nothing, and the runtime's `onActivity` keeps the idle
-  watchdog hearing it. Rejected: a kind nothing produces (a branch every
-  consumer carries). `packages/agent-runtime/src/acp/acp-event-mapping.ts`.
+- **THE PROVIDER GRAMMAR IS WHAT THE ACP MAPPER EMITS** (owner decision).
+  `ProviderEvent` carries exactly what `AcpTurnMapper` constructs, and the
+  persisted `ThreadEvent` what the mapper emits as the host narrows it, plus the
+  host's own facts. So an update no adapter sends (a plan) or one the timeline
+  would only drop (a tool call still running) maps to nothing, and the runtime's
+  `onActivity` keeps the idle watchdog hearing it. Rejected: a kind nothing
+  produces (a branch every consumer carries).
+  `packages/agent-runtime/src/acp/acp-event-mapping.ts`.
 
-- **THE MAPPER IS TESTED AGAINST TURNS THE PINNED ADAPTERS REALLY SENT**
-  (`packages/agent-runtime/src/acp/test-support/fixtures/<adapter>@<version>/`).
+- **THE MAPPER IS TESTED AGAINST TURNS THE PINNED ADAPTERS REALLY SENT** (owner
+  decision), recorded under
+  `packages/agent-runtime/src/acp/test-support/fixtures/<adapter>@<version>/`.
   A failure no prompt causes on demand is staged by pointing codex at a local
   model endpoint answering as the API does (a scenario's `staged`), so the
   adapter and vendor binary are still the pinned ones. The adapter and SDK pins

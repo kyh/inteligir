@@ -28,7 +28,9 @@ Scenarios run in lanes: `--lanes <n>` of them at once, by default half this
 machine's cores and at most four, each started in registry order as a lane
 frees. With more than one lane a scenario's lines are held and printed whole
 when it ends, after a live `[name] started` line, so two lanes never
-interleave; `--lanes 1` streams each line as it happens. The summary lists
+interleave; `--lanes 1` streams each line as it happens. A run that dies first
+(a signal, a crash, a job's timeout) prints what each scenario still running
+had written, under an `[name] INTERRUPTED` line. The summary lists
 every scenario in registry order whatever finished first. A scenario that needs
 something only one may hold at a time names it in `exclusive` and never runs
 beside another holding it: today that is `desktop-shell`, the shell's window on
@@ -43,7 +45,9 @@ rewrite the output a running Worker serves its assets from.
 Every scenario runs under a deadline (`timeoutMs`, default 180s; a scenario
 that builds or boots a Worker, or the desktop shell, declares more). A run
 still going past it FAILS with its instances' output tails and is torn down,
-so a hang costs one scenario, not the whole job.
+so a hang costs one scenario, not the whole job. Time its build sat queued
+behind another lane's moves the deadline out by as much, since the budget is
+for the scenario's own build.
 
 Deliberately OUTSIDE `pnpm verify`: the package typechecks/lints/formats in
 the gate (it has a `typecheck` script and lives under the root oxlint/oxfmt

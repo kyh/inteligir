@@ -1,5 +1,5 @@
-// CLAUDE.md § THE RAIL CHOOSES THE LIBRARY'S SCOPE. The library's folders, directories alone, each
-// a scope a click shows. A row is a drop target three ways: cards dragged from the grid move
+// CLAUDE.md § A FOLDER SCOPE EXISTS. The library's folders, directories alone, each a scope a
+// click shows. A row is a drop target three ways: cards dragged from the grid move
 // there, a folder row dragged onto it moves under it, and files or links dragged in from outside
 // the window are saved into it. The drag store tells the window's own drags from the desktop's.
 

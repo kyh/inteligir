@@ -1,9 +1,9 @@
 // CLAUDE.md § THE LIBRARY IS HOME, AND AN ITEM IS SHOWN BY ITS KIND. An open item, full size: the
 // editor for a note, a saved page's source over its text, a viewer for a picture, a PDF, a video,
 // a sound or any other file, and the placeholder for a stub whose page is not read yet. A viewer
-// still opens its wrapper through the session, so History, ⌘K and Info bind to that path; "Edit
-// as note" swaps the viewer for the editor. Escape goes back to the library, from anywhere the
-// item view holds focus that is not text entry.
+// still opens its wrapper through the session (§ A VIEWER OPENS ITS DOC THROUGH THE SESSION), so
+// History, ⌘K and Info bind to that path; "Edit as note" swaps the viewer for the editor. Escape
+// goes back to the library, from anywhere the item view holds focus that is not text entry.
 
 import type { ItemRowWire } from "@repo/contract/local/items/items-schema";
 import type { LibraryScope } from "@repo/domain/library-scope";

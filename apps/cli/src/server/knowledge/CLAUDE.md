@@ -64,24 +64,15 @@ and cited.
   read once per pass from `LinkGraphIndex.takeTargetsChanged`).
   `apps/cli/src/server/knowledge/knowledge-runtime.ts`.
 
-- **THE PAGE REFETCHES `knowledge.wikiTargets` ONLY ON A TARGET CHANGE, AT MOST
-  ONCE PER 5 S**, outside the knowledge sweep a body edit or a listing change
-  makes, since that answer holds every doc and asset (about 7.5 MB at 50k items)
-  and a fill storm is one body change per item; a fill that gives a stub its
-  first heading marks once, and the throttle folds a storm of those. Rejected:
-  the knowledge-family sweep on every content change (it refetched every target
-  per keystroke and per fill). `apps/workspace/src/app/change-batch.ts`.
-
-- **A DOC WHOSE READ HAS NOT ANSWERED IN 2S IS DEFERRED, NOT AWAITED, AND EVERY
-  VAULT READ OPENS INSIDE THE VAULT SERVICE'S BUDGET.** One open on an evicted
-  placeholder, a sleeping disk or a network mount can block for minutes, and
-  every query settles the pass first, so the doc answers from its last entry and
-  its read lands in a later pass; the deadline runs from the call, so a read
-  still waiting for a slot is deferred too. Rejected: a foreground deadline
-  answering "unavailable" (it refuses a note on disk); re-reading every path
-  once its late read lands (it loops on always-slow storage). Residual: the
-  listing's walk has no deadline; a rename before a deferred doc lands misses a
-  link the doc gained offline.
+- **A DOC WHOSE READ HAS NOT ANSWERED IN 2S IS DEFERRED, NOT AWAITED.** One open
+  on an evicted placeholder, a sleeping disk or a network mount can block for
+  minutes, and every query settles the pass first, so the doc answers from its
+  last entry and its read lands in a later pass; the deadline runs from the
+  call, so a read still waiting for a slot (THE BUDGET IS 3 OPENS AT ONCE) is
+  deferred too. Rejected: a foreground deadline answering "unavailable" (it
+  refuses a note on disk); re-reading every path once its late read lands (it
+  loops on always-slow storage). Residual: the listing's walk has no deadline; a
+  rename before a deferred doc lands misses a link the doc gained offline.
   `apps/cli/src/server/knowledge/deferred-reads.ts`.
 
 - **A NEW PATH WHOSE READ IS OUT ANSWERS `pending`, NOT GONE.** It has no last

@@ -59,7 +59,8 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   markers takes the entry back out. A quote the text no longer holds goes under
   `## Highlights` once its fill is final. Rejected: an anchor of offsets beside
   the text (every edit moves it), a fuzzy match (two Macs would pick two
-  passages). `packages/notes/src/annotations/place-quotes.ts`.
+  passages). `packages/notes/src/annotations/place-quotes.ts`,
+  `apps/cli/src/server/annotations/annotations-service.ts`.
 
 - **A HIGHLIGHT'S MARKERS ARE ONLY SPLICED INTO THE BYTES**, so taking them out
   gives the input back and two Macs placing one quote write the same bytes; an
@@ -70,7 +71,8 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   `remove` with `stripMarkers` keeps another id on a shared pair. The window's
   Remove highlight asks for it whenever no open editor holds the item (a saved
   page shown as its copy); otherwise the editor takes the markers out under its
-  own save. `apps/workspace/src/app/actions/annotations-tab.tsx`.
+  own save. `apps/cli/src/server/annotations/annotations-service.ts`,
+  `apps/workspace/src/app/actions/annotations-tab.tsx`.
 
 - **A BYTE COPY IS RE-KEYED AND ITS STORE FORKED, never stripped of its id.**
   The store is copied under the new id first, then the copy's `id:` line moves
@@ -204,11 +206,6 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   the rename route (Finder, an agent's `mv` and a pull never reach it).
   `apps/cli/src/server/threads/thread-origins.ts`.
 
-- **THE COMPOSER MINTS THE OPEN NOTE'S ID THROUGH THE LIVE EDITOR**, since a
-  server mint under the buffer would make the revision name bytes no longer on
-  disk, and outside the undo history, since an undo would unbind the action just
-  sent. `apps/workspace/src/app/note/open-note-id.ts`.
-
 - **THE THREAD LIST IS A KEYSET PAGE, AND A QUESTION A PAGE CANNOT ANSWER IS
   ASKED OF THE SERVER.** A page is a run of threads after an opaque cursor, live
   before archived and newest first. What must be whole is its own query: the
@@ -280,7 +277,7 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
 
 - **A SIGN-IN MOVES THE DEFAULT AGENT ONLY OFF ONE A NEW THREAD COULD NOT RUN
   ON**, so a second sign-in never moves the user off the agent they use.
-  `apps/cli/src/server/agents/agent-sign-in.ts`.
+  `adoptDefault` in `apps/cli/src/server/agents/agents-service.ts`.
 
 - **A SIGNED-OUT AGENT'S SIGN-IN STANDS WHERE THE FIELD WOULD BE, AND IS ONE
   SURFACE.** A signed-out default agent puts the sign-in in ⌘K's place, keeping

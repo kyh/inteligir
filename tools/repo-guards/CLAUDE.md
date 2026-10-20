@@ -179,11 +179,12 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 
 - **THE E2E RUNS IN LANES, AND A SCENARIO NAMES WHAT ONLY ONE MAY HOLD.**
   `pnpm e2e` runs one scenario per two of the machine's cores at once, at most
-  four, each started in registry order as a lane frees and its log printed
-  whole when it ends; `--lanes 1` runs them one after another, streaming. A
+  four, each started in registry order as a lane frees and its log printed whole
+  when it ends; `--lanes 1` runs them one after another, streaming. A
   scenario's `exclusive` names a resource it cannot share (today
   `desktop-shell`: the run's one display and WebKit's WebDriver), and no two
   scenarios holding one overlap. Ports, scratch dirs and browser sessions are
   each lane's own, and the Worker and the phone's editor page are built once
-  per run. Rejected: one serial run (835 s against about 490 s on four cores).
-  `tools/e2e/src/run.ts`.
+  per run, a build's wait behind another lane's not counted against its
+  scenario's deadline. Rejected: one serial run (835 s against about 490 s on
+  four cores). `tools/e2e/src/run.ts`.
