@@ -24,8 +24,8 @@ const selectionSchema = z.strictObject({
   vaultDir: z.string(),
 });
 
-// no server: the leaf never dials one, and a dial would be the bug
-const NO_SERVER = "http://127.0.0.1:1";
+// no server: the leaf never resolves one, and resolving one would be the bug
+const NO_SERVER = null;
 
 // realpathed: a selection stores the folder's physical spelling, and tmpdir sits under a symlink on macOS
 const scratch = () => {

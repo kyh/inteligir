@@ -1,5 +1,5 @@
-// against the real composition, not the fixture server: the title is the server's to derive, and
-// the fixture would only echo whatever the test told it.
+// the title is the server's to derive from the first message, so the CLI's request is read back
+// from what the real composition made of it.
 
 import { describe, expect, it } from "vitest";
 import {

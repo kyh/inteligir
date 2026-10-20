@@ -1,4 +1,8 @@
-import type { ProviderFailure, ThreadEventTurnStatus } from "@repo/domain/provider-event";
+import type {
+  ProviderFailure,
+  ThreadEvent,
+  ThreadEventTurnStatus,
+} from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
 import { agentMessageEvents } from "../agents/agent-message-events";
 import type {
@@ -67,6 +71,12 @@ export class FakeTurnDriver implements TurnDriver {
       this.completeTurn(threadId, running.turnId, "interrupted");
     }
     return "settling";
+  }
+
+  // what a provider reports while its turn runs (an item it started or finished, a message it
+  // streamed), ingested as the runtime ingests it
+  report(threadId: string, events: readonly ThreadEvent[]): void {
+    this.sink.ingestProviderEvents(threadId, events);
   }
 
   completeTurn(threadId: string, turnId: string, status: ThreadEventTurnStatus): void {

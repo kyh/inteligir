@@ -13,7 +13,7 @@ import { HARNESS_IDS } from "@repo/domain/harness";
 import type { HarnessId } from "@repo/domain/harness";
 import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
 import type { VendorAccount } from "@repo/agent-runtime/acp/harness-registry";
-import { onTestFinished } from "vitest";
+import { afterAll, beforeAll, onTestFinished } from "vitest";
 import { createApp } from "../app";
 import type { CloudTransport } from "../cloud/sync-runtime";
 import type { VaultRemoteProvider } from "../cloud/vault-remote";
@@ -45,12 +45,16 @@ import { boundAddressSchema } from "./bound-address";
 import { FakeTurnDriver } from "./fake-turn-driver";
 import type { FakeTurnDriverOptions } from "./fake-turn-driver";
 import { makeTempDir } from "./temp-dir";
+import type { TempDirOptions } from "./temp-dir";
 
 export { makeTempDir, TEMP_DIR_FOLDS_CASE } from "./temp-dir";
 export { AGENT_COMMIT_AUTHOR, agentCommitMessage } from "../vault/turn-trailers";
 export { FAKE_ACCOUNT, FakeCloud } from "../cloud/test-support/fake-cloud";
 
 export const TEST_SERVER_TOKEN = "test-server-token";
+
+// the release a booted app answers as, which a CLI resolving it through server.json must share
+export const TEST_SERVER_VERSION = "0.1.0-test";
 
 // an in-process Request carries no Host until one is set, and the host guard refuses one naming none.
 export const TEST_HOST = "127.0.0.1:4664";
@@ -146,6 +150,49 @@ export const fakeAgentAccounts = (
 // what a booted app calls itself before a sign-in names it, so no suite reads the host's own name.
 export const TEST_MACHINE_NAME = "Test Mac";
 
+// what releases a boot's handles once its cases are done: absent, the end of the test that booted
+// it; a describe that shares one boot across its cases hands in its own (`shareBoot`).
+export type Teardown = (step: () => Promise<void>) => void;
+
+const atTestEnd: Teardown = (step) => {
+  onTestFinished(step);
+};
+
+// a boot's own teardown and its dir's lifetime: a shared boot's dir outlives the case that made
+// it, and goes with the file's last one
+const lifetimeOf = (
+  teardown: Teardown | undefined,
+): { teardown: Teardown; dirs: TempDirOptions } =>
+  teardown === undefined
+    ? { dirs: {}, teardown: atTestEnd }
+    : { dirs: { lifetime: "suite" }, teardown };
+
+// one boot for every case of the describe that calls it, made before the first and released after
+// the last, each step in the reverse of the order it was registered; read it inside a case. The
+// release is an afterAll registered after makeTempDir's, so it runs before the suite's dirs go.
+export const shareBoot = <T>(boot: (teardown: Teardown) => Promise<T>): (() => T) => {
+  let held: { value: T } | null = null;
+  const steps: (() => Promise<void>)[] = [];
+  beforeAll(async () => {
+    held = {
+      value: await boot((step) => {
+        steps.push(step);
+      }),
+    };
+  });
+  afterAll(async () => {
+    for (const step of steps.splice(0).toReversed()) {
+      await step();
+    }
+  });
+  return () => {
+    if (held === null) {
+      throw new Error("a shared boot is read inside a case, after its beforeAll ran");
+    }
+    return held.value;
+  };
+};
+
 export interface BootTestAppOptions {
   agent?: AgentStatus;
   // absent, every harness answers signed in.
@@ -179,6 +226,7 @@ export interface BootTestAppOptions {
   // the thumb route's downscale; absent, the one compose built for this host, which on a Mac is
   // the system's own tool.
   downscale?: ImageDownscale;
+  teardown?: Teardown;
   makeDriver?: (deps: {
     db: DbConnection;
     bus: WsBus;
@@ -208,6 +256,8 @@ export interface BootedTestApp {
   vault: VaultRuntime;
   vaultDir: string;
   dataDir: string;
+  // the boot's own lifetime, which its listener shares
+  teardown: Teardown;
 }
 
 // what a booted instance hands a vendor it runs: the host's env, but the vendor's stores (and the
@@ -225,7 +275,8 @@ export const instanceVendorEnv = (instanceDir: string): NodeJS.ProcessEnv => {
 };
 
 export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<BootedTestApp> => {
-  const instanceDir = makeTempDir("inteligir-app-test-");
+  const lifetime = lifetimeOf(options.teardown);
+  const instanceDir = makeTempDir("inteligir-app-test-", lifetime.dirs);
   const dataDir = path.join(instanceDir, "data");
   const vaultDir = path.join(instanceDir, options.vaultPath ?? "vault");
   if (options.seedsStarters !== true) {
@@ -277,7 +328,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
 
   // registered before composing: a compose that throws part-way has a database open, and the steps already on the array release it.
   const teardown: ShutdownStep[] = [];
-  onTestFinished(async () => {
+  lifetime.teardown(async () => {
     for (const step of teardown) {
       await step.run();
     }
@@ -302,7 +353,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     ports,
     servesUi: options.clientDir !== undefined || options.uiDevOrigin !== undefined,
     teardown,
-    version: "0.1.0-test",
+    version: TEST_SERVER_VERSION,
   };
   if (options.cloudTransport !== undefined) {
     composeArgs.cloudTransport = options.cloudTransport;
@@ -348,6 +399,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     dataDir,
     db: runtime.db,
     request,
+    teardown: lifetime.teardown,
     vault: runtime.context.vault,
     vaultDir,
   };
@@ -381,10 +433,30 @@ export interface ListeningTestApp {
   client: RouterClient<LocalRouter>;
 }
 
-export const listenTestApp = async (booted: BootedTestApp): Promise<ListeningTestApp> => {
-  const server = serve({ fetch: booted.composed.app.fetch, hostname: LOOPBACK_HOST, port: 0 });
+export interface ListenTestAppOptions {
+  // stands between the socket and the app, handed each request and the app's own answer to it,
+  // so a suite can act around an answer (another writer landing bytes just after a read) or
+  // answer in the app's place.
+  around?: (request: Request, answer: (request: Request) => Promise<Response>) => Promise<Response>;
+}
+
+export const listenTestApp = async (
+  booted: BootedTestApp,
+  options: ListenTestAppOptions = {},
+): Promise<ListeningTestApp> => {
+  const { app } = booted.composed;
+  const { around } = options;
+  const server = serve({
+    fetch:
+      around === undefined
+        ? app.fetch
+        : async (request, env) =>
+            await around(request, async (passed) => await app.fetch(passed, env)),
+    hostname: LOOPBACK_HOST,
+    port: 0,
+  });
   booted.composed.injectWebSocket(server);
-  onTestFinished(async () => {
+  booted.teardown(async () => {
     // a suite that is about the listener's teardown closes it itself.
     if (!server.listening) {
       return;

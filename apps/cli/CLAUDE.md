@@ -258,3 +258,13 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   suffix, and node's network and process modules among what the worker's
   bundle imports (`FILL_WORKER_REFUSED_BUILTINS`), since node's own modules
   stay external and a package's import of one names no input.
+
+- **A VERB'S SUITE DRIVES THE REAL SERVER.** Every CLI suite boots the
+  composition in-process and runs the program against it over loopback with its
+  bearer, `apps/cli/src/test-support/booted-cli.ts` resolving it from the data
+  dir's `server.json` as the binary does, and seeds what a case reads through
+  the server's own services. The one state no server reaches, every route
+  refusing at once, is the real router's handler refusing before any procedure
+  runs (`apps/cli/src/json-flag-enforcement.test.ts`). Rejected: a fixture
+  server implementing `/local` a second time, which passed a verb against
+  answers the real one never gave and moved with every contract change.

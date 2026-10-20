@@ -3,8 +3,9 @@ import { vi } from "vitest";
 import { CliExitError } from "../cli-error";
 import type { CliDeps } from "../context";
 import type { OpenExternalUrl } from "../server/browser-opener";
-import { FIXTURE_SERVER_TOKEN } from "./fixture-server";
 import { runCli } from "../program";
+import { resolveServer } from "../server-discovery";
+import { DATA_DIR_ENV_VAR } from "../server/config";
 
 // consola colours its decoration only on a TTY, so the same command emits different bytes under a terminal and a pipe.
 // built rather than a literal: an escape byte in a regex literal trips no-control-regex and is invisible in a diff.
@@ -16,18 +17,25 @@ export interface CliRunResult {
   stderr: string;
 }
 
-export interface RunArgs {
-  argv: string[];
-  // null is a data dir with no server.json: resolving the server throws before anything is dialed.
-  baseUrl: string | null;
+// where a leaf finds its server. `dataDir` is the binary's own way: that data dir's server.json,
+// read and judged as every verb reads it, naming the port and the bearer, and refused unless its
+// version is `cliVersion`. `baseUrl` null is a data dir with no server.json, so resolving it
+// throws before anything is dialed; a string is a booted server's address with its bearer.
+type RunTarget =
+  | { dataDir: string; cliVersion: string }
+  | { baseUrl: null }
+  | { baseUrl: string; token: string };
+
+// what a run hands the leaf beside its argv
+export interface RunOptions {
   env?: Record<string, string>;
   homeDir?: string;
   openExternalUrl?: OpenExternalUrl;
   // "terminal" is an interactive stdin that carries nothing.
   stdin?: Uint8Array | "terminal";
-  // a booted server's own bearer, for a run against the real composition rather than the fixture.
-  token?: string;
 }
+
+export type RunArgs = RunTarget & RunOptions & { argv: string[] };
 
 const fakeStdin = (stdin: Uint8Array | "terminal"): Readable =>
   stdin === "terminal"
@@ -35,22 +43,30 @@ const fakeStdin = (stdin: Uint8Array | "terminal"): Readable =>
     : Readable.from([Buffer.from(stdin)]);
 
 export const runCliForTest = async (args: RunArgs): Promise<CliRunResult> => {
-  const { baseUrl } = args;
+  const target: RunTarget = args;
   const deps: CliDeps = {
     env: { ...args.env },
     homeDir: args.homeDir,
     openExternalUrl: args.openExternalUrl ?? (async () => false),
     resolveServer: () => {
-      if (baseUrl === null) {
-        throw new CliExitError("No inteligir server is running (fixture)", {
+      if ("dataDir" in target) {
+        // the env pins the data dir, so the checkout derives nothing here
+        return resolveServer({
+          checkoutPath: target.dataDir,
+          cliVersion: target.cliVersion,
+          env: { [DATA_DIR_ENV_VAR]: target.dataDir },
+        });
+      }
+      if (target.baseUrl === null) {
+        throw new CliExitError("No inteligir server is running (test)", {
           code: "SERVER_UNREACHABLE",
         });
       }
       return {
-        baseUrl,
-        dataDir: "/fixture/data",
-        token: args.token ?? FIXTURE_SERVER_TOKEN,
-        vaultDir: "/fixture/vault",
+        baseUrl: target.baseUrl,
+        dataDir: "/test/data",
+        token: target.token,
+        vaultDir: "/test/vault",
       };
     },
   };

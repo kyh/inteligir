@@ -256,20 +256,23 @@ answers with ERR_MODULE_NOT_FOUND is the failure this closes.
 
 ## Tests
 
-Unit suites run the real program object against an in-process server built from
-the SAME contract (so the fixture cannot drift) — output goldens, `action wait`
-exit codes, discovery resolution. Where the fixture answers from a rule, it runs
-the server's own: the knowledge index over its vault, and the guarded write's
-verdict (`src/server/vault/write-guard.ts`). The server's own suites sit beside
+Unit suites run the real program object against the real composition, booted
+in-process and listening on loopback (`src/test-support/booted-cli.ts`): each
+verb finds the server through the `server.json` in its data dir and sends its
+bearer, as the binary does, and what a case reads back the server produced from
+state the case put there through its own services — output goldens, `action
+wait` exit codes, a guarded write's refusal. The one thing no real state gives,
+every route refusing at once, is the real router's own handler refusing before
+any procedure runs (`json-flag-enforcement.test.ts`). There is no second
+implementation of `/local` to drift from it. The server's own suites sit beside
 the modules they test under `src/server/`; the cloud ones run against a fake
 cloud that answers the inbox table the Worker's suite runs
-(`@repo/contract/cloud/test-support/inbox-scenarios`). The workspace UI's
-suites that boot this server in-process sit under `src/workspace/`, in the
-package that holds the harness they use (`src/server/test-support/boot-app.ts`),
-so the page never depends on this package: the `.booted.test.tsx` ones render
-the page under jsdom, the rest drive its modules with nothing rendered and fail
-a test that logs a `console.error`, as the page's own suites do
-(`vitest.config.ts`, a project each), and `src/workspace/tsconfig.json`
-compiles them with the DOM.
-The real-server integration lives in `e2e` (`cli-drive`): the CLI drives a
-booted instance under the scripted agent.
+(`@repo/contract/cloud/test-support/inbox-scenarios`). The workspace UI's suites
+that boot this server in-process sit under `src/workspace/`, in the package that
+holds the harness they use (`src/server/test-support/boot-app.ts`), so the page
+never depends on this package: the `.booted.test.tsx` ones render the page under
+jsdom, the rest drive its modules with nothing rendered and fail a test that
+logs a `console.error`, as the page's own suites do (`vitest.config.ts`, a
+project each), and `src/workspace/tsconfig.json` compiles them with the DOM.
+The binary as a process of its own lives in `e2e` (`cli-drive`): it drives a
+served instance under the scripted agent.
