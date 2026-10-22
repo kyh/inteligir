@@ -73,7 +73,7 @@ export const DISPATCH_FAILED = {
   message: "The agent runtime refused the turn",
 } as const;
 
-// the status map is checked exhaustive against this: a code with no entry would default to 500 silently
+// the status map is checked exhaustive against this: a code with no entry would default to 400 silently
 const LOCAL_ERRORS = {
   ALREADY_EXISTS,
   ALREADY_RESOLVED,

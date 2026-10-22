@@ -6,10 +6,10 @@ packages:
 catalog:
   "@base-ui/react": ^1.9.0
   # exact: the v2 beta breaks between patches; the four must resolve to one build
-  "@orpc/client": 2.0.0-beta.42
-  "@orpc/contract": 2.0.0-beta.42
-  "@orpc/server": 2.0.0-beta.42
-  "@orpc/tanstack-query": 2.0.0-beta.42
+  "@orpc/client": 2.0.0-beta.45
+  "@orpc/contract": 2.0.0-beta.45
+  "@orpc/server": 2.0.0-beta.45
+  "@orpc/tanstack-query": 2.0.0-beta.45
   # exact: the adapters are spawned as child processes and the sdk speaks to them, so the wire is
   # only verified against one set; a bump re-records packages/agent-runtime's adapter transcripts
   "@agentclientprotocol/claude-agent-acp": 0.81.0
@@ -134,6 +134,14 @@ minimumReleaseAgeExclude:
   - "@tanstack/start-plugin-core@1.171.52"
   - "@tanstack/start-server-core@1.169.42"
   - "@tanstack/start-storage-context@1.167.39"
+  # oRPC 2.0.0-beta.45, published inside the cooldown; drop these the same way.
+  - "@orpc/client@2.0.0-beta.45"
+  - "@orpc/contract@2.0.0-beta.45"
+  - "@orpc/json-schema@2.0.0-beta.45"
+  - "@orpc/openapi@2.0.0-beta.45"
+  - "@orpc/server@2.0.0-beta.45"
+  - "@orpc/shared@2.0.0-beta.45"
+  - "@orpc/tanstack-query@2.0.0-beta.45"
 
 blockExoticSubdeps: true
 
