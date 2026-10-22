@@ -1,3 +1,4 @@
+import { ORPCError, ResponseError } from "@orpc/client";
 import { describe, expect, it } from "vitest";
 import { CliExitError, getErrorMessage, isUnreachable } from "../cli-error";
 
@@ -31,6 +32,14 @@ describe("getErrorMessage", () => {
       cause: new AggregateError([errnoError("ECONNREFUSED")], ""),
     });
     expect(getErrorMessage(failure)).toBe("fetch failed: connect ECONNREFUSED 127.0.0.1:4664");
+  });
+
+  it("reads a server refusal as the server's words, not the response it came in", () => {
+    const refusal = new ORPCError("CONFLICT", {
+      cause: new ResponseError({ response: { body: {}, headers: {}, status: 409 } }),
+      message: "Restored notes/gone.md, but not its comments",
+    });
+    expect(getErrorMessage(refusal)).toBe("Restored notes/gone.md, but not its comments");
   });
 
   it("spells a thrown non-Error as itself", () => {
