@@ -3,7 +3,7 @@
 // the error CLASSES are this CLI's own and are documented in the served
 // guide (cli-skill.ts).
 
-import { ORPCError } from "@orpc/client";
+import { ORPCError, ResponseError } from "@orpc/client";
 import { z } from "zod";
 
 export const EXIT_ERROR = 1;
@@ -78,7 +78,11 @@ const errorChain = (root: Error): Error[] => {
     seen.add(current);
     chain.push(current);
     const children: Error[] = [];
-    if (current.cause instanceof Error) {
+    // a server refusal carries the HTTP response it came in as its cause, which says only "Received a 409 response."
+    if (
+      current.cause instanceof Error &&
+      !(isOrpcError(current) && current.cause instanceof ResponseError)
+    ) {
       children.push(current.cause);
     }
     if (current instanceof AggregateError) {
