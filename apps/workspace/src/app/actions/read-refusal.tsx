@@ -3,7 +3,7 @@ import { refusalMessage } from "../api";
 export const ReadRefusal = ({ lead, error }: { lead: string; error: unknown }) => {
   const detail = refusalMessage(error, "");
   return (
-    <div className="p-3 text-subtitle">
+    <div className="p-3 text-subtitle select-text">
       <p className="text-destructive">{lead}</p>
       {detail === "" ? null : (
         <p className="mt-1 text-body break-words text-muted-foreground">{detail}</p>
