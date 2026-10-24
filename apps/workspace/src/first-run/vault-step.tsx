@@ -192,7 +192,7 @@ export const VaultStep = ({ proposal }: VaultStepProps) => {
             </p>
           ) : (
             <div className="space-y-2">
-              <p className="truncate text-body" title={picked.path}>
+              <p className="truncate text-body select-text" title={picked.path}>
                 {picked.path}
               </p>
               <FolderFactsView facts={picked.facts} />

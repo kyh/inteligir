@@ -204,6 +204,15 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   that may break freely. Labels and layout stay out of the rows, because
   Settings is laid out by hand. A keyed storage read outside the table fails
   `tools/repo-guards/src/page-prefs.test.ts`.
+- **THE WINDOW'S TEXT IS NOT SELECTABLE UNLESS SOMEONE WOULD COPY IT.** `body`
+  is `user-select: none`, fields and the editor's editing hosts are `text`, and
+  everything else a user would copy (the thread, a comment, an old version, a
+  path, an error, Settings › Advanced's raw state) opts in with `select-text`
+  (`apps/workspace/src/styles/globals.css`). Selectable by default with
+  `select-none` on the chrome was rejected: the chrome is most of the window,
+  and every new button, label and row would have to remember it, where the
+  opt-in is only ever owed by text that is the point of its surface. A
+  read-only editor renders `contenteditable="false"`, so it opts in too.
 
 ## Repo guards, vendoring and tooling
 
