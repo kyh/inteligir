@@ -54,5 +54,12 @@
     "eas-cli": "catalog:",
     "typescript": "catalog:expo",
     "vitest": "catalog:"
+  },
+  "expo": {
+    "install": {
+      "exclude": [
+        "@types/react"
+      ]
+    }
   }
 }
