@@ -128,6 +128,14 @@ the dispatch inbox, the hosted vault git remote — over a local D1 file and
 miniflare's Durable Objects. Sign-up is invite-only and there is no seeded account — `AGENTS.md`
 § "There is no seeded login" has the exact commands.
 
+The site's share media under `apps/web/public/og/` are captured, never drawn:
+`pnpm package:cli && pnpm --filter @repo/web og:video` boots the built server
+on a scratch vault with `INTELIGIR_AGENT=scripted`, records the real workspace
+while a note is rewritten under it (`og.mp4`, `og-poster.jpg`), and renders a
+1200x630 card per page in `apps/web/src/lib/page-meta.ts`
+(`apps/web/scripts/og-video.ts`). It needs ffmpeg on PATH and Playwright's
+Chromium, and sits outside `pnpm verify` and the build.
+
 ## Where state lives
 
 | What                                              | Where                                                                              |

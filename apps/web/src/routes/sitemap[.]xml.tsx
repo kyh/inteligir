@@ -1,15 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { siteConfig } from "@/lib/site-config";
+import { statedDate } from "@/lib/page-meta";
 import { SITEMAP_PATHS } from "@/lib/site-content";
+import { buildSitemap } from "@/lib/sitemap";
 
-const body = [
-  '<?xml version="1.0" encoding="UTF-8"?>',
-  '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-  ...SITEMAP_PATHS.map((path) => `  <url><loc>${siteConfig.url}${path}</loc></url>`),
-  "</urlset>",
-  "",
-].join("\n");
+import privacy from "../../../../docs/privacy.md?raw";
+import terms from "../../../../docs/terms.md?raw";
+
+// the legal docs state their own effective date; the other pages state none, so they carry no
+// lastmod rather than a guessed one
+const STATED: Partial<Record<(typeof SITEMAP_PATHS)[number], string | null>> = {
+  "/privacy": statedDate(privacy),
+  "/terms": statedDate(terms),
+};
+
+const body = buildSitemap(SITEMAP_PATHS.map((path) => ({ lastModified: STATED[path], path })));
 
 export const Route = createFileRoute("/sitemap.xml")({
   server: {

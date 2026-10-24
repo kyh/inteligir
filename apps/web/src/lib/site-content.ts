@@ -1,3 +1,4 @@
+import { PAGES } from "@/lib/page-meta";
 import { siteConfig } from "@/lib/site-config";
 
 // each page's markdown is its one source: the route renders it as HTML and answers it as-is to an
@@ -135,4 +136,10 @@ Nothing is served at \`${path}\` on ${url}.
 - [Sitemap](${url}/sitemap.xml): every page on this site
 `;
 
-export const SITEMAP_PATHS = ["/", "/about", "/contact", "/privacy", "/terms"] as const;
+export const SITEMAP_PATHS = [
+  PAGES.home,
+  PAGES.about,
+  PAGES.contact,
+  PAGES.privacy,
+  PAGES.terms,
+].map((page) => page.path);
