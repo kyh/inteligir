@@ -11,7 +11,7 @@ export const RenderCrash = ({ error, reset }: ErrorComponentProps) => (
       <p className="text-subtitle text-muted-foreground">
         Your notes are files on disk and the local server is still running — nothing was lost.
       </p>
-      <pre className="max-h-48 overflow-auto rounded border border-border bg-muted/40 p-3 font-mono text-body whitespace-pre-wrap">
+      <pre className="max-h-48 overflow-auto rounded border border-border bg-muted/40 p-3 font-mono text-body whitespace-pre-wrap select-text">
         {error instanceof Error ? (error.stack ?? error.message) : String(error)}
       </pre>
       <div className="flex gap-2">
