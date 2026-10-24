@@ -68,13 +68,14 @@ export const PAGES = {
   },
 } as const satisfies Record<string, PageMeta>;
 
-// the home page's captured clip (scripts/og-video.ts): the real workspace, a note edited live
+// the home page's clip (scripts/og-video.ts records scripts/og-video/scene.html): the user asks
+// the agent beside a rough note, and the agent's edits stream into it
 export const HOME_VIDEO = {
   description:
-    "An Inteligir note being rewritten live: rough meeting notes become an agenda with action items, in the same editor you write in.",
-  duration: "PT9S",
+    "In Inteligir, you ask the agent to turn rough meeting notes into an agenda, and its edits land in your note line by line, each one marked as it arrives.",
+  duration: "PT9.6S",
   height: 630,
-  name: "An agent edits a note in Inteligir",
+  name: "An agent edits a note with you in Inteligir",
   path: "/og/og.mp4",
   poster: "/og/og-poster.jpg",
   uploadDate: "2026-10-24",
