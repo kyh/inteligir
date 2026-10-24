@@ -10,6 +10,7 @@ import type { ErrorComponentProps } from "@tanstack/react-router";
 import { noFlashThemeScript } from "@repo/ui/lib/theme";
 
 import { varyHeaders } from "@/lib/markdown-route";
+import { PAGES } from "@/lib/page-meta";
 import { siteConfig } from "@/lib/site-config";
 import { serializeJsonLd, siteGraph } from "@/lib/structured-data";
 import { SiteProviders } from "@/components/site-providers";
@@ -97,14 +98,14 @@ export const Route = createRootRoute({
       { property: "og:image", content: `${siteConfig.url}/og.jpg` },
       { property: "og:image:width", content: "1920" },
       { property: "og:image:height", content: "1080" },
+      { property: "og:image:alt", content: PAGES.home.image.alt },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:creator", content: siteConfig.twitter },
       { name: "twitter:title", content: siteConfig.name },
       { name: "twitter:description", content: siteConfig.description },
       { name: "twitter:image", content: `${siteConfig.url}/og.jpg` },
-      { name: "twitter:image:width", content: "1920" },
-      { name: "twitter:image:height", content: "1080" },
+      { name: "twitter:image:alt", content: PAGES.home.image.alt },
     ],
     links: [
       { rel: "stylesheet", href: appCss },

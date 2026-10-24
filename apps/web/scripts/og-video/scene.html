@@ -1,0 +1,420 @@
+<!doctype html>
+<!--
+  The og:video scene: a simplified Inteligir window, drawn from the app's own type (Inter), dark
+  tokens and mark, telling one moment. The user asks the agent beside a rough note, the agent's
+  edits stream into that note, each changed line lit, then the mark. Never shipped: the site does
+  not route it. scripts/og-video.ts serves it from a scratch folder with inter.woff2 and
+  favicon.svg beside it, and steps it with seek(seconds), one screenshot a frame.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Inteligir scene</title>
+    <style>
+      @font-face {
+        font-family: Inter;
+        src: url("inter.woff2") format("woff2");
+        font-weight: 100 900;
+      }
+      :root {
+        /* @repo/ui's .dark tokens */
+        --bg: #0f0f0f;
+        --surface-1: #171717;
+        --surface-2: #1e1e1e;
+        --surface-3: #252525;
+        --ink: oklch(0.985 0 0);
+        --ink-2: oklch(0.708 0 0);
+        --ink-3: oklch(0.52 0 0);
+        --line: oklch(1 0 0 / 10%);
+        --success: oklch(0.765 0.177 163.2);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        background: var(--bg);
+        font-family: Inter, sans-serif;
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+      .stage {
+        position: absolute;
+        inset: 0;
+      }
+      .window {
+        position: absolute;
+        inset: 22px;
+        display: flex;
+        gap: 12px;
+        transform-origin: 50% 50%;
+      }
+      .sidebar {
+        width: 196px;
+        background: var(--surface-1);
+        border-radius: 16px;
+        box-shadow: inset 0 0 0 1px var(--line);
+        padding: 20px 14px;
+      }
+      .vault {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+        font-size: 19px;
+        margin: 0 6px 26px;
+      }
+      .vault img {
+        width: 26px;
+        height: 26px;
+        border-radius: 7px;
+      }
+      .file {
+        font-size: 17px;
+        color: var(--ink-2);
+        padding: 9px 10px;
+        border-radius: 9px;
+        margin-bottom: 2px;
+      }
+      .file.active {
+        background: var(--surface-3);
+        color: var(--ink);
+      }
+      .note {
+        flex: 1;
+        padding: 34px 44px;
+        position: relative;
+      }
+      .note h1 {
+        font-size: 38px;
+        letter-spacing: -0.025em;
+        font-weight: 650;
+        margin: 0 0 22px;
+      }
+      .lines {
+        position: relative;
+      }
+      .line {
+        position: absolute;
+        left: -10px;
+        right: 0;
+        padding: 3px 10px;
+        border-radius: 8px;
+        font-size: 21px;
+        line-height: 30px;
+        white-space: nowrap;
+      }
+      .line.h {
+        font-size: 24px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+      }
+      .line.rough {
+        color: var(--ink-2);
+      }
+      .line b {
+        font-weight: 650;
+      }
+      .bullet::before {
+        content: "";
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--ink-3);
+        margin: 0 14px 4px 4px;
+      }
+      .task::before {
+        content: "";
+        display: inline-block;
+        width: 15px;
+        height: 15px;
+        border-radius: 4px;
+        box-shadow: inset 0 0 0 1.5px var(--ink-3);
+        margin: 0 12px -1px 0;
+      }
+      .panel {
+        width: 340px;
+        background: var(--surface-1);
+        border-radius: 16px;
+        box-shadow: inset 0 0 0 1px var(--line);
+        padding: 20px 18px;
+        position: relative;
+      }
+      .panel-title {
+        font-size: 17px;
+        font-weight: 600;
+        color: var(--ink-2);
+        margin: 0 4px 22px;
+      }
+      .ask {
+        margin-left: auto;
+        width: fit-content;
+        max-width: 280px;
+        background: var(--surface-3);
+        border-radius: 18px 18px 6px 18px;
+        padding: 12px 16px;
+        font-size: 19px;
+        line-height: 26px;
+      }
+      .from {
+        text-align: right;
+        font-size: 14px;
+        color: var(--ink-3);
+        margin: 8px 4px 0;
+      }
+      .status {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 26px 4px 0;
+        font-size: 18px;
+        color: var(--ink-2);
+      }
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--success);
+      }
+      .done {
+        margin: 14px 4px 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: var(--surface-2);
+        box-shadow: inset 0 0 0 1px var(--line);
+        border-radius: 12px;
+        padding: 12px 14px;
+        font-size: 17px;
+      }
+      .done span:last-child {
+        color: var(--ink-2);
+      }
+      .composer {
+        position: absolute;
+        left: 18px;
+        right: 18px;
+        bottom: 18px;
+        background: var(--surface-2);
+        box-shadow: inset 0 0 0 1px var(--line);
+        border-radius: 14px;
+        padding: 15px 16px;
+        font-size: 18px;
+        min-height: 54px;
+      }
+      .composer .placeholder {
+        color: var(--ink-3);
+      }
+      .caret {
+        display: inline-block;
+        width: 2px;
+        height: 21px;
+        background: var(--ink);
+        margin-left: 1px;
+        vertical-align: -4px;
+      }
+      .end {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+      }
+      .end img {
+        width: 120px;
+        height: 120px;
+        border-radius: 28px;
+        box-shadow: inset 0 0 0 1px var(--line);
+      }
+      .end .word {
+        font-size: 64px;
+        font-weight: 650;
+        letter-spacing: -0.03em;
+      }
+      .end .tag {
+        font-size: 28px;
+        color: var(--ink-2);
+        margin-top: -10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div class="window" id="window">
+        <aside class="sidebar">
+          <div class="vault"><img src="favicon.svg" alt="" />Notes</div>
+          <div class="file">Meetings</div>
+          <div class="file active">Offsite planning</div>
+          <div class="file">Q4 goals</div>
+          <div class="file">Reading list</div>
+        </aside>
+        <main class="note">
+          <h1>Offsite planning</h1>
+          <div class="lines" id="lines"></div>
+        </main>
+        <aside class="panel">
+          <div class="panel-title">Agent</div>
+          <div id="ask-wrap">
+            <div class="ask">Turn this into an agenda</div>
+            <div class="from">Offsite planning</div>
+          </div>
+          <div class="status" id="status">
+            <span class="dot" id="dot"></span><span>Editing your note</span>
+          </div>
+          <div class="done" id="done"><span>Edited 1 note</span><span>Undo</span></div>
+          <div class="composer" id="composer"></div>
+        </aside>
+      </div>
+      <div class="end" id="end">
+        <img src="favicon.svg" alt="" />
+        <div class="word">Inteligir</div>
+        <div class="tag">The workspace for knowledge work.</div>
+      </div>
+    </div>
+    <script>
+      // every frame is a pure function of t, so a stepped clock records the same clip every time
+      const DURATION = 9.6;
+      const PROMPT = "Turn this into an agenda";
+      const LINE = 38;
+
+      const ROUGH = [
+        "notes from tuesday call w/ Maya + Jon",
+        "- venue? Lisbon or Porto, Maya prefers Porto",
+        "- 14 people, maybe 16 if design joins",
+        "- need agenda draft before friday",
+        "- jon to check flights, budget ~900pp",
+        "- workshop on Q1 roadmap, half day",
+      ];
+      // [kind, html, extra gap above]
+      const AGENDA = [
+        ["p", "Team offsite in Porto, up to 16 people.", 0],
+        ["h", "Agenda", 14],
+        ["bullet", "<b>Day 1</b> &nbsp;Arrive, welcome dinner", 0],
+        ["bullet", "<b>Day 2</b> &nbsp;Q1 roadmap workshop", 0],
+        ["bullet", "<b>Day 3</b> &nbsp;Wrap-up, flights home", 0],
+        ["h", "Action items", 14],
+        ["task", "Jon: check flights against the budget", 0],
+        ["task", "Maya: confirm whether design joins", 0],
+      ];
+
+      const T = {
+        typeStart: 0.7,
+        typeEnd: 1.9,
+        send: 2.05,
+        status: 2.35,
+        roughOut: 2.6,
+        streamStart: 3.0,
+        streamGap: 0.36,
+        done: 6.15,
+        outro: 6.9,
+        endIn: 7.15,
+        loop: 9.0,
+      };
+
+      const clamp = (x) => Math.min(1, Math.max(0, x));
+      const progress = (t, start, dur) => clamp((t - start) / dur);
+      // a damped spring settling on 1, with a small overshoot
+      const spring = (x) => (x >= 1 ? 1 : 1 - Math.exp(-6.5 * x) * Math.cos(7.5 * x));
+      const easeOut = (x) => 1 - (1 - x) ** 3;
+      const easeInOut = (x) => (x < 0.5 ? 4 * x ** 3 : 1 - (-2 * x + 2) ** 3 / 2);
+
+      const lines = document.getElementById("lines");
+      const make = (kind, html) => {
+        const el = document.createElement("div");
+        el.className = `line ${kind}`;
+        el.innerHTML = html;
+        lines.append(el);
+        return el;
+      };
+      const roughEls = ROUGH.map((text, i) => {
+        const el = make("rough", text);
+        el.style.top = `${i * LINE}px`;
+        return el;
+      });
+      let offset = 0;
+      const agendaEls = AGENDA.map(([kind, html, gap]) => {
+        offset += gap;
+        const el = make(kind, html);
+        el.style.top = `${offset}px`;
+        offset += LINE + (kind === "h" ? 6 : 0);
+        return el;
+      });
+
+      const $ = (id) => document.getElementById(id);
+      const show = (el, x, rise = 14) => {
+        el.style.opacity = String(clamp(x));
+        el.style.transform = `translateY(${(1 - x) * rise}px)`;
+      };
+
+      window.seek = (t) => {
+        // composer: placeholder, then the ask typed out, then cleared on send
+        const typed = Math.round(
+          PROMPT.length * easeInOut(progress(t, T.typeStart, T.typeEnd - T.typeStart)),
+        );
+        const composer = $("composer");
+        if (t < T.typeStart) {
+          composer.innerHTML = '<span class="placeholder">Ask the agent…</span>';
+        } else if (t < T.send) {
+          composer.innerHTML = `${PROMPT.slice(0, typed)}<span class="caret"></span>`;
+        } else {
+          composer.innerHTML = '<span class="placeholder">Ask the agent…</span>';
+        }
+
+        show($("ask-wrap"), spring(progress(t, T.send, 0.6)), 22);
+        const statusIn = spring(progress(t, T.status, 0.6));
+        const statusOut = easeOut(progress(t, T.done - 0.15, 0.3));
+        show($("status"), statusIn * (1 - statusOut), 12);
+        $("dot").style.opacity = String(0.45 + 0.55 * Math.abs(Math.cos((t - T.status) * 4)));
+        show($("done"), spring(progress(t, T.done, 0.6)), 12);
+
+        // the rough lines leave together, then the agent's lines arrive one at a time
+        roughEls.forEach((el, i) => {
+          const out = easeOut(progress(t, T.roughOut + i * 0.04, 0.35));
+          el.style.opacity = String(1 - out);
+          el.style.transform = `translateY(${-out * 8}px)`;
+        });
+        agendaEls.forEach((el, i) => {
+          const start = T.streamStart + i * T.streamGap;
+          show(el, spring(progress(t, start, 0.55)), 16);
+          // each changed line lit as it lands, the light easing off
+          const glow = progress(t, start, 0.1) * (1 - easeOut(progress(t, start + 0.5, 1.4)));
+          el.style.background = `color-mix(in oklab, var(--success) ${Math.round(glow * 12)}%, transparent)`;
+        });
+
+        // the window steps back and gives way to the mark, which then hands back to the first frame
+        const out = easeInOut(progress(t, T.outro, 0.5));
+        const back = easeInOut(progress(t, T.loop, DURATION - T.loop));
+        const win = $("window");
+        const winVisible = t < T.loop ? 1 - out : back;
+        win.style.opacity = String(winVisible);
+        win.style.transform = `scale(${t < T.loop ? 1 - out * 0.06 : 0.97 + back * 0.03})`;
+        const endIn = spring(progress(t, T.endIn, 0.8));
+        const endOut = easeInOut(progress(t, T.loop, 0.45));
+        const end = $("end");
+        end.style.opacity = String(clamp(endIn) * (1 - endOut));
+        end.style.transform = `scale(${0.94 + 0.06 * endIn})`;
+        // on the way back the note is the rough one again, so the last frame meets the first
+        if (t >= T.loop) {
+          for (const el of roughEls) {
+            el.style.opacity = "1";
+            el.style.transform = "none";
+          }
+          for (const el of agendaEls) {
+            el.style.opacity = "0";
+          }
+          show($("ask-wrap"), 0);
+          show($("done"), 0);
+        }
+      };
+      window.SCENE_DURATION = DURATION;
+      window.seek(0);
+    </script>
+  </body>
+</html>

@@ -4,5 +4,7 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
 // layout would make every auth form client-only
 
 export const Route = createFileRoute("/app")({
+  // the account pages are forms for people already invited, never a search result
+  head: () => ({ meta: [{ content: "noindex, nofollow", name: "robots" }] }),
   component: () => <Outlet />,
 });
