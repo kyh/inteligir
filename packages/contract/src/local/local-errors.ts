@@ -79,7 +79,7 @@ export const IMPORT_UNREADABLE = {
   message: "This file isn't a Raindrop export",
 } as const;
 
-// the status map is checked exhaustive against this: a code with no entry would default to 500 silently
+// the status map is checked exhaustive against this: a code with no entry would default to 400 silently
 const LOCAL_ERRORS = {
   ALREADY_EXISTS,
   ALREADY_RESOLVED,

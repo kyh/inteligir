@@ -1,8 +1,10 @@
 // orpc v2 keeps no status on an error or its contract row: the handler maps code → status
 // through `errorStatusMap`, and /vault/asset (raw http, outside the contract) reads
-// `errorStatus`, so one refusal answers the same status on both surfaces.
+// `errorStatus`, so one refusal answers the same status on both surfaces, an unmapped code
+// included: both fall back to oRPC's DEFAULT_ERROR_STATUS.
 
 import { COMMON_ERROR_STATUS_MAP } from "@orpc/client";
+import { DEFAULT_ERROR_STATUS } from "@orpc/server";
 import { LOCAL_ERROR_STATUS_MAP } from "@repo/contract/local/errors";
 
 const STATUS_BY_CODE = new Map<string, number>([
@@ -12,4 +14,5 @@ const STATUS_BY_CODE = new Map<string, number>([
 
 export const ERROR_STATUS_MAP = Object.fromEntries(STATUS_BY_CODE);
 
-export const errorStatus = (code: string): number => STATUS_BY_CODE.get(code) ?? 500;
+export const errorStatus = (code: string): number =>
+  STATUS_BY_CODE.get(code) ?? DEFAULT_ERROR_STATUS;
