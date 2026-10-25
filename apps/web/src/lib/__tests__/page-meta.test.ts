@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { pageHead, pageTitle } from "../page-head";
-import { HOME_VIDEO, PAGES, statedDate } from "../page-meta";
+import { PAGES, statedDate } from "../page-meta";
 import { siteConfig } from "../site-config";
 import { buildSitemap } from "../sitemap";
 import { pageGraph } from "../structured-data";
@@ -36,18 +36,12 @@ describe("page metadata", () => {
     const head = pageHead(PAGES.about);
     expect(metaContent(head, "og:url")).toBe(`${siteConfig.url}/about`);
     expect(metaContent(head, "og:image")).toBe(`${siteConfig.url}/og/about.jpg`);
-    expect(metaContent(head, "og:video")).toBeUndefined();
   });
 
-  it("carries the captured clip on the home page, beside its image", () => {
+  it("gives the home page its own image", () => {
     const head = pageHead(PAGES.home);
-    expect(metaContent(head, "og:video:secure_url")).toBe(`${siteConfig.url}${HOME_VIDEO.path}`);
-    expect(metaContent(head, "og:video:type")).toBe("video/mp4");
     expect(metaContent(head, "og:image")).toBe(`${siteConfig.url}/og.jpg`);
-    const [page] = pageGraph(PAGES.home)["@graph"];
-    expect(page !== undefined && "video" in page ? page.video?.contentUrl : undefined).toBe(
-      `${siteConfig.url}${HOME_VIDEO.path}`,
-    );
+    expect(metaContent(head, "twitter:image")).toBe(`${siteConfig.url}/og.jpg`);
   });
 
   it("gives a page below the root a two-step breadcrumb", () => {

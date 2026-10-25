@@ -1,5 +1,4 @@
 import type { PageMeta } from "@/lib/page-meta";
-import { HOME_VIDEO } from "@/lib/page-meta";
 import { siteConfig } from "@/lib/site-config";
 
 const { contact, description, downloadUrl, github, name, twitterUrl, url } = siteConfig;
@@ -61,19 +60,6 @@ const PAGE_TYPE = {
 
 const absolute = (path: string): string => `${url}${path === "/" ? "" : path}`;
 
-const homeVideoObject = () => ({
-  "@id": `${url}/#video`,
-  "@type": "VideoObject",
-  contentUrl: absolute(HOME_VIDEO.path),
-  description: HOME_VIDEO.description,
-  duration: HOME_VIDEO.duration,
-  height: HOME_VIDEO.height,
-  name: HOME_VIDEO.name,
-  thumbnailUrl: absolute(HOME_VIDEO.poster),
-  uploadDate: HOME_VIDEO.uploadDate,
-  width: HOME_VIDEO.width,
-});
-
 /** The page's own node and its breadcrumb, beside the site-wide graph the root document carries. */
 export const pageGraph = (page: PageMeta, options: { dateModified?: string } = {}) => {
   const pageUrl = absolute(page.path);
@@ -100,7 +86,6 @@ export const pageGraph = (page: PageMeta, options: { dateModified?: string } = {
           width: page.image.width,
         },
         url: pageUrl,
-        video: isHome ? homeVideoObject() : undefined,
       },
       {
         "@id": `${pageUrl}#breadcrumb`,

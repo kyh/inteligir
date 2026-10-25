@@ -1,5 +1,5 @@
 // each indexable page's metadata, in one table the route heads, the JSON-LD, the sitemap and the
-// OG card renderer (scripts/og-video.ts) all read. No imports: node runs that script by
+// OG card renderer (scripts/og-cards.ts) all read. No imports: node runs that script by
 // stripping types, so this file must resolve with no bundler aliases.
 
 type PageKind = "home" | "about" | "contact" | "legal";
@@ -10,7 +10,7 @@ export interface PageMeta {
   // the page's own name, without the site's; the <title> appends it
   title: string;
   description: string;
-  // under public/; 1200x630 cards rendered by `pnpm og:video`, but the home page's 1920x1080 og.jpg
+  // under public/; 1200x630 cards rendered by `pnpm og:cards`, but the home page's 1920x1080 og.jpg
   image: { path: string; width: number; height: number; alt: string };
 }
 
@@ -67,20 +67,6 @@ export const PAGES = {
     title: "Terms of Use",
   },
 } as const satisfies Record<string, PageMeta>;
-
-// the home page's clip (scripts/og-video.ts records scripts/og-video/scene.html): the user asks
-// the agent beside a rough note, the agent's edits stream into it, then the icon over the tagline
-export const HOME_VIDEO = {
-  description:
-    "In Inteligir, you ask the agent to turn rough meeting notes into an agenda, and its edits land in your note line by line, each one marked as it arrives. It closes on the Inteligir icon over its tagline.",
-  duration: "PT9.6S",
-  height: 630,
-  name: "An agent edits a note with you in Inteligir",
-  path: "/og/og.mp4",
-  poster: "/og/og-poster.jpg",
-  uploadDate: "2026-10-25",
-  width: 1200,
-} as const;
 
 const MONTHS = [
   "January",

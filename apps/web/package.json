@@ -11,7 +11,7 @@
     "db:studio": "drizzle-kit studio --config drizzle.config.local.ts",
     "db:studio:remote": "dotenv -e ../../.env.production.local -- drizzle-kit studio",
     "dev": "cf dev",
-    "og:video": "node scripts/og-video.ts",
+    "og:cards": "node scripts/og-cards.ts",
     "start": "vite preview",
     "test": "vitest run",
     "typecheck": "cf workers types && tsc --noEmit && tsc --noEmit -p src/worker && tsc --noEmit -p scripts"

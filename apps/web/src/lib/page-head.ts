@@ -1,5 +1,5 @@
 import type { PageMeta } from "@/lib/page-meta";
-import { HOME_VIDEO, statedDate } from "@/lib/page-meta";
+import { statedDate } from "@/lib/page-meta";
 import { siteConfig } from "@/lib/site-config";
 import { pageGraph } from "@/lib/structured-data";
 
@@ -7,20 +7,6 @@ const absolute = (path: string): string => `${siteConfig.url}${path === "/" ? ""
 
 export const pageTitle = (page: PageMeta): string =>
   page.kind === "home" ? `${siteConfig.name}: ${page.title}` : `${page.title} · ${siteConfig.name}`;
-
-// og:video rides beside og:image, never instead: a card that cannot play the clip keeps the image,
-// and twitter stays summary_large_image (a player card needs a hosted player page)
-const videoMeta = () => {
-  const video = absolute(HOME_VIDEO.path);
-  return [
-    { content: video, property: "og:video" },
-    { content: video, property: "og:video:url" },
-    { content: video, property: "og:video:secure_url" },
-    { content: "video/mp4", property: "og:video:type" },
-    { content: String(HOME_VIDEO.width), property: "og:video:width" },
-    { content: String(HOME_VIDEO.height), property: "og:video:height" },
-  ];
-};
 
 /**
  * A route's head: its title, description, Open Graph and Twitter tags and its own JSON-LD. The
@@ -45,7 +31,6 @@ export const pageHead = (page: PageMeta, options: { dateModified?: string } = {}
       ...(options.dateModified === undefined
         ? []
         : [{ content: options.dateModified, property: "article:modified_time" }]),
-      ...(page.kind === "home" ? videoMeta() : []),
       { content: title, name: "twitter:title" },
       { content: page.description, name: "twitter:description" },
       { content: image, name: "twitter:image" },
