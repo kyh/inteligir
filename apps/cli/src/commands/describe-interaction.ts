@@ -22,7 +22,7 @@ const subjectText = (subject: PendingInteractionApprovalSubject): string => {
 const answerText = (payload: ApprovalPendingInteractionPayload): string =>
   `answer: ${answerableDecisions(payload).join(", ")}`;
 
-// what an approval would allow, so nobody answers one blind.
+// what an approval would allow and the answers it offers, which the person gives in the app.
 export const describeInteraction = (row: PendingInteraction): string[] => {
   const heading = `${row.id}  ${row.threadId}  ${row.status}`;
   const { payload } = row;

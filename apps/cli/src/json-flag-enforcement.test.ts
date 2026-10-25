@@ -91,24 +91,22 @@ const shared = shareBoot(async (teardown): Promise<Booted> => {
 
 let turns = 0;
 
-// an action with a turn that changed the library, and an approval waiting on it
-const freshAction = async (
-  app: ThreadHarness,
-): Promise<{ threadId: string; interactionId: string }> => {
+// an action with a turn that changed the library, and an approval waiting on it for `action show`
+const freshAction = async (app: ThreadHarness): Promise<{ threadId: string }> => {
   const { thread } = await app.client.threads.create({});
   turns += 1;
   await agentTurn(app, thread.id, { [`Agent/turn ${String(turns)}.md`]: "# Written by a turn\n" });
-  const interaction = createPendingInteraction(app.db, app.bus, {
+  createPendingInteraction(app.db, app.bus, {
     payload: APPROVAL,
     requestKey: `req_${String(turns)}`,
     threadId: thread.id,
   });
-  return { interactionId: interaction.id, threadId: thread.id };
+  return { threadId: thread.id };
 };
 
 // re-applied between leaves: they change what the next one names (rename moves the note delete
-// then wants, remove takes the highlight edit then wants), and a leaf about an action or an
-// approval gets an action of its own, since archive, undo and answer each use theirs up.
+// then wants, remove takes the highlight edit then wants), and a leaf about an action gets an
+// action of its own, since archive and undo each use theirs up.
 const reseed = async (
   { over }: Booted,
   leaf: string,
@@ -146,9 +144,9 @@ const reseed = async (
     revision = newest.sha;
   }
   const action =
-    last === null || leaf.startsWith("action ") || leaf.startsWith("interactions ")
+    last === null || leaf.startsWith("action ")
       ? await freshAction(app)
-      : { interactionId: last.interactionId, threadId: last.threadId };
+      : { threadId: last.threadId };
   return { ...action, password: FAKE_ACCOUNT.password, revision };
 };
 
@@ -201,7 +199,6 @@ describe("CLI --json flag enforcement", { timeout: 120_000 }, () => {
 
   it("every leaf command has a registered invocation — the table cannot fall behind", () => {
     const anyFacts: LeafFacts = {
-      interactionId: "pint_1",
       password: "password",
       revision: "0".repeat(40),
       threadId: "thr_1",

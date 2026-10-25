@@ -24,7 +24,6 @@ import {
 } from "./command-tree";
 import { agentsCommand } from "./commands/agents";
 import { guideCommand } from "./commands/guide";
-import { interactionsCommand } from "./commands/interactions";
 import {
   backlinksCommand,
   matchesCommand,
@@ -68,7 +67,6 @@ export const buildProgram = (deps: CliDeps): CommandDef =>
       cloud: cloudCommand(deps),
       guide: guideCommand(deps),
       import: importCommand(deps),
-      interactions: interactionsCommand(deps),
       item: itemCommand(deps),
       items: itemsCommand(deps),
       matches: matchesCommand(deps),

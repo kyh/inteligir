@@ -1,8 +1,5 @@
 import type { DbConnection } from "@repo/db/connection";
-import {
-  listAllOpenPendingInteractions,
-  listOpenPendingInteractions,
-} from "@repo/db/pending-interactions";
+import { listOpenPendingInteractions } from "@repo/db/pending-interactions";
 import type { PendingInteractionRow } from "@repo/db/pending-interactions";
 import { listQueuedThreadMessages } from "@repo/db/queued-messages";
 import { getThread, listThreads } from "@repo/db/threads";
@@ -105,17 +102,6 @@ export const threadDetail = async (
     })),
     thread: await wireThread(db, origins, thread),
   };
-};
-
-export const openInteractions = (
-  db: DbConnection,
-  threadId: string | undefined,
-): PendingInteraction[] => {
-  const rows =
-    threadId === undefined
-      ? listAllOpenPendingInteractions(db)
-      : listOpenPendingInteractions(db, threadId);
-  return rows.map(toWirePendingInteraction);
 };
 
 export const threadTimeline = (

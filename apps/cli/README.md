@@ -87,13 +87,11 @@ list|read|history|revision|restore|write|rename|delete|deleted|mkdir|new-id|atta
 · `search` (`tag:` terms pass through) · `matches` · `backlinks` · `related` ·
 `tags` · `tag add|remove|rename` · `import raindrop|status|cancel` · `action
 list|new|send|show|stop|wait|archive|changes|undo` · `annotation list|add|edit|reply|remove` ·
-`interactions list|answer` · `agents list|default` · `cloud status|login` ·
-`status` · `guide` ·
+`agents list|default` · `cloud status|login` · `status` · `guide` ·
 `native-host` (hidden: the browser extension's door, which Chrome starts).
 
 Exit codes: 0 success · 1 error (including an action settling in error) ·
-2 `action wait` timeout · 3 no server reachable · 4 `action wait
---until-input` met an approval · 130 interrupted. Each class the CLI raises
+2 `action wait` timeout · 3 no server reachable · 130 interrupted. Each class the CLI raises
 itself carries its exit code in one table, `CLI_FAILURE_EXIT_CODES` in
 `src/cli-error.ts`, so a class cannot leave with another's code, and
 `guide-covers-commands.test.ts` holds the served guide to naming every row.

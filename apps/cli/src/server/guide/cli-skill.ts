@@ -304,11 +304,9 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   0 = idle, 1 = settled in error, 2 = timeout. \`--timeout <seconds>\` is a
   real wall-clock bound (default ${DEFAULT_WAIT_TIMEOUT_SECONDS}, at most ${MAX_WAIT_TIMEOUT_SECONDS}) and
   \`--poll-interval <ms>\` sets the poll cadence (default ${DEFAULT_WAIT_POLL_INTERVAL_MS}, at most ${MAX_WAIT_POLL_INTERVAL_MS}).
-  An action blocked on an approval does not settle until someone answers it:
-  \`wait\` says so on stderr, naming each interaction and the
-  \`inteligir interactions answer\` command, and keeps waiting; a timeout names
-  them too. \`--until-input\` stops instead, with exit 4
-  (\`AWAITING_INTERACTION\`): answer, then \`wait\` again.
+  An action blocked on an approval does not settle until the person answers it
+  on the action in the app: \`wait\` says so on stderr, naming each approval,
+  and keeps waiting; a timeout names them too.
 - \`inteligir action stop <id>\` — stop the action's running turn. The agent is
   asked to stop and the action reads \`stopping\` until it does; one that does
   not answer within a few seconds has its session closed. \`wait\` after it to
@@ -381,17 +379,6 @@ and no markers is waiting for its page's text; leave it, the app places it.
 - \`inteligir agents default <id>\` — the harness a NEW action starts on; a
   running action keeps the one it started on.
 
-## Interactions — approvals the agent is waiting on
-
-- \`inteligir interactions list [--thread <id>]\` — pending approval requests,
-  each with what it would allow (\`$ <command> (in <cwd>)\`, or
-  \`write <scope>\`, and the agent's reason) and the answers it takes;
-  \`--thread\` narrows to one thread. Read it before answering.
-- \`inteligir interactions answer <id> <decision> [--thread <id>]\` — answer
-  one; a decision is \`allow_once\`, \`allow_for_session\`, or \`deny\` (a
-  request may offer only some of them, and the CLI says which). \`--thread\`
-  names the owning thread; omitted, it is looked up from the listing.
-
 ## Cloud — this install's account
 
 Signing in puts this install's library on the account, where its other
@@ -452,8 +439,7 @@ server.
 ## Exit codes and failure output
 
 0 success · 1 error (including a thread that settled in error) ·
-2 wait timeout · 3 no server reachable · 4 an approval is waiting
-(\`action wait --until-input\`) · 130 interrupted (^C).
+2 wait timeout · 3 no server reachable · 130 interrupted (^C).
 
 Every command checks the server's HTTP status before printing: a refusal is
 never printed as an answer. Failures go to **stderr** and stdout stays empty,
@@ -465,8 +451,8 @@ the CLI's own, each with the exit code it carries:
 
 - \`INVALID_USAGE\` (1) — the command line itself: an unknown flag, a missing
   or extra argument, a value out of range. Nothing was sent.
-- \`NOT_FOUND\` (1) — \`interactions answer\` named no open interaction, or
-  \`vault list\` no folder.
+- \`NOT_FOUND\` (1) — \`vault list\` named no folder, \`item show\` or
+  \`tag add|remove\` no item, or \`action undo\` no turn left to undo.
 - \`SEND_FAILED\` (1) — \`action new\` created the action but its first turn
   never reached the server (a refusal the server did send keeps its own
   class); the message names the new id either way.
@@ -480,7 +466,6 @@ the CLI's own, each with the exit code it carries:
   port it names.
 - \`SERVER_VERSION_MISMATCH\` (3) — the server that \`server.json\` names is
   another release than this CLI. Nothing was sent.
-- \`AWAITING_INTERACTION\` (4) — \`action wait --until-input\` met an approval.
 - \`INTERRUPTED\` (130) — the password prompt was left with ^C or ^D. A ^C
   anywhere else also exits 130, with no failure line at all.
 

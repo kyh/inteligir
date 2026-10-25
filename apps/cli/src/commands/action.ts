@@ -109,8 +109,9 @@ const turnStillApplied = async (
 const awaitingAnswer = (interactions: readonly PendingInteraction[]): string[] =>
   interactions.filter((row) => row.status === "pending").map((row) => row.id);
 
+// an approval is the person's to answer, on the action in the app.
 const answerHint = (ids: readonly string[]): string =>
-  `approval ${ids.join(", ")} (\`inteligir interactions answer <id> <decision>\`)`;
+  `approval ${ids.join(", ")}, which the person answers in the app`;
 
 // the hint is pasted back into a shell, so a value that is not one plain word is single-quoted.
 const shellWord = (word: string): string =>
@@ -409,15 +410,10 @@ export const actionCommand = (deps: CliDeps) =>
             description: `Give up after this many seconds (default ${DEFAULT_WAIT_TIMEOUT_SECONDS}, at most ${MAX_WAIT_TIMEOUT_SECONDS})`,
             type: "string",
           },
-          "until-input": {
-            description: "Stop with exit 4 once the thread waits on an approval",
-            type: "boolean",
-          },
           ...jsonArg,
         },
         meta: {
-          description:
-            "Block until the thread settles; exit 0 idle, 1 error, 2 timeout, 4 approval waiting (--until-input)",
+          description: "Block until the thread settles; exit 0 idle, 1 error, 2 timeout",
           name: "wait",
         },
         run: async ({ args }) => {
@@ -477,12 +473,6 @@ export const actionCommand = (deps: CliDeps) =>
               });
             }
             awaiting = awaitingAnswer(pendingInteractions);
-            if (awaiting.length > 0 && args["until-input"] === true) {
-              throw new CliExitError(
-                `Thread ${args.id} is waiting on ${answerHint(awaiting)}; answer it, then wait again`,
-                { code: "AWAITING_INTERACTION" },
-              );
-            }
             const fresh = awaiting.filter((id) => !noticed.has(id));
             if (fresh.length > 0 && args.json !== true) {
               out.warn(`Thread ${args.id} is waiting on ${answerHint(fresh)}; still waiting`);

@@ -112,10 +112,6 @@ const undoTurn = base.threads.undoTurn.handler(async ({ context, input, errors }
   }
 });
 
-const listInteractions = base.threads.listInteractions.handler(({ context, input }) => ({
-  interactions: context.threads.listInteractions(input.threadId),
-}));
-
 const answerInteraction = base.threads.answerInteraction.handler(({ context, input, errors }) => {
   const outcome = context.threads.answerInteraction(input);
   switch (outcome.kind) {
@@ -142,7 +138,6 @@ export const threadsRouter = {
   get,
   interrupt,
   list,
-  listInteractions,
   send,
   timeline,
   turnChanges,

@@ -112,15 +112,6 @@ export const listThreadPendingInteractions = (
     .all()
     .map(readRow);
 
-export const listAllOpenPendingInteractions = (db: DbConnection): PendingInteractionRow[] =>
-  db
-    .select()
-    .from(pendingInteractions)
-    .where(eq(pendingInteractions.status, "pending"))
-    .orderBy(asc(pendingInteractions.createdAt), asc(pendingInteractions.id))
-    .all()
-    .map(readRow);
-
 export const interruptPendingInteraction = (
   db: DbConnection,
   notifier: DbNotifier,

@@ -7,7 +7,6 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, truncate, writeFile } from "node:fs/promises";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { setTimeout as delay } from "node:timers/promises";
 import path from "node:path";
 import { importsJobResponseSchema } from "@repo/contract/local/imports/imports-schema";
 import { fileTooLargeMessage } from "@repo/contract/local/items/items-schema";
@@ -18,7 +17,7 @@ import {
   contentHashHex,
   vaultDeletedResponseSchema,
 } from "@repo/contract/local/vault/vault-schema";
-import { createPendingInteraction, getPendingInteraction } from "@repo/db/pending-interactions";
+import { createPendingInteraction } from "@repo/db/pending-interactions";
 import type { CreatePendingInteractionInput } from "@repo/db/pending-interactions";
 import { ACTION_PRESET_LABELS } from "@repo/domain/action-preset";
 import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
@@ -122,13 +121,6 @@ const COMMAND_APPROVAL: ApprovalPendingInteractionPayload = {
   kind: "approval",
   reason: "installs the dependencies",
   subject: { command: "npm install", cwd: "/Users/me/Library", itemId: "cmd_1", kind: "command" },
-};
-
-const FILE_APPROVAL: ApprovalPendingInteractionPayload = {
-  availableDecisions: ["allow_once", "deny"],
-  kind: "approval",
-  reason: null,
-  subject: { itemId: "file_1", kind: "file_change", writeScope: null },
 };
 
 let requests = 0;
@@ -851,63 +843,6 @@ describe("action commands", { timeout: 60_000 }, () => {
   });
 });
 
-describe("interactions commands", { timeout: 60_000 }, () => {
-  it("lists across threads and answers by scanning for the owner", async () => {
-    const { app, cli } = await bootActions();
-    const first = await createThread(app.client);
-    const second = await createThread(app.client);
-    const onFirst = approve(app, first, FILE_APPROVAL, await sendMessage(app.client, first, "a"));
-    const onSecond = approve(
-      app,
-      second,
-      FILE_APPROVAL,
-      await sendMessage(app.client, second, "b"),
-    );
-
-    const list = await cli(["interactions", "list", "--json"]);
-    const { interactions } = z
-      .object({ interactions: z.array(z.object({ id: z.string(), threadId: z.string() })) })
-      .parse(JSON.parse(list.stdout));
-    expect(interactions.map((row) => [row.id, row.threadId]).toSorted()).toEqual(
-      [
-        [onFirst, first],
-        [onSecond, second],
-      ].toSorted(),
-    );
-
-    const answer = await cli(["interactions", "answer", onSecond, "allow_once"]);
-    expect(answer.code).toBe(0);
-    expect(answer.stdout).toBe(`✔ Interaction ${onSecond} resolved\n`);
-    expect(getPendingInteraction(app.db, onSecond)).toMatchObject({
-      decision: "allow_once",
-      status: "resolved",
-    });
-    expect(getPendingInteraction(app.db, onFirst)?.status).toBe("pending");
-  });
-
-  it("says what each approval would allow, and the answers it takes, before anyone answers", async () => {
-    const { app, cli } = await bootActions();
-    const threadId = await createThread(app.client);
-    const turnId = await sendMessage(app.client, threadId, "Set it up");
-    const command = approve(app, threadId, COMMAND_APPROVAL, turnId);
-    // a millisecond apart, so the listing's order is the order they were asked in
-    await delay(2);
-    const file = approve(app, threadId, FILE_APPROVAL, turnId);
-    const list = await cli(["interactions", "list"]);
-    expect(list.stdout).toBe(
-      [
-        `${command}  ${threadId}  pending`,
-        "  $ npm install (in /Users/me/Library) — installs the dependencies",
-        "  answer: allow_once, allow_for_session, deny",
-        `${file}  ${threadId}  pending`,
-        "  write unscoped",
-        "  answer: allow_once, deny",
-        "",
-      ].join("\n"),
-    );
-  });
-});
-
 describe("status, guide and help", { timeout: 60_000 }, () => {
   const shared = sharedSeeded();
 
@@ -1414,39 +1349,6 @@ describe("action new never orphans a thread silently", { timeout: 60_000 }, () =
     expect(result.stderr).toContain(id);
     expect(result.stderr).toContain("was created but its first turn failed");
     expect(result.stderr).toContain(`inteligir action send ${id}`);
-  });
-});
-
-describe("interactions answer validates the decision locally", { timeout: 60_000 }, () => {
-  it("refuses a decision the request never offered, naming the ones it did", async () => {
-    const { app, cli } = await bootActions();
-    const threadId = await createThread(app.client);
-    const waiting = approve(
-      app,
-      threadId,
-      {
-        availableDecisions: ["allow_once", "deny"],
-        kind: "approval",
-        reason: null,
-        subject: { command: "rm -rf /", cwd: null, itemId: "cmd_1", kind: "command" },
-      },
-      await sendMessage(app.client, threadId, "clean up"),
-    );
-    const result = await cli(["interactions", "answer", waiting, "allow_for_session"]);
-    expect(result.code).toBe(1);
-    expect(result.stderr).toContain("allow_once, deny");
-    const { pendingInteractions } = await app.client.threads.get({ threadId });
-    expect(pendingInteractions.find((row) => row.id === waiting)?.status).toBe("pending");
-  });
-
-  it("refuses a word that names no decision, before asking the server", async () => {
-    const result = await runCliForTest({
-      argv: ["interactions", "answer", "int_a", "allow_always", "--json"],
-      baseUrl: null,
-    });
-    expect(result.code).toBe(1);
-    expect(JSON.parse(result.stderr)).toMatchObject({ error: "INVALID_USAGE" });
-    expect(result.stderr).toContain("allow_once, allow_for_session, deny");
   });
 });
 

@@ -128,16 +128,6 @@ export const getThreadResponseSchema = z.strictObject({
 });
 export type GetThreadResponse = z.infer<typeof getThreadResponseSchema>;
 
-export const listInteractionsQuerySchema = z.strictObject({
-  threadId: z.string().min(1).optional(),
-});
-export type ListInteractionsQuery = z.infer<typeof listInteractionsQuerySchema>;
-
-export const listInteractionsResponseSchema = z.strictObject({
-  interactions: z.array(pendingInteractionSchema),
-});
-export type ListInteractionsResponse = z.infer<typeof listInteractionsResponseSchema>;
-
 export const archiveThreadRequestSchema = z.strictObject({
   threadId: z.string().min(1),
 });

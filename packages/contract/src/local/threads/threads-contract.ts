@@ -18,8 +18,6 @@ import {
   getThreadResponseSchema,
   interruptThreadRequestSchema,
   interruptThreadResponseSchema,
-  listInteractionsQuerySchema,
-  listInteractionsResponseSchema,
   listThreadsQuerySchema,
   listThreadsResponseSchema,
   sendMessageRequestSchema,
@@ -54,8 +52,6 @@ export const threadsContract = {
     .errors({ NOT_FOUND: {} }),
 
   list: oc.input(listThreadsQuerySchema).output(listThreadsResponseSchema),
-
-  listInteractions: oc.input(listInteractionsQuerySchema).output(listInteractionsResponseSchema),
 
   send: oc.input(sendMessageRequestSchema).output(sendMessageResponseSchema).errors({
     ARCHIVED,

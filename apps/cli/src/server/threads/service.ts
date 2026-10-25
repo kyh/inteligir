@@ -41,7 +41,6 @@ import type { IngestArgs, ThreadWrite } from "./thread-ingest";
 import type { ThreadOrigins } from "./thread-origins";
 import {
   listThreadPage,
-  openInteractions,
   threadDetail,
   threadTimeline,
   toWirePendingInteraction,
@@ -136,10 +135,6 @@ export class ThreadService implements ProviderEventSink {
 
   async get(threadId: string): Promise<GetThreadResponse | null> {
     return await threadDetail(this.db, this.origins, threadId);
-  }
-
-  listInteractions(threadId: string | undefined): PendingInteraction[] {
-    return openInteractions(this.db, threadId);
   }
 
   // the stop comes after the archive: a settled stop drains the queue, and only an archived thread

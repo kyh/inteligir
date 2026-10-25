@@ -1,5 +1,5 @@
 // `thread wait` exit codes ARE the contract a shell script branches on:
-// 0 settled idle, 1 settled in error (or not found), 2 timeout, 4 an approval waiting (--until-input).
+// 0 settled idle, 1 settled in error (or not found), 2 timeout.
 // Against the real composition: the provider is the booted suites' manual one, so a turn runs
 // until a case ends it, and every status the verb reads is the server's own.
 
@@ -108,7 +108,7 @@ describe("thread wait", { timeout: 60_000 }, () => {
 });
 
 describe("thread wait on a thread blocked by an approval", { timeout: 60_000 }, () => {
-  it("names the approval on stderr once, with the verb that answers it, and keeps waiting", async () => {
+  it("names the approval on stderr once, as the person's to answer in the app, and keeps waiting", async () => {
     const { app, approval, run, threadId, waitEnding } = await bootWaiting();
     const turnId = await run();
     const waiting = approval(turnId);
@@ -118,19 +118,9 @@ describe("thread wait on a thread blocked by an approval", { timeout: 60_000 }, 
     expect(result.code).toBe(0);
     expect(result.stdout).toBe(`✔ Thread ${threadId} is idle.\n`);
     expect(result.stderr.split(waiting)).toHaveLength(2);
-    expect(result.stderr).toContain("inteligir interactions answer <id> <decision>");
-  });
-
-  it("stops with exit 4 under --until-input, naming the approval", async () => {
-    const { approval, cli, run, threadId } = await bootWaiting();
-    const waiting = approval(await run());
-    const result = await cli(["action", "wait", threadId, "--until-input", "--json"]);
-    expect(result.code).toBe(4);
-    expect(result.stdout).toBe("");
-    expect(JSON.parse(result.stderr)).toEqual({
-      error: "AWAITING_INTERACTION",
-      message: `Thread ${threadId} is waiting on approval ${waiting} (\`inteligir interactions answer <id> <decision>\`); answer it, then wait again`,
-    });
+    expect(result.stderr).toContain(
+      `waiting on approval ${waiting}, which the person answers in the app; still waiting`,
+    );
   });
 
   it("names the approval it was stuck behind when it times out", async () => {
@@ -149,11 +139,11 @@ describe("thread wait on a thread blocked by an approval", { timeout: 60_000 }, 
     expect(result.code).toBe(2);
     expect(JSON.parse(result.stderr)).toEqual({
       error: "WAIT_TIMEOUT",
-      message: `Thread ${threadId} did not settle within 0.2s; it is waiting on approval ${waiting} (\`inteligir interactions answer <id> <decision>\`)`,
+      message: `Thread ${threadId} did not settle within 0.2s; it is waiting on approval ${waiting}, which the person answers in the app`,
     });
   });
 
-  it("does not stop for an approval already answered", async () => {
+  it("names no approval already answered", async () => {
     const { app, approval, run, threadId, waitEnding } = await bootWaiting();
     const turnId = await run();
     await app.client.threads.answerInteraction({
@@ -161,7 +151,7 @@ describe("thread wait on a thread blocked by an approval", { timeout: 60_000 }, 
       interactionId: approval(turnId),
       threadId,
     });
-    const result = await waitEnding(["--until-input", "--poll-interval", "20"], () => {
+    const result = await waitEnding(["--poll-interval", "20"], () => {
       app.driver.completeTurn(threadId, turnId, "completed");
     });
     expect(result.code).toBe(0);
