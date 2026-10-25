@@ -19,10 +19,9 @@ const worker = defineWorker({
     traces: { enabled: true, headSamplingRate: 0.01 },
   },
   exports: {
-    // the account's live sockets (AccountSocketDO), deployed under the class name the retired
-    // thread log had: a Preview is a version of this script, and a version can neither add a class
-    // nor delete one, so a new name would leave every PR's preview unable to bind it until a
-    // deploy migrated it. An object that still holds the thread log's tables drops them on waking
+    // the account's live sockets (AccountSocketDO), under the class name production already holds:
+    // a Preview is a version of this script, and a version can neither add a class nor delete one,
+    // so a new name would leave every PR's preview unable to bind it until a deploy migrated it
     ThreadSyncDO: exports.durableObject({ storage: "sqlite" }),
     RepoCell: exports.durableObject({ storage: "sqlite" }),
     Registry: exports.durableObject({ storage: "sqlite" }),
