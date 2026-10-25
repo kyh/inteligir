@@ -362,7 +362,7 @@ describe("vault commands", { timeout: 60_000 }, () => {
   it("vault remote prints where the vault syncs, and chooses a server of the user's own or the account", async () => {
     const { cli } = await seeded({ remote: "derived" });
     const signedOut =
-      "no remote: the account's hosted vault, once this install signs in (`inteligir cloud login`)";
+      "no remote: the account's hosted vault, once this install signs in (Settings › Account)";
     const own = `file://${await makeBareRemote()}`;
 
     const current = await cli(["vault", "remote"]);
@@ -1349,58 +1349,6 @@ describe("action new never orphans a thread silently", { timeout: 60_000 }, () =
     expect(result.stderr).toContain(id);
     expect(result.stderr).toContain("was created but its first turn failed");
     expect(result.stderr).toContain(`inteligir action send ${id}`);
-  });
-});
-
-describe("cloud login", { timeout: 60_000 }, () => {
-  const shared = shareBoot(async (teardown) => {
-    const cloud = new FakeCloud();
-    return await cliOver(
-      await bootTestApp({
-        cloudTransport: { fetch: cloud.fetch, pollIntervalMs: null },
-        teardown,
-      }),
-    );
-  });
-
-  it("reads the password from stdin under `--password -`, one line and its newline", async () => {
-    const { cli } = shared();
-    const result = await cli(
-      ["cloud", "login", "--email", "Owner@Example.test", "--password", "-", "--json"],
-      { stdin: new TextEncoder().encode(`${FAKE_ACCOUNT.password}\n`) },
-    );
-    expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      accountEmail: FAKE_ACCOUNT.email,
-      state: "signed-in",
-    });
-  });
-
-  it("refuses to prompt under --json — the agent path has no terminal to wait on", async () => {
-    const { cli } = shared();
-    const result = await cli(["cloud", "login", "--email", FAKE_ACCOUNT.email, "--json"]);
-    expect(result.code).toBe(1);
-    expect(result.stdout).toBe("");
-    expect(JSON.parse(result.stderr)).toMatchObject({ error: "INVALID_USAGE" });
-  });
-
-  it("refuses an empty stdin rather than sending an empty password", async () => {
-    const { cli } = shared();
-    const result = await cli(["cloud", "login", "--email", FAKE_ACCOUNT.email, "--password", "-"], {
-      stdin: new TextEncoder().encode("\n"),
-    });
-    expect(result.code).toBe(1);
-    expect(result.stderr).toContain("stdin carried no password");
-  });
-
-  it("resolves the server before prompting, so no password is typed for nothing", async () => {
-    const result = await runCliForTest({
-      argv: ["cloud", "login", "--email", FAKE_ACCOUNT.email],
-      baseUrl: null,
-      stdin: "terminal",
-    });
-    expect(result.code).toBe(3);
-    expect(result.stderr).not.toContain("Password:");
   });
 });
 

@@ -9,12 +9,9 @@ import { z } from "zod";
 export const EXIT_ERROR = 1;
 const EXIT_WAIT_TIMEOUT = 2;
 export const EXIT_UNREACHABLE = 3;
-// the shell's own number for a run ended by ^C: 128 + SIGINT.
-const EXIT_INTERRUPTED = 130;
 
 // every class the CLI raises itself, and the exit code it carries: a class cannot leave with another's code.
 export const CLI_FAILURE_EXIT_CODES = {
-  INTERRUPTED: EXIT_INTERRUPTED,
   INVALID_USAGE: EXIT_ERROR,
   NOT_FOUND: EXIT_ERROR,
   SEND_FAILED: EXIT_ERROR,

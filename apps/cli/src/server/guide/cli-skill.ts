@@ -382,28 +382,22 @@ and no markers is waiting for its page's text; leave it, the app places it.
 ## Cloud — this install's account
 
 Signing in puts this install's library on the account, where its other
-devices reach it. It is off until this install signs in. Threads stay on the
-machine that ran them: the account carries no thread.
+devices reach it. It is off until the person signs this install in, in the
+app's Settings › Account. Threads stay on the machine that ran them: the
+account carries no thread.
 
-- \`inteligir cloud status\` — whether this install is signed in, and whether its
-  account socket is up, which is what tells it another device changed the
+- \`inteligir cloud status\` — whether this install is signed in, removed from
+  the account (\`unauthorized\`) or too old to sync (\`outdated\`), and whether
+  its account socket is up, which is what tells it another device changed the
   library.
-- \`inteligir cloud login --email <address> [--password <password>] [--name <device>]\`
-  — sign this machine in with the account's own email and password; it gets
-  its own device credential, revocable from Settings › Account on any signed-in
-  Mac, or the account's Devices page.
-  \`--password -\` reads the password from stdin; omitted on a terminal, it is
-  prompted for without echo; under \`--json\` it is required. \`--name\` sets how
-  this machine appears in the account's device list (default: the hostname).
-  Signing in is a person's act: never guess or retry a password — ask the user
-  for theirs, and prefer handing them the command to running it yourself.
 
 The library itself syncs through \`inteligir vault sync\`; use it before reporting a
 long task done, so the work has actually reached the account.
 
-There is no \`logout\` here: signing out stops the library syncing through the
-account, and that is the person's choice, so it is Sign out in the app's
-Settings › Account. Nor is there a sign-up: creating an account takes the
+There is no sign-in, sign-out or sign-up here. Signing in takes the person's
+password, so it is theirs to type in the app's Settings › Account: never ask
+for it. Signing out stops the library syncing through the account, and that is
+the person's choice, so it is Sign out there too. Creating an account takes the
 user's own invite code and password, so it is theirs to do in the app. Deleting
 the account is the same: it takes the user's password and cannot be undone, so
 it lives in Settings › Account, where it says what goes and what stays.
@@ -439,7 +433,8 @@ server.
 ## Exit codes and failure output
 
 0 success · 1 error (including a thread that settled in error) ·
-2 wait timeout · 3 no server reachable · 130 interrupted (^C).
+2 wait timeout · 3 no server reachable · 130 interrupted (^C, with no failure
+line).
 
 Every command checks the server's HTTP status before printing: a refusal is
 never printed as an answer. Failures go to **stderr** and stdout stays empty,
@@ -466,8 +461,6 @@ the CLI's own, each with the exit code it carries:
   port it names.
 - \`SERVER_VERSION_MISMATCH\` (3) — the server that \`server.json\` names is
   another release than this CLI. Nothing was sent.
-- \`INTERRUPTED\` (130) — the password prompt was left with ^C or ^D. A ^C
-  anywhere else also exits 130, with no failure line at all.
 
 Classes are \`UPPER_SNAKE\` on both sides — one vocabulary, whichever side
 raised it.

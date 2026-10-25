@@ -1,18 +1,13 @@
-// no `logout` here on purpose: it stops the library syncing through the account, a decision for a
-// person rather than a verb for a model to drive. no sign-up either: creating an account is a
-// person's act, done in the app, where `cloud.signUp` is the form's.
+// status only, on purpose: signing in takes the person's password, signing out stops the library
+// syncing through the account, and creating an account takes their invite code, so each is a
+// person's act, done in the app's Settings › Account, never a verb for a model to drive.
 
 import { cloudDevicesPageUrl } from "@repo/contract/local/cloud/cloud-schema";
-import type {
-  CloudLoginRequest,
-  CloudStatusResponse,
-} from "@repo/contract/local/cloud/cloud-schema";
+import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schema";
 import { defineCommand } from "citty";
-import { invalidUsage } from "../cli-error";
 import { apiFor } from "../context";
 import type { CliDeps } from "../context";
 import { jsonArg, outputJson, writeLines } from "../output";
-import { promptPassword, readPasswordFromStdin } from "./password-prompt";
 
 const describe = (status: CloudStatusResponse): string[] => {
   switch (status.state) {
@@ -25,7 +20,7 @@ const describe = (status: CloudStatusResponse): string[] => {
               `sign-out did not remove this device from the account: ${status.revokeError}`,
               `Remove it from Devices at ${cloudDevicesPageUrl(status.cloudUrl)}`,
             ]),
-        "Run: inteligir cloud login --email <address> — with your account's password.",
+        "Sign in from Settings › Account in the app.",
       ];
     }
     case "unauthorized": {
@@ -53,88 +48,13 @@ const describe = (status: CloudStatusResponse): string[] => {
   }
 };
 
-type PasswordSource = { kind: "argv"; password: string } | { kind: "stdin" } | { kind: "prompt" };
-
-// the password never rides argv when a terminal can take it unseen; `-` is the pipe's way in,
-// and --json is the agent path, which gets no prompt to wait on.
-const passwordSource = (args: {
-  password?: string | undefined;
-  json?: boolean | undefined;
-}): PasswordSource => {
-  if (args.password === "-") {
-    return { kind: "stdin" };
-  }
-  if (args.password !== undefined) {
-    return { kind: "argv", password: args.password };
-  }
-  if (args.json === true) {
-    throw invalidUsage("--password is required under --json (pass `-` to read it from stdin)");
-  }
-  if (!process.stdin.isTTY) {
-    throw invalidUsage(
-      "--password is required when stdin is not a terminal (pass `-` to read it from stdin)",
-    );
-  }
-  return { kind: "prompt" };
-};
-
-const readPassword = async (source: PasswordSource): Promise<string> => {
-  switch (source.kind) {
-    case "argv": {
-      return source.password;
-    }
-    case "stdin": {
-      return await readPasswordFromStdin();
-    }
-    case "prompt": {
-      return await promptPassword("Password");
-    }
-    // no default
-  }
-};
-
 export const cloudCommand = (deps: CliDeps) =>
   defineCommand({
     meta: {
-      description:
-        "The account the library syncs through: whether this install is signed in, and signing in",
+      description: "The account the library syncs through: whether this install is signed in",
       name: "cloud",
     },
     subCommands: {
-      login: defineCommand({
-        args: {
-          email: { description: "The account's email address", required: true, type: "string" },
-          name: {
-            description:
-              "How this machine appears in the account's device list (default: the hostname)",
-            type: "string",
-          },
-          password: {
-            description:
-              "The account's password; `-` reads it from stdin. Omitted on a terminal it is prompted for without echo; required under --json",
-            type: "string",
-          },
-          ...jsonArg,
-        },
-        meta: {
-          description:
-            "Sign this machine in with your account's email and password; it gets its own device credential",
-          name: "login",
-        },
-        // a usage refusal needs no server, but the password is read only once one is resolved: typed or piped
-        // in for a server that is not there, it is spent for nothing.
-        run: async ({ args }) => {
-          const source = passwordSource(args);
-          const api = apiFor(deps);
-          const password = await readPassword(source);
-          const input: CloudLoginRequest = { deviceName: args.name, email: args.email, password };
-          const body = await api.cloud.login(input);
-          if (outputJson(args, body)) {
-            return;
-          }
-          writeLines(describe(body));
-        },
-      }),
       status: defineCommand({
         args: { ...jsonArg },
         meta: {

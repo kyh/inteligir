@@ -76,7 +76,7 @@ const describeVaultRemote = (status: VaultStatusResponse): string => {
     return `${status.remote} (${REMOTE_SOURCE_LABELS[status.remoteSource]})`;
   }
   return status.externalSync === null
-    ? "no remote: the account's hosted vault, once this install signs in (`inteligir cloud login`)"
+    ? "no remote: the account's hosted vault, once this install signs in (Settings › Account)"
     : `no remote: ${externalSyncName(status.externalSync)} syncs this folder, so the hosted vault stays off`;
 };
 

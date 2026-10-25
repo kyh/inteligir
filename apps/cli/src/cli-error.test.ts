@@ -67,7 +67,6 @@ describe("CliExitError", () => {
     expect(new CliExitError("x", { code: "WAIT_TIMEOUT" }).exitCode).toBe(2);
     expect(new CliExitError("x", { code: "SERVER_UNREACHABLE" }).exitCode).toBe(3);
     expect(new CliExitError("x", { code: "SERVER_VERSION_MISMATCH" }).exitCode).toBe(3);
-    expect(new CliExitError("x", { code: "INTERRUPTED" }).exitCode).toBe(130);
   });
 
   it("keeps a server's class it re-raises, and exits as that refusal would", () => {

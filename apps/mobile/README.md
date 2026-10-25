@@ -445,10 +445,14 @@ without a vault.
    ```bash
    # in each of two terminals
    export INTELIGIR_DATA_DIR=/tmp/review-seed/data INTELIGIR_VAULT_DIR=/tmp/review-seed/vault
-   pnpm cli serve                                  # the first terminal
-   pnpm cli cloud login --email <review address>   # the second: it asks for the password
+   pnpm cli serve    # the first terminal
+   pnpm cli open     # the second: the scratch library in a browser tab
+   ```
+   In that tab, sign in as the review account under Settings › Account, then
+   in the second terminal:
+   ```bash
    pnpm cli vault sync
-   pnpm cli vault status                           # the account's vault, nothing left to send
+   pnpm cli vault status   # the account's vault, nothing left to send
    ```
    Then stop the server, revoke that seeding device at
    `https://inteligir.com/app/devices` signed in as the review account, and

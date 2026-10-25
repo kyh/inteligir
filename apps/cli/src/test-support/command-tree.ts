@@ -28,12 +28,10 @@ export const FIXTURE_ITEM_PATH = "Reading/File over app.md";
 export const FIXTURE_ITEM_URL = "https://example.test/file-over-app";
 
 // what the booted server minted or holds that a leaf names: a revision of notes/hello.md, an
-// action with a turn that changed the library and an approval waiting on it, and the password
-// its account signs in with
+// action with a turn that changed the library and an approval waiting on it
 export interface LeafFacts {
   revision: string;
   threadId: string;
-  password: string;
 }
 
 export const leafInvocations = (facts: LeafFacts): Map<string, readonly string[]> =>
@@ -92,10 +90,6 @@ export const leafInvocations = (facts: LeafFacts): Map<string, readonly string[]
     ["agents list", ["agents", "list"]],
     ["agents default", ["agents", "default", "codex"]],
     ["cloud status", ["cloud", "status"]],
-    [
-      "cloud login",
-      ["cloud", "login", "--email", "owner@example.test", "--password", facts.password],
-    ],
     ["status", ["status"]],
     ["open", ["open"]],
     ["guide", ["guide"]],

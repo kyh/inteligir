@@ -7,12 +7,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { argsOf, collectGroupCommands, collectLeafCommands } from "./command-tree";
 import type { CommandAtPath } from "./command-tree";
-import {
-  FAKE_ACCOUNT,
-  FakeCloud,
-  bootThreadHarness,
-  shareBoot,
-} from "./server/test-support/boot-app";
+import { FakeCloud, bootThreadHarness, shareBoot } from "./server/test-support/boot-app";
 import type { ThreadHarness } from "./server/test-support/boot-app";
 import { agentTurn, cliOver, pageBundle } from "./test-support/booted-cli";
 import type { CliOverServer } from "./test-support/booted-cli";
@@ -147,7 +142,7 @@ const reseed = async (
     last === null || leaf.startsWith("action ")
       ? await freshAction(app)
       : { threadId: last.threadId };
-  return { ...action, password: FAKE_ACCOUNT.password, revision };
+  return { ...action, revision };
 };
 
 const leaves = (): CommandAtPath[] =>
@@ -199,7 +194,6 @@ describe("CLI --json flag enforcement", { timeout: 120_000 }, () => {
 
   it("every leaf command has a registered invocation — the table cannot fall behind", () => {
     const anyFacts: LeafFacts = {
-      password: "password",
       revision: "0".repeat(40),
       threadId: "thr_1",
     };
