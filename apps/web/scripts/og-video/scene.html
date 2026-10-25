@@ -2,8 +2,8 @@
 <!--
   The og:video scene: a simplified Inteligir window, drawn from the app's own type (Inter), dark
   tokens and mark, telling one moment. The user asks the agent beside a rough note, the agent's
-  edits stream into that note, each changed line lit, then the mark. Never shipped: the site does
-  not route it. scripts/og-video.ts serves it from a scratch folder with inter.woff2 and
+  edits stream into that note, each changed line lit, then the mark with the tagline under it.
+  Never shipped: the site does not route it. scripts/og-video.ts serves it from a scratch folder with inter.woff2 and
   favicon.svg beside it, and steps it with seek(seconds), one screenshot a frame.
 -->
 <html lang="en">
@@ -225,23 +225,20 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 22px;
+        gap: 30px;
       }
       .end img {
-        width: 120px;
-        height: 120px;
-        border-radius: 28px;
-        box-shadow: inset 0 0 0 1px var(--line);
-      }
-      .end .word {
-        font-size: 64px;
-        font-weight: 650;
-        letter-spacing: -0.03em;
+        width: 148px;
+        height: 148px;
+        border-radius: 34px;
+        /* the icon's own black would sink into the ground without an edge */
+        outline: 1px solid var(--line);
+        outline-offset: -1px;
       }
       .end .tag {
-        font-size: 28px;
+        font-size: 34px;
+        letter-spacing: -0.01em;
         color: var(--ink-2);
-        margin-top: -10px;
       }
     </style>
   </head>
@@ -274,7 +271,6 @@
       </div>
       <div class="end" id="end">
         <img src="favicon.svg" alt="" />
-        <div class="word">Inteligir</div>
         <div class="tag">The workspace for knowledge work.</div>
       </div>
     </div>

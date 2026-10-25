@@ -2,7 +2,8 @@
 //
 // - og.mp4 + og-poster.jpg: a recording of og-video/scene.html, a simplified Inteligir window
 //   built from the app's own type, dark tokens and mark (never the running app). The user asks
-//   the agent beside a rough note, the agent's edits stream into it, then the mark, then the loop.
+//   the agent beside a rough note, the agent's edits stream into it, then the icon over the
+//   tagline, then the loop.
 //   The scene is a pure function of time: each frame is seek(t) and one screenshot at 2x, so a
 //   run records the same clip every time, downscaled by ffmpeg to a 1200x630 H.264 clip with no
 //   audio track.
