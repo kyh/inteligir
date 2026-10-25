@@ -45,7 +45,7 @@ export const undoTurnChanges = async (
   if (isDefinedError(error) && error.code === "NOT_FOUND") {
     return {
       kind: "refused",
-      message: "These changes were not made on this device, so they can't be undone here.",
+      message: "These changes are no longer in this library's history, so they can't be undone.",
     };
   }
   return { kind: "refused", message: refusalMessage(error, UNDO_REFUSED) };

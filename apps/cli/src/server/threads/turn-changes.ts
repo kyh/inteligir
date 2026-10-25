@@ -76,8 +76,7 @@ export const foldTurnCommits = (commits: readonly TurnCommit[]): TurnChanges[] =
   }));
 };
 
-// a thread pulled from another device was created here when it arrived, so what that device
-// committed before then is not read.
+// a thread commits nothing before it was created, so the walk starts there, less the clock margin.
 export const readThreadTurnCommits = async (
   git: GitEngine,
   thread: ThreadRow,
@@ -90,7 +89,7 @@ interface ListTurnChangesArgs {
   threadId: string;
 }
 
-// null for a thread this device does not hold.
+// null for an unknown thread.
 export const listTurnChanges = async (
   args: ListTurnChangesArgs,
 ): Promise<TurnChangesResponse | null> => {

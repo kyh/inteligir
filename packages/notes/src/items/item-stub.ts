@@ -1,4 +1,4 @@
-// A url item before its page is read: what the Mac's save, the phone's share and the import write.
+// A url item before its page is read: what the Mac's save and the phone's share write.
 
 import { composeLinkBody } from "./item-body";
 import { composeItemFile } from "./item-frontmatter";

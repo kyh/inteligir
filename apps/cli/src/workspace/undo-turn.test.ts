@@ -64,7 +64,7 @@ describe("undoing a turn", () => {
     });
   });
 
-  it("says why a turn this device holds no record of cannot be undone here", async () => {
+  it("says why a turn the library's history no longer holds cannot be undone", async () => {
     const { client } = await bootThreadHarness({ mode: "manual" });
     const { thread } = await client.threads.create({});
 
@@ -72,7 +72,7 @@ describe("undoing a turn", () => {
 
     expect(outcome).toEqual({
       kind: "refused",
-      message: "These changes were not made on this device, so they can't be undone here.",
+      message: "These changes are no longer in this library's history, so they can't be undone.",
     });
   });
 

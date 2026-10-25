@@ -1,6 +1,6 @@
 // a named action rides the send as a preset, never as a prompt in the text: the server composes
 // its block, the stored text stays what was typed (or the label, when nothing was), and it survives
-// the queue in its own column. it is no part of any thread event, so no other device reads it.
+// the queue in its own column. it is no part of any thread event.
 
 import { z } from "zod";
 

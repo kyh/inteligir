@@ -245,12 +245,16 @@ app=apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app
   then type. Passing: the words land once, at the caret; typing carries on
   after them; Enter while dictation is live does not send; the Edit menu shows
   Start Dictation…; and dictating into a note behaves the same.
-- **An earlier install's database starts over once.** With the previous
-  release installed, signed in and holding an action that has synced, install
-  this build over it and open it from Finder. Passing: the app opens signed out
-  with no actions, `~/.inteligir/logs/server.log` has the `[db]` line saying the
-  database was replaced, and once you sign in again in Settings › Account the
-  action comes back, with the Mac's earlier sign-in listed beside its new one.
+- **An earlier install's actions start over once.** With the previous release
+  installed, signed in in two libraries, the one in the Inteligir folder of your
+  home and one elsewhere, each holding an action, install this build over it,
+  open it from Finder and open each library with File › Open Library…. Passing:
+  - The library in the Inteligir folder of your home opens signed out with no
+    actions. Signing in again in Settings › Account brings no action back, and
+    the account lists the Mac's earlier sign-in beside its new one.
+  - The other library opens still signed in with no actions, and its own log,
+    `~/.inteligir/vaults/<its hash>/logs/server.log` (Settings › Advanced › Show
+    log), has the `[db]` line saying the database was replaced.
 - **An earlier library opens as it is.** The same install, over a library the
   previous release kept, with a few notes and a comment. Passing: the window
   opens on the grid with every note a card and nothing rewritten on disk

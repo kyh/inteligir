@@ -1,5 +1,4 @@
-// one reading of a message's first line, so every place that names a thread from its first
-// message names it alike.
+// how the server names a thread from its first message: that message's first visible line.
 
 const THREAD_TITLE_MAX_CHARS = 60;
 

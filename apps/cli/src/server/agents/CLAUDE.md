@@ -21,8 +21,7 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   not authority; the thread and turn trailers are spelled once. Undo covers
   reported edits alone (owner decision). Rejected: committing the whole dirty
   tree (a concurrent turn's writes go to whoever settles first); a sha (a rebase
-  rewrites it). Residual: a thread pulled from another device lists only the
-  commits made after it arrived. `apps/cli/src/server/agents/agent-commits.ts`,
+  rewrites it). `apps/cli/src/server/agents/agent-commits.ts`,
   `apps/cli/src/server/vault/turn-trailers.ts`.
 
 - **A TURN OPENS WITH A CHECKPOINT OF THE UNCLAIMED DIRTY TREE**, since Undo
@@ -94,11 +93,11 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   `apps/cli/src/server/agents/view-context-prompt.ts`.
 
 - **AN @-MENTION RIDES THE SEND AS `contextPaths`, NEVER AS TEXT.** The stored
-  message is exactly what was typed, so the timeline, the phone and a thread's
-  title read no prefix the desktop glued on; the server names the notes in a
-  block of its own. A queued send KEEPS them, unlike a view context: a mention
-  is part of what the user asked. A mention names an item; the grid's selection
-  is a view context, a statement about the screen.
+  message is exactly what was typed, so the timeline and a thread's title read
+  no prefix the desktop glued on; the server names the notes in a block of its
+  own. A queued send KEEPS them, unlike a view context: a mention is part of
+  what the user asked. A mention names an item; the grid's selection is a view
+  context, a statement about the screen.
   `@repo/contract/local/threads/threads-schema`.
 
 - **A NAMED ACTION IS A PRESET ON THE SEND, NOT A PROMPT IN THE TEXT.** Tidy my
@@ -107,9 +106,9 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   own block, worded for what the session holds (file and tag what is in Unsorted
   or untagged, in batches of 100). The preset survives the queue in its own
   column, never in the thread event. Rejected: a seeded composer prompt (the
-  person's words would be ours, and the timeline and phone would show
-  instructions); a `library.tidy` procedure (a second agent entry); an agent run
-  per save (it spends the person's plan on every bookmark).
+  person's words would be ours, and the timeline would show instructions); a
+  `library.tidy` procedure (a second agent entry); an agent run per save (it
+  spends the person's plan on every bookmark).
   `apps/cli/src/server/agents/action-preset-prompt.ts`.
 
 - **THE DEFAULT HARNESS IS A STORED CHOICE, read per thread start**, in the data
@@ -180,30 +179,29 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   `apps/cli/src/server/threads/build-thread-timeline.ts`.
 
 - **A THREAD IS NAMED BY ITS FIRST MESSAGE, ON THE SERVER**, in the transaction
-  that appends it, local or synced; an explicit title stays. The rule is
-  `deriveThreadTitle` (`@repo/domain/thread-title`), which the phone runs too,
-  and a title the log states outranks it on every device. Rejected: naming it in
-  the desktop (every action the CLI, an agent or another device started stayed
-  "Untitled action"). `apps/cli/src/server/threads/thread-ingest.ts`.
+  that appends it; an explicit title stays. The rule is `deriveThreadTitle`
+  (`@repo/domain/thread-title`). Rejected: naming it in the desktop (every
+  action the CLI or an agent started stayed "Untitled action").
+  `apps/cli/src/server/threads/thread-ingest.ts`.
 
 - **A STOP IS A CANCEL WITH A CLOSE BEHIND IT, AND THE TURN STILL ENDS THROUGH
   ITS OWN PROMPT** (owner decision: an agent writing the vault the wrong way
   needs a brake). The turn settles through its prompt's `cancelled` end; one
   silent past the grace has its session closed and is settled by the host.
-  Archiving a running thread stops it. A turn another device runs is refused,
-  since only its own process reaches its provider, so the panel draws no Stop
-  there. Rejected: deleting the unreachable `stopping` state.
+  Archiving a running thread stops it. Rejected: deleting the `stopping` state
+  (it is what keeps a queued turn from reactivating a thread mid-stop,
+  `packages/domain/src/thread-lifecycle.ts`).
   `apps/cli/src/server/threads/thread-stop.ts`,
   `apps/cli/src/server/agents/runtime-manager.ts`.
 
 - **AN ACTION'S ORIGIN IS ITS NOTE'S ID, and the path is only the fallback.**
   The create stores the note's `id` beside the path, minted through the
-  annotation store's guarded step. A phone's request never mints: over a note
-  with no id the thread binds by path, and a boot binds it to the id once the
-  note has one. A read prefers the stored path while it still carries the id, so
-  a byte copy never takes the binding. An action sent from the library has no
-  origin doc: its subject is that view. Rejected: rebinding the stored path on
-  the rename route (Finder, an agent's `mv` and a pull never reach it).
+  annotation store's guarded step; over a note that cannot take one the thread
+  binds by path, and a boot binds it to the id once the note has one. A read
+  prefers the stored path while it still carries the id, so a byte copy never
+  takes the binding. An action sent from the library has no origin doc: its
+  subject is that view. Rejected: rebinding the stored path on the rename route
+  (Finder, an agent's `mv` and a pull never reach it).
   `apps/cli/src/server/threads/thread-origins.ts`.
 
 - **THE THREAD LIST IS A KEYSET PAGE, AND A QUESTION A PAGE CANNOT ANSWER IS
@@ -227,9 +225,10 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
 
 - **A SEND IS REFUSED UP FRONT ONLY FOR A HARNESS THIS INSTALL CANNOT RUN**: the
   thread's runtime is missing from the install, or its harness is one this build
-  does not ship. A thread's row and log keep the harness open, since another
-  device's newer build may name one. Rejected: pre-gating a signed-out vendor
-  (the adapter's `authRequired` is the refusal, and it names the vendor).
+  does not ship. A thread's row and log keep the harness open, so a harness id
+  this build no longer ships reads as unknown rather than costing the thread its
+  parse. Rejected: pre-gating a signed-out vendor (the adapter's `authRequired`
+  is the refusal, and it names the vendor).
   `apps/cli/src/server/agents/vendor-process.ts`.
 
 - **UNDO IS A THREE-WAY REVERT OF ONE TURN'S COMMIT, THROUGH THE VAULT'S OWN
@@ -281,11 +280,11 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
 
 - **A SIGNED-OUT AGENT'S SIGN-IN STANDS WHERE THE FIELD WOULD BE, AND IS ONE
   SURFACE.** A signed-out default agent puts the sign-in in ⌘K's place, keeping
-  what was typed, and a signed-out thread no other device runs carries it above
-  the reply; ⌘K draws nothing until the vendors answer, or the sign-in would
-  replace a field under the typing. Those, each Settings card and onboarding
-  draw one component, whose Sign out names the vendor's own app it signs out
-  too, since the store is shared.
+  what was typed, and a signed-out thread carries it above the reply; ⌘K draws
+  nothing until the vendors answer, or the sign-in would replace a field under
+  the typing. Those, each Settings card and onboarding draw one component, whose
+  Sign out names the vendor's own app it signs out too, since the store is
+  shared.
   `apps/workspace/src/app/agents/agent-sign-in.tsx`.
 
 - **A TURN THE VENDOR REFUSED FOR THE PLAN'S USAGE LIMIT OR A SIGN-IN LEAVES THE
@@ -313,7 +312,6 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   route's gate and the waiter both run. Every json column is parsed inside
   `@repo/db` and handed back typed, null for bytes the grammar refuses, so one
   bad row costs that row. Rejected: a string the row replayed verbatim
-  (re-parsed at four sites in two spellings, when its only field is the decision
-  and the phone already wrote the bare enum).
-  `packages/db/src/pending-interactions.ts`,
+  (re-parsed at four sites in two spellings, when its only field is the
+  decision). `packages/db/src/pending-interactions.ts`,
   `packages/domain/src/pending-interactions.ts`.

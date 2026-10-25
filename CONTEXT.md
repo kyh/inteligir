@@ -205,10 +205,9 @@ alone, since ACP names no turns
 **session** — the PROVIDER's own conversation, cached on the thread row so a
 later turn resumes into it (`@repo/db/threads`). A session is disposable: it is
 reaped when idle, closed when the host abandons a turn on it, and dies with the
-provider process, while the thread and its events do not. Only its harness
-travels: another device opens a session of its own. Not to be confused with the
-auth **session** in `apps/web` — a signed-in user's row in D1 — which shares
-only the word.
+provider process, while the thread and its events do not. Not to be confused
+with the auth **session** in `apps/web` — a signed-in user's row in D1 — which
+shares only the word.
 
 **scope** — how far up an event's meaning reaches: the thread, or one turn
 (`@repo/domain/thread-event-scope`). Turn scope is the default reading, and each
@@ -231,8 +230,7 @@ note the user @-mentioned, which rides beside the message's text and, being part
 of what was asked rather than a statement about the screen, survives the queue.
 
 **dispatch** — a runtime handing a turn to its provider
-(`apps/cli/src/server/agents/runtime-manager.ts`). Never a cloud word: the
-phone asks no Mac anything, and the account carries no thread.
+(`apps/cli/src/server/agents/runtime-manager.ts`).
 
 ## "event" means three things
 

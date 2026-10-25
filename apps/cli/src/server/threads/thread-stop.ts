@@ -20,7 +20,7 @@ type InterruptDecision =
   | { kind: "interrupt"; turnId: string | null }
   | { kind: "done"; outcome: StopOutcome };
 
-// false for a thread this device does not hold.
+// false for an unknown thread.
 export const archiveInTransaction = (write: ThreadWrite, threadId: string): boolean => {
   if (getThread(write.tx, threadId) === null) {
     return false;
