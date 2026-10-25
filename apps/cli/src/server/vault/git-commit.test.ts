@@ -41,11 +41,13 @@ describe("what a scheduled commit costs", () => {
     const { root, engine } = await makeEngine({ remoteUrl: null, timing: FAST_COMMIT });
     const before = await commitCount(root);
 
+    // both schedules land in one quiet window: an await between them lets a slow runner's 50ms
+    // window close on the first alone.
     await writeFile(path.join(root, "told-a.md"), "a\n", "utf-8");
-    engine.scheduleCommit(["told-a.md"]);
     await writeFile(path.join(root, "told-b.md"), "b\n", "utf-8");
-    engine.scheduleCommit(["told-b.md"]);
     await writeFile(path.join(root, "untold.md"), "c\n", "utf-8");
+    engine.scheduleCommit(["told-a.md"]);
+    engine.scheduleCommit(["told-b.md"]);
 
     await awaitCommitCount(root, before + 1);
     const { stdout } = await git.run(root, ["show", "--name-only", "--format=", "HEAD"]);
@@ -77,8 +79,8 @@ describe("what a scheduled commit costs", () => {
     const before = await commitCount(root);
 
     await writeFile(path.join(root, "told.md"), "a\n", "utf-8");
-    engine.scheduleCommit(["told.md"]);
     await writeFile(path.join(root, "untold.md"), "b\n", "utf-8");
+    engine.scheduleCommit(["told.md"]);
     engine.scheduleCommit();
 
     await awaitCommitCount(root, before + 1);
