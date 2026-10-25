@@ -74,6 +74,7 @@ Inteligir is now a library of everything you save: links, articles, videos, imag
 - **Actions on your other Macs.** An action now stays on the Mac that ran it: your other Macs no longer list it, and neither does your account. What it changed in your library still reaches every device. To read an action's conversation, open it on the Mac you ran it on. Sync threads now and its queue are gone from Settings › Advanced; there is nothing left to sync.
 - **Linear and Context7 in one click.** Settings › Connectors now offers Notion and Exa in one click. A Linear or Context7 connector you already added keeps working; to add one again, enter its address under Add a connector.
 - **Connected folders.** Settings › Connected folders is gone, and the agent is no longer told about folders outside your library. To point it at one, name the folder when you ask, or write a standing line such as "also look in Documents/Reports" into your filing rules (Edit filing rules…, in Settings › Agent), which the agent reads on every action. Or add those files to your library.
+- **Adding a connector by command.** Settings › Connectors adds a connector by its web address, or in one click from its list, and Connect by with its Command and Arguments fields is gone. A connector that runs a program on your Mac, set up in Claude's or ChatGPT's own app, still shows there and can be removed.
 
 ### Fixed
 

@@ -72,15 +72,13 @@ if (vendor === "claude") {
   if (verb === "list") {
     console.log(JSON.stringify(Object.entries(servers).map(([name, row]) => ({ name, ...row }))));
   } else if (verb === "add") {
+    // the app adds by url alone: \`mcp add <name> --url <url>\`
     const name = args[2];
-    const url = args[3] === "--url" ? args[4] : null;
-    servers[name] =
-      url === null
-        ? { auth_status: "unsupported", transport: { args: afterDashes().slice(1), command: afterDashes()[0], type: "stdio" } }
-        : { auth_status: "not_logged_in", transport: { type: "streamable_http", url } };
+    const url = args[4];
+    servers[name] = { auth_status: "not_logged_in", transport: { type: "streamable_http", url } };
     fs.writeFileSync(file, JSON.stringify(servers));
     console.log("Added global MCP server '" + name + "'.");
-    if (url !== null && process.env.FAKE_CODEX_ADD_SIGN_IN === "1") {
+    if (process.env.FAKE_CODEX_ADD_SIGN_IN === "1") {
       console.log("Detected OAuth support. Starting OAuth flow…");
       signIn(name);
     }

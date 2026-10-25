@@ -25,6 +25,11 @@ const URL_ROW = {
   url: "https://mcp.example.test/mcp",
 } satisfies ConnectorTargetInput;
 
+const OTHER_URL_ROW = {
+  kind: "http",
+  url: "https://other.example.test/mcp",
+} satisfies ConnectorTargetInput;
+
 // a refusal is the port's own class; anything else fails the test as it came.
 const refusalFrom = async (work: Promise<unknown>): Promise<VendorMcpError | null> => {
   try {
@@ -95,11 +100,8 @@ describe("claude's connectors, over a fake claude", () => {
     const claude = createClaudeMcpConfig({ cwd: vendors.dataDir, env: vendors.env });
 
     expect(await claude.add("docs", URL_ROW)).toBeNull();
-    expect(
-      await claude.add("files", { args: ["-y", "server"], command: "npx", kind: "stdio" }),
-    ).toBeNull();
 
-    const [http, stdio] = vendors.runs();
+    const [http] = vendors.runs();
     expect(http?.args).toEqual([
       "mcp",
       "add-json",
@@ -109,21 +111,11 @@ describe("claude's connectors, over a fake claude", () => {
       "docs",
       JSON.stringify({ type: "http", url: URL_ROW.url }),
     ]);
-    expect(stdio?.args.at(-1)).toBe(
-      JSON.stringify({ args: ["-y", "server"], command: "npx", type: "stdio" }),
-    );
     for (const run of vendors.runs()) {
       expect(run.cwd).toBe(vendors.dataDir);
       expect(pathContains(vendors.vaultDir, run.cwd)).toBe(false);
     }
-    expect(await claude.list()).toEqual([
-      { auth: "unknown", name: "docs", target: URL_ROW },
-      {
-        auth: "not-needed",
-        name: "files",
-        target: { args: ["-y", "server"], command: "npx", kind: "stdio" },
-      },
-    ]);
+    expect(await claude.list()).toEqual([{ auth: "unknown", name: "docs", target: URL_ROW }]);
   });
 
   it("answers a duplicate add and a missing remove from its own read, running nothing", async () => {
@@ -178,7 +170,11 @@ describe("claude's connectors, over a fake claude", () => {
   it("refuses to sign in to a row that is not a URL, or is not there", async () => {
     const vendors = fakeMcpVendors();
     const claude = createClaudeMcpConfig({ cwd: vendors.dataDir, env: vendors.env });
-    await claude.add("files", { args: [], command: "srv", kind: "stdio" });
+    // a command row is the vendor's own, set up outside the app
+    writeFileSync(
+      vendors.claudeConfigFile,
+      JSON.stringify({ mcpServers: { files: { command: "srv" } } }),
+    );
     expect(await refusalOf(claude.signIn("files"))).toBe("not-a-url");
     expect(await refusalOf(claude.signIn("ghost"))).toBe("not-found");
   });
@@ -223,9 +219,7 @@ describe("codex's connectors, over a fake codex", () => {
     await codex.add("docs", URL_ROW);
     const before = vendors.runs().length;
 
-    expect(await refusalOf(codex.add("docs", { args: [], command: "other", kind: "stdio" }))).toBe(
-      "already-exists",
-    );
+    expect(await refusalOf(codex.add("docs", OTHER_URL_ROW))).toBe("already-exists");
     expect(verbsOf(vendors.runs().slice(before))).toEqual(["codex mcp list"]);
     expect(await codex.list()).toEqual([{ auth: "needs-sign-in", name: "docs", target: URL_ROW }]);
   });
@@ -283,7 +277,7 @@ describe("the connectors service", () => {
     const service = serviceOver(vendors, "codex");
     const outcomes = await Promise.allSettled([
       service.add({ name: "docs", target: URL_ROW }),
-      service.add({ name: "docs", target: { args: [], command: "srv", kind: "stdio" } }),
+      service.add({ name: "docs", target: OTHER_URL_ROW }),
     ]);
     expect(outcomes.map((outcome) => outcome.status).toSorted()).toEqual(["fulfilled", "rejected"]);
     const refused = outcomes.find((outcome) => outcome.status === "rejected");
@@ -465,11 +459,13 @@ describe("the connector procedures", () => {
   it("serve the default agent's rows with their refusal classes", async () => {
     const vendors = fakeMcpVendors();
     const harness = await bootTestApp({ connectors: configsOver(vendors) });
-    const added = await harness.client.connectors.add({
-      name: "files",
-      target: { args: ["run"], command: "npx", kind: "stdio" },
-    });
-    expect(added.servers.map((row) => row.name)).toEqual(["files"]);
+    // a command row set up in the vendor's own config, which the app lists but never adds
+    writeFileSync(
+      vendors.claudeConfigFile,
+      JSON.stringify({ mcpServers: { files: { args: ["run"], command: "npx" } } }),
+    );
+    const listed = await harness.client.connectors.list();
+    expect(listed.servers.map((row) => row.name)).toEqual(["files"]);
 
     const refusals = await Promise.all([
       safe(harness.client.connectors.add({ name: "files", target: URL_ROW })),

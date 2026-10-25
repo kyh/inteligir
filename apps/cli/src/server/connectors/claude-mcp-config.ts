@@ -100,11 +100,7 @@ const readClaudeServers = async (file: string): Promise<VendorMcpServer[]> => {
 };
 
 const serverJson = (target: ConnectorTargetInput): string =>
-  JSON.stringify(
-    target.kind === "http"
-      ? { type: "http", url: target.url }
-      : { args: target.args, command: target.command, type: "stdio" },
-  );
+  JSON.stringify({ type: "http", url: target.url });
 
 export const createClaudeMcpConfig = (context: VendorProcessContext): VendorMcpConfig => {
   const configPath = claudeConfigPath(context.env);

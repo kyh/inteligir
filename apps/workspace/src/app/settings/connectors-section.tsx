@@ -14,10 +14,8 @@ import type {
 } from "@repo/contract/local/connectors/connectors-schema";
 import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
-import { Label } from "@repo/ui/components/label";
 import { toast } from "@repo/ui/components/sonner";
 import { Spinner } from "@repo/ui/components/spinner";
-import { Textarea } from "@repo/ui/components/textarea";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState } from "react";
 import type { ReactElement } from "react";
@@ -26,7 +24,7 @@ import { failed, orpc, refusalMessage } from "../api";
 import { LabelledField } from "../labelled-field";
 import { CONNECTOR_PRESETS } from "./connector-presets";
 import type { ConnectorPreset } from "./connector-presets";
-import { ChoiceRow, SectionHeading } from "./settings-chrome";
+import { SectionHeading } from "./settings-chrome";
 
 // A sign-in finishes in the browser and nothing on the ws bus announces it, so the list is polled
 // while any row waits on one.
@@ -60,48 +58,26 @@ const useSignedInToasts = (response: ConnectorsResponse | undefined): void => {
   }, [response]);
 };
 
-export const argumentLines = (text: string): string[] =>
-  text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-
-type TargetKind = ConnectorTargetInput["kind"];
-
-const TARGET_CHOICES: readonly { value: TargetKind; label: string }[] = [
-  { label: "URL", value: "http" },
-  { label: "Command", value: "stdio" },
-];
-
+// a connector is added by its address alone; one that runs a program is set up in the agent's
+// own app, and lists and removes here like any other row.
 export interface AddConnectorDraft {
   name: string;
-  kind: TargetKind;
   url: string;
-  command: string;
-  argsText: string;
 }
 
-export const EMPTY_DRAFT: AddConnectorDraft = {
-  argsText: "",
-  command: "",
-  kind: "http",
-  name: "",
-  url: "",
-};
+export const EMPTY_DRAFT: AddConnectorDraft = { name: "", url: "" };
 
 type DraftVerdict =
   | { ok: true; name: string; target: ConnectorTargetInput }
   | { ok: false; problem: string };
 
-const draftTarget = (draft: AddConnectorDraft): ConnectorTargetInput =>
-  draft.kind === "http"
-    ? { kind: "http", url: draft.url.trim() }
-    : { args: argumentLines(draft.argsText), command: draft.command.trim(), kind: "stdio" };
+const draftTarget = (draft: AddConnectorDraft): ConnectorTargetInput => ({
+  kind: "http",
+  url: draft.url.trim(),
+});
 
 // The schema is the rule; this table only names each field the way the form labels it.
 const FIELD_LABELS = {
-  args: "arguments",
-  command: "command",
   name: "name",
   url: "URL",
 } satisfies Record<string, string>;
@@ -117,10 +93,7 @@ const problemOf = (issue: z.core.$ZodIssue): string => {
       return `Fill in the ${label}.`;
     }
     case "too_big": {
-      const maximum = String(issue.maximum);
-      return issue.origin === "array"
-        ? `At most ${maximum} ${label}.`
-        : `The ${label} is at most ${maximum} characters.`;
+      return `The ${label} is at most ${String(issue.maximum)} characters.`;
     }
     default: {
       return `The ${label} ${issue.message}.`;
@@ -351,49 +324,6 @@ export const ConnectorsSection = () => {
     );
   };
 
-  const targetFields = () => {
-    if (draft.kind === "http") {
-      return (
-        <LabelledField
-          id={`${formId}-url`}
-          label="URL"
-          value={draft.url}
-          placeholder="https://example.com"
-          onChange={(event) => {
-            setDraft({ ...draft, url: event.target.value });
-          }}
-        />
-      );
-    }
-    return (
-      <>
-        <LabelledField
-          id={`${formId}-command`}
-          label="Command"
-          value={draft.command}
-          placeholder="npx"
-          onChange={(event) => {
-            setDraft({ ...draft, command: event.target.value });
-          }}
-        />
-        <div className="flex items-start gap-2">
-          <Label htmlFor={`${formId}-args`} className="w-24 shrink-0 pt-2 text-body">
-            Arguments
-          </Label>
-          <Textarea
-            id={`${formId}-args`}
-            value={draft.argsText}
-            rows={2}
-            placeholder={"one argument\nper line"}
-            onChange={(event) => {
-              setDraft({ ...draft, argsText: event.target.value });
-            }}
-          />
-        </div>
-      </>
-    );
-  };
-
   return (
     <section className="space-y-2">
       <SectionHeading>Connectors</SectionHeading>
@@ -446,15 +376,15 @@ export const ConnectorsSection = () => {
             setDraft({ ...draft, name: event.target.value });
           }}
         />
-        <ChoiceRow
-          label="Connect by"
-          value={draft.kind}
-          options={TARGET_CHOICES}
-          onChange={(kind) => {
-            setDraft({ ...draft, kind });
+        <LabelledField
+          id={`${formId}-url`}
+          label="URL"
+          value={draft.url}
+          placeholder="https://example.com"
+          onChange={(event) => {
+            setDraft({ ...draft, url: event.target.value });
           }}
         />
-        {targetFields()}
         <div className="flex items-center gap-2">
           {draft.name !== "" && !verdict.ok ? (
             <p className="flex-1 text-body text-muted-foreground">{verdict.problem}</p>

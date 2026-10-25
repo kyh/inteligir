@@ -125,12 +125,13 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
 - **CONNECTORS ARE THE DEFAULT AGENT'S OWN MCP CONFIG**: one registry, the
   vendor's, with the vendor's own sign-in. Settings edits the default agent's
   user-level servers through its bundled binary, so a change of agent moves the
-  section and every vault shares the list. Add and remove only: no toggle, no
-  header field (Codex keeps no static header). A session is handed no servers of
-  the app's, so it loads the config Settings edits. A plain list answers from
-  the last read for ten seconds, since reading codex's spawns it and runs OAuth
-  discovery against every URL row, which Settings' poll repeats every 1.5s.
-  Rejected: an app-owned registry with hand-built OAuth.
+  section and every vault shares the list. It adds a URL and removes: no
+  toggle, no header field (Codex keeps none), no command (a developer's
+  answer), though a command row the vendor holds lists and removes. A session
+  is handed no servers of the app's. A plain list answers from the last read
+  for ten seconds, since reading codex's spawns it and runs OAuth discovery
+  against every URL row, which Settings' poll repeats every 1.5s. Rejected: an
+  app-owned registry with hand-built OAuth.
   `apps/cli/src/server/connectors/vendor-mcp-config.ts`,
   `connectors-service.ts`.
 

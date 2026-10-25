@@ -10,7 +10,6 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { CONNECTOR_PRESETS } from "./connector-presets";
 import {
-  argumentLines,
   ConnectorRow,
   draftToRequest,
   EMPTY_DRAFT,
@@ -60,28 +59,11 @@ describe("draftToRequest", () => {
     });
   });
 
-  it("builds a command from its argument lines", () => {
-    expect(
-      draftToRequest({
-        ...EMPTY_DRAFT,
-        argsText: "-y\nserver-files\n\n",
-        command: "npx",
-        kind: "stdio",
-        name: "files",
-      }),
-    ).toEqual({
-      name: "files",
-      ok: true,
-      target: { args: ["-y", "server-files"], command: "npx", kind: "stdio" },
-    });
-    expect(draftToRequest({ ...EMPTY_DRAFT, kind: "stdio", name: "files" })).toEqual({
+  it("asks for the URL a name was given without", () => {
+    expect(draftToRequest({ ...EMPTY_DRAFT, name: "docs" })).toEqual({
       ok: false,
-      problem: "Fill in the command.",
+      problem: "Fill in the URL.",
     });
-  });
-
-  it("splits arguments on lines and drops blanks", () => {
-    expect(argumentLines(" a \n\nb\n")).toEqual(["a", "b"]);
   });
 });
 
@@ -159,7 +141,7 @@ describe("a connector row", () => {
     expect(screen.getByRole("button", { name: "Sign in" })).toBeDefined();
   });
 
-  it("names a command row by what it runs, with nothing to sign in to", () => {
+  it("names a command row set up in the agent's own app by what it runs, removable, with nothing to sign in to", () => {
     render(<ConnectorRow server={STDIO_ROW} busy={false} onSignIn={noop} onRemove={noop} />);
     expect(screen.getByText("npx -y server")).toBeDefined();
     expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
