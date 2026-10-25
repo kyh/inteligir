@@ -378,7 +378,7 @@ describe("a file beside the note named like an annotation store", () => {
   it("is the user's own: a list reads nothing from it and leaves it as found", async () => {
     const { root, annotations } = boot();
     writeFileSync(nodePath.join(root, "plan.md"), "note\n");
-    const beside = nodePath.join(root, "plan.md.comments.json");
+    const beside = nodePath.join(root, "plan.md.annotations.json");
     writeFileSync(
       beside,
       serializeAnnotationStore({ m1: { createdAt: AT, text: "mine", updatedAt: AT } }),

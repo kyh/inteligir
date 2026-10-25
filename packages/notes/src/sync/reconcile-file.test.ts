@@ -201,13 +201,13 @@ describe("reconcileFile", () => {
     const result = reconcile({
       base: text('{\n  "topic": "budget"\n}\n'),
       mine: text('{\n  "topic": "budget, mine"\n}\n'),
-      path: "work/meeting.md.comments.json",
+      path: "work/meeting.md.annotations.json",
       theirs: text('{\n  "topic": "budget, theirs"\n}\n'),
     });
     expect(result.stays).toEqual({ kind: "mine" });
     expect(result.copy).toEqual({
       kind: "text",
-      path: "work/meeting.md.comments (conflict, Kai’s iPhone).json",
+      path: "work/meeting.md.annotations (conflict, Kai’s iPhone).json",
       text: '{\n  "topic": "budget, theirs"\n}\n',
     });
     expect(result.report?.kind).toBe("copied");

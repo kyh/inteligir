@@ -205,7 +205,7 @@ describe("the rich-block lock refuses every edit inside a locked block", () => {
 const markersIn = (editor: PlateEditor): number =>
   [...editor.api.nodes({ at: [], match: isAnnotationMarker })].length;
 
-// a thread in a tab panel and one in a column, as a note another device commented on holds them
+// a thread in a tab panel and one in a column, as a note highlighted on another device holds them
 const MARKED = [
   "before",
   "",
@@ -226,12 +226,12 @@ const MARKED = [
   "",
 ].join("\n");
 
-describe("comment markers and the lock", () => {
+describe("annotation markers and the lock", () => {
   beforeEach(() => {
     installFakeEditorHost();
   });
 
-  it("a selection ending inside a locked tab panel anchors no comment and leaves no marker", () => {
+  it("a selection ending inside a locked tab panel anchors no annotation and leaves no marker", () => {
     const editor = touchEditor();
     const before = serializeNote(editor);
     editor.tf.select({

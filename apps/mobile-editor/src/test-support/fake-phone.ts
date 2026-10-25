@@ -62,7 +62,7 @@ const answerFromVault =
       case "write": {
         return writeAnswer(files, request.payload);
       }
-      // the note lands as a write does; the comment's entry is the phone's store's, which a case
+      // the note lands as a write does; the annotation's entry is the phone's store's, which a case
       // reads off the request
       case "addAnnotation": {
         const { base, content, path } = request.payload;

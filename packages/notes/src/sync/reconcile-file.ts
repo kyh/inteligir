@@ -108,8 +108,8 @@ const withCopyOfTheirs = (
   };
 };
 
-// Never a copy: two devices each commenting is the ordinary case, and a copy of a store no note
-// reads would be comments nobody sees. Beside a deletion the present store stays whole: the note
+// Never a copy: two devices each highlighting is the ordinary case, and a copy of a store no note
+// reads would be highlights nobody sees. Beside a deletion the present store stays whole: the note
 // it belongs to carries the report, and a store cut down to its edited entries would leave the
 // kept note's other anchors with no bodies.
 const reconcileAnnotationStore = ({ base, mine, theirs }: ReconcileInput): Reconciled => {

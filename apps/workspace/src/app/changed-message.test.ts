@@ -84,7 +84,7 @@ describe("a doc change", () => {
   });
 
   it("refreshes the annotations when the doc is an annotation store", () => {
-    // the second comment on a note rewrites an existing store: no files-changed follows it.
+    // the second highlight on a note rewrites an existing store: no files-changed follows it.
     const applied = apply(contentChanged(annotationsStorePath("note-id")));
 
     expect(applied.invalidated).toEqual([[...orpc.knowledge.key()], [...orpc.annotations.key()]]);

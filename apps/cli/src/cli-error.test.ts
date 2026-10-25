@@ -37,9 +37,9 @@ describe("getErrorMessage", () => {
   it("reads a server refusal as the server's words, not the response it came in", () => {
     const refusal = new ORPCError("CONFLICT", {
       cause: new ResponseError({ response: { body: {}, headers: {}, status: 409 } }),
-      message: "Restored notes/gone.md, but not its comments",
+      message: "Restored notes/gone.md, but not its annotations",
     });
-    expect(getErrorMessage(refusal)).toBe("Restored notes/gone.md, but not its comments");
+    expect(getErrorMessage(refusal)).toBe("Restored notes/gone.md, but not its annotations");
   });
 
   it("spells a thrown non-Error as itself", () => {

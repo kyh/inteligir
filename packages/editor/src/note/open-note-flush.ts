@@ -1,4 +1,4 @@
-// the shell's writers outside the note's own tree (a restore, a comment, a send's view context)
+// the shell's writers outside the note's own tree (a restore, an annotation, a send's view context)
 // flush the open note through this module, over the installed host's flush; once that host's
 // disposer runs there is nothing left to flush.
 

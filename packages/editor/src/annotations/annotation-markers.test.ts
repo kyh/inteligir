@@ -26,7 +26,7 @@ const editorWith = (md: string) => {
 
 const bytes = (editor: ReturnType<typeof editorWith>): string => serializeNote(editor);
 
-describe("comment markers", () => {
+describe("annotation markers", () => {
   it("wraps the selection with a pair that serializes as the dialect", () => {
     const editor = editorWith("The current layout needs review.\n");
     editor.selection = {
@@ -67,7 +67,7 @@ const spansOf = (md: string) => {
   return { editor, spans };
 };
 
-describe("comment range pairing", () => {
+describe("annotation range pairing", () => {
   it("pairs a range and reads its ids", () => {
     const { editor, spans } = spansOf("x %%i:c1:start%%mid%%i:c1:end%% y\n");
     expect(spans).toEqual([{ block: 0, extent: "mid", ids: ["c1"], orphan: false }]);
@@ -90,7 +90,7 @@ describe("comment range pairing", () => {
     expect(spans).toEqual([{ block: 0, extent: "parasecond para", ids: ["y"], orphan: false }]);
   });
 
-  it("pairs markers on their own lines around a fence, the dialect's block comment", () => {
+  it("pairs markers on their own lines around a fence, the dialect's block annotation", () => {
     const { spans } = spansOf("%%i:x:start%%\n```js\ncode\n```\n%%i:x:end%%\n");
     expect(spans).toEqual([{ block: 0, extent: "code", ids: ["x"], orphan: false }]);
   });

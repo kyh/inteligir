@@ -32,7 +32,7 @@ import { FormulaAutocompleteKit } from "@repo/editor/formulas/formula-autocomple
 import { WikiAutocompleteKit } from "@repo/editor/wiki/wiki-autocomplete";
 
 // Everything the document is made of: every node, the dialect's inputs and decorations, the
-// comment decoration and the markdown wiring. Every surface composes this whole, so a note reads
+// annotation decoration and the markdown wiring. Every surface composes this whole, so a note reads
 // and serializes alike wherever it is open.
 export const CONTENT_KIT = [
   ...BasicMarksKit,

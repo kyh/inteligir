@@ -44,10 +44,10 @@ describe("what a listing hides", () => {
     for (const path of [
       "Welcome.md",
       "notes",
-      "notes/comments.json",
+      "notes/annotations.json",
       "assets/logo.png",
-      "Welcome.md.comments.json",
-      "notes/meeting.comments.json",
+      "Welcome.md.annotations.json",
+      "notes/meeting.annotations.json",
     ]) {
       expect(isVaultMetadataPath(path)).toBe(false);
     }

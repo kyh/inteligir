@@ -122,7 +122,7 @@ export const selectionEdgeLocked = (editor: SlateEditor): boolean =>
 
 const lifted = new WeakSet<SlateEditor>();
 
-// A comment's markers are its anchor, not the content of the block they sit in, so a thread
+// An annotation's markers are its anchor, not the content of the block they sit in, so a thread
 // deleted elsewhere takes its markers out of a locked block too. Every op `fn` applies passes, the
 // normalization a `withoutNormalizing` inside it runs on the way out included.
 export const withRichBlockLockLifted = (editor: SlateEditor, fn: () => void): void => {

@@ -192,7 +192,7 @@ export const replaceTopLevelKey = (
 const withoutTopLevelKey = (lines: readonly string[], key: string): string[] =>
   replaceTopLevelKey(lines, key, []);
 
-// the note's identity: frontmatter `id`, the value `[[Title|uuid]]` resolves and the comment
+// the note's identity: frontmatter `id`, the value `[[Title|uuid]]` resolves and the annotation
 // store is keyed by. Text only: a number or a list is not a name.
 export const noteIdOfProperties = (parsed: ParsedProperties | null): string | null => {
   if (parsed === null || parsed.kind !== "valid") {

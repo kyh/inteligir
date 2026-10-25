@@ -15,7 +15,7 @@ import { launchPhone } from "./test-support/phone-storage";
 const ID = "9e64c3df-c1e2-4a4d-8c07-91528f422413";
 const STORE = `.inteligir/annotations/${ID}.json`;
 const WITH_ID = `---\nid: ${ID}\n---\n# Plan\n`;
-const COMMENTS = '{"c1":{"createdAt":1,"source":"user","text":"why?","updatedAt":1}}\n';
+const ANNOTATIONS = '{"c1":{"createdAt":1,"source":"user","text":"why?","updatedAt":1}}\n';
 
 const phone = async (vault: FakeVault, deps: FileOpsDeps = {}) => {
   const net: Network = { loseApplied: false, online: true };
@@ -186,31 +186,31 @@ describe("renaming a note on the phone", () => {
 });
 
 describe("deleting a note on the phone", () => {
-  it("takes its comment store in the same set", async () => {
+  it("takes its annotation store in the same set", async () => {
     const vault = createFakeVault({
       "other.md": "# Other\n",
       "plan.md": WITH_ID,
-      [STORE]: COMMENTS,
+      [STORE]: ANNOTATIONS,
     });
     const { fileOps, store } = await phone(vault);
     await fileOps.remove("plan.md");
     await store.drain();
     expect(requestsOf(vault, "commit")).toStrictEqual([
-      `commit delete plan.md@${blobOid(WITH_ID)},delete ${STORE}@${blobOid(COMMENTS)}`,
+      `commit delete plan.md@${blobOid(WITH_ID)},delete ${STORE}@${blobOid(ANNOTATIONS)}`,
     ]);
     expect(vault.files()).toStrictEqual({ "other.md": "# Other\n" });
   });
 
   it("keeps the store while another note carries the id", async () => {
-    const vault = createFakeVault({ "copy.md": WITH_ID, "plan.md": WITH_ID, [STORE]: COMMENTS });
+    const vault = createFakeVault({ "copy.md": WITH_ID, "plan.md": WITH_ID, [STORE]: ANNOTATIONS });
     const { fileOps, store } = await phone(vault);
     await fileOps.remove("plan.md");
     await store.drain();
-    expect(vault.files()).toStrictEqual({ "copy.md": WITH_ID, [STORE]: COMMENTS });
+    expect(vault.files()).toStrictEqual({ "copy.md": WITH_ID, [STORE]: ANNOTATIONS });
   });
 
   it("keeps the note and its store when another device edited the note first", async () => {
-    const vault = createFakeVault({ "plan.md": WITH_ID, [STORE]: COMMENTS });
+    const vault = createFakeVault({ "plan.md": WITH_ID, [STORE]: ANNOTATIONS });
     const { fileOps, net, store } = await phone(vault);
     net.online = false;
     await fileOps.remove("plan.md");
@@ -219,7 +219,7 @@ describe("deleting a note on the phone", () => {
 
     net.online = true;
     await store.drain();
-    expect(vault.files()).toStrictEqual({ "plan.md": edited, [STORE]: COMMENTS });
+    expect(vault.files()).toStrictEqual({ "plan.md": edited, [STORE]: ANNOTATIONS });
   });
 });
 

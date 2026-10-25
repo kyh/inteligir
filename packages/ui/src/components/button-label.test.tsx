@@ -34,7 +34,7 @@ describe("a button's children", () => {
 
   it("lays an icon-only button's icon and its count out in one row", () => {
     render(
-      <Button variant="ghost" size="icon-compact" aria-label="Comments" onClick={noop}>
+      <Button variant="ghost" size="icon-compact" aria-label="Annotations" onClick={noop}>
         <svg data-testid="icon" />
         <span>3</span>
       </Button>,

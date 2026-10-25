@@ -81,7 +81,7 @@ export const createMemoryOutboxFiles = (): OutboxFiles & { names: () => string[]
 
 export const nodeSha1: Sha1 = async (bytes) => createHash("sha1").update(bytes).digest();
 
-// the id a note's first comment on the test phone mints
+// the id a note's first highlight on the test phone mints
 export const MINTED_NOTE_ID = "5b1f6f8e-3c2a-4f0e-9d7b-8a6c4e2f1d09";
 
 // the ports one notes store takes beside its database and session; no retry timer, so a test says

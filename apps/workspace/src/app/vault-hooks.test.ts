@@ -254,7 +254,7 @@ const LISTING: VaultEntry[] = [
   { kind: "dir", path: "notes/daily" },
   { kind: "file", path: "notes/daily/2026-08-16.md" },
   { kind: "file", path: "notes/ideas.md" },
-  { kind: "file", path: "notes/ideas.md.comments.json" },
+  { kind: "file", path: "notes/ideas.md.annotations.json" },
   { kind: "file", path: "Welcome.md" },
 ];
 
@@ -265,7 +265,7 @@ describe("what a listing shows", () => {
       "notes/daily",
       "notes/daily/2026-08-16.md",
       "notes/ideas.md",
-      "notes/ideas.md.comments.json",
+      "notes/ideas.md.annotations.json",
       "Welcome.md",
     ]);
   });

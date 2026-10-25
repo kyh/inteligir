@@ -599,7 +599,7 @@ describe("a note's annotation store goes with the note", () => {
 
     // the server's own refusals are the ones the composition reads as "kept" and "none".
     expect(await restoreAnnotationStore(client, note.content, sha)).toEqual({ kind: "kept" });
-    const otherNote = note.content.replace(NOTE_ID, "never-commented");
+    const otherNote = note.content.replace(NOTE_ID, "never-annotated");
     expect(await restoreAnnotationStore(client, otherNote, sha)).toEqual({ kind: "none" });
   });
 

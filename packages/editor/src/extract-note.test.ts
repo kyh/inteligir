@@ -158,7 +158,7 @@ describe("the extract", () => {
     expect(calls).toEqual([]);
   });
 
-  it("refuses blocks that anchor a comment, whose thread would stay behind", async () => {
+  it("refuses blocks that anchor an annotation, whose entry would stay behind", async () => {
     const { calls } = installFakeEditorHost();
     const editor = editorOver([h2("Plan"), p("marked text")], "Source.md");
     editor.tf.select({ anchor: { offset: 0, path: [1, 0] }, focus: { offset: 6, path: [1, 0] } });

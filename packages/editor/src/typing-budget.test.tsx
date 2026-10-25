@@ -36,7 +36,7 @@ const SETTLE_MS = 1000;
 
 // every inline construct of the dialect, so a pass over any one kind of them reaches this block
 const WATCHED_BLOCK =
-  "Last words: a #field tag, a [[Hub]] link, a {{1+1|2}} pill, %%i:watched:start%%a comment%%i:watched:end%%, $$x$$ and @2026-09-24.";
+  "Last words: a #field tag, a [[Hub]] link, a {{1+1|2}} pill, %%i:watched:start%%a highlight%%i:watched:end%%, $$x$$ and @2026-09-24.";
 // the note's end is where a range or a point lands without walking the note, so the watched block
 // is not the last one
 const CLOSING_BLOCK = "The end.";
@@ -86,7 +86,7 @@ const FOLD_REACH: BudgetRow = {
 const ROOT_DECORATIONS: BudgetRow = {
   module: "slate-dom",
   name: "splitDecorationsByChild",
-  why: "comment tints are one root decoration, and slate-dom splits a root decoration over the blocks it covers on every render of the root",
+  why: "annotation tints are one root decoration, and slate-dom splits a root decoration over the blocks it covers on every render of the root",
 };
 const SELECTOR_SUBSCRIPTIONS: BudgetRow = {
   module: "slate-react",

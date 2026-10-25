@@ -274,7 +274,7 @@ const annotationTextAt = (op: AnnotationOp, path: string): string | null => {
   return op.anchored !== null && path === op.anchored.path ? op.anchored.content : null;
 };
 
-const commentLeaves = async (
+const annotationLeaves = async (
   sha1: Sha1,
   op: AnnotationOp,
   path: string,
@@ -290,7 +290,7 @@ export const leavesAt = async (
   op: RenameOp | AnnotationOp,
   path: string,
 ): Promise<{ oid: string; content: string | null } | null> =>
-  op.op === "rename" ? await renameLeaves(sha1, op, path) : await commentLeaves(sha1, op, path);
+  op.op === "rename" ? await renameLeaves(sha1, op, path) : await annotationLeaves(sha1, op, path);
 
 // an edit computed from `base`, carried onto the text the path holds now; null where the two
 // changed the same lines, which leaves that text as it is

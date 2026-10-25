@@ -1,5 +1,5 @@
-// one table for the vault procedures, the comments procedures and the asset route, so one
-// refusal maps to one class everywhere. total over VaultServiceErrorCode via satisfies, so a
+// one table for the vault, items and annotations procedures and the asset, page-copy and thumb
+// routes, so one refusal maps to one class everywhere. total over VaultServiceErrorCode via satisfies, so a
 // new code fails to compile rather than 500ing, and each class is one the contract declares.
 
 import type { VAULT_REFUSAL_ERRORS } from "@repo/contract/local/errors";
