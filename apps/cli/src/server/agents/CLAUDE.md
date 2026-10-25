@@ -144,16 +144,15 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
 
 - **ONE SET OF SESSION FACTS, TWO PROJECTIONS, AND A LOADED SESSION IS HANDED
   ONLY THE INSTRUCTIONS IT DOES NOT HOLD.** The shell env and the prompt are
-  pure functions of one set of facts, the env read at every spawn so
-  `INTELIGIR_CONNECTED_DIRS` never freezes at the first turn. ACP's
-  `session/new` carries no instructions, so they ride a turn's prompt, again
-  only when they differ from the last set the thread was handed. The prompt's
-  blocks read `PromptFacts`
-  (`apps/cli/src/server/agents/agent-instructions.ts`): `inteligir` commands
-  only when `cliBinDir` resolved, every library or typed value one sh word
-  (`apps/cli/src/shell-quote.ts`) since the agent runs it as written, and the
-  Tidy block's filing rules only when the library has them. Rejected: Claude's
-  `_meta.systemPrompt` (one harness's channel).
+  pure functions of one set of facts, fixed for the run. The instructions are
+  rebuilt at every session open, as the library's AGENTS.md changes between
+  turns, and ride a turn's prompt (ACP's `session/new` carries none) only when
+  they differ from the thread's last set. The prompt's blocks read
+  `PromptFacts` (`apps/cli/src/server/agents/agent-instructions.ts`):
+  `inteligir` commands only when `cliBinDir` resolved, every library or typed
+  value one sh word (`apps/cli/src/shell-quote.ts`) since the agent runs it as
+  written, the Tidy block's filing rules only when the library has them.
+  Rejected: Claude's `_meta.systemPrompt` (one harness's channel).
   `apps/cli/src/server/agents/agent-shell-env.ts`, `runtime-manager.ts`.
 
 - **THE HOST CLOSES A PROVIDER SESSION IT GIVES UP ON, AND A CHILD'S DEATH FAILS

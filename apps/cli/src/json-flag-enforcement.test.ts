@@ -1,7 +1,6 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors —
 // its CLI's json-flag-enforcement.test.ts, adapted and widened.
 
-import { realpathSync } from "node:fs";
 import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
 import { createPendingInteraction } from "@repo/db/pending-interactions";
 import { describe, expect, it } from "vitest";
@@ -12,7 +11,6 @@ import {
   FAKE_ACCOUNT,
   FakeCloud,
   bootThreadHarness,
-  makeTempDir,
   shareBoot,
 } from "./server/test-support/boot-app";
 import type { ThreadHarness } from "./server/test-support/boot-app";
@@ -74,8 +72,6 @@ const SUITE = { lifetime: "suite" } as const;
 
 interface Booted {
   over: CliOverServer<ThreadHarness>;
-  newFolder: string;
-  connectedFolder: string;
 }
 
 // one server for the file: every leaf's success run reseeds what the one before it changed, and
@@ -90,13 +86,7 @@ const shared = shareBoot(async (teardown): Promise<Booted> => {
       teardown,
     },
   );
-  return {
-    // realpathed, as folders.add stores them: on macOS the temp dir sits under the /tmp symlink, so
-    // the list would never hold the spelling the reseed asks about
-    connectedFolder: realpathSync(makeTempDir("inteligir-json-connected-", SUITE)),
-    newFolder: realpathSync(makeTempDir("inteligir-json-new-", SUITE)),
-    over: await cliOver(app),
-  };
+  return { over: await cliOver(app) };
 });
 
 let turns = 0;
@@ -120,7 +110,7 @@ const freshAction = async (
 // then wants, remove takes the highlight edit then wants), and a leaf about an action or an
 // approval gets an action of its own, since archive, undo and answer each use theirs up.
 const reseed = async (
-  { over, newFolder, connectedFolder }: Booted,
+  { over }: Booted,
   leaf: string,
   last: LeafFacts | null,
 ): Promise<LeafFacts> => {
@@ -145,13 +135,6 @@ const reseed = async (
       text: "seeded",
     });
   }
-  const { folders } = await app.client.folders.list();
-  if (folders.includes(newFolder)) {
-    await app.client.folders.remove({ path: newFolder });
-  }
-  if (!folders.includes(connectedFolder)) {
-    await app.client.folders.add({ path: connectedFolder });
-  }
   await app.vault.git.commitNow();
   // history only grows, so the first revision stays one every later leaf can name
   let revision = last?.revision;
@@ -166,7 +149,7 @@ const reseed = async (
     last === null || leaf.startsWith("action ") || leaf.startsWith("interactions ")
       ? await freshAction(app)
       : { interactionId: last.interactionId, threadId: last.threadId };
-  return { ...action, connectedFolder, newFolder, password: FAKE_ACCOUNT.password, revision };
+  return { ...action, password: FAKE_ACCOUNT.password, revision };
 };
 
 const leaves = (): CommandAtPath[] =>
@@ -218,9 +201,7 @@ describe("CLI --json flag enforcement", { timeout: 120_000 }, () => {
 
   it("every leaf command has a registered invocation — the table cannot fall behind", () => {
     const anyFacts: LeafFacts = {
-      connectedFolder: "/connected",
       interactionId: "pint_1",
-      newFolder: "/new",
       password: "password",
       revision: "0".repeat(40),
       threadId: "thr_1",

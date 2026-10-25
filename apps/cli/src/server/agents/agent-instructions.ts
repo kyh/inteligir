@@ -31,12 +31,6 @@ you author or edit, and follow it exactly; the app parses what it specifies.`;
 const LIBRARY_RULES_HEADER =
   "The library's own instructions (its AGENTS.md, the person's filing rules):";
 
-// states the user's intent only: nothing here can enforce read-only, so the wording must not claim to.
-const connectedFoldersInstructions = (dirs: readonly string[]): string =>
-  `The user connected these folders as reference context: \
-${dirs.join(", ")} (also in $INTELIGIR_CONNECTED_DIRS). Treat them as \
-read-only reference material — read freely, do not modify them.`;
-
 const loadVaultInstructions = (vaultDir: string): string | undefined => {
   let raw: string;
   try {
@@ -63,9 +57,6 @@ export const toInstructions = (facts: AgentSessionFacts, vaultDir: string): stri
   }
   if (facts.skillsDir !== null) {
     parts.push(SKILLS_POINTER_INSTRUCTIONS);
-  }
-  if (facts.connectedDirs.length > 0) {
-    parts.push(connectedFoldersInstructions(facts.connectedDirs));
   }
   const vaultInstructions = loadVaultInstructions(vaultDir);
   if (vaultInstructions !== undefined) {

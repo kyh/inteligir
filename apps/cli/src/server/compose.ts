@@ -22,9 +22,6 @@ import type { VendorMcpConfigs } from "./connectors/vendor-mcp-config";
 import { debugLog } from "./debug-log";
 import { deviceNameReader, readMachineName } from "./device-name";
 import { messageOf } from "./error-message";
-import { createFoldersService } from "./folders/folders-service";
-import type { FoldersService } from "./folders/folders-service";
-import { FoldersStore } from "./folders/folders-store";
 import { createImportService } from "./imports/import-service";
 import type { CapturePorts } from "./items/capture/capture-ports";
 import { createItemsService } from "./items/items-service";
@@ -56,7 +53,6 @@ interface ComposeDriverDeps {
   db: DbConnection;
   bus: WsBus;
   vault: VaultRuntime;
-  folders: FoldersService;
   agentPrefs: AgentPrefsStore;
   sink: ProviderEventSink;
   // the scripted driver's save, run inside its turn as an agent's shell would run `inteligir save`
@@ -231,11 +227,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     await imports.dispose();
   });
 
-  const folders = createFoldersService({
-    dataDir: config.dataDir,
-    store: new FoldersStore(config.dataDir),
-    vaultDir: config.vaultDir,
-  });
   const agentPrefs = new AgentPrefsStore(config.dataDir);
   const connectors = createConnectorsService({
     configs: ports.connectors ?? createVendorMcpConfigs({ cwd: config.dataDir, env: process.env }),
@@ -284,7 +275,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     bus,
     config,
     db,
-    folders,
     items,
     sink: threads,
     vault,
@@ -323,7 +313,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     cloud,
     connectors,
     downscale,
-    folders,
     imports,
     items,
     knowledge,

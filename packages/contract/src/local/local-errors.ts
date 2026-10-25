@@ -33,11 +33,6 @@ export const ALREADY_EXISTS = {
   message: "Something is already there",
 } as const;
 
-// not INVALID_PATH: the path is a valid one, and the list it would join is full
-export const LIMIT_REACHED = {
-  message: "There is no room for another",
-} as const;
-
 // `current` is absent when the file no longer exists: a delete that raced the write has nothing to merge against
 export const CAS_MISMATCH = {
   data: z.object({
@@ -89,7 +84,6 @@ const LOCAL_ERRORS = {
   IMPORT_UNREADABLE,
   INVALID_PATH,
   INVALID_RESOLUTION,
-  LIMIT_REACHED,
   PROVIDER_UNAVAILABLE,
   STALE_TURN,
 };
@@ -103,7 +97,6 @@ export const LOCAL_ERROR_STATUS_MAP = {
   IMPORT_UNREADABLE: 400,
   INVALID_PATH: 400,
   INVALID_RESOLUTION: 400,
-  LIMIT_REACHED: 409,
   PROVIDER_UNAVAILABLE: 503,
   STALE_TURN: 409,
 } satisfies Record<keyof typeof LOCAL_ERRORS, number>;

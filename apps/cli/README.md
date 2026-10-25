@@ -87,8 +87,8 @@ list|read|history|revision|restore|write|rename|delete|deleted|mkdir|new-id|atta
 · `search` (`tag:` terms pass through) · `matches` · `backlinks` · `related` ·
 `tags` · `tag add|remove|rename` · `import raindrop|status|cancel` · `action
 list|new|send|show|stop|wait|archive|changes|undo` · `annotation list|add|edit|reply|remove` ·
-`interactions list|answer` · `agents list|default` · `folders
-list|add|remove` · `cloud status|login` · `status` · `guide` ·
+`interactions list|answer` · `agents list|default` · `cloud status|login` ·
+`status` · `guide` ·
 `native-host` (hidden: the browser extension's door, which Chrome starts).
 
 Exit codes: 0 success · 1 error (including an action settling in error) ·

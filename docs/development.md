@@ -173,7 +173,7 @@ its own door into a scratch profile
 | Extension dev server (`pnpm dev:extension`)       | 3000, or the first free port to 3010 (WXT's own probe)                             |
 | The vault selector, config.json                   | `~/.inteligir-dev/<hash>/data/` (prod: `~/.inteligir`)                             |
 | Each vault's SQLite and sign-in                   | `<that dir>/vaults/<hash of its physical path>/`                                   |
-| Folders, agent and vault prefs                    | JSON files beside them (the app writes these)                                      |
+| Agent and vault prefs                             | JSON files beside them (the app writes these)                                      |
 | Connectors                                        | the agent's own: `~/.claude.json`, `~/.codex`                                      |
 | The desktop's server log                          | `<data dir>/logs/server.log` (+ one `.1`)                                          |
 | The desktop's own folder                          | `desktop/` beside config.json: recent vaults, the debug choice, Linux's web stores |

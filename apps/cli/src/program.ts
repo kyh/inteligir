@@ -23,7 +23,6 @@ import {
   resolveCommandPath,
 } from "./command-tree";
 import { agentsCommand } from "./commands/agents";
-import { foldersCommand } from "./commands/folders";
 import { guideCommand } from "./commands/guide";
 import { interactionsCommand } from "./commands/interactions";
 import {
@@ -67,7 +66,6 @@ export const buildProgram = (deps: CliDeps): CommandDef =>
       annotation: annotationCommand(deps),
       backlinks: backlinksCommand(deps),
       cloud: cloudCommand(deps),
-      folders: foldersCommand(deps),
       guide: guideCommand(deps),
       import: importCommand(deps),
       interactions: interactionsCommand(deps),

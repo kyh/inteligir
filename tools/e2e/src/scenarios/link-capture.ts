@@ -106,10 +106,7 @@ const pipeLinks = async (ctx: ScenarioContext, app: AppInstance, urls: readonly 
   expect(cliBinDir !== null, "the app resolves a CLI bin directory for the agent's PATH");
   const env = {
     ...hermeticProcessEnv(),
-    ...toShellEnv(
-      { cliBinDir, connectedDirs: [], dataDir: app.dataDir, skillsDir: null },
-      hermeticProcessEnv(),
-    ),
+    ...toShellEnv({ cliBinDir, dataDir: app.dataDir, skillsDir: null }, hermeticProcessEnv()),
   };
   const { stdout } = await exec(
     "sh",

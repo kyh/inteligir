@@ -16,7 +16,6 @@ export const fakeSessionFacts = (
   overrides: Partial<AgentSessionFacts> = {},
 ): AgentSessionFacts => ({
   cliBinDir: null,
-  connectedDirs: [],
   dataDir: "/instances/test/data",
   skillsDir: null,
   ...overrides,

@@ -10,7 +10,6 @@ import { agentsContract } from "./agents/agents-contract";
 import { annotationsContract } from "./annotations/annotations-contract";
 import { cloudContract } from "./cloud/cloud-contract";
 import { connectorsContract } from "./connectors/connectors-contract";
-import { foldersContract } from "./folders/folders-contract";
 import { importsContract } from "./imports/imports-contract";
 import { itemsContract } from "./items/items-contract";
 import { knowledgeContract } from "./knowledge/knowledge-contract";
@@ -23,7 +22,6 @@ export const localContract = {
   annotations: annotationsContract,
   cloud: cloudContract,
   connectors: connectorsContract,
-  folders: foldersContract,
   imports: importsContract,
   items: itemsContract,
   knowledge: knowledgeContract,

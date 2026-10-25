@@ -24,7 +24,6 @@ import { AgentsSection } from "./agents-section";
 import { AttachmentsRow } from "./attachments-row";
 import { ConnectorsSection } from "./connectors-section";
 import { FilingRulesRow } from "./filing-rules-row";
-import { FoldersSection } from "./folders-section";
 import { BrowserExtensionRow } from "./browser-extension-row";
 import { ImportRow } from "./import-row";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
@@ -44,7 +43,6 @@ const NAV = [
   { id: "library", label: "Library" },
   { id: "agents", label: "Agent" },
   { id: "connectors", label: "Connectors" },
-  { id: "folders", label: "Connected folders" },
   { id: "account", label: "Account" },
   { id: "editor", label: "Editor" },
   { id: "advanced", label: "Advanced" },
@@ -149,10 +147,6 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
           <Separator />
           <div id="connectors" className="scroll-mt-10">
             <ConnectorsSection />
-          </div>
-          <Separator />
-          <div id="folders" className="scroll-mt-10">
-            <FoldersSection />
           </div>
           <Separator />
           <div id="account" className="scroll-mt-10">

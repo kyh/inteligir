@@ -46,8 +46,10 @@ describe("ACP runtime shell env wiring", () => {
           hostEnv: { PATH: "/usr/bin" },
           models: { claude: null, codex: null },
           notifier: bus,
-          sessionFacts: () =>
-            fakeSessionFacts({ cliBinDir: "/repo/apps/cli/bin", dataDir: "/instances/one/data" }),
+          sessionFacts: fakeSessionFacts({
+            cliBinDir: "/repo/apps/cli/bin",
+            dataDir: "/instances/one/data",
+          }),
           vaultDir,
         }),
       }),

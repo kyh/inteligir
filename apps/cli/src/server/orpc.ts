@@ -12,7 +12,6 @@ import type { BrowserSession } from "./browser-session";
 import type { AnnotationsService } from "./annotations/annotations-service";
 import type { CloudRuntime } from "./cloud/sync-runtime";
 import type { ConnectorsService } from "./connectors/connectors-service";
-import type { FoldersService } from "./folders/folders-service";
 import type { ImportService } from "./imports/import-service";
 import type { ItemsService } from "./items/items-service";
 import type { RenameTag } from "./knowledge/knowledge-router";
@@ -49,7 +48,6 @@ export interface AppContext {
   connectors: ConnectorsService;
   // the one downscaler, a grid thumbnail's and a cover's, so the system's image tool runs one queue
   downscale: ImageDownscale;
-  folders: FoldersService;
   imports: ImportService;
   items: ItemsService;
   knowledge: KnowledgeRuntime;

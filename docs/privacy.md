@@ -283,12 +283,10 @@ of the Service, under their own terms with you rather than ours. Specifically:
   ChatGPT's own agent program, shipped inside the app and run on your Mac on
   your own Claude or ChatGPT plan. What you ask it, the names of the items you
   were looking at or selected, and the items and files it reads to answer — in
-  your library,
-  in a folder you connected under Settings, or anywhere else on this Mac it is
-  allowed to open — travel from your Mac to that provider (Anthropic or OpenAI)
-  under the provider's own terms, as they would in the provider's own app. That
-  program also reports to its maker whatever it reports when you run it
-  yourself.
+  your library or anywhere else on this Mac it is allowed to open — travel from
+  your Mac to that provider (Anthropic or OpenAI) under the provider's own
+  terms, as they would in the provider's own app. That program also reports to
+  its maker whatever it reports when you run it yourself.
 - **Signing the agent in — with the provider, directly.** Signing in from the
   app runs the provider's own sign-in: your browser signs in with Anthropic or
   OpenAI directly, and when it cannot hand the result back on its own, you paste

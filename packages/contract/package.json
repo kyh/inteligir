@@ -29,7 +29,6 @@
     "./local/cloud/cloud-schema": "./src/local/cloud/cloud-schema.ts",
     "./local/connectors/connectors-schema": "./src/local/connectors/connectors-schema.ts",
     "./local/errors": "./src/local/local-errors.ts",
-    "./local/folders/folders-schema": "./src/local/folders/folders-schema.ts",
     "./local/imports/imports-schema": "./src/local/imports/imports-schema.ts",
     "./local/items/items-schema": "./src/local/items/items-schema.ts",
     "./local/knowledge/knowledge-schema": "./src/local/knowledge/knowledge-schema.ts",

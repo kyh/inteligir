@@ -31,9 +31,8 @@ export interface ResolveAgentDriverArgs {
   sink: ProviderEventSink;
   // the scripted driver's save directive; the acp agents save through their own shell
   items: Pick<ItemsService, "saveLink" | "saveFile">;
-  // a getter, read per session open, so a Settings edit reaches the next session without a reboot.
-  sessionFacts: () => AgentSessionFacts;
-  // the stored default, read per thread start for the same reason.
+  sessionFacts: AgentSessionFacts;
+  // a getter, read per thread start, so a Settings edit reaches the next thread without a reboot.
   defaultHarness: () => HarnessId;
   env?: NodeJS.ProcessEnv;
   // absent: the runtime forks each adapter with child_process
@@ -66,7 +65,7 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
       items: args.items,
       notifier: args.notifier,
       onError: onDebug,
-      promptFacts: () => promptFactsFor(args.sessionFacts(), args.config.vaultDir),
+      promptFacts: () => promptFactsFor(args.sessionFacts, args.config.vaultDir),
       vault: args.vault.service,
     };
     return { driver: new ScriptedTurnDriver(args.sink, scripted), status: () => ({ mode }) };

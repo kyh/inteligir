@@ -14,7 +14,7 @@ export const agentShellCli = (repoRoot: string, dataDir: string): AgentShellCli 
   expect(cliBinDir !== null, "the app resolves a CLI bin directory for the agent's PATH");
   const env = {
     ...hermeticProcessEnv(),
-    ...toShellEnv({ cliBinDir, connectedDirs: [], dataDir, skillsDir: null }, hermeticProcessEnv()),
+    ...toShellEnv({ cliBinDir, dataDir, skillsDir: null }, hermeticProcessEnv()),
   };
   return async (...argv) => await exec("inteligir", argv, { env, timeoutMs: 60_000 });
 };

@@ -42,7 +42,7 @@ const SCRIPTED: BootTestAppOptions = {
       defaultHarness: () => "claude",
       items,
       notifier: bus,
-      sessionFacts: () => fakeSessionFacts({ cliBinDir: "/app/bin" }),
+      sessionFacts: fakeSessionFacts({ cliBinDir: "/app/bin" }),
       sink,
       vault,
     }).driver,

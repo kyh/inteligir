@@ -58,7 +58,7 @@ const bootScripted = async (
         defaultHarness: () => "claude",
         items: wrapItems(items, vault.service),
         notifier: bus,
-        sessionFacts: () => fakeSessionFacts(),
+        sessionFacts: fakeSessionFacts(),
         sink,
         vault,
       });

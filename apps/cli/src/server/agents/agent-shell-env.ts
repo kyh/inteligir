@@ -44,18 +44,16 @@ const isExecutableFile = (path: string): boolean => {
 export const resolveCliBinDir = (binDir: string = packageFile("bin")): string | null =>
   isExecutableFile(nodePath.join(binDir, CLI_BIN_NAME)) ? binDir : null;
 
-// read per session open: connected folders are Settings-mutable, and a value captured at runtime build would freeze them.
+// fixed for the server's run; what changes between turns, the library's AGENTS.md, `toInstructions` reads per session open.
 export interface AgentSessionFacts {
   dataDir: string;
   cliBinDir: string | null;
   skillsDir: string | null;
-  connectedDirs: readonly string[];
 }
 
 export interface AgentShellEnv {
   INTELIGIR_DATA_DIR: string;
   INTELIGIR_SKILLS_DIR?: string;
-  INTELIGIR_CONNECTED_DIRS?: string;
   PATH?: string;
 }
 
@@ -63,9 +61,6 @@ export const toShellEnv = (facts: AgentSessionFacts, hostEnv: NodeJS.ProcessEnv)
   const env: AgentShellEnv = { INTELIGIR_DATA_DIR: facts.dataDir };
   if (facts.skillsDir !== null) {
     env.INTELIGIR_SKILLS_DIR = facts.skillsDir;
-  }
-  if (facts.connectedDirs.length > 0) {
-    env.INTELIGIR_CONNECTED_DIRS = facts.connectedDirs.join(nodePath.delimiter);
   }
   if (facts.cliBinDir !== null) {
     const inheritedPath = hostEnv.PATH ?? "";

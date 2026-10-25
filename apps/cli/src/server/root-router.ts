@@ -5,7 +5,6 @@ import { agentsRouter } from "./agents/agents-router";
 import { annotationsRouter } from "./annotations/annotations-router";
 import { cloudRouter } from "./cloud/cloud-router";
 import { connectorsRouter } from "./connectors/connectors-router";
-import { foldersRouter } from "./folders/folders-router";
 import { importsRouter } from "./imports/imports-router";
 import { itemsRouter } from "./items/items-router";
 import { knowledgeRouter } from "./knowledge/knowledge-router";
@@ -19,7 +18,6 @@ export const localRouter = base.router({
   annotations: annotationsRouter,
   cloud: cloudRouter,
   connectors: connectorsRouter,
-  folders: foldersRouter,
   imports: importsRouter,
   items: itemsRouter,
   knowledge: knowledgeRouter,

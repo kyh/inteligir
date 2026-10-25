@@ -65,11 +65,7 @@ describe("toInstructions", () => {
       toInstructions(fakeSessionFacts(), makeVaultDir()),
       toInstructions(fakeSessionFacts({ cliBinDir: CLI_BIN_DIR }), makeVaultDir()),
       toInstructions(
-        fakeSessionFacts({
-          cliBinDir: CLI_BIN_DIR,
-          connectedDirs: ["/ref/a"],
-          skillsDir: "/repo/skills",
-        }),
+        fakeSessionFacts({ cliBinDir: CLI_BIN_DIR, skillsDir: "/repo/skills" }),
         vaultDir,
       ),
     ];
@@ -77,18 +73,6 @@ describe("toInstructions", () => {
       expect(instructions.startsWith(AUDIENCE_INSTRUCTIONS)).toBe(true);
     }
     expect(sets.at(-1)?.endsWith("Vault rules.")).toBe(true);
-  });
-
-  it("names connected folders as read-only reference, only when some exist", () => {
-    const vaultDir = makeVaultDir();
-    expect(toInstructions(fakeSessionFacts(), vaultDir)).toBe(AUDIENCE_INSTRUCTIONS);
-    const withDirs = toInstructions(
-      fakeSessionFacts({ connectedDirs: ["/ref/a", "/ref/b"] }),
-      vaultDir,
-    );
-    expect(withDirs).toContain("/ref/a, /ref/b");
-    expect(withDirs).toContain("read-only");
-    expect(withDirs).toContain("$INTELIGIR_CONNECTED_DIRS");
   });
 
   it("points at the skills dir only when one resolved", () => {

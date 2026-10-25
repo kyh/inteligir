@@ -59,14 +59,9 @@ describe("toShellEnv", () => {
     expect(env).toEqual({ INTELIGIR_DATA_DIR: "/instances/test/data" });
   });
 
-  it("names the skills dir and the connected folders only when there are some", () => {
+  it("names the skills dir only when one resolved", () => {
     expect(toShellEnv(fakeSessionFacts(), {})).not.toHaveProperty("INTELIGIR_SKILLS_DIR");
-    expect(toShellEnv(fakeSessionFacts(), {})).not.toHaveProperty("INTELIGIR_CONNECTED_DIRS");
-    const env = toShellEnv(
-      fakeSessionFacts({ connectedDirs: ["/a", "/b"], skillsDir: "/repo/skills" }),
-      {},
-    );
+    const env = toShellEnv(fakeSessionFacts({ skillsDir: "/repo/skills" }), {});
     expect(env.INTELIGIR_SKILLS_DIR).toBe("/repo/skills");
-    expect(env.INTELIGIR_CONNECTED_DIRS).toBe(`/a${path.delimiter}/b`);
   });
 });

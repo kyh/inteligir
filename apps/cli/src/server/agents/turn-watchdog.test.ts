@@ -122,7 +122,7 @@ const makeHarness = (runtime: Partial<AgentRuntime> = {}): Harness => {
     hostEnv: {},
     models: { claude: null, codex: null },
     notifier: noopNotifier,
-    sessionFacts: () => fakeSessionFacts(),
+    sessionFacts: fakeSessionFacts(),
     turnIdleTimeoutMs: BUDGET_MS,
     vaultDir: makeTempDir("inteligir-watchdog-vault-"),
   });

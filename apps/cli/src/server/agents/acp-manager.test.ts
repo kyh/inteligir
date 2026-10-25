@@ -56,8 +56,6 @@ interface ManagerOptions {
   filePath?: string;
   turnIdleTimeoutMs?: number;
   stopGraceMs?: number;
-  // mutable on purpose: the Settings-edited fact, read per session open.
-  connectedDirs?: string[];
   spawnedEnvs?: Record<string, string>[];
   children?: ChildProcess[];
   // mutable on purpose: a sign-in between two sends, read at the next session open.
@@ -112,12 +110,10 @@ const bootWithManager = async (
         hostEnv: {},
         models: { claude: null, codex: null },
         notifier: bus,
-        sessionFacts: () =>
-          fakeSessionFacts({
-            cliBinDir: options.cliBinDir ?? null,
-            connectedDirs: [...(options.connectedDirs ?? [])],
-            skillsDir: options.skillsDir ?? null,
-          }),
+        sessionFacts: fakeSessionFacts({
+          cliBinDir: options.cliBinDir ?? null,
+          skillsDir: options.skillsDir ?? null,
+        }),
         spawnAdapter: fakeSpawn(mode, options),
         unavailableReason: (providerId) => {
           options.checkedProviders?.push(providerId);
@@ -200,11 +196,9 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
 
   it("hands a loaded session only the instructions it does not already hold", async () => {
     const children: ChildProcess[] = [];
-    const connectedDirs: string[] = [];
     const harness = await bootWithManager("promptEcho", {
       children,
       cliBinDir: "/repo/apps/cli/bin",
-      connectedDirs,
     });
     const threadId = await createThread(harness.client);
     const echoes = async (): Promise<string[]> =>
@@ -221,15 +215,15 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     await sendMessage(harness.client, threadId, "first");
     await awaitThreadStatus(harness.client, threadId, "idle");
     await sendAfterTheChildIsGone("resumed");
-    connectedDirs.push("/ref/added-in-settings");
-    await sendAfterTheChildIsGone("resumed after a settings change");
+    writeFileSync(path.join(harness.vaultDir, "AGENTS.md"), "File recipes under Cooking.\n");
+    await sendAfterTheChildIsGone("resumed after the library's rules changed");
 
     const [first, resumed, changed] = await echoes();
     expect(first?.startsWith(AUDIENCE_INSTRUCTIONS)).toBe(true);
     expect(first).toContain(CLI_POINTER_INSTRUCTIONS);
     // the fake echoes the prompt's first block: the user's own text, with nothing ahead of it.
     expect(resumed).toBe("resumed");
-    expect(changed).toContain("/ref/added-in-settings");
+    expect(changed).toContain("File recipes under Cooking.");
     expect(children).toHaveLength(3);
   });
 
@@ -272,32 +266,28 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     expect(getThread(harness.db, threadId)?.providerId).toBe("gemini");
   });
 
-  it("reads the session facts at every session open: a folder added after the first turn reaches the next session's env AND prompt", async () => {
-    const connectedDirs: string[] = [];
-    const spawnedEnvs: Record<string, string>[] = [];
-    const harness = await bootWithManager("promptEcho", { connectedDirs, spawnedEnvs });
+  it("reads the library's AGENTS.md at every session open: rules written after the first turn reach the next session's prompt", async () => {
+    const harness = await bootWithManager("promptEcho");
 
     const first = await createThread(harness.client);
     await sendMessage(harness.client, first, "first session");
     await awaitThreadStatus(harness.client, first, "idle");
 
-    connectedDirs.push("/ref/added-in-settings");
+    writeFileSync(path.join(harness.vaultDir, "AGENTS.md"), "File recipes under Cooking.\n");
     const second = await createThread(harness.client);
     await sendMessage(harness.client, second, "second session");
     await awaitThreadStatus(harness.client, second, "idle");
 
-    expect(spawnedEnvs.map((env) => env.INTELIGIR_CONNECTED_DIRS)).toEqual([
-      undefined,
-      "/ref/added-in-settings",
-    ]);
-    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, second));
-    const echoedPrompt = rows.find(
-      (row) => row.kind === "conversation" && row.role === "assistant",
-    );
-    if (echoedPrompt?.kind !== "conversation") {
-      throw new Error("expected the echoed prompt");
-    }
-    expect(echoedPrompt.text).toContain("/ref/added-in-settings");
+    const echoedPrompt = async (threadId: string): Promise<string> => {
+      const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+      const echoed = rows.find((row) => row.kind === "conversation" && row.role === "assistant");
+      if (echoed?.kind !== "conversation") {
+        throw new Error("expected the echoed prompt");
+      }
+      return echoed.text;
+    };
+    expect(await echoedPrompt(first)).not.toContain("File recipes under Cooking.");
+    expect(await echoedPrompt(second)).toContain("File recipes under Cooking.");
   });
 
   it("stages a fileChange item's write set as the agent-attributed commit", async () => {
@@ -788,7 +778,7 @@ const bootWithScriptedRuntime = async (
         hostEnv: {},
         models: { claude: null, codex: null },
         notifier: bus,
-        sessionFacts: () => fakeSessionFacts(),
+        sessionFacts: fakeSessionFacts(),
         vaultDir,
       }),
     }),

@@ -361,9 +361,7 @@ rather than quoting it.
 **Connectors** — Settings › Connectors: the MCP servers in the DEFAULT agent's
 own user config, read and edited through its bundled binary
 (`apps/cli/src/server/connectors/vendor-mcp-config.ts`), and signed in to by the
-vendor's own login; the app keeps no registry. Not **Connected folders**
-(`folders` in `@repo/contract/local`): directories outside the vault the agent
-may read.
+vendor's own login; the app keeps no registry.
 
 **Sign in with Claude** (ChatGPT under Other) — an AGENT's sign-in: the vendor's
 own login, run by the server (`apps/cli/src/server/agents/agent-sign-in.ts`)
