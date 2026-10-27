@@ -129,11 +129,6 @@ catalogs:
     react: 19.2.3
     typescript: ~6.0.3
 
-# a workspace's name written as a version range links this checkout's copy wherever that copy
-# satisfies it, rather than the registry's (`inteligir` is published); every manifest spells
-# `workspace:*`, so this decides only a slip
-linkWorkspacePackages: true
-
 # Expo-SDK-versioned names: `pnpm up --latest` must not move them past the SDK. Matched by name,
 # so react and typescript (shared with web) cannot be listed; their `expo:` rows are reverted by hand.
 # nativewind too: its `latest` is the Tailwind 3 line, so a sweep would move the phone off Tailwind 4
@@ -149,29 +144,12 @@ update:
 
 # 24h supply-chain cooldown
 minimumReleaseAge: 1440
-# TanStack Start 1.0 (react-start 1.169.1), published inside the cooldown; drop these once they
-# are a day old and a fresh install passes without them.
-minimumReleaseAgeExclude:
-  - "@tanstack/react-router@1.170.44"
-  - "@tanstack/react-start-client@1.168.42"
-  - "@tanstack/react-start-rsc@0.1.62"
-  - "@tanstack/react-start-server@1.167.49"
-  - "@tanstack/react-start@1.169.1"
-  - "@tanstack/router-core@1.171.37"
-  - "@tanstack/router-generator@1.167.43"
-  - "@tanstack/router-plugin@1.168.45"
-  - "@tanstack/start-client-core@1.170.37"
-  - "@tanstack/start-plugin-core@1.171.52"
-  - "@tanstack/start-server-core@1.169.42"
-  - "@tanstack/start-storage-context@1.167.39"
-  # oRPC 2.0.0-beta.45, published inside the cooldown; drop these the same way.
-  - "@orpc/client@2.0.0-beta.45"
-  - "@orpc/contract@2.0.0-beta.45"
-  - "@orpc/json-schema@2.0.0-beta.45"
-  - "@orpc/openapi@2.0.0-beta.45"
-  - "@orpc/server@2.0.0-beta.45"
-  - "@orpc/shared@2.0.0-beta.45"
-  - "@orpc/tanstack-query@2.0.0-beta.45"
+# an exclusion admits one version still inside the cooldown and is deleted once that version is a
+# day old; an install drops by itself one the lockfile no longer resolves
+minimumReleaseAgeExcludePrune: true
+
+# an install drops a catalog entry no manifest spells any more
+catalogPrune: true
 
 blockExoticSubdeps: true
 
