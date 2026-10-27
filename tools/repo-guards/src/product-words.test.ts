@@ -1,9 +1,10 @@
 // a product surface speaks the person's words: the folder is the library and what is in it are
 // items, and the engine's words (git, commit, remote, repo, terminal, CLI, PATH, MCP) are Settings ›
-// Advanced's alone. detection is textual and a lower bound, like one-spelling.test.ts: it reads
-// the quoted literals that hold a space, with a template's `${…}` set aside and its own literals
-// read too, and a .tsx file's lines of JSX text, which is where the window's, the phone's and the
-// shell's sentences live.
+// Advanced's alone (GIT IS THE ENGINE, NEVER THE VOCABULARY, in apps/workspace/CLAUDE.md).
+// detection is textual and a lower bound, like one-spelling.test.ts: it reads the quoted literals
+// that hold a space, with a template's `${…}` set aside and its own literals read too, and a .tsx
+// file's lines of JSX text, which is where the window's, the phone's and the shell's sentences
+// live.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -30,7 +31,7 @@ const SENTENCE_MODULES = [
   "packages/notes/src/items/item-kind.ts",
 ] as const;
 
-// Settings › Advanced, the one place that shows the engine's raw state (AGENTS.md)
+// Settings › Advanced, the one place that shows the engine's raw state (apps/workspace/CLAUDE.md)
 const EXEMPT = new Set(["apps/workspace/src/app/settings/advanced-section.tsx"]);
 
 // a file that may say a word, and why: a row that no longer matches anything is stale

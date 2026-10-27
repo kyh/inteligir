@@ -86,8 +86,8 @@ pnpm dev              # the desktop shell over a server on a per-checkout port
 
 ### Layout
 
-[`AGENTS.md`](./AGENTS.md) § Map has one line per workspace, and each
-workspace's README its own layout.
+[`AGENTS.md`](./AGENTS.md) § Map has one line per workspace of the product,
+and each workspace's README its own layout.
 
 Boundaries are enforced, not documented: `tools/repo-guards` derives the
 dependency DAG from the tree and fails on an undeclared edge, a cycle or an

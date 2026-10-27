@@ -7,14 +7,18 @@ a choice was made**; this records **what a term names**, where it lives, and
 Rules for this file: every entry points at the module that OWNS the concept
 rather than restating its implementation, because the module's own header is the
 detail and this is the map. An entry that cannot be checked against code does
-not belong here.
+not belong here. The one exception is **The library in the cloud**: its terms
+are the ones the cloud cut is building, so each names the workspace that will
+own it, and the change that lands a term's module repoints its entry at that
+module in the same commit.
 
 ---
 
 ## The library in the cloud
 
 One library cell per account, a replica on every device, and the agents that
-reach it. Each entry names the workspace that owns it.
+reach it. Each entry names the workspace that owns it until its module lands
+(the rules above).
 
 **library cell** — one account's whole library: a SQLite Durable Object,
 `LibraryDO`, named `library:<userId>` only from a verified credential, in the

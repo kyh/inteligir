@@ -33,8 +33,9 @@ The premises every change builds from, each with its reason:
   meet; R2 holds the bytes, D1 the accounts.
 - **Every item is one record: fields plus a body of Plate blocks.** A link is
   an item whose fields hold its url, site and saved date and whose article
-  section holds the page's readable text; an image or PDF is the original file
-  beside an item that embeds it; a note the user writes is an item too.
+  section holds the page's readable text; an image or PDF is an item whose
+  fields name its original file, kept in R2 by its hash; a note the user
+  writes is an item too.
   Markdown is how a library comes in, how it goes out, and how an agent reads
   and edits it. One shape is what lets search, History, sync, every device and
   the agent's tools work on every item without a second store, and a row per
@@ -121,7 +122,7 @@ agent-browser, the Worker with curl, the library through the connector.
 what was rejected and why. Where two disagree the later wins. Where any of
 them, or a decision bullet, assumes a local server, a folder of markdown
 files, git, an agent on the user's own plan, a developer at the keyboard, or a
-notes app whose window is always one open note, this overview wins, and the
+notes app whose window is always one open note, this guide wins, and the
 change that touches that code rewrites the bullet in the same commit.
 
 ## Map
