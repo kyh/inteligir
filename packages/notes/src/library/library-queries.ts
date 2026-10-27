@@ -2,11 +2,12 @@
 // runs alike. A write binds every value and cuts every many-row statement under a Durable
 // Object's limits (`chunkStatement`); a user's text is matched with instr(), since a Durable
 // Object refuses a pattern-match operand past 50 bytes. A row is applied only over an older one,
-// so a replica laying a pulled page over its own rows keeps whichever is newer.
+// and what an item's row carries (its body, links, tags and index row) lands with it or not at
+// all, so a replica laying a pulled page over its own rows keeps whichever is newer, whole.
 
 import { z } from "zod";
 
-import { annotationEntrySchema } from "../annotations/store-schema";
+import { annotationEntrySchema, annotationSourceSchema } from "../annotations/store-schema";
 import type { AnnotationStore } from "../annotations/store-schema";
 import { renderFtsMatch } from "../knowledge/fts-match";
 import { searchExcerpt } from "../knowledge/search-excerpt";
@@ -63,7 +64,7 @@ const parseRow = <T>(row: SqlRow, schema: z.ZodType<T>, what: string): T => {
 
 // ---- items ----
 
-export const itemCardSchema = z.object({
+const itemCardSchema = z.object({
   outline: z.array(
     z.object({
       blockId: z.string(),
@@ -120,10 +121,12 @@ VALUES (${ITEM_COLUMNS.map(() => "?").join(", ")})
 ON CONFLICT (id) DO UPDATE SET ${ITEM_COLUMNS.filter((column) => column !== "id")
   .map((column) => `${column} = excluded.${column}`)
   .join(", ")}
-WHERE excluded.seq > items.seq`;
+WHERE excluded.seq > items.seq
+RETURNING seq`;
 
-// an item's row, over the one it replaces when that one is older
-export const storeItemRow = function* storeItemRow(write: ItemRowWrite): SqlPlan<void> {
+// an item's row, over the one it replaces when that one is older: whether it landed, since an
+// upsert whose update is skipped returns no row (https://www.sqlite.org/lang_returning.html)
+export const storeItemRow = function* storeItemRow(write: ItemRowWrite): SqlPlan<boolean> {
   const { derived, fields } = write;
   const values: Record<(typeof ITEM_COLUMNS)[number], SqlValue> = {
     aliases: JSON.stringify(fields.aliases),
@@ -155,10 +158,11 @@ export const storeItemRow = function* storeItemRow(write: ItemRowWrite): SqlPlan
     url: fields.url,
     url_key: derived.urlKey,
   };
-  yield run(
+  const landed = yield all(
     UPSERT_ITEM,
     ITEM_COLUMNS.map((column) => values[column]),
   );
+  return landed.length > 0;
 };
 
 const ITEM_TABLES_BY_ID = [
@@ -180,7 +184,8 @@ ON CONFLICT (id) DO UPDATE SET ${ITEM_COLUMNS.filter(
   .map((column) => `${column} = NULL`)
   .join(", ")}, purged = 1, deleted_at = excluded.deleted_at, updated_at = excluded.updated_at,
   schema = excluded.schema, seq = excluded.seq
-WHERE excluded.seq > items.seq`;
+WHERE excluded.seq > items.seq
+RETURNING seq`;
 
 export interface TombstoneWrite {
   readonly id: string;
@@ -189,19 +194,24 @@ export interface TombstoneWrite {
   readonly seq: number;
 }
 
-// a purged item: its id, sequence and deletion stay forever, and everything it held goes
-export const storeTombstone = function* storeTombstone(write: TombstoneWrite): SqlPlan<void> {
-  yield run(DELETE_SEARCH_ROW, [write.id]);
-  yield run(UPSERT_TOMBSTONE, [
+// a purged item: its id, sequence and deletion stay forever, and everything it held goes; whether
+// it landed, since a row newer than the tombstone keeps everything it holds
+export const storeTombstone = function* storeTombstone(write: TombstoneWrite): SqlPlan<boolean> {
+  const landed = yield all(UPSERT_TOMBSTONE, [
     write.id,
     write.deletedAt,
     write.updatedAt,
     LIBRARY_SCHEMA_VERSION,
     write.seq,
   ]);
+  if (landed.length === 0) {
+    return false;
+  }
+  yield run(DELETE_SEARCH_ROW, [write.id]);
   for (const sql of ITEM_TABLES_BY_ID) {
     yield run(sql, [write.id]);
   }
+  return true;
 };
 
 const itemRowSchema = z.object({
@@ -254,7 +264,7 @@ export type StoredItem =
 
 const stringList = z.array(z.string());
 
-export const storedItemOf = (raw: SqlRow): StoredItem => {
+const storedItemOf = (raw: SqlRow): StoredItem => {
   const row = parseRow(raw, itemRowSchema, "an item");
   if (row.purged === 1) {
     return {
@@ -331,6 +341,8 @@ export const blockWritesOf = (blocks: readonly StoredBlock[], derived: DerivedIt
     return { annotationIds: own?.annotationIds ?? [], stored, text: own?.text ?? "" };
   });
 
+// each block over its own row only when that row is older, so a pulled page never takes a block
+// back; a write stores each block once, at its own sequence number
 export const storeBlocks = function* storeBlocks(
   itemId: string,
   blocks: readonly BlockWrite[],
@@ -354,7 +366,8 @@ export const storeBlocks = function* storeBlocks(
       separator: ", ",
       tail: ` ON CONFLICT (item_id, block_id) DO UPDATE SET ord = excluded.ord,
         section = excluded.section, json = excluded.json, hash = excluded.hash,
-        text = excluded.text, annotation_ids = excluded.annotation_ids, seq = excluded.seq`,
+        text = excluded.text, annotation_ids = excluded.annotation_ids, seq = excluded.seq
+        WHERE excluded.seq > blocks.seq`,
     }),
   );
 };
@@ -375,8 +388,8 @@ export const dropBlocks = function* dropBlocks(
   );
 };
 
-// a body as a whole: what a replica lays down when an item's body arrives
-export const replaceBlocks = function* replaceBlocks(
+// a body as a whole, under the item's row that just landed
+const replaceBlocks = function* replaceBlocks(
   itemId: string,
   blocks: readonly BlockWrite[],
   seq: number,
@@ -420,10 +433,7 @@ export const readItemState = function* readItemState(id: string): SqlPlan<ItemSt
 
 // ---- derived rows: links and tags ----
 
-export const storeDerived = function* storeDerived(
-  itemId: string,
-  derived: DerivedItem,
-): SqlPlan<void> {
+const storeDerived = function* storeDerived(itemId: string, derived: DerivedItem): SqlPlan<void> {
   yield run("DELETE FROM links WHERE source_id = ?", [itemId]);
   yield* runEach(
     chunkStatement({
@@ -464,7 +474,7 @@ const HEADINGS_MAX_BYTES = 256 * 1024;
 const META_MAX_BYTES = 64 * 1024;
 
 // the longest prefix of `text` within `maxBytes` of UTF-8, never splitting a character
-export const clipToBytes = (text: string, maxBytes: number): string => {
+const clipToBytes = (text: string, maxBytes: number): string => {
   if (utf8ByteLength(text) <= maxBytes) {
     return text;
   }
@@ -534,7 +544,7 @@ const INSERT_SEARCH_ROW = `INSERT INTO search_fts (rowid, title, headings, meta,
   heading_stems, meta_stems, body_stems)
 SELECT rid, ?, ?, ?, ?, ?, ?, ?, ? FROM items WHERE id = ?`;
 
-export const storeSearchRow = function* storeSearchRow(
+const storeSearchRow = function* storeSearchRow(
   itemId: string,
   text: ItemSearchText,
 ): SqlPlan<void> {
@@ -563,16 +573,20 @@ export interface ItemWrite {
 }
 
 // an item as a whole, with everything derived from it: what a replica lays down when an item's
-// row and body arrive, and what a write that made the item stores
-export const storeItem = function* storeItem(write: ItemWrite): SqlPlan<DerivedItem> {
+// row and body arrive, and what a write that made the item stores. Null when the row held is as
+// new or newer, and then nothing of the item is written.
+export const storeItem = function* storeItem(write: ItemWrite): SqlPlan<DerivedItem | null> {
   const derived = deriveItem(write.state.fields, write.state.blocks);
-  yield* storeItemRow({
+  const landed = yield* storeItemRow({
     derived,
     fields: write.state.fields,
     id: write.id,
     seq: write.seq,
     updatedAt: write.updatedAt,
   });
+  if (!landed) {
+    return null;
+  }
   yield* replaceBlocks(
     write.id,
     blockWritesOf(orderedBlocks(write.state.blocks), derived),
@@ -784,7 +798,7 @@ const annotationRowSchema = z.object({
   id: z.string(),
   parent_id: z.string().nullable(),
   quote: z.string().nullable(),
-  source: z.enum(["user", "agent", "external"]).nullable(),
+  source: annotationSourceSchema.nullable(),
   text: z.string(),
   updated_at: z.number(),
 });

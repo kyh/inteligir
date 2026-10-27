@@ -22,7 +22,7 @@ import type { LibraryBlock, LibrarySection } from "./library-nodes";
 
 // one block of an item at the close of a change set: what a revision keeps for it, its content
 // held apart under its hash
-export interface ManifestEntry {
+interface ManifestEntry {
   readonly blockId: string;
   readonly hash: string;
   readonly ord: string;
@@ -58,7 +58,7 @@ export const snapshotOf = (now: ItemNow): ItemSnapshot => ({
   })),
 });
 
-export type ItemRevertKeepReason = "edited-since" | "purged";
+type ItemRevertKeepReason = "edited-since" | "purged";
 
 export type ItemRevert =
   | { readonly kind: "unchanged" }
@@ -374,7 +374,9 @@ const revertExisting = (input: ItemRevertInput, before: ItemSnapshot, now: ItemN
   }
   const ops = [...fields, ...plan.ops, ...order];
   const landed = applyOps(now.state, ops);
-  if (landed.kind === "conflict") {
+  // an edit since that the undo meets, or one that leaves no room for what the set took out (a
+  // tag list refilled to its cap): either way the item stays whole
+  if (landed.kind !== "applied") {
     return EDITED_SINCE;
   }
   const highlights = revertAnnotationEntries({
@@ -409,7 +411,7 @@ export const revertItemChange = (input: ItemRevertInput): ItemRevert => {
 };
 
 // one change set as an undo reads it: what it did to each item it touched
-export interface ChangeSetChanges {
+interface ChangeSetChanges {
   readonly id: string;
   readonly items: ReadonlyMap<string, ItemChange>;
 }
@@ -423,14 +425,14 @@ export interface ChangeSetsRevertInput {
   readonly at: number;
 }
 
-export interface ItemUndo {
+interface ItemUndo {
   // every op the undo lands on the item, in order, against the item as it is now
   readonly ops: readonly LibraryOp[];
   // the item once they land, its highlights included
   readonly now: ItemNow;
 }
 
-export interface KeptChange {
+interface KeptChange {
   readonly setId: string;
   readonly itemId: string;
   readonly reason: ItemRevertKeepReason;

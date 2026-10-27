@@ -18,21 +18,25 @@ node is rather than discriminating structurally at each visit.
 
 - **THE PERSISTED NODE SET IS SPELLED HERE, BELOW THE EDITOR, AND IT IS
   STRICT.** `@repo/notes/library/library-nodes` is Plate's own vocabulary as
-  zod: every element a strict object, a top-level block always named by its
-  id, a depth and a size checked before the recursive parse
+  zod, every node the editor round-trips (h1 to h6, an image's title beside
+  its caption): every element a strict object, a top-level block named by its
+  id and optionally by the `ref` a link's `blockRef` reaches (Obsidian's
+  `^ref`), a depth and a size checked before the recursive parse
   (`storableBlockSchema`). A wiki link names its target by id with the title
-  the writer saw, an image, file or video holds a sha or a url, and a marker
-  keeps `ids` and a pill its `meta` as the editor holds them. Rejected: the
-  vocabulary in `@repo/editor` (the cell and the replicas cannot load Plate,
-  and this package is the leaf every one of them reaches), and loose objects
-  (a prop no reader draws would land).
+  the writer saw, and media holds a sha or a url. Rejected: the vocabulary in
+  `@repo/editor` (the cell and the replicas cannot load Plate, and this
+  package is the leaf they all reach), and loose objects (a prop no reader
+  draws would land).
 
 - **AN ITEM IS FIELDS AND BLOCKS, AND EVERYTHING ELSE IS DERIVED IN THE SAME
-  TRANSACTION.** `@repo/notes/library/library-item` caps each field inside a
-  Durable Object's 2 MB row; `tags` is a column, the source `item_tags`
-  derives from beside the body's tag chips.
-  `deriveItem` reads the card (an empty title falls back to the first heading,
-  then the first line), the index text, the links by id, title key or url key,
+  TRANSACTION.** `@repo/notes/library/library-item` caps every field, and each
+  list and the properties by their JSON's bytes, so the largest legal row,
+  card and url key included, stays well inside a Durable Object's 2 MB
+  (`packages/notes/src/library/library-queries.test.ts` sums it).
+  `deriveItem` reads the card (an empty
+  title falls back to the first heading, then the first line; the outline
+  keeps the first h1 to h3, as the editor's contents do, each cut to a line),
+  the index text (every heading ranks), the links by id, title key or url key,
   and each block's anchored highlights. Rejected: syncing derived rows (two
   derivations would drift), a frontmatter block (its keys are columns).
   `packages/notes/src/library/derive-item.ts`.
@@ -40,11 +44,13 @@ node is rather than discriminating structurally at each visit.
 - **A BLOCK IS GUARDED BY ITS HASH, ITS PLACE BY ITS KEY, A FIELD BY ITS
   VALUE.** `@repo/notes/library/block-ops`: insert, put, drop, move and the
   field patches each name their base; a batch lands whole or answers every
-  conflict, an op already true is satisfied, and a list field merges as a set,
-  so two devices tagging at once both land. The hash is SHA-256 over canonical
-  JSON (`@noble/hashes`, synchronous for the cell's transaction) cut to 128
-  bits. Rejected: one version per item (two blocks would conflict) and the
-  platform's crypto (async in a Durable Object, absent from Hermes).
+  conflict, an op already true is satisfied, a list field merges as a set, so
+  two devices tagging at once both land, and a batch whose landed fields break
+  a cap (a merge past the list's length) lands none and answers `invalid`.
+  The hash is SHA-256 over canonical JSON (`@noble/hashes`, synchronous for
+  the cell's transaction) cut to 128 bits. Rejected: one version per item
+  (two blocks would conflict) and the platform's crypto (async in a Durable
+  Object, absent from Hermes).
   `packages/notes/src/library/block-ops.test.ts`.
 
 - **A BLOCK'S PLACE IS A FRACTIONAL KEY, READ NOTE BEFORE ARTICLE.**
@@ -72,9 +78,12 @@ node is rather than discriminating structurally at each visit.
   `@repo/notes/library/library-sql` runs a plan (a generator yielding one
   statement at a time) over the cell's synchronous port or a replica's
   asynchronous one, and cuts many-row statements under 100 parameters and 100
-  KB; `library-queries` matches text with instr(). Rejected: SQLite's
-  version pragma and its pattern-match operators (a Durable Object refuses the
-  one and caps the other at 50 bytes) and SQL per engine (it drifts). `packages/notes/src/test-support/wasm-sql-port.ts`.
+  KB; `library-queries` matches text with instr(), and lays an item only over
+  an older `seq`, its body, links, tags and index row with it or not at all
+  (the upsert's `RETURNING`). Rejected: SQLite's version pragma and its
+  pattern-match operators (a Durable Object refuses the one and caps the other
+  at 50 bytes) and SQL per engine (it drifts).
+  `packages/notes/src/test-support/wasm-sql-port.ts`.
 
 - **THE LISTING OVER ROWS IS IN MEMORY, AND PINNED LEADS IT.**
   `@repo/notes/library/library-index` holds a replica's listing rows, typed by

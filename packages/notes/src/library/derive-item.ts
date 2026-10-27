@@ -13,16 +13,19 @@ import type { LibraryElement, LibraryNode, LibrarySection } from "./library-node
 
 // a card's preview: the first paragraph's text, cut short
 const PREVIEW_MAX = 140;
-// a title read from the body: its first line, cut shorter
-const BODY_TITLE_MAX = 100;
+// a line the card shows of the body (a title read from it, a heading in its outline), cut shorter
+const SHOWN_LINE_MAX = 100;
+// the headings a card's outline keeps, from the top: the card rides in the item's row, which a
+// Durable Object caps at 2 MB, and a heading block may hold half a megabyte
+const OUTLINE_MAX = 200;
 
 export const LIBRARY_LINK_KINDS = ["wiki", "embed", "url"] as const;
-export type LibraryLinkKind = (typeof LIBRARY_LINK_KINDS)[number];
+type LibraryLinkKind = (typeof LIBRARY_LINK_KINDS)[number];
 
 // `targetId` when the link names an item; `targetKey` what resolves it otherwise: a wiki link's
 // title folded, so a dangling one resolves when an item answers to it, or a url's key, so an item
 // saved from that address finds the notes that linked it
-export interface DerivedLink {
+interface DerivedLink {
   readonly blockId: string;
   readonly section: LibrarySection;
   readonly kind: LibraryLinkKind;
@@ -33,12 +36,12 @@ export interface DerivedLink {
 }
 
 // a field tag is one the item's tags list names; an inline one is a tag chip in its body
-export interface DerivedTag {
+interface DerivedTag {
   readonly tag: string;
   readonly origin: "field" | "inline";
 }
 
-export interface OutlineEntry {
+interface OutlineEntry {
   readonly blockId: string;
   readonly level: 1 | 2 | 3;
   readonly text: string;
@@ -49,11 +52,13 @@ export interface ItemCard {
   readonly title: string;
   // the first paragraph's text, at most PREVIEW_MAX; "" when none holds any
   readonly preview: string;
+  // the h1 to h3 headings, the levels the editor's table of contents draws (its toc.tsx): the
+  // first OUTLINE_MAX, each cut to SHOWN_LINE_MAX
   readonly outline: readonly OutlineEntry[];
   readonly words: number;
 }
 
-export interface DerivedBlock {
+interface DerivedBlock {
   readonly text: string;
   readonly annotationIds: readonly string[];
 }
@@ -212,16 +217,16 @@ const firstLine = (text: string): string => text.trim().split("\n", 1)[0]?.trim(
 
 const titleOf = (
   fields: LibraryItemFields,
-  outline: readonly OutlineEntry[],
+  headings: readonly string[],
   texts: readonly string[],
 ): string => {
   const named = fields.title.trim();
   if (named !== "") {
     return named;
   }
-  const heading = outline.find((entry) => entry.text.trim() !== "")?.text;
+  const heading = headings.find((text) => text.trim() !== "");
   const line = heading ?? texts.map(firstLine).find((text) => text !== "") ?? "";
-  return clipSnippet(firstLine(line), BODY_TITLE_MAX);
+  return clipSnippet(firstLine(line), SHOWN_LINE_MAX);
 };
 
 const metaOf = (fields: LibraryItemFields, tags: readonly DerivedTag[]): string =>
@@ -235,7 +240,14 @@ const metaOf = (fields: LibraryItemFields, tags: readonly DerivedTag[]): string 
     .filter((part): part is string => part !== null && part !== "")
     .join("\n");
 
-const HEADING_LEVELS = { h1: 1, h2: 2, h3: 3 } as const;
+const OUTLINE_LEVELS = new Map<string, OutlineEntry["level"]>([
+  ["h1", 1],
+  ["h2", 2],
+  ["h3", 3],
+]);
+
+// every heading ranks as one, as the vault's index ranks every depth
+const HEADING_TYPES = new Set<string>(["h1", "h2", "h3", "h4", "h5", "h6"]);
 
 export const deriveItem = (
   fields: LibraryItemFields,
@@ -246,6 +258,7 @@ export const deriveItem = (
   const links: DerivedLink[] = [];
   const inlineTags: DerivedTag[] = [];
   const outline: OutlineEntry[] = [];
+  const headings: string[] = [];
   const texts: string[] = [];
   let preview = "";
   let words = 0;
@@ -254,8 +267,12 @@ export const deriveItem = (
     const annotationIds: string[] = [];
     texts.push(text);
     words += text.match(WORD)?.length ?? 0;
-    if (block.type === "h1" || block.type === "h2" || block.type === "h3") {
-      outline.push({ blockId: block.id, level: HEADING_LEVELS[block.type], text });
+    if (HEADING_TYPES.has(block.type)) {
+      headings.push(text);
+    }
+    const level = OUTLINE_LEVELS.get(block.type);
+    if (level !== undefined && outline.length < OUTLINE_MAX) {
+      outline.push({ blockId: block.id, level, text: clipSnippet(text, SHOWN_LINE_MAX) });
     }
     if (preview === "" && block.type === "p" && block.listStyleType === undefined) {
       preview = clipSnippet(text.trim(), PREVIEW_MAX);
@@ -315,7 +332,7 @@ export const deriveItem = (
     ),
     ...unique(inlineTags, (tag) => tag.tag.toLowerCase()),
   ];
-  const title = titleOf(fields, outline, texts);
+  const title = titleOf(fields, headings, texts);
   const body = texts.join("\n");
   return {
     blocks: derivedBlocks,
@@ -323,7 +340,7 @@ export const deriveItem = (
     links,
     search: {
       body,
-      headings: [...outline.map((entry) => entry.text), ...fields.aliases].join("\n"),
+      headings: [...headings, ...fields.aliases].join("\n"),
       meta: metaOf(fields, tags),
       title,
     },

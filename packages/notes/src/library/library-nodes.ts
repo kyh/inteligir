@@ -7,6 +7,7 @@
 
 import { z } from "zod";
 
+import { ANNOTATION_ID_PATTERN } from "../annotations/store-schema";
 import { ISO_DATE_PATTERN } from "../iso-date";
 import { isTagName } from "../knowledge/tag-grammar";
 import { canonicalJson, utf8ByteLength } from "./canonical-json";
@@ -19,7 +20,7 @@ export type LibrarySection = z.infer<typeof librarySectionSchema>;
 
 // the editor mints a block's id (Plate's nodeId); a newline in one would break the order merge's
 // one-line-per-block reading, and the grammar keeps it a short url-safe token
-export const BLOCK_ID_RE = /^[A-Za-z0-9_-]{1,64}$/u;
+const BLOCK_ID_RE = /^[A-Za-z0-9_-]{1,64}$/u;
 export const blockIdSchema = z.string().regex(BLOCK_ID_RE);
 
 // a Durable Object row holds 2 MB; a block holds a quarter of that, so its text column and its
@@ -54,7 +55,11 @@ const listIndent = z.number().int().min(1).optional();
 const listStart = z.number().int().min(1).optional();
 const listStyleType = z.enum(["disc", "decimal", "todo"]).optional();
 
-const ANNOTATION_IDS_RE = /^[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*$/u;
+// a marker's ids, comma-joined, in the one alphabet the annotation store keys by
+const ANNOTATION_IDS_RE = new RegExp(
+  `^${ANNOTATION_ID_PATTERN}(?:,${ANNOTATION_ID_PATTERN})*$`,
+  "u",
+);
 const isoDate = z.string().regex(new RegExp(`^${ISO_DATE_PATTERN}$`, "u"));
 const sha256Hex = z.string().regex(SHA256_HEX_RE);
 
@@ -107,6 +112,39 @@ const heading3 = z.strictObject({
   },
   id: nestedId,
   type: z.literal("h3"),
+  checked: listChecked,
+  indent: listIndent,
+  listStart,
+  listStyleType,
+});
+const heading4 = z.strictObject({
+  get children(): z.ZodArray<typeof libraryNodeSchema> {
+    return z.array(libraryNodeSchema);
+  },
+  id: nestedId,
+  type: z.literal("h4"),
+  checked: listChecked,
+  indent: listIndent,
+  listStart,
+  listStyleType,
+});
+const heading5 = z.strictObject({
+  get children(): z.ZodArray<typeof libraryNodeSchema> {
+    return z.array(libraryNodeSchema);
+  },
+  id: nestedId,
+  type: z.literal("h5"),
+  checked: listChecked,
+  indent: listIndent,
+  listStart,
+  listStyleType,
+});
+const heading6 = z.strictObject({
+  get children(): z.ZodArray<typeof libraryNodeSchema> {
+    return z.array(libraryNodeSchema);
+  },
+  id: nestedId,
+  type: z.literal("h6"),
   checked: listChecked,
   indent: listIndent,
   listStart,
@@ -239,6 +277,8 @@ const imageProps = z.strictObject({
   children: voidChildren,
   id: nestedId,
   sha: sha256Hex.optional(),
+  // markdown's image title, which the editor keeps beside the alt it holds as a caption
+  title: z.string().optional(),
   type: z.literal("img"),
   url: z.string().min(1).optional(),
   width: z.number().positive().optional(),
@@ -349,6 +389,9 @@ const libraryElementSchema = z.discriminatedUnion("type", [
   heading1,
   heading2,
   heading3,
+  heading4,
+  heading5,
+  heading6,
   blockquote,
   toggle,
   codeBlock,
@@ -387,14 +430,19 @@ export const libraryNodeSchema: z.ZodUnion<
 > = z.union([libraryTextSchema, libraryElementSchema]);
 export type LibraryNode = z.infer<typeof libraryNodeSchema>;
 
-const topLevelId = { id: blockIdSchema };
+// a top-level block's id is its row's key; `ref` is the name a link's `blockRef` reaches it by,
+// Obsidian's `^ref`
+const topLevelId = { id: blockIdSchema, ref: blockIdSchema.optional() };
 
-// a top-level block: one of the block types, and always named, since its id is its row's key
+// a top-level block: one of the block types, and always named
 export const libraryBlockSchema = z.discriminatedUnion("type", [
   paragraph.extend(topLevelId),
   heading1.extend(topLevelId),
   heading2.extend(topLevelId),
   heading3.extend(topLevelId),
+  heading4.extend(topLevelId),
+  heading5.extend(topLevelId),
+  heading6.extend(topLevelId),
   blockquote.extend(topLevelId),
   toggle.extend(topLevelId),
   codeBlock.extend(topLevelId),

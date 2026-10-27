@@ -10,8 +10,8 @@ import { BLOCK_HASH_RE, blockHash } from "./block-hash";
 import { compareBlockPlaces, ordSchema } from "./block-order";
 import { sameJson } from "./canonical-json";
 import type { JsonValue } from "./canonical-json";
-import { libraryItemFieldsSchema } from "./library-item";
-import type { LibraryItemFields, PropertyValue } from "./library-item";
+import { libraryItemFieldsSchema, propertyKeySchema } from "./library-item";
+import type { LibraryItemField, LibraryItemFields, PropertyValue } from "./library-item";
 import { blockIdSchema, librarySectionSchema, storableBlockSchema } from "./library-nodes";
 import type { LibraryBlock, LibrarySection } from "./library-nodes";
 
@@ -111,10 +111,11 @@ const aliasesOpSchema = z.strictObject({
   value: FIELDS.aliases,
 });
 
-// one property by its key; a missing base or value is the property absent
+// one property by its key; a missing base or value is the property absent. The value's size is
+// the item's to hold: the fields are checked whole once a batch lands
 const propertyOpSchema = z.strictObject({
   base: z.json().optional(),
-  key: z.string().min(1),
+  key: propertyKeySchema,
   op: z.literal("property"),
   value: z.json().optional(),
 });
@@ -132,7 +133,7 @@ export const libraryOpSchema = z.discriminatedUnion("op", [
 export type LibraryOp = z.infer<typeof libraryOpSchema>;
 
 // what an op met instead of its base; a conflict on a list field cannot happen
-export type OpConflict =
+type OpConflict =
   | { readonly kind: "block"; readonly blockId: string; readonly current: StoredBlock | null }
   | { readonly kind: "order"; readonly blockId: string; readonly currentOrd: string }
   | { readonly kind: "field"; readonly field: ScalarField; readonly current: JsonValue }
@@ -350,15 +351,19 @@ const landOp = (state: ItemState, op: LibraryOp): ItemState => {
 };
 
 // the blocks and fields a batch changed, so a writer stores those rows and no others
-export interface OpTouches {
+interface OpTouches {
   readonly blocks: ReadonlySet<string>;
   readonly dropped: ReadonlySet<string>;
   readonly fields: boolean;
 }
 
+// `invalid`: every op's guard held, but the fields they leave break the item's own caps (a list
+// merged past its length or bytes, the properties past theirs), since each op is checked alone;
+// it names those fields, and the cell answers it as too large
 export type ApplyOutcome =
   | { readonly kind: "applied"; readonly state: ItemState; readonly touched: OpTouches }
-  | { readonly kind: "conflict"; readonly conflicts: readonly OpConflict[] };
+  | { readonly kind: "conflict"; readonly conflicts: readonly OpConflict[] }
+  | { readonly kind: "invalid"; readonly fields: readonly LibraryItemField[] };
 
 const touchedBy = (op: LibraryOp): { block: string } | { dropped: string } | "fields" => {
   switch (op.op) {
@@ -382,8 +387,27 @@ const touchedBy = (op: LibraryOp): { block: string } | { dropped: string } | "fi
   }
 };
 
+const fieldNameSchema = libraryItemFieldsSchema.keyof();
+
+// the fields an item's caps refuse, by name; none when the fields hold
+const refusedFields = (fields: LibraryItemFields): LibraryItemField[] => {
+  const parsed = libraryItemFieldsSchema.safeParse(fields);
+  if (parsed.success) {
+    return [];
+  }
+  const names = new Set<LibraryItemField>();
+  for (const issue of parsed.error.issues) {
+    const name = fieldNameSchema.safeParse(issue.path[0]);
+    if (name.success) {
+      names.add(name.data);
+    }
+  }
+  return [...names].toSorted();
+};
+
 // every op in order, each against the item as the ones before it left it; one conflict lands
-// none, and the answer names every op that met one
+// none, and the answer names every op that met one, and a batch whose fields break a cap lands
+// none either
 export const applyOps = (state: ItemState, ops: readonly LibraryOp[]): ApplyOutcome => {
   let next = state;
   const conflicts: OpConflict[] = [];
@@ -414,16 +438,21 @@ export const applyOps = (state: ItemState, ops: readonly LibraryOp[]): ApplyOutc
   if (conflicts.length > 0) {
     return { conflicts, kind: "conflict" };
   }
+  const refused = fields ? refusedFields(next.fields) : [];
+  if (refused.length > 0) {
+    return { fields: refused, kind: "invalid" };
+  }
   return { kind: "applied", state: next, touched: { blocks, dropped, fields } };
 };
 
-export interface RebasedOp {
+interface RebasedOp {
   readonly op: LibraryOp;
   readonly conflict: OpConflict;
 }
 
 export interface Rebase {
-  // what still lands on `current`, in order; a list field's base is moved to what it holds now
+  // what still applies over `current`, in order (the cell may yet refuse a batch past a cap); a
+  // list field's base is moved to what it holds now
   readonly ops: readonly LibraryOp[];
   // what needs the writer's merge before it goes again
   readonly conflicts: readonly RebasedOp[];

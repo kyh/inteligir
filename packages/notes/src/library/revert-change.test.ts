@@ -4,6 +4,7 @@ import type { AnnotationStore } from "../annotations/store-schema";
 import { revertEdit } from "../text/revert-edit";
 import { orderedBlocks } from "./block-ops";
 import type { ItemState, LibraryOp } from "./block-ops";
+import { ITEM_FIELD_CAPS } from "./library-item";
 import type { LibraryBlock } from "./library-nodes";
 import { revertChangeSets, revertItemChange, snapshotOf } from "./revert-change";
 import type { ItemChange, ItemRevert } from "./revert-change";
@@ -126,6 +127,21 @@ describe("revertItemChange", () => {
     expect(reverted.fields.properties).toEqual({});
     const retitled = landed(y, [{ base: "New", field: "title", op: "set", value: "Newer" }]);
     expect(revert(changeOf(x, y), retitled, versionsOf(x, y)).kind).toBe("keep");
+  });
+
+  it("keeps the item whole when what the set took out no longer fits", () => {
+    const x = itemOf([], noteFields({ tags: ["keep", "gone"] }));
+    const y = landed(x, [{ base: ["keep", "gone"], op: "tags", value: ["keep"] }]);
+    const refilled = Array.from(
+      { length: ITEM_FIELD_CAPS.listEntries - 1 },
+      (_, index) => `later${String(index)}`,
+    );
+    const now = landed(y, [{ base: ["keep"], op: "tags", value: ["keep", ...refilled] }]);
+    expect(now.fields.tags).toHaveLength(ITEM_FIELD_CAPS.listEntries);
+    expect(revert(changeOf(x, y), now, versionsOf(x, y))).toEqual({
+      kind: "keep",
+      reason: "edited-since",
+    });
   });
 
   it("moves an item it made to Deleted unless a person touched it since", () => {

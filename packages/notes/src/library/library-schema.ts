@@ -19,7 +19,7 @@ import type { SqlPlan, SqlRow } from "./library-sql";
 export const LIBRARY_SCHEMA_VERSION = 1;
 
 // STRICT tables are SQLite 3.37; every engine is checked against it at open
-export const LIBRARY_SQLITE_MIN_VERSION = "3.37.0";
+const LIBRARY_SQLITE_MIN_VERSION = "3.37.0";
 
 // what the change log names a row by
 export const LIBRARY_CHANGE_KINDS = [

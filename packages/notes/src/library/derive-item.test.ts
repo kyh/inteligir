@@ -107,6 +107,41 @@ describe("deriveItem", () => {
     });
   });
 
+  it("outlines h1 to h3 as the table of contents does, and ranks every heading", () => {
+    const { blocks } = itemOf([
+      { children: [{ text: "Four" }], id: "h4", type: "h4" },
+      { children: [{ text: "Two" }], id: "h2", type: "h2" },
+      { children: [{ text: "Six" }], id: "h6", type: "h6" },
+    ]);
+    const derived = deriveItem(noteFields({ aliases: ["Alt"], title: "" }), blocks);
+    expect(derived.card.outline).toEqual([{ blockId: "h2", level: 2, text: "Two" }]);
+    expect(derived.search.headings).toBe("Four\nTwo\nSix\nAlt");
+    expect(derived.card.title).toBe("Four");
+  });
+
+  it("keeps a card's outline short however many and long its headings run", () => {
+    const long = "w".repeat(450_000);
+    const headings: LibraryBlock[] = [
+      ...Array.from({ length: 5 }, (_, index): LibraryBlock => ({
+        children: [{ text: long }],
+        id: `long${String(index)}`,
+        type: "h1",
+      })),
+      ...Array.from({ length: 300 }, (_, index): LibraryBlock => ({
+        children: [{ text: `Part ${String(index)}` }],
+        id: `part${String(index)}`,
+        type: "h2",
+      })),
+    ];
+    const { outline } = deriveItem(noteFields(), itemOf(headings).blocks).card;
+    expect(outline.length).toBeLessThan(headings.length);
+    expect(outline.map((entry) => entry.blockId)).toEqual(
+      headings.slice(0, outline.length).map((block) => block.id),
+    );
+    expect(Math.max(...outline.map((entry) => entry.text.length))).toBeLessThanOrEqual(100);
+    expect(outline[0]?.text).toBe(`${"w".repeat(99)}…`);
+  });
+
   it("reads a table row by cell and a code block by line, and reads nothing from a rich block", () => {
     const { blocks } = itemOf([
       {

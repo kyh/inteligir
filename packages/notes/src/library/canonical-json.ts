@@ -1,7 +1,7 @@
 // One spelling of a JSON value, so equal values hash and compare equal on every host: object keys
 // sorted by code unit at every depth, undefined members left out, as JSON.stringify leaves them.
 
-export interface JsonMap {
+interface JsonMap {
   readonly [key: string]: JsonValue | undefined;
 }
 

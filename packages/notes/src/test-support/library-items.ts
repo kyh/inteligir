@@ -40,7 +40,7 @@ export const paragraph = (id: string, text: string): LibraryBlock => ({
   type: "p",
 });
 
-export const stored = (
+const stored = (
   block: LibraryBlock,
   ord: string,
   section: LibrarySection = "note",
@@ -74,14 +74,14 @@ export const renderLines = (state: ItemState): string =>
 export const landed = (state: ItemState, ops: readonly LibraryOp[]): ItemState => {
   const outcome = applyOps(state, ops);
   if (outcome.kind !== "applied") {
-    throw new Error(`ops met conflicts: ${JSON.stringify(outcome.conflicts)}`);
+    throw new Error(`ops did not land: ${JSON.stringify(outcome)}`);
   }
   return outcome.state;
 };
 
 const WORDS = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta"] as const;
 
-export const randomText = (rand: () => number): string =>
+const randomText = (rand: () => number): string =>
   Array.from({ length: 1 + Math.floor(rand() * 4) }, () => pick(rand, WORDS)).join(" ");
 
 export const randomItem = (rand: () => number, prefix: string, count: number): ItemState =>

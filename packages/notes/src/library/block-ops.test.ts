@@ -4,6 +4,7 @@ import { blockHash } from "./block-hash";
 import { applyOps, libraryOpSchema, mergeListField, orderedBlocks, rebaseOps } from "./block-ops";
 import type { ItemState, LibraryOp } from "./block-ops";
 import { ordBetween } from "./block-order";
+import { ITEM_FIELD_CAPS } from "./library-item";
 import { BLOCK_MAX_BYTES, BLOCK_MAX_DEPTH } from "./library-nodes";
 import type { LibraryNode } from "./library-nodes";
 import {
@@ -186,6 +187,46 @@ describe("field patches", () => {
   });
 });
 
+// an alias near a line's length, so a few dozen pass a list's bytes
+const alias = (index: number): string => `${String(index)}${"a".repeat(990)}`;
+
+describe("the item's caps over a landed batch", () => {
+  it("lands no batch that merges a list past its length, and names the field", () => {
+    const full = Array.from(
+      { length: ITEM_FIELD_CAPS.listEntries },
+      (_, index) => `t${String(index)}`,
+    );
+    const item = itemOf([], noteFields({ tags: full }));
+    expect(applyOps(item, [{ base: [], op: "tags", value: ["one-more"] }])).toEqual({
+      fields: ["tags"],
+      kind: "invalid",
+    });
+    expect(applyOps(item, [{ base: ["t0"], op: "tags", value: ["one-more"] }]).kind).toBe(
+      "applied",
+    );
+  });
+
+  it("lands no batch whose lists or properties pass their bytes, though each op is in bounds", () => {
+    const aliased = itemOf(
+      [],
+      noteFields({ aliases: Array.from({ length: 10 }, (_, index) => alias(index)) }),
+    );
+    const more = Array.from({ length: 60 }, (_, index) => alias(100 + index));
+    expect(libraryOpSchema.validate({ base: [], op: "aliases", value: more })).toBe(true);
+    expect(applyOps(aliased, [{ base: [], op: "aliases", value: more }])).toEqual({
+      fields: ["aliases"],
+      kind: "invalid",
+    });
+    const noted = itemOf([], noteFields({ properties: { notes: "x".repeat(200 * 1024) } }));
+    expect(
+      applyOps(noted, [
+        { base: "A note", field: "title", op: "set", value: "Renamed" },
+        { key: "more", op: "property", value: "y".repeat(100 * 1024) },
+      ]),
+    ).toEqual({ fields: ["properties"], kind: "invalid" });
+  });
+});
+
 describe("rebaseOps", () => {
   it("drops what already landed, keeps what still applies, and hands back what met a change", () => {
     const item = three();
@@ -261,6 +302,14 @@ describe("the op grammar", () => {
       libraryOpSchema.validate({ base: null, field: "pinnedAt", op: "set", value: "soon" }),
     ).toBe(false);
     expect(libraryOpSchema.validate({ base: [], op: "tags", value: ["not a tag"] })).toBe(false);
+    expect(libraryOpSchema.validate({ key: "", op: "property", value: 1 })).toBe(false);
+    expect(
+      libraryOpSchema.validate({
+        key: "k".repeat(ITEM_FIELD_CAPS.line + 1),
+        op: "property",
+        value: 1,
+      }),
+    ).toBe(false);
     expect(libraryOpSchema.validate({ block, op: "insert", ord: "a00", section: "note" })).toBe(
       false,
     );

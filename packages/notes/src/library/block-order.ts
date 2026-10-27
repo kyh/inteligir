@@ -10,7 +10,7 @@ import type { LibrarySection } from "./library-nodes";
 
 // a key grows by about one character per halving of the gap it lands in; past this a writer is
 // splitting one gap forever, and the cell refuses rather than store it
-export const ORD_MAX_LENGTH = 128;
+const ORD_MAX_LENGTH = 128;
 
 const BASE_62_KEY = /^[0-9A-Za-z]+$/u;
 const NEGATIVE_HEADS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";

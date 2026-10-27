@@ -31,7 +31,7 @@ export interface ListingFolder {
   readonly sort: string;
 }
 
-export type ListingSort = "saved" | "modified" | "title" | "relevance";
+type ListingSort = "saved" | "modified" | "title" | "relevance";
 
 export interface ListingQuery {
   // the library, or Deleted
@@ -59,7 +59,7 @@ export interface ListingPage<R extends ListingRow> {
   readonly kindCounts: Readonly<Record<ItemKind, number>>;
 }
 
-export interface FolderCount {
+interface FolderCount {
   readonly id: string;
   // items in it and in every folder under it
   readonly items: number;
