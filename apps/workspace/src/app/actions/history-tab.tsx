@@ -225,7 +225,7 @@ const RevisionDetail = ({
             {revisionBody(rows === null, revisionQuery.isError)}
           </p>
         ) : (
-          <div className="p-2 font-mono text-body leading-5">
+          <div className="p-2 font-mono text-body leading-5 select-text">
             {rows.map((row) => (
               <DiffRowView key={row.id} row={row} />
             ))}

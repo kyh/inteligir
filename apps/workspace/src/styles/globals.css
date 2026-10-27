@@ -26,3 +26,19 @@
   --editor-width: 38rem;
   --editor-column-inset: calc(50% - var(--editor-width) / 2);
 }
+
+@layer base {
+  /* An app, not a page: chrome is not text to drag across. Fields and the
+     editor stay selectable; anything a user would copy (a message, a path,
+     an error) opts back in with `select-text`. */
+  body {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  input,
+  textarea,
+  [contenteditable]:not([contenteditable="false"]) {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}

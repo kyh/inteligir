@@ -46,7 +46,7 @@ const CommentRow = ({
       <span className="font-medium text-foreground/80">{commentSourceLabel(entry.source)}</span>
       <span>{relativeTimeLabel(entryTimeMs(entry), asOfMs)}</span>
     </div>
-    <p className="text-subtitle whitespace-pre-wrap">{entry.text}</p>
+    <p className="text-subtitle whitespace-pre-wrap select-text">{entry.text}</p>
   </div>
 );
 

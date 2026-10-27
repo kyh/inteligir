@@ -231,7 +231,7 @@ export const ActionDetail = ({
         </Button>
       </div>
       <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
-        <div ref={contentRef} className="flex flex-col gap-3">
+        <div ref={contentRef} className="flex flex-col gap-3 select-text">
           {transcript.state === "refused" ? (
             <ReadRefusal lead="The transcript could not be read." error={transcript.error} />
           ) : null}
