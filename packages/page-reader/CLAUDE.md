@@ -25,3 +25,11 @@ A saved page read into an item: its facts and its article.
   keeps its code and loses the name, so a page never writes a runnable block.
   Rejected: defuddle's markdown, Plate's `deserializeHtml`, and canonicalizing
   on first open. `packages/page-reader/src/html-to-markdown.ts`.
+
+- **A READ PAGE IS ALSO THE LIBRARY'S BLOCKS.** `extractPageBlocks` reads the
+  canonical article the ladder wrote through the editor's codec
+  (`articleBlocks` in `@repo/editor/codec/item-markdown`) into `article`
+  blocks named by its host's ids, the page's own spelling kept as the page
+  wrote it, so the cell and a device store one reading. Rejected: a second
+  html-to-blocks path (it would draw a page the markdown never held).
+  `packages/page-reader/src/extract-page.ts`.

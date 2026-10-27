@@ -8,7 +8,7 @@ import { docStem } from "./doc-file";
 // bump whenever projectDoc's output shape or semantics change, or it would now take a doc it
 // threw on (the store keeps that doc's hash, so nothing else retries it); a mismatch wipes and
 // rebuilds, so there is no migration path
-export const PROJECTION_VERSION = 13;
+export const PROJECTION_VERSION = 14;
 
 // a card's preview: the first paragraph's text, cut short
 const PREVIEW_MAX = 140;

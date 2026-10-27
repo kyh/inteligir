@@ -426,6 +426,11 @@ describe("gate API", () => {
     }
   });
 
+  it("opens a file holding the codec's article section raw, so no save drops its lines", () => {
+    const md = "# Note\n\nmine\n\n:::article\n\nThe page.\n\n:::\n";
+    expect(analyzeMarkdown(md)).toEqual({ kind: "roundtrip-loss" });
+  });
+
   it("classifies conversion stack overflow as Raw instead of throwing (V1)", () => {
     const deep = `${"> ".repeat(3000)}x\n`;
     expect(analyzeMarkdown(deep)).toEqual({ kind: "too-deep" });

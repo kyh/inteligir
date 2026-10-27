@@ -61,8 +61,10 @@ alone, and no walk narrows structurally.
   annotation markers, `@2026-08-22` date chips, `<u>…</u>` underline, GitHub
   alerts (`> [!NOTE]` … `> [!CAUTION]`) as THE callout, `inteligir-chart` /
   `inteligir-canvas` / `inteligir-html` fences, the `:::tabs`, `:::toggle` and
-  `:::columns` containers, and `![](url)` embeds, all valid, round-tripping
-  markdown. Only a web url embeds (`![](path)` is a vault image; alt text or a
+  `:::columns` containers, the top-level `:::article` that holds the page a
+  fill read, and `![](url)` embeds, all valid, round-tripping markdown, the
+  article through the codec alone (the live editor opens a file holding one
+  raw). Only a web url embeds (`![](path)` is a vault image; alt text or a
   title keeps a web image an image). Every spelling lives in
   `@repo/notes/markdown/fence-langs`, which
   `tools/repo-guards/src/agent-skills.test.ts` holds the skills and
@@ -283,6 +285,23 @@ alone, and no walk narrows structurally.
   `packages/editor/src/toc.tsx`). Rejected: content-visibility only where the
   engine anchors itself (no paint skip in the shipped app).
   `tools/e2e/src/scenarios/desktop-shell/long-note.ts`.
+
+- **MARKDOWN IS A CODEC BESIDE THE LIBRARY, AND IT RUNS HEADLESS.**
+  `@repo/editor/codec/*` reaches no React, so it runs wherever the library
+  does (`packages/editor/src/headless-kits.test.ts`). It reads a file into an
+  item's fields and blocks over the rule table and writes one back as the
+  vault's format, so `import(export(item))` is the item, ids aside, over
+  every fixture (`packages/editor/src/codec/item-markdown.test.ts`); a value
+  is settled through the serializer before it is mapped, so an import is its
+  own fixpoint. Obsidian's `#tag`, `==mark==`, `%%x%%` and `^ref` read in the
+  note's section only, never in a page a fill read. An agent reads an item as
+  that markdown with `[[Title|uuid]]` links, and an edit's text must match
+  once and keep the article's own lines; only the blocks it spans are read
+  again, each side of such a line in its own section, matched by content so
+  the rest keep their ids and markers, and a marker it dropped is named. Rejected:
+  a second markdown grammar for import (two readings drift) and re-reading a
+  whole item per edit (every block's id would turn over).
+  `packages/editor/src/codec/item-edit.ts`.
 
 ## Vault: writes, git and containment
 

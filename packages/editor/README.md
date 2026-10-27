@@ -32,6 +32,9 @@ src/
   markdown/            # the round trip: the Slate↔mdast rules, the one
                        # markdown→Slate conversion, the bounded fixpoint and
                        # `serializeNote`, the one way any save reaches bytes
+  codec/               # an item as markdown, headless: import and export of
+                       # one file, a folder's or zip's import plan and the
+                       # export's, and the agent's view of an item and its edits
   kits/                # the plugin kits: CONTENT_KIT and the desktop and touch
                        # compositions over it, the headless mirror the
                        # serializer runs, the markdown wiring, the rich-block lock

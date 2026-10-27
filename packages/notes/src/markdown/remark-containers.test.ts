@@ -176,3 +176,24 @@ describe("a container's markdown", () => {
     expect(stringified(md)).toBe(md);
   });
 });
+
+describe("the article section", () => {
+  it("opens at the root and holds every other container", () => {
+    expect(readings("A note.\n\n:::article\nThe page.\n\n:::toggle\nfolded\n:::\n:::\n")).toEqual([
+      "A note.",
+      { articleSection: ["The page.", { toggle: ["folded"] }] },
+    ]);
+  });
+
+  it("is a line of text inside a container, and an unclosed one is prose", () => {
+    expect(readings(":::toggle\n:::article\ninside\n:::\n")).toEqual([
+      { toggle: [":::article\ninside"] },
+    ]);
+    expect(readings(":::article\nnever closed\n")).toEqual([":::article\nnever closed"]);
+  });
+
+  it("writes its two lines, and escapes a line of text that would read as one", () => {
+    expect(stringified(":::article\nThe page.\n:::\n")).toBe(":::article\nThe page.\n:::\n");
+    expect(stringified("\\:::article\n")).toBe("\\:::article\n");
+  });
+});

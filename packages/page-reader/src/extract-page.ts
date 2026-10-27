@@ -8,10 +8,12 @@
 
 import Defuddle from "defuddle";
 
+import { articleBlocks } from "@repo/editor/codec/item-markdown";
+import type { ArticleBlocks } from "@repo/editor/codec/item-markdown";
 import { canonicalizeImported } from "@repo/editor/markdown/markdown-doc";
 
 import { escapeText, htmlToMarkdown } from "./html-to-markdown";
-import type { ExtractedPage, Rung } from "./page-facts";
+import type { ExtractedPage, PageFacts, Rung } from "./page-facts";
 import { pageFactsOf, readHead } from "./page-meta";
 import type { ExtractedMeta } from "./page-meta";
 import { resolveWebUrl } from "./web-url";
@@ -170,4 +172,28 @@ export const extractPage = (
     kept: article?.kept ?? 0,
     rung: article?.rung ?? null,
   };
+};
+
+export interface ExtractedPageBlocks {
+  readonly facts: PageFacts;
+  // the article as its item's article section; no blocks when the page holds no text the editor
+  // could keep
+  readonly article: ArticleBlocks;
+  readonly kept: number;
+  readonly rung: Rung | null;
+}
+
+const NO_ARTICLE: ArticleBlocks = { blocks: [], refused: [] };
+
+// the same reading, its article as the library's blocks: the fixpoint the ladder wrote, read by the
+// editor's codec as a page (no dialect link or Obsidian spelling reads in it), its ids the host's
+export const extractPageBlocks = (
+  args: { html: string; url: string; prefer: "article" | "description" },
+  parsePage: ParsePage,
+  newBlockId: () => string,
+): ExtractedPageBlocks => {
+  const page = extractPage(args, parsePage);
+  const article =
+    page.article === "" ? NO_ARTICLE : (articleBlocks(page.article, newBlockId) ?? NO_ARTICLE);
+  return { article, facts: page.facts, kept: page.kept, rung: page.rung };
 };

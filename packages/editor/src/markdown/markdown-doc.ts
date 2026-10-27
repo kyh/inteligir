@@ -6,6 +6,8 @@ import { ElementApi, createSlateEditor } from "platejs";
 import type { SlateEditor, Value } from "platejs";
 import { serializeMd } from "@platejs/markdown";
 
+import { recordFlowSpans } from "@repo/notes/markdown/flow-spans";
+import type { FlowSpan } from "@repo/notes/markdown/flow-spans";
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
@@ -73,7 +75,7 @@ export class RoundTripError extends Error {
 }
 
 // fresh per call: Slate editors carry mutable state.
-const makeEditor = () => createSlateEditor({ plugins: BASE_KIT });
+export const headlessEditor = (): SlateEditor => createSlateEditor({ plugins: BASE_KIT });
 
 const letters = (s: string): string => s.replaceAll(/[^\p{L}\p{N}]+/gu, "").toLowerCase();
 
@@ -105,7 +107,7 @@ type Converted =
   | { ok: false; reason: GateReason };
 
 const convert = (md: string): Converted => {
-  const editor = makeEditor();
+  const editor = headlessEditor();
   const converted = mdToSlate(editor, md);
   if (!converted.ok) {
     return converted;
@@ -124,6 +126,26 @@ type Serialized = { ok: true; out: string } | { ok: false; reason: GateReason };
 // rules expect the pre-pass to have run, and Plate's own serializeMd skips it.
 export const serializeNote = (editor: SlateEditor, value: Value = editor.children): string =>
   serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY, value: pruneForMarkdown(value) });
+
+export interface SpannedNote {
+  readonly markdown: string;
+  // where each top-level node the rules wrote (a block, or a run of list items as one list) sits
+  readonly spans: readonly FlowSpan[];
+}
+
+// the same bytes, with where each top-level node landed: what the codec's view of an item maps an
+// edit back to its blocks by
+export const serializeNoteSpans = (editor: SlateEditor, value: Value): SpannedNote => {
+  const recorder = recordFlowSpans();
+  const markdown = serializeMd(editor, {
+    remarkStringifyOptions: {
+      ...MD_STRINGIFY,
+      handlers: { ...MD_STRINGIFY.handlers, root: recorder.root },
+    },
+    value: pruneForMarkdown(value),
+  });
+  return { markdown, spans: recorder.spans };
+};
 
 // stringify overflows the stack at the same depth the conversion does
 const serialize = (editor: SlateEditor, value: Value): Serialized => {

@@ -52,7 +52,12 @@ const nestedId = blockIdSchema.optional();
 // spelled into each object below: a spread beside a recursive getter defeats TypeScript's inference
 const listChecked = z.boolean().optional();
 const listIndent = z.number().int().min(1).optional();
-const listStart = z.number().int().min(1).optional();
+// an ordered list's number, which markdown lets start at 0; a restart is where the writer began a
+// list anew, which the list plugin reads when it numbers the items after
+const listNumber = z.number().int().nonnegative().optional();
+const listStart = listNumber;
+const listRestart = listNumber;
+const listRestartPolite = listNumber;
 const listStyleType = z.enum(["disc", "decimal", "todo"]).optional();
 
 // a marker's ids, comma-joined, in the one alphabet the annotation store keys by
@@ -81,6 +86,8 @@ const paragraph = z.strictObject({
   type: z.literal("p"),
   checked: listChecked,
   indent: listIndent,
+  listRestart,
+  listRestartPolite,
   listStart,
   listStyleType,
 });
@@ -92,6 +99,8 @@ const heading1 = z.strictObject({
   type: z.literal("h1"),
   checked: listChecked,
   indent: listIndent,
+  listRestart,
+  listRestartPolite,
   listStart,
   listStyleType,
 });
@@ -103,6 +112,8 @@ const heading2 = z.strictObject({
   type: z.literal("h2"),
   checked: listChecked,
   indent: listIndent,
+  listRestart,
+  listRestartPolite,
   listStart,
   listStyleType,
 });
@@ -114,6 +125,8 @@ const heading3 = z.strictObject({
   type: z.literal("h3"),
   checked: listChecked,
   indent: listIndent,
+  listRestart,
+  listRestartPolite,
   listStart,
   listStyleType,
 });
@@ -125,6 +138,8 @@ const heading4 = z.strictObject({
   type: z.literal("h4"),
   checked: listChecked,
   indent: listIndent,
+  listRestart,
+  listRestartPolite,
   listStart,
   listStyleType,
 });
@@ -136,6 +151,8 @@ const heading5 = z.strictObject({
   type: z.literal("h5"),
   checked: listChecked,
   indent: listIndent,
+  listRestart,
+  listRestartPolite,
   listStart,
   listStyleType,
 });
@@ -147,6 +164,8 @@ const heading6 = z.strictObject({
   type: z.literal("h6"),
   checked: listChecked,
   indent: listIndent,
+  listRestart,
+  listRestartPolite,
   listStart,
   listStyleType,
 });
@@ -158,6 +177,8 @@ const blockquote = z.strictObject({
   type: z.literal("blockquote"),
   checked: listChecked,
   indent: listIndent,
+  listRestart,
+  listRestartPolite,
   listStart,
   listStyleType,
 });
@@ -169,6 +190,8 @@ const toggle = z.strictObject({
   type: z.literal("toggle"),
   checked: listChecked,
   indent: listIndent,
+  listRestart,
+  listRestartPolite,
   listStart,
   listStyleType,
 });
@@ -181,6 +204,8 @@ const codeBlock = z.strictObject({
   type: z.literal("code_block"),
   checked: listChecked,
   indent: listIndent,
+  listRestart,
+  listRestartPolite,
   listStart,
   listStyleType,
 });
@@ -338,9 +363,11 @@ const wikiLink = z.strictObject({
   type: z.literal("wikiLink"),
 });
 
+// an embed shows its target whole, one heading's section of it, or one block of it
 const wikiEmbed = z.strictObject({
   blockRef: blockIdSchema.optional(),
   children: voidChildren,
+  heading: z.string().min(1).optional(),
   itemId: z.string().min(1),
   type: z.literal("wikiEmbed"),
 });

@@ -19,10 +19,10 @@ node is rather than discriminating structurally at each visit.
 - **THE PERSISTED NODE SET IS SPELLED HERE, BELOW THE EDITOR, AND IT IS
   STRICT.** `@repo/notes/library/library-nodes` is Plate's own vocabulary as
   zod, every node the editor round-trips (h1 to h6, an image's title beside
-  its caption): every element a strict object, a top-level block named by its
-  id and optionally by the `ref` a link's `blockRef` reaches (Obsidian's
-  `^ref`), a depth and a size checked before the recursive parse
-  (`storableBlockSchema`). A wiki link names its target by id with the title
+  its caption, a list item's numbering, an embed's heading): every element a
+  strict object, a top-level block named by its id and optionally by the `ref`
+  a link's `blockRef` reaches (Obsidian's `^ref`), a depth and a size checked
+  before the recursive parse (`storableBlockSchema`). A wiki link names its target by id with the title
   the writer saw, and media holds a sha or a url. Rejected: the vocabulary in
   `@repo/editor` (the cell and the replicas cannot load Plate, and this
   package is the leaf they all reach), and loose objects (a prop no reader

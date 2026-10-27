@@ -52,8 +52,9 @@ a Plate node at any depth: a block's children are inside its JSON. The model is
 person wrote, or `article`, the page's readable text a fill wrote. A fill and
 Refresh replace only `article` blocks, so reading a page again never touches
 the person's writing. An item reads its note before its article
-(`@repo/notes/library/block-order`). Not a heading's stretch of a note (its
-outline), and not a folder.
+(`@repo/notes/library/block-order`), and its markdown writes the article as
+one top-level `:::article` container after the note (`@repo/editor/codec`).
+Not a heading's stretch of a note (its outline), and not a folder.
 
 **replica** — a device's copy of the synced tables, every item, block, folder,
 tag, link, highlight, thread and thread event, in SQLite on the device: in Rust

@@ -46,7 +46,8 @@ const MARKER_RE = new RegExp(
 // a pill, `{{source|display|meta}}`: FORMULA_TAIL in remark-inline-constructs
 const FORMULA_RE = /\{\{[^|{}\n]+(?:\|[^|{}\n]*)?(?:\|[^{}\n]*)?\}\}/gu;
 // a `:::` container line or a tab's `=== Label`: line grammar the transform lifts out of text
-const STRUCTURE_LINE_RE = /^(?::::(?:toggle|tabs|columns|column(?: \d+(?:\.\d+)?%)?)?|=== .*)\r?$/u;
+const STRUCTURE_LINE_RE =
+  /^(?::::(?:article|toggle|tabs|columns|column(?: \d+(?:\.\d+)?%)?)?|=== .*)\r?$/u;
 // a character reference, which spells one character in several
 const CHARACTER_REFERENCE_RE = /^&(?:#\d{1,7}|#[xX][\da-fA-F]{1,6}|[A-Za-z][A-Za-z\d]{0,31});/u;
 // a GitHub alert's marker leading a quote: the editor draws it as the alert's badge, never as text

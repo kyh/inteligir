@@ -300,7 +300,7 @@ export const deriveItem = (
           break;
         }
         case "wikiEmbed": {
-          link("embed", { blockRef: node.blockRef, targetId: node.itemId });
+          link("embed", { blockRef: node.blockRef, heading: node.heading, targetId: node.itemId });
           break;
         }
         case "a": {

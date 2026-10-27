@@ -19,7 +19,8 @@ always fetched by the host; nothing here dials.
 
 - `extract-page.ts` — the head read before the extractor strips it, defuddle's
   readable content, and the body ladder (rich, plain, text) whose first rung
-  the editor's `canonicalizeImported` keeps at least 97% of.
+  the editor's `canonicalizeImported` keeps at least 97% of, and that article
+  read into the library's blocks (`extractPageBlocks`).
 - `page-meta.ts` — Open Graph, Twitter, JSON-LD and plain meta, each in its
   order of precedence, every value clipped and every url kept only as http(s).
 - `html-to-markdown.ts` — turndown under the dialect's escapes.

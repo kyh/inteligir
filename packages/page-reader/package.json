@@ -2,7 +2,7 @@
   "name": "@repo/page-reader",
   "version": "0.1.0",
   "private": true,
-  "description": "A saved page read into an item: its facts and its article as the editor's own fixpoint, over a DOM the host hands it. One reading for every device that fills a link: the Mac's fill worker and the phone's page.",
+  "description": "A saved page read into an item: its facts and its article as the editor's own fixpoint, and as the library's article blocks, over a DOM the host hands it. One reading for every device that fills a link: the Mac's fill worker and the phone's page.",
   "type": "module",
   "exports": {
     "./extract-page": "./src/extract-page.ts",

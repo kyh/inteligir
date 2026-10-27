@@ -621,6 +621,7 @@ const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
         }
         break;
       }
+      case "articleSection":
       case "blockquote":
       case "break":
       case "code":

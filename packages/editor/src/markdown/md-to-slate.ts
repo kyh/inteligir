@@ -3,6 +3,7 @@
 // kit is part of BASE_KIT.
 
 import { getMergedOptionsDeserialize, mdastToSlate } from "@platejs/markdown";
+import type { Root } from "mdast";
 import type { Descendant, SlateEditor } from "platejs";
 
 import { parseMdast } from "@repo/notes/markdown/parse";
@@ -16,10 +17,20 @@ type MdToSlate = { ok: true; nodes: Descendant[] } | { ok: false; reason: Conver
 
 // mdast→Slate overflows the stack around nesting depth ~1250 (micromark survives to ~6-8k); a
 // RangeError is a depth failure, anything else is a real bug and rethrows.
+export const rootToSlate = (editor: SlateEditor, root: Root): MdToSlate => {
+  try {
+    return { nodes: mdastToSlate(root, getMergedOptionsDeserialize(editor)), ok: true };
+  } catch (error) {
+    if (error instanceof RangeError) {
+      return { ok: false, reason: { kind: "too-deep" } };
+    }
+    throw error;
+  }
+};
+
 export const mdToSlate = (editor: SlateEditor, md: string): MdToSlate => {
   try {
-    const { root } = parseMdast(md);
-    return { nodes: mdastToSlate(root, getMergedOptionsDeserialize(editor)), ok: true };
+    return rootToSlate(editor, parseMdast(md).root);
   } catch (error) {
     if (error instanceof RangeError) {
       return { ok: false, reason: { kind: "too-deep" } };

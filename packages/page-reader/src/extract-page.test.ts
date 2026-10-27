@@ -13,7 +13,7 @@ import { analyzeMarkdown, parseMarkdown } from "@repo/editor/markdown/markdown-d
 import { composeLinkBody } from "@repo/notes/items/item-body";
 import { composeItemFile } from "@repo/notes/items/item-frontmatter";
 
-import { extractPage, KEPT_MIN } from "./extract-page";
+import { extractPage, extractPageBlocks, KEPT_MIN } from "./extract-page";
 import type { ParsePage } from "./extract-page";
 import { parsePage } from "./linkedom-page";
 import type { ExtractedPage } from "./page-facts";
@@ -256,5 +256,57 @@ describe("the body ladder", () => {
     expect(result.rung).toBe("text");
     expect(result.article).toBe("deep words here\n\nafter them\n");
     expect(analyzeMarkdown(result.article).kind).toBe("canonical");
+  });
+});
+
+// block ids from a counter, as a host mints its own
+const counter = (): (() => string) => {
+  let next = 0;
+  return () => {
+    next += 1;
+    return `page${String(next)}`;
+  };
+};
+
+describe("the article as blocks", () => {
+  const names = readdirSync(CORPUS)
+    .filter((file) => file.endsWith(".html"))
+    .map((file) => file.slice(0, -".html".length));
+  it.each(names)("%s reads as its item's article section, every block stored", (name) => {
+    const html = page(name);
+    const read = extractPageBlocks(
+      { html, prefer: "article", url: PAGE_URL },
+      parsePage,
+      counter(),
+    );
+    const { article } = extractPage({ html, prefer: "article", url: PAGE_URL }, parsePage);
+    expect(read.article.refused).toEqual([]);
+    expect(read.article.blocks.every((placed) => placed.section === "article")).toBe(true);
+    expect(read.article.blocks.map((placed) => placed.block.id)).toEqual(
+      read.article.blocks.map((_, index) => `page${String(index + 1)}`),
+    );
+    // the blocks hold the article's words: each text the markdown read as, found in the blocks
+    const stored = JSON.stringify(read.article.blocks.map((placed) => placed.block));
+    const words = nodesOf(article).flatMap((node) =>
+      (node.text ?? "").split(/\W+/u).filter((word) => word !== ""),
+    );
+    expect(words.filter((word) => !stored.includes(word))).toEqual([]);
+  });
+
+  it("keeps a page's hashtag and highlight spelling as the page's text", () => {
+    const read = extractPageBlocks(
+      {
+        html: "<html><body><article><p>A post about #rust with ==marks== and a %%note%% in it, longer than a line.</p></article></body></html>",
+        prefer: "article",
+        url: PAGE_URL,
+      },
+      parsePage,
+      counter(),
+    );
+    const stored = JSON.stringify(read.article.blocks);
+    expect(stored).not.toContain('"tag"');
+    expect(stored).not.toContain('"annotationMarker"');
+    expect(stored).not.toContain('"opaque"');
+    expect(stored).toContain("#rust");
   });
 });

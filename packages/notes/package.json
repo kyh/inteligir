@@ -80,6 +80,7 @@
     "./library/library-sql": "./src/library/library-sql.ts",
     "./library/revert-change": "./src/library/revert-change.ts",
     "./markdown/fence-langs": "./src/markdown/fence-langs.ts",
+    "./markdown/flow-spans": "./src/markdown/flow-spans.ts",
     "./markdown/frontmatter": "./src/markdown/frontmatter.ts",
     "./markdown/md-plugins": "./src/markdown/md-plugins.ts",
     "./markdown/parse": "./src/markdown/parse.ts",

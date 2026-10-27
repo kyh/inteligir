@@ -31,6 +31,7 @@ import { z } from "zod";
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { isContainerContent } from "@repo/notes/markdown/remark-containers";
 import type {
+  ArticleSection,
   Column,
   ColumnGroup,
   ContainerContent,
@@ -348,8 +349,31 @@ const blockquoteRule: NonNullable<MdRules["blockquote"]> = {
   },
 };
 
+// an item's article section, which no editor node holds: only the codec, which splits an item's
+// sections before this table runs, builds the element, so an export writes the page a fill read
+// inside `:::article` after the person's note
+export const ARTICLE_SECTION_KEY = "article_section";
+
+// the editor holds no section, so a pasted `:::article` reads as the blocks inside it
+const articleSectionRule: WideMdRule = {
+  deserialize: (
+    node: ArticleSection,
+    deco: MdDecoration,
+    options: DeserializeMdOptions,
+  ): Descendant[] => convertChildrenDeserialize(node.children, deco, options),
+};
+
 export const MD_RULES: MdRules = {
   a: linkRule,
+
+  [ARTICLE_SECTION_KEY]: {
+    serialize: (node: TElement, options: SerializeMdOptions): ArticleSection => ({
+      children: containerFlow(node.children, options),
+      type: "articleSection",
+    }),
+  },
+
+  articleSection: articleSectionRule,
 
   // remark-stringify escapes `[` at phrasing start, which would re-emit an alert marker as
   // `> \[!NOTE]`; an alert's body is serialized apart and quoted as one verbatim `html` block.
