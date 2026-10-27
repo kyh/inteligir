@@ -11,6 +11,95 @@ not belong here.
 
 ---
 
+## The library in the cloud
+
+One library cell per account, a replica on every device, and the agents that
+reach it. Each entry names the workspace that owns it.
+
+**library cell** — one account's whole library: a SQLite Durable Object,
+`LibraryDO`, named `library:<userId>` only from a verified credential, in the
+Worker (`apps/web`). It holds the items, their **blocks**, folders, tags,
+links, highlights, threads, the change log and History, and it is the
+library's only writer: every `/v1` library call and every **connector** call
+is forwarded to it. R2 holds the bytes it names by hash, and D1 only the
+accounts. Not the **online library** below, the hosted git vault, and not a
+**replica**, which a device reads while it writes through the cell.
+
+**change set** — the unit of History and of undo. Every write lands in one,
+which records each item it touched before and after, its actor (the person,
+the agent, an assistant, an import, a fill, an undo or the system) and when it
+opened and sealed. A device's typing seals after 15 s of quiet or 60 s in all;
+a **turn** is one set; a **connected assistant**'s writes are one set per
+grant, sealed after 10 idle minutes. Undo reverts sets three-way, newest
+first, and keeps every later edit; an undo is a set of its own. The cell keeps
+them, and the revert is `@repo/notes`'. Not a phone write's set of file
+changes for the hosted vault (**settle**, below).
+
+**block** — one top-level node of an item's body, a Plate element stored as a
+row of its own: its id, its fractional order key, its **section**, its JSON
+and its hash. A write names the hash it was computed from, so writes to two
+blocks never meet, and one whose base moved is answered `CONFLICT` with the
+block as it is. A list item is a block, since lists are flat indent lists. Not
+a Plate node at any depth: a block's children are inside its JSON. The model is
+`@repo/notes`', the ids the editor's (`@repo/editor`).
+
+**section** — which part of an item a **block** belongs to: `note`, what the
+person wrote, or `article`, the page's readable text a fill wrote. A fill and
+Refresh replace only `article` blocks, so reading a page again never touches
+the person's writing. Not a heading's stretch of a note (its outline), and not
+a folder.
+
+**replica** — a device's copy of the synced tables, every item, block, folder,
+tag, link, highlight, thread and thread event, in SQLite on the device: in Rust
+on the Mac (`apps/desktop`), in expo-sqlite on the phone (`apps/mobile`), in
+memory in the browser tab. It pulls the cell's change log by cursor, every
+screen reads it, and search runs on its own full-text index, online too, so
+there is one ranking. The socket's ping only says to pull; nothing correct
+rests on it. The engine is the `library-replica` package. Not the **library
+cell**, the only writer, and not a cache: only file bytes are ever evicted.
+
+**outbox** — a **replica**'s queued writes. Each is written in the replica's
+own transaction, so the screen shows it at once, then sent oldest first with
+an op id the cell answers once, so a resend after a lost answer is the same
+write. A `CONFLICT` settles through the block merge and goes again; a refusal
+no resend passes is **parked** for the person. Not the browser extension's
+retry queue, which holds a save's url, title and selection and writes nothing
+until the save lands.
+
+**connector** — the library as a remote MCP server: `/connector` on the Worker
+(`apps/web`), the library's procedures tagged as tools, behind OAuth from
+`@cloudflare/workers-oauth-provider` with a read-and-change scope, `library`,
+and a read-only one, `library:read`. The **built-in agent** and every
+**connected assistant** call it, and each tool is the same procedure the apps
+call over `/v1`. Connector is Claude's word for it and the product's, which
+never says MCP. Not **Connectors** in Settings, below: the MCP servers the
+Mac's own agent was given.
+
+**connected assistant** — the person's own Claude (claude.ai, Claude Desktop,
+Claude Code) or ChatGPT, signed in to the **connector** by OAuth on our
+consent page; its model runs on its own plan, never ours. Settings › Account
+lists each one and removes it. Not the **built-in agent**, though both call
+the same tools.
+
+**built-in agent** — the app's own agent: one Claude Managed Agents agent and
+environment per deployment target, configured by files in `apps/web` and
+synced with `ant apply`. The cell starts one session per thread and is the
+only reader of its events. It reaches the library only through the
+**connector**, as our own OAuth client whose token is held in the account's
+Managed Agents vault (Anthropic's credential store, not the library); it has
+no shell, files or web of its own, deleting is the one call that asks the
+person first, and at most one of its **turns** runs per account at a time. It
+runs on our bill, within the account's allowance. Not a **connected
+assistant**.
+
+**turn** — one message to the **built-in agent** and the work it does until
+its session goes idle on a final stop reason (`end_turn`, `retries_exhausted`,
+`budget_reached`, `refusal`) or terminates; idling to ask an approval does not
+end it. The cell checks the account's allowance before it starts and the
+session's budget caps it, and its writes are one **change set**, which "Undo
+this turn" reverts. Not a connected assistant's call, which is no turn, and
+not the Mac runtime's turn under The agent, below.
+
 ## The library (the vault, in code)
 
 **doc** — a file whose extension is editable text: `.md`, `.markdown`, `.mdx`,
