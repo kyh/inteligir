@@ -5,6 +5,8 @@ import Markdown from "react-markdown";
 import type { ExtraProps } from "react-markdown";
 
 import { markdownHandler, varyHeaders } from "@/lib/markdown-route";
+import { PAGES } from "@/lib/page-meta";
+import { pageHead } from "@/lib/page-head";
 import { siteConfig } from "@/lib/site-config";
 import { homeMarkdown } from "@/lib/site-content";
 import { SiteHeader } from "@/components/site-header";
@@ -89,6 +91,7 @@ const Page = () => (
 );
 
 export const Route = createFileRoute("/")({
+  head: () => pageHead(PAGES.home),
   headers: varyHeaders,
   component: Page,
   server: { handlers: { GET: markdownHandler(homeMarkdown) } },
