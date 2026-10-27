@@ -11,6 +11,7 @@ import type { DocProjection } from "./projection";
 import { parseStoredProjection } from "./projection-row";
 import { searchExcerpt } from "./search-excerpt";
 import type { SearchHit } from "./search-index";
+import { renderFtsMatch } from "./fts-match";
 import { planSearchQuery, SEARCH_FIELD_WEIGHTS, TYPED_QUERY } from "./search-query";
 import type { SearchQueryOptions, SearchQueryPlan, SearchResult } from "./search-query";
 import type { DocText } from "./text-matches";
@@ -133,22 +134,6 @@ SELECT path, content_hash FROM files WHERE kind = 'other' AND path > ? ORDER BY 
 `;
 
 const PATH_START = "";
-
-const LITERAL_COLUMNS = "{title headings meta body}";
-const STEM_COLUMNS = "{title_stems heading_stems meta_stems body_stems}";
-
-// every term is quoted because fts5 reads AND/OR/NOT/NEAR, `*`, `^`, `:`, `-` and parens as
-// syntax, and the tokenizer cannot emit a `"`, so nothing can close the quote. literal arm OR
-// stem arm is the exact tier (search-index.ts has the porter example), and each term is
-// parenthesized so its inner OR cannot bind against the joining AND
-const renderFtsMatch = (plan: SearchQueryPlan): string =>
-  plan.terms
-    .map(
-      (term) =>
-        `(${LITERAL_COLUMNS}: "${term.token}"${term.prefix ? " *" : ""}` +
-        ` OR ${STEM_COLUMNS}: "${term.stem}")`,
-    )
-    .join(plan.match === "all" ? " AND " : " OR ");
 
 const columnNumber = (row: SqlRow, key: string): number => {
   const value = z.number().safeParse(row[key]);

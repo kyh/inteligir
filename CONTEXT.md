@@ -36,7 +36,7 @@ opened and sealed. A device's typing seals after 15 s of quiet or 60 s in all;
 a **turn** is one set; a **connected assistant**'s writes are one set per
 grant, sealed after 10 idle minutes. Undo reverts sets three-way, newest
 first, and keeps every later edit; an undo is a set of its own. The cell keeps
-them, and the revert is `@repo/notes`'. Not a phone write's set of file
+them, and the revert is `@repo/notes/library/revert-change`'s. Not a phone write's set of file
 changes for the hosted vault (**settle**, below).
 
 **block** — one top-level node of an item's body, a Plate element stored as a
@@ -45,13 +45,15 @@ and its hash. A write names the hash it was computed from, so writes to two
 blocks never meet, and one whose base moved is answered `CONFLICT` with the
 block as it is. A list item is a block, since lists are flat indent lists. Not
 a Plate node at any depth: a block's children are inside its JSON. The model is
-`@repo/notes`', the ids the editor's (`@repo/editor`).
+`@repo/notes/library/block-ops`, its vocabulary
+`@repo/notes/library/library-nodes`, the ids the editor's (`@repo/editor`).
 
 **section** — which part of an item a **block** belongs to: `note`, what the
 person wrote, or `article`, the page's readable text a fill wrote. A fill and
 Refresh replace only `article` blocks, so reading a page again never touches
-the person's writing. Not a heading's stretch of a note (its outline), and not
-a folder.
+the person's writing. An item reads its note before its article
+(`@repo/notes/library/block-order`). Not a heading's stretch of a note (its
+outline), and not a folder.
 
 **replica** — a device's copy of the synced tables, every item, block, folder,
 tag, link, highlight, thread and thread event, in SQLite on the device: in Rust

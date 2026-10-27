@@ -1,8 +1,11 @@
 # @repo/notes
 
-The pure, platform-neutral domain core: the item model (what a saved link, a
-file and a note are as one markdown file) and the knowledge engine
-(links/tags/search and the library listing) over one markdown scan.
+The pure, platform-neutral domain core: the library model the cloud cut builds
+(an item as fields and a body of Plate blocks, its ops, its undo and its one
+SQL schema), and beside it, until their last clients move, the item model of
+the markdown vault (what a saved link, a file and a note are as one markdown
+file) and the knowledge engine (links/tags/search and the library listing)
+over one markdown scan.
 
 ## Why it exists
 
@@ -18,6 +21,22 @@ workspace.
 ```
 src/
   iso-date.ts          # a Date → local `YYYY-MM-DD`, the only date text shared
+  library/             # the library model: what the cell and both replicas share
+    library-nodes.ts   # the persisted node set, strict zod over Plate's own
+                       # node props, checked at the cell's boundary
+    library-item.ts    # an item's fields, one column each, capped to a row
+    block-ops.ts       # insert/put/drop/move and field patches, each naming
+                       # its base; the per-block guard, apply and rebase
+    block-order.ts, block-hash.ts, canonical-json.ts  # fractional order
+                       # keys, a block's hash, one spelling of a JSON value
+    derive-item.ts     # title, card, text, links, tags and anchored
+                       # highlights, from the fields and the blocks
+    revert-change.ts   # a change set taken back three ways, in
+                       # revert-edit's orientation, newest set first
+    library-schema.ts  # the ONE DDL, versioned by `meta.schema`
+    library-sql.ts     # the ports, plans as generators, statement chunking
+    library-queries.ts # every read and write over the schema, as plans
+    library-index.ts   # the listing over a replica's rows, in memory
   knowledge/           # derived-index engine
     projection.ts      # projectDoc — the ONE parse per doc (PROJECTION_VERSION)
     link-graph-index.ts  # pure link/tag/title/graph resolution, fed projections
@@ -145,6 +164,10 @@ src/
 
 ## Seams
 
+- `SqlPort` / `AsyncSqlPort` (`library/library-sql.ts`): one statement per
+  call and `transaction(work)`; the cell binds `ctx.storage.sql` and
+  `transactionSync`, a replica its driver. A plan (`library-queries.ts`) runs
+  on either through `runPlan` or `runPlanAsync`.
 - `SqlDriver` (`knowledge/sql-knowledge-store.ts`): the host binds it —
   better-sqlite3 in `apps/cli/src/server/knowledge/sqlite-driver.ts` — and
   throws `KnowledgeStoreError` for every database failure, the one failure the
@@ -156,7 +179,11 @@ src/
 tests. The suites in `src/knowledge/` pin the knowledge engine: resolver tiers
 (including an oracle equivalence for the basename buckets), rename byte
 surgery, the search policy against both engines and the scan's prose against
-the editor's parse; `src/text/` pins the diff3 merge. The
+the editor's parse; `src/text/` pins the diff3 merge; `src/library/` runs its
+SQL on SQLite's own wasm build behind a port that refuses what a Durable
+Object refuses (`src/test-support/wasm-sql-port.ts`), and its properties
+(rebases commute, undo restores, revert-edit's orientation, chunking under
+both caps) draw from the one seeded generator. The
 suites run under a 512MB heap ceiling (`vitest.config.ts`), so an allocation
 that grows with a note's size, like a diff trace that copies the whole
 frontier every round, fails here rather than passing on a default heap.

@@ -1,4 +1,5 @@
 import type { ItemFacts } from "../items/item-frontmatter";
+import { clipSnippet } from "../text/clip-text";
 import { splitLines } from "../text/source-lines";
 import type { ExtractedLink } from "./link-extract";
 import { scanDoc } from "./link-extract";
@@ -9,13 +10,8 @@ import { docStem } from "./doc-file";
 // rebuilds, so there is no migration path
 export const PROJECTION_VERSION = 13;
 
-const SNIPPET_MAX = 200;
-
 // a card's preview: the first paragraph's text, cut short
 const PREVIEW_MAX = 140;
-
-export const clipSnippet = (text: string, max: number = SNIPPET_MAX): string =>
-  text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 
 /** the snippet is captured here so no downstream index has to retain doc bodies */
 export type StoredLink = ExtractedLink & { snippet: string };

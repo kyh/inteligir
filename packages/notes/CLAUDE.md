@@ -1,7 +1,10 @@
 # Decisions: @repo/notes
 
-The knowledge engine: the scan, the index's rules, search, links and tags.
-`AGENTS.md` § Decisions says how a bullet is written and cited.
+The library model (an item as fields and blocks, its ops, its undo and its
+SQL), and the markdown vault's knowledge engine beside it until its last
+client moves: the scan, the index's rules,
+search, links and tags. `AGENTS.md` § Decisions says how a bullet is written
+and cited.
 
 ## Shape
 
@@ -10,6 +13,77 @@ Pure and platform-neutral: no node, react or ui import and no `crypto` global
 random bytes and fresh ids) is injected.
 `markdown/mdast-nodes.ts` is the mdast NARROWING boundary: a walk asks it what a
 node is rather than discriminating structurally at each visit.
+
+## Library
+
+- **THE PERSISTED NODE SET IS SPELLED HERE, BELOW THE EDITOR, AND IT IS
+  STRICT.** `@repo/notes/library/library-nodes` is Plate's own vocabulary as
+  zod: every element a strict object, a top-level block always named by its
+  id, a depth and a size checked before the recursive parse
+  (`storableBlockSchema`). A wiki link names its target by id with the title
+  the writer saw, an image, file or video holds a sha or a url, and a marker
+  keeps `ids` and a pill its `meta` as the editor holds them. Rejected: the
+  vocabulary in `@repo/editor` (the cell and the replicas cannot load Plate,
+  and this package is the leaf every one of them reaches), and loose objects
+  (a prop no reader draws would land).
+
+- **AN ITEM IS FIELDS AND BLOCKS, AND EVERYTHING ELSE IS DERIVED IN THE SAME
+  TRANSACTION.** `@repo/notes/library/library-item` caps each field inside a
+  Durable Object's 2 MB row; `tags` is a column, the source `item_tags`
+  derives from beside the body's tag chips.
+  `deriveItem` reads the card (an empty title falls back to the first heading,
+  then the first line), the index text, the links by id, title key or url key,
+  and each block's anchored highlights. Rejected: syncing derived rows (two
+  derivations would drift), a frontmatter block (its keys are columns).
+  `packages/notes/src/library/derive-item.ts`.
+
+- **A BLOCK IS GUARDED BY ITS HASH, ITS PLACE BY ITS KEY, A FIELD BY ITS
+  VALUE.** `@repo/notes/library/block-ops`: insert, put, drop, move and the
+  field patches each name their base; a batch lands whole or answers every
+  conflict, an op already true is satisfied, and a list field merges as a set,
+  so two devices tagging at once both land. The hash is SHA-256 over canonical
+  JSON (`@noble/hashes`, synchronous for the cell's transaction) cut to 128
+  bits. Rejected: one version per item (two blocks would conflict) and the
+  platform's crypto (async in a Durable Object, absent from Hermes).
+  `packages/notes/src/library/block-ops.test.ts`.
+
+- **A BLOCK'S PLACE IS A FRACTIONAL KEY, READ NOTE BEFORE ARTICLE.**
+  `@repo/notes/library/block-order` mints keys with `fractional-indexing`;
+  equal keys from two devices order by block id, and `isOrdKey` holds a key to
+  the whole format, since the library checks only its head and its last digit.
+  `placeInOrder` restores every old key when they all still fit, else moves
+  the fewest blocks. Rejected: integer positions (an insert renumbers, and two
+  renumberings conflict) and interleaving the sections (a fill's keys would
+  thread through the person's).
+
+- **UNDO RUNS A CHANGE SET BACKWARDS IN REVERT-EDIT'S ORIENTATION, BLOCK FOR
+  LINE.** `@repo/notes/library/revert-change`: the set's after is the base,
+  the item now is mine, its before is theirs; the order merges by diff3 over
+  block ids, fields revert one by one, highlights entry by entry, and an
+  overlap keeps the item whole and named. An item the set made goes to Deleted
+  unless a person's part changed since (a fill is not a person). Sets undo
+  newest first. Unlike revert-edit, a block keeps its identity across a move,
+  so a block moved, edited and then deleted stays deleted.
+  `packages/notes/src/library/revert-change.test.ts`.
+
+- **THE LIBRARY'S SQL IS ONE SCHEMA AND ONE SET OF PLANS FOR THREE
+  ENGINES.** `@repo/notes/library/library-schema` versions STRICT tables by a
+  `meta.schema` row, and a mismatch starts the engine over;
+  `@repo/notes/library/library-sql` runs a plan (a generator yielding one
+  statement at a time) over the cell's synchronous port or a replica's
+  asynchronous one, and cuts many-row statements under 100 parameters and 100
+  KB; `library-queries` matches text with instr(). Rejected: SQLite's
+  version pragma and its pattern-match operators (a Durable Object refuses the
+  one and caps the other at 50 bytes) and SQL per engine (it drifts). `packages/notes/src/test-support/wasm-sql-port.ts`.
+
+- **THE LISTING OVER ROWS IS IN MEMORY, AND PINNED LEADS IT.**
+  `@repo/notes/library/library-index` holds a replica's listing rows, typed by
+  the host's own row, and answers kind, tag family, folder (with its
+  subfolders), site, date and search scopes, with Deleted apart and a count per
+  kind. It keeps one sorted order per sort, dropped only when a row's place in
+  it moves. Rejected: SQL listing queries (a tag family and a folder tree read
+  from memory without a join per page).
+  `packages/notes/src/library/library-index.test.ts`.
 
 ## Items
 
