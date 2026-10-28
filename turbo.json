@@ -27,8 +27,11 @@
       "cache": false,
       "persistent": true
     },
+    // a workspace's generated sources (apps/web's Env and runtime types, from `cf workers types`),
+    // which its typecheck and its suites both read: a test file can carry type claims too
+    "generate": {},
     "typecheck": {
-      "dependsOn": ["^topo"],
+      "dependsOn": ["^topo", "generate"],
       // tsc runs incremental, so its state is this task's output, or every restore re-checks from
       // cold; a glob, because a workspace with several programs writes one file each
       "outputs": [".cache/tsbuildinfo*.json"]
@@ -53,7 +56,7 @@
       "cache": false
     },
     "test": {
-      "dependsOn": ["^topo"],
+      "dependsOn": ["^topo", "generate"],
       // the suites run in parallel (four at once, or TEST_CONCURRENCY), so every vitest.config.ts
       // caps its own maxWorkers: uncapped pools exhaust the machine and kill workers mid-run
       "cache": false,
