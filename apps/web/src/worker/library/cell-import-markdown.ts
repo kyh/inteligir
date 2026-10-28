@@ -62,6 +62,15 @@ export const readLibraryRules = (sql: SqlStatements): string | null =>
 
 // a file read whole to hash it; a larger one is read twice, once to hash it and once to store it
 const BUFFERED_MAX_BYTES = 8 * 1024 * 1024;
+// what one run of the first pass reads of the zip, its files' bytes and its notes' text, at least
+// one path a run: reading costs the platform's own inflate and digest, a few ms a MiB
+const READ_PAGE_BYTES = 64 * 1024 * 1024;
+// reading a note into its item costs about 10 s of CPU a MiB of markdown, and more than linearly
+// past it (2.3 s for 256 KiB, 63 s for 4 MiB, measured in node on the build's runner), so one run
+// lands notes until it has read this much of them, at least one, and a note past NOTE_MAX_BYTES is
+// left out as unreadable rather than end every run that tries it
+const LAND_PAGE_BYTES = 512 * 1024;
+const NOTE_MAX_BYTES = 1024 * 1024;
 // the notes, and the files made items, one run lands
 const PAGE_DOCS = 50;
 const PAGE_FILES = 100;
@@ -336,6 +345,15 @@ const writePlan = (scope: LandingScope, host: ImportHost, job: ImportJob): void 
   advanceImport(sql, job.id, { cursor: 0, phase: "landing", total: plan.docs.length });
 };
 
+// every file the first pass put in the library for the job, where its rows name them: the paths
+// it read while it reads, the plan's files once the plan is made
+export const keptFileShas = (sql: SqlStatements, jobId: string): string[] => [
+  ...importRows(sql, jobId, ROWS.entry, ALL, entrySchema).flatMap(({ value }) =>
+    value.kind === "file" ? [value.sha] : [],
+  ),
+  ...importRows(sql, jobId, ROWS.file, ALL, fileRowSchema).map(({ value }) => value.sha),
+];
+
 const readPaths = async (
   host: ImportHost,
   job: ImportJob,
@@ -354,7 +372,13 @@ const readPaths = async (
     }
     throw error;
   }
+  let readBytes = 0;
   for (const entry of entries.filter((listed) => listed.index >= job.cursor)) {
+    const size = importPathKind(entry.path) === "skipped" ? 0 : entry.size;
+    if (readBytes > 0 && readBytes + size > READ_PAGE_BYTES) {
+      return MORE;
+    }
+    readBytes += size;
     const read = await readEntrySafely(host, source, entry);
     if (read.kind === "full") {
       return failed(LIBRARY_FULL);
@@ -458,6 +482,9 @@ const docOutcome = async (
   if (row.held) {
     return skip({ alreadySaved: 1 });
   }
+  if (row.zip.size > NOTE_MAX_BYTES) {
+    return skip({ unreadable: 1 });
+  }
   let text: string;
   try {
     text = await textOf(context.source, row.zip, ITEM_TEXT_MAX_BYTES);
@@ -554,7 +581,15 @@ const landDocs = async (
   }
   const context = { loaded: loaded.value, reader: openPlan(loaded.value.plan), source };
   const end = Math.min(loaded.value.docs.length, job.cursor + PAGE_DOCS);
+  let landedBytes = 0;
   for (let idx = job.cursor; idx < end; idx += 1) {
+    const row = loaded.value.docs[idx];
+    // what landing the note will read, none for one held already or left out for its size
+    const size = row === undefined || row.held || row.zip.size > NOTE_MAX_BYTES ? 0 : row.zip.size;
+    if (landedBytes > 0 && landedBytes + size > LAND_PAGE_BYTES) {
+      return MORE;
+    }
+    landedBytes += size;
     const outcome = await docOutcome(host, job, context, idx);
     if (outcome !== null) {
       return outcome;

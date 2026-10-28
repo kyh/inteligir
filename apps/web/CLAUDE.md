@@ -452,14 +452,15 @@ how a bullet is written and cited.
 
 - **AN IMPORT IS A CELL JOB RUN A PAGE AT A TIME, ITS PLAN IN ROWS.**
   `library.imports.start` names a file the device uploaded, and each alarm run
-  does one page (a hundred bookmarks, fifty notes, or ten seconds waiting on
-  R2) in transactions that move the job's cursor with what they land, so an
-  eviction loses and repeats nothing. A zip is read where it lies, by its
-  directory: pass one keeps each note's frontmatter and puts every file in the
-  library, the plan is made once, then the notes and the files no note embeds
-  land in one change set the job closes. Rejected: one run per import (an
-  alarm's 30 s of CPU); the Worker importing (no transaction of its joins the
-  cell's). `apps/web/src/worker/library/cell-imports.ts`,
+  does one page (a hundred bookmarks, fifty notes or 512 KiB of their markdown,
+  64 MiB of the zip, or ten seconds waiting on R2) in transactions that move
+  the job's cursor with what they land. A run is counted before it starts, so
+  one the platform ends counts, and five in a row that move nothing stop it. A
+  note past 1 MiB is left out (reading costs about 11 s of CPU a MiB,
+  measured). Pass one puts every file in the library, the plan is made once,
+  then the notes and the unembedded files land in one change set. Rejected:
+  one run per import (an alarm's 30 s of CPU); counting a run in its catch
+  (the platform's kill skips it). `apps/web/src/worker/library/cell-imports.ts`,
   `apps/web/src/worker/library/cell-import-markdown.ts`.
 
 - **AN EXPORT IS A ZIP THE CELL STREAMS INTO R2 IN PARTS OF ONE SIZE, AND LETS
@@ -481,3 +482,13 @@ how a bullet is written and cited.
   binding (it bills every picture); a thumbnail made in the cell (its CPU holds
   every write). `apps/web/src/worker/fill/read-page.ts`,
   `packages/notes/src/items/link-fill.ts`.
+
+- **A FILE NO ITEM HAS NAMED IS LET GO ONCE NOTHING WILL, AND ONE AN ITEM NAMED
+  STAYS.** A file's row that lands waits a day under an `unnamed` job, which an
+  item naming it drops; an import that ends however it ended lets its files
+  go, a reading that lands nowhere hands its cover to the alarm's next run,
+  and none goes while an import runs, whose plan may name it. Once named, a
+  revision may hold it, so it stays. Rejected: releasing by `refs` alone (a
+  file only history holds would go); a sweep of rows with no refs (the same).
+  `apps/web/src/worker/library/cell-blobs.ts`, `cell-imports.ts`,
+  `cell-fills.ts`.

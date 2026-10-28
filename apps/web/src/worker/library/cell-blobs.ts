@@ -2,7 +2,11 @@
 // name only a file the library already holds, and the file's row lands once the bytes do. A device
 // asks for room before it uploads, the cell holds it against the quota, and once the upload is in
 // R2 the cell reads its size there and lands the row; room held past an hour with no upload is let
-// go by the alarm, and so is what such an upload, or one the cell refused, left in R2.
+// go by the alarm, and so is what such an upload, or one the cell refused, left in R2. A file no
+// item has named yet is let go once nothing will: when the import that kept it ends, at the alarm's
+// next run after the reading that kept it lands nowhere, and by the alarm a day after it landed
+// otherwise, but never while an import runs, whose plan may name it. Once an item names it, a
+// revision may too, so it stays.
 
 import type { ItemState } from "@repo/notes/library/block-ops";
 import { readMeta, recordChanges, writeMeta } from "@repo/notes/library/library-queries";
@@ -106,11 +110,56 @@ export const itemBlobShas = (sql: SqlStatements, itemId: string): string[] =>
     .all("SELECT sha256 FROM item_blobs WHERE item_id = ?", [itemId])
     .map((row) => shaRowSchema.parse(row).sha256);
 
+// ---- files no item has named ----
+
+// how long a file no item names waits for one, longer than any device's upload and its write
+const UNNAMED_HOLD_MS = 24 * 60 * 60_000;
+
+const unnamedJobId = (sha: string): string => `unnamed:${sha}`;
+
+const unnamedJob = (sha: string) =>
+  ({ id: unnamedJobId(sha), kind: "unnamed", payload: JSON.stringify({ sha }) }) as const;
+
+// a file just landed waits for an item to name it
+const awaitName = (storage: CellStorage, sha: string, now: number): void => {
+  scheduleJob(storage, unnamedJob(sha), now + UNNAMED_HOLD_MS);
+};
+
+// the alarm asks again later about a file something may still name (an import running)
+export const awaitNameAgain = (storage: CellStorage, sha: string, at: number): void => {
+  scheduleJob(storage, unnamedJob(sha), at);
+};
+
+// files that may name nothing now, asked about at the alarm's next run rather than at their day's
+// end; one an item named since has no job left to move
+export const hurryUnnamed = (sql: SqlStatements, shas: readonly string[], now: number): void => {
+  for (const sha of new Set(shas)) {
+    sql.run("UPDATE jobs SET next_at = min(next_at, ?) WHERE id = ?", [now, unnamedJobId(sha)]);
+  }
+};
+
+// files an item names now, which no longer wait
+const named = (sql: SqlStatements, shas: readonly string[]): void => {
+  for (const statement of chunkStatement({
+    each: "?",
+    head: "DELETE FROM jobs WHERE id IN (",
+    rows: [...new Set(shas)].map((sha) => [unnamedJobId(sha)]),
+    separator: ", ",
+    tail: ")",
+  })) {
+    sql.run(statement.sql, statement.params);
+  }
+};
+
 export const storeItemBlobs = (
   sql: SqlStatements,
   itemId: string,
   refs: readonly BlobRef[],
 ): void => {
+  named(
+    sql,
+    refs.map((ref) => ref.sha),
+  );
   const before = itemBlobShas(sql, itemId);
   sql.run("DELETE FROM item_blobs WHERE item_id = ?", [itemId]);
   for (const statement of chunkStatement({
@@ -264,29 +313,33 @@ export const refuseUpload = (storage: CellStorage, sha: string, now: number): vo
 
 const releasableSchema = z.object({ bytes: z.number().int().nonnegative(), refs: z.number() });
 
-// a file no item names, let go: its row leaves the library and every replica at `seq`, its bytes
-// leave the quota, and what R2 holds of it is a stray the alarm takes out; one an item names stays
-export const releaseFile = (
+// a file no item has ever named, let go: its row leaves the library and every replica at `seq`,
+// its bytes leave the quota, and what R2 holds of it is a stray the alarm takes out; a file an item
+// names, or once named, which a revision may hold, stays
+export const releaseUnnamed = (
   storage: CellStorage,
-  sha: string,
+  shas: readonly string[],
   at: { readonly seq: () => number; readonly now: number },
 ): void => {
-  const [raw] = storage.all("SELECT bytes, refs FROM blobs WHERE sha256 = ?", [sha]);
-  if (raw === undefined) {
-    return;
+  for (const sha of new Set(shas)) {
+    const [raw] = storage.all(
+      `SELECT bytes, refs FROM blobs WHERE sha256 = ?
+         AND EXISTS (SELECT 1 FROM jobs WHERE id = ?)`,
+      [sha, unnamedJobId(sha)],
+    );
+    dropJob(storage, unnamedJobId(sha));
+    const row = raw === undefined ? null : releasableSchema.parse(raw);
+    if (row !== null && row.refs === 0) {
+      storage.run("DELETE FROM blobs WHERE sha256 = ?", [sha]);
+      addFileBytes(storage, -row.bytes);
+      runPlan(storage, recordChanges([{ gone: true, id: sha, kind: "blob", seq: at.seq() }]));
+      ensureJob(
+        storage,
+        { id: strayJobId(sha), kind: "stray", payload: JSON.stringify({ sha }) },
+        at.now,
+      );
+    }
   }
-  const row = releasableSchema.parse(raw);
-  if (row.refs > 0) {
-    return;
-  }
-  storage.run("DELETE FROM blobs WHERE sha256 = ?", [sha]);
-  addFileBytes(storage, -row.bytes);
-  runPlan(storage, recordChanges([{ gone: true, id: sha, kind: "blob", seq: at.seq() }]));
-  ensureJob(
-    storage,
-    { id: strayJobId(sha), kind: "stray", payload: JSON.stringify({ sha }) },
-    at.now,
-  );
 };
 
 // a stray's removal may begin; false, with its job dropped, once a file row or a fresh upload's
@@ -329,6 +382,7 @@ export const settleUpload = (
     readonly stored: StoredObject | null;
     readonly removalsSeen: number;
   },
+  now: number,
 ): UploadSettled => {
   const { removalsSeen, sha, stored } = upload;
   if (heldShas(storage, [sha]).size > 0) {
@@ -354,5 +408,6 @@ export const settleUpload = (
     [sha, stored.bytes, held?.mime ?? stored.mime],
   );
   addFileBytes(storage, stored.bytes);
+  awaitName(storage, sha, now);
   return { landed: true, settled: true };
 };

@@ -18,6 +18,9 @@ export interface ImportHost {
   readonly library: LibraryEngine;
   // the platform's clock, which a test moves
   readonly now: () => number;
+  // every write so far on disk (`ctx.storage.sync()`), so what a run counted before its work
+  // stands even when the platform ends the run
+  readonly durable: () => Promise<void>;
 }
 
 // what one run of a job came to: more to do, the job done, or stopped with the reason said
@@ -30,8 +33,9 @@ export const MORE: StepOutcome = { kind: "more" };
 export const DONE: StepOutcome = { kind: "done" };
 export const failed = (message: string): StepOutcome => ({ kind: "failed", message });
 
-// a run's page ends past this much wall time, which moves only while the run waits on R2, or past
-// its own count of rows, whichever comes first, so its CPU stays well inside an alarm's 30 s
+// a run's page ends past this much wall time, which moves only while the run waits on R2, past
+// the bytes it read, or past its own count of rows, whichever comes first: the clock bounds a run's
+// waiting, never its CPU, which the bytes and the count keep well inside an alarm's 30 s
 export const PAGE_MS = 10_000;
 
 export const LIBRARY_FULL =

@@ -1,9 +1,9 @@
 // The cell's one alarm runs what the `jobs` table holds: a change set to seal once its actor goes
-// quiet, the daily prune of history, an upload whose room was held too long, a stray file to take
-// out of R2, a page's reading to send to the fill queue, an import's next page, an export to write
-// and one to let go. A job is a row, so it survives eviction and a missed alarm; the alarm is set
-// to the earliest due one, and only while any is waiting
-// (https://developers.cloudflare.com/durable-objects/api/alarms/).
+// quiet, the daily prune of history, an upload whose room was held too long, a file no item named
+// in its first day, a stray file to take out of R2, a page's reading to send to the fill queue, an
+// import's next page, an export to write and one to let go. A job is a row, so it survives
+// eviction and a missed alarm; the alarm is set to the earliest due one, and only while any is
+// waiting (https://developers.cloudflare.com/durable-objects/api/alarms/).
 
 import { z } from "zod";
 
@@ -13,6 +13,7 @@ const JOB_KINDS = [
   "seal",
   "prune",
   "upload",
+  "unnamed",
   "stray",
   "fill",
   "import",
@@ -31,6 +32,8 @@ export interface DueJob<K extends JobKind = JobKind> {
 // a job waiting for its turn; a run that fails tries again later, as `attempts` counts
 const JOB_STATE = "waiting";
 
+// a job asked for at `nextAt`; one already waiting is asked for again, its count of failed runs
+// started over
 export const scheduleJob = (
   sql: SqlStatements,
   job: { readonly id: string; readonly kind: JobKind; readonly payload: string },
@@ -38,7 +41,8 @@ export const scheduleJob = (
 ): void => {
   sql.run(
     `INSERT INTO jobs (id, kind, state, payload, attempts, next_at) VALUES (?, ?, ?, ?, 0, ?)
-     ON CONFLICT (id) DO UPDATE SET payload = excluded.payload, next_at = excluded.next_at`,
+     ON CONFLICT (id) DO UPDATE SET payload = excluded.payload, next_at = excluded.next_at,
+       attempts = 0`,
     [job.id, job.kind, JOB_STATE, job.payload, nextAt],
   );
 };
@@ -69,6 +73,9 @@ export const deferJob = (sql: SqlStatements, id: string, nextAt: number): void =
 const RETRY_BASE_MS = 30_000;
 const RETRY_MAX_MS = 60 * 60_000;
 
+// a failed run counted, and the next put off. A job whose run the platform may end (past its CPU,
+// its memory), which no catch would see, counts its run so before it starts, and the run that gets
+// somewhere asks for its next itself (`scheduleJob`), starting the count over
 export const retryJob = (sql: SqlStatements, job: DueJob, now: number): void => {
   const wait = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** job.attempts);
   sql.run("UPDATE jobs SET attempts = attempts + 1, next_at = ? WHERE id = ?", [

@@ -23,6 +23,7 @@ import { z } from "zod";
 import type { FillLanded, FillLanding } from "../fill/fill-landing";
 import type { CellActor } from "./cell-actor";
 import { readAnnotationRows } from "./cell-annotations";
+import { hurryUnnamed } from "./cell-blobs";
 import type { CellCodec } from "./cell-codec";
 import { placeQuotes } from "./cell-items";
 import { deferJob, dueJobs, scheduleJob } from "./cell-jobs";
@@ -239,6 +240,22 @@ const waiting = (state: ItemState | null, url: string): state is ItemState => {
 export const fillWaits = (sql: SqlStatements, itemId: string, url: string): boolean =>
   waiting(runPlan(sql, readItemState(itemId)), url);
 
+// the files a reading kept in the library on its way (`../fill/store-file`)
+export const readingFiles = (landing: FillLanding): string[] => {
+  switch (landing.kind) {
+    case "read": {
+      return landing.coverSha === null ? [] : [landing.coverSha];
+    }
+    case "file": {
+      return [landing.originalSha];
+    }
+    case "failed": {
+      return [];
+    }
+    // no default
+  }
+};
+
 export const landFill = (
   scope: LandingScope,
   codec: CellCodec,
@@ -246,6 +263,8 @@ export const landFill = (
 ): FillLanded => {
   const state = runPlan(scope.storage, readItemState(landing.itemId));
   if (!waiting(state, landing.url)) {
+    // nobody waits for this reading, so the alarm lets go at once what it kept that no item names
+    hurryUnnamed(scope.storage, readingFiles(landing), scope.now);
     return { kind: "stale" };
   }
   const item = { id: landing.itemId, state };

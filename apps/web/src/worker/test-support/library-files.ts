@@ -7,6 +7,7 @@ import { env } from "cloudflare:workers";
 
 import { libraryIn, pngOf } from "../fill/test-support/fill-cell";
 import { blobKey } from "../library/cell-blobs";
+import type { ImportHost } from "../library/cell-import-host";
 import { runImports } from "../library/cell-imports";
 import { openCellLibrary, scheduleAlarm, sendFills, settleStored } from "../library/cell-library";
 import type { LibraryDO } from "../library/library-do";
@@ -22,7 +23,7 @@ const shaOf = async (bytes: Uint8Array): Promise<string> =>
   hex(await crypto.subtle.digest("SHA-256", bytes));
 
 // the file's sha once the library holds it
-const uploadedFile = async (
+export const uploadedFile = async (
   library: LibraryEngine,
   accountId: string,
   file: { readonly bytes: Uint8Array; readonly mime: string },
@@ -124,11 +125,27 @@ export const startImport = async (
     return { jobId: job.id, sha };
   });
 
+// what an import's or an export's run works with inside the cell, as the alarm hands it over
+export const jobHostIn = (
+  state: DurableObjectState,
+  accountId: string,
+  library: LibraryEngine = openCellLibrary(state, env),
+  now: () => number = Date.now,
+): ImportHost => ({
+  accountId,
+  durable: async () => {
+    await state.storage.sync();
+  },
+  env,
+  library,
+  now,
+});
+
 // one run of every import due, and the readings it asked for sent, as one alarm runs them
 export const runImportsOnce = async (accountId: string): Promise<void> => {
   await inCell(cellOf(accountId), async (state) => {
     const library = openCellLibrary(state, env);
-    await runImports({ accountId, env, library, now: Date.now });
+    await runImports(jobHostIn(state, accountId, library));
     await sendFills(state, env, library);
   });
 };

@@ -3,21 +3,22 @@
 // (`./cell-import-raindrop`, `./cell-import-markdown`), each run ending well inside an alarm's
 // limits and asking for the next, so a large import never holds the cell and resumes where it
 // stood after an eviction. Every item it adds joins one change set, closed when the job ends; the
-// file it read is let go then, unless an item names it.
+// file it read, and every file it kept that no item came to name, are let go then.
 
-import { readBlobRow, releaseFile } from "./cell-blobs";
+import { readBlobRow, releaseUnnamed } from "./cell-blobs";
 import { apart } from "./cell-import-host";
 import type { ImportHost, StepOutcome } from "./cell-import-host";
 import {
   dropImportRuns,
   importJobIdOf,
+  importsRunning,
   insertImportJob,
   readImportJob,
   runImportNext,
   stopImport,
 } from "./cell-import-jobs";
 import type { ImportJob, ImportSource } from "./cell-import-jobs";
-import { stepMarkdown } from "./cell-import-markdown";
+import { keptFileShas, stepMarkdown } from "./cell-import-markdown";
 import { RAINDROP_MAX_BYTES, stepRaindrop } from "./cell-import-raindrop";
 import type { CellIds } from "./cell-ids";
 import { dueJobs, retryJob } from "./cell-jobs";
@@ -25,7 +26,8 @@ import type { LandingScope } from "./cell-landing";
 import { logJobFailure } from "./cell-library";
 import { refuse } from "./cell-refusal";
 
-// a run that throws is tried again, later each time, and the job stops after this many
+// a run that fails (it throws, or the platform ends it) is tried again, later each time, and the
+// job stops once this many runs in a row moved it on by nothing
 const ATTEMPTS_MAX = 5;
 
 const STOPPED =
@@ -65,8 +67,9 @@ const readJob = (host: ImportHost, id: string): ImportJob | null => {
   return read.ok ? read.value : null;
 };
 
-// an ended job's set closed, its plan let go, and the file it read with it, unless an item names
-// that file or another import still reads it
+// an ended job's set closed, its plan let go, and with it the file it read and every file its first
+// pass kept that no item names, however it ended (done, cancelled, the library full, failed); while
+// another import runs, whose plan may name one, they wait for the alarm instead (`./cell-blobs`)
 const finish = (host: ImportHost, id: string): void => {
   const job = readJob(host, id);
   const setId = job?.changeSetId ?? null;
@@ -74,13 +77,12 @@ const finish = (host: ImportHost, id: string): void => {
     host.library.closeChangeSet(setId);
   }
   apart(host.library, (scope) => {
-    dropImportRuns(scope.storage, id);
-    const readers = scope.storage.all(
-      "SELECT id FROM import_jobs WHERE sha = ? AND state = 'running' AND id != ?",
-      [job?.sha ?? "", id],
-    );
-    if (job !== null && readers.length === 0) {
-      releaseFile(scope.storage, job.sha, { now: scope.now, seq: scope.seq });
+    const sql = scope.storage;
+    const kept =
+      job === null ? [] : [job.sha, ...(job.source === "markdown" ? keptFileShas(sql, id) : [])];
+    dropImportRuns(sql, id);
+    if (!importsRunning(sql)) {
+      releaseUnnamed(sql, kept, scope);
     }
   });
 };
@@ -122,8 +124,9 @@ const runOne = async (host: ImportHost, id: string): Promise<void> => {
   settle(host, job, outcome);
 };
 
-// every import due: one run each, a run that throws tried again later, and a job that keeps
-// throwing stopped with the reason said
+// every import due: one run each, counted before it starts, so a run that throws or that the
+// platform ends is tried again later, and a job whose runs keep moving it on by nothing is stopped
+// with the reason said
 export const runImports = async (host: ImportHost): Promise<void> => {
   const due = host.library.read((sql) => dueJobs(sql, host.now(), ["import"]));
   if (!due.ok) {
@@ -131,20 +134,21 @@ export const runImports = async (host: ImportHost): Promise<void> => {
   }
   for (const alarmJob of due.value) {
     const id = importJobIdOf(alarmJob.payload);
+    if (alarmJob.attempts >= ATTEMPTS_MAX) {
+      apart(host.library, (scope) => {
+        stopImport(scope.storage, id, { message: STOPPED, state: "failed" }, scope.now);
+      });
+      finish(host, id);
+      continue;
+    }
+    apart(host.library, (scope) => {
+      retryJob(scope.storage, alarmJob, scope.now);
+    });
+    await host.durable();
     try {
       await runOne(host, id);
     } catch (error) {
       logJobFailure(alarmJob, error);
-      const stopping = alarmJob.attempts + 1 >= ATTEMPTS_MAX;
-      apart(host.library, (scope) => {
-        if (stopping) {
-          stopImport(scope.storage, id, { message: STOPPED, state: "failed" }, scope.now);
-        }
-        retryJob(scope.storage, alarmJob, scope.now);
-      });
-      if (stopping) {
-        finish(host, id);
-      }
     }
   }
 };

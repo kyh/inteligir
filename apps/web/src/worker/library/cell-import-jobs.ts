@@ -167,8 +167,10 @@ export interface ImportStep {
   readonly changeSetId?: string | undefined;
 }
 
-// the job moved on by one step: its cursor, its phase, what it counted
+// the job moved on by one step: its cursor, its phase, what it counted; a run that moves it on
+// starts the count of runs that did not over
 export const advanceImport = (sql: SqlStatements, id: string, step: ImportStep): void => {
+  sql.run("UPDATE jobs SET attempts = 0 WHERE id = ?", [alarmJobId(id)]);
   const sets = ["cursor = ?"];
   const params: (string | number)[] = [step.cursor];
   if (step.phase !== undefined) {
@@ -205,6 +207,10 @@ export const stopImport = (
     [ended.state, ended.message, now, id],
   );
 };
+
+// whether an import runs: its plan may name a file no item names yet, so none is let go meanwhile
+export const importsRunning = (sql: SqlStatements): boolean =>
+  sql.all("SELECT 1 FROM import_jobs WHERE state = 'running' LIMIT 1", []).length > 0;
 
 // what the job kept to run is let go once it ended
 export const dropImportRuns = (sql: SqlStatements, id: string): void => {

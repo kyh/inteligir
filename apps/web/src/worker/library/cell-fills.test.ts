@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 
 import type { FillJob } from "../fill/fill-job";
 import type { FillLanding } from "../fill/fill-landing";
-import { libraryIn } from "../fill/test-support/fill-cell";
+import { libraryIn, pngOf } from "../fill/test-support/fill-cell";
 import {
   cellOf,
   clockAt,
@@ -19,6 +19,8 @@ import {
   newAccountId,
   paragraph,
 } from "../test-support/library-cell";
+import { uploadedFile } from "../test-support/library-files";
+import { readBlobRow } from "./cell-blobs";
 import { openCellLibrary, sendFills } from "./cell-library";
 import { readItemState } from "@repo/notes/library/library-queries";
 import { runPlan } from "@repo/notes/library/library-sql";
@@ -211,6 +213,53 @@ describe("a page's reading, landed", () => {
         engine.landReading(read({ itemId: moved.item.id, url: "https://pages.example/other" }, [])),
       ).toMatchObject({ value: { kind: "stale" } });
       expect(engine.head()).toBe(head + 1);
+    });
+  });
+
+  it("lets go at the alarm's next run the cover it kept, once it lands nowhere", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const library = libraryIn(state, accountId);
+      const engine = openCellLibrary(state, env);
+      const storage = cellStorageOf(state.storage);
+      const png = { mime: "image/png" };
+      const named = await uploadedFile(engine, accountId, { ...png, bytes: pngOf(800, 600) });
+      const stray = await uploadedFile(engine, accountId, { ...png, bytes: pngOf(900, 600) });
+      const refused = await uploadedFile(engine, accountId, { ...png, bytes: pngOf(1000, 600) });
+      const kept = await library.items.saveLink({ url: "https://pages.example/kept" });
+      engine.landReading(
+        read({ itemId: kept.item.id, url: "https://pages.example/kept" }, [], { coverSha: named }),
+      );
+      const gone = await library.items.saveLink({ url: "https://pages.example/gone" });
+      await library.items.delete({ ids: [gone.item.id] });
+      const asked = { itemId: gone.item.id, url: "https://pages.example/gone" };
+      // two readings for an item deleted meanwhile: one kept a cover another item names
+      for (const coverSha of [stray, named]) {
+        expect(engine.landReading(read(asked, [], { coverSha }))).toMatchObject({
+          value: { kind: "stale" },
+        });
+      }
+      // and one the library had no room for
+      const waiting = await library.items.saveLink({ url: "https://pages.example/full" });
+      const full = engineIn(state, clockAt(Date.now()), 1);
+      expect(
+        full.landReading(
+          read(
+            { itemId: waiting.item.id, url: "https://pages.example/full" },
+            [paragraph("p", "x")],
+            {
+              coverSha: refused,
+            },
+          ),
+        ),
+      ).toMatchObject({ ok: false, refusal: { kind: "quota" } });
+      expect(readBlobRow(storage, stray)).not.toBeNull();
+      engine.runDueJobs(() => {
+        throw new Error("no job fails here");
+      });
+      expect(readBlobRow(storage, stray)).toBeNull();
+      expect(readBlobRow(storage, refused)).toBeNull();
+      expect(readBlobRow(storage, named)).not.toBeNull();
     });
   });
 

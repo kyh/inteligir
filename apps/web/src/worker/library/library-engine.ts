@@ -25,21 +25,25 @@ import type { FillLanding } from "../fill/fill-landing";
 import type { CellActor } from "./cell-actor";
 import { readAnnotationRows } from "./cell-annotations";
 import {
+  awaitNameAgain,
   beginRemoval,
   blobRemovals,
   dropItemBlobs,
   endRemoval,
+  hurryUnnamed,
   itemBlobShas,
   refuseUpload,
+  releaseUnnamed,
   releaseUpload,
   reserveUpload,
   settleUpload,
 } from "./cell-blobs";
 import type { StoredObject, UploadRequest, UploadRoom } from "./cell-blobs";
 import { cellCodec } from "./cell-codec";
-import { claimFills, FILL_ACTOR, fillWaits, landFill, sentFills } from "./cell-fills";
+import { claimFills, FILL_ACTOR, fillWaits, landFill, readingFiles, sentFills } from "./cell-fills";
 import type { ClaimedFill } from "./cell-fills";
 import type { CellIds } from "./cell-ids";
+import { importsRunning } from "./cell-import-jobs";
 import { landNew } from "./cell-items";
 import type { NewItem } from "./cell-items";
 import { dueJobs, ensureJob, nextJobAt, retryJob, scheduleJob } from "./cell-jobs";
@@ -138,14 +142,17 @@ const PAYLOADS = {
   prune: JSON_TEXT.pipe(z.object({ after: z.string().nullable() })),
   seal: JSON_TEXT.pipe(z.object({ changeSetId: z.string() })),
   stray: JSON_TEXT.pipe(z.object({ sha: z.string() })),
+  unnamed: JSON_TEXT.pipe(z.object({ sha: z.string() })),
   upload: JSON_TEXT.pipe(z.object({ sha: z.string() })),
 };
 
 // the jobs a run settles inside one transaction each; a stray's removal waits on R2, so the cell
 // runs it between two (`removeStrays` in `./cell-library`)
-const STORAGE_JOBS = ["seal", "prune", "upload"] as const;
+const STORAGE_JOBS = ["seal", "prune", "upload", "unnamed"] as const;
 
 const PRUNE_AGAIN_MS = 1000;
+// a file no item named is asked about again this long after, while an import may yet name it
+const IMPORT_AGAIN_MS = 10 * 60_000;
 
 // what a write took on its first landing: the library's next sequence number and its actor's set
 interface Taken {
@@ -325,7 +332,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     const result = transact(
       { answer: z.object({ settled: z.boolean() }), openSet: noSet, opId: undefined },
       (scope) => {
-        const settled = settleUpload(storage, bytesCap, { removalsSeen, sha, stored });
+        const settled = settleUpload(storage, bytesCap, { removalsSeen, sha, stored }, scope.now);
         if (settled.landed) {
           const seq = scope.seq();
           runPlan(storage, recordChanges([{ gone: false, id: sha, kind: "blob", seq }]));
@@ -375,11 +382,19 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     });
   };
 
-  // a page the cloud read, landed as a change set of the fill's own
-  const landReading = (landing: FillLanding) =>
-    land(FILL_ACTOR, { answer: fillLandedSchema, opId: undefined }, (scope) =>
+  // a page the cloud read, landed as a change set of the fill's own; when the library would not
+  // take it, the alarm lets go at once what it kept that no item names
+  const landReading = (landing: FillLanding) => {
+    const landed = land(FILL_ACTOR, { answer: fillLandedSchema, opId: undefined }, (scope) =>
       landFill(scope, cellCodec(storage, ids), landing),
     );
+    if (!landed.ok && landed.refusal.kind !== "gone") {
+      storage.transaction(() => {
+        hurryUnnamed(storage, readingFiles(landing), deps.now());
+      });
+    }
+    return landed;
+  };
 
   // a read, refused once the account is being deleted, or by its own rules (a cursor this library
   // never gave, an id naming nothing)
@@ -439,6 +454,15 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       }
       case "upload": {
         releaseUpload(storage, PAYLOADS.upload.parse(job.payload).sha, now);
+        break;
+      }
+      case "unnamed": {
+        const { sha } = PAYLOADS.unnamed.parse(job.payload);
+        if (importsRunning(storage)) {
+          awaitNameAgain(storage, sha, now + IMPORT_AGAIN_MS);
+        } else {
+          releaseUnnamed(storage, [sha], { now, seq: () => runPlan(storage, nextHead()) });
+        }
         break;
       }
       case "prune": {

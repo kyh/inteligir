@@ -18,6 +18,7 @@ import {
 } from "../test-support/cloud-helpers";
 import {
   importJobOf,
+  jobHostIn,
   runImportToEnd,
   startImport,
   VAULT,
@@ -47,7 +48,7 @@ const exported = async (accountId: string, now = Date.now) =>
     // a second ask while it is written answers with the same export
     const again = await client.exports.start({});
     expect(again.export.id).toBe(started.export.id);
-    await runExports({ accountId, env, library, now });
+    await runExports(jobHostIn(state, accountId, library, now));
     const { export: written } = await client.exports.get({ id: started.export.id });
     return written;
   });
@@ -156,12 +157,9 @@ describe("an export", () => {
 
     // seven days on, the alarm lets it go
     await inCell(cellOf(accountId), async (state) => {
-      await runExports({
-        accountId,
-        env,
-        library: openCellLibrary(state, env),
-        now: () => Date.now() + EXPORT_KEEP_MS + 1000,
-      });
+      await runExports(
+        jobHostIn(state, accountId, undefined, () => Date.now() + EXPORT_KEEP_MS + 1000),
+      );
       const { export: gone } = await libraryIn(state, accountId).exports.get({ id: written.id });
       expect(gone.state).toBe("expired");
     });

@@ -126,7 +126,15 @@ export class LibraryDO extends DurableObject<Env> {
     try {
       library.runDueJobs(logJobFailure);
       await removeStrays(this.env, this.#accountId, library);
-      const host = { accountId: this.#accountId, env: this.env, library, now: Date.now };
+      const host = {
+        accountId: this.#accountId,
+        durable: async () => {
+          await this.ctx.storage.sync();
+        },
+        env: this.env,
+        library,
+        now: Date.now,
+      };
       await runImports(host);
       await runExports(host);
       await sendFills(this.ctx, this.env, library);

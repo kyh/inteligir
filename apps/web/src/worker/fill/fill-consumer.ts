@@ -40,12 +40,16 @@ const UNREACHED = failureOf({ kind: "unreachable", transient: false }).sentence;
 
 type Cell = DurableObjectStub<LibraryDO>;
 
-// the reading landed; one the cell could not keep (the library full, the article past what an
-// item holds) is said as a page whose text couldn't be saved
+// the reading landed; one naming a file the library let go before it landed is read again, as an
+// outbox uploads a file the cell says is missing, and one the cell could not keep (the library full,
+// the article past what an item holds) is said as a page whose text couldn't be saved
 const land = async (cell: Cell, job: FillJob, landing: FillLanding): Promise<void> => {
   const landed = await cell.landFill(landing);
   if (landed.ok || landed.refusal.kind === "gone" || landing.kind === "failed") {
     return;
+  }
+  if (landed.refusal.kind === "blob-missing") {
+    throw new Error("a file the reading kept left the library before the reading landed");
   }
   console.warn({ event: "fill-landing-refused", refusal: landed.refusal.kind });
   await cell.landFill(failedLanding(job, TEXT_NOT_SAVED));
