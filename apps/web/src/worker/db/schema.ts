@@ -2,11 +2,14 @@ import { defineRelationsPart } from "drizzle-orm";
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // Better Auth's tables and relations as `npx auth@1.7.14 generate` prints them for auth.ts's plugin
-// set over the relations-v2 adapter, ported rather than pasted: its `.unique()` and SQL column
-// defaults would plan every table as a recreate on D1 (apps/web/CLAUDE.md, Declare D1 uniques as
-// named unique indexes), so uniques stay named indexes and defaults stay `$defaultFn`. Re-run the
-// generator on a Better Auth bump or a plugin change and port what moved; check
-// `drizzle-kit push --explain` and refuse any plan that recreates a table.
+// set over the relations-v2 adapter, ported rather than pasted, since its `.unique()`, its SQL
+// column defaults and a new NOT NULL each plan a table recreate on D1 (apps/web/CLAUDE.md, Declare
+// D1 uniques as named unique indexes). The port departs from the generator in exactly three ways:
+// uniques stay named indexes; every column the generator gives a SQL default takes the same value
+// from `$defaultFn`, which changes no DDL; and verification's createdAt and updatedAt stay
+// nullable where the generator prints `.notNull()`. Re-run the generator on a Better Auth bump or
+// a plugin change and port what moved within those three; check `drizzle-kit push --explain` and
+// refuse any plan that recreates a table.
 
 // A table's column order is the CREATE TABLE order drizzle-kit emits, and it mirrors what the
 // generator prints; sorting it makes the next push recreate every table.
@@ -38,7 +41,9 @@ export const session = sqliteTable(
     id: text("id").primaryKey(),
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
     token: text("token").notNull(),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .$defaultFn(() => new Date())
+      .notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .$onUpdate(() => new Date())
       .notNull(),
@@ -70,7 +75,9 @@ export const account = sqliteTable(
     refreshTokenExpiresAt: integer("refresh_token_expires_at", { mode: "timestamp_ms" }),
     scope: text("scope"),
     password: text("password"),
-    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .$defaultFn(() => new Date())
+      .notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .$onUpdate(() => new Date())
       .notNull(),

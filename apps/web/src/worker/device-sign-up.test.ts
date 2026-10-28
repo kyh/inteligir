@@ -12,6 +12,7 @@ import { env, exports } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   buildHeaders,
+  drained,
   emitted,
   ORIGIN,
   OWN_PAGE_HEADERS,
@@ -102,17 +103,17 @@ describe("device sign-up", () => {
 
   it("spends a code once, whichever door redeemed it", async () => {
     await mintCode("APP-INVITE-ONCE");
-    const first = await postSignUp(request("app-first@example.test", "APP-INVITE-ONCE"));
+    const first = await drained(postSignUp(request("app-first@example.test", "APP-INVITE-ONCE")));
     expect(first.status).toBe(200);
     const again = await postSignUp(request("app-again@example.test", "APP-INVITE-ONCE"));
     expect(again.status).toBe(403);
     expect(await refusalCodeOf(again)).toBe("invite-refused");
     expect(await userByEmail("app-again@example.test")).toBeUndefined();
-    const site = await postSiteSignUp("site-after-app@example.test", "APP-INVITE-ONCE");
+    const site = await drained(postSiteSignUp("site-after-app@example.test", "APP-INVITE-ONCE"));
     expect(site.status).toBe(403);
 
     await mintCode("SITE-INVITE-ONCE");
-    const onSite = await postSiteSignUp("site-first@example.test", "SITE-INVITE-ONCE");
+    const onSite = await drained(postSiteSignUp("site-first@example.test", "SITE-INVITE-ONCE"));
     expect(onSite.status).toBe(200);
     const inApp = await postSignUp(request("app-after-site@example.test", "SITE-INVITE-ONCE"));
     expect(inApp.status).toBe(403);
@@ -130,7 +131,7 @@ describe("device sign-up", () => {
     const released = await readCode("APP-INVITE-TAKEN");
     expect(released?.redeemedAt).toBeNull();
     expect(released?.redeemedBy).toBeNull();
-    const reused = await postSignUp(request("app-fresh@example.test", "APP-INVITE-TAKEN"));
+    const reused = await drained(postSignUp(request("app-fresh@example.test", "APP-INVITE-TAKEN")));
     expect(reused.status).toBe(200);
   });
 
@@ -185,9 +186,9 @@ describe("the invite gate's window", () => {
   it("closes on the eleventh attempt from one address, whichever door each came through", async () => {
     const caller = { [CALLER_IP_HEADER]: "203.0.113.77" };
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      const site = await postSiteSignUp("window@example.test", "NOT-A-CODE", caller);
+      const site = await drained(postSiteSignUp("window@example.test", "NOT-A-CODE", caller));
       expect(site.status).toBe(403);
-      const app = await postSignUp(request("window@example.test", "NOT-A-CODE"), caller);
+      const app = await drained(postSignUp(request("window@example.test", "NOT-A-CODE"), caller));
       expect(app.status).toBe(403);
     }
     await mintCode("APP-INVITE-WINDOW");

@@ -206,8 +206,8 @@ describe("device login", () => {
     }
 
     const raced = await Promise.all([
-      postLogin({ deviceName: "Racer A", email, password: PASSWORD }),
-      postLogin({ deviceName: "Racer B", email, password: PASSWORD }),
+      drained(postLogin({ deviceName: "Racer A", email, password: PASSWORD })),
+      drained(postLogin({ deviceName: "Racer B", email, password: PASSWORD })),
     ]);
     const statuses = raced.map((response) => response.status).toSorted((a, b) => a - b);
     expect(statuses).toEqual([200, 409]);

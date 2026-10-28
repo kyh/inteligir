@@ -42,7 +42,6 @@ Inteligir is now a library of everything you save: links, articles, videos, imag
 ### Changed
 
 - **Our cloud's request log keeps less of each address.** The log and the traces Cloudflare keeps for us no longer record anything after the `?` in an address, so a sign-in code or a link's own query never lands there; inteligir.com/privacy says so.
-
 - **Your vault is now your library, and everything in it is an item.** Settings › Vault is now Settings › Library, File › Open Vault… is Open Library…, and a note you write is still a note.
 - **Comments are now highlights.** ⌘⇧A no longer comments on the selection: use ⌘⇧H to highlight it. The panel's Comments tab is now Annotations, which lists each highlighted passage with its note (click it to change it), its replies and Remove highlight; highlights whose words are no longer in the text are listed at the end. Each highlight remembers the words it was made on. On your iPhone too, comments are now highlights with an optional note.
 - **The sidebar chooses what the library shows.** It lists your library, its folders, your tags and Deleted, in place of Recent, Files and Deleted. Clicking a folder, or a folder in an item's top bar, shows what is in it. The window opens on your library, not on the last note you had open, and Back takes you to what you had open before.

@@ -1,7 +1,10 @@
 # Copy to apps/web/.dev.vars (gitignored — NEVER commit real values).
 #
-# `vite dev` loads this as the Worker's secrets. Production sets the same
-# keys with `cf workers secrets update` (see README.md -> Deploy).
+# `vite dev` loads this over the bindings cloudflare.config.ts declares.
+# BETTER_AUTH_SECRET is the one production secret, set with
+# `cf workers secrets update` (see README.md -> Deploy). RATE_LIMIT_DISABLED
+# is a text binding in cloudflare.config.ts, "false" wherever the Worker is
+# deployed, and a line here overrides it for this machine only.
 
 # Better Auth's signing key. Required — without it every /api/auth/* request
 # fails. Any value works locally: `openssl rand -base64 32`.
