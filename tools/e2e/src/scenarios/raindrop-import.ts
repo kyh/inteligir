@@ -324,7 +324,7 @@ const importsIntoTheCloudLibrary = async (ctx: ScenarioContext, worker: CloudWor
     expectEq(read.fields.fetchState, "failed", `${item.title}'s reading`);
     expectEq(
       read.fields.fetchError,
-      "This address is on a private network, which the cloud can't reach, so its page isn't read.",
+      "This address isn't one a page can be read from.",
       `${item.title}'s reading, said`,
     );
   }

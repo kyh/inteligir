@@ -4,8 +4,9 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchPage } from "./page-fetch";
+import { fetchPage, pageFetch } from "./page-fetch";
 import type { PageRequest } from "./page-fetch";
+import { readPage } from "./read-page";
 import { htmlPage, serveWeb } from "./test-support/fill-cell";
 
 afterEach(() => {
@@ -54,6 +55,12 @@ describe("what the cloud never asks", () => {
     ["http://printer.local/"],
     ["http://metadata.google.internal/"],
     ["http://0.0.0.0/"],
+    // the spellings a parser folds into a private address
+    ["http://2130706433/"],
+    ["http://0177.0.0.1/"],
+    ["http://0x7f.0.0.1/"],
+    ["http://0xa000001/"],
+    ["http://[::ffff:192.168.0.1]/"],
   ])("refuses %s, a name for private space, as the saved address's own place", async (url) => {
     const web = serveWeb({});
     expect(await fetchPage(asking(url))).toEqual({
@@ -61,6 +68,31 @@ describe("what the cloud never asks", () => {
       ok: false,
     });
     expect(web.asked).toEqual([]);
+  });
+
+  it.each([["http://192.0.2.10/post"], ["http://203.0.113.1/"], ["http://[2001:db8::1]/"]])(
+    "refuses %s, an address no host holds, as no address a page is read from",
+    async (url) => {
+      const web = serveWeb({});
+      expect(await fetchPage(asking(url))).toEqual({
+        failure: { kind: "refused", refusal: "reserved" },
+        ok: false,
+      });
+      expect(web.asked).toEqual([]);
+    },
+  );
+
+  it("asks a public address written out as it would ask its name", async () => {
+    const web = serveWeb({
+      "http://93.184.216.34/post": htmlPage("<p>an address</p>"),
+      "http://[2606:4700:4700::1111]/": htmlPage("<p>a v6 address</p>"),
+    });
+    expect(await fetchPage(asking("http://93.184.216.34/post"))).toMatchObject({ ok: true });
+    expect(await fetchPage(asking("http://[2606:4700:4700::1111]/"))).toMatchObject({ ok: true });
+    expect(web.asked.map((hop) => hop.url)).toEqual([
+      "http://93.184.216.34/post",
+      "http://[2606:4700:4700::1111]/",
+    ]);
   });
 
   it("drops a credential the address carries, and sends no cookie of its own", async () => {
@@ -92,7 +124,13 @@ describe("a redirect", () => {
   });
 
   it("to private space is refused as the public page's pointing there, and not asked", async () => {
-    for (const location of ["http://127.0.0.1/", "http://10.0.0.5/", "http://router.lan/"]) {
+    for (const location of [
+      "http://127.0.0.1/",
+      "http://10.0.0.5/",
+      "http://router.lan/",
+      "http://0x7f.1/",
+      "http://[::ffff:a00:5]/",
+    ]) {
       const web = serveWeb({ "https://a.example/start": redirect(location) });
       expect(await fetchPage(asking("https://a.example/start"))).toEqual({
         failure: { kind: "refused", refusal: "private-from-public" },
@@ -189,6 +227,26 @@ describe("a page that did not answer", () => {
       failure: { kind: "status", reason: "too many requests", status: 429, transient: true },
       ok: false,
     });
+  });
+
+  it("stops a read past its deadline, which the reading asks again later", async () => {
+    // a site that answers only well past the deadline, by when the platform's fetch has given up
+    // on the read's signal
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      await scheduler.wait(200);
+      init?.signal?.throwIfAborted();
+      return new Response("<p>too late</p>", { headers: { "content-type": "text/html" } });
+    });
+    const patient = pageFetch({ deadlineMs: 20 });
+    expect(await patient(asking("https://slow.example/"))).toEqual({
+      failure: { kind: "timeout" },
+      ok: false,
+    });
+    const read = await readPage(
+      { fetch: patient, keep: async () => await Promise.resolve(null) },
+      { accountId: "a", coverHint: null, itemId: "i", url: "https://slow.example/" },
+    );
+    expect(read).toEqual({ kind: "retry", sentence: "The page took too long to answer." });
   });
 
   it("says a connection that failed as worth a later try", async () => {

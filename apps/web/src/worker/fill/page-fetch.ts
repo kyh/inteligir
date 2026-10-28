@@ -1,17 +1,22 @@
 // How the cloud reads a page it fills: the Workers runtime's own fetch, every hop of it judged before
 // it is asked. Only http and https on their own ports, as a page is served; never a host whose
-// spelling names private space (this machine, a name no public resolver answers, an address written
-// out, `@repo/notes/items/host-names`), since the platform reaches a host by its name alone
+// spelling names a place off the public internet: this machine or a name no public resolver
+// answers (`@repo/notes/items/host-names`), or an address written out in private or reserved space
+// (`./address-space`), since the platform reaches a host by its name alone
 // (https://developers.cloudflare.com/workers/platform/known-issues/) and from the public internet
 // (`global_fetch_strictly_public`, so even this Worker's own zone is asked through its front door);
-// redirects followed here, at most five, each hop judged again; no cookie or credential sent; at
-// most 20 s for the whole read, and a byte cap per kind counted on the bytes as they arrive, after
-// the platform has decoded them, so a compressed bomb stops at the cap. A refusal is said in the
-// fill's own words (`@repo/notes/items/fill-sentences`).
+// a public address written out is asked like any name. Redirects are followed here, at most five,
+// each hop judged again; no cookie or credential is sent; the whole read has a deadline (20 s), and
+// a byte cap per kind is counted on the bytes as they arrive, after the platform has decoded them,
+// so a compressed bomb stops at the cap. A refusal is said in the fill's own words
+// (`@repo/notes/items/fill-sentences`).
 
 import { statusFailure } from "@repo/notes/items/fill-sentences";
 import type { FetchFailure } from "@repo/notes/items/fill-sentences";
-import { namesPrivateSpace } from "@repo/notes/items/host-names";
+import { isLoopbackName, isPrivateUseName } from "@repo/notes/items/host-names";
+
+import { addressSpace } from "./address-space";
+import type { AddressSpace } from "./address-space";
 
 export interface PageRequest {
   readonly url: string;
@@ -40,7 +45,8 @@ type PageFetchResult =
 
 export type PageFetch = (request: PageRequest) => Promise<PageFetchResult>;
 
-const REQUEST_TIMEOUT_MS = 20_000;
+// how long a whole read may take, its redirects and its body included
+const DEADLINE_MS = 20_000;
 const MAX_REDIRECTS = 5;
 const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 // a web page's own ports; "" is the scheme's default, which a parsed URL leaves unspelled
@@ -56,9 +62,15 @@ const HEADERS = {
 
 const REFUSED_ADDRESS: FetchFailure = { kind: "refused", refusal: "reserved" };
 
+// where a host the WHATWG parser wrote sits: an address by its space, a name by its spelling (this
+// machine, or a name only a home's or an office's resolver answers)
+const hostSpace = (hostname: string): AddressSpace =>
+  addressSpace(hostname) ??
+  (isLoopbackName(hostname) || isPrivateUseName(hostname) ? "private" : "public");
+
 // the hop as it is asked, its credential dropped, or why it is not asked: off the web, off a web
-// port, or naming private space (said as the saved address's own place, or as a public page's
-// pointing there)
+// port, at an address no host holds, or in private space (said as the saved address's own place,
+// or as a public page's pointing there)
 const hopOf = (
   raw: string,
   from: string | null,
@@ -74,15 +86,23 @@ const hopOf = (
   }
   url.username = "";
   url.password = "";
-  if (namesPrivateSpace(url.href)) {
-    return {
-      refused: {
-        kind: "refused",
-        refusal: from === null ? "private-network" : "private-from-public",
-      },
-    };
+  switch (hostSpace(url.hostname)) {
+    case "public": {
+      return { url: url.href };
+    }
+    case "reserved": {
+      return { refused: REFUSED_ADDRESS };
+    }
+    case "private": {
+      return {
+        refused: {
+          kind: "refused",
+          refusal: from === null ? "private-network" : "private-from-public",
+        },
+      };
+    }
+    // no default
   }
-  return { url: url.href };
 };
 
 const contentType = (header: string | null) => {
@@ -180,41 +200,46 @@ const answered = async (
   };
 };
 
-export const fetchPage: PageFetch = async (request) => {
-  const first = hopOf(request.url, null);
-  if ("refused" in first) {
-    return { failure: first.refused, ok: false };
-  }
-  const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
-  let { url } = first;
-  try {
-    for (let redirects = 0; ; redirects += 1) {
-      const response = await fetch(url, {
-        headers: { accept: request.accept, ...HEADERS },
-        redirect: "manual",
-        signal,
-      });
-      const location = REDIRECT_STATUSES.has(response.status)
-        ? response.headers.get("location")
-        : null;
-      if (location === null) {
-        return await answered(response, url, request);
-      }
-      await cancelled(response.body);
-      if (redirects >= MAX_REDIRECTS) {
-        return { failure: { kind: "redirects" }, ok: false };
-      }
-      const next = hopOf(location, url);
-      if ("refused" in next) {
-        return { failure: next.refused, ok: false };
-      }
-      ({ url } = next);
+// the guarded fetch, its whole read held to `deadlineMs`
+export const pageFetch =
+  (options: { readonly deadlineMs: number }): PageFetch =>
+  async (request) => {
+    const first = hopOf(request.url, null);
+    if ("refused" in first) {
+      return { failure: first.refused, ok: false };
     }
-  } catch {
-    // a name that did not resolve, a connection cut, the read past its time: a later try may pass
-    return {
-      failure: signal.aborted ? { kind: "timeout" } : { kind: "unreachable", transient: true },
-      ok: false,
-    };
-  }
-};
+    const signal = AbortSignal.timeout(options.deadlineMs);
+    let { url } = first;
+    try {
+      for (let redirects = 0; ; redirects += 1) {
+        const response = await fetch(url, {
+          headers: { accept: request.accept, ...HEADERS },
+          redirect: "manual",
+          signal,
+        });
+        const location = REDIRECT_STATUSES.has(response.status)
+          ? response.headers.get("location")
+          : null;
+        if (location === null) {
+          return await answered(response, url, request);
+        }
+        await cancelled(response.body);
+        if (redirects >= MAX_REDIRECTS) {
+          return { failure: { kind: "redirects" }, ok: false };
+        }
+        const next = hopOf(location, url);
+        if ("refused" in next) {
+          return { failure: next.refused, ok: false };
+        }
+        ({ url } = next);
+      }
+    } catch {
+      // a name that did not resolve, a connection cut, the read past its time: a later try may pass
+      return {
+        failure: signal.aborted ? { kind: "timeout" } : { kind: "unreachable", transient: true },
+        ok: false,
+      };
+    }
+  };
+
+export const fetchPage: PageFetch = pageFetch({ deadlineMs: DEADLINE_MS });

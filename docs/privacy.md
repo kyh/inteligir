@@ -249,8 +249,8 @@ The apps also hold to these, plainly:
   request carries no cookies, sign-in or referrer, and names inteligir in a
   Safari-compatible user agent and English as its language. Our cloud reads only
   web addresses on their own ports, and never one whose name or written-out
-  address points into a private network, whether you saved it or a page
-  redirected there. The page's text and its pictures land in your library; the
+  address points into a private network, or into space no site holds, whether
+  you saved it or a page redirected there. The page's text and its pictures land in your library; the
   page itself is not kept.
 - **The browser extension.** The Inteligir extension for Chrome, Arc, Brave,
   Edge and Vivaldi reads the page you are on only when you click Save or choose Save from

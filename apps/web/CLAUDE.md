@@ -423,14 +423,18 @@ how a bullet is written and cited.
 
 - **THE CLOUD'S FETCH IS THE PLATFORM'S, EACH HOP JUDGED BY HOW ITS ADDRESS IS
   SPELLED.** A Worker resolves no name, so `fetchPage` refuses any scheme but
-  http and https, any port but a page's own and any host whose spelling names
-  private space, the saved address and every redirect alike, follows at most
-  five redirects itself and counts bytes as they arrive;
-  `global_fetch_strictly_public` sends even this zone through its front door.
-  Rejected: a lookup first (the platform dials by name anyway, so it proves
-  nothing of the socket); leaving it to the platform (an address it cannot
-  reach is retried three times, then said vaguely, where a refusal is said at
-  once). `apps/web/src/worker/fill/page-fetch.ts`.
+  http and https, any port but a page's own, a name for this machine or one
+  only a private resolver answers, and an address written out in private space
+  (RFC 1918, loopback, link-local and metadata, CGNAT, ULA, an IPv4 one carried
+  in IPv6) or in space no host holds, read from the one spelling the WHATWG
+  parser gives it; a public address is asked like a name. It judges the saved
+  address and every redirect alike, follows at most five, counts bytes as they
+  arrive and gives the read 20 s; `global_fetch_strictly_public` sends even
+  this zone through its front door. Rejected: a lookup first (the platform
+  dials by name anyway); refusing every address written out (a public page's
+  refusal said a private network it was not on); leaving it to the platform (a
+  refusal said at once beats three vague retries).
+  `apps/web/src/worker/fill/page-fetch.ts`, `address-space.ts`.
 
 - **A READING LANDS ONLY THE ARTICLE AND THE FACTS A FILL OWNS, AS ITS OWN
   CHANGE SET, ON AN ITEM STILL WAITING FOR IT.** `landFill` replaces the
