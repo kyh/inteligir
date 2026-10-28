@@ -340,10 +340,10 @@ const itemsContract = {
     .input(z.strictObject({ ids, opId }))
     .output(z.object({ missing: changedIds, purged: changedIds })),
 
-  // the cloud reads the page again, replacing only the article; `keepCopy` keeps the page itself
+  // the cloud reads the page again, replacing only the article
   refresh: signedBase
     .errors({ [NotFoundError.code]: NotFoundError, [QuotaError.code]: QuotaError })
-    .input(z.strictObject({ id: idSchema, keepCopy: z.boolean().optional(), opId }))
+    .input(z.strictObject({ id: idSchema, opId }))
     .output(landed),
 };
 
