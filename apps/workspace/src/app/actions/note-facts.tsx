@@ -103,7 +103,7 @@ const NoteFactRows = ({ docPath }: { docPath: string }) => {
   return (
     <dl className="space-y-1 px-3 pb-2">
       <Fact label="Path" title={docPath}>
-        <span className="font-mono">{docPath}</span>
+        <span className="font-mono select-text">{docPath}</span>
       </Fact>
       <Fact label="Modified" title={absoluteTime(modifiedMs)}>
         {modifiedMs === null ? "—" : relativeTimeLabel(modifiedMs, now)}

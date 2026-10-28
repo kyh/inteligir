@@ -56,9 +56,15 @@
       "project": ["src/**/*.{ts,tsx,css}", "vite/**/*.ts"]
     },
     "apps/web": {
-      // the type claims are vitest's `typecheck.include`, which knip's vitest plugin does not read
-      "entry": ["cloudflare.config.ts", "src/worker/index.ts", "src/worker/**/*.test-d.ts"],
-      "project": ["src/**/*.{ts,tsx,css}"],
+      // the type claims are vitest's `typecheck.include`, which knip's vitest plugin does not read;
+      // scripts/ is `pnpm og:cards`'s, run by node outside the build
+      "entry": [
+        "cloudflare.config.ts",
+        "src/worker/index.ts",
+        "src/worker/**/*.test-d.ts",
+        "scripts/*.ts"
+      ],
+      "project": ["src/**/*.{ts,tsx,css}", "scripts/*.ts"],
       "ignore": ["src/worker/types/durable-git.d.ts"],
       // `cloudflare:` is a workerd built-in module scheme, not a package
       "ignoreDependencies": ["cloudflare", "tailwindcss"]

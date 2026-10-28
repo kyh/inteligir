@@ -927,6 +927,9 @@ importers:
       oxc-transform-react:
         specifier: 'catalog:'
         version: 0.152.0
+      playwright-core:
+        specifier: 1.63.0
+        version: 1.63.0
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.3
@@ -9914,6 +9917,11 @@ packages:
     peerDependencies:
       react: '>=18.0.0'
       react-dom: '>=18.0.0'
+
+  playwright-core@1.63.0:
+    resolution: {integrity: sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   plist@3.1.1:
     resolution: {integrity: sha512-ZIfcLJC+7E7FBFnDxm9MPmt7D+DidyQ26lewieO75AdhA2ayMtsJSES0iWzqJQbcVRSrTufQoy0DR94xHue0oA==}
@@ -22894,6 +22902,8 @@ snapshots:
       - react-native
       - scheduler
       - use-sync-external-store
+
+  playwright-core@1.63.0: {}
 
   plist@3.1.1:
     dependencies:

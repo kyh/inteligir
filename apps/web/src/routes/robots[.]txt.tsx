@@ -2,9 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { siteConfig } from "@/lib/site-config";
 
-const body = ["User-Agent: *", "Allow: /", "", `Sitemap: ${siteConfig.url}/sitemap.xml`, ""].join(
-  "\n",
-);
+const body = [
+  "User-agent: *",
+  "Content-Signal: search=yes, ai-input=yes, ai-train=yes",
+  "Allow: /",
+  "",
+  `Sitemap: ${siteConfig.url}/sitemap.xml`,
+  "",
+].join("\n");
 
 export const Route = createFileRoute("/robots.txt")({
   server: {

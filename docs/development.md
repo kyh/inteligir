@@ -131,6 +131,12 @@ login, the account's socket, the hosted vault git remote — over a local D1 fil
 miniflare's Durable Objects. Sign-up is invite-only and there is no seeded account — `AGENTS.md`
 § "There is no seeded login" has the exact commands.
 
+The site's per-page share cards under `apps/web/public/og/` are rendered,
+never drawn by hand: `pnpm --filter @repo/web og:cards`
+(`apps/web/scripts/og-cards.ts`) renders a 1200x630 card per page in
+`apps/web/src/lib/page-meta.ts` in the site's own type and logo. It needs
+Playwright's Chromium, and sits outside `pnpm verify` and the build.
+
 ## Browser extension
 
 `apps/extension` is the browser's Save: a Chromium extension that captures the

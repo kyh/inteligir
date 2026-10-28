@@ -240,6 +240,15 @@ answer is parsed in `src/shell/shell-commands.ts` and mirrored through one
   page through `@repo/contract/local`).
   `tools/repo-guards/src/page-prefs.test.ts` refuses a keyed read outside it.
 
+- **THE WINDOW'S TEXT IS NOT SELECTABLE UNLESS SOMEONE WOULD COPY IT.** `body`
+  is `user-select: none`, fields and the editor's editing hosts are `text`, and
+  what a person would copy (the thread, a highlight's note, an old version, a
+  path, an error, Settings › Advanced's raw state) opts in with `select-text`
+  (`apps/workspace/src/styles/globals.css`); a read-only editor renders
+  `contenteditable="false"`, so it opts in too. Rejected: selectable by default
+  with `select-none` on the chrome (the chrome is most of the window, and every
+  new button, label and row would have to remember it).
+
 - **A LIBRARY SCOPE HAS ONE SPELLING, `@repo/domain/library-scope`.** Which
   part of the library a screen shows (all of it, Unsorted, a folder, a tag or
   Deleted) is one set of zod arms (`packages/domain/src/library-scope.ts`),
