@@ -1,8 +1,10 @@
 // Saving a web address: one url, one item (rule R22). A save of an address a live item holds
 // folds onto that item, adding what it brings, and only an address no live item holds makes one.
 // A page a device read itself (the extension, the share sheet) lands read, its article replacing
-// the item's; one saved to read later lands at once as an unread stub, `pending`, which the cloud
-// reads afterwards. The passage the person had selected is kept as a highlight on the page.
+// the item's and the item's highlights placed again in it by their quotes, since the markers the
+// old article held went with it; a read that found no article leaves the item's. One saved to
+// read later lands at once as an unread stub, `pending`, which the cloud reads afterwards. The
+// passage the person had selected is kept as a highlight on the page.
 
 import { blockHash } from "@repo/notes/library/block-hash";
 import { applyOps } from "@repo/notes/library/block-ops";
@@ -17,14 +19,15 @@ import { cleanUrl, kindForUrl, urlKey } from "@repo/notes/items/item-url";
 
 import type { CellActor } from "./cell-actor";
 import { readAnnotationRows } from "./cell-annotations";
+import type { AnnotationRows } from "./cell-annotations";
 import type { CellCodec } from "./cell-codec";
 import { folderOfTarget } from "./cell-folders";
 import type { FolderTarget } from "./cell-folders";
 import type { CellIds } from "./cell-ids";
 import { urlHolder } from "./cell-landing";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
-import { bareHighlight, blankFields, landNew, noteBlocksOf, placeQuote } from "./cell-items";
-import type { MarkdownBlocks, PlacedBlock } from "./cell-items";
+import { bareHighlight, blankFields, landNew, noteBlocksOf, placeQuotes } from "./cell-items";
+import type { MarkdownBlocks, PlacedBlock, PlacingQuote } from "./cell-items";
 import { refuse } from "./cell-refusal";
 import { landWrite } from "./cell-writes";
 
@@ -54,22 +57,19 @@ const tagsOp = (fields: LibraryItemFields, tags: readonly string[]): LibraryOp[]
     : [{ base: fields.tags, op: "tags", value: [...fields.tags, ...added] }];
 };
 
+// the highlights of an item that keep a passage, oldest first
+const quotesOf = (rows: AnnotationRows): PlacingQuote[] =>
+  [...rows.values()]
+    .toSorted((a, b) => a.createdAt - b.createdAt || compareText(a.id, b.id))
+    .flatMap((row) =>
+      row.deletedAt === null && row.parentId === null && row.quote !== null
+        ? [{ id: row.id, occurrence: row.occurrence ?? undefined, quote: row.quote }]
+        : [],
+    );
+
 // the passage a person had selected, unless a highlight of the item already keeps that quote
-const selectionToKeep = (
-  scope: LandingScope,
-  itemId: string | null,
-  selection: string | null,
-): string | null => {
-  if (selection === null || itemId === null) {
-    return selection;
-  }
-  for (const row of readAnnotationRows(scope.storage, itemId).values()) {
-    if (row.deletedAt === null && row.parentId === null && row.quote === selection) {
-      return null;
-    }
-  }
-  return selection;
-};
+const selectionToKeep = (rows: AnnotationRows, selection: string | null): string | null =>
+  selection !== null && quotesOf(rows).some((held) => held.quote === selection) ? null : selection;
 
 export interface SaveInput {
   readonly id: string;
@@ -164,7 +164,7 @@ const newPage = (
     fields,
   };
   if (highlight !== null) {
-    const placement = applyOps(state, placeQuote(state, codec, highlight).ops);
+    const placement = applyOps(state, placeQuotes(state, codec, [highlight]).ops);
     if (placement.kind !== "applied") {
       throw new Error("a highlight's markers did not land on the blocks they were placed on");
     }
@@ -178,33 +178,40 @@ const newPage = (
   });
 };
 
-// a page onto the item holding its address: its article replaces the item's, its facts land
-// where the fill owns them, and its tags join the item's
+// a page onto the item holding its address: its article replaces the item's, unless the read
+// found none, and the item's highlights are placed again in it; its facts land where the fill
+// owns them, and its tags join the item's
 const foldPage = (
   scope: LandingScope,
   actor: CellActor,
   codec: CellCodec,
   held: HeldItem,
+  rows: AnnotationRows,
   input: SaveInput,
   highlight: Highlight,
 ): LiveItemRow => {
+  const replacing = input.article.length > 0;
   const ops: LibraryOp[] = [
-    ...[...held.blocks.values()]
-      .filter((stored) => stored.section === "article")
-      .map((stored): LibraryOp => ({
-        baseHash: stored.hash,
-        blockId: stored.block.id,
-        op: "drop",
-      })),
-    ...articleOf(input).map((placed): LibraryOp => ({ ...placed, op: "insert" })),
+    ...(replacing
+      ? [
+          ...[...held.blocks.values()]
+            .filter((stored) => stored.section === "article")
+            .map((stored): LibraryOp => ({
+              baseHash: stored.hash,
+              blockId: stored.block.id,
+              op: "drop",
+            })),
+          ...articleOf(input).map((placed): LibraryOp => ({ ...placed, op: "insert" })),
+        ]
+      : []),
     ...factOps(held, input, scope.now),
     ...tagsOp(held.fields, input.tags),
   ];
-  if (highlight !== null) {
-    const read = applyOps(held, ops);
-    if (read.kind === "applied") {
-      ops.push(...placeQuote(read.state, codec, highlight).ops);
-    }
+  // a highlight whose markers the note holds stays where it is (`placeQuotes`)
+  const quotes = [...(replacing ? quotesOf(rows) : []), ...(highlight === null ? [] : [highlight])];
+  const read = quotes.length === 0 ? null : applyOps(held, ops);
+  if (read?.kind === "applied") {
+    ops.push(...placeQuotes(read.state, codec, quotes).ops);
   }
   return landWrite(scope, actor, {
     annotations: highlight === null ? [] : [bareHighlight(scope, highlight)],
@@ -222,11 +229,13 @@ export const savePage = (
   input: SaveInput,
 ): SavedItem => {
   const held = heldItem(scope, input.url);
-  const selection = selectionToKeep(scope, held?.id ?? null, input.selection);
+  const rows: AnnotationRows =
+    held === null ? new Map() : readAnnotationRows(scope.storage, held.id);
+  const selection = selectionToKeep(rows, input.selection);
   const highlight = selection === null ? null : { id: ids.annotation(), quote: selection };
   return held === null
     ? { folded: false, item: newPage(scope, actor, codec, input, highlight) }
-    : { folded: true, item: foldPage(scope, actor, codec, held, input, highlight) };
+    : { folded: true, item: foldPage(scope, actor, codec, held, rows, input, highlight) };
 };
 
 export interface SaveLinkInput {

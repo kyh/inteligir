@@ -4,6 +4,7 @@
 // folder lists as unsorted. A folder is no item, so its writes join no change set; each is stamped
 // with the write's sequence number and logged, as every synced row is.
 
+import { folderPathNames } from "@repo/contract/cloud/library/library-wire";
 import type { folderOpSchema } from "@repo/contract/cloud/library/library-wire";
 import { compareText, ordBetween } from "@repo/notes/library/block-order";
 import { titleKey } from "@repo/notes/library/derive-item";
@@ -243,8 +244,6 @@ export const writeFolders = (scope: LandingScope, ops: readonly FolderOp[]): voi
   }
 };
 
-const PATH_SEPARATOR = "/";
-
 // the folder a target names, the folders a path names made where they are missing; undefined
 // when the target leaves the item where it is
 export const folderOfTarget = (
@@ -261,10 +260,7 @@ export const folderOfTarget = (
       : target.id;
   }
   let parentId: string | null = null;
-  for (const name of target.path.split(PATH_SEPARATOR).map((segment) => segment.trim())) {
-    if (name === "") {
-      continue;
-    }
+  for (const name of folderPathNames(target.path)) {
     const siblings = childrenOf(scope.storage, parentId);
     const held = siblings.find((sibling) => titleKey(sibling.name) === titleKey(name));
     if (held === undefined) {

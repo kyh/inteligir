@@ -26,11 +26,12 @@ import { CHANGE_SET_ACTORS } from "@repo/notes/library/library-schema";
 import {
   linksTo,
   linksToUrl,
-  matchCandidates,
+  literalMatches,
   readBlocks,
   readItem,
   searchLibrary,
 } from "@repo/notes/library/library-queries";
+import type { LiteralMatch } from "@repo/notes/library/library-queries";
 import { chunkStatement, runPlan } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
 import { z } from "zod";
@@ -223,9 +224,10 @@ export const listItems = (sql: SqlStatements, input: ListInput) => {
 
 // ---- search ----
 
-// how many hits a search ranks before its filters, and how much of a hit's text a concise answer
-// keeps
+// how many hits a search ranks before its filters, how many items holding its exact text a read
+// of the blocks names at once, and how much of a hit's text a concise answer keeps
 const SEARCH_CANDIDATES = 200;
+const LITERAL_PAGE = 50;
 const CONCISE_SNIPPET_CHARS = 160;
 
 export interface SearchInput {
@@ -242,33 +244,47 @@ export interface SearchInput {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// the line of a block's text that holds the query, as an excerpt around its first match
+const lineExcerpt = (text: string, query: string): string | null => {
+  for (const line of text.split("\n")) {
+    const [match] = findTextOffsets(line, query, { caseSensitive: false, wholeWord: false });
+    if (match !== undefined) {
+      const excerpt = excerptAround(line, { column: match.offset, length: match.length, line: 1 });
+      return `${excerpt.before}${excerpt.text}${excerpt.after}`;
+    }
+  }
+  return null;
+};
+
 // the ranked index first, then the items holding the query's exact text the index's words miss
-// (a part of a word, punctuation), found by an instr() scan an ascii prefilter narrows
+// (a part of a word, punctuation), a page of them at a time until the candidates are full, so a
+// common needle reads no more of the library's text than those pages' blocks; only an ascii query
+// on one line has such a scan, since SQLite folds ascii case alone and a match lives in one line
 const searchHits = (sql: SqlStatements, query: string): Map<string, string> => {
   const hits = new Map<string, string>();
   for (const hit of runPlan(sql, searchLibrary(query, SEARCH_CANDIDATES, TYPED_QUERY))) {
     hits.set(hit.itemId, hit.snippet);
   }
-  const prefilters = bodyPrefilters([query]);
-  if (hits.size >= SEARCH_CANDIDATES || prefilters === null) {
+  if (bodyPrefilters([query]) === null || query.includes("\n")) {
     return hits;
   }
-  for (const text of runPlan(sql, matchCandidates(prefilters))) {
-    if (hits.size >= SEARCH_CANDIDATES || hits.has(text.itemId)) {
-      continue;
-    }
-    for (const line of text.body.split("\n")) {
-      const [match] = findTextOffsets(line, query, { caseSensitive: false, wholeWord: false });
-      if (match !== undefined) {
-        const excerpt = excerptAround(line, {
-          column: match.offset,
-          length: match.length,
-          line: 1,
-        });
-        hits.set(text.itemId, `${excerpt.before}${excerpt.text}${excerpt.after}`);
-        break;
+  let after: string | null = null;
+  while (hits.size < SEARCH_CANDIDATES) {
+    const page: LiteralMatch[] = runPlan(
+      sql,
+      literalMatches(query, { after, limit: LITERAL_PAGE }),
+    );
+    for (const match of page) {
+      const excerpt = hits.has(match.itemId) ? null : lineExcerpt(match.text, query);
+      if (excerpt !== null && hits.size < SEARCH_CANDIDATES) {
+        hits.set(match.itemId, excerpt);
       }
     }
+    const last: LiteralMatch | undefined = page.at(-1);
+    if (last === undefined || page.length < LITERAL_PAGE) {
+      break;
+    }
+    after = last.itemId;
   }
   return hits;
 };

@@ -18,7 +18,6 @@
   "dependencies": {
     "@better-auth/drizzle-adapter": "catalog:",
     "@modelcontextprotocol/server": "catalog:",
-    "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
     "@orpc/mcp": "catalog:",
     "@orpc/openapi": "catalog:",
@@ -46,6 +45,7 @@
     "@cloudflare/vitest-plugin": "catalog:",
     "@kyh/tsconfig": "catalog:",
     "@libsql/client": "^0.18.0",
+    "@orpc/client": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

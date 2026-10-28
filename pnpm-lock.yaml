@@ -830,9 +830,6 @@ importers:
       '@modelcontextprotocol/server':
         specifier: 'catalog:'
         version: 2.4.0
-      '@orpc/client':
-        specifier: 'catalog:'
-        version: 2.0.0-beta.45
       '@orpc/contract':
         specifier: 'catalog:'
         version: 2.0.0-beta.45
@@ -909,6 +906,9 @@ importers:
       '@libsql/client':
         specifier: ^0.18.0
         version: 0.18.0
+      '@orpc/client':
+        specifier: 'catalog:'
+        version: 2.0.0-beta.45
       '@tailwindcss/vite':
         specifier: 'catalog:'
         version: 4.3.3(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))

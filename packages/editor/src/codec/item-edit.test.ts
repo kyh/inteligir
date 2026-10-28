@@ -443,6 +443,35 @@ describe("a highlight placed by its quote", () => {
     expect([...after.values()].map((stored) => withoutId(stored.block))).toHaveLength(3);
   });
 
+  it("leaves a quote whose markers the note holds where it stands", () => {
+    const text = [
+      "---",
+      "kind: link",
+      "url: https://example.com/x",
+      "---",
+      "",
+      "My note says %%i:q1:start%%shared words%%i:q1:end%% too.",
+      "",
+      ":::article",
+      "The page has shared words in it.",
+      ":::",
+      "",
+    ].join("\n");
+    const blocks = storedOf(text);
+    const placed = placeItemQuotes(
+      blocks,
+      [
+        { id: "q1", quote: "shared words" },
+        { id: "q2", quote: "page has" },
+      ],
+      portsWith(),
+    );
+    expect(placed).toMatchObject({ missing: [], placed: ["q1", "q2"] });
+    const after = textOf(landed(blocks, placed.ops));
+    expect(after).toContain("The %%i:q2:start%%page has%%i:q2:end%% shared words in it.");
+    expect(after.match(/%%i:q1:start%%/gu)).toHaveLength(1);
+  });
+
   it("names a quote no passage matches", () => {
     const placed = placeItemQuotes(
       storedOf(NOTE),

@@ -98,12 +98,19 @@ const purgedItemRowSchema = z.object({
 const itemRowSchema = z.discriminatedUnion("kind", [liveItemRowSchema, purgedItemRowSchema]);
 
 // a folder's name is one segment of the path an agent files by, so it holds no `/`
-const folderNameSchema = z
+export const folderNameSchema = z
   .string()
   .trim()
   .min(1)
   .max(255)
   .refine((name) => !name.includes("/"), { error: "holds a /" });
+
+// the folder names a path joined by `/` names from the top, its blank segments skipped
+export const folderPathNames = (path: string): string[] =>
+  path
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter((name) => name !== "");
 
 const folderRowSchema = z.object({
   deletedAt: instant.nullable(),

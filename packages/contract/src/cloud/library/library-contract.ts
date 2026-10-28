@@ -33,7 +33,9 @@ import {
   cursorSchema,
   epochSchema,
   eventIdSchema,
+  folderNameSchema,
   folderOpSchema,
+  folderPathNames,
   highlightSchema,
   isoDate,
   idSchema,
@@ -74,10 +76,20 @@ const saved = z.object({ folded: z.boolean(), item: liveItemRowSchema });
 const changedIds = z.array(idSchema);
 
 // where an item is filed: a folder by id, or by its path of names from the top joined by `/`, made
-// where it is missing; null is no folder. An id naming no folder is refused NOT_FOUND, so every row
-// taking one declares it
+// where it is missing, each name one a folder may hold; null is no folder. An id naming no folder
+// is refused NOT_FOUND, so every row taking one declares it
+const folderPathSchema = z
+  .string()
+  .max(1000)
+  .refine(
+    (path) => {
+      const names = folderPathNames(path);
+      return names.length > 0 && names.every((name) => folderNameSchema.validate(name));
+    },
+    { error: "names each folder in 1 to 255 characters" },
+  );
 const folderTargetSchema = z
-  .union([z.strictObject({ id: idSchema }), z.strictObject({ path: z.string().min(1).max(1000) })])
+  .union([z.strictObject({ id: idSchema }), z.strictObject({ path: folderPathSchema })])
   .nullable();
 
 const syncContract = {
@@ -237,9 +249,11 @@ const itemsContract = {
     )
     .output(saved),
 
-  // a url to read later: it lands at once, unread, and the cloud reads the page
+  // a url to read later: it lands at once, unread, and the cloud reads the page; an `id` another
+  // item holds is a conflict naming it
   saveLink: signedBase
     .errors({
+      [ConflictError.code]: ConflictError,
       [NotFoundError.code]: NotFoundError,
       [PayloadTooLargeError.code]: PayloadTooLargeError,
       [QuotaError.code]: QuotaError,
@@ -265,6 +279,7 @@ const itemsContract = {
       [EditRefusedError.code]: EditRefusedError,
       [NotFoundError.code]: NotFoundError,
       [PayloadTooLargeError.code]: PayloadTooLargeError,
+      [QuotaError.code]: QuotaError,
     })
     .input(
       z.strictObject({

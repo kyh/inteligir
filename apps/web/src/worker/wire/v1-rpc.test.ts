@@ -289,6 +289,28 @@ describe("every refusal's status", () => {
     }
   });
 
+  it("refuses a sign-in past the account's device cap as its row declares", async () => {
+    const email = "rpc-device-cap@example.test";
+    const { accountId } = await signedUp(email);
+    const db = createDb(env.DB);
+    // the laptop holds one of the twenty
+    for (let index = 1; index < 20; index += 1) {
+      await db.insert(device).values({
+        createdAt: new Date(),
+        credentialHash: `rpc-cap-hash-${String(index)}`,
+        id: `rpc-cap-device-${String(index)}`,
+        name: `Device ${String(index)}`,
+        userId: accountId,
+      });
+    }
+    const anonymous = linkWith(buildHeaders());
+    expect(
+      await anonymous.refusalOf(
+        anonymous.account.signIn({ deviceName: "One Too Many", email, password: PASSWORD }),
+      ),
+    ).toMatchObject({ code: "DEVICE_LIMIT", defined: true, status: 409 });
+  });
+
   it("answers a library whose account was deleted meanwhile as gone", async () => {
     const { accountId, laptop } = await signedUp("rpc-gone@example.test");
     await inCell(cellOf(accountId), (state) => {

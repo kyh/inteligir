@@ -379,18 +379,30 @@ how a bullet is written and cited.
   `PUT /v1/blobs/<sha>` takes room in the cell at the length it declares, at
   most 100 MB, streams into `BLOBS` with `sha256`, so R2 keeps nothing that
   hashes otherwise, and settles the row at the size R2 holds. A read hands R2
-  the request's range and preconditions: 206 from `object.range`, 416 for one
-  range past the end, a multi-part ask whole, 304 and 412; every file but a PDF
-  is served under a script-less sandbox. Rejected: the CLI's byte-range parser
-  (R2 parses the header); a signed URL (a credential in a logged address).
+  the request's range and preconditions: 206 from `object.range` for any single
+  range, one spanning the file included, 416 for one past the end, a
+  multi-part ask whole, 304 and 412; every file but a PDF is served under a
+  script-less sandbox. Rejected: the CLI's byte-range parser (R2 parses the
+  header); a signed URL (a credential in a logged address).
   `apps/web/src/worker/library/blob-routes.ts`.
 
 - **THE WORKER'S PROGRAM HAS NO DOM, SO A DEPENDENCY'S TYPES THAT REFERENCE IT
   ARE MAPPED TO A STUB.** The codec's code-block kit reaches highlight.js,
   whose declarations carry `/// <reference lib="dom" />`, which would type the
   Worker against a stdlib it never runs on (`BufferSource` alone breaks Web
-  Crypto's calls). The program's `paths` maps `highlight.js` to the two names
-  the kit reads. Rejected: `lib.dom` in the Worker (two `BodyInit`s); dropping
-  code blocks from the headless kits (the codec reads every block a note
-  holds). `apps/web/src/worker/tsconfig.json`,
+  Crypto's calls). The program's `paths` maps `highlight.js` to the one type
+  lowlight takes from it (`LanguageFn`). Rejected: `lib.dom` in the Worker
+  (two `BodyInit`s); dropping code blocks from the headless kits (the codec
+  reads every block a note holds). `apps/web/src/worker/tsconfig.json`,
   `apps/web/src/worker/types/highlight-js.d.ts`.
+
+- **A SAVED PAGE OF A URL THE LIBRARY HOLDS FOLDS ONTO ITS ITEM, ITS ARTICLE
+  REPLACING THE ITEM'S AND THE ITEM'S HIGHLIGHTS PLACED AGAIN.** One url, one
+  item (R22): a device's read lands its article in place of the item's, leaves
+  the person's note alone, sets the facts the fill owns and adds its tags, and
+  in the same write places every highlight that keeps a quote by that quote,
+  since the markers went with the old article; one the note holds stays where
+  it is, a selection the item keeps adds nothing, and a read with no article
+  leaves the item's. Rejected: keeping the first article (a resave never shows
+  the page as it reads now); answering `exists` (the popup's highlight did
+  nothing). `apps/web/src/worker/library/cell-saves.ts`.

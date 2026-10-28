@@ -653,80 +653,59 @@ export const searchLibrary = function* searchLibrary(
 
 // ---- literal matches ----
 
-export interface ItemText {
+export interface LiteralMatch {
   readonly itemId: string;
-  readonly title: string;
-  // the blocks' text in reading order, one block per line run
-  readonly body: string;
+  // the first of the item's blocks, in reading order, whose text holds the needle
+  readonly text: string;
 }
 
 const matchedRowSchema = z.object({ item_id: z.string() });
-const textRowSchema = z.object({
+const matchedPlaceSchema = z.object({
   block_id: z.string(),
-  item_id: z.string(),
   ord: z.string(),
   section: librarySectionSchema,
-  text: z.string(),
 });
-const titleRowSchema = z.object({ card: z.string(), id: z.string() });
+const blockTextSchema = z.object({ text: z.string() });
 
-const LIVE_ITEMS = "SELECT id, card FROM items WHERE deleted_at IS NULL AND purged = 0";
-
-// the items a literal scan reads: those whose blocks hold one of `needles` (lowercase ascii, as
-// `@repo/notes/knowledge/text-matches` hands its prefilters over; SQLite's lower() folds ascii
-// alone), or every live item when `needles` is null
-export const matchCandidates = function* matchCandidates(
-  needles: readonly string[] | null,
-): SqlPlan<ItemText[]> {
-  let ids: string[] | null = null;
-  if (needles !== null) {
-    const found = new Set<string>();
-    for (const statement of chunkStatement({
-      each: "instr(lower(text), ?) > 0",
-      head: "SELECT DISTINCT item_id FROM blocks WHERE ",
-      rows: needles.map((needle) => [needle.toLowerCase()]),
-      separator: " OR ",
-    })) {
-      for (const row of yield all(statement.sql, statement.params)) {
-        found.add(parseRow(row, matchedRowSchema, "a matched block").item_id);
-      }
+// the live items whose blocks hold `needle` (printable ascii, matched case-folded, since SQLite's
+// lower() folds ascii alone), in id order after `after` and at most `limit` of them, each with its
+// first such block's text: a line lives in one block, so a match does, and no other block's text
+// is read, whatever the library holds
+export const literalMatches = function* literalMatches(
+  needle: string,
+  page: { readonly after: string | null; readonly limit: number },
+): SqlPlan<LiteralMatch[]> {
+  const folded = needle.toLowerCase();
+  const ids: string[] = [];
+  for (const raw of yield all(
+    `SELECT DISTINCT b.item_id FROM blocks b JOIN items i ON i.id = b.item_id
+     WHERE b.item_id > ? AND i.deleted_at IS NULL AND i.purged = 0 AND instr(lower(b.text), ?) > 0
+     ORDER BY b.item_id LIMIT ?`,
+    [page.after ?? "", folded, page.limit],
+  )) {
+    ids.push(parseRow(raw, matchedRowSchema, "a matched item").item_id);
+  }
+  const matches: LiteralMatch[] = [];
+  for (const itemId of ids) {
+    const places = (yield all(
+      "SELECT block_id, ord, section FROM blocks WHERE item_id = ? AND instr(lower(text), ?) > 0",
+      [itemId, folded],
+    )).map((raw) => parseRow(raw, matchedPlaceSchema, "a matched block"));
+    const [first] = places
+      .map((place) => ({ blockId: place.block_id, ord: place.ord, section: place.section }))
+      .toSorted(compareBlockPlaces);
+    if (first === undefined) {
+      continue;
     }
-    ids = [...found];
-  }
-  const live = new Map<string, string>();
-  for (const raw of yield all(LIVE_ITEMS)) {
-    const row = parseRow(raw, titleRowSchema, "an item");
-    live.set(row.id, parseJsonColumn(row.card, itemCardSchema, "an item's card").title);
-  }
-  const wanted = (ids ?? [...live.keys()]).filter((id) => live.has(id));
-  const texts = new Map<string, z.infer<typeof textRowSchema>[]>();
-  for (const statement of chunkStatement({
-    each: "?",
-    head: "SELECT item_id, block_id, ord, section, text FROM blocks WHERE item_id IN (",
-    rows: wanted.map((id) => [id]),
-    separator: ", ",
-    tail: ")",
-  })) {
-    for (const raw of yield all(statement.sql, statement.params)) {
-      const row = parseRow(raw, textRowSchema, "a block");
-      const held = texts.get(row.item_id) ?? [];
-      held.push(row);
-      texts.set(row.item_id, held);
+    const [raw] = yield all("SELECT text FROM blocks WHERE item_id = ? AND block_id = ?", [
+      itemId,
+      first.blockId,
+    ]);
+    if (raw !== undefined) {
+      matches.push({ itemId, text: parseRow(raw, blockTextSchema, "a block's text").text });
     }
   }
-  return wanted.toSorted().map((itemId) => ({
-    body: (texts.get(itemId) ?? [])
-      .toSorted((a, b) =>
-        compareBlockPlaces(
-          { blockId: a.block_id, ord: a.ord, section: a.section },
-          { blockId: b.block_id, ord: b.ord, section: b.section },
-        ),
-      )
-      .map((row) => row.text)
-      .join("\n"),
-    itemId,
-    title: live.get(itemId) ?? "",
-  }));
+  return matches;
 };
 
 // ---- links ----

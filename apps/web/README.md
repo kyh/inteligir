@@ -64,7 +64,7 @@ program would typecheck the Worker against a stdlib it never runs on. That is
 why the whole Worker — entry, routes, tests — lives under one directory with
 its own `tsconfig.json`. The markdown codec the cell runs reaches highlight.js's
 types, which reference `lib.dom` themselves, so the program maps `highlight.js`
-to `types/highlight-js.d.ts`, the two names the codec's code-block kit reads.
+to `types/highlight-js.d.ts`, the one type lowlight takes from it (`LanguageFn`).
 
 ## Routes
 

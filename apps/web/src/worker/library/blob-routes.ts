@@ -87,18 +87,26 @@ const preconditionFailed = (request: Request, headers: Headers): Response =>
 
 const SINGLE_RANGE = /^bytes=(?<first>\d*)-(?<last>\d*)$/u;
 
-// R2 answers one satisfiable range and the whole file for any other ask; of those, a single range
-// that names no byte of the file is unsatisfiable (RFC 9110 § 14.1.2), and a multi-part one is
-// answered whole, as a server may
-const unsatisfiable = (range: string, size: number): boolean => {
-  const groups = SINGLE_RANGE.exec(range.replaceAll(" ", ""))?.groups;
-  if (groups === undefined) {
-    return false;
-  }
-  const first = groups["first"] ?? "";
-  const last = groups["last"] ?? "";
-  return first === "" ? last === "0" : Number(first) >= size;
+interface SingleRange {
+  readonly first: string;
+  readonly last: string;
+}
+
+// the one range a request asks for, or null for a multi-part ask or none: R2 answers one
+// satisfiable range and the whole file for any other ask, and a multi-part one is answered whole,
+// as a server may
+const singleRangeOf = (request: Request): SingleRange | null => {
+  const groups = SINGLE_RANGE.exec(
+    (request.headers.get("range") ?? "").replaceAll(" ", ""),
+  )?.groups;
+  const first = groups?.["first"] ?? "";
+  const last = groups?.["last"] ?? "";
+  return groups === undefined || (first === "" && last === "") ? null : { first, last };
 };
+
+// a single range that names no byte of the file (RFC 9110 § 14.1.2)
+const unsatisfiable = ({ first, last }: SingleRange, size: number): boolean =>
+  first === "" ? last === "0" : Number(first) >= size;
 
 // the range R2 answered, which the runtime spells as an offset and a length (a suffix asked for
 // comes back as both, its `suffix` null), or the suffix alone where it keeps the ask's own form
@@ -107,16 +115,17 @@ const servedRangeSchema = z.union([
   z.object({ suffix: z.number().int().nonnegative() }),
 ]);
 
+// a range that spans the whole file is still the range asked for, which a media loader plays only
+// once it is answered 206; null when R2 answered no range, having ignored the ask
 const servedRange = (object: R2Object): { readonly start: number; readonly end: number } | null => {
-  const { size } = object;
   const range = servedRangeSchema.safeParse(object.range);
   if (!range.success) {
     return null;
   }
   const { data } = range;
-  const start = "suffix" in data ? size - data.suffix : data.offset;
+  const start = "suffix" in data ? object.size - data.suffix : data.offset;
   const length = "suffix" in data ? data.suffix : data.length;
-  return start === 0 && length === size ? null : { end: start + length - 1, start };
+  return { end: start + length - 1, start };
 };
 
 const readBlob = async (request: Request, bucket: R2Bucket, key: string): Promise<Response> => {
@@ -131,13 +140,13 @@ const readBlob = async (request: Request, bucket: R2Bucket, key: string): Promis
   if (!("body" in object)) {
     return preconditionFailed(request, headers);
   }
-  const range = request.headers.get("range");
-  const served = range === null ? null : servedRange(object);
-  if (range !== null && served === null && unsatisfiable(range, object.size)) {
+  const single = singleRangeOf(request);
+  if (single !== null && unsatisfiable(single, object.size)) {
     await object.body.cancel();
     headers.set("content-range", `bytes */${String(object.size)}`);
     return new Response(null, { headers, status: 416 });
   }
+  const served = single === null ? null : servedRange(object);
   const body = request.method === "HEAD" ? null : object.body;
   if (body === null) {
     await object.body.cancel();

@@ -9,7 +9,7 @@ describe("an item id the cell mints", () => {
     const extremes = [new Uint8Array(16), new Uint8Array(16).fill(0xff)];
     for (const random of extremes) {
       const id = uuidV7(at, random);
-      expect(newIdSchema.safeParse(id).success, id).toBe(true);
+      expect(newIdSchema.validate(id), id).toBe(true);
       expect(Number.parseInt(id.replaceAll("-", "").slice(0, 12), 16)).toBe(at);
     }
     const earlier = uuidV7(at, new Uint8Array(16).fill(0xff));

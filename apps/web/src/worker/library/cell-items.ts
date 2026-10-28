@@ -304,19 +304,22 @@ export const editItem = (
 
 export interface QuotePlacement {
   readonly ops: readonly LibraryOp[];
-  // whether the markers now wrap the passage
-  readonly placed: boolean;
+  // the highlights whose markers now wrap their passage, those that wrapped one already included
+  readonly placed: readonly string[];
 }
 
-// the ops that place one highlight's markers by its quote in an item as `state` holds it
-export const placeQuote = (
+export interface PlacingQuote {
+  readonly id: string;
+  readonly quote: string;
+  readonly occurrence?: number | undefined;
+}
+
+// the ops that place highlights' markers by their quotes in an item as `state` holds it
+export const placeQuotes = (
   state: ItemState,
   codec: CellCodec,
-  quote: { readonly id: string; readonly quote: string; readonly occurrence?: number | undefined },
-): QuotePlacement => {
-  const placement = placeItemQuotes(state.blocks, [quote], codec.edit);
-  return { ops: placement.ops, placed: placement.placed.includes(quote.id) };
-};
+  quotes: readonly PlacingQuote[],
+): QuotePlacement => placeItemQuotes(state.blocks, quotes, codec.edit);
 
 export interface AddHighlightInput {
   readonly itemId: string;
@@ -346,11 +349,9 @@ export const addHighlight = (
     return refuse({ kind: "not-found" });
   }
   const id = ids.annotation();
-  const placement = placeQuote(state, codec, {
-    id,
-    occurrence: input.occurrence,
-    quote: input.quote,
-  });
+  const placement = placeQuotes(state, codec, [
+    { id, occurrence: input.occurrence, quote: input.quote },
+  ]);
   const createdAt = secondsOf(scope);
   const item = landWrite(scope, actor, {
     annotations: [
@@ -367,7 +368,7 @@ export const addHighlight = (
     itemId: input.itemId,
     ops: placement.ops,
   });
-  return { createdAt, id, item, placed: placement.placed };
+  return { createdAt, id, item, placed: placement.placed.includes(id) };
 };
 
 export interface OrganizeInput {

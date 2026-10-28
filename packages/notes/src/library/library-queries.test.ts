@@ -12,7 +12,7 @@ import {
   linksTo,
   linksToUrl,
   danglingLinksTo,
-  matchCandidates,
+  literalMatches,
   nextHead,
   readAnnotations,
   readBlocks,
@@ -347,27 +347,42 @@ describe("search", () => {
   });
 });
 
-describe("matchCandidates", () => {
-  it("narrows by instr over each block's text, ascii case folded, and reads live items only", () => {
+describe("literalMatches", () => {
+  it("names each live item whose blocks hold the text, ascii case folded, with its first such block", () => {
     const port = library();
     put(
       port,
       "one",
       itemOf(
-        [paragraph("a", "The Quick fox"), paragraph("b", "jumps")],
+        [paragraph("z", "The Quick fox"), paragraph("b", "jumps"), paragraph("a", "quick again")],
         noteFields({ title: "One" }),
       ),
     );
     put(port, "two", itemOf([paragraph("a", "slow")], noteFields({ title: "Two" })));
     put(port, "gone", itemOf([paragraph("a", "quick")], noteFields({ deletedAt: 1 })));
-    expect(exec(port, matchCandidates(["QUICK"]))).toEqual([
-      { body: "The Quick fox\njumps", itemId: "one", title: "One" },
+    expect(exec(port, literalMatches("QUICK", { after: null, limit: 10 }))).toEqual([
+      { itemId: "one", text: "The Quick fox" },
     ]);
-    expect(exec(port, matchCandidates(null)).map((text) => text.itemId)).toEqual(["one", "two"]);
-    expect(exec(port, matchCandidates([]))).toEqual([]);
     expect(
-      port.statements.some((statement) => /instr\(lower\(text\), \?\)/u.test(statement.sql)),
+      port.statements.some((statement) => /instr\(lower\(b\.text\), \?\)/u.test(statement.sql)),
     ).toBe(true);
+  });
+
+  it("pages through the items in id order, reading no more of them than a page asks", () => {
+    const port = library();
+    for (const id of ["c", "a", "d", "b"]) {
+      put(port, id, itemOf([paragraph("p", `item ${id} holds xyzzy`)]));
+    }
+    const before = port.statements.length;
+    const first = exec(port, literalMatches("xyzzy", { after: null, limit: 3 }));
+    expect(first.map((match) => match.itemId)).toEqual(["a", "b", "c"]);
+    const reads = port.statements
+      .slice(before)
+      .filter((statement) => statement.sql.startsWith("SELECT text FROM blocks"));
+    expect(reads).toHaveLength(3);
+    expect(exec(port, literalMatches("xyzzy", { after: "c", limit: 3 }))).toEqual([
+      { itemId: "d", text: "item d holds xyzzy" },
+    ]);
   });
 });
 

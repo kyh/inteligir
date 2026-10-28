@@ -516,7 +516,9 @@ export interface PlacedQuotes extends ViewChange {
 }
 
 // highlights made away from the editor placed in the item's text by their quotes (the page first,
-// then the person's note), their markers spliced in as `placeQuotes` splices them in a file
+// then the person's note), their markers spliced in as `placeQuotes` splices them in a file; one
+// whose markers any block holds already is placed where it stands, never a second time in the
+// other section
 export const placeItemQuotes = (
   blocks: ReadonlyMap<string, StoredBlock>,
   quotes: readonly PendingQuote[],
@@ -524,8 +526,11 @@ export const placeItemQuotes = (
 ): PlacedQuotes => {
   const view = itemView(blocks, ports);
   let pieces = piecesOf(view);
-  const placed: string[] = [];
-  let waiting = quotes;
+  const marked = new Set(
+    markerEdges([...blocks.values()].map((stored) => stored.block)).map(({ id }) => id),
+  );
+  const placed = quotes.filter((quote) => marked.has(quote.id)).map((quote) => quote.id);
+  let waiting = quotes.filter((quote) => !marked.has(quote.id));
   for (const section of ["article", "note"] as const) {
     const inSection = view.blocks.filter((one) => one.section === section);
     const [head] = inSection;

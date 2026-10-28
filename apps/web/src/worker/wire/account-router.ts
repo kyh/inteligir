@@ -9,7 +9,7 @@ import {
   UnauthorizedError,
   V1_ERROR_STATUS_MAP,
 } from "@repo/contract/cloud/v1/errors";
-import { ORPCError, implement } from "@orpc/server";
+import { ORPCError, implement, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { RequestLimitHandlerPlugin } from "@orpc/server/plugins";
 import { V1_RPC_PATH, v1Contract } from "@repo/contract/cloud/v1";
@@ -24,8 +24,8 @@ import { loginDevice } from "../device/login";
 import { signUpDevice } from "../device/sign-up";
 import type { Principal } from "../library/library-principal";
 import { mintSocketTicket } from "../library/socket-ticket";
-import { errorFields } from "../log";
 import { spendCallerBudget, spendDeviceBudget } from "../rate-limit";
+import { logRpcFailure } from "./rpc-log";
 import { holderIdOf } from "./v1-principal";
 
 export interface AccountContext {
@@ -177,21 +177,9 @@ const ACCOUNT_RPC_MAX_BODY_BYTES = 64 * 1024;
 const handler = new RPCHandler(accountRouter, {
   errorStatusMap: V1_ERROR_STATUS_MAP,
   interceptors: [
-    async ({ next, path }) => {
-      try {
-        return await next();
-      } catch (error) {
-        // a declared refusal is an answer; anything else is a fault the client sees as internal
-        if (!(error instanceof ORPCError && error.defined)) {
-          console.error({
-            event: "account-rpc-failed",
-            path: path.join("."),
-            ...errorFields(error),
-          });
-        }
-        throw error;
-      }
-    },
+    onError((cause, { path }) => {
+      logRpcFailure("account-rpc-failed", path, cause);
+    }),
   ],
   plugins: [new RequestLimitHandlerPlugin({ maxBodySize: ACCOUNT_RPC_MAX_BODY_BYTES })],
 });

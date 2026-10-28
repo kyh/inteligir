@@ -154,6 +154,14 @@ describe("a file's bytes", () => {
     expect(open.status).toBe(206);
     expect(await open.text()).toBe("89");
 
+    // a range that spans the file is still the range asked for, as a media loader's probe needs
+    for (const whole of ["bytes=0-", "bytes=0-9", "bytes=0-99"]) {
+      const answer = await ranged(whole);
+      expect(answer.status, whole).toBe(206);
+      expect(answer.headers.get("content-range"), whole).toBe("bytes 0-9/10");
+      expect(await answer.text()).toBe(TEN);
+    }
+
     const past = await drained(ranged("bytes=20-30"));
     expect(past.status).toBe(416);
     expect(past.headers.get("content-range")).toBe("bytes */10");

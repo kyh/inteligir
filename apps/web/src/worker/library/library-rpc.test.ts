@@ -5,7 +5,7 @@ import { createORPCClient, ORPCError } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { V1Client } from "@repo/contract/cloud/v1";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { cellOf, clockAt, engineIn, inCell } from "../test-support/library-cell";
 import type { Principal } from "./library-principal";
@@ -61,6 +61,34 @@ const tags = (from: number): string[] =>
   Array.from({ length: 300 }, (_, index) => `tag-${String(from + index)}`);
 
 describe("the cell's RPC handler", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("logs a malformed call as a warning and a declared refusal not at all, so neither reads as an outage", async () => {
+    await inCell(cellOf(), async (state) => {
+      const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+      const warnings = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const { library, refusalOf } = linkIn(state, 64 * 1024);
+      expect(await refusalOf(library.search({ query: " " }))).toMatchObject({
+        code: "BAD_REQUEST",
+        status: 400,
+      });
+      expect(warnings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: "BAD_REQUEST",
+          event: "library-rpc-failed",
+          path: "search",
+        }),
+      );
+      expect(
+        await refusalOf(library.items.createNote({ markdown: "x".repeat(200_000) })),
+      ).toMatchObject({ code: "QUOTA" });
+      expect(warnings).toHaveBeenCalledTimes(1);
+      expect(errors).not.toHaveBeenCalled();
+    });
+  });
+
   it("answers a write past the library's cap as full, with what it holds", async () => {
     await inCell(cellOf(), async (state) => {
       const { library, refusalOf } = linkIn(state, 64 * 1024);

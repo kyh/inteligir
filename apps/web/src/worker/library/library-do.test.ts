@@ -25,6 +25,9 @@ import { accountBlobPrefix, blobKey } from "./cell-blobs";
 import { openCellLibrary, scheduleAlarm, settleCommit } from "./cell-library";
 import type { CellRefusal } from "./cell-refusal";
 import { cellAccountId } from "./library-cell";
+import { PRINCIPAL_HEADER, principalHeaderValue } from "./library-principal";
+import type { Principal } from "./library-principal";
+import { V1_LIBRARY_RPC_PATH } from "./library-rpc";
 
 const SHA = "d".repeat(64);
 
@@ -32,6 +35,13 @@ const files = async (prefix: string): Promise<number> => {
   const listing = await env.BLOBS.list({ prefix });
   return listing.objects.length;
 };
+
+// a laptop's call as the Worker stamps it, for the account named
+const principal = (accountId: string): Principal => ({
+  accountId,
+  actor: { deviceId: "laptop-1", deviceName: "Laptop", kind: "device" },
+  scopes: ["library"],
+});
 
 const itemCount = (state: DurableObjectState): number =>
   Number(state.storage.sql.exec("SELECT count(*) AS n FROM items").one()["n"]);
@@ -61,6 +71,30 @@ describe("the library cell", () => {
       landedValue(engineIn(state, clockAt()).pull({ cursor: 0, epoch: null })),
     );
     expect(pulled).toMatchObject({ changes: [], head: 0, kind: "changes" });
+  });
+
+  it("takes a library call only with a principal of its own account", async () => {
+    const accountId = newAccountId();
+    const stub = cellOf(accountId);
+    const call = async (headers: Record<string, string>): Promise<number> => {
+      const answer = await stub.fetch(`https://cell.test${V1_LIBRARY_RPC_PATH}/items/createNote`, {
+        body: JSON.stringify({ json: { markdown: "Who wrote this?" } }),
+        headers: { "content-type": "application/json", ...headers },
+        method: "POST",
+      });
+      await answer.arrayBuffer();
+      return answer.status;
+    };
+    expect(
+      await call({ [PRINCIPAL_HEADER]: principalHeaderValue(principal(newAccountId())) }),
+    ).toBe(403);
+    expect(await call({})).toBe(403);
+    expect(await inCell(stub, itemCount)).toBe(0);
+    // the same call, under its own account's principal, lands
+    expect(await call({ [PRINCIPAL_HEADER]: principalHeaderValue(principal(accountId)) })).toBe(
+      200,
+    );
+    expect(await inCell(stub, itemCount)).toBe(1);
   });
 
   it("seals a quiet set when its alarm runs, and sets the next one for the prune", async () => {

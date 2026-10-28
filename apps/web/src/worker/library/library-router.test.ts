@@ -7,13 +7,25 @@ import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { createRouterClient, ORPCError } from "@orpc/server";
 import { describe, expect, it } from "vitest";
 
-import { cellOf, clockAt, engineIn, inCell, paragraph } from "../test-support/library-cell";
+import {
+  cellOf,
+  clockAt,
+  engineIn,
+  inCell,
+  landedValue,
+  noteFields,
+  paragraph,
+  SYSTEM,
+} from "../test-support/library-cell";
 import type { Clock } from "../test-support/library-cell";
 import { uuidV7 } from "./cell-ids";
+import { addFileBytes } from "./cell-quota";
+import { cellStorageOf } from "./cell-storage";
 import type { Principal } from "./library-principal";
 import { libraryRouter } from "./library-router";
 
 const SHA = "a".repeat(64);
+const GiB = 1024 * 1024 * 1024;
 
 const laptop = (accountId: string): Principal => ({
   accountId,
@@ -48,8 +60,13 @@ const articleOf = (blocks: readonly LibraryBlock[]) => {
 
 const FACTS = { author: null, description: null, lang: null, published: null, site: null };
 
-const pageSave = (url: string, overrides: { selection?: string | null; tags?: string[] } = {}) => ({
-  article: articleOf([paragraph("p1", "The quick brown fox jumps over the lazy dog.")]),
+const pageSave = (
+  url: string,
+  overrides: { article?: LibraryBlock[]; selection?: string | null; tags?: string[] } = {},
+) => ({
+  article: articleOf(
+    overrides.article ?? [paragraph("p1", "The quick brown fox jumps over the lazy dog.")],
+  ),
   copySha: null,
   coverSha: null,
   facts: { ...FACTS, site: "example.com" },
@@ -118,6 +135,46 @@ describe("the library's procedures", () => {
     });
   });
 
+  it("places an item's highlights again in the article a second save brings, and keeps the article a read without one", async () => {
+    await inCell(cellOf(), async (state) => {
+      const library = clientIn(state, clockAt());
+      const url = "https://example.com/fox";
+      const first = await library.items.save(pageSave(url, { selection: "quick brown fox" }));
+      const listed = await library.annotations.list({ itemId: first.item.id });
+      const [highlight] = listed.highlights;
+      const placedAgain = async (markdown: string) => {
+        const { highlights } = await library.annotations.list({ itemId: first.item.id });
+        expect(highlights).toEqual([
+          expect.objectContaining({ id: highlight?.id, placed: true, quote: "quick brown fox" }),
+        ]);
+        const read = await library.items.read({ id: first.item.id });
+        expect(read.view.markdown).toContain(markdown);
+        return read;
+      };
+
+      // the page read again, its text changed around the passage
+      await library.items.save(
+        pageSave(url, { article: [paragraph("p2", "Now: the quick brown fox naps.")] }),
+      );
+      await placedAgain(`the %%i:${highlight?.id ?? ""}:start%%quick brown fox%%i:`);
+
+      // the same selection sent again keeps the one highlight, placed in the newest article
+      await library.items.save(
+        pageSave(url, {
+          article: [paragraph("p3", "Later: a quick brown fox, again.")],
+          selection: "quick brown fox",
+        }),
+      );
+      await placedAgain("Later: a %%i:");
+
+      // a read that found no article leaves the item's
+      const empty = { ...pageSave(url), article: [] };
+      await library.items.save(empty);
+      const read = await placedAgain("Later: a %%i:");
+      expect(read.fields.fetchState).toBe("filled");
+    });
+  });
+
   it("lands a link to read later as a pending stub, and a refresh sends it back to pending", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
@@ -138,6 +195,27 @@ describe("the library's procedures", () => {
 
       const refreshed = await library.items.refresh({ id: saved.item.id });
       expect(refreshed.item.id).toBe(saved.item.id);
+
+      // a page whose read failed, asked for again: it waits for the cloud, its failure forgotten
+      const { item: failed } = landedValue(
+        engineIn(state, clockAt()).create(SYSTEM, {
+          blocks: [],
+          fields: noteFields({
+            fetchError: "The site refused the read.",
+            fetchState: "failed",
+            kind: "link",
+            title: "A refusing site",
+            url: "https://example.com/refuses",
+          }),
+          id: newId(),
+        }),
+      );
+      const retried = await library.items.refresh({ id: failed.id });
+      expect(retried.item.fields).toMatchObject({ fetchError: null, fetchState: "pending" });
+      const page = await library.items.save(pageSave("https://example.com/read-again"));
+      expect(page.item.fields.fetchState).toBe("filled");
+      const reread = await library.items.refresh({ id: page.item.id });
+      expect(reread.item.fields).toMatchObject({ fetchError: null, fetchState: "pending" });
       const note = await library.items.createNote({ markdown: "No page here." });
       expect(await refusalOf(library.items.refresh({ id: note.item.id }))).toMatchObject({
         code: "NOT_FOUND",
@@ -421,6 +499,144 @@ describe("the library's procedures", () => {
       await expect(library.search({ kinds: ["link"], query: "fox" })).resolves.toEqual({
         cursor: null,
         hits: [],
+      });
+    });
+  });
+
+  it("names at most its candidates for a literal passage more items hold", async () => {
+    await inCell(cellOf(), async (state) => {
+      const library = clientIn(state, clockAt());
+      const [ord = "a0"] = ordsBetween(null, null, 1);
+      for (let n = 0; n < 230; n += 1) {
+        await library.items.create({
+          blocks: [
+            { block: paragraph("p1", `Row ${String(n)}: abcxyzzydef.`), ord, section: "note" },
+          ],
+          folderId: null,
+          id: newId(),
+          savedAt: Date.UTC(2026, 9, 1),
+          tags: [],
+          title: `Row ${String(n)}`,
+        });
+      }
+      const named = new Set<string>();
+      let cursor: string | undefined;
+      do {
+        const page = await library.search({ cursor, limit: 50, query: "xyzzy" });
+        for (const hit of page.hits) {
+          expect(hit.snippet).toContain("abcxyzzydef");
+          named.add(hit.id);
+        }
+        cursor = page.cursor ?? undefined;
+      } while (cursor !== undefined);
+      expect(named.size).toBe(200);
+    });
+  });
+
+  it("answers a folder name too long, a link under a held id and an edit past the library's room as their rows declare", async () => {
+    await inCell(cellOf(), async (state) => {
+      const library = clientIn(state, clockAt());
+      expect(
+        await refusalOf(
+          library.items.createNote({ folder: { path: `Work/${"x".repeat(256)}` }, markdown: "x" }),
+        ),
+      ).toMatchObject({ code: "BAD_REQUEST" });
+      expect(
+        await refusalOf(library.items.createNote({ folder: { path: " / " }, markdown: "x" })),
+      ).toMatchObject({ code: "BAD_REQUEST" });
+      const { item } = await library.items.createNote({
+        folder: { path: " Work / Reading " },
+        markdown: "Short.",
+      });
+      const { folders } = await library.organize.outline();
+      expect(folders.map((folder) => folder.name).toSorted()).toEqual(["Reading", "Work"]);
+      expect(folders.find((folder) => folder.name === "Reading")?.id).toBe(item.fields.folderId);
+
+      const { seq } = await library.items.read({ id: item.id });
+      expect(
+        await refusalOf(library.items.saveLink({ id: item.id, url: "https://example.com/else" })),
+      ).toEqual({
+        code: "CONFLICT",
+        data: { current: [{ itemId: item.id, kind: "item", seq }] },
+        defined: true,
+      });
+
+      addFileBytes(cellStorageOf(state.storage), GiB);
+      expect(
+        await refusalOf(
+          library.items.edit({
+            baseSeq: seq,
+            edits: [{ newText: `Long. ${"word ".repeat(2000)}`, oldText: "Short." }],
+            id: item.id,
+          }),
+        ),
+      ).toMatchObject({ code: "QUOTA", defined: true });
+    });
+  });
+
+  it("lists the account's threads newest first, pages a thread's events, and deletes a thread as gone", async () => {
+    await inCell(cellOf(), async (state) => {
+      const library = clientIn(state, clockAt());
+      const older = newId();
+      const newer = newId();
+      const { sql } = state.storage;
+      // what a turn the cell ran leaves behind: a thread row and the events it stored
+      const seedThread = (id: string, updatedAt: number, events: readonly string[]) => {
+        sql.exec(
+          `INSERT INTO threads (id, session_id, title, status, created_at, updated_at, seq)
+           VALUES (?, NULL, ?, 'idle', ?, ?, 0)`,
+          id,
+          `Thread at ${String(updatedAt)}`,
+          updatedAt,
+          updatedAt,
+        );
+        for (const [idx, eventId] of events.entries()) {
+          sql.exec(
+            `INSERT INTO thread_events (event_id, thread_id, idx, type, json, at, seq)
+             VALUES (?, ?, ?, 'agent.message', ?, ?, 0)`,
+            eventId,
+            id,
+            idx,
+            JSON.stringify({ content: [{ text: `Said ${String(idx)}.`, type: "text" }] }),
+            updatedAt,
+          );
+        }
+      };
+      seedThread(older, 1000, ["sevt_a0", "sevt_a1", "sevt_a2"]);
+      seedThread(newer, 2000, ["sevt_b0"]);
+
+      const first = await library.agent.list({ limit: 1 });
+      expect(first.threads.map((thread) => thread.id)).toEqual([newer]);
+      const rest = await library.agent.list({ cursor: first.cursor ?? "", limit: 1 });
+      expect(rest).toMatchObject({ cursor: null, threads: [{ id: older, status: "idle" }] });
+
+      const opening = await library.agent.events({ limit: 2, threadId: older });
+      expect(opening.events.map((event) => event.eventId)).toEqual(["sevt_a0", "sevt_a1"]);
+      expect(opening.more).toBe(true);
+      const closing = await library.agent.events({ after: 1, limit: 2, threadId: older });
+      expect(closing).toMatchObject({ events: [{ eventId: "sevt_a2", idx: 2 }], more: false });
+
+      const before = await library.sync.pull({ cursor: 0, epoch: null });
+      if (before.kind !== "changes") {
+        throw new Error("a fresh pull started over");
+      }
+      await expect(library.agent.delete({ threadId: older })).resolves.toEqual({ deleted: true });
+      expect(sql.exec("SELECT id FROM threads").toArray()).toEqual([{ id: newer }]);
+      expect(
+        sql.exec("SELECT event_id FROM thread_events WHERE thread_id = ?", older).toArray(),
+      ).toEqual([]);
+      const after = await library.sync.pull({ cursor: before.head, epoch: before.epoch });
+      expect(after.kind === "changes" ? after.changes : []).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: older, kind: "thread", row: null }),
+          ...["sevt_a0", "sevt_a1", "sevt_a2"].map((id) =>
+            expect.objectContaining({ id, kind: "thread_event", row: null }),
+          ),
+        ]),
+      );
+      expect(await refusalOf(library.agent.events({ threadId: older }))).toMatchObject({
+        code: "NOT_FOUND",
+        defined: true,
       });
     });
   });
