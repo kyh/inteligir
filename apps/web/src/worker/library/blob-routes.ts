@@ -25,7 +25,7 @@ const BLOB_PATH = /^\/v1\/blobs\/(?<sha>[^/]+)$/u;
 
 export const isBlobPath = (pathname: string): boolean => pathname.startsWith(`${V1_BLOBS_PATH}/`);
 
-const text = (status: number, message: string, headers: HeadersInit = {}): Response =>
+export const text = (status: number, message: string, headers: HeadersInit = {}): Response =>
   new Response(message, {
     headers: { "content-type": "text/plain; charset=utf-8", ...headers },
     status,
@@ -128,14 +128,22 @@ const servedRange = (object: R2Object): { readonly start: number; readonly end: 
   return { end: start + length - 1, start };
 };
 
-const readBlob = async (request: Request, bucket: R2Bucket, key: string): Promise<Response> => {
+// an object under `key` answered as a file is: its range, its preconditions and its sandbox;
+// `missing` says what a key R2 holds nothing under means (`./export-routes` reads an export so)
+export const readObject = async (
+  request: Request,
+  bucket: R2Bucket,
+  key: string,
+  missing = "That file isn't in the library.",
+): Promise<Response> => {
   const object = await bucket.get(key, { onlyIf: conditionsOf(request), range: request.headers });
   if (object === null) {
-    return text(404, "That file isn't in the library.");
+    return text(404, missing);
   }
   const headers = new Headers(READ_HEADERS);
   object.writeHttpMetadata(headers);
   headers.set("etag", object.httpEtag);
+  headers.set("last-modified", object.uploaded.toUTCString());
   serveUnder(headers, object.httpMetadata?.contentType);
   if (!("body" in object)) {
     return preconditionFailed(request, headers);
@@ -268,5 +276,5 @@ export const handleBlobRoute = async (
   }
   return request.method === "PUT"
     ? await writeBlob(request, env, ctx, { accountId: principal.accountId, sha })
-    : await readBlob(request, env.BLOBS, blobKey(principal.accountId, sha));
+    : await readObject(request, env.BLOBS, blobKey(principal.accountId, sha));
 };

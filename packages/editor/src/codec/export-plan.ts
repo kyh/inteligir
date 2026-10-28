@@ -5,7 +5,9 @@
 // as the vault's writers put them). A file is written under the name it was saved under, so a
 // `.canvas` stays one; only bytes no name came with take an extension from their media type. A
 // link is written by the shortest target that resolves back to its item among the exported files
-// (`wikiTargetForPath`), so the folder reads back into the same library.
+// (`wikiTargetForPath`), so the folder reads back into the same library. The files come one at a
+// time, each item read only when its turn comes, so a writer holds one item's text, never the
+// library's.
 
 import { annotationsStorePath } from "@repo/notes/annotations/store-schema";
 import {
@@ -19,6 +21,7 @@ import { DEFAULT_ATTACHMENTS_FOLDER, freeAssetPathWhere } from "@repo/notes/know
 import { freePath } from "@repo/notes/knowledge/doc-file";
 import { buildResolver, wikiTargetForPath } from "@repo/notes/knowledge/link-resolve";
 import { joinPath, vaultCollisionKey } from "@repo/notes/knowledge/vault-path";
+import type { LibraryItemFields } from "@repo/notes/library/library-item";
 
 import { exportItem } from "./item-markdown";
 import type { ExportItem, ExportPorts, HeldFile } from "./item-markdown";
@@ -30,10 +33,18 @@ interface ExportFolder {
   readonly name: string;
 }
 
+// what names an item's file: its fields alone, its body read when the file is written
+export interface ExportItemHead {
+  readonly id: string;
+  readonly fields: LibraryItemFields;
+}
+
 export interface ExportLibrary {
   readonly folders: readonly ExportFolder[];
   // the live items; a deleted one stays in the library
-  readonly items: readonly ExportItem[];
+  readonly items: readonly ExportItemHead[];
+  // an item whole, read when its file is written; null when it went since its head was read
+  readonly read: (head: ExportItemHead) => ExportItem | null;
   // a file's media type, by its sha: the extension of bytes no name came with
   readonly mediaType: (sha: string) => string | null;
   // the library's filing rules, which the agent reads
@@ -185,29 +196,36 @@ const filePaths = (mediaType: ExportLibrary["mediaType"], taken: TakenPaths) => 
   };
 };
 
-// the whole library as the files of a folder
-export const planExport = (library: ExportLibrary): ExportFile[] => {
+// the whole library as the files of a folder, the texts as each item is read and then the bytes
+export const planExport = function* planExport(
+  library: ExportLibrary,
+): Generator<ExportFile, void, undefined> {
   const folders = folderPaths(library.folders);
   // one set for every file written, the rules' name first, so no item is written over them
   const taken = takenPaths();
   taken.take(LIBRARY_RULES_PATH);
-  const docs = library.items.map((item) => {
-    const name = itemNameFromTitle(item.fields.title) ?? UNTITLED;
-    const dir = item.fields.folderId === null ? "" : (folders.get(item.fields.folderId) ?? "");
+  const docs = library.items.map((head) => {
+    const name = itemNameFromTitle(head.fields.title) ?? UNTITLED;
+    const dir = head.fields.folderId === null ? "" : (folders.get(head.fields.folderId) ?? "");
     const path = taken.take(freePath(dir, name, ".md", taken.has));
-    return { item, name, path };
+    return { head, name, path };
   });
   const resolver = buildResolver(
     docs.map((doc) => doc.path),
     docs.flatMap((doc) =>
-      doc.item.fields.aliases.map((alias): [string, string] => [alias, doc.path]),
+      doc.head.fields.aliases.map((alias): [string, string] => [alias, doc.path]),
     ),
   );
-  const pathById = new Map(docs.map((doc) => [doc.item.id, doc.path]));
+  const pathById = new Map(docs.map((doc) => [doc.head.id, doc.path]));
   const files = filePaths(library.mediaType, taken);
-  const texts: ExportFile[] =
-    library.rules === null ? [] : [{ kind: "text", path: LIBRARY_RULES_PATH, text: library.rules }];
-  for (const { item, name, path } of docs) {
+  if (library.rules !== null) {
+    yield { kind: "text", path: LIBRARY_RULES_PATH, text: library.rules };
+  }
+  for (const { head, name, path } of docs) {
+    const item = library.read(head);
+    if (item === null) {
+      continue;
+    }
     const ports: ExportPorts = {
       held: (file) => files.held(file, name),
       path: files.body,
@@ -219,10 +237,10 @@ export const planExport = (library: ExportLibrary): ExportFile[] => {
     };
     // a file's name cuts and mends what a title may hold, so a title it cannot carry is written
     const exported = exportItem(item, ports, name === item.fields.title ? null : item.fields.title);
-    texts.push({ kind: "text", path, text: exported.text });
+    yield { kind: "text", path, text: exported.text };
     if (exported.annotations !== null) {
-      texts.push({ kind: "text", path: annotationsStorePath(item.id), text: exported.annotations });
+      yield { kind: "text", path: annotationsStorePath(item.id), text: exported.annotations };
     }
   }
-  return [...texts, ...files.bytes];
+  yield* files.bytes;
 };

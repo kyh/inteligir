@@ -5,7 +5,7 @@
 // go by the alarm, and so is what such an upload, or one the cell refused, left in R2.
 
 import type { ItemState } from "@repo/notes/library/block-ops";
-import { readMeta, writeMeta } from "@repo/notes/library/library-queries";
+import { readMeta, recordChanges, writeMeta } from "@repo/notes/library/library-queries";
 import type { BlobRole } from "@repo/notes/library/library-schema";
 import type { LibraryNode } from "@repo/notes/library/library-nodes";
 import { chunkStatement, runPlan } from "@repo/notes/library/library-sql";
@@ -260,6 +260,33 @@ export const refuseUpload = (storage: CellStorage, sha: string, now: number): vo
     releaseHeld(storage, sha, held.bytes);
   }
   strand(storage, sha, now);
+};
+
+const releasableSchema = z.object({ bytes: z.number().int().nonnegative(), refs: z.number() });
+
+// a file no item names, let go: its row leaves the library and every replica at `seq`, its bytes
+// leave the quota, and what R2 holds of it is a stray the alarm takes out; one an item names stays
+export const releaseFile = (
+  storage: CellStorage,
+  sha: string,
+  at: { readonly seq: () => number; readonly now: number },
+): void => {
+  const [raw] = storage.all("SELECT bytes, refs FROM blobs WHERE sha256 = ?", [sha]);
+  if (raw === undefined) {
+    return;
+  }
+  const row = releasableSchema.parse(raw);
+  if (row.refs > 0) {
+    return;
+  }
+  storage.run("DELETE FROM blobs WHERE sha256 = ?", [sha]);
+  addFileBytes(storage, -row.bytes);
+  runPlan(storage, recordChanges([{ gone: true, id: sha, kind: "blob", seq: at.seq() }]));
+  ensureJob(
+    storage,
+    { id: strayJobId(sha), kind: "stray", payload: JSON.stringify({ sha }) },
+    at.now,
+  );
 };
 
 // a stray's removal may begin; false, with its job dropped, once a file row or a fresh upload's

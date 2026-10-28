@@ -132,7 +132,7 @@ describe("the library cell", () => {
         fields: noteFields(),
         id: itemId,
       });
-      await settleCommit(state, library, result);
+      await settleCommit(state, env, library, result);
       return await state.storage.getAlarm();
     });
     expect(alarm).toEqual(expect.any(Number));

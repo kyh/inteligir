@@ -11,9 +11,11 @@ import Defuddle from "defuddle";
 import { articleBlocks } from "@repo/editor/codec/item-markdown";
 import type { ArticleBlocks } from "@repo/editor/codec/item-markdown";
 import { canonicalizeImported } from "@repo/editor/markdown/markdown-doc";
+import { FILL_LIMITS } from "@repo/notes/items/link-fill";
 
 import { escapeText, htmlToMarkdown } from "./html-to-markdown";
-import type { ExtractedPage, PageFacts, Rung } from "./page-facts";
+import type { ExtractedPage, PageArgs, Rung } from "./page-facts";
+import type { ExtractedPageBlocks } from "./page-reading";
 import { pageFactsOf, readHead } from "./page-meta";
 import type { ExtractedMeta } from "./page-meta";
 import { resolveWebUrl } from "./web-url";
@@ -85,12 +87,71 @@ const ladder = (root: HTMLElement): Laddered | null => {
   return best;
 };
 
+const ELEMENT_NODE = 1;
+
+const isElement = (node: Node): node is Element => node.nodeType === ELEMENT_NODE;
+
+const sizeOf = (node: ChildNode): number =>
+  isElement(node) ? node.outerHTML.length : (node.textContent ?? "").length;
+
+// a wrapper past what is left is opened at most this deep; one nested deeper is cut whole
+const CUT_DEPTH_MAX = 32;
+
+// an element that holds only elements (a section, a list, a table's body): a cut may fall between
+// its children; a paragraph, a heading or a list item holds text of its own, which a cut keeps whole
+const isWrapper = (element: Element): boolean =>
+  element.children.length > 0 &&
+  [...element.childNodes].every(
+    (node) => isElement(node) || (node.textContent ?? "").trim() === "",
+  );
+
+// the article's leading part within `budget` characters of markup, cut between whole blocks, and
+// the characters it kept: the first child past what is left, when it is a wrapper, keeps only as
+// many of its own blocks as fit, and everything after it goes. The ladder costs time and heap by
+// its markup's length, which no host can give a page of any length (FILL_LIMITS.articleBytes)
+const keepWithin = (parent: Element, budget: number, depth = 0): number => {
+  let used = 0;
+  let cut = false;
+  // each child's next sibling is read before the child may go
+  for (
+    let child = parent.firstChild, next = child?.nextSibling ?? null;
+    child !== null;
+    child = next, next = child?.nextSibling ?? null
+  ) {
+    if (cut) {
+      child.remove();
+      continue;
+    }
+    const size = sizeOf(child);
+    if (used + size <= budget) {
+      used += size;
+      continue;
+    }
+    cut = true;
+    if (isElement(child) && isWrapper(child) && depth < CUT_DEPTH_MAX) {
+      used += keepWithin(child, budget - used, depth + 1);
+    } else {
+      child.remove();
+    }
+  }
+  return used;
+};
+
+// a page's readable part at most the article's budget, whose length is checked before anything is
+// measured, since nearly every page fits
+const withinBudget = <T extends Element>(root: T): T => {
+  if (root.innerHTML.length > FILL_LIMITS.articleBytes) {
+    keepWithin(root, FILL_LIMITS.articleBytes);
+  }
+  return root;
+};
+
 const contentRoot = (parsePage: ParsePage, contentHtml: string, pageUrl: string): HTMLElement => {
   const document = parsePage(
     `<!doctype html><html><head></head><body>${contentHtml}</body></html>`,
   );
   absolutize(document.body, pageUrl);
-  return document.body;
+  return withinBudget(document.body);
 };
 
 // a description as the article's one paragraph, for a video or a song whose page holds no prose
@@ -146,14 +207,7 @@ const readableContent = (document: Document, url: string): Readable => {
   }
 };
 
-export const extractPage = (
-  args: {
-    html: string;
-    url: string;
-    prefer: "article" | "description";
-  },
-  parsePage: ParsePage,
-): ExtractedPage => {
+export const extractPage = (args: PageArgs, parsePage: ParsePage): ExtractedPage => {
   const document = parsePage(args.html);
   // the head first: defuddle strips the scripts JSON-LD rides in
   const head = readHead(document, args.url);
@@ -164,7 +218,7 @@ export const extractPage = (
       ? descriptionArticle(merged.description)
       : null) ??
     (result.content === null
-      ? ladder(document.body)
+      ? ladder(withinBudget(document.body))
       : ladder(contentRoot(parsePage, result.content, args.url)));
   return {
     article: article?.markdown ?? "",
@@ -174,21 +228,12 @@ export const extractPage = (
   };
 };
 
-export interface ExtractedPageBlocks {
-  readonly facts: PageFacts;
-  // the article as its item's article section; no blocks when the page holds no text the editor
-  // could keep
-  readonly article: ArticleBlocks;
-  readonly kept: number;
-  readonly rung: Rung | null;
-}
-
 const NO_ARTICLE: ArticleBlocks = { blocks: [], refused: [] };
 
 // the same reading, its article as the library's blocks: the fixpoint the ladder wrote, read by the
 // editor's codec as a page (no dialect link or Obsidian spelling reads in it), its ids the host's
 export const extractPageBlocks = (
-  args: { html: string; url: string; prefer: "article" | "description" },
+  args: PageArgs,
   parsePage: ParsePage,
   newBlockId: () => string,
 ): ExtractedPageBlocks => {

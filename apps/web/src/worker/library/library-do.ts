@@ -10,22 +10,28 @@ import { SYNC_WS_KEEPALIVE_PING, SYNC_WS_KEEPALIVE_PONG } from "@repo/contract/c
 import { DurableObject } from "cloudflare:workers";
 
 import { refuse } from "../cloud-http";
+import { fillLandingSchema } from "../fill/fill-landing";
+import type { FillLanded, FillLanding } from "../fill/fill-landing";
 import { errorFields } from "../log";
 import { purgeAccount } from "./account-purge";
-import { blobKey } from "./cell-blobs";
 import type { UploadRequest, UploadRoom } from "./cell-blobs";
 import {
   logJobFailure,
   openCellLibrary,
   removeStrays,
   scheduleAlarm,
+  sendFills,
   settleCommit,
+  settleStored,
 } from "./cell-library";
 import type { CellResult } from "./cell-refusal";
+import { runExports } from "./cell-exports";
+import { runImports } from "./cell-imports";
 import { openCellSchema } from "./cell-schema";
 import {
   acceptSocket,
   holderFromHeader,
+  pingLibraryMoved,
   pingVaultMoved,
   severHolder,
   SOCKET_HOLDER_HEADER,
@@ -82,7 +88,7 @@ export class LibraryDO extends DurableObject<Env> {
     const response = await serveLibraryRpc(request, {
       library,
       principal,
-      settle: async (result) => await settleCommit(this.ctx, library, result),
+      settle: async (result) => await settleCommit(this.ctx, this.env, library, result),
     });
     return response ?? new Response("not found", { status: 404 });
   }
@@ -112,11 +118,22 @@ export class LibraryDO extends DurableObject<Env> {
     });
   }
 
+  // the jobs due: the storage's own, then those that wait on R2 (strays, imports, exports) and
+  // the readings to send; whatever moved the library is told to the sockets once
   override async alarm(): Promise<void> {
     const library = openCellLibrary(this.ctx, this.env);
+    const head = library.head();
     try {
       library.runDueJobs(logJobFailure);
       await removeStrays(this.env, this.#accountId, library);
+      const host = { accountId: this.#accountId, env: this.env, library, now: Date.now };
+      await runImports(host);
+      await runExports(host);
+      await sendFills(this.ctx, this.env, library);
+      const moved = library.head();
+      if (moved !== head) {
+        pingLibraryMoved(this.ctx, moved);
+      }
       await scheduleAlarm(this.ctx, library);
     } catch (error) {
       console.error({ event: "library-alarm-failed", ...errorFields(error) });
@@ -142,23 +159,34 @@ export class LibraryDO extends DurableObject<Env> {
   // room for a file a device is about to upload to `/v1/blobs/<sha>`
   async reserveBlob(request: UploadRequest): Promise<CellResult<UploadRoom>> {
     const library = openCellLibrary(this.ctx, this.env);
-    return await settleCommit(this.ctx, library, library.reserve(request));
+    return await settleCommit(this.ctx, this.env, library, library.reserve(request));
   }
 
-  // the file's row once its upload is in R2, at the size R2 holds; the transaction reads the
-  // upload's record after this await, so nothing read before it is trusted but the count of stray
-  // removals, which tells it whether one ran meanwhile
+  // the file's row once its upload is in R2, at the size R2 holds (`settleStored`)
   async settleBlob(sha: string): Promise<CellResult<UploadSettlement>> {
     const library = openCellLibrary(this.ctx, this.env);
-    const removalsSeen = library.blobRemovals();
-    const object = await this.env.BLOBS.head(blobKey(this.#accountId, sha));
-    const stored =
-      object === null
-        ? null
-        : {
-            bytes: object.size,
-            mime: object.httpMetadata?.contentType ?? "application/octet-stream",
-          };
-    return await settleCommit(this.ctx, library, library.settle(sha, stored, removalsSeen));
+    return await settleCommit(
+      this.ctx,
+      this.env,
+      library,
+      await settleStored(this.env, this.#accountId, library, sha),
+    );
+  }
+
+  // whether the item still waits for the cloud's reading of `url`, asked before the page is read
+  fillWanted(itemId: string, url: string): CellResult<boolean> {
+    return openCellLibrary(this.ctx, this.env).fillWanted(itemId, url);
+  }
+
+  // a page the fill queue's consumer read (`../fill/fill-consumer`), parsed again at this door,
+  // since a consumer of another deploy may send another shape, which lands nothing
+  async landFill(landing: FillLanding): Promise<CellResult<FillLanded>> {
+    const parsed = fillLandingSchema.safeParse(landing);
+    if (!parsed.success) {
+      console.error({ event: "fill-landing-malformed", issues: parsed.error.issues.length });
+      return { head: null, ok: true, value: { kind: "stale" } };
+    }
+    const library = openCellLibrary(this.ctx, this.env);
+    return await settleCommit(this.ctx, this.env, library, library.landReading(parsed.data));
   }
 }

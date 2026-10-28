@@ -4,6 +4,8 @@
 
 import { z } from "zod";
 
+import { IMPORT_SKIP_REASONS } from "@repo/notes/imports/raindrop";
+
 export const IMPORT_FILE_MAX_BYTES = 64 * 1024 * 1024;
 // a cover of about 50 KB plus the article: what one imported item's fill adds to the library
 export const IMPORT_ITEM_ESTIMATE_BYTES = 64 * 1024;
@@ -12,7 +14,7 @@ export const IMPORT_LIST_MAX = 20;
 export const importSourceSchema = z.enum(["raindrop"]);
 export type ImportSource = z.infer<typeof importSourceSchema>;
 
-export const importSkipReasonSchema = z.enum(["no-url", "not-web-url", "in-trash"]);
+export const importSkipReasonSchema = z.enum(IMPORT_SKIP_REASONS);
 export type ImportSkipReason = z.infer<typeof importSkipReasonSchema>;
 
 export const importsPlanRequestSchema = z.strictObject({

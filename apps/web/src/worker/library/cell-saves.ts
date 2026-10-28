@@ -27,7 +27,7 @@ import type { CellIds } from "./cell-ids";
 import { urlHolder } from "./cell-landing";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
 import { bareHighlight, blankFields, landNew, noteBlocksOf, placeQuotes } from "./cell-items";
-import type { MarkdownBlocks, PlacedBlock, PlacingQuote } from "./cell-items";
+import type { PlacedBlock, PlacingQuote } from "./cell-items";
 import { refuse } from "./cell-refusal";
 import { landWrite } from "./cell-writes";
 
@@ -58,7 +58,7 @@ const tagsOp = (fields: LibraryItemFields, tags: readonly string[]): LibraryOp[]
 };
 
 // the highlights of an item that keep a passage, oldest first
-const quotesOf = (rows: AnnotationRows): PlacingQuote[] =>
+export const quotesOf = (rows: AnnotationRows): PlacingQuote[] =>
   [...rows.values()]
     .toSorted((a, b) => a.createdAt - b.createdAt || compareText(a.id, b.id))
     .flatMap((row) =>
@@ -85,7 +85,13 @@ export interface SaveInput {
   readonly selection: string | null;
 }
 
-const articleOf = (input: SaveInput): PlacedBlock[] =>
+// what a page brings to the item that holds its address, however it was read
+export type ReadPage = Pick<
+  SaveInput,
+  "article" | "copySha" | "coverSha" | "facts" | "folderId" | "tags" | "title"
+>;
+
+const articleOf = (input: ReadPage): PlacedBlock[] =>
   input.article.map(({ block, ord }) => ({ block, ord, section: "article" }));
 
 // a field op that changes something; one whose value is its base is left out
@@ -93,7 +99,7 @@ const changes = (op: LibraryOp): boolean => op.op !== "set" || op.base !== op.va
 
 // the read page's facts over the item's: what the fill owns, the page's title for a stub never
 // read (its own was the address's placeholder), and the page's files where it brought any
-const factOps = (state: ItemState, input: SaveInput, now: number): LibraryOp[] => {
+const factOps = (state: ItemState, input: ReadPage, now: number): LibraryOp[] => {
   const { fields } = state;
   const { facts } = input;
   const title = fields.fetchState === "filled" || input.title === "" ? fields.title : input.title;
@@ -178,17 +184,38 @@ const newPage = (
   });
 };
 
+// the ops that put a note's blocks after the person's own, keyed past the last of them
+const appendedNote = (
+  held: HeldItem,
+  note: readonly { readonly block: LibraryBlock }[],
+): LibraryOp[] => {
+  const last =
+    [...held.blocks.values()]
+      .filter((stored) => stored.section === "note")
+      .map((stored) => stored.ord)
+      .toSorted(compareText)
+      .at(-1) ?? null;
+  const keys = ordsBetween(last, null, note.length);
+  return note.map((placed, index): LibraryOp => {
+    const ord = keys[index];
+    return ord === undefined
+      ? refuse({ kind: "too-large" })
+      : { block: placed.block, op: "insert", ord, section: "note" };
+  });
+};
+
 // a page onto the item holding its address: its article replaces the item's, unless the read
 // found none, and the item's highlights are placed again in it; its facts land where the fill
-// owns them, and its tags join the item's
-const foldPage = (
+// owns them, its tags join the item's, and a note it brings goes after the item's own
+export const foldPage = (
   scope: LandingScope,
   actor: CellActor,
   codec: CellCodec,
   held: HeldItem,
   rows: AnnotationRows,
-  input: SaveInput,
-  highlight: Highlight,
+  input: ReadPage,
+  highlight: Highlight = null,
+  note: readonly { readonly block: LibraryBlock }[] = [],
 ): LiveItemRow => {
   const replacing = input.article.length > 0;
   const ops: LibraryOp[] = [
@@ -206,6 +233,7 @@ const foldPage = (
       : []),
     ...factOps(held, input, scope.now),
     ...tagsOp(held.fields, input.tags),
+    ...appendedNote(held, note),
   ];
   // a highlight whose markers the note holds stays where it is (`placeQuotes`)
   const quotes = [...(replacing ? quotesOf(rows) : []), ...(highlight === null ? [] : [highlight])];
@@ -248,23 +276,6 @@ export interface SaveLinkInput {
   readonly title?: string | undefined;
 }
 
-// the ops that put a note's blocks after the person's own, keyed past the last of them
-const appendedNote = (held: HeldItem, note: MarkdownBlocks): LibraryOp[] => {
-  const last =
-    [...held.blocks.values()]
-      .filter((stored) => stored.section === "note")
-      .map((stored) => stored.ord)
-      .toSorted(compareText)
-      .at(-1) ?? null;
-  const keys = ordsBetween(last, null, note.blocks.length);
-  return note.blocks.map((placed, index): LibraryOp => {
-    const ord = keys[index];
-    return ord === undefined
-      ? refuse({ kind: "too-large" })
-      : { block: placed.block, op: "insert", ord, section: "note" };
-  });
-};
-
 // a url to read later: the item that holds it gains the tags, the note and the folder; else an
 // unread stub lands, `pending`, which the cloud reads after the write
 export const saveLink = (
@@ -304,7 +315,7 @@ export const saveLink = (
     ...(folderId === undefined || folderId === held.fields.folderId
       ? []
       : [{ base: held.fields.folderId, field: "folderId", op: "set", value: folderId } as const]),
-    ...(note === null ? [] : appendedNote(held, note)),
+    ...(note === null ? [] : appendedNote(held, note.blocks)),
   ];
   const item = landWrite(scope, actor, { annotations: highlights, itemId: held.id, ops });
   return { folded: true, item };

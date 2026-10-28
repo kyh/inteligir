@@ -10,8 +10,11 @@ import { refuseBelowFloor } from "./client-floor";
 import { refuse } from "./cloud-http";
 import { handleAccountRoute } from "./device/account";
 import { handleDeviceRoutes } from "./device/routes";
+import { consumeFills } from "./fill/fill-consumer";
+import type { FillJob } from "./fill/fill-job";
 import { handleLibrarySocket, handleSyncSocket } from "./library/socket-routes";
 import { handleBlobRoute, isBlobPath } from "./library/blob-routes";
+import { handleExportRoute, isExportPath } from "./library/export-routes";
 import { logUnhandled } from "./log";
 import { rpcFault } from "./wire/rpc-refusal";
 import { handleV1Rpc } from "./wire/v1-rpc";
@@ -36,12 +39,14 @@ const isRpc = (pathname: string): boolean => pathname.startsWith(`${V1_RPC_PATH}
 
 // every REST client of /v1 parses the error envelope, and a bare-text 5xx reads to it as an
 // unreachable cloud; the git mount answers git clients, whose stderr would print JSON as noise,
-// the one wire answers in its own protocol, and a file's bytes in HTTP's statuses alone
+// the one wire answers in its own protocol, and a file's or an export's bytes in HTTP's statuses
+// alone
 const speaksCloudEnvelope = (pathname: string): boolean =>
   pathname.startsWith("/v1/") &&
   !pathname.startsWith(VAULT_GIT_PATH) &&
   !isRpc(pathname) &&
-  !isBlobPath(pathname);
+  !isBlobPath(pathname) &&
+  !isExportPath(pathname);
 
 const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {
   const url = new URL(request.url);
@@ -59,6 +64,11 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
   // the library's files: the floor and the credential checked as the wire checks them
   if (isBlobPath(url.pathname)) {
     return await handleBlobRoute(request, env, ctx, url);
+  }
+
+  // an export's zip, behind the same floor and credential as a file
+  if (isExportPath(url.pathname)) {
+    return await handleExportRoute(request, env, ctx, url);
   }
 
   // before any route reads the request, so a shape retired behind the floor is never parsed
@@ -121,4 +131,7 @@ export default {
         : new Response("internal error", { status: 500 });
     }
   },
-} satisfies ExportedHandler<Env>;
+  async queue(batch: MessageBatch, env: Env, ctx: ExecutionContext): Promise<void> {
+    await consumeFills(batch, env, ctx);
+  },
+} satisfies ExportedHandler<Env, FillJob>;

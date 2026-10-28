@@ -1,5 +1,13 @@
 import { bindings, defineConfig, defineWorker, exports, triggers } from "cf/config";
 import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
+import type { FillJob } from "./src/worker/fill/fill-job.ts";
+import {
+  FILL_BATCH_SIZE,
+  FILL_FAILED_QUEUE,
+  FILL_PREVIEW_QUEUE,
+  FILL_QUEUE,
+  FILL_RETRIES,
+} from "./src/worker/fill/fill-queues.ts";
 
 // the file path, not `@tanstack/react-start/server-entry`: the package export builds Start's
 // default entry and drops the API routes (cloudflare/workers-sdk#11100). Imported, not named by
@@ -62,9 +70,11 @@ const shared = {
 };
 
 // A Preview must not claim the production hostnames, and gets its own Durable Object namespaces
-// for free, and a preview-only D1 and bucket (.github/workflows/preview.yml creates them): a PR
-// never reaches the production accounts or vault packs. No EMAIL or sender: a preview must not mail
-// real inboxes from the production domain, and src/worker/auth/reset-email.ts logs instead.
+// for free, and a preview-only D1, bucket and queue (.github/workflows/preview.yml creates them):
+// a PR never reaches the production accounts, vault packs or fills. A preview consumes no queue
+// (developers.cloudflare.com/workers/previews/resources/), so a link saved there stays unread. No
+// EMAIL or sender: a preview must not mail real inboxes from the production domain, and
+// src/worker/auth/reset-email.ts logs instead.
 const previewWorker = {
   ...worker,
   triggers: [],
@@ -73,6 +83,7 @@ const previewWorker = {
     DB: bindings.d1({ name: "inteligir-auth-preview" }),
     PACK_CACHE: bindings.r2({ name: "inteligir-vault-preview" }),
     BLOBS: bindings.r2({ name: "inteligir-vault-preview" }),
+    FILLS: bindings.queue<FillJob>({ name: FILL_PREVIEW_QUEUE }),
   },
 };
 
@@ -81,6 +92,14 @@ const productionWorker = {
   triggers: [
     triggers.fetch({ pattern: "inteligir.com/*", zone: "inteligir.com" }),
     triggers.fetch({ pattern: "www.inteligir.com/*", zone: "inteligir.com" }),
+    // the pages the cloud reads, consumed by this Worker (src/worker/fill/fill-queues.ts)
+    triggers.queue({
+      deadLetterQueue: FILL_FAILED_QUEUE,
+      maxBatchSize: FILL_BATCH_SIZE,
+      maxRetries: FILL_RETRIES,
+      name: FILL_QUEUE,
+    }),
+    triggers.queue({ maxRetries: FILL_RETRIES, name: FILL_FAILED_QUEUE }),
   ],
   // no code_update_strategy: a deploy restarts every Durable Object and drops its sockets, and each
   // client reconnects and catches up by itself, so none waits on the old code to drain
@@ -94,6 +113,7 @@ const productionWorker = {
     // the library's files, under acct/<userId>/ in the same bucket; durable-git reads its own
     // bucket by the PACK_CACHE name, so the two names share it until the hosted vault goes
     BLOBS: bindings.r2({ name: "inteligir-vault" }),
+    FILLS: bindings.queue<FillJob>({ name: FILL_QUEUE }),
     // password-reset transport; needs email sending enabled + DNS onboarding once
     EMAIL: bindings.sendEmail({}),
     // the reset email's sender, on the domain onboarded for Email Sending

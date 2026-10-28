@@ -240,6 +240,18 @@ The apps also hold to these, plainly:
   from Raindrop, a Mac may also fetch the cover picture Raindrop recorded for
   it. What is saved lands in your library and
   travels wherever your library syncs.
+- **Saving a link to your online library — from our cloud, to that site.** A
+  link that reaches your account's online library without its page (one an
+  assistant you connected saved, one imported there, one refreshed there) is
+  fetched once by our cloud, from Cloudflare's network, to fill in the same
+  title, site, description, cover image and readable text, with the same
+  oEmbed addresses and the cover picture a Raindrop import recorded. The
+  request carries no cookies, sign-in or referrer, and names inteligir in a
+  Safari-compatible user agent and English as its language. Our cloud reads only
+  web addresses on their own ports, and never one whose name or written-out
+  address points into a private network, whether you saved it or a page
+  redirected there. The page's text and its pictures land in your library; the
+  page itself is not kept.
 - **The browser extension.** The Inteligir extension for Chrome, Arc, Brave,
   Edge and Vivaldi reads the page you are on only when you click Save or choose Save from
   the right-click menu. It hands the page as it is shown (its address, its
@@ -253,7 +265,12 @@ The apps also hold to these, plainly:
   the phone, and the phone then fetches the page as above to fill it in.
 - **Importing from Raindrop.** The CSV file you choose is read on your Mac and
   kept in the app's data folder only until the import ends. Each imported link
-  is then filled in as above.
+  is then filled in as above. Imported into your online library instead, the
+  file (a Raindrop CSV, or a zip of notes such as an Obsidian vault) is uploaded
+  to it, read there and deleted once the import ends.
+- **Exporting your library.** An export of your online library is a zip our
+  cloud writes in your account's own storage, which your devices download; it
+  is deleted seven days after it was written, or with your account.
 - **Your voice.** Neither the Mac app nor the phone app ever opens the
   microphone. Dictation is your operating system's own — on a Mac, press fn
   twice; on the phone, the keyboard's microphone key — which types into the app
@@ -1009,6 +1026,7 @@ to Better Auth under `/api/auth/`. Nothing else under `/v1/` exists.
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/v1/rpc`             | Every call the apps make to read and change your library (items, their text, highlights, folders, tags, history and your messages to the agent) and your account (signing in, your devices, deleting the account), each one request with its contents in the body, never the address. | Your password or invite code to sign in or up; otherwise the device's credential or your signed-in browser session, within a per-device budget. |
 | `/v1/blobs`           | Your library's files (images, PDFs, the copies of pages you keep and any other file you save), each sent once and read back by a fingerprint of its contents, never its name; a file whose contents do not match its fingerprint, or that the library has no room for, is not kept.   | The device's credential or your signed-in browser session, within a per-device budget.                                                          |
+| `/v1/exports`         | A zip of your whole library, written when you ask for an export, downloaded whole or a part at a time, and deleted seven days after it was written.                                                                                                                                   | The device's credential or your signed-in browser session, within a per-device budget.                                                          |
 | `/v1/auth/sign-up`    | Your email, name, password and invite code, once, to create the account on the website.                                                                                                                                                                                               | The invite code; attempts are throttled per caller address.                                                                                     |
 | `/v1/device/login`    | Your email, password and this device's name, once; it answers the device's credential and your account's email and id.                                                                                                                                                                | Your password; attempts are throttled per caller address.                                                                                       |
 | `/v1/device/sign-up`  | Your name, email, password, invite code and this Mac's name, once, to create the account from the app; it answers as the login does.                                                                                                                                                  | The invite code; attempts are throttled per caller address.                                                                                     |
@@ -1041,7 +1059,8 @@ Everything else the app reaches is someone else's:
   online library.
 - **The sites you save**, from the Mac or the iPhone you saved on, when you
   save a link or refresh it on a Mac, with the cover and page-copy files they
-  name, the cover a Raindrop import recorded, and the oEmbed addresses above.
+  name, the cover a Raindrop import recorded, and the oEmbed addresses above;
+  and from our cloud, for a link your online library holds unread.
 
 ---
 

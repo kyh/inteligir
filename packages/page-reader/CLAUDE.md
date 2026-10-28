@@ -33,3 +33,15 @@ A saved page read into an item: its facts and its article.
   wrote it, so the cell and a device store one reading. Rejected: a second
   html-to-blocks path (it would draw a page the markdown never held).
   `packages/page-reader/src/extract-page.ts`.
+
+- **A PAGE'S ARTICLE IS ITS READABLE PART'S LEADING 192 KiB OF MARKUP, CUT
+  BETWEEN WHOLE BLOCKS.** Reading costs time and heap by the markup's length:
+  five seconds inside a Worker isolate's heap at the budget, two and a half
+  minutes and 1.5 GB for 5 MiB, so `withinBudget` keeps whole children while
+  they fit, opens a wrapper that holds only elements, and drops the rest,
+  before anything is converted; every device reads by the one budget
+  (`FILL_LIMITS.articleBytes`), and a host with no DOM of its own reads through
+  `read-html.ts`. Rejected: cutting the converted markdown (the cost is spent
+  before it), and a budget per host (two readings of one page).
+  `packages/page-reader/src/extract-page.ts`,
+  `packages/page-reader/src/extract-page.heap.test.ts`.

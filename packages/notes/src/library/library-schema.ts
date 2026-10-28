@@ -16,7 +16,7 @@ import { all, run } from "./library-sql";
 import type { SqlPlan, SqlRow } from "./library-sql";
 
 // bump on any change below
-export const LIBRARY_SCHEMA_VERSION = 2;
+export const LIBRARY_SCHEMA_VERSION = 3;
 
 // STRICT tables are SQLite 3.37; a replica's engine is checked against it at open. The cell's is
 // the platform's own, and a Durable Object refuses sqlite_version() ("not authorized to use
@@ -50,6 +50,15 @@ export const CHANGE_SET_ACTORS = [
   "undo",
   "system",
 ] as const;
+
+// what an import reads (a Raindrop export, a folder of markdown zipped, Obsidian's included), where
+// a job stands, and the phase a running one is in: reading the file into its plan, landing its
+// items a page at a time, then the files no item embedded as items of their own
+export const IMPORT_SOURCES = ["raindrop", "markdown"] as const;
+export const IMPORT_STATES = ["running", "done", "failed", "cancelled"] as const;
+export const IMPORT_PHASES = ["reading", "landing", "files"] as const;
+// an export is written, then ready to download until it is let go
+export const EXPORT_STATES = ["writing", "ready", "failed", "expired"] as const;
 
 // a CHECK's list, spelled from the vocabulary it holds a column to
 const oneOf = (values: readonly string[]): string => values.map((value) => `'${value}'`).join(", ");
@@ -207,14 +216,15 @@ const SYNCED_DDL = [
   `CREATE INDEX IF NOT EXISTS changes_seq ON changes (seq)`,
 ] as const;
 
-// the cell's alone: History, the op ledger, the uploads it holds room for, the built-in agent and
-// the jobs its alarm runs. A change set's item names its before and after by part: an item's fields,
-// its manifest (each block's id, hash, order key and section) and its highlights are each kept once
-// per item under their content hash (`snapshot_parts`), so a revision that changed one block stores
-// one new manifest and nothing else, and no row nears a Durable Object's 2 MB. A set's after is null
-// while the set is open and the item is as it left it; it is written when the set seals, or when
-// another set is about to change the item. A block a write replaces or drops keeps its content in
-// `block_versions`, which the prune job sweeps of what no part names.
+// the cell's alone: History, the op ledger, the uploads it holds room for, the built-in agent,
+// imports and exports, and the jobs its alarm runs. A change set's item names its before and after
+// by part: an item's fields, its manifest (each block's id, hash, order key and section) and its
+// highlights are each kept once per item under their content hash (`snapshot_parts`), so a
+// revision that changed one block stores one new manifest and nothing else, and no row nears a
+// Durable Object's 2 MB. A set's after is null while the set is open and the item is as it left
+// it; it is written when the set seals, or when another set is about to change the item. A block a
+// write replaces or drops keeps its content in `block_versions`, which the prune job sweeps of what
+// no part names.
 const CELL_DDL = [
   `CREATE TABLE IF NOT EXISTS change_sets (
     id TEXT PRIMARY KEY,
@@ -305,6 +315,41 @@ const CELL_DDL = [
     cached INTEGER NOT NULL,
     output INTEGER NOT NULL,
     cost_micros INTEGER NOT NULL
+  ) STRICT`,
+  `CREATE TABLE IF NOT EXISTS import_jobs (
+    id TEXT PRIMARY KEY,
+    source TEXT NOT NULL CHECK (source IN (${oneOf(IMPORT_SOURCES)})),
+    sha TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN (${oneOf(IMPORT_STATES)})),
+    phase TEXT NOT NULL CHECK (phase IN (${oneOf(IMPORT_PHASES)})),
+    cursor INTEGER NOT NULL,
+    total INTEGER NOT NULL,
+    added INTEGER NOT NULL,
+    already_saved INTEGER NOT NULL,
+    skipped INTEGER NOT NULL,
+    unreadable INTEGER NOT NULL,
+    highlights INTEGER NOT NULL,
+    change_set_id TEXT,
+    message TEXT,
+    started_at INTEGER NOT NULL,
+    finished_at INTEGER
+  ) STRICT`,
+  // a running import's plan, a row per thing it lands, so a page reads only its own rows
+  `CREATE TABLE IF NOT EXISTS import_rows (
+    job_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    idx INTEGER NOT NULL,
+    json TEXT NOT NULL,
+    PRIMARY KEY (job_id, kind, idx)
+  ) STRICT`,
+  `CREATE TABLE IF NOT EXISTS export_jobs (
+    id TEXT PRIMARY KEY,
+    state TEXT NOT NULL CHECK (state IN (${oneOf(EXPORT_STATES)})),
+    bytes INTEGER,
+    started_at INTEGER NOT NULL,
+    finished_at INTEGER,
+    expires_at INTEGER,
+    message TEXT
   ) STRICT`,
   `CREATE TABLE IF NOT EXISTS jobs (
     id TEXT PRIMARY KEY,

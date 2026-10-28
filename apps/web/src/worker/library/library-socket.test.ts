@@ -109,7 +109,7 @@ const writeInCell = async (accountId: string): Promise<number> =>
       fields: noteFields(),
       id: crypto.randomUUID(),
     });
-    await settleCommit(state, library, result);
+    await settleCommit(state, env, library, result);
     return result.ok && result.head !== null ? result.head : 0;
   });
 

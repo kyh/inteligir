@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -9,11 +7,8 @@ import {
   toTagName,
 } from "./raindrop";
 import type { RaindropRow } from "./raindrop";
+import { RAINDROP_EXPORT as FIXTURE } from "./test-support/raindrop-export";
 
-const FIXTURE = readFileSync(
-  path.join(import.meta.dirname, "test-support", "fixtures", "raindrop-export.csv"),
-  "utf-8",
-);
 const NOW = Date.UTC(2026, 9, 17, 9, 0, 0);
 
 const rowsOf = (text: string): RaindropRow[] => {
@@ -129,8 +124,10 @@ describe("planRaindropImport", () => {
       note: "For Tuesday.",
       pinned: true,
       saved: "2023-07-01T09:12:30Z",
+      savedMs: Date.UTC(2023, 6, 1, 9, 12, 30),
       stem: "File over app",
       tags: ["philosophy", "files", "ideas", "c"],
+      title: "File over app",
     });
     expect(item?.highlights).toEqual([
       { quote: "Files last.", text: "The point." },
@@ -161,6 +158,7 @@ describe("planRaindropImport", () => {
   it("keeps only a web cover, and names an untitled row after its url", () => {
     expect(byUrl.get("https://example.com/deep")?.cover).toBeNull();
     expect(byUrl.get("https://example.com/untitled")?.stem).toBe("example.com - untitled");
+    expect(byUrl.get("https://example.com/untitled")?.title).toBeNull();
     expect(byUrl.get("https://cooking.example.com/pasta-al-limone")?.tags).toEqual([
       "recipes",
       "Quick-Meals",

@@ -393,8 +393,11 @@ how a bullet is written and cited.
   Crypto's calls). The program's `paths` maps `highlight.js` to the one type
   lowlight takes from it (`LanguageFn`). Rejected: `lib.dom` in the Worker
   (two `BodyInit`s); dropping code blocks from the headless kits (the codec
-  reads every block a note holds). `apps/web/src/worker/tsconfig.json`,
-  `apps/web/src/worker/types/highlight-js.d.ts`.
+  reads every block a note holds). The page reader's one entry the fill calls
+  maps to its DOM-free signature the same way.
+  `apps/web/src/worker/tsconfig.json`,
+  `apps/web/src/worker/types/highlight-js.d.ts`,
+  `apps/web/src/worker/types/page-reader-read-html.d.ts`.
 
 - **A SAVED PAGE OF A URL THE LIBRARY HOLDS FOLDS ONTO ITS ITEM, ITS ARTICLE
   REPLACING THE ITEM'S AND THE ITEM'S HIGHLIGHTS PLACED AGAIN.** One url, one
@@ -406,3 +409,59 @@ how a bullet is written and cited.
   leaves the item's. Rejected: keeping the first article (a resave never shows
   the page as it reads now); answering `exists` (the popup's highlight did
   nothing). `apps/web/src/worker/library/cell-saves.ts`.
+
+- **A SAVED LINK IS READ OFF THE FILL QUEUE, ASKED FOR IN THE WRITE THAT MADE IT
+  WAIT.** The write lands a `fill` job row in its own transaction, and the cell
+  sends it to `inteligir-fill` once the write commits; a row no send took is
+  sent again by the alarm a minute on. The consumer reads a page only while its
+  item still waits, asks again a page a later try may pass (30 s, doubling,
+  three retries), and the dead-letter queue's consumer says the failure, so no
+  link waits unread for good. Rejected: sending inside the write (a reading
+  asked for a write that rolled back); fetching on the cell's alarm (a page's
+  seconds of CPU hold every write). `apps/web/src/worker/library/cell-fills.ts`,
+  `apps/web/src/worker/fill/fill-consumer.ts`.
+
+- **THE CLOUD'S FETCH IS THE PLATFORM'S, EACH HOP JUDGED BY HOW ITS ADDRESS IS
+  SPELLED.** A Worker resolves no name, so `fetchPage` refuses any scheme but
+  http and https, any port but a page's own and any host whose spelling names
+  private space, the saved address and every redirect alike, follows at most
+  five redirects itself and counts bytes as they arrive;
+  `global_fetch_strictly_public` sends even this zone through its front door.
+  Rejected: a lookup first (the platform dials by name anyway, so it proves
+  nothing of the socket); leaving it to the platform (an address it cannot
+  reach is retried three times, then said vaguely, where a refusal is said at
+  once). `apps/web/src/worker/fill/page-fetch.ts`.
+
+- **A READING LANDS ONLY THE ARTICLE AND THE FACTS A FILL OWNS, AS ITS OWN
+  CHANGE SET, ON AN ITEM STILL WAITING FOR IT.** `landFill` replaces the
+  article and places the item's highlights again by their quotes, sets a fact
+  only where the page gave one, renames only an item still named by its
+  address, and never touches the note; an item deleted, read or readdressed
+  meanwhile lands nothing, so a message met twice lands once. A page whose
+  redirects end at another live item's address folds onto it, the stub's tags
+  and note with it. Rejected: bases the consumer read (a reading nobody edited
+  around would conflict with every save meanwhile).
+  `apps/web/src/worker/library/cell-fills.ts`.
+
+- **AN IMPORT IS A CELL JOB RUN A PAGE AT A TIME, ITS PLAN IN ROWS.**
+  `library.imports.start` names a file the device uploaded, and each alarm run
+  does one page (a hundred bookmarks, fifty notes, or ten seconds waiting on
+  R2) in transactions that move the job's cursor with what they land, so an
+  eviction loses and repeats nothing. A zip is read where it lies, by its
+  directory: pass one keeps each note's frontmatter and puts every file in the
+  library, the plan is made once, then the notes and the files no note embeds
+  land in one change set the job closes. Rejected: one run per import (an
+  alarm's 30 s of CPU); the Worker importing (no transaction of its joins the
+  cell's). `apps/web/src/worker/library/cell-imports.ts`,
+  `apps/web/src/worker/library/cell-import-markdown.ts`.
+
+- **AN EXPORT IS A ZIP THE CELL STREAMS INTO R2 IN PARTS OF ONE SIZE, AND LETS
+  GO SEVEN DAYS ON.** One alarm run reads each live item as its turn comes,
+  writes the vault's format (`planExport`) through the zip writer, data
+  descriptors and ZIP64 included, into 8 MiB parts of one multipart upload
+  under `acct/<userId>/x/`, which the account's purge takes; an `expire` job
+  deletes it, and `/v1/exports/<id>` serves it from the verified account's
+  prefix alone. Rejected: an R2 lifecycle rule (by prefix only, and that prefix
+  holds the account's files); fflate (no ZIP64 writer) and zip.js (timers and a
+  worker pool). `apps/web/src/worker/library/cell-exports.ts`,
+  `apps/web/src/worker/zip/zip-write.ts`.

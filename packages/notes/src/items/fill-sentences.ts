@@ -1,11 +1,17 @@
 // why a page was not read, in one plain sentence, as the item's `fetch-error` says it, and whether
 // the fill tries again later: offline, a timeout, a resolver that did not answer, or a site saying
 // it is busy (429, 503) leave the stub as it is for a retry; anything else is said in the file.
-// Every device that fills a link says it in these words: the Mac's guarded fetch and the phone's.
+// Every filler of a link says it in these words: the Mac's guarded fetch, the phone's and the cloud's.
 
 // what the Mac's address guard refuses to dial; the phone's fetch, which has no lookup, refuses only
-// a hop from a public address to one whose spelling names private space
-export type FetchRefusal = "this-mac" | "link-local" | "reserved" | "private-from-public";
+// a hop from a public address to one whose spelling names private space; and the cloud's, which
+// reaches no private space at all, refuses a saved address whose spelling names it
+export type FetchRefusal =
+  | "this-mac"
+  | "link-local"
+  | "reserved"
+  | "private-from-public"
+  | "private-network";
 
 export type FetchFailure =
   | { kind: "refused"; refusal: FetchRefusal }
@@ -124,6 +130,13 @@ export const failureOf = (failure: FetchFailure): FillFailure => {
         case "private-from-public": {
           return {
             sentence: "The page pointed at an address on your own network, so it isn't read.",
+            transient: false,
+          };
+        }
+        case "private-network": {
+          return {
+            sentence:
+              "This address is on a private network, which the cloud can't reach, so its page isn't read.",
             transient: false,
           };
         }

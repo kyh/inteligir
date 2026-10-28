@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { configDefaults, defineConfig } from "vitest/config";
 import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
+import { FILL_QUEUE } from "./src/worker/fill/fill-queues.ts";
 
 // resolved from this file: cwd is apps/web under vitest but the repo root under knip.
 const HERE = import.meta.dirname;
@@ -39,6 +40,9 @@ export default defineConfig({
         compatibilityFlags,
         d1Databases: ["DB"],
         r2Buckets: ["BLOBS", "PACK_CACHE"],
+        // the producer alone: a suite hands the consumer its batch itself (createMessageBatch), so
+        // no message a test's save sends is read behind its back
+        queueProducers: { FILLS: { queueName: FILL_QUEUE } },
         durableObjects: {
           // the plugin reads ctx.exports' classes from the source and their storage from here, so
           // this row is what makes ctx.exports.LibraryDO a SQLite namespace; only the suites read it

@@ -25,7 +25,12 @@ import {
   propertyKeySchema,
   SHA256_HEX_RE,
 } from "@repo/notes/library/library-item";
-import { CHANGE_SET_ACTORS } from "@repo/notes/library/library-schema";
+import {
+  CHANGE_SET_ACTORS,
+  EXPORT_STATES,
+  IMPORT_SOURCES,
+  IMPORT_STATES,
+} from "@repo/notes/library/library-schema";
 import {
   blockIdSchema,
   libraryBlockSchema,
@@ -430,3 +435,42 @@ export const agentViewContextSchema = z.discriminatedUnion("surface", [
     surface: z.literal("library"),
   }),
 ]);
+
+// ---- imports and exports ----
+
+const count = z.number().int().nonnegative();
+
+// an import as it runs and once it ended: what it found, what it added, what the library already
+// held by its address, what it left out and why, and the change set History shows it as
+export const importJobSchema = z.object({
+  added: count,
+  alreadySaved: count,
+  changeSetId: idSchema.nullable(),
+  finishedAt: instant.nullable(),
+  highlights: count,
+  id: idSchema,
+  // why a job failed, in a sentence the person reads
+  message: z.string().nullable(),
+  // what the import leaves out by its rules: a bookmark with no web address or one in the bin, and
+  // a path no item is made of (a vault's settings, another dot-folder's)
+  skipped: count,
+  source: z.enum(IMPORT_SOURCES),
+  startedAt: instant,
+  state: z.enum(IMPORT_STATES),
+  total: count,
+  // what could not be read into an item: a note nested past what the editor reads or past what an
+  // item holds, a zip entry that would not open, an item the library refused
+  unreadable: count,
+});
+
+// an export, a zip of the library in the vault's format, downloaded from `/v1/exports/<id>` while
+// it is ready
+export const exportJobSchema = z.object({
+  bytes: count.nullable(),
+  expiresAt: instant.nullable(),
+  finishedAt: instant.nullable(),
+  id: idSchema,
+  message: z.string().nullable(),
+  startedAt: instant,
+  state: z.enum(EXPORT_STATES),
+});

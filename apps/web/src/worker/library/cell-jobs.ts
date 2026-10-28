@@ -1,14 +1,24 @@
 // The cell's one alarm runs what the `jobs` table holds: a change set to seal once its actor goes
 // quiet, the daily prune of history, an upload whose room was held too long, a stray file to take
-// out of R2. A job is a row, so it survives eviction and a missed alarm; the alarm is set to the
-// earliest due one, and only while any is waiting
+// out of R2, a page's reading to send to the fill queue, an import's next page, an export to write
+// and one to let go. A job is a row, so it survives eviction and a missed alarm; the alarm is set
+// to the earliest due one, and only while any is waiting
 // (https://developers.cloudflare.com/durable-objects/api/alarms/).
 
 import { z } from "zod";
 
 import type { SqlStatements } from "@repo/notes/library/library-sql";
 
-const JOB_KINDS = ["seal", "prune", "upload", "stray"] as const;
+const JOB_KINDS = [
+  "seal",
+  "prune",
+  "upload",
+  "stray",
+  "fill",
+  "import",
+  "export",
+  "expire",
+] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
 export interface DueJob<K extends JobKind = JobKind> {
@@ -48,6 +58,11 @@ export const ensureJob = (
 
 export const dropJob = (sql: SqlStatements, id: string): void => {
   sql.run("DELETE FROM jobs WHERE id = ?", [id]);
+};
+
+// a job's next run moved, its attempts counted
+export const deferJob = (sql: SqlStatements, id: string, nextAt: number): void => {
+  sql.run("UPDATE jobs SET attempts = attempts + 1, next_at = ? WHERE id = ?", [nextAt, id]);
 };
 
 // a failed run waits longer each time, at most an hour

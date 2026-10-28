@@ -1,4 +1,6 @@
 import site from "@tanstack/react-start/server-entry";
+import type { FillJob } from "./fill/fill-job";
+import { consumeFills } from "./fill/fill-consumer";
 import api, { ownsPath } from "./index";
 
 // A plain ExportedHandler rather than Start's createServerEntry: Cloudflare calls fetch with the
@@ -16,4 +18,8 @@ export default {
       ? await api.fetch(request, env, ctx)
       : await site.fetch(request);
   },
-} satisfies ExportedHandler<Env>;
+  // the pages the cloud reads, and the ones its retries could not (./fill/fill-consumer.ts)
+  async queue(batch, env, ctx) {
+    await consumeFills(batch, env, ctx);
+  },
+} satisfies ExportedHandler<Env, FillJob>;

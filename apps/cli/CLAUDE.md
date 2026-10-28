@@ -214,8 +214,9 @@ dialect skills, the licence texts and `@repo/workspace`'s page as `dist/ui`.
   at boot, where a url the library already holds counts as saved, so a resume
   adds nothing twice. Rejected: a job table in the database (url dedupe already
   makes a re-run a safe resume).
-  `apps/cli/src/server/imports/import-service.ts`, `raindrop.ts`,
-  `imports-router.ts`.
+  `apps/cli/src/server/imports/import-service.ts`,
+  `packages/notes/src/imports/raindrop.ts`,
+  `apps/cli/src/server/imports/imports-router.ts`.
 
 - **AN IMPORT BATCH SETTLES THE INDEX ONCE, COMMITS ONCE AND FETCHES NOTHING.**
   The plan and each batch settle the index once, through the items core, which

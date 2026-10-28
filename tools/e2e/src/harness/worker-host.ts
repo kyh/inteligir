@@ -1,6 +1,6 @@
 // Boots apps/web's built Worker under Miniflare, as its own process so the harness supervises and
-// kills it like any other child. Reads the Build Output `cf build` writes, so the bindings are the
-// ones that deploy, never a restatement. A second port answers what an account still holds (its
+// kills it like any other child. Reads the Build Output `cf build` writes, so the bindings and the
+// queues it consumes are the ones that deploy, never a restatement. A second port answers what an account still holds (its
 // library cell, its files in R2 and its rows in D1), read through Miniflare's own handles, so a
 // scenario observes a deletion the Worker itself would never describe.
 
@@ -62,8 +62,9 @@ const workerOptions = async (): Promise<MiniflareOptions["workers"]> => {
         assets: { directory: path.join(args.outputDir, "assets"), hasUserWorker: true },
         env: { ...config.env, ...vars },
         manifest: { mainModule: manifest.mainModule, modules },
-        // the production routes would leave the local origin unrouted
-        triggers: [],
+        // the production routes would leave the local origin unrouted; the fill queues' consumers
+        // stay, so a link saved here is read by the Worker's own consumer, as it is deployed
+        triggers: (config.triggers ?? []).filter((trigger) => trigger.type === "queue"),
       },
     },
   ];

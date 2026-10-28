@@ -33,12 +33,14 @@ import {
   cursorSchema,
   epochSchema,
   eventIdSchema,
+  exportJobSchema,
   folderNameSchema,
   folderOpSchema,
   folderPathNames,
   highlightSchema,
   isoDate,
   idSchema,
+  importJobSchema,
   itemReadSchema,
   itemSummarySchema,
   libraryChangeSchema,
@@ -434,6 +436,44 @@ const historyContract = {
     ),
 };
 
+// an import reads a file the device uploaded to `/v1/blobs` first: a Raindrop export's CSV, or a
+// zip of markdown, a vault from this app's export or Obsidian's included. The cell runs it as a
+// job, a page at a time, every item it adds in one change set History shows
+const importsContract = {
+  start: signedBase
+    .errors({
+      [BlobMissingError.code]: BlobMissingError,
+      [PayloadTooLargeError.code]: PayloadTooLargeError,
+    })
+    .input(z.strictObject({ opId, sha: shaSchema, source: importJobSchema.shape.source }))
+    .output(z.object({ job: importJobSchema })),
+
+  get: signedBase
+    .errors({ [NotFoundError.code]: NotFoundError })
+    .input(z.strictObject({ id: idSchema }))
+    .output(z.object({ job: importJobSchema })),
+
+  // the newest import, null when the library never imported
+  latest: signedBase.output(z.object({ job: importJobSchema.nullable() })),
+
+  // stops after the page it is on; what it added stays, and its change set closes
+  cancel: signedBase
+    .errors({ [NotFoundError.code]: NotFoundError })
+    .input(z.strictObject({ id: idSchema, opId }))
+    .output(z.object({ job: importJobSchema })),
+};
+
+// the whole library as a zip in the vault's format, written by the cell and downloaded from
+// `/v1/exports/<id>` until it is let go, seven days on
+const exportsContract = {
+  start: signedBase.input(z.strictObject({ opId })).output(z.object({ export: exportJobSchema })),
+
+  get: signedBase
+    .errors({ [NotFoundError.code]: NotFoundError })
+    .input(z.strictObject({ id: idSchema }))
+    .output(z.object({ export: exportJobSchema })),
+};
+
 const threadAnswer = z.object({ status: z.enum(THREAD_STATUSES), threadId: idSchema });
 
 const agentContract = {
@@ -524,8 +564,10 @@ export const libraryContract = {
   agent: agentContract,
   annotations: annotationsContract,
 
+  exports: exportsContract,
   folders: foldersContract,
   history: historyContract,
+  imports: importsContract,
   items: itemsContract,
   organize: organizeContract,
 

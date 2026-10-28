@@ -33,7 +33,7 @@ import { refuse, RefusedWriteError } from "./cell-refusal";
 import { landWrite } from "./cell-writes";
 
 type AnnotationOp = z.infer<typeof annotationOpSchema>;
-type AddOp = Extract<AnnotationOp, { op: "add" }>;
+export type AddOp = Extract<AnnotationOp, { op: "add" }>;
 
 export interface PlacedBlock {
   readonly block: LibraryBlock;
@@ -102,7 +102,7 @@ export const bareHighlight = (
 
 // a store an import read, as the adds that make its rows; a root that kept no quote has no passage
 // to anchor, so it is no highlight
-const storeAdds = (store: AnnotationStore): AddOp[] =>
+export const storeAdds = (store: AnnotationStore): AddOp[] =>
   Object.entries(store).flatMap(([id, entry]): AddOp[] => {
     const parentId = entry.parentId ?? null;
     const quote = parentId === null ? (entry.quote ?? null) : null;

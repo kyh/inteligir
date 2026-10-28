@@ -78,8 +78,9 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // the cloud: the @repo/notes edge is the library model the account's cell applies, the same
     // pure plans and SQL every replica runs, injected with the cell's own storage; the
     // @repo/editor edge is the markdown codec's headless kits (`@repo/editor/codec/*`), the one
-    // reading and writing of an item an agent's procedures go through
-    "@repo/web": ["@repo/contract", "@repo/editor", "@repo/notes", "@repo/ui"],
+    // reading and writing of an item an agent's procedures go through; the @repo/page-reader edge
+    // is the cloud's fill, a saved page read by the reader every device runs, over linkedom
+    "@repo/web": ["@repo/contract", "@repo/editor", "@repo/notes", "@repo/page-reader", "@repo/ui"],
     // the page every vault's server answers and the first run the shell carries; it reaches no
     // server and no shell source, only the wire to each. Its suites that boot a server live in
     // apps/cli, so nothing here depends on `inteligir`.

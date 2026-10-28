@@ -4,6 +4,14 @@
 
 import { z } from "zod";
 
+// a page to read: its html, the address it was read at, and which text it is kept for, its prose or
+// (a video's, a song's) its description
+export interface PageArgs {
+  readonly html: string;
+  readonly url: string;
+  readonly prefer: "article" | "description";
+}
+
 export const pageFactsSchema = z.strictObject({
   author: z.string().nullable(),
   description: z.string().nullable(),

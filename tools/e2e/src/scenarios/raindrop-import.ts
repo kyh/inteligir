@@ -16,13 +16,15 @@ import { writeDeviceCredential } from "inteligir/server/cloud/credential-store";
 import { agentShellCli } from "../harness/agent-shell-cli";
 import type { AgentShellCli } from "../harness/agent-shell-cli";
 import { expect, expectEq } from "../harness/assert";
-import { loginDevice, signUp } from "../harness/cloud-account";
+import { loginDevice, OWNER, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { gitIn } from "../harness/exec";
 import { hostedVaultEnv, signInOwner, syncUntil } from "../harness/hosted-vault";
 import type { AppInstance } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import type { Scenario, ScenarioContext } from "../harness/scenario";
+import { uploadFile, v1Client } from "../harness/v1-wire";
+import type { CloudWorker } from "../harness/cloud-worker";
 
 // every link sits in TEST-NET-1 (192.0.2.0/24), space the guarded fetch refuses before it opens a
 // socket: each page's fill fails here and nothing leaves the machine (§0.2.9). the import itself
@@ -242,9 +244,10 @@ const importsIntoFolders = async (
   expectEq(await importCommits(app.vaultDir), 1, "commits after the re-import");
 };
 
-const reachesTheHostedLibraryInBatches = async (ctx: ScenarioContext): Promise<void> => {
-  const worker = await ctx.cloudWorker();
-  await signUp(worker.origin);
+const reachesTheHostedLibraryInBatches = async (
+  ctx: ScenarioContext,
+  worker: CloudWorker,
+): Promise<void> => {
   const a = await ctx.boot({ extraEnv: hostedVaultEnv(worker.origin), name: "a" });
   await signInOwner(a, "A", "E2E Device A");
   const cli = agentShellCli(ctx.repoRoot, a.dataDir);
@@ -274,9 +277,78 @@ const reachesTheHostedLibraryInBatches = async (ctx: ScenarioContext): Promise<v
   expectEq(listed.split("\n").length, BULK_ROWS, "B holds every imported item");
 };
 
+// the same backup imported into the account's library in the cloud, over the one wire: the cell
+// runs the job, every link lands unread and the Worker's own fill consumer reads each, which the
+// guarded fetch refuses here (an address written out), so each says so in the item
+const importsIntoTheCloudLibrary = async (ctx: ScenarioContext, worker: CloudWorker) => {
+  const phone = await v1Client(worker, null).account.signIn({ ...OWNER, deviceName: "E2E Phone" });
+  const { library } = v1Client(worker, phone.credential);
+  const upload = await uploadFile(worker, phone.credential, {
+    bytes: new TextEncoder().encode(BACKUP),
+    type: "text/csv",
+  });
+  expectEq(upload.status, 201, "the backup's upload");
+
+  ctx.log("the cloud imports the backup: three links, one folded into another, the bin left out");
+  const started = await library.imports.start({ sha: upload.sha, source: "raindrop" });
+  const done = await pollUntil(
+    async () => await library.imports.get({ id: started.job.id }),
+    (answer) => answer.job.state !== "running",
+    { deadlineMs: FILL_DEADLINE_MS, describe: (answer) => `the import is ${answer.job.state}` },
+  );
+  expectEq(done.job.state, "done", "the cloud import's end");
+  expectEq(done.job.added, 3, "links the cloud import added");
+  expectEq(done.job.alreadySaved, 1, "rows folded into another of the same link");
+  expectEq(done.job.skipped, 1, "rows left out");
+  expectEq(done.job.highlights, 3, "highlights the cloud import kept");
+
+  ctx.log("the Worker's fill consumer reads each link and says why it could not");
+  const { items } = await library.items.list({ kind: "link" });
+  expectEq(
+    items
+      .map((item) => item.title)
+      .toSorted()
+      .join(","),
+    "File over app,Pasta al limone,Unsorted one",
+    "the cloud library's links",
+  );
+  for (const item of items) {
+    const read = await pollUntil(
+      async () => await library.items.read({ id: item.id }),
+      (answer) => answer.fields.fetchState !== "pending",
+      {
+        deadlineMs: FILL_DEADLINE_MS,
+        describe: (answer) => `${item.title} is ${answer.fields.fetchState}`,
+      },
+    );
+    expectEq(read.fields.fetchState, "failed", `${item.title}'s reading`);
+    expectEq(
+      read.fields.fetchError,
+      "This address is on a private network, which the cloud can't reach, so its page isn't read.",
+      `${item.title}'s reading, said`,
+    );
+  }
+
+  ctx.log("a second cloud import of the same backup, uploaded again, adds nothing");
+  // the library let the first upload go once its import ended
+  const reupload = await uploadFile(worker, phone.credential, {
+    bytes: new TextEncoder().encode(BACKUP),
+    type: "text/csv",
+  });
+  expectEq(reupload.status, 201, "the backup's second upload");
+  const again = await library.imports.start({ sha: reupload.sha, source: "raindrop" });
+  const second = await pollUntil(
+    async () => await library.imports.get({ id: again.job.id }),
+    (answer) => answer.job.state !== "running",
+    { deadlineMs: FILL_DEADLINE_MS, describe: (answer) => `the re-import is ${answer.job.state}` },
+  );
+  expectEq(second.job.added, 0, "links the cloud re-import added");
+  expectEq(second.job.alreadySaved, 4, "rows the cloud re-import found saved");
+};
+
 export const raindropImport: Scenario = {
   description:
-    "import raindrop puts a backup's links in their folders with their tags and pins, its highlights wait on their stubs, a re-import adds nothing, and the hosted library takes it in batches",
+    "import raindrop puts a backup's links in their folders with their tags and pins, its highlights wait on their stubs, a re-import adds nothing, and the hosted library takes it in batches; the same backup imported into the cloud library over the one wire lands as unread links the Worker's fill consumer reads, and a re-import there adds nothing too",
   name: "raindrop-import",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -289,6 +361,9 @@ export const raindropImport: Scenario = {
       "Imported 0 items from Raindrop (3 already saved)",
       "the latest import's status",
     );
-    await reachesTheHostedLibraryInBatches(ctx);
+    const worker = await ctx.cloudWorker();
+    await signUp(worker.origin);
+    await reachesTheHostedLibraryInBatches(ctx, worker);
+    await importsIntoTheCloudLibrary(ctx, worker);
   },
 };

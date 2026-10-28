@@ -12,11 +12,13 @@ import { describe, expect, it } from "vitest";
 import { analyzeMarkdown, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { composeLinkBody } from "@repo/notes/items/item-body";
 import { composeItemFile } from "@repo/notes/items/item-frontmatter";
+import { FILL_LIMITS } from "@repo/notes/items/link-fill";
 
 import { extractPage, extractPageBlocks, KEPT_MIN } from "./extract-page";
 import type { ParsePage } from "./extract-page";
 import { parsePage } from "./linkedom-page";
 import type { ExtractedPage } from "./page-facts";
+import { longPage } from "./test-support/long-page";
 
 // spelled in two halves: the scheme the article must not hold, never a link of this suite's
 const SCRIPT_SCHEME = ["java", "script:"].join("");
@@ -176,6 +178,42 @@ describe("the article", () => {
     expect(extracted("video-page", "description").article).toBe(
       "A quick guide to a first loaf: starter, dough, fold, bake.\n",
     );
+  });
+});
+
+describe("the article's budget", () => {
+  it("keeps a long page's leading paragraphs, whole, within the budget", () => {
+    const long = longPage(FILL_LIMITS.articleBytes * 2);
+    const { article } = extractPage(
+      { html: long.html, prefer: "article", url: PAGE_URL },
+      parsePage,
+    );
+    expect(article).toContain("Paragraph 0 opens with");
+    expect(article).not.toContain(`Paragraph ${String(long.paragraphs - 1)} opens`);
+    // whole paragraphs: the last one kept ends its sentence
+    expect(article.trimEnd().endsWith("ordinary prose.")).toBe(true);
+    // markdown is shorter than the markup it was read from, which the budget counts
+    expect(article.length).toBeLessThan(FILL_LIMITS.articleBytes);
+    expect(article.length).toBeGreaterThan(FILL_LIMITS.articleBytes / 3);
+  });
+
+  it("opens one wrapper past the budget rather than losing the whole page", () => {
+    const long = longPage(FILL_LIMITS.articleBytes * 2);
+    const wrapped = long.html
+      .replace("<article>", "<article><div><div>")
+      .replace("</article>", "</div></div></article>");
+    const { article } = extractPage({ html: wrapped, prefer: "article", url: PAGE_URL }, parsePage);
+    expect(article).toContain("Paragraph 0 opens with");
+    expect(article).not.toContain(`Paragraph ${String(long.paragraphs - 1)} opens`);
+  });
+
+  it("leaves a page within the budget whole", () => {
+    const short = longPage(FILL_LIMITS.articleBytes / 4);
+    const { article } = extractPage(
+      { html: short.html, prefer: "article", url: PAGE_URL },
+      parsePage,
+    );
+    expect(article).toContain(`Paragraph ${String(short.paragraphs - 1)} opens`);
   });
 });
 

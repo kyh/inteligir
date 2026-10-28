@@ -1,20 +1,21 @@
 // A Raindrop.io CSV export read into library items: the header by name in any order and case,
-// a row per bookmark, folded by url key, every cell treated as hostile text. Pure: the job
-// (import-service.ts) does the writing.
+// a row per bookmark, folded by url key, every cell treated as hostile text. Pure: an import job
+// does the writing, the Mac's (apps/cli's import-service.ts) and the library cell's alike.
 //
 // Raindrop's columns: id, title, note, excerpt, url, folder, tags, created, cover, highlights,
 // favorite. Only `url` is required; a per-collection export has no `folder`.
 
-import { clipQuote } from "@repo/notes/annotations/store-schema";
-import { UNSORTED_FOLDER } from "@repo/notes/items/item-kind";
-import { itemNameFromTitle, itemStem } from "@repo/notes/items/item-name";
-import { formatItemTime, parseItemTime } from "@repo/notes/items/item-time";
-import { cleanUrl, isWebUrl, urlKey } from "@repo/notes/items/item-url";
-import { isTagName } from "@repo/notes/knowledge/tag-grammar";
-
-import type { ImportSkipReason } from "@repo/contract/local/imports/imports-schema";
-
+import { clipQuote } from "../annotations/store-schema";
+import { UNSORTED_FOLDER } from "../items/item-kind";
+import { itemNameFromTitle, itemStem } from "../items/item-name";
+import { formatItemTime, parseItemTime } from "../items/item-time";
+import { cleanUrl, isWebUrl, urlKey } from "../items/item-url";
+import { isTagName } from "../knowledge/tag-grammar";
 import { parseCsv } from "./csv";
+
+// why a row of the export is left out: it names no address, one off the web, or sits in the bin
+export const IMPORT_SKIP_REASONS = ["no-url", "not-web-url", "in-trash"] as const;
+export type ImportSkipReason = (typeof IMPORT_SKIP_REASONS)[number];
 
 export interface RaindropHighlight {
   quote: string;
@@ -165,11 +166,15 @@ export interface PlannedItem {
   record: number;
   key: string;
   url: string;
+  // the row's own title, null when it gave none
+  title: string | null;
   stem: string;
   folder: string;
   tags: string[];
-  // formatItemTime, and the same instant in unix seconds for the highlights' dates
+  // formatItemTime, and the same instant in unix milliseconds and in unix seconds, for the
+  // highlights' dates
   saved: string;
+  savedMs: number;
   savedSeconds: number;
   description: string | null;
   // the item's body: the person's note on the bookmark
@@ -289,9 +294,11 @@ export const planRaindropImport = (rows: readonly RaindropRow[], now: number): I
       pinned: row.favorite,
       record: row.record,
       saved: formatItemTime(savedMs),
+      savedMs,
       savedSeconds: Math.floor(savedMs / MS_PER_SECOND),
       stem: itemStem(row.title.trim() === "" ? null : row.title, url),
       tags,
+      title: row.title.trim() === "" ? null : row.title.trim(),
       url,
     });
   }

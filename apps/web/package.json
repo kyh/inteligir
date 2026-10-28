@@ -26,6 +26,7 @@
     "@repo/contract": "workspace:*",
     "@repo/editor": "workspace:*",
     "@repo/notes": "workspace:*",
+    "@repo/page-reader": "workspace:*",
     "@repo/ui": "workspace:*",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",

@@ -19,6 +19,8 @@
     "./formulas/format-result": "./src/formulas/format-result.ts",
     "./formulas/formula-meta": "./src/formulas/formula-meta.ts",
     "./formulas/resolve-graph": "./src/formulas/resolve-graph.ts",
+    "./imports/raindrop": "./src/imports/raindrop.ts",
+    "./imports/test-support/raindrop-export": "./src/imports/test-support/raindrop-export.ts",
     "./iso-date": "./src/iso-date.ts",
     "./items/fill-sentences": "./src/items/fill-sentences.ts",
     "./items/host-names": "./src/items/host-names.ts",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { seededRandom } from "../annotations/test-support/quote-corpus";
+import { mulberry32 } from "../test-support/seeded-random";
 import { parseCsv } from "./csv";
 
 const records = (text: string): string[][] => {
@@ -65,7 +65,7 @@ describe("parseCsv", () => {
   });
 
   it("round-trips a random matrix written as RFC 4180", () => {
-    const random = seededRandom(4180);
+    const random = mulberry32(4180);
     const alphabet = ["a", "b", " ", ",", '"', "\n", "\r\n", "é", "x"];
     const cell = (): string =>
       Array.from(

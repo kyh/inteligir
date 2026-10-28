@@ -20,6 +20,8 @@ import { LibraryRowError, runPlan } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
+import { fillLandedSchema } from "../fill/fill-landing";
+import type { FillLanding } from "../fill/fill-landing";
 import type { CellActor } from "./cell-actor";
 import { readAnnotationRows } from "./cell-annotations";
 import {
@@ -34,6 +36,9 @@ import {
   settleUpload,
 } from "./cell-blobs";
 import type { StoredObject, UploadRequest, UploadRoom } from "./cell-blobs";
+import { cellCodec } from "./cell-codec";
+import { claimFills, FILL_ACTOR, fillWaits, landFill, sentFills } from "./cell-fills";
+import type { ClaimedFill } from "./cell-fills";
 import type { CellIds } from "./cell-ids";
 import { landNew } from "./cell-items";
 import type { NewItem } from "./cell-items";
@@ -360,6 +365,22 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     });
   };
 
+  // the readings committed writes asked for, each put off a minute until the queue takes it
+  const claimDueFills = (): ClaimedFill[] =>
+    storage.transaction(() => claimFills(storage, deps.now()));
+
+  const fillsSent = (claimed: readonly ClaimedFill[]): void => {
+    storage.transaction(() => {
+      sentFills(storage, claimed);
+    });
+  };
+
+  // a page the cloud read, landed as a change set of the fill's own
+  const landReading = (landing: FillLanding) =>
+    land(FILL_ACTOR, { answer: fillLandedSchema, opId: undefined }, (scope) =>
+      landFill(scope, cellCodec(storage, ids), landing),
+    );
+
   // a read, refused once the account is being deleted, or by its own rules (a cursor this library
   // never gave, an id naming nothing)
   const reading = <T>(read: () => T): CellResult<T> => {
@@ -377,6 +398,9 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   };
 
   const read = <T>(work: (sql: SqlStatements) => T): CellResult<T> => reading(() => work(storage));
+
+  const fillWanted = (itemId: string, url: string): CellResult<boolean> =>
+    reading(() => fillWaits(storage, itemId, url));
 
   const pull = (request: { readonly cursor: number; readonly epoch: string | null }) =>
     reading((): PullAnswer => pullChanges(storage, request));
@@ -461,14 +485,18 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     beginStrayRemovals,
     blobRemovals: () => blobRemovals(storage),
     bodies,
+    claimDueFills,
     closeChangeSet,
     create,
     deletedAt,
     endStrayRemovals,
+    fillWanted,
+    fillsSent,
     head: () => libraryHead(storage),
     ids,
     land,
     landApart,
+    landReading,
     nextJobAt: () => nextJobAt(storage),
     pull,
     purgeItems,

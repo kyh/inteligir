@@ -38,8 +38,8 @@ import { stagedWriteFileSync } from "../staged-write";
 import type { GitEngine } from "../vault/git-engine";
 import { ENGINE_IDENTITY } from "../vault/git-run";
 import { ImportsError } from "./imports-error";
-import { parseRaindropCsv, planRaindropImport } from "./raindrop";
-import type { ImportPlan, PlannedItem, SkippedRow } from "./raindrop";
+import { parseRaindropCsv, planRaindropImport } from "@repo/notes/imports/raindrop";
+import type { ImportPlan, PlannedItem, SkippedRow } from "@repo/notes/imports/raindrop";
 
 export interface ImportService {
   // throws ImportsError "unreadable" with its reason

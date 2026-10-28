@@ -172,6 +172,11 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
    commit is not deployed yet: wait for Deploy, or re-run it from the Actions
    tab.
 
+3. **The fill queues.** `pnpm --filter @repo/web exec cf queues list` names
+   `inteligir-fill` and `inteligir-fill-failed`; a deploy that binds them
+   refuses without them (`apps/web/README.md` § Build & deploy, step 6b), and
+   Deploy's token holds Queues: Edit.
+
 ## 4. The phone's internal build
 
 `apps/mobile/README.md` § Per release, steps 1 to 3: the pre-flight,
@@ -537,6 +542,20 @@ account whose library holds about 2,000 items gives the timing check its load.
   `pong`, from the account's `LibraryDO` that only `ctx.exports` reaches. On
   the production deploy, passing is the same, and its output says whether the
   `ThreadSyncDO` tombstone may leave the map.
+
+- **A link the cloud reads.** On the production deploy, have a connected
+  assistant save a long public article's link (`save_link`), and another's to a
+  PDF. Passing: within a minute each item holds the page's title, site, cover
+  and text, or the PDF as its file; the queue dashboard shows `inteligir-fill`
+  consumed and nothing in `inteligir-fill-failed`; and the Worker's logs show
+  the consumer's invocations inside their CPU and memory, none exceeded.
+- **An import and an export in the cloud.** With a device's credential, upload
+  a Raindrop CSV and an Obsidian vault's zip to `/v1/blobs/<sha>` and start
+  each with `library.imports.start` (`apps/web/README.md` § Routes), then
+  `library.exports.start`. Passing: each import ends `done` with its counts,
+  its links filled as above; the export's zip downloads from
+  `/v1/exports/<id>` and opens in Finder as the library's folders and notes;
+  and seven days on the same address answers 404.
 
 ## 6. Publish
 

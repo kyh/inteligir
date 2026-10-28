@@ -15,13 +15,21 @@ import {
   PayloadTooLargeError,
   QuotaError,
 } from "@repo/contract/cloud/v1/errors";
-import { liveItemRowSchema } from "@repo/contract/cloud/library/library-wire";
+import {
+  exportJobSchema,
+  importJobSchema,
+  liveItemRowSchema,
+} from "@repo/contract/cloud/library/library-wire";
 import { ORPCError, implement } from "@orpc/server";
 import { z } from "zod";
 
 import { libraryTools } from "../connector/library-tools";
 import { cellCodec } from "./cell-codec";
+import { askFill } from "./cell-fills";
+import { exportJobView, readExportJob, startExport } from "./cell-exports";
 import { writeFolders } from "./cell-folders";
+import { importJobView, latestImportJob, readImportJob } from "./cell-import-jobs";
+import { cancelImport, startImport } from "./cell-imports";
 import {
   addHighlight,
   blankFields,
@@ -128,6 +136,8 @@ const highlightedSchema = z.object({
 });
 const headSchema = z.object({ seq: z.number() });
 const deletedSchema = z.object({ deleted: z.literal(true) });
+const importAnswer = z.object({ job: importJobSchema });
+const exportAnswer = z.object({ export: exportJobSchema });
 
 // the agent arrives with Managed Agents: until a cell can start one, every ask of it is refused as
 // a Worker without the key refuses it, and nothing is charged
@@ -207,6 +217,24 @@ export const libraryRouter = os.router({
       ),
     ),
   },
+  exports: {
+    get: os.exports.get.handler(({ context, input }) => {
+      const job = answer(context.library.read((sql) => readExportJob(sql, input.id)));
+      if (job === null) {
+        throw new NotFoundError();
+      }
+      return { export: exportJobView(job) };
+    }),
+    start: os.exports.start.handler(({ context, input }) => {
+      const { library } = context;
+      return committed(
+        context,
+        library.landApart({ answer: exportAnswer, opId: input.opId }, (scope) => ({
+          export: exportJobView(startExport(scope, library.ids)),
+        })),
+      );
+    }),
+  },
   folders: {
     write: os.folders.write.handler(({ context, input }) =>
       committed(
@@ -236,6 +264,36 @@ export const libraryRouter = os.router({
     undo: os.history.undo.handler(({ context, input }) =>
       committed(context, context.library.undo(cellActorOf(context.principal), input)),
     ),
+  },
+  imports: {
+    cancel: os.imports.cancel.handler(({ context, input }) =>
+      committed(
+        context,
+        context.library.landApart({ answer: importAnswer, opId: input.opId }, (scope) => ({
+          job: importJobView(cancelImport(scope, input.id)),
+        })),
+      ),
+    ),
+    get: os.imports.get.handler(({ context, input }) => {
+      const job = answer(context.library.read((sql) => readImportJob(sql, input.id)));
+      if (job === null) {
+        throw new NotFoundError();
+      }
+      return { job: importJobView(job) };
+    }),
+    latest: os.imports.latest.handler(({ context }) => {
+      const job = answer(context.library.read((sql) => latestImportJob(sql)));
+      return { job: job === null ? null : importJobView(job) };
+    }),
+    start: os.imports.start.handler(({ context, input }) => {
+      const { library } = context;
+      return committed(
+        context,
+        library.landApart({ answer: importAnswer, opId: input.opId }, (scope) => ({
+          job: importJobView(startImport(scope, library.ids, input)),
+        })),
+      );
+    }),
   },
   items: {
     create: os.items.create.handler(({ context, input }) => {
@@ -337,9 +395,11 @@ export const libraryRouter = os.router({
       const actor = cellActorOf(context.principal);
       return committed(
         context,
-        context.library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
-          item: refreshItem(scope, actor, input.id),
-        })),
+        context.library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => {
+          const item = refreshItem(scope, actor, input.id);
+          askFill(scope, item);
+          return { item };
+        }),
       );
     }),
     restore: os.items.restore.handler(async ({ context, input }) => {
@@ -368,9 +428,19 @@ export const libraryRouter = os.router({
       const { library } = context;
       return committed(
         context,
-        library.land(actor, { answer: savedSchema, opId: input.opId }, (scope) =>
-          saveLink(scope, actor, cellCodec(scope.storage, library.ids), library.ids, input),
-        ),
+        library.land(actor, { answer: savedSchema, opId: input.opId }, (scope) => {
+          const saved = saveLink(
+            scope,
+            actor,
+            cellCodec(scope.storage, library.ids),
+            library.ids,
+            input,
+          );
+          if (!saved.folded) {
+            askFill(scope, saved.item);
+          }
+          return saved;
+        }),
       );
     }),
   },

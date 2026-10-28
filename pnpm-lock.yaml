@@ -854,6 +854,9 @@ importers:
       '@repo/notes':
         specifier: workspace:*
         version: link:../../packages/notes
+      '@repo/page-reader':
+        specifier: workspace:*
+        version: link:../../packages/page-reader
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui

@@ -368,26 +368,31 @@ describe("an Obsidian vault read into the library", () => {
 
 const exportOf = (library: ReadLibrary): ExportFile[] => {
   const folderIds = new Map(library.folders.map((folder) => [folder.path, folder.id]));
-  return planExport({
-    folders: library.folders,
-    items: library.items.map((item) => ({
-      annotations: item.annotations,
-      blocks: new Map(
-        item.blocks.map((placed): [string, StoredBlock] => [
-          placed.block.id,
-          { ...placed, hash: blockHash(placed.block) },
-        ]),
-      ),
-      fields: {
-        ...item.fields,
-        deletedAt: null,
-        folderId: item.folderPath === null ? null : (folderIds.get(item.folderPath) ?? null),
-      },
-      id: item.itemId,
-    })),
-    mediaType: mediaTypeOf,
-    rules: library.rules,
-  });
+  const items = library.items.map((item): ExportItem => ({
+    annotations: item.annotations,
+    blocks: new Map(
+      item.blocks.map((placed): [string, StoredBlock] => [
+        placed.block.id,
+        { ...placed, hash: blockHash(placed.block) },
+      ]),
+    ),
+    fields: {
+      ...item.fields,
+      deletedAt: null,
+      folderId: item.folderPath === null ? null : (folderIds.get(item.folderPath) ?? null),
+    },
+    id: item.itemId,
+  }));
+  const byId = new Map(items.map((item) => [item.id, item]));
+  return [
+    ...planExport({
+      folders: library.folders,
+      items: items.map(({ fields, id }) => ({ fields, id })),
+      mediaType: mediaTypeOf,
+      read: (head) => byId.get(head.id) ?? null,
+      rules: library.rules,
+    }),
+  ];
 };
 
 // where an export writes bytes no name came with: under their sha, as the vault's writers did

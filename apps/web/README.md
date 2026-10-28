@@ -38,8 +38,15 @@ src/
                      (library-router.ts, served by library-rpc.ts), the
                      alarm's jobs, the account's purge in order
                      (account-purge.ts), its sockets, the upgrade routes with
-                     the ticket a browser's socket opens on, and the files'
-                     bytes in R2 (blob-routes.ts)
+                     the ticket a browser's socket opens on, the files'
+                     bytes in R2 (blob-routes.ts), the readings it sends to
+                     the fill queue (cell-fills.ts), its imports and exports
+                     (cell-imports.ts, cell-exports.ts) and an export's zip
+                     (export-routes.ts)
+    fill/            The fill queue's consumer (fill-consumer.ts): a saved
+                     link read through the guarded fetch (page-fetch.ts) and
+                     the page reader, its files kept, landed in the cell
+    zip/             The zip codec imports read and exports write
     vault/           The hosted vault git remote (durable-git behind the
                      wrapper) + the repo's one name and its purge
                      (vault-repo.ts) + the git-less /v1/vault/* read
@@ -51,7 +58,8 @@ src/
     rate-limit.ts    The D1 fixed window every throttled route spends
     types/           The hand-authored durable-git .d.ts (it ships untyped TS
                      source) — re-check on every version bump — and the
-                     highlight.js stub that keeps the DOM lib out (below)
+                     highlight.js and page reader stubs that keep the DOM lib
+                     out (below)
     *.test.ts        suites run inside workerd (@cloudflare/vitest-plugin:
                      real D1 + DO)
     test-support/    Their shared harness: the schema setup, the client
@@ -64,7 +72,10 @@ program would typecheck the Worker against a stdlib it never runs on. That is
 why the whole Worker — entry, routes, tests — lives under one directory with
 its own `tsconfig.json`. The markdown codec the cell runs reaches highlight.js's
 types, which reference `lib.dom` themselves, so the program maps `highlight.js`
-to `types/highlight-js.d.ts`, the one type lowlight takes from it (`LanguageFn`).
+to `types/highlight-js.d.ts`, the one type lowlight takes from it (`LanguageFn`);
+the fill reads a page with `@repo/page-reader`, whose code is typed by the
+DOM's globals, so its one entry the Worker calls maps to its DOM-free signature
+(`types/page-reader-read-html.d.ts`).
 
 ## Routes
 
@@ -100,6 +111,7 @@ to `types/highlight-js.d.ts`, the one type lowlight takes from it (`LanguageFn`)
 | `POST /v1/rpc/account/*`    | — or device/tab   | The account's oRPC rows: sign in or up, devices, delete, ticket     |
 | `POST /v1/rpc/library/*`    | device or tab     | The library's oRPC rows, forwarded to the account's library cell    |
 | `/v1/blobs/:sha`            | device or tab     | A file's bytes in R2: PUT once by its SHA-256, GET/HEAD by range    |
+| `GET /v1/exports/:id`       | device or tab     | An export's zip, by range, for seven days after it was written      |
 
 "device" auth is the `igd_…` credential a login minted, verified per request by
 hash compare against D1 — never cached, so revocation is immediate; its
@@ -114,8 +126,17 @@ remote and the `/v1/vault/*` reads and commits to that user's own durable-git
 verified device row's name, and a stale base answers 409 `vault-conflict` with
 what the head holds beside the envelope; the Worker never merges. Every REST `/v1` refusal, an unknown route and
 an unhandled fault included, is the JSON error envelope; the git mount answers
-git clients in plain text, `/v1/rpc` in its own protocol, and `/v1/blobs` in
-HTTP's statuses alone.
+git clients in plain text, `/v1/rpc` in its own protocol, and `/v1/blobs` and
+`/v1/exports` in HTTP's statuses alone.
+
+A link the library holds unread (a `saveLink`, a `refresh`, an import's) is
+read by the Worker's own queue consumer: the cell writes the reading's ask as a
+`fill` job in the write's transaction and sends it to `inteligir-fill` once
+the write commits, the alarm sending again what no send took; the consumer
+reads the page and hands it back in one `landFill` call. A message the queue's
+three retries could not handle reaches `inteligir-fill-failed`, whose consumer
+says the failure in the item. A preview binds `inteligir-fill-preview`, which
+nothing consumes, so its links stay unread.
 
 `/v1/rpc` is oRPC's RPC protocol: POST only, every refusal a declared code at
 the status `V1_ERROR_STATUS_MAP` gives it, the floor, the credential and the
@@ -335,6 +356,10 @@ pnpm -F @repo/web exec cf workers secrets update BETTER_AUTH_SECRET --worker int
 # 6. The vault pack bucket (once — the R2 binding refuses to deploy without it)
 pnpm -F @repo/web exec cf r2 buckets create --name inteligir-vault
 
+# 6b. The fill queues (once — the queue bindings and consumers refuse to deploy without them)
+pnpm -F @repo/web exec cf queues create --queue-name inteligir-fill
+pnpm -F @repo/web exec cf queues create --queue-name inteligir-fill-failed
+
 # 7. Deploy — the exact command the `Deploy` workflow runs
 pnpm turbo run build --filter=@repo/web... && pnpm -F @repo/web exec cf deploy --prebuilt
 
@@ -350,7 +375,8 @@ push it BEFORE merging a change that needs it — the schema is additive, so an
 old Worker against a new database ignores what it does not know, while a new
 Worker against an old database 500s on every request touching a table that
 isn't there. The workflow's one secret is `CLOUDFLARE_API_TOKEN` (Workers
-Scripts: Edit, plus Workers Routes: Edit on the inteligir.com zone).
+Scripts: Edit, Queues: Edit, plus Workers Routes: Edit on the inteligir.com
+zone).
 
 ## Previews
 
@@ -362,8 +388,8 @@ Preview deleted when the PR closes. `.github/workflows/preview.yml` runs it;
 `.github/scripts/worker-preview.mjs` draws the comment and the deployment.
 
 A Preview never touches production data. `cloudflare.config.ts` binds
-`inteligir-auth-preview` (D1) and `inteligir-vault-preview` (R2) when
-`isPreview`, which
+`inteligir-auth-preview` (D1), `inteligir-vault-preview` (R2) and
+`inteligir-fill-preview` (a queue nothing consumes) when `isPreview`, which
 the workflow creates on first use and pushes the PR's schema into with
 `drizzle-kit push --force`; the Durable Objects are a fresh namespace per
 Preview. All PRs share the one preview D1, so an account made on one Preview
@@ -374,7 +400,7 @@ to create the first account.
 Setup, once:
 
 ```bash
-# the Deploy token also needs D1: Edit and Workers R2 Storage: Edit, and the
+# the Deploy token also needs D1: Edit, Workers R2 Storage: Edit and Queues: Edit, and the
 # repo needs a CLOUDFLARE_ACCOUNT_ID secret beside CLOUDFLARE_API_TOKEN
 # wrangler: cf has no preview secret command yet
 pnpm -F @repo/web exec wrangler preview base-config secret put BETTER_AUTH_SECRET --worker-name inteligir-web  # a preview-only value

@@ -223,7 +223,11 @@ rules of `@repo/notes/items/link-fill`; it calls no model and never writes
 `url` or `saved` (`apps/cli/src/server/items/capture/`,
 `apps/mobile/src/items/link-fill.ts`). A save's
 answer says the fill's state: `pending`, `filled` or `failed`
-(`itemFillSchema` in `@repo/contract/local/items/items-schema`).
+(`itemFillSchema` in `@repo/contract/local/items/items-schema`). A link the
+account's library holds unread (a `saveLink`, a refresh, an import's) is
+filled by the cloud: the cell asks the fill queue, and the Worker's consumer
+reads the page and lands only its `article` blocks and the fill-owned fields
+(`apps/web/src/worker/fill/`).
 
 **cover** — an item's picture: the first image its body embeds, computed at
 every read (`itemFilesOf` in `@repo/notes/items/item-files`), never a

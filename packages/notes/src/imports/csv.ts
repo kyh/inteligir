@@ -1,7 +1,7 @@
 // RFC 4180, read as exports in the wild are written: a byte-order mark is skipped, a record may end
 // in CR, LF or CRLF, a quoted field may hold any of them and "" for a quote, and a quote inside an
 // unquoted field is a literal character. A blank line is no record. Pure: the bytes are hostile and
-// nothing here touches the disk.
+// nothing here reads them from anywhere.
 
 export type CsvParse =
   | { ok: true; records: string[][] }
