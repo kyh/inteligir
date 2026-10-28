@@ -13,8 +13,7 @@ import { cloudErrorSchema } from "@repo/contract/cloud/errors";
 import { SYNC_WS_PATH, syncPingSchema } from "@repo/contract/cloud/sync/sync-ws";
 import type { SyncPing } from "@repo/contract/cloud/sync/sync-ws";
 import { applySetCookies } from "better-auth/cookies";
-import { SELF } from "cloudflare:test";
-import { env } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { expect } from "vitest";
 import { z } from "zod";
 import { createDb } from "../db/client";
@@ -29,12 +28,19 @@ const floorBuild = (): ClientBuild => ({
   version: env.MIN_CLIENT_BUILD,
 });
 
+// a response a test reads only the status or headers of, its body read to the end: the plugin's
+// per-file storage isolation needs every body consumed
+// (developers.cloudflare.com/workers/testing/vitest-integration/known-issues)
+export const drained = async (pending: Promise<Response>): Promise<Response> => {
+  const response = await pending;
+  await response.arrayBuffer();
+  return response;
+};
+
 export const buildHeaders = (): Record<string, string> => clientBuildHeaders(floorBuild());
 
 // a browser on one of this Worker's own pages, which ships in the same deploy and names no build
 export const OWN_PAGE_HEADERS = { origin: ORIGIN, "sec-fetch-site": "same-origin" } as const;
-
-let inviteCounter = 0;
 
 // what a browser sends back: the name=value of each cookie the response set
 export const cookieHeaderOf = (response: Response): string => {
@@ -44,13 +50,16 @@ export const cookieHeaderOf = (response: Response): string => {
 };
 
 export const signUpUser = async (email: string): Promise<{ cookie: string; password: string }> => {
-  const code = `CLOUD-TEST-${(inviteCounter += 1)}`;
+  // unique across the socket suites' shared storage, not only within one file
+  const code = `CLOUD-TEST-${crypto.randomUUID()}`;
   await createDb(env.DB).insert(inviteCode).values({ code });
-  const response = await SELF.fetch(`${ORIGIN}${AUTH_API_PATHS.signUp}`, {
-    body: JSON.stringify({ email, inviteCode: code, name: "Cloud Tester", password: PASSWORD }),
-    headers: { ...OWN_PAGE_HEADERS, "content-type": "application/json" },
-    method: "POST",
-  });
+  const response = await drained(
+    exports.default.fetch(`${ORIGIN}${AUTH_API_PATHS.signUp}`, {
+      body: JSON.stringify({ email, inviteCode: code, name: "Cloud Tester", password: PASSWORD }),
+      headers: { ...OWN_PAGE_HEADERS, "content-type": "application/json" },
+      method: "POST",
+    }),
+  );
   expect(response.status).toBe(200);
   const cookie = cookieHeaderOf(response);
   expect(cookie).toContain("session_token=");
@@ -82,7 +91,7 @@ const sessionUserSchema = z.looseObject({
 });
 
 const sessionUser = async (cookie: string): Promise<{ id: string; email: string }> => {
-  const response = await SELF.fetch(`${ORIGIN}/api/auth/get-session`, {
+  const response = await exports.default.fetch(`${ORIGIN}/api/auth/get-session`, {
     headers: sessionHeaders(cookie),
   });
   const body = sessionUserSchema.safeParse(await response.json());
@@ -99,7 +108,7 @@ export const userIdOf = async (cookie: string): Promise<string> => {
 };
 
 export const postLogin = async (body: DeviceLoginRequest): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}/v1/device/login`, {
+  await exports.default.fetch(`${ORIGIN}/v1/device/login`, {
     body: JSON.stringify(body),
     headers: { ...buildHeaders(), "content-type": "application/json" },
     method: "POST",
@@ -132,7 +141,7 @@ export const postVaultRead = async (
   auth: Record<string, string>,
   query: VaultReadBody,
 ): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}${path}`, {
+  await exports.default.fetch(`${ORIGIN}${path}`, {
     body: JSON.stringify(query),
     headers: { ...auth, "content-type": "application/json" },
     method: "POST",
@@ -143,14 +152,14 @@ export const postAccountDelete = async (
   authorization: Record<string, string>,
   password: string,
 ): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}${ACCOUNT_API_PATHS.delete}`, {
+  await exports.default.fetch(`${ORIGIN}${ACCOUNT_API_PATHS.delete}`, {
     body: JSON.stringify({ password }),
     headers: { ...authorization, "content-type": "application/json" },
     method: "POST",
   });
 
 export const postSignOut = async (authorization: Record<string, string>): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}${DEVICE_API_PATHS.signOut}`, {
+  await exports.default.fetch(`${ORIGIN}${DEVICE_API_PATHS.signOut}`, {
     body: "{}",
     headers: { ...authorization, "content-type": "application/json" },
     method: "POST",
@@ -159,7 +168,7 @@ export const postSignOut = async (authorization: Record<string, string>): Promis
 export const openSocket = async (
   credential: string,
 ): Promise<{ frames: SyncPing[]; socket: WebSocket }> => {
-  const response = await SELF.fetch(`${ORIGIN}${SYNC_WS_PATH}`, {
+  const response = await exports.default.fetch(`${ORIGIN}${SYNC_WS_PATH}`, {
     headers: { ...deviceHeaders(credential), upgrade: "websocket" },
   });
   expect(response.status).toBe(101);

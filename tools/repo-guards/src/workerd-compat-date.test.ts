@@ -1,5 +1,6 @@
-// workerd's version is a date (1.YYYYMMDD.N). the pin is the oldest resolved workerd, never the
-// newest: a workerd cannot emulate a date it predates.
+// workerd's version is a date (1.YYYYMMDD.N). apps/web's compatibilityDate is the oldest workerd the
+// lockfile resolves, never the newest: a workerd cannot emulate a date it predates, so the date
+// moves forward only as every workerd the tools pull does.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -8,6 +9,10 @@ import { REPO_ROOT } from "./repo";
 
 const LOCKFILE = "pnpm-lock.yaml";
 const COMPATIBILITY = "apps/web/compatibility.ts";
+
+// the first date at which a Durable Object's pending I/O holds it from eviction, which the library
+// cell's outbound work relies on
+const EVICTION_FLOOR = "2026-10-01";
 
 // the package and its per-platform binaries; peer ranges carry no `@` and stay unmatched.
 const RESOLVED_WORKERD = /\bworkerd(?:-[a-z0-9-]+)?@1\.(?<stamp>\d{8})\./gu;
@@ -46,5 +51,14 @@ describe("workerd compatibilityDate", () => {
         `  rule: the runtime's version is its date — a config date behind the resolved runtime silently opts out of its fixes, and one ahead of the oldest is one that workerd cannot emulate\n` +
         `  fix: set compatibilityDate to ${oldest} in ${COMPATIBILITY}`,
     ).toBe(oldest);
+  });
+
+  it("is no earlier than the date the library cell's outbound work needs", () => {
+    expect(
+      declaredCompatibilityDate() >= EVICTION_FLOOR,
+      `${COMPATIBILITY}: compatibilityDate is before ${EVICTION_FLOOR}.\n` +
+        `  rule: from ${EVICTION_FLOOR} pending I/O keeps a Durable Object from eviction (durable_object_io_tasks_prevent_eviction)\n` +
+        `  fix: upgrade the tools that pull workerd until the oldest is on or after ${EVICTION_FLOOR}, never hold the date back`,
+    ).toBe(true);
   });
 });

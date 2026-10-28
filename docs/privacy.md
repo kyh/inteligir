@@ -169,10 +169,10 @@ as:
     install, nothing about your library or your account.
 - **Online activity data**, limited to **a log of each request, kept by
   Cloudflare.** Cloudflare, which runs our cloud, logs each request our cloud
-  answers, the pages of our website included — the address asked for, the
-  answer's status and the time — and keeps that log for up to seven days, for us
-  to diagnose failures with; about one request in a hundred is traced in more
-  detail. The address names a route, never one of your files: when your phone
+  answers, the pages of our website included — the address asked for, less
+  anything after a `?` in it, the answer's status and the time — and keeps that
+  log for up to seven days, for us to diagnose failures with; about one request
+  in a hundred is traced in more detail. The address names a route, never one of your files: when your phone
   opens an item or an attachment, the file's name travels inside the request,
   which neither the log nor the trace keeps. Our cloud's own error lines name a
   route, never a file.

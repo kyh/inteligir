@@ -1,5 +1,4 @@
-import { SELF } from "cloudflare:test";
-import { env } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDb } from "./db/client";
@@ -10,7 +9,7 @@ import {
   callerRateKey,
   RATE_WINDOWS,
 } from "./rate-limit";
-import { ORIGIN } from "./test-support/cloud-helpers";
+import { drained, ORIGIN } from "./test-support/cloud-helpers";
 
 // two hops: Better Auth trusts a forwarded chain only when it holds exactly one address
 const FORWARDED_CHAIN = "198.51.100.7, 198.51.100.8";
@@ -19,7 +18,7 @@ const FORWARDED_CHAIN = "198.51.100.7, 198.51.100.8";
 const ATTEMPT_CAP = 20;
 
 const signInFrom = async (callerIp: string): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}/api/auth/sign-in/email`, {
+  await exports.default.fetch(`${ORIGIN}/api/auth/sign-in/email`, {
     body: JSON.stringify({ email: "nobody@example.test", password: "not-the-password" }),
     headers: {
       "content-type": "application/json",
@@ -32,7 +31,7 @@ const signInFrom = async (callerIp: string): Promise<Response> =>
 
 const spendSignInWindow = async (callerIp: string): Promise<void> => {
   for (let attempt = 0; attempt < ATTEMPT_CAP; attempt += 1) {
-    const response = await signInFrom(callerIp);
+    const response = await drained(signInFrom(callerIp));
     if (response.status === 429) {
       return;
     }
@@ -43,7 +42,7 @@ const spendSignInWindow = async (callerIp: string): Promise<void> => {
 
 describe("Better Auth's limiter", () => {
   // the suite config keeps the limiter off so suites do not 429 on one another
-  let wasDisabled = "";
+  let wasDisabled: Env["RATE_LIMIT_DISABLED"] = "true";
   beforeEach(() => {
     wasDisabled = env.RATE_LIMIT_DISABLED;
     env.RATE_LIMIT_DISABLED = "false";
@@ -55,7 +54,7 @@ describe("Better Auth's limiter", () => {
   it("keys a sign-in on the edge's caller address, whatever x-forwarded-for carries", async () => {
     await spendSignInWindow("203.0.113.10");
 
-    const other = await signInFrom("203.0.113.11");
+    const other = await drained(signInFrom("203.0.113.11"));
     expect(other.status).toBe(401);
   });
 
@@ -76,7 +75,7 @@ describe("Better Auth's limiter", () => {
       },
     ]);
 
-    const rolledOver = await signInFrom("203.0.113.31");
+    const rolledOver = await drained(signInFrom("203.0.113.31"));
     expect(rolledOver.status).toBe(401);
 
     await vi.waitFor(async () => {
@@ -87,9 +86,11 @@ describe("Better Auth's limiter", () => {
 
   it("never spends a window on a session read", async () => {
     for (let read = 0; read < ATTEMPT_CAP; read += 1) {
-      const response = await SELF.fetch(`${ORIGIN}/api/auth/get-session`, {
-        headers: { [CALLER_IP_HEADER]: "203.0.113.20", origin: ORIGIN },
-      });
+      const response = await drained(
+        exports.default.fetch(`${ORIGIN}/api/auth/get-session`, {
+          headers: { [CALLER_IP_HEADER]: "203.0.113.20", origin: ORIGIN },
+        }),
+      );
       expect(response.status).toBe(200);
     }
   });

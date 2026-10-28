@@ -5,10 +5,11 @@ import {
   revokeDeviceResponseSchema,
 } from "@repo/contract/cloud/device/device-schema";
 import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/contract/cloud/sync/sync-ws";
-import { SELF } from "cloudflare:test";
+import { exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import {
   deviceHeaders,
+  drained,
   emitted,
   loginDevice,
   openSocket,
@@ -17,17 +18,19 @@ import {
 } from "./test-support/cloud-helpers";
 
 const listAs = async (credential: string): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}${DEVICE_API_PATHS.list}`, { headers: deviceHeaders(credential) });
+  await exports.default.fetch(`${ORIGIN}${DEVICE_API_PATHS.list}`, {
+    headers: deviceHeaders(credential),
+  });
 
 const revokeAs = async (credential: string, deviceId: string): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}${DEVICE_API_PATHS.revoke}`, {
+  await exports.default.fetch(`${ORIGIN}${DEVICE_API_PATHS.revoke}`, {
     body: JSON.stringify({ deviceId }),
     headers: { ...deviceHeaders(credential), "content-type": "application/json" },
     method: "POST",
   });
 
 const listStatus = async (credential: string): Promise<number> => {
-  const response = await listAs(credential);
+  const response = await drained(listAs(credential));
   return response.status;
 };
 
@@ -106,7 +109,7 @@ describe("a device managing its account's devices", () => {
     const { cookie } = await signUpUser("manage-revoked@example.test");
     const mac = await loginDevice(cookie, "Mac");
     const phone = await loginDevice(cookie, "Phone");
-    const revoked = await revokeAs(mac.credential, phone.deviceId);
+    const revoked = await drained(revokeAs(mac.credential, phone.deviceId));
     expect(revoked.status).toBe(200);
 
     const listed = await listAs(phone.credential);

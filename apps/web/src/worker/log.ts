@@ -3,7 +3,7 @@ interface ErrorFields {
   stack: string | undefined;
 }
 
-const errorFields = (cause: unknown): ErrorFields => ({
+export const errorFields = (cause: unknown): ErrorFields => ({
   message: cause instanceof Error ? cause.message : String(cause),
   stack: cause instanceof Error ? cause.stack : undefined,
 });

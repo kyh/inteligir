@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
-import { defineConfig } from "vitest/config";
+import { cloudflareTest } from "@cloudflare/vitest-plugin";
+import { configDefaults, defineConfig } from "vitest/config";
 import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
 
 // resolved from this file: cwd is apps/web under vitest but the repo root under knip.
@@ -13,6 +13,13 @@ const TEST_SCHEMA = execFileSync("pnpm", ["run", "--silent", "db:export"], {
   encoding: "utf-8",
 });
 
+// the suites that open the account's socket
+const SOCKET_SUITES = [
+  "src/worker/account-delete.test.ts",
+  "src/worker/device-manage.test.ts",
+  "src/worker/vault-git.test.ts",
+];
+
 // BETTER_AUTH_SECRET has a value only at runtime (.dev.vars / a Worker secret), so the test env
 // supplies one.
 const TEST_BETTER_AUTH_SECRET = "test-better-auth-secret-000000000000";
@@ -23,8 +30,9 @@ export default defineConfig({
       // not cloudflare.config.ts's entrypoint: the deployed entry also mounts the SSR handler,
       // whose virtual modules only the start plugin supplies.
       main: "./src/worker/index.ts",
-      // the pool reads only wrangler's config format, so the bindings cloudflare.config.ts declares
-      // are restated here
+      // the plugin documents reading only a Wrangler file (developers.cloudflare.com/workers/
+      // testing/vitest-integration/configuration), so the bindings cloudflare.config.ts declares are
+      // restated here
       miniflare: {
         compatibilityDate,
         compatibilityFlags,
@@ -49,19 +57,36 @@ export default defineConfig({
       },
     }),
   ],
-  // this config does not run the start plugin that reads tsconfig paths.
+  // the site's `@/` alias, which tsconfig.json declares: neither cloudflareTest nor vitest reads
+  // tsconfig paths, and the start plugin that does is not in this config
   resolve: {
     alias: { "@": `${HERE}/src` },
   },
   test: {
-    include: ["src/**/*.test.ts"],
     maxWorkers: 1,
     setupFiles: ["./src/worker/test-support/apply-schema.ts"],
-    // the type claims run as tsc over the Worker's own program, beside the suites workerd runs
-    typecheck: {
-      enabled: true,
-      include: ["src/worker/**/*.test-d.ts"],
-      tsconfig: "./src/worker/tsconfig.json",
-    },
+    projects: [
+      {
+        extends: true,
+        test: {
+          exclude: [...configDefaults.exclude, ...SOCKET_SUITES],
+          include: ["src/**/*.test.ts"],
+          name: "worker",
+          // the type claims run as tsc over the Worker's own program, beside the suites workerd runs
+          typecheck: {
+            enabled: true,
+            include: ["src/worker/**/*.test-d.ts"],
+            tsconfig: "./src/worker/tsconfig.json",
+          },
+        },
+      },
+      {
+        extends: true,
+        // a Durable Object's WebSockets are unsupported under per-file storage isolation
+        // (developers.cloudflare.com/workers/testing/vitest-integration/known-issues), so these
+        // files share one storage, run one at a time
+        test: { include: SOCKET_SUITES, isolate: false, name: "sockets" },
+      },
+    ],
   },
 });

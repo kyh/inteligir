@@ -1,6 +1,5 @@
 import { hexFromBytes } from "@repo/contract/cloud/bytes";
-import { SELF } from "cloudflare:test";
-import { env } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import {
   blobObject,
   commitObject,
@@ -128,7 +127,7 @@ export const pushVaultFiles = async (
     pack: await writePack([...objects, commit]),
     ref: MAIN,
   });
-  const response = await SELF.fetch(`${REMOTE}/git-receive-pack`, {
+  const response = await exports.default.fetch(`${REMOTE}/git-receive-pack`, {
     body: length === "declared" ? body : streamOf(body),
     headers: {
       ...deviceHeaders(credential),
@@ -154,7 +153,7 @@ export const randomBytes = (length: number): Uint8Array => {
 // a push that declares `length` bytes and never sends one: it answers only if the Worker refused
 // it before reading the body
 export const pushNothingDeclaring = async (credential: string, length: number): Promise<Response> =>
-  await SELF.fetch(`${REMOTE}/git-receive-pack`, {
+  await exports.default.fetch(`${REMOTE}/git-receive-pack`, {
     body: new FixedLengthStream(length).readable,
     headers: {
       ...deviceHeaders(credential),
@@ -165,7 +164,7 @@ export const pushNothingDeclaring = async (credential: string, length: number): 
 
 // a v0 full clone over side-band-64k: the one fetch durable-git keeps a pack cache for
 export const cloneVault = async (credential: string, head: string): Promise<Response> =>
-  await SELF.fetch(`${REMOTE}/git-upload-pack`, {
+  await exports.default.fetch(`${REMOTE}/git-upload-pack`, {
     body: concatBytes([pktLine(`want ${head} side-band-64k\n`), FLUSH_PKT, pktLine("done\n")]),
     headers: {
       ...deviceHeaders(credential),

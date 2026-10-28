@@ -90,9 +90,13 @@ how a bullet is written and cited.
   `apps/web/src/worker/auth/invite.ts`, `apps/web/README.md` § Auth.
 
 - **The D1 auth schema ships via `drizzle-kit push`; there are no migration
-  files.** One deployer and an additive schema; `apps/web/vitest.config.ts`
-  derives the test DDL by `drizzle-kit export`. A second deployer or a
-  destructive column change is the trigger for migrations.
+  files.** One deployer and no users (`AGENTS.md` § Project Overview), so a
+  push may drop a column Better Auth no longer writes, and the schema follows
+  what its generator prints for the plugin set (`apps/web/src/worker/db/schema.ts`
+  says how). The suites and the e2e harness derive the DDL by `drizzle-kit
+  export` and send it as one D1 batch. Rejected: migration files (a history for
+  installs nobody holds). The first outside tester is the trigger for
+  migrations. `apps/web/vitest.config.ts`, `tools/e2e/src/harness/worker-host.ts`.
 
 - **Declare D1 uniques as named unique indexes, never `.unique()`**
   (`apps/web/src/worker/db/schema.ts`). Production D1 holds every unique as
@@ -230,13 +234,14 @@ how a bullet is written and cited.
   edits). `apps/web/cloudflare.config.ts`.
 
 - **A VAULT READ CARRIES ITS PATH IN THE BODY, NEVER THE URL.** Cloudflare keeps
-  each request's URL in the Worker's request log and sampled traces for up to
-  seven days, and a vault path names a user's file, so the tree, file and asset
-  reads POST their query, and the Worker refuses any other method before it
-  reads the credential. Rejected: turning the invocation log off (the traces
-  keep their URLs, and the operator loses the one view of a failing route);
-  reads addressed by blob oid (the asset route cannot type or size-gate without
-  the path). `apps/web/src/worker/vault/read-routes.ts`.
+  each request's path in the Worker's request log and sampled traces for up to
+  seven days (its query string redacted), and a vault path names a user's file,
+  so the tree, file and asset reads POST their query, and the Worker refuses
+  any other method before it reads the credential. Rejected: turning the
+  invocation log off (the traces keep their paths, and the operator loses the
+  one view of a failing route); reads addressed by blob oid (the asset route
+  cannot type or size-gate without the path).
+  `apps/web/src/worker/vault/read-routes.ts`.
 
 - **A PR PREVIEW IS A WORKER PREVIEW DRIVEN BY ACTIONS, not Workers Builds**,
   and it binds preview-only resources. Previews ride `workflow_run` after CI, as
@@ -271,3 +276,23 @@ how a bullet is written and cited.
   OpenAPI; `oxlint.config.ts` refuses both outside `apps/web/src/worker`) and a
   walker decorating by path (it rebuilds oRPC's internals).
   `apps/web/src/worker/connector/library-tools.ts`.
+
+- **THE WORKER'S `Env` IS ONLY WHAT `cf workers types` GENERATES FROM
+  `cloudflare.config.ts`.** Every binding is declared there: a secret with
+  `bindings.secret()`, a value with `bindings.text`, the reset sender and the
+  auth limiter's off switch included, and a binding one mode lacks types as
+  optional; the suites add only `TEST_SCHEMA`. Rejected: a hand-written `Env`
+  beside the generated one (it drifts from what deploys, and a secret it names
+  is never checked against the config). The date and flags are one module both
+  the config and the suites import. `apps/web/cloudflare.config.ts`,
+  `apps/web/compatibility.ts`.
+
+- **THE WORKER'S SUITES RUN INSIDE workerd THROUGH `@cloudflare/vitest-plugin`,
+  ON THE BINDINGS `cloudflare.config.ts` DECLARES, RESTATED.** A suite reaches
+  the Worker by `exports.default.fetch()` and reads every body to the end
+  (`drained`), as per-file storage isolation needs; the suites that open the
+  account's socket share one storage in a project of their own, since Durable
+  Object WebSockets fail under isolation. The plugin documents reading only a
+  Wrangler file, hence the restated bindings. Rejected: a mocked runtime
+  (Better Auth, D1 and the Durable Objects run as they deploy).
+  `apps/web/vitest.config.ts`, `apps/web/src/worker/test-support/cloud-helpers.ts`.

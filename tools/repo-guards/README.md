@@ -76,7 +76,7 @@ One per file; its header and its failure message state the rule in full.
 - `script-naming.test.ts`: a root script's workspace suffix and every `--filter` name a real workspace.
 - `catalog-spelling.test.ts`: a dependency two manifests name is `catalog:`, or a `DECLARED_SPLITS` row.
 - `tailwind-source.test.ts`: every `@source` glob's static base exists.
-- `workerd-compat-date.test.ts`: the Worker's `compatibilityDate` is the oldest workerd date the lockfile resolves.
+- `workerd-compat-date.test.ts`: the Worker's `compatibilityDate` is the oldest workerd date the lockfile resolves, and no earlier than the first date a Durable Object's pending I/O holds it from eviction.
 - `durable-git-stub.test.ts`: the durable-git stub's header names the version the lockfile resolves.
 - `d1-unique-index.test.ts`: no `d1-http` schema declares `.unique()`; a unique is a `uniqueIndex` row.
 - `agent-skills.test.ts`: every skill names itself, the hub indexes every skill, and the CLI's probe file exists.

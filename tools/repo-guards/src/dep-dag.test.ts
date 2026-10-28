@@ -593,7 +593,7 @@ describe("platform purity", () => {
   });
 
   it("the Cloudflare Worker imports no Node package", () => {
-    // nodejs_compat shims some node: modules on workerd, not the native addons and spawned
+    // workerd's Node.js compatibility covers some node: modules, not the native addons and spawned
     // processes behind them.
     const reachesNode = new Map<string, boolean>();
     const resolve = (name: string, seen: Set<string>): boolean => {

@@ -42,7 +42,8 @@ src/
     rate-limit.ts    The D1 fixed window every throttled route spends
     types/           The hand-authored durable-git .d.ts (it ships untyped TS
                      source) — re-check on every version bump
-    *.test.ts        vitest-pool-workers suites (real miniflare + D1 + DO)
+    *.test.ts        suites run inside workerd (@cloudflare/vitest-plugin:
+                     real D1 + DO)
     test-support/    Their shared harness: the schema setup, the client
                      helpers, a pack builder and the test env's types
 ```
@@ -264,10 +265,14 @@ pnpm --filter @repo/web db:push
 > creds and hit the PRODUCTION D1. The bare `db:push` and `db:studio` are the
 > local ones.
 
-Tests run in a real in-process Workers runtime (`@cloudflare/vitest-pool-workers`)
-against the bindings `cloudflare.config.ts` declares, restated in
-`vitest.config.ts` because the pool reads only wrangler's config format; the
-schema DDL is derived from `src/worker/db/schema.ts` at config load.
+Tests run inside workerd through `@cloudflare/vitest-plugin`, against the
+bindings `cloudflare.config.ts` declares, restated in `vitest.config.ts`
+because the plugin documents reading only a Wrangler file. A suite reaches the
+Worker through `exports.default.fetch()` and reads every response body to the
+end; the suites that open the account's socket share one storage in their own
+project, since Durable Object WebSockets are unsupported under per-file
+isolation. The schema DDL is derived from `src/worker/db/schema.ts` at config
+load and applied as one D1 batch.
 
 ## Build & deploy (owner-only)
 
@@ -289,10 +294,9 @@ pnpm -F @repo/web exec cf workers secrets update BETTER_AUTH_SECRET --worker int
 
 # 5. Password reset. Until the sending domain is onboarded, every reset email
 #    fails server-side and is only logged — the request response stays neutral
-#    on purpose. Onboard it, then set the sender if the verified domain is not
-#    the default `inteligir.app`:
-#    (dashboard: Email Sending, then the DKIM/SPF DNS), and if needed:
-# cf workers secrets update RESET_FROM_ADDRESS --worker inteligir-web --text 'no-reply@<verified-domain>'
+#    on purpose. Onboard it (dashboard: Email Sending, then the DKIM/SPF DNS);
+#    the sender is RESET_FROM_ADDRESS in cloudflare.config.ts, on inteligir.app
+#    until the verified domain is another one.
 
 # 6. The vault pack bucket (once — the R2 binding refuses to deploy without it)
 pnpm -F @repo/web exec cf r2 buckets create --name inteligir-vault

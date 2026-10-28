@@ -2,8 +2,7 @@ import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
 import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import { VAULT_GIT_PATH } from "@repo/contract/cloud/vault/vault-git";
 import { cloudErrorSchema } from "@repo/contract/cloud/errors";
-import { SELF } from "cloudflare:test";
-import { env } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "./db/client";
@@ -12,6 +11,7 @@ import { deviceRateKey } from "./rate-limit";
 import {
   buildHeaders,
   deviceHeaders,
+  drained,
   emitted,
   loginDevice,
   ORIGIN,
@@ -36,7 +36,7 @@ const spendBudget = async (key: string): Promise<void> => {
 
 describe("the hosted vault's per-device budgets", () => {
   // the suite config keeps the limiter off so suites do not 429 on one another
-  let wasDisabled = "";
+  let wasDisabled: Env["RATE_LIMIT_DISABLED"] = "true";
   beforeEach(() => {
     wasDisabled = env.RATE_LIMIT_DISABLED;
     env.RATE_LIMIT_DISABLED = "false";
@@ -56,7 +56,9 @@ describe("the hosted vault's per-device budgets", () => {
     expect(refused.status).toBe(429);
     expect(emitted(cloudErrorSchema, await refused.text()).error.code).toBe("rate-limited");
 
-    const allowed = await postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(laptop.credential), {});
+    const allowed = await drained(
+      postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(laptop.credential), {}),
+    );
     expect(allowed.status).not.toBe(429);
   });
 
@@ -66,11 +68,15 @@ describe("the hosted vault's per-device budgets", () => {
 
     await spendBudget(deviceRateKey("vaultRead", device.deviceId));
 
-    const git = await SELF.fetch(GIT_REFS, { headers: deviceHeaders(device.credential) });
+    const git = await drained(
+      exports.default.fetch(GIT_REFS, { headers: deviceHeaders(device.credential) }),
+    );
     expect(git.status).not.toBe(429);
 
     await spendBudget(deviceRateKey("vaultGit", device.deviceId));
-    const refused = await SELF.fetch(GIT_REFS, { headers: deviceHeaders(device.credential) });
+    const refused = await drained(
+      exports.default.fetch(GIT_REFS, { headers: deviceHeaders(device.credential) }),
+    );
     expect(refused.status).toBe(429);
   });
 
@@ -86,11 +92,13 @@ describe("the hosted vault's per-device budgets", () => {
       await spendBudget(key);
     }
 
-    const revoked = await SELF.fetch(`${ORIGIN}${DEVICE_API_PATHS.revoke}`, {
-      body: JSON.stringify({ deviceId: device.deviceId }),
-      headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
-      method: "POST",
-    });
+    const revoked = await drained(
+      exports.default.fetch(`${ORIGIN}${DEVICE_API_PATHS.revoke}`, {
+        body: JSON.stringify({ deviceId: device.deviceId }),
+        headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
     expect(revoked.status).toBe(200);
 
     const rows = await createDb(env.DB)
@@ -102,10 +110,12 @@ describe("the hosted vault's per-device budgets", () => {
   });
 
   it("spends nothing for a credential that never verified", async () => {
-    const unauthorized = await postVaultRead(
-      VAULT_API_PATHS.tree,
-      { ...buildHeaders(), authorization: "Bearer igd_not-a-real-credential" },
-      {},
+    const unauthorized = await drained(
+      postVaultRead(
+        VAULT_API_PATHS.tree,
+        { ...buildHeaders(), authorization: "Bearer igd_not-a-real-credential" },
+        {},
+      ),
     );
     expect(unauthorized.status).toBe(401);
   });
@@ -124,15 +134,18 @@ describe("a batch read's budget", () => {
       ZERO_OID,
     );
     expect(pushed.response.status).toBe(200);
+    await pushed.response.arrayBuffer();
 
     const wasDisabled = env.RATE_LIMIT_DISABLED;
     env.RATE_LIMIT_DISABLED = "false";
     try {
-      const batch = await SELF.fetch(FILES, {
-        body: JSON.stringify({ paths, ref: pushed.commit }),
-        headers: { ...deviceHeaders(phone.credential), "content-type": "application/json" },
-        method: "POST",
-      });
+      const batch = await drained(
+        exports.default.fetch(FILES, {
+          body: JSON.stringify({ paths, ref: pushed.commit }),
+          headers: { ...deviceHeaders(phone.credential), "content-type": "application/json" },
+          method: "POST",
+        }),
+      );
       expect(batch.status).toBe(200);
     } finally {
       env.RATE_LIMIT_DISABLED = wasDisabled;
@@ -164,7 +177,7 @@ describe("a vault write's budget", () => {
     const wasDisabled = env.RATE_LIMIT_DISABLED;
     env.RATE_LIMIT_DISABLED = "false";
     try {
-      const refused = await SELF.fetch(COMMIT, {
+      const refused = await exports.default.fetch(COMMIT, {
         body: JSON.stringify({
           changes: [
             { base: null, content: { encoding: "utf-8", text: "# b\n" }, op: "put", path: "b.md" },
@@ -179,7 +192,9 @@ describe("a vault write's budget", () => {
       const tree = await postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(phone.credential), {});
       expect(tree.status).toBe(200);
       await tree.arrayBuffer();
-      const git = await SELF.fetch(GIT_REFS, { headers: deviceHeaders(phone.credential) });
+      const git = await exports.default.fetch(GIT_REFS, {
+        headers: deviceHeaders(phone.credential),
+      });
       expect(git.status).toBe(200);
       await git.arrayBuffer();
     } finally {
@@ -195,7 +210,7 @@ describe("a signed-out device's budgets", () => {
     const key = deviceRateKey("vaultRead", device.deviceId);
     await spendBudget(key);
 
-    const signedOut = await postSignOut(deviceHeaders(device.credential));
+    const signedOut = await drained(postSignOut(deviceHeaders(device.credential)));
     expect(signedOut.status).toBe(200);
 
     const rows = await createDb(env.DB)

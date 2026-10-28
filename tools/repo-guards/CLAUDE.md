@@ -57,9 +57,10 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 
 - **TOOLING PINS, each with its reason beside it**: `vite` is a pnpm override,
   since the catalog binds only the manifests that spell it; `@types/node` tracks
-  `engines.node`; `compatibility_date` is the lockfile's oldest workerd
-  (`tools/repo-guards/src/workerd-compat-date.test.ts`); `pnpm e2e` boots the
-  built Worker (`tools/e2e/src/scenarios/built-worker-boot.ts`), CLI
+  `engines.node`; `compatibilityDate` is the lockfile's oldest workerd, and no
+  earlier than 2026-10-01 (`tools/repo-guards/src/workerd-compat-date.test.ts`);
+  `pnpm e2e` boots the built Worker
+  (`tools/e2e/src/scenarios/built-worker-boot.ts`), CLI
   (`tools/e2e/src/scenarios/built-cli-boot.ts`) and desktop shell
   (`tools/e2e/src/scenarios/desktop-shell.ts`); agent-browser and tauri-driver
   are pinned by hand in `.github/workflows/ci.yml`, a global install riding no

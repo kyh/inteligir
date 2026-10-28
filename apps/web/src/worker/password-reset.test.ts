@@ -3,14 +3,14 @@ import {
   PASSWORD_MIN_LENGTH,
 } from "@repo/contract/cloud/device/device-schema";
 import { eq } from "drizzle-orm";
-import { createExecutionContext, SELF } from "cloudflare:test";
-import { env } from "cloudflare:workers";
+import { createExecutionContext } from "cloudflare:test";
+import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import worker, { ownsPath } from "./index";
 import { sendResetEmail } from "./auth/reset-email";
 import { createDb } from "./db/client";
 import { verification } from "./db/schema";
-import { ORIGIN, signUpUser } from "./test-support/cloud-helpers";
+import { drained, ORIGIN, signUpUser } from "./test-support/cloud-helpers";
 
 // email delivery cannot run here (it needs the owner's sending domain), so requests that
 // must observe the send go through `worker.fetch` with a recording EMAIL binding
@@ -41,9 +41,13 @@ const recordingEmail = (): EmailRecorder => {
   return { EMAIL, sent };
 };
 
-const envWith = (EMAIL: SendEmail): Env => ({ ...env, EMAIL });
+// production's two reset bindings, which the suites' own config leaves out; the sender is typed by
+// what cloudflare.config.ts declares
+const SENDER: Env["RESET_FROM_ADDRESS"] = "no-reply@inteligir.app";
+const envWith = (EMAIL: SendEmail): Env => ({ ...env, EMAIL, RESET_FROM_ADDRESS: SENDER });
 
-// worker.fetch rather than SELF.fetch: it is the only way to swap in the recording EMAIL binding
+// worker.fetch rather than exports.default.fetch: it is the only way to swap in the recording EMAIL
+// binding
 const requestReset = async (email: string, testEnv: Env): Promise<Response> =>
   await worker.fetch(
     new Request(`${ORIGIN}/api/auth/request-password-reset`, {
@@ -56,7 +60,7 @@ const requestReset = async (email: string, testEnv: Env): Promise<Response> =>
   );
 
 const signIn = async (email: string, password: string): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}/api/auth/sign-in/email`, {
+  await exports.default.fetch(`${ORIGIN}/api/auth/sign-in/email`, {
     body: JSON.stringify({ email, password }),
     headers: { "content-type": "application/json", origin: ORIGIN },
     method: "POST",
@@ -79,7 +83,7 @@ const extractResetLink = (message: RecordedEmail): string => {
 };
 
 const followGetLeg = async (link: string): Promise<URL> => {
-  const response = await SELF.fetch(link, { redirect: "manual" });
+  const response = await drained(exports.default.fetch(link, { redirect: "manual" }));
   expect(response.status).toBe(302);
   const location = response.headers.get("location");
   if (location === null) {
@@ -90,7 +94,7 @@ const followGetLeg = async (link: string): Promise<URL> => {
 
 const issueToken = async (email: string): Promise<string> => {
   const { EMAIL, sent } = recordingEmail();
-  const response = await requestReset(email, envWith(EMAIL));
+  const response = await drained(requestReset(email, envWith(EMAIL)));
   expect(response.status).toBe(200);
   const landing = await followGetLeg(extractResetLink(firstEmail(sent)));
   const token = landing.searchParams.get("token");
@@ -115,7 +119,7 @@ describe("password reset", () => {
       throw new Error("unreachable");
     }
     expect(message.to).toBe("known@example.com");
-    expect(message.from).toEqual({ email: "no-reply@inteligir.app", name: "inteligir" });
+    expect(message.from).toEqual({ email: SENDER, name: "inteligir" });
     expect(message.subject).toBe("Reset your inteligir password");
     const link = extractResetLink(message);
     expect(link).toContain(`${ORIGIN}/api/auth/reset-password/`);
@@ -141,7 +145,7 @@ describe("password reset", () => {
   it("the emailed link's GET leg lands on the site's reset page with the token", async () => {
     await signUpUser("page@example.com");
     const { EMAIL, sent } = recordingEmail();
-    await requestReset("page@example.com", envWith(EMAIL));
+    await drained(requestReset("page@example.com", envWith(EMAIL)));
 
     const landing = await followGetLeg(extractResetLink(firstEmail(sent)));
     expect(landing.origin).toBe(ORIGIN);
@@ -158,11 +162,13 @@ describe("password reset", () => {
       "x".repeat(PASSWORD_MAX_LENGTH + 1),
     ]) {
       const token = await issueToken("bounds@example.com");
-      const reset = await SELF.fetch(`${ORIGIN}/api/auth/reset-password`, {
-        body: JSON.stringify({ newPassword, token }),
-        headers: { "content-type": "application/json", origin: ORIGIN },
-        method: "POST",
-      });
+      const reset = await drained(
+        exports.default.fetch(`${ORIGIN}/api/auth/reset-password`, {
+          body: JSON.stringify({ newPassword, token }),
+          headers: { "content-type": "application/json", origin: ORIGIN },
+          method: "POST",
+        }),
+      );
       expect(reset.status, String(newPassword.length)).toBe(400);
     }
   });
@@ -171,7 +177,7 @@ describe("password reset", () => {
     const { password } = await signUpUser("happy-path@example.com");
     const token = await issueToken("happy-path@example.com");
 
-    const reset = await SELF.fetch(`${ORIGIN}/api/auth/reset-password`, {
+    const reset = await exports.default.fetch(`${ORIGIN}/api/auth/reset-password`, {
       body: JSON.stringify({ newPassword: NEW_PASSWORD, token }),
       headers: { "content-type": "application/json", origin: ORIGIN },
       method: "POST",
@@ -179,9 +185,9 @@ describe("password reset", () => {
     expect(reset.status).toBe(200);
     expect(await reset.json()).toMatchObject({ status: true });
 
-    const withOld = await signIn("happy-path@example.com", password);
+    const withOld = await drained(signIn("happy-path@example.com", password));
     expect(withOld.status).toBe(401);
-    const withNew = await signIn("happy-path@example.com", NEW_PASSWORD);
+    const withNew = await drained(signIn("happy-path@example.com", NEW_PASSWORD));
     expect(withNew.status).toBe(200);
   });
 
@@ -190,28 +196,30 @@ describe("password reset", () => {
     const token = await issueToken("single-use@example.com");
     const body = JSON.stringify({ newPassword: NEW_PASSWORD, token });
     const post = async () =>
-      await SELF.fetch(`${ORIGIN}/api/auth/reset-password`, {
+      await exports.default.fetch(`${ORIGIN}/api/auth/reset-password`, {
         body,
         headers: { "content-type": "application/json", origin: ORIGIN },
         method: "POST",
       });
-    const consumed = await post();
+    const consumed = await drained(post());
     expect(consumed.status).toBe(200);
-    const replayed = await post();
+    const replayed = await drained(post());
     expect(replayed.status).toBe(400);
   });
 
   it("invalid and EXPIRED tokens are rejected; the dead link's GET leg reports error", async () => {
-    const invalid = await SELF.fetch(`${ORIGIN}/api/auth/reset-password`, {
-      body: JSON.stringify({ newPassword: NEW_PASSWORD, token: "a".repeat(24) }),
-      headers: { "content-type": "application/json", origin: ORIGIN },
-      method: "POST",
-    });
+    const invalid = await drained(
+      exports.default.fetch(`${ORIGIN}/api/auth/reset-password`, {
+        body: JSON.stringify({ newPassword: NEW_PASSWORD, token: "a".repeat(24) }),
+        headers: { "content-type": "application/json", origin: ORIGIN },
+        method: "POST",
+      }),
+    );
     expect(invalid.status).toBe(400);
 
     const { password } = await signUpUser("expired@example.com");
     const { EMAIL, sent } = recordingEmail();
-    await requestReset("expired@example.com", envWith(EMAIL));
+    await drained(requestReset("expired@example.com", envWith(EMAIL)));
     const link = extractResetLink(firstEmail(sent));
     const token = new URL(link).pathname.split("/").at(-1);
     if (token === undefined) {
@@ -222,25 +230,30 @@ describe("password reset", () => {
       .set({ expiresAt: new Date(Date.now() - 1000) })
       .where(eq(verification.identifier, `reset-password:${token}`));
 
-    const expired = await SELF.fetch(`${ORIGIN}/api/auth/reset-password`, {
-      body: JSON.stringify({ newPassword: NEW_PASSWORD, token }),
-      headers: { "content-type": "application/json", origin: ORIGIN },
-      method: "POST",
-    });
+    const expired = await drained(
+      exports.default.fetch(`${ORIGIN}/api/auth/reset-password`, {
+        body: JSON.stringify({ newPassword: NEW_PASSWORD, token }),
+        headers: { "content-type": "application/json", origin: ORIGIN },
+        method: "POST",
+      }),
+    );
     expect(expired.status).toBe(400);
     const landing = await followGetLeg(link);
     expect(landing.pathname).toBe(RESET_PAGE_PATH);
     expect(landing.searchParams.get("error")).toBe("INVALID_TOKEN");
     expect(landing.searchParams.get("token")).toBeNull();
 
-    const stillOld = await signIn("expired@example.com", password);
+    const stillOld = await drained(signIn("expired@example.com", password));
     expect(stillOld.status).toBe(200);
   });
 
-  it("an ABSENT EMAIL binding degrades to a warning, and the from-address knob is honored", async () => {
+  it("an ABSENT EMAIL binding or sender degrades to a warning, and the sender is honored", async () => {
     await expect(
       sendResetEmail({}, "user@example.com", "https://x/reset"),
     ).resolves.toBeUndefined();
+    const unsent = recordingEmail();
+    await sendResetEmail({ EMAIL: unsent.EMAIL }, "user@example.com", "https://x/reset");
+    expect(unsent.sent).toEqual([]);
 
     const { EMAIL, sent } = recordingEmail();
     await sendResetEmail(

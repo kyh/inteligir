@@ -11,13 +11,13 @@ import {
   VAULT_FILE_MAX_BYTES,
   vaultFileResponseSchema,
 } from "@repo/contract/cloud/vault/vault-schema";
-import { SELF } from "cloudflare:test";
-import { env } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { vaultRegistry, vaultRepoName } from "./vault/vault-repo";
 import { vaultStorageCap } from "./vault/receive-pack";
 import {
   deviceHeaders,
+  drained,
   emitted,
   loginDevice,
   ORIGIN,
@@ -57,7 +57,7 @@ const postCommit = async (
   credential: string,
   body: string | ReadableStream<Uint8Array>,
 ): Promise<Response> =>
-  await SELF.fetch(COMMIT, {
+  await exports.default.fetch(COMMIT, {
     body,
     headers: { ...deviceHeaders(credential), "content-type": "application/json" },
     method: "POST",
@@ -403,11 +403,13 @@ describe("a phone's change set against the hosted vault", () => {
   it("refuses a revoked device", async () => {
     const { cookie } = await signUpUser("vault-write-revoked@example.test");
     const phone = await loginDevice(cookie, "Phone");
-    const revoked = await SELF.fetch(`${ORIGIN}${DEVICE_API_PATHS.revoke}`, {
-      body: JSON.stringify({ deviceId: phone.deviceId }),
-      headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
-      method: "POST",
-    });
+    const revoked = await drained(
+      exports.default.fetch(`${ORIGIN}${DEVICE_API_PATHS.revoke}`, {
+        body: JSON.stringify({ deviceId: phone.deviceId }),
+        headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
     expect(revoked.status).toBe(200);
 
     const response = await sendChanges(phone.credential, [put("a.md", null, "# a\n")]);

@@ -1,7 +1,6 @@
 import { deleteAccountResponseSchema } from "@repo/contract/cloud/account/account-schema";
 import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
-import { SELF } from "cloudflare:test";
-import { env } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "./db/client";
@@ -11,6 +10,7 @@ import { vaultRepoName, vaultRegistry } from "./vault/vault-repo";
 import {
   buildHeaders,
   deviceHeaders,
+  drained,
   emitted,
   loginDevice,
   openSocket,
@@ -73,7 +73,9 @@ describe("deleting the account from a device", () => {
 
     expect(await userExists(userId)).toBe(false);
     for (const credential of [laptop.credential, phone.credential]) {
-      const refused = await SELF.fetch(DEVICES, { headers: deviceHeaders(credential) });
+      const refused = await drained(
+        exports.default.fetch(DEVICES, { headers: deviceHeaders(credential) }),
+      );
       expect(refused.status).toBe(401);
     }
     // the sign-in that checked the password minted a session; none outlives the account
@@ -108,7 +110,9 @@ describe("deleting the account from a device", () => {
     expect(await refusalCodeOf(refused)).toBe("invalid-credentials");
 
     expect(await userExists(userId)).toBe(true);
-    const account = await SELF.fetch(DEVICES, { headers: deviceHeaders(credential) });
+    const account = await drained(
+      exports.default.fetch(DEVICES, { headers: deviceHeaders(credential) }),
+    );
     expect(account.status).toBe(200);
     const sessions = await createDb(env.DB)
       .select()
@@ -123,7 +127,7 @@ describe("deleting the account from a device", () => {
     const { cookie } = await signUpUser("delete-no-credential@example.test");
     const { credential } = await loginDevice(cookie, "Laptop");
     const revoked = await loginDevice(cookie, "Old Phone");
-    const signedOut = await postSignOut(deviceHeaders(revoked.credential));
+    const signedOut = await drained(postSignOut(deviceHeaders(revoked.credential)));
     expect(signedOut.status).toBe(200);
     const userId = await userIdOf(cookie);
 
@@ -139,7 +143,9 @@ describe("deleting the account from a device", () => {
     }
 
     expect(await userExists(userId)).toBe(true);
-    const account = await SELF.fetch(DEVICES, { headers: deviceHeaders(credential) });
+    const account = await drained(
+      exports.default.fetch(DEVICES, { headers: deviceHeaders(credential) }),
+    );
     expect(account.status).toBe(200);
   });
 });
@@ -149,15 +155,19 @@ describe("Better Auth's own deletion routes", () => {
     const { cookie } = await signUpUser("delete-through-better-auth@example.test");
     const userId = await userIdOf(cookie);
 
-    const deletion = await SELF.fetch(`${ORIGIN}/api/auth/delete-user`, {
-      body: "{}",
-      headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
-      method: "POST",
-    });
+    const deletion = await drained(
+      exports.default.fetch(`${ORIGIN}/api/auth/delete-user`, {
+        body: "{}",
+        headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
     expect(deletion.status).toBe(404);
-    const callback = await SELF.fetch(`${ORIGIN}/api/auth/delete-user/callback?token=any`, {
-      headers: sessionHeaders(cookie),
-    });
+    const callback = await drained(
+      exports.default.fetch(`${ORIGIN}/api/auth/delete-user/callback?token=any`, {
+        headers: sessionHeaders(cookie),
+      }),
+    );
     expect(callback.status).toBe(404);
 
     expect(await userExists(userId)).toBe(true);
@@ -167,7 +177,7 @@ describe("Better Auth's own deletion routes", () => {
 
 describe("the deletion's per-device budget", () => {
   // the suite config keeps the limiter off so suites do not 429 on one another
-  let wasDisabled = "";
+  let wasDisabled: Env["RATE_LIMIT_DISABLED"] = "true";
   beforeEach(() => {
     wasDisabled = env.RATE_LIMIT_DISABLED;
     env.RATE_LIMIT_DISABLED = "false";

@@ -144,6 +144,10 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
    - Only `CREATE INDEX`, `CREATE TABLE` or `ALTER TABLE … ADD`: run
      `pnpm --filter @repo/web db:push:remote`, then `--explain` again, which
      now plans nothing.
+   - A `DROP INDEX` or an `ALTER TABLE … DROP COLUMN` of a column Better Auth
+     no longer writes (`account.issuer`, with its index): push it as Deploy
+     finishes, since a sign-up fails while one side has it and the other does
+     not, then `--explain` again.
    - Anything that recreates a table (a `__new_` table, a `DROP TABLE`): STOP.
      D1 ignores the foreign-key pragma a recreate leans on, so the drop
      cascades through every session, account and device (`apps/web/CLAUDE.md`,
@@ -514,6 +518,9 @@ account whose library holds about 2,000 items gives the timing check its load.
 
 ### The site
 
+- **A password reset arrives.** Passing: Forgot password on inteligir.com
+  mails a reset link from `no-reply@inteligir.app` (the `RESET_FROM_ADDRESS`
+  in `apps/web/cloudflare.config.ts`), and the link sets a new password.
 - **The pitch.** Passing: `apps/web/public/og.jpg` and the Web Store listing's
   copy read with the library's pitch (one library for everything you save),
   and an inteligir.com link pasted into a chat app previews with it. A new

@@ -12,10 +12,12 @@ const worker = defineWorker({
   compatibilityDate,
   compatibilityFlags,
   workersDev: true,
-  // the log and the traces keep every request's URL for up to seven days, so no route carries a
-  // vault path in one: the vault reads post it (docs/privacy.md)
+  // the log and the traces keep every request's path for up to seven days, so no route carries a
+  // vault path in one (the vault reads post it), and drop the query string, which carries sign-in
+  // codes and tickets (docs/privacy.md)
   observability: {
     enabled: true,
+    redactQueryString: true,
     traces: { enabled: true, headSamplingRate: 0.01 },
   },
   exports: {
@@ -38,28 +40,34 @@ const worker = defineWorker({
 // and audio rows, whose commits an older build cannot serve
 const MIN_CLIENT_BUILD = "0.6.0";
 
-const durableObjects = {
+// what both modes bind alike
+const shared = {
   ACCOUNT_SOCKET: bindings.durableObject({ worker, exportName: "ThreadSyncDO" }),
   // REPO and REGISTRY are durable-git's own classes, re-exported through the entry
   REPO: bindings.durableObject({ worker, exportName: "RepoCell" }),
   REGISTRY: bindings.durableObject({ worker, exportName: "Registry" }),
+  // Better Auth's signing key: `cf workers secrets update` in production, a preview base-config
+  // secret (.github/workflows/preview.yml), .dev.vars locally
+  BETTER_AUTH_SECRET: bindings.secret(),
+  MIN_CLIENT_BUILD: bindings.text(MIN_CLIENT_BUILD),
+  // what one account's hosted vault may store, history included: 1 GiB
+  VAULT_STORAGE_CAP_BYTES: bindings.text("1073741824"),
+  // the auth limiter's off switch, "true" only where one caller signs up many accounts: the
+  // suites, the e2e harness, a local script's .dev.vars
+  RATE_LIMIT_DISABLED: bindings.text<"true" | "false">("false"),
 };
 
 // A Preview must not claim the production hostnames, and gets its own Durable Object namespaces
 // for free, and a preview-only D1 and bucket (.github/workflows/preview.yml creates them): a PR
-// never reaches the production accounts or vault packs. No EMAIL: a preview must not mail real
-// inboxes from the production domain, and src/worker/auth/reset-email.ts logs instead when it is
-// absent. No unsafe metadata: a Preview upload refuses it, and a preview has no sockets worth
-// draining.
+// never reaches the production accounts or vault packs. No EMAIL or sender: a preview must not mail
+// real inboxes from the production domain, and src/worker/auth/reset-email.ts logs instead.
 const previewWorker = {
   ...worker,
   triggers: [],
   env: {
-    ...durableObjects,
+    ...shared,
     DB: bindings.d1({ name: "inteligir-auth-preview" }),
     PACK_CACHE: bindings.r2({ name: "inteligir-vault-preview" }),
-    VAULT_STORAGE_CAP_BYTES: bindings.text("1073741824"),
-    MIN_CLIENT_BUILD: bindings.text(MIN_CLIENT_BUILD),
   },
 };
 
@@ -69,21 +77,19 @@ const productionWorker = {
     triggers.fetch({ pattern: "inteligir.com/*", zone: "inteligir.com" }),
     triggers.fetch({ pattern: "www.inteligir.com/*", zone: "inteligir.com" }),
   ],
-  // cf sends no code_update_strategy, so the API would cut every open sync socket on deploy; this
-  // is wrangler's default, which lets them finish on the old code for up to 5 minutes
-  unsafe: { metadata: { code_update_strategy: { max_delay: 300, mode: "deferred" } } },
+  // no code_update_strategy: a deploy restarts every Durable Object and drops its sockets, and each
+  // client reconnects and catches up by itself, so none waits on the old code to drain
   env: {
-    ...durableObjects,
+    ...shared,
     // schema is src/worker/db/schema.ts, applied with drizzle-kit push (no migration files)
     DB: bindings.d1({ name: "inteligir-auth", id: "005d0e52-f102-4298-8da9-492b672ed00f" }),
     // pack bytes only; without it durable-git stores packs in the cell's SQLite, which
     // caps vault size
     PACK_CACHE: bindings.r2({ name: "inteligir-vault" }),
-    // what one account's hosted vault may store, history included: 1 GiB
-    VAULT_STORAGE_CAP_BYTES: bindings.text("1073741824"),
-    MIN_CLIENT_BUILD: bindings.text(MIN_CLIENT_BUILD),
     // password-reset transport; needs email sending enabled + DNS onboarding once
     EMAIL: bindings.sendEmail({}),
+    // the reset email's sender, on the domain onboarded for Email Sending
+    RESET_FROM_ADDRESS: bindings.text("no-reply@inteligir.app"),
   },
 };
 

@@ -22,8 +22,11 @@ catalog:
   "@agentclientprotocol/sdk": 1.5.0
   # optional peer @vitejs/plugin-react loads for `compiler: true`
   oxc-transform-react: ^0.152.0
-  "@cloudflare/vite-plugin": ^1.63.1
-  "@cloudflare/vitest-pool-workers": ^0.22.0
+  # exact: the last 1.x with `experimental.newConfig`, the option a 1.x build reads
+  # cloudflare.config.ts through; the line cf itself builds with is the 2.0 beta
+  # (developers.cloudflare.com/cf/projects)
+  "@cloudflare/vite-plugin": 1.64.0
+  "@cloudflare/vitest-plugin": ^1.4.8
   "@expo/metro-runtime": ~57.0.16
   "@expo/plist": ~0.8.1
   # node-server held on 1.x: @hono/node-ws has no 2.x-compatible release; lift both together
@@ -55,10 +58,10 @@ catalog:
   "@types/react": 19.2.17
   "@types/react-dom": ^19.3.0
   "@vitejs/plugin-react": ^6.1.2
-  # exact: 1.7.3+ drops account.issuer, which the D1 schema holds NOT NULL and unique-indexes;
-  # lifting it needs a production D1 schema change first
-  "@better-auth/drizzle-adapter": 1.7.2
-  better-auth: 1.7.2
+  # exact, and the same as the @better-auth/core override: the three are released in lockstep, and
+  # a pair one patch apart resolves a second core
+  "@better-auth/drizzle-adapter": 1.7.14
+  better-auth: 1.7.14
   better-sqlite3: ^13.0.3
   citty: ^0.2.2
   cn: ^0.4.0
@@ -122,16 +125,13 @@ catalog:
   tsx: ^4.23.15
   typescript: ^7.0.2
   unified: ^11.0.5
-  # exact: 8.2.x's rolldown tree-shakes better-auth's HOST_COOKIE_PREFIX and the Worker
-  # dies at module scope with a bare 500
-  vite: 8.1.5
-  # held on 4.x: @cloudflare/vitest-pool-workers peers vitest ^4.1
+  vite: ^8.3.5
   vitest: ^4.1.11
   # exact: a beta, whose config API moves between releases
-  cf: 1.0.0-beta.12
-  # the one wrangler resolves; tools/e2e reads `cf build` output with it
-  miniflare: 5.20261006.1-alpha
-  wrangler: ^4.149.0
+  cf: 1.0.0-beta.23
+  # the one cf resolves; tools/e2e reads `cf build` output with it
+  miniflare: 5.20261023.0-beta
+  wrangler: ^4.153.0
   yaml: ^2.9.1
   zod: ^4.6.5
   zustand: ^5.0.15
@@ -179,7 +179,7 @@ allowBuilds:
 
 overrides:
   # the adapter's auto-installed peer would otherwise resolve a second, newer core beside better-auth's
-  "@better-auth/core": 1.7.2
+  "@better-auth/core": 1.7.14
   # react-native-css compiles the phone's sheet with the lightningcss @expo/metro-config carries
   # (its own peer only when that one is missing), and 3.0's visitor fails to deserialize under 1.30.2
   # and later; scoped, since Tailwind pins its own, exactly. Lifted with react-native-css

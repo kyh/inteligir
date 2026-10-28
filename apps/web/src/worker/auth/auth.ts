@@ -1,6 +1,5 @@
 import { betterAuth } from "better-auth";
-// the adapter better-auth re-exports reads `db._.fullSchema`, gone in drizzle 1.0; relations-v2
-// reads `db._.relations`, which `createDb` populates.
+// relations-v2: the adapter better-auth re-exports reads `db._.fullSchema`, gone in drizzle 1.0
 import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
 import {
   PASSWORD_MAX_LENGTH,
@@ -9,7 +8,7 @@ import {
 import { sql } from "drizzle-orm";
 import { deleteVaultGitRepo } from "../vault/vault-repo";
 import { createDb } from "../db/client";
-import { inviteCode } from "../db/schema";
+import { authTables, inviteCode } from "../db/schema";
 import { purgeDeviceRows } from "../device/login";
 import { AUTH_RATE_WINDOW_SECONDS, CALLER_IP_HEADER } from "../rate-limit";
 import { closeAccountSockets } from "../sync/account-socket-stub";
@@ -63,7 +62,7 @@ const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
       ipAddress: { ipAddressHeaders: [CALLER_IP_HEADER] },
     },
     baseURL,
-    database: drizzleAdapter(createDb(env.DB), { provider: "sqlite" }),
+    database: drizzleAdapter(createDb(env.DB), { provider: "sqlite", schema: authTables }),
     disabledPaths: DISABLED_PATHS,
     emailAndPassword: {
       disableSignUp,

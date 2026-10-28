@@ -8,8 +8,7 @@ import {
   PASSWORD_MIN_LENGTH,
 } from "@repo/contract/cloud/device/device-schema";
 import { eq } from "drizzle-orm";
-import { SELF } from "cloudflare:test";
-import { env } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   buildHeaders,
@@ -41,7 +40,7 @@ const postSignUp = async (
   body: Partial<DeviceSignUpRequest>,
   headers: Record<string, string> = {},
 ): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}${DEVICE_API_PATHS.signUp}`, {
+  await exports.default.fetch(`${ORIGIN}${DEVICE_API_PATHS.signUp}`, {
     body: JSON.stringify(body),
     headers: { ...buildHeaders(), ...headers, "content-type": "application/json" },
     method: "POST",
@@ -52,7 +51,7 @@ const postSiteSignUp = async (
   code: string,
   headers: Record<string, string> = {},
 ): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}${AUTH_API_PATHS.signUp}`, {
+  await exports.default.fetch(`${ORIGIN}${AUTH_API_PATHS.signUp}`, {
     body: JSON.stringify({ email, inviteCode: code, name: "Site Signup", password: PASSWORD }),
     headers: { ...OWN_PAGE_HEADERS, ...headers, "content-type": "application/json" },
     method: "POST",
@@ -174,7 +173,7 @@ describe("device sign-up", () => {
 
 describe("the invite gate's window", () => {
   // the suite config keeps the limiter off so suites do not 429 on one another
-  let wasDisabled = "";
+  let wasDisabled: Env["RATE_LIMIT_DISABLED"] = "true";
   beforeEach(() => {
     wasDisabled = env.RATE_LIMIT_DISABLED;
     env.RATE_LIMIT_DISABLED = "false";

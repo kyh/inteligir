@@ -4,13 +4,12 @@ import {
   PASSWORD_MIN_LENGTH,
 } from "@repo/contract/cloud/device/device-schema";
 import { eq } from "drizzle-orm";
-import { SELF } from "cloudflare:test";
-import { env } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createDb } from "./db/client";
 import { inviteCode } from "./db/schema";
-import { cookieHeaderOf, OWN_PAGE_HEADERS } from "./test-support/cloud-helpers";
+import { cookieHeaderOf, drained, OWN_PAGE_HEADERS } from "./test-support/cloud-helpers";
 
 const ORIGIN = "https://inteligir-web.workers.dev";
 const PASSWORD = "test-password-1234";
@@ -46,7 +45,7 @@ const mintCode = async (code: string): Promise<void> => {
 };
 
 const signUp = async (body: Record<string, string>): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}${AUTH_API_PATHS.signUp}`, {
+  await exports.default.fetch(`${ORIGIN}${AUTH_API_PATHS.signUp}`, {
     body: JSON.stringify(body),
     headers: { ...OWN_PAGE_HEADERS, "content-type": "application/json" },
     method: "POST",
@@ -58,12 +57,14 @@ const readCode = async (code: string) =>
 describe("invite-gated sign-up", () => {
   it("creates the account and burns the code", async () => {
     await mintCode("INVITE-OK");
-    const response = await signUp({
-      email: "ada@example.test",
-      inviteCode: "INVITE-OK",
-      name: "Ada",
-      password: PASSWORD,
-    });
+    const response = await drained(
+      signUp({
+        email: "ada@example.test",
+        inviteCode: "INVITE-OK",
+        name: "Ada",
+        password: PASSWORD,
+      }),
+    );
 
     expect(response.status).toBe(200);
     expect(response.headers.get("set-auth-token")).toBeNull();
@@ -75,38 +76,46 @@ describe("invite-gated sign-up", () => {
   });
 
   it("refuses an unknown code without creating anything", async () => {
-    const response = await signUp({
-      email: "mallory@example.test",
-      inviteCode: "NO-SUCH-CODE",
-      name: "Mallory",
-      password: PASSWORD,
-    });
+    const response = await drained(
+      signUp({
+        email: "mallory@example.test",
+        inviteCode: "NO-SUCH-CODE",
+        name: "Mallory",
+        password: PASSWORD,
+      }),
+    );
     expect(response.status).toBe(403);
 
-    const signIn = await SELF.fetch(`${ORIGIN}/api/auth/sign-in/email`, {
-      body: JSON.stringify({ email: "mallory@example.test", password: PASSWORD }),
-      headers: { "content-type": "application/json", origin: ORIGIN },
-      method: "POST",
-    });
+    const signIn = await drained(
+      exports.default.fetch(`${ORIGIN}/api/auth/sign-in/email`, {
+        body: JSON.stringify({ email: "mallory@example.test", password: PASSWORD }),
+        headers: { "content-type": "application/json", origin: ORIGIN },
+        method: "POST",
+      }),
+    );
     expect(signIn.status).not.toBe(200);
   });
 
   it("refuses a code that has already been redeemed", async () => {
     await mintCode("INVITE-ONCE");
-    const first = await signUp({
-      email: "first@example.test",
-      inviteCode: "INVITE-ONCE",
-      name: "First",
-      password: PASSWORD,
-    });
+    const first = await drained(
+      signUp({
+        email: "first@example.test",
+        inviteCode: "INVITE-ONCE",
+        name: "First",
+        password: PASSWORD,
+      }),
+    );
     expect(first.status).toBe(200);
 
-    const second = await signUp({
-      email: "second@example.test",
-      inviteCode: "INVITE-ONCE",
-      name: "Second",
-      password: PASSWORD,
-    });
+    const second = await drained(
+      signUp({
+        email: "second@example.test",
+        inviteCode: "INVITE-ONCE",
+        name: "Second",
+        password: PASSWORD,
+      }),
+    );
     expect(second.status).toBe(403);
     const claimed = await readCode("INVITE-ONCE");
     expect(claimed?.redeemedBy).toBe("first@example.test");
@@ -116,10 +125,10 @@ describe("invite-gated sign-up", () => {
     await mintCode("INVITE-TAKEN");
     await mintCode("INVITE-AGAIN");
     const taken = { email: "taken@example.test", name: "Taken", password: PASSWORD };
-    const first = await signUp({ ...taken, inviteCode: "INVITE-TAKEN" });
+    const first = await drained(signUp({ ...taken, inviteCode: "INVITE-TAKEN" }));
     expect(first.status).toBe(200);
 
-    const response = await signUp({ ...taken, inviteCode: "INVITE-AGAIN" });
+    const response = await drained(signUp({ ...taken, inviteCode: "INVITE-AGAIN" }));
     expect(response.status).not.toBe(200);
 
     const row = await readCode("INVITE-AGAIN");
@@ -150,14 +159,14 @@ describe("invite-gated sign-up", () => {
 
   it("refuses a malformed body before touching the invite", async () => {
     await mintCode("INVITE-UNTOUCHED");
-    const response = await signUp({ inviteCode: "INVITE-UNTOUCHED" });
+    const response = await drained(signUp({ inviteCode: "INVITE-UNTOUCHED" }));
     expect(response.status).toBe(400);
     const untouched = await readCode("INVITE-UNTOUCHED");
     expect(untouched?.redeemedAt).toBeNull();
   });
 
   it("refuses Better Auth's own sign-up route, which takes no code", async () => {
-    const response = await SELF.fetch(`${ORIGIN}/api/auth/sign-up/email`, {
+    const response = await exports.default.fetch(`${ORIGIN}/api/auth/sign-up/email`, {
       body: JSON.stringify({
         email: "eve@example.test",
         name: "Eve",
@@ -169,46 +178,54 @@ describe("invite-gated sign-up", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ code: "EMAIL_PASSWORD_SIGN_UP_DISABLED" });
 
-    const signIn = await SELF.fetch(`${ORIGIN}/api/auth/sign-in/email`, {
-      body: JSON.stringify({ email: "eve@example.test", password: PASSWORD }),
-      headers: { "content-type": "application/json", origin: ORIGIN },
-      method: "POST",
-    });
+    const signIn = await drained(
+      exports.default.fetch(`${ORIGIN}/api/auth/sign-in/email`, {
+        body: JSON.stringify({ email: "eve@example.test", password: PASSWORD }),
+        headers: { "content-type": "application/json", origin: ORIGIN },
+        method: "POST",
+      }),
+    );
     expect(signIn.status).not.toBe(200);
   });
 
   it("answers 404 on each Better Auth route no client calls, even to a signed-in browser", async () => {
     await mintCode("INVITE-SURFACE");
-    const signedUp = await signUp({
-      email: "surface@example.test",
-      inviteCode: "INVITE-SURFACE",
-      name: "Surface",
-      password: PASSWORD,
-    });
+    const signedUp = await drained(
+      signUp({
+        email: "surface@example.test",
+        inviteCode: "INVITE-SURFACE",
+        name: "Surface",
+        password: PASSWORD,
+      }),
+    );
     expect(signedUp.status).toBe(200);
     const headers = { cookie: cookieHeaderOf(signedUp), origin: ORIGIN };
 
     for (const [method, path] of UNUSED_AUTH_ROUTES) {
-      const response = await SELF.fetch(`${ORIGIN}/api/auth${path}`, {
-        body: method === "POST" ? "{}" : null,
-        headers: { ...headers, "content-type": "application/json" },
-        method,
-      });
+      const response = await drained(
+        exports.default.fetch(`${ORIGIN}/api/auth${path}`, {
+          body: method === "POST" ? "{}" : null,
+          headers: { ...headers, "content-type": "application/json" },
+          method,
+        }),
+      );
       expect(response.status, `${method} ${path}`).toBe(404);
     }
   });
 
   it("signs an invited account back in through Better Auth, into a cookie and nothing else", async () => {
     await mintCode("INVITE-RETURNS");
-    const signedUp = await signUp({
-      email: "grace@example.test",
-      inviteCode: "INVITE-RETURNS",
-      name: "Grace",
-      password: PASSWORD,
-    });
+    const signedUp = await drained(
+      signUp({
+        email: "grace@example.test",
+        inviteCode: "INVITE-RETURNS",
+        name: "Grace",
+        password: PASSWORD,
+      }),
+    );
     expect(signedUp.status).toBe(200);
 
-    const signIn = await SELF.fetch(`${ORIGIN}/api/auth/sign-in/email`, {
+    const signIn = await exports.default.fetch(`${ORIGIN}/api/auth/sign-in/email`, {
       body: JSON.stringify({ email: "grace@example.test", password: PASSWORD }),
       headers: { "content-type": "application/json", origin: ORIGIN },
       method: "POST",
@@ -217,11 +234,11 @@ describe("invite-gated sign-up", () => {
     expect(signIn.headers.get("set-auth-token")).toBeNull();
     const { token } = signInBodySchema.parse(await signIn.json());
 
-    const asBearer = await SELF.fetch(`${ORIGIN}/api/auth/get-session`, {
+    const asBearer = await exports.default.fetch(`${ORIGIN}/api/auth/get-session`, {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(await asBearer.json()).toBeNull();
-    const asCookie = await SELF.fetch(`${ORIGIN}/api/auth/get-session`, {
+    const asCookie = await exports.default.fetch(`${ORIGIN}/api/auth/get-session`, {
       headers: { cookie: cookieHeaderOf(signIn) },
     });
     expect(sessionSchema.parse(await asCookie.json()).user.email).toBe("grace@example.test");

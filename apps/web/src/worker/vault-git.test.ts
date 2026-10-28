@@ -1,7 +1,7 @@
 import { VAULT_GIT_MAX_PUSH_BYTES } from "@repo/contract/cloud/vault/vault-git";
 import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
-import { runInDurableObject, SELF } from "cloudflare:test";
-import { env } from "cloudflare:workers";
+import { runInDurableObject } from "cloudflare:test";
+import { env, exports } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
 import { packCachePrefixes, vaultRepoName } from "./vault/vault-repo";
 import { vaultStorageCap } from "./vault/receive-pack";
@@ -9,6 +9,7 @@ import { treeListingPrefix } from "./vault/tree-listing";
 import {
   buildHeaders,
   deviceHeaders,
+  drained,
   loginDevice,
   openSocket,
   ORIGIN,
@@ -29,31 +30,39 @@ const REMOTE = `${ORIGIN}/v1/git/vault.git`;
 
 describe("vault git remote auth", () => {
   it("refuses the wire without a credential, with the Basic challenge", async () => {
-    const response = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
-      headers: buildHeaders(),
-    });
+    const response = await drained(
+      exports.default.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
+        headers: buildHeaders(),
+      }),
+    );
     expect(response.status).toBe(401);
     expect(response.headers.get("www-authenticate")).toContain("Basic");
   });
 
   it("refuses an unknown credential on both carriers", async () => {
     const fake = `igd_${"0".repeat(64)}`;
-    const bearer = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
-      headers: { ...buildHeaders(), authorization: `Bearer ${fake}` },
-    });
+    const bearer = await drained(
+      exports.default.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
+        headers: { ...buildHeaders(), authorization: `Bearer ${fake}` },
+      }),
+    );
     expect(bearer.status).toBe(401);
-    const basic = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
-      headers: { ...buildHeaders(), authorization: `Basic ${btoa(`x:${fake}`)}` },
-    });
+    const basic = await drained(
+      exports.default.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
+        headers: { ...buildHeaders(), authorization: `Basic ${btoa(`x:${fake}`)}` },
+      }),
+    );
     expect(basic.status).toBe(401);
   });
 
   it("serves the receive-pack advertisement to a Bearer credential", async () => {
     const { cookie } = await signUpUser("vault-git-bearer@example.test");
     const { credential } = await loginDevice(cookie, "Laptop");
-    const response = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
-      headers: deviceHeaders(credential),
-    });
+    const response = await drained(
+      exports.default.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
+        headers: deviceHeaders(credential),
+      }),
+    );
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe(
       "application/x-git-receive-pack-advertisement",
@@ -63,18 +72,22 @@ describe("vault git remote auth", () => {
   it("accepts the credential as a Basic password — stock git's carrier", async () => {
     const { cookie } = await signUpUser("vault-git-basic@example.test");
     const { credential } = await loginDevice(cookie, "Laptop");
-    const response = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
-      headers: { ...buildHeaders(), authorization: `Basic ${btoa(`x:${credential}`)}` },
-    });
+    const response = await drained(
+      exports.default.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
+        headers: { ...buildHeaders(), authorization: `Basic ${btoa(`x:${credential}`)}` },
+      }),
+    );
     expect(response.status).toBe(200);
   });
 
   it("answers 404 on the fetch leg of a vault never pushed", async () => {
     const { cookie } = await signUpUser("vault-git-empty@example.test");
     const { credential } = await loginDevice(cookie, "Laptop");
-    const response = await SELF.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {
-      headers: deviceHeaders(credential),
-    });
+    const response = await drained(
+      exports.default.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {
+        headers: deviceHeaders(credential),
+      }),
+    );
     expect(response.status).toBe(404);
   });
 
@@ -87,26 +100,32 @@ describe("vault git remote auth", () => {
         controller.close();
       },
     });
-    const response = await SELF.fetch(`${REMOTE}/git-upload-pack`, {
-      body,
-      headers: {
-        ...deviceHeaders(credential),
-        "content-type": "application/x-git-upload-pack-request",
-      },
-      method: "POST",
-    });
+    const response = await drained(
+      exports.default.fetch(`${REMOTE}/git-upload-pack`, {
+        body,
+        headers: {
+          ...deviceHeaders(credential),
+          "content-type": "application/x-git-upload-pack-request",
+        },
+        method: "POST",
+      }),
+    );
     expect(response.status).toBe(413);
   });
 
   it("keeps the JSON API and admin surface off the wire", async () => {
     const { cookie } = await signUpUser("vault-git-surface@example.test");
     const { credential } = await loginDevice(cookie, "Laptop");
-    const api = await SELF.fetch(`${REMOTE}/api/refs`, { headers: deviceHeaders(credential) });
+    const api = await drained(
+      exports.default.fetch(`${REMOTE}/api/refs`, { headers: deviceHeaders(credential) }),
+    );
     expect(api.status).toBe(404);
-    const admin = await SELF.fetch(`${REMOTE}/`, {
-      headers: deviceHeaders(credential),
-      method: "DELETE",
-    });
+    const admin = await drained(
+      exports.default.fetch(`${REMOTE}/`, {
+        headers: deviceHeaders(credential),
+        method: "DELETE",
+      }),
+    );
     expect(admin.status).toBe(404);
   });
 });
@@ -134,7 +153,7 @@ describe("vault git remote round-trip", () => {
     });
     expect(pusherSocket.frames).not.toContainEqual({ type: "vault" });
 
-    const refs = await SELF.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {
+    const refs = await exports.default.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {
       headers: deviceHeaders(other.credential),
     });
     expect(refs.status).toBe(200);
@@ -164,10 +183,13 @@ describe("vault git remote round-trip", () => {
       ZERO_OID,
     );
     expect(pushed.response.status).toBe(200);
+    await pushed.response.arrayBuffer();
 
-    const refs = await SELF.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {
-      headers: deviceHeaders(betaDevice.credential),
-    });
+    const refs = await drained(
+      exports.default.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {
+        headers: deviceHeaders(betaDevice.credential),
+      }),
+    );
     expect(refs.status).toBe(404);
   });
 });
@@ -180,9 +202,11 @@ describe("the push cap", () => {
     const refused = await pushNothingDeclaring(credential, VAULT_GIT_MAX_PUSH_BYTES + 1);
     expect(refused.status).toBe(413);
     expect(await refused.text()).toContain("MiB limit");
-    const refs = await SELF.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {
-      headers: deviceHeaders(credential),
-    });
+    const refs = await drained(
+      exports.default.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {
+        headers: deviceHeaders(credential),
+      }),
+    );
     expect(refs.status).toBe(404);
 
     const next = await pushVaultFiles(
@@ -327,11 +351,11 @@ describe("the storage cap", () => {
     const vault = await openVault("vault-cap-full@example.test");
     const tip = await fillVault(vault.credential, vault.repo, vault.head);
 
-    const refused = await pushNothingDeclaring(vault.credential, 1024);
+    const refused = await drained(pushNothingDeclaring(vault.credential, 1024));
     expect(refused.status).toBe(507);
     expect(await headOf(vault.repo)).toBe(tip);
 
-    const advertised = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
+    const advertised = await exports.default.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
       headers: deviceHeaders(vault.credential),
     });
     expect(advertised.status).toBe(200);
@@ -362,7 +386,9 @@ describe("account deletion's vault half", () => {
     const repo = vaultRepoName(userId);
 
     const listingPrefix = treeListingPrefix(repo);
-    const listed = await postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(credential), {});
+    const listed = await drained(
+      postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(credential), {}),
+    );
     expect(listed.status).toBe(200);
     const kept = await env.PACK_CACHE.list({ prefix: listingPrefix });
     expect(kept.objects).toHaveLength(1);
@@ -372,12 +398,14 @@ describe("account deletion's vault half", () => {
       expect(packs.objects.length, prefix).toBeGreaterThan(0);
     }
 
-    const deletion = await postAccountDelete(deviceHeaders(credential), password);
+    const deletion = await drained(postAccountDelete(deviceHeaders(credential), password));
     expect(deletion.status).toBe(200);
 
-    const refused = await SELF.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {
-      headers: deviceHeaders(credential),
-    });
+    const refused = await drained(
+      exports.default.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {
+        headers: deviceHeaders(credential),
+      }),
+    );
     expect(refused.status).toBe(401);
 
     expect(await env.REGISTRY.getByName("registry").get(repo)).toBeNull();

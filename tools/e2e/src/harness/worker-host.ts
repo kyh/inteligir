@@ -65,7 +65,8 @@ const workerOptions = async (): Promise<MiniflareOptions["workers"]> => {
   ];
 };
 
-// splitting the DDL on `;` holds only while no string literal in the schema contains one
+// one batch: D1 runs it as one transaction and pays the request overhead once. Splitting the DDL on
+// `;` holds only while no string literal in the schema contains one
 const applySchema = async (workers: MiniflareOptions["workers"]): Promise<void> => {
   // its own instance on no fixed port, so nothing reaches the Worker before its tables exist
   const setup = new Miniflare({ resourcePersistencePath: args.stateDir, workers });
@@ -76,9 +77,7 @@ const applySchema = async (workers: MiniflareOptions["workers"]): Promise<void> 
       .split(";")
       .map((statement) => statement.trim())
       .filter((statement) => statement.length > 0);
-    for (const statement of statements) {
-      await db.prepare(statement).run();
-    }
+    await db.batch(statements.map((statement) => db.prepare(statement)));
   } finally {
     await setup.dispose();
   }

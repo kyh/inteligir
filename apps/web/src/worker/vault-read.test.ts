@@ -8,14 +8,14 @@ import {
   vaultFilesResponseSchema,
   vaultTreeResponseSchema,
 } from "@repo/contract/cloud/vault/vault-schema";
-import { SELF } from "cloudflare:test";
-import { env } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { vaultRepoName } from "./vault/vault-repo";
 import { treeListingPrefix, treeListingSlot } from "./vault/tree-listing";
 import {
   buildHeaders,
   deviceHeaders,
+  drained,
   emitted,
   loginDevice,
   ORIGIN,
@@ -157,7 +157,7 @@ describe("vault read rows", () => {
     ]);
     const repo = vaultRepoName(await userIdOf(cookie));
     const slot = treeListingSlot(env.PACK_CACHE, repo);
-    const filled = await readTree(credential, {});
+    const filled = await drained(readTree(credential, {}));
     expect(filled.status).toBe(200);
     const kept = await env.PACK_CACHE.list({ prefix: treeListingPrefix(repo) });
     expect(kept.objects).toHaveLength(1);
@@ -264,7 +264,9 @@ describe("vault read rows", () => {
     const beta = await signUpUser("vault-read-beta@example.test");
     const betaDevice = await loginDevice(beta.cookie, "Laptop");
 
-    const asBeta = await readFile(betaDevice.credential, { path: "secret.md", ref: alpha.commit });
+    const asBeta = await drained(
+      readFile(betaDevice.credential, { path: "secret.md", ref: alpha.commit }),
+    );
     expect(asBeta.status).toBe(404);
   });
 
@@ -282,7 +284,7 @@ describe("vault read rows", () => {
       expect(response.status, JSON.stringify(query)).toBe(400);
       expect(await refusalCodeOf(response)).toBe("bad-request");
     }
-    const notJson = await SELF.fetch(`${ORIGIN}${VAULT_API_PATHS.file}`, {
+    const notJson = await exports.default.fetch(`${ORIGIN}${VAULT_API_PATHS.file}`, {
       body: "path=a.md",
       headers: { ...deviceHeaders(credential), "content-type": "application/json" },
       method: "POST",
@@ -402,10 +404,12 @@ describe("the vault batch route", () => {
     ]);
     const beta = await signUpUser("vault-batch-beta@example.test");
     const betaDevice = await loginDevice(beta.cookie, "Phone");
-    const asBeta = await postFiles(deviceHeaders(betaDevice.credential), {
-      paths: ["secret.md"],
-      ref: alpha.commit,
-    });
+    const asBeta = await drained(
+      postFiles(deviceHeaders(betaDevice.credential), {
+        paths: ["secret.md"],
+        ref: alpha.commit,
+      }),
+    );
     expect(asBeta.status).toBe(404);
   });
 });
@@ -480,10 +484,12 @@ describe("the vault asset route", () => {
     ]);
     const beta = await signUpUser("vault-asset-beta@example.test");
     const betaDevice = await loginDevice(beta.cookie, "Laptop");
-    const asBeta = await readAsset(betaDevice.credential, {
-      path: "secret.png",
-      ref: alpha.commit,
-    });
+    const asBeta = await drained(
+      readAsset(betaDevice.credential, {
+        path: "secret.png",
+        ref: alpha.commit,
+      }),
+    );
     expect(asBeta.status).toBe(404);
   });
 });
@@ -503,12 +509,12 @@ describe("a read that is not a POST", () => {
     for (const [path, query] of reads) {
       const url = `${ORIGIN}${path}?${new URLSearchParams(query).toString()}`;
       for (const headers of [deviceHeaders(credential), buildHeaders()]) {
-        const response = await SELF.fetch(url, { headers });
+        const response = await exports.default.fetch(url, { headers });
         expect(response.status, path).toBe(400);
         expect(await refusalCodeOf(response)).toBe("bad-request");
       }
     }
-    const put = await SELF.fetch(`${ORIGIN}${VAULT_API_PATHS.tree}`, {
+    const put = await exports.default.fetch(`${ORIGIN}${VAULT_API_PATHS.tree}`, {
       body: "{}",
       headers: { ...deviceHeaders(credential), "content-type": "application/json" },
       method: "PUT",
