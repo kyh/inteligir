@@ -60,7 +60,7 @@ src/
     v1-errors.ts       # every refusal /v1 answers, declared once, and the status map every handler uses
     library/           # the library's rows (library-contract.ts) and the shapes they carry (library-wire.ts)
     client-build.ts    # the build every request names, and the floor it is held to
-    cloud-errors.ts    # the ONE code→status map
+    cloud-errors.ts    # the REST /cloud wire's code→status map, until its last client moves onto /v1
     cloud-client.ts    # the one client both installs call the Worker through
     cloud-origin.ts    # the production origin both clients fall back to
     bytes.ts           # the byte primitives, on globals every target has

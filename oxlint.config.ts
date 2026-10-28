@@ -7,7 +7,7 @@ import tanstack from "ultracite/oxlint/tanstack";
 const tests = ["**/test-support/**", "**/*.test.ts", "**/*.test.tsx"];
 
 // A regex, not a group: a group matches gitignore-style, so "react" would also refuse
-// "@platejs/react".
+// "@platejs/react", and a bare name or one `/*` misses a package's deeper subpaths.
 const NODE = "^node:";
 const REACT = "^react(?:-dom)?(?:/|$)";
 const NODE_OR_REACT = "^(?:node:|react(?:-dom)?(?:/|$))";
@@ -19,14 +19,9 @@ const NOTES_PURITY =
 // that reached it would bundle the MCP SDK, whose shims import node:process, and the OpenAPI codec,
 // neither of which Metro tree-shakes away.
 const SERVER_ONLY = {
-  group: [
-    "@modelcontextprotocol/server",
-    "@modelcontextprotocol/server/*",
-    "@orpc/mcp",
-    "@orpc/openapi",
-  ],
   message:
     "MCP and OpenAPI meta live in apps/web/src/worker alone; a client imports @repo/contract's plain rows",
+  regex: "^(?:@orpc/(?:mcp|openapi)|@modelcontextprotocol/server)(?:/|$)",
 };
 
 // oRPC v2 still ships its v1 names, untagged, beside the new ones (https://orpc.dev/docs/migrations/from-v1).
@@ -75,8 +70,7 @@ const ORPC_V1_NAMES = [
 
 interface ImportPattern {
   readonly message: string;
-  readonly regex?: string;
-  readonly group?: readonly string[];
+  readonly regex: string;
 }
 
 // One rule config per file: an override's options replace the base's rather than add to them, so
@@ -190,7 +184,7 @@ export default defineConfig({
       rules: {
         "no-restricted-imports": restrictedImports([
           { message: NOTES_PURITY, regex: NODE_OR_REACT },
-          { group: ["@repo/ui", "@repo/ui/*"], message: NOTES_PURITY },
+          { message: NOTES_PURITY, regex: "^@repo/ui(?:/|$)" },
         ]),
       },
     },

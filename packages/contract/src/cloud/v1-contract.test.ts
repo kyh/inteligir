@@ -383,8 +383,8 @@ describe("the library's wire", () => {
   });
 
   it("holds an item a device creates to a uuid v7, so an offline id sorts by when it was made", () => {
-    expect(newIdSchema.safeParse(UUID_V7).success).toBe(true);
-    expect(newIdSchema.safeParse(UUID_V4).success).toBe(false);
+    expect(newIdSchema.validate(UUID_V7)).toBe(true);
+    expect(newIdSchema.validate(UUID_V4)).toBe(false);
   });
 
   it("refuses a highlight that is both a passage and a reply", () => {
@@ -397,18 +397,18 @@ describe("the library's wire", () => {
       quote: "a passage",
       text: "",
     };
-    expect(annotationOpSchema.safeParse(add).success).toBe(true);
-    expect(annotationOpSchema.safeParse({ ...add, parentId: "h0" }).success).toBe(false);
-    expect(annotationOpSchema.safeParse({ ...add, quote: null }).success).toBe(false);
+    expect(annotationOpSchema.validate(add)).toBe(true);
+    expect(annotationOpSchema.validate({ ...add, parentId: "h0" })).toBe(false);
+    expect(annotationOpSchema.validate({ ...add, quote: null })).toBe(false);
   });
 
   it("refuses a title for many items and a write that changes nothing", () => {
     const organize = v1Contract.library.items.organize["~orpc"].inputSchemas;
     const [schema] = schemasOf(organize);
-    expect(schema?.safeParse({ ids: [UUID_V7], title: "One" }).success).toBe(true);
-    expect(schema?.safeParse({ ids: [UUID_V7, UUID_V4], title: "Both" }).success).toBe(false);
+    expect(schema?.validate({ ids: [UUID_V7], title: "One" })).toBe(true);
+    expect(schema?.validate({ ids: [UUID_V7, UUID_V4], title: "Both" })).toBe(false);
     const [write] = schemasOf(v1Contract.library.write["~orpc"].inputSchemas);
-    expect(write?.safeParse({ itemId: UUID_V7, ops: [] }).success).toBe(false);
+    expect(write?.validate({ itemId: UUID_V7, ops: [] })).toBe(false);
   });
 
   it("names a library scope's folder by id", () => {
@@ -418,10 +418,9 @@ describe("the library's wire", () => {
       selected: 3,
       surface: "library",
     };
-    expect(agentViewContextSchema.safeParse(library).success).toBe(true);
+    expect(agentViewContextSchema.validate(library)).toBe(true);
     expect(
-      agentViewContextSchema.safeParse({ ...library, scope: { kind: "folder", path: "Reading" } })
-        .success,
+      agentViewContextSchema.validate({ ...library, scope: { kind: "folder", path: "Reading" } }),
     ).toBe(false);
   });
 });

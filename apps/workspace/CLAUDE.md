@@ -242,14 +242,15 @@ answer is parsed in `src/shell/shell-commands.ts` and mirrored through one
 
 - **A LIBRARY SCOPE HAS ONE SPELLING, `@repo/domain/library-scope`.** Which
   part of the library a screen shows (all of it, Unsorted, a folder, a tag or
-  Deleted) is one zod union, `libraryScopeSchema`
-  (`packages/domain/src/library-scope.ts`): the page's `PREFS` row
-  (`apps/workspace/src/app/prefs.ts`), the items listing's folder and tag, and a
-  library view context's `scope` (`packages/domain/src/view-context.ts`), which
-  the threads wire holds to a vault path and a tag name and refuses for Deleted
-  (`packages/contract/src/local/threads/threads-schema.ts`). Rejected: a scope
-  per surface (the rail's view name, the listing's request fields, the
-  composer's subject), spellings that drift the first time a scope gains a kind.
+  Deleted) is one set of zod arms (`packages/domain/src/library-scope.ts`),
+  read by the page's `PREFS` row (`apps/workspace/src/app/prefs.ts`), the items
+  listing and a view context's `scope` (`packages/domain/src/view-context.ts`).
+  A folder is a path in `libraryScopeSchema` and an id in `cellItemScopeSchema`,
+  which the cell's view context reads
+  (`packages/contract/src/cloud/library/library-wire.ts`): the one arm that
+  differs, so a new kind reaches both; the path goes with `/local`'s last
+  client. Rejected: a scope per surface or per wire, spellings that drift the
+  first time a scope gains a kind.
 
 - **THE LIBRARY IS HOME, AND AN ITEM IS SHOWN BY ITS KIND.** With nothing open
   the window is the grid of the rail's scope, one card per item; an empty scope

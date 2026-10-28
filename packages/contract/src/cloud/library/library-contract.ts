@@ -74,7 +74,8 @@ const saved = z.object({ folded: z.boolean(), item: liveItemRowSchema });
 const changedIds = z.array(idSchema);
 
 // where an item is filed: a folder by id, or by its path of names from the top joined by `/`, made
-// where it is missing; null is no folder
+// where it is missing; null is no folder. An id naming no folder is refused NOT_FOUND, so every row
+// taking one declares it
 const folderTargetSchema = z
   .union([z.strictObject({ id: idSchema }), z.strictObject({ path: z.string().min(1).max(1000) })])
   .nullable();
@@ -165,6 +166,7 @@ const itemsContract = {
   createNote: signedBase
     .errors({
       [BlobMissingError.code]: BlobMissingError,
+      [NotFoundError.code]: NotFoundError,
       [PayloadTooLargeError.code]: PayloadTooLargeError,
       [QuotaError.code]: QuotaError,
     })
@@ -237,7 +239,11 @@ const itemsContract = {
 
   // a url to read later: it lands at once, unread, and the cloud reads the page
   saveLink: signedBase
-    .errors({ [QuotaError.code]: QuotaError })
+    .errors({
+      [NotFoundError.code]: NotFoundError,
+      [PayloadTooLargeError.code]: PayloadTooLargeError,
+      [QuotaError.code]: QuotaError,
+    })
     .input(
       z.strictObject({
         folder: folderTargetSchema.optional(),

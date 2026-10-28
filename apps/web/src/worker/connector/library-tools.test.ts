@@ -117,7 +117,7 @@ describe("the library's tools", () => {
       expect(tool.title?.length ?? 0).toBeGreaterThan(0);
       expect(tool.description?.length ?? 0).toBeGreaterThan(0);
       expect(tool.description?.length ?? 0).toBeLessThanOrEqual(DESCRIPTION_MAX);
-      expect(EXPLICIT_HINTS.safeParse(tool.annotations).success, name).toBe(true);
+      expect(EXPLICIT_HINTS.validate(tool.annotations), name).toBe(true);
     }
   });
 
