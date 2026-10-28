@@ -424,7 +424,10 @@ export const readItemState = function* readItemState(id: string): SqlPlan<ItemSt
 
 // ---- derived rows: links and tags ----
 
-const storeDerived = function* storeDerived(itemId: string, derived: DerivedItem): SqlPlan<void> {
+export const storeDerived = function* storeDerived(
+  itemId: string,
+  derived: DerivedItem,
+): SqlPlan<void> {
   yield run("DELETE FROM links WHERE source_id = ?", [itemId]);
   yield* runEach(
     chunkStatement({
@@ -535,7 +538,7 @@ const INSERT_SEARCH_ROW = `INSERT INTO search_fts (rowid, title, headings, meta,
   heading_stems, meta_stems, body_stems)
 SELECT rid, ?, ?, ?, ?, ?, ?, ?, ? FROM items WHERE id = ?`;
 
-const storeSearchRow = function* storeSearchRow(
+export const storeSearchRow = function* storeSearchRow(
   itemId: string,
   text: ItemSearchText,
 ): SqlPlan<void> {

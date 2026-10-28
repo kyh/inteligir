@@ -26,6 +26,7 @@ const accountRow = async (db: Db, userId: string) =>
 const deleteAccount = async (
   request: Request,
   env: Env,
+  exports: Cloudflare.Exports,
   db: Db,
   origin: string,
   verified: VerifiedDevice,
@@ -41,7 +42,7 @@ const deleteAccount = async (
   if (row === undefined) {
     return refuseDeleted();
   }
-  const auth = createAuth(env, origin);
+  const auth = createAuth(env, exports, origin);
   const signedIn = await signInWithPassword(auth, row.email, body.data.password);
   if (signedIn === null) {
     return refuse("invalid-credentials", "Wrong password.");
@@ -60,6 +61,7 @@ const deleteAccount = async (
 export const handleAccountRoute = async (
   request: Request,
   env: Env,
+  ctx: ExecutionContext,
   url: URL,
 ): Promise<Response> => {
   if (request.method !== "POST" || url.pathname !== ACCOUNT_API_PATHS.delete) {
@@ -70,5 +72,5 @@ export const handleAccountRoute = async (
   if (verified === null) {
     return refuseNoDeviceCredential();
   }
-  return await deleteAccount(request, env, db, url.origin, verified);
+  return await deleteAccount(request, env, ctx.exports, db, url.origin, verified);
 };

@@ -20,11 +20,14 @@ const worker = defineWorker({
     redactQueryString: true,
     traces: { enabled: true, headSamplingRate: 0.01 },
   },
+  // a live class is reached through `ctx.exports`, with no env binding, and each preview gets its
+  // own namespace of it (developers.cloudflare.com/cf/projects/cloudflare-config/)
   exports: {
-    // the account's live sockets (AccountSocketDO), under the class name production already holds:
-    // a Preview is a version of this script, and a version can neither add a class nor delete one,
-    // so a new name would leave every PR's preview unable to bind it until a deploy migrated it
-    ThreadSyncDO: exports.durableObject({ storage: "sqlite" }),
+    // each account's library cell (src/worker/library/library-do.ts)
+    LibraryDO: exports.durableObject({ storage: "sqlite" }),
+    // the account socket's old class, retired: its namespace stays a tombstone until a deploy's
+    // response names it safe to drop
+    ThreadSyncDO: exports.durableObject({ state: "deleted" }),
     RepoCell: exports.durableObject({ storage: "sqlite" }),
     Registry: exports.durableObject({ storage: "sqlite" }),
   },
@@ -42,7 +45,6 @@ const MIN_CLIENT_BUILD = "0.6.0";
 
 // what both modes bind alike
 const shared = {
-  ACCOUNT_SOCKET: bindings.durableObject({ worker, exportName: "ThreadSyncDO" }),
   // REPO and REGISTRY are durable-git's own classes, re-exported through the entry
   REPO: bindings.durableObject({ worker, exportName: "RepoCell" }),
   REGISTRY: bindings.durableObject({ worker, exportName: "Registry" }),
@@ -52,6 +54,8 @@ const shared = {
   MIN_CLIENT_BUILD: bindings.text(MIN_CLIENT_BUILD),
   // what one account's hosted vault may store, history included: 1 GiB
   VAULT_STORAGE_CAP_BYTES: bindings.text("1073741824"),
+  // what one account's library may hold, its files and its history included: 1 GiB
+  LIBRARY_STORAGE_CAP_BYTES: bindings.text("1073741824"),
   // the auth limiter's off switch, "true" only where one caller signs up many accounts: the
   // suites, the e2e harness, a local script's .dev.vars
   RATE_LIMIT_DISABLED: bindings.text<"true" | "false">("false"),
@@ -68,6 +72,7 @@ const previewWorker = {
     ...shared,
     DB: bindings.d1({ name: "inteligir-auth-preview" }),
     PACK_CACHE: bindings.r2({ name: "inteligir-vault-preview" }),
+    BLOBS: bindings.r2({ name: "inteligir-vault-preview" }),
   },
 };
 
@@ -86,6 +91,9 @@ const productionWorker = {
     // pack bytes only; without it durable-git stores packs in the cell's SQLite, which
     // caps vault size
     PACK_CACHE: bindings.r2({ name: "inteligir-vault" }),
+    // the library's files, under acct/<userId>/ in the same bucket; durable-git reads its own
+    // bucket by the PACK_CACHE name, so the two names share it until the hosted vault goes
+    BLOBS: bindings.r2({ name: "inteligir-vault" }),
     // password-reset transport; needs email sending enabled + DNS onboarding once
     EMAIL: bindings.sendEmail({}),
     // the reset email's sender, on the domain onboarded for Email Sending

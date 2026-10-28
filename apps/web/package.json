@@ -24,6 +24,7 @@
     "@orpc/server": "catalog:",
     "@react-three/fiber": "^9.8.1",
     "@repo/contract": "workspace:*",
+    "@repo/notes": "workspace:*",
     "@repo/ui": "workspace:*",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",

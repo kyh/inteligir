@@ -20,8 +20,9 @@ import { jsonNoStore, refuse, refuseNoDeviceCredential } from "../cloud-http";
 import { createDb } from "../db/client";
 import type { Db } from "../db/client";
 import { device } from "../db/schema";
+import { errorFields } from "../log";
 import { forgetDeviceBudgets, spendCallerBudget } from "../rate-limit";
-import { severDeviceSockets } from "../sync/account-socket-stub";
+import { libraryCell } from "../library/library-cell";
 
 // login and sign-up ARE the authentication; sign-out is a device's alone, since a session naming
 // no device has nothing to sign out
@@ -32,6 +33,7 @@ import { severDeviceSockets } from "../sync/account-socket-stub";
 const accountUserId = async (
   request: Request,
   env: Env,
+  ctx: ExecutionContext,
   db: Db,
   origin: string,
 ): Promise<string | null> => {
@@ -40,7 +42,9 @@ const accountUserId = async (
     const verified = await verifyDeviceCredential(db, authorization);
     return verified?.userId ?? null;
   }
-  const session = await createAuth(env, origin).api.getSession({ headers: request.headers });
+  const session = await createAuth(env, ctx.exports, origin).api.getSession({
+    headers: request.headers,
+  });
   return session?.user.id ?? null;
 };
 
@@ -53,7 +57,7 @@ const LOGIN_FAILURE_MESSAGE: Record<LoginFailure, string> = {
 
 // false when nothing matched: another account's device, or one already revoked
 const revokeDevice = async (
-  env: Env,
+  ctx: ExecutionContext,
   db: Db,
   target: { deviceId: string; userId: string },
 ): Promise<boolean> => {
@@ -73,14 +77,20 @@ const revokeDevice = async (
     return false;
   }
   await forgetDeviceBudgets(db, [target.deviceId]);
-  // the credential is already dead in D1; this closes the sockets it still holds, which no per-request check reaches
-  await severDeviceSockets(env, target.userId, target.deviceId);
+  // the credential is already dead in D1; this closes the sockets it still holds, which no
+  // per-request check reaches. Best-effort: a failure costs a stale socket, never a live credential
+  try {
+    await libraryCell(ctx.exports, target.userId).severDevice(target.deviceId);
+  } catch (error) {
+    console.warn({ event: "socket-sever-failed", ...errorFields(error) });
+  }
   return true;
 };
 
 export const handleDeviceRoutes = async (
   request: Request,
   env: Env,
+  ctx: ExecutionContext,
   url: URL,
 ): Promise<Response> => {
   const db = createDb(env.DB);
@@ -94,7 +104,7 @@ export const handleDeviceRoutes = async (
     if (!body.success) {
       return refuse("bad-request", "Send { email, password, deviceName }.");
     }
-    const result = await loginDevice(db, createAuth(env, url.origin), body.data);
+    const result = await loginDevice(db, createAuth(env, ctx.exports, url.origin), body.data);
     if (!result.loggedIn) {
       return refuse(result.failure, LOGIN_FAILURE_MESSAGE[result.failure]);
     }
@@ -113,7 +123,11 @@ export const handleDeviceRoutes = async (
         signUpBodyRefusal(body.error, "Send { name, email, password, inviteCode, deviceName }."),
       );
     }
-    const result = await signUpDevice(db, createSignUpAuth(env, url.origin), body.data);
+    const result = await signUpDevice(
+      db,
+      createSignUpAuth(env, ctx.exports, url.origin),
+      body.data,
+    );
     if (!result.signedUp) {
       return refuse(result.failure, result.message);
     }
@@ -126,12 +140,12 @@ export const handleDeviceRoutes = async (
       return refuseNoDeviceCredential();
     }
     // a dashboard revoke landing after the verify already did the rest: signed out either way
-    await revokeDevice(env, db, verified);
+    await revokeDevice(ctx, db, verified);
     const response: RevokeDeviceResponse = { revoked: true };
     return Response.json(response);
   }
 
-  const userId = await accountUserId(request, env, db, url.origin);
+  const userId = await accountUserId(request, env, ctx, db, url.origin);
   if (userId === null) {
     return carriesDeviceCredential(request.headers.get("authorization"))
       ? refuseNoDeviceCredential()
@@ -164,7 +178,7 @@ export const handleDeviceRoutes = async (
       return refuse("bad-request", "Send { deviceId }.");
     }
     // scoped to the caller's own userId, so another account's device answers not-found
-    if (!(await revokeDevice(env, db, { deviceId: body.data.deviceId, userId }))) {
+    if (!(await revokeDevice(ctx, db, { deviceId: body.data.deviceId, userId }))) {
       return refuse("not-found", "No such active device.");
     }
     const response: RevokeDeviceResponse = { revoked: true };

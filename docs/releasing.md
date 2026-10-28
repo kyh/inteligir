@@ -527,6 +527,16 @@ account whose library holds about 2,000 items gives the timing check its load.
   `og.jpg` also replaces the starter library's cover: downscale it to 640 px
   wide and rename it by its bytes' sha-256 prefix, as
   `apps/cli/seed/assets/covers/` and its item name it.
+- **The library cell on a preview and in production.** On the PR's Worker
+  preview, sign a device in against the preview's D1 (`apps/web/README.md`
+  § Previews), then open `<preview>/v1/sync/ws` with its bearer and its build
+  header (`websocat -H 'authorization: Bearer igd_…' -H 'x-inteligir-build:
+  <version>+macos' wss://<preview>/v1/sync/ws`) and send `ping`. Passing: the
+  upload took the `exports` map in `apps/web/cloudflare.config.ts` (`LibraryDO`
+  new, `ThreadSyncDO` deleted), the upgrade answers 101 and `ping` answers
+  `pong`, from the account's `LibraryDO` that only `ctx.exports` reaches. On
+  the production deploy, passing is the same, and its output says whether the
+  `ThreadSyncDO` tombstone may leave the map.
 
 ## 6. Publish
 

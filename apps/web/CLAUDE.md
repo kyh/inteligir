@@ -1,7 +1,7 @@
 # Decisions: @repo/web and the cloud
 
 Accounts, the device credential, the /cloud wire and `/v1`'s, the connector's
-tools, the account's socket and the hosted vault. `AGENTS.md` § Decisions says
+tools, the account's library cell and its sockets, and the hosted vault. `AGENTS.md` § Decisions says
 how a bullet is written and cited.
 
 ## Cloud, sync and accounts
@@ -68,16 +68,19 @@ how a bullet is written and cited.
   `apps/web/src/worker/device/account.ts`,
   `apps/cli/src/server/cloud/account-calls.ts`.
 
-- **THE ACCOUNT'S SOCKET IS AN OBJECT THAT STORES NOTHING, NAMED FROM A
-  VERIFIED CREDENTIAL.** `AccountSocketDO`, one per account, holds its devices'
-  hibernating sockets and no row: a hosted-vault push pings the other devices, a
-  revoke closes that device's sockets, a deletion closes them all. The Worker
-  stamps the verified device id on the upgrade, the one request only fetch
-  carries, and the object keeps it in hibernation tags; every other call is RPC
-  with that id. Storing nothing, it needs no tombstone against a request racing
-  the deletion. Rejected: the socket on an object that also keeps a log nobody
-  reads. `apps/web/src/worker/sync/account-socket-do.ts`,
-  `account-socket-stub.ts`, `routes.ts`.
+- **THE ACCOUNT'S SOCKETS ARE ITS LIBRARY CELL'S, EACH TAGGED WITH THE HOLDER
+  THE WORKER VERIFIED.** The cell accepts each hibernating socket under the
+  device or browser session the Worker stamps on the upgrade, the one call
+  fetch carries; every other call is RPC. A committed write sends `{type:
+  "library", head}`, a hosted-vault push pings the other devices, a revoke
+  closes that holder's sockets and a deletion all of them; the keepalive is the
+  runtime's auto-response, so it wakes no cell. A browser socket sends no
+  header, so `/v1/socket` opens on a ticket a `/v1` call minted: HMAC-signed,
+  a minute long, its holder checked in D1 again before a cell is named.
+  Rejected: a socket object beside the cell (a second object, every ping
+  crossing to it); the bearer in the URL (it outlives a minute in any log).
+  `apps/web/src/worker/library/cell-sockets.ts`, `socket-ticket.ts`,
+  `socket-routes.ts`.
 
 - **Better Auth's `baseURL` is derived per-request from the request origin, and
   sign-up is invite-gated by a Worker route in front of it.** Every hostname
@@ -137,7 +140,9 @@ how a bullet is written and cited.
   so a request with no build or one below `MIN_CLIENT_BUILD` is refused,
   terminally and with the credential left live, so the next build resumes as the
   same device; a page the Worker served needs none, since it ships in the same
-  deploy. `packages/contract/src/cloud/client-build.ts`,
+  deploy, and neither does a socket opened by ticket, since a browser socket
+  sends no header and its ticket came from a call that met the floor.
+  `packages/contract/src/cloud/client-build.ts`,
   `apps/web/src/worker/client-floor.ts`.
 
 - **A SIGN-IN IS FENCED BY SESSION IDENTITY, not by "is a session live?".**
@@ -226,12 +231,9 @@ how a bullet is written and cited.
   decision: the phone saves, reads and writes, as Raindrop's and Obsidian's
   do). A thread lives in the database of the Mac that ran it, its edits reach
   other devices as the library's commits, and a phone that wants the agent asks
-  on a Mac. The account socket keeps the class name production already holds,
-  `ThreadSyncDO`. Rejected: a new class name (a Preview is a version of the
-  script, which can neither add nor delete a class, so no PR's preview could
-  bind it until a deploy migrated it); a thread log every device pulls and an
-  inbox a Mac polls (a second store and sync for transcripts no other device
-  edits). `apps/web/cloudflare.config.ts`.
+  on a Mac. Rejected: a thread log every device pulls and an inbox a Mac polls
+  (a second store and sync for transcripts no other device edits).
+  `apps/web/cloudflare.config.ts`.
 
 - **A VAULT READ CARRIES ITS PATH IN THE BODY, NEVER THE URL.** Cloudflare keeps
   each request's path in the Worker's request log and sampled traces for up to
@@ -281,7 +283,8 @@ how a bullet is written and cited.
   `cloudflare.config.ts`.** Every binding is declared there: a secret with
   `bindings.secret()`, a value with `bindings.text`, the reset sender and the
   auth limiter's off switch included, and a binding one mode lacks types as
-  optional; the suites add only `TEST_SCHEMA`. Rejected: a hand-written `Env`
+  optional; the suites add only `TEST_SCHEMA` and the library cell's namespace
+  by name, which `listDurableObjectIds` looks up. Rejected: a hand-written `Env`
   beside the generated one (it drifts from what deploys, and a secret it names
   is never checked against the config). The date and flags are one module both
   the config and the suites import. `apps/web/cloudflare.config.ts`,
@@ -296,3 +299,57 @@ how a bullet is written and cited.
   Wrangler file, hence the restated bindings. Rejected: a mocked runtime
   (Better Auth, D1 and the Durable Objects run as they deploy).
   `apps/web/vitest.config.ts`, `apps/web/src/worker/test-support/cloud-helpers.ts`.
+
+- **EACH ACCOUNT'S LIBRARY IS ONE SQLITE DURABLE OBJECT, `LibraryDO`, REACHED
+  ONLY THROUGH `ctx.exports` UNDER A NAME A VERIFIED CREDENTIAL GIVES.** The
+  name is `library:<userId>`, read back from `ctx.id.name`, never from a
+  request. `cloudflare.config.ts` declares the class in `exports` with SQLite
+  storage and binds no namespace; the retired `ThreadSyncDO` stays a
+  `state: "deleted"` tombstone until a deploy answers that it may go. The
+  schema opens in the constructor under `blockConcurrencyWhile`; a
+  `meta.schema` of another version wipes the cell under a new epoch, which
+  every replica pulls again. Nothing a later event needs lives in memory.
+  Rejected: a namespace binding (anything holding `env` could name any
+  account's cell); keeping `ThreadSyncDO`'s name (nothing documents a preview
+  refusing a new class). `apps/web/src/worker/library/library-do.ts`,
+  `library-cell.ts`, `cell-schema.ts`.
+
+- **A LIBRARY WRITE LANDS ONLY ON THE BASES IT NAMES, BLOCK BY BLOCK, IN ONE
+  TRANSACTION.** Every op carries the base it was computed from (a block's
+  hash, its order key, a field's value), and the cell applies the write in one
+  `transactionSync` only while each base holds, else answers `CONFLICT` with
+  each moved block as it is; edits to different blocks never meet, and the
+  editor's diff3 settles the rest in every host. A write advances the head
+  once, logs each row it changed and keeps its answer under its `opId` for 30
+  days. Past 8 MiB of item text it is `PAYLOAD_TOO_LARGE`, past the account's
+  1 GiB (the cell's file plus R2's bytes) `QUOTA`. Rejected: a whole-item base
+  (two devices in one note always conflict); last write wins (an edit lost
+  unseen); a merge in the cell (it cannot ask the person).
+  `apps/web/src/worker/library/library-engine.ts`, `cell-landing.ts`.
+
+- **A CHANGE SET SEALS BY THE CELL'S ONE ALARM, AND AN ITEM'S HISTORY KEEPS ITS
+  NEWEST 100 REVISIONS, THEN ONE A DAY.** Each actor writes into its own open
+  set: a device's typing until 15 s of quiet or 60 s in all, an assistant's
+  grant until 10 idle minutes, an agent's turn and an import until they end;
+  a fill, an undo or the system seals as it commits. Due work is a `jobs` row
+  and the alarm is set to the earliest. A seal writes each touched item's
+  revision from content-addressed parts, superseded blocks kept once; the
+  prune keeps the newest 100, all of the last 30 days, then each day's last,
+  and collects what nothing names. Rejected: a timer per set (eviction loses
+  it, never an alarm); a revision per write (typing makes thousands).
+  `apps/web/src/worker/library/change-sets.ts`, `cell-jobs.ts`,
+  `history-prune.ts`.
+
+- **AN ACCOUNT'S DELETION RUNS IN ITS CELL, THE TOMBSTONE FIRST AND THE
+  CREDENTIALS LAST.** Better Auth's `beforeDelete` asks the cell to purge: a
+  tombstone every later call meets as gone, then `deleteAll` with the
+  tombstone written back at once, then the account's R2 prefix in pages of
+  1,000, then its device rows and the invite's redeemer; the hosted vault goes
+  after, once no credential can push to it. Every step is idempotent, so a
+  failure aborts the deletion and the retry runs from the top on a credential
+  still live. The tombstone outlives the deletion, so a call verified a moment
+  before meets it rather than founding a library nobody reaches. Rejected:
+  credentials first (a failed step leaves no device to retry from); a bare
+  `deleteAll` (an in-flight write rebuilds the cell).
+  `apps/web/src/worker/library/account-purge.ts`,
+  `apps/web/src/worker/auth/auth.ts`.

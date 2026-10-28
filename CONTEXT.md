@@ -22,9 +22,9 @@ reach it. Each entry names the workspace that owns it until its module lands
 
 **library cell** — one account's whole library: a SQLite Durable Object,
 `LibraryDO`, named `library:<userId>` only from a verified credential, in the
-Worker (`apps/web`). It holds the items, their **blocks**, folders, tags,
-links, highlights, threads, the change log and History, and it is the
-library's only writer: every `/v1` library call and every **connector** call
+Worker (`apps/web/src/worker/library/library-do.ts`). It holds the items,
+their **blocks**, folders, tags, links, highlights, threads, the change log,
+History and the account's live sockets, and it is the library's only writer: every `/v1` library call and every **connector** call
 is forwarded to it. R2 holds the bytes it names by hash, and D1 only the
 accounts. Not the **online library** below, the hosted git vault, and not a
 **replica**, which a device reads while it writes through the cell.
@@ -36,7 +36,8 @@ opened and sealed. A device's typing seals after 15 s of quiet or 60 s in all;
 a **turn** is one set; a **connected assistant**'s writes are one set per
 grant, sealed after 10 idle minutes. Undo reverts sets three-way, newest
 first, and keeps every later edit; an undo is a set of its own. The cell keeps
-them, and the revert is `@repo/notes/library/revert-change`'s. Not a phone write's set of file
+them (`apps/web/src/worker/library/change-sets.ts`), and the revert is
+`@repo/notes/library/revert-change`'s. Not a phone write's set of file
 changes for the hosted vault (**settle**, below).
 
 **block** — one top-level node of an item's body, a Plate element stored as a

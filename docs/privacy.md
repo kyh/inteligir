@@ -533,23 +533,27 @@ the account's email address.
 Deleting the account deletes the account's data, in this order, before the
 account row itself goes:
 
-1. **Every device row you own**, with its throttling counters, is deleted from
-   D1. This is first on purpose: while a device row lives its credential still
-   works, so any later step could be undone by a request that arrives a moment
-   after it.
-2. **Your online library** — every version of every file, created once a signed-in
+1. **Your library's store in our cloud is closed**, and your devices' live
+   connections to it with it: from this moment it refuses every request, so
+   nothing that arrives during the deletion can write to it.
+2. **Everything in that store is deleted**: every item, its text, highlights
+   and history. What stays is a marker saying when it was deleted and nothing
+   else, so a request already on its way still finds it closed.
+3. **The files your library names** (images, PDFs and the like) are deleted
+   from our storage.
+4. **Every device row you own**, with its throttling counters, is deleted from
+   D1, and **your email is dropped from the invite you redeemed** (the code
+   stays burned). This is late on purpose: until then your device can still ask
+   again if a step failed.
+5. **Your online library** — every version of every file, created once a signed-in
    Mac first sends it — with the listing of its file names, sizes and content
    ids kept for your phone's reads and the cached copies of its history our
-   cloud serves downloads from. An account whose library was never sent wipes
-   empty tables, so the step is idempotent either way.
-3. **Your devices' live connections** to our cloud are closed. Nothing is
-   stored behind them, so a request that authenticated microseconds before
-   step 1 leaves nothing there to delete.
-4. **Your email is dropped from the invite you redeemed** (the code stays
-   burned).
+   cloud serves downloads from. No device can send to it any more by now. An
+   account whose library was never sent wipes empty tables, so the step is
+   idempotent either way.
 
 Then Better Auth deletes your sessions, your password hash and the account row.
-All four steps run BEFORE that, so a step that fails aborts the deletion and
+All five steps run BEFORE that, so a step that fails aborts the deletion and
 leaves the account able to ask again; every step is idempotent, so asking again
 resumes. What deletion does NOT touch is your Mac: the local library, its history
 and the local databases are yours. Your phone erases its copy the next time it
@@ -1011,6 +1015,7 @@ to Better Auth under `/api/auth/`. Nothing else under `/v1/` exists.
 | `/v1/device/list`     | Your devices' names and when each was created, last seen and revoked, for the account pages and Settings › Account.                                                                                                                                                                   | Your signed-in browser session, or a signed-in device's credential.                                                                             |
 | `/v1/device/revoke`   | The id of the device to revoke.                                                                                                                                                                                                                                                       | Your signed-in browser session, or a signed-in device's credential.                                                                             |
 | `/v1/account/delete`  | Your password, once, to delete the account and everything this page says the cloud holds for it.                                                                                                                                                                                      | Your password and the device's credential; throttled per device.                                                                                |
+| `/v1/socket`          | A live connection that says only that your library changed, and how far it has come.                                                                                                                                                                                                  | A one-minute pass your signed-in device or browser session asked for, its sign-in checked again.                                                |
 | `/v1/sync/ws`         | A live connection that says only that your online library changed.                                                                                                                                                                                                                    | The device's credential.                                                                                                                        |
 | `/v1/vault/tree`      | The names, sizes and content ids of the files in your online library.                                                                                                                                                                                                                 | The device's credential, within a per-device budget.                                                                                            |
 | `/v1/vault/file`      | One item's text from your online library.                                                                                                                                                                                                                                             | The device's credential, within a per-device budget.                                                                                            |

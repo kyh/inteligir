@@ -848,6 +848,9 @@ importers:
       '@repo/contract':
         specifier: workspace:*
         version: link:../../packages/contract
+      '@repo/notes':
+        specifier: workspace:*
+        version: link:../../packages/notes
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui

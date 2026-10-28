@@ -1,9 +1,9 @@
 # `@repo/web` — inteligir.com
 
 One Cloudflare Worker serving the marketing site and the whole cloud from
-one origin: the TanStack Start pages, Better Auth on D1, device login, the
-per-account socket Durable Object (it stores nothing) and the hosted vault git
-remote. The wire contract is `@repo/contract/cloud` — the Worker implements
+one origin: the TanStack Start pages, Better Auth on D1, device login, each
+account's library cell (a SQLite Durable Object holding the library and its
+devices' sockets) and the hosted vault git remote. The wire contract is `@repo/contract/cloud` — the Worker implements
 it, the local app's and the phone's clients consume it.
 
 ## Layout
@@ -27,10 +27,12 @@ src/
     auth/            Better Auth factory, invite gate, reset email
     device/          Device login and sign-up, credential verification,
                      account deletion
-    sync/            AccountSocketDO, the account's sockets and nothing else
-                     (account-socket-do.ts) + the device-authed upgrade
-                     route + the calls the rest of the Worker makes on the
-                     object (account-socket-stub.ts)
+    library/         The account's library cell: LibraryDO (library-do.ts),
+                     its engine over the cell's SQLite (library-engine.ts:
+                     writes, change sets, History, undo, sync, quota, files),
+                     the alarm's jobs, the account's purge in order
+                     (account-purge.ts), its sockets, and the upgrade routes
+                     with the ticket a browser's socket opens on
     vault/           The hosted vault git remote (durable-git behind the
                      wrapper) + the repo's one name and its purge
                      (vault-repo.ts) + the git-less /v1/vault/* read
@@ -77,6 +79,7 @@ its own `tsconfig.json`.
 | `POST /v1/device/revoke`    | session or device | Cut a device off — bites on its next request                        |
 | `POST /v1/device/sign-out`  | device            | The same revoke, for the device the credential names                |
 | `GET /v1/sync/ws`           | device            | Invalidation socket (Bearer on the upgrade; hibernatable)           |
+| `GET /v1/socket`            | ticket            | The same socket for any client, on a minute's ticket in the query   |
 | `/v1/git/vault.git/*`       | device            | The hosted vault git remote — smart HTTP, 90 MiB push, 1 GiB stored |
 | `POST /v1/vault/tree`       | device            | Flat listing — path, size, blob oid — at one commit                 |
 | `POST /v1/vault/file`       | device            | One note's bytes at that commit — 2 MB ceiling                      |
@@ -90,9 +93,9 @@ hash compare against D1 — never cached, so revocation is immediate; its
 `last_seen_at` is written at most every five minutes
 (`LAST_SEEN_RESOLUTION_MS`), so a verify is one read. The
 VERIFIED credential's userId — never a path or a body — names the state it
-reaches: the socket upgrade to that user's own `AccountSocketDO` (the one
-forwarded request, carrying the verified deviceId; a push, a revoke and a
-deletion call the object by RPC), the git
+reaches: the socket upgrade to that user's own library cell, `LibraryDO`
+named `library:<userId>` (the one forwarded request, carrying the verified
+holder; a push, a revoke and a deletion call the cell by RPC), the git
 remote and the `/v1/vault/*` reads and commits to that user's own durable-git
 `RepoCell`, and the account deletion reads D1 directly. A commit is authored by the
 verified device row's name, and a stale base answers 409 `vault-conflict` with
@@ -223,14 +226,17 @@ other method is refused `bad-request` (`src/worker/vault/read-routes.ts`).
   ever reintroduced, `access-control-allow-credentials` must stay absent — the
   auth surface is cookie-bearing.
 - **Deleting the account deletes the account's data** in a `beforeDelete` hook,
-  so a failed step aborts the deletion rather than orphaning data. THE ORDER IS
-  LOAD-BEARING: device rows first (while one lives its credential still
-  verifies, and a request on it can rebuild whatever was deleted before it),
-  then the hosted vault git repo, then every socket the account's
-  AccountSocketDO holds is closed (it stores nothing, so a request that
-  authenticated microseconds before step one leaves nothing behind there) —
-  then the deleted email off the invite it spent (`redeemed_at` stays set, so
-  the code stays burned).
+  so a failed step aborts the deletion rather than orphaning data, and the
+  retry runs every step again. THE ORDER IS LOAD-BEARING
+  (`src/worker/library/account-purge.ts`): the library cell's tombstone first
+  (every later call to the cell, a socket's included, is refused) and its
+  sockets closed, then the cell's storage with the tombstone written back at
+  once, then the account's files in R2, then its device rows and the deleted
+  email off the invite it spent (`redeemed_at` stays set, so the code stays
+  burned), the credentials last so a failure leaves one to retry with — then
+  the hosted vault git repo, which no credential can push to any more. The
+  tombstone stays, so a request that verified a moment before the credentials
+  went founds no library.
   The app asks it at `POST /v1/account/delete` (`src/worker/device/account.ts`),
   holding a device credential and no session: the credential, a per-device
   window of 5 a minute, the password checked again through `signInEmail`, then

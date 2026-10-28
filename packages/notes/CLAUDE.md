@@ -74,7 +74,9 @@ node is rather than discriminating structurally at each visit.
 
 - **THE LIBRARY'S SQL IS ONE SCHEMA AND ONE SET OF PLANS FOR THREE
   ENGINES.** `@repo/notes/library/library-schema` versions STRICT tables by a
-  `meta.schema` row, and a mismatch starts the engine over;
+  `meta.schema` row, and a mismatch starts the engine over; a replica checks
+  its engine is SQLite 3.37 or later, the cell nothing, since a Durable Object
+  refuses `sqlite_version()`;
   `@repo/notes/library/library-sql` runs a plan (a generator yielding one
   statement at a time) over the cell's synchronous port or a replica's
   asynchronous one, and cuts many-row statements under 100 parameters and 100

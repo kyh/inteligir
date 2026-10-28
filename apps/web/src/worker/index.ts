@@ -1,4 +1,6 @@
 import { ACCOUNT_API_PATHS, AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
+import { V1_SOCKET_PATH } from "@repo/contract/cloud/library/library-socket";
+import { SYNC_WS_PATH } from "@repo/contract/cloud/sync/sync-ws";
 import { VAULT_GIT_PATH } from "@repo/contract/cloud/vault/vault-git";
 import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import { createAuth } from "./auth/auth";
@@ -7,14 +9,14 @@ import { refuseBelowFloor } from "./client-floor";
 import { refuse } from "./cloud-http";
 import { handleAccountRoute } from "./device/account";
 import { handleDeviceRoutes } from "./device/routes";
+import { handleLibrarySocket, handleSyncSocket } from "./library/socket-routes";
 import { logUnhandled } from "./log";
-import { handleSyncRoutes } from "./sync/routes";
 import { handleVaultCommitRoute } from "./vault/commit-route";
 import { handleVaultGitRemote } from "./vault/git-remote";
 import { handleVaultReadRoutes, isVaultReadPath } from "./vault/read-routes";
 
 // Durable Object classes must be exported from the entry the runtime loads: this file for tests, ./server.ts for deploy
-export { AccountSocketDO as ThreadSyncDO } from "./sync/account-socket-do";
+export { LibraryDO } from "./library/library-do";
 export { RepoCell, Registry } from "durable-git";
 
 // No CORS: every browser client is served from this origin and a native app is not subject to
@@ -34,6 +36,11 @@ const speaksCloudEnvelope = (pathname: string): boolean =>
 const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {
   const url = new URL(request.url);
 
+  // a browser's socket cannot name its build, and its ticket came from a call that met the floor
+  if (url.pathname === V1_SOCKET_PATH) {
+    return await handleLibrarySocket(request, env, ctx, url);
+  }
+
   // before any route reads the request, so a shape retired behind the floor is never parsed
   const outdated = url.pathname.startsWith("/v1/")
     ? refuseBelowFloor(request, env, speaksCloudEnvelope(url.pathname))
@@ -43,19 +50,19 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
   }
 
   if (url.pathname.startsWith("/api/auth/")) {
-    return await createAuth(env, url.origin).handler(request);
+    return await createAuth(env, ctx.exports, url.origin).handler(request);
   }
 
   if (request.method === "POST" && url.pathname === AUTH_API_PATHS.signUp) {
-    return await handleInviteSignUp(request, env);
+    return await handleInviteSignUp(request, env, ctx);
   }
 
   if (url.pathname.startsWith("/v1/device/")) {
-    return await handleDeviceRoutes(request, env, url);
+    return await handleDeviceRoutes(request, env, ctx, url);
   }
 
-  if (url.pathname.startsWith("/v1/sync/")) {
-    return await handleSyncRoutes(request, env, url);
+  if (url.pathname === SYNC_WS_PATH) {
+    return await handleSyncSocket(request, env, ctx);
   }
 
   if (url.pathname.startsWith(VAULT_GIT_PATH)) {
@@ -71,7 +78,7 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
   }
 
   if (url.pathname === ACCOUNT_API_PATHS.delete) {
-    return await handleAccountRoute(request, env, url);
+    return await handleAccountRoute(request, env, ctx, url);
   }
 
   return speaksCloudEnvelope(url.pathname)

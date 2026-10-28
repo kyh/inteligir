@@ -184,7 +184,7 @@ its own door into a scratch profile
 | Highlights and their notes                        | `.inteligir/annotations/<item id>.json` in the vault itself                        |
 | The library's filing rules                        | `AGENTS.md` at the vault's root, which the agent reads                             |
 | Accounts, sessions, devices, invites              | D1 (local file under `apps/web/.wrangler`)                                         |
-| The account's sockets, hosted vault               | Durable Objects (same `.wrangler` dir)                                             |
+| Library cells and their sockets, hosted vault     | Durable Objects (same `.wrangler` dir)                                             |
 
 ## Quality gates
 

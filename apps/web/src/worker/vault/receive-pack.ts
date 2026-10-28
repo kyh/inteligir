@@ -2,7 +2,8 @@ import { VAULT_GIT_MAX_PUSH_BYTES } from "@repo/contract/cloud/vault/vault-git";
 import { createDurableGit } from "durable-git";
 import type { Registry } from "durable-git";
 import { declaredLength } from "../cloud-http";
-import { pingVaultAdvanced } from "../sync/account-socket-stub";
+import { libraryCell } from "../library/library-cell";
+import { errorFields } from "../log";
 import { concatBytes } from "./git-objects";
 import { FLUSH_PKT, pktLine, readPktLines } from "./pkt-line";
 
@@ -52,6 +53,15 @@ const upsertRegistry = async (door: VaultCellDoor, idle: number): Promise<void> 
   }
 };
 
+// best-effort: a lost ping costs the other devices staleness until their next poll
+const pingVaultMoved = async (door: VaultCellDoor): Promise<void> => {
+  try {
+    await libraryCell(door.ctx.exports, door.userId).vaultMoved(door.deviceId);
+  } catch (error) {
+    console.warn({ event: "vault-ping-failed", ...errorFields(error) });
+  }
+};
+
 const fetchCell = async (
   door: VaultCellDoor,
   route: VaultCellRoute,
@@ -70,7 +80,7 @@ const fetchCell = async (
   );
 
   if (route === "/git-receive-pack" && response.ok && response.headers.get("x-changed") === "1") {
-    door.ctx.waitUntil(pingVaultAdvanced(door.env, door.userId, door.deviceId));
+    door.ctx.waitUntil(pingVaultMoved(door));
     const idle = Number(response.headers.get("x-commit-time")) || Date.now();
     door.ctx.waitUntil(upsertRegistry(door, idle));
   }

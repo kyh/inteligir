@@ -22,7 +22,7 @@ import type { LibraryBlock, LibrarySection } from "./library-nodes";
 
 // one block of an item at the close of a change set: what a revision keeps for it, its content
 // held apart under its hash
-interface ManifestEntry {
+export interface ManifestEntry {
   readonly blockId: string;
   readonly hash: string;
   readonly ord: string;

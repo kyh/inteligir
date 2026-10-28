@@ -60,17 +60,25 @@ describe("ensureLibrarySchema", () => {
     });
   });
 
-  it("refuses an engine older than the schema needs", () => {
+  it("refuses a replica's engine older than the schema needs", () => {
     const port = openWasmSqlPort();
     const old: SqlPort = {
       ...port,
       all: (sql, params) =>
         sql.includes("sqlite_version") ? [{ version: "3.31.1" }] : port.all(sql, params),
     };
-    expect(runPlan(old, ensureLibrarySchema("cell"))).toEqual({
+    expect(runPlan(old, ensureLibrarySchema("replica"))).toEqual({
       kind: "unsupported",
       sqliteVersion: "3.31.1",
     });
+  });
+
+  it("asks the cell's engine nothing, since a Durable Object refuses sqlite_version()", () => {
+    const port = openWasmSqlPort();
+    expect(transactPlan(port, ensureLibrarySchema("cell"))).toEqual({ kind: "created" });
+    expect(port.statements.map((statement) => statement.sql).join("\n")).not.toMatch(
+      /sqlite_version/iu,
+    );
   });
 });
 

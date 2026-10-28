@@ -16,9 +16,11 @@ import { all, run } from "./library-sql";
 import type { SqlPlan, SqlRow } from "./library-sql";
 
 // bump on any change below
-export const LIBRARY_SCHEMA_VERSION = 1;
+export const LIBRARY_SCHEMA_VERSION = 2;
 
-// STRICT tables are SQLite 3.37; every engine is checked against it at open
+// STRICT tables are SQLite 3.37; a replica's engine is checked against it at open. The cell's is
+// the platform's own, and a Durable Object refuses sqlite_version() ("not authorized to use
+// function"), so the cell asks nothing
 const LIBRARY_SQLITE_MIN_VERSION = "3.37.0";
 
 // what the change log names a row by
@@ -33,7 +35,10 @@ export const LIBRARY_CHANGE_KINDS = [
 export type LibraryChangeKind = (typeof LIBRARY_CHANGE_KINDS)[number];
 
 const TAG_ORIGINS = ["field", "inline"] as const;
-const BLOB_ROLES = ["original", "cover", "thumb", "copy", "embed"] as const;
+// what an item holds a file as: its original, its cover, a thumbnail, its page copy, or an image
+// or file its body embeds
+export const BLOB_ROLES = ["original", "cover", "thumb", "copy", "embed"] as const;
+export type BlobRole = (typeof BLOB_ROLES)[number];
 // who a change set is by: the person, the built-in agent, a connected assistant, an import, the
 // cloud reading a page, an undo, or the library itself (a dangling link resolving)
 export const CHANGE_SET_ACTORS = [
@@ -202,30 +207,47 @@ const SYNCED_DDL = [
   `CREATE INDEX IF NOT EXISTS changes_seq ON changes (seq)`,
 ] as const;
 
-// the cell's alone: History, the op ledger, the built-in agent and the jobs its alarm runs
+// the cell's alone: History, the op ledger, the uploads it holds room for, the built-in agent and
+// the jobs its alarm runs. A change set's item names its before and after by part: an item's fields,
+// its manifest (each block's id, hash, order key and section) and its highlights are each kept once
+// per item under their content hash (`snapshot_parts`), so a revision that changed one block stores
+// one new manifest and nothing else, and no row nears a Durable Object's 2 MB. A set's after is null
+// while the set is open and the item is as it left it; it is written when the set seals, or when
+// another set is about to change the item. A block a write replaces or drops keeps its content in
+// `block_versions`, which the prune job sweeps of what no part names.
 const CELL_DDL = [
   `CREATE TABLE IF NOT EXISTS change_sets (
     id TEXT PRIMARY KEY,
     actor TEXT NOT NULL
       CHECK (actor IN (${oneOf(CHANGE_SET_ACTORS)})),
     actor_id TEXT,
-    label TEXT,
+    label TEXT NOT NULL,
     device_id TEXT,
     thread_id TEXT,
     turn INTEGER,
     client_id TEXT,
     opened_at INTEGER NOT NULL,
+    touched_at INTEGER NOT NULL,
     sealed_at INTEGER,
     undone_by TEXT
   ) STRICT`,
+  `CREATE INDEX IF NOT EXISTS change_sets_open ON change_sets (actor, sealed_at)`,
   `CREATE TABLE IF NOT EXISTS change_set_items (
     change_set_id TEXT NOT NULL,
     item_id TEXT NOT NULL,
-    before TEXT,
-    after TEXT NOT NULL,
     created INTEGER NOT NULL CHECK (created IN (0, 1)),
-    deleted INTEGER NOT NULL CHECK (deleted IN (0, 1)),
-    PRIMARY KEY (change_set_id, item_id)
+    before_fields TEXT,
+    before_manifest TEXT,
+    before_annotations TEXT,
+    after_fields TEXT,
+    after_manifest TEXT,
+    after_annotations TEXT,
+    PRIMARY KEY (change_set_id, item_id),
+    CHECK ((created = 1) = (before_fields IS NULL)),
+    CHECK ((before_fields IS NULL) = (before_manifest IS NULL)
+      AND (before_fields IS NULL) = (before_annotations IS NULL)),
+    CHECK ((after_fields IS NULL) = (after_manifest IS NULL)
+      AND (after_fields IS NULL) = (after_annotations IS NULL))
   ) STRICT`,
   `CREATE INDEX IF NOT EXISTS change_set_items_item ON change_set_items (item_id)`,
   `CREATE TABLE IF NOT EXISTS revisions (
@@ -237,7 +259,19 @@ const CELL_DDL = [
     manifest TEXT NOT NULL,
     PRIMARY KEY (item_id, rev)
   ) STRICT`,
-  `CREATE TABLE IF NOT EXISTS block_versions (hash TEXT PRIMARY KEY, json TEXT NOT NULL) STRICT`,
+  `CREATE INDEX IF NOT EXISTS revisions_set ON revisions (change_set_id)`,
+  `CREATE TABLE IF NOT EXISTS snapshot_parts (
+    item_id TEXT NOT NULL,
+    hash TEXT NOT NULL,
+    json TEXT NOT NULL,
+    PRIMARY KEY (item_id, hash)
+  ) STRICT`,
+  `CREATE TABLE IF NOT EXISTS block_versions (
+    item_id TEXT NOT NULL,
+    hash TEXT NOT NULL,
+    json TEXT NOT NULL,
+    PRIMARY KEY (item_id, hash)
+  ) STRICT`,
   `CREATE TABLE IF NOT EXISTS applied_ops (
     op_id TEXT PRIMARY KEY,
     change_set_id TEXT,
@@ -245,6 +279,12 @@ const CELL_DDL = [
     at INTEGER NOT NULL
   ) STRICT`,
   `CREATE INDEX IF NOT EXISTS applied_ops_at ON applied_ops (at)`,
+  `CREATE TABLE IF NOT EXISTS blob_uploads (
+    sha256 TEXT PRIMARY KEY,
+    bytes INTEGER NOT NULL,
+    mime TEXT NOT NULL,
+    reserved_at INTEGER NOT NULL
+  ) STRICT`,
   `CREATE TABLE IF NOT EXISTS agent_vault (
     account_id TEXT PRIMARY KEY,
     vault_id TEXT NOT NULL,
@@ -321,15 +361,17 @@ const createAll = function* createAll(role: LibraryRole): SqlPlan<void> {
   yield run("INSERT INTO meta (k, v) VALUES ('schema', ?)", [LIBRARY_SCHEMA_VERSION]);
 };
 
-// one engine-version check and one `meta.schema` check, then CREATE … IF NOT EXISTS on an empty
-// database; run it in one transaction, at open and never per request
+// a replica's engine-version check, then one `meta.schema` check, then CREATE … IF NOT EXISTS on
+// an empty database; run it in one transaction, at open and never per request
 export const ensureLibrarySchema = function* ensureLibrarySchema(
   role: LibraryRole,
 ): SqlPlan<SchemaVerdict> {
-  const sqliteVersion =
-    firstRow(yield all("SELECT sqlite_version() AS version"), versionRow)?.version ?? "";
-  if (!sqliteVersionAtLeast(sqliteVersion, LIBRARY_SQLITE_MIN_VERSION)) {
-    return { kind: "unsupported", sqliteVersion };
+  if (role === "replica") {
+    const sqliteVersion =
+      firstRow(yield all("SELECT sqlite_version() AS version"), versionRow)?.version ?? "";
+    if (!sqliteVersionAtLeast(sqliteVersion, LIBRARY_SQLITE_MIN_VERSION)) {
+      return { kind: "unsupported", sqliteVersion };
+    }
   }
   const meta = yield all(
     "SELECT count(*) AS tables FROM sqlite_master WHERE type = 'table' AND name = 'meta'",

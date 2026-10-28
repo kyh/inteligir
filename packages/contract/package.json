@@ -15,6 +15,8 @@
     "./cloud/device/login-flow": "./src/cloud/device/login-flow.ts",
     "./cloud/errors": "./src/cloud/cloud-errors.ts",
     "./cloud/library/library-contract": "./src/cloud/library/library-contract.ts",
+    "./cloud/library/library-socket": "./src/cloud/library/library-socket.ts",
+    "./cloud/library/library-wire": "./src/cloud/library/library-wire.ts",
     "./cloud/origin": "./src/cloud/cloud-origin.ts",
     "./cloud/sync/cloud-socket": "./src/cloud/sync/cloud-socket.ts",
     "./cloud/sync/socket-link": "./src/cloud/sync/socket-link.ts",

@@ -13,5 +13,9 @@ const HASH_HEX_CHARS = 32;
 
 export const BLOCK_HASH_RE = /^[0-9a-f]{32}$/u;
 
-export const blockHash = (block: LibraryBlock): string =>
-  bytesToHex(sha256(utf8ToBytes(canonicalJson(block)))).slice(0, HASH_HEX_CHARS);
+// any stored text by the same function: what the cell keys the parts of an item's history under,
+// so two revisions that share a part store it once
+export const contentHash = (text: string): string =>
+  bytesToHex(sha256(utf8ToBytes(text))).slice(0, HASH_HEX_CHARS);
+
+export const blockHash = (block: LibraryBlock): string => contentHash(canonicalJson(block));

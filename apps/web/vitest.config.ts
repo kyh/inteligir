@@ -17,6 +17,7 @@ const TEST_SCHEMA = execFileSync("pnpm", ["run", "--silent", "db:export"], {
 const SOCKET_SUITES = [
   "src/worker/account-delete.test.ts",
   "src/worker/device-manage.test.ts",
+  "src/worker/library/library-socket.test.ts",
   "src/worker/vault-git.test.ts",
 ];
 
@@ -37,9 +38,12 @@ export default defineConfig({
         compatibilityDate,
         compatibilityFlags,
         d1Databases: ["DB"],
-        r2Buckets: ["PACK_CACHE"],
+        r2Buckets: ["BLOBS", "PACK_CACHE"],
         durableObjects: {
-          ACCOUNT_SOCKET: { className: "ThreadSyncDO", useSQLite: true },
+          // the plugin reads ctx.exports' classes from the source and their storage from here, so
+          // this row is what makes ctx.exports.LibraryDO a SQLite namespace; only the suites read it
+          // by name (test-support/env.d.ts)
+          LIBRARY_CELL: { className: "LibraryDO", useSQLite: true },
           REPO: { className: "RepoCell", useSQLite: true },
           REGISTRY: { className: "Registry", useSQLite: true },
         },
@@ -53,6 +57,7 @@ export default defineConfig({
           TEST_SCHEMA,
           // small enough that a test fills a vault with a few pushes
           VAULT_STORAGE_CAP_BYTES: String(1024 * 1024),
+          LIBRARY_STORAGE_CAP_BYTES: String(1024 * 1024 * 1024),
         },
       },
     }),
