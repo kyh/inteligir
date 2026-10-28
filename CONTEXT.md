@@ -74,7 +74,8 @@ retry queue, which holds a save's url, title and selection and writes nothing
 until the save lands.
 
 **connector** — the library as a remote MCP server: `/connector` on the Worker
-(`apps/web`), the library's procedures tagged as tools, behind OAuth from
+(`apps/web`), the library's procedures tagged as tools
+(`apps/web/src/worker/connector/library-tools.ts`), behind OAuth from
 `@cloudflare/workers-oauth-provider` with a read-and-change scope, `library`,
 and a read-only one, `library:read`. The **built-in agent** and every
 **connected assistant** call it, and each tool is the same procedure the apps

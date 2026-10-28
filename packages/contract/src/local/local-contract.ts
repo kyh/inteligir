@@ -1,8 +1,8 @@
 // both ends ship in one bundle, so this half may break freely; @repo/contract/cloud may never.
 
 import type {
-  InferContractRouterInputs,
-  InferContractRouterOutputs,
+  InferRouterContractInputs,
+  InferRouterContractOutputs,
   RouterContractClient,
 } from "@orpc/contract";
 
@@ -36,6 +36,6 @@ export type LocalContract = typeof localContract;
 // the e2e harness, each over its own link
 export type LocalClient = RouterContractClient<LocalContract>;
 
-export type LocalInputs = InferContractRouterInputs<LocalContract>;
+export type LocalInputs = InferRouterContractInputs<LocalContract>;
 
-export type LocalOutputs = InferContractRouterOutputs<LocalContract>;
+export type LocalOutputs = InferRouterContractOutputs<LocalContract>;

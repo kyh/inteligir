@@ -34,7 +34,9 @@ export type LibraryChangeKind = (typeof LIBRARY_CHANGE_KINDS)[number];
 
 const TAG_ORIGINS = ["field", "inline"] as const;
 const BLOB_ROLES = ["original", "cover", "thumb", "copy", "embed"] as const;
-const CHANGE_SET_ACTORS = [
+// who a change set is by: the person, the built-in agent, a connected assistant, an import, the
+// cloud reading a page, an undo, or the library itself (a dangling link resolving)
+export const CHANGE_SET_ACTORS = [
   "person",
   "agent",
   "assistant",

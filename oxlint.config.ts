@@ -15,11 +15,82 @@ const NODE_OR_REACT = "^(?:node:|react(?:-dom)?(?:/|$))";
 const NOTES_PURITY =
   "@repo/notes is pure and platform-neutral — no node/react/ui imports; callers inject platform capabilities";
 
+// The connector's tool decoration is the Worker's alone (apps/web/src/worker/connector): a client
+// that reached it would bundle the MCP SDK, whose shims import node:process, and the OpenAPI codec,
+// neither of which Metro tree-shakes away.
+const SERVER_ONLY = {
+  group: [
+    "@modelcontextprotocol/server",
+    "@modelcontextprotocol/server/*",
+    "@orpc/mcp",
+    "@orpc/openapi",
+  ],
+  message:
+    "MCP and OpenAPI meta live in apps/web/src/worker alone; a client imports @repo/contract's plain rows",
+};
+
+// oRPC v2 still ships its v1 names, untagged, beside the new ones (https://orpc.dev/docs/migrations/from-v1).
+const V1_NAMES_MESSAGE =
+  "oRPC v1's name: use v2's (RouterContractClient, InferRouterContractInputs/Outputs, RouterContract, AnyProcedureContract, asyncIteratorObject, PromiseWithError, InferClientError, consumeAsyncIterator)";
+const ORPC_V1_NAMES = [
+  {
+    importNames: [
+      "AnyContractProcedure",
+      "AnyContractRouter",
+      "ContractRouterClient",
+      "InferContractRouterErrorMap",
+      "InferContractRouterInputs",
+      "InferContractRouterOutputs",
+      "eventIterator",
+      "getContractRouter",
+      "minifyContractRouter",
+    ],
+    message: V1_NAMES_MESSAGE,
+    name: "@orpc/contract",
+  },
+  {
+    importNames: [
+      "InferRouterCurrentContexts",
+      "eventIterator",
+      "eventIteratorToStream",
+      "eventIteratorToUnproxiedDataStream",
+      "streamToEventIterator",
+    ],
+    message: V1_NAMES_MESSAGE,
+    name: "@orpc/server",
+  },
+  {
+    importNames: [
+      "ClientPromiseResult",
+      "InferClientErrorUnion",
+      "consumeEventIterator",
+      "eventIteratorToStream",
+      "eventIteratorToUnproxiedDataStream",
+      "streamToEventIterator",
+    ],
+    message: V1_NAMES_MESSAGE,
+    name: "@orpc/client",
+  },
+];
+
+interface ImportPattern {
+  readonly message: string;
+  readonly regex?: string;
+  readonly group?: readonly string[];
+}
+
+// One rule config per file: an override's options replace the base's rather than add to them, so
+// every override restating the rule carries the repo-wide rows beside its own.
+const restrictedImports = (patterns: readonly ImportPattern[]) => [
+  "error",
+  { paths: ORPC_V1_NAMES, patterns: [SERVER_ONLY, ...patterns] },
+];
+
 // A test is one of the package's callers, so it may hand the code under test the platform.
 const platformPurity = (dir: string, regex: string, message: string) => ({
   excludeFiles: tests,
   files: [`${dir}/src/**`],
-  rules: { "no-restricted-imports": ["error", { patterns: [{ message, regex }] }] },
+  rules: { "no-restricted-imports": restrictedImports([{ message, regex }]) },
 });
 
 export default defineConfig({
@@ -117,16 +188,16 @@ export default defineConfig({
     {
       files: ["packages/notes/src/**"],
       rules: {
-        "no-restricted-imports": [
-          "error",
-          {
-            patterns: [
-              { message: NOTES_PURITY, regex: NODE_OR_REACT },
-              { group: ["@repo/ui", "@repo/ui/*"], message: NOTES_PURITY },
-            ],
-          },
-        ],
+        "no-restricted-imports": restrictedImports([
+          { message: NOTES_PURITY, regex: NODE_OR_REACT },
+          { group: ["@repo/ui", "@repo/ui/*"], message: NOTES_PURITY },
+        ]),
       },
+    },
+    {
+      // the one place the library's rows become the connector's tools
+      files: ["apps/web/src/worker/**"],
+      rules: { "no-restricted-imports": ["error", { paths: ORPC_V1_NAMES }] },
     },
     {
       // A test is one of the callers, so it may hand the code under test the platform's bytes.
@@ -154,6 +225,7 @@ export default defineConfig({
     },
   ],
   rules: {
+    "no-restricted-imports": restrictedImports([]),
     // Its message asks for a `// SAFETY:` comment, which admits nothing now that
     // `typescript/consistent-type-assertions` refuses every assertion.
     "anti-slop/require-safety-comment-for-type-assertion": "off",

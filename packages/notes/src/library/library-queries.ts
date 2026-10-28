@@ -22,7 +22,7 @@ import { blockHashSchema, orderedBlocks } from "./block-ops";
 import type { ItemState, StoredBlock } from "./block-ops";
 import { compareBlockPlaces, ordSchema } from "./block-order";
 import { canonicalJson, utf8ByteLength } from "./canonical-json";
-import { deriveItem } from "./derive-item";
+import { deriveItem, itemCardSchema } from "./derive-item";
 import type { DerivedItem, ItemCard, ItemSearchText } from "./derive-item";
 import { libraryItemFieldsSchema } from "./library-item";
 import type { LibraryItemFields } from "./library-item";
@@ -63,19 +63,6 @@ const parseRow = <T>(row: SqlRow, schema: z.ZodType<T>, what: string): T => {
 };
 
 // ---- items ----
-
-const itemCardSchema = z.object({
-  outline: z.array(
-    z.object({
-      blockId: z.string(),
-      level: z.union([z.literal(1), z.literal(2), z.literal(3)]),
-      text: z.string(),
-    }),
-  ),
-  preview: z.string(),
-  title: z.string(),
-  words: z.number().int().nonnegative(),
-}) satisfies z.ZodType<ItemCard>;
 
 export interface ItemRowWrite {
   readonly id: string;

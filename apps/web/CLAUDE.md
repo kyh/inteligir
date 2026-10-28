@@ -1,7 +1,8 @@
 # Decisions: @repo/web and the cloud
 
-Accounts, the device credential, the /cloud wire, the account's socket and the
-hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
+Accounts, the device credential, the /cloud wire and `/v1`'s, the connector's
+tools, the account's socket and the hosted vault. `AGENTS.md` § Decisions says
+how a bullet is written and cited.
 
 ## Cloud, sync and accounts
 
@@ -247,3 +248,26 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   Workers Builds (it deploys on push and cannot wait for CI); a preview on the
   production D1 (PR code would write real accounts).
   `.github/workflows/preview.yml`, `apps/web/README.md` § Previews.
+
+- **`/v1` IS ONE oRPC WIRE, `/v1/rpc`, ITS REFUSALS DECLARED ONCE.** The
+  Worker answers `account.*` on its own RPCHandler and forwards `library.*` to
+  the account's library cell; both map codes with `V1_ERROR_STATUS_MAP`, and a
+  refusal is an `error()` factory, oRPC's own code where it means the same.
+  Every library write takes an `opId` the cell keeps, and only the bytes, the
+  socket and Anthropic's webhook stay plain HTTP. The REST rows and their
+  envelope go as each client moves. Rejected: REST beside RPC (two
+  serializers, two error vocabularies, two clients) and oRPC's default
+  statuses (an unmapped code answers 400).
+  `packages/contract/src/cloud/v1-contract.ts`, `v1-errors.ts`.
+
+- **THE LIBRARY'S ROWS BECOME THE CONNECTOR'S TOOLS IN THE WORKER, BY META
+  CHAINED ON THE CONTRACT'S OWN ROWS.** A tool row gets `.meta(openapi(…),
+  mcp.tool(…))`: its name, title, description and the verb whose read-only and
+  idempotent hints oRPC infers, then the hints no verb implies (closed-world
+  but `save_link`, destructive where it changes what is there). A row without
+  tool meta is no tool. The cell implements the decorated contract while
+  clients type against the plain one, held equal by a `*.test-d.ts`.
+  Rejected: the meta in `@repo/contract` (every client would bundle MCP and
+  OpenAPI; `oxlint.config.ts` refuses both outside `apps/web/src/worker`) and a
+  walker decorating by path (it rebuilds oRPC's internals).
+  `apps/web/src/worker/connector/library-tools.ts`.

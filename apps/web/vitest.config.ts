@@ -57,5 +57,11 @@ export default defineConfig({
     include: ["src/**/*.test.ts"],
     maxWorkers: 1,
     setupFiles: ["./src/worker/test-support/apply-schema.ts"],
+    // the type claims run as tsc over the Worker's own program, beside the suites workerd runs
+    typecheck: {
+      enabled: true,
+      include: ["src/worker/**/*.test-d.ts"],
+      tsconfig: "./src/worker/tsconfig.json",
+    },
   },
 });

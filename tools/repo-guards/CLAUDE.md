@@ -8,7 +8,8 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 - **No coverage tooling, on purpose, and a structural guard states its own
   rule.** Targeted structural invariants instead: the dependency DAG and where
   each package may reach, ws change-kind reachability (`tools/repo-guards`),
-  each package's node and react rule (`oxlint.config.ts`), route-table
+  each package's node and react rule and the MCP and OpenAPI imports only the
+  Worker makes (`oxlint.config.ts`), route-table
   completeness (`apps/cli/src/server/http-surface.test.ts`), migration↔schema
   agreement (`packages/db/src/schema-agreement.test.ts`), `@repo/ui`'s
   per-export orphans and type roles, the CLI guide and its `--json` flags, the

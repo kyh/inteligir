@@ -5,11 +5,16 @@ packages:
 
 catalog:
   "@base-ui/react": ^1.9.0
-  # exact: the v2 beta breaks between patches; the four must resolve to one build
+  # exact: the v2 beta breaks between patches, and @orpc/mcp pins its siblings exactly, so every
+  # oRPC package must resolve to one build
   "@orpc/client": 2.0.0-beta.45
   "@orpc/contract": 2.0.0-beta.45
+  "@orpc/mcp": 2.0.0-beta.45
+  "@orpc/openapi": 2.0.0-beta.45
   "@orpc/server": 2.0.0-beta.45
   "@orpc/tanstack-query": 2.0.0-beta.45
+  # exact: @orpc/mcp's peer, whose tool-definition API the registrar calls; a 2.x minor may move it
+  "@modelcontextprotocol/server": 2.4.0
   # exact: the adapters are spawned as child processes and the sdk speaks to them, so the wire is
   # only verified against one set; a bump re-records packages/agent-runtime's adapter transcripts
   "@agentclientprotocol/claude-agent-acp": 0.81.0

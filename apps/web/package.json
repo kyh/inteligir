@@ -17,6 +17,11 @@
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "catalog:",
+    "@modelcontextprotocol/server": "catalog:",
+    "@orpc/contract": "catalog:",
+    "@orpc/mcp": "catalog:",
+    "@orpc/openapi": "catalog:",
+    "@orpc/server": "catalog:",
     "@react-three/fiber": "^9.8.1",
     "@repo/contract": "workspace:*",
     "@repo/ui": "workspace:*",

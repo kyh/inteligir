@@ -3,6 +3,8 @@
 // walk over the fields and the blocks in reading order, in the same transaction as the write, on
 // the cell and on every replica alike, so nothing derived is ever synced or stale.
 
+import { z } from "zod";
+
 import { urlKey, urlSearchText } from "../items/item-url";
 import { clipSnippet } from "../text/clip-text";
 import { orderedBlocks } from "./block-ops";
@@ -57,6 +59,21 @@ export interface ItemCard {
   readonly outline: readonly OutlineEntry[];
   readonly words: number;
 }
+
+// a card as a row holds it and an answer carries it, read leniently: a newer writer's extra field
+// is dropped, never refused
+export const itemCardSchema = z.object({
+  outline: z.array(
+    z.object({
+      blockId: z.string(),
+      level: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+      text: z.string(),
+    }),
+  ),
+  preview: z.string(),
+  title: z.string(),
+  words: z.number().int().nonnegative(),
+}) satisfies z.ZodType<ItemCard>;
 
 interface DerivedBlock {
   readonly text: string;
