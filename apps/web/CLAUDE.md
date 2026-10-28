@@ -393,11 +393,12 @@ how a bullet is written and cited.
   Crypto's calls). The program's `paths` maps `highlight.js` to the one type
   lowlight takes from it (`LanguageFn`). Rejected: `lib.dom` in the Worker
   (two `BodyInit`s); dropping code blocks from the headless kits (the codec
-  reads every block a note holds). The page reader's one entry the fill calls
-  maps to its DOM-free signature the same way.
+  reads every block a note holds). A sibling package is never mapped: the page
+  reader publishes the one entry the fill calls with a `types` condition, its
+  DOM-free signature, which its own program holds the implementation to.
   `apps/web/src/worker/tsconfig.json`,
   `apps/web/src/worker/types/highlight-js.d.ts`,
-  `apps/web/src/worker/types/page-reader-read-html.d.ts`.
+  `packages/page-reader/src/read-html-api.ts`.
 
 - **A SAVED PAGE OF A URL THE LIBRARY HOLDS FOLDS ONTO ITS ITEM, ITS ARTICLE
   REPLACING THE ITEM'S AND THE ITEM'S HIGHLIGHTS PLACED AGAIN.** One url, one

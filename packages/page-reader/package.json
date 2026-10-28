@@ -9,7 +9,10 @@
     "./linkedom-page": "./src/linkedom-page.ts",
     "./page-facts": "./src/page-facts.ts",
     "./page-reading": "./src/page-reading.ts",
-    "./read-html": "./src/read-html.ts",
+    "./read-html": {
+      "types": "./src/read-html-api.ts",
+      "default": "./src/read-html.ts"
+    },
     "./test-support/corpus/*": "./src/test-support/corpus/*",
     "./web-url": "./src/web-url.ts"
   },

@@ -74,8 +74,8 @@ its own `tsconfig.json`. The markdown codec the cell runs reaches highlight.js's
 types, which reference `lib.dom` themselves, so the program maps `highlight.js`
 to `types/highlight-js.d.ts`, the one type lowlight takes from it (`LanguageFn`);
 the fill reads a page with `@repo/page-reader`, whose code is typed by the
-DOM's globals, so its one entry the Worker calls maps to its DOM-free signature
-(`types/page-reader-read-html.d.ts`).
+DOM's globals, so the one entry the Worker calls publishes a `types` condition,
+its DOM-free signature (`packages/page-reader/src/read-html-api.ts`).
 
 ## Routes
 

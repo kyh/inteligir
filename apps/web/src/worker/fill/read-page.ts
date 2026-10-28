@@ -10,7 +10,7 @@
 // which every request waits on.
 
 import type { ExtractedPageBlocks } from "@repo/page-reader/page-reading";
-import type { readHtml as readHtmlType } from "@repo/page-reader/read-html";
+import type { ReadHtml } from "@repo/page-reader/read-html";
 import { failureOf, fileOnlyLinked, TEXT_NOT_SAVED } from "@repo/notes/items/fill-sentences";
 import { originalFileName } from "@repo/notes/items/item-name";
 import { kindForUrl } from "@repo/notes/items/item-url";
@@ -147,8 +147,6 @@ const line = (value: string | null): string | null => {
 };
 
 const newBlockId = (): string => crypto.randomUUID();
-
-type ReadHtml = typeof readHtmlType;
 
 const loadReader = async (): Promise<ReadHtml> => {
   const reader = await import("@repo/page-reader/read-html");
