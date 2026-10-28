@@ -299,17 +299,19 @@ how a bullet is written and cited.
   `apps/web/vitest.config.ts`, `apps/web/src/worker/test-support/cloud-helpers.ts`.
 
 - **EACH ACCOUNT'S LIBRARY IS ONE SQLITE DURABLE OBJECT, `LibraryDO`, REACHED
-  ONLY THROUGH `ctx.exports` UNDER A NAME A VERIFIED CREDENTIAL GIVES.** The
-  name is `library:<userId>`, read back from `ctx.id.name`, never from a
-  request; `cloudflare.config.ts` declares the class in `exports` with SQLite
-  storage and binds no namespace, and the retired `ThreadSyncDO` stays a
-  `state: "deleted"` tombstone until a deploy answers that it may go. The
-  schema opens under `blockConcurrencyWhile`, and one of another version wipes
-  the cell under a new epoch. Rejected: a namespace binding (anything holding
-  `env` could name any account's cell); keeping `ThreadSyncDO`'s name (nothing
-  documents a preview refusing a new class).
-  `apps/web/src/worker/library/library-do.ts`, `library-cell.ts`,
-  `cell-schema.ts`.
+  ONLY THROUGH `ctx.exports` UNDER A NAME A VERIFIED CREDENTIAL OR ITS OWN CELL
+  GIVES.** Naming an object creates it, so `library:<userId>` comes from a
+  credential the Worker verified, or from a fill message, which only the
+  account's cell writes, from its own `ctx.id.name`, onto a queue only this
+  Worker produces to; `cloudflare.config.ts` declares the class in `exports`
+  with SQLite storage and binds no namespace, and the retired `ThreadSyncDO`
+  stays a tombstone until a deploy lets it go. The schema opens under
+  `blockConcurrencyWhile`; one of another version wipes the cell under a new
+  epoch. Rejected: a namespace binding (anything holding `env` could name any
+  cell); keeping `ThreadSyncDO`'s name (nothing documents a preview refusing a
+  new class); signing the fill message (no other producer exists to forge one).
+  `apps/web/src/worker/library/library-do.ts`,
+  `library-cell.ts`, `cell-schema.ts`, `apps/web/src/worker/fill/fill-job.ts`.
 
 - **A LIBRARY WRITE LANDS ONLY ON THE BASES IT NAMES, BLOCK BY BLOCK, IN ONE
   TRANSACTION.** Every op carries the base it was computed from (a block's
@@ -470,3 +472,12 @@ how a bullet is written and cited.
   holds the account's files); fflate (no ZIP64 writer) and zip.js (timers and a
   worker pool). `apps/web/src/worker/library/cell-exports.ts`,
   `apps/web/src/worker/zip/zip-write.ts`.
+
+- **THE CLOUD KEEPS A PAGE'S COVER AS THE SITE SERVED IT, AND EACH DEVICE DRAWS
+  ITS OWN THUMBNAIL.** The consumer keeps the first candidate that is really a
+  picture of a cover's size whole, within `FILL_LIMITS.coverBytes`, and decodes
+  nothing. That is the spec's fallback, taken over a wasm thumbnail without
+  measuring one: a decoded picture is four bytes a pixel (48 MB for 4000 by 3000) in an isolate whose heap the reading already uses. Rejected: the Images
+  binding (it bills every picture); a thumbnail made in the cell (its CPU holds
+  every write). `apps/web/src/worker/fill/read-page.ts`,
+  `packages/notes/src/items/link-fill.ts`.

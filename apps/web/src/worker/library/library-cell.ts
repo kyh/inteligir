@@ -1,7 +1,9 @@
 // Each account's library cell is one Durable Object, `library:<accountId>`, reached through the
-// Worker's own export (`ctx.exports.LibraryDO`, no env binding), and named only from an account id
-// a verified credential gave: naming an object creates it, so a name a caller chose would make
-// one. The cell reads its account back from its own name.
+// Worker's own export (`ctx.exports.LibraryDO`, no env binding). Naming an object creates it, so a
+// cell is named only from an account id one of two sources vouches for: a credential the Worker
+// verified, or a fill message (`../fill/fill-job`), which only a cell writes, from its own name,
+// onto a queue only this Worker produces to and consumes. The cell reads its account back from its
+// own name.
 
 import type { LibraryDO } from "./library-do";
 
