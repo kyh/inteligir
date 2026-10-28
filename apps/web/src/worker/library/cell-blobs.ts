@@ -2,16 +2,17 @@
 // name only a file the library already holds, and the file's row lands once the bytes do. A device
 // asks for room before it uploads, the cell holds it against the quota, and once the upload is in
 // R2 the cell reads its size there and lands the row; room held past an hour with no upload is let
-// go by the alarm.
+// go by the alarm, and so is what such an upload, or one the cell refused, left in R2.
 
 import type { ItemState } from "@repo/notes/library/block-ops";
+import { readMeta, writeMeta } from "@repo/notes/library/library-queries";
 import type { BlobRole } from "@repo/notes/library/library-schema";
 import type { LibraryNode } from "@repo/notes/library/library-nodes";
-import { chunkStatement } from "@repo/notes/library/library-sql";
+import { chunkStatement, runPlan } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
-import { dropJob, scheduleJob } from "./cell-jobs";
+import { dropJob, ensureJob, scheduleJob } from "./cell-jobs";
 import { addFileBytes, holdRoomFor } from "./cell-quota";
 import type { CellStorage } from "./cell-storage";
 
@@ -210,12 +211,71 @@ const releaseHeld = (storage: CellStorage, sha: string, bytes: number): void => 
   dropJob(storage, uploadJobId(sha));
 };
 
-// room nobody used: the upload never landed
-export const releaseUpload = (storage: CellStorage, sha: string): void => {
+// ---- strays ----
+
+// A stray is what R2 may hold under a sha no file row names: an upload the cell refused, or one
+// whose room was let go before it settled. Its removal is a job the alarm runs between two
+// transactions, since it waits on R2. While the job waits a settle of that sha lands nothing, and
+// a settle whose look in R2 began before a removal ended lands nothing either, by the count of
+// removals it read first, so no file row ever names an object a removal took.
+
+const BLOB_REMOVALS = "blob_removals";
+
+const removalsSchema = z.number().int().nonnegative();
+
+const strayJobId = (sha: string): string => `stray:${sha}`;
+
+// the removals the cell has finished, which a settle reads before it looks in R2
+export const blobRemovals = (storage: CellStorage): number => {
+  const held = runPlan(storage, readMeta(BLOB_REMOVALS));
+  return held === null ? 0 : removalsSchema.parse(held);
+};
+
+const strayPending = (storage: CellStorage, sha: string): boolean =>
+  storage.all("SELECT 1 FROM jobs WHERE id = ?", [strayJobId(sha)]).length > 0;
+
+const strand = (storage: CellStorage, sha: string, now: number): void => {
+  if (heldShas(storage, [sha]).size === 0) {
+    ensureJob(
+      storage,
+      { id: strayJobId(sha), kind: "stray", payload: JSON.stringify({ sha }) },
+      now,
+    );
+  }
+};
+
+// room nobody used: the upload never settled, and whatever it put in R2 goes
+export const releaseUpload = (storage: CellStorage, sha: string, now: number): void => {
+  const held = heldUpload(storage, sha);
+  if (held !== null) {
+    releaseHeld(storage, sha, held.bytes);
+    strand(storage, sha, now);
+  }
+};
+
+// an upload the cell would not take: its room goes, and so do its bytes in R2
+export const refuseUpload = (storage: CellStorage, sha: string, now: number): void => {
   const held = heldUpload(storage, sha);
   if (held !== null) {
     releaseHeld(storage, sha, held.bytes);
   }
+  strand(storage, sha, now);
+};
+
+// a stray's removal may begin; false, with its job dropped, once a file row or a fresh upload's
+// room holds the sha, since that upload's own settle or release decides what stays
+export const beginRemoval = (storage: CellStorage, sha: string): boolean => {
+  if (heldShas(storage, [sha]).size > 0 || heldUpload(storage, sha) !== null) {
+    dropJob(storage, strayJobId(sha));
+    return false;
+  }
+  return true;
+};
+
+// R2 holds nothing under the sha now
+export const endRemoval = (storage: CellStorage, sha: string): void => {
+  runPlan(storage, writeMeta(BLOB_REMOVALS, blobRemovals(storage) + 1));
+  dropJob(storage, strayJobId(sha));
 };
 
 // what R2 holds under the file's key, read before the transaction: null when nothing landed
@@ -231,15 +291,24 @@ export interface UploadSettled {
 }
 
 // the file's row lands at the size R2 holds; an upload whose room was let go meanwhile is taken
-// in again if it still fits
+// in again if it still fits. `removalsSeen` is `blobRemovals` as it stood before R2 was read: a
+// stray's removal waiting, or one ended since, may have taken what R2 showed, so the device
+// uploads again into the room it holds
 export const settleUpload = (
   storage: CellStorage,
   bytesCap: number,
-  sha: string,
-  stored: StoredObject | null,
+  upload: {
+    readonly sha: string;
+    readonly stored: StoredObject | null;
+    readonly removalsSeen: number;
+  },
 ): UploadSettled => {
+  const { removalsSeen, sha, stored } = upload;
   if (heldShas(storage, [sha]).size > 0) {
     return { landed: false, settled: true };
+  }
+  if (strayPending(storage, sha) || blobRemovals(storage) !== removalsSeen) {
+    return { landed: false, settled: false };
   }
   const held = heldUpload(storage, sha);
   if (stored === null) {

@@ -133,6 +133,8 @@ interface OpContext {
   readonly itemId: string;
   readonly source: AnnotationSource;
   readonly nowSeconds: number;
+  // the row the whole library holds under an id, whichever item it is on
+  readonly readRow: (id: string) => AnnotationRow | null;
 }
 
 export interface AnnotationOpsOutcome {
@@ -164,10 +166,16 @@ interface OpRun {
 
 type Op<K extends AnnotationOp["op"]> = Extract<AnnotationOp, { op: K }>;
 
-// an add lands once; a reply answers a live root of the same item
+// an add lands once; a reply answers a live root of the same item. An id is the library's, not
+// the item's: one another item holds is that item's row as it is, never a move of it to this one
 const addAnnotation = (run: OpRun, op: Op<"add">): void => {
-  const { itemId, nowSeconds, source } = run.context;
+  const { itemId, nowSeconds, readRow, source } = run.context;
   const held = run.rows.get(op.id);
+  const elsewhere = held === undefined ? readRow(op.id) : null;
+  if (elsewhere !== null) {
+    run.conflicts.push(conflictOf(itemId, op.id, elsewhere));
+    return;
+  }
   if (held !== undefined) {
     const same =
       held.deletedAt === null &&

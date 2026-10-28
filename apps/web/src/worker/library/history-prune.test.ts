@@ -9,9 +9,11 @@ import {
   landedValue,
   noteFields,
   paragraph,
+  person,
   placed,
   SYSTEM,
 } from "../test-support/library-cell";
+import type { CellActor } from "./cell-actor";
 import { revisionsToDrop } from "./history-prune";
 
 const DAY = 24 * 60 * 60_000;
@@ -98,6 +100,62 @@ describe("the prune job", () => {
         .exec("SELECT min(rev) AS n FROM revisions WHERE item_id = ?", itemId)
         .one()["n"];
       expect(landedValue(library.revision(itemId, Number(firstKept)))?.blocks).toHaveLength(1);
+    });
+  });
+
+  it("keeps a set's entry for an item while one of its revisions of it stays", async () => {
+    await inCell(cellOf(), (state) => {
+      const clock = clockAt(NOW - 60 * DAY);
+      const library = engineIn(state, clock);
+      const itemId = crypto.randomUUID();
+      let block = paragraph("a", "version 0");
+      const put = (actor: CellActor, text: string): void => {
+        const next = paragraph("a", text);
+        landedValue(
+          library.write(actor, {
+            itemId,
+            ops: [{ baseHash: hashOf(block), block: next, op: "put" }],
+          }),
+        );
+        block = next;
+      };
+      landedValue(
+        library.create(SYSTEM, { blocks: placed([block]), fields: noteFields(), id: itemId }),
+      );
+      // two months back the person's set wrote, the library wrote over it, and the person took
+      // the item back: the person's set holds two revisions of it, the day's last among them
+      clock.now += 1000;
+      put(person(), "typed");
+      clock.now += 1000;
+      put(SYSTEM, "the library's");
+      clock.now += 1000;
+      put(person(), "typed again");
+      clock.now += 60_000;
+      library.runDueJobs(() => {});
+      // then the newest 100, today
+      for (let index = 1; index <= 100; index += 1) {
+        clock.now = NOW - (101 - index) * 60_000;
+        put(SYSTEM, `today ${String(index)}`);
+      }
+      clock.now = NOW;
+      library.runDueJobs((job, cause) => {
+        throw new Error(`the ${job.kind} job failed`, { cause });
+      });
+      const entries = state.storage.sql
+        .exec(
+          `SELECT change_sets.actor AS actor, count(revisions.rev) AS revisions
+           FROM change_set_items JOIN change_sets ON change_sets.id = change_set_items.change_set_id
+           LEFT JOIN revisions ON revisions.change_set_id = change_set_items.change_set_id
+             AND revisions.item_id = change_set_items.item_id
+           WHERE change_set_items.item_id = ? AND change_sets.opened_at < ?
+           GROUP BY change_set_items.change_set_id`,
+          itemId,
+          NOW - DAY,
+        )
+        .toArray();
+      // the person's set keeps its entry by its later revision; the library's two sets of that
+      // day lost theirs with their only revisions
+      expect(entries).toEqual([{ actor: "person", revisions: 1 }]);
     });
   });
 });

@@ -139,7 +139,7 @@ interface Checked {
 const checkLanding = (scope: LandingScope, landing: Landing): Checked => {
   const { storage } = scope;
   const { after, before, itemId } = landing;
-  if (!libraryItemFieldsSchema.safeParse(after.fields).success) {
+  if (!libraryItemFieldsSchema.validate(after.fields)) {
     refuse({ kind: "too-large" });
   }
   const derived = deriveItem(after.fields, after.blocks);
@@ -183,9 +183,15 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
   const set = scope.set();
   touchItem(
     storage,
-    set.id,
-    itemId,
-    before === null ? null : { annotations: annotationStoreOf(before.rows), state: before.state },
+    {
+      before:
+        before === null
+          ? null
+          : { annotations: annotationStoreOf(before.rows), state: before.state },
+      itemId,
+      setId: set.id,
+    },
+    scope.now,
   );
   const landed = runPlan(
     storage,

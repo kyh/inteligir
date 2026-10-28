@@ -17,12 +17,28 @@ import {
   refusalOf,
   SYSTEM,
 } from "../test-support/library-cell";
+import type { CellActor } from "./cell-actor";
 import { ITEM_TEXT_MAX_BYTES } from "./cell-landing";
 
 const A = paragraph("a", "the first line");
 const B = paragraph("b", "the second line");
 
 const newItemId = (): string => crypto.randomUUID();
+
+// what R2 holds of an image upload
+const png = (bytes: number) => ({ bytes, mime: "image/png" });
+
+// a highlight added over the first line, under one id
+const highlightAdd = (text: string) =>
+  ({
+    createdAt: 1,
+    id: "hl1",
+    occurrence: null,
+    op: "add",
+    parentId: null,
+    quote: "first",
+    text,
+  }) as const;
 
 describe("a write to the library cell", () => {
   it("lands each block only over the hash it was read at, and answers a stale one with the block as it is", async () => {
@@ -210,7 +226,7 @@ describe("a write to the library cell", () => {
       expect(landedValue(library.reserve({ bytes: 10, mime: "image/png", sha }))).toEqual({
         held: false,
       });
-      const settled = library.settle(sha, { bytes: 10, mime: "image/png" });
+      const settled = library.settle(sha, { bytes: 10, mime: "image/png" }, library.blobRemovals());
       expect(settled.ok && settled.head).toBe(2);
       landedValue(library.write(SYSTEM, { itemId, ops: [insert] }));
       expect(landedValue(library.reserve({ bytes: 10, mime: "image/png", sha }))).toEqual({
@@ -236,8 +252,67 @@ describe("a write to the library cell", () => {
       ).toMatchObject({
         kind: "quota",
       });
-      expect(landedValue(library.settle(sha, null))).toEqual({ settled: false });
+      expect(landedValue(library.settle(sha, null, library.blobRemovals()))).toEqual({
+        settled: false,
+      });
       landedValue(library.reserve({ bytes: 600, mime: "image/png", sha: "c".repeat(64) }));
+    });
+  });
+
+  it("lets a refused upload's room go, takes its bytes out of R2, and lands the sha only once they are out", async () => {
+    await inCell(cellOf(), (state) => {
+      const bytesCap = state.storage.sql.databaseSize + 100_000;
+      const library = engineIn(state, clockAt(), bytesCap);
+      const sha = "e".repeat(64);
+      landedValue(library.reserve({ ...png(500), sha }));
+      expect(refusalOf(library.settle(sha, png(200_000), library.blobRemovals()))).toMatchObject({
+        kind: "quota",
+      });
+      expect(state.storage.sql.exec("SELECT * FROM blob_uploads").toArray()).toEqual([]);
+      // what R2 showed may be the refused bytes, or gone under the removal: nothing lands
+      expect(landedValue(library.settle(sha, png(500), library.blobRemovals()))).toEqual({
+        settled: false,
+      });
+      const before = library.blobRemovals();
+      const removals = library.beginStrayRemovals();
+      expect(removals.map((removal) => removal.sha)).toEqual([sha]);
+      library.endStrayRemovals(removals, true);
+      expect(library.beginStrayRemovals()).toEqual([]);
+      // a settle that looked in R2 before the removal ended lands nothing; one after it lands
+      expect(landedValue(library.settle(sha, png(500), before))).toEqual({ settled: false });
+      const settled = library.settle(sha, png(500), library.blobRemovals());
+      expect(settled).toEqual({ head: 1, ok: true, value: { settled: true } });
+    });
+  });
+
+  it("takes out of R2 what an upload left once its room is let go, unless the sha is held again", async () => {
+    await inCell(cellOf(), (state) => {
+      const clock = clockAt();
+      const library = engineIn(state, clock);
+      const [kept, retried] = ["f".repeat(64), "0".repeat(64)];
+      for (const sha of [kept, retried]) {
+        landedValue(library.reserve({ bytes: 10, mime: "image/png", sha }));
+      }
+      clock.now += 60 * 60_000;
+      library.runDueJobs(() => {});
+      const strays = () =>
+        state.storage.sql
+          .exec("SELECT id, attempts FROM jobs WHERE kind = 'stray' ORDER BY id")
+          .toArray();
+      expect(strays()).toEqual([
+        { attempts: 0, id: `stray:${retried}` },
+        { attempts: 0, id: `stray:${kept}` },
+      ]);
+      // a device asks for room again for one: its removal is called off
+      landedValue(library.reserve({ bytes: 10, mime: "image/png", sha: kept }));
+      const removals = library.beginStrayRemovals();
+      expect(removals.map((removal) => removal.sha)).toEqual([retried]);
+      // R2 failed the other: it waits its turn again, and the count of removals stays
+      const count = library.blobRemovals();
+      library.endStrayRemovals(removals, false);
+      expect(strays()).toEqual([{ attempts: 1, id: `stray:${retried}` }]);
+      expect(library.blobRemovals()).toBe(count);
+      expect(library.beginStrayRemovals()).toEqual([]);
     });
   });
 
@@ -276,6 +351,45 @@ describe("a write to the library cell", () => {
         ],
         kind: "conflict",
       });
+    });
+  });
+
+  it("refuses a highlight whose id another item holds, and leaves that item's row as it is", async () => {
+    await inCell(cellOf(), (state) => {
+      const library = engineIn(state, clockAt());
+      const first = newItemId();
+      const second = newItemId();
+      for (const id of [first, second]) {
+        landedValue(library.create(person(), { blocks: placed([A]), fields: noteFields(), id }));
+      }
+      landedValue(
+        library.write(person(), {
+          annotations: [highlightAdd("on the first")],
+          itemId: first,
+          ops: [],
+        }),
+      );
+      const head = library.head();
+      const taken = library.write(person("phone"), {
+        annotations: [highlightAdd("on the second")],
+        itemId: second,
+        ops: [],
+      });
+      expect(refusalOf(taken)).toMatchObject({
+        current: [
+          {
+            current: { itemId: first, text: "on the first" },
+            id: "hl1",
+            itemId: second,
+            kind: "annotation",
+          },
+        ],
+        kind: "conflict",
+      });
+      expect(library.head()).toBe(head);
+      expect(
+        state.storage.sql.exec("SELECT item_id, text FROM annotations WHERE id = 'hl1'").toArray(),
+      ).toEqual([{ item_id: first, text: "on the first" }]);
     });
   });
 });
@@ -458,6 +572,50 @@ describe("change sets and undo", () => {
       expect(refusalOf(library.undo(person(), { changeSetIds: [crypto.randomUUID()] }))).toEqual({
         kind: "not-found",
       });
+    });
+  });
+
+  it("writes each revision when its state stops being the item's, so the newest is the item as it stands", async () => {
+    await inCell(cellOf(), (state) => {
+      const clock = clockAt();
+      const library = engineIn(state, clock);
+      const itemId = newItemId();
+      const start = clock.now;
+      const put = (actor: CellActor, from: LibraryBlock, block: LibraryBlock): void => {
+        landedValue(
+          library.write(actor, { itemId, ops: [{ baseHash: hashOf(from), block, op: "put" }] }),
+        );
+      };
+      landedValue(
+        library.create(SYSTEM, { blocks: placed([A]), fields: noteFields(), id: itemId }),
+      );
+      // the person's set stays open while the library's own write seals as it lands, then the
+      // person takes the item back within the same set
+      const typed = paragraph("a", "typed by the person");
+      const later = paragraph("a", "a later system write");
+      const again = paragraph("a", "the person again");
+      clock.now = start + 1000;
+      put(person(), A, typed);
+      clock.now = start + 2000;
+      put(SYSTEM, typed, later);
+      clock.now = start + 3000;
+      put(person(), later, again);
+      clock.now = start + 62_000;
+      library.runDueJobs(() => {});
+      const revisions = state.storage.sql
+        .exec("SELECT rev, at FROM revisions WHERE item_id = ? ORDER BY rev", itemId)
+        .toArray();
+      expect(revisions).toEqual([
+        { at: start, rev: 1 },
+        { at: start + 2000, rev: 2 },
+        { at: start + 2000, rev: 3 },
+        { at: start + 62_000, rev: 4 },
+      ]);
+      const blocksOf = (rev: number) =>
+        landedValue(library.revision(itemId, rev))?.blocks.map((stored) => stored.block);
+      expect([1, 2, 3, 4].map(blocksOf)).toEqual([[A], [typed], [later], [again]]);
+      const [body] = landedValue(library.bodies([itemId])).bodies;
+      expect(body?.blocks.map((stored) => stored.block)).toEqual(blocksOf(4));
     });
   });
 

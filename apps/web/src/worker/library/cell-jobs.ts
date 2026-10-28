@@ -1,18 +1,19 @@
 // The cell's one alarm runs what the `jobs` table holds: a change set to seal once its actor goes
-// quiet, the daily prune of history, an upload whose room was held too long. A job is a row, so it
-// survives eviction and a missed alarm; the alarm is set to the earliest due one, and only while
-// any is waiting (https://developers.cloudflare.com/durable-objects/api/alarms/).
+// quiet, the daily prune of history, an upload whose room was held too long, a stray file to take
+// out of R2. A job is a row, so it survives eviction and a missed alarm; the alarm is set to the
+// earliest due one, and only while any is waiting
+// (https://developers.cloudflare.com/durable-objects/api/alarms/).
 
 import { z } from "zod";
 
 import type { SqlStatements } from "@repo/notes/library/library-sql";
 
-const JOB_KINDS = ["seal", "prune", "upload"] as const;
+const JOB_KINDS = ["seal", "prune", "upload", "stray"] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
-export interface DueJob {
+export interface DueJob<K extends JobKind = JobKind> {
   readonly id: string;
-  readonly kind: JobKind;
+  readonly kind: K;
   readonly payload: string;
   readonly attempts: number;
 }
@@ -61,23 +62,30 @@ export const retryJob = (sql: SqlStatements, job: DueJob, now: number): void => 
   ]);
 };
 
-const jobRowSchema = z.object({
-  attempts: z.number().int().nonnegative(),
-  id: z.string(),
-  kind: z.enum(JOB_KINDS),
-  payload: z.string(),
-});
-
-// what one alarm run takes on, the longest waiting first
+// what one alarm run takes on of each lot, the longest waiting first
 const DUE_PER_RUN = 50;
 
-export const dueJobs = (sql: SqlStatements, now: number): DueJob[] =>
-  sql
+// the due jobs of `kinds`
+export const dueJobs = <K extends JobKind>(
+  sql: SqlStatements,
+  now: number,
+  kinds: readonly [K, ...K[]],
+): DueJob<K>[] => {
+  const rowSchema = z.object({
+    attempts: z.number().int().nonnegative(),
+    id: z.string(),
+    kind: z.enum(kinds),
+    payload: z.string(),
+  });
+  return sql
     .all(
-      "SELECT id, kind, payload, attempts FROM jobs WHERE next_at <= ? ORDER BY next_at, id LIMIT ?",
-      [now, DUE_PER_RUN],
+      `SELECT id, kind, payload, attempts FROM jobs
+       WHERE next_at <= ? AND kind IN (${kinds.map(() => "?").join(", ")})
+       ORDER BY next_at, id LIMIT ?`,
+      [now, ...kinds, DUE_PER_RUN],
     )
-    .map((row) => jobRowSchema.parse(row));
+    .map((row) => rowSchema.parse(row));
+};
 
 const nextRowSchema = z.object({ next: z.number().nullable() });
 

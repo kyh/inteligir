@@ -3,7 +3,9 @@
 // or past its cap, never by a timer, so an eviction loses no deadline. Each item a set touches
 // keeps its state before the set's first write; its after is the item as it is while the set is
 // the last to have changed it, written down when the set seals or another set is about to change
-// the item. Sealing writes each item's revision.
+// the item. Writing an after down writes the item's revision with it, stamped with that moment, so
+// an item's revisions run in the order its states held and the newest is the item as it stands,
+// however its sets' seals interleave.
 
 import { deriveItem } from "@repo/notes/library/derive-item";
 import { readItemState, storeSearchRow } from "@repo/notes/library/library-queries";
@@ -134,19 +136,32 @@ export const readItemNow = (sql: SqlStatements, itemId: string): ItemNow | null 
     : { annotations: annotationStoreOf(readAnnotationRows(sql, itemId)), state };
 };
 
-const SET_AFTER = `after_fields = ?, after_manifest = ?, after_annotations = ?`;
-
-const afterParams = (refs: PartRefs): string[] => [refs.fields, refs.manifest, refs.annotations];
+// the set's after for the item, and the item's next revision holding it: the item as it stood
+// until `at`
+const writeAfter = (
+  sql: SqlStatements,
+  change: { readonly setId: string; readonly itemId: string; readonly refs: PartRefs },
+  at: number,
+): void => {
+  const { itemId, refs, setId } = change;
+  sql.run(
+    `UPDATE change_set_items SET after_fields = ?, after_manifest = ?, after_annotations = ?
+     WHERE change_set_id = ? AND item_id = ?`,
+    [refs.fields, refs.manifest, refs.annotations, setId, itemId],
+  );
+  sql.run(
+    `INSERT INTO revisions (item_id, rev, change_set_id, at, fields, manifest)
+     SELECT ?, coalesce(max(rev), 0) + 1, ?, ?, ?, ? FROM revisions WHERE item_id = ?`,
+    [itemId, setId, at, refs.fields, refs.manifest, itemId],
+  );
+};
 
 const sealRowSchema = z.object({ actor: z.string(), sealed_at: z.number().nullable() });
-const setItemSchema = z.object({
-  after_fields: z.string().nullable(),
-  after_manifest: z.string().nullable(),
-  item_id: z.string(),
-});
+const setItemSchema = z.object({ after_fields: z.string().nullable(), item_id: z.string() });
 
-// writes each item's after and its revision, and closes the set; false when it was already sealed
-// or never was
+// writes the after and revision of each item the set still holds open, and closes the set; false
+// when it was already sealed or never was. An item another set changed since already has both,
+// written at that change
 export const sealChangeSet = (sql: SqlStatements, setId: string, now: number): boolean => {
   const [raw] = sql.all("SELECT actor, sealed_at FROM change_sets WHERE id = ?", [setId]);
   const set = raw === undefined ? null : sealRowSchema.parse(raw);
@@ -155,16 +170,11 @@ export const sealChangeSet = (sql: SqlStatements, setId: string, now: number): b
     return false;
   }
   const items = sql
-    .all(
-      "SELECT item_id, after_fields, after_manifest FROM change_set_items WHERE change_set_id = ?",
-      [setId],
-    )
+    .all("SELECT item_id, after_fields FROM change_set_items WHERE change_set_id = ?", [setId])
     .map((row) => setItemSchema.parse(row));
   for (const item of items) {
     const current = readItemNow(sql, item.item_id);
-    let fields = item.after_fields;
-    let manifest = item.after_manifest;
-    if (fields === null || manifest === null) {
+    if (item.after_fields === null) {
       if (current === null) {
         sql.run("DELETE FROM change_set_items WHERE change_set_id = ? AND item_id = ?", [
           setId,
@@ -173,23 +183,13 @@ export const sealChangeSet = (sql: SqlStatements, setId: string, now: number): b
         continue;
       }
       const refs = storeParts(sql, item.item_id, encodeParts(current));
-      sql.run(`UPDATE change_set_items SET ${SET_AFTER} WHERE change_set_id = ? AND item_id = ?`, [
-        ...afterParams(refs),
-        setId,
-        item.item_id,
-      ]);
-      ({ fields, manifest } = refs);
+      writeAfter(sql, { itemId: item.item_id, refs, setId }, now);
     }
     // a person's typing reindexes once its set closes, not on every keystroke's write
     if (set.actor === "person" && current !== null) {
       const { blocks, fields: itemFields } = current.state;
       runPlan(sql, storeSearchRow(item.item_id, deriveItem(itemFields, blocks).search));
     }
-    sql.run(
-      `INSERT INTO revisions (item_id, rev, change_set_id, at, fields, manifest)
-       SELECT ?, coalesce(max(rev), 0) + 1, ?, ?, ?, ? FROM revisions WHERE item_id = ?`,
-      [item.item_id, setId, now, fields, manifest, item.item_id],
-    );
   }
   sql.run("UPDATE change_sets SET sealed_at = ? WHERE id = ?", [now, setId]);
   dropJob(sql, sealJobOf(setId).id);
@@ -243,34 +243,36 @@ export const openUndoSet = (
 };
 
 const itemRowSchema = z.object({ after_fields: z.string().nullable() });
+const otherSetSchema = z.object({ change_set_id: z.string() });
 
-// the set's first write to the item keeps the item as it was; and every other open set whose after
-// is the item as it is now writes that after down, since this write is about to change it
+// the set's first write to the item keeps the item as it was; and the other open set whose after
+// is the item as it is now writes that after down, with its revision, since this write at `now` is
+// about to change it
 export const touchItem = (
   sql: SqlStatements,
-  setId: string,
-  itemId: string,
-  before: ItemNow | null,
+  change: { readonly setId: string; readonly itemId: string; readonly before: ItemNow | null },
+  now: number,
 ): void => {
+  const { before, itemId, setId } = change;
   const [held] = sql.all(
     "SELECT after_fields FROM change_set_items WHERE change_set_id = ? AND item_id = ?",
     [setId, itemId],
   );
-  const others = sql.all(
-    `SELECT 1 FROM change_set_items
-     WHERE item_id = ? AND change_set_id != ? AND after_fields IS NULL LIMIT 1`,
-    [itemId, setId],
-  );
+  const others = sql
+    .all(
+      `SELECT change_set_id FROM change_set_items
+       WHERE item_id = ? AND change_set_id != ? AND after_fields IS NULL`,
+      [itemId, setId],
+    )
+    .map((row) => otherSetSchema.parse(row).change_set_id);
   const refs =
     before !== null && (held === undefined || others.length > 0)
       ? storeParts(sql, itemId, encodeParts(before))
       : null;
-  if (refs !== null && others.length > 0) {
-    sql.run(
-      `UPDATE change_set_items SET ${SET_AFTER}
-       WHERE item_id = ? AND change_set_id != ? AND after_fields IS NULL`,
-      [...afterParams(refs), itemId, setId],
-    );
+  if (refs !== null) {
+    for (const other of others) {
+      writeAfter(sql, { itemId, refs, setId: other }, now);
+    }
   }
   if (held === undefined) {
     sql.run(

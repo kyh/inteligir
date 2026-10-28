@@ -160,6 +160,29 @@ describe("the library cell", () => {
       value: { held: true },
     });
   });
+  it("takes an upload it refused out of R2 when its alarm runs", async () => {
+    const accountId = newAccountId();
+    const stub = cellOf(accountId);
+    const key = blobKey(accountId, SHA);
+    await inCell(stub, async (state) => {
+      const library = engineIn(state, clockAt(), state.storage.sql.databaseSize + 1000);
+      landedValue(library.reserve({ bytes: 5, mime: "image/png", sha: SHA }));
+      const removalsSeen = library.blobRemovals();
+      // the device sent more than the cap leaves room for
+      await env.BLOBS.put(key, "x".repeat(10_000));
+      const refused = library.settle(SHA, { bytes: 10_000, mime: "image/png" }, removalsSeen);
+      expect(refusalOf(refused)).toMatchObject({ kind: "quota" });
+      // the removal is due; the alarm is held a minute out so the test runs it, not the clock
+      await state.storage.setAlarm(Date.now() + 60_000);
+    });
+    expect(await env.BLOBS.head(key)).not.toBeNull();
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    expect(await env.BLOBS.head(key)).toBeNull();
+    const strays = await inCell(stub, (state) =>
+      state.storage.sql.exec("SELECT id FROM jobs WHERE kind = 'stray'").toArray(),
+    );
+    expect(strays).toEqual([]);
+  });
 });
 
 describe("deleting the account from its cell", () => {
@@ -223,6 +246,21 @@ describe("deleting the account from its cell", () => {
     expect(await files(accountBlobPrefix(stranger))).toBe(1);
     const invites = await db.select().from(inviteCode).all();
     expect(invites.some((invite) => invite.redeemedBy === email)).toBe(false);
+  });
+
+  it("empties the account's files page by page, past one listing's thousand", async () => {
+    const accountId = newAccountId();
+    const prefix = accountBlobPrefix(accountId);
+    for (let index = 0; index < 1005; index += 1) {
+      await env.BLOBS.put(blobKey(accountId, index.toString(16).padStart(64, "0")), "x");
+    }
+    const before = await env.BLOBS.list({ prefix });
+    expect(before.truncated).toBe(true);
+    const filesStep = ACCOUNT_PURGE_STEPS.find((step) => step.name === "files");
+    await inCell(cellOf(accountId), async (state) => {
+      await filesStep?.run({ accountId, ctx: state, email: "files-paged@example.test", env });
+    });
+    expect(await files(prefix)).toBe(0);
   });
 
   it("runs again from the top after a step failed, as Better Auth retries the deletion", async () => {

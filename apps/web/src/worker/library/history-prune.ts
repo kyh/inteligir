@@ -1,7 +1,7 @@
 // What history keeps (owner decision 8): an item's newest 100 revisions; past those, everything
-// from the last 30 days, and before that the day's last revision for each day. A dropped revision
-// takes its change set's entry for that item with it, so the set can no longer undo that item, and
-// then whatever part or block version nothing kept still names goes too. The job sweeps the
+// from the last 30 days, and before that the day's last revision for each day. A set's entry for an
+// item goes with the last of the set's revisions of it, so the set can no longer undo that item,
+// and then whatever part or block version nothing kept still names goes too. The job sweeps the
 // library a page of items per alarm run, its place kept in its payload, and once a day.
 
 import { chunkStatement } from "@repo/notes/library/library-sql";
@@ -134,10 +134,11 @@ const pruneItemHistory = (sql: SqlStatements, itemId: string, now: number): void
   for (const revision of revisions) {
     if (drop.has(revision.rev)) {
       sql.run("DELETE FROM revisions WHERE item_id = ? AND rev = ?", [itemId, revision.rev]);
-      sql.run("DELETE FROM change_set_items WHERE change_set_id = ? AND item_id = ?", [
-        revision.change_set_id,
-        itemId,
-      ]);
+      sql.run(
+        `DELETE FROM change_set_items WHERE change_set_id = ? AND item_id = ? AND NOT EXISTS (
+           SELECT 1 FROM revisions WHERE change_set_id = ? AND item_id = ?)`,
+        [revision.change_set_id, itemId, revision.change_set_id, itemId],
+      );
     }
   }
   collectGarbage(sql, itemId);

@@ -14,7 +14,13 @@ import { errorFields } from "../log";
 import { purgeAccount } from "./account-purge";
 import { blobKey } from "./cell-blobs";
 import type { UploadRequest, UploadRoom } from "./cell-blobs";
-import { logJobFailure, openCellLibrary, scheduleAlarm, settleCommit } from "./cell-library";
+import {
+  logJobFailure,
+  openCellLibrary,
+  removeStrays,
+  scheduleAlarm,
+  settleCommit,
+} from "./cell-library";
 import type { CellResult } from "./cell-refusal";
 import { openCellSchema } from "./cell-schema";
 import {
@@ -84,6 +90,7 @@ export class LibraryDO extends DurableObject<Env> {
     const library = openCellLibrary(this.ctx, this.env);
     try {
       library.runDueJobs(logJobFailure);
+      await removeStrays(this.env, this.#accountId, library);
       await scheduleAlarm(this.ctx, library);
     } catch (error) {
       console.error({ event: "library-alarm-failed", ...errorFields(error) });
@@ -113,10 +120,12 @@ export class LibraryDO extends DurableObject<Env> {
   }
 
   // the file's row once its upload is in R2, at the size R2 holds; the transaction reads the
-  // upload's record after this await, so nothing read before it is trusted
+  // upload's record after this await, so nothing read before it is trusted but the count of stray
+  // removals, which tells it whether one ran meanwhile
   async settleBlob(sha: string): Promise<CellResult<UploadSettlement>> {
-    const object = await this.env.BLOBS.head(blobKey(this.#accountId, sha));
     const library = openCellLibrary(this.ctx, this.env);
+    const removalsSeen = library.blobRemovals();
+    const object = await this.env.BLOBS.head(blobKey(this.#accountId, sha));
     const stored =
       object === null
         ? null
@@ -124,6 +133,6 @@ export class LibraryDO extends DurableObject<Env> {
             bytes: object.size,
             mime: object.httpMetadata?.contentType ?? "application/octet-stream",
           };
-    return await settleCommit(this.ctx, library, library.settle(sha, stored));
+    return await settleCommit(this.ctx, library, library.settle(sha, stored, removalsSeen));
   }
 }

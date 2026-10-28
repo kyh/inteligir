@@ -113,6 +113,15 @@ const writeInCell = async (accountId: string): Promise<number> =>
     return result.ok && result.head !== null ? result.head : 0;
   });
 
+// "open" once `ms` pass with the socket still open, else the code it closed with
+const closedWithin = async (opened: OpenSocket, ms: number): Promise<number | "open"> => {
+  const stillOpen = async (): Promise<"open"> => {
+    await scheduler.wait(ms);
+    return "open";
+  };
+  return await Promise.race([opened.closed, stillOpen()]);
+};
+
 const until = async (check: () => boolean): Promise<void> => {
   for (let tries = 0; tries < 50 && !check(); tries += 1) {
     await scheduler.wait(20);
@@ -206,7 +215,9 @@ describe("the account's socket", () => {
       throw new Error("no websocket on the 101");
     }
     const opened = listen(socket);
+    // the phone's revocation leaves the socket the laptop opened, whatever it claimed
     await cellOf(accountId).severDevice(phone.deviceId);
+    expect(await closedWithin(opened, 300)).toBe("open");
     await cellOf(accountId).severDevice(laptop.deviceId);
     expect(await opened.closed).toBe(1008);
   });

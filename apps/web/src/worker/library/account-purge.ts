@@ -60,14 +60,18 @@ export const ACCOUNT_PURGE_STEPS: readonly PurgeStep[] = [
     name: "files",
     run: async ({ accountId, env }) => {
       const prefix = accountBlobPrefix(accountId);
-      // listed from the start each time: what a page deleted is gone from the next listing
-      let page: R2Objects;
+      // page by page on the listing's cursor: a page may come back short, even empty, while more
+      // follow
+      let cursor: string | undefined;
       do {
-        page = await env.BLOBS.list({ limit: R2_PAGE, prefix });
+        const page = await env.BLOBS.list(
+          cursor === undefined ? { limit: R2_PAGE, prefix } : { cursor, limit: R2_PAGE, prefix },
+        );
         if (page.objects.length > 0) {
           await env.BLOBS.delete(page.objects.map((object) => object.key));
         }
-      } while (page.truncated);
+        cursor = page.truncated ? page.cursor : undefined;
+      } while (cursor !== undefined);
     },
   },
   {

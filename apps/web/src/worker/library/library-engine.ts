@@ -26,10 +26,14 @@ import { z } from "zod";
 
 import { annotationSourceOf } from "./cell-actor";
 import type { CellActor } from "./cell-actor";
-import { applyAnnotationOps, readAnnotationRows } from "./cell-annotations";
+import { applyAnnotationOps, readAnnotationRow, readAnnotationRows } from "./cell-annotations";
 import {
+  beginRemoval,
+  blobRemovals,
   dropItemBlobs,
+  endRemoval,
   itemBlobShas,
+  refuseUpload,
   releaseUpload,
   reserveUpload,
   settleUpload,
@@ -108,6 +112,12 @@ export interface UploadSettlement {
   readonly settled: boolean;
 }
 
+// a stray file whose removal from R2 has begun
+export interface StrayRemoval {
+  readonly job: DueJob<"stray">;
+  readonly sha: string;
+}
+
 const landedSchema = z.object({ item: liveItemRowSchema });
 const purgedSchema = z.object({ missing: z.array(z.string()), purged: z.array(z.string()) });
 const undoSchema = z.object({
@@ -174,8 +184,13 @@ const JSON_TEXT = z.string().transform((text, context) => {
 const PAYLOADS = {
   prune: JSON_TEXT.pipe(z.object({ after: z.string().nullable() })),
   seal: JSON_TEXT.pipe(z.object({ changeSetId: z.string() })),
+  stray: JSON_TEXT.pipe(z.object({ sha: z.string() })),
   upload: JSON_TEXT.pipe(z.object({ sha: z.string() })),
 };
+
+// the jobs a run settles inside one transaction each; a stray's removal waits on R2, so the cell
+// runs it between two (`removeStrays` in `./cell-library`)
+const STORAGE_JOBS = ["seal", "prune", "upload"] as const;
 
 const PRUNE_AGAIN_MS = 1000;
 
@@ -289,6 +304,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       const highlights = applyAnnotationOps(rows, input.annotations ?? [], {
         itemId,
         nowSeconds: Math.floor(scope.now / 1000),
+        readRow: (id) => readAnnotationRow(storage, id),
         source: annotationSourceOf(actor),
       });
       const conflicts = [
@@ -394,12 +410,17 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       (scope) => reserveUpload(storage, bytesCap, request, scope.now),
     );
 
-  // the file's row once R2 holds it, at the size R2 reports
-  const settle = (sha: string, stored: StoredObject | null): CellResult<UploadSettlement> =>
-    transact(
+  // the file's row once R2 holds it, at the size R2 reports, R2 read after `removalsSeen` was;
+  // bytes past the quota go from R2 again
+  const settle = (
+    sha: string,
+    stored: StoredObject | null,
+    removalsSeen: number,
+  ): CellResult<UploadSettlement> => {
+    const result = transact(
       { answer: z.object({ settled: z.boolean() }), openSet: noSet, opId: undefined },
       (scope) => {
-        const settled = settleUpload(storage, bytesCap, sha, stored);
+        const settled = settleUpload(storage, bytesCap, { removalsSeen, sha, stored });
         if (settled.landed) {
           const seq = scope.seq();
           runPlan(storage, recordChanges([{ gone: false, id: sha, kind: "blob", seq }]));
@@ -407,6 +428,37 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         return { settled: settled.settled };
       },
     );
+    if (!result.ok && result.refusal.kind === "quota") {
+      storage.transaction(() => {
+        refuseUpload(storage, sha, deps.now());
+      });
+    }
+    return result;
+  };
+
+  // the strays whose removal is due, each begun unless a file row or an upload's room holds its
+  // sha again
+  const beginStrayRemovals = (): StrayRemoval[] =>
+    storage.transaction(() =>
+      dueJobs(storage, deps.now(), ["stray"]).flatMap((job) => {
+        const { sha } = PAYLOADS.stray.parse(job.payload);
+        return beginRemoval(storage, sha) ? [{ job, sha }] : [];
+      }),
+    );
+
+  // the removals R2 took, or the ones it failed, which wait their turn again
+  const endStrayRemovals = (removals: readonly StrayRemoval[], removed: boolean): void => {
+    const now = deps.now();
+    storage.transaction(() => {
+      for (const removal of removals) {
+        if (removed) {
+          endRemoval(storage, removal.sha);
+        } else {
+          retryJob(storage, removal.job, now);
+        }
+      }
+    });
+  };
 
   // a read refused only once the account is being deleted
   const reading = <T>(read: () => T): CellResult<T> =>
@@ -442,14 +494,14 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       return { blocks, fields: readFieldsPart(storage, itemId, row.fields), rev };
     });
 
-  const runJob = (job: DueJob, now: number): void => {
+  const runJob = (job: DueJob<(typeof STORAGE_JOBS)[number]>, now: number): void => {
     switch (job.kind) {
       case "seal": {
         sealChangeSet(storage, PAYLOADS.seal.parse(job.payload).changeSetId, now);
         break;
       }
       case "upload": {
-        releaseUpload(storage, PAYLOADS.upload.parse(job.payload).sha);
+        releaseUpload(storage, PAYLOADS.upload.parse(job.payload).sha, now);
         break;
       }
       case "prune": {
@@ -469,7 +521,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   // again later and the rest still run
   const runDueJobs = (onFailure: (job: DueJob, cause: unknown) => void): void => {
     const now = deps.now();
-    for (const job of storage.transaction(() => dueJobs(storage, now))) {
+    for (const job of storage.transaction(() => dueJobs(storage, now, STORAGE_JOBS))) {
       try {
         storage.transaction(() => {
           runJob(job, now);
@@ -493,10 +545,13 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   };
 
   return {
+    beginStrayRemovals,
+    blobRemovals: () => blobRemovals(storage),
     bodies,
     closeChangeSet,
     create,
     deletedAt,
+    endStrayRemovals,
     head: () => libraryHead(storage),
     nextJobAt: () => nextJobAt(storage),
     pull,

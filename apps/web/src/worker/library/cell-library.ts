@@ -1,9 +1,11 @@
 // The cell's engine as the Durable Object runs it: over its own storage, the platform's clock and
-// ids, and the account's cap; and what follows a committed write, the socket ping (held by the
-// output gate until the write is durable, never sent unconfirmed) and the alarm set to the
-// earliest job. The router the cell serves and a test running inside the cell open it the same way.
+// ids, and the account's cap; what follows a committed write, the socket ping (held by the output
+// gate until the write is durable, never sent unconfirmed) and the alarm set to the earliest job;
+// and the one job that waits on R2, a stray file's removal. The router the cell serves and a test
+// running inside the cell open it the same way.
 
 import { errorFields } from "../log";
+import { blobKey } from "./cell-blobs";
 import type { DueJob } from "./cell-jobs";
 import type { CellResult } from "./cell-refusal";
 import { pingLibraryMoved } from "./cell-sockets";
@@ -68,4 +70,27 @@ export const logJobFailure = (job: DueJob, cause: unknown): void => {
     job: job.kind,
     ...errorFields(cause),
   });
+};
+
+// the strays due, taken out of R2 in one delete (at most 1,000 keys a call, and a run takes 50)
+// between the transaction that begins them and the one that ends them (`./cell-blobs`)
+export const removeStrays = async (
+  env: Env,
+  accountId: string,
+  library: LibraryEngine,
+): Promise<void> => {
+  const removals = library.beginStrayRemovals();
+  if (removals.length === 0) {
+    return;
+  }
+  try {
+    await env.BLOBS.delete(removals.map((removal) => blobKey(accountId, removal.sha)));
+  } catch (error) {
+    for (const removal of removals) {
+      logJobFailure(removal.job, error);
+    }
+    library.endStrayRemovals(removals, false);
+    return;
+  }
+  library.endStrayRemovals(removals, true);
 };
