@@ -59,7 +59,8 @@
       // the type claims are vitest's `typecheck.include`, which knip's vitest plugin does not read
       "entry": ["cloudflare.config.ts", "src/worker/index.ts", "src/worker/**/*.test-d.ts"],
       "project": ["src/**/*.{ts,tsx,css}"],
-      "ignore": ["src/worker/types/durable-git.d.ts"],
+      // stubs the Worker's program maps by `paths` (src/worker/tsconfig.json), which knip does not follow
+      "ignore": ["src/worker/types/durable-git.d.ts", "src/worker/types/highlight-js.d.ts"],
       // `cloudflare:` is a workerd built-in module scheme, not a package
       "ignoreDependencies": ["cloudflare", "tailwindcss"]
     },

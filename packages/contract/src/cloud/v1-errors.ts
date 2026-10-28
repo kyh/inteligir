@@ -13,22 +13,22 @@ import { conflictCurrentSchema, editRefusalSchema, shaSchema } from "./library/l
 // ---- what any request may meet before its procedure runs ----
 
 // the build is below the Worker's floor: the credential stands, and only an update moves past it
-const ClientOutdatedError = error("CLIENT_OUTDATED", {
+export const ClientOutdatedError = error("CLIENT_OUTDATED", {
   message: "This version of the app is too old. Update it to keep going.",
 });
 
-const TooManyRequestsError = error("TOO_MANY_REQUESTS", {
+export const TooManyRequestsError = error("TOO_MANY_REQUESTS", {
   message: "Too many requests. Try again in a minute.",
 });
 
 // the credential is revoked or unknown; one answer for both, since "revoked" tells a thief it
 // once worked
-const UnauthorizedError = error("UNAUTHORIZED", {
+export const UnauthorizedError = error("UNAUTHORIZED", {
   message: "You're signed out. Sign in again.",
 });
 
 // the account is deleted: 410, not 401, since a client told "unauthorized" retries the credential
-const AccountGoneError = error("GONE", { message: "This account was deleted." });
+export const AccountGoneError = error("GONE", { message: "This account was deleted." });
 
 // ---- the library's ----
 

@@ -109,15 +109,20 @@ const diffBlocks = (
   return { dropped, growth, superseded, written };
 };
 
-const urlHolderSchema = z.object({ id: z.string() });
+const urlHolderSchema = z.object({ id: z.string(), seq: z.number() });
 
-const urlHolder = (storage: CellStorage, urlKey: string, itemId: string): string | null => {
+// the other live item holding a url key, if one does
+export const urlHolder = (
+  storage: CellStorage,
+  urlKey: string,
+  itemId: string | null,
+): z.infer<typeof urlHolderSchema> | null => {
   const [row] = storage.all(
-    `SELECT id FROM items WHERE url_key = ? AND deleted_at IS NULL AND purged = 0 AND id != ?
-     LIMIT 1`,
+    `SELECT id, seq FROM items WHERE url_key = ? AND deleted_at IS NULL AND purged = 0
+       AND id IS NOT ? LIMIT 1`,
     [urlKey, itemId],
   );
-  return row === undefined ? null : urlHolderSchema.parse(row).id;
+  return row === undefined ? null : urlHolderSchema.parse(row);
 };
 
 const sameShas = (a: readonly string[], b: readonly string[]): boolean => {
@@ -153,7 +158,7 @@ const checkLanding = (scope: LandingScope, landing: Landing): Checked => {
   if (derived.urlKey !== null && after.fields.deletedAt === null) {
     const holder = urlHolder(storage, derived.urlKey, itemId);
     if (holder !== null) {
-      refuse({ itemId: holder, kind: "url-held" });
+      refuse({ itemId: holder.id, kind: "url-held", seq: holder.seq });
     }
   }
   const refs = blobRefsOf(after);

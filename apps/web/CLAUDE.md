@@ -255,14 +255,15 @@ how a bullet is written and cited.
 
 - **`/v1` IS ONE oRPC WIRE, `/v1/rpc`, ITS REFUSALS DECLARED ONCE.** The
   Worker answers `account.*` on its own RPCHandler and forwards `library.*` to
-  the account's library cell; both map codes with `V1_ERROR_STATUS_MAP`, and a
-  refusal is an `error()` factory, oRPC's own code where it means the same.
-  Every library write takes an `opId` the cell keeps, and only the bytes, the
-  socket and Anthropic's webhook stay plain HTTP. The REST rows and their
-  envelope go as each client moves. Rejected: REST beside RPC (two
-  serializers, two error vocabularies, two clients) and oRPC's default
-  statuses (an unmapped code answers 400).
-  `packages/contract/src/cloud/v1-contract.ts`, `v1-errors.ts`.
+  the account's library cell; both map codes with `V1_ERROR_STATUS_MAP`, a
+  refusal is an `error()` factory, oRPC's own code where it means the same, and
+  the floor, credential and budget the Worker meets before any procedure are
+  answered in the same protocol. Every library write takes an `opId` the cell
+  keeps; only the bytes, the socket and Anthropic's webhook stay plain HTTP.
+  The REST rows go as each client moves. Rejected: REST beside RPC (two
+  serializers, two error vocabularies) and oRPC's default statuses (an unmapped
+  code answers 400). `packages/contract/src/cloud/v1-errors.ts`,
+  `apps/web/src/worker/wire/rpc-refusal.ts`.
 
 - **THE LIBRARY'S ROWS BECOME THE CONNECTOR'S TOOLS IN THE WORKER, BY META
   CHAINED ON THE CONTRACT'S OWN ROWS.** A tool row gets `.meta(openapi(…),
@@ -350,3 +351,46 @@ how a bullet is written and cited.
   right after the refusal (a settle landing meanwhile names a deleted object);
   keeping strays (the 1 GiB cap would not bound R2).
   `apps/web/src/worker/library/cell-blobs.ts`, `cell-library.ts`.
+
+- **A LIBRARY CALL REACHES ITS CELL WITH THE PRINCIPAL THE WORKER VERIFIED,
+  AND NOTHING THE CALLER SENT IN ITS PLACE.** The Worker verifies a bearer in
+  D1, or the session cookie on a request the site's own page made, once a
+  request; a bearer that fails is refused, never retried as the cookie. It
+  drops the request's `x-library-principal`, `authorization` and `cookie`,
+  stamps the principal and forwards the request whole by `stub.fetch()`; the
+  cell refuses one naming another account. Rejected: the cell verifying the
+  credential (a second verifier, a D1 read inside every cell call); a stub
+  method per procedure (oRPC's handler takes a request).
+  `apps/web/src/worker/wire/v1-rpc.ts`, `v1-principal.ts`,
+  `apps/web/src/worker/library/library-do.ts`.
+
+- **THE CELL IMPLEMENTS EVERY LIBRARY ROW ONCE, OVER ITS ENGINE AND THE
+  MARKDOWN CODEC.** `implement(libraryTools)`: a write lands in one transaction
+  joined to its principal's change set, an agent's markdown is read and edited
+  through `@repo/editor/codec/*`, a saved link or a refresh lands pending for
+  the cloud's fill, and every answer is parsed through its row's output schema,
+  which strips what the cell did not mean to send (about 10 ms a MiB of plain
+  blocks, 45 for a table-dense one, measured). Rejected: a second markdown
+  reader in the Worker; skipping that parse for speed (a leaked column ships
+  unnoticed). `apps/web/src/worker/library/library-router.ts`,
+  `library-engine.ts`.
+
+- **A FILE'S BYTES ARE R2'S, ADDRESSED BY THEIR SHA, AND R2 CHECKS IT.** A
+  `PUT /v1/blobs/<sha>` takes room in the cell at the length it declares, at
+  most 100 MB, streams into `BLOBS` with `sha256`, so R2 keeps nothing that
+  hashes otherwise, and settles the row at the size R2 holds. A read hands R2
+  the request's range and preconditions: 206 from `object.range`, 416 for one
+  range past the end, a multi-part ask whole, 304 and 412; every file but a PDF
+  is served under a script-less sandbox. Rejected: the CLI's byte-range parser
+  (R2 parses the header); a signed URL (a credential in a logged address).
+  `apps/web/src/worker/library/blob-routes.ts`.
+
+- **THE WORKER'S PROGRAM HAS NO DOM, SO A DEPENDENCY'S TYPES THAT REFERENCE IT
+  ARE MAPPED TO A STUB.** The codec's code-block kit reaches highlight.js,
+  whose declarations carry `/// <reference lib="dom" />`, which would type the
+  Worker against a stdlib it never runs on (`BufferSource` alone breaks Web
+  Crypto's calls). The program's `paths` maps `highlight.js` to the two names
+  the kit reads. Rejected: `lib.dom` in the Worker (two `BodyInit`s); dropping
+  code blocks from the headless kits (the codec reads every block a note
+  holds). `apps/web/src/worker/tsconfig.json`,
+  `apps/web/src/worker/types/highlight-js.d.ts`.

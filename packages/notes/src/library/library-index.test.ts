@@ -61,7 +61,7 @@ describe("LibraryIndex", () => {
     expect(ids(index, { deleted: true })).toEqual(["binned"]);
   });
 
-  it("filters by kind, tag family, untagged, folder, site and saved date, counting kinds apart", () => {
+  it("filters by kind, tag family, untagged, folder, site and saved dates, counting kinds apart", () => {
     const index = filled();
     const links = index.items(query({ kinds: ["link"] }));
     expect(links.items.map((item) => item.id)).toEqual(["link"]);
@@ -74,6 +74,8 @@ describe("LibraryIndex", () => {
     expect(ids(index, { folderId: null })).toEqual(["pinned", "old"]);
     expect(ids(index, { site: "example.com" })).toEqual(["link"]);
     expect(ids(index, { sinceMs: 3 })).toEqual(["new", "link"]);
+    expect(ids(index, { beforeMs: 3 })).toEqual(["pinned", "old"]);
+    expect(ids(index, { beforeMs: 5, sinceMs: 3 })).toEqual(["link"]);
   });
 
   it("orders a search's hits by rank, pinned first, and answers only them", () => {

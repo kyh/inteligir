@@ -76,8 +76,10 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // a dev page no row names, so an import of it from a shipped workspace fails here.
     "@repo/ui-gallery": ["@repo/ui"],
     // the cloud: the @repo/notes edge is the library model the account's cell applies, the same
-    // pure plans and SQL every replica runs, injected with the cell's own storage
-    "@repo/web": ["@repo/contract", "@repo/notes", "@repo/ui"],
+    // pure plans and SQL every replica runs, injected with the cell's own storage; the
+    // @repo/editor edge is the markdown codec's headless kits (`@repo/editor/codec/*`), the one
+    // reading and writing of an item an agent's procedures go through
+    "@repo/web": ["@repo/contract", "@repo/editor", "@repo/notes", "@repo/ui"],
     // the page every vault's server answers and the first run the shell carries; it reaches no
     // server and no shell source, only the wire to each. Its suites that boot a server live in
     // apps/cli, so nothing here depends on `inteligir`.

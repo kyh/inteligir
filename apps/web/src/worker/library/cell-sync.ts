@@ -13,7 +13,7 @@ import { canonicalJson, utf8ByteLength } from "@repo/notes/library/canonical-jso
 import { readBlocks, readChanges, readItem, readMeta } from "@repo/notes/library/library-queries";
 import type { ChangeEntry } from "@repo/notes/library/library-queries";
 import { LibraryRowError, runPlan } from "@repo/notes/library/library-sql";
-import type { SqlStatements } from "@repo/notes/library/library-sql";
+import type { SqlRow, SqlStatements } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
 import { annotationWireRow, readAnnotationRow } from "./cell-annotations";
@@ -46,7 +46,7 @@ export const libraryHead = (sql: SqlStatements): number => {
 export type PullAnswer =
   | {
       readonly kind: "changes";
-      readonly changes: readonly LibraryChange[];
+      readonly changes: LibraryChange[];
       readonly epoch: string;
       readonly head: number;
       readonly more: boolean;
@@ -124,14 +124,9 @@ const folderRowOf = (sql: SqlStatements, id: string) => {
   };
 };
 
-const threadRowOf = (sql: SqlStatements, id: string): ThreadRow | null => {
-  const [raw] = sql.all(
-    "SELECT id, title, status, created_at, updated_at, seq FROM threads WHERE id = ?",
-    [id],
-  );
-  if (raw === undefined) {
-    return null;
-  }
+export const THREAD_COLUMNS = "id, title, status, created_at, updated_at, seq";
+
+export const threadRowFrom = (raw: SqlRow): ThreadRow => {
   const row = threadSqlSchema.parse(raw);
   return {
     createdAt: row.created_at,
@@ -143,6 +138,11 @@ const threadRowOf = (sql: SqlStatements, id: string): ThreadRow | null => {
   };
 };
 
+const threadRowOf = (sql: SqlStatements, id: string): ThreadRow | null => {
+  const [raw] = sql.all(`SELECT ${THREAD_COLUMNS} FROM threads WHERE id = ?`, [id]);
+  return raw === undefined ? null : threadRowFrom(raw);
+};
+
 const eventJsonSchema = z.string().transform((text, context) => {
   try {
     return z.json().parse(JSON.parse(text));
@@ -152,14 +152,9 @@ const eventJsonSchema = z.string().transform((text, context) => {
   }
 });
 
-const threadEventRowOf = (sql: SqlStatements, id: string): ThreadEventRow | null => {
-  const [raw] = sql.all(
-    "SELECT event_id, thread_id, idx, type, json, at, seq FROM thread_events WHERE event_id = ?",
-    [id],
-  );
-  if (raw === undefined) {
-    return null;
-  }
+export const THREAD_EVENT_COLUMNS = "event_id, thread_id, idx, type, json, at, seq";
+
+export const threadEventRowFrom = (raw: SqlRow): ThreadEventRow => {
   const row = threadEventSqlSchema.parse(raw);
   return {
     at: row.at,
@@ -170,6 +165,13 @@ const threadEventRowOf = (sql: SqlStatements, id: string): ThreadEventRow | null
     threadId: row.thread_id,
     type: row.type,
   };
+};
+
+const threadEventRowOf = (sql: SqlStatements, id: string): ThreadEventRow | null => {
+  const [raw] = sql.all(`SELECT ${THREAD_EVENT_COLUMNS} FROM thread_events WHERE event_id = ?`, [
+    id,
+  ]);
+  return raw === undefined ? null : threadEventRowFrom(raw);
 };
 
 const changeOf = (sql: SqlStatements, entry: ChangeEntry): LibraryChange => {
@@ -221,13 +223,13 @@ export const pullChanges = (
 };
 
 export interface BodiesAnswer {
-  readonly bodies: readonly {
-    readonly blocks: readonly StoredBlockRow[];
+  readonly bodies: {
+    readonly blocks: StoredBlockRow[];
     readonly id: string;
     readonly seq: number;
   }[];
-  readonly deferred: readonly string[];
-  readonly gone: readonly string[];
+  readonly deferred: string[];
+  readonly gone: string[];
 }
 
 export const readBodies = (sql: SqlStatements, ids: readonly string[]): BodiesAnswer => {

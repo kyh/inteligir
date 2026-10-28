@@ -26,13 +26,20 @@ src/
     index.ts         The API route table (also the test suite's entry)
     auth/            Better Auth factory, invite gate, reset email
     device/          Device login and sign-up, credential verification,
-                     account deletion
+                     the account's devices, account deletion
+    wire/            /v1's one wire: the floor, the principal a credential verifies
+                     to (v1-principal.ts), the account's rows on the Worker's
+                     own handler (account-router.ts), and the library's
+                     forwarded to its cell (v1-rpc.ts)
     library/         The account's library cell: LibraryDO (library-do.ts),
                      its engine over the cell's SQLite (library-engine.ts:
                      writes, change sets, History, undo, sync, quota, files),
-                     the alarm's jobs, the account's purge in order
-                     (account-purge.ts), its sockets, and the upgrade routes
-                     with the ticket a browser's socket opens on
+                     every library procedure over it and the markdown codec
+                     (library-router.ts, served by library-rpc.ts), the
+                     alarm's jobs, the account's purge in order
+                     (account-purge.ts), its sockets, the upgrade routes with
+                     the ticket a browser's socket opens on, and the files'
+                     bytes in R2 (blob-routes.ts)
     vault/           The hosted vault git remote (durable-git behind the
                      wrapper) + the repo's one name and its purge
                      (vault-repo.ts) + the git-less /v1/vault/* read
@@ -43,7 +50,8 @@ src/
     db/              Drizzle schema + client for the D1 auth database
     rate-limit.ts    The D1 fixed window every throttled route spends
     types/           The hand-authored durable-git .d.ts (it ships untyped TS
-                     source) — re-check on every version bump
+                     source) — re-check on every version bump — and the
+                     highlight.js stub that keeps the DOM lib out (below)
     *.test.ts        suites run inside workerd (@cloudflare/vitest-plugin:
                      real D1 + DO)
     test-support/    Their shared harness: the schema setup, the client
@@ -54,7 +62,9 @@ src/
 declare `BufferSource`/`BodyInit` globally with different bounds, so one
 program would typecheck the Worker against a stdlib it never runs on. That is
 why the whole Worker — entry, routes, tests — lives under one directory with
-its own `tsconfig.json`.
+its own `tsconfig.json`. The markdown codec the cell runs reaches highlight.js's
+types, which reference `lib.dom` themselves, so the program maps `highlight.js`
+to `types/highlight-js.d.ts`, the two names the codec's code-block kit reads.
 
 ## Routes
 
@@ -87,6 +97,9 @@ its own `tsconfig.json`.
 | `POST /v1/vault/asset`      | device            | One embedded binary at that commit                                  |
 | `POST /v1/vault/commit`     | device            | A change set, each change CAS'd on its blob — one commit            |
 | `POST /v1/account/delete`   | device + password | Delete the account through Better Auth's `deleteUser`               |
+| `POST /v1/rpc/account/*`    | — or device/tab   | The account's oRPC rows: sign in or up, devices, delete, ticket     |
+| `POST /v1/rpc/library/*`    | device or tab     | The library's oRPC rows, forwarded to the account's library cell    |
+| `/v1/blobs/:sha`            | device or tab     | A file's bytes in R2: PUT once by its SHA-256, GET/HEAD by range    |
 
 "device" auth is the `igd_…` credential a login minted, verified per request by
 hash compare against D1 — never cached, so revocation is immediate; its
@@ -99,9 +112,24 @@ holder; a push, a revoke and a deletion call the cell by RPC), the git
 remote and the `/v1/vault/*` reads and commits to that user's own durable-git
 `RepoCell`, and the account deletion reads D1 directly. A commit is authored by the
 verified device row's name, and a stale base answers 409 `vault-conflict` with
-what the head holds beside the envelope; the Worker never merges. Every `/v1` refusal, an unknown route and
-an unhandled fault included, is the JSON error envelope; the git mount alone
-answers git clients in plain text.
+what the head holds beside the envelope; the Worker never merges. Every REST `/v1` refusal, an unknown route and
+an unhandled fault included, is the JSON error envelope; the git mount answers
+git clients in plain text, `/v1/rpc` in its own protocol, and `/v1/blobs` in
+HTTP's statuses alone.
+
+`/v1/rpc` is oRPC's RPC protocol: POST only, every refusal a declared code at
+the status `V1_ERROR_STATUS_MAP` gives it, the floor, the credential and the
+budget answered in the same protocol before any procedure runs
+(`src/worker/wire/rpc-refusal.ts`). "device or tab" is a device's bearer or, on a
+request the site's own page made (`Sec-Fetch-Site: same-origin`), its session
+cookie; a bearer that does not verify is refused, never retried as the cookie.
+A library call reaches the cell with the principal the credential verified, in
+`x-library-principal`, and nothing the caller sent in its place
+(`src/worker/wire/v1-rpc.ts`). A file is PUT with its `Content-Length` (at most
+100 MB, room held in the cell first) and kept only if its bytes hash to its
+sha; a read is answered its single range (206), the whole file for a multi-part
+ask, 416 for a range past the end, and 304/412 for its preconditions, under a
+script-less sandbox but for a PDF (`src/worker/library/blob-routes.ts`).
 
 Every `/v1` request an install sends names its build in
 `x-inteligir-build: <semver>+<platform>` (`@repo/contract/cloud/client-build`),

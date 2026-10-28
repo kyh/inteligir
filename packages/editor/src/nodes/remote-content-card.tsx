@@ -8,7 +8,7 @@ import type { LucideIcon } from "lucide-react";
 import { Button } from "@repo/ui/components/button";
 import { cn } from "@repo/ui/lib/cn";
 
-import { openExternalUrl } from "@repo/editor/lib/url";
+import { openExternalUrl } from "@repo/editor/lib/open-external-url";
 
 type RemoteContentKind = "image" | "page" | "pdf" | "video";
 

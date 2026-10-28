@@ -4,10 +4,14 @@
 // write did so far rolls back; it is caught at the transaction's edge and never leaves the cell as
 // an exception.
 
-import type { conflictCurrentSchema } from "@repo/contract/cloud/library/library-wire";
+import type {
+  conflictCurrentSchema,
+  editRefusalSchema,
+} from "@repo/contract/cloud/library/library-wire";
 import type { z } from "zod";
 
 export type ConflictCurrent = z.infer<typeof conflictCurrentSchema>;
+type EditRefusal = z.infer<typeof editRefusalSchema>;
 
 export type CellRefusal =
   // the account is being deleted
@@ -20,9 +24,13 @@ export type CellRefusal =
   | { readonly kind: "quota"; readonly bytesUsed: number; readonly bytesCap: number }
   // files the write names that were never uploaded
   | { readonly kind: "blob-missing"; readonly shas: readonly string[] }
-  // the write would give a second live item a url another one holds
-  | { readonly kind: "url-held"; readonly itemId: string }
-  | { readonly kind: "already-undone"; readonly changeSetId: string; readonly undoneBy: string };
+  // the write would give a second live item a url another one holds, at the sequence it holds it
+  | { readonly kind: "url-held"; readonly itemId: string; readonly seq: number }
+  | { readonly kind: "already-undone"; readonly changeSetId: string; readonly undoneBy: string }
+  // an agent's edit of an item's markdown that cannot land: `edit` is its index in the request
+  | { readonly kind: "edit-refused"; readonly refusal: EditRefusal }
+  // a page's cursor this library never answered with
+  | { readonly kind: "bad-cursor" };
 
 // `head` is the sequence number the write moved the library to, which the cell's socket ping
 // carries, or null when it changed nothing

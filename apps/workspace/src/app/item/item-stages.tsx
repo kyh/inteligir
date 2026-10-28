@@ -5,7 +5,7 @@
 // is framed by its own route, whose policy sandboxes it.
 
 import { vaultAssetUrl } from "@repo/contract/local/routes";
-import { openExternalUrl } from "@repo/editor/lib/url";
+import { openExternalUrl } from "@repo/editor/lib/open-external-url";
 import { FileKindIcon } from "@repo/editor/nodes/file-card";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import { Button } from "@repo/ui/components/button";

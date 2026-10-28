@@ -2,9 +2,9 @@
 // library and the source every replica pulls from. It holds the library's tables, its history and
 // jobs, and the account's live sockets; its rules are the engine's (`./library-engine`). The
 // Worker reaches it by `ctx.exports.LibraryDO` under a name only a verified credential gives
-// (`./library-cell`); fetch carries the one request that must stay HTTP, the socket upgrade, and
-// every other call is RPC. Nothing a later event needs is kept in memory, and the cell sets no
-// timer: its one alarm runs the `jobs` table.
+// (`./library-cell`); fetch carries what stays a request and its response, a client's library call
+// and the socket upgrade, and every other call is RPC. Nothing a later event needs is kept in
+// memory, and the cell sets no timer: its one alarm runs the `jobs` table.
 
 import { SYNC_WS_KEEPALIVE_PING, SYNC_WS_KEEPALIVE_PONG } from "@repo/contract/cloud/sync/sync-ws";
 import { DurableObject } from "cloudflare:workers";
@@ -32,6 +32,8 @@ import {
   socketHolder,
 } from "./cell-sockets";
 import { cellAccountId } from "./library-cell";
+import { PRINCIPAL_HEADER, principalFromHeader } from "./library-principal";
+import { serveLibraryRpc, V1_LIBRARY_RPC_PATH } from "./library-rpc";
 import type { UploadSettlement } from "./library-engine";
 
 // an alarm whose run failed outright tries again after this; a job's own failure waits longer
@@ -60,8 +62,32 @@ export class LibraryDO extends DurableObject<Env> {
     return cellAccountId(this.ctx.id.name);
   }
 
-  // the socket upgrade, its holder stamped by the Worker that verified it (`./socket-routes`)
-  override fetch(request: Request): Response {
+  // the two requests that stay HTTP: a library call on `/v1/rpc/library` with its principal, and
+  // the socket upgrade with its holder, each stamped by the Worker that verified it
+  // (`../wire/v1-rpc`, `./socket-routes`)
+  override async fetch(request: Request): Promise<Response> {
+    const { pathname } = new URL(request.url);
+    return pathname.startsWith(`${V1_LIBRARY_RPC_PATH}/`)
+      ? await this.#serveRpc(request)
+      : this.#acceptSocket(request);
+  }
+
+  async #serveRpc(request: Request): Promise<Response> {
+    const principal = principalFromHeader(request.headers.get(PRINCIPAL_HEADER));
+    // only the Worker reaches a cell, and it names one only by the account it verified
+    if (principal?.accountId !== this.#accountId) {
+      return new Response("The cell takes only a call the Worker verified.", { status: 403 });
+    }
+    const library = openCellLibrary(this.ctx, this.env);
+    const response = await serveLibraryRpc(request, {
+      library,
+      principal,
+      settle: async (result) => await settleCommit(this.ctx, library, result),
+    });
+    return response ?? new Response("not found", { status: 404 });
+  }
+
+  #acceptSocket(request: Request): Response {
     const holder = holderFromHeader(request.headers.get(SOCKET_HOLDER_HEADER));
     if (holder === null || request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return refuse("bad-request", "The cell takes only a verified socket upgrade.");

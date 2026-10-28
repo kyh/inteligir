@@ -75,6 +75,7 @@
     "./lib/debounce": "./src/lib/debounce.ts",
     "./lib/embed-url": "./src/lib/embed-url.ts",
     "./lib/inert-svg": "./src/lib/inert-svg.ts",
+    "./lib/open-external-url": "./src/lib/open-external-url.ts",
     "./lib/url": "./src/lib/url.ts",
     "./link-resolver-feed": "./src/link-resolver-feed.ts",
     "./live-editor": "./src/live-editor.ts",

@@ -6,6 +6,7 @@
 
 import { errorFields } from "../log";
 import { blobKey } from "./cell-blobs";
+import { cellIds } from "./cell-ids";
 import type { DueJob } from "./cell-jobs";
 import type { CellResult } from "./cell-refusal";
 import { pingLibraryMoved } from "./cell-sockets";
@@ -24,11 +25,13 @@ const libraryStorageCap = (env: Env): number => {
   return Number(cap);
 };
 
+const now = (): number => Date.now();
+
 export const openCellLibrary = (ctx: DurableObjectState, env: Env): LibraryEngine =>
   openLibraryEngine({
     bytesCap: libraryStorageCap(env),
-    newId: () => crypto.randomUUID(),
-    now: () => Date.now(),
+    ids: cellIds(now),
+    now,
     storage: cellStorageOf(ctx.storage),
   });
 

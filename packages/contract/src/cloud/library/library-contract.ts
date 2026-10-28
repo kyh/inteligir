@@ -287,7 +287,10 @@ const itemsContract = {
 
   // tags, folder, pin and title for many items in one change
   organize: signedBase
-    .errors({ [NotFoundError.code]: NotFoundError })
+    .errors({
+      [NotFoundError.code]: NotFoundError,
+      [PayloadTooLargeError.code]: PayloadTooLargeError,
+    })
     .input(
       z
         .strictObject({
@@ -341,7 +344,11 @@ const annotationsContract = {
 
   // by the passage's exact text; one the item's text does not hold is kept, listed as unplaced
   add: signedBase
-    .errors({ [NotFoundError.code]: NotFoundError })
+    .errors({
+      [NotFoundError.code]: NotFoundError,
+      [PayloadTooLargeError.code]: PayloadTooLargeError,
+      [QuotaError.code]: QuotaError,
+    })
     .input(
       z.strictObject({
         itemId: idSchema,
@@ -435,7 +442,10 @@ const agentContract = {
 
   // the person's answer to a paused call, by the event that asked
   respond: signedBase
-    .errors({ [NotFoundError.code]: NotFoundError })
+    .errors({
+      [AgentUnavailableError.code]: AgentUnavailableError,
+      [NotFoundError.code]: NotFoundError,
+    })
     .input(
       z.strictObject({
         denyMessage: z.string().min(1).max(1000).optional(),
@@ -449,7 +459,10 @@ const agentContract = {
 
   // stops the turn; a paused call is denied first
   cancel: signedBase
-    .errors({ [NotFoundError.code]: NotFoundError })
+    .errors({
+      [AgentUnavailableError.code]: AgentUnavailableError,
+      [NotFoundError.code]: NotFoundError,
+    })
     .input(z.strictObject({ opId, threadId: idSchema }))
     .output(threadAnswer),
 

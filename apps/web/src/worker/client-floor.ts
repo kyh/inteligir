@@ -28,19 +28,24 @@ const OUTDATED_MESSAGE = "This version of Inteligir can't sync anymore. Update i
 const OUTDATED_GIT_TEXT =
   "this version of inteligir is older than the hosted vault accepts; update it\n";
 
-// null when the request may go on. an absent or unreadable header is refused like a stale build:
-// every build that sends none is older than the floor
+// an absent or unreadable header is refused like a stale build: every build that sends none is
+// older than the floor
+export const isBelowFloor = (request: Request, env: Env): boolean => {
+  const floor = buildFloor(env);
+  if (fromOwnPage(request)) {
+    return false;
+  }
+  const build = parseClientBuildHeader(request.headers.get(CLIENT_BUILD_HEADER));
+  return build === null || !meetsBuildFloor(build, floor);
+};
+
+// null when the request may go on: the REST rows' refusal, in their envelope or git's text
 export const refuseBelowFloor = (
   request: Request,
   env: Env,
   speaksEnvelope: boolean,
 ): Response | null => {
-  const floor = buildFloor(env);
-  if (fromOwnPage(request)) {
-    return null;
-  }
-  const build = parseClientBuildHeader(request.headers.get(CLIENT_BUILD_HEADER));
-  if (build !== null && meetsBuildFloor(build, floor)) {
+  if (!isBelowFloor(request, env)) {
     return null;
   }
   return speaksEnvelope

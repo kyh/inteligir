@@ -44,7 +44,9 @@ export interface ListingQuery {
   readonly folderId?: string | null;
   readonly subfolders?: boolean;
   readonly site?: string;
+  // saved at or after this, and before that
   readonly sinceMs?: number;
+  readonly beforeMs?: number;
   // id → rank from a search (lower is better); only these answer
   readonly within?: ReadonlyMap<string, number>;
   readonly sort: ListingSort;
@@ -266,6 +268,7 @@ export class LibraryIndex<R extends ListingRow> {
       (query.untagged !== true || row.tags.length === 0) &&
       (query.site === undefined || siteMatches(entry.host, query.site)) &&
       (query.sinceMs === undefined || row.savedAt >= query.sinceMs) &&
+      (query.beforeMs === undefined || row.savedAt < query.beforeMs) &&
       (query.within === undefined || query.within.has(row.id))
     );
   }

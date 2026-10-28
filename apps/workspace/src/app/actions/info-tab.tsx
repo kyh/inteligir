@@ -7,7 +7,7 @@ import type { LibraryScope } from "@repo/domain/library-scope";
 import { useLiveEditor } from "@repo/editor/live-editor";
 import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
 import { TagsField } from "@repo/editor/properties/property-fields";
-import { openExternalUrl } from "@repo/editor/lib/url";
+import { openExternalUrl } from "@repo/editor/lib/open-external-url";
 import { parseItemTime } from "@repo/notes/items/item-time";
 import { TAGS_KEY } from "@repo/notes/markdown/frontmatter";
 import type { TypedProperty } from "@repo/notes/markdown/frontmatter";

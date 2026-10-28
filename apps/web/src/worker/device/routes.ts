@@ -5,12 +5,9 @@ import {
   listDevicesResponseSchema,
   revokeDeviceRequestSchema,
 } from "@repo/contract/cloud/device/device-schema";
-import type {
-  ListDevicesResponse,
-  RevokeDeviceResponse,
-} from "@repo/contract/cloud/device/device-schema";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import type { RevokeDeviceResponse } from "@repo/contract/cloud/device/device-schema";
 import { carriesDeviceCredential, verifyDeviceCredential } from "./device-auth";
+import { listDevices, revokeDevice } from "./devices";
 import { loginDevice } from "./login";
 import type { LoginFailure } from "./login";
 import { signUpDevice } from "./sign-up";
@@ -19,10 +16,7 @@ import { signUpBodyRefusal } from "../auth/invite";
 import { jsonNoStore, refuse, refuseNoDeviceCredential } from "../cloud-http";
 import { createDb } from "../db/client";
 import type { Db } from "../db/client";
-import { device } from "../db/schema";
-import { errorFields } from "../log";
-import { forgetDeviceBudgets, spendCallerBudget } from "../rate-limit";
-import { libraryCell } from "../library/library-cell";
+import { spendCallerBudget } from "../rate-limit";
 
 // login and sign-up ARE the authentication; sign-out is a device's alone, since a session naming
 // no device has nothing to sign out
@@ -53,38 +47,6 @@ const accountUserId = async (
 const LOGIN_FAILURE_MESSAGE: Record<LoginFailure, string> = {
   "device-limit": "This account has too many active devices — revoke one first.",
   "invalid-credentials": "Wrong email or password.",
-};
-
-// false when nothing matched: another account's device, or one already revoked
-const revokeDevice = async (
-  ctx: ExecutionContext,
-  db: Db,
-  target: { deviceId: string; userId: string },
-): Promise<boolean> => {
-  const revoked = await db
-    .update(device)
-    .set({ revokedAt: new Date() })
-    .where(
-      and(
-        eq(device.id, target.deviceId),
-        eq(device.userId, target.userId),
-        isNull(device.revokedAt),
-      ),
-    )
-    .returning()
-    .get();
-  if (revoked === undefined) {
-    return false;
-  }
-  await forgetDeviceBudgets(db, [target.deviceId]);
-  // the credential is already dead in D1; this closes the sockets it still holds, which no
-  // per-request check reaches. Best-effort: a failure costs a stale socket, never a live credential
-  try {
-    await libraryCell(ctx.exports, target.userId).severDevice(target.deviceId);
-  } catch (error) {
-    console.warn({ event: "socket-sever-failed", ...errorFields(error) });
-  }
-  return true;
 };
 
 export const handleDeviceRoutes = async (
@@ -153,23 +115,7 @@ export const handleDeviceRoutes = async (
   }
 
   if (route === `GET ${DEVICE_API_PATHS.list}`) {
-    const rows = await db
-      .select()
-      .from(device)
-      .where(eq(device.userId, userId))
-      // two sign-ins within one millisecond share a created_at; rowid is their arrival order
-      .orderBy(device.createdAt, sql`rowid`)
-      .all();
-    const body: ListDevicesResponse = {
-      devices: rows.map((row) => ({
-        createdAt: row.createdAt.getTime(),
-        id: row.id,
-        lastSeenAt: row.lastSeenAt?.getTime() ?? null,
-        name: row.name,
-        revokedAt: row.revokedAt?.getTime() ?? null,
-      })),
-    };
-    return Response.json(listDevicesResponseSchema.parse(body));
+    return Response.json(listDevicesResponseSchema.parse(await listDevices(db, userId)));
   }
 
   if (route === `POST ${DEVICE_API_PATHS.revoke}`) {

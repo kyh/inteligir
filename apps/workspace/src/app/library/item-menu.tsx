@@ -6,7 +6,7 @@
 import type { ItemRowWire } from "@repo/contract/local/items/items-schema";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { wikiLinkFor } from "@repo/notes/knowledge/link-resolve";
-import { openExternalUrl } from "@repo/editor/lib/url";
+import { openExternalUrl } from "@repo/editor/lib/open-external-url";
 import {
   DropdownMenu,
   DropdownMenuContent,

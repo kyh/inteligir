@@ -29,6 +29,13 @@ is forwarded to it. R2 holds the bytes it names by hash, and D1 only the
 accounts. Not the **online library** below, the hosted git vault, and not a
 **replica**, which a device reads while it writes through the cell.
 
+**principal** — who a library call is by, as the Worker verified it: the
+account, the scopes its credential holds, and the actor whose **change set**
+its writes join (a device, or the site's own tab on its session). The Worker
+stamps it on the call it forwards to the **library cell** and drops any copy the
+request brought (`apps/web/src/worker/library/library-principal.ts`). Not a
+credential: the cell never sees one.
+
 **change set** — the unit of History and of undo. Every write lands in one,
 which records each item it touched before and after, its actor (the person,
 the agent, an assistant, an import, a fill, an undo or the system) and when it

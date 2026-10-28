@@ -9,6 +9,7 @@ import { runInDurableObject } from "cloudflare:test";
 import { exports } from "cloudflare:workers";
 
 import type { CellActor } from "../library/cell-actor";
+import { cellIds } from "../library/cell-ids";
 import type { CellResult } from "../library/cell-refusal";
 import { cellStorageOf } from "../library/cell-storage";
 import { libraryCellName } from "../library/library-cell";
@@ -35,7 +36,7 @@ export const clockAt = (now: number = Date.UTC(2026, 9, 1)): Clock => ({ now });
 export const engineIn = (state: DurableObjectState, clock: Clock, bytesCap = GiB): LibraryEngine =>
   openLibraryEngine({
     bytesCap,
-    newId: () => crypto.randomUUID(),
+    ids: cellIds(() => clock.now),
     now: () => clock.now,
     storage: cellStorageOf(state.storage),
   });

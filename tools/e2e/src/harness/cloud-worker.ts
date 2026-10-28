@@ -24,6 +24,8 @@ export const E2E_INVITE_CODE = "E2E-INVITE";
 
 export interface CloudWorker extends TrackedProcess {
   origin: string;
+  // the host's own door to what an account holds (`./worker-host.ts`), never the Worker's
+  inspectOrigin: string;
 }
 
 export interface LaunchCloudWorkerArgs {
@@ -106,16 +108,18 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
     label: "the cloud worker",
     onLog: args.onLog,
     pollIntervalMs: READY_POLL_INTERVAL_MS,
-    // the Worker, plus the inspector it always opens.
-    portCount: 2,
+    // the Worker, the inspector it always opens, and the host's view of an account's holdings.
+    portCount: 3,
     ready: async (handle) => await workerAnswered(handle.origin),
     spawn: (ports) => {
       const port = ports[0] ?? 0;
       const inspectorPort = ports[1] ?? 0;
+      const inspectPort = ports[2] ?? 0;
       const child = spawnSupervised({
         argv: [
           path.join(e2eDir, "src", "harness", "worker-host.ts"),
           JSON.stringify({
+            inspectPort,
             inspectorPort,
             outputDir: path.join(webDir, ".cloudflare", "output", "v0", "workers", "default"),
             port,
@@ -134,7 +138,11 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
         file: path.join(e2eDir, "node_modules", ".bin", "tsx"),
         name: "cloud-worker",
       });
-      const handle: CloudWorker = { ...child, origin: `http://127.0.0.1:${String(port)}` };
+      const handle: CloudWorker = {
+        ...child,
+        inspectOrigin: `http://127.0.0.1:${String(inspectPort)}`,
+        origin: `http://127.0.0.1:${String(port)}`,
+      };
       args.register(handle);
       args.onLog(`booting the cloud worker on ${handle.origin}`);
       return { child, handle };

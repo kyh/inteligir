@@ -383,6 +383,8 @@ export const changeSetSchema = z.object({
   actor: z.enum(CHANGE_SET_ACTORS),
   closedAt: isoInstant.nullable(),
   id: idSchema,
+  // how many items the set changed; `items` names the first of them, at most a page
+  itemCount: z.number().int().nonnegative(),
   items: z.array(
     z.object({
       created: z.boolean(),

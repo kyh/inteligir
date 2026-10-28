@@ -48,6 +48,8 @@ const allowInWindow = async (
 // named here because eviction must spend the same spellings the routes do; the table has no foreign key
 const DEVICE_RATE_KEY_PREFIXES = {
   accountDelete: "account-delete:",
+  blobs: "blobs:",
+  rpc: "rpc:",
   vaultGit: "vault-git:",
   vaultRead: "vault-read:",
   vaultWrite: "vault-write:",
@@ -95,6 +97,13 @@ export const RATE_WINDOWS = {
   // low: a code is short enough to guess at volume, and Better Auth's limiter never sees a rejected invite
   inviteSignUp: { max: 10, windowMs: 60_000 },
   login: { max: 10, windowMs: 60_000 },
+  // a library's files, read and written: a grid of covers and a video read range by range are the
+  // legitimate bursts, as a note's embeds were the vault's
+  blobs: { max: 3000, windowMs: 60_000 },
+  // every signed call on /v1/rpc, keyed on the device or the browser session: a replica back from
+  // a week away pulls a thousand changes a page and its bodies four MB an answer while its outbox
+  // drains a write a call, which a few hundred calls cover, so a ceiling past that is a loop
+  rpc: { max: 1200, windowMs: 60_000 },
   // set from the worst legitimate minute: 20 devices, every push pings the others, and a pinged
   // device syncs at once, so one device can owe ~100 requests; a ceiling near that refuses real sync
   vaultGit: { max: 600, windowMs: 60_000 },

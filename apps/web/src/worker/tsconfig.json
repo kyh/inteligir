@@ -16,7 +16,12 @@
     // durable-git publishes TS source and no .d.ts; typing it through the
     // hand-authored stub keeps the library's own code out of this stricter
     // program. The bundler ignores `paths` and still resolves the real source.
-    "paths": { "durable-git": ["./types/durable-git.d.ts"] },
+    // highlight.js's declarations would load the DOM's lib into this program, so they are mapped
+    // to the one type the editor's code block reaches them for (types/highlight-js.d.ts)
+    "paths": {
+      "durable-git": ["./types/durable-git.d.ts"],
+      "highlight.js": ["./types/highlight-js.d.ts"]
+    },
     // the generated Env reaches cloudflare.config.ts, which names its imports by their `.ts`
     "allowImportingTsExtensions": true
   },
