@@ -28,8 +28,11 @@
       "persistent": true
     },
     // a workspace's generated sources (apps/web's Env and runtime types, from `cf workers types`),
-    // which its typecheck and its suites both read: a test file can carry type claims too
-    "generate": {},
+    // which its typecheck and its suites both read: a test file can carry type claims too. ^topo:
+    // the Env is typed from the entry's exports, which import other workspaces
+    "generate": {
+      "dependsOn": ["^topo"]
+    },
     "typecheck": {
       "dependsOn": ["^topo", "generate"],
       // tsc runs incremental, so its state is this task's output, or every restore re-checks from
