@@ -210,7 +210,7 @@ tasks run at once (four by default), as it does for `pnpm test`.
 
 CI then runs a few more that `verify` cannot: it installs agent-browser
 and the shell's WebDriver (`tauri-driver`, each pinned by hand, over
-`webkit2gtk-driver` from the runner's apt), and
+`webkitgtk-webdriver` from the runner's apt), and
 runs the scenario suite under `xvfb-run`, since the desktop shell's scenarios
 open a real window, in two lanes, half its four cores. ONE run, because there
 is one build —

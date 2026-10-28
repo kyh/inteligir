@@ -192,7 +192,8 @@ browser binary every browser scenario needs: `pnpm add -g agent-browser@X.Y.Z &&
 agent-browser install` (Linux: `--with-deps`), at the version
 `.github/workflows/ci.yml` pins so a local run drives the browser CI drives.
 The desktop shell opens a real window, so CI runs the suite under `xvfb-run -a`,
-with WebKitGTK's WebDriver (`webkit2gtk-driver`) and `cargo install tauri-driver
+with WebKitGTK's WebDriver (`webkitgtk-webdriver`, `webkit2gtk-driver` before
+Ubuntu 26.04) and `cargo install tauri-driver
 --version X.Y.Z --locked` beside it, at the version CI pins; with no display, no
 driver or no built shell, the shell scenarios skip. The first browser a run asks for probes the
 environment with `about:blank`, once per run and in a session of its own, so
