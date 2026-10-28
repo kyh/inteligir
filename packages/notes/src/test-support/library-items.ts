@@ -22,6 +22,7 @@ export const noteFields = (overrides: Partial<LibraryItemFields> = {}): LibraryI
   folderId: null,
   kind: "note",
   lang: null,
+  originalName: null,
   originalSha: null,
   pinnedAt: null,
   properties: {},

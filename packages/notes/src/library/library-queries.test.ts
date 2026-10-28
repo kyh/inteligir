@@ -199,6 +199,7 @@ describe("items", () => {
       folderId: line(wide),
       kind: "link",
       lang: line(wide),
+      originalName: `${wide.repeat(caps.line - 4)}.pdf`,
       originalSha: "e".repeat(64),
       pinnedAt: 1,
       properties: { [propertyKey]: escaped.repeat(Math.floor(room / 6)) },

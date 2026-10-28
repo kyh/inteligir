@@ -33,8 +33,8 @@ const UNITS_PER_PIECE = Math.floor(CUT_BUDGET / 6);
 
 const bytesOf = (node: Descendant): number => utf8ByteLength(canonicalJson(libraryJsonOf(node)));
 
-const HIGH_SURROGATE_MIN = 0xd8_00;
-const HIGH_SURROGATE_MAX = 0xdb_ff;
+const LOW_SURROGATE_MIN = 0xdc_00;
+const LOW_SURROGATE_MAX = 0xdf_ff;
 
 // a text cut in pieces of at most UNITS_PER_PIECE units, at a line's end where one is near, never
 // between a surrogate pair
@@ -44,8 +44,10 @@ const textPieces = (text: string): string[] => {
   while (rest.length > UNITS_PER_PIECE) {
     const lineEnd = rest.lastIndexOf("\n", UNITS_PER_PIECE);
     let at = lineEnd > UNITS_PER_PIECE / 2 ? lineEnd + 1 : UNITS_PER_PIECE;
-    const before = rest.codePointAt(at - 1) ?? 0;
-    if (before >= HIGH_SURROGATE_MIN && before <= HIGH_SURROGATE_MAX) {
+    // the first code unit the next piece would start on: a pair's low half takes its high half
+    // with it (`codePointAt` answers a low half alone, never the pair before it)
+    const after = rest.codePointAt(at) ?? 0;
+    if (after >= LOW_SURROGATE_MIN && after <= LOW_SURROGATE_MAX) {
       at -= 1;
     }
     pieces.push(rest.slice(0, at));

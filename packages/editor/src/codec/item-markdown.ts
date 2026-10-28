@@ -67,7 +67,7 @@ export interface ItemSource {
 }
 
 // a block in its place, as an insert lands it
-export interface PlacedBlock {
+interface PlacedBlock {
   readonly block: LibraryBlock;
   readonly ord: string;
   readonly section: LibrarySection;
@@ -148,7 +148,8 @@ const originalKind = (kind: ItemKind): boolean =>
 
 interface HeldFiles {
   cover: string | null;
-  original: string | null;
+  // the original's bytes and the name it was found under
+  original: { readonly sha: string; readonly name: string } | null;
   copy: string | null;
 }
 
@@ -183,7 +184,7 @@ const takeHeldFiles = (
     const url = imageUrl(blocks[index]);
     const file = url === null ? null : ports.file(url);
     if (file !== null) {
-      held.original = file.sha;
+      held.original = { name: file.name, sha: file.sha };
       blocks.splice(index, 1);
       return held;
     }
@@ -215,8 +216,9 @@ const highlightEntries = (highlights: readonly ReadHighlight[], now: number): An
 const fieldsWith = (fields: FileFields, held: HeldFiles): ImportedFields => ({
   ...fields,
   copySha: held.copy,
-  coverSha: held.cover ?? (fields.kind === "image" ? held.original : null),
-  originalSha: held.original,
+  coverSha: held.cover ?? (fields.kind === "image" ? (held.original?.sha ?? null) : null),
+  originalName: held.original?.name ?? null,
+  originalSha: held.original?.sha ?? null,
 });
 
 interface SectionValues {
@@ -339,11 +341,15 @@ export interface ExportItem {
   readonly annotations: AnnotationStore;
 }
 
-export type HeldRole = "cover" | "original" | "copy";
+// a file the item holds whole, by its role: an original by the name it was saved under too, null
+// where none came with it
+export type HeldFile =
+  | { readonly role: "cover" | "copy"; readonly sha: string }
+  | { readonly role: "original"; readonly sha: string; readonly name: string | null };
 
 export interface ExportPorts extends WritePorts {
   // where a file the item holds whole is written
-  readonly held: (sha: string, role: HeldRole) => string;
+  readonly held: (file: HeldFile) => string;
 }
 
 export interface ExportedItem {
@@ -380,10 +386,14 @@ export const exportItem = (
   const head: TElement[] = [];
   const ownCover = fields.coverSha !== null && fields.coverSha !== fields.originalSha;
   if (fields.coverSha !== null && (ownCover || fields.kind !== "image")) {
-    head.push(heldImage(ports.held(fields.coverSha, "cover")));
+    head.push(heldImage(ports.held({ role: "cover", sha: fields.coverSha })));
   }
   if (fields.originalSha !== null) {
-    head.push(heldImage(ports.held(fields.originalSha, "original")));
+    head.push(
+      heldImage(
+        ports.held({ name: fields.originalName, role: "original", sha: fields.originalSha }),
+      ),
+    );
   }
   // a read link's note beside no page keeps the section, so the note does not read back as the page
   const keepsSection =
@@ -393,7 +403,7 @@ export const exportItem = (
     ? [...head, ...note, { children: article, type: ARTICLE_SECTION_KEY }]
     : [...head, ...note];
   if (fields.copySha !== null) {
-    body.push(heldCopy(ports.held(fields.copySha, "copy")));
+    body.push(heldCopy(ports.held({ role: "copy", sha: fields.copySha })));
   }
   const markdown = body.length === 0 ? "" : `${serializeNote(headlessEditor(), body).trimEnd()}\n`;
   const yaml = writeFrontmatter(fields, item.id, title);

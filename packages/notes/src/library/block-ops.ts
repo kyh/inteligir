@@ -89,6 +89,7 @@ const setOpSchema = z.discriminatedUnion("field", [
   setOf("folderId"),
   setOf("kind"),
   setOf("lang"),
+  setOf("originalName"),
   setOf("originalSha"),
   setOf("pinnedAt"),
   setOf("published"),

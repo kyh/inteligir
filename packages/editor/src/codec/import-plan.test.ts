@@ -101,6 +101,7 @@ const BINARIES = new Map(
     "board.canvas",
     "Untitled.base",
     "orphan.pdf",
+    "Reports/Q3 report.docx",
     "Projects/Specs/spec.pdf",
     "assets/covers/fedcba9876543210.jpg",
   ].map((path) => [path, shaOf(path)]),
@@ -247,6 +248,7 @@ describe("an Obsidian vault read into the library", () => {
     expect(library.items.map((item) => item.fields.title).toSorted()).toEqual([
       "Daily",
       "Project X",
+      "Q3 report",
       "Read later",
       "Untitled",
       "board",
@@ -332,6 +334,7 @@ describe("an Obsidian vault read into the library", () => {
     ]);
     expect(byTitle(library, "board").fields).toMatchObject({
       kind: "file",
+      originalName: "board.canvas",
       originalSha: shaOf("board.canvas"),
     });
     expect(byTitle(library, "orphan").fields).toMatchObject({
@@ -387,6 +390,10 @@ const exportOf = (library: ReadLibrary): ExportFile[] => {
   });
 };
 
+// where an export writes bytes no name came with: under their sha, as the vault's writers did
+const byBytes = (dir: string, found: string, extension: string): string =>
+  `${dir}/${shaOf(found).slice(0, 16)}.${extension}`;
+
 // a library as content alone: ids aside, items by title
 const contentOf = (library: ReadLibrary) =>
   library.items
@@ -409,6 +416,20 @@ describe("export, then import, gives the library back", () => {
       files.flatMap((file): [string, string][] =>
         file.kind === "bytes" ? [[file.path, file.sha]] : [],
       ),
+    );
+    // every file under the name it was saved under, so a canvas still opens as one; a cover, a
+    // page copy and an image a note embeds by its bytes alone, under their bytes' own names
+    expect([...bytes.keys()].toSorted()).toEqual(
+      [
+        "assets/Q3 report.docx",
+        "assets/Untitled.base",
+        "assets/board.canvas",
+        "assets/orphan.pdf",
+        "assets/spec.pdf",
+        byBytes("assets/covers", "assets/covers/0123456789abcdef.jpg", "jpg"),
+        byBytes("assets/pages", "assets/pages/0123456789abcdef.html", "html"),
+        byBytes("assets", "assets/shot.png", "png"),
+      ].toSorted(),
     );
     const second = readFolder(texts, bytes);
     expect(contentOf(second)).toEqual(contentOf(first));

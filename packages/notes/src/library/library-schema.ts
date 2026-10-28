@@ -76,6 +76,7 @@ const ITEMS_DDL = `CREATE TABLE IF NOT EXISTS items (
   lang TEXT,
   cover_sha TEXT,
   original_sha TEXT,
+  original_name TEXT,
   copy_sha TEXT,
   fetch_state TEXT CHECK (fetch_state IN (${oneOf(FETCH_STATES)})),
   fetched_at INTEGER,

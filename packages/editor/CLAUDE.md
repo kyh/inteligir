@@ -290,18 +290,18 @@ alone, and no walk narrows structurally.
   `@repo/editor/codec/*` reaches no React, so it runs wherever the library
   does (`packages/editor/src/headless-kits.test.ts`). It reads a file into an
   item's fields and blocks over the rule table and writes one back as the
-  vault's format, so `import(export(item))` is the item, ids aside, over
-  every fixture (`packages/editor/src/codec/item-markdown.test.ts`); a value
-  is settled through the serializer before it is mapped, so an import is its
-  own fixpoint. Obsidian's `#tag`, `==mark==`, `%%x%%` and `^ref` read in the
-  note's section only, never in a page a fill read. An agent reads an item as
-  that markdown with `[[Title|uuid]]` links, and an edit's text must match
-  once and keep the article's own lines; only the blocks it spans are read
-  again, each side of such a line in its own section, matched by content so
-  the rest keep their ids and markers, and a marker it dropped is named. Rejected:
-  a second markdown grammar for import (two readings drift) and re-reading a
-  whole item per edit (every block's id would turn over).
-  `packages/editor/src/codec/item-edit.ts`.
+  vault's format, a file under the name it was saved under, so
+  `import(export(item))` is the item, ids aside, over every fixture, and a
+  canonical file exports its own body but for the changes the test names
+  (`packages/editor/src/codec/item-markdown.test.ts`); a value is settled
+  through the serializer before it is mapped, so an import is its own
+  fixpoint. Obsidian's `#tag`, `==mark==`, `%%x%%` and `^ref` read in the
+  note's section only. An agent's edit must match once, keep the article's own
+  lines and nest no deeper than the editor reads; only the blocks it spans are
+  read again, matched by content so the rest keep their ids and markers, and a
+  highlight it took either edge of is named. Rejected: a second markdown
+  grammar for import (two readings drift) and re-reading a whole item per edit
+  (every block's id would turn over). `packages/editor/src/codec/item-edit.ts`.
 
 ## Vault: writes, git and containment
 

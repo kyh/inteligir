@@ -200,7 +200,7 @@ const BLOCK_REF_RE = /^\^(?<ref>[A-Za-z0-9-]+)$/u;
 const TRAILING_REF_RE = /[ \t]\^(?<ref>[A-Za-z0-9-]+)$/u;
 
 const isBlockRef = (ref: string | undefined): ref is string =>
-  ref !== undefined && blockIdSchema.safeParse(ref).success;
+  ref !== undefined && blockIdSchema.validate(ref);
 
 // a link's anchor: a block's `^ref`, or a heading
 const withAnchor = (element: TElement, anchor: string | undefined): TElement => {
@@ -284,8 +284,8 @@ const readWikiLink = (node: TElement, reading: Reading): TElement => {
   return withAnchor(element, link.anchor);
 };
 
-// an embed of an item; one of a file was made an image before the value was settled
-// (`embed-files.ts`), so what is left is an embed the library holds nothing for, kept as source
+// an embed of an item; one of a file was made an image before the value was settled (`embedFiles`
+// in `read-markdown.ts`), so what is left is an embed the library holds nothing for, kept as source
 const readWikiEmbed = (node: TElement, reading: Reading): TElement => {
   const body = stringProp(node, "body") ?? "";
   const link = parseWikiBody(body);

@@ -1,10 +1,11 @@
 // The library as a folder in today's vault format, the file list a zip is written from: each item
 // one markdown file named for its title in its folder, the filing rules as `AGENTS.md` at the
-// root, its highlights' store under
-// `.inteligir/annotations/`, and every file it holds once under `assets/` (a saved link's cover
-// under `assets/covers/` and its page copy under `assets/pages/`, as the vault's writers put
-// them). A link is written by the shortest target that resolves back to its item among the
-// exported files (`wikiTargetForPath`), so the folder reads back into the same library.
+// root, its highlights' store under `.inteligir/annotations/`, and every file it holds once under
+// `assets/` (a saved link's cover under `assets/covers/` and its page copy under `assets/pages/`,
+// as the vault's writers put them). A file is written under the name it was saved under, so a
+// `.canvas` stays one; only bytes no name came with take an extension from their media type. A
+// link is written by the shortest target that resolves back to its item among the exported files
+// (`wikiTargetForPath`), so the folder reads back into the same library.
 
 import { annotationsStorePath } from "@repo/notes/annotations/store-schema";
 import {
@@ -20,10 +21,10 @@ import { buildResolver, wikiTargetForPath } from "@repo/notes/knowledge/link-res
 import { joinPath, vaultCollisionKey } from "@repo/notes/knowledge/vault-path";
 
 import { exportItem } from "./item-markdown";
-import type { ExportItem, ExportPorts, HeldRole } from "./item-markdown";
+import type { ExportItem, ExportPorts, HeldFile } from "./item-markdown";
 import type { WrittenFile } from "./write-blocks";
 
-export interface ExportFolder {
+interface ExportFolder {
   readonly id: string;
   readonly parentId: string | null;
   readonly name: string;
@@ -33,7 +34,7 @@ export interface ExportLibrary {
   readonly folders: readonly ExportFolder[];
   // the live items; a deleted one stays in the library
   readonly items: readonly ExportItem[];
-  // a file's media type, by its sha
+  // a file's media type, by its sha: the extension of bytes no name came with
   readonly mediaType: (sha: string) => string | null;
   // the library's filing rules, which the agent reads
   readonly rules: string | null;
@@ -142,6 +143,8 @@ const filePaths = (mediaType: ExportLibrary["mediaType"], taken: TakenPaths) => 
       ? joinPath(DEFAULT_ATTACHMENTS_FOLDER, `${sha.slice(0, 16)}/${name}`)
       : plain;
   };
+  const byName = (sha: string, name: string): string =>
+    assign(`named:${sha}:${name}`, sha, () => named(sha, name));
   return {
     body: (file: WrittenFile): string =>
       file.name === null
@@ -152,23 +155,29 @@ const filePaths = (mediaType: ExportLibrary["mediaType"], taken: TakenPaths) => 
               extensionOf(mediaType(file.sha)),
             ),
           )
-        : assign(`named:${file.sha}:${file.name}`, file.sha, () =>
-            named(file.sha, file.name ?? ""),
-          ),
+        : byName(file.sha, file.name),
     bytes,
-    held: (sha: string, role: HeldRole, title: string): string => {
-      const extension = extensionOf(mediaType(sha));
-      switch (role) {
+    held: (file: HeldFile, title: string): string => {
+      const { sha } = file;
+      switch (file.role) {
         case "cover": {
-          return assign(`cover:${sha}`, sha, () => contentAddressed(COVERS_DIR, sha, extension));
+          return assign(`cover:${sha}`, sha, () =>
+            contentAddressed(COVERS_DIR, sha, extensionOf(mediaType(sha))),
+          );
         }
         case "copy": {
           return assign(`copy:${sha}`, sha, () => contentAddressed(PAGES_DIR, sha, "html"));
         }
         case "original": {
-          return assign(`original:${sha}`, sha, () =>
-            freeAssetPathWhere(DEFAULT_ATTACHMENTS_FOLDER, `${title}.${extension}`, taken.has),
-          );
+          return file.name === null
+            ? assign(`original:${sha}`, sha, () =>
+                freeAssetPathWhere(
+                  DEFAULT_ATTACHMENTS_FOLDER,
+                  `${title}.${extensionOf(mediaType(sha))}`,
+                  taken.has,
+                ),
+              )
+            : byName(sha, file.name);
         }
         // no default
       }
@@ -200,7 +209,7 @@ export const planExport = (library: ExportLibrary): ExportFile[] => {
     library.rules === null ? [] : [{ kind: "text", path: LIBRARY_RULES_PATH, text: library.rules }];
   for (const { item, name, path } of docs) {
     const ports: ExportPorts = {
-      held: (sha, role) => files.held(sha, role, name),
+      held: (file) => files.held(file, name),
       path: files.body,
       target: (itemId) => {
         const target = pathById.get(itemId);

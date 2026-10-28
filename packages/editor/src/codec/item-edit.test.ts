@@ -77,6 +77,7 @@ const landed = (
     folderId: null,
     kind: "note",
     lang: null,
+    originalName: null,
     originalSha: null,
     pinnedAt: null,
     properties: {},
@@ -250,6 +251,42 @@ describe("an edit made on the view", () => {
       portsWith(),
     );
     expect(lost).toMatchObject({ dropped: ["mark1"], kind: "changed" });
+  });
+
+  it("names a highlight it took one edge of, and none whose edge it only moved", () => {
+    const blocks = storedOf(NOTE);
+    for (const edge of ["start", "end"]) {
+      const half = editItemView(
+        blocks,
+        [{ newText: "", oldText: `%%i:mark1:${edge}%%` }],
+        portsWith(),
+      );
+      expect(half, edge).toMatchObject({ dropped: ["mark1"], kind: "changed" });
+    }
+    const moved = editItemView(
+      blocks,
+      [
+        { newText: "highlighted", oldText: "highlighted words%%i:mark1:end%%" },
+        { newText: "Last line.%%i:mark1:end%%", oldText: "Last line." },
+      ],
+      portsWith(),
+    );
+    expect(moved).toMatchObject({ dropped: [], kind: "changed" });
+  });
+
+  it("refuses new text that nests deeper than the editor reads, losing no block", () => {
+    const blocks = storedOf(NOTE);
+    // past the conversion's reach, and past the parse's own
+    for (const depth of [1500, 12_000]) {
+      expect(
+        editItemView(
+          blocks,
+          [{ newText: `${"> ".repeat(depth)}x`, oldText: "Last line." }],
+          portsWith(),
+        ),
+        String(depth),
+      ).toEqual({ kind: "refused", refusal: { edit: 0, kind: "too-deep" } });
+    }
   });
 
   it("keeps the item a link it did not change names, and finds one written by title", () => {

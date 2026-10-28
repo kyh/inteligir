@@ -4,11 +4,16 @@ import { ITEM_FIELD_CAPS, libraryItemFieldsSchema } from "./library-item";
 import { noteFields } from "../test-support/library-items";
 
 describe("an item's fields", () => {
-  it("hold a note and a saved link", () => {
+  it("hold a note, a saved link and a file", () => {
     expect(libraryItemFieldsSchema.validate(noteFields())).toBe(true);
     expect(
       libraryItemFieldsSchema.validate(
         noteFields({ fetchState: "pending", kind: "link", url: "https://example.com/a" }),
+      ),
+    ).toBe(true);
+    expect(
+      libraryItemFieldsSchema.validate(
+        noteFields({ kind: "file", originalName: "board.canvas", originalSha: "a".repeat(64) }),
       ),
     ).toBe(true);
   });
@@ -28,6 +33,8 @@ describe("an item's fields", () => {
       { tags: Array.from({ length: 100 }, (_, i) => `t${String(i)}${"x".repeat(900)}`) },
     ],
     ["a kind no item is", { kind: "folder" }],
+    ["an original's name that holds a folder", { originalName: "assets/report.pdf" }],
+    ["an original's name that is a folder's own", { originalName: ".." }],
     ["a field no column holds", { colour: "red" }],
   ])("refuse %s", (_, overrides) => {
     expect(libraryItemFieldsSchema.validate({ ...noteFields(), ...overrides })).toBe(false);

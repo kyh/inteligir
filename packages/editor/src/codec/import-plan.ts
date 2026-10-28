@@ -78,7 +78,7 @@ export interface PlannedDoc {
   readonly urlKey: string | null;
 }
 
-export interface PlannedFile {
+interface PlannedFile {
   readonly path: string;
   readonly sha: string;
   readonly kind: FileKind;
@@ -229,7 +229,7 @@ export interface ReadPassPorts {
   readonly now: number;
 }
 
-export interface ImportedDoc {
+interface ImportedDoc {
   readonly doc: PlannedDoc;
   readonly item: ImportedItem;
   // the files the doc embeds or links, which pass three keeps as attachments
@@ -300,7 +300,7 @@ export const importPlannedDoc = (
     : { ok: false, path: doc.path, reason: read.reason };
 };
 
-export interface PlannedFileItem {
+interface PlannedFileItem {
   readonly itemId: string;
   readonly path: string;
   readonly folderId: string | null;
@@ -338,6 +338,7 @@ const fileItemFields = (file: PlannedFile, now: number): ImportedFields => {
     fetchedAt: null,
     kind: file.kind,
     lang: null,
+    originalName: name,
     originalSha: file.sha,
     pinnedAt: null,
     properties: {},

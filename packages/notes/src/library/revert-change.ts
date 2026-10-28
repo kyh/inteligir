@@ -100,6 +100,7 @@ const SCALAR_FIELDS = [
   "folderId",
   "kind",
   "lang",
+  "originalName",
   "originalSha",
   "pinnedAt",
   "published",

@@ -51,6 +51,12 @@ const listOf = (entry: z.ZodString) =>
       error: `holds more than ${String(ITEM_FIELD_CAPS.listBytes)} bytes`,
     });
 
+// a file's own name as a folder holds it, its extension included: one segment, never `.` or `..`
+const fileNameSchema = text.refine(
+  (name) => !/[/\\\0]/u.test(name) && name !== "." && name !== "..",
+  { error: "is not a file name" },
+);
+
 const tagNameSchema = z
   .string()
   .max(ITEM_FIELD_CAPS.line)
@@ -75,6 +81,9 @@ export const libraryItemFieldsSchema = z.strictObject({
   folderId: text.nullable(),
   kind: z.enum(ITEM_KINDS),
   lang: text.nullable(),
+  // the name the original was saved under (`report.docx`), which an export writes it as and a
+  // download saves it as; null where no name came with it
+  originalName: fileNameSchema.nullable(),
   originalSha: sha256.nullable(),
   pinnedAt: instant.nullable(),
   // what a frontmatter key held that no column names, as any JSON, so an import loses none

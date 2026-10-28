@@ -6,7 +6,7 @@ import { fileKindOf } from "@repo/notes/items/item-kind";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
-import type { ExportPorts, FoundFile, ImportPorts } from "../codec/item-markdown";
+import type { ExportPorts, FoundFile, HeldFile, ImportPorts } from "../codec/item-markdown";
 import type { Reached } from "../codec/read-blocks";
 import type { WrittenFile } from "../codec/write-blocks";
 
@@ -59,7 +59,7 @@ export const pretendLibrary = (): PretendLibrary => {
   };
   return {
     exportPorts: () => ({
-      held: (sha: string) => paths.get(sha) ?? `assets/${sha}`,
+      held: (file: HeldFile) => paths.get(file.sha) ?? `assets/${file.sha}`,
       path: (file: WrittenFile) => paths.get(file.sha) ?? `assets/${file.sha}`,
       target: (itemId: string) => titles.get(itemId) ?? null,
       withIds: false,

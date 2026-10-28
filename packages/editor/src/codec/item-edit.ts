@@ -2,9 +2,11 @@
 // `old_text` must stand exactly once in the view as the edits before it left it; the blocks the
 // edited text touches (a list whole) are read again from the new text and no others, so every
 // other block keeps its id, its place and its highlights' markers. The blocks read again keep the
-// ids of the old ones they line up with (unchanged ones change nothing), a marker the new text no
-// longer holds is named in the answer, and a link the agent kept or wrote by title still names
-// its item. A highlight placed away from the editor (`placeQuotes`) lands the same way.
+// ids of the old ones they line up with (unchanged ones change nothing), a highlight one of whose
+// marker edges the new text no longer holds is named in the answer, and a link the agent kept or
+// wrote by title still names its item. Text that nests deeper than the editor reads refuses the
+// edit, so no block it spans is lost. A highlight placed away from the editor (`placeQuotes`)
+// lands the same way.
 
 import type { TElement } from "platejs";
 
@@ -16,13 +18,13 @@ import { ordsBetween } from "@repo/notes/library/block-order";
 import { canonicalJson } from "@repo/notes/library/canonical-json";
 import type { LibraryBlock, LibraryNode, LibrarySection } from "@repo/notes/library/library-nodes";
 import type { FlowSpan } from "@repo/notes/markdown/flow-spans";
-import { parseMdast } from "@repo/notes/markdown/parse";
+import { splitMarkerIds } from "@repo/notes/markdown/remark-inline-constructs";
 import { isUuidWikiAlias } from "@repo/notes/markdown/remark-wiki-link";
 import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
 import { diffLines } from "@repo/notes/text/line-diff";
 
 import { headlessEditor } from "@repo/editor/markdown/markdown-doc";
-import { rootToSlate } from "@repo/editor/markdown/md-to-slate";
+import { mdToSlate } from "@repo/editor/markdown/md-to-slate";
 
 import { itemView, viewFileAt } from "./item-view";
 import type { ItemView, ViewBlock, ViewPorts } from "./item-view";
@@ -46,18 +48,21 @@ export interface EditPorts extends ViewPorts {
   readonly newAnnotationId: () => string;
 }
 
-export type EditRefusal =
+// why an edit's text cannot be read again as blocks: it changed a line the article section opens
+// or closes on, or wrote after its close, or it nests deeper than the editor reads
+type CutFailure = "section" | "too-deep";
+
+type EditRefusal =
   // an `old_text` that is empty, stands nowhere, or stands more than once
   | { readonly kind: "empty"; readonly edit: number }
   | { readonly kind: "missing"; readonly edit: number }
   | { readonly kind: "ambiguous"; readonly edit: number; readonly count: number }
-  // one that reaches the lines the article section opens and closes on
-  | { readonly kind: "section"; readonly edit: number };
+  | { readonly kind: CutFailure; readonly edit: number };
 
-export interface ViewChange {
+interface ViewChange {
   readonly kind: "changed";
   readonly ops: readonly LibraryOp[];
-  // highlights the edit took the markers of out of the text, by id
+  // highlights the edit took a marker edge of out of the text, by id
   readonly dropped: readonly string[];
   // bare highlights an `==x==` in the new text made, for the caller to store
   readonly highlights: readonly ReadHighlight[];
@@ -75,7 +80,13 @@ interface Stretch {
   readonly text: string;
   readonly blocks: readonly ViewBlock[];
   readonly section: LibrarySection;
-  readonly dirty: boolean;
+  // the editor's value an edited stretch's text reads as, read when the edit cut it; null for a
+  // stretch no edit changed
+  readonly value: TElement[] | null;
+}
+
+interface EditedStretch extends Stretch {
+  readonly value: TElement[];
 }
 
 interface SectionLine {
@@ -89,6 +100,8 @@ interface SectionLine {
 type Piece = Stretch | SectionLine;
 
 const isStretch = (piece: Piece): piece is Stretch => piece.kind !== "line";
+
+const isEdited = (piece: Piece): piece is EditedStretch => isStretch(piece) && piece.value !== null;
 
 const piecesOf = (view: ItemView): Piece[] => {
   const pieces: Piece[] = [];
@@ -105,7 +118,7 @@ const piecesOf = (view: ItemView): Piece[] => {
     } else if (view.article !== null && holds(view.article.close)) {
       pieces.push({ after: null, before: "article", kind: "line", text });
     } else {
-      pieces.push({ blocks: [], dirty: false, kind: "gap", section, text });
+      pieces.push({ blocks: [], kind: "gap", section, text, value: null });
     }
     cursor = to;
   };
@@ -122,10 +135,10 @@ const piecesOf = (view: ItemView): Piece[] => {
     ({ section } = first);
     pieces.push({
       blocks,
-      dirty: false,
       kind: "blocks",
       section,
       text: view.markdown.slice(first.start, first.end),
+      value: null,
     });
     cursor = first.end;
   }
@@ -147,25 +160,47 @@ interface Range {
   readonly text: string;
 }
 
+// the pieces an edit cut, or why it could not cut them
+type Cut =
+  | { readonly ok: true; readonly pieces: Piece[] }
+  | { readonly ok: false; readonly reason: CutFailure };
+
+const failed = (reason: CutFailure): Cut => ({ ok: false, reason });
+
+// the editor's value a stretch's edited text reads as; null when it nests deeper than the
+// conversion reaches
+const valueOf = (text: string): TElement[] | null => {
+  const converted = mdToSlate(headlessEditor(), text);
+  return converted.ok ? elementsOf(converted.nodes) : null;
+};
+
 // the edited text of a run of pieces cut at each section line it still holds once, each stretch
-// between two lines one dirty piece in its own section; null when a line changed or text was
-// written after the article's close
-const cutAtLines = (run: readonly Piece[], text: string): Piece[] | null => {
+// between two lines one edited piece in its own section, read as it is cut
+const cutAtLines = (run: readonly Piece[], text: string): Cut => {
   const out: Piece[] = [];
   let cursor = 0;
   let blocks: ViewBlock[] = [];
   let section = run.find(isStretch)?.section ?? "note";
-  const stretch = (to: number, at: LibrarySection | null): boolean => {
+  const stretch = (to: number, at: LibrarySection | null): CutFailure | "cut" => {
     const part = text.slice(cursor, to);
     if (part === "" && blocks.length === 0) {
-      return true;
+      return "cut";
     }
     if (at === null) {
-      return false;
+      return "section";
     }
-    out.push({ blocks, dirty: true, kind: "blocks", section: at, text: part });
+    const value = valueOf(part);
+    if (value === null) {
+      return "too-deep";
+    }
+    out.push({ blocks, kind: "blocks", section: at, text: part, value });
     blocks = [];
-    return true;
+    return "cut";
+  };
+  // the text after the last line, in the section that line opened (none after the close)
+  const finish = (at: LibrarySection | null): Cut => {
+    const step = stretch(text.length, at);
+    return step === "cut" ? { ok: true, pieces: out } : failed(step);
   };
   for (const piece of run) {
     if (isStretch(piece)) {
@@ -173,22 +208,26 @@ const cutAtLines = (run: readonly Piece[], text: string): Piece[] | null => {
       continue;
     }
     const at = text.indexOf(piece.text, cursor);
-    if (at === -1 || occurrences(text, piece.text).length !== 1 || !stretch(at, piece.before)) {
-      return null;
+    if (at === -1 || occurrences(text, piece.text).length !== 1) {
+      return failed("section");
+    }
+    const step = stretch(at, piece.before);
+    if (step !== "cut") {
+      return failed(step);
     }
     out.push(piece);
     cursor = at + piece.text.length;
     if (piece.after === null) {
-      return stretch(text.length, null) ? out : null;
+      return finish(null);
     }
     section = piece.after;
   }
-  return stretch(text.length, section) ? out : null;
+  return finish(section);
 };
 
 // one range of the current text replaced: the pieces it touches, and a block on either side of
-// the lines it starts or ends in, read again as one; null when it changes a section line
-const replaceRange = (pieces: readonly Piece[], range: Range): Piece[] | null => {
+// the lines it starts or ends in, read again as one
+const replaceRange = (pieces: readonly Piece[], range: Range): Cut => {
   let at = 0;
   const spans = pieces.map((piece) => {
     const span = { end: at + piece.text.length, start: at };
@@ -216,7 +255,9 @@ const replaceRange = (pieces: readonly Piece[], range: Range): Piece[] | null =>
   const whole = run.map((piece) => piece.text).join("");
   const text = whole.slice(0, range.start - from) + range.text + whole.slice(range.end - from);
   const cut = cutAtLines(run, text);
-  return cut === null ? null : [...pieces.slice(0, first), ...cut, ...pieces.slice(last + 1)];
+  return cut.ok
+    ? { ok: true, pieces: [...pieces.slice(0, first), ...cut.pieces, ...pieces.slice(last + 1)] }
+    : cut;
 };
 
 // what a link the agent kept or wrote names: the id after its last pipe, the item (or the
@@ -268,16 +309,20 @@ const readPortsFor = (replaced: readonly ViewBlock[], ports: EditPorts): ReadPor
   return { image, wiki };
 };
 
-const markerIds = (blocks: readonly LibraryBlock[]): Set<string> => {
-  const ids = new Set<string>();
+interface MarkerEdge {
+  readonly id: string;
+  readonly edge: "start" | "end";
+}
+
+// every highlight edge the blocks hold, one per id a marker opens or closes
+const markerEdges = (blocks: readonly LibraryBlock[]): MarkerEdge[] => {
+  const edges: MarkerEdge[] = [];
   const visit = (node: LibraryNode): void => {
     if ("text" in node) {
       return;
     }
     if (node.type === "annotationMarker") {
-      for (const id of node.ids.split(",")) {
-        ids.add(id);
-      }
+      edges.push(...splitMarkerIds(node.ids).map((id) => ({ edge: node.edge, id })));
     }
     for (const child of node.children) {
       visit(child);
@@ -286,8 +331,10 @@ const markerIds = (blocks: readonly LibraryBlock[]): Set<string> => {
   for (const block of blocks) {
     visit(block);
   }
-  return ids;
+  return edges;
 };
+
+const edgeKey = ({ edge, id }: MarkerEdge): string => `${edge}:${id}`;
 
 const contentKey = (block: LibraryBlock): string => {
   const { id: _id, ...content } = block;
@@ -296,20 +343,19 @@ const contentKey = (block: LibraryBlock): string => {
 
 interface PieceChange {
   readonly ops: LibraryOp[];
-  readonly dropped: string[];
+  // the blocks the piece's text now reads as
+  readonly blocks: readonly LibraryBlock[];
   readonly highlights: readonly ReadHighlight[];
   readonly refused: readonly RefusedBlock[];
 }
 
-// a dirty piece's text as the blocks it reads as, in its section
-const readPiece = (piece: Stretch, section: LibrarySection, ports: EditPorts) => {
+// an edited piece's value as the blocks it reads as, in its section
+const readPiece = (piece: EditedStretch, ports: EditPorts) => {
   const read = readPortsFor(piece.blocks, ports);
-  const converted = rootToSlate(headlessEditor(), parseMdast(piece.text).root);
-  const value: TElement[] = converted.ok ? elementsOf(converted.nodes) : [];
   const drafts = readBlocks(
-    settled(elementsOf(embedFiles(value, read))),
+    settled(elementsOf(embedFiles(piece.value, read))),
     read,
-    section === "note" ? ports : null,
+    piece.section === "note" ? ports : null,
   );
   return { highlights: drafts.highlights, named: nameDrafts(drafts.blocks, ports.newBlockId) };
 };
@@ -386,11 +432,11 @@ const insertsOf = (
   return ops;
 };
 
-// the blocks a dirty piece's text reads as, landed over the ones it replaced (a section that held
-// none gets them all, between no keys)
-const changeOf = (piece: Stretch, view: ItemView, ports: EditPorts): PieceChange => {
+// the blocks an edited piece's text reads as, landed over the ones it replaced (a section that
+// held none gets them all, between no keys)
+const changeOf = (piece: EditedStretch, view: ItemView, ports: EditPorts): PieceChange => {
   const { section } = piece;
-  const { highlights, named } = readPiece(piece, section, ports);
+  const { highlights, named } = readPiece(piece, ports);
   const lined = lineUp(piece.blocks, named.blocks);
   const ordered = view.blocks.filter((one) => one.section === section);
   const [first] = piece.blocks;
@@ -402,25 +448,25 @@ const changeOf = (piece: Stretch, view: ItemView, ports: EditPorts): PieceChange
           lower: ordered[ordered.indexOf(first) - 1]?.ord ?? null,
           upper: ordered[ordered.indexOf(last) + 1]?.ord ?? null,
         };
-  const kept = markerIds(named.blocks);
-  const dropped = [...markerIds(piece.blocks.map((one) => one.block))].filter(
-    (id) => !kept.has(id),
-  );
   return {
-    dropped,
+    blocks: named.blocks,
     highlights,
     ops: [...lined.ops, ...insertsOf(named.blocks, lined.keys, bounds, section)],
     refused: named.refused,
   };
 };
 
+// every edited piece landed; a highlight is dropped when the edited text lost either edge of it,
+// wherever in the edited text the edge went, so a highlight left unpaired is named too
 const changesOf = (pieces: readonly Piece[], view: ItemView, ports: EditPorts): ViewChange => {
-  const changes = pieces
-    .filter(isStretch)
-    .filter((piece) => piece.dirty)
-    .map((piece) => changeOf(piece, view, ports));
+  const edited = pieces.filter(isEdited);
+  const changes = edited.map((piece) => changeOf(piece, view, ports));
+  const kept = new Set(changes.flatMap((change) => markerEdges(change.blocks)).map(edgeKey));
+  const lost = edited
+    .flatMap((piece) => markerEdges(piece.blocks.map((one) => one.block)))
+    .filter((edge) => !kept.has(edgeKey(edge)));
   return {
-    dropped: [...new Set(changes.flatMap((change) => change.dropped))].toSorted(),
+    dropped: [...new Set(lost.map((edge) => edge.id))].toSorted(),
     highlights: changes.flatMap((change) => change.highlights),
     kind: "changed",
     ops: changes.flatMap((change) => change.ops),
@@ -454,10 +500,10 @@ export const editItemView = (
       start,
       text: edit.newText,
     });
-    if (next === null) {
-      return { kind: "refused", refusal: { edit: index, kind: "section" } };
+    if (!next.ok) {
+      return { kind: "refused", refusal: { edit: index, kind: next.reason } };
     }
-    pieces = next;
+    ({ pieces } = next);
   }
   return changesOf(pieces, view, ports);
 };
@@ -512,7 +558,12 @@ export const placeItemQuotes = (
         start: offset + prefix,
         text: placing.content.slice(prefix, placing.content.length - suffix),
       });
-      pieces = next ?? pieces;
+      if (!next.ok) {
+        // the markers change no nesting and touch no section line, and the text around them is
+        // the view of stored blocks, which nest no deeper than the vocabulary allows
+        throw new Error(`a section's own text did not read back once highlighted (${next.reason})`);
+      }
+      ({ pieces } = next);
     }
   }
   return { ...changesOf(pieces, view, ports), missing: waiting.map((quote) => quote.id), placed };

@@ -1,9 +1,12 @@
 // An item's fields as the frontmatter of today's vault format: the keys the vault's items carry
 // (`@repo/notes/items/item-kind`'s ITEM_KEYS beside `id`, `tags`, `aliases` and `pinned`), the
 // cloud's own `title` (only where a file name cannot carry it) and `lang`, and every other key as a
-// typed property. A key whose value no field reads stays a property under its own name, so a
-// `published: true` or a `kind: book` round-trips; a block that is not YAML at all is no field's,
-// and the import keeps it as the note's first code block.
+// typed property. What of a key's value no field reads stays a property under its own name, so a
+// `published: true`, a `kind: book` or a `pinned: yes` round-trips, and so do the entries of
+// `tags` the tag grammar refuses, which an export writes back into the one list beside the tags.
+// `id` and `saved` are the item's own, its identity and its instant, so an export writes the
+// item's and keeps no other. A block that is not YAML at all is no field's, and the import keeps
+// it as the note's first code block.
 
 import { parseDocument, stringify } from "yaml";
 import { z } from "zod";
@@ -26,7 +29,7 @@ import type { ParsedProperties, TypedProperty } from "@repo/notes/markdown/front
 // deleted, which the import sets from the folder and the body
 export type FileFields = Omit<
   LibraryItemFields,
-  "copySha" | "coverSha" | "deletedAt" | "folderId" | "originalSha"
+  "copySha" | "coverSha" | "deletedAt" | "folderId" | "originalName" | "originalSha"
 >;
 
 export interface FrontmatterRead {
@@ -36,26 +39,6 @@ export interface FrontmatterRead {
   // a block that is not YAML, as written
   readonly invalidYaml: string | null;
 }
-
-// the keys a field reads; any other is a property
-const FIELD_KEYS = new Set([
-  "aliases",
-  "alias",
-  "author",
-  "description",
-  "fetch-error",
-  "fetched",
-  "id",
-  "kind",
-  "lang",
-  "pinned",
-  "published",
-  "saved",
-  "site",
-  "tags",
-  "title",
-  "url",
-]);
 
 const cut = (text: string | null, max: number): string | null => {
   if (text === null) {
@@ -76,9 +59,13 @@ const textProp = (parsed: ParsedProperties, key: string): string | null => {
   return prop.value.trim() === "" ? null : prop.value.trim();
 };
 
-const isPinned = (parsed: ParsedProperties): boolean =>
-  parsed.kind === "valid" &&
-  parsed.properties.some((prop) => prop.key === "pinned" && prop.type === "checkbox" && prop.value);
+const propOf = (parsed: ParsedProperties, key: string): TypedProperty | undefined =>
+  parsed.kind === "valid" ? parsed.properties.find((prop) => prop.key === key) : undefined;
+
+const isPinned = (parsed: ParsedProperties): boolean => {
+  const prop = propOf(parsed, "pinned");
+  return prop?.type === "checkbox" && prop.value;
+};
 
 const uniqueTags = (yaml: string): string[] => {
   const seen = new Set<string>();
@@ -151,6 +138,78 @@ const noteFields = (title: string, now: number): FileFields => ({
   url: null,
 });
 
+// an entry of a list, as a field reads one
+const textEntry = z.string();
+
+// what of a list key's value its field did not take: the entries it could not read, or the whole
+// of a value that is no list; nothing for a value it took whole, or for none at all
+const listRest = (
+  value: PropertyValue,
+  read: readonly string[],
+  spelledAs: (entry: string) => string,
+): PropertyValue | undefined => {
+  if (value === null) {
+    return undefined;
+  }
+  const held = new Set(read.map((entry) => entry.toLowerCase()));
+  const taken = (entry: PropertyValue): boolean =>
+    textEntry.validate(entry) && held.has(spelledAs(entry).toLowerCase());
+  if (!Array.isArray(value)) {
+    return taken(value) ? undefined : value;
+  }
+  const rest = value.filter((entry) => !taken(entry));
+  return rest.length === 0 ? undefined : rest;
+};
+
+// a tag as `frontmatterTags` reads one: a `#` before it and the spaces around it left off
+const tagSpelling = (entry: string): string =>
+  (entry.startsWith("#") ? entry.slice(1) : entry).trim();
+
+// every key's value no field took, as the property it stays: a key no field names, one its field
+// could not read whole, and of `tags` and `aliases` the entries they refused (`alias`, Obsidian's
+// older spelling, is read only where no `aliases` is)
+const unreadValues = (
+  parsed: ParsedProperties,
+  values: ReadonlyMap<string, PropertyValue>,
+  fields: FileFields,
+): Map<string, PropertyValue> => {
+  const aliasKey = propOf(parsed, "aliases") === undefined ? "alias" : "aliases";
+  // each key a field reads, and whether it read the key's value whole; a key no field reads, or
+  // one its field could not, stays a property
+  const readWhole = new Map([
+    ["author", fields.author !== null],
+    ["description", fields.description !== null],
+    ["fetch-error", fields.fetchError !== null],
+    ["fetched", fields.fetchedAt !== null],
+    ["id", true],
+    ["kind", isItemKind(textProp(parsed, "kind")?.toLowerCase() ?? "")],
+    ["lang", fields.lang !== null],
+    ["pinned", propOf(parsed, "pinned")?.type === "checkbox"],
+    ["published", fields.published !== null],
+    ["saved", true],
+    ["site", fields.site !== null],
+    ["title", textProp(parsed, "title") !== null],
+    ["url", fields.url !== null],
+  ]);
+  const restOf = (key: string, value: PropertyValue): PropertyValue | undefined => {
+    if (key === "tags") {
+      return listRest(value, fields.tags, tagSpelling);
+    }
+    if (key === aliasKey) {
+      return listRest(value, fields.aliases, (entry) => entry.trim());
+    }
+    return readWhole.get(key) === true ? undefined : value;
+  };
+  const unread = new Map<string, PropertyValue>();
+  for (const [key, value] of values) {
+    const rest = restOf(key, value);
+    if (rest !== undefined) {
+      unread.set(key, rest);
+    }
+  }
+  return unread;
+};
+
 // a file's frontmatter (its YAML, null for none) as its item's fields; `name` is the file's own
 // name, the title unless a `title:` names another
 export const readFrontmatter = (
@@ -186,25 +245,9 @@ export const readFrontmatter = (
     title: cut(textProp(parsed, "title") ?? name, ITEM_FIELD_CAPS.line) ?? "",
     url,
   };
-  // a key no field read keeps its value; one a field read is that field's
-  const unread = new Set(
-    Object.entries({
-      author: fields.author === null,
-      description: fields.description === null,
-      "fetch-error": fields.fetchError === null,
-      kind: !isItemKind(textProp(parsed, "kind")?.toLowerCase() ?? "note"),
-      lang: fields.lang === null,
-      published: fields.published === null,
-      site: fields.site === null,
-      title: textProp(parsed, "title") === null,
-      url: fields.url === null,
-    }).flatMap(([key, isUnread]) => (isUnread ? [key] : [])),
-  );
   const properties: Record<string, PropertyValue> = {};
-  for (const [key, value] of values) {
-    if (!FIELD_KEYS.has(key) || unread.has(key)) {
-      properties[key] = value;
-    }
+  for (const [key, value] of unreadValues(parsed, values, fields)) {
+    properties[key] = value;
   }
   return {
     fields: { ...fields, properties },
@@ -216,6 +259,10 @@ export const readFrontmatter = (
 const keyLine = (key: string, value: string): string =>
   `${key}: ${yamlScalarText(value, "plain", "block")}`;
 
+// a property's key and value as YAML spells any JSON
+const valueLines = (key: string, value: PropertyValue): string =>
+  stringify({ [key]: value }).replace(/\n$/u, "");
+
 const listLines = (key: string, values: readonly string[]): string[] =>
   values.length === 0
     ? []
@@ -226,13 +273,29 @@ const instant = (ms: number): string =>
   ms % 1000 === 0 ? formatItemTime(ms) : new Date(ms).toISOString();
 
 // the frontmatter's YAML for an item's fields, its id first, as the vault's writers order their
-// keys; `title` is written only when the file's name cannot carry it
+// keys; `title` is written only when the file's name cannot carry it. Each key is written once: a
+// property under a key a field wrote is that field's, but for what `tags` or `aliases` could not
+// read, which joins their one list
 export const writeFrontmatter = (fields: FileFields, id: string, title: string | null): string => {
   const lines = [keyLine("id", id)];
+  const written = new Set(["id"]);
+  const properties = new Map(Object.entries(fields.properties));
   const text = (key: string, value: string | null): void => {
     if (value !== null) {
       lines.push(keyLine(key, value));
+      written.add(key);
     }
+  };
+  const list = (key: "aliases" | "tags", entries: readonly string[]): void => {
+    const rest = properties.get(key);
+    if (rest === undefined) {
+      lines.push(...listLines(key, entries));
+    } else {
+      const joined =
+        entries.length === 0 ? rest : [...entries, ...(Array.isArray(rest) ? rest : [rest])];
+      lines.push(valueLines(key, joined));
+    }
+    written.add(key);
   };
   text("title", title);
   text("kind", fields.kind === "note" ? null : fields.kind);
@@ -245,12 +308,16 @@ export const writeFrontmatter = (fields: FileFields, id: string, title: string |
   text("fetch-error", fields.fetchError);
   text("description", fields.description);
   text("lang", fields.lang);
-  lines.push(...listLines("tags", fields.tags), ...listLines("aliases", fields.aliases));
+  list("tags", fields.tags);
+  list("aliases", fields.aliases);
   if (fields.pinnedAt !== null) {
     lines.push("pinned: true");
+    written.add("pinned");
   }
-  for (const [key, value] of Object.entries(fields.properties)) {
-    lines.push(stringify({ [key]: value }).replace(/\n$/u, ""));
+  for (const [key, value] of properties) {
+    if (!written.has(key)) {
+      lines.push(valueLines(key, value));
+    }
   }
   return lines.join("\n");
 };
