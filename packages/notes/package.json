@@ -70,7 +70,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "ignore": "^7.0.12",
+    "ignore": "^7.0.14",
     "mdast-util-from-markdown": "^2.1.0",
     "mdast-util-gfm-task-list-item": "^2.0.0",
     "mdast-util-to-markdown": "^2.2.0",
