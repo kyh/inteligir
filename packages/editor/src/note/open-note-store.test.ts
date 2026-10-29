@@ -1,426 +1,79 @@
-// The real markdown gate runs here: mocking analyzeMarkdown would turn "is the
-// verdict for these bytes?" into "was the mock called?".
+import { describe, expect, it } from "vitest";
 
-import { setTimeout as delay } from "node:timers/promises";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import { describeGateReason } from "@repo/editor/markdown/markdown-doc";
-import { EMPTY_EDITOR_STATE } from "@repo/editor/vault-editor";
-import type { OpenEditorState, VaultEditorState } from "@repo/editor/vault-editor";
+import { createOpenNoteStore, historyStep } from "@repo/editor/note/open-note-store";
 import type { OpenNoteState } from "@repo/editor/note/open-note-store";
+import type { OpenEditorState } from "@repo/editor/vault-editor";
 
-vi.mock("@repo/ui/components/sonner", () => ({
-  toast: Object.assign(vi.fn(), {
-    error: vi.fn(),
-    success: vi.fn(),
-    warning: vi.fn(),
-  }),
-}));
-
-const { toast } = await import("@repo/ui/components/sonner");
-const { createOpenNoteStore } = await import("@repo/editor/note/open-note-store");
-
-let store = createOpenNoteStore();
-const publishEditor: (typeof store)["publishEditor"] = (editor) => {
-  store.publishEditor(editor);
-};
-const publishOpenPath: (typeof store)["publishOpenPath"] = (path, change) => {
-  store.publishOpenPath(path, change);
-};
-const useOpenNote = {
-  getInitialState: () => store.store.getInitialState(),
-  getState: () => store.state(),
-  setState: (partial: Partial<OpenNoteState>, replace?: boolean) => {
-    if (replace === true) {
-      store.store.setState(store.store.getInitialState(), true);
-    } else {
-      store.store.setState(partial);
-    }
-  },
-  subscribe: (listener: (state: OpenNoteState) => void) =>
-    store.store.subscribe((state) => {
-      listener(state);
-    }),
-};
-
-const RICH_PATH = "notes/a.md";
-const OTHER_PATH = "notes/b.md";
-
-// parses and round-trips byte-canonically
-const RICH_MD = "# Hello\n\nA plain paragraph.\n";
-const RICH_MD_2 = "# Hello\n\nA plain paragraph, revised.\n";
-// a save decodes the entity and drops its name's letters, so the gate refuses Rich
-const GATED_MD = "Fish &amp; chips\n";
-const GATED_MD_2 = "Fish &amp; more chips\n";
-const GATED_REASON = { kind: "roundtrip-loss" } as const;
-
-type OpenPatch = Partial<Omit<OpenEditorState, "kind">>;
-
-// the open arm a patch lands on while the controller is still closed.
-const UNLOADED: OpenEditorState = {
-  content: "",
+const opened = (path: string, content: string, diskSeq = 1): OpenEditorState => ({
+  content,
   dirty: false,
-  diskSeq: 0,
+  diskSeq,
   kind: "open",
-  path: "",
+  path,
   saveError: null,
-};
+});
 
-class FakeController {
-  private state: VaultEditorState = EMPTY_EDITOR_STATE;
-  private readonly subs = new Set<() => void>();
-
-  getState = (): VaultEditorState => this.state;
-
-  subscribe = (fn: () => void): (() => void) => {
-    this.subs.add(fn);
-    return () => {
-      this.subs.delete(fn);
-    };
-  };
-
-  private get open(): OpenEditorState {
-    return this.state.kind === "open" ? this.state : UNLOADED;
-  }
-
-  emit(patch: OpenPatch): void {
-    this.state = { ...this.open, ...patch };
-    for (const fn of this.subs) {
-      fn();
-    }
-  }
-
-  // bytes from the IO (an open, a reload, a save's merge), as the controller marks them.
-  load(patch: OpenPatch): void {
-    this.emit({ ...patch, diskSeq: this.open.diskSeq + 1 });
-  }
-
-  // the buffer's own bytes: an edit, then the save that lands them unchanged.
-  settle(content: string): void {
-    this.emit({ content, dirty: true });
-    this.emit({ dirty: false });
-  }
-}
-
-// subscribe first, then publish once, so no emission slips between snapshot and subscription
-const mountRuntime = (): FakeController => {
-  const controller = new FakeController();
-  controller.subscribe(() => {
-    publishEditor(controller.getState());
-  });
-  publishEditor(controller.getState());
-  return controller;
-};
-
-const openNote = (path: string, content: string): FakeController => {
-  const controller = mountRuntime();
-  publishOpenPath(path);
-  controller.load({ content, dirty: false, path });
-  return controller;
-};
-
-const recordStates = () => {
+const recordStates = (store: ReturnType<typeof createOpenNoteStore>) => {
   const seen: OpenNoteState[] = [];
-  const stop = useOpenNote.subscribe((s) => {
-    seen.push(s);
+  const stop = store.store.subscribe((state) => {
+    seen.push(state);
   });
   return { seen, stop };
 };
 
-// one macrotask hop; under node the idle pass is a macrotask queued first, so it has run
-const drain = async (): Promise<void> => {
-  await delay(0);
-};
-
-const expectGateInLockstep = (seen: readonly OpenNoteState[]): void => {
-  for (const s of seen) {
-    if (s.editor.kind === "closed") {
-      continue;
-    }
-    expect(s.analyzed.path).toBe(s.editor.path);
-  }
-};
-
-const richSnapshotsFor = (seen: readonly OpenNoteState[], path: string): OpenNoteState[] =>
-  seen.filter(
-    (s) =>
-      s.openDoc.kind === "markdown" && s.openDoc.path === path && s.openDoc.surface.mode === "rich",
-  );
-
-// Plate re-seeds from whatever content a rich surface is handed, and its next keystroke saves
-// what it made of those bytes.
-const holds = (s: OpenNoteState, content: string): boolean =>
-  s.editor.kind === "open" && s.editor.content === content;
-
-const expectGatedWithItsBytes = (seen: readonly OpenNoteState[]): void => {
-  const landed = seen.find((s) => holds(s, GATED_MD));
-  expect(landed?.analyzed).toEqual({
-    content: GATED_MD,
-    path: RICH_PATH,
-    rawReason: GATED_REASON,
-  });
-  expect(landed?.openDoc).toEqual({
-    kind: "markdown",
-    path: RICH_PATH,
-    surface: { mode: "raw", reason: GATED_REASON },
-  });
-  expect(richSnapshotsFor(seen, RICH_PATH).filter((s) => holds(s, GATED_MD))).toEqual([]);
-};
-
-describe("open-note-store publishEditor", () => {
-  beforeEach(() => {
-    store = createOpenNoteStore();
-    vi.clearAllMocks();
+describe("the open note's store", () => {
+  it("names the doc the open path loaded, and loading while it reads", () => {
+    const store = createOpenNoteStore();
+    store.publishOpenPath("notes/a.md");
+    expect(store.state().openDoc).toEqual({ kind: "loading", path: "notes/a.md" });
+    store.publishEditor(opened("notes/a.md", "# A\n"));
+    expect(store.state().openDoc).toEqual({ kind: "markdown", path: "notes/a.md" });
+    store.publishOpenPath("notes/readme.txt");
+    store.publishEditor(opened("notes/readme.txt", "plain"));
+    expect(store.state().openDoc).toEqual({ kind: "non-markdown", path: "notes/readme.txt" });
   });
 
-  afterEach(async () => {
-    // drain first so no deferred analysis bleeds into the next test
-    await drain();
-    useOpenNote.setState(useOpenNote.getInitialState(), true);
-  });
-
-  it("gates a Raw-only file on the real markdown pipeline", () => {
-    openNote(RICH_PATH, RICH_MD);
-    expect(useOpenNote.getState().analyzed.rawReason).toBeNull();
-
-    useOpenNote.setState(useOpenNote.getInitialState(), true);
-    openNote(OTHER_PATH, GATED_MD);
-    expect(useOpenNote.getState().analyzed.rawReason).toEqual(GATED_REASON);
-  });
-
-  describe("path change", () => {
-    it("lands verdict + editor in ONE update — a Raw-only file is never shown rich", () => {
-      openNote(RICH_PATH, RICH_MD);
-
-      const { seen, stop } = recordStates();
-      const controller = mountRuntime();
-      publishOpenPath(OTHER_PATH);
-      const beforeLoad = seen.length;
-      controller.load({ content: GATED_MD, dirty: false, path: OTHER_PATH });
-      stop();
-
-      expect(seen.length - beforeLoad).toBe(1);
-
-      const landed = seen.at(-1);
-      expect(landed).toBeDefined();
-      expect(landed?.editor).toMatchObject({ content: GATED_MD });
-      expect(landed?.analyzed).toEqual({
-        content: GATED_MD,
-        path: OTHER_PATH,
-        rawReason: GATED_REASON,
-      });
-      expect(landed?.openDoc).toEqual({
-        kind: "markdown",
-        path: OTHER_PATH,
-        surface: { mode: "raw", reason: GATED_REASON },
-      });
-
-      expectGateInLockstep(seen);
-      expect(richSnapshotsFor(seen, OTHER_PATH)).toEqual([]);
-    });
-
-    it("an in-place path swap never shows the new file through the old file's verdict", () => {
-      const controller = openNote(RICH_PATH, RICH_MD);
-
-      const { seen, stop } = recordStates();
-      publishOpenPath(OTHER_PATH);
-      controller.load({ content: GATED_MD, dirty: false, path: OTHER_PATH });
-      stop();
-
-      expect(richSnapshotsFor(seen, OTHER_PATH)).toEqual([]);
-      expectGateInLockstep(seen);
-    });
-
-    it("pops back to Rich when a settle clears the gate — the surface is the gate's alone", async () => {
-      const controller = openNote(RICH_PATH, GATED_MD);
-      expect(useOpenNote.getState().openDoc).toEqual({
-        kind: "markdown",
-        path: RICH_PATH,
-        surface: { mode: "raw", reason: GATED_REASON },
-      });
-
-      controller.settle(RICH_MD);
-      await drain();
-      expect(useOpenNote.getState().openDoc).toEqual({
-        kind: "markdown",
-        path: RICH_PATH,
-        surface: { mode: "rich" },
-      });
-    });
-  });
-
-  describe("bytes from disk on the open path", () => {
-    it("gates a clean reload in the same update as its bytes", () => {
-      const controller = openNote(RICH_PATH, RICH_MD);
-
-      const { seen, stop } = recordStates();
-      controller.load({ content: GATED_MD, dirty: false });
-      stop();
-
-      expectGatedWithItsBytes(seen);
-      expect(vi.mocked(toast.warning)).toHaveBeenCalledTimes(1);
-    });
-
-    it("gates a merge that leaves the buffer dirty in the same update as its bytes", () => {
-      const controller = openNote(RICH_PATH, RICH_MD);
-      controller.emit({ content: RICH_MD_2, dirty: true });
-
-      const { seen, stop } = recordStates();
-      controller.load({ content: GATED_MD, dirty: true });
-      stop();
-
-      expectGatedWithItsBytes(seen);
-    });
-  });
-
-  describe("deferred same-path analysis", () => {
-    it("lands the settle first and analyzes once idle, not in a microtask", async () => {
-      vi.useFakeTimers();
-      try {
-        const controller = openNote(RICH_PATH, RICH_MD);
-
-        controller.emit({ content: GATED_MD, dirty: true });
-        controller.emit({ dirty: false });
-        // a microtask would have run the analysis by now, inside the settle's frame
-        await Promise.resolve();
-
-        expect(useOpenNote.getState().editor).toMatchObject({ content: GATED_MD, dirty: false });
-        expect(useOpenNote.getState().analyzed).toEqual({
-          content: RICH_MD,
-          path: RICH_PATH,
-          rawReason: null,
-        });
-
-        vi.runAllTimers();
-        expect(useOpenNote.getState().analyzed).toEqual({
-          content: GATED_MD,
-          path: RICH_PATH,
-          rawReason: GATED_REASON,
-        });
-      } finally {
-        vi.useRealTimers();
+  it("never shows a new path's bytes under the old path's doc", () => {
+    const store = createOpenNoteStore();
+    store.publishOpenPath("a.md");
+    store.publishEditor(opened("a.md", "A\n"));
+    const { seen, stop } = recordStates(store);
+    store.publishOpenPath("b.md");
+    store.publishEditor(opened("b.md", "B\n"));
+    stop();
+    for (const state of seen) {
+      if (state.editor.kind === "open" && state.editor.content === "B\n") {
+        expect(state.openDoc).toEqual({ kind: "markdown", path: "b.md" });
       }
-    });
-
-    it("drops a pass superseded by newer content on the same path", async () => {
-      const controller = openNote(RICH_PATH, RICH_MD);
-      const { seen, stop } = recordStates();
-
-      controller.settle(GATED_MD);
-      controller.settle(RICH_MD_2);
-      await drain();
-      stop();
-
-      expect(useOpenNote.getState().analyzed).toEqual({
-        content: RICH_MD_2,
-        path: RICH_PATH,
-        rawReason: null,
-      });
-      expect(seen.some((s) => s.analyzed.content === GATED_MD)).toBe(false);
-      expect(vi.mocked(toast.warning)).not.toHaveBeenCalled();
-      expectGateInLockstep(seen);
-    });
-
-    it("collapses a burst of settles into exactly ONE analysis apply", async () => {
-      const controller = openNote(RICH_PATH, RICH_MD);
-
-      controller.settle(GATED_MD);
-      controller.settle(RICH_MD_2);
-      controller.settle(GATED_MD);
-
-      const { seen, stop } = recordStates();
-      await drain();
-      stop();
-
-      expect(seen.length).toBe(1);
-      expect(useOpenNote.getState().analyzed).toEqual({
-        content: GATED_MD,
-        path: RICH_PATH,
-        rawReason: GATED_REASON,
-      });
-    });
-
-    it("drops a pass cancelled by a path change", async () => {
-      const controller = openNote(RICH_PATH, RICH_MD);
-
-      controller.settle(GATED_MD);
-      const next = mountRuntime();
-      publishOpenPath(OTHER_PATH);
-      next.load({ content: RICH_MD, dirty: false, path: OTHER_PATH });
-      await drain();
-
-      expect(useOpenNote.getState().analyzed).toEqual({
-        content: RICH_MD,
-        path: OTHER_PATH,
-        rawReason: null,
-      });
-      expect(useOpenNote.getState().openDoc).toEqual({
-        kind: "markdown",
-        path: OTHER_PATH,
-        surface: { mode: "rich" },
-      });
-    });
-
-    it("drops a pass whose buffer went dirty again, and re-runs on the next settle", async () => {
-      const controller = openNote(RICH_PATH, RICH_MD);
-
-      controller.settle(GATED_MD);
-      // same bytes, so only `dirty` distinguishes this from the scheduled target
-      controller.emit({ dirty: true });
-      await drain();
-
-      expect(useOpenNote.getState().analyzed).toEqual({
-        content: RICH_MD,
-        path: RICH_PATH,
-        rawReason: null,
-      });
-
-      controller.emit({ dirty: false });
-      await drain();
-      expect(useOpenNote.getState().analyzed).toEqual({
-        content: GATED_MD,
-        path: RICH_PATH,
-        rawReason: GATED_REASON,
-      });
-    });
+    }
   });
 
-  describe("Rich→Raw flip toast", () => {
-    it("fires once when a mid-session settle yanks Plate out from under the user", async () => {
-      const controller = openNote(RICH_PATH, RICH_MD);
+  it("keeps the doc's identity across keystrokes, so its readers do not draw again", () => {
+    const store = createOpenNoteStore();
+    store.publishOpenPath("a.md");
+    store.publishEditor(opened("a.md", "A\n"));
+    const before = store.state().openDoc;
+    store.publishEditor({ ...opened("a.md", "A typed\n"), dirty: true });
+    expect(store.state().openDoc).toBe(before);
+  });
 
-      controller.settle(GATED_MD);
-      await drain();
+  it("closes the editor when the library is shown, a step Forward undoes", () => {
+    const store = createOpenNoteStore();
+    store.publishOpenPath("a.md");
+    store.publishEditor(opened("a.md", "A\n"));
+    store.publishOpenPath(null);
+    expect(store.state().editor).toEqual({ kind: "closed" });
+    expect(store.state().openDoc).toEqual({ kind: "none" });
+    expect(historyStep(store.state(), "back")).toBeNull();
+    expect(historyStep(store.state(), "forward")).toEqual({ to: "a.md" });
+  });
 
-      expect(vi.mocked(toast.warning)).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(toast.warning)).toHaveBeenCalledWith(
-        `Switched to Raw editing — ${describeGateReason(GATED_REASON)}`,
-      );
-      expect(useOpenNote.getState().openDoc).toEqual({
-        kind: "markdown",
-        path: RICH_PATH,
-        surface: { mode: "raw", reason: GATED_REASON },
-      });
-    });
-
-    it("stays silent on a fresh open of a Raw-only file — it opens into the textarea", async () => {
-      openNote(OTHER_PATH, GATED_MD);
-      await drain();
-
-      expect(useOpenNote.getState().analyzed.rawReason).toEqual(GATED_REASON);
-      expect(vi.mocked(toast.warning)).not.toHaveBeenCalled();
-    });
-
-    it("stays silent when the note is already Raw — nothing visibly moved", async () => {
-      const controller = openNote(RICH_PATH, GATED_MD);
-      await drain();
-
-      controller.settle(GATED_MD_2);
-      await drain();
-
-      expect(useOpenNote.getState().analyzed.content).toBe(GATED_MD_2);
-      expect(useOpenNote.getState().analyzed.rawReason).not.toBeNull();
-      expect(vi.mocked(toast.warning)).not.toHaveBeenCalled();
-    });
+  it("carries a renamed note's history entries to its new path", () => {
+    const store = createOpenNoteStore();
+    for (const path of ["a.md", "b.md", "c.md", "a.md"]) {
+      store.publishOpenPath(path);
+    }
+    store.publishOpenPath("d.md", "carry");
+    expect(store.state().back).toEqual([null, "d.md", "b.md", "c.md"]);
   });
 });

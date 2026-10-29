@@ -37,6 +37,7 @@ vi.mock("platejs/react", () => ({
 vi.mock("@repo/editor/editor-chrome", () => ({
   Editor: () => null,
   EditorContainer: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+  editorColumnPx: () => "px-4",
 }));
 
 vi.mock("@repo/editor/live-editor", () => ({
@@ -62,11 +63,12 @@ vi.mock("@repo/editor/kits/touch-editor-kit", () => ({
   TOUCH_EDITOR_KIT: [],
 }));
 
+// "too deep" stands for bytes the editor cannot hold
 vi.mock("@repo/editor/markdown/markdown-doc", () => ({
-  parseMarkdown: (markdown: string) => ({
-    ok: true,
-    value: [{ children: [{ text: markdown }], type: "p" }],
-  }),
+  parseMarkdown: (markdown: string) =>
+    markdown === "too deep"
+      ? { ok: false, reason: { kind: "too-deep" } }
+      : { ok: true, value: [{ children: [{ text: markdown }], type: "p" }] },
   serializeNote: vi.fn(() => mocks.currentMarkdown),
 }));
 
@@ -168,5 +170,25 @@ describe("MarkdownEditor lifecycle", () => {
     expect(onChange).toHaveBeenCalledWith("edited");
     void act(() => vi.advanceTimersByTime(DELAY_MS));
     expect(onChange).toHaveBeenCalledOnce();
+  });
+
+  it("opens no surface over bytes it cannot hold, and saves nothing over them", () => {
+    const onChange = vi.fn<(markdown: string) => void>();
+    const view = render(<MarkdownEditor {...props({ onChange, value: "too deep" })} />);
+    expect(view.queryByRole("button", { name: "change" })).toBeNull();
+    expect(view.getByText(/nests too deeply/u)).toBeTruthy();
+    void act(() => vi.advanceTimersByTime(DELAY_MS));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("gives up its surface when bytes it cannot hold replace the note, and takes it back after", () => {
+    const onChange = vi.fn<(markdown: string) => void>();
+    const view = render(<MarkdownEditor {...props({ onChange })} />);
+    view.rerender(<MarkdownEditor {...props({ onChange, value: "too deep" })} />);
+    expect(view.queryByRole("button", { name: "change" })).toBeNull();
+    expect(mocks.currentMarkdown).toBe("seed");
+    view.rerender(<MarkdownEditor {...props({ onChange, value: "readable" })} />);
+    expect(view.getByRole("button", { name: "change" })).toBeTruthy();
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

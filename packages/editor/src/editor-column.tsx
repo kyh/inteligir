@@ -18,7 +18,7 @@ import { basenamePath, dirnamePath, joinPath } from "@repo/notes/knowledge/vault
 /* oxlint-disable jsx-a11y/heading-has-content, jsx-a11y/no-noninteractive-element-interactions --
    the title heading is a contentEditable editing host: it carries real text at runtime (set
    imperatively, see below) and keydown belongs on the element being edited. jsx-a11y models neither. */
-const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) => {
+const NoteDocument = ({ path, rich }: { path: string; rich: boolean }) => {
   const content = useOpenNote((s) => (s.editor.kind === "open" ? s.editor.content : ""));
   const { editNote, registerNoteSerializeFlush, renameEntry } = useVaultActions();
   const columnPx = editorColumnPx(useEditorProfile());
@@ -177,7 +177,7 @@ const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) =
           "mb-1 w-full break-words font-[family-name:var(--editor-font)] text-[calc(var(--editor-size)*2)] font-semibold leading-[1.2] tracking-tight text-foreground outline-none empty:before:text-muted-foreground/40 empty:before:content-['Untitled']",
         )}
       />
-      {showRich ? (
+      {rich ? (
         <MarkdownEditor
           path={path}
           value={content}
@@ -210,9 +210,6 @@ export const EditorColumn = () => {
   // Never select the content buffer here: typing must re-render only NoteDocument.
   const kind = useOpenNote((s) => s.openDoc.kind);
   const docPath = useOpenNotePath();
-  const showRich = useOpenNote(
-    (s) => s.openDoc.kind === "markdown" && s.openDoc.surface.mode === "rich",
-  );
 
   // nothing open is the library, which the host draws in the column's place
   if (kind === "none" || kind === "loading" || docPath === null) {
@@ -220,5 +217,6 @@ export const EditorColumn = () => {
   }
 
   // keyed so each note gets fresh undo history and a fresh title element
-  return <NoteDocument key={docPath} path={docPath} showRich={showRich} />;
+  // a markdown note is rich, a plain-text doc (`.txt`) its text
+  return <NoteDocument key={docPath} path={docPath} rich={kind === "markdown"} />;
 };

@@ -1,10 +1,11 @@
-// What the open item is, read from the bytes the note store last analyzed: they move on a load
-// from disk and an idle settle, never per keystroke, so the stage never swaps under typing. A
+// What the open item is, read from the bytes the note store last held clean: they move on a load
+// from disk and a save's settle, never per keystroke, so the stage never swaps under typing. A
 // file that is no doc opens with no buffer, and its kind is its extension's. The answer holds
 // through a moment with nothing loaded (a fill's rename being followed by the item's id), so a
 // pending stub's placeholder never blinks into the editor.
 
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
+import type { OpenEditorState } from "@repo/editor/vault-editor";
 import { isItemStub, itemFactsOf } from "@repo/notes/items/item-frontmatter";
 import type { ItemFacts } from "@repo/notes/items/item-frontmatter";
 import { fileKindOf } from "@repo/notes/items/item-kind";
@@ -34,14 +35,17 @@ export const openItemOf = (path: string, content: string): OpenItem => {
 // null while nothing is open, or while an item just opened has not loaded yet
 export const useOpenItem = (store: OpenNoteStore): OpenItem | null => {
   const openPath = useStore(store.store, (state) => state.openPath);
-  const analyzed = useStore(store.store, (state) => state.analyzed);
-  const [held, setHeld] = useState<{ item: OpenItem; from: typeof analyzed | string } | null>(null);
+  // the buffer while it holds no edit: a dirty one keeps the answer the last clean bytes gave
+  const clean = useStore(store.store, (state) =>
+    state.editor.kind === "open" && !state.editor.dirty ? state.editor : null,
+  );
+  const [held, setHeld] = useState<{ item: OpenItem; from: OpenEditorState | string } | null>(null);
   if (openPath !== null && !isDocPath(openPath)) {
     if (held?.from !== openPath) {
       setHeld({ from: openPath, item: openItemOf(openPath, "") });
     }
-  } else if (analyzed.path !== null && held?.from !== analyzed) {
-    setHeld({ from: analyzed, item: openItemOf(analyzed.path, analyzed.content) });
+  } else if (clean !== null && held?.from !== clean) {
+    setHeld({ from: clean, item: openItemOf(clean.path, clean.content) });
   }
   return held !== null && openPath !== null && held.item.path === openPath ? held.item : null;
 };

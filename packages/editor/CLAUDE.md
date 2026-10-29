@@ -27,11 +27,13 @@ alone, and no walk narrows structurally.
   GOES THROUGH `serializeNote`** (epic #579, owner decision). Plate.js over one
   owned parse, one rule table and a bounded fixpoint. Byte stability is a tested
   contract: a canonical file round-trips byte-exact, a churn-class construct may
-  canonicalize on its first save (said per fixture), a file that cannot
-  round-trip opens raw, and the fixtures are formatter-exempt. The live save, an
-  extract and the gate all call `serializeNote`, since the rule table expects
-  its whole-value pre-pass. Rejected: a paragraph rule's prune (a heading or
-  list item saved `**a****b**`) and Plate's `serializeMd` (no pre-pass, a ZWSP
+  canonicalize on its first save (said per fixture), and the fixtures are
+  formatter-exempt; every file opens rich, and only a nesting past the
+  conversion's depth opens no editor, so nothing is saved over it. The live
+  save, an extract and the codec all call `serializeNote`, since the rule table
+  expects its whole-value pre-pass. Rejected: a raw editor beside the rich one
+  (markdown is no longer at rest), a paragraph rule's prune (a heading or list
+  item saved `**a****b**`) and Plate's `serializeMd` (no pre-pass, a ZWSP
   beside every chip). `packages/editor/src/markdown/markdown-doc.ts`,
   `packages/editor/README.md` § Invariants.
 
@@ -63,8 +65,8 @@ alone, and no walk narrows structurally.
   `inteligir-canvas` / `inteligir-html` fences, the `:::tabs`, `:::toggle` and
   `:::columns` containers, the top-level `:::article` that holds the page a
   fill read, and `![](url)` embeds, all valid, round-tripping markdown, the
-  article through the codec alone (the live editor opens a file holding one
-  raw). Only a web url embeds (`![](path)` is a vault image; alt text or a
+  article through the codec alone (the live editor holds no section). Only a
+  web url embeds (`![](path)` is a vault image; alt text or a
   title keeps a web image an image). Every spelling lives in
   `@repo/notes/markdown/fence-langs`, which
   `tools/repo-guards/src/agent-skills.test.ts` holds the skills and
@@ -104,8 +106,8 @@ alone, and no walk narrows structurally.
   is no doc opens with no buffer, its viewer the page's
   (`packages/editor/src/editor-column.tsx`). Registries keyed on a note's path
   keep that key, so a late answer cannot land on the note that replaced it.
-  Rejected: a second pane and any pane vocabulary, and a raw/rich toggle (the
-  surface derives from `packages/editor/src/note/markdown-gate.ts` alone).
+  Rejected: a second pane and any pane vocabulary, and a raw/rich toggle (an
+  item is blocks, never markdown at rest, so there is no raw to show).
 
 - **THE PLATE SLASH MENU IS THE INSERTION SURFACE, AND THE TOUCH TOOLBAR IS ITS
   SOFT-KEYBOARD TWIN.** Slash rows are grouped data: each row's markdown
@@ -181,13 +183,14 @@ alone, and no walk narrows structurally.
   draws a void empty or throws, so the static table holds a row for every void
   (`packages/editor/src/transclusion.tsx`).
 
-- **A SAVE KEEPS EVERY LINE BREAK, AND ONE THAT WOULD JOIN TWO LINES OPENS
-  RAW.** The rule table keeps the leading `"\n"` (a soft break after an inline
-  node) that Plate's default text rule drops. A soft break saves as a hard
-  break, since the model holds both as one `"\n"`; the hard break is `\`, except
-  after a bare url, which would read it as its own. A bare url is an opaque
-  inline, never `html`, which would turn the break into a space. The gate backs
-  it: a save may split a line, never join two.
+- **A SAVE KEEPS EVERY LINE BREAK.** The rule table keeps the leading `"\n"`
+  (a soft break after an inline node) that Plate's default text rule drops. A
+  soft break saves as a hard break, since the model holds both as one `"\n"`;
+  the hard break is `\`, except after a bare url, which would read it as its
+  own. A bare url is an opaque inline, never `html`, which would turn the break
+  into a space. A save may split a line, never join two, and
+  `analyzeMarkdown` names one that would a loss
+  (`packages/editor/src/markdown-fixpoint.test.ts`).
   `packages/editor/src/markdown/md-rules.ts`, `markdown-doc.ts`.
 
 - **ANNOTATION MARKERS PAIR ACROSS THE DOCUMENT, AND THE TINT IS ONE ROOT

@@ -1,8 +1,18 @@
-import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { Value } from "platejs";
 import { Plate, usePlateEditor } from "platejs/react";
 
-import { Editor, EditorContainer } from "@repo/editor/editor-chrome";
+import { cn } from "@repo/ui/lib/cn";
+
+import { Editor, EditorContainer, editorColumnPx } from "@repo/editor/editor-chrome";
 import { useEditorProfile } from "@repo/editor/editor-profile";
 import type { EditorProfile } from "@repo/editor/editor-profile";
 import { announceLiveEditorEdit, registerLiveEditor } from "@repo/editor/live-editor";
@@ -34,15 +44,6 @@ const CHUNK_BLOCKS = 100;
 // bounds per-keystroke work; the 600ms autosave debounce downstream gates the write.
 const SERIALIZE_DEBOUNCE_MS = 150;
 
-const seedValue = (md: string): Value => {
-  const parsed = parseMarkdown(md);
-  if (parsed.ok) {
-    return parsed.value;
-  }
-  console.error("MarkdownEditor: seed markdown failed to parse", parsed.reason);
-  return [{ children: [{ text: "" }], type: "p" }];
-};
-
 interface Props {
   path: string;
   value: string;
@@ -50,7 +51,21 @@ interface Props {
   onRegisterSerializeFlush?: (flush: () => void) => void;
 }
 
-export const MarkdownEditor = ({ path, value, onChange, onRegisterSerializeFlush }: Props) => {
+interface SurfaceProps extends Props {
+  // the value `value` parsed to, which the surface opens on
+  seed: Value;
+  // bytes from the store the editor cannot hold replaced the note: the surface goes, unsaved
+  onUnreadable: (markdown: string) => void;
+}
+
+const RichSurface = ({
+  path,
+  value,
+  seed,
+  onChange,
+  onRegisterSerializeFlush,
+  onUnreadable,
+}: SurfaceProps) => {
   const profile = useEditorProfile();
   const editor = usePlateEditor({
     chunking: { chunkSize: CHUNK_BLOCKS, contentVisibilityAuto: false },
@@ -58,7 +73,7 @@ export const MarkdownEditor = ({ path, value, onChange, onRegisterSerializeFlush
     // one store atom per element, each recomputed on every change.
     navigationFeedback: false,
     plugins: PROFILE_KITS[profile],
-    value: () => seedValue(value),
+    value: () => seed,
   });
 
   // dedupes the re-seed effect against our own emissions.
@@ -105,6 +120,10 @@ export const MarkdownEditor = ({ path, value, onChange, onRegisterSerializeFlush
     return created;
   }, []);
 
+  const unreadable = useEffectEvent((markdown: string) => {
+    onUnreadable(markdown);
+  });
+
   // Flush first, never cancel: the controller drained this debounce before taking bytes from
   // disk, so anything still pending was typed since, and it must reach the controller before
   // the new content overwrites the surface and resets `seeded`.
@@ -114,7 +133,12 @@ export const MarkdownEditor = ({ path, value, onChange, onRegisterSerializeFlush
     }
     getScheduler().flush();
     lastValueProp.current = value;
-    editor.tf.setValue(seedValue(value));
+    const parsed = parseMarkdown(value);
+    if (!parsed.ok) {
+      unreadable(value);
+      return;
+    }
+    editor.tf.setValue(parsed.value);
     seeded.current = serializeNote(editor);
     publishStats();
   }, [value, editor, getScheduler, publishStats]);
@@ -169,5 +193,45 @@ export const MarkdownEditor = ({ path, value, onChange, onRegisterSerializeFlush
       </EditorContainer>
       {profile === "desktop" ? <TableOfContents /> : null}
     </Plate>
+  );
+};
+
+// what a note the editor cannot hold shows: no surface, so nothing typed can save over its bytes
+const UNREADABLE_NOTE = "This item nests too deeply to open here. Nothing in it was changed.";
+
+const UnreadableNote = () => (
+  <p className={cn(editorColumnPx(useEditorProfile()), "pt-4 text-body text-muted-foreground")}>
+    {UNREADABLE_NOTE}
+  </p>
+);
+
+type Opened =
+  | { readonly kind: "rich"; readonly seed: Value }
+  | { readonly kind: "unreadable"; readonly markdown: string };
+
+const openedOf = (markdown: string): Opened => {
+  const parsed = parseMarkdown(markdown);
+  return parsed.ok ? { kind: "rich", seed: parsed.value } : { kind: "unreadable", markdown };
+};
+
+// The note's rich surface over its markdown. Bytes the editor cannot hold (a nesting past its
+// depth) open no surface at all, never an empty one, whose first keystroke would save over them;
+// the surface comes back once the store's bytes read again.
+export const MarkdownEditor = (props: Props) => {
+  const [opened, setOpened] = useState<Opened>(() => openedOf(props.value));
+  if (opened.kind === "unreadable" && opened.markdown !== props.value) {
+    setOpened(openedOf(props.value));
+  }
+  if (opened.kind === "unreadable") {
+    return <UnreadableNote />;
+  }
+  return (
+    <RichSurface
+      {...props}
+      seed={opened.seed}
+      onUnreadable={(markdown) => {
+        setOpened({ kind: "unreadable", markdown });
+      }}
+    />
   );
 };

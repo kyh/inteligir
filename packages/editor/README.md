@@ -40,8 +40,8 @@ src/
                        # serializer runs, the markdown wiring, the rich-block lock
   nodes/               # every node type as a Base (headless) + React pair
   note/                # the open note: its store and React's door to it, the
-                       # session's ordering, the autosave runtime, the raw/rich
-                       # gate and the flush writers outside the note reach
+                       # session's ordering, the autosave runtime and the flush
+                       # writers outside the note reach
   annotations/         # annotation markers, ranges, gutter, store
   formulas/            # `{{…}}` pills: the `{{` picker, entry, editing, recompute
   wiki/                # `[[…]]` links: the `[[` picker, the chip, insertion, keys
@@ -81,12 +81,11 @@ src/
   normalizes on the first real edit. Constructs with no editor node — a tag
   that cannot pair, any pair but a bare `<u>`, raw HTML — are opaque inline
   nodes (`@repo/notes/markdown/remark-opaque`): shown as inert literal text and
-  written back byte-for-byte, and `{` is prose. Only one of the editor's own
-  limits — nesting deeper than the conversion holds, a conversion that leaves
-  text outside any block, a round trip that never settles, or one that would
-  lose a letter or join two lines (a rule or serializer bug) — opens Raw,
-  byte-exact, and the gate's reason says which (`GateReason` in
-  `markdown/markdown-doc.ts`).
+  written back byte-for-byte, and `{` is prose. Only a nesting deeper than the
+  conversion holds opens no editor, and nothing is written over it; a round
+  trip that never settles or would lose a letter is a rule or serializer bug,
+  which the fixtures and `analyzeMarkdown` (`RoundTripFailure` in
+  `markdown/markdown-doc.ts`) name.
 - **Typing walks a long note only through its budget.**
   `typing-budget.test.tsx` types into a generated 10k-line note
   (`generateLongNote`) and fails on a whole-note pass no row names, on a

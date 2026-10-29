@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { analyzeMarkdown, gateReasonFor, toCanonical } from "@repo/editor/markdown/markdown-doc";
+import { analyzeMarkdown, toCanonical } from "@repo/editor/markdown/markdown-doc";
 import { markerRootIds } from "@repo/notes/annotations/marker-ids";
 
 import {
@@ -125,7 +125,7 @@ describe("a quote under Highlights reads back as itself, in the editor's own spe
 
 // the dialect reads a bare url out of text up to the next space whatever its escapes, and the
 // editor writes what it read as the url's own characters, so a url packed among punctuation may be
-// respelled on the first save, or opened raw where the editor cannot settle one; either way the
+// respelled on the first save, or left alone where the editor cannot settle one; either way the
 // highlight and its markers survive
 describe("a quote packed with bare urls keeps its highlight through the editor", () => {
   const random = seededRandom(99);
@@ -135,7 +135,8 @@ describe("a quote packed with bare urls keeps its highlight through the editor",
 
   it.each(quotes)("%s", (quote) => {
     const content = highlighted(quote);
-    if (gateReasonFor(analyzeMarkdown(content)) === null) {
+    const { kind } = analyzeMarkdown(content);
+    if (kind === "canonical" || kind === "normalizes") {
       expect(markerRootIds(toCanonical(content))).toEqual(new Set(["h1"]));
     }
   });

@@ -6,27 +6,14 @@
 import { createStore } from "zustand/vanilla";
 import type { StoreApi } from "zustand/vanilla";
 
-import { toast } from "@repo/ui/components/sonner";
-
-import { describeGateReason, safeGateReason } from "@repo/editor/note/markdown-gate";
-import type { GateReason } from "@repo/editor/note/markdown-gate";
 import { EMPTY_EDITOR_STATE } from "@repo/editor/vault-editor";
 import type { VaultEditorState } from "@repo/editor/vault-editor";
-import { deriveOpenDoc, isMarkdownPath } from "@repo/editor/note/open-doc";
+import { deriveOpenDoc } from "@repo/editor/note/open-doc";
 import type { OpenDoc } from "@repo/editor/note/open-doc";
-
-// keyed to the (path, content) it was computed for, bytes from disk or a settled buffer;
-// analysis lags typing on purpose.
-interface Analyzed {
-  rawReason: GateReason | null;
-  content: string;
-  path: string | null;
-}
 
 export interface OpenNoteState {
   openPath: string | null;
   editor: VaultEditorState;
-  analyzed: Analyzed;
   openDoc: OpenDoc;
   // `null` is the library: nothing open is a step in the one history like any item
   back: HistoryEntry[];
@@ -35,10 +22,7 @@ export interface OpenNoteState {
 
 export type HistoryEntry = string | null;
 
-const INITIAL_ANALYZED: Analyzed = { content: "", path: null, rawReason: null };
-
 const INITIAL_STATE: OpenNoteState = {
-  analyzed: INITIAL_ANALYZED,
   back: [],
   editor: EMPTY_EDITOR_STATE,
   forward: [],
@@ -47,34 +31,6 @@ const INITIAL_STATE: OpenNoteState = {
 };
 
 const HISTORY_DEPTH = 50;
-
-// bounded, so a renderer that never idles still settles the verdict
-const IDLE_ANALYSIS_TIMEOUT_MS = 2000;
-
-// node has no idle queue, so a macrotask stands in there.
-const whenIdle = (run: () => void): (() => void) => {
-  if ("requestIdleCallback" in globalThis) {
-    const handle = requestIdleCallback(run, { timeout: IDLE_ANALYSIS_TIMEOUT_MS });
-    return () => {
-      cancelIdleCallback(handle);
-    };
-  }
-  const timer = setTimeout(run, 0);
-  return () => {
-    clearTimeout(timer);
-  };
-};
-
-const verdictFor = (path: string | null, content: string): GateReason | null =>
-  path !== null && isMarkdownPath(path) && content.trim() !== "" ? safeGateReason(content) : null;
-
-// a mid-session rich→raw flip swaps Plate for the textarea under the cursor; say
-// why once. a fresh open lands in the textarea and doesn't toast.
-const toastRawFlip = (was: Analyzed, path: string | null, rawReason: GateReason | null): void => {
-  if (was.path === path && was.rawReason === null && rawReason !== null) {
-    toast.warning(`Switched to Raw editing — ${describeGateReason(rawReason)}`);
-  }
-};
 
 const capped = (stack: readonly HistoryEntry[]): HistoryEntry[] =>
   stack.length > HISTORY_DEPTH ? stack.slice(stack.length - HISTORY_DEPTH) : [...stack];
@@ -97,8 +53,8 @@ const movedHistory = (
   return { back: capped([...state.back, prev]), forward: [] };
 };
 
-// instance-scoped, not module state: an ended session's in-flight analysis must
-// not publish into the next one's.
+// instance-scoped, not module state: each session's store is its own, so an ended session's
+// late publish cannot land in the next one's.
 export interface OpenNoteStore {
   readonly store: StoreApi<OpenNoteState>;
   /** live read; never capture the result across awaits. */
@@ -116,83 +72,21 @@ export const createOpenNoteStore = (): OpenNoteStore => {
 
   // openDoc stays referentially stable when its inputs didn't change, so a
   // consumer selecting it doesn't re-render on unrelated updates.
-  const apply = (
-    partial: Partial<Pick<OpenNoteState, "openPath" | "editor" | "analyzed">>,
-  ): void => {
+  const apply = (partial: Partial<Pick<OpenNoteState, "openPath" | "editor">>): void => {
     store.setState((s) => {
       const merged = { ...s, ...partial };
       const loadedPath = merged.editor.kind === "open" ? merged.editor.path : null;
       const sameDocInputs =
         merged.openPath === s.openPath &&
-        loadedPath === (s.editor.kind === "open" ? s.editor.path : null) &&
-        merged.analyzed.rawReason === s.analyzed.rawReason;
+        loadedPath === (s.editor.kind === "open" ? s.editor.path : null);
       merged.openDoc = sameDocInputs
         ? s.openDoc
-        : deriveOpenDoc({
-            loadedPath,
-            openPath: merged.openPath,
-            rawReason: merged.analyzed.rawReason,
-          });
+        : deriveOpenDoc({ loadedPath, openPath: merged.openPath });
       return merged;
     });
   };
 
-  let pendingAnalysis: { path: string | null; content: string; cancel: () => void } | null = null;
-
-  const dropPendingAnalysis = (): void => {
-    pendingAnalysis?.cancel();
-    pendingAnalysis = null;
-  };
-
-  // bytes from disk (a new path, a reload, a save's merge) are analyzed synchronously
-  // with the editor update, dirty or not: Plate re-seeds from them, and its next
-  // keystroke saves whatever it made of them. the buffer's own settle is analyzed
-  // once the renderer is idle, because analyzeMarkdown is a full Slate construct +
-  // parse + serialize (up to 3 passes) and a microtask would still run it before
-  // the settle's frame paints. a dirty edit keeps the last verdict.
   const publishEditor = (editor: VaultEditorState): void => {
-    if (editor.kind === "closed") {
-      dropPendingAnalysis();
-      apply({ analyzed: INITIAL_ANALYZED, editor });
-      return;
-    }
-    const s = store.getState();
-    const pathChanged = s.analyzed.path !== editor.path;
-    const diskMoved = s.editor.kind === "closed" || s.editor.diskSeq !== editor.diskSeq;
-    if (diskMoved || (pathChanged && !editor.dirty)) {
-      dropPendingAnalysis();
-      const rawReason = verdictFor(editor.path, editor.content);
-      toastRawFlip(s.analyzed, editor.path, rawReason);
-      apply({
-        analyzed: { content: editor.content, path: editor.path, rawReason },
-        editor,
-      });
-      return;
-    }
-    if (s.analyzed.content !== editor.content && !editor.dirty) {
-      const pending = pendingAnalysis;
-      if (pending === null || pending.path !== editor.path || pending.content !== editor.content) {
-        dropPendingAnalysis();
-        const target = { content: editor.content, path: editor.path };
-        const cancel = whenIdle(() => {
-          pendingAnalysis = null;
-          // live state, not the snapshot captured at schedule time.
-          const live = store.getState();
-          if (
-            live.editor.kind === "closed" ||
-            live.editor.path !== target.path ||
-            live.editor.content !== target.content ||
-            live.editor.dirty
-          ) {
-            return;
-          }
-          const rawReason = verdictFor(target.path, target.content);
-          toastRawFlip(live.analyzed, target.path, rawReason);
-          apply({ analyzed: { content: target.content, path: target.path, rawReason } });
-        });
-        pendingAnalysis = { ...target, cancel };
-      }
-    }
     apply({ editor });
   };
 

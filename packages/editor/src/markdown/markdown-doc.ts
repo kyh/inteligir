@@ -17,9 +17,9 @@ import type { ConvertFailure } from "@repo/editor/markdown/md-to-slate";
 
 export { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 
-// Why a file opens Raw: never its bytes, which always parse, but the editor's limits or its bugs,
-// and the file keeps its bytes either way.
-export type GateReason =
+// Why a value cannot stand for its markdown: never the bytes, which always parse, but the
+// editor's limits or its bugs.
+export type RoundTripFailure =
   | ConvertFailure
   // re-serializing never settles on one set of bytes
   | { kind: "unstable" }
@@ -28,34 +28,22 @@ export type GateReason =
   // the pipeline threw, or answered a document the editor cannot hold
   | { kind: "pipeline-error" };
 
-// `normalizes`: rich-safe, but the first save restyles markup.
-export type DocAnalysis = { kind: "canonical" } | { kind: "normalizes" } | GateReason;
+// `normalizes`: the first save restyles markup and keeps every letter and line.
+export type DocAnalysis = { kind: "canonical" } | { kind: "normalizes" } | RoundTripFailure;
 
-export const gateReasonFor = (analysis: DocAnalysis): GateReason | null => {
-  switch (analysis.kind) {
-    case "canonical":
-    case "normalizes": {
-      return null;
-    }
-    default: {
-      return analysis;
-    }
-  }
-};
-
-export const describeGateReason = (reason: GateReason): string => {
+const describeFailure = (reason: RoundTripFailure): string => {
   switch (reason.kind) {
     case "too-deep": {
-      return "This item nests deeper than the rich editor can hold — opened in Raw";
+      return "the markdown nests deeper than the editor holds";
     }
     case "unstable": {
-      return "Rich editing cannot settle this file's formatting — opened in Raw to protect it";
+      return "re-serializing the markdown never settles";
     }
     case "roundtrip-loss": {
-      return "Rich editing would change this file's content — opened in Raw to protect it";
+      return "re-serializing the markdown changes what it says";
     }
     case "pipeline-error": {
-      return "The rich editor failed on this file — opened in Raw to protect it";
+      return "the markdown pipeline failed";
     }
     default: {
       const exhaustive: never = reason;
@@ -65,10 +53,10 @@ export const describeGateReason = (reason: GateReason): string => {
 };
 
 export class RoundTripError extends Error {
-  readonly reason: GateReason;
+  readonly reason: RoundTripFailure;
 
-  constructor(reason: GateReason) {
-    super(describeGateReason(reason));
+  constructor(reason: RoundTripFailure) {
+    super(describeFailure(reason));
     this.name = "RoundTripError";
     this.reason = reason;
   }
@@ -104,7 +92,7 @@ const keepsText = (source: string, saved: string): boolean => {
 
 type Converted =
   | { ok: true; value: Value; editor: SlateEditor }
-  | { ok: false; reason: GateReason };
+  | { ok: false; reason: RoundTripFailure };
 
 const convert = (md: string): Converted => {
   const editor = headlessEditor();
@@ -113,16 +101,16 @@ const convert = (md: string): Converted => {
     return converted;
   }
   // mdast root children are flow content, so every rule yields a block; a text at the root would be
-  // a rule bug that Slate's normalizer drops, so the note opens raw rather than losing it
+  // a rule bug that Slate's normalizer drops, so it is refused rather than losing it
   if (!ElementApi.isElementList(converted.nodes)) {
     return { ok: false, reason: { kind: "pipeline-error" } };
   }
   return { editor, ok: true, value: converted.nodes };
 };
 
-type Serialized = { ok: true; out: string } | { ok: false; reason: GateReason };
+type Serialized = { ok: true; out: string } | { ok: false; reason: RoundTripFailure };
 
-// The one way a value becomes bytes, the live save's and an extract's as well as the gate's: the
+// The one way a value becomes bytes, the live save's and an extract's as well as the codec's: the
 // rules expect the pre-pass to have run, and Plate's own serializeMd skips it.
 export const serializeNote = (editor: SlateEditor, value: Value = editor.children): string =>
   serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY, value: pruneForMarkdown(value) });
@@ -169,7 +157,7 @@ const roundTripResult = (md: string): Serialized => {
 
 // `out` is trusted only if re-serializing reproduces it byte-exactly; a third probe
 // distinguishes "stabilizes at pass 2" from "never settles".
-type Fixpoint = { stable: true; at: string } | { stable: false; reason: GateReason };
+type Fixpoint = { stable: true; at: string } | { stable: false; reason: RoundTripFailure };
 
 const findFixpoint = (out: string): Fixpoint => {
   let current = out;
@@ -213,7 +201,7 @@ export const analyzeMarkdown = (md: string): DocAnalysis => {
 
 export const parseMarkdown = (
   md: string,
-): { ok: true; value: Value } | { ok: false; reason: GateReason } => {
+): { ok: true; value: Value } | { ok: false; reason: RoundTripFailure } => {
   const converted = convert(md);
   if (!converted.ok) {
     return converted;

@@ -9,13 +9,10 @@ import {
   MD_STRINGIFY,
   RoundTripError,
   analyzeMarkdown,
-  describeGateReason,
-  gateReasonFor,
   parseMarkdown,
   roundTrip,
   serializeNote,
 } from "@repo/editor/markdown/markdown-doc";
-import type { GateReason } from "@repo/editor/markdown/markdown-doc";
 import { parseMdast } from "@repo/notes/markdown/parse";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
@@ -375,7 +372,7 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
     const out = roundTrip("| a |\n|:-:|\n| 1 |\n");
     expect(out).toBe("|  a  |\n| :-: |\n|  1  |\n");
     expect(roundTrip(out)).toBe(out);
-    expect(gateReasonFor(analyzeMarkdown("| a |\n|:-:|\n| 1 |\n"))).toBeNull();
+    expect(analyzeMarkdown("| a |\n|:-:|\n| 1 |\n").kind).toBe("normalizes");
   });
 
   it("keeps empty todos checkable via the ZWSP placeholder", () => {
@@ -392,8 +389,8 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
   });
 });
 
-describe("gate API", () => {
-  it("parseMarkdown feeds the same bytes the gate serializes (seed-path parity)", () => {
+describe("the round trip's API", () => {
+  it("parseMarkdown feeds the same bytes the round trip serializes (seed-path parity)", () => {
     const md = "# Hi\n\n- one\n- two\n\n> [!NOTE]\n> alert\n";
     const parsed = parseMarkdown(md);
     expect(parsed.ok).toBe(true);
@@ -404,7 +401,7 @@ describe("gate API", () => {
     expect(out).toBe(roundTrip(md));
   });
 
-  it("parseMarkdown surfaces the raw reason instead of a degraded value", () => {
+  it("parseMarkdown answers why it cannot hold a note instead of a degraded value", () => {
     const parsed = parseMarkdown(`${"> ".repeat(3000)}x\n`);
     expect(parsed.ok).toBe(false);
     if (parsed.ok) {
@@ -421,31 +418,19 @@ describe("gate API", () => {
       expect(error).toBeInstanceOf(RoundTripError);
       if (error instanceof RoundTripError) {
         expect(error.reason.kind).toBe("too-deep");
-        expect(describeGateReason(error.reason)).toMatch(/nests deeper/u);
+        expect(error.message).toMatch(/nests deeper/u);
       }
     }
   });
 
-  it("opens a file holding the codec's article section raw, so no save drops its lines", () => {
+  it("names a file holding the codec's article section a loss: the live editor holds no section", () => {
     const md = "# Note\n\nmine\n\n:::article\n\nThe page.\n\n:::\n";
     expect(analyzeMarkdown(md)).toEqual({ kind: "roundtrip-loss" });
   });
 
-  it("classifies conversion stack overflow as Raw instead of throwing (V1)", () => {
+  it("classifies conversion stack overflow as too deep instead of throwing (V1)", () => {
     const deep = `${"> ".repeat(3000)}x\n`;
     expect(analyzeMarkdown(deep)).toEqual({ kind: "too-deep" });
     expect(() => roundTrip(deep)).toThrow(RoundTripError);
-  });
-
-  it("words every reason as the editor's own limit, never as an error in the file", () => {
-    const limits: GateReason[] = [
-      { kind: "too-deep" },
-      { kind: "unstable" },
-      { kind: "roundtrip-loss" },
-      { kind: "pipeline-error" },
-    ];
-    for (const reason of limits) {
-      expect(describeGateReason(reason), reason.kind).not.toMatch(/parse error/iu);
-    }
   });
 });

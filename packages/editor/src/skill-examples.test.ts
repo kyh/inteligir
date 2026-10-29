@@ -1,6 +1,6 @@
 // the skills teach an agent the dialect by example, and an example the editor cannot hold is the
-// agent taught to write bytes that open raw, or that move on every save. read as files:
-// @repo/agent-skills is content, never imported.
+// agent taught to write bytes that lose what they say on a save, or that move on every save. read
+// as files: @repo/agent-skills is content, never imported.
 
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -9,11 +9,11 @@ import { describe, expect, it } from "vitest";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import {
-  describeGateReason,
+  RoundTripError,
+  analyzeMarkdown,
   parseMarkdown,
   serializeNote,
 } from "@repo/editor/markdown/markdown-doc";
-import { safeGateReason } from "@repo/editor/note/markdown-gate";
 
 const SKILLS_DIR = fileURLToPath(new URL("../../agent-skills/skills", import.meta.url));
 
@@ -64,7 +64,7 @@ const EXAMPLES = readdirSync(SKILLS_DIR, { withFileTypes: true })
 const saveOnce = (md: string): string => {
   const parsed = parseMarkdown(md);
   if (!parsed.ok) {
-    throw new Error(describeGateReason(parsed.reason));
+    throw new RoundTripError(parsed.reason);
   }
   return serializeNote(createSlateEditor({ plugins: BASE_KIT }), parsed.value);
 };
@@ -75,8 +75,10 @@ describe("the skills' markdown examples", () => {
   });
 
   for (const example of EXAMPLES) {
-    it(`${example.site} opens rich and settles after one save`, () => {
-      expect(safeGateReason(example.body), `${example.site} opens raw`).toBeNull();
+    it(`${example.site} keeps what it says and settles after one save`, () => {
+      expect(["canonical", "normalizes"], `${example.site} loses what it says on a save`).toContain(
+        analyzeMarkdown(example.body).kind,
+      );
       const saved = saveOnce(example.body);
       expect(saveOnce(saved), `${example.site} still moves on its second save`).toBe(saved);
     });

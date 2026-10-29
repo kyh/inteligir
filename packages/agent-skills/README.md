@@ -64,7 +64,7 @@ are the ones its preview runs. Edit a file here, run the script, and commit what
   names a tool, never a command, a path on disk or a CLI verb.
 - **The spec is the parser's.** A construct a skill teaches is one the editor round-trips; every
   fence's one spelling is `@repo/notes/markdown/fence-langs`, and a skill that disagrees with it
-  teaches the agent to write bytes the app opens raw.
+  teaches the agent to write bytes a save rewrites.
 - **Nothing of an account or a request.** The prompt is the same bytes for every person and every
   turn; what a turn needs (the view context, the person's filing rules) rides its messages.
 - **Adding a skill** is one directory, one `SKILL.md`, frontmatter `name` equal to the directory,

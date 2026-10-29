@@ -3,18 +3,21 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { analyzeMarkdown, gateReasonFor, roundTrip } from "@repo/editor/markdown/markdown-doc";
+import { analyzeMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
 import { SAMPLE_NOTES } from "./test-support/sample-notes";
 
 type Classification =
   // byte-stable
   | "canonical"
-  // rich-safe, one Format away from canonical
+  // one save away from canonical, every letter and line kept
   | "formattable"
-  // parses, but round-trip drops content → Raw
+  // parses, but round-trip drops content
   | "letters-diverge"
-  // the gate's reason for every other refusal
-  | `raw:${string}`;
+  // the editor cannot hold it, or never settles it
+  | `failed:${string}`;
+
+// the analyses whose save keeps what the file says
+const KEPT: ReadonlySet<string> = new Set(["canonical", "normalizes"]);
 
 const classify = (md: string): Classification => {
   const analysis = analyzeMarkdown(md);
@@ -29,7 +32,7 @@ const classify = (md: string): Classification => {
       return "letters-diverge";
     }
     default: {
-      return `raw:${analysis.kind}`;
+      return `failed:${analysis.kind}`;
     }
   }
 };
@@ -88,9 +91,9 @@ describe("legacy corpus classification", () => {
     });
   }
 
-  it("round-trips rich-safe corpus files idempotently and letters-preserving", () => {
+  it("round-trips the corpus files a save keeps idempotently and letters-preserving", () => {
     for (const [name, md] of CORPUS) {
-      if (gateReasonFor(analyzeMarkdown(md)) !== null || md.trim() === "") {
+      if (!KEPT.has(analyzeMarkdown(md).kind) || md.trim() === "") {
         continue;
       }
       const once = roundTrip(md);

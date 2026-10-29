@@ -4,8 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 import {
   RoundTripError,
   analyzeMarkdown,
-  describeGateReason,
-  gateReasonFor,
   roundTrip,
   toCanonical,
 } from "@repo/editor/markdown/markdown-doc";
@@ -51,39 +49,27 @@ vi.mock("@platejs/markdown", async (importOriginal) => {
 });
 
 describe("bounded fixpoint check (≤3 passes)", () => {
-  it("degrades a never-stabilizing round-trip to Raw, badge and Format agreeing", () => {
-    const analysis = analyzeMarkdown("driftforever\n");
-    expect(analysis).toEqual({ kind: "unstable" });
+  it("names a never-stabilizing round-trip unstable, the analysis and Format agreeing", () => {
+    expect(analyzeMarkdown("driftforever\n")).toEqual({ kind: "unstable" });
     expect(() => roundTrip("driftforever\n")).toThrow(RoundTripError);
     expect(() => toCanonical("driftforever\n")).toThrow(RoundTripError);
-    const gateReason = gateReasonFor(analysis);
-    expect(gateReason).toEqual({ kind: "unstable" });
-    expect(gateReason && describeGateReason(gateReason)).not.toMatch(/parse error/iu);
   });
 
   it("returns the settled form for a pass-2 stabilization (Format stays idempotent)", () => {
     expect(roundTrip("driftslow\n")).toBe("drift  slow\n");
     expect(toCanonical(toCanonical("driftslow\n"))).toBe("drift  slow\n");
-    const analysis = analyzeMarkdown("driftslow\n");
-    expect(analysis).toEqual({ kind: "normalizes" });
-    expect(gateReasonFor(analysis)).toBeNull();
+    expect(analyzeMarkdown("driftslow\n")).toEqual({ kind: "normalizes" });
   });
 
-  it("refuses rich mode when the stabilization chain loses letters", () => {
-    const analysis = analyzeMarkdown("driftlossy\n");
-    expect(analysis).toEqual({ kind: "roundtrip-loss" });
-    const gateReason = gateReasonFor(analysis);
-    expect(gateReason).toEqual({ kind: "roundtrip-loss" });
-    expect(gateReason && describeGateReason(gateReason)).toBe(
-      "Rich editing would change this file's content — opened in Raw to protect it",
-    );
+  it("names a loss when the stabilization chain loses letters", () => {
+    expect(analyzeMarkdown("driftlossy\n")).toEqual({ kind: "roundtrip-loss" });
   });
 
-  it("refuses rich mode when a save joins two lines without losing a letter", () => {
-    expect(gateReasonFor(analyzeMarkdown("joined\nlines\n"))).toEqual({ kind: "roundtrip-loss" });
+  it("names a loss when a save joins two lines without losing a letter", () => {
+    expect(analyzeMarkdown("joined\nlines\n")).toEqual({ kind: "roundtrip-loss" });
   });
 
-  it("keeps rich mode when a save splits a line", () => {
+  it("calls a save that splits a line a normalization", () => {
     expect(analyzeMarkdown("splitme lines\n")).toEqual({ kind: "normalizes" });
   });
 
