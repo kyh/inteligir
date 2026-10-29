@@ -254,7 +254,7 @@ Every surface, and how an agent sees it run; a scenario is one of
 | ----------------------- | -------------------- | --------------------------------------------------------------------------------------------------------- |
 | The site and the Worker | `pnpm dev:web`       | **Yes**: agent-browser or curl on `localhost:5174`; `built-worker-boot`, `account-hosted`                 |
 | The library in a tab    | `pnpm dev:web`       | **Yes**: agent-browser on `localhost:5174/library`; `browser-smoke`, `library-browser`                    |
-| The connector           | `pnpm dev:web`       | **Yes**: an MCP client on `localhost:5174/connector`, signed in by OAuth with PKCE                        |
+| The connector           | `pnpm dev:web`       | **Yes**: an MCP client on `localhost:5174/connector`, signed in by OAuth with PKCE; `connector-tools`     |
 | The built-in agent      | `pnpm dev:web`       | **Over the fake Managed Agents API**: a turn's events and its writes; a real session is the owner's       |
 | The Mac app             | `pnpm dev`           | **On Linux**: `desktop-shell`, `desktop-onboarding` (under `xvfb-run -a`); on a Mac, `pnpm smoke:desktop` |
 | The browser extension   | `pnpm dev:extension` | **In Chromium**: `browser-extension` loads the dev build beside a running Worker                          |

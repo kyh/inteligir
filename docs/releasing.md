@@ -177,6 +177,14 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
    refuses without them (`apps/web/README.md` § Build & deploy, step 6b), and
    Deploy's token holds Queues: Edit.
 
+4. **The connector's OAuth namespace.** `pnpm --filter @repo/web exec cf kv
+   namespaces list` names the namespace the first deploy created for
+   `OAUTH_KV` (it declares no id, `apps/web/README.md` § Build & deploy, step
+   6c), and Deploy's token holds Workers KV Storage: Edit. The production
+   Worker's metadata names its own origin:
+   `curl -s https://inteligir.com/.well-known/oauth-authorization-server`
+   answers `"issuer":"https://inteligir.com"`.
+
 ## 4. The phone's internal build
 
 `apps/mobile/README.md` § Per release, steps 1 to 3: the pre-flight,
@@ -557,6 +565,32 @@ account whose library holds about 2,000 items gives the timing check its load.
   `/v1/exports/<id>` and opens in Finder as the library's folders and notes;
   the Worker's logs show each alarm run that wrote it inside its CPU, none
   exceeded; and seven days on the same address answers 404.
+
+### The connector
+
+Each on the PR's Worker preview, whose connector is
+`https://<preview>/connector` (`apps/web/README.md` § Previews), and again on
+production's, `https://inteligir.com/connector`, signed in to an account on
+that deployment.
+
+- **claude.ai lets the library in.** Settings › Connectors › Add custom
+  connector, at the connector's address. Passing: the browser reaches the
+  consent page, signing in first, which asks "Allow Claude to read and change
+  your library?" under the account's email; Allow returns to claude.ai
+  connected; a chat that asks for a note finds and reads it, one that asks to
+  fix a typo in it edits it, and History shows that edit as one change set
+  named after the assistant; the account's `assistants.list` names it, and
+  after `assistants.revoke` the next chat asks to connect again.
+- **Claude Code lets the library in.** `claude mcp add --transport http
+  inteligir <connector>`, then `/mcp` and Authenticate. Passing: the consent
+  page warns "This sends access to an app on this computer.", Allow ends at
+  Claude Code's own callback, `/mcp` lists the 13 tools, and a `read_item` of
+  a long note answers in the conversation rather than as a file.
+- **ChatGPT lets the library in.** Developer mode, then a connector at the
+  connector's address with OAuth. Passing: the consent page names ChatGPT;
+  with "Only let it read the library" ticked, ChatGPT lists the six reading
+  tools and no write; the connector's description in ChatGPT reads as the
+  instructions' first paragraph (`apps/web/src/worker/connector/connector-server.ts`).
 
 ## 6. Publish
 

@@ -3,7 +3,8 @@
 One Cloudflare Worker serving the marketing site and the whole cloud from
 one origin: the TanStack Start pages, Better Auth on D1, device login, each
 account's library cell (a SQLite Durable Object holding the library and its
-devices' sockets) and the hosted vault git remote. The wire contract is `@repo/contract/cloud` — the Worker implements
+devices' sockets), the connector a person's own assistant reaches the library
+through, and the hosted vault git remote. The wire contract is `@repo/contract/cloud` — the Worker implements
 it, the local app's and the phone's clients consume it.
 
 ## Layout
@@ -43,6 +44,14 @@ src/
                      the fill queue (cell-fills.ts), its imports and exports
                      (cell-imports.ts, cell-exports.ts) and an export's zip
                      (export-routes.ts)
+    connector/       The connector: its OAuth on @cloudflare/workers-oauth-provider
+                     (connector-auth.ts), the consent page an assistant
+                     sends the person to (consent-route.ts), the route that
+                     forwards a verified call into the account's cell
+                     (connector-route.ts), the MCP server the cell builds
+                     per request over the library's tool rows
+                     (connector-server.ts, library-tools.ts) and the
+                     account's grants (assistant-grants.ts)
     fill/            The fill queue's consumer (fill-consumer.ts): a saved
                      link read through the guarded fetch (page-fetch.ts) and
                      the page reader, its files kept, landed in the cell
@@ -112,6 +121,11 @@ its DOM-free signature (`packages/page-reader/src/read-html-api.ts`).
 | `POST /v1/rpc/library/*`    | device or tab     | The library's oRPC rows, forwarded to the account's library cell    |
 | `/v1/blobs/:sha`            | device or tab     | A file's bytes in R2: PUT once by its SHA-256, GET/HEAD by range    |
 | `GET /v1/exports/:id`       | device or tab     | An export's zip, by range, for seven days after it was written      |
+| `POST /connector`           | assistant token   | The connector: the library's tools, forwarded to the account's cell |
+| `/connect/authorize`        | session           | The consent page an assistant sends the person to, after sign-in    |
+| `/.well-known/oauth-*`      | —                 | The authorization server's and the connector's metadata             |
+| `POST /oauth/register`      | —                 | An assistant registers itself; unused for 90 days, it is let go     |
+| `POST /oauth/token`         | —                 | A code (PKCE S256) or refresh token for an access token; revocation |
 
 "device" auth is the `igd_…` credential a login minted, verified per request by
 hash compare against D1 — never cached, so revocation is immediate; its
@@ -161,6 +175,19 @@ telemetry and never compared. A request a browser marks `Sec-Fetch-Site:
 same-origin` passes, since the site's own pages ship in this deploy. The floor
 is how `/v1` retires a shape: raise it past every build that reads the shape,
 then delete the shape.
+
+The connector is an assistant's door alone: its OAuth is
+`@cloudflare/workers-oauth-provider`'s on `OAUTH_KV`, which keeps the
+assistants' registrations, grants and tokens, and its issuer and resource are
+named from `SITE_ORIGIN`, one value per deployment, never the request's Host.
+A call to `/connector` is refused 403 for a Host or Origin not this
+deployment's, challenged 401 with its `resource_metadata` without a token this
+Worker minted for it (a device credential is none), and forwarded into the
+account's cell with an `assistant` principal once its grant's budget (300
+calls a minute) holds (`src/worker/connector/connector-route.ts`). A grant is
+`library` (read and change) or `library:read`, as the person chose on the
+consent page; the account's `assistants.list` and `assistants.revoke` name
+and end them, and the account's deletion revokes every one.
 
 The tree, file, files and asset reads take their query as a JSON body, so no
 vault path reaches a URL, which the Worker's request log and traces keep; any
@@ -360,6 +387,9 @@ pnpm -F @repo/web exec cf r2 buckets create --name inteligir-vault
 pnpm -F @repo/web exec cf queues create --queue-name inteligir-fill
 pnpm -F @repo/web exec cf queues create --queue-name inteligir-fill-failed
 
+# 6c. The connector's OAuth namespace takes no step: OAUTH_KV names no id, so the first
+#     deploy creates it and keeps it linked to the Worker after
+
 # 7. Deploy — the exact command the `Deploy` workflow runs
 pnpm turbo run build --filter=@repo/web... && pnpm -F @repo/web exec cf deploy --prebuilt
 
@@ -375,8 +405,8 @@ push it BEFORE merging a change that needs it — the schema is additive, so an
 old Worker against a new database ignores what it does not know, while a new
 Worker against an old database 500s on every request touching a table that
 isn't there. The workflow's one secret is `CLOUDFLARE_API_TOKEN` (Workers
-Scripts: Edit, Queues: Edit, plus Workers Routes: Edit on the inteligir.com
-zone).
+Scripts: Edit, Queues: Edit, Workers KV Storage: Edit, for the namespace the
+first deploy creates, plus Workers Routes: Edit on the inteligir.com zone).
 
 ## Previews
 
@@ -388,11 +418,14 @@ Preview deleted when the PR closes. `.github/workflows/preview.yml` runs it;
 `.github/scripts/worker-preview.mjs` draws the comment and the deployment.
 
 A Preview never touches production data. `cloudflare.config.ts` binds
-`inteligir-auth-preview` (D1), `inteligir-vault-preview` (R2) and
-`inteligir-fill-preview` (a queue nothing consumes) when `isPreview`, which
-the workflow creates on first use and pushes the PR's schema into with
+`inteligir-auth-preview` (D1), `inteligir-vault-preview` (R2),
+`inteligir-fill-preview` (a queue nothing consumes) and
+`inteligir-oauth-preview` (KV, the connected assistants) when `isPreview`,
+which the workflow creates on first use and pushes the PR's schema into with
 `drizzle-kit push --force`; the Durable Objects are a fresh namespace per
-Preview. All PRs share the one preview D1, so an account made on one Preview
+Preview. The workflow hands the build the KV namespace's id and the Preview's
+own URL (`OAUTH_KV_PREVIEW_ID`, `PREVIEW_ORIGIN`), so the connector's tokens
+name the Preview that minted them, and fails a deploy that lands elsewhere. All PRs share the one preview D1, so an account made on one Preview
 signs in on the next. There is no `send_email` binding, so a reset email is
 logged, not sent. Sign-up stays invite-gated: mint a code into the preview D1
 to create the first account.
@@ -400,7 +433,8 @@ to create the first account.
 Setup, once:
 
 ```bash
-# the Deploy token also needs D1: Edit, Workers R2 Storage: Edit and Queues: Edit, and the
+# the Deploy token also needs D1: Edit, Workers R2 Storage: Edit, Queues: Edit and
+# Workers KV Storage: Edit, and the
 # repo needs a CLOUDFLARE_ACCOUNT_ID secret beside CLOUDFLARE_API_TOKEN
 # wrangler: cf has no preview secret command yet
 pnpm -F @repo/web exec wrangler preview base-config secret put BETTER_AUTH_SECRET --worker-name inteligir-web  # a preview-only value

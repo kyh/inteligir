@@ -31,6 +31,10 @@ const SENTENCE_MODULES = [
   "packages/notes/src/items/item-kind.ts",
 ] as const;
 
+// the pages the Worker writes as HTML itself, whose text is read as JSX text is: the consent page an
+// assistant sends the person to
+const HTML_PAGES = ["apps/web/src/worker/connector/consent-page.ts"] as const;
+
 // Settings › Advanced, the one place that shows the engine's raw state (apps/workspace/CLAUDE.md)
 const EXEMPT = new Set(["apps/workspace/src/app/settings/advanced-section.tsx"]);
 
@@ -206,7 +210,7 @@ const scriptHits = (file: string): Hit[] => {
     .readFileSync(path.join(REPO_ROOT, file), "utf-8")
     .split("\n")
     .map((line) => (kept.has(line) ? line : ""));
-  return scanLines(file, lines, file.endsWith(".tsx"));
+  return scanLines(file, lines, file.endsWith(".tsx") || HTML_PAGES.some((page) => page === file));
 };
 
 // a Rust file's tests sit in its trailing `#[cfg(test)]` module, read by no one but cargo
@@ -227,7 +231,9 @@ const surfaceFiles = (): string[] => {
     .readdirSync(path.join(REPO_ROOT, RUST_UI_DIR))
     .filter((name) => name.endsWith(".rs"))
     .map((name) => `${RUST_UI_DIR}/${name}`);
-  return [...scripts, ...SENTENCE_MODULES, ...rust].filter((file) => !EXEMPT.has(file)).toSorted();
+  return [...scripts, ...SENTENCE_MODULES, ...HTML_PAGES, ...rust]
+    .filter((file) => !EXEMPT.has(file))
+    .toSorted();
 };
 
 const allHits = (): Hit[] =>

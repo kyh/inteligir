@@ -1,8 +1,8 @@
 # Decisions: @repo/web and the cloud
 
-Accounts, the device credential, the /cloud wire and `/v1`'s, the connector's
-tools, the account's library cell and its sockets, and the hosted vault. `AGENTS.md` § Decisions says
-how a bullet is written and cited.
+Accounts, the device credential, the /cloud wire and `/v1`'s, the connector with
+its OAuth and its tools, the account's library cell and its sockets, and the
+hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Cloud, sync and accounts
 
@@ -246,11 +246,13 @@ how a bullet is written and cited.
   and it binds preview-only resources. Previews ride `workflow_run` after CI, as
   Deploy does, only for this repo's branches, since that trigger holds secrets.
   A preview inherits no binding, so `apps/web/cloudflare.config.ts` binds each
-  to a preview-only resource. The script creates the GitHub deployment on the
-  head commit (`.github/scripts/worker-preview.mjs`), since a job's
-  `environment:` under `workflow_run` records the default branch. Rejected:
-  Workers Builds (it deploys on push and cannot wait for CI); a preview on the
-  production D1 (PR code would write real accounts).
+  to a preview-only resource, the OAuth namespace by the id the workflow found
+  or made and the site's origin as the Preview's own URL, which the workflow
+  derives before the deploy and checks after it. The script creates the GitHub
+  deployment on the head commit (`.github/scripts/worker-preview.mjs`), since a
+  job's `environment:` under `workflow_run` records the default branch.
+  Rejected: Workers Builds (it deploys on push and cannot wait for CI); a
+  preview on the production D1 (PR code would write real accounts).
   `.github/workflows/preview.yml`, `apps/web/README.md` § Previews.
 
 - **`/v1` IS ONE oRPC WIRE, `/v1/rpc`, ITS REFUSALS DECLARED ONCE.** The
@@ -494,3 +496,52 @@ how a bullet is written and cited.
   file only history holds would go); a sweep of rows with no refs (the same).
   `apps/web/src/worker/library/cell-blobs.ts`, `cell-imports.ts`,
   `cell-fills.ts`.
+
+- **THE CONNECTOR'S OAUTH IS `@cloudflare/workers-oauth-provider`'S, ON KV,
+  NAMED FROM ONE ORIGIN PER DEPLOYMENT** (owner decision). The provider owns
+  the challenge and both metadata documents, registration (a client's own,
+  kept 90 days unused, or its metadata document), PKCE S256, token, refresh
+  and revoke, the token's audience (RFC 8707) and the issuer on the redirect
+  (RFC 9207); `SITE_ORIGIN` names issuer and resource, never the request's
+  Host, so one deployment's tokens open no other's. A grant is `library` or
+  `library:read`, the person's choice on the consent page; the handler refuses
+  a token holding neither with `insufficientScope`, the grant's id rides each
+  access token's props (`tokenExchangeCallback`), and a grant lapses 30 days
+  after its last refresh. Rejected: the MCP SDK's bearer middleware or an
+  authorization server of our own (a second verifier to audit); the Host
+  header (the workers.dev name and the domain would be two servers whose
+  tokens refuse each other). `apps/web/src/worker/connector/connector-auth.ts`,
+  `apps/web/cloudflare.config.ts`.
+
+- **THE CONSENT PAGE IS THE WORKER'S, AT `/connect/authorize`, OVER THE SITE'S
+  SESSION.** It reads Better Auth's session, or sends the person to sign in
+  and back, the sign-in returning by a document load since the site's router
+  holds no such page; the provider parses the request, binds the form to the
+  browser by a cookie and keeps the request server-side until the answer.
+  The page runs no script (`default-src 'none'`, no framing), escapes every
+  field a client sent, says where access is sent and warns of a loopback
+  address, and asks to "read and change your library". Rejected: a Start route
+  (the provider's helpers take the raw request, and the page would carry the
+  site's bundle); remembering an approval (every connect asks).
+  `apps/web/src/worker/connector/consent-route.ts`, `consent-page.ts`,
+  `apps/web/src/routes/app/sign-in.tsx`.
+
+- **THE CONNECTOR IS SERVED IN THE ACCOUNT'S CELL, A FRESH SERVER A REQUEST
+  OVER ONE OF TWO REGISTRARS, ITS PRINCIPAL AN ASSISTANT'S.** The Worker
+  refuses a Host or Origin not this deployment's (the MCP handler checks
+  neither), the provider checks the token, the grant spends its budget (300
+  calls a minute), and the request goes on whole by `stub.fetch` with an
+  `assistant` principal naming client, grant and name; the cell takes an
+  app's principal only on `/v1/rpc` and an assistant's only on `/connector`.
+  Both registrars are built once over the cell's router, the read-only one
+  holding the GET rows, and `createMcpHandler` builds an `McpServer` per
+  request, stateless for 2025-era clients (about 2.5 ms of CPU for the full
+  grant's thirteen tools, 1 ms for the six, measured), its tools/list
+  `cacheScope: private`. A grant's writes are one change set under its name,
+  sealed after 10 quiet minutes, and an expected failure is a declared error
+  the model reads as `isError`. Rejected: a session object per client (state
+  the stateless era does not need); a registrar per request (it rebuilds the
+  same schemas); a device credential at the connector (the door is an
+  assistant's alone). `apps/web/src/worker/connector/connector-route.ts`,
+  `connector-server.ts`, `apps/web/src/worker/library/library-do.ts`,
+  `library-principal.ts`.

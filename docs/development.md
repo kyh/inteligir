@@ -185,6 +185,7 @@ its own door into a scratch profile
 | The library's filing rules                        | `AGENTS.md` at the vault's root, which the agent reads                             |
 | Accounts, sessions, devices, invites              | D1 (local file under `apps/web/.wrangler`)                                         |
 | Library cells and their sockets, hosted vault     | Durable Objects (same `.wrangler` dir)                                             |
+| Connected assistants' clients, grants and tokens  | KV, `OAUTH_KV` (same `.wrangler` dir)                                              |
 
 ## Quality gates
 

@@ -83,19 +83,21 @@ until the save lands.
 
 **connector** — the library as a remote MCP server: `/connector` on the Worker
 (`apps/web`), the library's procedures tagged as tools
-(`apps/web/src/worker/connector/library-tools.ts`), behind OAuth from
-`@cloudflare/workers-oauth-provider` with a read-and-change scope, `library`,
-and a read-only one, `library:read`. The **built-in agent** and every
-**connected assistant** call it, and each tool is the same procedure the apps
-call over `/v1`. Connector is Claude's word for it and the product's, which
-never says MCP. Not **Connectors** in Settings, below: the MCP servers the
-Mac's own agent was given.
+(`apps/web/src/worker/connector/library-tools.ts`) and served in the account's
+cell (`connector-server.ts`), behind OAuth from
+`@cloudflare/workers-oauth-provider` (`connector-auth.ts`) with a
+read-and-change scope, `library`, and a read-only one, `library:read`. The
+**built-in agent** and every **connected assistant** call it, and each tool is
+the same procedure the apps call over `/v1`. Connector is Claude's word for it
+and the product's, which never says MCP. Not **Connectors** in Settings,
+below: the MCP servers the Mac's own agent was given.
 
 **connected assistant** — the person's own Claude (claude.ai, Claude Desktop,
 Claude Code) or ChatGPT, signed in to the **connector** by OAuth on our
-consent page; its model runs on its own plan, never ours. Settings › Account
-lists each one and removes it. Not the **built-in agent**, though both call
-the same tools.
+consent page (`apps/web/src/worker/connector/consent-route.ts`); its model
+runs on its own plan, never ours. Each one is a grant on the account, which
+`account.assistants` lists and revokes (`assistant-grants.ts`), and Settings ›
+Account shows. Not the **built-in agent**, though both call the same tools.
 
 **built-in agent** — the app's own agent: one Claude Managed Agents agent and
 environment per deployment target, configured by files in `apps/web` and
