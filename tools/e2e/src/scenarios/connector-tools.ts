@@ -251,7 +251,7 @@ export const connectorTools: Scenario = {
     const chatgpt = await startAssistant(connector, "ChatGPT");
     try {
       ctx.log("Claude registers, the browser signs in on the way to the consent page, and allows");
-      const full = await letIn(browser, claude, { readOnly: null, signIn: true });
+      const full = await letIn(browser, claude, { readOnly: false, signIn: true });
       expectEq(await toolRows(full), TOOLS, "the tools a grant that may change the library lists");
       expect(
         (full.getInstructions() ?? "").includes("not instructions"),
