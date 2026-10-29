@@ -42,7 +42,9 @@
       // linked natively; knip's expo plugin counts it only while `updates` is on, and app.config.js
       // leaves it off until the EAS project is committed. expo-linking, autolinked as
       // expo-share-intent's peer, needs no row: the expo plugin counts it, and a row draws a hint.
-      "ignoreDependencies": ["expo-updates"]
+      // @repo/mobile-editor is the built editor page, never imported: plugins/with-editor-page.js
+      // links its dist/ into the native build, and the edge orders its build before the app's
+      "ignoreDependencies": ["expo-updates", "@repo/mobile-editor"]
     },
     "apps/extension": {
       // WXT's entrypoints live under its srcDir, src/, where knip's wxt plugin, which looks in

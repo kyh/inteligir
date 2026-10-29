@@ -5,7 +5,7 @@ import { getLiveEditor } from "@repo/editor/live-editor";
 import { serializeNote } from "@repo/editor/markdown/markdown-doc";
 
 import { connectPageBridge } from "./bridge/page-bridge";
-import type { EditInit } from "./bridge/protocol";
+import type { EditInit } from "@repo/editor-bridge/protocol";
 import { EditorPage, mountEditorPage } from "./editor-page";
 import type { MountedPage } from "./editor-page";
 import { createFakePhone, PHONE_NONCE } from "./test-support/fake-phone";

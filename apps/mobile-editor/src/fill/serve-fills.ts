@@ -8,7 +8,7 @@ import { extractPage } from "@repo/page-reader/extract-page";
 import type { ParsePage } from "@repo/page-reader/extract-page";
 
 import type { PageBridge } from "../bridge/page-bridge";
-import type { FillAnswer, FillJob } from "../bridge/protocol";
+import type { FillAnswer, FillJob } from "@repo/editor-bridge/protocol";
 
 const bytesOf = (base64: string): Uint8Array =>
   Uint8Array.from(atob(base64), (character) => character.codePointAt(0) ?? 0);

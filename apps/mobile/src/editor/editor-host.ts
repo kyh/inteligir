@@ -4,7 +4,7 @@
 // document (a child frame's message names its own address) and, after `init`, carries the nonce
 // this load was given; a fresh load of the page gets a fresh nonce.
 
-import { nativeFrameScript, parsePageFrame } from "@repo/mobile-editor/bridge-protocol";
+import { nativeFrameScript, parsePageFrame } from "@repo/editor-bridge/protocol";
 import type {
   EditInit,
   NativeFrame,
@@ -13,7 +13,7 @@ import type {
   RequestPayload,
   RequestResult,
   Unstamped,
-} from "@repo/mobile-editor/bridge-protocol";
+} from "@repo/editor-bridge/protocol";
 import { messageOf } from "../lib/error-message";
 import { sameDocument } from "../lib/same-document";
 

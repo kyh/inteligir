@@ -12,6 +12,7 @@
     "@modelcontextprotocol/client": "catalog:",
     "@orpc/client": "catalog:",
     "@repo/contract": "workspace:*",
+    "@repo/editor-bridge": "workspace:*",
     "@repo/managed-agents-fake": "workspace:*",
     "@repo/mobile": "workspace:*",
     "@repo/mobile-editor": "workspace:*",

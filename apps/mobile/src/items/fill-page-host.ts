@@ -6,8 +6,8 @@
 // page went away, fails, and the page loads again, so the jobs behind it meet a fresh reader. Pure:
 // the component attaches the WebView, and the suite drives every frame.
 
-import { nativeFrameScript, parsePageFrame } from "@repo/mobile-editor/bridge-protocol";
-import type { FillAnswer, FillJob, NativeFrame } from "@repo/mobile-editor/bridge-protocol";
+import { nativeFrameScript, parsePageFrame } from "@repo/editor-bridge/protocol";
+import type { FillAnswer, FillJob, NativeFrame } from "@repo/editor-bridge/protocol";
 import { sameDocument } from "../lib/same-document";
 
 interface ReaderView {

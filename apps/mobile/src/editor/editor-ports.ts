@@ -8,7 +8,7 @@ import { assetMediaType } from "@repo/contract/cloud/vault/vault-schema";
 import { annotationsStorePath } from "@repo/notes/annotations/store-schema";
 import { docStem, isDocPath, isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";
-import type { RequestResult } from "@repo/mobile-editor/bridge-protocol";
+import type { RequestResult } from "@repo/editor-bridge/protocol";
 import type { AnnotationOps } from "../notes/annotation-ops";
 import type { FileOps } from "../notes/file-ops";
 import { linksKeptLine } from "../notes/file-ops";

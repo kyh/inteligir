@@ -7,7 +7,7 @@
 // device may already hold. Platform-free: the scenario suite runs it under node with linkedom.
 
 import { base64FromBytes } from "@repo/contract/cloud/bytes";
-import type { FillAnswer, FillJob } from "@repo/mobile-editor/bridge-protocol";
+import type { FillAnswer, FillJob } from "@repo/editor-bridge/protocol";
 import { placeQuotes, waitingQuotes } from "@repo/notes/annotations/place-quotes";
 import {
   failureOf,

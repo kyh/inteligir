@@ -1,12 +1,12 @@
 import { runInNewContext } from "node:vm";
-import { nativeFrameSchema, PAGE_RECEIVER } from "@repo/mobile-editor/bridge-protocol";
+import { nativeFrameSchema, PAGE_RECEIVER } from "@repo/editor-bridge/protocol";
 import type {
   NativeFrame,
   PageFrame,
   RequestKind,
   RequestPayload,
   RequestResult,
-} from "@repo/mobile-editor/bridge-protocol";
+} from "@repo/editor-bridge/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { nextTask } from "../test-support/async";
 import { createEditorHost, loadVerdict, openWindowVerdict } from "./editor-host";

@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { connectPageBridge, REQUEST_TIMEOUT_MS, windowTransport } from "./page-bridge";
 import type { NativeEvent } from "./page-bridge";
-import { nativeFrameScript, PAGE_RECEIVER } from "./protocol";
-import type { NativeFrame } from "./protocol";
+import { nativeFrameScript, PAGE_RECEIVER } from "@repo/editor-bridge/protocol";
+import type { NativeFrame } from "@repo/editor-bridge/protocol";
 import { createFakePhone, PHONE_NONCE } from "../test-support/fake-phone";
 
 const connected = async () => {

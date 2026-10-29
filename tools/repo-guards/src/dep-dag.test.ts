@@ -40,14 +40,15 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     "@repo/domain": [],
     // the `inteligir` edge is the binary it spawns and the config resolution naming this checkout's
     // instance; the @repo/mobile edge is the phone's own platform-free runtime, driven under node
-    // against a real Worker, since no Expo boots headless; the @repo/mobile-editor edge is the
-    // bridge's protocol, so the scripted phone speaks the frames the page parses, and its reader
-    // mode, which the phone's runtime reads a saved link with; the @repo/page-reader edge is the
-    // linkedom DOM that reader runs over under node, where the page has its WebView's; the
-    // @repo/managed-agents-fake edge is the Managed Agents API each Worker it boots runs its
-    // built-in agent against.
+    // against a real Worker, since no Expo boots headless; the @repo/editor-bridge edge is the
+    // page's wire, so the scripted phone speaks the frames the page parses; the
+    // @repo/mobile-editor edge is the page's reader mode, which the phone's runtime reads a saved
+    // link with; the @repo/page-reader edge is the linkedom DOM that reader runs over under node,
+    // where the page has its WebView's; the @repo/managed-agents-fake edge is the Managed Agents
+    // API each Worker it boots runs its built-in agent against.
     "@repo/e2e": [
       "@repo/contract",
+      "@repo/editor-bridge",
       "@repo/managed-agents-fake",
       "@repo/mobile",
       "@repo/mobile-editor",
@@ -56,6 +57,10 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     ],
     // the editor draws with the shared component kit; @repo/ui stays a leaf below it.
     "@repo/editor": ["@repo/notes", "@repo/ui"],
+    // the phone editor page's wire, zod alone over the library's grammars (@repo/notes) and the
+    // reader's answer (@repo/page-reader's page facts), so the native end parses the frames the
+    // page sends without compiling the page
+    "@repo/editor-bridge": ["@repo/notes", "@repo/page-reader"],
     // a page read into an item, over the DOM its host hands it: the article is written as the
     // editor's own fixpoint (its headless markdown pipeline) under the dialect's fence names, so the
     // Mac's fill worker and the phone's page run one reading.
@@ -65,14 +70,21 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     "@repo/extension": ["@repo/contract", "@repo/ui"],
     // a partial cloud client: reads the hosted vault and writes it only through the guarded
     // commit route. the @repo/notes edge is the dialect's own parse, link resolver and the one
-    // conflict verdict its write queue settles with; the @repo/mobile-editor edge is the editor
-    // page's wire alone (EDITOR_PAGE_CLIENTS below), since the page itself ships built; it
-    // reaches no server, vault engine, agent or thread.
-    "@repo/mobile": ["@repo/contract", "@repo/mobile-editor", "@repo/notes"],
+    // conflict verdict its write queue settles with; the @repo/editor-bridge edge is the editor
+    // page's wire (EDITOR_PAGE_CLIENTS below), since the page itself ships built; it reaches no
+    // server, vault engine, agent or thread.
+    "@repo/mobile": ["@repo/contract", "@repo/editor-bridge", "@repo/notes"],
     // the phone's editor page: the desktop's editor in a WebView, reaching the phone only through
-    // its own bridge, so no contract and no cloud wire. The @repo/page-reader edge is its reader
-    // mode: a link the phone saved is read with the Mac's own reader, over the WebView's DOM.
-    "@repo/mobile-editor": ["@repo/editor", "@repo/notes", "@repo/page-reader", "@repo/ui"],
+    // its own bridge (@repo/editor-bridge), so no contract and no cloud wire. The
+    // @repo/page-reader edge is its reader mode: a link the phone saved is read with the Mac's own
+    // reader, over the WebView's DOM.
+    "@repo/mobile-editor": [
+      "@repo/editor",
+      "@repo/editor-bridge",
+      "@repo/notes",
+      "@repo/page-reader",
+      "@repo/ui",
+    ],
     // the replica engine every device runs: `/v1`'s wire (@repo/contract) and the library model,
     // schema and SQL its cell runs (@repo/notes); the block merge is the editor's diff3, which its
     // host injects, so no @repo/editor edge
@@ -145,10 +157,9 @@ const BROWSER_WIRE_CLIENTS = new Map<string, string>([
   ["@repo/extension", "a browser install updates on the Web Store's cadence, not the app's"],
 ]);
 
-// The phone's editor page is DOM React built by Vite; a native client that hosts it reaches the
-// bridge's wire alone and loads the page as a built bundle. Any other import would compile DOM
-// code a second way, under the client's own bundler and TypeScript.
-const EDITOR_PAGE_WIRE = "@repo/mobile-editor/bridge-protocol";
+// The phone's editor page is DOM React built by Vite; a native client that hosts it loads the page
+// as a built bundle and speaks its wire, @repo/editor-bridge. Any import of the page itself would
+// compile DOM code a second way, under the client's own bundler and TypeScript, its tests' included.
 const EDITOR_PAGE_CLIENTS = new Map<string, string>([
   [
     "@repo/mobile",
@@ -489,7 +500,7 @@ describe("platform purity", () => {
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 
-  it("every editor page client reaches the page's wire and nothing else of it", () => {
+  it("no editor page client imports the page, only its wire", () => {
     const violations: string[] = [];
     for (const [name, why] of EDITOR_PAGE_CLIENTS) {
       const client = workspaces().find((candidate) => candidate.name === name);
@@ -506,12 +517,9 @@ describe("platform purity", () => {
           if (resolveWorkspace(specifier)?.name !== "@repo/mobile-editor") {
             continue;
           }
-          if (specifier === EDITOR_PAGE_WIRE) {
-            continue;
-          }
           violations.push(
             `EDITOR PAGE SOURCE IN ITS HOST  ${file} imports "${specifier}"\n` +
-              `  rule: ${name} reaches ${EDITOR_PAGE_WIRE} alone — ${why}`,
+              `  rule: ${name} reaches the page's wire, @repo/editor-bridge, alone — ${why}`,
           );
         }
       }

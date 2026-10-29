@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import { Alert, KeyboardAvoidingView, Linking, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
-import type { EditInit } from "@repo/mobile-editor/bridge-protocol";
+import type { EditInit } from "@repo/editor-bridge/protocol";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { loadVerdict, openWindowVerdict } from "@/editor/editor-host";
 import type { LoadVerdict } from "@/editor/editor-host";

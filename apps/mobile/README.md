@@ -6,7 +6,7 @@ reads and writes, as Raindrop's and Obsidian's phones do, holds a MIRROR of
 every note's text and asks no agent, reaching
 `@repo/contract/cloud` (the wire), `@repo/notes` (wiki resolution, the rename
 and delete rules and the one conflict verdict, guard-pure) and
-`@repo/mobile-editor/bridge-protocol` (the editor page's wire). No agent, no
+`@repo/editor-bridge/protocol` (the editor page's wire). No agent, no
 thread, no vault checkout, no git client — notes arrive
 over the /v1/vault read rows into a local SQLite file and open offline in the
 desktop's own editor, and the phone's edits wait in a durable outbox beside

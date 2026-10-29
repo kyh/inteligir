@@ -1,6 +1,6 @@
 import { runInNewContext } from "node:vm";
-import { nativeFrameSchema, PAGE_RECEIVER } from "@repo/mobile-editor/bridge-protocol";
-import type { FillAnswer, FillJob, NativeFrame } from "@repo/mobile-editor/bridge-protocol";
+import { nativeFrameSchema, PAGE_RECEIVER } from "@repo/editor-bridge/protocol";
+import type { FillAnswer, FillJob, NativeFrame } from "@repo/editor-bridge/protocol";
 import { describe, expect, it } from "vitest";
 import { createFillPageHost } from "./fill-page-host";
 

@@ -3,12 +3,8 @@ import { pathToFileURL } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 
-import {
-  nativeFrameScript,
-  PAGE_RECEIVER,
-  pageFrameSchema,
-} from "@repo/mobile-editor/bridge-protocol";
-import type { FillJob, NativeFrame, PageFrame } from "@repo/mobile-editor/bridge-protocol";
+import { nativeFrameScript, PAGE_RECEIVER, pageFrameSchema } from "@repo/editor-bridge/protocol";
+import type { FillJob, NativeFrame, PageFrame } from "@repo/editor-bridge/protocol";
 import { readPage } from "@repo/mobile-editor/reader-mode";
 import { parsePage } from "@repo/page-reader/linkedom-page";
 

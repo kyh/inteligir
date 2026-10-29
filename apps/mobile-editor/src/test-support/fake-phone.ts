@@ -5,14 +5,14 @@
 import { docStem } from "@repo/notes/knowledge/doc-file";
 
 import type { BridgeTransport } from "../bridge/page-bridge";
-import { pageFrameSchema } from "../bridge/protocol";
+import { pageFrameSchema } from "@repo/editor-bridge/protocol";
 import type {
   NativeFrame,
   PageFrame,
   EditInit,
   RequestKind,
   RequestResult,
-} from "../bridge/protocol";
+} from "@repo/editor-bridge/protocol";
 
 export const PHONE_NONCE = "test-nonce-0123456789";
 

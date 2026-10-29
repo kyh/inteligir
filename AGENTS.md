@@ -138,6 +138,7 @@ packages/domain         @repo/domain — zod-only leaf vocabulary
 packages/contract       @repo/contract — ONE client-safe contract for /v1: the library and the account
 packages/notes          @repo/notes — the pure, platform-neutral domain: the library model, its SQL, search and links
 packages/editor         @repo/editor — the Plate WYSIWYG, and the markdown codec over its headless kits
+packages/editor-bridge  @repo/editor-bridge — the phone editor page's wire, which the page and the phone both parse
 packages/page-reader    @repo/page-reader — a saved page read into an item, over the DOM its host hands it
 packages/library-replica @repo/library-replica — the replica engine every device runs: the pull, the outbox and its sync, over the host's SQLite
 packages/agent-skills   @repo/agent-skills — the dialect spec the built-in agent's instructions are built from

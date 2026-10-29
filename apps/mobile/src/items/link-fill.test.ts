@@ -1,7 +1,7 @@
 import { serializeAnnotationStore } from "@repo/notes/annotations/store-schema";
 import { PICTURE_ONLY_LINKED, TEXT_NOT_SAVED } from "@repo/notes/items/fill-sentences";
 import { linkStubText } from "@repo/notes/items/item-stub";
-import type { FillAnswer, FillJob } from "@repo/mobile-editor/bridge-protocol";
+import type { FillAnswer, FillJob } from "@repo/editor-bridge/protocol";
 import { describe, expect, it } from "vitest";
 import type { NotesStore, PendingFill } from "../notes/notes-store";
 import { createFakeVault, networkOver, requestsOf } from "../notes/test-support/fake-vault";

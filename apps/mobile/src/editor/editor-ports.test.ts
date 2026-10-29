@@ -1,5 +1,5 @@
 import { base64FromBytes } from "@repo/contract/cloud/bytes";
-import type { NativeFrame, RequestPayload } from "@repo/mobile-editor/bridge-protocol";
+import type { NativeFrame, RequestPayload } from "@repo/editor-bridge/protocol";
 import { serializeAnnotationStore } from "@repo/notes/annotations/store-schema";
 import { describe, expect, it } from "vitest";
 import { createAnnotationOps } from "../notes/annotation-ops";

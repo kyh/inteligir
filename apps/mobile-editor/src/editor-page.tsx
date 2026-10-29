@@ -16,7 +16,7 @@ import { SizeProvider } from "@repo/ui/lib/size-context";
 import { ThemeProvider } from "@repo/ui/lib/theme";
 
 import type { PageBridge } from "./bridge/page-bridge";
-import type { EditInit } from "./bridge/protocol";
+import type { EditInit } from "@repo/editor-bridge/protocol";
 import { createPageHost } from "./host/page-host";
 
 // Mounted after the column, so the note's own title and body have registered their focus by the

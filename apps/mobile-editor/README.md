@@ -2,8 +2,8 @@
 
 The desktop's editor (`@repo/editor`), built as one page the phone opens in a
 WebView. `@repo/mobile` is React Native under Metro and TypeScript 6 and may
-reach only `@repo/contract/cloud`, `@repo/domain`, `@repo/notes` and this package's
-`./bridge-protocol`; the editor is DOM React under Vite, the React Compiler and
+reach only `@repo/contract/cloud`, `@repo/domain`, `@repo/notes` and the page's
+wire, `@repo/editor-bridge`; the editor is DOM React under Vite, the React Compiler and
 TypeScript 7. Expo DOM components were rejected: they compile the editor a
 second way (Metro and babel) and typecheck it under the phone's TypeScript. A
 separate Vite page keeps the toolchain the editor's own tests run.
@@ -43,8 +43,9 @@ the page means nothing without a native end.
 
 ## The bridge
 
-`src/bridge/protocol.ts` is the wire, exported as `./bridge-protocol` so the
-native end parses the same frames. Both ends ship in one binary, so it breaks
+The wire is `@repo/editor-bridge` (`packages/editor-bridge/src/protocol.ts`),
+a package of its own so the native end parses the same frames without
+reaching this one. Both ends ship in one binary, so it breaks
 freely: no version field. Every frame is the JSON text of one, parsed by the
 end that receives it. A path on it is refused unless it is already normal, by
 the cloud wire's own schema (`@repo/notes/knowledge/vault-path-schema`), since
@@ -112,7 +113,6 @@ src/
   fill/serve-fills.ts   the reader mode, exported as ./reader-mode
   editor-page.tsx       the providers, the column under the touch profile,
                         the focus init asks for
-  bridge/protocol.ts    the wire (zod), exported as ./bridge-protocol
   bridge/page-bridge.ts correlation, timeouts, the nonce, the window door
   host/page-host.ts     the editor's host over the bridge
   styles/globals.css    @repo/ui's and @repo/editor's sheets, and the page's

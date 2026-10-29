@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./bridge-protocol": "./src/bridge/protocol.ts",
     "./reader-mode": "./src/fill/serve-fills.ts"
   },
   "scripts": {
@@ -14,6 +13,7 @@
   },
   "dependencies": {
     "@repo/editor": "workspace:*",
+    "@repo/editor-bridge": "workspace:*",
     "@repo/notes": "workspace:*",
     "@repo/page-reader": "workspace:*",
     "@repo/ui": "workspace:*",

@@ -1,6 +1,11 @@
 import { deferred } from "@repo/editor/deferred";
 import type { Deferred } from "@repo/editor/deferred";
-import { PAGE_RECEIVER, pageFrameSchema, parseNativeFrame, REQUESTS } from "./protocol";
+import {
+  PAGE_RECEIVER,
+  pageFrameSchema,
+  parseNativeFrame,
+  REQUESTS,
+} from "@repo/editor-bridge/protocol";
 import type {
   NativeFrame,
   PageFrame,
@@ -9,7 +14,7 @@ import type {
   RequestPayload,
   RequestResult,
   Unstamped,
-} from "./protocol";
+} from "@repo/editor-bridge/protocol";
 
 declare global {
   interface Window {

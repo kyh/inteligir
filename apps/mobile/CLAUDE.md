@@ -23,7 +23,7 @@ ships.
   event a child frame's `parent.postMessage` could forge, and every frame after
   `init` carries the nonce (`apps/mobile-editor/src/bridge/page-bridge.ts`). The
   wire breaks freely, since one binary ships both ends
-  (`apps/mobile-editor/src/bridge/protocol.ts`); the page's host is the editor's
+  (`packages/editor-bridge/src/protocol.ts`); the page's host is the editor's
   own write policy (`apps/mobile-editor/src/host/page-host.ts`). The WebView
   loads the page and its frames, hands a followed web link to Safari and refuses
   the rest; its origin list admits every address, because the library hands
