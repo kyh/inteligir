@@ -29,7 +29,11 @@ export const bridgeItemStore = (bridge: PageBridge): ItemStore => ({
   onChange: (listener) =>
     bridge.onNative((event) => {
       if (event.type === "itemChanged") {
-        listener({ ids: new Set(event.ids), reset: event.reset });
+        listener({
+          ids: new Set(event.ids),
+          overlapped: new Set(event.overlapped),
+          reset: event.reset,
+        });
       }
     }),
   write: async (itemId, input) =>

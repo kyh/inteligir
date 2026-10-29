@@ -35,6 +35,12 @@ export type Settled<T> =
   | { readonly kind: "resend"; readonly op: T }
   | { readonly kind: "satisfied" };
 
+// a write settled: `overlapped` where a block both sides changed kept this device's lines over the
+// other device's change to the same ones
+export type SettledWrite =
+  | { readonly kind: "resend"; readonly op: WriteOp; readonly overlapped: boolean }
+  | { readonly kind: "satisfied" };
+
 // what a conflict answer met, by what it names
 interface Met {
   readonly blocks: Map<string, BlockCurrent>;
@@ -133,6 +139,8 @@ const renameMarkers = (block: LibraryBlock, renames: ReadonlyMap<string, string>
 interface BlockSettle {
   readonly ops: LibraryOp[];
   readonly bases: WriteOp["bases"];
+  // a merge kept this device's lines where the other device changed the same ones
+  overlapped: boolean;
 }
 
 // a put the cell met another block for: merged three ways over the current one, or, where another
@@ -160,9 +168,10 @@ const settlePut = (
   }
   const merged =
     base === undefined
-      ? op.block
+      ? { block: op.block, overlapped: false }
       : context.merge({ base: base.block, mine: op.block, theirs: current.block });
-  const block = merged.id === id ? merged : op.block;
+  const block = merged.block.id === id ? merged.block : op.block;
+  out.overlapped ||= merged.overlapped;
   if (blockHash(block) !== current.hash) {
     out.ops.push({ baseHash: current.hash, block, op: "put" });
     out.bases[id] = current;
@@ -316,12 +325,12 @@ export const settleWrite = (
   write: WriteOp,
   currents: readonly ConflictCurrent[],
   ports: { readonly merge: BlockMerge; readonly newId: NewId },
-): Settled<WriteOp> => {
+): SettledWrite => {
   const met = metOf(currents);
   const moves = new Map(
     write.ops.flatMap((op) => (op.op === "move" ? [[op.blockId, op.ord] as const] : [])),
   );
-  const out: BlockSettle = { bases: {}, ops: [] };
+  const out: BlockSettle = { bases: {}, ops: [], overlapped: false };
   for (const op of write.ops) {
     settleLibraryOp(op, met, write, { merge: ports.merge, moves }, out);
   }
@@ -349,6 +358,7 @@ export const settleWrite = (
       ops,
       staged: write.staged,
     },
+    overlapped: out.overlapped,
   };
 };
 

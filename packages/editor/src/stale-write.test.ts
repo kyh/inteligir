@@ -322,17 +322,19 @@ describe("two writers' edits to one block", () => {
       mine: code("b1", ["one, from the phone", "two", "three"]),
       theirs: code("b1", ["one", "two", "three, from the Mac"]),
     });
-    expect(merged.id).toBe("b1");
-    expect(linesOf(merged)).toEqual(["one, from the phone", "two", "three, from the Mac"]);
+    expect(merged.overlapped).toBe(false);
+    expect(merged.block.id).toBe("b1");
+    expect(linesOf(merged.block)).toEqual(["one, from the phone", "two", "three, from the Mac"]);
   });
 
-  it("keeps mine where both sides changed the same line", () => {
+  it("keeps mine where both sides changed the same line, and says so", () => {
     const merged = mergeBlocks({
       base: code("b1", ["one", "two"]),
       mine: code("b1", ["mine", "two"]),
       theirs: code("b1", ["theirs", "two"]),
     });
-    expect(linesOf(merged)).toEqual(["mine", "two"]);
+    expect(merged.overlapped).toBe(true);
+    expect(linesOf(merged.block)).toEqual(["mine", "two"]);
   });
 
   it("keeps a link's item through a merge that reads the block again", () => {
@@ -355,19 +357,24 @@ describe("two writers' edits to one block", () => {
       mine: quote("first, mine", " soon"),
       theirs: quote("first", " soon, theirs"),
     });
-    expect(merged).toEqual(quote("first, mine", " soon, theirs"));
+    expect(merged).toEqual({ block: quote("first, mine", " soon, theirs"), overlapped: false });
   });
 
   it("takes the ref the side that moved it gave, whichever side that was", () => {
     const base = { ...code("b1", ["one"]), ref: "old" };
-    expect(mergeBlocks({ base, mine: { ...base, ref: "mine" }, theirs: base }).ref).toBe("mine");
-    expect(mergeBlocks({ base, mine: base, theirs: { ...base, ref: "theirs" } }).ref).toBe(
+    expect(mergeBlocks({ base, mine: { ...base, ref: "mine" }, theirs: base }).block.ref).toBe(
+      "mine",
+    );
+    expect(mergeBlocks({ base, mine: base, theirs: { ...base, ref: "theirs" } }).block.ref).toBe(
       "theirs",
     );
   });
 
-  it("keeps mine whole for a block whose markdown does not read back as itself", () => {
+  it("keeps mine whole for a block whose markdown does not read back as itself, and says so", () => {
     const merged = mergeBlocks({ base: odd("a"), mine: odd("mine"), theirs: odd("theirs") });
-    expect(merged).toMatchObject({ children: [{ text: "mine\n\n" }], id: "p1" });
+    expect(merged).toMatchObject({
+      block: { children: [{ text: "mine\n\n" }], id: "p1" },
+      overlapped: true,
+    });
   });
 });

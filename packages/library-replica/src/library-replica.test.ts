@@ -10,7 +10,7 @@ import { openMemorySql } from "./memory-sql";
 import type { MemorySql } from "./memory-sql";
 import { STAGED_FILE_GONE } from "./outbox";
 import type { LibraryReplica } from "./library-replica";
-import type { ReplicaTransport } from "./replica-ports";
+import type { BlockMerge, ReplicaTransport } from "./replica-ports";
 import { deferred, nextTurn } from "./test-support/deferred";
 import { createFakeCell } from "./test-support/fake-cell";
 import type { FakeCell, FakeDevice } from "./test-support/fake-cell";
@@ -28,6 +28,12 @@ const OTHER_PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a
 
 const writes = (cell: FakeCell, device: string): number =>
   cell.calls.filter((call) => call === `${device} library/write`).length;
+
+// a merge that keeps this device's block whole over the other's, and says it overlapped
+const keepMine: BlockMerge = ({ mine, theirs }) => ({
+  block: { ...mine, id: theirs.id },
+  overlapped: true,
+});
 
 // a note of two paragraphs, made on `device` and landed
 const landedNote = async (cell: FakeCell, device: TestDevice): Promise<string> => {
@@ -241,6 +247,29 @@ describe("the replica's outbox", () => {
     expect(writes(cell, "phone")).toBe(2);
     expect(cellText(cell, id, "p1")).toBe("the Mac's / the phone's");
     expect(await replicaText(phone.replica, id, "p1")).toBe("the Mac's / the phone's");
+  });
+
+  it("says which item a merge kept this device's lines in over another device's", async () => {
+    const cell = createFakeCell();
+    const mac = await openDevice(cell, "mac");
+    const phone = await openDevice(cell, "phone", { merge: keepMine });
+    const id = await landedNote(cell, mac);
+    await phone.replica.sync();
+    await write(mac.replica, id, [await putText(mac.replica, id, "p1", "the Mac's")]);
+    await mac.replica.sync();
+    const overlapped: string[] = [];
+    phone.replica.onChange((change) => {
+      overlapped.push(...change.overlapped);
+    });
+    await write(phone.replica, id, [await putText(phone.replica, id, "p2", "the phone's")]);
+    await phone.replica.sync();
+    expect(overlapped).toEqual([]);
+    await write(mac.replica, id, [await putText(mac.replica, id, "p1", "the Mac's again")]);
+    await mac.replica.sync();
+    await write(phone.replica, id, [await putText(phone.replica, id, "p1", "the phone's")]);
+    await phone.replica.sync();
+    expect(overlapped).toEqual([id]);
+    expect(cellText(cell, id, "p1")).toBe("the phone's");
   });
 
   it("stands a block another device dropped again with this device's edit", async () => {

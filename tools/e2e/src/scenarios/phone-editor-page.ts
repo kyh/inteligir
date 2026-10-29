@@ -442,7 +442,13 @@ const driveItemMode = async (
     paragraphBlock("p3", "The last line, from the Mac."),
   ]);
   await phone.replace(fromMac);
-  await phone.inject({ ids: [ITEM_ID], nonce: ITEM_NONCE, reset: false, type: "itemChanged" });
+  await phone.inject({
+    ids: [ITEM_ID],
+    nonce: ITEM_NONCE,
+    overlapped: [],
+    reset: false,
+    type: "itemChanged",
+  });
   await pollUntil(phone.buffer, (text) => text.includes("from the Mac."), {
     deadlineMs: 15_000,
     describe: (text) => `the announced change never reached the editor:\n${text}`,

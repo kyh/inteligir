@@ -314,21 +314,19 @@ alone, and no walk narrows structurally.
   (every block's id would turn over). `packages/editor/src/codec/item-edit.ts`.
 
 - **AN ITEM IS EDITED BY ITS ID: ITS BLOCKS ARE THE VALUE, AND A PAUSE WRITES
-  OPS.** `createItemSession` opens an item over the replica's own read, write
-  and change feed (`ItemStore`): each top-level element is the block its Plate
-  node id names, read in the one spelling a block is stored in, and 800 ms
-  after the last keystroke the put, drop, insert and move ops of what changed
-  since the blocks last acknowledged go to the outbox, decided by hash (an
-  element's identity only skips its read); a field patch goes at once, under
-  its base. An id Plate minted again is a drop and an insert, a block typed
-  after the article's first block is the article's, and an element no block
-  stores is held back. A change from elsewhere is laid in with the editor's
-  transforms outside its undo, a block both sides changed merged by
-  `mergeBlocks`, diff3 over each side's markdown with an overlap keeping mine,
-  which the replica runs on a CONFLICT too (`packages/editor/src/stale-write.ts`).
-  Rejected: the value mirrored into React state (a render of the whole item per
-  keystroke); a whole-item write (two devices' edits to different blocks would
-  meet). `packages/editor/src/item/item-session.ts`, `item-diff.ts`.
+  OPS.** `createItemSession` opens an item over the replica's read, write and
+  change feed (`ItemStore`): each top-level element is the block its Plate node
+  id names, the ids inside one the editor's alone, and 800 ms after the last
+  keystroke the ops of what changed since the blocks last acknowledged go to the
+  outbox, decided by hash; a field patch goes at once, under its base. A change
+  from elsewhere is laid in outside the undo, a block both sides changed merged
+  by `mergeBlocks` (`packages/editor/src/stale-write.ts`), which the replica
+  runs on a CONFLICT too. Each item gets its own editor and session, drawn once
+  its blocks are in (`packages/editor/src/item/item-editor.tsx`). Rejected: the
+  value mirrored into React state (a render per keystroke); a whole-item write
+  (two devices' edits to different blocks would meet); one editor handed from
+  item to item (a closing write would diff the next one's blocks).
+  `packages/editor/src/item/item-session.ts`, `item-diff.ts`.
 
 ## Vault: writes, git and containment
 
@@ -349,7 +347,10 @@ alone, and no walk narrows structurally.
   History (owner decision). `rebase` and the 409 retry ask `mergeItemTexts`
   before diff3, so a fill or a Refresh under the person's typing lands both with
   no overlap said, as the sync and the phone's queue would
-  (`@repo/notes/sync/url-item-verdict`). `@repo/notes/text/line-diff`,
+  (`@repo/notes/sync/url-item-verdict`). An item's block merge answers its
+  overlap too, which the replica's change feed carries from a CONFLICT's settle
+  and the session's own landing hands its host's `notifyOverlap`, said in the
+  note's words. `@repo/notes/text/line-diff`,
   `packages/editor/src/vault-editor.ts`,
   `packages/editor/src/stale-write.ts`.
 

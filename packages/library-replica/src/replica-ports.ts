@@ -57,6 +57,13 @@ export interface StagedBlobs {
   readonly clear: () => Promise<void>;
 }
 
+// a block two writers changed, merged: `overlapped` where both changed the same lines and this
+// device's were kept over the other's, which the person is told of
+export interface MergedBlock {
+  readonly block: LibraryBlock;
+  readonly overlapped: boolean;
+}
+
 // a block two writers changed: `base` as this device's write was computed from it, `mine` as it
 // wrote it, `theirs` as the cell holds it now. The answer keeps `theirs`'s id; the editor's diff3
 // over each side's markdown projection (`@repo/editor`) answers one whatever the overlap
@@ -64,7 +71,7 @@ export type BlockMerge = (sides: {
   readonly base: LibraryBlock;
   readonly mine: LibraryBlock;
   readonly theirs: LibraryBlock;
-}) => LibraryBlock;
+}) => MergedBlock;
 
 // a fresh UUIDv7: an op's id, and an item's or a folder's this device makes, so one made offline
 // already has its id

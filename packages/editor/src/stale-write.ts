@@ -112,27 +112,37 @@ export interface BlockSides {
   readonly theirs: LibraryBlock;
 }
 
+// a block both sides changed, merged: `overlapped` where both changed the same lines and mine
+// were kept over theirs, which the person is told of, as a note's merge says so
+export interface MergedBlock {
+  readonly block: LibraryBlock;
+  readonly overlapped: boolean;
+}
+
 // the replica's block merge (`@repo/library-replica`'s `BlockMerge`): the lines each side changed
 // both land and an overlap keeps mine, as a note's merge does; a side whose markdown does not read
-// back as itself makes the whole block an overlap. The answer keeps theirs' id, and the `ref`
-// whichever side moved it.
-export const mergeBlocks = ({ base, mine, theirs }: BlockSides): LibraryBlock => {
+// back as itself, or a merge that reads back as no one block, keeps mine whole over theirs, an
+// overlap too. The answer keeps theirs' id, and the `ref` whichever side moved it.
+export const mergeBlocks = ({ base, mine, theirs }: BlockSides): MergedBlock => {
   const ref = mine.ref === base.ref ? theirs.ref : mine.ref;
-  const kept = (block: LibraryBlock): LibraryBlock => renamedBlock(block, theirs.id, ref);
+  const kept = (block: LibraryBlock, overlapped: boolean): MergedBlock => ({
+    block: renamedBlock(block, theirs.id, ref),
+    overlapped,
+  });
   const files = filesIn([base, mine, theirs]);
   const baseText = faithfulMarkdown(base, files);
   const mineText = faithfulMarkdown(mine, files);
   const theirsText = faithfulMarkdown(theirs, files);
   if (baseText === null || mineText === null || theirsText === null) {
-    return kept(mine);
+    return kept(mine, true);
   }
-  const { merged } = diff3(baseText, mineText, theirsText);
+  const { conflicted, merged } = diff3(baseText, mineText, theirsText);
   if (merged === mineText) {
-    return kept(mine);
+    return kept(mine, conflicted);
   }
   if (merged === theirsText) {
-    return kept(theirs);
+    return kept(theirs, conflicted);
   }
   const read = blockFromMarkdown(merged, theirs.id, files);
-  return kept(read ?? mine);
+  return read === null ? kept(mine, true) : kept(read, conflicted);
 };

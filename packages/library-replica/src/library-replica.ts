@@ -119,11 +119,13 @@ export interface ReplicaStatus {
 }
 
 // what moved: the kinds of row and their ids (an item's, a folder's, a thread's, a file's sha),
-// or the whole library at once
+// or the whole library at once, and the items a write of this device was merged into keeping its
+// lines where another device changed the same ones, which a screen says
 export interface ReplicaChange {
   readonly kinds: ReadonlySet<string>;
   readonly ids: ReadonlySet<string>;
   readonly reset: boolean;
+  readonly overlapped: ReadonlySet<string>;
 }
 
 export interface LibraryReplica extends ReplicaCommands {
@@ -310,6 +312,7 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
     emit({
       ids: touched.ids,
       kinds: touched.kinds,
+      overlapped: touched.overlapped,
       reset: reset || touched.ids.size > REREAD_ALL_OVER,
     });
   };
@@ -633,7 +636,8 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
       });
       outboxStatus(outbox.rows());
       setStatus({ cursor: 0, head: 0 });
-      emit({ ids: new Set(), kinds: touchedNothing().kinds, reset: true });
+      const nothing = touchedNothing();
+      emit({ ids: nothing.ids, kinds: nothing.kinds, overlapped: nothing.overlapped, reset: true });
     },
   };
   return { kind: "ready", replica };

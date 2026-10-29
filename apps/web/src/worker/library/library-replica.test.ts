@@ -35,12 +35,12 @@ const paragraph = (id: string, text: string): LibraryBlock => ({
 // then mine
 const keepBoth: BlockMerge = ({ base, mine, theirs }) => {
   if (textOf(mine) === textOf(base) || textOf(mine) === textOf(theirs)) {
-    return theirs;
+    return { block: theirs, overlapped: false };
   }
   if (textOf(theirs) === textOf(base)) {
-    return mine;
+    return { block: mine, overlapped: false };
   }
-  return paragraph(theirs.id, `${textOf(theirs)} / ${textOf(mine)}`);
+  return { block: paragraph(theirs.id, `${textOf(theirs)} / ${textOf(mine)}`), overlapped: false };
 };
 
 const stagedInMemory = (): StagedBlobs & {

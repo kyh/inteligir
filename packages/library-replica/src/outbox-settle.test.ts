@@ -5,11 +5,15 @@ import { describe, expect, it } from "vitest";
 
 import type { WriteOp } from "./outbox-ops";
 import { settleFolders, settleWrite } from "./outbox-settle";
+import type { BlockMerge } from "./replica-ports";
 import { idSource, keepBoth, paragraph } from "./test-support/replica-harness";
 
 const ITEM = "01900000-0000-7000-8000-00000000000a";
 const OTHER_ITEM = "01900000-0000-7000-8000-00000000000b";
 const ports = { merge: keepBoth, newId: idSource(9) };
+
+// a merge that keeps this device's block whole over the other's, and says it overlapped
+const keepMine: BlockMerge = ({ mine }) => ({ block: mine, overlapped: true });
 
 const held = (text: string, ord = "a0"): StoredBlock => {
   const block = paragraph("p1", text);
@@ -41,7 +45,17 @@ describe("a write the cell answered CONFLICT", () => {
         ...putWrite(theirs, "their draft / my draft"),
         bases: { p1: theirs },
       },
+      overlapped: false,
     });
+  });
+
+  it("says a merge kept this device's lines over the other device's change to them", () => {
+    const settled = settleWrite(
+      putWrite(held("draft"), "my draft"),
+      [{ blockId: "p1", current: held("their draft"), itemId: ITEM, kind: "block" }],
+      { merge: keepMine, newId: idSource(9) },
+    );
+    expect(settled).toMatchObject({ kind: "resend", overlapped: true });
   });
 
   it("counts a put whose block already holds what it wrote as landed", () => {

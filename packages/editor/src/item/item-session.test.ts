@@ -4,24 +4,26 @@
 
 import { setTimeout as delay } from "node:timers/promises";
 
-import { createSlateEditor, ElementApi } from "platejs";
-import type { SlateEditor } from "platejs";
-import { describe, expect, it } from "vitest";
+import { createSlateEditor, ElementApi, NodeApi } from "platejs";
+import type { Path, SlateEditor } from "platejs";
+import { describe, expect, it, vi } from "vitest";
 
 import { createFakeCell } from "@repo/library-replica/test-support/fake-cell";
 import type { FakeCell } from "@repo/library-replica/test-support/fake-cell";
 import { openDevice, paragraph } from "@repo/library-replica/test-support/replica-harness";
 import type { TestDevice } from "@repo/library-replica/test-support/replica-harness";
+import type { LibraryOp } from "@repo/notes/library/block-ops";
 import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
 
 import { itemView } from "@repo/editor/codec/item-view";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
+import { blockId } from "@repo/editor/node-props";
 import { mergeBlocks } from "@repo/editor/stale-write";
 
 import { readElement } from "./item-diff";
 import { itemProperties } from "./item-properties";
-import { createItemSession, ITEM_IDLE_MS } from "./item-session";
-import type { ItemSession } from "./item-session";
+import { createItemSession, ITEM_IDLE_MS, KEPT_CHANGING } from "./item-session";
+import type { ItemSession, ItemStore } from "./item-session";
 
 const code = (id: string, lines: readonly string[]): LibraryBlock => ({
   children: lines.map((text) => ({ children: [{ text }], type: "code_line" })),
@@ -29,11 +31,22 @@ const code = (id: string, lines: readonly string[]): LibraryBlock => ({
   type: "code_block",
 });
 
+const cellOf = (text: string): LibraryNode => ({
+  children: [{ children: [{ text }], type: "p" }],
+  type: "td",
+});
+
+const table = (id: string, rows: readonly (readonly string[])[]): LibraryBlock => ({
+  children: rows.map((row) => ({ children: row.map(cellOf), type: "tr" })),
+  id,
+  type: "table",
+});
+
 const textOf = (node: LibraryNode): string =>
   "text" in node ? node.text : node.children.map(textOf).join("\n");
 
-const cellBlock = (cell: FakeCell, itemId: string, blockId: string): LibraryBlock | undefined =>
-  cell.item(itemId)?.blocks.get(blockId)?.block;
+const cellBlock = (cell: FakeCell, itemId: string, id: string): LibraryBlock | undefined =>
+  cell.item(itemId)?.blocks.get(id)?.block;
 
 const editorText = (editor: SlateEditor, index: number): string => {
   const node = editor.children[index];
@@ -59,18 +72,65 @@ const landedNote = async (
   return id;
 };
 
-// the phone's editor over the item, opened and following it
+// the id Plate gave the element at `path`, below the top level
+const nestedIdAt = (editor: SlateEditor, path: Path): string | undefined => {
+  const node = NodeApi.has(editor, path) ? NodeApi.get(editor, path) : undefined;
+  return ElementApi.isElement(node) ? blockId(node) : undefined;
+};
+
+// an op as `op:the block it names`
+const named = (op: LibraryOp): string => {
+  if ("block" in op) {
+    return `${op.op}:${op.block.id}`;
+  }
+  return "blockId" in op ? `${op.op}:${op.blockId}` : op.op;
+};
+
+interface Recorded {
+  readonly store: ItemStore;
+  // every op the session wrote, named
+  readonly writes: string[];
+}
+
+// the phone's replica as the session reaches it, each write it is handed kept by name
+const recorded = (phone: TestDevice): Recorded => {
+  const writes: string[] = [];
+  const store: ItemStore = {
+    item: phone.replica.item,
+    onChange: phone.replica.onChange,
+    write: async (itemId, input) => {
+      writes.push(...input.ops.map(named));
+      return await phone.replica.write(itemId, input);
+    },
+  };
+  return { store, writes };
+};
+
+// the phone's editor over the item, opened and following it, with Plate's ids on as the app runs
+// it: Plate turns its id plugin off under NODE_ENV=test
+interface Opened {
+  readonly editor: SlateEditor;
+  readonly session: ItemSession;
+  // the titles each merge that kept this editor's lines over another device's was said under
+  readonly overlaps: readonly string[];
+}
+
 const openOn = async (
   phone: TestDevice,
   itemId: string,
-): Promise<{ readonly editor: SlateEditor; readonly session: ItemSession }> => {
-  const editor = createSlateEditor({ plugins: BASE_KIT });
+  store: ItemStore = phone.replica,
+): Promise<Opened> => {
+  const editor = createSlateEditor({ nodeId: true, plugins: BASE_KIT });
+  const overlaps: string[] = [];
   const session = createItemSession(itemId, editor, {
     after: phone.clock.after,
-    store: phone.replica,
+    notifyOverlap: (title) => {
+      overlaps.push(title);
+    },
+    store,
   });
   await session.start();
-  return { editor, session };
+  return { editor, overlaps, session };
 };
 
 // what a pause in typing does: the timer fires, and the write it starts is let finish
@@ -113,10 +173,59 @@ describe("an item open in the editor", () => {
     expect(cellBlock(cell, id, "p2")).toEqual(paragraph("p2", "x"));
   });
 
+  it("writes only the block typed in, though Plate names every element inside the others", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [
+      paragraph("p1", "first"),
+      code("c1", ["one", "two"]),
+      table("t1", [["a", "b"]]),
+    ]);
+    const { store, writes } = recorded(phone);
+    const { editor, session } = await openOn(phone, id, store);
+    expect(nestedIdAt(editor, [1, 0])).toBeDefined();
+    expect(nestedIdAt(editor, [2, 0, 1])).toBeDefined();
+    editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+    session.edited();
+    await pause(phone, session);
+    expect(writes).toEqual(["put:p1"]);
+    await phone.replica.sync();
+    expect(cellBlock(cell, id, "c1")).toEqual(code("c1", ["one", "two"]));
+    expect(cellBlock(cell, id, "t1")).toEqual(table("t1", [["a", "b"]]));
+  });
+
+  it("writes back no block laid in from another device", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [
+      paragraph("p1", "first"),
+      code("c1", ["one"]),
+      table("t1", [["a"]]),
+    ]);
+    const { store, writes } = recorded(phone);
+    const { editor, session } = await openOn(phone, id, store);
+    const onMac = await mac.replica.item(id);
+    const hashOf = (wanted: string): string =>
+      onMac?.blocks.find((held) => held.block.id === wanted)?.hash ?? "";
+    await mac.replica.write(id, {
+      ops: [
+        { baseHash: hashOf("c1"), block: code("c1", ["one", "two, from the Mac"]), op: "put" },
+        { baseHash: hashOf("t1"), block: table("t1", [["a", "b"]]), op: "put" },
+      ],
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    await session.flush();
+    expect(editorText(editor, 1)).toBe("one\ntwo, from the Mac");
+    expect(nestedIdAt(editor, [2, 0, 1])).toBeDefined();
+    editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+    session.edited();
+    await pause(phone, session);
+    expect(writes).toEqual(["put:p1"]);
+  });
+
   it("settles a CONFLICT through the merge, keeping both devices' edits to one block", async () => {
     const { cell, mac, phone } = await devices();
     const id = await landedNote(cell, mac, phone, [code("c1", ["one", "two", "three"])]);
-    const { editor, session } = await openOn(phone, id);
+    const { editor, overlaps, session } = await openOn(phone, id);
     const onMac = await mac.replica.item(id);
     const held = onMac?.blocks[0];
     const mine = await mac.replica.write(id, {
@@ -139,6 +248,48 @@ describe("an item open in the editor", () => {
     expect(textOf(cellBlock(cell, id, "c1") ?? paragraph("c1", ""))).toBe(merged.join("\n"));
     expect(editorText(editor, 0)).toBe(merged.join("\n"));
     expect(phone.replica.status().unsent).toBe(0);
+    expect(overlaps).toEqual([]);
+  });
+
+  it("says a CONFLICT whose merge kept this device's line over the other's change to it", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [code("c1", ["one", "two"])]);
+    const { editor, overlaps, session } = await openOn(phone, id);
+    const onMac = await mac.replica.item(id);
+    const held = onMac?.blocks[0];
+    await mac.replica.write(id, {
+      ops: [
+        { baseHash: held?.hash ?? "", block: code("c1", ["one, the Mac's", "two"]), op: "put" },
+      ],
+    });
+    await mac.replica.sync();
+    editor.tf.insertText(", the phone's", { at: { offset: 3, path: [0, 0, 0] } });
+    session.edited();
+    await pause(phone, session);
+    await phone.replica.sync();
+    await session.flush();
+    expect(overlaps).toEqual(["Plans"]);
+    expect(textOf(cellBlock(cell, id, "c1") ?? paragraph("c1", ""))).toBe("one, the phone's\ntwo");
+  });
+
+  it("says a landing whose merge kept this editor's line over the other device's", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [code("c1", ["one", "two"])]);
+    const { editor, overlaps, session } = await openOn(phone, id);
+    editor.tf.insertText(", the phone's", { at: { offset: 3, path: [0, 0, 0] } });
+    session.edited();
+    const onMac = await mac.replica.item(id);
+    const held = onMac?.blocks[0];
+    await mac.replica.write(id, {
+      ops: [
+        { baseHash: held?.hash ?? "", block: code("c1", ["one, the Mac's", "two"]), op: "put" },
+      ],
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    await session.flush();
+    expect(overlaps).toEqual(["Plans"]);
+    expect(editorText(editor, 0)).toBe("one, the phone's\ntwo");
   });
 
   it("lays another device's edit to another block into the open editor, outside its undo", async () => {
@@ -254,5 +405,53 @@ describe("an item open in the editor", () => {
     await phone.replica.sync();
     await session.flush();
     expect([editorText(editor, 0), editorText(editor, 1)]).toEqual(["first!", "the Mac's"]);
+  });
+
+  it("keeps an edit unsaved and goes again after a pause when the item keeps changing", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    let refusals = 0;
+    const churning: ItemStore = {
+      item: phone.replica.item,
+      onChange: phone.replica.onChange,
+      write: async (itemId, input) => {
+        if (refusals < 3) {
+          refusals += 1;
+          const item = await phone.replica.item(itemId);
+          return item === null ? { kind: "missing" } : { item, kind: "changed" };
+        }
+        return await phone.replica.write(itemId, input);
+      },
+    };
+    const { editor, session } = await openOn(phone, id, churning);
+    editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+    session.edited();
+    phone.clock.advance(ITEM_IDLE_MS);
+    await vi.waitFor(() => {
+      expect(session.status()).toMatchObject({ failure: KEPT_CHANGING, unsaved: true });
+    });
+    expect(refusals).toBe(3);
+    expect(phone.replica.status().unsent).toBe(0);
+    await pause(phone, session);
+    expect(session.status()).toMatchObject({ failure: null, unsaved: false });
+    await phone.replica.sync();
+    expect(cellBlock(cell, id, "p1")).toEqual(paragraph("p1", "first!"));
+  });
+
+  it("opens with no undo reaching what the editor held before the item", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "the item's text")]);
+    const editor = createSlateEditor({ nodeId: true, plugins: BASE_KIT });
+    editor.tf.insertText("typed before", { at: { offset: 0, path: [0, 0] } });
+    const session = createItemSession(id, editor, {
+      after: phone.clock.after,
+      notifyOverlap: () => {
+        throw new Error("nothing overlaps here");
+      },
+      store: phone.replica,
+    });
+    await session.start();
+    editor.undo();
+    expect(editorText(editor, 0)).toBe("the item's text");
   });
 });

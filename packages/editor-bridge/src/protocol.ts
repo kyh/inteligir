@@ -344,10 +344,12 @@ export const nativeFrameSchema = z.discriminatedUnion("type", [
     type: z.literal("vaultChanged"),
   }),
   // the phone's replica moved: these items changed, or the whole library did; an item page reads
-  // its item again when it is among them
+  // its item again when it is among them, and says so when its own write was merged into it
+  // keeping its lines over another device's change to the same ones (`overlapped`)
   z.strictObject({
     ids: z.array(itemIdSchema),
     nonce: nonceSchema,
+    overlapped: z.array(itemIdSchema),
     reset: z.boolean(),
     type: z.literal("itemChanged"),
   }),

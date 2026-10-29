@@ -71,13 +71,17 @@ const sessionOver = async (phone: FakePhone) => {
   const { bridge } = await connectItem(phone);
   const editor = headlessEditor();
   const timers = manualTimers();
+  const overlaps: string[] = [];
   const session = createItemSession(ITEM, editor, {
     after: timers.after,
     idleMs: ITEM_IDLE_MS,
+    notifyOverlap: (title) => {
+      overlaps.push(title);
+    },
     store: bridgeItemStore(bridge),
   });
   await session.start();
-  return { editor, session, timers };
+  return { editor, overlaps, session, timers };
 };
 
 let mounted: MountedPage | null = null;
@@ -115,7 +119,7 @@ describe("an item page over the phone's replica", () => {
       {},
       { [ITEM]: itemOf(paragraph("p1", "first"), paragraph("p2", "x")) },
     );
-    const { editor, session, timers } = await sessionOver(phone);
+    const { editor, overlaps, session, timers } = await sessionOver(phone);
     phone.items.set(
       ITEM,
       itemOf(paragraph("p1", "first, from the Mac"), paragraph("p2", "from the Mac")),
@@ -134,13 +138,35 @@ describe("an item page over the phone's replica", () => {
       { children: [{ text: "first!" }], id: "p1" },
       { children: [{ text: "from the Mac" }], id: "p2" },
     ]);
+    expect(overlaps).toEqual(["Plans"]);
+  });
+
+  it("says a merge the phone made kept this page's lines over the other device's", async () => {
+    const phone = createFakePhone({}, { [ITEM]: itemOf(paragraph("p1", "first")) });
+    const { overlaps } = await sessionOver(phone);
+    phone.deliver({
+      ids: [ITEM],
+      nonce: PHONE_NONCE,
+      overlapped: [ITEM],
+      reset: false,
+      type: "itemChanged",
+    });
+    await waitFor(() => {
+      expect(overlaps).toEqual(["Plans"]);
+    });
   });
 
   it("reads the item again when the phone says it changed", async () => {
     const phone = createFakePhone({}, { [ITEM]: itemOf(paragraph("p1", "first")) });
     const { editor, session } = await sessionOver(phone);
     phone.items.set(ITEM, itemOf(paragraph("p1", "from the Mac")));
-    phone.deliver({ ids: [ITEM], nonce: PHONE_NONCE, reset: false, type: "itemChanged" });
+    phone.deliver({
+      ids: [ITEM],
+      nonce: PHONE_NONCE,
+      overlapped: [],
+      reset: false,
+      type: "itemChanged",
+    });
     await waitFor(() => {
       expect(phone.requests("item")).toHaveLength(2);
     });

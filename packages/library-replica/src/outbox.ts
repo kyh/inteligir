@@ -190,9 +190,13 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     rows = rows.filter((row) => row.seq !== seq);
   };
 
-  const changedRow = async (op: OutboxOp): Promise<void> => {
+  // `overlapped`: the items a settle merged this device's lines into over the other device's
+  const changedRow = async (op: OutboxOp, overlapped: readonly string[]): Promise<void> => {
     const touched = touchedItems(itemIdsOf(op));
     touched.kinds.add("folder");
+    for (const id of overlapped) {
+      touched.overlapped.add(id);
+    }
     await context.changed(touched, rows);
   };
 
@@ -220,12 +224,16 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       });
       replace(parked);
     });
-    await changedRow(row.op);
+    await changedRow(row.op, []);
     return { kind: "parked" };
   };
 
   // a sent row's op computed again; no write joins a sent row, so the pass alone changes it
-  const resend = async (row: OutboxRow, op: OutboxOp): Promise<SendOutcome> => {
+  const resend = async (
+    row: OutboxRow,
+    op: OutboxOp,
+    overlapped: readonly string[],
+  ): Promise<SendOutcome> => {
     const next: OutboxRow = { ...row, op };
     await hold(async () => {
       await sql.exclusive(async (tx) => {
@@ -233,7 +241,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       });
       replace(next);
     });
-    await changedRow(op);
+    await changedRow(op, overlapped);
     return { kind: "again" };
   };
 
@@ -285,6 +293,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     row: OutboxRow,
     outcome: Settled<T>,
     again: (op: T) => OutboxOp,
+    overlapped: readonly string[],
   ): Promise<SendOutcome> => {
     if (outcome.kind === "satisfied") {
       return await land(
@@ -295,7 +304,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
         touchedNothing(),
       );
     }
-    return await resend(row, again(outcome.op));
+    return await resend(row, again(outcome.op), overlapped);
   };
 
   // a refusal the procedure declares, or one every call shares
@@ -393,11 +402,12 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       }
       switch (error.code) {
         case "CONFLICT": {
-          return settled(
-            row,
-            settleWrite(op, error.data.current, { merge: context.merge, newId: context.newId }),
-            (again) => again,
-          );
+          const outcome = settleWrite(op, error.data.current, {
+            merge: context.merge,
+            newId: context.newId,
+          });
+          const overlapped = outcome.kind === "resend" && outcome.overlapped;
+          return settled(row, outcome, (again) => again, overlapped ? [op.itemId] : []);
         }
         case "BLOB_MISSING": {
           return missingFiles(row, error.data.shas);
@@ -503,10 +513,12 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     }
     return await refused(row, error, () =>
       isDefinedError(error) && error.code === "CONFLICT"
-        ? settled(row, settleFolders(op.ops, error.data.current), (ops) => ({
-            kind: "folders",
-            ops,
-          }))
+        ? settled(
+            row,
+            settleFolders(op.ops, error.data.current),
+            (ops) => ({ kind: "folders", ops }),
+            [],
+          )
         : null,
     );
   };
@@ -577,7 +589,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
         return held;
       });
       if (row !== null) {
-        await changedRow(row.op);
+        await changedRow(row.op, []);
       }
     },
 
@@ -639,7 +651,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
         });
         replace(next);
       });
-      await changedRow(op);
+      await changedRow(op, []);
     },
 
     load: async () => {
@@ -663,7 +675,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
         return next;
       });
       if (row !== null) {
-        await changedRow(row.op);
+        await changedRow(row.op, []);
       }
     },
 

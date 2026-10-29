@@ -9,11 +9,12 @@ import { createRoot } from "react-dom/client";
 import { EditorProfileProvider } from "@repo/editor/editor-profile";
 import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
+import { mergeConflictLine } from "@repo/editor/note/vanished-prompt";
 import { ItemEditor } from "@repo/editor/item/item-editor";
 import type { ItemSession, ItemSessionPorts } from "@repo/editor/item/item-session";
 import type { ItemInit } from "@repo/editor-bridge/protocol";
 import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
-import { Toaster } from "@repo/ui/components/sonner";
+import { Toaster, toast } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
 import { MotionPolicy } from "@repo/ui/lib/motion-policy";
 import { SizeProvider } from "@repo/ui/lib/size-context";
@@ -118,7 +119,13 @@ export const mountItemPage = ({
 }): MountedPage => {
   // installed before the first render: the editor's kits read the host as they render
   const host = installItemPageHost(bridge);
-  const ports: ItemSessionPorts = { after, store: bridgeItemStore(bridge) };
+  const ports: ItemSessionPorts = {
+    after,
+    notifyOverlap: (title) => {
+      toast.warning(mergeConflictLine(title === "" ? "This item" : title));
+    },
+    store: bridgeItemStore(bridge),
+  };
   const handleSession = (session: ItemSession | null): void => {
     host.attach(session);
   };

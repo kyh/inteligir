@@ -84,9 +84,16 @@ export const writeSyncState = function* writeSyncState(state: SyncState): SqlPla
 export interface Touched {
   readonly kinds: Set<LibraryChange["kind"]>;
   readonly ids: Set<string>;
+  // the items a write of this device was merged into, keeping its lines where another device
+  // changed the same ones
+  readonly overlapped: Set<string>;
 }
 
-export const touchedNothing = (): Touched => ({ ids: new Set(), kinds: new Set() });
+export const touchedNothing = (): Touched => ({
+  ids: new Set(),
+  kinds: new Set(),
+  overlapped: new Set(),
+});
 
 const touch = (touched: Touched, kind: LibraryChange["kind"], id: string): void => {
   touched.kinds.add(kind);

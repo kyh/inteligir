@@ -37,12 +37,12 @@ export const keepBoth: BlockMerge = ({ base, mine, theirs }) => {
   const ours = textOf(mine);
   const others = textOf(theirs);
   if (ours === textOf(base) || ours === others) {
-    return theirs;
+    return { block: theirs, overlapped: false };
   }
   if (others === textOf(base)) {
-    return mine;
+    return { block: mine, overlapped: false };
   }
-  return paragraph(theirs.id, `${others} / ${ours}`);
+  return { block: paragraph(theirs.id, `${others} / ${ours}`), overlapped: false };
 };
 
 export interface MemoryBlobs extends StagedBlobs {

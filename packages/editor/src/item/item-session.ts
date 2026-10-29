@@ -6,7 +6,9 @@
 // transforms and outside its undo history: a block only one side changed takes that side, one
 // both changed is merged three ways (`@repo/editor/stale-write`), and an edit outlives a drop
 // either way round. A write the store refuses on a base that moved under it settles the same way
-// and goes again. Construction is inert: nothing reads, subscribes or schedules until `start()`.
+// and goes again, and a merge that kept this device's lines over another's change to the same ones
+// is said, whether this session or the replica's outbox made it. Construction is inert: nothing
+// reads, subscribes or schedules until `start()`.
 
 import { ElementApi, NodeApi, TextApi } from "platejs";
 import type { Point, SlateEditor, TElement } from "platejs";
@@ -18,7 +20,7 @@ import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-node
 
 import { blockId } from "@repo/editor/node-props";
 import { mergeBlocks } from "@repo/editor/stale-write";
-import type { BlockSides } from "@repo/editor/stale-write";
+import type { BlockSides, MergedBlock } from "@repo/editor/stale-write";
 
 import { diffValue, readElement } from "./item-diff";
 import type { ElementReads } from "./item-diff";
@@ -49,14 +51,20 @@ export type ItemWriteOutcome =
   | { readonly kind: "changed"; readonly item: HeldItem }
   | { readonly kind: "invalid"; readonly fields: readonly string[] };
 
+// what moved in the store: these items or all of them, and the items a queued write of this
+// device was merged into keeping its lines over another device's change to the same ones
+export interface ItemStoreChange {
+  readonly ids: ReadonlySet<string>;
+  readonly reset: boolean;
+  readonly overlapped: ReadonlySet<string>;
+}
+
 // the replica as the session reaches it: `@repo/library-replica`'s own item read, write and
 // change feed, which a host hands over as they are
 export interface ItemStore {
   readonly item: (itemId: string) => Promise<HeldItem | null>;
   readonly write: (itemId: string, input: ItemWrite) => Promise<ItemWriteOutcome>;
-  readonly onChange: (
-    listener: (change: { readonly ids: ReadonlySet<string>; readonly reset: boolean }) => void,
-  ) => () => void;
+  readonly onChange: (listener: (change: ItemStoreChange) => void) => () => void;
 }
 
 export type FieldOp = Extract<LibraryOp, { op: "set" | "tags" | "aliases" | "property" }>;
@@ -65,7 +73,10 @@ export interface ItemSessionPorts {
   readonly store: ItemStore;
   // a timer the session cancels: the pause that writes
   readonly after: (ms: number, run: () => void) => () => void;
-  readonly merge?: (sides: BlockSides) => LibraryBlock;
+  // a merge kept this device's lines where another device changed the same ones: the host says
+  // so of the item by its title, as a note's merge is said (`mergeConflictLine`)
+  readonly notifyOverlap: (title: string) => void;
+  readonly merge?: (sides: BlockSides) => MergedBlock;
   readonly idleMs?: number;
 }
 
@@ -104,6 +115,7 @@ export interface ItemSession {
 export const ITEM_IDLE_MS = 800;
 // a write refused on a moved base is settled and sent again, this many times in one go
 const SETTLE_TRIES = 3;
+export const KEPT_CHANGING = "This item kept changing elsewhere while it saved. It will try again.";
 
 const isElement = (node: unknown): node is TElement => ElementApi.isElement(node);
 
@@ -181,14 +193,16 @@ interface ReadBlock {
 }
 
 // what a landing is laid under: the blocks last acknowledged, the item as it landed, what this
-// editor holds and which of its blocks it changed or moved since
+// editor holds and which of its blocks it changed or moved since, and the blocks whose merge kept
+// this editor's lines over the landing's change to the same ones
 interface Landing {
   readonly base: ItemState;
   readonly theirs: ItemState;
   readonly mine: ReadonlyMap<string, ReadBlock>;
   readonly touched: ReadonlySet<string>;
   readonly movedHere: ReadonlySet<string>;
-  readonly merge: (sides: BlockSides) => LibraryBlock;
+  readonly merge: (sides: BlockSides) => MergedBlock;
+  readonly overlapped: Set<string>;
 }
 
 const landingOf = (
@@ -196,7 +210,7 @@ const landingOf = (
   item: HeldItem,
   value: readonly TElement[],
   reads: ElementReads,
-  merge: (sides: BlockSides) => LibraryBlock,
+  merge: (sides: BlockSides) => MergedBlock,
 ): Landing => {
   const touched = new Set<string>();
   const movedHere = new Set<string>();
@@ -216,7 +230,7 @@ const landingOf = (
       mine.set(read.block.id, read);
     }
   }
-  return { base, merge, mine, movedHere, theirs: stateOf(item), touched };
+  return { base, merge, mine, movedHere, overlapped: new Set(), theirs: stateOf(item), touched };
 };
 
 // a block only one side changed takes that side, one both changed is merged, and an edit outlives
@@ -238,10 +252,11 @@ const decide = (landing: Landing, id: string): Decision => {
   if (!changedHere || ours === undefined || was === undefined) {
     return { block: now.block, kind: "take" };
   }
-  return {
-    block: landing.merge({ base: was.block, mine: ours.block, theirs: now.block }),
-    kind: "take",
-  };
+  const merged = landing.merge({ base: was.block, mine: ours.block, theirs: now.block });
+  if (merged.overlapped) {
+    landing.overlapped.add(id);
+  }
+  return { block: merged.block, kind: "take" };
 };
 
 // a block moved elsewhere that this editor did not move, taken out of its place to be put back
@@ -311,6 +326,8 @@ export const createItemSession = (
   let pendingFields: FieldOp[] = [];
   let heldBack = 0;
   let failure: string | null = null;
+  // an edit the tries ran out on: no write has queued it yet
+  let behind = false;
   let missing = false;
   let seen: SlateEditor["children"] | null = null;
   let cancelIdle: (() => void) | null = null;
@@ -331,7 +348,7 @@ export const createItemSession = (
         fields: laid?.kind === "applied" ? laid.state.fields : acked.fields,
         heldBack,
         kind: "open",
-        unsaved: cancelIdle !== null || pendingFields.length > 0,
+        unsaved: cancelIdle !== null || pendingFields.length > 0 || behind,
       };
     }
     for (const listener of listeners) {
@@ -420,8 +437,9 @@ export const createItemSession = (
     }
   };
 
-  // the item as it landed, laid under what this editor changed since its last acknowledgement
-  const settle = (item: HeldItem): void => {
+  // the item as it landed, laid under what this editor changed since its last acknowledgement;
+  // `overlappedThere`: the store already merged this device's write into it over an overlap
+  const settle = (item: HeldItem, overlappedThere: boolean): void => {
     const base = acked;
     if (base === null) {
       return;
@@ -443,13 +461,26 @@ export const createItemSession = (
     acked = landing.theirs;
     pendingFields = pendingFields.map((op) => rebased(op, landing.theirs.fields));
     seen = editor.children;
+    if (overlappedThere || landing.overlapped.size > 0) {
+      ports.notifyOverlap(landing.theirs.fields.title);
+    }
   };
 
-  const write = async (): Promise<void> => {
+  // the pause that writes, from now: `run` is the flush it ends in
+  const arm = (run: () => void): void => {
+    cancelIdle?.();
+    cancelIdle = ports.after(idleMs, () => {
+      cancelIdle = null;
+      run();
+    });
+  };
+
+  // whether the tries ran out on an item that kept moving, which leaves the edit unsaved
+  const write = async (): Promise<"done" | "ran-out"> => {
     for (let attempt = 0; attempt < SETTLE_TRIES && !missing; attempt += 1) {
       const base = acked;
       if (base === null) {
-        return;
+        return "done";
       }
       const diff = diffValue(base.blocks, elementsOf(editor), reads);
       heldBack = diff.heldBack.length;
@@ -457,7 +488,8 @@ export const createItemSession = (
       const ops = [...diff.ops, ...sentFields];
       if (ops.length === 0) {
         failure = null;
-        return;
+        behind = false;
+        return "done";
       }
       const shas = shasWritten(diff.ops);
       const staged = [...files.values()].filter((file) => shas.has(file.sha));
@@ -473,21 +505,23 @@ export const createItemSession = (
           }
           pendingFields = pendingFields.slice(sentFields.length);
           failure = null;
+          behind = false;
           const landed = applyOps(base, ops);
           if (landed.kind === "applied") {
             acked = landed.state;
-            return;
+            return "done";
           }
           const item = await ports.store.item(itemId);
           if (item === null) {
             missing = true;
           } else {
-            settle(item);
+            settle(item, false);
           }
-          return;
+          return "done";
         }
         case "changed": {
-          settle(outcome.item);
+          settle(outcome.item, false);
+          failure = KEPT_CHANGING;
           break;
         }
         case "invalid": {
@@ -503,23 +537,34 @@ export const createItemSession = (
         // no default
       }
     }
+    if (missing) {
+      return "done";
+    }
+    behind = true;
+    return "ran-out";
   };
 
   const flush = async (): Promise<void> => {
     cancelIdle?.();
     cancelIdle = null;
     await serial(async () => {
-      await write();
+      // an edit the tries ran out on goes again after the next pause while the item is open, and
+      // the status says why meanwhile
+      if ((await write()) === "ran-out" && following) {
+        arm(() => {
+          void flush();
+        });
+      }
       publish();
     });
   };
 
-  const land = async (): Promise<void> => {
+  const land = async (overlappedThere: boolean): Promise<void> => {
     const item = await ports.store.item(itemId);
     if (item === null) {
       missing = true;
     } else {
-      settle(item);
+      settle(item, overlappedThere);
     }
     publish();
   };
@@ -531,12 +576,15 @@ export const createItemSession = (
     following = true;
     unsubscribe = ports.store.onChange((change) => {
       if (following && acked !== null && (change.reset || change.ids.has(itemId))) {
-        void serial(land);
+        const overlapped = change.overlapped.has(itemId);
+        void serial(async () => {
+          await land(overlapped);
+        });
       }
     });
     await serial(async () => {
       if (acked !== null) {
-        await land();
+        await land(false);
         return;
       }
       const item = await ports.store.item(itemId);
@@ -550,6 +598,10 @@ export const createItemSession = (
       withoutHistory(() => {
         editor.tf.setValue(orderedBlocks(state.blocks).map((stored) => elementOf(stored.block)));
       });
+      // the value is the item's now, so no undo reaches what the editor held before it, as Plate's
+      // own reset clears
+      editor.history.undos = [];
+      editor.history.redos = [];
       seen = editor.children;
       publish();
     });
@@ -561,9 +613,7 @@ export const createItemSession = (
     }
     seen = editor.children;
     const idle = cancelIdle === null;
-    cancelIdle?.();
-    cancelIdle = ports.after(idleMs, () => {
-      cancelIdle = null;
+    arm(() => {
       void flush();
     });
     if (idle) {
