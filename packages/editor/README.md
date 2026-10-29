@@ -145,14 +145,17 @@ src/
   those bytes, `missing` as vanished. A host turns the base into whatever its
   store compares (the desktop hashes it for the server's CAS). `mergeBlocks`
   is the replica's block merge: a block two writers changed, diff3-merged over
-  each side's markdown (`codec/block-markdown.ts`).
+  each side's markdown (`codec/block-markdown.ts`), with whether it kept this
+  device's lines over the other's change to the same ones.
 - `item/item-session.ts` — an item open in the editor by its id, over the
   replica (`ItemStore`): the value is the item's blocks, a pause writes the
   ops `item/item-diff.ts` reads off it, and a change from elsewhere is laid
-  in with the editor's transforms. `item/item-editor.tsx` is its surface:
-  the editor under the host's profile over one session, which a host reads
-  the status of and flushes, and `item/item-properties.ts` the panel's rows
-  over its fields. A link to an item by id shows the name the item goes by
+  in with the editor's transforms; a merge that kept this device's lines over
+  another's goes to the host's `notifyOverlap`. `item/item-editor.tsx` is its
+  surface: an editor and a session of its own per item id, drawn once the
+  item's blocks are in (or a line saying the device lacks it), which a host
+  reads the status of and flushes, and `item/item-properties.ts` the panel's
+  rows over its fields. A link to an item by id shows the name the item goes by
   now, the resolver's `titleOf`, read off the host's wiki targets.
 - `note/open-note-context.tsx` — the open-note store. Every consumer under
   the editor reads the open note through `useOpenNote(sel)`.

@@ -82,8 +82,10 @@ both ends address the same files.
   `init { mode: "item", nonce, itemId, focus }` or
   `init { mode: "fill", nonce }`, `fillJob { id, nonce, job }` (a page's bytes
   as base64, its charset and its address), `response { id, ok }`,
-  `vaultChanged`, `itemChanged { ids, reset }` (the replica moved; an item
-  page reads its item again when it is among them), `flush` (answered by
+  `vaultChanged`, `itemChanged { ids, reset, overlapped }` (the replica moved;
+  an item page reads its item again when it is among them, and says so when
+  the replica merged its write over another device's change to the same
+  lines), `flush` (answered by
   `flushed` with its id), `annotationMeta`
   (the note's annotations, which its ranges are drawn by) and
   `annotationsRemoved` (annotations deleted on the phone, whose markers the page
