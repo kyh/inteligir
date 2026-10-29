@@ -176,8 +176,9 @@ The local Worker's built-in agent talks to a fake Managed Agents API, chosen
 by a dev-only binding in `.dev.vars`: no key, no model, and the mode every e2e
 scenario runs. A real agent needs `ANTHROPIC_API_KEY` there instead, and a
 public tunnel to the connector, since Anthropic's MCP proxy cannot reach
-localhost. A deployed Worker without the key fails closed: it refuses every
-agent send, never fakes one. The model is the agent file's, one for everyone.
+localhost (`apps/web/.dev.vars.example` says what a tunnel needs set). A
+deployed Worker without the key fails closed: it refuses every agent send,
+never fakes one. The model is the agent file's, one for everyone.
 
 ### There is no seeded login, and sign-up is invite-only
 

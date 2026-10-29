@@ -8,6 +8,11 @@
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/privacy.md", "$TURBO_ROOT$/docs/terms.md"],
       // the Build Output `cf deploy --prebuilt` uploads
       "outputs": [".cloudflare/output/**"]
+    },
+    "dev": {
+      // the tunnel's host, which vite answers beside localhost when the connector is reached from
+      // outside (.dev.vars.example); strict env mode hands a task no other variable
+      "passThroughEnv": ["__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS"]
     }
   }
 }

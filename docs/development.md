@@ -20,7 +20,9 @@ owner's.
 - `pnpm install` at the repo root (workspace-wide)
 - For `dev:web` only: `cp apps/web/.dev.vars.example apps/web/.dev.vars`,
   then set `BETTER_AUTH_SECRET` to anything. Without it every `/api/auth/*`
-  request fails.
+  request fails. The connector answers only `SITE_ORIGIN`'s host,
+  `localhost:5174` here; the example says what to set to reach it through a
+  tunnel.
 
 ## Commands
 
