@@ -49,7 +49,7 @@ Size belongs in the document's CSS, not on the fence line.
 ## The Sandbox
 
 The frame is isolated, and that is the point — a note should never be able to
-reach the app or the vault. What that costs you:
+reach the app or the library. What that costs you:
 
 - Inline CSS and JavaScript work. Script runs only once the reader presses Run;
   Preview draws the document with script off. Start behavior on
@@ -59,9 +59,9 @@ reach the app or the vault. What that costs you:
 - Network requests are blocked: no fetch, and no remote script, stylesheet,
   image or font. **The first frame must be useful with no network and no
   script.**
-- Vault-relative paths like `assets/x.png` do not resolve inside the frame. A
-  small required image must be an inline `data:` URI. Never use `file://` or an
-  absolute local path.
+- A library file's address, `assets/<sha>`, does not resolve inside the frame.
+  A small required image must be an inline `data:` URI. Never use `file://` or
+  an absolute local path.
 
 Every visible control must actually work and use native semantics — a button is
 a `<button>`. A control that looks live and does nothing is worse than no

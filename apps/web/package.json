@@ -13,6 +13,7 @@
     "dev": "cf dev",
     "generate": "cf workers types",
     "og:cards": "node scripts/og-cards.ts",
+    "agents": "node scripts/agent-files.ts",
     "start": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker && tsc --noEmit -p scripts"
@@ -51,6 +52,7 @@
     "@libsql/client": "^0.18.0",
     "@modelcontextprotocol/client": "catalog:",
     "@orpc/client": "catalog:",
+    "@repo/agent-skills": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
@@ -65,6 +67,7 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
-    "wrangler": "catalog:"
+    "wrangler": "catalog:",
+    "yaml": "catalog:"
   }
 }

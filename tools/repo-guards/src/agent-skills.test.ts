@@ -1,20 +1,22 @@
-// The skills reach an agent as files: the CLI resolves ONE probe file through the package's
-// exports map and hands the directory over. A renamed probe resolves nothing, and the resolver
-// answers null rather than throwing, so the pointer disappears from every checkout with no error
-// anywhere. This holds the probe, the set and the hub's index together.
+// The skills are the built-in agent's dialect, and its system prompt is built from them:
+// apps/web/scripts/agent-files.ts writes each target's agent.md for `ant apply` from this package,
+// in the order the hub's index names the skills. This holds the set and the hub's index together,
+// the agent files to what the script writes, and what those files declare to the shape an agent
+// whose only tools are the connector's needs.
 
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
+import { z } from "zod";
 
-import { REPO_ROOT, sourceOf, trackedFiles } from "./repo";
+import { REPO_ROOT, trackedFiles } from "./repo";
 
 const SKILLS_DIR = "packages/agent-skills/skills";
-const RESOLVER = "apps/cli/src/server/agents/agent-shell-env.ts";
 const HUB = "inteligir-notes";
 const HUB_INDEX_HEADING = "## Focused Contracts";
 
-const PROBE_LITERAL = /require\.resolve\("@repo\/agent-skills\/skills\/(?<probe>[^"]+)"\)/u;
 const FRONTMATTER_NAME = /^name:\s*(?<name>\S+)\s*$/mu;
 const FRONTMATTER_DESCRIPTION = /^description:\s*(?<description>\S.*)$/mu;
 const HUB_ROW = /^- .*`(?<skill>inteligir-[a-z-]+)`/gmu;
@@ -26,6 +28,85 @@ const FENCE_OPENING = /^\s*(?:`{3,}|~{3,})\s*(?<lang>inteligir-[a-z-]+)(?=\s|$)/
 
 // the starter vault a first run copies: the notes a new user reads first and imitates after.
 const SEED_DIR = "apps/cli/seed/";
+
+const AGENT_FILES_SCRIPT = "apps/web/scripts/agent-files.ts";
+const AGENT_TARGETS = ["production", "preview"] as const;
+const agentFile = (target: string, name: string): string =>
+  `apps/web/agents/${target}/library-agent/${name}`;
+
+// Managed Agents takes a system prompt of at most this many characters
+const SYSTEM_MAX_CHARS = 100_000;
+
+const readRepoFile = (file: string): string => fs.readFileSync(path.join(REPO_ROOT, file), "utf-8");
+
+// an agent.md as ant reads it: YAML frontmatter, and the body, trimmed, as its `system`
+const AGENT_FILE = /^---\n(?<frontmatter>[\s\S]*?)\n---\n(?<body>[\s\S]*)$/u;
+
+interface AgentFile {
+  readonly frontmatter: unknown;
+  readonly system: string;
+}
+
+const agentOf = (target: string): AgentFile => {
+  const groups = AGENT_FILE.exec(readRepoFile(agentFile(target, "agent.md")))?.groups;
+  if (groups === undefined) {
+    throw new Error(`${agentFile(target, "agent.md")}: expected frontmatter, then the prompt`);
+  }
+  return { frontmatter: parse(groups["frontmatter"] ?? ""), system: (groups["body"] ?? "").trim() };
+};
+
+// what a connector-only agent declares: one url server, credential-free, and one toolset for it,
+// an allowlist; no agent toolset, no custom tool and no skills
+const connectorOnlyAgent = z.strictObject({
+  description: z.string().min(1),
+  mcp_servers: z.tuple([
+    z.strictObject({ name: z.literal("library"), type: z.literal("url"), url: z.url() }),
+  ]),
+  model: z.strictObject({ effort: z.string().min(1), id: z.string().min(1) }),
+  name: z.string().min(1),
+  tools: z.tuple([
+    z.strictObject({
+      configs: z
+        .array(
+          z.strictObject({
+            enabled: z.literal(true),
+            name: z.string().min(1),
+            permission_policy: z.strictObject({ type: z.enum(["always_allow", "always_ask"]) }),
+          }),
+        )
+        .min(1),
+      default_config: z.strictObject({ enabled: z.literal(false) }),
+      mcp_server_name: z.literal("library"),
+      type: z.literal("mcp_toolset"),
+    }),
+  ]),
+});
+
+// a limited network that reaches MCP servers and nothing else: no packages, no hosts
+const mcpOnlyEnvironment = z.strictObject({
+  config: z.strictObject({
+    networking: z.strictObject({ allow_mcp_servers: z.literal(true), type: z.literal("limited") }),
+    type: z.literal("cloud"),
+  }),
+  description: z.string().min(1),
+  name: z.string().min(1),
+});
+
+// ant's own lockfile, which only `ant apply` writes: a resource it has not applied has no entry
+const antLockfile = z.strictObject({
+  origin: z
+    .strictObject({
+      base_url: z.string().optional(),
+      organization_id: z.string().optional(),
+      workspace_id: z.string().optional(),
+    })
+    .optional(),
+  resources: z.record(
+    z.string(),
+    z.looseObject({ id: z.string().min(1), kind: z.string().min(1) }),
+  ),
+  version: z.literal(1),
+});
 
 const skillDirs = (): string[] =>
   fs
@@ -109,20 +190,6 @@ describe("the agent skills", () => {
     ).toEqual([]);
   });
 
-  it("the resolver's probe file exists, so a rename cannot silently drop the pointer", () => {
-    const probe = PROBE_LITERAL.exec(sourceOf(RESOLVER))?.groups?.probe;
-    expect(probe, `${RESOLVER} no longer resolves a skill file with require.resolve`).toBeDefined();
-    if (probe === undefined) {
-      return;
-    }
-    const file = path.join(SKILLS_DIR, probe);
-    expect(
-      fs.existsSync(path.join(REPO_ROOT, file)),
-      `${RESOLVER} probes ${file}, which does not exist\n` +
-        `  rule: resolveSkillsDir answers null when the probe is missing, and a null pointer is a prompt with no skills and no error — move the probe with the file`,
-    ).toBe(true);
-  });
-
   it("the hub names every focused skill and nothing that is not one", () => {
     const hub = skillText(HUB);
     expect(hub, `${SKILLS_DIR}/${HUB}/SKILL.md is missing`).not.toBeNull();
@@ -146,7 +213,7 @@ describe("the agent skills", () => {
   });
 
   describe("the dialect's fence languages", () => {
-    const exported = [...sourceOf(FENCE_LANGS).matchAll(EXPORTED_LANG)].map(
+    const exported = [...readRepoFile(FENCE_LANGS).matchAll(EXPORTED_LANG)].map(
       (match) => match.groups?.lang ?? "",
     );
 
@@ -206,5 +273,48 @@ describe("the agent skills", () => {
         `note.md:7 — opens \`${lang}\`, which ${FENCE_LANGS} does not export`,
       ]);
     });
+  });
+});
+
+describe("the built-in agent's files", () => {
+  it("are what scripts/agent-files.ts writes from the skills", { timeout: 30_000 }, () => {
+    // node starts and reads every skill: well under a second here, seconds on a loaded runner
+    expect(() =>
+      execFileSync("node", [AGENT_FILES_SCRIPT, "--check"], {
+        cwd: REPO_ROOT,
+        encoding: "utf-8",
+        stdio: "pipe",
+      }),
+    ).not.toThrow();
+  });
+
+  it("carry one system prompt for every target, within the API's cap", () => {
+    const [first, ...rest] = AGENT_TARGETS.map((target) => agentOf(target).system);
+    expect(first?.length ?? 0).toBeGreaterThan(0);
+    expect(first?.length ?? 0).toBeLessThanOrEqual(SYSTEM_MAX_CHARS);
+    // a prompt one target alone carries names something of that deployment, and a cached prefix
+    // is the prompt's bytes
+    for (const other of rest) {
+      expect(other).toBe(first);
+    }
+  });
+
+  it("each declare the connector alone, its tools an allowlist", () => {
+    for (const target of AGENT_TARGETS) {
+      const declared = connectorOnlyAgent.safeParse(agentOf(target).frontmatter);
+      expect(declared.error?.issues ?? [], agentFile(target, "agent.md")).toEqual([]);
+      const environment = mcpOnlyEnvironment.safeParse(
+        parse(readRepoFile(agentFile(target, "environment.yaml"))),
+      );
+      expect(environment.error?.issues ?? [], agentFile(target, "environment.yaml")).toEqual([]);
+    }
+  });
+
+  it("each keep a lockfile in ant's own shape", () => {
+    for (const target of AGENT_TARGETS) {
+      const file = agentFile(target, "claude-lock.json");
+      const lock = antLockfile.safeParse(JSON.parse(readRepoFile(file)));
+      expect(lock.error?.issues ?? [], file).toEqual([]);
+    }
   });
 });

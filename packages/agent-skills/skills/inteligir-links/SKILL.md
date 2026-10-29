@@ -1,12 +1,12 @@
 ---
 name: inteligir-links
-description: Wiki links, heading anchors, aliases, id-resolved links, external links, embeds, and vault media in inteligir notes.
+description: Wiki links, heading anchors, aliases, id-resolved links, external links, embeds, and files in inteligir items.
 ---
 
 # inteligir Links
 
-Wiki links move between notes in the vault. Markdown links go out to the web.
-Image syntax is for something that should render, not for something to click.
+Wiki links move between items in the library. Markdown links go out to the web. Image syntax is for
+something that should render, not for something to click.
 
 ## Wiki Links
 
@@ -18,34 +18,33 @@ Image syntax is for something that should render, not for something to click.
 [[Queue Design|9e64c3df-c1e2-4a4d-8c07-91528f422413]]
 ```
 
-The body of a wiki link is `target`, then an optional `#heading`, then an
-optional `|alias` — and **the LAST pipe starts the alias**, so a title
-containing a pipe still works.
+The body of a wiki link is `target`, then an optional `#heading`, then an optional `|alias` — and
+**the LAST pipe starts the alias**, so a title containing a pipe still works.
 
-An alias shaped like a uuid is not a label: it is the target note's identity,
-written when the app resolved the link. It keeps pointing at the right note
-after a rename, and the reader sees the note's title, never the uuid. **Never
-type one yourself, and never replace one with a display alias** — you would be
-throwing away the only durable pointer in the link.
+`read_item` writes every link to an item as `[[Title|id]]`: its title as it is now, and after the
+last pipe the id of the item it points at. That id is the link: it keeps pointing at the right item
+after a rename, and the reader sees the item's title, never the id. **Keep every id you read, and
+never replace one with a display alias** — you would be throwing away the only durable pointer in
+the link. To link to an item you found, write its title and the id `search_library` or
+`list_items` answered; never type an id from memory.
 
-Resolution walks: exact path, then filename, then path suffix, then frontmatter
-`aliases`. A link that resolves to nothing renders dashed and offers to create
-the note — that is a working state, not an error, and it is the right way to
-write toward a note that does not exist yet.
+A link written `[[Title]]` with no id finds the item of that title or alias. One that finds
+nothing renders dashed and offers to create the note — that is a working state, not an error, and
+it is the right way to write toward a note that does not exist yet.
 
 Rules worth the keystrokes:
 
-- Match the target's real filename. Check it; do not guess from a heading.
-- `.md` is the one extension a link may leave off: a `todo.txt` note is
-  `[[todo.txt]]`, never `[[todo]]`.
-- `[[#Heading]]` stays inside the current note.
-- Escape a literal hash in a title as `\#`; a `#` surrounded by spaces is title
-  text, not an anchor.
-- A `#` anchor matches the heading loosely (case and spacing are forgiven). If
-  two headings collide, link the section a different way rather than shipping an
-  ambiguous anchor.
-- Wiki links do not render inside an annotation's text. In an annotation, name the note in
+- Match the target's real title. Check it; do not guess from a heading.
+- `[[#Heading]]` stays inside the current item.
+- Escape a literal hash in a title as `\#`; a `#` surrounded by spaces is title text, not an
+  anchor.
+- A `#` anchor matches the heading loosely (case and spacing are forgiven). If two headings collide,
+  link the section a different way rather than shipping an ambiguous anchor.
+- Wiki links do not render inside a highlight's note. In a note on a highlight, name the item in
   prose.
+
+`read_item` also answers which items link to this one and which it links to, so you need not
+search the library's text for them.
 
 ## External Links
 
@@ -53,38 +52,33 @@ Rules worth the keystrokes:
 [the RFC](https://example.com/rfc)
 ```
 
-Use a label that says where it goes. Preserve existing destinations exactly.
-Never author `javascript:`, `data:`, `file:`, or a URL carrying credentials.
+Use a label that says where it goes. Preserve existing destinations exactly. Never author
+`javascript:`, `data:`, `file:`, or a URL carrying credentials.
 
-## Embeds And Media
+## Embeds And Files
 
-| Intent                        | Syntax                               |
-| ----------------------------- | ------------------------------------ |
-| Transclude another note       | `![[Some Note]]`                     |
-| Image from the vault          | `![Alt text](assets/diagram.png)`    |
-| A PDF or other vault file     | `![](assets/report.pdf)`             |
-| A file whose name has a space | `![](<assets/Lecture notes.pdf>)`    |
-| Video, tweet, or page card    | `![](https://example.com/watch?v=…)` |
+| Intent                      | Syntax                               |
+| --------------------------- | ------------------------------------ |
+| Transclude another item     | `![[Some Note]]`                     |
+| A picture the library holds | `![Alt text](assets/<sha>)`          |
+| A file the library holds    | `![](assets/<sha>/report.pdf)`       |
+| Video, tweet, or page card  | `![](https://example.com/watch?v=…)` |
 
-`![[Some Note]]` pulls that note's content in for reading; it does not copy the
-bytes, so the source note stays the one place to edit it.
+`![[Some Note]]` pulls that item's text in for reading; it does not copy it, so the source item
+stays the one place to edit it.
 
-Nothing remote loads inside a note: a remote image, video, tweet or page shows as
-a card that opens in the browser. An image the note must show goes in the vault.
-An embed has no alt text; `![Chart](https://…)` with alt text is a remote image.
+`read_item` writes every file the library holds as `assets/` and its content hash, with the file's
+name after it when it has one. Keep those addresses exactly as you read them: moving one into
+another item's text embeds the same file there, and an address you typed names nothing. You cannot
+add a file of your own; a picture or a PDF comes into the library from the person's devices.
 
-A PDF embed shows the document and any other file shows as a card that
-opens it; an image, PDF or file item is a small note whose body is one such
-embed of its original (`inteligir-items`). A link's cover is the first image
-its body embeds, under `assets/covers/`.
-
-Vault media lives under `assets/` and is referenced by that relative path. Do
-not write `file://` or absolute local paths — they break for every other person
-and every other machine that opens the vault.
+Nothing remote loads inside an item: a remote image, video, tweet or page shows as a card that
+opens in the browser. An embed has no alt text; `![Chart](https://…)` with alt text is a remote
+image.
 
 ## Before You Finish
 
-- Every wiki target names a real file, or is deliberately dashed.
-- Existing uuid aliases and heading anchors are untouched.
+- Every wiki target names a real item, or is deliberately dashed.
+- Every link id and heading anchor you read is untouched.
 - External destinations are unchanged and use a safe scheme.
-- Media uses a vault-relative `assets/` path.
+- Every `assets/` address is one you read, exactly.

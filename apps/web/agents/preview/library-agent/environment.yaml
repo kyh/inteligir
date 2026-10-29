@@ -1,0 +1,8 @@
+# written by apps/web/scripts/agent-files.ts: edit that, or the skills, and run it
+config:
+  networking:
+    allow_mcp_servers: true
+    type: limited
+  type: cloud
+description: "The built-in agent's sandbox: no tools of its own, and only the library's server."
+name: inteligir-library-agent
