@@ -639,3 +639,20 @@ describe("the outbox's replay", () => {
     },
   );
 });
+
+describe("a write queued behind a delete", () => {
+  it("goes after the delete rather than joining the write before it", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const id = await landedNote(cell, phone);
+    phone.network.setOffline(true);
+    await write(phone.replica, id, [await putText(phone.replica, id, "p1", "before")]);
+    await phone.replica.deleteItems([id]);
+    await write(phone.replica, id, [await putText(phone.replica, id, "p1", "after")]);
+    expect(phone.replica.status().unsent).toBe(3);
+    phone.network.setOffline(false);
+    await phone.replica.sync();
+    expect(cellText(cell, id, "p1")).toBe("after");
+    expect(cell.item(id)?.fields.deletedAt).not.toBeNull();
+  });
+});

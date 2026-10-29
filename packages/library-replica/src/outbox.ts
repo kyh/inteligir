@@ -556,8 +556,12 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     enqueue: async (op) => {
       const createdAt = context.clock.now();
       const written = await sql.exclusive(async (tx) => {
+        // the last row naming the item, a delete or a restore of several included, so a write
+        // joins only a write nothing on its item has queued behind
         const last =
-          op.kind === "write" ? rows.findLast((row) => row.itemId === op.itemId) : undefined;
+          op.kind === "write"
+            ? rows.findLast((row) => itemIdsOf(row.op).includes(op.itemId))
+            : undefined;
         if (op.kind === "write" && last?.state === "queued" && last.op.kind === "write") {
           const joined = coalesceWrites(last.op, op);
           if (joined.ops.length === 0 && joined.annotations.length === 0) {

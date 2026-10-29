@@ -49,7 +49,8 @@ catalog:
   "@noble/hashes": ^2.4.0
   "@parcel/watcher": ^2.6.0
   # exact: the version is SQLite's own release with a build suffix, not semver; it is the engine
-  # the library's shared SQL is tested on in @repo/notes, so a bump moves the SQLite under test
+  # the library's shared SQL is tested on in @repo/notes and the browser tab's replica runs on
+  # (@repo/library-replica's memory-sql), so a bump moves the SQLite under test and in the tab
   "@sqlite.org/sqlite-wasm": 3.54.1-build1
   # the phone's stylesheet compiles through PostCSS under Metro, the web's through the vite plugin
   "@tailwindcss/postcss": ^4.3.3
