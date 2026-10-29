@@ -1,9 +1,9 @@
 // The writes a screen makes. Each is checked against the item as the screen reads it, so a base
 // the screen no longer shows is answered at once for the editor's diff3 to settle, then queued in
 // the replica's own transaction, which is the overlay's from that moment, and sent as soon as the
-// replica can. A file a write names is staged by its SHA-256 before the row that names it, so no
-// row waits on bytes the device never kept. A command's input is the wire's: one its schema
-// refuses throws, and nothing is queued.
+// replica can. A file a write names is staged by its SHA-256 with the row that names it, before
+// the row, so no row waits on bytes the device never kept. A command's input is the wire's: one
+// its schema refuses throws, and nothing is queued.
 
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
@@ -21,8 +21,8 @@ import type { z } from "zod";
 
 import { basesOf, outboxOpSchema } from "./outbox-ops";
 import type { OutboxOp, StagedFile } from "./outbox-ops";
-import type { Outbox } from "./outbox";
-import type { NewId, ReplicaClock, ReplicaSql, StagedBlobs } from "./replica-ports";
+import type { Outbox, StagedBytes } from "./outbox";
+import type { NewId, ReplicaClock, ReplicaSql } from "./replica-ports";
 import { heldAtAddress, readReplicaItem, rowsNaming } from "./replica-listing";
 import { serialLock } from "./serial-lock";
 import type { ReplicaItem } from "./replica-listing";
@@ -115,7 +115,6 @@ export interface CommandContext {
   readonly outbox: Outbox;
   readonly clock: ReplicaClock;
   readonly newId: NewId;
-  readonly blobs: StagedBlobs;
   // a row was queued: the replica sends it as soon as it can
   readonly queued: () => void;
 }
@@ -146,26 +145,34 @@ const touchesNothing = (outcome: Extract<ApplyOutcome, { kind: "applied" }>): bo
 
 const tagsOf = (tags: readonly string[]): LibraryItemFields["tags"] => [...new Set(tags)];
 
+// what a row names of a command's files, once each by their bytes' sha, and the bytes the outbox
+// stages with the row
+interface Staging {
+  readonly staged: StagedFile[];
+  readonly bytes: StagedBytes[];
+}
+
+const staging = (files: readonly NewFile[]): Staging => {
+  const staged: StagedFile[] = [];
+  const bytes: StagedBytes[] = [];
+  for (const file of files) {
+    const sha = fileSha(file.bytes);
+    if (staged.some((held) => held.sha === sha)) {
+      continue;
+    }
+    staged.push({ mime: file.mime, sha });
+    bytes.push({ bytes: file.bytes, sha });
+  }
+  return { bytes, staged };
+};
+
 export const createCommands = (context: CommandContext): ReplicaCommands => {
-  const { blobs, clock, newId, outbox, sql } = context;
+  const { clock, newId, outbox, sql } = context;
   // one command at a time, so each checks the item the one before it left
   const serial = serialLock();
 
-  const stage = async (files: readonly NewFile[]): Promise<StagedFile[]> => {
-    const staged: StagedFile[] = [];
-    for (const file of files) {
-      const sha = fileSha(file.bytes);
-      if (staged.some((held) => held.sha === sha)) {
-        continue;
-      }
-      await blobs.put(sha, file.bytes);
-      staged.push({ mime: file.mime, sha });
-    }
-    return staged;
-  };
-
-  const enqueue = async (op: OutboxOp): Promise<void> => {
-    await outbox.enqueue(outboxOpSchema.parse(op));
+  const enqueue = async (op: OutboxOp, files: readonly StagedBytes[] = []): Promise<void> => {
+    await outbox.enqueue(outboxOpSchema.parse(op), files);
     context.queued();
   };
 
@@ -174,7 +181,6 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
       await serial(async () => {
         const id = newId();
         const sha = fileSha(input.file.bytes);
-        await blobs.put(sha, input.file.bytes);
         const made: Extract<OutboxOp, { kind: "createFile" }>["input"] = {
           folderId: input.folderId,
           id,
@@ -186,29 +192,32 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
         if (input.title !== undefined) {
           made.title = input.title;
         }
-        await enqueue({
-          input: made,
-          kind: "createFile",
-          staged: [{ mime: input.file.mime, sha }],
-        });
+        await enqueue(
+          { input: made, kind: "createFile", staged: [{ mime: input.file.mime, sha }] },
+          [{ bytes: input.file.bytes, sha }],
+        );
         return { folded: false, id, sha };
       }),
 
     createNote: async (input) =>
       await serial(async () => {
         const id = newId();
-        await enqueue({
-          input: {
-            blocks: [...input.blocks],
-            folderId: input.folderId,
-            id,
-            savedAt: clock.now(),
-            tags: tagsOf(input.tags),
-            title: input.title,
+        const files = staging(input.files ?? []);
+        await enqueue(
+          {
+            input: {
+              blocks: [...input.blocks],
+              folderId: input.folderId,
+              id,
+              savedAt: clock.now(),
+              tags: tagsOf(input.tags),
+              title: input.title,
+            },
+            kind: "create",
+            staged: files.staged,
           },
-          kind: "create",
-          staged: await stage(input.files ?? []),
-        });
+          files.bytes,
+        );
         return { folded: false, id };
       }),
 
@@ -251,24 +260,23 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
       await serial(async () => {
         const id = newId();
         const holder = await runPlanAsync(sql, heldAtAddress(input.url));
-        const cover = input.cover === null ? [] : await stage([input.cover]);
-        const copy = input.copy === null ? [] : await stage([input.copy]);
         const { copy: copyFile, cover: coverFile, tags, ...page } = input;
-        await enqueue({
-          input: {
-            ...page,
-            copySha: copyFile === null ? null : fileSha(copyFile.bytes),
-            coverSha: coverFile === null ? null : fileSha(coverFile.bytes),
-            id,
-            savedAt: clock.now(),
-            tags: tagsOf(tags),
+        const files = staging([coverFile, copyFile].filter((file) => file !== null));
+        await enqueue(
+          {
+            input: {
+              ...page,
+              copySha: copyFile === null ? null : fileSha(copyFile.bytes),
+              coverSha: coverFile === null ? null : fileSha(coverFile.bytes),
+              id,
+              savedAt: clock.now(),
+              tags: tagsOf(tags),
+            },
+            kind: "save",
+            staged: files.staged,
           },
-          kind: "save",
-          staged: [
-            ...cover,
-            ...copy.filter((file) => !cover.some((held) => held.sha === file.sha)),
-          ],
-        });
+          files.bytes,
+        );
         return holder === null ? { folded: false, id } : { folded: true, id: holder };
       }),
 
@@ -293,14 +301,18 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
         if (touchesNothing(outcome) && annotations.length === 0) {
           return { kind: "unchanged" };
         }
-        await enqueue({
-          annotations,
-          bases: basesOf(input.ops, blocks),
-          itemId,
-          kind: "write",
-          ops: [...input.ops],
-          staged: await stage(input.files ?? []),
-        });
+        const files = staging(input.files ?? []);
+        await enqueue(
+          {
+            annotations,
+            bases: basesOf(input.ops, blocks),
+            itemId,
+            kind: "write",
+            ops: [...input.ops],
+            staged: files.staged,
+          },
+          files.bytes,
+        );
         return { kind: "queued" };
       }),
 

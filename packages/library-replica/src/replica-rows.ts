@@ -404,10 +404,10 @@ export const landOwnRow = function* landOwnRow(
   return landed;
 };
 
-// items a delete or a restore landed for, until the pull brings their rows as the cell holds them
+// items a delete landed for, until the pull brings their rows as the cell holds them
 export const markDeleted = function* markDeleted(
   ids: readonly string[],
-  deletedAt: number | null,
+  deletedAt: number,
 ): SqlPlan<void> {
   yield* runEach(
     chunkStatement({
@@ -419,6 +419,21 @@ export const markDeleted = function* markDeleted(
       tail: ")",
     }),
   );
+};
+
+// items a restore landed for, until the pull brings their rows. The cell restores an item only
+// while no other live item holds its address, so one this replica still lists live there is a row
+// whose newer change is still to come: it gives up the address, as a pulled row's older holder does
+export const markRestored = function* markRestored(ids: readonly string[]): SqlPlan<void> {
+  for (const id of ids) {
+    yield run(
+      `UPDATE items SET url_key = NULL
+       WHERE id <> ? AND deleted_at IS NULL
+         AND url_key = (SELECT url_key FROM items WHERE id = ? AND deleted_at IS NOT NULL)`,
+      [id, id],
+    );
+    yield run("UPDATE items SET deleted_at = NULL WHERE id = ? AND purged = 0", [id]);
+  }
 };
 
 type FolderOp = z.infer<typeof folderOpSchema>;

@@ -69,11 +69,6 @@ export const readRows = function* readRows(): SqlPlan<OutboxRow[]> {
   return (yield all(`SELECT ${ROW_COLUMNS} FROM outbox ORDER BY seq`)).map(rowOf);
 };
 
-export const readRow = function* readRow(seq: number): SqlPlan<OutboxRow | null> {
-  const [raw] = yield all(`SELECT ${ROW_COLUMNS} FROM outbox WHERE seq = ?`, [seq]);
-  return raw === undefined ? null : rowOf(raw);
-};
-
 // a row's op as JSON, held to the schema every read parses it by, so no write leaves a row this
 // build would refuse to read back
 const opJsonOf = (op: OutboxOp): string => {

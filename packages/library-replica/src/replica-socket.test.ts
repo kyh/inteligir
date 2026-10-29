@@ -1,63 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import type { ReplicaSocket } from "./replica-ports";
 import { createSocketHint, socketUrl } from "./replica-socket";
 import { fakeClock } from "./test-support/fake-clock";
-
-// what any of a socket's events carries
-interface SocketEvent {
-  readonly data?: unknown;
-  readonly code?: number | undefined;
-}
-
-interface FakeSocket extends ReplicaSocket {
-  readonly url: string;
-  readonly sent: string[];
-  closed: boolean;
-  readonly open: () => void;
-  readonly message: (data: string) => void;
-  readonly drop: () => void;
-}
-
-const socketsFor = () => {
-  const sockets: FakeSocket[] = [];
-  const dial = (url: string): ReplicaSocket => {
-    const listeners = new Map<string, ((event: SocketEvent) => void)[]>();
-    const on = (type: string, listener: (event: SocketEvent) => void): void => {
-      listeners.set(type, [...(listeners.get(type) ?? []), listener]);
-    };
-    const fire = (type: string, event: SocketEvent = {}): void => {
-      for (const listener of listeners.get(type) ?? []) {
-        listener(event);
-      }
-    };
-    const socket: FakeSocket = {
-      addEventListener: on,
-      close: () => {
-        socket.closed = true;
-        fire("close");
-      },
-      closed: false,
-      drop: () => {
-        fire("close");
-      },
-      message: (data) => {
-        fire("message", { data });
-      },
-      open: () => {
-        fire("open");
-      },
-      send: (data) => {
-        socket.sent.push(data);
-      },
-      sent: [],
-      url,
-    };
-    sockets.push(socket);
-    return socket;
-  };
-  return { dial, sockets };
-};
+import { fakeSockets } from "./test-support/fake-sockets";
 
 // the ticket's await, and the dial after it
 const settled = async (): Promise<void> => {
@@ -76,7 +21,7 @@ describe("the account's socket, a hint", () => {
 
   it("says when it opens, hands over each frame it reads, and skips what it cannot", async () => {
     const clock = fakeClock();
-    const { dial, sockets } = socketsFor();
+    const { dial, sockets } = fakeSockets();
     const frames: unknown[] = [];
     let opened = 0;
     const hint = createSocketHint({
@@ -104,7 +49,7 @@ describe("the account's socket, a hint", () => {
 
   it("pings while it hears the cell, and drops a socket gone silent", async () => {
     const clock = fakeClock();
-    const { dial, sockets } = socketsFor();
+    const { dial, sockets } = fakeSockets();
     const hint = createSocketHint({
       clock,
       dial,
@@ -129,7 +74,7 @@ describe("the account's socket, a hint", () => {
 
   it("dials again on a doubling wait while it is wanted, and never once it is closed", async () => {
     const clock = fakeClock();
-    const { dial, sockets } = socketsFor();
+    const { dial, sockets } = fakeSockets();
     let tickets = 0;
     const hint = createSocketHint({
       clock,

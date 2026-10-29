@@ -3,14 +3,24 @@ import type { LibraryOp } from "@repo/notes/library/block-ops";
 import { ensureLibrarySchema } from "@repo/notes/library/library-schema";
 import { runPlanAsync } from "@repo/notes/library/library-sql";
 import { mulberry32, pick } from "@repo/notes/test-support/seeded-random";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { fileSha } from "./library-replica";
+import { openMemorySql } from "./memory-sql";
+import type { MemorySql } from "./memory-sql";
 import { STAGED_FILE_GONE } from "./outbox";
 import type { LibraryReplica } from "./library-replica";
+import type { ReplicaTransport } from "./replica-ports";
+import { deferred, nextTurn } from "./test-support/deferred";
 import { createFakeCell } from "./test-support/fake-cell";
-import type { FakeCell } from "./test-support/fake-cell";
-import { openDevice, paragraph, relaunch, textOf } from "./test-support/replica-harness";
+import type { FakeCell, FakeDevice } from "./test-support/fake-cell";
+import {
+  memoryBlobs,
+  openDevice,
+  paragraph,
+  relaunch,
+  textOf,
+} from "./test-support/replica-harness";
 import type { TestDevice } from "./test-support/replica-harness";
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
@@ -74,6 +84,72 @@ const replicaText = async (
   const block = await heldBlock(replica, itemId, blockId);
   return block === undefined ? null : textOf(block.block);
 };
+
+// a device's database, counting the transactions asked of it, so a suite can wait for one to
+// queue behind a statement it holds
+interface CountedSql {
+  readonly sql: MemorySql;
+  readonly asked: () => number;
+}
+
+const countedSql = async (): Promise<CountedSql> => {
+  const sql = await openMemorySql();
+  let asked = 0;
+  return {
+    asked: () => asked,
+    sql: {
+      ...sql,
+      exclusive: async (work) => {
+        asked += 1;
+        return await sql.exclusive(work);
+      },
+    },
+  };
+};
+
+// a device's network that a suite can hold at one call until it lets it go, or refuse calls on
+interface HeldNetwork {
+  readonly device: FakeDevice;
+  readonly hold: (path: string) => {
+    readonly reached: Promise<void>;
+    readonly release: () => void;
+  };
+  readonly refused: Set<string>;
+}
+
+const heldNetwork = (cell: FakeCell, name: string): HeldNetwork => {
+  const network = cell.device(name);
+  const holds = new Map<string, { readonly reached: () => void; readonly gate: Promise<void> }>();
+  const refused = new Set<string>();
+  const transport: ReplicaTransport = {
+    fetch: async (request) => {
+      const path = new URL(request.url).pathname;
+      if (refused.has(path)) {
+        throw new TypeError("the network is down");
+      }
+      const held = holds.get(path);
+      if (held !== undefined) {
+        holds.delete(path);
+        held.reached();
+        await held.gate;
+      }
+      return await network.transport.fetch(request);
+    },
+    origin: network.transport.origin,
+  };
+  return {
+    device: { ...network, transport },
+    hold: (path) => {
+      const reached = deferred();
+      const gate = deferred();
+      holds.set(path, { gate: gate.promise, reached: reached.resolve });
+      return { reached: reached.promise, release: gate.resolve };
+    },
+    refused,
+  };
+};
+
+const PULL = "/v1/rpc/library/sync/pull";
 
 describe("the replica's outbox", () => {
   it("keeps offline writes across a relaunch and lands them in order once the cell answers", async () => {
@@ -638,6 +714,177 @@ describe("the outbox's replay", () => {
       }
     },
   );
+});
+
+describe("the outbox's changes, one at a time", () => {
+  it("sends a write that joined a queued row while a pass chose that row", async () => {
+    const cell = createFakeCell();
+    const files = memoryBlobs();
+    const putAsked = deferred();
+    const putGate = deferred();
+    const counted = await countedSql();
+    const phone = await openDevice(cell, "phone", {
+      blobs: {
+        ...files,
+        put: async (sha, bytes) => {
+          putAsked.resolve();
+          await putGate.promise;
+          await files.put(sha, bytes);
+        },
+      },
+      sql: counted.sql,
+    });
+    const id = await landedNote(cell, phone);
+    await write(phone.replica, id, [await putText(phone.replica, id, "p1", "one")]);
+    const second = phone.replica.write(id, {
+      files: [{ bytes: PNG, mime: "image/png" }],
+      ops: [await putText(phone.replica, id, "p1", "two")],
+    });
+    await putAsked.promise;
+    // a screen's read holds the database: the join queues behind it, then the pass chooses the
+    // row the join is about to change
+    const screen = deferred();
+    const asked = counted.asked();
+    const reading = phone.sql.exclusive(async () => {
+      await screen.promise;
+    });
+    putGate.resolve();
+    await vi.waitFor(() => {
+      expect(counted.asked()).toBe(asked + 2);
+    });
+    const syncing = phone.replica.sync();
+    await nextTurn();
+    screen.resolve();
+    await reading;
+    const joined = await second;
+    expect(joined.kind).toBe("queued");
+    await syncing;
+    await phone.replica.sync();
+    expect(cellText(cell, id, "p1")).toBe("two");
+    expect(await replicaText(phone.replica, id, "p1")).toBe("two");
+    expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
+  });
+
+  it("keeps the bytes a new row stages while a landing lets the same bytes go", async () => {
+    const cell = createFakeCell();
+    const network = heldNetwork(cell, "phone");
+    const counted = await countedSql();
+    const phone = await openDevice(cell, "phone", { network: network.device, sql: counted.sql });
+    await phone.replica.createFile({
+      file: { bytes: PNG, mime: "image/png" },
+      folderId: null,
+      name: "diagram.png",
+      tags: [],
+    });
+    const call = network.hold("/v1/rpc/library/items/createFile");
+    const syncing = phone.replica.sync();
+    await call.reached;
+    // the file's item lands behind a screen's read while a note staging the same bytes is made
+    const screen = deferred();
+    const reading = phone.sql.exclusive(async () => {
+      await screen.promise;
+    });
+    const asked = counted.asked();
+    call.release();
+    await vi.waitFor(() => {
+      expect(counted.asked()).toBe(asked + 1);
+    });
+    const note = phone.replica.createNote({
+      blocks: [
+        {
+          block: { children: [{ text: "" }], id: "i1", sha: fileSha(PNG), type: "img" },
+          ord: "a0",
+          section: "note",
+        },
+      ],
+      files: [{ bytes: PNG, mime: "image/png" }],
+      folderId: null,
+      tags: [],
+      title: "Again",
+    });
+    await nextTurn();
+    screen.resolve();
+    await reading;
+    await syncing;
+    const { id } = await note;
+    await phone.replica.sync();
+    expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
+    expect(cell.item(id)?.blocks.has("i1")).toBe(true);
+    expect(phone.blobs.held()).toEqual([]);
+  });
+});
+
+describe("a write the cell answered CONFLICT", () => {
+  it("keeps this device's move of a block another device edited", async () => {
+    const cell = createFakeCell();
+    const mac = await openDevice(cell, "mac");
+    const phone = await openDevice(cell, "phone");
+    const id = await landedNote(cell, mac);
+    await phone.replica.sync();
+    await write(mac.replica, id, [await putText(mac.replica, id, "p1", "the Mac's")]);
+    await mac.replica.sync();
+    await write(phone.replica, id, [
+      await putText(phone.replica, id, "p1", "the phone's"),
+      { baseOrd: "a0", blockId: "p1", op: "move", ord: "a2" },
+    ]);
+    await phone.replica.sync();
+    expect(cellText(cell, id, "p1")).toBe("the Mac's / the phone's");
+    expect(cell.item(id)?.blocks.get("p1")?.ord).toBe("a2");
+    const moved = await heldBlock(phone.replica, id, "p1");
+    expect(moved?.ord).toBe("a2");
+    expect(phone.replica.status().unsent).toBe(0);
+  });
+});
+
+describe("a landing over rows this device has not pulled yet", () => {
+  it("restores an item whose address a row the cell has moved on from still holds here", async () => {
+    const cell = createFakeCell();
+    const mac = await openDevice(cell, "mac");
+    const network = heldNetwork(cell, "phone");
+    const phone = await openDevice(cell, "phone", { network: network.device });
+    const url = "https://example.com/page";
+    const first = await phone.replica.saveLink({ folderId: null, tags: [], url });
+    await phone.replica.sync();
+    await mac.replica.sync();
+    await mac.replica.deleteItems([first.id]);
+    await mac.replica.sync();
+    const second = await mac.replica.saveLink({ folderId: null, tags: [], url });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    expect(phone.replica.row(second.id)?.deletedAt).toBeNull();
+    await mac.replica.deleteItems([second.id]);
+    await mac.replica.restoreItems([first.id]);
+    await mac.replica.sync();
+
+    network.refused.add(PULL);
+    await phone.replica.restoreItems([first.id]);
+    await phone.replica.sync();
+    expect(phone.replica.status()).toMatchObject({ failure: { kind: "unreachable" }, unsent: 0 });
+    expect(phone.replica.row(first.id)?.deletedAt).toBeNull();
+
+    network.refused.delete(PULL);
+    await phone.replica.sync();
+    expect(phone.replica.status()).toMatchObject({ cursor: cell.head(), failure: null });
+    expect(phone.replica.row(first.id)?.deletedAt).toBeNull();
+    expect(phone.replica.row(second.id)?.deletedAt).not.toBeNull();
+  });
+
+  it("retires a write whose landing this device's copy refuses, and lays the cell's row from the pull", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const id = await landedNote(cell, phone);
+    // a landing changes an item's row in place; the pull's row comes at a sequence of its own
+    await phone.sql.run(
+      `CREATE TRIGGER refuse_landing BEFORE UPDATE OF deleted_at ON items WHEN NEW.seq = OLD.seq
+       BEGIN SELECT RAISE(ABORT, 'this copy refuses the landing'); END`,
+      [],
+    );
+    await phone.replica.deleteItems([id]);
+    await phone.replica.sync();
+    expect(cell.calls.filter((call) => call === "phone library/items/delete")).toHaveLength(1);
+    expect(phone.replica.status()).toMatchObject({ cursor: cell.head(), failure: null, unsent: 0 });
+    expect(phone.replica.row(id)?.deletedAt).not.toBeNull();
+  });
 });
 
 describe("a write queued behind a delete", () => {

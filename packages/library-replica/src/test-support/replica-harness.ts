@@ -44,11 +44,11 @@ export const keepBoth: BlockMerge = ({ base, mine, theirs }) => {
   return paragraph(theirs.id, `${others} / ${ours}`);
 };
 
-interface MemoryBlobs extends StagedBlobs {
+export interface MemoryBlobs extends StagedBlobs {
   readonly held: () => readonly string[];
 }
 
-const memoryBlobs = (): MemoryBlobs => {
+export const memoryBlobs = (): MemoryBlobs => {
   const files = new Map<string, Uint8Array<ArrayBuffer>>();
   return {
     clear: async () => {

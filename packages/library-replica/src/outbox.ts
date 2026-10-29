@@ -4,7 +4,9 @@
 // under the same op id, which the cell answers once; the files it names go to `/v1/blobs` first. A
 // CONFLICT settles through the block merge and goes again; a refusal no resend passes parks the
 // row for the person, holding the rows on its item behind it while every other item goes on; no
-// answer stops the pass with every row kept.
+// answer stops the pass with every row kept. The outbox's changes run one at a time, each over
+// the rows as the one before it left them, so a write that joins a row and the pass that pins it
+// never decide on two different rows.
 
 import { isDefinedError, safe } from "@orpc/client";
 import type { V1Client } from "@repo/contract/cloud/v1";
@@ -20,11 +22,12 @@ import { sharedFailure, uploadBlob } from "./call-outcome";
 import type { CallFailure } from "./call-outcome";
 import { coalesceWrites, itemIdsOf, stagedOf } from "./outbox-ops";
 import type { OutboxOp, WriteOp } from "./outbox-ops";
-import { deleteAllRows, deleteRow, insertRow, readRow, readRows, saveRow } from "./outbox-rows";
+import { deleteAllRows, deleteRow, insertRow, readRows, saveRow } from "./outbox-rows";
 import type { OutboxRow } from "./outbox-rows";
 import { settleFolders, settleWrite } from "./outbox-settle";
 import type { Settled } from "./outbox-settle";
 import { layRow } from "./overlay";
+import { serialLock } from "./serial-lock";
 import type {
   BlockMerge,
   NewId,
@@ -38,6 +41,7 @@ import {
   landOwnFolders,
   landOwnRow,
   markDeleted,
+  markRestored,
   touchedNothing,
 } from "./replica-rows";
 import type { Touched } from "./replica-rows";
@@ -76,17 +80,25 @@ type DrainOutcome =
 
 type SendOutcome =
   | { readonly kind: "landed" }
+  // nothing is left of the row: a later write joined it to no change while it waited
+  | { readonly kind: "gone" }
   | { readonly kind: "again" }
   | { readonly kind: "parked" }
   | { readonly kind: "stopped"; readonly failure: CallFailure }
   | { readonly kind: "closed" };
 
+// a file a row stages, put on the device with the row that names it
+export interface StagedBytes {
+  readonly sha: string;
+  readonly bytes: Uint8Array<ArrayBuffer>;
+}
+
 export interface Outbox {
   readonly load: () => Promise<void>;
   readonly rows: () => readonly OutboxRow[];
-  // durable before it resolves; a write joins the item's row still queued, and null is a write
-  // that, joined, changes nothing, whose row goes
-  readonly enqueue: (op: OutboxOp) => Promise<OutboxRow | null>;
+  // durable before it resolves, its files staged first; a write joins the item's last row while
+  // that one is still queued, and a row a join leaves changing nothing goes
+  readonly enqueue: (op: OutboxOp, files: readonly StagedBytes[]) => Promise<void>;
   readonly drain: () => Promise<DrainOutcome>;
   // a parked row goes again
   readonly retry: (seq: number) => Promise<void>;
@@ -159,6 +171,12 @@ const blocksOfWrite = function* blocksOfWrite(
 
 export const createOutbox = (context: OutboxContext): Outbox => {
   const { blobs, client, sql } = context;
+  // one change to the outbox at a time, from its transaction through the rows it leaves in memory
+  // and the staged files it puts or lets go, so each change decides on the rows the table holds: a
+  // pass's pin reads the row a write may have joined since the pass chose it, and a write never
+  // joins a row a pin has sent. A call to the cloud runs outside it
+  const hold = serialLock();
+  // the table's rows, as the last change that committed left them
   let rows: OutboxRow[] = [];
   // the files this session has put, which a resend need not put again: a BLOB_MISSING puts them
   // anyway
@@ -178,7 +196,8 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     await context.changed(touched, rows);
   };
 
-  // a staged file goes once no row names it; two rows staging the same bytes share one
+  // a staged file goes once no row names it, under the hold, so no row staging the same bytes is
+  // on its way meanwhile; two rows staging them share one
   const release = async (op: OutboxOp): Promise<void> => {
     for (const file of stagedOf(op)) {
       if (rows.some((row) => stagedOf(row.op).some((held) => held.sha === file.sha))) {
@@ -190,39 +209,57 @@ export const createOutbox = (context: OutboxContext): Outbox => {
   };
 
   const park = async (row: OutboxRow, reason: string): Promise<SendOutcome> => {
-    const parked: OutboxRow = { ...row, reason, state: "parked" };
-    await sql.exclusive(async (tx) => {
-      if ((await runPlanAsync(tx, readRow(row.seq))) !== null) {
-        await runPlanAsync(tx, saveRow(parked));
+    await hold(async () => {
+      const held = rows.find((candidate) => candidate.seq === row.seq);
+      if (held === undefined) {
+        return;
       }
+      const parked: OutboxRow = { ...held, reason, state: "parked" };
+      await sql.exclusive(async (tx) => {
+        await runPlanAsync(tx, saveRow(parked));
+      });
+      replace(parked);
     });
-    replace(parked);
     await changedRow(row.op);
     return { kind: "parked" };
   };
 
+  // a sent row's op computed again; no write joins a sent row, so the pass alone changes it
   const resend = async (row: OutboxRow, op: OutboxOp): Promise<SendOutcome> => {
     const next: OutboxRow = { ...row, op };
-    await sql.exclusive(async (tx) => {
-      await runPlanAsync(tx, saveRow(next));
+    await hold(async () => {
+      await sql.exclusive(async (tx) => {
+        await runPlanAsync(tx, saveRow(next));
+      });
+      replace(next);
     });
-    replace(next);
     await changedRow(op);
     return { kind: "again" };
   };
 
-  // the row is retired in the transaction that lays what it landed
+  // the row is retired in the transaction that lays what it landed. The cell holds the write
+  // either way, so a landing this device cannot lay over the rows it holds (a row whose newer
+  // change is still to come in its way) retires the row alone, and the pull after lays what the
+  // cell holds: a row is never sent again for what only this device's copy refused
   const land = async (
     row: OutboxRow,
     work: () => SqlPlan<void>,
     touched: Touched,
   ): Promise<SendOutcome> => {
-    await sql.exclusive(async (tx) => {
-      await runPlanAsync(tx, deleteRow(row.seq));
-      await runPlanAsync(tx, work());
+    await hold(async () => {
+      try {
+        await sql.exclusive(async (tx) => {
+          await runPlanAsync(tx, deleteRow(row.seq));
+          await runPlanAsync(tx, work());
+        });
+      } catch {
+        await sql.exclusive(async (tx) => {
+          await runPlanAsync(tx, deleteRow(row.seq));
+        });
+      }
+      forget(row.seq);
+      await release(row.op);
     });
-    forget(row.seq);
-    await release(row.op);
     for (const id of itemIdsOf(row.op)) {
       touched.ids.add(id);
     }
@@ -436,11 +473,10 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       return await refused(row, error, () => null);
     }
     const changed = "deleted" in answer ? answer.deleted : answer.restored;
-    const at = op.kind === "delete" ? row.createdAt : null;
     return await land(
       row,
       function* landed() {
-        yield* markDeleted(changed, at);
+        yield* op.kind === "delete" ? markDeleted(changed, row.createdAt) : markRestored(changed);
       },
       touchedItems(changed),
     );
@@ -475,21 +511,31 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     );
   };
 
-  // pinned before it first goes, so every resend is the call that went
-  const pin = async (row: OutboxRow): Promise<OutboxRow> => {
-    if (row.state !== "queued") {
-      return row;
-    }
-    const pinned: OutboxRow = { ...row, state: "sent" };
-    await sql.exclusive(async (tx) => {
-      await runPlanAsync(tx, saveRow(pinned));
+  // pinned before it first goes, so every resend is the call that went: the row as it stands once
+  // the hold is had, which a write may have joined since the pass chose it, or null once a join
+  // left nothing of it
+  const pin = async (seq: number): Promise<OutboxRow | null> =>
+    await hold(async () => {
+      const row = rows.find((candidate) => candidate.seq === seq);
+      if (row === undefined || row.state === "parked") {
+        return null;
+      }
+      if (row.state === "sent") {
+        return row;
+      }
+      const pinned: OutboxRow = { ...row, state: "sent" };
+      await sql.exclusive(async (tx) => {
+        await runPlanAsync(tx, saveRow(pinned));
+      });
+      replace(pinned);
+      return pinned;
     });
-    replace(pinned);
-    return pinned;
-  };
 
-  const send = async (queued: OutboxRow): Promise<SendOutcome> => {
-    const row = await pin(queued);
+  const send = async (chosen: OutboxRow): Promise<SendOutcome> => {
+    const row = await pin(chosen.seq);
+    if (row === null) {
+      return { kind: "gone" };
+    }
     const staged = await putStaged(row, null);
     if (staged !== null) {
       return staged;
@@ -518,16 +564,21 @@ export const createOutbox = (context: OutboxContext): Outbox => {
 
   return {
     discard: async (seq) => {
-      const row = rows.find((candidate) => candidate.seq === seq);
-      if (row === undefined || row.state !== "parked") {
-        return;
-      }
-      await sql.exclusive(async (tx) => {
-        await runPlanAsync(tx, deleteRow(seq));
+      const row = await hold(async () => {
+        const held = rows.find((candidate) => candidate.seq === seq);
+        if (held === undefined || held.state !== "parked") {
+          return null;
+        }
+        await sql.exclusive(async (tx) => {
+          await runPlanAsync(tx, deleteRow(seq));
+        });
+        forget(seq);
+        await release(held.op);
+        return held;
       });
-      forget(seq);
-      await release(row.op);
-      await changedRow(row.op);
+      if (row !== null) {
+        await changedRow(row.op);
+      }
     },
 
     drain: async () => {
@@ -553,75 +604,80 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       return { kind: "more" };
     },
 
-    enqueue: async (op) => {
+    enqueue: async (op, files) => {
       const createdAt = context.clock.now();
-      const written = await sql.exclusive(async (tx) => {
+      await hold(async () => {
+        for (const file of files) {
+          await blobs.put(file.sha, file.bytes);
+        }
         // the last row naming the item, a delete or a restore of several included, so a write
-        // joins only a write nothing on its item has queued behind
+        // joins only a write nothing on its item has queued behind, and only one no pin has sent
         const last =
           op.kind === "write"
             ? rows.findLast((row) => itemIdsOf(row.op).includes(op.itemId))
             : undefined;
-        if (op.kind === "write" && last?.state === "queued" && last.op.kind === "write") {
-          const joined = coalesceWrites(last.op, op);
-          if (joined.ops.length === 0 && joined.annotations.length === 0) {
+        if (op.kind !== "write" || last?.state !== "queued" || last.op.kind !== "write") {
+          const row = await sql.exclusive(
+            async (tx) =>
+              await runPlanAsync(tx, insertRow({ createdAt, op, opId: context.newId() })),
+          );
+          rows = [...rows, row];
+          return;
+        }
+        const joined = coalesceWrites(last.op, op);
+        if (joined.ops.length === 0 && joined.annotations.length === 0) {
+          await sql.exclusive(async (tx) => {
             await runPlanAsync(tx, deleteRow(last.seq));
-            return { kind: "dropped", row: last } as const;
-          }
-          const next: OutboxRow = { ...last, op: joined };
+          });
+          forget(last.seq);
+          await release(joined);
+          return;
+        }
+        const next: OutboxRow = { ...last, op: joined };
+        await sql.exclusive(async (tx) => {
           await runPlanAsync(tx, saveRow(next));
-          return { kind: "joined", row: next } as const;
-        }
-        const row = await runPlanAsync(tx, insertRow({ createdAt, op, opId: context.newId() }));
-        return { kind: "inserted", row } as const;
+        });
+        replace(next);
       });
-      switch (written.kind) {
-        case "dropped": {
-          forget(written.row.seq);
-          await release(written.row.op);
-          break;
-        }
-        case "joined": {
-          replace(written.row);
-          break;
-        }
-        case "inserted": {
-          rows = [...rows, written.row];
-          break;
-        }
-        // no default
-      }
       await changedRow(op);
-      return written.kind === "dropped" ? null : written.row;
     },
 
     load: async () => {
-      rows = await runPlanAsync(sql, readRows());
+      await hold(async () => {
+        rows = await runPlanAsync(sql, readRows());
+      });
     },
 
     retry: async (seq) => {
-      const row = rows.find((candidate) => candidate.seq === seq);
-      if (row === undefined || row.state !== "parked") {
-        return;
-      }
-      // it may have gone before it parked, so it goes again as it went
-      const next: OutboxRow = { ...row, reason: null, state: "sent" };
-      await sql.exclusive(async (tx) => {
-        await runPlanAsync(tx, saveRow(next));
+      const row = await hold(async () => {
+        const held = rows.find((candidate) => candidate.seq === seq);
+        if (held === undefined || held.state !== "parked") {
+          return null;
+        }
+        // it may have gone before it parked, so it goes again as it went
+        const next: OutboxRow = { ...held, reason: null, state: "sent" };
+        await sql.exclusive(async (tx) => {
+          await runPlanAsync(tx, saveRow(next));
+        });
+        replace(next);
+        return next;
       });
-      replace(next);
-      await changedRow(row.op);
+      if (row !== null) {
+        await changedRow(row.op);
+      }
     },
 
     rows: () => rows,
 
     wipe: async () => {
-      rows = [];
-      uploaded.clear();
-      await sql.exclusive(async (tx) => {
-        await runPlanAsync(tx, deleteAllRows());
+      await hold(async () => {
+        rows = [];
+        uploaded.clear();
+        await sql.exclusive(async (tx) => {
+          await runPlanAsync(tx, deleteAllRows());
+        });
+        await blobs.clear();
       });
-      await blobs.clear();
     },
   };
 };

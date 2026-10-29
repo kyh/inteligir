@@ -66,6 +66,44 @@ describe("a write the cell answered CONFLICT", () => {
     ]);
   });
 
+  it("keeps the move of a block another device changed, from the place that block holds now", () => {
+    const base = held("draft");
+    const write: WriteOp = {
+      ...putWrite(base, "my draft"),
+      ops: [
+        { baseHash: base.hash, block: paragraph("p1", "my draft"), op: "put" },
+        { baseOrd: "a0", blockId: "p1", op: "move", ord: "a2" },
+      ],
+    };
+    const moved = settleWrite(
+      write,
+      [{ blockId: "p1", current: held("their draft", "a1"), itemId: ITEM, kind: "block" }],
+      ports,
+    );
+    expect(moved.kind === "resend" ? moved.op.ops : []).toEqual([
+      {
+        baseHash: held("their draft", "a1").hash,
+        block: paragraph("p1", "their draft / my draft"),
+        op: "put",
+      },
+      { baseOrd: "a1", blockId: "p1", op: "move", ord: "a2" },
+    ]);
+    const placed = settleWrite(
+      write,
+      [{ blockId: "p1", current: held("their draft", "a2"), itemId: ITEM, kind: "block" }],
+      ports,
+    );
+    expect(placed.kind === "resend" ? placed.op.ops.map((op) => op.op) : []).toEqual(["put"]);
+    const dropped = settleWrite(
+      write,
+      [{ blockId: "p1", current: null, itemId: ITEM, kind: "block" }],
+      ports,
+    );
+    expect(dropped.kind === "resend" ? dropped.op.ops : []).toEqual([
+      { block: paragraph("p1", "my draft"), op: "insert", ord: "a2", section: "note" },
+    ]);
+  });
+
   it("lets a drop of a block another device changed go", () => {
     const base = held("draft");
     const write: WriteOp = {

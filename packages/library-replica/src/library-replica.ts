@@ -523,7 +523,6 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
   };
 
   const commands = createCommands({
-    blobs,
     clock,
     newId: deps.newId,
     outbox,

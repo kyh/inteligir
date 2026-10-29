@@ -234,7 +234,12 @@ const settleLibraryOp = (
     case "move": {
       const block = met.blocks.get(op.blockId);
       if (block !== undefined) {
-        // the block is gone, or a put settled it, or it stands again in this place
+        // another device changed the block a put of this write also met: gone, a put's insert
+        // stands it again in this place; there, it moves from the place it holds now
+        const { current } = block;
+        if (current !== null && current.ord !== op.ord) {
+          out.ops.push({ ...op, baseOrd: current.ord });
+        }
         return;
       }
       const currentOrd = met.orders.get(op.blockId);

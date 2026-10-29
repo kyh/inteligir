@@ -39,13 +39,13 @@ and cited.
   `packages/library-replica/src/replica-listing.ts`, `overlay.ts`.
 
 - **THE OUTBOX SENDS OLDEST FIRST UNDER AN OP ID PINNED BEFORE IT FIRST GOES.**
-  A write joins the item's row while it waits, compacted onto the first bases;
-  a row is pinned before it goes, so every resend is the call that went, and
-  the files it names are uploaded first. A `CONFLICT` settles through the merge
-  and goes again, a resend whose ops already hold lands as satisfied, a
-  `BLOB_MISSING` uploads again, and a refusal no resend passes parks the row,
-  holding the rows on its items behind it. Rejected: dropping a refused write;
-  a whole-item retry (two devices' edits to different blocks would meet).
+  A write joins the item's last row while it waits, compacted onto the first
+  bases; one change to the outbox runs at a time, so a pin sends what a join
+  left, and a staged file goes once no row names it. A `CONFLICT` settles
+  through the merge, a `BLOB_MISSING` uploads again, a refusal no resend passes
+  parks the row and its items' rows behind it, and a landing this copy cannot
+  lay leaves the row to the pull. Rejected: dropping a refused write; a
+  whole-item retry (two devices' edits to different blocks would meet).
   `packages/library-replica/src/outbox.ts`, `outbox-settle.ts`,
   `outbox-ops.ts`.
 
