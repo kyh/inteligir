@@ -255,15 +255,15 @@ credential adds its check to `docs/releasing.md` § 5, under its surface.
 Every surface, and how an agent sees it run; a scenario is one of
 `tools/e2e/src/scenarios`, run as `pnpm e2e --only <name>`.
 
-| Surface                 | Dev command          | Agent-verifiable at runtime?                                                                              |
-| ----------------------- | -------------------- | --------------------------------------------------------------------------------------------------------- |
-| The site and the Worker | `pnpm dev:web`       | **Yes**: agent-browser or curl on `localhost:5174`; `built-worker-boot`, `account-hosted`                 |
-| The library in a tab    | `pnpm dev:web`       | **Yes**: agent-browser on `localhost:5174/library`; `browser-smoke`, `library-browser`                    |
-| The connector           | `pnpm dev:web`       | **Yes**: an MCP client on `localhost:5174/connector`, signed in by OAuth with PKCE; `connector-tools`     |
-| The built-in agent      | `pnpm dev:web`       | **Over the fake Managed Agents API**: a turn's events and its writes; a real session is the owner's       |
-| The Mac app             | `pnpm dev`           | **On Linux**: `desktop-shell`, `desktop-onboarding` (under `xvfb-run -a`); on a Mac, `pnpm smoke:desktop` |
-| The browser extension   | `pnpm dev:extension` | **In Chromium**: `browser-extension` loads the dev build beside a running Worker                          |
-| The phone               | `pnpm dev:mobile`    | **Its parts**: `phone-editor-page` (its editor page), `phone-offline-edit` (its runtime under node)       |
+| Surface                 | Dev command          | Agent-verifiable at runtime?                                                                                      |
+| ----------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| The site and the Worker | `pnpm dev:web`       | **Yes**: agent-browser or curl on `localhost:5174`; `built-worker-boot`, `account-hosted`                         |
+| The library in a tab    | `pnpm dev:web`       | **Yes**: agent-browser on `localhost:5174/library`; `browser-smoke`, `library-browser`                            |
+| The connector           | `pnpm dev:web`       | **Yes**: an MCP client on `localhost:5174/connector`, signed in by OAuth with PKCE; `connector-tools`             |
+| The built-in agent      | `pnpm dev:web`       | **Over the fake Managed Agents API**: a turn's events and its writes, `agent-cell`; a real session is the owner's |
+| The Mac app             | `pnpm dev`           | **On Linux**: `desktop-shell`, `desktop-onboarding` (under `xvfb-run -a`); on a Mac, `pnpm smoke:desktop`         |
+| The browser extension   | `pnpm dev:extension` | **In Chromium**: `browser-extension` loads the dev build beside a running Worker                                  |
+| The phone               | `pnpm dev:mobile`    | **Its parts**: `phone-editor-page` (its editor page), `phone-offline-edit` (its runtime under node)               |
 
 What no agent can run is the owner's, in `docs/releasing.md` § 5: the signed
 .app opened from Finder, the store extension in Chrome, Arc, Brave and Edge,

@@ -43,9 +43,12 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // against a real Worker, since no Expo boots headless; the @repo/mobile-editor edge is the
     // bridge's protocol, so the scripted phone speaks the frames the page parses, and its reader
     // mode, which the phone's runtime reads a saved link with; the @repo/page-reader edge is the
-    // linkedom DOM that reader runs over under node, where the page has its WebView's.
+    // linkedom DOM that reader runs over under node, where the page has its WebView's; the
+    // @repo/managed-agents-fake edge is the Managed Agents API each Worker it boots runs its
+    // built-in agent against.
     "@repo/e2e": [
       "@repo/contract",
+      "@repo/managed-agents-fake",
       "@repo/mobile",
       "@repo/mobile-editor",
       "@repo/page-reader",

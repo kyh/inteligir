@@ -32,4 +32,7 @@ the connector, and `spend 30` three times spends past a 50-cent budget.
 
 `pnpm dev:web` starts it on its pinned port, 5177 (`docs/development.md`), and
 `apps/web/.dev.vars.example` names it as `MANAGED_AGENTS_FAKE_URL`, a binding
-only `vite dev` declares. `src/serve.ts` serves it on a port of a caller's own.
+only `vite dev` declares. `src/serve.ts` serves it on a port of a caller's own:
+the e2e harness serves one beside each Worker it boots, on an ephemeral port
+(`tools/e2e/src/harness/cloud-worker.ts`), and the Worker's suites call its
+fetch handler in their own isolate (`apps/web/src/worker/test-support`).

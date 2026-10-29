@@ -636,10 +636,11 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 - **THE LOCAL WORKER, THE E2E AND THE SUITES RUN THE ONE CELL PATH AGAINST A
   FAKE MANAGED AGENTS API.** `MANAGED_AGENTS_FAKE_URL`, which `vite dev` alone
-  declares and which must name this machine, points the cell's SDK at
+  declares, the e2e harness binds and must name this machine, points the cell's SDK at
   `tools/managed-agents-fake` through its `baseURL`; its sessions really call
-  the connector with the vault's token. The suites serve it in process, and a
-  deployed Worker without `ANTHROPIC_API_KEY` fails closed. Rejected: a
+  the connector with the vault's token. The suites serve it in process, the
+  e2e harness beside each built Worker it boots, and a deployed Worker without
+  `ANTHROPIC_API_KEY` fails closed. Rejected: a
   scripted driver inside the cell (a path no deploy runs); mocking the SDK
   (its stream, paging and errors would be ours to imitate).
   `apps/web/src/worker/agent/managed-agents.ts`,

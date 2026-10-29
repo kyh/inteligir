@@ -13,6 +13,7 @@ import { createScenarioContext } from "./harness/scenario";
 import type { ExclusiveResource, Scenario, ScenarioContext } from "./harness/scenario";
 import { accountHosted } from "./scenarios/account-hosted";
 import { actionScripted } from "./scenarios/action-scripted";
+import { agentCell } from "./scenarios/agent-cell";
 import { agentSignInBrowser } from "./scenarios/agent-sign-in-browser";
 import { annotationsBrowser } from "./scenarios/annotations-browser";
 import { annotationsCli } from "./scenarios/annotations-cli";
@@ -89,6 +90,7 @@ const SCENARIOS: readonly Scenario[] = [
   phoneFillRaceHosted,
   accountHosted,
   connectorTools,
+  agentCell,
   onboardingAccountBrowser,
   builtWorkerBoot,
   builtCliBoot,

@@ -19,6 +19,8 @@ const HostArgsSchema = z.object({
   schemaFile: z.string(),
   stateDir: z.string(),
   vars: z.record(z.string(), z.string()),
+  // over the config's JSON bindings, each replaced whole
+  json: z.record(z.string(), z.json()),
 });
 
 const ManifestSchema = z.object({
@@ -36,6 +38,13 @@ interface TextBinding {
 
 const textBinding = (value: string): TextBinding => ({ type: "text", value });
 
+interface JsonBinding {
+  type: "json";
+  value: z.infer<ReturnType<typeof z.json>>;
+}
+
+const jsonBinding = (value: JsonBinding["value"]): JsonBinding => ({ type: "json", value });
+
 const args = HostArgsSchema.parse(JSON.parse(process.argv[2] ?? "null"));
 
 const workerOptions = async (): Promise<MiniflareOptions["workers"]> => {
@@ -52,9 +61,10 @@ const workerOptions = async (): Promise<MiniflareOptions["workers"]> => {
       ]),
     ),
   );
-  const vars = Object.fromEntries(
-    Object.entries(args.vars).map(([name, value]) => [name, textBinding(value)]),
-  );
+  const vars = Object.fromEntries([
+    ...Object.entries(args.vars).map(([name, value]) => [name, textBinding(value)]),
+    ...Object.entries(args.json).map(([name, value]) => [name, jsonBinding(value)]),
+  ]);
   return [
     {
       config: {

@@ -48,6 +48,9 @@ const answer = async (
   try {
     const response = await api.fetch(await requestOf(incoming, origin));
     outgoing.writeHead(response.status, Object.fromEntries(response.headers));
+    // node holds the head until the first write, and an event stream may wait minutes for its
+    // first event: a reader whose client times out on the head would never see it
+    outgoing.flushHeaders();
     if (response.body === null) {
       outgoing.end();
       return;

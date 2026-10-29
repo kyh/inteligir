@@ -81,12 +81,17 @@ scratch dir and tears everything down afterwards:
   the data dir — a device credential, so the instance boots already signed in.
 - `bareRemote()` — a scratch bare git repo, returned as the `file://` URL for
   `INTELIGIR_VAULT_REMOTE` or `vault.setRemote`.
-- `cloudWorker({ vars? })` — the product Worker (apps/web), built through turbo
-  once per run and booted from its `cf build` output under Miniflare
+- `cloudWorker({ vars?, json? })` — the product Worker (apps/web), built through
+  turbo once per run and booted from its `cf build` output under Miniflare
   (`src/harness/worker-host.ts`) on a scratch persist dir, its D1 carrying
   apps/web's own `db:export` schema plus one invite row; `vars` override
-  cloudflare.config.ts's text bindings (a storage cap a scenario can fill). Registered for teardown exactly like an
-  instance.
+  cloudflare.config.ts's text bindings (a storage cap a scenario can fill), and
+  `json` its JSON bindings (the built-in agent's allowance). Each Worker's
+  built-in agent runs against its own fake Managed Agents API
+  (`tools/managed-agents-fake`), served in the runner's process on an
+  ephemeral port and named to the Worker as `MANAGED_AGENTS_FAKE_URL`, its
+  sessions calling that Worker's connector. Registered for teardown exactly
+  like an instance.
 - `instance.api` — the oRPC client over `@repo/contract/local`, carrying the device
   token this instance published in `<dataDir>/server.json`;
   `instance.vaultDir` / `dataDir` for on-disk assertions.
@@ -165,7 +170,7 @@ Each feature issue lands with its scenario here.
 | `INTELIGIR_SYNC_INTERVAL_MS` | vault auto-sync cadence; `0` disables the loop AND the |
 |                              | boot sync (the sync scenarios set it for determinism)  |
 | `INTELIGIR_AGENT`            | `scripted` — the deterministic in-process driver the   |
-|                              | thread and action scenarios run against                |
+|                              | local server's thread and action scenarios run against |
 | `INTELIGIR_SLOW_READS`       | `<ms>:<vault path>` — every read of that path, and     |
 |                              | everything under it, answers that late (an empty path  |
 |                              | is the whole vault); slow-storage's stand-in for       |

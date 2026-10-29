@@ -4,7 +4,10 @@
   "compilerOptions": {
     // the harness derives its deadlines from apps/cli's server modules, which target ES2024.
     "lib": ["ES2024"],
-    "types": ["node"]
+    "types": ["node"],
+    // the fake Managed Agents API the harness serves names its imports by their `.ts`, as node runs
+    // it (tools/managed-agents-fake/tsconfig.json)
+    "allowImportingTsExtensions": true
   },
   "include": ["src"]
 }

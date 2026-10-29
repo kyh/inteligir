@@ -1531,6 +1531,9 @@ importers:
       '@repo/contract':
         specifier: workspace:*
         version: link:../../packages/contract
+      '@repo/managed-agents-fake':
+        specifier: workspace:*
+        version: link:../managed-agents-fake
       '@repo/mobile':
         specifier: workspace:*
         version: link:../../apps/mobile

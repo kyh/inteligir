@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { serveFakeManagedAgents } from "@repo/managed-agents-fake/serve";
 import { exec, hermeticProcessEnv } from "./exec";
 import { bootWithPorts, spawnSupervised } from "./tracked-child";
 import type { TrackedProcess } from "./tracked-child";
@@ -35,7 +36,11 @@ export interface LaunchCloudWorkerArgs {
   register: (process: TrackedProcess) => void;
   // over cloudflare.config.ts's own text bindings, such as a storage cap a scenario can fill
   vars?: Readonly<Record<string, string>>;
+  // over its JSON bindings, each replaced whole, such as the built-in agent's allowance
+  json?: Readonly<Record<string, Json>>;
 }
+
+type Json = string | number | boolean | null | readonly Json[] | { readonly [key: string]: Json };
 
 // a 200 json answer, not any answer: Miniflare's own loopback server binds an ephemeral port, can
 // land on the one reserved here, and answers 404 to every path
@@ -102,6 +107,11 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
 
   await buildWorker(args);
   const schemaFile = await writeSchema(webDir, args);
+  // the built-in agent's Managed Agents API, with no model and no account, in this process: the
+  // Worker's SDK reaches it by MANAGED_AGENTS_FAKE_URL, and its sessions call the Worker's
+  // connector back (tools/managed-agents-fake)
+  const agents = await serveFakeManagedAgents({ port: 0 });
+  args.register({ name: "managed-agents-fake", outputTail: () => "", stop: agents.close });
 
   const worker = await bootWithPorts<CloudWorker>({
     deadlineMs: READY_DEADLINE_MS,
@@ -124,10 +134,12 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
             inspectorPort,
             outputDir: path.join(webDir, ".cloudflare", "output", "v0", "workers", "default"),
             port,
+            json: args.json ?? {},
             schemaFile,
             stateDir,
             vars: {
               BETTER_AUTH_SECRET,
+              MANAGED_AGENTS_FAKE_URL: agents.origin,
               // the suite signs up more than one account from one IP.
               RATE_LIMIT_DISABLED: "true",
               // the connector's issuer and resource, which the build names as production's
