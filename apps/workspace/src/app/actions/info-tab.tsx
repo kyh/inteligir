@@ -34,7 +34,7 @@ import {
   TagIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 
 import { client } from "../api";
@@ -73,7 +73,7 @@ export const InlineProperties = ({
   onOpenChange: (open: boolean) => void;
 }) => {
   const editor = useLiveEditor(open ? docPath : null);
-  const source = useMemo(() => (editor === null ? null : frontmatterProperties(editor)), [editor]);
+  const source = editor === null ? null : frontmatterProperties(editor);
   return (
     <FoldSection label="More properties" open={open} onOpenChange={onOpenChange}>
       <div className="px-3 pb-2">

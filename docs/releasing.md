@@ -285,7 +285,7 @@ app=apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app
   256 MB.
 - **Real sites.** Save a YouTube video, an X post, a Spotify track, a paywalled
   article, a Wikipedia page and a long article. Passing: each fills in with its
-  title, site, cover and text, and opens rich rather than Raw.
+  title, site, cover and text, and opens in the editor.
 - **Networks.** Passing, each:
   - Behind a TLS-inspecting proxy whose root is only in the Keychain, saving a
     link still fills it in.

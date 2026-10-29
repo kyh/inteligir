@@ -20,7 +20,7 @@ import { cn } from "@repo/ui/lib/cn";
 const CONTAINER_CLASS =
   "ignore-click-outside/toolbar relative h-full w-full cursor-text select-text caret-primary selection:bg-focus-ring/25 focus-visible:outline-none [&_.slate-selection-area]:bg-focus-ring/15";
 
-// Shared by PlateContent, the title and the raw textarea. On the desktop 48px min keeps the 44px
+// Shared by PlateContent, the title and a plain-text note's textarea. On the desktop 48px min keeps the 44px
 // drag gutter inside the clip; no fallback for the inset, which would be the measure spelled
 // twice. Touch draws no drag gutter, and 28px still holds a heading's fold chevron, which hangs
 // 24px left of it.

@@ -319,7 +319,8 @@ const autolinkLiteral = (node: { type: string }, url: string): MDPhrasingContent
 // Plate's default lets mailto links reach mdast-util-to-markdown, whose formatLinkAsAutolink emits
 // `<a@b.cd>`, the angle form MD_STRINGIFY's resourceLink bans. A link a re-parse would read from
 // its literal bytes emits them; every other link stays `[text](url)` under resourceLink, which
-// alone would also force bare https into resource form, and a note holding one would open Raw.
+// alone would also force bare https into resource form, a round trip's loss: a bare url would be
+// saved back as `[url](url)`.
 // The literal is an opaque inline, not `html`: mdast-util-to-markdown turns the line break before
 // an html node into a space, since html opening a line could read as a flow block, and that joins
 // a url on its own line to the line above.
