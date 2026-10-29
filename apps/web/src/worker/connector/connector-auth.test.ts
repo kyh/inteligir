@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { createDb } from "../db/client";
+import { connectorAuth } from "./connector-auth";
 import { rateLimit } from "../db/schema";
 import { CALLER_IP_HEADER, callerRateKey, deviceRateKey } from "../rate-limit";
 import {
@@ -19,12 +20,14 @@ import {
   loginDevice,
   ORIGIN,
   signUpUser,
+  userIdOf,
 } from "../test-support/cloud-helpers";
 import {
   answerConsent,
   authorizeUrl,
   connectAssistant,
   CONNECTOR_URL,
+  exchangeCode,
   pkcePair,
   registerClient,
   registration,
@@ -222,6 +225,31 @@ describe("the connector's sign-in", () => {
     const { cookie } = await signUpUser("connector-read@example.test");
     const minted = await connectAssistant(cookie, { readOnly: true });
     expect(minted.scope).toBe("library:read");
+  });
+
+  it("steps up a token that holds neither library scope, naming the one any access needs", async () => {
+    // a grant the consent page never makes, completed through the provider's own helpers
+    const { cookie } = await signUpUser("connector-step-up@example.test");
+    const userId = await userIdOf(cookie);
+    const clientId = await registerClient();
+    const { challenge, verifier } = await pkcePair();
+    const { helpers } = connectorAuth(env);
+    const { redirectTo } = await helpers.completeAuthorization({
+      metadata: { clientName: "Claude" },
+      props: { accountId: userId, clientName: "Claude" },
+      request: await helpers.parseAuthRequest(new Request(authorizeUrl(clientId, challenge))),
+      scope: ["profile"],
+      userId,
+    });
+    const code = new URL(redirectTo).searchParams.get("code") ?? "";
+    const minted = await exchangeCode(clientId, code, verifier);
+    expect(minted.scope).toBe("profile");
+
+    const refused = await drained(initialize({ authorization: `Bearer ${minted.access_token}` }));
+    expect(refused.status).toBe(403);
+    const challenged = refused.headers.get("www-authenticate") ?? "";
+    expect(challenged).toContain('error="insufficient_scope"');
+    expect(challenged).toContain('scope="library:read"');
   });
 });
 

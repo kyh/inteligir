@@ -137,7 +137,7 @@ const tokenSchema = z.object({
 
 export type MintedToken = z.infer<typeof tokenSchema>;
 
-const exchangeCode = async (
+export const exchangeCode = async (
   clientId: string,
   code: string,
   verifier: string,
