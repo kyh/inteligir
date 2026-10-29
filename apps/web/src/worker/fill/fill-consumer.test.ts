@@ -51,37 +51,42 @@ const CORPUS = {
 const PDF = new TextEncoder().encode("%PDF-1.7\n% a file a link answered with\n");
 
 describe("a saved link's reading", () => {
-  it("reads the page into the item: its article, its facts, a title for the address, its cover", async () => {
-    const url = "https://pages.example/posts/item";
-    const { accountId, itemId, job } = await savedLink(url);
-    const cover = pngOf(1200, 630);
-    const web = serveWeb({
-      "https://cdn.fieldnotes.example/cover@2x.jpg": filePage(cover, "image/png"),
-      [url]: htmlPage(blogPost),
-    });
-    expect(await deliver(job)).toMatchObject({ acked: true, retried: false });
-    const item = await itemIn(accountId, itemId);
-    expect(item?.fields).toMatchObject({
-      author: "A. Lindqvist (JSON-LD)",
-      description: "Plain files outlive the apps that made them.",
-      fetchError: null,
-      fetchState: "filled",
-      lang: "en",
-      published: "2024-03-05",
-      site: "Field Notes",
-      title: "Keep your notes in files",
-    });
-    expect(textOfSection(item, "article")).toContain("contract with the future");
-    expect(textOfSection(item, "note")).toBe("[]");
-    // the page first, then its first cover candidate, asked as a browser would
-    expect(web.asked.map((hop) => hop.url)).toEqual([
-      url,
-      "https://cdn.fieldnotes.example/cover@2x.jpg",
-    ]);
-    expect(web.asked[0]?.headers.get("user-agent")).toContain("inteligir");
-    const kept = await env.BLOBS.get(blobKey(accountId, item?.fields.coverSha ?? ""));
-    expect(new Uint8Array((await kept?.arrayBuffer()) ?? new ArrayBuffer(0))).toEqual(cover);
-  });
+  // the file's first reading loads the page reader's chunk, seconds of import on a busy runner
+  it(
+    "reads the page into the item: its article, its facts, a title for the address, its cover",
+    { timeout: 30_000 },
+    async () => {
+      const url = "https://pages.example/posts/item";
+      const { accountId, itemId, job } = await savedLink(url);
+      const cover = pngOf(1200, 630);
+      const web = serveWeb({
+        "https://cdn.fieldnotes.example/cover@2x.jpg": filePage(cover, "image/png"),
+        [url]: htmlPage(blogPost),
+      });
+      expect(await deliver(job)).toMatchObject({ acked: true, retried: false });
+      const item = await itemIn(accountId, itemId);
+      expect(item?.fields).toMatchObject({
+        author: "A. Lindqvist (JSON-LD)",
+        description: "Plain files outlive the apps that made them.",
+        fetchError: null,
+        fetchState: "filled",
+        lang: "en",
+        published: "2024-03-05",
+        site: "Field Notes",
+        title: "Keep your notes in files",
+      });
+      expect(textOfSection(item, "article")).toContain("contract with the future");
+      expect(textOfSection(item, "note")).toBe("[]");
+      // the page first, then its first cover candidate, asked as a browser would
+      expect(web.asked.map((hop) => hop.url)).toEqual([
+        url,
+        "https://cdn.fieldnotes.example/cover@2x.jpg",
+      ]);
+      expect(web.asked[0]?.headers.get("user-agent")).toContain("inteligir");
+      const kept = await env.BLOBS.get(blobKey(accountId, item?.fields.coverSha ?? ""));
+      expect(new Uint8Array((await kept?.arrayBuffer()) ?? new ArrayBuffer(0))).toEqual(cover);
+    },
+  );
 
   it.each(Object.entries(CORPUS))(
     "lands the corpus page %s as the reader reads it",

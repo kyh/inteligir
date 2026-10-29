@@ -328,20 +328,25 @@ describe("deleting the account from its cell", () => {
     expect(invites.some((invite) => invite.redeemedBy === email)).toBe(false);
   });
 
-  it("empties the account's files page by page, past one listing's thousand", async () => {
-    const accountId = newAccountId();
-    const prefix = accountBlobPrefix(accountId);
-    for (let index = 0; index < 1005; index += 1) {
-      await env.BLOBS.put(blobKey(accountId, index.toString(16).padStart(64, "0")), "x");
-    }
-    const before = await env.BLOBS.list({ prefix });
-    expect(before.truncated).toBe(true);
-    const filesStep = ACCOUNT_PURGE_STEPS.find((step) => step.name === "files");
-    await inCell(cellOf(accountId), async (state) => {
-      await filesStep?.run({ accountId, ctx: state, email: "files-paged@example.test", env });
-    });
-    expect(await files(prefix)).toBe(0);
-  });
+  // a thousand and five puts to R2, past one listing's page on purpose
+  it(
+    "empties the account's files page by page, past one listing's thousand",
+    { timeout: 30_000 },
+    async () => {
+      const accountId = newAccountId();
+      const prefix = accountBlobPrefix(accountId);
+      for (let index = 0; index < 1005; index += 1) {
+        await env.BLOBS.put(blobKey(accountId, index.toString(16).padStart(64, "0")), "x");
+      }
+      const before = await env.BLOBS.list({ prefix });
+      expect(before.truncated).toBe(true);
+      const filesStep = ACCOUNT_PURGE_STEPS.find((step) => step.name === "files");
+      await inCell(cellOf(accountId), async (state) => {
+        await filesStep?.run({ accountId, ctx: state, email: "files-paged@example.test", env });
+      });
+      expect(await files(prefix)).toBe(0);
+    },
+  );
 
   it("runs again from the top after a step failed, as Better Auth retries the deletion", async () => {
     const accountId = newAccountId();

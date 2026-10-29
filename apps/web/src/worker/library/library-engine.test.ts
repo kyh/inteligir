@@ -160,7 +160,8 @@ describe("a write to the library cell", () => {
     });
   });
 
-  it("refuses an item's text past 8 MiB as too large", async () => {
+  // its text is past 8 MiB on purpose
+  it("refuses an item's text past 8 MiB as too large", { timeout: 30_000 }, async () => {
     await inCell(cellOf(), (state) => {
       const library = engineIn(state, clockAt());
       const line = "x".repeat(500 * 1024);
