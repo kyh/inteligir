@@ -328,7 +328,7 @@ describe("search", () => {
     ]);
   });
 
-  it("cuts an item's index row under a Durable Object's row limit", () => {
+  it("cuts an item's index row under a Durable Object's row limit", { timeout: 30_000 }, () => {
     const huge = "word ".repeat(1_000_000);
     const row = searchRowOf({ body: huge, headings: "", meta: "", title: "t" });
     expect(searchRowBytes(row)).toBeLessThanOrEqual(SEARCH_ROW_MAX_BYTES);

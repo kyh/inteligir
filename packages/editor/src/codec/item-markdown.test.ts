@@ -225,24 +225,31 @@ describe("one file as its item", () => {
     expect(JSON.stringify(item.blocks[0]?.block)).toContain("key: [unclosed");
   });
 
-  it("cuts a block past the cap into blocks of its own type, its text kept whole", () => {
-    const line = "A long line of a pasted log, written again and again.";
-    const lines = Array.from(
-      { length: Math.ceil((BLOCK_MAX_BYTES * 1.5) / line.length) },
-      () => line,
-    );
-    const item = imported(`\`\`\`\n${lines.join("\n")}\n\`\`\`\n`);
-    expect(item.refused).toEqual([]);
-    expect(item.blocks.length).toBeGreaterThan(1);
-    expect(new Set(item.blocks.map(({ block }) => block.type))).toEqual(new Set(["code_block"]));
-    const text = item.blocks
-      .flatMap(({ block }) => block.children)
-      .map(
-        (child) => JSON.stringify(child).match(/"text":"(?<text>[^"]*)"/u)?.groups?.["text"] ?? "",
-      )
-      .filter((piece) => piece !== "");
-    expect(text).toEqual(lines);
-  });
+  // its input is past the 512 KiB block cap, and parsing that much markdown takes seconds on a
+  // runner beside the other suites
+  it(
+    "cuts a block past the cap into blocks of its own type, its text kept whole",
+    { timeout: 30_000 },
+    () => {
+      const line = "A long line of a pasted log, written again and again.";
+      const lines = Array.from(
+        { length: Math.ceil((BLOCK_MAX_BYTES * 1.5) / line.length) },
+        () => line,
+      );
+      const item = imported(`\`\`\`\n${lines.join("\n")}\n\`\`\`\n`);
+      expect(item.refused).toEqual([]);
+      expect(item.blocks.length).toBeGreaterThan(1);
+      expect(new Set(item.blocks.map(({ block }) => block.type))).toEqual(new Set(["code_block"]));
+      const text = item.blocks
+        .flatMap(({ block }) => block.children)
+        .map(
+          (child) =>
+            JSON.stringify(child).match(/"text":"(?<text>[^"]*)"/u)?.groups?.["text"] ?? "",
+        )
+        .filter((piece) => piece !== "");
+      expect(text).toEqual(lines);
+    },
+  );
 
   it("cuts one long run of text between characters, never inside a surrogate pair", () => {
     // an odd offset puts a pair's high half at the cut

@@ -133,6 +133,12 @@ login, the account's socket, the hosted vault git remote — over a local D1 fil
 miniflare's Durable Objects. Sign-up is invite-only and there is no seeded account — `AGENTS.md`
 § "There is no seeded login" has the exact commands.
 
+The site's per-page share cards under `apps/web/public/og/` are rendered,
+never drawn by hand: `pnpm --filter @repo/web og:cards`
+(`apps/web/scripts/og-cards.ts`) renders a 1200x630 card per page in
+`apps/web/src/lib/page-meta.ts` in the site's own type and logo. It needs
+Playwright's Chromium, and sits outside `pnpm verify` and the build.
+
 ## Browser extension
 
 `apps/extension` is the browser's Save: a Chromium extension that captures the
@@ -207,7 +213,7 @@ tasks run at once (four by default), as it does for `pnpm test`.
 
 CI then runs a few more that `verify` cannot: it installs agent-browser
 and the shell's WebDriver (`tauri-driver`, each pinned by hand, over
-`webkit2gtk-driver` from the runner's apt), and
+`webkitgtk-webdriver` from the runner's apt), and
 runs the scenario suite under `xvfb-run`, since the desktop shell's scenarios
 open a real window, in two lanes, half its four cores. ONE run, because there
 is one build —

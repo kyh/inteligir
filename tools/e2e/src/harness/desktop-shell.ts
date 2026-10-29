@@ -116,7 +116,7 @@ const requireShellSetup = (binary: string): void => {
   }
   if (!onPath("tauri-driver") || !onPath("WebKitWebDriver")) {
     skip(
-      "no WebDriver for the shell: install webkit2gtk-driver, then `cargo install tauri-driver --locked`",
+      "no WebDriver for the shell: install webkitgtk-webdriver (webkit2gtk-driver before Ubuntu 26.04), then `cargo install tauri-driver --locked`",
     );
   }
   if (!existsSync(binary)) {

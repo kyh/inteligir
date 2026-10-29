@@ -46,9 +46,10 @@ jobs:
 
       # Tauri compiles the shell against WebKitGTK on Linux (the Mac ships its own WebKit), its menu
       # bar icon loads the appindicator at runtime, and the shell scenarios drive the window
-      # through WebKit's own WebDriver
+      # through WebKit's own WebDriver, `webkitgtk-webdriver` from Ubuntu 26.04 on, where it replaced
+      # webkit2gtk-driver
       - name: Desktop system libraries
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev webkit2gtk-driver
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev webkitgtk-webdriver
 
       # the toolchain apps/desktop/rust-toolchain.toml pins, which verify's clippy and cargo test run on
       - name: Desktop Rust toolchain

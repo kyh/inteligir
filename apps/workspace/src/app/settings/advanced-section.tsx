@@ -32,14 +32,14 @@ const lastSyncLabel = (epochMs: number | null, nowMs: number): string =>
   epochMs === null ? "never" : relativeTimeLabel(epochMs, nowMs, { seconds: true });
 
 const Raw = ({ children, title }: { children: React.ReactNode; title?: string | undefined }) => (
-  <span className="block truncate font-mono text-body" title={title}>
+  <span className="block truncate font-mono text-body select-text" title={title}>
     {children}
   </span>
 );
 
 // wrapped, never truncated: an error is read whole or not at all
 const RawError = ({ error }: { error: string | null }) => (
-  <span className="block font-mono text-body break-words whitespace-pre-wrap text-muted-foreground">
+  <span className="block font-mono text-body break-words whitespace-pre-wrap text-muted-foreground select-text">
     {error ?? "None"}
   </span>
 );
@@ -101,7 +101,7 @@ export const VaultSyncRows = ({
             {status.conflicts.map((report) => (
               <li
                 key={`${String(report.at)}:${report.kind === "copied" ? report.copyPath : report.path}`}
-                className="text-body text-muted-foreground"
+                className="text-body text-muted-foreground select-text"
               >
                 {describeSyncConflict(report, { thisDevice: status.device })}
               </li>

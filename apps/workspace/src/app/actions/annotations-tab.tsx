@@ -62,7 +62,7 @@ const EntryByline = ({ entry, asOfMs }: { entry: AnnotationEntryWire; asOfMs: nu
 // the highlighted words themselves: the live passage between the markers, else what was quoted
 const Passage = ({ text, onJump }: { text: string; onJump: (() => void) | null }) => {
   const words = (
-    <span className="rounded-[2px] bg-highlight box-decoration-clone px-0.5 text-subtitle whitespace-pre-wrap text-ink">
+    <span className="rounded-[2px] bg-highlight box-decoration-clone px-0.5 text-subtitle whitespace-pre-wrap text-ink select-text">
       {text}
     </span>
   );
@@ -258,7 +258,7 @@ const AnnotationCard = ({
       {annotation.replies.map((row) => (
         <div key={row.id} className="border-t border-line/60 px-2 py-1 pl-4">
           <EntryByline entry={row.entry} asOfMs={asOfMs} />
-          <p className="text-subtitle whitespace-pre-wrap">{row.entry.text}</p>
+          <p className="text-subtitle whitespace-pre-wrap select-text">{row.entry.text}</p>
         </div>
       ))}
       <div className="flex items-center gap-1 border-t border-line/60 p-1.5">
