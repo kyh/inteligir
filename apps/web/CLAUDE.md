@@ -275,8 +275,10 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   `cloudflare.config.ts`.** Every binding is declared there: a secret with
   `bindings.secret()`, a value with `bindings.text`, the reset sender and the
   auth limiter's off switch included, and a binding one mode lacks types as
-  optional; the suites add only `TEST_SCHEMA` and the library cell's namespace
-  by name, which `listDurableObjectIds` looks up. Rejected: a hand-written `Env`
+  optional; the suites add only `TEST_SCHEMA`, the library cell's namespace by
+  name, which `listDurableObjectIds` looks up, and `REPLICA_SQL`, a replica's
+  SQLite held on their node side, since workerd loads no sqlite-wasm
+  (`apps/web/replica-sql-service.ts`). Rejected: a hand-written `Env`
   beside the generated one (it drifts from what deploys, and a secret it names
   is never checked against the config). The date and flags are one module, the
   fills' queues another, that the configs and suites import and the Worker's

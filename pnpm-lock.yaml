@@ -933,6 +933,9 @@ importers:
       '@repo/agent-skills':
         specifier: workspace:*
         version: link:../../packages/agent-skills
+      '@repo/library-replica':
+        specifier: workspace:*
+        version: link:../../packages/library-replica
       '@repo/managed-agents-fake':
         specifier: workspace:*
         version: link:../../tools/managed-agents-fake

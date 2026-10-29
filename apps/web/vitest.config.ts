@@ -3,6 +3,7 @@ import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { configDefaults, defineConfig } from "vitest/config";
 import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
 import { FILL_FAILED_QUEUE, FILL_QUEUE, FILL_RETRIES } from "./fill-queues.ts";
+import { replicaSqlService } from "./replica-sql-service.ts";
 import {
   FAKE_MANAGED_AGENTS_ORIGIN,
   ORIGIN,
@@ -50,6 +51,9 @@ export default defineConfig({
         // the producer alone: a suite hands the consumer its batch itself (createMessageBatch), so
         // no message a test's save sends is read behind its back
         queueProducers: { FILLS: { queueName: FILL_QUEUE } },
+        // a replica's SQLite for the suite that runs the replica engine against the cell, served
+        // from this node process: workerd cannot load sqlite-wasm (replica-sql-service.ts)
+        serviceBindings: { REPLICA_SQL: replicaSqlService },
         durableObjects: {
           // the plugin reads ctx.exports' classes from the source and their storage from here, so
           // this row is what makes ctx.exports.LibraryDO a SQLite namespace; only the suites read it

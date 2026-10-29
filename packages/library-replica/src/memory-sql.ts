@@ -11,9 +11,10 @@ import type { SqlRow } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
 import type { ReplicaSql, ReplicaStatements } from "./replica-ports";
-import { serialLock } from "./serial-lock";
 
-// the wasm loads once a page, on the first database asked for
+// the wasm loads once a page, on the first database asked for. The module imports nothing of this
+// package's but types, so node loads it as it stands: the Worker's suites serve a replica's
+// database from their node side (apps/web/replica-sql-service.ts)
 let loading: Promise<Sqlite3Static> | null = null;
 
 const rowSchema = z.record(z.string(), z.union([z.string(), z.number(), z.null()]));
@@ -26,7 +27,21 @@ export const openMemorySql = async (): Promise<MemorySql> => {
   loading ??= sqlite3InitModule();
   const sqlite3 = await loading;
   const db = new sqlite3.oo1.DB(":memory:", "c");
-  const serial = serialLock();
+  // a queue of one: each call starts once the one before it has settled, whichever way
+  let tail: Promise<unknown> = Promise.resolve();
+  const serial = async <T>(task: () => Promise<T>): Promise<T> => {
+    const previous = tail;
+    const next = (async () => {
+      try {
+        await previous;
+      } catch {
+        // that call's caller heard its failure; this one only waited for it to end
+      }
+      return await task();
+    })();
+    tail = next;
+    return await next;
+  };
   const statements: ReplicaStatements = {
     all: async (sql, params) =>
       await Promise.resolve(

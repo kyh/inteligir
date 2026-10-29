@@ -14,6 +14,7 @@
     "src",
     "vite.config.ts",
     "vitest.config.ts",
+    "replica-sql-service.ts",
     "drizzle.config.ts",
     "drizzle.config.local.ts"
   ],
