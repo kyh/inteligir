@@ -16,7 +16,6 @@ import { errorFields } from "../log";
 import { fillJobSchema } from "./fill-job";
 import type { FillJob } from "./fill-job";
 import type { FillLanding } from "./fill-landing";
-import { FILL_FAILED_QUEUE, FILL_RETRIES } from "./fill-queues";
 import { fetchPage } from "./page-fetch";
 import { readPage } from "./read-page";
 import { storeFile } from "./store-file";
@@ -80,7 +79,7 @@ const consumeOne = async (
     },
     job,
   );
-  if (read.kind === "retry" && message.attempts <= FILL_RETRIES) {
+  if (read.kind === "retry" && message.attempts <= env.FILL_DELIVERY.retries) {
     message.retry({ delaySeconds: retryDelaySeconds(message.attempts) });
     return;
   }
@@ -94,7 +93,7 @@ export const consumeFills = async (
   env: Env,
   ctx: ExecutionContext,
 ): Promise<void> => {
-  const deadLetter = batch.queue === FILL_FAILED_QUEUE;
+  const deadLetter = batch.queue === env.FILL_DELIVERY.deadLetterQueue;
   for (const message of batch.messages) {
     const job = fillJobSchema.safeParse(message.body);
     if (!job.success) {

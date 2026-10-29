@@ -24,6 +24,15 @@ const SERVER_ONLY = {
   regex: "^(?:@orpc/(?:mcp|openapi)|@modelcontextprotocol/server)(?:/|$)",
 };
 
+// The dev server cannot load a module the Worker's config also loads (`pnpm dev:web` stops on the
+// first such import), so the Worker's code takes what it needs of those modules from a binding the
+// config declares, as the fill consumer reads FILL_DELIVERY.
+const CONFIG_MODULES = {
+  message:
+    "cloudflare.config.ts loads this module, so the dev server cannot load it in the Worker too: read the value from a binding the config declares",
+  regex: "(?:^|/)(?:compatibility|fill-queues|cloudflare\\.config)(?:\\.ts)?$",
+};
+
 // oRPC v2 still ships its v1 names, untagged, beside the new ones (https://orpc.dev/docs/migrations/from-v1).
 const V1_NAMES_MESSAGE =
   "oRPC v1's name: use v2's (RouterContractClient, InferRouterContractInputs/Outputs, RouterContract, AnyProcedureContract, asyncIteratorObject, PromiseWithError, InferClientError, consumeAsyncIterator)";
@@ -192,6 +201,19 @@ export default defineConfig({
       // the one place the library's rows become the connector's tools
       files: ["apps/web/src/worker/**"],
       rules: { "no-restricted-imports": ["error", { paths: ORPC_V1_NAMES }] },
+    },
+    {
+      excludeFiles: [...tests, "apps/web/src/worker/**"],
+      files: ["apps/web/src/**"],
+      rules: { "no-restricted-imports": restrictedImports([CONFIG_MODULES]) },
+    },
+    {
+      // after the override above, whose options this one replaces for the Worker's own code
+      excludeFiles: tests,
+      files: ["apps/web/src/worker/**"],
+      rules: {
+        "no-restricted-imports": ["error", { paths: ORPC_V1_NAMES, patterns: [CONFIG_MODULES] }],
+      },
     },
     {
       // A test is one of the callers, so it may hand the code under test the platform's bytes.

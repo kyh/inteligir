@@ -8,7 +8,7 @@ import {
   FILL_PREVIEW_QUEUE,
   FILL_QUEUE,
   FILL_RETRIES,
-} from "./src/worker/fill/fill-queues.ts";
+} from "./fill-queues.ts";
 
 // the file path, not `@tanstack/react-start/server-entry`: the package export builds Start's
 // default entry and drops the API routes (cloudflare/workers-sdk#11100). Imported, not named by
@@ -68,6 +68,9 @@ const shared = {
   // the auth limiter's off switch, "true" only where one caller signs up many accounts: the
   // suites, the e2e harness, a local script's .dev.vars
   RATE_LIMIT_DISABLED: bindings.text<"true" | "false">("false"),
+  // what the fill consumer needs of its queues' config, handed over rather than imported, since the
+  // dev server cannot load a module this file also loads (fill-queues.ts)
+  FILL_DELIVERY: bindings.json({ deadLetterQueue: FILL_FAILED_QUEUE, retries: FILL_RETRIES }),
 };
 
 // what the Preview job hands this deploy (.github/workflows/preview.yml). Node evaluates this file,
@@ -117,7 +120,7 @@ const productionWorker = (mode: string | undefined) => ({
   triggers: [
     triggers.fetch({ pattern: "inteligir.com/*", zone: "inteligir.com" }),
     triggers.fetch({ pattern: "www.inteligir.com/*", zone: "inteligir.com" }),
-    // the pages the cloud reads, consumed by this Worker (src/worker/fill/fill-queues.ts)
+    // the pages the cloud reads, consumed by this Worker (fill-queues.ts)
     triggers.queue({
       deadLetterQueue: FILL_FAILED_QUEUE,
       maxBatchSize: FILL_BATCH_SIZE,

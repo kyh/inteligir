@@ -286,9 +286,12 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   optional; the suites add only `TEST_SCHEMA` and the library cell's namespace
   by name, which `listDurableObjectIds` looks up. Rejected: a hand-written `Env`
   beside the generated one (it drifts from what deploys, and a secret it names
-  is never checked against the config). The date and flags are one module both
-  the config and the suites import. `apps/web/cloudflare.config.ts`,
-  `apps/web/compatibility.ts`.
+  is never checked against the config). The date and flags are one module, the
+  fills' queues another, that the configs and suites import and the Worker's
+  own code never does: the dev server cannot load a module the config loads,
+  so the consumer reads its queue's settings from `FILL_DELIVERY`, and
+  `oxlint.config.ts` refuses the import. `apps/web/cloudflare.config.ts`,
+  `apps/web/compatibility.ts`, `apps/web/fill-queues.ts`.
 
 - **THE WORKER'S SUITES RUN INSIDE workerd THROUGH `@cloudflare/vitest-plugin`,
   ON THE BINDINGS `cloudflare.config.ts` DECLARES, RESTATED.** A suite reaches

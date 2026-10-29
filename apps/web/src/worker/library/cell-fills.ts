@@ -1,7 +1,7 @@
 // The cloud's reading of the pages the library saved unread. A write that lands a link waiting for
 // its page queues the reading in the same transaction, as a `fill` row of the jobs table, so a
 // reading is never asked for a write that did not land and never lost by one that did; once the
-// write commits the cell sends it to the fill queue (`../fill/fill-queues`), and the alarm sends
+// write commits the cell sends it to the fill queue (`apps/web/fill-queues.ts`), and the alarm sends
 // again any row still waiting a minute later, a send that failed or a cell evicted before it sent.
 // The consumer reads the page and hands it back (`../fill/fill-consumer`), and it lands here as a
 // change set of its own: only the article and the facts a fill owns, so the person's note and

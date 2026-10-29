@@ -18,7 +18,7 @@ import type { Principal } from "../../library/library-principal";
 import { libraryRouter } from "../../library/library-router";
 import { cellOf, inCell, newAccountId } from "../../test-support/library-cell";
 import type { FillJob } from "../fill-job";
-import { FILL_QUEUE } from "../fill-queues";
+import { FILL_QUEUE } from "../../../../fill-queues";
 
 const laptop = (accountId: string): Principal => ({
   accountId,

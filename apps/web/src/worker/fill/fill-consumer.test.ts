@@ -18,7 +18,7 @@ import scriptHeavy from "@repo/page-reader/test-support/corpus/script-heavy.html
 import videoPage from "@repo/page-reader/test-support/corpus/video-page.html?raw";
 import { blobKey } from "../library/cell-blobs";
 import { cellOf, inCell } from "../test-support/library-cell";
-import { FILL_FAILED_QUEUE } from "./fill-queues";
+import { FILL_FAILED_QUEUE } from "../../../fill-queues";
 import {
   deliver,
   filePage,

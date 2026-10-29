@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { configDefaults, defineConfig } from "vitest/config";
 import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
-import { FILL_QUEUE } from "./src/worker/fill/fill-queues.ts";
+import { FILL_FAILED_QUEUE, FILL_QUEUE, FILL_RETRIES } from "./fill-queues.ts";
 import { ORIGIN } from "./src/worker/test-support/test-origin.ts";
 
 // resolved from this file: cwd is apps/web under vitest but the repo root under knip.
@@ -61,6 +61,7 @@ export default defineConfig({
           MIN_CLIENT_BUILD: "1.2.0",
           // every test shares one ip; vault-rate-limit.test.ts flips this per test.
           RATE_LIMIT_DISABLED: "true",
+          FILL_DELIVERY: { deadLetterQueue: FILL_FAILED_QUEUE, retries: FILL_RETRIES },
           // the origin every suite addresses the Worker at, as the deployment's own
           SITE_ORIGIN: ORIGIN,
           TEST_SCHEMA,
