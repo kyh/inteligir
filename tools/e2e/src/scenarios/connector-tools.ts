@@ -313,8 +313,7 @@ export const connectorTools: Scenario = {
       expect(stale.isError === true, `the stale edit answered ${JSON.stringify(stale)}`);
       const [refusal] = refusalSchema.parse(stale.content);
       expect(
-        z.object({ code: z.literal("CONFLICT") }).safeParse(JSON.parse(refusal?.text ?? "null"))
-          .success,
+        z.object({ code: z.literal("CONFLICT") }).validate(JSON.parse(refusal?.text ?? "null")),
         `the stale edit's refusal was ${refusal?.text ?? "empty"}`,
       );
 
