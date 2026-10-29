@@ -3,6 +3,7 @@ import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { configDefaults, defineConfig } from "vitest/config";
 import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
 import { FILL_QUEUE } from "./src/worker/fill/fill-queues.ts";
+import { ORIGIN } from "./src/worker/test-support/test-origin.ts";
 
 // resolved from this file: cwd is apps/web under vitest but the repo root under knip.
 const HERE = import.meta.dirname;
@@ -39,6 +40,8 @@ export default defineConfig({
         compatibilityDate,
         compatibilityFlags,
         d1Databases: ["DB"],
+        // the connector's OAuth store
+        kvNamespaces: ["OAUTH_KV"],
         r2Buckets: ["BLOBS", "PACK_CACHE"],
         // the producer alone: a suite hands the consumer its batch itself (createMessageBatch), so
         // no message a test's save sends is read behind its back
@@ -58,6 +61,8 @@ export default defineConfig({
           MIN_CLIENT_BUILD: "1.2.0",
           // every test shares one ip; vault-rate-limit.test.ts flips this per test.
           RATE_LIMIT_DISABLED: "true",
+          // the origin every suite addresses the Worker at, as the deployment's own
+          SITE_ORIGIN: ORIGIN,
           TEST_SCHEMA,
           // small enough that a test fills a vault with a few pushes
           VAULT_STORAGE_CAP_BYTES: String(1024 * 1024),

@@ -11,6 +11,7 @@
     "./cloud/bytes": "./src/cloud/bytes.ts",
     "./cloud/client": "./src/cloud/cloud-client.ts",
     "./cloud/client-build": "./src/cloud/client-build.ts",
+    "./cloud/connector": "./src/cloud/connector.ts",
     "./cloud/device/device-schema": "./src/cloud/device/device-schema.ts",
     "./cloud/device/login-flow": "./src/cloud/device/login-flow.ts",
     "./cloud/errors": "./src/cloud/cloud-errors.ts",

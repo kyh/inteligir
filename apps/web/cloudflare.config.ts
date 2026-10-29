@@ -1,4 +1,5 @@
 import { bindings, defineConfig, defineWorker, exports, triggers } from "cf/config";
+import { z } from "zod";
 import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
 import type { FillJob } from "./src/worker/fill/fill-job.ts";
 import {
@@ -69,25 +70,49 @@ const shared = {
   RATE_LIMIT_DISABLED: bindings.text<"true" | "false">("false"),
 };
 
+// what the Preview job hands this deploy (.github/workflows/preview.yml). Node evaluates this file,
+// but the Worker's own program types it too and declares no `process`, so the job's environment is
+// parsed off `globalThis`; a Preview deployed without either value is refused here
+const previewDeploy = () =>
+  z
+    .object({
+      process: z.object({
+        env: z.object({
+          // the namespace preview.yml finds or creates: a KV binding names one by id alone
+          OAUTH_KV_PREVIEW_ID: z.string().regex(/^[0-9a-f]{32}$/u),
+          // this Preview's own URL, derived from its name and the account's workers.dev subdomain
+          PREVIEW_ORIGIN: z.url({ protocol: /^https$/u }),
+        }),
+      }),
+    })
+    .parse(globalThis).process.env;
+
 // A Preview must not claim the production hostnames, and gets its own Durable Object namespaces
-// for free, and a preview-only D1, bucket and queue (.github/workflows/preview.yml creates them):
-// a PR never reaches the production accounts, vault packs or fills. A preview consumes no queue
+// for free, and a preview-only D1, bucket, queue and KV namespace (.github/workflows/preview.yml
+// creates them): a PR never reaches the production accounts, vault packs, fills or connected
+// assistants. A preview consumes no queue
 // (developers.cloudflare.com/workers/previews/resources/), so a link saved there stays unread. No
 // EMAIL or sender: a preview must not mail real inboxes from the production domain, and
 // src/worker/auth/reset-email.ts logs instead.
-const previewWorker = {
-  ...worker,
-  triggers: [],
-  env: {
-    ...shared,
-    DB: bindings.d1({ name: "inteligir-auth-preview" }),
-    PACK_CACHE: bindings.r2({ name: "inteligir-vault-preview" }),
-    BLOBS: bindings.r2({ name: "inteligir-vault-preview" }),
-    FILLS: bindings.queue<FillJob>({ name: FILL_PREVIEW_QUEUE }),
-  },
+const previewWorker = () => {
+  const deploy = previewDeploy();
+  return {
+    ...worker,
+    triggers: [],
+    env: {
+      ...shared,
+      DB: bindings.d1({ name: "inteligir-auth-preview" }),
+      PACK_CACHE: bindings.r2({ name: "inteligir-vault-preview" }),
+      BLOBS: bindings.r2({ name: "inteligir-vault-preview" }),
+      FILLS: bindings.queue<FillJob>({ name: FILL_PREVIEW_QUEUE }),
+      OAUTH_KV: bindings.kv({ id: deploy.OAUTH_KV_PREVIEW_ID }),
+      // its connector's tokens are minted for this Preview's URL and no other
+      SITE_ORIGIN: bindings.text<string>(deploy.PREVIEW_ORIGIN),
+    },
+  };
 };
 
-const productionWorker = {
+const productionWorker = (mode: string | undefined) => ({
   ...worker,
   triggers: [
     triggers.fetch({ pattern: "inteligir.com/*", zone: "inteligir.com" }),
@@ -118,9 +143,18 @@ const productionWorker = {
     EMAIL: bindings.sendEmail({}),
     // the reset email's sender, on the domain onboarded for Email Sending
     RESET_FROM_ADDRESS: bindings.text("no-reply@inteligir.app"),
+    // the connector's OAuth clients, grants and tokens, and nothing else (src/worker/connector):
+    // no id, so the first deploy provisions the namespace and every later one keeps it linked
+    // (developers.cloudflare.com/workers/wrangler/configuration/#automatic-provisioning)
+    OAUTH_KV: bindings.kv(),
+    // this deployment's own origin, the connector's OAuth issuer and the root of its resource,
+    // never the request's Host; `vite dev` serves the Worker on its pinned port (vite.config.ts)
+    SITE_ORIGIN: bindings.text<string>(
+      mode === "development" ? "http://localhost:5174" : "https://inteligir.com",
+    ),
   },
-};
+});
 
-export default defineConfig(({ isPreview }) => ({
-  worker: isPreview ? previewWorker : productionWorker,
+export default defineConfig(({ isPreview, mode }) => ({
+  worker: isPreview ? previewWorker() : productionWorker(mode),
 }));

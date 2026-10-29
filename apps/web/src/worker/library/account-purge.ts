@@ -2,11 +2,13 @@
 // so a deletion that fails part way runs again from the top and the account survives to retry
 // (Better Auth's `beforeDelete`, `../auth/auth.ts`). First the tombstone, so every write, read and
 // socket that races the rest is refused; then what the cell holds, the tombstone written back at
-// once; then the account's files in R2; last its credentials in D1, which until then still verify
-// only to meet the tombstone. The tombstone outlives the deletion, so a request that verified
-// before the credentials went meets it too rather than founding a library nobody can reach. A
-// later step joins the list where its order says.
+// once; then the account's files in R2; then the grants its assistants hold in KV; last its
+// credentials in D1, which until then still verify only to meet the tombstone. The tombstone
+// outlives the deletion, so a request that verified before the credentials went meets it too rather
+// than founding a library nobody can reach. A later step joins the list where its order says.
 
+import { revokeEveryAssistant } from "../connector/assistant-grants";
+import { connectorAuth } from "../connector/connector-auth";
 import { createDb } from "../db/client";
 import { forgetInviteRedeemer } from "../auth/invite";
 import { purgeDeviceRows } from "../device/login";
@@ -72,6 +74,14 @@ export const ACCOUNT_PURGE_STEPS: readonly PurgeStep[] = [
         }
         cursor = page.truncated ? page.cursor : undefined;
       } while (cursor !== undefined);
+    },
+  },
+  {
+    // every assistant let in through the connector, its tokens with it, before the credentials
+    // that could let one in again
+    name: "grants",
+    run: async ({ accountId, env }) => {
+      await revokeEveryAssistant(connectorAuth(env).helpers, accountId);
     },
   },
   {

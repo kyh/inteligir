@@ -10,6 +10,14 @@ import { refuseBelowFloor } from "./client-floor";
 import { refuse } from "./cloud-http";
 import { handleAccountRoute } from "./device/account";
 import { handleDeviceRoutes } from "./device/routes";
+import {
+  CONSENT_PATH,
+  connectorAuth,
+  isAuthorizationServerPath,
+  isConnectorPath,
+} from "./connector/connector-auth";
+import { handleConnector } from "./connector/connector-route";
+import { handleConsent } from "./connector/consent-route";
 import { consumeFills } from "./fill/fill-consumer";
 import type { FillJob } from "./fill/fill-job";
 import { handleLibrarySocket, handleSyncSocket } from "./library/socket-routes";
@@ -32,8 +40,12 @@ export { RepoCell, Registry } from "durable-git";
 // ./server.ts splits on these, so a route added below must be reachable through one or it never arrives
 const OWNED_PREFIXES = ["/api/", "/v1/"] as const;
 
+// the connector, its OAuth endpoints and its consent page, which no prefix of their own holds
+const isConnectorRoute = (pathname: string): boolean =>
+  isConnectorPath(pathname) || isAuthorizationServerPath(pathname) || pathname === CONSENT_PATH;
+
 export const ownsPath = (pathname: string): boolean =>
-  OWNED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  OWNED_PREFIXES.some((prefix) => pathname.startsWith(prefix)) || isConnectorRoute(pathname);
 
 const isRpc = (pathname: string): boolean => pathname.startsWith(`${V1_RPC_PATH}/`);
 
@@ -50,6 +62,18 @@ const speaksCloudEnvelope = (pathname: string): boolean =>
 
 const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {
   const url = new URL(request.url);
+
+  // an assistant's door, which names no build and takes no device credential: the token its
+  // OAuth endpoints minted, asked for on its consent page
+  if (isConnectorPath(url.pathname)) {
+    return await handleConnector(request, env, ctx);
+  }
+  if (isAuthorizationServerPath(url.pathname)) {
+    return await connectorAuth(env).authorizationServer.fetch(request, env, ctx);
+  }
+  if (url.pathname === CONSENT_PATH) {
+    return await handleConsent(request, env, ctx);
+  }
 
   // a browser's socket cannot name its build, and its ticket came from a call that met the floor
   if (url.pathname === V1_SOCKET_PATH) {

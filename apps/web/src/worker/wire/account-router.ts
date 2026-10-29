@@ -1,8 +1,8 @@
 // The account's procedures, which the Worker answers itself on `/v1/rpc/account`: a device's
 // sign-in and sign-up, signing out, the account's devices, its deletion with the password asked
-// again, and the socket's ticket. A signed row meets its credential in one middleware, verified
-// lazily from the request's context (`./v1-principal`); a sign-in or sign-up spends its caller's
-// window. Each row shares its core with the REST door today's apps still call (`../device/*`).
+// again, the socket's ticket, and the assistants let in through the connector. A signed row meets
+// its credential in one middleware, verified lazily from the request's context
+// (`./v1-principal`); a sign-in or sign-up spends its caller's window. Each row shares its core with the REST door today's apps still call (`../device/*`).
 
 import {
   TooManyRequestsError,
@@ -16,13 +16,15 @@ import { V1_RPC_PATH, v1Contract } from "@repo/contract/cloud/v1";
 import { eq } from "drizzle-orm";
 
 import { createAuth, createSignUpAuth } from "../auth/auth";
+import { listAssistants, revokeAssistant } from "../connector/assistant-grants";
+import { connectorAuth } from "../connector/connector-auth";
 import { createDb } from "../db/client";
 import { session } from "../db/schema";
 import { deleteAccountWithPassword } from "../device/account";
 import { listDevices, revokeDevice } from "../device/devices";
 import { loginDevice } from "../device/login";
 import { signUpDevice } from "../device/sign-up";
-import type { Principal } from "../library/library-principal";
+import type { AppPrincipal } from "../library/library-principal";
 import { mintSocketTicket } from "../library/socket-ticket";
 import { spendCallerBudget, spendDeviceBudget } from "../rate-limit";
 import { logRpcFailure } from "./rpc-log";
@@ -32,7 +34,7 @@ export interface AccountContext {
   readonly env: Env;
   readonly ctx: ExecutionContext;
   readonly request: Request;
-  readonly principal: () => Promise<Principal | null>;
+  readonly principal: () => Promise<AppPrincipal | null>;
 }
 
 const os = implement(v1Contract.account).$context<AccountContext>();
@@ -54,11 +56,24 @@ const signedIn = os.middleware(async ({ context, next }) => {
 const originOf = (request: Request): string => new URL(request.url).origin;
 
 const accountRouter = os.router({
-  // no assistant can be let in before the connector's consent page exists, so the account has none
+  // the assistants let in through the connector's consent page, each one grant
   assistants: {
-    list: os.assistants.list.use(signedIn).handler(() => ({ assistants: [] })),
-    revoke: os.assistants.revoke.use(signedIn).handler(({ errors }) => {
-      throw errors.NOT_FOUND();
+    list: os.assistants.list.use(signedIn).handler(async ({ context }) => ({
+      assistants: await listAssistants(
+        connectorAuth(context.env).helpers,
+        context.signedIn.accountId,
+      ),
+    })),
+    revoke: os.assistants.revoke.use(signedIn).handler(async ({ context, errors, input }) => {
+      const revoked = await revokeAssistant(
+        connectorAuth(context.env).helpers,
+        context.signedIn.accountId,
+        input.grantId,
+      );
+      if (!revoked) {
+        throw errors.NOT_FOUND();
+      }
+      return { revoked: true as const };
     }),
   },
   delete: os.delete.use(signedIn).handler(async ({ context, errors, input }) => {

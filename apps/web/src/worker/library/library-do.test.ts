@@ -1,3 +1,4 @@
+import { CONNECTOR_PATH } from "@repo/contract/cloud/connector";
 import { evictDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
@@ -5,7 +6,9 @@ import { describe, expect, it } from "vitest";
 
 import { createDb } from "../db/client";
 import { device, inviteCode } from "../db/schema";
+import { connectorAuth } from "../connector/connector-auth";
 import { loginDevice, signUpUser, userIdOf } from "../test-support/cloud-helpers";
+import { connectAssistant } from "../test-support/connector-session";
 import {
   cellOf,
   clockAt,
@@ -95,6 +98,32 @@ describe("the library cell", () => {
       200,
     );
     expect(await inCell(stub, itemCount)).toBe(1);
+  });
+
+  it("takes an app's call only on the wire, and an assistant's only on the connector", async () => {
+    const accountId = newAccountId();
+    const stub = cellOf(accountId);
+    const assistant: Principal = {
+      accountId,
+      actor: { clientId: "client-1", clientName: "Claude", grantId: "grant-1", kind: "assistant" },
+      scopes: ["library"],
+    };
+    const status = async (path: string, as: Principal): Promise<number> => {
+      const answer = await stub.fetch(`https://cell.test${path}`, {
+        body: JSON.stringify({ json: { markdown: "Who wrote this?" } }),
+        headers: {
+          accept: "application/json, text/event-stream",
+          "content-type": "application/json",
+          [PRINCIPAL_HEADER]: principalHeaderValue(as),
+        },
+        method: "POST",
+      });
+      await answer.arrayBuffer();
+      return answer.status;
+    };
+    expect(await status(`${V1_LIBRARY_RPC_PATH}/items/createNote`, assistant)).toBe(403);
+    expect(await status(CONNECTOR_PATH, principal(accountId))).toBe(403);
+    expect(await inCell(stub, itemCount)).toBe(0);
   });
 
   it("seals a quiet set when its alarm runs, and sets the next one for the prune", async () => {
@@ -220,17 +249,24 @@ describe("the library cell", () => {
 });
 
 describe("deleting the account from its cell", () => {
-  it("runs its steps in order: the tombstone, the cell's storage, its files, its credentials", async () => {
+  it("runs its steps in order: the tombstone, the cell's storage, its files, its assistants' grants, its credentials", async () => {
     expect(ACCOUNT_PURGE_STEPS.map((step) => step.name)).toEqual([
       "tombstone",
       "storage",
       "files",
+      "grants",
       "credentials",
     ]);
     const email = "purge-order@example.test";
     const { cookie } = await signUpUser(email);
     await loginDevice(cookie, "Laptop");
+    await connectAssistant(cookie);
     const accountId = await userIdOf(cookie);
+    const { helpers } = connectorAuth(env);
+    const grants = async (): Promise<number> => {
+      const listed = await helpers.listUserGrants(accountId);
+      return listed.items.length;
+    };
     const stranger = newAccountId();
     await env.BLOBS.put(blobKey(accountId, SHA), "mine");
     await env.BLOBS.put(blobKey(stranger, SHA), "theirs");
@@ -244,6 +280,7 @@ describe("deleting the account from its cell", () => {
       readonly alarm: number | null;
       readonly devices: number;
       readonly files: number;
+      readonly grants: number;
       readonly items: number;
       readonly read: CellRefusal | null;
     }
@@ -264,6 +301,7 @@ describe("deleting the account from its cell", () => {
           alarm: await state.storage.getAlarm(),
           devices: await devices(),
           files: await files(accountBlobPrefix(accountId)),
+          grants: await grants(),
           items: itemCount(state),
           read: refusalOf(engineIn(state, clockAt()).pull({ cursor: 0, epoch: null })),
         });
@@ -271,10 +309,18 @@ describe("deleting the account from its cell", () => {
     });
     const gone = { kind: "gone" };
     expect(Object.fromEntries(seen)).toEqual({
-      credentials: { alarm: null, devices: 0, files: 0, items: 0, read: gone },
-      files: { alarm: null, devices: 1, files: 0, items: 0, read: gone },
-      storage: { alarm: null, devices: 1, files: 1, items: 0, read: gone },
-      tombstone: { alarm: expect.any(Number), devices: 1, files: 1, items: 1, read: gone },
+      credentials: { alarm: null, devices: 0, files: 0, grants: 0, items: 0, read: gone },
+      files: { alarm: null, devices: 1, files: 0, grants: 1, items: 0, read: gone },
+      grants: { alarm: null, devices: 1, files: 0, grants: 0, items: 0, read: gone },
+      storage: { alarm: null, devices: 1, files: 1, grants: 1, items: 0, read: gone },
+      tombstone: {
+        alarm: expect.any(Number),
+        devices: 1,
+        files: 1,
+        grants: 1,
+        items: 1,
+        read: gone,
+      },
     });
     // another account's files stay, and the invite's redeemer is forgotten
     expect(await files(accountBlobPrefix(stranger))).toBe(1);

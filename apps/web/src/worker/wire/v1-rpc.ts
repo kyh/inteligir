@@ -7,7 +7,7 @@
 
 import { libraryCell } from "../library/library-cell";
 import { PRINCIPAL_HEADER, principalHeaderValue } from "../library/library-principal";
-import type { Principal } from "../library/library-principal";
+import type { AppPrincipal } from "../library/library-principal";
 import { V1_LIBRARY_RPC_PATH } from "../library/library-rpc";
 import { isBelowFloor } from "../client-floor";
 import { createDb } from "../db/client";
@@ -23,7 +23,7 @@ const forwardLibraryCall = async (
   request: Request,
   env: Env,
   ctx: ExecutionContext,
-  principal: () => Promise<Principal | null>,
+  principal: () => Promise<AppPrincipal | null>,
 ): Promise<Response> => {
   const verified = await principal();
   if (verified === null) {

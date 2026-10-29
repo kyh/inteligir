@@ -8,7 +8,7 @@
 import { createAuth } from "../auth/auth";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";
-import type { Principal } from "../library/library-principal";
+import type { AppPrincipal, Principal } from "../library/library-principal";
 
 const fromOwnPage = (request: Request): boolean =>
   request.headers.get("sec-fetch-site") === "same-origin";
@@ -17,7 +17,7 @@ const verifyPrincipal = async (
   request: Request,
   env: Env,
   ctx: ExecutionContext,
-): Promise<Principal | null> => {
+): Promise<AppPrincipal | null> => {
   const authorization = request.headers.get("authorization");
   if (authorization !== null) {
     const verified = await verifyDeviceCredential(createDb(env.DB), authorization);
@@ -49,14 +49,27 @@ export const lazyPrincipal = (
   request: Request,
   env: Env,
   ctx: ExecutionContext,
-): (() => Promise<Principal | null>) => {
-  let verified: Promise<Principal | null> | undefined;
+): (() => Promise<AppPrincipal | null>) => {
+  let verified: Promise<AppPrincipal | null> | undefined;
   return async () => {
     verified ??= verifyPrincipal(request, env, ctx);
     return await verified;
   };
 };
 
-// the window a principal's calls spend: its device's, or its browser session's
-export const holderIdOf = (principal: Principal): string =>
-  principal.actor.kind === "device" ? principal.actor.deviceId : principal.actor.sessionId;
+// the window a principal's calls spend: its device's, its browser session's or its grant's
+export const holderIdOf = (principal: Principal): string => {
+  const { actor } = principal;
+  switch (actor.kind) {
+    case "device": {
+      return actor.deviceId;
+    }
+    case "session": {
+      return actor.sessionId;
+    }
+    case "assistant": {
+      return actor.grantId;
+    }
+    // no default
+  }
+};

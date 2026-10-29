@@ -4,8 +4,8 @@ import { rateLimit } from "./db/schema";
 
 // Fixed windows over Better Auth's own rate_limit table, which Better Auth prunes on its own
 // writes: a row whose last request is older than its longest window goes, the Worker's included.
-// Unauthenticated callers are keyed on their address, verified devices on the device; the kill
-// switch is read here, not per caller.
+// Unauthenticated callers are keyed on their address, verified devices on the device and an
+// assistant on its grant; the kill switch is read here, not per caller.
 
 export interface RateWindow {
   readonly max: number;
@@ -49,6 +49,7 @@ const allowInWindow = async (
 const DEVICE_RATE_KEY_PREFIXES = {
   accountDelete: "account-delete:",
   blobs: "blobs:",
+  connector: "connector:",
   rpc: "rpc:",
   vaultGit: "vault-git:",
   vaultRead: "vault-read:",
@@ -100,6 +101,9 @@ export const RATE_WINDOWS = {
   // a library's files, read and written: a grid of covers and a video read range by range are the
   // legitimate bursts, as a note's embeds were the vault's
   blobs: { max: 3000, windowMs: 60_000 },
+  // every call a connected assistant makes on the connector, keyed on its grant: a turn reads and
+  // edits a few dozen times, and a client listing and calling its tools in a loop is no person's
+  connector: { max: 300, windowMs: 60_000 },
   // every signed call on /v1/rpc, keyed on the device or the browser session: a replica back from
   // a week away pulls a thousand changes a page and its bodies four MB an answer while its outbox
   // drains a write a call, which a few hundred calls cover, so a ceiling past that is a loop

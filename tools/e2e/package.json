@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@modelcontextprotocol/client": "catalog:",
     "@orpc/client": "catalog:",
     "@repo/contract": "workspace:*",
     "@repo/mobile": "workspace:*",

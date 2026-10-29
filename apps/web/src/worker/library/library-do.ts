@@ -7,9 +7,12 @@
 // memory, and the cell sets no timer: its one alarm runs the `jobs` table.
 
 import { SYNC_WS_KEEPALIVE_PING, SYNC_WS_KEEPALIVE_PONG } from "@repo/contract/cloud/sync/sync-ws";
+import { CONNECTOR_PATH } from "@repo/contract/cloud/connector";
+import type { McpHttpHandler } from "@modelcontextprotocol/server";
 import { DurableObject } from "cloudflare:workers";
 
 import { refuse } from "../cloud-http";
+import { authInfoOf, createConnectorHandler } from "../connector/connector-server";
 import { fillLandingSchema } from "../fill/fill-landing";
 import type { FillLanded, FillLanding } from "../fill/fill-landing";
 import { errorFields } from "../log";
@@ -38,7 +41,14 @@ import {
   socketHolder,
 } from "./cell-sockets";
 import { cellAccountId } from "./library-cell";
-import { PRINCIPAL_HEADER, principalFromHeader } from "./library-principal";
+import {
+  isAppPrincipal,
+  isAssistantPrincipal,
+  PRINCIPAL_HEADER,
+  principalFromHeader,
+} from "./library-principal";
+import type { Principal } from "./library-principal";
+import type { CellContext } from "./library-router";
 import { serveLibraryRpc, V1_LIBRARY_RPC_PATH } from "./library-rpc";
 import type { UploadSettlement } from "./library-engine";
 
@@ -68,29 +78,58 @@ export class LibraryDO extends DurableObject<Env> {
     return cellAccountId(this.ctx.id.name);
   }
 
-  // the two requests that stay HTTP: a library call on `/v1/rpc/library` with its principal, and
-  // the socket upgrade with its holder, each stamped by the Worker that verified it
-  // (`../wire/v1-rpc`, `./socket-routes`)
+  // the requests that stay HTTP: an app's library call on `/v1/rpc/library` and an assistant's on
+  // the connector, each with its principal, and the socket upgrade with its holder, each stamped by
+  // the Worker that verified it (`../wire/v1-rpc`, `../connector/connector-route`,
+  // `./socket-routes`)
   override async fetch(request: Request): Promise<Response> {
     const { pathname } = new URL(request.url);
-    return pathname.startsWith(`${V1_LIBRARY_RPC_PATH}/`)
-      ? await this.#serveRpc(request)
-      : this.#acceptSocket(request);
+    if (pathname.startsWith(`${V1_LIBRARY_RPC_PATH}/`)) {
+      return await this.#serveRpc(request);
+    }
+    if (pathname === CONNECTOR_PATH) {
+      return await this.#serveConnector(request);
+    }
+    return this.#acceptSocket(request);
   }
 
-  async #serveRpc(request: Request): Promise<Response> {
+  // the principal the Worker stamped, held to this cell's own account: only the Worker reaches a
+  // cell, and it names one only by the account it verified
+  #principalOf(request: Request): Principal | null {
     const principal = principalFromHeader(request.headers.get(PRINCIPAL_HEADER));
-    // only the Worker reaches a cell, and it names one only by the account it verified
-    if (principal?.accountId !== this.#accountId) {
-      return new Response("The cell takes only a call the Worker verified.", { status: 403 });
-    }
+    return principal?.accountId === this.#accountId ? principal : null;
+  }
+
+  // a call's cell: the engine over this cell's storage, and what follows its commit
+  #cellContext(principal: Principal): CellContext {
     const library = openCellLibrary(this.ctx, this.env);
-    const response = await serveLibraryRpc(request, {
+    return {
       library,
       principal,
       settle: async (result) => await settleCommit(this.ctx, this.env, library, result),
-    });
+    };
+  }
+
+  async #serveRpc(request: Request): Promise<Response> {
+    const principal = this.#principalOf(request);
+    if (principal === null || !isAppPrincipal(principal)) {
+      return new Response("The cell takes only a call the Worker verified.", { status: 403 });
+    }
+    const response = await serveLibraryRpc(request, this.#cellContext(principal));
     return response ?? new Response("not found", { status: 404 });
+  }
+
+  // the connector's MCP handler, built on this cell's first call to it; each request still builds
+  // its own server from the handler's factory
+  #connector: McpHttpHandler | undefined;
+
+  async #serveConnector(request: Request): Promise<Response> {
+    const principal = this.#principalOf(request);
+    if (principal === null || !isAssistantPrincipal(principal)) {
+      return new Response("The cell takes only a call the Worker verified.", { status: 403 });
+    }
+    this.#connector ??= createConnectorHandler((assistant) => this.#cellContext(assistant));
+    return await this.#connector.fetch(request, { authInfo: authInfoOf(principal) });
   }
 
   #acceptSocket(request: Request): Response {

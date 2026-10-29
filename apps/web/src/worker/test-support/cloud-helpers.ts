@@ -18,8 +18,9 @@ import { expect } from "vitest";
 import { z } from "zod";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
+import { ORIGIN } from "./test-origin";
 
-export const ORIGIN = "https://inteligir-web.workers.dev";
+export { ORIGIN } from "./test-origin";
 export const PASSWORD = "test-password-1234";
 
 // what every install's request carries: a build at the floor, which the Worker admits
