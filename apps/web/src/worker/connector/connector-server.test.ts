@@ -8,7 +8,12 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { signUpUser } from "../test-support/cloud-helpers";
-import { connectAssistant, connectorClient } from "../test-support/connector-session";
+import {
+  CONNECTOR_URL,
+  connectAssistant,
+  connectorClient,
+  workerFetch,
+} from "../test-support/connector-session";
 import { CONNECTOR_INSTRUCTIONS } from "./connector-server";
 
 const ALL_TOOLS = [
@@ -171,13 +176,60 @@ describe("the connector's tools", () => {
     await client.close();
   });
 
-  it("serves a client of the 2026-07-28 revision as it serves a 2025 one", async () => {
+  it("serves a client of the 2026-07-28 revision as it serves a 2025 one, holding nothing open", async () => {
     const { cookie } = await signUpUser("tools-modern@example.test");
     const minted = await connectAssistant(cookie, { readOnly: true });
-    const client = await connectorClient(minted.access_token, "modern");
+    // every request the client sends, and the tools/list answer as it crossed the wire
+    const methods: string[] = [];
+    let listed: unknown;
+    const recording: typeof workerFetch = async (input, init) => {
+      const request = new Request(input, init);
+      const method = request.headers.get("mcp-method") ?? request.method;
+      methods.push(method);
+      const response = await workerFetch(request);
+      if (method === "tools/list") {
+        listed = await response.clone().json();
+      }
+      return response;
+    };
+    const client = await connectorClient(minted.access_token, { era: "modern", fetch: recording });
     expect(client.getDiscoverResult()).toBeDefined();
+    // a grant's tools never change, so a client that would listen for a change is told not to
+    expect(client.getServerCapabilities()?.tools?.listChanged).toBe(false);
     const { tools } = await client.listTools();
     expect(tools.map((tool) => tool.name)).toEqual(READ_TOOLS);
+    expect(methods).toEqual(["server/discover", "tools/list"]);
+    // the list depends on the grant's scope, so no cache but this client's may keep it
+    expect(listed).toMatchObject({ result: { cacheScope: "private" } });
     await client.close();
+
+    // a client that listens anyway is acknowledged with nothing to hear, and the stream ends
+    const listen = await workerFetch(CONNECTOR_URL, {
+      body: JSON.stringify({
+        id: "listen:0",
+        jsonrpc: "2.0",
+        method: "subscriptions/listen",
+        params: {
+          _meta: {
+            "io.modelcontextprotocol/clientCapabilities": {},
+            "io.modelcontextprotocol/clientInfo": { name: "test-assistant", version: "1.0.0" },
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+          },
+          notifications: { toolsListChanged: true },
+        },
+      }),
+      headers: {
+        accept: "application/json, text/event-stream",
+        authorization: `Bearer ${minted.access_token}`,
+        "content-type": "application/json",
+        "mcp-method": "subscriptions/listen",
+        "mcp-protocol-version": "2026-07-28",
+      },
+      method: "POST",
+    });
+    const stream = await listen.text();
+    expect(listen.status, stream).toBe(200);
+    expect(stream).toContain('"notifications":{}');
+    expect(stream).toContain('"resultType":"complete"');
   });
 });

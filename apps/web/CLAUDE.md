@@ -527,21 +527,14 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   `apps/web/src/routes/app/sign-in.tsx`.
 
 - **THE CONNECTOR IS SERVED IN THE ACCOUNT'S CELL, A FRESH SERVER A REQUEST
-  OVER ONE OF TWO REGISTRARS, ITS PRINCIPAL AN ASSISTANT'S.** The Worker
-  refuses a Host or Origin not this deployment's (the MCP handler checks
-  neither), the provider checks the token, the grant spends its budget (300
-  calls a minute), and the request goes on whole by `stub.fetch` with an
-  `assistant` principal naming client, grant and name; the cell takes an
-  app's principal only on `/v1/rpc` and an assistant's only on `/connector`.
-  Both registrars are built once over the cell's router, the read-only one
-  holding the GET rows, and `createMcpHandler` builds an `McpServer` per
-  request, stateless for 2025-era clients (about 2.5 ms of CPU for the full
-  grant's thirteen tools, 1 ms for the six, measured), its tools/list
-  `cacheScope: private`. A grant's writes are one change set under its name,
-  sealed after 10 quiet minutes, and an expected failure is a declared error
-  the model reads as `isError`. Rejected: a session object per client (state
-  the stateless era does not need); a registrar per request (it rebuilds the
-  same schemas); a device credential at the connector (the door is an
-  assistant's alone). `apps/web/src/worker/connector/connector-route.ts`,
-  `connector-server.ts`, `apps/web/src/worker/library/library-do.ts`,
-  `library-principal.ts`.
+  OVER ONE OF TWO REGISTRARS, ITS PRINCIPAL AN ASSISTANT'S.** The Worker refuses
+  a Host or Origin not this deployment's, the provider checks the token, the
+  grant spends its budget, and the request goes on whole by `stub.fetch`; the
+  cell takes an assistant's principal only here. The read-only registrar holds
+  the GET rows; each server is stateless, its tools/list private to the
+  client, and it advertises no `listChanged`, since a grant's tools never
+  change and a `subscriptions/listen` would hold the cell open. Rejected: a
+  session object per client (state nothing needs); a registrar per request (it
+  rebuilds the same schemas); a device credential here (the door is an
+  assistant's). `apps/web/src/worker/connector/connector-route.ts`,
+  `connector-server.ts`, `apps/web/src/worker/library/library-principal.ts`.

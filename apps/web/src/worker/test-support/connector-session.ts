@@ -172,19 +172,25 @@ export const connectAssistant = async (
   return { ...(await exchangeCode(clientId, code, verifier)), clientId };
 };
 
-// an MCP client on the connector, with the token in hand
+// an MCP client on the connector, with the token in hand: a 2026-07-28 one negotiates its revision
+// and asks to hear when the tools change, as Claude Code and the SDK's own client do
 export const connectorClient = async (
   token: string,
-  era: "legacy" | "modern" = "legacy",
+  options: { readonly era?: "legacy" | "modern"; readonly fetch?: typeof workerFetch } = {},
 ): Promise<Client> => {
   const client = new Client(
     { name: "test-assistant", version: "1.0.0" },
-    era === "modern" ? { versionNegotiation: { mode: "auto" } } : {},
+    options.era === "modern"
+      ? {
+          listChanged: { tools: { onChanged: () => {} } },
+          versionNegotiation: { mode: "auto" },
+        }
+      : {},
   );
   await client.connect(
     new StreamableHTTPClientTransport(new URL(CONNECTOR_URL), {
       authProvider: { token: async () => await Promise.resolve(token) },
-      fetch: workerFetch,
+      fetch: options.fetch ?? workerFetch,
     }),
   );
   return client;

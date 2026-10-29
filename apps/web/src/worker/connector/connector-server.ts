@@ -4,8 +4,11 @@
 // tool meta, the read-only one only those whose verb is GET, which is what a `library:read` grant
 // gets. Each request then builds a fresh `McpServer` from `createMcpHandler`'s factory
 // (ts.sdk.modelcontextprotocol.io/v2/serving/web-standard), its principal the one the Worker
-// verified and handed in as `authInfo`, and registers the grant's tools on it. 2025-era clients are
-// answered statelessly, a request at a time, as 2026-07-28 ones are.
+// verified and handed in as `authInfo`, and registers the grant's tools on it: about 2.5 ms of CPU
+// for the full grant's thirteen tools and 1 ms for the read-only six, warm, and 20 to 27 ms for the
+// first in a fresh isolate (measured in node, on V8; workerd's clock stands still under CPU, so a
+// preview's Worker profile is the measure there). 2025-era clients are answered statelessly, a
+// request at a time, as 2026-07-28 ones are.
 
 import { McpRegistrar } from "@orpc/mcp";
 import type { AnyProcedureContract } from "@orpc/contract";
@@ -86,6 +89,10 @@ export const createConnectorHandler = (cell: ConnectorCell): McpHttpHandler =>
       const server = new McpServer(SERVER_INFO, {
         // the tools listed depend on the grant's scope, so no cache but this client's may keep them
         cacheHints: { "tools/list": { cacheScope: "private" } },
+        // a grant's tools never change while it holds, so no client is told to listen for a
+        // change: a `subscriptions/listen` it opened would be a stream the cell holds open,
+        // billed and kept awake by the handler's keepalive, for as long as the client stays
+        capabilities: { tools: { listChanged: false } },
         instructions: CONNECTOR_INSTRUCTIONS,
       });
       const registrar = changesLibrary(principal) ? fullRegistrar : readOnlyRegistrar;
