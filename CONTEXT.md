@@ -70,14 +70,21 @@ on the Mac (`apps/desktop`), in expo-sqlite on the phone (`apps/mobile`), in
 memory in the browser tab. It pulls the cell's change log by cursor, every
 screen reads it, and search runs on its own full-text index, online too, so
 there is one ranking. The socket's ping only says to pull; nothing correct
-rests on it. The engine is the `library-replica` package. Not the **library
-cell**, the only writer, and not a cache: only file bytes are ever evicted.
+rests on it. The engine is `@repo/library-replica`
+(`packages/library-replica/src/library-replica.ts`): its pull lays a row only
+over an older one (`replica-pull.ts`, `replica-rows.ts`), and a screen reads
+each item with the **outbox** laid over (`replica-listing.ts`). Not the
+**library cell**, the only writer, and not a cache: only file bytes are ever
+evicted.
 
-**outbox** — a **replica**'s queued writes. Each is written in the replica's
+**outbox** — a **replica**'s queued writes
+(`packages/library-replica/src/outbox.ts`). Each is written in the replica's
 own transaction, so the screen shows it at once, then sent oldest first with
 an op id the cell answers once, so a resend after a lost answer is the same
-write. A `CONFLICT` settles through the block merge and goes again; a refusal
-no resend passes is **parked** for the person. Not the browser extension's
+write; a later write to an item joins its row while it waits
+(`outbox-ops.ts`). A `CONFLICT` settles through the block merge and goes
+again (`outbox-settle.ts`); a refusal no resend passes is **parked** for the
+person. Not the browser extension's
 retry queue, which holds a save's url, title and selection and writes nothing
 until the save lands.
 

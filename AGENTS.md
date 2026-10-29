@@ -139,6 +139,7 @@ packages/contract       @repo/contract — ONE client-safe contract for /v1: the
 packages/notes          @repo/notes — the pure, platform-neutral domain: the library model, its SQL, search and links
 packages/editor         @repo/editor — the Plate WYSIWYG, and the markdown codec over its headless kits
 packages/page-reader    @repo/page-reader — a saved page read into an item, over the DOM its host hands it
+packages/library-replica @repo/library-replica — the replica engine every device runs: the pull, the outbox and its sync, over the host's SQLite
 packages/agent-skills   @repo/agent-skills — the dialect spec the built-in agent's instructions are built from
 packages/ui             @repo/ui — the shared component vocabulary on Base UI
 tools/repo-guards       @repo/repo-guards — fitness tests over the repo itself
@@ -147,8 +148,8 @@ tools/ui-gallery        @repo/ui-gallery — the @repo/ui gallery `pnpm dev:gall
 tools/managed-agents-fake @repo/managed-agents-fake — the Managed Agents API with no model the local Worker, the e2e and the suites run against
 ```
 
-The replica engine is the `library-replica` package, pure as `@repo/notes`
-is. Turborepo + pnpm, oxlint/oxfmt, vitest, knip. The site is TanStack Start,
+The replica engine is `@repo/library-replica`, pure as `@repo/notes` is.
+Turborepo + pnpm, oxlint/oxfmt, vitest, knip. The site is TanStack Start,
 React 19 and Tailwind 4 on the Worker; auth is Better Auth on D1 (email and
 password, invite-gated, no social providers); the library cell is a SQLite
 Durable Object, the bytes are in R2, saved pages are read off a Queue, OAuth
@@ -355,6 +356,7 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 - [`packages/ui/CLAUDE.md`](packages/ui/CLAUDE.md) — floating surfaces, type roles, popup motion, row order, the orphan guard
 - [`packages/notes/CLAUDE.md`](packages/notes/CLAUDE.md) — the Library model (nodes, ops, order, undo, SQL, listing); Items, annotations, and Knowledge: the scan, search, links and tags
 - [`packages/page-reader/CLAUDE.md`](packages/page-reader/CLAUDE.md) — reading a saved page into an item: the one reader, over its host's DOM
+- [`packages/library-replica/CLAUDE.md`](packages/library-replica/CLAUDE.md) — the replica engine: its ports, the pull, the overlay, the outbox, the socket and the in-memory SQLite
 - [`packages/agent-runtime/CLAUDE.md`](packages/agent-runtime/CLAUDE.md) — the local agent runtime the built-in agent replaces: the provider grammar, and what a session may load from the vault
 - [`apps/cli/CLAUDE.md`](apps/cli/CLAUDE.md) — the local server the library cell replaces: its lock, composition, credential, shutdown, CSP, database, and a vault's data dir
 - [`apps/cli/src/server/vault/CLAUDE.md`](apps/cli/src/server/vault/CLAUDE.md) — the local vault the library cell replaces: writes, git and containment
