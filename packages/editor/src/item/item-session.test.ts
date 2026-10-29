@@ -234,4 +234,25 @@ describe("an item open in the editor", () => {
     await phone.replica.sync();
     expect(cell.item(id)?.fields.properties).toEqual({ rating: 4 });
   });
+
+  it("follows the item again when it starts before its close has written", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), paragraph("p2", "x")]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+    session.edited();
+    const closing = session.close();
+    await session.start();
+    await closing;
+    expect(phone.replica.status().unsent).toBe(1);
+    const onMac = await mac.replica.item(id);
+    const held = onMac?.blocks[1];
+    await mac.replica.write(id, {
+      ops: [{ baseHash: held?.hash ?? "", block: paragraph("p2", "the Mac's"), op: "put" }],
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    await session.flush();
+    expect([editorText(editor, 0), editorText(editor, 1)]).toEqual(["first!", "the Mac's"]);
+  });
 });

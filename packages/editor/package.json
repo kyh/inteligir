@@ -44,6 +44,7 @@
     "./host-io": "./src/host-io.ts",
     "./inline-combobox": "./src/inline-combobox.tsx",
     "./insert-void": "./src/insert-void.ts",
+    "./item/item-editor": "./src/item/item-editor.tsx",
     "./item/item-properties": "./src/item/item-properties.ts",
     "./item/item-session": "./src/item/item-session.ts",
     "./kits/base-kit": "./src/kits/base-kit.ts",

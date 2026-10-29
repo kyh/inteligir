@@ -97,6 +97,8 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     resolveMdTarget: options.resolveMdTarget ?? (() => null),
     resolveWikiTarget: options.resolveWikiTarget ?? (() => null),
     targets: options.wikiTargets ?? [],
+    titleOf: (itemId) =>
+      (options.wikiTargets ?? []).find((target) => target.id === itemId)?.title ?? null,
   }));
 
   const io: EditorHostIo = {

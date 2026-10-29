@@ -4,8 +4,11 @@ import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 
 import { nativeFrameScript, PAGE_RECEIVER, pageFrameSchema } from "@repo/editor-bridge/protocol";
-import type { FillJob, NativeFrame, PageFrame } from "@repo/editor-bridge/protocol";
+import type { FillJob, NativeFrame, PageFrame, RequestResult } from "@repo/editor-bridge/protocol";
 import { readPage } from "@repo/mobile-editor/reader-mode";
+import { blockHash } from "@repo/notes/library/block-hash";
+import type { LibraryBlock } from "@repo/notes/library/library-nodes";
+import { noteFields } from "@repo/notes/test-support/library-items";
 import { parsePage } from "@repo/page-reader/linkedom-page";
 
 import { parseEval } from "../harness/agent-browser";
@@ -84,6 +87,85 @@ const READER_JOB: FillJob = {
   prefer: "article",
   url: "https://stephango.com/file-over-app",
 };
+
+const ITEM_NONCE = "e2e-item-nonce-0123456789";
+const ITEM_ID = "0190a000-0000-7000-8000-0000000000e2";
+// the item the link names by its id, which went by another name when the link was written
+const OTHER_ID = "0190a000-0000-7000-8000-0000000000e3";
+const ITEM_PARAGRAPH = "An item's paragraph to type into.";
+
+type HeldItem = NonNullable<RequestResult<"item">["item"]>;
+type ItemOutcome = RequestResult<"writeItem">;
+
+const paragraphBlock = (id: string, text: string): LibraryBlock => ({
+  children: [{ text }],
+  id,
+  type: "p",
+});
+
+const TYPED_BLOCK = paragraphBlock("p1", `${ITEM_PARAGRAPH} Typed.`);
+const LINK_BLOCK: LibraryBlock = {
+  children: [
+    { text: "See " },
+    { children: [{ text: "" }], itemId: OTHER_ID, title: "Old name", type: "wikiLink" },
+    { text: "." },
+  ],
+  id: "p2",
+  type: "p",
+};
+
+// an item as the phone's replica holds it, each block under the hash a write names as its base
+const heldOf = (blocks: readonly LibraryBlock[]): HeldItem => ({
+  blocks: blocks.map((block, index) => ({
+    block,
+    hash: blockHash(block),
+    ord: `a${String(index)}`,
+    section: "note",
+  })),
+  fields: noteFields({ title: "Phone item" }),
+});
+
+const ITEM = heldOf([
+  paragraphBlock("p1", ITEM_PARAGRAPH),
+  LINK_BLOCK,
+  paragraphBlock("p3", "The last line."),
+]);
+
+// The phone's end of the bridge in item mode, standing in for its replica: it answers the item it
+// holds, the items a link can name, and each write with the outcome the drive queued for it, or
+// queued for the cell.
+const ITEM_PHONE_SCRIPT = `(() => {
+  const nonce = ${JSON.stringify(ITEM_NONCE)};
+  const itemId = ${JSON.stringify(ITEM_ID)};
+  const targets = ${JSON.stringify([{ id: OTHER_ID, path: OTHER_PATH, title: "Other", type: "doc" }])};
+  const state = { item: ${JSON.stringify(ITEM)}, outcomes: [], sent: [] };
+  const answer = (request) => {
+    if (request.kind === "item") {
+      return { ok: true, result: { item: request.payload.itemId === itemId ? state.item : null } };
+    }
+    if (request.kind === "writeItem") {
+      return { ok: true, result: state.outcomes.shift() ?? { kind: "queued" } };
+    }
+    if (request.kind === "wikiTargets") {
+      return { ok: true, result: { targets } };
+    }
+    return { error: "the scripted phone does not answer " + request.kind, ok: false };
+  };
+  window.ReactNativeWebView = {
+    postMessage: (text) => {
+      const frame = JSON.parse(text);
+      state.sent.push(frame);
+      if (frame.type === "request") {
+        setTimeout(() => {
+          const reply = { ...answer(frame), id: frame.id, nonce, type: "response" };
+          window[${JSON.stringify(PAGE_RECEIVER)}](JSON.stringify(reply));
+        }, 0);
+      }
+    },
+  };
+  window.__itemPhone = state;
+  return "installed";
+})()`;
 
 // the phone's end of the reader mode: it records what the page sends
 const READER_PHONE_SCRIPT = `(() => {
@@ -258,9 +340,168 @@ const lastWrite = async (phone: Phone, count: number, what: string): Promise<Wri
   return last;
 };
 
+type WriteItemFrame = Extract<PageFrame, { kind: "writeItem"; type: "request" }>;
+
+const isWriteItem = (frame: PageFrame): frame is WriteItemFrame =>
+  frame.type === "request" && frame.kind === "writeItem";
+
+const itemPhoneOf = (browser: ScenarioBrowser) => {
+  const sent = async (): Promise<PageFrame[]> =>
+    parseEval(
+      await browser(["eval", "JSON.stringify(window.__itemPhone.sent)"]),
+      z.array(pageFrameSchema),
+    );
+  const writes = async (): Promise<WriteItemFrame[]> => {
+    const frames = await sent();
+    return frames.filter(isWriteItem);
+  };
+  return {
+    buffer: async (): Promise<string> => await browser(["get", "text", EDITOR]),
+    inject: async (frame: NativeFrame): Promise<void> => {
+      await browser(["eval", nativeFrameScript(frame)]);
+    },
+    // the phone's replica answers the page's next write with this
+    queueOutcome: async (outcome: ItemOutcome): Promise<void> => {
+      await browser([
+        "eval",
+        `window.__itemPhone.outcomes.push(${JSON.stringify(outcome)}); "set"`,
+      ]);
+    },
+    // the phone's replica moves, and the page is told nothing
+    replace: async (item: HeldItem): Promise<void> => {
+      await browser(["eval", `window.__itemPhone.item = ${JSON.stringify(item)}; "set"`]);
+    },
+    sent,
+    writesAtLeast: async (count: number, what: string): Promise<WriteItemFrame[]> =>
+      await pollUntil(writes, (frames) => frames.length >= count, {
+        deadlineMs: 15_000,
+        describe: (frames) => `${what}: ${String(frames.length)} write(s) reached the phone`,
+      }),
+  };
+};
+
+// the page loaded again with nothing open, waiting for its init
+const reopenPage = async (browser: ScenarioBrowser, page: string): Promise<void> => {
+  await browser(["open", page]);
+  await pollUntil(
+    async () =>
+      parseEval(
+        await browser(["eval", `typeof window[${JSON.stringify(PAGE_RECEIVER)}]`]),
+        z.string(),
+      ),
+    (kind) => kind === "function",
+    { deadlineMs: 15_000, describe: (kind) => `the reloaded page's door is ${kind}` },
+  );
+};
+
+// the page in item mode, over a scripted replica: a pause writes the one block typed in as a put
+// under the hash the phone gave it, an announced change is laid in, a write the phone finds
+// changed is written again over what it holds, a flush is answered, and a link shows and opens
+// the item it names by id
+const driveItemMode = async (
+  browser: ScenarioBrowser,
+  page: string,
+  log: (line: string) => void,
+): Promise<void> => {
+  log("loaded again in item mode, the page reads the item the phone's replica holds");
+  await reopenPage(browser, page);
+  await browser(["eval", ITEM_PHONE_SCRIPT]);
+  const phone = itemPhoneOf(browser);
+  await phone.inject({
+    focus: null,
+    itemId: ITEM_ID,
+    mode: "item",
+    nonce: ITEM_NONCE,
+    type: "init",
+  });
+  await browser(["wait", EDITOR], 30_000);
+  await pollUntil(
+    phone.buffer,
+    (text) => text.includes(ITEM_PARAGRAPH) && text.includes("Other") && !text.includes("Old name"),
+    {
+      deadlineMs: 15_000,
+      describe: (text) => `the item never drew with its link's name as it is now:\n${text}`,
+    },
+  );
+
+  log("a pause after typing writes the paragraph as one put under its hash");
+  await typeAt(browser, ITEM_PARAGRAPH, " Typed.");
+  const [first] = await phone.writesAtLeast(1, "the typed paragraph");
+  expect(first !== undefined, "the typed paragraph wrote nothing");
+  expectEq(first.payload.itemId, ITEM_ID, "the item the write named");
+  expectEq(
+    first.payload.ops,
+    [{ baseHash: blockHash(paragraphBlock("p1", ITEM_PARAGRAPH)), block: TYPED_BLOCK, op: "put" }],
+    "the ops the typed paragraph wrote",
+  );
+
+  log("a change the phone announces is laid into the editor");
+  const fromMac = heldOf([
+    TYPED_BLOCK,
+    LINK_BLOCK,
+    paragraphBlock("p3", "The last line, from the Mac."),
+  ]);
+  await phone.replace(fromMac);
+  await phone.inject({ ids: [ITEM_ID], nonce: ITEM_NONCE, reset: false, type: "itemChanged" });
+  await pollUntil(phone.buffer, (text) => text.includes("from the Mac."), {
+    deadlineMs: 15_000,
+    describe: (text) => `the announced change never reached the editor:\n${text}`,
+  });
+
+  log("a write the phone finds changed is written again over the item it holds now");
+  const added = heldOf([
+    ...fromMac.blocks.map(({ block }) => block),
+    paragraphBlock("p4", "A line the Mac added."),
+  ]);
+  await phone.replace(added);
+  await phone.queueOutcome({ item: added, kind: "changed" });
+  const { length: writesBefore } = await phone.writesAtLeast(1, "the writes so far");
+  await typeAt(browser, `${ITEM_PARAGRAPH} Typed.`, " Again.");
+  const writes = await phone.writesAtLeast(writesBefore + 2, "the settled write");
+  expectEq(
+    writes[writesBefore + 1]?.payload.ops,
+    [
+      {
+        baseHash: blockHash(TYPED_BLOCK),
+        block: paragraphBlock("p1", `${ITEM_PARAGRAPH} Typed. Again.`),
+        op: "put",
+      },
+    ],
+    "the ops written over the item the phone holds now",
+  );
+  await pollUntil(phone.buffer, (text) => text.includes("A line the Mac added."), {
+    deadlineMs: 15_000,
+    describe: (text) => `the editor never showed the block the Mac added:\n${text}`,
+  });
+
+  log("a flush is answered once the item is written");
+  await phone.inject({ id: 9, nonce: ITEM_NONCE, type: "flush" });
+  await pollUntil(
+    phone.sent,
+    (frames) => frames.some((frame) => frame.type === "flushed" && frame.id === 9 && frame.ok),
+    {
+      deadlineMs: 10_000,
+      describe: (frames) =>
+        `the flush was never answered ok: ${JSON.stringify(frames.filter((frame) => frame.type === "flushed"))}`,
+    },
+  );
+
+  log("a link tap asks the native stack to open the item it names by id");
+  await browser(["find", "role", "button", "click", "--name", "Other", "--exact"]);
+  await pollUntil(
+    phone.sent,
+    (frames) => frames.some((frame) => frame.type === "openItem" && frame.itemId === OTHER_ID),
+    {
+      deadlineMs: 10_000,
+      describe: (frames) =>
+        `the tap never emitted openItem: ${JSON.stringify(frames.map((frame) => frame.type))}`,
+    },
+  );
+};
+
 export const phoneEditorPage: Scenario = {
   description:
-    "the phone's editor page, built through turbo, loads from `file://` at 390×844 with a scripted phone on its bridge: a typed paragraph writes exactly the note's new bytes under its read base, typing in a tab panel or on a chart writes nothing, a nonce-less frame is ignored, an announced change reloads the buffer, a write the phone finds changed lands merged and shows, a selection offers no Ask agent, a wiki link tap reaches the native end, and in reader mode the page reads a saved link exactly as linkedom does",
+    "the phone's editor page, built through turbo, loads from `file://` at 390×844 with a scripted phone on its bridge: a typed paragraph writes exactly the note's new bytes under its read base, typing in a tab panel or on a chart writes nothing, a nonce-less frame is ignored, an announced change reloads the buffer, a write the phone finds changed lands merged and shows, a selection offers no Ask agent, a wiki link tap reaches the native end; in item mode a pause writes the typed block as one put under the hash the phone gave it, an announced change is laid in, a write the phone finds changed is written again over what it holds, and a link shows the name its item goes by now and opens it by id; and in reader mode the page reads a saved link exactly as linkedom does",
   name: "phone-editor-page",
   // the build's own budget plus the drive
   timeoutMs: BUILD_TIMEOUT_MS + 120_000,
@@ -416,17 +657,10 @@ export const phoneEditorPage: Scenario = {
       },
     );
 
+    await driveItemMode(browser, page, ctx.log);
+
     ctx.log("loaded again in reader mode, the page reads a saved link as linkedom does");
-    await browser(["open", page]);
-    await pollUntil(
-      async () =>
-        parseEval(
-          await browser(["eval", `typeof window[${JSON.stringify(PAGE_RECEIVER)}]`]),
-          z.string(),
-        ),
-      (kind) => kind === "function",
-      { deadlineMs: 15_000, describe: (kind) => `the reloaded page's door is ${kind}` },
-    );
+    await reopenPage(browser, page);
     await browser(["eval", READER_PHONE_SCRIPT]);
     await browser(["eval", nativeFrameScript({ mode: "fill", nonce: READER_NONCE, type: "init" })]);
     await browser([

@@ -14,7 +14,16 @@ keyboard toolbar). Everything it reads or writes, and every navigation, is a
 frame to the native screen that hosts it: the phone's store, its offline queue
 and its navigation stack stay native.
 
-The same page has a second mode, the reader: an `init` in `fill` mode mounts
+An `init` in `item` mode opens one item by its id instead, over the phone's
+replica on the other end of the bridge: the editor holds the item's blocks
+under their ids (`@repo/editor/item/item-editor`), and a pause writes what
+changed as ops, each under the hash or value it was computed from
+(`src/item/item-page.tsx`, `src/item/item-host.ts`). A link names its item by
+id, shows the name that item goes by now, and opens it through the native
+stack. The phone still opens every note in `edit` mode, and answers no item
+request, until its own screens move to the replica.
+
+The same page has a third mode, the reader: an `init` in `fill` mode mounts
 no editor and reads each page the phone fetched for a link it saved with
 `@repo/page-reader` over the WebView's own `DOMParser`
 (`src/fill/serve-fills.ts`), so a link reads as it would on a Mac. The phone
@@ -57,17 +66,25 @@ both ends address the same files.
   store), `addAnnotation` (the open note's write that carries a new highlight,
   so the phone lands the note and the annotation's entry as one change set),
   `editAnnotation` (an annotation's note, a write of the store alone), `remove`, `rename`, `readAsset`, `writeAsset` (bytes as base64),
-  `wikiTargets`, `pickImage` — and events: `opened`, `openFailed` (the note
+  `wikiTargets`, `pickImage`, and in item mode `item` (the item as the
+  replica reads it, each block with its hash and place) and `writeItem` (ops
+  under their bases, with the bytes of each file a put block names, answered
+  queued, unchanged, missing, changed with the item as it reads now, or
+  invalid) — and events: `opened`, `openFailed` (the note
   could not be read, so the screen says why and offers a fresh load),
   `editorState` (dirty and why a save failed, sent only when either changes,
   which the screen asks about before letting the note go), `showAnnotations`,
-  `navigate`, `flushed`.
+  `navigate`, `openItem` (an item page has written what it holds and asks
+  the stack to open the item a link names), `flushed`.
 - Page to native, in fill mode: `fillAnswer { id, nonce, answer }`, what the
   reader made of the page (its facts and article) or why it read nothing.
-- Native to page: `init { mode: "edit", nonce, path, focus }` or
+- Native to page: `init { mode: "edit", nonce, path, focus }`,
+  `init { mode: "item", nonce, itemId, focus }` or
   `init { mode: "fill", nonce }`, `fillJob { id, nonce, job }` (a page's bytes
   as base64, its charset and its address), `response { id, ok }`,
-  `vaultChanged`, `flush` (answered by `flushed` with its id), `annotationMeta`
+  `vaultChanged`, `itemChanged { ids, reset }` (the replica moved; an item
+  page reads its item again when it is among them), `flush` (answered by
+  `flushed` with its id), `annotationMeta`
   (the note's annotations, which its ranges are drawn by) and
   `annotationsRemoved` (annotations deleted on the phone, whose markers the page
   takes out and writes, from inside a locked block too). The page follows the
@@ -115,6 +132,8 @@ src/
                         the focus init asks for
   bridge/page-bridge.ts correlation, timeouts, the nonce, the window door
   host/page-host.ts     the editor's host over the bridge
+  item/item-page.tsx    the item mode: one item's editor by its id
+  item/item-host.ts     its store over the bridge, its links by id, its flush
   styles/globals.css    @repo/ui's and @repo/editor's sheets, and the page's
                         own values for the dials (--editor-size at 16px or
                         more, or iOS zooms)
@@ -132,7 +151,9 @@ on the base text. The suites cover correlation, timeouts and every dropped
 frame (`src/bridge/page-bridge.test.ts`), each host port as one frame kind and
 back (`src/host/page-host.test.ts`), and a mounted page whose typed paragraph
 reaches the phone as `serializeNote`'s bytes (`src/editor-page.test.tsx`,
-compiled like the shipped page). `vite/classic-page.test.ts` pins the build's
+compiled like the shipped page), and an item page whose pause reaches the
+phone as ops under their bases, settled again over a changed item
+(`src/item/item-page.test.tsx`). `vite/classic-page.test.ts` pins the build's
 verdicts.
 The page in a real browser from `file://`, with a scripted phone on its
 bridge, is `tools/e2e/src/scenarios/phone-editor-page.ts`.

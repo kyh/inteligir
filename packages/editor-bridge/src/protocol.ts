@@ -1,13 +1,18 @@
 // The wire between the phone editor page and the React Native screen that hosts it. Both ends ship
 // in one binary, so it breaks freely: no version field, no negotiation. Every frame crosses as a
-// JSON string and is parsed here by the end that receives it. The same page loads in one of two
-// modes, named by its `init`: an item's editor, or the reader a saved link is filled with, where the
-// phone hands it a page's bytes and it answers what @repo/page-reader read of them.
+// JSON string and is parsed here by the end that receives it. The same page loads in one of three
+// modes, named by its `init`: a note's editor over its markdown, an item's editor over its blocks by
+// id, which reads and writes the phone's replica in ops, or the reader a saved link is filled with,
+// where the phone hands it a page's bytes and it answers what @repo/page-reader read of them.
 
 import { z } from "zod";
 
 import { annotationIdSchema } from "@repo/notes/annotations/store-schema";
 import { normalVaultPathSchema } from "@repo/notes/knowledge/vault-path-schema";
+import { blockHashSchema, libraryOpSchema } from "@repo/notes/library/block-ops";
+import { ordSchema } from "@repo/notes/library/block-order";
+import { libraryItemFieldsSchema } from "@repo/notes/library/library-item";
+import { librarySectionSchema, storableBlockSchema } from "@repo/notes/library/library-nodes";
 import { extractedPageSchema } from "@repo/page-reader/page-facts";
 
 // Native reaches the page only by calling this, through `injectJavaScript`: a message event is
@@ -61,6 +66,32 @@ const assetBytesSchema = z.strictObject({ base64: z.string(), mediaType: z.strin
 
 const noPayload = z.strictObject({});
 
+const itemIdSchema = z.string().min(1);
+
+// an item as the phone's replica reads it: its fields and its blocks in reading order, each with
+// the hash and the place a write's base names
+const heldItemSchema = z.strictObject({
+  blocks: z.array(
+    z.strictObject({
+      block: storableBlockSchema,
+      hash: blockHashSchema,
+      ord: ordSchema,
+      section: librarySectionSchema,
+    }),
+  ),
+  fields: libraryItemFieldsSchema,
+});
+
+// what the phone's replica made of an item page's write: queued for the cell, already true, no
+// such item, a base that moved (with the item as it reads now), or fields past the item's caps
+const itemWriteOutcomeSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("queued") }),
+  z.strictObject({ kind: z.literal("unchanged") }),
+  z.strictObject({ kind: z.literal("missing") }),
+  z.strictObject({ item: heldItemSchema, kind: z.literal("changed") }),
+  z.strictObject({ fields: z.array(z.string()), kind: z.literal("invalid") }),
+]);
+
 // One row per question the page asks. The page's store is the phone's, so a create is `write` under
 // the `absent` guard, as `GuardedVaultPort` spells it, and a note is read the same way whether it
 // is the open one or one an embed shows.
@@ -88,6 +119,11 @@ const REQUEST_SCHEMAS = {
       z.strictObject({ kind: z.literal("done") }),
       z.strictObject({ kind: z.literal("refused"), message: z.string() }),
     ]),
+  },
+  // the item an item page shows, as the phone's replica reads it now; null for one it holds none of
+  item: {
+    payload: z.strictObject({ itemId: itemIdSchema }),
+    result: z.strictObject({ item: heldItemSchema.nullable() }),
   },
   list: {
     payload: noPayload,
@@ -122,6 +158,16 @@ const REQUEST_SCHEMAS = {
     }),
     result: guardedWriteResultSchema,
   },
+  // an item page's ops, each under the base it was computed from, with the bytes of every file a
+  // block it puts names; the phone's replica queues them for the cell
+  writeItem: {
+    payload: z.strictObject({
+      files: z.array(assetBytesSchema),
+      itemId: itemIdSchema,
+      ops: z.array(libraryOpSchema),
+    }),
+    result: itemWriteOutcomeSchema,
+  },
   // native picks the folder, from the vault's attachments choice and the note the page has open
   writeAsset: {
     payload: assetBytesSchema.extend({ baseName: z.string().min(1) }),
@@ -132,6 +178,12 @@ const REQUEST_SCHEMAS = {
 type RequestSchemas = typeof REQUEST_SCHEMAS;
 
 export type RequestKind = keyof RequestSchemas;
+
+// what only an item page asks: its item, and its ops
+export type ItemRequestKind = "item" | "writeItem";
+
+// what a note page asks, over its markdown
+export type NoteRequestKind = Exclude<RequestKind, ItemRequestKind>;
 
 export type RequestPayload<K extends RequestKind> = z.output<RequestSchemas[K]["payload"]>;
 
@@ -186,6 +238,7 @@ export const pageFrameSchema = z.discriminatedUnion("type", [
   z.discriminatedUnion("kind", [
     requestFrame("addAnnotation", REQUEST_SCHEMAS.addAnnotation.payload),
     requestFrame("editAnnotation", REQUEST_SCHEMAS.editAnnotation.payload),
+    requestFrame("item", REQUEST_SCHEMAS.item.payload),
     requestFrame("list", REQUEST_SCHEMAS.list.payload),
     requestFrame("pickImage", REQUEST_SCHEMAS.pickImage.payload),
     requestFrame("read", REQUEST_SCHEMAS.read.payload),
@@ -195,6 +248,7 @@ export const pageFrameSchema = z.discriminatedUnion("type", [
     requestFrame("wikiTargets", REQUEST_SCHEMAS.wikiTargets.payload),
     requestFrame("write", REQUEST_SCHEMAS.write.payload),
     requestFrame("writeAsset", REQUEST_SCHEMAS.writeAsset.payload),
+    requestFrame("writeItem", REQUEST_SCHEMAS.writeItem.payload),
   ]),
   // the receiver is installed and the page waits for `init`; it knows no nonce yet
   z.strictObject({ type: z.literal("ready") }),
@@ -226,6 +280,8 @@ export const pageFrameSchema = z.discriminatedUnion("type", [
   }),
   // the page has flushed and asks the native stack to open this note, which keeps the back gesture
   z.strictObject({ nonce: nonceSchema, path: normalVaultPathSchema, type: z.literal("navigate") }),
+  // an item page has written what it holds and asks the native stack to open the item a link names
+  z.strictObject({ itemId: itemIdSchema, nonce: nonceSchema, type: z.literal("openItem") }),
   // the answer to a `flush`: whether the open note's edits are all written
   z.strictObject({ id: idSchema, nonce: nonceSchema, ok: z.boolean(), type: z.literal("flushed") }),
   // the reader's answer to a `fillJob` with the same id
@@ -254,6 +310,14 @@ export const nativeFrameSchema = z.discriminatedUnion("type", [
       path: normalVaultPathSchema,
       type: z.literal("init"),
     }),
+    // an item's editor over its blocks, by its id
+    z.strictObject({
+      focus: z.enum(["title", "body"]).nullable(),
+      itemId: itemIdSchema,
+      mode: z.literal("item"),
+      nonce: nonceSchema,
+      type: z.literal("init"),
+    }),
     // the reader: no note, no editor, only `fillJob`s
     z.strictObject({ mode: z.literal("fill"), nonce: nonceSchema, type: z.literal("init") }),
   ]),
@@ -278,6 +342,14 @@ export const nativeFrameSchema = z.discriminatedUnion("type", [
     event: vaultChangedEventSchema,
     nonce: nonceSchema,
     type: z.literal("vaultChanged"),
+  }),
+  // the phone's replica moved: these items changed, or the whole library did; an item page reads
+  // its item again when it is among them
+  z.strictObject({
+    ids: z.array(itemIdSchema),
+    nonce: nonceSchema,
+    reset: z.boolean(),
+    type: z.literal("itemChanged"),
   }),
   // write the open note's edits now (the screen is leaving, the app is backgrounding); answered by
   // a `flushed` frame with the same id
@@ -310,6 +382,8 @@ export type NativeFrame = z.infer<typeof nativeFrameSchema>;
 export type PageInit = Extract<NativeFrame, { type: "init" }>;
 
 export type EditInit = Extract<PageInit, { mode: "edit" }>;
+
+export type ItemInit = Extract<PageInit, { mode: "item" }>;
 
 // a frame as its sender builds it, before the bridge stamps the load's nonce on it
 export type Unstamped<F> = F extends { readonly nonce: string } ? Omit<F, "nonce"> : never;

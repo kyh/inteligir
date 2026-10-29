@@ -48,6 +48,15 @@ describe("the link resolver feed", () => {
     expect(store.getState().targets).toBe(TARGETS);
   });
 
+  it("names an item by id as its card does, from its file, never its first heading", () => {
+    const { setTargets, store } = createLinkResolverFeed();
+
+    setTargets([{ id: PLAN_ID, path: "Projects/Plan 2.md", title: "Quarterly plan", type: "doc" }]);
+
+    expect(store.getState().titleOf(PLAN_ID)).toBe("Plan 2");
+    expect(store.getState().titleOf("0190a000-0000-7000-8000-00000000ffff")).toBeNull();
+  });
+
   it("keeps each input when the other one moves", () => {
     const { setListing, setTargets, store } = createLinkResolverFeed();
     setTargets(TARGETS);

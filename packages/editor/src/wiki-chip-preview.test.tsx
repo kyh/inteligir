@@ -29,3 +29,14 @@ describe("the wiki chip's hover preview", () => {
     expect(screen.getByText(/Not created yet/u)).toBeDefined();
   });
 });
+
+describe("a wiki chip that names its item by id", () => {
+  it("shows the name the item goes by now, not the one it was written with", () => {
+    const id = "0190a000-0000-7000-8000-000000000001";
+    installFakeEditorHost({
+      wikiTargets: [{ id, path: "Renamed.md", title: "Renamed", type: "doc" }],
+    });
+    render(<WikiChip link={wikiFieldsOfBody(`Old name|${id}`)} />);
+    expect(screen.getByRole("button", { name: "Renamed" })).toBeDefined();
+  });
+});

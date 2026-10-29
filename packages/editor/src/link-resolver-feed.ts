@@ -1,4 +1,5 @@
 import type { LinkResolver, LinkResolverStore, VaultEntry } from "@repo/editor/host-io";
+import { docStem } from "@repo/notes/knowledge/doc-file";
 import { resolverEntriesOf } from "@repo/notes/knowledge/link-graph-index";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
@@ -16,6 +17,7 @@ const NO_RESOLVER: LinkResolver = {
   resolveMdTarget: () => null,
   resolveWikiTarget: () => null,
   targets: [],
+  titleOf: () => null,
 };
 
 export const createLinkResolverFeed = (): LinkResolverFeed => {
@@ -30,10 +32,17 @@ export const createLinkResolverFeed = (): LinkResolverFeed => {
       aliasEntries,
       idEntries,
     );
+    // an item's name is its file's, as its card shows it, never the first heading the picker shows
+    const titles = new Map(
+      targets.flatMap((target) =>
+        target.id === undefined ? [] : [[target.id, docStem(target.path)]],
+      ),
+    );
     store.setState({
       resolveMdTarget: (target, fromPath) => resolver.resolveMd(target, fromPath),
       resolveWikiTarget: (target, alias) => resolver.resolveWiki(target, alias),
       targets,
+      titleOf: (itemId) => titles.get(itemId) ?? null,
     });
   };
   return {

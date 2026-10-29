@@ -1,8 +1,11 @@
 // The native end of the bridge, as the page sees it: a transport that records every frame the page
-// sends, answers its requests from an in-memory vault a case can replace, and delivers native
-// frames through the receiver the page installed.
+// sends, answers its requests from an in-memory vault and an in-memory library of items (which
+// lands an item page's ops only on the bases they name, as the phone's replica does) a case can
+// replace, and delivers native frames through the receiver the page installed.
 
 import { docStem } from "@repo/notes/knowledge/doc-file";
+import { applyOps, orderedBlocks } from "@repo/notes/library/block-ops";
+import type { ItemState } from "@repo/notes/library/block-ops";
 
 import type { BridgeTransport } from "../bridge/page-bridge";
 import { pageFrameSchema } from "@repo/editor-bridge/protocol";
@@ -48,10 +51,45 @@ const writeAnswer = (
   return ok({ kind: "written" });
 };
 
+type HeldItem = Exclude<RequestResult<"item">["item"], null>;
+
+const heldOf = (state: ItemState): HeldItem => ({
+  blocks: orderedBlocks(state.blocks),
+  fields: state.fields,
+});
+
+// an item page's ops, landed whole over the item as the phone holds it, or answered with the item
+// as it is when a base moved under them
+const writeItemAnswer = (
+  items: Map<string, ItemState>,
+  { itemId, ops }: Extract<PageRequest, { kind: "writeItem" }>["payload"],
+): PhoneAnswer => {
+  const held = items.get(itemId);
+  if (held === undefined) {
+    return ok({ kind: "missing" });
+  }
+  const outcome = applyOps(held, ops);
+  if (outcome.kind === "conflict") {
+    return ok({ item: heldOf(held), kind: "changed" });
+  }
+  if (outcome.kind === "invalid") {
+    return ok({ fields: [...outcome.fields], kind: "invalid" });
+  }
+  items.set(itemId, outcome.state);
+  return ok({ kind: "queued" });
+};
+
 const answerFromVault =
-  (files: Map<string, string>): Answerer =>
+  (files: Map<string, string>, items: Map<string, ItemState>): Answerer =>
   (request) => {
     switch (request.kind) {
+      case "item": {
+        const held = items.get(request.payload.itemId);
+        return ok({ item: held === undefined ? null : heldOf(held) });
+      }
+      case "writeItem": {
+        return writeItemAnswer(items, request.payload);
+      }
       case "list": {
         return ok({ paths: [...files.keys()] });
       }
@@ -110,6 +148,7 @@ const answerFromVault =
 export interface FakePhone {
   readonly transport: BridgeTransport;
   readonly files: Map<string, string>;
+  readonly items: Map<string, ItemState>;
   readonly sent: PageFrame[];
   answer: Answerer;
   readonly deliver: (frame: NativeFrame) => void;
@@ -134,8 +173,12 @@ const isType =
   (frame: PageFrame): frame is Extract<PageFrame, { type: T }> =>
     frame.type === type;
 
-export const createFakePhone = (initial: Readonly<Record<string, string>> = {}): FakePhone => {
+export const createFakePhone = (
+  initial: Readonly<Record<string, string>> = {},
+  library: Readonly<Record<string, ItemState>> = {},
+): FakePhone => {
   const files = new Map(Object.entries(initial));
+  const items = new Map(Object.entries(library));
   const sent: PageFrame[] = [];
   let receive: ((frame: string) => void) | null = null;
 
@@ -151,11 +194,12 @@ export const createFakePhone = (initial: Readonly<Record<string, string>> = {}):
   };
 
   const phone: FakePhone = {
-    answer: answerFromVault(files),
+    answer: answerFromVault(files, items),
     deliver,
     deliverText,
     events: (type) => sent.filter(isType(type)),
     files,
+    items,
     init: (overrides = {}) => {
       deliver({
         focus: null,

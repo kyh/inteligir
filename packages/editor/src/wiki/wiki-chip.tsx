@@ -36,7 +36,7 @@ const PreviewBody = ({ text }: { text: string | null }) => {
 
 // a link with no title points at the open note (`[[#sec]]`): nothing to resolve or create
 const WikiChip = ({ link }: { link: WikiNodeFields }) => {
-  const { resolveWikiTarget } = useLinkResolver();
+  const { resolveWikiTarget, titleOf } = useLinkResolver();
   const { openFile, createFile } = useVaultActions();
   const [createOpen, setCreateOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -45,7 +45,9 @@ const WikiChip = ({ link }: { link: WikiNodeFields }) => {
   // the path the open preview was read for; a read landing after a close or a re-resolve is dropped
   const previewFor = useRef<string | null>(null);
 
-  const label = wikiLabelOf(link);
+  // a link to an item by its id shows the name the item goes by now
+  const live = link.itemId === null ? null : titleOf(link.itemId);
+  const label = wikiLabelOf(live === null ? link : { ...link, title: live });
   const resolved =
     link.title === "" ? null : resolveWikiTarget(link.title, link.itemId ?? link.alias);
 

@@ -24,7 +24,9 @@ ships.
   `init` carries the nonce (`apps/mobile-editor/src/bridge/page-bridge.ts`). The
   wire breaks freely, since one binary ships both ends
   (`packages/editor-bridge/src/protocol.ts`); the page's host is the editor's
-  own write policy (`apps/mobile-editor/src/host/page-host.ts`). The WebView
+  own write policy (`apps/mobile-editor/src/host/page-host.ts`), and an item
+  page's the item session's ops over the replica
+  (`apps/mobile-editor/src/item/item-host.ts`). The WebView
   loads the page and its frames, hands a followed web link to Safari and refuses
   the rest; its origin list admits every address, because the library hands
   what that list refuses to the OS before the policy runs

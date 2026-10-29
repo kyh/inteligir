@@ -3,7 +3,7 @@ import { nativeFrameSchema, PAGE_RECEIVER } from "@repo/editor-bridge/protocol";
 import type {
   NativeFrame,
   PageFrame,
-  RequestKind,
+  NoteRequestKind,
   RequestPayload,
   RequestResult,
 } from "@repo/editor-bridge/protocol";
@@ -45,7 +45,7 @@ const PORT_ANSWERS = {
   wikiTargets: { targets: [{ path: "a.md", title: "a", type: "doc" }] },
   write: { kind: "written" },
   writeAsset: { path: "assets/p.jpg" },
-} satisfies { [K in RequestKind]: RequestResult<K> };
+} satisfies { [K in NoteRequestKind]: RequestResult<K> };
 
 const PAYLOADS = {
   addAnnotation: {
@@ -65,9 +65,9 @@ const PAYLOADS = {
   wikiTargets: {},
   write: { content: "# a\nmore\n", guard: { base: "# a\n", kind: "expected" }, path: "a.md" },
   writeAsset: { base64: "AA==", baseName: "p.jpg", mediaType: "image/jpeg" },
-} satisfies { [K in RequestKind]: RequestPayload<K> };
+} satisfies { [K in NoteRequestKind]: RequestPayload<K> };
 
-const KINDS: readonly RequestKind[] = [
+const KINDS: readonly NoteRequestKind[] = [
   "list",
   "pickImage",
   "read",
@@ -97,8 +97,8 @@ const requestFrames = (nonce: string): PageFrame[] => [
 ];
 
 interface PortCall {
-  kind: RequestKind;
-  payload: RequestPayload<RequestKind>;
+  kind: NoteRequestKind;
+  payload: RequestPayload<NoteRequestKind>;
 }
 
 const recordingPorts = () => {
@@ -211,6 +211,15 @@ describe("the native end of the editor page's bridge", () => {
       { focus: "title", mode: "edit", nonce: first, path: "a.md", type: "init" },
       { focus: null, mode: "edit", nonce: second, path: "a.md", type: "init" },
     ]);
+  });
+
+  it("refuses an item page's request, since the phone opens a page over its note", async () => {
+    const { calls, fromPage, load, responses } = hostOver();
+    const nonce = load();
+    fromPage({ id: 0, kind: "item", nonce, payload: { itemId: "i1" }, type: "request" });
+    await nextTask();
+    expect(calls).toStrictEqual([]);
+    expect(responses()).toMatchObject([{ id: 0, nonce, ok: false, type: "response" }]);
   });
 
   it("routes every request kind to its own port and answers under the nonce it came with", async () => {

@@ -577,14 +577,16 @@ export const createItemSession = (
     await flush();
   };
 
+  // stops following at once, so a start that comes before the write ends (React's second mount)
+  // follows again, and writes what is unsaved behind it
   const close = async (): Promise<void> => {
     if (!following) {
       return;
     }
-    await flush();
     following = false;
     unsubscribe?.();
     unsubscribe = null;
+    await flush();
   };
 
   return {

@@ -45,13 +45,15 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // @repo/mobile-editor edge is the page's reader mode, which the phone's runtime reads a saved
     // link with; the @repo/page-reader edge is the linkedom DOM that reader runs over under node,
     // where the page has its WebView's; the @repo/managed-agents-fake edge is the Managed Agents
-    // API each Worker it boots runs its built-in agent against.
+    // API each Worker it boots runs its built-in agent against; the @repo/notes edge is the
+    // block hashes and fields the scripted phone's replica answers an item page with.
     "@repo/e2e": [
       "@repo/contract",
       "@repo/editor-bridge",
       "@repo/managed-agents-fake",
       "@repo/mobile",
       "@repo/mobile-editor",
+      "@repo/notes",
       "@repo/page-reader",
       "inteligir",
     ],

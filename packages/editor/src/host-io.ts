@@ -50,6 +50,8 @@ export interface LinkResolver {
   resolveMdTarget: (target: string, fromPath: string) => string | null;
   /** The index's wiki targets the resolver was built over: notes first, then attachments. */
   targets: readonly WikiTarget[];
+  /** The name an item goes by now, the one its card shows, so a link that names it by id shows it as it is; null for an item the targets do not hold. */
+  titleOf: (itemId: string) => string | null;
 }
 
 // The read half only: the host feeds the writer (`link-resolver-feed.ts`). A store rather than a

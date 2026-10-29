@@ -1608,6 +1608,9 @@ importers:
       '@repo/mobile-editor':
         specifier: workspace:*
         version: link:../../apps/mobile-editor
+      '@repo/notes':
+        specifier: workspace:*
+        version: link:../../packages/notes
       '@repo/page-reader':
         specifier: workspace:*
         version: link:../../packages/page-reader

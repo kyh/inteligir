@@ -30,7 +30,15 @@ type PageEvent = Unstamped<Exclude<PageFrame, { type: "request" | "ready" }>>;
 // what the native end tells a connected page on its own
 export type NativeEvent = Extract<
   NativeFrame,
-  { type: "vaultChanged" | "flush" | "annotationMeta" | "annotationsRemoved" | "fillJob" }
+  {
+    type:
+      | "vaultChanged"
+      | "itemChanged"
+      | "flush"
+      | "annotationMeta"
+      | "annotationsRemoved"
+      | "fillJob";
+  }
 >;
 
 // both ways, a frame is the JSON text of one, parsed by the end that receives it

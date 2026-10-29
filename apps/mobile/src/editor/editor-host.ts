@@ -8,6 +8,7 @@ import { nativeFrameScript, parsePageFrame } from "@repo/editor-bridge/protocol"
 import type {
   EditInit,
   NativeFrame,
+  NoteRequestKind,
   PageFrame,
   RequestKind,
   RequestPayload,
@@ -17,9 +18,10 @@ import type {
 import { messageOf } from "../lib/error-message";
 import { sameDocument } from "../lib/same-document";
 
-// every question the page asks, answered by the phone
+// every question a note's page asks, answered by the phone; the phone opens no item page, so an
+// item page's questions are refused
 export type EditorRequestPorts = {
-  readonly [K in RequestKind]: (payload: RequestPayload<K>) => Promise<RequestResult<K>>;
+  readonly [K in NoteRequestKind]: (payload: RequestPayload<K>) => Promise<RequestResult<K>>;
 };
 
 // what the page says on its own; a `flushed` is the host's to settle
@@ -98,7 +100,7 @@ export const openWindowVerdict = (url: string): LoadVerdict =>
 
 // a page request with its payload tied to its kind, so `ports[request.kind]` takes it with no
 // switch (microsoft/TypeScript#47109)
-interface RequestOf<K extends RequestKind> {
+interface RequestOf<K extends NoteRequestKind> {
   id: number;
   nonce: string;
   kind: K;
@@ -154,8 +156,15 @@ export const createEditorHost = (args: EditorHostArgs): EditorHost => {
     }
   };
 
-  const ask = async <K extends RequestKind>(request: RequestOf<K>): Promise<void> => {
+  const ask = async <K extends NoteRequestKind>(request: RequestOf<K>): Promise<void> => {
     await respond(request, async () => await args.ports[request.kind](request.payload));
+  };
+
+  const refuse = async (request: { id: number; nonce: string }): Promise<void> => {
+    await respond(request, async () => {
+      await Promise.resolve();
+      throw new Error("the phone opens a note by its path, never an item's page");
+    });
   };
 
   // the page that was loaded holds nothing now
@@ -224,6 +233,10 @@ export const createEditorHost = (args: EditorHostArgs): EditorHost => {
         return;
       }
       if (frame.type === "request") {
+        if (frame.kind === "item" || frame.kind === "writeItem") {
+          void refuse(frame);
+          return;
+        }
         void ask(frame);
         return;
       }

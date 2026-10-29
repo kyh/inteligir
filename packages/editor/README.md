@@ -149,7 +149,11 @@ src/
 - `item/item-session.ts` — an item open in the editor by its id, over the
   replica (`ItemStore`): the value is the item's blocks, a pause writes the
   ops `item/item-diff.ts` reads off it, and a change from elsewhere is laid
-  in with the editor's transforms.
+  in with the editor's transforms. `item/item-editor.tsx` is its surface:
+  the editor under the host's profile over one session, which a host reads
+  the status of and flushes, and `item/item-properties.ts` the panel's rows
+  over its fields. A link to an item by id shows the name the item goes by
+  now, the resolver's `titleOf`, read off the host's wiki targets.
 - `note/open-note-context.tsx` — the open-note store. Every consumer under
   the editor reads the open note through `useOpenNote(sel)`.
 - `editor-profile.tsx` — `EditorProfileProvider`, set once by a host around
