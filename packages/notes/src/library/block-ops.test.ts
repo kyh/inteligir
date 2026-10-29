@@ -283,7 +283,7 @@ describe("rebaseOps", () => {
 const nested = (depth: number): LibraryNode => {
   let node: LibraryNode = { text: "deep" };
   for (let level = 1; level <= depth; level += 1) {
-    node = { children: [node], id: `q${String(level)}`, type: "blockquote" };
+    node = { children: [node], type: "blockquote" };
   }
   return node;
 };

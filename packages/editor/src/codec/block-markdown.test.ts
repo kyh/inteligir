@@ -39,9 +39,9 @@ describe("a block as its markdown", () => {
     expect(roundTrip(file)).toEqual(file);
   });
 
-  it("leaves a block's ref beside its text, and the editor's nested ids out of the comparison", () => {
+  it("leaves a block's ref beside its text", () => {
     const block: LibraryBlock = {
-      children: [{ children: [{ text: "line" }], id: "nested", type: "code_line" }],
+      children: [{ children: [{ text: "line" }], type: "code_line" }],
       id: "c1",
       ref: "goal",
       type: "code_block",

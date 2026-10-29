@@ -4,8 +4,10 @@
 // paste of the same words is a new object holding the same block. An id the value no longer holds
 // is a drop and one the acknowledged blocks never held an insert, so an id Plate minted again is a
 // drop and an insert; a block keeps its section, its order key where it still fits among its
-// neighbours, and takes a fresh key between them where it does not. An element no block can
-// store is held back, and its acknowledged block left as it stands.
+// neighbours, and takes a fresh key between them where it does not. The ids Plate gives the
+// elements inside a block are the editor's own (a table's cells are keyed by them) and no block
+// stores one, so a block laid in from elsewhere, which Plate names again inside, hashes as it was
+// stored. An element no block can store is held back, and its acknowledged block left as it stands.
 
 import type { TElement } from "platejs";
 
@@ -29,7 +31,7 @@ export type ReadElement =
 export type ElementReads = WeakMap<TElement, ReadElement>;
 
 const validId = (value: string | undefined): string | null =>
-  value !== undefined && blockIdSchema.safeParse(value).success ? value : null;
+  value !== undefined && blockIdSchema.validate(value) ? value : null;
 
 export const readElement = (element: TElement, reads?: ElementReads): ReadElement => {
   const known = reads?.get(element);

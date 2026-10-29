@@ -124,6 +124,14 @@ describe("the persisted node set", () => {
         type: "blockquote",
       },
     ],
+    [
+      "an id below the top level, which only the editor holds",
+      {
+        children: [{ children: [{ text: "a" }], id: "line", type: "code_line" }],
+        id: "c",
+        type: "code_block",
+      },
+    ],
     ["a heading past six", { children: [{ text: "a" }], id: "h", type: "h7" }],
     [
       "a date that is no day",

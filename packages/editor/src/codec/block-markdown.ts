@@ -3,12 +3,10 @@
 // after its last pipe and a file its sha in its address, as the agent's view writes them
 // (`item-view.ts`), so a merge names the same items and files it was handed. The text is read as
 // it was written, so no Obsidian spelling is read out of it, and a block's `ref` stands beside its
-// text rather than in it. A block whose markdown does not read back as itself has none: the
-// editor's nested ids aside, which no markdown holds.
+// text rather than in it. A block whose markdown does not read back as itself has none.
 
 import type { FileKind } from "@repo/notes/items/item-kind";
 import { canonicalJson } from "@repo/notes/library/canonical-json";
-import type { JsonValue } from "@repo/notes/library/canonical-json";
 import { storableBlockSchema } from "@repo/notes/library/library-nodes";
 import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
 import { isUuidWikiAlias } from "@repo/notes/markdown/remark-wiki-link";
@@ -119,15 +117,10 @@ export const blockFromMarkdown = (
   return parsed.success ? parsed.data : null;
 };
 
-// a node without the id the editor mints for an element below the top level, which no markdown
-// holds; canonical JSON leaves an undefined member out
-const withoutNestedIds = (node: LibraryNode): JsonValue =>
-  "text" in node ? node : { ...node, children: node.children.map(withoutNestedIds), id: undefined };
+// a block's content, its `ref` aside; canonical JSON leaves an undefined member out
+const contentKey = (block: LibraryBlock): string => canonicalJson({ ...block, ref: undefined });
 
-const contentKey = (block: LibraryBlock): string =>
-  canonicalJson({ ...block, children: block.children.map(withoutNestedIds), ref: undefined });
-
-// the block's markdown when it reads back as the block it is, its `ref` and nested ids aside
+// the block's markdown when it reads back as the block it is, its `ref` aside
 export const faithfulMarkdown = (block: LibraryBlock, files: HeldFiles): string | null => {
   const markdown = blockMarkdown(block);
   const back = blockFromMarkdown(markdown, block.id, files);

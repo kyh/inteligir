@@ -18,18 +18,15 @@ node is rather than discriminating structurally at each visit.
 
 - **THE PERSISTED NODE SET IS SPELLED HERE, BELOW THE EDITOR, AND IT IS
   STRICT.** `@repo/notes/library/library-nodes` is Plate's own vocabulary as
-  zod, every node the editor round-trips (h1 to h6, an image's title beside
-  its caption, a list item's numbering, an embed's heading): every element a
-  strict object, a top-level block named by its id and optionally by the `ref`
-  a link's `blockRef` reaches (Obsidian's `^ref`), a depth and a size checked
-  before the recursive parse (`storableBlockSchema`). The editor holds these
-  nodes as they are: a wiki link or an embed names its target by id (null
-  while no item answers to it) with the title the writer saw, a `#tag` is the
-  text it is and the card reads it from the note's text as the editor draws
-  its chip, and media holds a sha or a url. Rejected: the vocabulary in
-  `@repo/editor` (the cell and the replicas cannot load Plate, and this
-  package is the leaf they all reach), a tag node (two spellings of one tag
-  to keep in step), and loose objects (a prop no reader draws would land).
+  zod, every node the editor round-trips: every element a strict object, only
+  a top-level block named, by its id and optionally the `ref` a link's
+  `blockRef` reaches, a depth and a size checked before the recursive parse
+  (`storableBlockSchema`). The editor holds these nodes as they are: a link or
+  an embed names its target by id with the title the writer saw, a `#tag` is
+  its text, media a sha or a url. Rejected: the vocabulary in `@repo/editor`
+  (the cell and the replicas cannot load Plate), a tag node (two spellings of
+  one tag), an id inside a block (Plate names those again in every editor, so
+  one block would hash apart), and loose objects (a prop no reader draws).
 
 - **AN ITEM IS FIELDS AND BLOCKS, AND EVERYTHING ELSE IS DERIVED IN THE SAME
   TRANSACTION.** `@repo/notes/library/library-item` caps every field, and each

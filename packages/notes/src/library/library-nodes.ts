@@ -44,9 +44,6 @@ export const libraryTextSchema = z.strictObject({
 // a void element's one leaf: empty, and marked only when a mark was laid across it
 const voidChildren = z.tuple([libraryTextSchema.extend({ text: z.literal("") })]);
 
-// Plate's nodeId names nested blocks too; only a top-level block's id is required
-const nestedId = blockIdSchema.optional();
-
 // the indent list's props, which every indentable block may carry (`kits/headless/list-base.ts`),
 // spelled into each object below: a spread beside a recursive getter defeats TypeScript's inference
 const listChecked = z.boolean().optional();
@@ -81,7 +78,6 @@ const paragraph = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  id: nestedId,
   type: z.literal("p"),
   checked: listChecked,
   indent: listIndent,
@@ -94,7 +90,6 @@ const heading1 = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  id: nestedId,
   type: z.literal("h1"),
   checked: listChecked,
   indent: listIndent,
@@ -107,7 +102,6 @@ const heading2 = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  id: nestedId,
   type: z.literal("h2"),
   checked: listChecked,
   indent: listIndent,
@@ -120,7 +114,6 @@ const heading3 = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  id: nestedId,
   type: z.literal("h3"),
   checked: listChecked,
   indent: listIndent,
@@ -133,7 +126,6 @@ const heading4 = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  id: nestedId,
   type: z.literal("h4"),
   checked: listChecked,
   indent: listIndent,
@@ -146,7 +138,6 @@ const heading5 = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  id: nestedId,
   type: z.literal("h5"),
   checked: listChecked,
   indent: listIndent,
@@ -159,7 +150,6 @@ const heading6 = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  id: nestedId,
   type: z.literal("h6"),
   checked: listChecked,
   indent: listIndent,
@@ -172,7 +162,6 @@ const blockquote = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  id: nestedId,
   type: z.literal("blockquote"),
   checked: listChecked,
   indent: listIndent,
@@ -185,7 +174,6 @@ const toggle = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  id: nestedId,
   type: z.literal("toggle"),
   checked: listChecked,
   indent: listIndent,
@@ -198,7 +186,6 @@ const codeBlock = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  id: nestedId,
   lang: z.string().optional(),
   type: z.literal("code_block"),
   checked: listChecked,
@@ -212,7 +199,6 @@ const codeLine = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  id: nestedId,
   type: z.literal("code_line"),
 });
 const table = z.strictObject({
@@ -220,42 +206,36 @@ const table = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  id: nestedId,
   type: z.literal("table"),
 });
 const tableRow = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  id: nestedId,
   type: z.literal("tr"),
 });
 const tableCell = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  id: nestedId,
   type: z.literal("td"),
 });
 const tableHeader = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  id: nestedId,
   type: z.literal("th"),
 });
 const columnGroup = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  id: nestedId,
   type: z.literal("column_group"),
 });
 const column = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  id: nestedId,
   type: z.literal("column"),
   width: z
     .string()
@@ -266,14 +246,12 @@ const tabGroup = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  id: nestedId,
   type: z.literal("tab_group"),
 });
 const tabPanel = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
-  id: nestedId,
   label: z.string(),
   type: z.literal("tab_panel"),
 });
@@ -286,11 +264,10 @@ const link = z.strictObject({
 });
 /* oxlint-enable no-use-before-define */
 
-const rule = z.strictObject({ children: voidChildren, id: nestedId, type: z.literal("hr") });
+const rule = z.strictObject({ children: voidChildren, type: z.literal("hr") });
 
 const equation = z.strictObject({
   children: voidChildren,
-  id: nestedId,
   texExpression: z.string(),
   type: z.literal("equation"),
 });
@@ -299,7 +276,6 @@ const equation = z.strictObject({
 const imageProps = z.strictObject({
   caption: z.array(libraryTextSchema).optional(),
   children: voidChildren,
-  id: nestedId,
   sha: sha256Hex.optional(),
   // markdown's image title, which the editor keeps beside the alt it holds as a caption
   title: z.string().optional(),
@@ -309,7 +285,6 @@ const imageProps = z.strictObject({
 });
 const fileProps = z.strictObject({
   children: voidChildren,
-  id: nestedId,
   name: z.string().min(1).optional(),
   sha: sha256Hex.optional(),
   type: z.literal("file"),
@@ -317,7 +292,6 @@ const fileProps = z.strictObject({
 });
 const videoProps = z.strictObject({
   children: voidChildren,
-  id: nestedId,
   sha: sha256Hex.optional(),
   type: z.literal("video"),
   url: z.string().min(1).optional(),
@@ -325,7 +299,6 @@ const videoProps = z.strictObject({
 
 const mediaEmbed = z.strictObject({
   children: voidChildren,
-  id: nestedId,
   type: z.literal("media_embed"),
   url: z.string().min(1),
 });
@@ -333,19 +306,16 @@ const mediaEmbed = z.strictObject({
 // the rich blocks keep their source as one string: a chart's JSON, a canvas's grid, an html page
 const chartBlock = z.strictObject({
   children: voidChildren,
-  id: nestedId,
   type: z.literal("chart_block"),
   value: z.string(),
 });
 const canvasBlock = z.strictObject({
   children: voidChildren,
-  id: nestedId,
   type: z.literal("canvas_block"),
   value: z.string(),
 });
 const htmlBlock = z.strictObject({
   children: voidChildren,
-  id: nestedId,
   type: z.literal("html_block"),
   value: z.string(),
 });
@@ -453,7 +423,9 @@ export const libraryNodeSchema: z.ZodUnion<
 > = z.union([libraryTextSchema, libraryElementSchema]);
 export type LibraryNode = z.infer<typeof libraryNodeSchema>;
 
-// a top-level block's id is its row's key; `ref` is the name a link's `blockRef` reaches it by,
+// a top-level block's id is its row's key, and only a top-level block has one: the ids Plate's
+// nodeId mints below the top level are the editor's own and never stored, so a block has one
+// spelling and one hash in every editor; `ref` is the name a link's `blockRef` reaches it by,
 // Obsidian's `^ref`
 const topLevelId = { id: blockIdSchema, ref: blockIdSchema.optional() };
 
