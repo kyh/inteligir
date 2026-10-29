@@ -47,5 +47,7 @@ sign-out wipes it). The socket is a hint and never the state.
 (`src/test-support/fake-cell.ts`), oRPC's own handler over the contract's rows,
 with seeded properties for seq-ordered apply (`src/replica-rows.test.ts`),
 compaction (`src/outbox-ops.test.ts`) and replay
-(`src/library-replica.test.ts`). The real cell holds it to the same promises in
+(`src/library-replica.test.ts`), and its passes' schedule on a clock moved by
+hand, the socket's frames included (`src/library-replica-passes.test.ts`). The
+real cell holds it to the same promises in
 `apps/web/src/worker/library/library-replica.test.ts`.

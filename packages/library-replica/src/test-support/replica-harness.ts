@@ -82,6 +82,7 @@ interface DeviceOptions {
   readonly blobs?: MemoryBlobs;
   readonly network?: FakeDevice;
   readonly dial?: SocketDial;
+  readonly clock?: FakeClock;
   readonly idPrefix?: number;
 }
 
@@ -93,7 +94,7 @@ export const openDevice = async (
   const sql = options.sql ?? (await openMemorySql());
   const blobs = options.blobs ?? memoryBlobs();
   const network = options.network ?? cell.device(name);
-  const clock = fakeClock();
+  const clock = options.clock ?? fakeClock();
   const newId = idSource(options.idPrefix ?? name.length);
   const opening = await openLibraryReplica({
     blobs,
