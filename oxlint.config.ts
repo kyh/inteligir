@@ -37,6 +37,25 @@ const CONFIG_MODULES = {
   regex: "(?:^|/)(?:compatibility|fill-queues|cloudflare\\.config)(?:\\.ts)?$",
 };
 
+// The Worker runs the built-in agent on the Agents SDK's Lifecycle alone, its job queue and its one
+// alarm: every other entry of the package is experimental or brings what a thread never runs (MCP,
+// the AI SDK, harnesses), and a bump of a 0.x package is read entry by entry. A group, since a regex
+// here has no lookahead to spare the one subpath; gitignore-style, it would also refuse a module
+// named `agents`, which the Worker's source does not hold.
+const AGENTS_SDK = {
+  group: ["agents", "agents/**", "!agents/lifecycle"],
+  message: "the Worker imports agents/lifecycle alone (apps/web/src/worker/agent/agent-thread.ts)",
+};
+
+// A conversation's object is named only by its account's cell, from a thread its own rows hold, so
+// no other caller can create one or reach another account's (apps/web/CLAUDE.md, THE BUILT-IN
+// AGENT IS OUR OWN LOOP)
+const THREAD_STUB = {
+  message:
+    "only the account's cell names a conversation's object: library-do.ts and agent-turns.ts reach it",
+  regex: "(?:^|/)thread-stub(?:\\.ts)?$",
+};
+
 // oRPC v2 still ships its v1 names, untagged, beside the new ones (https://orpc.dev/docs/migrations/from-v1).
 const V1_NAMES_MESSAGE =
   "oRPC v1's name: use v2's (RouterContractClient, InferRouterContractInputs/Outputs, RouterContract, AnyProcedureContract, asyncIteratorObject, PromiseWithError, InferClientError, consumeAsyncIterator)";
@@ -81,10 +100,9 @@ const ORPC_V1_NAMES = [
   },
 ];
 
-interface ImportPattern {
-  readonly message: string;
-  readonly regex: string;
-}
+type ImportPattern =
+  | { readonly message: string; readonly regex: string }
+  | { readonly message: string; readonly group: readonly string[] };
 
 // One rule config per file: an override's options replace the base's rather than add to them, so
 // every override restating the rule carries the repo-wide rows beside its own.
@@ -209,25 +227,41 @@ export default defineConfig({
     {
       // the one place the library's rows become the connector's tools
       files: ["apps/web/src/worker/**"],
-      rules: { "no-restricted-imports": ["error", { paths: ORPC_V1_NAMES }] },
-    },
-    {
-      // the fake Managed Agents API's suite stands up a connector of its own for the fake's agent
-      // to call; a dev tool no client bundles, and the suite alone reaches the server SDK
-      files: ["tools/managed-agents-fake/src/**/*.test.ts"],
-      rules: { "no-restricted-imports": ["error", { paths: ORPC_V1_NAMES }] },
+      rules: {
+        "no-restricted-imports": ["error", { paths: ORPC_V1_NAMES, patterns: [AGENTS_SDK] }],
+      },
     },
     {
       excludeFiles: [...tests, "apps/web/src/worker/**"],
       files: ["apps/web/src/**"],
-      rules: { "no-restricted-imports": restrictedImports([CONFIG_MODULES]) },
+      rules: { "no-restricted-imports": restrictedImports([CONFIG_MODULES, AGENTS_SDK]) },
     },
     {
       // after the override above, whose options this one replaces for the Worker's own code
-      excludeFiles: tests,
+      excludeFiles: [
+        ...tests,
+        "apps/web/src/worker/library/library-do.ts",
+        "apps/web/src/worker/agent/agent-turns.ts",
+      ],
       files: ["apps/web/src/worker/**"],
       rules: {
-        "no-restricted-imports": ["error", { paths: ORPC_V1_NAMES, patterns: [CONFIG_MODULES] }],
+        "no-restricted-imports": [
+          "error",
+          { paths: ORPC_V1_NAMES, patterns: [CONFIG_MODULES, AGENTS_SDK, THREAD_STUB] },
+        ],
+      },
+    },
+    {
+      // the account's cell, which alone names a conversation's object
+      files: [
+        "apps/web/src/worker/library/library-do.ts",
+        "apps/web/src/worker/agent/agent-turns.ts",
+      ],
+      rules: {
+        "no-restricted-imports": [
+          "error",
+          { paths: ORPC_V1_NAMES, patterns: [CONFIG_MODULES, AGENTS_SDK] },
+        ],
       },
     },
     {

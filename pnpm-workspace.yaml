@@ -18,10 +18,16 @@ catalog:
   # exact, as its server sibling: the suites and the e2e drive the connector with the client the
   # server release is tested against, and the two move together
   "@modelcontextprotocol/client": 2.4.0
-  # exact: the built-in agent's Managed Agents client, a beta whose minor releases may break its
-  # types (platform.claude.com/docs/en/cli-sdks-libraries/sdks/typescript#semantic-versioning); a
-  # bump re-reads the recorded responses the cell's agent suites answer it with
+  # exact: the built-in agent's Messages client, whose minor releases may break its types
+  # (platform.claude.com/docs/en/cli-sdks-libraries/sdks/typescript#semantic-versioning); it types
+  # every beta a thread's request sends (thinking-binding-controls-2026-08-01,
+  # server-side-fallback-2026-07-01), and a bump runs the thread suites against the scripted
+  # Messages API first
   "@anthropic-ai/sdk": 1.3.0
+  # exact: 0.x minors break, and only `agents/lifecycle` is imported (oxlint.config.ts refuses
+  # every other subpath), the job queue and the one alarm each conversation's object runs on; a
+  # bump runs the thread suites first
+  agents: 0.31.0
   # exact: the adapters are spawned as child processes and the sdk speaks to them, so the wire is
   # only verified against one set; a bump re-records packages/agent-runtime's adapter transcripts
   "@agentclientprotocol/claude-agent-acp": 0.81.0
@@ -181,6 +187,9 @@ allowBuilds:
   "@parcel/watcher": true
   "@tailwindcss/oxide": true
   better-sqlite3: true
+  # agents' mimetext's @babel/runtime-corejs3: a postinstall that only prints a funding notice; an
+  # install refuses a build left undecided (ERR_PNPM_IGNORED_BUILDS)
+  core-js-pure: false
   # eas-cli's bunyan: an optional DTrace probe it runs without
   dtrace-provider: false
   esbuild: true
@@ -188,7 +197,21 @@ allowBuilds:
   protobufjs: false
   workerd: true
 
+# agents 0.31.0 asks for the MCP SDK's client and server at exactly 2.3.1, for the MCP
+# capabilities this Worker never imports (only `agents/lifecycle` is); the catalog's 2.4.0 is the
+# one copy installed, so this silences the report and overrides nothing
+peerDependencyRules:
+  allowedVersions:
+    "agents>@modelcontextprotocol/client": 2.4.0
+    "agents>@modelcontextprotocol/server": 2.4.0
+
 overrides:
+  # agents' Vite plugin compiles decorators with Babel 8, and the Worker imports only
+  # `agents/lifecycle`, which needs neither package (pnpm.io/settings/dependency-resolution: "`-` to
+  # remove it"); installed, Babel 8 becomes the core every Babel 7 plugin under apps/web resolves its
+  # peer to
+  "agents>@babel/plugin-proposal-decorators": "-"
+  "agents>@rolldown/plugin-babel": "-"
   # the adapter's auto-installed peer would otherwise resolve a second, newer core beside better-auth's
   "@better-auth/core": 1.7.14
   # react-native-css compiles the phone's sheet with the lightningcss @expo/metro-config carries

@@ -35,6 +35,7 @@
     "@repo/ui": "workspace:*",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
+    "agents": "catalog:",
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:",
     "durable-git": "0.0.8",
