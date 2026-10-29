@@ -50,7 +50,9 @@ export const opIdSchema = z.uuid();
 export const shaSchema = z.string().regex(SHA256_HEX_RE);
 // a highlight's id is a marker's text too, so it is held to the marker alphabet and a row's length
 const annotationId = annotationIdSchema.max(64);
-// a Managed Agents event's own id (`sevt_…`)
+// a thread event's id: `<threadId>:<push>:<index>` for what its conversation's object pushed, by
+// that push's sequence and the event's place in it, and `<threadId>:turn:<turn>` for the person's
+// message that opened a turn
 export const eventIdSchema = z.string().min(1).max(128);
 
 const instant = z.number().int().nonnegative();
@@ -151,16 +153,10 @@ const blobRowSchema = z.object({
   w: z.number().int().positive().nullable(),
 });
 
-// where a thread's built-in agent stands: nothing running, a send waiting on the account's one turn
-// at a time, a turn running, a turn waiting on the person's approval, or stopped, its conversation
-// ended at the allowance or by Anthropic, so its next send starts a fresh one
-export const THREAD_STATUSES = [
-  "idle",
-  "queued",
-  "running",
-  "awaiting_approval",
-  "stopped",
-] as const;
+// where a thread's built-in agent stands: nothing running, a send waiting for its thread's turn or
+// for one of the account's, a turn running, or a turn waiting on the person's approval. A turn the
+// allowance stopped leaves its thread idle, and the next send goes on with it
+export const THREAD_STATUSES = ["idle", "queued", "running", "awaiting_approval"] as const;
 
 export const threadRowSchema = z.object({
   createdAt: instant,
@@ -171,8 +167,8 @@ export const threadRowSchema = z.object({
   updatedAt: instant,
 });
 
-// a Managed Agents event as the cell stored it, kept raw: an event type this build never heard of
-// is a row it skips, never a pull it refuses
+// an event of the thread as the cell stored it, one of `./agent-events`' union kept as JSON: an
+// event this build cannot parse is a row a reader skips, never a pull it refuses
 export const threadEventRowSchema = z.object({
   at: instant,
   event: z.json(),

@@ -15,6 +15,7 @@
     "./cloud/device/device-schema": "./src/cloud/device/device-schema.ts",
     "./cloud/device/login-flow": "./src/cloud/device/login-flow.ts",
     "./cloud/errors": "./src/cloud/cloud-errors.ts",
+    "./cloud/library/agent-events": "./src/cloud/library/agent-events.ts",
     "./cloud/library/library-blobs": "./src/cloud/library/library-blobs.ts",
     "./cloud/library/library-contract": "./src/cloud/library/library-contract.ts",
     "./cloud/library/library-socket": "./src/cloud/library/library-socket.ts",

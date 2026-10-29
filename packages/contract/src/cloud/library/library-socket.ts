@@ -14,8 +14,9 @@ export const SOCKET_TICKET_PARAM = "ticket";
 const libraryMovedFrameSchema = z.object({ head: seqSchema, type: z.literal("library") });
 
 // the built-in agent's turn moved: an event the cell stored, which the thread's next pull carries
-// too, or a preview of the agent's message as it is written, which no pull ever carries. The event
-// is Managed Agents' own, kept raw, so a type this build never heard of is one it skips
+// too, or a preview of the agent's message as it is written (`agent.preview`), which no pull ever
+// carries. The event is one of `./agent-events`' union, read as JSON, so one this build cannot
+// parse is one it skips
 const threadFrameSchema = z.object({
   event: z.json(),
   preview: z.boolean(),

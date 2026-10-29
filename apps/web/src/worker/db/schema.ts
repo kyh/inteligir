@@ -157,12 +157,3 @@ export const device = sqliteTable(
     index("device_user_id_idx").on(table.userId, table.revokedAt),
   ],
 );
-
-// the connector's own OAuth client for the built-in agent, one for each origin this database
-// serves, since every Preview shares the preview D1 and its namespace: the provider mints a
-// client's id, so it is kept here, where every account's cell finds it
-// (src/worker/agent/built-in-client.ts)
-export const builtInClient = sqliteTable("built_in_client", {
-  issuer: text("issuer").primaryKey(),
-  clientId: text("client_id").notNull(),
-});

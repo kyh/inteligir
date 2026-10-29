@@ -477,8 +477,8 @@ const exportsContract = {
 const threadAnswer = z.object({ status: z.enum(THREAD_STATUSES), threadId: idSchema });
 
 const agentContract = {
-  // a message to the built-in agent: a new thread when none is named; it waits behind the
-  // account's running turn, if one is
+  // a message to the built-in agent: a new thread when none is named; it waits behind its thread's
+  // open turn, or while the account runs as many turns at once as it may
   send: signedBase
     .errors({
       [AgentBudgetError.code]: AgentBudgetError,
@@ -495,7 +495,7 @@ const agentContract = {
     )
     .output(threadAnswer),
 
-  // the person's answer to a paused call, by the event that asked
+  // the person's answer to a call that waits on them, by the `approval.asked` event that asked
   respond: signedBase
     .errors({
       [AgentUnavailableError.code]: AgentUnavailableError,
@@ -512,7 +512,8 @@ const agentContract = {
     )
     .output(threadAnswer),
 
-  // stops the turn; a paused call is denied first
+  // stops the thread's turn: a call waiting on the person is denied, every call not yet run is
+  // answered that it did not run, and the thread's waiting sends are let go
   cancel: signedBase
     .errors({
       [AgentUnavailableError.code]: AgentUnavailableError,
@@ -537,7 +538,8 @@ const agentContract = {
     )
     .output(z.object({ events: z.array(threadEventRowSchema), more: z.boolean() })),
 
-  // the thread and its conversation with Anthropic
+  // the thread, its events and its conversation, gone from our cloud; nothing of it is kept
+  // anywhere else
   delete: signedBase
     .errors({ [NotFoundError.code]: NotFoundError })
     .input(z.strictObject({ opId, threadId: idSchema }))
@@ -552,8 +554,8 @@ const agentContract = {
     }),
   ),
 
-  // off revokes the agent's access and deletes its conversations' credential at once; it stays off
-  // until the person turns it on again
+  // off stops every open turn and refuses sends until the person turns it on again; threads stay
+  // readable
   setEnabled: signedBase
     .errors({ [AgentUnavailableError.code]: AgentUnavailableError })
     .input(z.strictObject({ enabled: z.boolean(), opId }))

@@ -17,7 +17,7 @@ import type { SqlPlan, SqlRow } from "./library-sql";
 
 // bump on any change below, and on any change to the JSON a replica's outbox row holds
 // (`@repo/library-replica`), which no build reads in another's shape
-export const LIBRARY_SCHEMA_VERSION = 7;
+export const LIBRARY_SCHEMA_VERSION = 8;
 
 // STRICT tables are SQLite 3.37; a replica's engine is checked against it at open. The cell's is
 // the platform's own, and a Durable Object refuses sqlite_version() ("not authorized to use
@@ -52,9 +52,8 @@ export const CHANGE_SET_ACTORS = [
   "system",
 ] as const;
 
-// where the account's built-in turn stands: its session being made or its message sent, running,
-// waiting on the person's approval, or ending once its final stop reason is seen
-export const AGENT_TURN_PHASES = ["starting", "running", "awaiting_approval", "ending"] as const;
+// where a thread's open turn stands: running, or waiting on the person's approval of a call
+export const AGENT_TURN_PHASES = ["running", "awaiting_approval"] as const;
 
 // what an import reads (a Raindrop export, a folder of markdown zipped, Obsidian's included), where
 // a job stands, and the phase a running one is in: reading the file into its plan, landing its
@@ -196,7 +195,6 @@ const SYNCED_DDL = [
   SEARCH_DDL,
   `CREATE TABLE IF NOT EXISTS threads (
     id TEXT PRIMARY KEY,
-    session_id TEXT,
     title TEXT NOT NULL,
     status TEXT NOT NULL,
     created_at INTEGER NOT NULL,
@@ -302,57 +300,45 @@ const CELL_DDL = [
     mime TEXT NOT NULL,
     reserved_at INTEGER NOT NULL
   ) STRICT`,
-  // the built-in agent's access, while it is on: the grant its OAuth client holds, and the vault
-  // and the one credential Anthropic holds it in; a row whose credential is null is still being
-  // turned on, since `started_at`, and one on is being repaired, since `repair_started_at`
-  `CREATE TABLE IF NOT EXISTS agent_vault (
-    account_id TEXT PRIMARY KEY,
-    started_at INTEGER NOT NULL,
-    grant_id TEXT,
-    vault_id TEXT,
-    credential_id TEXT,
-    repair_started_at INTEGER,
-    CHECK (credential_id IS NULL OR (grant_id IS NOT NULL AND vault_id IS NOT NULL)),
-    CHECK (repair_started_at IS NULL OR credential_id IS NOT NULL)
-  ) STRICT`,
-  // every Managed Agents session the account holds at Anthropic, the one each thread runs in
-  // (`threads.session_id`) and those a thread let go of, which wait to be deleted there: the cell's
-  // only record of their ids, so a row is written in the transaction that learns one. Each keeps
-  // the cumulative usage the ledger last booked of it, and the time of the last event the cell
-  // stored, which a reconcile lists the session's events from
-  `CREATE TABLE IF NOT EXISTS agent_sessions (
-    session_id TEXT PRIMARY KEY,
-    thread_id TEXT NOT NULL,
-    created_at INTEGER NOT NULL,
-    cursor TEXT,
-    cost_cents INTEGER NOT NULL DEFAULT 0,
-    input_tokens INTEGER NOT NULL DEFAULT 0,
-    cached_tokens INTEGER NOT NULL DEFAULT 0,
-    output_tokens INTEGER NOT NULL DEFAULT 0,
-    dropped_at INTEGER
-  ) STRICT`,
-  // the account's one built-in turn while it runs, at most one: the thread and its session, the
-  // turn's number in the thread, which keys the change set its writes open, where it stands (being
-  // started, running, waiting on the person's approval of the calls `pending` names, or ending on
-  // the stop reason `ends`, until the session is confirmed at rest), and whether the cell
-  // interrupted it, since an interrupted turn ends on `end_turn` too
-  `CREATE TABLE IF NOT EXISTS agent_turn (
+  // the built-in agent's switch: no row is on, the default, since there is no credential to make
+  `CREATE TABLE IF NOT EXISTS agent_switch (
     slot INTEGER PRIMARY KEY CHECK (slot = 1),
-    thread_id TEXT NOT NULL,
-    session_id TEXT,
-    turn INTEGER NOT NULL,
-    phase TEXT NOT NULL CHECK (phase IN (${oneOf(AGENT_TURN_PHASES)})),
-    message TEXT NOT NULL,
-    ends TEXT,
-    pending TEXT,
-    asked_at INTEGER,
-    interrupted INTEGER NOT NULL DEFAULT 0 CHECK (interrupted IN (0, 1)),
-    started_at INTEGER NOT NULL,
-    CHECK ((phase = 'starting') OR session_id IS NOT NULL),
-    CHECK ((phase = 'awaiting_approval') = (pending IS NOT NULL)),
-    CHECK ((phase = 'ending') = (ends IS NOT NULL))
+    enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+    changed_at INTEGER NOT NULL
   ) STRICT`,
-  // the sends that wait for the account's turn, oldest first
+  // each thread's open turn, at most one: its number in the thread, which keys the change set its
+  // writes open, what the person sent, where it stands, whether the person stopped it, and when
+  // its conversation's object was last heard from, which the watch job asks after
+  `CREATE TABLE IF NOT EXISTS agent_turns (
+    thread_id TEXT PRIMARY KEY,
+    turn INTEGER NOT NULL,
+    message TEXT NOT NULL,
+    phase TEXT NOT NULL CHECK (phase IN (${oneOf(AGENT_TURN_PHASES)})),
+    cancel INTEGER NOT NULL DEFAULT 0 CHECK (cancel IN (0, 1)),
+    started_at INTEGER NOT NULL,
+    heard_at INTEGER NOT NULL
+  ) STRICT`,
+  // every model call a turn reserved before it was sent: what it may spend, in micro-cents, and
+  // once its reply or its cut is pushed what it cost, on the day it was reserved
+  `CREATE TABLE IF NOT EXISTS agent_calls (
+    call_id TEXT PRIMARY KEY,
+    thread_id TEXT NOT NULL,
+    turn INTEGER NOT NULL,
+    day TEXT NOT NULL,
+    reserved_ucents INTEGER NOT NULL,
+    max_tokens INTEGER NOT NULL,
+    cost_ucents INTEGER,
+    reserved_at INTEGER NOT NULL
+  ) STRICT`,
+  `CREATE INDEX IF NOT EXISTS agent_calls_turn ON agent_calls (thread_id, turn)`,
+  `CREATE INDEX IF NOT EXISTS agent_calls_open ON agent_calls (cost_ucents)`,
+  // the last push each thread's object landed, so a push sent again lands nothing
+  `CREATE TABLE IF NOT EXISTS agent_pushes (
+    thread_id TEXT PRIMARY KEY,
+    seq INTEGER NOT NULL
+  ) STRICT`,
+  // the sends that wait for their thread's turn, or for one of the account's turns at once, oldest
+  // first
   `CREATE TABLE IF NOT EXISTS agent_queue (
     id TEXT PRIMARY KEY,
     thread_id TEXT NOT NULL,
@@ -360,15 +346,17 @@ const CELL_DDL = [
     queued_at INTEGER NOT NULL
   ) STRICT`,
   `CREATE INDEX IF NOT EXISTS agent_queue_order ON agent_queue (queued_at, id)`,
-  // what the built-in agent spent on each UTC day: its turns, and the tokens and list cost its
-  // sessions reported, booked as each report's difference from the last
+  // what the built-in agent spent on each UTC day: its turns, the tokens its calls were billed by
+  // category, and their list cost in micro-cents
   `CREATE TABLE IF NOT EXISTS agent_usage (
     day TEXT PRIMARY KEY,
     turns INTEGER NOT NULL,
     input_tokens INTEGER NOT NULL,
-    cached_tokens INTEGER NOT NULL,
+    cache_read_tokens INTEGER NOT NULL,
+    cache_write_5m_tokens INTEGER NOT NULL,
+    cache_write_1h_tokens INTEGER NOT NULL,
     output_tokens INTEGER NOT NULL,
-    cost_cents INTEGER NOT NULL
+    cost_ucents INTEGER NOT NULL
   ) STRICT`,
   `CREATE TABLE IF NOT EXISTS import_jobs (
     id TEXT PRIMARY KEY,

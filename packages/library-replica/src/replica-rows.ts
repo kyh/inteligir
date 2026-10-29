@@ -285,8 +285,8 @@ const applyThread = function* applyThread(
   yield row === null
     ? run("DELETE FROM threads WHERE id = ? AND seq < ?", [change.id, change.seq])
     : run(
-        `INSERT INTO threads (id, session_id, title, status, created_at, updated_at, seq)
-       VALUES (?, NULL, ?, ?, ?, ?, ?)
+        `INSERT INTO threads (id, title, status, created_at, updated_at, seq)
+       VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT (id) DO UPDATE SET title = excluded.title, status = excluded.status,
          created_at = excluded.created_at, updated_at = excluded.updated_at, seq = excluded.seq
        WHERE excluded.seq > threads.seq`,
