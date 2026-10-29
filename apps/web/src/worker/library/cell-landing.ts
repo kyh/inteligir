@@ -200,7 +200,14 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
   );
   const landed = runPlan(
     storage,
-    storeItemRow({ derived, fields: after.fields, id: itemId, seq, updatedAt: scope.now }),
+    storeItemRow({
+      card: derived.card,
+      fields: after.fields,
+      id: itemId,
+      seq,
+      updatedAt: scope.now,
+      urlKey: derived.urlKey,
+    }),
   );
   if (!landed) {
     throw new LibraryRowError(`the item ${itemId} holds a row newer than the library's head`);

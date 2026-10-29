@@ -64,10 +64,13 @@ const parseRow = <T>(row: SqlRow, schema: z.ZodType<T>, what: string): T => {
 
 // ---- items ----
 
+// an item's row: its fields, and what its body says that the row carries (its card) beside the
+// url key its fields give, so a replica lays a pulled row before the body it describes arrives
 export interface ItemRowWrite {
   readonly id: string;
   readonly fields: LibraryItemFields;
-  readonly derived: DerivedItem;
+  readonly card: ItemCard;
+  readonly urlKey: string | null;
   readonly updatedAt: number;
   readonly seq: number;
 }
@@ -115,11 +118,11 @@ RETURNING seq`;
 // an item's row, over the one it replaces when that one is older: whether it landed, since an
 // upsert whose update is skipped returns no row (https://www.sqlite.org/lang_returning.html)
 export const storeItemRow = function* storeItemRow(write: ItemRowWrite): SqlPlan<boolean> {
-  const { derived, fields } = write;
+  const { fields } = write;
   const values: Record<(typeof ITEM_COLUMNS)[number], SqlValue> = {
     aliases: JSON.stringify(fields.aliases),
     author: fields.author,
-    card: JSON.stringify(derived.card),
+    card: JSON.stringify(write.card),
     copy_sha: fields.copySha,
     cover_sha: fields.coverSha,
     deleted_at: fields.deletedAt,
@@ -145,7 +148,7 @@ export const storeItemRow = function* storeItemRow(write: ItemRowWrite): SqlPlan
     title: fields.title,
     updated_at: write.updatedAt,
     url: fields.url,
-    url_key: derived.urlKey,
+    url_key: write.urlKey,
   };
   const landed = yield all(
     UPSERT_ITEM,
@@ -312,6 +315,14 @@ const storedItemOf = (raw: SqlRow): StoredItem => {
 export const readItem = function* readItem(id: string): SqlPlan<StoredItem | null> {
   const [row] = yield all(`SELECT ${ITEM_COLUMNS.join(", ")} FROM items WHERE id = ?`, [id]);
   return row === undefined ? null : storedItemOf(row);
+};
+
+// every item that is not purged, by id: what a replica's listing is built from at open
+export const readLiveItems = function* readLiveItems(): SqlPlan<StoredItem[]> {
+  const rows = yield all(
+    `SELECT ${ITEM_COLUMNS.join(", ")} FROM items WHERE purged = 0 ORDER BY id`,
+  );
+  return rows.map(storedItemOf);
 };
 
 // ---- blocks ----
@@ -572,11 +583,12 @@ export interface ItemWrite {
 export const storeItem = function* storeItem(write: ItemWrite): SqlPlan<DerivedItem | null> {
   const derived = deriveItem(write.state.fields, write.state.blocks);
   const landed = yield* storeItemRow({
-    derived,
+    card: derived.card,
     fields: write.state.fields,
     id: write.id,
     seq: write.seq,
     updatedAt: write.updatedAt,
+    urlKey: derived.urlKey,
   });
   if (!landed) {
     return null;
@@ -589,6 +601,29 @@ export const storeItem = function* storeItem(write: ItemWrite): SqlPlan<DerivedI
   yield* storeDerived(write.id, derived);
   yield* storeSearchRow(write.id, derived.search);
   return derived;
+};
+
+export interface ItemBodyWrite {
+  readonly id: string;
+  // the sequence the cell sent the body at
+  readonly seq: number;
+  readonly blocks: readonly StoredBlock[];
+}
+
+// an item's body as the cell sent it: laid only under the item's row at that same sequence, so a
+// body older or newer than the row a replica holds lands nothing, and derived from that row's
+// fields with it (its blocks' text, links, tags and index row); whether it landed
+export const storeItemBody = function* storeItemBody(body: ItemBodyWrite): SqlPlan<boolean> {
+  const item = yield* readItem(body.id);
+  if (item?.kind !== "live" || item.seq !== body.seq) {
+    return false;
+  }
+  const blocks = new Map(body.blocks.map((stored) => [stored.block.id, stored]));
+  const derived = deriveItem(item.fields, blocks);
+  yield* replaceBlocks(body.id, blockWritesOf(orderedBlocks(blocks), derived), body.seq);
+  yield* storeDerived(body.id, derived);
+  yield* storeSearchRow(body.id, derived.search);
+  return true;
 };
 
 const COLUMN_WEIGHTS = [

@@ -26,7 +26,9 @@ import {
   searchRowBytes,
   searchRowOf,
   storeBlocks,
+  readLiveItems,
   storeItem,
+  storeItemBody,
   storeItemRow,
   storeTombstone,
   writeMeta,
@@ -104,11 +106,12 @@ describe("items", () => {
       exec(
         port,
         storeItemRow({
-          derived: deriveItem(older.fields, older.blocks),
+          card: deriveItem(older.fields, older.blocks).card,
           fields: older.fields,
           id: "item-1",
           seq: 4,
           updatedAt: 1,
+          urlKey: null,
         }),
       ),
     ).toBe(false);
@@ -119,6 +122,32 @@ describe("items", () => {
       { origin: "field", tag: "fresh" },
     ]);
     expect(exec(port, linksTo("target")).map((link) => link.sourceId)).toEqual(["item-1"]);
+  });
+
+  it("lays a row before its body, and the body only under the row at the body's own sequence", () => {
+    const port = library();
+    const state = itemOf([paragraph("a", "body words")], noteFields({ title: "Row first" }));
+    const derived = deriveItem(state.fields, state.blocks);
+    const row = { card: derived.card, fields: state.fields, id: "item-1", updatedAt: 1 };
+    expect(exec(port, storeItemRow({ ...row, seq: 3, urlKey: null }))).toBe(true);
+    expect(exec(port, readItemState("item-1"))?.blocks.size).toBe(0);
+    const blocks = orderedBlocks(state.blocks);
+    expect(exec(port, storeItemBody({ blocks, id: "item-1", seq: 2 }))).toBe(false);
+    expect(exec(port, storeItemBody({ blocks, id: "item-1", seq: 4 }))).toBe(false);
+    expect(exec(port, storeItemBody({ blocks, id: "missing", seq: 3 }))).toBe(false);
+    expect(exec(port, searchLibrary("body", 10))).toEqual([]);
+    expect(exec(port, storeItemBody({ blocks, id: "item-1", seq: 3 }))).toBe(true);
+    expect(exec(port, readItemState("item-1"))).toEqual(state);
+    expect(exec(port, searchLibrary("body", 10)).map((hit) => hit.itemId)).toEqual(["item-1"]);
+  });
+
+  it("reads every item that is not purged, by id", () => {
+    const port = library();
+    put(port, "b", itemOf([], noteFields({ title: "B" })));
+    put(port, "a", itemOf([], noteFields({ title: "A" })));
+    put(port, "c", itemOf([], noteFields({ title: "C" })));
+    exec(port, storeTombstone({ deletedAt: 7, id: "c", seq: 9, updatedAt: 8 }));
+    expect(exec(port, readLiveItems()).map((item) => item.id)).toEqual(["a", "b"]);
   });
 
   it("holds one live item per address", () => {

@@ -1,5 +1,5 @@
 // The one schema of the library's SQLite, which the cell and both device replicas create alike:
-// the synced tables every engine holds, and the cell's own beside them. Its version is the
+// the synced tables every engine holds, and the cell's own or a replica's beside them. Its version is the
 // `schema` row of `meta`, never SQLite's own version pragma, which a Durable Object refuses
 // (https://developers.cloudflare.com/durable-objects/best-practices/rules-of-durable-objects/).
 // There is no migration: an engine that finds another version answers `mismatch`, and its host
@@ -15,8 +15,9 @@ import { LIBRARY_SECTIONS } from "./library-nodes";
 import { all, run } from "./library-sql";
 import type { SqlPlan, SqlRow } from "./library-sql";
 
-// bump on any change below
-export const LIBRARY_SCHEMA_VERSION = 6;
+// bump on any change below, and on any change to the JSON a replica's outbox row holds
+// (`@repo/library-replica`), which no build reads in another's shape
+export const LIBRARY_SCHEMA_VERSION = 7;
 
 // STRICT tables are SQLite 3.37; a replica's engine is checked against it at open. The cell's is
 // the platform's own, and a Durable Object refuses sqlite_version() ("not authorized to use
@@ -445,10 +446,35 @@ const CELL_DDL = [
   `CREATE INDEX IF NOT EXISTS jobs_next ON jobs (next_at)`,
 ] as const;
 
+// what a replica's states of an outbox row are: queued, so a later write to the item joins it;
+// sent at least once, so it goes again exactly as it went; or parked by a refusal no resend passes
+export const OUTBOX_STATES = ["queued", "sent", "parked"] as const;
+
+// a replica's alone (`@repo/library-replica`): its outbox, the writes it has not heard land, oldest
+// first, each under the op id the cell keeps its answer by, `op` the write as JSON; and the bodies
+// it wants, each item's at the sequence its row moved to. A schema mismatch drops these with the
+// rest, so no build reads a row another build wrote
+const REPLICA_DDL = [
+  `CREATE TABLE IF NOT EXISTS outbox (
+    seq INTEGER PRIMARY KEY AUTOINCREMENT,
+    op_id TEXT NOT NULL UNIQUE,
+    item_id TEXT,
+    op TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN (${oneOf(OUTBOX_STATES)})),
+    reason TEXT,
+    created_at INTEGER NOT NULL,
+    CHECK ((state = 'parked') = (reason IS NOT NULL))
+  ) STRICT`,
+  `CREATE TABLE IF NOT EXISTS body_wants (
+    item_id TEXT PRIMARY KEY,
+    seq INTEGER NOT NULL
+  ) STRICT, WITHOUT ROWID`,
+] as const;
+
 export type LibraryRole = "cell" | "replica";
 
 export const libraryDdl = (role: LibraryRole): readonly string[] =>
-  role === "cell" ? [...SYNCED_DDL, ...CELL_DDL] : SYNCED_DDL;
+  role === "cell" ? [...SYNCED_DDL, ...CELL_DDL] : [...SYNCED_DDL, ...REPLICA_DDL];
 
 // what open found: a schema it made, the current one, one of another version (or none it can
 // read) that its host starts over, or an engine older than the schema needs

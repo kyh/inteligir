@@ -74,15 +74,17 @@ node is rather than discriminating structurally at each visit.
 
 - **THE LIBRARY'S SQL IS ONE SCHEMA AND ONE SET OF PLANS FOR THREE
   ENGINES.** `@repo/notes/library/library-schema` versions STRICT tables by a
-  `meta.schema` row, and a mismatch starts the engine over; a replica checks
-  its engine is SQLite 3.37 or later, the cell nothing, since a Durable Object
-  refuses `sqlite_version()`;
+  `meta.schema` row, a replica's outbox and wanted bodies beside the synced
+  tables (so the outbox's JSON bumps it too), and a mismatch starts the engine
+  over; a replica checks its engine is SQLite 3.37 or later, the cell nothing,
+  since a Durable Object refuses `sqlite_version()`;
   `@repo/notes/library/library-sql` runs a plan (a generator yielding one
   statement at a time) over the cell's synchronous port or a replica's
   asynchronous one, and cuts many-row statements under 100 parameters and 100
   KB; `library-queries` matches text with instr(), and lays an item only over
   an older `seq`, its body, links, tags and index row with it or not at all
-  (the upsert's `RETURNING`). Rejected: SQLite's version pragma and its
+  (the upsert's `RETURNING`), a replica's pulled row first and its body after,
+  only under the row at the sequence it was sent for. Rejected: SQLite's version pragma and its
   pattern-match operators (a Durable Object refuses the one and caps the other
   at 50 bytes) and SQL per engine (it drifts).
   `packages/notes/src/test-support/wasm-sql-port.ts`.

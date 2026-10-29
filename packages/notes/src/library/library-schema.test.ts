@@ -21,9 +21,10 @@ describe("ensureLibrarySchema", () => {
     expect(transactPlan(replica, ensureLibrarySchema("replica"))).toEqual({ kind: "created" });
     const cell = openWasmSqlPort();
     expect(transactPlan(cell, ensureLibrarySchema("cell"))).toEqual({ kind: "created" });
-    expect(tables(replica)).toContain("items");
+    expect(tables(replica)).toEqual(expect.arrayContaining(["items", "outbox", "body_wants"]));
     expect(tables(replica)).not.toContain("change_sets");
     expect(tables(cell)).toEqual(expect.arrayContaining(["change_sets", "revisions", "jobs"]));
+    expect(tables(cell)).not.toContain("outbox");
     expect(libraryDdl("cell").length).toBeGreaterThan(libraryDdl("replica").length);
   });
 
