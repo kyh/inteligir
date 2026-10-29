@@ -247,6 +247,11 @@ const nodesOf = (item: LibraryItem): LibraryNode[] => {
   return all;
 };
 
+const textOf = (item: LibraryItem): string =>
+  nodesOf(item)
+    .flatMap((node) => ("text" in node ? [node.text] : []))
+    .join("");
+
 describe("an Obsidian vault read into the library", () => {
   const library = readFolder(VAULT, BINARIES);
   const daily = byTitle(library, "Daily");
@@ -312,7 +317,7 @@ describe("an Obsidian vault read into the library", () => {
     expect(JSON.stringify(project.blocks[0]?.block)).not.toContain("^goal");
   });
 
-  it("reads a highlight, a comment and inline tags out of the person's writing", () => {
+  it("reads a highlight and a comment out of the person's writing, and keeps a tag its text", () => {
     const nodes = nodesOf(daily);
     const marker = nodes.find((node) => "type" in node && node.type === "annotationMarker");
     expect(marker).toMatchObject({ edge: "start" });
@@ -328,9 +333,7 @@ describe("an Obsidian vault read into the library", () => {
     expect(nodes.filter((node) => "type" in node && node.type === "opaque")).toEqual([
       { children: [{ text: "" }], source: "%%not shown%%", type: "opaque" },
     ]);
-    expect(
-      nodes.flatMap((node) => ("type" in node && node.type === "tag" ? [node.value] : [])),
-    ).toEqual(["log", "log/today"]);
+    expect(textOf(daily)).toContain(" under #log and #log/today.");
   });
 
   it("embeds an image with its width and a canvas as a file, and keeps the canvas an item", () => {
@@ -369,8 +372,8 @@ describe("an Obsidian vault read into the library", () => {
       fetchState: "filled",
     });
     expect(page.blocks.map(({ section }) => section)).toEqual(["article"]);
-    // the page's hashtags are the page's, and its highlight kept from the store
-    expect(nodesOf(page).some((node) => "type" in node && node.type === "tag")).toBe(false);
+    // the page's hashtags are the page's text, and its highlight kept from the store
+    expect(textOf(page)).toContain("with #hashtag text.");
     expect(Object.keys(page.annotations)).toEqual(["h1"]);
   });
 });

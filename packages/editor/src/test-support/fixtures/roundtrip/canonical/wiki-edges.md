@@ -1,6 +1,6 @@
 # About [[Some Note]]
 
-See [[a#b|c]] and a [[ padded ]] link.
+See [[a#b|c]] and a [[padded]] link.
 
 ![[img.png|300]]
 

@@ -19,7 +19,7 @@ import {
   FORMULA_PILL_KEY,
   FRONTMATTER_KEY,
   HTML_BLOCK_KEY,
-  OPAQUE_INLINE_KEY,
+  OPAQUE_KEY,
   WIKI_EMBED_KEY,
   WIKI_LINK_KEY,
 } from "@repo/editor/dialect-node-keys";
@@ -35,17 +35,19 @@ import { alertPresentation } from "@repo/editor/nodes/blockquote-node";
 import { ImageFigure } from "@repo/editor/nodes/image-node";
 import { RichBlockCard } from "@repo/editor/nodes/rich-block-chrome";
 import WikiChip from "@repo/editor/wiki/wiki-chip";
+import { wikiFieldsOf } from "@repo/editor/wiki/wiki-node";
+import type { WikiNodeFields } from "@repo/editor/wiki/wiki-node";
 import { useVaultActions, useVaultLinkTarget } from "@repo/editor/host";
 
 // The note an embed shows: a url inside it is relative to that note, not to the open one.
 const EmbeddedNotePathContext = createContext<string | null>(null);
 
-export const EmbedChip = ({ body, note }: { body: string; note?: string | undefined }) => (
+export const EmbedChip = ({ link, note }: { link: WikiNodeFields; note?: string | undefined }) => (
   <span className="inline-flex items-baseline gap-0.5">
     <span className="font-semibold text-primary/50 select-none" contentEditable={false}>
       !
     </span>
-    <WikiChip body={body} />
+    <WikiChip link={link} />
     {note !== undefined && (
       <span className="ml-1 text-body text-muted-foreground italic" contentEditable={false}>
         ({note})
@@ -98,10 +100,10 @@ const LinkStatic = (props: SlateElementProps) => {
 };
 
 const WikiLinkStatic = (props: SlateElementProps) => {
-  const body = stringProp(props.element, "body") ?? "";
+  const link = wikiFieldsOf(props.element);
   return (
     <SlateElement {...props} as="span">
-      <WikiChip body={body} />
+      <WikiChip link={link} />
       {props.children}
     </SlateElement>
   );
@@ -109,10 +111,10 @@ const WikiLinkStatic = (props: SlateElementProps) => {
 
 // The nesting stop: an embed inside embedded content stays a chip, so no chain of notes recurses.
 const WikiEmbedStatic = (props: SlateElementProps) => {
-  const body = stringProp(props.element, "body") ?? "";
+  const link = wikiFieldsOf(props.element);
   return (
     <SlateElement {...props} as="span">
-      <EmbedChip body={body} />
+      <EmbedChip link={link} />
       {props.children}
     </SlateElement>
   );
@@ -201,9 +203,9 @@ const richBlockStatic = (label: string) =>
     );
   };
 
-const OpaqueInlineStatic = (props: SlateElementProps) => (
+const OpaqueStatic = (props: SlateElementProps) => (
   <SlateElement {...props} as="span">
-    <code className="text-muted-foreground">{stringProp(props.element, "value") ?? ""}</code>
+    <code className="text-muted-foreground">{stringProp(props.element, "source") ?? ""}</code>
     {props.children}
   </SlateElement>
 );
@@ -300,7 +302,7 @@ export const STATIC_COMPONENTS: ReadonlyMap<string, (props: SlateElementProps) =
     [CHART_BLOCK_KEY, richBlockStatic("chart")],
     [CANVAS_BLOCK_KEY, richBlockStatic("canvas")],
     [HTML_BLOCK_KEY, richBlockStatic("html")],
-    [OPAQUE_INLINE_KEY, OpaqueInlineStatic],
+    [OPAQUE_KEY, OpaqueStatic],
     [FRONTMATTER_KEY, FrontmatterStatic],
     ["table", TableStatic],
     ["tr", TableRowStatic],

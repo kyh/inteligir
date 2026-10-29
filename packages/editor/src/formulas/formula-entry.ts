@@ -2,7 +2,7 @@
 // (fresh id); `time=9am` symbolic (the name is the source, the value the display, fresh id).
 
 import { ElementApi } from "platejs";
-import type { TElement, TNode } from "platejs";
+import type { Path, SlateEditor, TElement, TNode } from "platejs";
 
 import { parseExpression, evaluateExpression } from "@repo/notes/formulas/expression";
 import { formatResult } from "@repo/notes/formulas/format-result";
@@ -14,11 +14,11 @@ import { stringProp } from "@repo/editor/node-props";
 
 const NAME_RE = /^(?<name>[A-Za-z][A-Za-z0-9_-]*)=(?<rest>.+)$/u;
 
+// `meta` is "" for a pill that names no id: the node then holds none
 export interface FormulaNodeProps {
   source: string;
   display: string;
   meta: string;
-  raw: string;
 }
 
 export const isFormulaPill = (node: TNode): node is TElement =>
@@ -26,18 +26,11 @@ export const isFormulaPill = (node: TNode): node is TElement =>
 
 export const mintFormulaId = (): string => crypto.randomUUID();
 
-export const rebuildRaw = (source: string, display: string, meta: string): string =>
-  meta === "" ? `${source}|${display}` : `${source}|${display}|${meta}`;
-
-const propsFrom = (source: string, display: string, meta: FormulaMeta): FormulaNodeProps => {
-  const serialized = serializeFormulaMeta(meta) ?? "";
-  return {
-    display,
-    meta: serialized,
-    raw: rebuildRaw(source, display, serialized),
-    source,
-  };
-};
+const propsFrom = (source: string, display: string, meta: FormulaMeta): FormulaNodeProps => ({
+  display,
+  meta: serializeFormulaMeta(meta) ?? "",
+  source,
+});
 
 // `existing` keeps the edited pill's id so linked instances stay linked.
 export const formulaPropsFromEntry = (
@@ -96,20 +89,38 @@ export const entryTextOf = (element: TElement): string => {
   return `${source}=${display}`;
 };
 
-export const formulaNodeFrom = (props: FormulaNodeProps): TElement => ({
-  children: [{ text: "" }],
-  display: props.display,
-  meta: props.meta,
-  raw: props.raw,
-  source: props.source,
-  type: FORMULA_PILL_KEY,
-});
+// a pill's parts set on the pill at `at`; a meta of "" names no id, so the node holds none
+export const setFormulaPill = (
+  editor: SlateEditor,
+  at: Path,
+  props: Pick<FormulaNodeProps, "display" | "meta"> & Partial<Pick<FormulaNodeProps, "source">>,
+): void => {
+  const { meta, ...parts } = props;
+  editor.tf.setNodes(meta === "" ? parts : { ...parts, meta }, { at });
+  if (meta === "") {
+    editor.tf.unsetNodes("meta", { at });
+  }
+};
+
+// the pill as the library holds it: its bytes are derived from these parts when it is written
+export const formulaNodeFrom = (props: FormulaNodeProps): TElement => {
+  const pill: TElement = {
+    children: [{ text: "" }],
+    display: props.display,
+    source: props.source,
+    type: FORMULA_PILL_KEY,
+  };
+  if (props.meta !== "") {
+    pill["meta"] = props.meta;
+  }
+  return pill;
+};
 
 // A body with pipes is the persisted grammar and completes verbatim; a pipeless body runs the entry grammar.
 export const formulaNodeFromTyped = (body: string): TElement | null => {
   if (body.includes("|")) {
     const { display, meta = "", source } = parseFormulaRaw(body);
-    return formulaNodeFrom({ display, meta, raw: body, source });
+    return formulaNodeFrom({ display, meta, source });
   }
   const props = formulaPropsFromEntry(body);
   return props === null ? null : formulaNodeFrom(props);

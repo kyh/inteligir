@@ -32,8 +32,8 @@ const selectAll = (editor: ReturnType<typeof editorOver>): void => {
   editor.tf.select([]);
 };
 
-const linkBodyAt = (editor: ReturnType<typeof editorOver>, at: number[]) =>
-  editor.api.nodes({ at, match: { type: "wikiLink" } }).next().value?.[0].body;
+const linkTitleAt = (editor: ReturnType<typeof editorOver>, at: number[]) =>
+  editor.api.nodes({ at, match: { type: "wikiLink" } }).next().value?.[0].title;
 
 const editorOver = (value: Value, livePath?: string) => {
   const editor = createPlateEditor({ plugins: EDITOR_KIT, value });
@@ -85,7 +85,7 @@ describe("the extract", () => {
     expect(
       editor.api.nodes({ at: [1], match: { type: "wikiLink" } }).next().value?.[0],
     ).toMatchObject({
-      body: "one 2",
+      title: "one 2",
     });
   });
 
@@ -99,7 +99,7 @@ describe("the extract", () => {
     expect(await extractBlocksToNote(editor, selectedTopLevelPaths(editor))).toBe("notes/Plan.md");
     expect(
       editor.api.nodes({ at: [0], match: { type: "wikiLink" } }).next().value?.[0],
-    ).toMatchObject({ body: "notes/Plan" });
+    ).toMatchObject({ title: "notes/Plan" });
   });
 
   it("undoes the removal and the link together", async () => {
@@ -130,7 +130,7 @@ describe("the extract", () => {
       "notes/Plan 2.md",
     );
     expect(calls.map(({ args }) => args[0])).toEqual(["notes/Plan.md", "notes/Plan 2.md"]);
-    expect(linkBodyAt(editor, [0])).toBe("Plan 2");
+    expect(linkTitleAt(editor, [0])).toBe("Plan 2");
   });
 
   it("leaves the note's frontmatter where it is, out of the extract", async () => {
@@ -148,7 +148,7 @@ describe("the extract", () => {
     ]);
     expect(editor.children.map((block) => block.type)).toEqual(["frontmatter", "p"]);
     expect(editor.children[0]).toMatchObject({ value: "id: abc\npinned: true" });
-    expect(linkBodyAt(editor, [1])).toBe("Plan");
+    expect(linkTitleAt(editor, [1])).toBe("Plan");
   });
 
   it("extracts nothing when the frontmatter is all that was chosen", async () => {
@@ -187,7 +187,7 @@ describe("the extract", () => {
       "Plan",
       "",
     ]);
-    expect(linkBodyAt(editor, [2])).toBe("one");
+    expect(linkTitleAt(editor, [2])).toBe("one");
   });
 
   it("keeps the file but leaves the buffer alone when the blocks changed meanwhile", async () => {

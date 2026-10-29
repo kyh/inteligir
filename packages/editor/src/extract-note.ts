@@ -16,6 +16,7 @@ import { serializeWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 import { isAnnotationMarker } from "@repo/editor/annotations/annotation-ranges";
 import { WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
+import { wikiFieldsOfBody, wikiNode } from "@repo/editor/wiki/wiki-node";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { getLiveEditor, liveEditorPath } from "@repo/editor/live-editor";
 import { serializeNote } from "@repo/editor/markdown/markdown-doc";
@@ -67,7 +68,7 @@ const carriesAnnotationMarker = (block: TElement): boolean =>
   [...NodeApi.elements(block)].some(([element]) => isAnnotationMarker(element));
 
 const linkParagraph = (editor: SlateEditor, body: string): TElement => ({
-  children: [{ text: "" }, { body, children: [{ text: "" }], type: WIKI_LINK_KEY }, { text: "" }],
+  children: [{ text: "" }, wikiNode(WIKI_LINK_KEY, wikiFieldsOfBody(body)), { text: "" }],
   type: editor.getType(KEYS.p),
 });
 

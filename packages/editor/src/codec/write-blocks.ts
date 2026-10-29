@@ -1,15 +1,18 @@
-// The persisted vocabulary back in the dialect: blocks mapped onto the editor's own shapes, which
-// the rule table writes (`md-rules.ts`), so an item leaves as the bytes a rich save would write. A
-// link names its target as the caller spells it (a file's shortest name in an export, the item's
-// live title and id in the agent's view), a file the library holds by its bytes is written at the
-// path the caller gives it, a tag is its `#name` again, and a block's `ref` its Obsidian `^ref`.
+// The persisted vocabulary spelled for the rule table (`md-rules.ts`), which already writes the
+// vocabulary's own nodes, so an item leaves as the bytes a rich save would write. What this pass
+// spells is what the library holds by id and the dialect names by words: a link's target as the
+// caller spells it (a file's shortest name in an export, the item's live title in the agent's
+// view, with its id after the pipe only there), a file the library holds by its bytes at the path
+// the caller gives it, and a block's `ref` as its Obsidian `^ref`.
 
 import type { Descendant, TElement, TText } from "platejs";
 
 import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
-import { serializeWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
-import { INLINE_REF_TYPES } from "./read-blocks";
+import { WIKI_EMBED_KEY, WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
+import { wikiNode } from "@repo/editor/wiki/wiki-node";
+
+import { INLINE_REF_TYPES, INLINE_TYPES } from "./read-blocks";
 import { isText, leaf, marksOf, tidyInlines } from "./slate-leaves";
 import type { Marks } from "./slate-leaves";
 
@@ -38,42 +41,26 @@ const voidMarks = (node: { children: readonly TText[] }): Marks =>
 
 const voidLeaf = (node: { children: readonly TText[] }): TText[] => [leaf("", voidMarks(node))];
 
-// a target a wiki link cannot carry loses the characters that end the construct
-const UNCARRIABLE_RE = /[[\]|\r\n]+/gu;
-
-interface WikiParts {
-  readonly target: string;
-  readonly anchor: string | undefined;
-  readonly alias: string | undefined;
-}
-
-// the body a link writes: as asked, else with the target stripped of what no link can carry
-const wikiBody = (parts: WikiParts): string | null =>
-  serializeWikiBody(parts) ??
-  serializeWikiBody({ ...parts, target: parts.target.replaceAll(UNCARRIABLE_RE, " ").trim() });
-
-const anchorOf = (node: { heading?: string; blockRef?: string }): string | undefined =>
-  node.heading ?? (node.blockRef === undefined ? undefined : `^${node.blockRef}`);
-
 type Element<T extends string> = Extract<LibraryNode, { type: T }>;
 
-const writeWikiLink = (node: Element<"wikiLink">, ports: WritePorts): Descendant => {
+// a link or an embed under the name the caller spells its item with; a link to no item keeps the
+// title it was written with
+const spellWiki = (
+  node: Element<"wikiLink"> | Element<"wikiEmbed">,
+  ports: WritePorts,
+): TElement => {
   const target = (node.itemId === null ? null : ports.target(node.itemId)) ?? node.title;
-  const idAlias = ports.withIds && node.itemId !== null ? node.itemId : undefined;
-  const body = wikiBody({ alias: node.alias ?? idAlias, anchor: anchorOf(node), target });
-  return body === null
-    ? leaf(node.alias ?? node.title, {})
-    : { body, children: voidLeaf(node), type: "wikiLink" };
-};
-
-const writeWikiEmbed = (node: Element<"wikiEmbed">, ports: WritePorts): Descendant => {
-  const target = ports.target(node.itemId) ?? node.itemId;
-  const body = wikiBody({
-    alias: ports.withIds ? node.itemId : undefined,
-    anchor: anchorOf(node),
-    target,
-  });
-  return body === null ? leaf(target, {}) : { body, children: voidLeaf(node), type: "wikiEmbed" };
+  return wikiNode(
+    node.type === "wikiLink" ? WIKI_LINK_KEY : WIKI_EMBED_KEY,
+    {
+      alias: node.alias,
+      blockRef: node.blockRef,
+      heading: node.heading,
+      itemId: ports.withIds ? node.itemId : null,
+      title: target,
+    },
+    voidMarks(node),
+  );
 };
 
 // an image's caption is its alt, and an Obsidian `|width` after it keeps the width
@@ -105,64 +92,26 @@ const writeFileBlock = (node: Element<"file"> | Element<"video">, ports: WritePo
   return { caption: [leaf("", {})], children: voidLeaf(node), type: "img", url };
 };
 
-const formulaRaw = (node: Element<"formulaPill">): string => {
-  if (node.meta !== undefined) {
-    return `${node.source}|${node.display}|${node.meta}`;
-  }
-  return node.display === "" ? node.source : `${node.source}|${node.display}`;
-};
-
-// the editor's inline types, as written
-const INLINE_WRITTEN = new Set([
-  "a",
-  "annotationMarker",
-  "date",
-  "formulaPill",
-  "inline_equation",
-  "opaqueInline",
-  "wikiEmbed",
-  "wikiLink",
-]);
-
-const writeNode = (node: LibraryNode, ports: WritePorts): Descendant[] => {
+const writeNode = (node: LibraryNode, ports: WritePorts): Descendant => {
   if ("text" in node) {
-    return [{ ...node }];
+    return { ...node };
   }
   switch (node.type) {
-    case "tag": {
-      return [leaf(`#${node.value}`, voidMarks(node))];
-    }
-    case "wikiLink": {
-      return [writeWikiLink(node, ports)];
-    }
+    case "wikiLink":
     case "wikiEmbed": {
-      return [writeWikiEmbed(node, ports)];
+      return spellWiki(node, ports);
     }
     case "img": {
-      return [writeImage(node, ports)];
+      return writeImage(node, ports);
     }
     case "file":
     case "video": {
-      return [writeFileBlock(node, ports)];
-    }
-    case "opaque": {
-      return [{ children: voidLeaf(node), type: "opaqueInline", value: node.source }];
-    }
-    case "formulaPill": {
-      const pill: TElement = {
-        children: voidLeaf(node),
-        display: node.display,
-        meta: node.meta ?? "",
-        raw: formulaRaw(node),
-        source: node.source,
-        type: "formulaPill",
-      };
-      return [pill];
+      return writeFileBlock(node, ports);
     }
     default: {
-      const children = node.children.flatMap((child) => writeNode(child, ports));
-      const inline = children.every((child) => isText(child) || INLINE_WRITTEN.has(child.type));
-      return [{ ...node, children: inline ? tidyInlines(children) : children }];
+      const children = node.children.map((child) => writeNode(child, ports));
+      const inline = children.every((child) => isText(child) || INLINE_TYPES.has(child.type));
+      return { ...node, children: inline ? tidyInlines(children) : children };
     }
   }
 };
@@ -179,6 +128,9 @@ const withRef = (block: TElement, ref: string): TElement[] => {
 export const writeBlocks = (blocks: readonly LibraryBlock[], ports: WritePorts): TElement[] =>
   blocks.flatMap((block) => {
     const { ref, ...rest } = block;
-    const written = writeNode(rest, ports).flatMap((node) => (isText(node) ? [] : [node]));
-    return ref === undefined ? written : written.flatMap((element) => withRef(element, ref));
+    const written = writeNode(rest, ports);
+    if (isText(written)) {
+      return [];
+    }
+    return ref === undefined ? [written] : withRef(written, ref);
   });

@@ -47,7 +47,7 @@ const mountEmbed = () => {
     {
       children: [
         { text: "" },
-        { body: "target", children: [{ text: "" }], type: "wikiEmbed" },
+        { children: [{ text: "" }], itemId: null, title: "target", type: "wikiEmbed" },
         { text: "" },
       ],
       type: "p",

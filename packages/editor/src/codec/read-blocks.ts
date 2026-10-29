@@ -1,9 +1,9 @@
-// The dialect's value as the persisted vocabulary: what the rule table parsed (the editor's own
-// shapes, `md-rules.ts`) mapped node by node onto `@repo/notes/library/library-nodes`. A wiki link
-// or an embed is resolved to the item it names, a file the library holds by its bytes is named by
-// its sha, and the person's own writing reads Obsidian's spellings too: `#tag`, `==highlight==`,
-// `%%comment%%` and a block's `^ref`. The page a fill read is kept as the page wrote it, so none of
-// those reads in an article. Every block leaves through the vocabulary's own parse, so a prop it
+// The dialect's value, already the library's vocabulary as the rule table writes it
+// (`md-rules.ts`), with its names resolved: a wiki link or an embed by the title or path the writer
+// gave to the item that answers to it, a file the library holds by its bytes to its sha. The
+// person's own writing reads Obsidian's spellings too: `==highlight==`, `%%comment%%` and a block's
+// `^ref`; the page a fill read is kept as the page wrote it, so none of those reads in an article. A
+// `#tag` is the text it is. Every block leaves through the vocabulary's own parse, so a prop it
 // does not name is dropped here and never stored.
 
 import { ElementApi } from "platejs";
@@ -11,15 +11,15 @@ import type { Descendant, TElement, TText } from "platejs";
 
 import { clipQuote } from "@repo/notes/annotations/store-schema";
 import type { FileKind } from "@repo/notes/items/item-kind";
-import { inlineTagSpans } from "@repo/notes/knowledge/tag-grammar";
 import type { JsonValue } from "@repo/notes/library/canonical-json";
 import { blockIdSchema, libraryNodeSchema } from "@repo/notes/library/library-nodes";
-import { isUuidWikiAlias, parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 import { z } from "zod";
 
+import { WIKI_EMBED_KEY, WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
 import { stringProp } from "@repo/editor/node-props";
+import { wikiBodyOf, wikiFieldsOf, wikiNode, wikiPartsOf } from "@repo/editor/wiki/wiki-node";
 
 import { MARK_KEYS, isText, leaf, marksOf, tidyInlines } from "./slate-leaves";
 import type { Marks } from "./slate-leaves";
@@ -75,14 +75,13 @@ const ELEMENT_PROPS: ReadonlyMap<string, ReadonlySet<string>> = new Map(
 );
 
 // the nodes that sit inside a line: text, the inline voids and a link
-const INLINE_TYPES = new Set([
+export const INLINE_TYPES: ReadonlySet<string> = new Set([
   "a",
   "annotationMarker",
   "date",
   "formulaPill",
   "inline_equation",
   "opaque",
-  "tag",
   "wikiEmbed",
   "wikiLink",
 ]);
@@ -102,12 +101,6 @@ interface Reading {
 const isElement = (node: Descendant): node is TElement => ElementApi.isElement(node);
 
 const voidLeaf = (marks: Marks): TText[] => [leaf("", marks)];
-
-const tagOf = (value: string, marks: Marks): TElement => ({
-  children: voidLeaf(marks),
-  type: "tag",
-  value,
-});
 
 const markerOf = (id: string, edge: "start" | "end", marks: Marks): TElement => ({
   children: voidLeaf(marks),
@@ -145,17 +138,6 @@ const splitBy = (
   return out;
 };
 
-const tagsIn = (text: string, marks: Marks): Descendant[] => {
-  const out: Descendant[] = [];
-  let cursor = 0;
-  for (const span of inlineTagSpans(text)) {
-    out.push(leaf(text.slice(cursor, span.start), marks), tagOf(span.tag, marks));
-    cursor = span.end;
-  }
-  out.push(leaf(text.slice(cursor), marks));
-  return out;
-};
-
 const highlightsIn = (
   text: string,
   marks: Marks,
@@ -169,9 +151,9 @@ const highlightsIn = (
       const passage = match.groups?.["passage"] ?? "";
       const id = person.newAnnotationId();
       highlights.push({ id, quote: clipQuote(passage) });
-      return [markerOf(id, "start", marks), ...tagsIn(passage, marks), markerOf(id, "end", marks)];
+      return [markerOf(id, "start", marks), leaf(passage, marks), markerOf(id, "end", marks)];
     },
-    (between) => tagsIn(between, marks),
+    (between) => [leaf(between, marks)],
   );
 
 const personText = (
@@ -201,15 +183,6 @@ const TRAILING_REF_RE = /[ \t]\^(?<ref>[A-Za-z0-9-]+)$/u;
 
 const isBlockRef = (ref: string | undefined): ref is string =>
   ref !== undefined && blockIdSchema.validate(ref);
-
-// a link's anchor: a block's `^ref`, or a heading
-const withAnchor = (element: TElement, anchor: string | undefined): TElement => {
-  if (anchor === undefined) {
-    return element;
-  }
-  const ref = BLOCK_REF_RE.exec(anchor)?.groups?.["ref"];
-  return isBlockRef(ref) ? { ...element, blockRef: ref } : { ...element, heading: anchor };
-};
 
 // a written target's own name: its last segment, less the extension a link may leave off
 const writtenTitle = (target: string): string => {
@@ -263,40 +236,22 @@ const mediaOf = (file: LibraryFile, look: ImageLook): TElement => {
   }
 };
 
-const readWikiLink = (node: TElement, reading: Reading): TElement => {
-  const body = stringProp(node, "body") ?? "";
-  const link = parseWikiBody(body);
-  const reached = reading.ports.wiki(link, false);
+// a link that reaches an item names it by id and shows its title; one that reaches none waits, by
+// the name the writer gave, for an item of that name. A link with no name at all is kept as source
+const readWiki = (node: TElement, embed: boolean, reading: Reading): TElement => {
+  const written = wikiFieldsOf(node);
+  const link = wikiPartsOf(written);
+  const reached = reading.ports.wiki(link, embed);
   const item = reached?.kind === "item" ? reached : null;
-  const title = item?.title ?? writtenTitle(link.target);
+  const title = item?.title ?? writtenTitle(written.title);
   if (title.trim() === "") {
-    return opaqueOf(`[[${body}]]`);
+    return opaqueOf(`${embed ? "!" : ""}[[${wikiBodyOf(written) ?? ""}]]`);
   }
-  const element: TElement = {
-    children: voidLeaf({}),
+  return wikiNode(embed ? WIKI_EMBED_KEY : WIKI_LINK_KEY, {
+    ...written,
     itemId: item?.itemId ?? null,
     title,
-    type: "wikiLink",
-  };
-  if (link.alias !== undefined && !isUuidWikiAlias(link.alias)) {
-    element["alias"] = link.alias;
-  }
-  return withAnchor(element, link.anchor);
-};
-
-// an embed of an item; one of a file was made an image before the value was settled (`embedFiles`
-// in `read-markdown.ts`), so what is left is an embed the library holds nothing for, kept as source
-const readWikiEmbed = (node: TElement, reading: Reading): TElement => {
-  const body = stringProp(node, "body") ?? "";
-  const link = parseWikiBody(body);
-  const reached = reading.ports.wiki(link, true);
-  if (reached?.kind !== "item") {
-    return opaqueOf(`![[${body}]]`);
-  }
-  return withAnchor(
-    { children: voidLeaf({}), itemId: reached.itemId, type: "wikiEmbed" },
-    link.anchor,
-  );
+  });
 };
 
 const captionOf = (node: TElement): TText[] => {
@@ -327,37 +282,17 @@ const readImage = (node: TElement, reading: Reading): TElement => {
   return file === null ? imageOf({ url }, look) : mediaOf(file, look);
 };
 
-const readFormula = (node: TElement): TElement => {
-  const pill: TElement = {
-    children: voidLeaf({}),
-    display: stringProp(node, "display") ?? "",
-    source: stringProp(node, "source") ?? "",
-    type: "formulaPill",
-  };
-  const meta = stringProp(node, "meta");
-  if (meta !== undefined && meta !== "") {
-    pill["meta"] = meta;
-  }
-  return pill;
-};
-
-// the editor's spelling of a dialect void as the vocabulary's, or null where they agree
+// a node whose written name resolves: a link or embed to its item, an image to the bytes it names
 const readVoid = (node: TElement, reading: Reading): TElement | null => {
   switch (node.type) {
-    case "wikiLink": {
-      return readWikiLink(node, reading);
+    case WIKI_LINK_KEY: {
+      return readWiki(node, false, reading);
     }
-    case "wikiEmbed": {
-      return readWikiEmbed(node, reading);
+    case WIKI_EMBED_KEY: {
+      return readWiki(node, true, reading);
     }
     case "img": {
       return readImage(node, reading);
-    }
-    case "opaqueInline": {
-      return opaqueOf(stringProp(node, "value") ?? "");
-    }
-    case "formulaPill": {
-      return readFormula(node);
     }
     default: {
       return null;

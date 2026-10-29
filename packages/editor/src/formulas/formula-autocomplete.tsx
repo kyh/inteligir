@@ -26,7 +26,7 @@ import {
   completeFormulaFromPicker,
   insertFormulaFromPicker,
 } from "@repo/editor/formulas/formula-insert";
-import { formulaNodeFrom, rebuildRaw } from "@repo/editor/formulas/formula-entry";
+import { formulaNodeFrom } from "@repo/editor/formulas/formula-entry";
 import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
 
 interface NamedVariable {
@@ -100,7 +100,6 @@ const FormulaInputElement = (props: PlateElementProps) => {
                     formulaNodeFrom({
                       display: variable.display,
                       meta: variable.meta,
-                      raw: rebuildRaw(variable.source, variable.display, variable.meta),
                       source: variable.source,
                     }),
                   );

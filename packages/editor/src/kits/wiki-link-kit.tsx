@@ -10,8 +10,8 @@ import type { PlateElementProps } from "platejs/react";
 
 import { WIKI_EMBED_KEY, WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
-import { stringProp } from "@repo/editor/node-props";
-import { wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
+import { wikiFieldsOf, wikiFieldsOfBody, wikiLabelOf, wikiNode } from "@repo/editor/wiki/wiki-node";
+import type { WikiNodeFields } from "@repo/editor/wiki/wiki-node";
 
 import { wikiEmbedBasePlugin, wikiLinkBasePlugin } from "./headless/wiki-link-base";
 
@@ -21,23 +21,23 @@ const Transclusion = lazy(async () => await import("@repo/editor/transclusion"))
 // mirrors the remark-wiki-link grammar so the chip and the bytes agree.
 const WIKI_COMPLETION_RE = /(?<bang>!?)\[\[(?<body>[^[\]\n]+)\]$/u;
 
-const FallbackChip = ({ body, embed }: { body: string; embed?: boolean }) => (
+const FallbackChip = ({ link, embed }: { link: WikiNodeFields; embed?: boolean }) => (
   <span
     contentEditable={false}
     className="cursor-default rounded-sm bg-primary/10 px-1 text-primary/80"
   >
     {embed === true && <span className="mr-0.5 font-semibold text-primary/50 select-none">!</span>}
-    {wikiLinkLabel(body)}
+    {wikiLabelOf(link)}
   </span>
 );
 
 const WikiLinkElement = (props: PlateElementProps) => {
-  const body = stringProp(props.element, "body") ?? "";
+  const link = wikiFieldsOf(props.element);
   return (
     <PlateElement {...props} as="span" className="inline-block">
       <span contentEditable={false}>
-        <Suspense fallback={<FallbackChip body={body} />}>
-          <WikiChip body={body} />
+        <Suspense fallback={<FallbackChip link={link} />}>
+          <WikiChip link={link} />
         </Suspense>
       </span>
       {props.children}
@@ -46,12 +46,12 @@ const WikiLinkElement = (props: PlateElementProps) => {
 };
 
 const WikiEmbedElement = (props: PlateElementProps) => {
-  const body = stringProp(props.element, "body") ?? "";
+  const link = wikiFieldsOf(props.element);
   return (
     <PlateElement {...props} as="span" className="inline-block w-full">
       <span contentEditable={false} className="block w-full">
-        <Suspense fallback={<FallbackChip body={body} embed />}>
-          <Transclusion body={body} />
+        <Suspense fallback={<FallbackChip link={link} embed />}>
+          <Transclusion link={link} />
         </Suspense>
       </span>
       {props.children}
@@ -90,11 +90,10 @@ const completeWikiChip = (editor: SlateEditor): boolean => {
     });
   });
   // Slate would otherwise park the caret inside the void's empty text and swallow keystrokes.
-  insertVoidAndEscape(editor, {
-    body,
-    children: [{ text: "" }],
-    type: bang ? WIKI_EMBED_KEY : WIKI_LINK_KEY,
-  });
+  insertVoidAndEscape(
+    editor,
+    wikiNode(bang ? WIKI_EMBED_KEY : WIKI_LINK_KEY, wikiFieldsOfBody(body)),
+  );
   return true;
 };
 

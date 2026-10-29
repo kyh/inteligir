@@ -60,8 +60,8 @@ const opaqueValues = (md: string): string[] => {
     if (!ElementApi.isElement(node)) {
       return;
     }
-    if (node.type === "opaqueInline") {
-      values.push(stringProp(node, "value") ?? "");
+    if (node.type === "opaque") {
+      values.push(stringProp(node, "source") ?? "");
       return;
     }
     for (const child of node.children) {
@@ -198,9 +198,10 @@ describe("wiki links (probe4 translations)", () => {
     expect(json).not.toContain("wiki");
   });
 
-  it("keeps body bytes verbatim (padding, anchors, aliases, embed sizes)", () => {
-    const md = "See [[ padded ]] and [[a#b|c]] plus ![[img.png|300]] now.\n";
+  it("keeps a body's anchors, aliases and embed sizes, and drops its padding", () => {
+    const md = "See [[padded]] and [[a#b|c]] plus ![[img.png|300]] now.\n";
     expect(roundTrip(md)).toBe(md);
+    expect(roundTrip("See [[ padded ]] now.\n")).toBe("See [[padded]] now.\n");
   });
 
   it("rejects empty, unclosed, and single-] bodies back to text", () => {
@@ -220,10 +221,10 @@ describe("wiki links (probe4 translations)", () => {
     }
     const json = JSON.stringify(nested.value);
     expect(json).toContain('"text":"[[a"');
-    expect(json).toContain('"body":"b"');
+    expect(json).toContain('"title":"b"');
   });
 
-  it("produces inline-void nodes with verbatim body", () => {
+  it("produces inline-void nodes in the library's own shape", () => {
     const parsed = parseMarkdown("See [[Some Note|alias]] and ![[embed.png]].\n");
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) {
@@ -231,9 +232,9 @@ describe("wiki links (probe4 translations)", () => {
     }
     const json = JSON.stringify(parsed.value);
     expect(json).toContain('"type":"wikiLink"');
-    expect(json).toContain('"body":"Some Note|alias"');
+    expect(json).toContain('"title":"Some Note","type":"wikiLink","alias":"alias"');
     expect(json).toContain('"type":"wikiEmbed"');
-    expect(json).toContain('"body":"embed.png"');
+    expect(json).toContain('"itemId":null,"title":"embed.png"');
   });
 });
 

@@ -18,7 +18,7 @@ import { parseFormulaMeta, serializeFormulaMeta } from "@repo/notes/formulas/for
 import { noteIdOfProperties, parseProperties } from "@repo/notes/markdown/frontmatter";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { createDebouncer } from "@repo/editor/lib/debounce";
-import { isFormulaPill, rebuildRaw } from "@repo/editor/formulas/formula-entry";
+import { isFormulaPill, setFormulaPill } from "@repo/editor/formulas/formula-entry";
 import { stringProp } from "@repo/editor/node-props";
 import { readFrontmatterRaw } from "@repo/editor/properties/properties-node";
 
@@ -75,9 +75,9 @@ export const recomputeFormulas = async (editor: SlateEditor): Promise<void> => {
     return;
   }
 
-  const updates: { entry: NodeEntry<TElement>; props: Record<string, string> }[] = [];
+  const updates: { entry: NodeEntry<TElement>; props: { display: string; meta: string } }[] = [];
   for (const row of executables) {
-    const { expression, meta, display, source } = row.collected;
+    const { expression, meta, display } = row.collected;
     if (expression === null) {
       continue;
     }
@@ -92,11 +92,7 @@ export const recomputeFormulas = async (editor: SlateEditor): Promise<void> => {
         const nextMeta = serializeFormulaMeta({ ...meta, stale: false }) ?? "";
         updates.push({
           entry: row.entry,
-          props: {
-            display: nextDisplay,
-            meta: nextMeta,
-            raw: rebuildRaw(source, nextDisplay, nextMeta),
-          },
+          props: { display: nextDisplay, meta: nextMeta },
         });
       }
       continue;
@@ -105,7 +101,7 @@ export const recomputeFormulas = async (editor: SlateEditor): Promise<void> => {
       const nextMeta = serializeFormulaMeta({ ...meta, stale: true }) ?? "";
       updates.push({
         entry: row.entry,
-        props: { display, meta: nextMeta, raw: rebuildRaw(source, display, nextMeta) },
+        props: { display, meta: nextMeta },
       });
     }
   }
@@ -116,7 +112,7 @@ export const recomputeFormulas = async (editor: SlateEditor): Promise<void> => {
   editor.tf.withoutSaving(() => {
     editor.tf.withoutNormalizing(() => {
       for (const update of updates) {
-        editor.tf.setNodes(update.props, { at: update.entry[1] });
+        setFormulaPill(editor, update.entry[1], update.props);
       }
     });
   });

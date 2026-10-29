@@ -298,8 +298,11 @@ alone, and no walk narrows structurally.
   canonical file exports its own body but for the changes the test names
   (`packages/editor/src/codec/item-markdown.test.ts`); a value is settled
   through the serializer before it is mapped, so an import is its own
-  fixpoint. Obsidian's `#tag`, `==mark==`, `%%x%%` and `^ref` read in the
-  note's section only. An agent's edit must match once, keep the article's own
+  fixpoint. The rule table reads and writes the library's own nodes, so the
+  codec only names what the dialect spells by words: a link's title to its
+  item's id on the way in (`read-blocks.ts`), and on the way out an id to the
+  name the caller spells it with and a sha to a path (`write-blocks.ts`).
+  Obsidian's `==mark==`, `%%x%%` and `^ref` read in the note's section only. An agent's edit must match once, keep the article's own
   lines and nest no deeper than the editor reads; only the blocks it spans are
   read again, matched by content so the rest keep their ids and markers, and a
   highlight it took either edge of is named. Rejected: a second markdown

@@ -22,11 +22,14 @@ node is rather than discriminating structurally at each visit.
   its caption, a list item's numbering, an embed's heading): every element a
   strict object, a top-level block named by its id and optionally by the `ref`
   a link's `blockRef` reaches (Obsidian's `^ref`), a depth and a size checked
-  before the recursive parse (`storableBlockSchema`). A wiki link names its target by id with the title
-  the writer saw, and media holds a sha or a url. Rejected: the vocabulary in
+  before the recursive parse (`storableBlockSchema`). The editor holds these
+  nodes as they are: a wiki link or an embed names its target by id (null
+  while no item answers to it) with the title the writer saw, a `#tag` is the
+  text it is and the card reads it from the note's text as the editor draws
+  its chip, and media holds a sha or a url. Rejected: the vocabulary in
   `@repo/editor` (the cell and the replicas cannot load Plate, and this
-  package is the leaf they all reach), and loose objects (a prop no reader
-  draws would land).
+  package is the leaf they all reach), a tag node (two spellings of one tag
+  to keep in step), and loose objects (a prop no reader draws would land).
 
 - **AN ITEM IS FIELDS AND BLOCKS, AND EVERYTHING ELSE IS DERIVED IN THE SAME
   TRANSACTION.** `@repo/notes/library/library-item` caps every field, and each

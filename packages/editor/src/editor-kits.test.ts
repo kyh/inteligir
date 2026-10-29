@@ -104,7 +104,7 @@ describe("wiki `]]` completion rule", () => {
     const wiki = el(editor.children[0]).children.find(
       (child) => ElementApi.isElement(child) && child.type === "wikiLink",
     );
-    expect(wiki).toMatchObject({ body: "Some Note", type: "wikiLink" });
+    expect(wiki).toMatchObject({ itemId: null, title: "Some Note", type: "wikiLink" });
     const output = out(editor);
     expect(output).toContain("[[Some Note]]");
     expect(roundTrip(output)).toBe(output);

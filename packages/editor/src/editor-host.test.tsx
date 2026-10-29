@@ -4,12 +4,13 @@ import { afterEach, describe, expect, it } from "vitest";
 import WikiChip from "@repo/editor/wiki/wiki-chip";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 import type { FakeEditorHostOptions } from "@repo/editor/test-support/fake-editor-host";
+import { wikiFieldsOfBody } from "@repo/editor/wiki/wiki-node";
 
 afterEach(cleanup);
 
 const mountChip = (body: string, options?: FakeEditorHostOptions) => {
   const { calls } = installFakeEditorHost(options ?? {});
-  render(<WikiChip body={body} />);
+  render(<WikiChip link={wikiFieldsOfBody(body)} />);
   return calls;
 };
 

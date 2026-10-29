@@ -90,6 +90,15 @@ export const parseFormulaRaw = (raw: string): Pick<FormulaPill, "source" | "disp
   };
 };
 
+// the inverse of parseFormulaRaw: a pill's three parts as its bytes, with no pipe for an empty
+// display and no meta
+export const formulaRawOf = (pill: Pick<FormulaPill, "source" | "display" | "meta">): string => {
+  if (pill.meta !== undefined && pill.meta !== "") {
+    return `${pill.source}|${pill.display}|${pill.meta}`;
+  }
+  return pill.display === "" ? pill.source : `${pill.source}|${pill.display}`;
+};
+
 interface Splice {
   index: number;
   length: number;

@@ -7,11 +7,10 @@
 import { ElementApi } from "platejs";
 import type { Descendant, TElement } from "platejs";
 
-import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
-
+import { WIKI_EMBED_KEY } from "@repo/editor/dialect-node-keys";
 import { headlessEditor, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { mdToSlate } from "@repo/editor/markdown/md-to-slate";
-import { stringProp } from "@repo/editor/node-props";
+import { wikiFieldsOf, wikiPartsOf } from "@repo/editor/wiki/wiki-node";
 
 import type { ReadPorts } from "./read-blocks";
 import { leaf } from "./slate-leaves";
@@ -24,12 +23,12 @@ export const elementsOf = (nodes: readonly Descendant[]): TElement[] =>
   nodes.filter((node): node is TElement => ElementApi.isElement(node));
 
 const embedImage = (node: TElement, ports: ReadPorts): Descendant => {
-  const link = parseWikiBody(stringProp(node, "body") ?? "");
-  const reached = ports.wiki(link, true);
+  const fields = wikiFieldsOf(node);
+  const reached = ports.wiki(wikiPartsOf(fields), true);
   if (reached?.kind !== "file") {
     return node;
   }
-  const width = /^\d{1,5}(?:x\d{1,5})?$/u.test(link.alias ?? "") ? `|${link.alias ?? ""}` : "";
+  const width = /^\d{1,5}(?:x\d{1,5})?$/u.test(fields.alias ?? "") ? `|${fields.alias ?? ""}` : "";
   return {
     caption: [leaf(width, {})],
     children: [leaf("", {})],
@@ -44,7 +43,7 @@ export const embedFiles = (nodes: readonly Descendant[], ports: ReadPorts): Desc
     if (!ElementApi.isElement(node)) {
       return node;
     }
-    if (node.type === "wikiEmbed") {
+    if (node.type === WIKI_EMBED_KEY) {
       return embedImage(node, ports);
     }
     return { ...node, children: embedFiles(node.children, ports) };

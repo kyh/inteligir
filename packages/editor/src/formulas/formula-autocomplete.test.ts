@@ -8,7 +8,7 @@ import {
   completeFormulaFromPicker,
   insertFormulaFromPicker,
 } from "@repo/editor/formulas/formula-insert";
-import { formulaNodeFrom, rebuildRaw } from "@repo/editor/formulas/formula-entry";
+import { formulaNodeFrom } from "@repo/editor/formulas/formula-entry";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { serializeNote } from "@repo/editor/markdown/markdown-doc";
 
@@ -47,7 +47,7 @@ describe("formula picker completion", () => {
     const editor = makeEditor("before after");
     openAndCommitFormulaPicker(editor, 7);
     completeFormulaFromPicker(editor, "2");
-    expect(findByType(editor, "formulaPill")?.raw).toBe("2|2");
+    expect(findByType(editor, "formulaPill")).toMatchObject({ display: "2", source: "2" });
     expect(out(editor)).toBe("before {{2|2}}after\n");
   });
 
@@ -67,7 +67,6 @@ describe("formula picker completion", () => {
       formulaNodeFrom({
         display: "5,000",
         meta,
-        raw: rebuildRaw("5000", "5,000", meta),
         source: "5000",
       }),
     );

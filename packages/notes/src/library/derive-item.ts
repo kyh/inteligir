@@ -6,6 +6,7 @@
 import { z } from "zod";
 
 import { urlKey, urlSearchText } from "../items/item-url";
+import { inlineTagSpans } from "../knowledge/tag-grammar";
 import { clipSnippet } from "../text/clip-text";
 import { orderedBlocks } from "./block-ops";
 import type { StoredBlock } from "./block-ops";
@@ -37,7 +38,7 @@ interface DerivedLink {
   readonly blockRef: string | null;
 }
 
-// a field tag is one the item's tags list names; an inline one is a tag chip in its body
+// a field tag is one the item's tags list names; an inline one a `#name` in its note's text
 interface DerivedTag {
   readonly tag: string;
   readonly origin: "field" | "inline";
@@ -112,7 +113,6 @@ const INLINE_TYPES = new Set<string>([
   "formulaPill",
   "inline_equation",
   "opaque",
-  "tag",
   "wikiEmbed",
   "wikiLink",
 ]);
@@ -141,9 +141,6 @@ const standInText = (element: LibraryElement): string | null => {
   switch (element.type) {
     case "wikiLink": {
       return element.alias ?? element.title;
-    }
-    case "tag": {
-      return `#${element.value}`;
     }
     case "date": {
       return element.date;
@@ -216,6 +213,27 @@ const visitElements = (nodes: readonly LibraryNode[], visit: (node: LibraryEleme
   }
 };
 
+// where a `#name` is the text it is and never a tag: code and a link's label, as the editor reads it
+// (`packages/editor/src/kits/tag-chip-kit.tsx`)
+const LITERAL_TYPES = new Set<string>(["a", "code_block", "code_line"]);
+
+// the tags the person's text names, read leaf by leaf as the editor draws its chips: a page a
+// fill read keeps its `#` as the page wrote it, so only the note's section is read
+const textTags = (node: LibraryNode, literal: boolean, into: DerivedTag[]): void => {
+  if (isText(node)) {
+    if (!literal && node.code !== true) {
+      for (const span of inlineTagSpans(node.text)) {
+        into.push({ origin: "inline", tag: span.tag });
+      }
+    }
+    return;
+  }
+  const inner = literal || LITERAL_TYPES.has(node.type);
+  for (const child of node.children) {
+    textTags(child, inner, into);
+  }
+};
+
 const WORD = /\S+/gu;
 
 const unique = <T>(items: readonly T[], keyOf: (item: T) => string): T[] => {
@@ -280,6 +298,9 @@ export const deriveItem = (
   let preview = "";
   let words = 0;
   for (const { block, section } of ordered) {
+    if (section === "note") {
+      textTags(block, false, inlineTags);
+    }
     const text = nodeText(block);
     const annotationIds: string[] = [];
     texts.push(text);
@@ -317,7 +338,12 @@ export const deriveItem = (
           break;
         }
         case "wikiEmbed": {
-          link("embed", { blockRef: node.blockRef, heading: node.heading, targetId: node.itemId });
+          link("embed", {
+            blockRef: node.blockRef,
+            heading: node.heading,
+            targetId: node.itemId,
+            targetKey: titleKey(node.title),
+          });
           break;
         }
         case "a": {
@@ -325,10 +351,6 @@ export const deriveItem = (
           if (key !== null) {
             link("url", { targetKey: key });
           }
-          break;
-        }
-        case "tag": {
-          inlineTags.push({ origin: "inline", tag: node.value });
           break;
         }
         case "annotationMarker": {

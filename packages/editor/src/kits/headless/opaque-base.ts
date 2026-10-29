@@ -3,11 +3,11 @@
 
 import { createSlatePlugin } from "platejs";
 
-import { OPAQUE_INLINE_KEY } from "@repo/editor/dialect-node-keys";
+import { OPAQUE_KEY } from "@repo/editor/dialect-node-keys";
 
-export const opaqueInlineBasePlugin = createSlatePlugin({
-  key: OPAQUE_INLINE_KEY,
+export const opaqueBasePlugin = createSlatePlugin({
+  key: OPAQUE_KEY,
   node: { isElement: true, isInline: true, isVoid: true },
 });
 
-export const OpaqueBaseKit = [opaqueInlineBasePlugin];
+export const OpaqueBaseKit = [opaqueBasePlugin];

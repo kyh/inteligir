@@ -73,7 +73,7 @@ describe("picker completion", () => {
     const element = openWikiPicker(editor);
     commitComboboxInput(editor, element, false);
     insertWikiChipFromPicker(editor, "target note");
-    expect(findByType(editor, "wikiLink")?.body).toBe("target note");
+    expect(findByType(editor, "wikiLink")?.title).toBe("target note");
     expect(out(editor)).toBe("see [[target note]]\n");
   });
 
@@ -82,7 +82,7 @@ describe("picker completion", () => {
     const element = openWikiPicker(editor);
     commitComboboxInput(editor, element, false);
     insertWikiChipFromPicker(editor, "target note");
-    expect(findByType(editor, "wikiEmbed")?.body).toBe("target note");
+    expect(findByType(editor, "wikiEmbed")?.title).toBe("target note");
     expect(findByType(editor, "wikiLink")).toBeNull();
     expect(out(editor)).toBe("see ![[target note]]\n");
   });
@@ -92,7 +92,7 @@ describe("picker completion", () => {
     const element = openWikiPicker(editor);
     commitComboboxInput(editor, element, false);
     insertWikiChipFromPicker(editor, "diagram.png", true);
-    expect(findByType(editor, "wikiEmbed")?.body).toBe("diagram.png");
+    expect(findByType(editor, "wikiEmbed")?.title).toBe("diagram.png");
     expect(findByType(editor, "wikiLink")).toBeNull();
     expect(out(editor)).toBe("see ![[diagram.png]]\n");
   });

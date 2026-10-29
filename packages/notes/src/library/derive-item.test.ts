@@ -14,8 +14,7 @@ const linked: LibraryBlock = {
     { children: leaf, itemId: null, title: "Not Yet", type: "wikiLink", heading: "Part" },
     { text: ", " },
     { children: [{ text: "the site" }], type: "a", url: "https://www.example.com/a?utm_source=x" },
-    { text: " " },
-    { children: leaf, type: "tag", value: "Work/plans" },
+    { text: " #Work/plans " },
     { children: leaf, edge: "start", ids: "h1,h2", type: "annotationMarker" },
     { text: "marked" },
     { children: leaf, edge: "end", ids: "h1,h2", type: "annotationMarker" },
@@ -70,11 +69,53 @@ describe("deriveItem", () => {
     ]);
   });
 
+  it("reads a tag from the note's text alone, as the editor draws its chips", () => {
+    const literal: LibraryBlock = {
+      children: [
+        { code: true, text: "#inCode " },
+        { children: [{ text: "#inLink" }], type: "a", url: "https://example.com" },
+        { text: " #kept and C#notATag" },
+      ],
+      id: "p4",
+      type: "p",
+    };
+    const fenced: LibraryBlock = {
+      children: [{ children: [{ text: "#inFence" }], type: "code_line" }],
+      id: "c1",
+      type: "code_block",
+    };
+    const page = itemOf([literal, fenced]);
+    const article = new Map(
+      [...page.blocks].map(([id, stored]) => [id, { ...stored, section: "article" as const }]),
+    );
+    expect(deriveItem(noteFields(), page.blocks).tags).toEqual([{ origin: "inline", tag: "kept" }]);
+    expect(deriveItem(noteFields(), article).tags).toEqual([]);
+  });
+
+  it("files an embed under its title, so one with no item yet waits for it", () => {
+    const embed: LibraryBlock = {
+      children: [{ children: leaf, itemId: null, title: "Later", type: "wikiEmbed" }],
+      id: "e1",
+      type: "p",
+    };
+    expect(deriveItem(noteFields(), itemOf([embed]).blocks).links).toEqual([
+      {
+        blockId: "e1",
+        blockRef: null,
+        heading: null,
+        kind: "embed",
+        section: "note",
+        targetId: null,
+        targetKey: "later",
+      },
+    ]);
+  });
+
   it("gives each block its text and the highlights it anchors", () => {
     const derived = deriveItem(noteFields(), itemOf([linked]).blocks);
     expect(derived.blocks.get("p2")).toEqual({
       annotationIds: ["h1", "h2"],
-      text: "See Other and Not Yet, the site #Work/plansmarked",
+      text: "See Other and Not Yet, the site #Work/plans marked",
     });
   });
 

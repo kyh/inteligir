@@ -15,8 +15,9 @@ const EVERY_BLOCK = [
       { children: [{ code: true, text: "link" }], type: "a", url: "https://example.com" },
       { alias: "shown", children: leaf, itemId: "item-2", title: "Other", type: "wikiLink" },
       { children: leaf, itemId: null, title: "Not yet", type: "wikiLink" },
-      { blockRef: "b1", children: leaf, itemId: "item-3", type: "wikiEmbed" },
-      { children: leaf, type: "tag", value: "work/plans" },
+      { blockRef: "b1", children: leaf, itemId: "item-3", title: "Third", type: "wikiEmbed" },
+      { alias: "300", children: leaf, itemId: null, title: "shot.png", type: "wikiEmbed" },
+      { text: " #work/plans " },
       { children: leaf, date: "2026-07-01", type: "date" },
       {
         children: leaf,
@@ -129,8 +130,12 @@ describe("the persisted node set", () => {
       { children: [{ children: leaf, date: "2026-02-30", type: "date" }], id: "p", type: "p" },
     ],
     [
-      "a tag that is no tag",
-      { children: [{ children: leaf, type: "tag", value: "1st" }], id: "p", type: "p" },
+      "a tag node, which a tag's text stands for",
+      { children: [{ children: leaf, type: "tag", value: "work" }], id: "p", type: "p" },
+    ],
+    [
+      "an embed with no title",
+      { children: [{ children: leaf, itemId: "item-3", type: "wikiEmbed" }], id: "p", type: "p" },
     ],
     [
       "the old wiki link spelling",

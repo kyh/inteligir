@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import WikiChip from "@repo/editor/wiki/wiki-chip";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { wikiFieldsOfBody } from "@repo/editor/wiki/wiki-node";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -16,7 +17,7 @@ afterEach(() => {
 describe("the wiki chip's hover preview", () => {
   it("opens after the hover delay and names an unresolved target as not created", () => {
     installFakeEditorHost({});
-    render(<WikiChip body="Someday" />);
+    render(<WikiChip link={wikiFieldsOfBody("Someday")} />);
     const chip = screen.getByRole("button", { name: "Someday" });
     fireEvent.pointerEnter(chip, { pointerType: "mouse" });
     fireEvent.mouseEnter(chip);

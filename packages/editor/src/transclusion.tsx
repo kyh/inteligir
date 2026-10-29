@@ -11,7 +11,8 @@ import { EmbedChip, StaticNote } from "@repo/editor/static-note";
 import { decideTransclusion } from "@repo/editor/transclusion-guard";
 import { useOpenNote } from "@repo/editor/note/open-note-context";
 import { useLinkResolver, useVaultActions } from "@repo/editor/host";
-import { parseWikiBody, wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
+import { wikiLabelOf } from "@repo/editor/wiki/wiki-node";
+import type { WikiNodeFields } from "@repo/editor/wiki/wiki-node";
 
 type TargetContent =
   | { status: "loading" }
@@ -57,24 +58,24 @@ const useTargetContent = (path: string | null): TargetContent => {
   return state;
 };
 
-const Transclusion = ({ body }: { body: string }) => {
+const Transclusion = ({ link }: { link: WikiNodeFields }) => {
   const { resolveWikiTarget } = useLinkResolver();
   const { openFile } = useVaultActions();
   const hostPath = useOpenNote((s) => (s.editor.kind === "open" ? s.editor.path : null));
-  const parsed = parseWikiBody(body);
-  const resolved = parsed.target === "" ? null : resolveWikiTarget(parsed.target, parsed.alias);
+  const resolved =
+    link.title === "" ? null : resolveWikiTarget(link.title, link.itemId ?? link.alias);
   const content = useTargetContent(resolved);
 
   const decision = decideTransclusion(hostPath, resolved);
   if (decision.kind === "chip") {
-    return <EmbedChip body={body} note={decision.reason === "cycle" ? "circular" : undefined} />;
+    return <EmbedChip link={link} note={decision.reason === "cycle" ? "circular" : undefined} />;
   }
   if (content.status === "missing") {
-    return <EmbedChip body={body} />;
+    return <EmbedChip link={link} />;
   }
 
   const target = decision.path;
-  const title = wikiLinkLabel(body);
+  const title = wikiLabelOf(link);
   const onOpen = (e: MouseEvent) => {
     e.preventDefault();
     openFile(target);

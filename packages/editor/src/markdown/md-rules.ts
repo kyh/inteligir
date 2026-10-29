@@ -40,7 +40,7 @@ import type {
   Toggle,
 } from "@repo/notes/markdown/remark-containers";
 import type { OpaqueInline } from "@repo/notes/markdown/remark-opaque";
-import { parseFormulaRaw } from "@repo/notes/markdown/remark-inline-constructs";
+import { formulaRawOf, parseFormulaRaw } from "@repo/notes/markdown/remark-inline-constructs";
 import type {
   AnnotationMarker,
   DateChip,
@@ -62,7 +62,7 @@ import {
   FORMULA_PILL_KEY,
   FRONTMATTER_KEY,
   HTML_BLOCK_KEY,
-  OPAQUE_INLINE_KEY,
+  OPAQUE_KEY,
   TAB_GROUP_KEY,
   TAB_PANEL_KEY,
   WIKI_EMBED_KEY,
@@ -71,6 +71,14 @@ import {
 import { embedTypeForUrl } from "@repo/editor/lib/embed-url";
 import { leadingAlertMarker } from "@repo/editor/markdown/alert-marker";
 import { stringProp } from "@repo/editor/node-props";
+import {
+  wikiBodyOf,
+  wikiFieldsOf,
+  wikiFieldsOfBody,
+  wikiLabelOf,
+  wikiNode,
+} from "@repo/editor/wiki/wiki-node";
+import type { WikiNodeType } from "@repo/editor/wiki/wiki-node";
 
 const ensureBlocks = (children: Descendant[]): Descendant[] =>
   children.length > 0 ? children : [{ children: [{ text: "" }], type: "p" }];
@@ -363,6 +371,22 @@ const articleSectionRule: WideMdRule = {
   ): Descendant[] => convertChildrenDeserialize(node.children, deco, options),
 };
 
+// a `[[…]]` or `![[…]]` as the library's node, by the id its uuid alias names or the title as
+// written; a node whose title no body can carry writes its words as text, which loses the link but
+// never the words
+const wikiRule = (type: WikiNodeType): WideMdRule => ({
+  deserialize: (node: WikiLink | WikiEmbed): TElement =>
+    wikiNode(type, wikiFieldsOfBody(node.body)),
+  serialize: (node: TElement): WikiLink | WikiEmbed | MdText => {
+    const fields = wikiFieldsOf(node);
+    const body = wikiBodyOf(fields);
+    if (body === null) {
+      return { type: "text", value: wikiLabelOf(fields) };
+    }
+    return type === WIKI_LINK_KEY ? { body, type: "wikiLink" } : { body, type: "wikiEmbed" };
+  },
+});
+
 export const MD_RULES: MdRules = {
   a: linkRule,
 
@@ -470,16 +494,25 @@ export const MD_RULES: MdRules = {
   file: embedRule,
 
   [FORMULA_PILL_KEY]: {
-    deserialize: (node: FormulaPill): TElement => ({
-      children: [{ text: "" }],
-      display: node.display,
-      meta: node.meta ?? "",
-      raw: node.raw,
-      source: node.source,
-      type: FORMULA_PILL_KEY,
-    }),
+    deserialize: (node: FormulaPill): TElement => {
+      const pill: TElement = {
+        children: [{ text: "" }],
+        display: node.display,
+        source: node.source,
+        type: FORMULA_PILL_KEY,
+      };
+      if (node.meta !== undefined && node.meta !== "") {
+        pill["meta"] = node.meta;
+      }
+      return pill;
+    },
+    // the bytes are the pill's three parts, so no node holds a spelling of its own to drift
     serialize: (node: TElement): FormulaPill => {
-      const raw = stringProp(node, "raw") ?? "";
+      const raw = formulaRawOf({
+        display: stringProp(node, "display") ?? "",
+        meta: stringProp(node, "meta"),
+        source: stringProp(node, "source") ?? "",
+      });
       return { raw, type: "formulaPill", ...parseFormulaRaw(raw) };
     },
   },
@@ -503,15 +536,19 @@ export const MD_RULES: MdRules = {
 
   media_embed: embedRule,
 
-  [OPAQUE_INLINE_KEY]: {
+  // what the dialect reads but no node models, its source written back as it came
+  opaqueInline: {
     deserialize: (node: OpaqueInline): TElement => ({
       children: [{ text: "" }],
-      type: OPAQUE_INLINE_KEY,
-      value: node.value,
+      source: node.value,
+      type: OPAQUE_KEY,
     }),
+  },
+
+  [OPAQUE_KEY]: {
     serialize: (node: TElement): OpaqueInline => ({
       type: "opaqueInline",
-      value: stringProp(node, "value") ?? "",
+      value: stringProp(node, "source") ?? "",
     }),
   },
 
@@ -612,29 +649,9 @@ export const MD_RULES: MdRules = {
 
   video: embedRule,
 
-  [WIKI_EMBED_KEY]: {
-    deserialize: (node: WikiEmbed): TElement => ({
-      body: node.body,
-      children: [{ text: "" }],
-      type: WIKI_EMBED_KEY,
-    }),
-    serialize: (node: TElement): WikiEmbed => ({
-      body: stringProp(node, "body") ?? "",
-      type: "wikiEmbed",
-    }),
-  },
+  [WIKI_EMBED_KEY]: wikiRule(WIKI_EMBED_KEY),
 
-  [WIKI_LINK_KEY]: {
-    deserialize: (node: WikiLink): TElement => ({
-      body: node.body,
-      children: [{ text: "" }],
-      type: WIKI_LINK_KEY,
-    }),
-    serialize: (node: TElement): WikiLink => ({
-      body: stringProp(node, "body") ?? "",
-      type: "wikiLink",
-    }),
-  },
+  [WIKI_LINK_KEY]: wikiRule(WIKI_LINK_KEY),
 
   // Plate maps mdast `yaml` in its type table but ships no rule; without this and the
   // `frontmatter` serialize rule above, frontmatter is parsed then dropped.

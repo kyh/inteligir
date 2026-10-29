@@ -5,7 +5,7 @@ import { entryTextOf, formulaPropsFromEntry } from "@repo/editor/formulas/formul
 describe("the entry grammar", () => {
   it("makes an anonymous executable from a bare expression", () => {
     const props = formulaPropsFromEntry("2+2");
-    expect(props).toEqual({ display: "4", meta: "", raw: "2+2|4", source: "2+2" });
+    expect(props).toEqual({ display: "4", meta: "", source: "2+2" });
   });
 
   it("strips the = prefix the editor-entry form uses", () => {

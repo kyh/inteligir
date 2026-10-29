@@ -62,7 +62,7 @@ describe("a callout in an older spelling", () => {
     expect(parsed.ok).toBe(true);
     if (parsed.ok) {
       expect(parsed.value.map((node) => node.type)).toEqual(["code_block", "p"]);
-      expect(JSON.stringify(parsed.value[1])).toContain('"type":"opaqueInline"');
+      expect(JSON.stringify(parsed.value[1])).toContain('"type":"opaque"');
     }
   });
 });

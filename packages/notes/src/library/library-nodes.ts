@@ -9,7 +9,6 @@ import { z } from "zod";
 
 import { ANNOTATION_ID_PATTERN } from "../annotations/store-schema";
 import { ISO_DATE_PATTERN } from "../iso-date";
-import { isTagName } from "../knowledge/tag-grammar";
 import { canonicalJson, utf8ByteLength } from "./canonical-json";
 import { SHA256_HEX_RE } from "./library-item";
 
@@ -363,19 +362,17 @@ const wikiLink = z.strictObject({
   type: z.literal("wikiLink"),
 });
 
-// an embed shows its target whole, one heading's section of it, or one block of it
+// an embed shows its target whole, one heading's section of it, or one block of it; like a link it
+// names its target by id with the title the writer saw, a null id waiting for an item of that
+// title, and an alias is what the writer put after its last pipe (Obsidian's width of an image)
 const wikiEmbed = z.strictObject({
+  alias: z.string().min(1).optional(),
   blockRef: blockIdSchema.optional(),
   children: voidChildren,
   heading: z.string().min(1).optional(),
-  itemId: z.string().min(1),
+  itemId: z.string().min(1).nullable(),
+  title: z.string().min(1),
   type: z.literal("wikiEmbed"),
-});
-
-const tag = z.strictObject({
-  children: voidChildren,
-  type: z.literal("tag"),
-  value: z.string().refine(isTagName, { error: "is not a tag name" }),
 });
 
 const date = z.strictObject({ children: voidChildren, date: isoDate, type: z.literal("date") });
@@ -443,7 +440,6 @@ const libraryElementSchema = z.discriminatedUnion("type", [
   link,
   wikiLink,
   wikiEmbed,
-  tag,
   date,
   formulaPill,
   inlineEquation,

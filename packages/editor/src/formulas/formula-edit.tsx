@@ -10,6 +10,7 @@ import {
   entryTextOf,
   formulaPropsFromEntry,
   isFormulaPill,
+  setFormulaPill,
 } from "@repo/editor/formulas/formula-entry";
 import type { FormulaNodeProps } from "@repo/editor/formulas/formula-entry";
 import { stringProp } from "@repo/editor/node-props";
@@ -44,7 +45,7 @@ export const applyFormulaEdit = (
       : formulaEntriesById(editor, meta.id);
   editor.tf.withoutNormalizing(() => {
     for (const [, at] of targets) {
-      editor.tf.setNodes({ ...props }, { at });
+      setFormulaPill(editor, at, props);
     }
   });
 };

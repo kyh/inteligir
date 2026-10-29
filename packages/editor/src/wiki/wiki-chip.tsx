@@ -13,7 +13,9 @@ import { useLinkResolver, useVaultActions } from "@repo/editor/host";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { notePreviewHead } from "@repo/editor/note-preview";
 import { docStem } from "@repo/notes/knowledge/doc-file";
-import { parseWikiBody, wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
+
+import { wikiLabelOf } from "@repo/editor/wiki/wiki-node";
+import type { WikiNodeFields } from "@repo/editor/wiki/wiki-node";
 
 const HOVER_PREVIEW_DELAY_MS = 350;
 
@@ -32,7 +34,8 @@ const PreviewBody = ({ text }: { text: string | null }) => {
   return text;
 };
 
-const WikiChip = ({ body }: { body: string }) => {
+// a link with no title points at the open note (`[[#sec]]`): nothing to resolve or create
+const WikiChip = ({ link }: { link: WikiNodeFields }) => {
   const { resolveWikiTarget } = useLinkResolver();
   const { openFile, createFile } = useVaultActions();
   const [createOpen, setCreateOpen] = useState(false);
@@ -42,10 +45,9 @@ const WikiChip = ({ body }: { body: string }) => {
   // the path the open preview was read for; a read landing after a close or a re-resolve is dropped
   const previewFor = useRef<string | null>(null);
 
-  const parsed = parseWikiBody(body);
-  const label = wikiLinkLabel(body);
-  // a pure-anchor link (`[[#sec]]`) points at the open note: nothing to resolve or create.
-  const resolved = parsed.target === "" ? null : resolveWikiTarget(parsed.target, parsed.alias);
+  const label = wikiLabelOf(link);
+  const resolved =
+    link.title === "" ? null : resolveWikiTarget(link.title, link.itemId ?? link.alias);
 
   const readPreview = async (path: string): Promise<void> => {
     try {
@@ -82,7 +84,7 @@ const WikiChip = ({ body }: { body: string }) => {
   const onClick = (e: MouseEvent) => {
     e.preventDefault();
     closePreview();
-    if (parsed.target === "") {
+    if (link.title === "") {
       return;
     }
     if (resolved !== null) {
@@ -105,7 +107,7 @@ const WikiChip = ({ body }: { body: string }) => {
     </button>
   );
 
-  if (parsed.target === "") {
+  if (link.title === "") {
     return chip;
   }
 
@@ -144,13 +146,13 @@ const WikiChip = ({ body }: { body: string }) => {
               type="button"
               onClick={() => {
                 setCreateOpen(false);
-                void createFile(parsed.target);
+                void createFile(link.title);
               }}
               className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-body hover:bg-accent hover:text-accent-foreground"
             >
               <FilePlusIcon className="size-4 text-muted-foreground" />
               <span>
-                Create <span className="font-medium">{parsed.target}.md</span>
+                Create <span className="font-medium">{link.title}.md</span>
               </span>
             </button>
           </PopoverContent>
