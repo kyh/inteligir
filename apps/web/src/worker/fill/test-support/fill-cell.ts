@@ -14,13 +14,14 @@ import worker from "../../index";
 import { openCellLibrary } from "../../library/cell-library";
 import { cellStorageOf } from "../../library/cell-storage";
 import type { LibraryEngine } from "../../library/library-engine";
-import type { Principal } from "../../library/library-principal";
+import { cellActorOf } from "../../library/library-principal";
+import type { NamedPrincipal } from "../../library/library-principal";
 import { libraryRouter } from "../../library/library-router";
 import { agentCellIn, cellOf, inCell, newAccountId } from "../../test-support/library-cell";
 import type { FillJob } from "../fill-job";
 import { FILL_QUEUE } from "../../../../fill-queues";
 
-const laptop = (accountId: string): Principal => ({
+const laptop = (accountId: string): NamedPrincipal => ({
   accountId,
   actor: { deviceId: "laptop-1", deviceName: "Laptop", kind: "device" },
   scopes: ["library"],
@@ -36,7 +37,7 @@ export const libraryIn = (
     context: {
       agent: agentCellIn(state, library),
       library,
-      principal: laptop(accountId),
+      actor: () => cellActorOf(laptop(accountId)),
       settle: async (result) => await Promise.resolve(result),
     },
   });

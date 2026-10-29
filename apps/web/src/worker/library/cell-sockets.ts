@@ -79,9 +79,14 @@ const closeEach = (sockets: readonly WebSocket[], code: number, reason: string):
   }
 };
 
+// a frame for every socket of the account's: the library's new head, a turn's event
+export const tellSockets = (ctx: DurableObjectState, frame: LibrarySocketFrame): void => {
+  sendEach(ctx.getWebSockets(), frame);
+};
+
 // the library committed a write
 export const pingLibraryMoved = (ctx: DurableObjectState, head: number): void => {
-  sendEach(ctx.getWebSockets(), { head, type: "library" });
+  tellSockets(ctx, { head, type: "library" });
 };
 
 // the hosted vault moved, which today's apps read; the device that pushed already holds it

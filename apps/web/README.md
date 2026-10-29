@@ -56,9 +56,13 @@ src/
                      the Managed Agents client from the deployment's bindings
                      (managed-agents.ts), the agent a session runs
                      (session-agent.ts), our own OAuth client and its grant
-                     (built-in-client.ts), and its access the person turns on
+                     (built-in-client.ts), its access the person turns on
                      and off, repaired and deleted with the account
-                     (agent-access.ts)
+                     (agent-access.ts), the account's allowance
+                     (agent-allowance.ts), its turns, one an account, queued,
+                     started, streamed and sealed in the cell (agent-turns.ts
+                     and turn-*.ts), and Anthropic's webhook
+                     (anthropic-webhook.ts)
     fill/            The fill queue's consumer (fill-consumer.ts): a saved
                      link read through the guarded fetch (page-fetch.ts) and
                      the page reader, its files kept, landed in the cell
@@ -129,6 +133,21 @@ credential for the connector, which Anthropic refreshes at `/oauth/token`;
 turning it off revokes the grant and deletes the vault. Its grant is not an
 assistant's, so `account.assistants` neither lists nor revokes it.
 
+A person's send (`library.agent.send`) is one turn of one Managed Agents
+session a thread, run in the account's cell: one turn an account at a time, a
+second send waiting in the cell's queue until the first seals. The turn opens
+the change set every one of the agent's connector writes joins, and the
+connector refuses the agent any call while no turn is open. The cell reads the
+session's stream inside `ctx.waitUntil`, in windows shorter than fifteen
+minutes, stores each event by its id before it tells the devices, and seals
+the turn when Anthropic confirms the session ended it; a deletion the agent
+asks for waits for the person's answer, and one unanswered for ten minutes is
+denied. Each turn is capped by a session budget from the account's daily
+allowance (`AGENT_ALLOWANCE`), checked before it starts. `POST
+/hooks/anthropic` is where Anthropic tells the Worker a session went idle or a
+credential could not be refreshed; the cell reconciles from it, and its alarm
+reconciles the same way when no delivery comes.
+
 ## Routes
 
 | Route                       | Auth              | What                                                                          |
@@ -169,6 +188,7 @@ assistant's, so `account.assistants` neither lists nor revokes it.
 | `/.well-known/oauth-*`      | —                 | The authorization server's and the connector's metadata                       |
 | `POST /oauth/register`      | —                 | An assistant registers itself, ten an address a minute; let go 90 days unused |
 | `POST /oauth/token`         | —                 | A code (PKCE S256) or refresh token for an access token; revocation           |
+| `POST /hooks/anthropic`     | Anthropic's sig   | A session's idle or end, or a failed refresh, routed to the account's cell    |
 
 "device" auth is the `igd_…` credential a login minted, verified per request by
 hash compare against D1 — never cached, so revocation is immediate; its
@@ -389,6 +409,13 @@ pnpm --filter @repo/web db:push
 > `drizzle.config.ts` (`driver: "d1-http"`) with the root `.env.production.local`
 > creds and hit the PRODUCTION D1. The bare `db:push` and `db:studio` are the
 > local ones.
+
+`pnpm dev:web` also starts the fake Managed Agents API on :5177
+(`tools/managed-agents-fake`), and `MANAGED_AGENTS_FAKE_URL` in `.dev.vars`
+points the built-in agent at it: the cell runs its turns through the SDK as it
+does deployed, with no key and no model, and the fake's agent calls this
+Worker's connector. The suites bind the same name and serve the fake in their
+own isolate.
 
 Tests run inside workerd through `@cloudflare/vitest-plugin`, against the
 bindings `cloudflare.config.ts` declares, restated in `vitest.config.ts`

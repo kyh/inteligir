@@ -118,8 +118,16 @@ its session goes idle on a final stop reason (`end_turn`, `retries_exhausted`,
 `budget_reached`, `refusal`) or terminates; idling to ask an approval does not
 end it. The cell checks the account's allowance before it starts and the
 session's budget caps it, and its writes are one **change set**, which "Undo
-this turn" reverts. Not a connected assistant's call, which is no turn, and
-not the Mac runtime's turn under The agent, below.
+this turn" reverts. A send while one runs waits its turn, and the built-in
+client's calls are taken only while one is open
+(`apps/web/src/worker/agent/agent-turns.ts`). Not a connected assistant's
+call, which is no turn, and not the Mac runtime's turn under The agent, below.
+
+**thread** — a conversation with the **built-in agent**: one Managed Agents
+session, the account's, so every device shows it, and the events the cell
+stored of it, synced as rows (`apps/web/src/worker/agent/turn-rows.ts`). One
+whose session stopped at the allowance or ended goes on in a fresh one that
+remembers what was said. Not the Mac runtime's thread under The agent, below.
 
 ## The library (the vault, in code)
 

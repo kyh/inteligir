@@ -2,6 +2,7 @@
 // storage with a clock the test moves, and items built by hand. The cell is the real Durable
 // Object, so every statement meets a SQLite Durable Object's own limits.
 
+import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
 import { ordsBetween } from "@repo/notes/library/block-order";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
@@ -13,6 +14,7 @@ import type { ManagedAgents } from "../agent/managed-agents";
 import type { CellActor } from "../library/cell-actor";
 import { cellIds } from "../library/cell-ids";
 import { scheduleAlarm } from "../library/cell-library";
+import { tellSockets } from "../library/cell-sockets";
 import type { CellResult } from "../library/cell-refusal";
 import { cellStorageOf } from "../library/cell-storage";
 import { cellAccountId, libraryCellName } from "../library/library-cell";
@@ -44,23 +46,38 @@ export const engineIn = (state: DurableObjectState, clock: Clock, bytesCap = GiB
     storage: cellStorageOf(state.storage),
   });
 
-// the built-in agent's access in a cell under test, over the test's clock: no Managed Agents
-// client unless the test hands it one (`./managed-agents-api`), the Worker the cell reaches
-// through its own `exports`, as the deployed cell does, as the token endpoint its grant is traded
-// at, and the cell's own alarm
+// the built-in agent in a cell under test, over the test's clock: no Managed Agents client unless
+// the test hands it one (`./managed-agents-api`), the Worker the cell reaches through its own
+// `exports`, as the deployed cell does, as the token endpoint its grant is traded at, the cell's
+// own alarm and sockets, and the work it stays up for, which a test may hold to wait on
 export const agentCellIn = (
   state: DurableObjectState,
   library: LibraryEngine,
-  options: { readonly agents?: ManagedAgents | null; readonly clock?: Clock } = {},
+  options: {
+    readonly agents?: ManagedAgents | null;
+    readonly clock?: Clock;
+    readonly env?: Env;
+    readonly background?: Promise<void>[];
+    readonly frames?: LibrarySocketFrame[];
+  } = {},
 ): AgentCell => ({
   accountId: cellAccountId(state.id.name),
   agents: options.agents ?? null,
+  driver: { again: false, driving: false },
   endpoint: state.exports.default,
-  env,
+  env: options.env ?? env,
   library,
   now: () => options.clock?.now ?? Date.now(),
   scheduleAlarm: async () => {
     await scheduleAlarm(state, library);
+  },
+  tell: (frame) => {
+    options.frames?.push(frame);
+    tellSockets(state, frame);
+  },
+  waitUntil: (work) => {
+    options.background?.push(work);
+    state.waitUntil(work);
   },
 });
 

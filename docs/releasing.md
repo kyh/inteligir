@@ -638,8 +638,28 @@ them.
   the Console no longer lists the vault, the account's grant is gone
   (`account.assistants.list` never showed it), and a session started with the
   old vault id is refused.
+- **Production's webhook is registered, at its one address.** In the
+  production workspace's Console, Webhooks: one endpoint,
+  `https://inteligir.com/hooks/anthropic` (the canonical host, never
+  `www.` or the `workers.dev` name), subscribed to `session.status_idled`,
+  `session.status_terminated` and `vault_credential.refresh_failed`, its
+  signing key the Worker's `ANTHROPIC_WEBHOOK_SIGNING_KEY`. Passing: the
+  Console's test delivery answers 200 within a second, the Worker's log shows
+  no `anthropic-webhook-refused`, and a real turn's idle shows a delivery
+  answered 200 in the endpoint's history. Previews register none and lean on
+  the alarm.
+- **A real turn runs on a preview, its stream inside the cell.** Signed in on
+  a preview with the agent on, `library.agent.send({ text: "Tag my newest
+  link travel." })`. Passing: the answer is `running`, the account's socket
+  carries `thread` frames, previews of the agent's message first, while the
+  Console's session streams; the thread's events land once each
+  (`library.agent.events`); the turn's one change set is in History under
+  Agent and Undo takes it back; the session's status is idle once the thread
+  is; the Console shows the session provisioned no container; and
+  `library.agent.status` counts one turn less.
 - **The local Worker names no target's agent.** `pnpm dev:web` with your own
-  workspace's `ANTHROPIC_API_KEY` alone in `apps/web/.dev.vars`, then again with
+  workspace's `ANTHROPIC_API_KEY` alone in `apps/web/.dev.vars`, and
+  `MANAGED_AGENTS_FAKE_URL` removed from it, then again with
   the ids of an agent you applied there (`apps/web/.dev.vars.example`). Passing:
   the first `library.agent.setEnabled({ enabled: true })` answers
   `SERVICE_UNAVAILABLE` and your Console shows nothing; the second answers

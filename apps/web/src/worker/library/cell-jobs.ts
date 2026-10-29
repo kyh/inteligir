@@ -3,7 +3,8 @@
 // in its first day, a stray file to take out of R2, a page's reading to send to the fill queue, an
 // import's next page, an export to write and one to let go, the built-in agent's access to take
 // down once it is off, its credential to check again and a turn-on the platform ended part way to
-// let go of. A job is a row, so it survives eviction and a missed alarm; the alarm is set to the
+// let go of, and its turns: the open one's reconcile, an approval nobody answered, the next send
+// waiting for its turn, and a session to delete at Anthropic. A job is a row, so it survives eviction and a missed alarm; the alarm is set to the
 // earliest due one, and only while any is waiting
 // (https://developers.cloudflare.com/durable-objects/api/alarms/).
 
@@ -24,6 +25,10 @@ const JOB_KINDS = [
   "agent-teardown",
   "agent-repair",
   "agent-start",
+  "agent-turn",
+  "agent-approval",
+  "agent-queue",
+  "agent-forget",
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 

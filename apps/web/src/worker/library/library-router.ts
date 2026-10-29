@@ -1,11 +1,13 @@
 // The library's procedures, implemented once over the account's cell: `/v1/rpc/library` serves
-// them to the apps (`./library-rpc`) and the connector to every agent, each call with the
-// principal the Worker verified. Every write lands through the engine in one transaction, joins
-// its principal's change set, and is settled after it commits (the sockets told, the alarm set);
-// every refusal answers as the error its row declares (`@repo/contract/cloud/v1-errors`).
+// them to the apps (`./library-rpc`) and the connector to every agent, each call by the actor the
+// principal the Worker verified resolves to. Every write lands through the engine in one
+// transaction, joins its actor's change set, and is settled after it commits (the sockets told,
+// the alarm set); every refusal answers as the error its row declares
+// (`@repo/contract/cloud/v1-errors`). The built-in agent's turns are `../agent/agent-turns`'.
 
 import {
   AccountGoneError,
+  AgentBudgetError,
   AgentUnavailableError,
   AlreadyUndoneError,
   BlobMissingError,
@@ -23,8 +25,15 @@ import {
 import { ORPCError, implement } from "@orpc/server";
 import { z } from "zod";
 
-import { agentEnabled, turnAgentOff, turnAgentOn } from "../agent/agent-access";
+import { turnAgentOff, turnAgentOn } from "../agent/agent-access";
 import type { AgentCell } from "../agent/agent-access";
+import {
+  agentStatus,
+  cancelTurn,
+  deleteAgentThread,
+  respondToAgent,
+  sendToAgent,
+} from "../agent/agent-turns";
 import { libraryTools } from "../connector/library-tools";
 import { cellCodec } from "./cell-codec";
 import { askFill } from "./cell-fills";
@@ -57,14 +66,15 @@ import {
 import type { CellRefusal, CellResult } from "./cell-refusal";
 import { saveLink, savePage } from "./cell-saves";
 import { libraryHead } from "./cell-sync";
-import { deleteThread, listThreads, threadEvents } from "./cell-threads";
+import type { CellActor } from "./cell-actor";
+import { listThreads, threadEvents } from "./cell-threads";
 import { landedSchema } from "./library-engine";
 import type { LibraryEngine } from "./library-engine";
-import { cellActorOf } from "./library-principal";
-import type { Principal } from "./library-principal";
 
 export interface CellContext {
-  readonly principal: Principal;
+  // whom this call's writes are by, read at the moment a write lands: the built-in agent's is the
+  // account's open turn, and refused once none is
+  readonly actor: () => CellActor;
   readonly library: LibraryEngine;
   // the built-in agent's access, which the person switches on and off
   readonly agent: AgentCell;
@@ -113,6 +123,9 @@ const refusalError = (refusal: CellRefusal): Error => {
     case "agent-unavailable": {
       return new AgentUnavailableError();
     }
+    case "agent-budget": {
+      return new AgentBudgetError({ data: { resetsAt: refusal.resetsAt } });
+    }
     // no default
   }
 };
@@ -142,17 +155,8 @@ const highlightedSchema = z.object({
   placed: z.boolean(),
 });
 const headSchema = z.object({ seq: z.number() });
-const deletedSchema = z.object({ deleted: z.literal(true) });
 const importAnswer = z.object({ job: importJobSchema });
 const exportAnswer = z.object({ export: exportJobSchema });
-
-// no turn runs in a cell yet: every ask of the agent is refused as a Worker without the key refuses
-// it, and nothing is charged
-const agentUnavailable = (): never => {
-  throw new AgentUnavailableError();
-};
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const summaryOfRow = (row: LiveItemRow) => summaryOf(row, "concise");
 
@@ -160,15 +164,11 @@ const os = implement(libraryTools).$context<CellContext>();
 
 export const libraryRouter = os.router({
   agent: {
-    cancel: os.agent.cancel.handler(agentUnavailable),
-    delete: os.agent.delete.handler(({ context, input }) =>
-      committed(
-        context,
-        context.library.landApart({ answer: deletedSchema, opId: input.opId }, (scope) => {
-          deleteThread(scope, input.threadId);
-          return { deleted: true as const };
-        }),
-      ),
+    cancel: os.agent.cancel.handler(async ({ context, input }) =>
+      committed(context, await cancelTurn(context.agent, input)),
+    ),
+    delete: os.agent.delete.handler(async ({ context, input }) =>
+      committed(context, await deleteAgentThread(context.agent, input)),
     ),
     events: os.agent.events.handler(({ context, input }) =>
       answer(
@@ -184,8 +184,12 @@ export const libraryRouter = os.router({
         ),
       ),
     ),
-    respond: os.agent.respond.handler(agentUnavailable),
-    send: os.agent.send.handler(agentUnavailable),
+    respond: os.agent.respond.handler(async ({ context, input }) =>
+      committed(context, await respondToAgent(context.agent, input)),
+    ),
+    send: os.agent.send.handler(async ({ context, input }) =>
+      committed(context, await sendToAgent(context.agent, input)),
+    ),
     setEnabled: os.agent.setEnabled.handler(async ({ context, input }) =>
       committed(
         context,
@@ -194,19 +198,12 @@ export const libraryRouter = os.router({
           : await turnAgentOff(context.agent, input.opId),
       ),
     ),
-    // whether it is on, with no turn of the day's left, since none runs in a cell yet
-    status: os.agent.status.handler(({ context }) => {
-      const now = Date.now();
-      return {
-        enabled: answer(agentEnabled(context.library)),
-        resetsAt: now - (now % DAY_MS) + DAY_MS,
-        turnsLeft: 0,
-      };
-    }),
+    // whether it is on, and what is left of the day's allowance
+    status: os.agent.status.handler(({ context }) => answer(agentStatus(context.agent))),
   },
   annotations: {
     add: os.annotations.add.handler(async ({ context, input }) => {
-      const actor = cellActorOf(context.principal);
+      const actor = context.actor();
       const { library } = context;
       const added = await committed(
         context,
@@ -280,7 +277,7 @@ export const libraryRouter = os.router({
       return revision;
     }),
     undo: os.history.undo.handler(({ context, input }) =>
-      committed(context, context.library.undo(cellActorOf(context.principal), input)),
+      committed(context, context.library.undo(context.actor(), input)),
     ),
   },
   imports: {
@@ -315,7 +312,7 @@ export const libraryRouter = os.router({
   },
   items: {
     create: os.items.create.handler(({ context, input }) => {
-      const actor = cellActorOf(context.principal);
+      const actor = context.actor();
       return committed(
         context,
         context.library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
@@ -334,7 +331,7 @@ export const libraryRouter = os.router({
       );
     }),
     createFile: os.items.createFile.handler(({ context, input }) => {
-      const actor = cellActorOf(context.principal);
+      const actor = context.actor();
       return committed(
         context,
         context.library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
@@ -343,7 +340,7 @@ export const libraryRouter = os.router({
       );
     }),
     createNote: os.items.createNote.handler(({ context, input }) => {
-      const actor = cellActorOf(context.principal);
+      const actor = context.actor();
       const { library } = context;
       return committed(
         context,
@@ -353,7 +350,7 @@ export const libraryRouter = os.router({
       );
     }),
     delete: os.items.delete.handler(async ({ context, input }) => {
-      const actor = cellActorOf(context.principal);
+      const actor = context.actor();
       const { changed, missing } = await committed(
         context,
         context.library.land(actor, { answer: changedSchema, opId: input.opId }, (scope) =>
@@ -363,7 +360,7 @@ export const libraryRouter = os.router({
       return { deleted: changed, missing };
     }),
     edit: os.items.edit.handler(({ context, input }) => {
-      const actor = cellActorOf(context.principal);
+      const actor = context.actor();
       const { library } = context;
       return committed(
         context,
@@ -384,7 +381,7 @@ export const libraryRouter = os.router({
       ),
     ),
     organize: os.items.organize.handler(async ({ context, input }) => {
-      const actor = cellActorOf(context.principal);
+      const actor = context.actor();
       const { library } = context;
       const { items } = await committed(
         context,
@@ -410,7 +407,7 @@ export const libraryRouter = os.router({
     // the page is read again by the cloud: the item waits, pending, as a stub saved to read later
     // does
     refresh: os.items.refresh.handler(({ context, input }) => {
-      const actor = cellActorOf(context.principal);
+      const actor = context.actor();
       return committed(
         context,
         context.library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => {
@@ -421,7 +418,7 @@ export const libraryRouter = os.router({
       );
     }),
     restore: os.items.restore.handler(async ({ context, input }) => {
-      const actor = cellActorOf(context.principal);
+      const actor = context.actor();
       const { changed, missing } = await committed(
         context,
         context.library.land(actor, { answer: changedSchema, opId: input.opId }, (scope) =>
@@ -431,7 +428,7 @@ export const libraryRouter = os.router({
       return { missing, restored: changed };
     }),
     save: os.items.save.handler(({ context, input }) => {
-      const actor = cellActorOf(context.principal);
+      const actor = context.actor();
       const { library } = context;
       return committed(
         context,
@@ -442,7 +439,7 @@ export const libraryRouter = os.router({
     }),
     // a stub saved to read later lands `pending`; the cloud's read of its page follows the commit
     saveLink: os.items.saveLink.handler(({ context, input }) => {
-      const actor = cellActorOf(context.principal);
+      const actor = context.actor();
       const { library } = context;
       return committed(
         context,
@@ -485,6 +482,6 @@ export const libraryRouter = os.router({
     pull: os.sync.pull.handler(({ context, input }) => answer(context.library.pull(input))),
   },
   write: os.write.handler(({ context, input }) =>
-    committed(context, context.library.write(cellActorOf(context.principal), input)),
+    committed(context, context.library.write(context.actor(), input)),
   ),
 });

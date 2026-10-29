@@ -144,7 +144,7 @@ export const grantBuiltInAgent = async (
   );
   const { redirectTo } = await auth.helpers.completeAuthorization({
     metadata: { kind: "agent" } satisfies GrantMetadata,
-    props: { accountId: grant.accountId, clientName: BUILT_IN_CLIENT_NAME },
+    props: { accountId: grant.accountId, clientName: BUILT_IN_CLIENT_NAME, kind: "agent" },
     request: authRequest,
     revokeExistingGrants: false,
     scope: [SCOPE],

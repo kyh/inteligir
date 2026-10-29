@@ -4,8 +4,9 @@
 // the provider's resource server challenges any call without a token minted for this connector,
 // and publishes the metadata that challenge names. A call that passes is checked for the scope it
 // needs and its grant's budget, then forwarded whole into the account's cell, carrying the
-// principal the token verified and nothing the caller sent in its place. No device credential is
-// taken here: the connector is an assistant's door alone.
+// principal the token verified and nothing the caller sent in its place: an assistant's grant, or
+// the built-in agent's, which the cell admits only while a turn of the account's is open. No
+// device credential is taken here: the connector is an agent's door alone.
 
 import {
   hostHeaderValidationResponse,
@@ -21,7 +22,7 @@ import {
   PRINCIPAL_HEADER,
   principalHeaderValue,
 } from "../library/library-principal";
-import type { AssistantPrincipal } from "../library/library-principal";
+import type { ConnectorPrincipal } from "../library/library-principal";
 import { spendDeviceBudget } from "../rate-limit";
 import { connectorAuth, READ_SCOPE } from "./connector-auth";
 import type { TokenProps } from "./connector-auth";
@@ -54,14 +55,17 @@ const forwardToCell: OAuthResourceHandler<Env, TokenProps> = {
     if (!(await spendDeviceBudget(env, createDb(env.DB), "connector", props.grantId))) {
       return tooManyCalls();
     }
-    const principal: AssistantPrincipal = {
+    const principal: ConnectorPrincipal = {
       accountId: props.accountId,
-      actor: {
-        clientId: auth.clientId,
-        clientName: props.clientName,
-        grantId: props.grantId,
-        kind: "assistant",
-      },
+      actor:
+        props.kind === "agent"
+          ? { clientId: auth.clientId, grantId: props.grantId, kind: "agent" }
+          : {
+              clientId: auth.clientId,
+              clientName: props.clientName,
+              grantId: props.grantId,
+              kind: "assistant",
+            },
       scopes,
     };
     const headers = new Headers(request.headers);

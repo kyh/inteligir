@@ -22,13 +22,14 @@ import type { Clock } from "../test-support/library-cell";
 import { uuidV7 } from "./cell-ids";
 import { addFileBytes } from "./cell-quota";
 import { cellStorageOf } from "./cell-storage";
-import type { Principal } from "./library-principal";
+import { cellActorOf } from "./library-principal";
+import type { NamedPrincipal } from "./library-principal";
 import { libraryRouter } from "./library-router";
 
 const SHA = "a".repeat(64);
 const GiB = 1024 * 1024 * 1024;
 
-const laptop = (accountId: string): Principal => ({
+const laptop = (accountId: string): NamedPrincipal => ({
   accountId,
   actor: { deviceId: "laptop-1", deviceName: "Laptop", kind: "device" },
   scopes: ["library"],
@@ -42,7 +43,7 @@ const clientIn = (state: DurableObjectState, clock: Clock, principal = laptop("a
     context: {
       agent: agentCellIn(state, library, { clock }),
       library,
-      principal,
+      actor: () => cellActorOf(principal),
       settle: async (result) => result,
     },
   });
@@ -700,14 +701,13 @@ describe("the library's procedures", () => {
     });
   });
 
-  it("refuses every ask of the agent, and reads the account's threads", async () => {
+  it("refuses every ask of an agent this deployment cannot reach, and reads the account's threads", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
       const threadId = crypto.randomUUID();
       for (const call of [
         () => library.agent.send({ text: "Tidy my library." }),
         () => library.agent.respond({ eventId: "sevt_1", result: "allow", threadId }),
-        () => library.agent.cancel({ threadId }),
         () => library.agent.setEnabled({ enabled: true }),
       ]) {
         expect(await refusalOf(call())).toMatchObject({
@@ -715,7 +715,11 @@ describe("the library's procedures", () => {
           defined: true,
         });
       }
-      expect(await library.agent.status()).toMatchObject({ enabled: false, turnsLeft: 0 });
+      expect(await refusalOf(library.agent.cancel({ threadId }))).toMatchObject({
+        code: "NOT_FOUND",
+      });
+      // the day's allowance, untouched
+      expect(await library.agent.status()).toMatchObject({ enabled: false, turnsLeft: 2 });
       expect(await library.agent.list({})).toEqual({ cursor: null, threads: [] });
       expect(await refusalOf(library.agent.events({ threadId }))).toMatchObject({
         code: "NOT_FOUND",

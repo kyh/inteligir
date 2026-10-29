@@ -24,8 +24,15 @@ BETTER_AUTH_SECRET=
 # request reads as http and the connector, whose resource is https, says 404.
 # SITE_ORIGIN=https://<your-tunnel-host>
 
-# The built-in agent's Managed Agents key. Unset, the local Worker's agent is
-# off and says it can't be reached. A real key is one of your own workspace's,
+# The fake Managed Agents API `pnpm dev:web` serves beside the Worker
+# (tools/managed-agents-fake, on its pinned port): no key, no model, and the
+# mode every e2e scenario runs. Each turn runs the directives its message
+# carries against this Worker's own connector (the fake's README says which).
+# Unset it, and set the key below, to talk to Anthropic instead.
+MANAGED_AGENTS_FAKE_URL=http://127.0.0.1:5177
+
+# The built-in agent's Managed Agents key. Unset, with no fake above, the local
+# Worker's agent is off and says it can't be reached. A real key is one of your own workspace's,
 # never production's or the previews', and the local Worker names no agent of
 # theirs: copy agent.md and environment.yaml from agents/preview/library-agent
 # (not its claude-lock.json) to a folder of your own, run `ant apply` there

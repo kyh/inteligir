@@ -203,6 +203,12 @@ export default defineConfig({
       rules: { "no-restricted-imports": ["error", { paths: ORPC_V1_NAMES }] },
     },
     {
+      // the fake Managed Agents API's suite stands up a connector of its own for the fake's agent
+      // to call; a dev tool no client bundles, and the suite alone reaches the server SDK
+      files: ["tools/managed-agents-fake/src/**/*.test.ts"],
+      rules: { "no-restricted-imports": ["error", { paths: ORPC_V1_NAMES }] },
+    },
+    {
       excludeFiles: [...tests, "apps/web/src/worker/**"],
       files: ["apps/web/src/**"],
       rules: { "no-restricted-imports": restrictedImports([CONFIG_MODULES]) },

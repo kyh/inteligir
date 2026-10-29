@@ -305,11 +305,17 @@ describe("deleting the account from its cell", () => {
       const library = openCellLibrary(state, env);
       landedValue(await turnAgentOn(agentCellIn(state, library, { agents })));
       for (const [index, sessionId] of sessions.entries()) {
+        const threadId = `thread-${String(index)}`;
         state.storage.sql.exec(
           `INSERT INTO threads (id, session_id, title, status, created_at, updated_at, seq)
            VALUES (?, ?, 'A thread', 'idle', 0, 0, 0)`,
-          `thread-${String(index)}`,
+          threadId,
           sessionId,
+        );
+        state.storage.sql.exec(
+          "INSERT INTO agent_sessions (session_id, thread_id, created_at) VALUES (?, ?, 0)",
+          sessionId,
+          threadId,
         );
       }
       await scheduleAlarm(state, library);

@@ -8,12 +8,13 @@ import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { agentCellIn, cellOf, clockAt, engineIn, inCell } from "../test-support/library-cell";
-import type { Principal } from "./library-principal";
+import { cellActorOf } from "./library-principal";
+import type { NamedPrincipal } from "./library-principal";
 import { LIBRARY_RPC_MAX_BODY_BYTES, serveLibraryRpc, V1_LIBRARY_RPC_PATH } from "./library-rpc";
 
 const ORIGIN = "https://cell.test";
 
-const PRINCIPAL: Principal = {
+const PRINCIPAL: NamedPrincipal = {
   accountId: "account",
   actor: { deviceId: "laptop-1", deviceName: "Laptop", kind: "device" },
   scopes: ["library"],
@@ -25,7 +26,7 @@ const linkIn = (state: DurableObjectState, bytesCap: number) => {
   const context = {
     agent: agentCellIn(state, library),
     library,
-    principal: PRINCIPAL,
+    actor: () => cellActorOf(PRINCIPAL),
     settle: async <T>(result: T) => await Promise.resolve(result),
   };
   const serve = async (request: Request): Promise<Response> =>

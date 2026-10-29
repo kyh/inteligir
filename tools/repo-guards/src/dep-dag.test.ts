@@ -70,6 +70,9 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // its own bridge, so no contract and no cloud wire. The @repo/page-reader edge is its reader
     // mode: a link the phone saved is read with the Mac's own reader, over the WebView's DOM.
     "@repo/mobile-editor": ["@repo/editor", "@repo/notes", "@repo/page-reader", "@repo/ui"],
+    // a leaf: the Managed Agents API with no model behind it, which the local Worker, the e2e
+    // scenarios and the Worker's suites drive the built-in agent against
+    "@repo/managed-agents-fake": [],
     "@repo/notes": [],
     "@repo/repo-guards": [],
     "@repo/ui": [],

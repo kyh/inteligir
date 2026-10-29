@@ -5,7 +5,7 @@
 
 import { z } from "zod";
 
-import { seqSchema } from "./library-wire";
+import { idSchema, seqSchema } from "./library-wire";
 
 export const V1_SOCKET_PATH = "/v1/socket";
 export const SOCKET_TICKET_PARAM = "ticket";
@@ -13,5 +13,18 @@ export const SOCKET_TICKET_PARAM = "ticket";
 // the library committed a write: a replica behind `head` pulls
 const libraryMovedFrameSchema = z.object({ head: seqSchema, type: z.literal("library") });
 
-export const librarySocketFrameSchema = z.discriminatedUnion("type", [libraryMovedFrameSchema]);
+// the built-in agent's turn moved: an event the cell stored, which the thread's next pull carries
+// too, or a preview of the agent's message as it is written, which no pull ever carries. The event
+// is Managed Agents' own, kept raw, so a type this build never heard of is one it skips
+const threadFrameSchema = z.object({
+  event: z.json(),
+  preview: z.boolean(),
+  threadId: idSchema,
+  type: z.literal("thread"),
+});
+
+export const librarySocketFrameSchema = z.discriminatedUnion("type", [
+  libraryMovedFrameSchema,
+  threadFrameSchema,
+]);
 export type LibrarySocketFrame = z.infer<typeof librarySocketFrameSchema>;

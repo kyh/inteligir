@@ -54,6 +54,7 @@
     "@modelcontextprotocol/client": "catalog:",
     "@orpc/client": "catalog:",
     "@repo/agent-skills": "workspace:*",
+    "@repo/managed-agents-fake": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

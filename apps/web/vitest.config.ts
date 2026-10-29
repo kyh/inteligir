@@ -3,7 +3,11 @@ import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { configDefaults, defineConfig } from "vitest/config";
 import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
 import { FILL_FAILED_QUEUE, FILL_QUEUE, FILL_RETRIES } from "./fill-queues.ts";
-import { ORIGIN } from "./src/worker/test-support/test-origin.ts";
+import {
+  FAKE_MANAGED_AGENTS_ORIGIN,
+  ORIGIN,
+  TEST_WEBHOOK_SIGNING_KEY,
+} from "./src/worker/test-support/test-origin.ts";
 
 // resolved from this file: cwd is apps/web under vitest but the repo root under knip.
 const HERE = import.meta.dirname;
@@ -62,6 +66,14 @@ export default defineConfig({
           // every test shares one ip; vault-rate-limit.test.ts flips this per test.
           RATE_LIMIT_DISABLED: "true",
           FILL_DELIVERY: { deadLetterQueue: FILL_FAILED_QUEUE, retries: FILL_RETRIES },
+          // the deployed allowance; a suite that spends more hands its cell its own
+          AGENT_ALLOWANCE: { dayCents: 100, dayTurns: 2, turnCents: 50 },
+          // the fake Managed Agents API, served in process by the suite that asks for it
+          // (src/worker/test-support/managed-agents-api.ts); a cell no suite routes to it reaches
+          // nothing at this address
+          MANAGED_AGENTS_FAKE_URL: FAKE_MANAGED_AGENTS_ORIGIN,
+          // the key the suite signs Anthropic's webhooks with, as the Console's would
+          ANTHROPIC_WEBHOOK_SIGNING_KEY: TEST_WEBHOOK_SIGNING_KEY,
           // the origin every suite addresses the Worker at, as the deployment's own
           SITE_ORIGIN: ORIGIN,
           TEST_SCHEMA,

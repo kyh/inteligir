@@ -79,6 +79,10 @@ const shared = {
   ANTHROPIC_API_KEY: bindings.secret(),
   // the key Anthropic signs its webhooks with, which production alone registers
   ANTHROPIC_WEBHOOK_SIGNING_KEY: bindings.secret(),
+  // what the built-in agent may spend for one account (src/worker/agent/agent-allowance.ts): about
+  // fifty free turns a month, held first as a UTC day's two turns and a dollar of list cost, and
+  // the fifty cents one turn may cost
+  AGENT_ALLOWANCE: bindings.json({ dayCents: 100, dayTurns: 2, turnCents: 50 }),
 };
 
 // the ids `ant apply` recorded in a target's lockfile for the agent and the environment it applied
@@ -100,7 +104,7 @@ const appliedAgent = ({ resources }: z.infer<typeof agentLockSchema>) => ({
 
 // the local Worker's: none of a target's, whose agents live in workspaces a developer's key does not
 // reach, so `vite dev` names no agent unless .dev.vars names one applied in that key's own
-// workspace (.dev.vars.example)
+// workspace (.dev.vars.example), or the fake `pnpm dev:web` serves (tools/managed-agents-fake)
 const localAgent = appliedAgent({ resources: {} });
 
 // what the Preview job hands this deploy (.github/workflows/preview.yml). Node evaluates this file,
@@ -168,6 +172,9 @@ const productionWorker = (mode: string | undefined) => ({
     ...(mode === "development"
       ? localAgent
       : appliedAgent(agentLockSchema.parse(productionAgentLock))),
+    // the fake Managed Agents API the local Worker's .dev.vars names (.dev.vars.example), declared
+    // by `vite dev` alone, so no deployed Worker can be pointed at one
+    MANAGED_AGENTS_FAKE_URL: mode === "development" ? bindings.text<string>("") : undefined,
     // schema is src/worker/db/schema.ts, applied with drizzle-kit push (no migration files)
     DB: bindings.d1({ name: "inteligir-auth", id: "005d0e52-f102-4298-8da9-492b672ed00f" }),
     // pack bytes only; without it durable-git stores packs in the cell's SQLite, which

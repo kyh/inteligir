@@ -33,7 +33,9 @@ export type CellRefusal =
   | { readonly kind: "bad-cursor" }
   // the built-in agent could not be turned on or used: this deployment has no key or no applied
   // agent, Anthropic did not answer, or the person turned it off meanwhile
-  | { readonly kind: "agent-unavailable" };
+  | { readonly kind: "agent-unavailable" }
+  // the day's allowance of the built-in agent is spent, until `resetsAt`
+  | { readonly kind: "agent-budget"; readonly resetsAt: number };
 
 // `head` is the sequence number the write moved the library to, which the cell's socket ping
 // carries, or null when it changed nothing

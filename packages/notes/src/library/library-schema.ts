@@ -16,7 +16,7 @@ import { all, run } from "./library-sql";
 import type { SqlPlan, SqlRow } from "./library-sql";
 
 // bump on any change below
-export const LIBRARY_SCHEMA_VERSION = 5;
+export const LIBRARY_SCHEMA_VERSION = 6;
 
 // STRICT tables are SQLite 3.37; a replica's engine is checked against it at open. The cell's is
 // the platform's own, and a Durable Object refuses sqlite_version() ("not authorized to use
@@ -50,6 +50,10 @@ export const CHANGE_SET_ACTORS = [
   "undo",
   "system",
 ] as const;
+
+// where the account's built-in turn stands: its session being made or its message sent, running,
+// waiting on the person's approval, or ending once its final stop reason is seen
+export const AGENT_TURN_PHASES = ["starting", "running", "awaiting_approval", "ending"] as const;
 
 // what an import reads (a Raindrop export, a folder of markdown zipped, Obsidian's included), where
 // a job stands, and the phase a running one is in: reading the file into its plan, landing its
@@ -310,20 +314,60 @@ const CELL_DDL = [
     CHECK (credential_id IS NULL OR (grant_id IS NOT NULL AND vault_id IS NOT NULL)),
     CHECK (repair_started_at IS NULL OR credential_id IS NOT NULL)
   ) STRICT`,
-  `CREATE TABLE IF NOT EXISTS agent_turn (
-    thread_id TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL,
-    change_set_id TEXT NOT NULL,
-    last_event_id TEXT,
-    started_at INTEGER NOT NULL
+  // every Managed Agents session the account holds at Anthropic, the one each thread runs in
+  // (`threads.session_id`) and those a thread let go of, which wait to be deleted there: the cell's
+  // only record of their ids, so a row is written in the transaction that learns one. Each keeps
+  // the cumulative usage the ledger last booked of it, and the time of the last event the cell
+  // stored, which a reconcile lists the session's events from
+  `CREATE TABLE IF NOT EXISTS agent_sessions (
+    session_id TEXT PRIMARY KEY,
+    thread_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    cursor TEXT,
+    cost_cents INTEGER NOT NULL DEFAULT 0,
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+    cached_tokens INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    dropped_at INTEGER
   ) STRICT`,
+  // the account's one built-in turn while it runs, at most one: the thread and its session, the
+  // turn's number in the thread, which keys the change set its writes open, where it stands (being
+  // started, running, waiting on the person's approval of the calls `pending` names, or ending on
+  // the stop reason `ends`, until the session is confirmed at rest), and whether the cell
+  // interrupted it, since an interrupted turn ends on `end_turn` too
+  `CREATE TABLE IF NOT EXISTS agent_turn (
+    slot INTEGER PRIMARY KEY CHECK (slot = 1),
+    thread_id TEXT NOT NULL,
+    session_id TEXT,
+    turn INTEGER NOT NULL,
+    phase TEXT NOT NULL CHECK (phase IN (${oneOf(AGENT_TURN_PHASES)})),
+    message TEXT NOT NULL,
+    ends TEXT,
+    pending TEXT,
+    asked_at INTEGER,
+    interrupted INTEGER NOT NULL DEFAULT 0 CHECK (interrupted IN (0, 1)),
+    started_at INTEGER NOT NULL,
+    CHECK ((phase = 'starting') OR session_id IS NOT NULL),
+    CHECK ((phase = 'awaiting_approval') = (pending IS NOT NULL)),
+    CHECK ((phase = 'ending') = (ends IS NOT NULL))
+  ) STRICT`,
+  // the sends that wait for the account's turn, oldest first
+  `CREATE TABLE IF NOT EXISTS agent_queue (
+    id TEXT PRIMARY KEY,
+    thread_id TEXT NOT NULL,
+    message TEXT NOT NULL,
+    queued_at INTEGER NOT NULL
+  ) STRICT`,
+  `CREATE INDEX IF NOT EXISTS agent_queue_order ON agent_queue (queued_at, id)`,
+  // what the built-in agent spent on each UTC day: its turns, and the tokens and list cost its
+  // sessions reported, booked as each report's difference from the last
   `CREATE TABLE IF NOT EXISTS agent_usage (
     day TEXT PRIMARY KEY,
     turns INTEGER NOT NULL,
-    input INTEGER NOT NULL,
-    cached INTEGER NOT NULL,
-    output INTEGER NOT NULL,
-    cost_micros INTEGER NOT NULL
+    input_tokens INTEGER NOT NULL,
+    cached_tokens INTEGER NOT NULL,
+    output_tokens INTEGER NOT NULL,
+    cost_cents INTEGER NOT NULL
   ) STRICT`,
   `CREATE TABLE IF NOT EXISTS import_jobs (
     id TEXT PRIMARY KEY,

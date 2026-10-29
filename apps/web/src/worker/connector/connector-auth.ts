@@ -40,11 +40,13 @@ const REGISTRATION_TTL_SECONDS = 90 * DAY_SECONDS;
 // a grant lives 30 days from its last refresh, so one an assistant keeps using never lapses
 const GRANT_IDLE_TTL_SECONDS = 30 * DAY_SECONDS;
 
-// what a grant keeps: whose library, and the client's name as it gave it on the consent page,
-// which History and the account's list of assistants show
+// what a grant keeps: whose library, the client's name as it gave it on the consent page, which
+// History and the account's list of assistants show, and whose grant it is: an assistant's, which
+// the person let in, or the built-in agent's, whose every call joins the account's open turn
 const grantPropsSchema = z.strictObject({
   accountId: z.string().min(1).max(128),
   clientName: z.string().min(1).max(128),
+  kind: z.enum(["assistant", "agent"]),
 });
 
 // an access token's: its grant's, and the grant it was minted under, which the token alone does not

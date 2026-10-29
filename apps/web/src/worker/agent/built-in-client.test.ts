@@ -10,7 +10,10 @@ import { createDb } from "../db/client";
 import { builtInClient } from "../db/schema";
 import { ORIGIN, signUpUser, userIdOf } from "../test-support/cloud-helpers";
 import { CONNECTOR_URL, connectorClient, workerFetch } from "../test-support/connector-session";
-import { newAccountId } from "../test-support/library-cell";
+import { openCellLibrary } from "../library/cell-library";
+import { holdTurnOpen } from "../test-support/agent-turns";
+import { cellOf, inCell, newAccountId } from "../test-support/library-cell";
+import { AGENT_TOOL_POLICIES } from "./library-agent";
 import { builtInClientId, grantBuiltInAgent } from "./built-in-client";
 
 const DAY_SECONDS = 24 * 60 * 60;
@@ -40,7 +43,7 @@ const grantsOf = async (accountId: string) => {
 };
 
 describe("the built-in agent's OAuth client", () => {
-  it("is granted in process with no page asked, and its token opens the connector", async () => {
+  it("is granted in process with no page asked, and its token opens the connector while a turn is open, and only then", async () => {
     const accountId = newAccountId();
     const grant = await grantBuiltInAgent(connectorAuth(env), env, {
       accountId,
@@ -58,9 +61,19 @@ describe("the built-in agent's OAuth client", () => {
     ]);
     // the agent's own switch makes and revokes it, so the list of assistants leaves it out
     expect(await listAssistants(connectorAuth(env).helpers, accountId)).toEqual([]);
+    // a call no turn of the account's owns is no turn's, so the cell takes none
+    await expect(connectorClient(grant.accessToken)).rejects.toThrow(
+      /No turn of the built-in agent is open/u,
+    );
+    await inCell(cellOf(accountId), (state) => {
+      holdTurnOpen(openCellLibrary(state, env));
+    });
     const client = await connectorClient(grant.accessToken);
     const { tools } = await client.listTools();
-    expect(tools.map((tool) => tool.name)).toContain("search_library");
+    // the tools its definition allows, and no other
+    expect(tools.map((tool) => tool.name).toSorted()).toEqual(
+      Object.keys(AGENT_TOOL_POLICIES).toSorted(),
+    );
     await client.close();
   });
 

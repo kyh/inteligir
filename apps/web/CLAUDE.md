@@ -224,14 +224,6 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   commit or an import never sends). `apps/cli/src/server/vault/git-engine.ts`,
   `git-stage.ts`.
 
-- **THE PHONE ASKS NO AGENT, AND THE ACCOUNT CARRIES NO THREAD** (owner
-  decision: the phone saves, reads and writes, as Raindrop's and Obsidian's
-  do). A thread lives in the database of the Mac that ran it, its edits reach
-  other devices as the library's commits, and a phone that wants the agent asks
-  on a Mac. Rejected: a thread log every device pulls and an inbox a Mac polls
-  (a second store and sync for transcripts no other device edits).
-  `packages/db/src/schema.ts`.
-
 - **A VAULT READ CARRIES ITS PATH IN THE BODY, NEVER THE URL.** Cloudflare keeps
   each request's path in the Worker's request log and sampled traces for up to
   seven days (its query string redacted), and a vault path names a user's file,
@@ -527,17 +519,18 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   `apps/web/src/routes/app/sign-in.tsx`.
 
 - **THE CONNECTOR IS SERVED IN THE ACCOUNT'S CELL, A FRESH SERVER A REQUEST
-  OVER ONE OF TWO REGISTRARS, ITS PRINCIPAL AN ASSISTANT'S.** The Worker refuses
+  OVER ONE OF THREE REGISTRARS, ITS PRINCIPAL AN AGENT'S.** The Worker refuses
   a Host or Origin not this deployment's, the provider checks the token, the
-  grant spends its budget, and the request goes on whole by `stub.fetch`; the
-  cell takes an assistant's principal only here. The read-only registrar holds
-  the GET rows; each server is stateless, its tools/list private to the
-  client, and it advertises no `listChanged`, since a grant's tools never
-  change and a `subscriptions/listen` would hold the cell open. Rejected: a
-  session object per client (state nothing needs); a registrar per request (it
-  rebuilds the same schemas); a device credential here (the door is an
-  assistant's). `apps/web/src/worker/connector/connector-route.ts`,
-  `connector-server.ts`, `apps/web/src/worker/library/library-principal.ts`.
+  grant spends its budget, and the request goes on whole by `stub.fetch`,
+  stamped with an assistant's principal or, by the grant's props, the built-in
+  agent's; the cell takes either only here. The read-only registrar holds the
+  GET rows; each server is stateless, its tools/list private to the client,
+  and it advertises no `listChanged`, since a grant's tools never change and a
+  `subscriptions/listen` would hold the cell open. Rejected: a session object
+  per client (state nothing needs); a registrar per request (it rebuilds the
+  same schemas); a device credential here (the door is an agent's).
+  `apps/web/src/worker/connector/connector-route.ts`, `connector-server.ts`,
+  `apps/web/src/worker/library/library-principal.ts`.
 
 - **THE BUILT-IN AGENT IS FILES `ant apply` SYNCS, ONE DIRECTORY A TARGET, ITS
   IDS READ FROM THE LOCKFILE.** `apps/web/agents/<target>/library-agent/`
@@ -565,3 +558,99 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   a grant a concurrent call just made); grants written to KV by hand; a client
   per account. `apps/web/src/worker/agent/built-in-client.ts`,
   `agent-access.ts`.
+
+- **A THREAD IS THE ACCOUNT'S: ONE MANAGED AGENTS SESSION, ITS EVENTS SYNCED
+  ROWS** (owner decision: the phone asks the agent too). The cell keeps each
+  thread and the events its session gave, stored once by their `sevt_` id, and
+  every device pulls them as it pulls items. A session's id and cumulative
+  usage are an `agent_sessions` row, written in the transaction that learns
+  it, the only record its deletion at Anthropic reads; a thread whose session
+  stopped seeds a fresh one with its text history. Rejected: a thread in the
+  database of the Mac that ran it (no other device could ask); a session per
+  turn (no prompt cache, no compaction).
+  `apps/web/src/worker/agent/turn-rows.ts`, `turn-events.ts`, `turn-message.ts`.
+
+- **ONE BUILT-IN TURN PER ACCOUNT, AND ONLY IT TAKES THE BUILT-IN CLIENT'S
+  CALLS.** A tool call carries the account's token, not the session's, so the
+  cell runs one turn at a time; a second send waits in `agent_queue` and
+  starts once the first seals. The connector admits the agent's grant only
+  while a turn is open, each write reading the open turn as it lands and
+  joining that turn's one change set, and refuses it when none is. A turn
+  seals only once `sessions.retrieve` shows its session at rest. Rejected: a
+  vault and grant per thread (two more creates a thread, for misattribution
+  never seen). `apps/web/src/worker/agent/agent-turns.ts`, `turn-state.ts`,
+  `apps/web/src/worker/library/library-do.ts`.
+
+- **A TURN'S STREAM IS READ INSIDE `ctx.waitUntil` IN WINDOWS, AND THE LIST
+  RECONCILES IT.** The cell opens `events.stream` with `agent.message`
+  deltas, then lists the events since the last one stored, deduping by id,
+  and stores each event before the sockets hear it; a window closes at the
+  session's idle or after 14 minutes. The alarm reconciles the open turn every
+  minute and Anthropic's webhook at every idle, so an evicted cell or a
+  dropped stream loses nothing, and no timer runs. Rejected: a reader outside
+  the cell (a second writer of thread rows); listing alone (the agent's words
+  a minute late). `apps/web/src/worker/agent/turn-stream.ts`.
+
+- **A CREATE OR A SEND GOES ONCE, AND IS LOOKED FOR BEFORE IT GOES AGAIN.**
+  `sessions.create` and `events.send` go with no retries and a 20-second
+  timeout; a failure that may have landed (a timeout, a lost connection, a
+  5xx) is looked for, a session by its metadata since the turn began and a
+  message by its text, before the cell takes it as not sent, and a start the
+  platform cut short is started again the same way. A send that cannot start
+  answers `AGENT_UNAVAILABLE`, counted against nothing. Rejected: the SDK's
+  retries (a lost answer makes a second session or says a message twice).
+  `apps/web/src/worker/agent/turn-calls.ts`, `turn-start.ts`.
+
+- **AN APPROVAL WAITS ON THE PERSON TEN MINUTES, AND A CANCEL DENIES BEFORE IT
+  INTERRUPTS.** A `requires_action` idle pauses the turn and closes its
+  stream; `respond` sends one `user.tool_confirmation` an event, the alarm
+  denies what nobody answered in ten minutes, lest a forgotten card hold the
+  account's one turn, and a cancel denies each paused call with a
+  `deny_message`, then interrupts, since an interrupt alone leaves a paused
+  session paused; the interrupt is kept on the turn. Rejected: the platform's
+  `auto` permission (its evaluation is not the person).
+  `apps/web/src/worker/agent/agent-turns.ts`.
+
+- **EVERY TURN IS CAPPED BY THE PLATFORM AND COUNTED BEFORE IT STARTS**
+  (owner decision: about fifty free turns a month, a day's share first). A
+  send that finds the day's turns or list cost spent is refused
+  `AGENT_BUDGET` with when the day refills; each turn sets its session's
+  budget to what it consumed plus the smaller of the day's remainder and one
+  turn's ceiling, a cent at least, in integer cents; the ledger books each
+  `session.usage` as its difference from the last; a turn that reaches its cap
+  stops its thread and its session is deleted. Rejected: raising a paused
+  session's cap (the next turn would resume the old work).
+  `apps/web/src/worker/agent/agent-allowance.ts`, `turn-events.ts`,
+  `apps/web/cloudflare.config.ts`.
+
+- **ANTHROPIC'S WEBHOOK IS VERIFIED BY ITS SIGNATURE, ANSWERED AT ONCE AND
+  ROUTED ONCE.** `/hooks/anthropic` reads the raw body and has
+  `webhooks.unwrap` check its Standard Webhooks signature under the
+  deployment's key, refusing a body that fails with 400; a verified one is
+  answered 200 and routed after it: a session's idle or end to the cell its
+  metadata names, which reconciles, and a failed refresh to the cell its
+  vault's metadata names, which repairs. The cell keeps each delivery's id
+  beside its writes' op ids, so a redelivery routes nothing. Rejected: a
+  route that waits on the cell (a slow answer gets the endpoint disabled).
+  `apps/web/src/worker/agent/anthropic-webhook.ts`.
+
+- **THE LOCAL WORKER, THE E2E AND THE SUITES RUN THE ONE CELL PATH AGAINST A
+  FAKE MANAGED AGENTS API.** `MANAGED_AGENTS_FAKE_URL`, which `vite dev` alone
+  declares and which must name this machine, points the cell's SDK at
+  `tools/managed-agents-fake` through its `baseURL`; its sessions really call
+  the connector with the vault's token. The suites serve it in process, and a
+  deployed Worker without `ANTHROPIC_API_KEY` fails closed. Rejected: a
+  scripted driver inside the cell (a path no deploy runs); mocking the SDK
+  (its stream, paging and errors would be ours to imitate).
+  `apps/web/src/worker/agent/managed-agents.ts`,
+  `tools/managed-agents-fake/src/fake-api.ts`.
+
+- **THE BUILT-IN AGENT'S RESULTS FIT IN 40,000 CHARACTERS.** Managed Agents
+  writes a result over 100,000 characters into a sandbox file a `read` tool
+  this agent lacks would open, so the agent's own registrar, which lists only
+  the tools its definition allows, asks a paged list again at half its rows
+  until text and structured content together fit, and refuses what still
+  does not, telling a read to ask for less and a write that it landed.
+  Rejected: one budget for every client (claude.ai takes 150,000); refusing
+  every long page (a library of long titles could list nothing).
+  `apps/web/src/worker/connector/connector-server.ts`.

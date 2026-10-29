@@ -152,7 +152,8 @@ const blobRowSchema = z.object({
 });
 
 // where a thread's built-in agent stands: nothing running, a send waiting on the account's one turn
-// at a time, a turn running, a turn waiting on the person's approval, or stopped at the allowance
+// at a time, a turn running, a turn waiting on the person's approval, or stopped, its conversation
+// ended at the allowance or by Anthropic, so its next send starts a fresh one
 export const THREAD_STATUSES = [
   "idle",
   "queued",

@@ -16,6 +16,7 @@
 // on again: a repair of a credential that is off finds nothing to repair, so no failure re-grants
 // it.
 
+import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
 import { z } from "zod";
 
 import type { SqlStatements } from "@repo/notes/library/library-sql";
@@ -30,8 +31,17 @@ import { refuse } from "../library/cell-refusal";
 import type { CellResult } from "../library/cell-refusal";
 import { grantBuiltInAgent } from "./built-in-client";
 import type { BuiltInGrant, TokenEndpoint } from "./built-in-client";
-import { callFailureFields, isGone } from "./managed-agents";
+import { callFailureFields, isGone, SEND_ONCE } from "./managed-agents";
 import type { ManagedAgents } from "./managed-agents";
+import { heldSessionIds } from "./turn-rows";
+
+// whether a stream of the account's turn is being read in this isolate, and whether one more was
+// asked for meanwhile: what keeps two readers of one stream apart while the cell stays up. Nothing
+// rests on it past this isolate's life: an evicted cell reads no stream, and its alarm reconciles
+export interface TurnDriver {
+  driving: boolean;
+  again: boolean;
+}
 
 // the account's cell as its agent's access needs it
 export interface AgentCell {
@@ -47,6 +57,12 @@ export interface AgentCell {
   // the cell's alarm set to its earliest job, so a job one of these calls queued runs even when the
   // platform ends the call before its caller would set it
   readonly scheduleAlarm: () => Promise<void>;
+  // work the cell stays up for after the call that began it answered: a turn's stream, read for
+  // at most a window (`./turn-stream`)
+  readonly waitUntil: (work: Promise<void>) => void;
+  // a frame for the account's sockets: a turn's event, or the library's new head
+  readonly tell: (frame: LibrarySocketFrame) => void;
+  readonly driver: TurnDriver;
 }
 
 const switchedSchema = z.object({ enabled: z.boolean() });
@@ -60,10 +76,6 @@ const VAULT_NAME = "Inteligir library";
 // part way is taken over. It outlasts a whole attempt, the grant made in process and two calls to
 // Anthropic, each at most 30 seconds and sent once
 const LEASE_MS = 2 * 60_000;
-
-// a call to Anthropic sent once: a create, which a retry after a lost answer would make twice, and
-// each call of a repair, which its lease bounds and its job asks again
-const SEND_ONCE = { maxRetries: 0 } as const;
 
 // a takedown a call runs at once is asked again this long after, if it did not finish
 const TEARDOWN_AGAIN_MS = 60_000;
@@ -462,8 +474,17 @@ export const turnAgentOff = async (
   return off;
 };
 
+// whether the agent is on: its grant, its vault and the vault's credential all made
+export const agentIsOn = (sql: SqlStatements): boolean => accessOf(sql)?.kind === "on";
+
 export const agentEnabled = (library: LibraryEngine): CellResult<boolean> =>
-  library.read((sql) => accessOf(sql)?.kind === "on");
+  library.read(agentIsOn);
+
+// the vault every session of the account's names, while the agent is on
+export const agentVaultId = (sql: SqlStatements): string | null => {
+  const held = accessOf(sql);
+  return held?.kind === "on" ? held.vaultId : null;
+};
 
 // ---- repairing its credential ----
 
@@ -688,17 +709,6 @@ export const runAgentJobs = async (cell: AgentCell): Promise<void> => {
 
 // ---- the account's deletion ----
 
-const sessionRowSchema = z.object({ session_id: z.string() });
-
-const sessionIdsOf = (sql: SqlStatements): string[] =>
-  sql
-    .all(
-      `SELECT session_id FROM threads WHERE session_id IS NOT NULL
-       UNION SELECT session_id FROM agent_turn`,
-      [],
-    )
-    .map((row) => sessionRowSchema.parse(row).session_id);
-
 // the vault the row names and those a takedown still waits to delete
 const vaultIdsOf = (sql: SqlStatements): string[] => {
   const held = accessOf(sql);
@@ -712,7 +722,7 @@ const SETTLED = new Set(["idle", "terminated"]);
 
 // a running session is interrupted and asked until it settles, since Anthropic refuses to delete
 // one while it runs (platform.claude.com/docs/en/managed-agents/sessions); one already gone is done
-const deleteSession = async (agents: ManagedAgents, sessionId: string): Promise<void> => {
+export const deleteSession = async (agents: ManagedAgents, sessionId: string): Promise<void> => {
   const { sessions } = agents.client.beta;
   try {
     let session = await sessions.retrieve(sessionId);
@@ -730,14 +740,14 @@ const deleteSession = async (agents: ManagedAgents, sessionId: string): Promise<
   }
 };
 
-// every session the account's threads hold and the agent's vault, deleted at Anthropic before the
-// cell's rows, the only record of their ids, go; the grant goes with the account's others. Data
+// every session the account holds and the agent's vault, deleted at Anthropic before the cell's
+// rows, the only record of their ids, go; the grant goes with the account's others. Data
 // held there with no key to delete it by aborts the deletion, which runs again once one is set
 export const purgeAgentData = async (
   agents: ManagedAgents | null,
   sql: SqlStatements,
 ): Promise<void> => {
-  const sessionIds = sessionIdsOf(sql);
+  const sessionIds = heldSessionIds(sql);
   const vaultIds = vaultIdsOf(sql);
   if (sessionIds.length === 0 && vaultIds.length === 0) {
     return;

@@ -1,10 +1,11 @@
 // Who a call to the library is by, as the Worker verified it: the account, what it may do, and the
 // actor whose change set its writes join. The Worker resolves it from the credential the request
-// carried (a device's bearer and a browser's session on `/v1`, an assistant's OAuth token on the
-// connector), drops any copy the request brought, and stamps it on the request it forwards to the
-// account's cell (`../wire/v1-rpc`, `../connector/connector-route`); the cell takes it from there
-// alone, since only the Worker reaches a cell, and holds it to the account its own name gives.
-// Procedures read it as their initial context and never a header.
+// carried (a device's bearer and a browser's session on `/v1`, an assistant's or the built-in
+// agent's OAuth token on the connector), drops any copy the request brought, and stamps it on the
+// request it forwards to the account's cell (`../wire/v1-rpc`, `../connector/connector-route`);
+// the cell takes it from there alone, since only the Worker reaches a cell, and holds it to the
+// account its own name gives. Procedures read the actor it resolves to, never a header; the
+// built-in agent's is its open turn's, which only the cell knows.
 
 import { z } from "zod";
 
@@ -37,12 +38,21 @@ const assistantActorSchema = z.strictObject({
   kind: z.literal("assistant"),
 });
 
+// the built-in agent, under the one grant its switch made: its calls join whichever turn of the
+// account's is open, and none is taken while none is
+const agentActorSchema = z.strictObject({
+  clientId: z.string().min(1).max(2048),
+  grantId: holderId,
+  kind: z.literal("agent"),
+});
+
 export const principalSchema = z.strictObject({
   accountId: z.string().min(1).max(128),
   actor: z.discriminatedUnion("kind", [
     deviceActorSchema,
     sessionActorSchema,
     assistantActorSchema,
+    agentActorSchema,
   ]),
   scopes: z.array(z.enum(LIBRARY_SCOPES)).min(1),
 });
@@ -54,16 +64,24 @@ export type AppPrincipal = Principal & {
   readonly actor: z.infer<typeof deviceActorSchema> | z.infer<typeof sessionActorSchema>;
 };
 
-// an assistant's grant, the one actor the connector takes
-export type AssistantPrincipal = Principal & {
-  readonly actor: z.infer<typeof assistantActorSchema>;
+// what the connector takes: an assistant's grant, or the built-in agent's
+export type ConnectorPrincipal = Principal & {
+  readonly actor: z.infer<typeof assistantActorSchema> | z.infer<typeof agentActorSchema>;
 };
 
-export const isAssistantPrincipal = (principal: Principal): principal is AssistantPrincipal =>
-  principal.actor.kind === "assistant";
+// a principal whose actor its own claim names, every one but the built-in agent's
+export type NamedPrincipal = Principal & {
+  readonly actor: Exclude<Principal["actor"], z.infer<typeof agentActorSchema>>;
+};
+
+export const isConnectorPrincipal = (principal: Principal): principal is ConnectorPrincipal =>
+  principal.actor.kind === "assistant" || principal.actor.kind === "agent";
 
 export const isAppPrincipal = (principal: Principal): principal is AppPrincipal =>
-  principal.actor.kind !== "assistant";
+  principal.actor.kind === "device" || principal.actor.kind === "session";
+
+export const isNamedPrincipal = (principal: Principal): principal is NamedPrincipal =>
+  principal.actor.kind !== "agent";
 
 // whether the principal may change the library, not only read it
 export const changesLibrary = (principal: Principal): boolean =>
@@ -89,7 +107,7 @@ export const principalFromHeader = (value: string | null): Principal | null => {
 };
 
 // the actor a principal's writes are by, in History's words for it
-export const cellActorOf = (principal: Principal): CellActor => {
+export const cellActorOf = (principal: NamedPrincipal): CellActor => {
   const { actor } = principal;
   switch (actor.kind) {
     case "device": {

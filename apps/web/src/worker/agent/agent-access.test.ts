@@ -20,6 +20,7 @@ import {
   refusalOf,
 } from "../test-support/library-cell";
 import type { Clock } from "../test-support/library-cell";
+import { holdTurnOpen } from "../test-support/agent-turns";
 import { fakeManagedAgentsApi, managedAgentsOver } from "../test-support/managed-agents-api";
 import {
   agentEnabled,
@@ -97,8 +98,10 @@ const jobsIn = (state: DurableObjectState): string[] =>
     .toArray()
     .map((row) => String(row["kind"]));
 
-// the tools the connector lists to a client holding `token`
-const toolCountFor = async (token: string): Promise<number> => {
+// the tools the connector lists to a client holding `token`, while a turn of the account's is
+// open, the one time the cell takes the built-in agent's calls
+const toolCountFor = async (cell: AgentCell, token: string): Promise<number> => {
+  holdTurnOpen(cell.library);
   const client = await connectorClient(token);
   const listed = await client.listTools();
   await client.close();
@@ -213,7 +216,7 @@ describe("turning the built-in agent on", () => {
       const [grant] = await grantsOf(cell.accountId);
       expect(grant?.clientId).toBe(auth.refresh.client_id);
       // the token Anthropic holds is one the connector takes
-      expect(await toolCountFor(auth.access_token)).toBeGreaterThan(0);
+      expect(await toolCountFor(cell, auth.access_token)).toBeGreaterThan(0);
       expect(valueOf(agentEnabled(cell.library))).toBe(true);
       // a turn-on that landed leaves no job behind
       expect(jobsIn(state)).toEqual([]);
@@ -260,7 +263,7 @@ describe("turning the built-in agent on", () => {
         expect(await grantOfToken(stray.accessToken)).toBeNull();
         const held = await grantOfToken(auth.access_token);
         expect(held).not.toBeNull();
-        expect(await toolCountFor(assistantToken)).toBeGreaterThan(0);
+        expect(await toolCountFor(cell, assistantToken)).toBeGreaterThan(0);
         const grants = await grantsOf(accountId);
         expect(grants.map((grant) => grant.id).toSorted()).toEqual(
           [held, await grantOfToken(assistantToken)].toSorted(),
@@ -463,7 +466,7 @@ describe("repairing the built-in agent's credential", () => {
       const grants = await grantsOf(cell.accountId);
       expect(grants).toHaveLength(1);
       expect(grants[0]?.id).not.toBe(granted?.id);
-      expect(await toolCountFor(repaired.access_token)).toBeGreaterThan(0);
+      expect(await toolCountFor(cell, repaired.access_token)).toBeGreaterThan(0);
       expect(jobsIn(state)).toEqual(["agent-repair"]);
     });
   });
@@ -492,7 +495,7 @@ describe("repairing the built-in agent's credential", () => {
         expect(answers.toSorted()).toEqual(["later", "repaired"]);
         expect(updates).toBe(1);
         const { auth } = heldCredential(api);
-        expect(await toolCountFor(auth.access_token)).toBeGreaterThan(0);
+        expect(await toolCountFor(cell, auth.access_token)).toBeGreaterThan(0);
         expect(await grantOfToken(first.access_token)).toBeNull();
         const grants = await grantsOf(cell.accountId);
         expect(grants.map((grant) => grant.id)).toEqual([await grantOfToken(auth.access_token)]);
@@ -528,7 +531,7 @@ describe("repairing the built-in agent's credential", () => {
         expect(await repairAgentAccess(cell)).toBe("later");
         expect(tookOver).toBe(true);
         const { auth } = heldCredential(api);
-        expect(await toolCountFor(auth.access_token)).toBeGreaterThan(0);
+        expect(await toolCountFor(cell, auth.access_token)).toBeGreaterThan(0);
         const grants = await grantsOf(cell.accountId);
         expect(grants.map((grant) => grant.id)).toEqual([await grantOfToken(auth.access_token)]);
       },

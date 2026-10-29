@@ -4,6 +4,7 @@ import { SYNC_WS_PATH } from "@repo/contract/cloud/sync/sync-ws";
 import { VAULT_GIT_PATH } from "@repo/contract/cloud/vault/vault-git";
 import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
+import { ANTHROPIC_WEBHOOK_PATH, handleAnthropicWebhook } from "./agent/anthropic-webhook";
 import { createAuth } from "./auth/auth";
 import { handleInviteSignUp } from "./auth/invite";
 import { refuseBelowFloor } from "./client-floor";
@@ -45,7 +46,9 @@ const isConnectorRoute = (pathname: string): boolean =>
   isConnectorPath(pathname) || isAuthorizationServerPath(pathname) || pathname === CONSENT_PATH;
 
 export const ownsPath = (pathname: string): boolean =>
-  OWNED_PREFIXES.some((prefix) => pathname.startsWith(prefix)) || isConnectorRoute(pathname);
+  OWNED_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
+  isConnectorRoute(pathname) ||
+  pathname === ANTHROPIC_WEBHOOK_PATH;
 
 const isRpc = (pathname: string): boolean => pathname.startsWith(`${V1_RPC_PATH}/`);
 
@@ -60,6 +63,13 @@ const speaksCloudEnvelope = (pathname: string): boolean =>
   !isBlobPath(pathname) &&
   !isExportPath(pathname);
 
+// the doors a whole path names: the connector's consent page, and Anthropic's own POST, verified
+// by its signature alone
+const PATH_ROUTES = new Map([
+  [CONSENT_PATH, handleConsent],
+  [ANTHROPIC_WEBHOOK_PATH, handleAnthropicWebhook],
+]);
+
 const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {
   const url = new URL(request.url);
 
@@ -71,8 +81,9 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
   if (isAuthorizationServerPath(url.pathname)) {
     return await connectorAuth(env).authorizationServer.fetch(request, env, ctx);
   }
-  if (url.pathname === CONSENT_PATH) {
-    return await handleConsent(request, env, ctx);
+  const byPath = PATH_ROUTES.get(url.pathname);
+  if (byPath !== undefined) {
+    return await byPath(request, env, ctx);
   }
 
   // a browser's socket cannot name its build, and its ticket came from a call that met the floor

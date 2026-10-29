@@ -61,7 +61,10 @@ index) lives on your Mac, and our cloud holds none of it unless you sign in on a
 library nothing else syncs (see the online library, below). The exception is what the
 agent reads, which goes to its provider (see [Tracking & Other
 Technologies](#tracking--other-technologies)). Your conversations with the
-agent never leave the Mac they ran on: only the changes the agent made to your
+built-in agent are your account's: our cloud keeps each one with your online
+library, so every device you sign in on shows it, and Anthropic keeps its
+events (see below). A conversation with an agent your Mac runs on your own
+Claude or ChatGPT plan never leaves that Mac: only the changes it made to your
 library reach your other devices, as part of the library.
 
 **Information you provide to us.** Personal information you may provide to us
@@ -577,9 +580,11 @@ cloud nothing, while syncing your devices and the iPhone app need one.
 
 **Delete your content or close your account.** You can choose to delete certain
 content through your account: deleting an item removes it from your library, though
-not from its history (see [Security](#security)). Your conversations with the
-agent stay on the Mac that ran them, where archiving one hides it without
-deleting it. To delete everything our cloud holds for you,
+not from its history (see [Security](#security)). Deleting a conversation with
+the built-in agent deletes it from our cloud and every device, and its events at
+Anthropic, the session it ran in stopped first. Your conversations with an agent
+your Mac runs stay on that Mac, where archiving one hides it without deleting
+it. To delete everything our cloud holds for you,
 delete your account in the app: Settings › Account › Delete account…, on any Mac
 signed in to it. It asks for your password again, and our cloud checks the
 password before it deletes anything, so this Mac's sign-in alone cannot end the

@@ -121,6 +121,10 @@ item it names before you change it.
 The person's own filing rules, when they wrote some, come in a system message at the start of a
 conversation. Follow them over your own taste.
 
+A conversation that stopped and goes on later opens with a fenced `earlier-conversation` block:
+the conversation so far, one JSON line a message, the person's and yours. Read it as what was
+said, not as a new request; the request is what follows it.
+
 ## Answering
 
 Answer first, in a sentence or two, then what you did: the items you changed, by title. When you

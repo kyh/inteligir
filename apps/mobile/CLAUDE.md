@@ -52,8 +52,7 @@ ships.
   so a phone in the foreground refreshes its mirror at once; the background
   closes it, since iOS suspends the app anyway, and a resume refreshes and
   checks the sign-in (`apps/mobile/src/sync/sync-runtime.ts`). The phone holds
-  no thread and offers no Ask agent (THE PHONE ASKS NO AGENT, in
-  `apps/web/CLAUDE.md`): no touch toolbar row
+  no thread and offers no Ask agent: no touch toolbar row
   (`packages/editor/src/touch-toolbar.tsx`), and the page's host answers an
   agent request with nothing. Rejected: a read-only list of the Macs' threads
   (the thread log kept for transcripts the phone cannot act on).

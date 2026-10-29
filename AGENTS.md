@@ -144,6 +144,7 @@ packages/ui             @repo/ui — the shared component vocabulary on Base UI
 tools/repo-guards       @repo/repo-guards — fitness tests over the repo itself
 tools/e2e               @repo/e2e — the scenario suite `pnpm e2e` runs
 tools/ui-gallery        @repo/ui-gallery — the @repo/ui gallery `pnpm dev:gallery` serves, never deployed
+tools/managed-agents-fake @repo/managed-agents-fake — the Managed Agents API with no model the local Worker, the e2e and the suites run against
 ```
 
 The replica engine is the `library-replica` package, pure as `@repo/notes`
@@ -172,9 +173,11 @@ No bootstrap script, and no Cloudflare or Anthropic account. Node 24 and pnpm
 12 (`corepack enable`; `.codex/environments/environment.toml` runs `pnpm i` for
 cloud runners).
 
-The local Worker's built-in agent talks to a fake Managed Agents API, chosen
-by a dev-only binding in `.dev.vars`: no key, no model, and the mode every e2e
-scenario runs. A real agent needs `ANTHROPIC_API_KEY` there instead, with the
+The local Worker's built-in agent talks to a fake Managed Agents API
+(`tools/managed-agents-fake`, which `pnpm dev:web` serves), chosen by
+`MANAGED_AGENTS_FAKE_URL`, a dev-only binding the example `.dev.vars` sets: no
+key, no model, and the mode every e2e scenario runs. A real agent needs
+`ANTHROPIC_API_KEY` there instead of the fake, with the
 ids of an agent applied in that key's own workspace, never a target's, and a
 public tunnel to the connector, since Anthropic's MCP proxy cannot reach
 localhost (`apps/web/.dev.vars.example` says what each needs set). A

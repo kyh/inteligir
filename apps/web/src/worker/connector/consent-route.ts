@@ -93,7 +93,7 @@ const answer = async (
   const name = [...clientName.trim()].slice(0, NAME_MAX).join("");
   const { redirectTo } = await helpers.completeAuthorization({
     metadata: { clientName: name, kind: "assistant" } satisfies GrantMetadata,
-    props: { accountId, clientName: name },
+    props: { accountId, clientName: name, kind: "assistant" },
     request: approved.request,
     scope: approved.request.scope,
     userId: accountId,

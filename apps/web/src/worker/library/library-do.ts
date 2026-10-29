@@ -9,10 +9,15 @@
 import { SYNC_WS_KEEPALIVE_PING, SYNC_WS_KEEPALIVE_PONG } from "@repo/contract/cloud/sync/sync-ws";
 import { CONNECTOR_PATH } from "@repo/contract/cloud/connector";
 import type { McpHttpHandler } from "@modelcontextprotocol/server";
+import { ORPCError } from "@orpc/server";
 import { DurableObject } from "cloudflare:workers";
+import { z } from "zod";
 
 import { repairAgentAccess, runAgentJobs } from "../agent/agent-access";
-import type { AgentCell, AgentRepair } from "../agent/agent-access";
+import type { AgentCell, AgentRepair, TurnDriver } from "../agent/agent-access";
+import type { WebhookAsk } from "../agent/anthropic-webhook";
+import { reconcileTurn, runTurnJobs } from "../agent/agent-turns";
+import { openTurn, turnActor } from "../agent/turn-rows";
 import { managedAgents } from "../agent/managed-agents";
 import type { ManagedAgents } from "../agent/managed-agents";
 import { refuse } from "../cloud-http";
@@ -43,11 +48,15 @@ import {
   severHolder,
   SOCKET_HOLDER_HEADER,
   socketHolder,
+  tellSockets,
 } from "./cell-sockets";
+import type { CellActor } from "./cell-actor";
 import { cellAccountId } from "./library-cell";
 import {
+  cellActorOf,
   isAppPrincipal,
-  isAssistantPrincipal,
+  isConnectorPrincipal,
+  isNamedPrincipal,
   PRINCIPAL_HEADER,
   principalFromHeader,
 } from "./library-principal";
@@ -58,6 +67,8 @@ import type { LibraryEngine, UploadSettlement } from "./library-engine";
 
 // an alarm whose run failed outright tries again after this; a job's own failure waits longer
 const ALARM_RETRY_MS = 60_000;
+
+const WEBHOOK_SEEN = z.literal(true);
 
 export class LibraryDO extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
@@ -113,12 +124,16 @@ export class LibraryDO extends DurableObject<Env> {
     return this.#agents;
   }
 
-  // the built-in agent's access over the engine: the Managed Agents client, and the Worker itself,
-  // whose token endpoint its grant is traded at
+  // whether this isolate reads the open turn's stream (`../agent/turn-stream`)
+  readonly #driver: TurnDriver = { again: false, driving: false };
+
+  // the built-in agent over the engine: the Managed Agents client, the Worker itself, whose token
+  // endpoint its grant is traded at, and what keeps the cell up while a turn's stream is read
   #agentCell(library: LibraryEngine): AgentCell {
     return {
       accountId: this.#accountId,
       agents: this.#managedAgents(),
+      driver: this.#driver,
       endpoint: this.ctx.exports.default,
       env: this.env,
       library,
@@ -126,6 +141,28 @@ export class LibraryDO extends DurableObject<Env> {
       scheduleAlarm: async () => {
         await scheduleAlarm(this.ctx, library);
       },
+      tell: (frame) => {
+        tellSockets(this.ctx, frame);
+      },
+      waitUntil: (work) => {
+        this.ctx.waitUntil(work);
+      },
+    };
+  }
+
+  // whom a call's writes are by: what its principal names, or for the built-in agent the turn
+  // open as the write lands, which a turn sealed meanwhile refuses
+  static #actorOf(principal: Principal, library: LibraryEngine): () => CellActor {
+    if (isNamedPrincipal(principal)) {
+      const actor = cellActorOf(principal);
+      return () => actor;
+    }
+    return () => {
+      const turn = library.read(openTurn);
+      if (!turn.ok || turn.value === null) {
+        throw new ORPCError("FORBIDDEN", { message: "No turn of the built-in agent is open." });
+      }
+      return turnActor(turn.value);
     };
   }
 
@@ -133,9 +170,9 @@ export class LibraryDO extends DurableObject<Env> {
   #cellContext(principal: Principal): CellContext {
     const library = openCellLibrary(this.ctx, this.env);
     return {
+      actor: LibraryDO.#actorOf(principal, library),
       agent: this.#agentCell(library),
       library,
-      principal,
       settle: async (result) => await settleCommit(this.ctx, this.env, library, result),
     };
   }
@@ -153,12 +190,20 @@ export class LibraryDO extends DurableObject<Env> {
   // its own server from the handler's factory
   #connector: McpHttpHandler | undefined;
 
+  // an assistant's call, or the built-in agent's while a turn of the account's is open: a call it
+  // makes outside a turn is no turn's, so none is taken
   async #serveConnector(request: Request): Promise<Response> {
     const principal = this.#principalOf(request);
-    if (principal === null || !isAssistantPrincipal(principal)) {
+    if (principal === null || !isConnectorPrincipal(principal)) {
       return new Response("The cell takes only a call the Worker verified.", { status: 403 });
     }
-    this.#connector ??= createConnectorHandler((assistant) => this.#cellContext(assistant));
+    if (principal.actor.kind === "agent") {
+      const turn = openCellLibrary(this.ctx, this.env).read(openTurn);
+      if (!turn.ok || turn.value === null) {
+        return new Response("No turn of the built-in agent is open.", { status: 403 });
+      }
+    }
+    this.#connector ??= createConnectorHandler((caller) => this.#cellContext(caller));
     return await this.#connector.fetch(request, { authInfo: authInfoOf(principal) });
   }
 
@@ -188,8 +233,8 @@ export class LibraryDO extends DurableObject<Env> {
   }
 
   // the jobs due: the storage's own, then those that wait on R2 (strays, imports, exports), the
-  // readings to send and the agent's access to take down or repair; whatever moved the library is
-  // told to the sockets once
+  // readings to send, the agent's access to take down or repair, and its turn's; whatever moved
+  // the library is told to the sockets once
   override async alarm(): Promise<void> {
     const library = openCellLibrary(this.ctx, this.env);
     const head = library.head();
@@ -209,6 +254,7 @@ export class LibraryDO extends DurableObject<Env> {
       await runExports(host);
       await sendFills(this.ctx, this.env, library);
       await runAgentJobs(this.#agentCell(library));
+      await runTurnJobs(this.#agentCell(library));
       const moved = library.head();
       if (moved !== head) {
         pingLibraryMoved(this.ctx, moved);
@@ -248,6 +294,22 @@ export class LibraryDO extends DurableObject<Env> {
     const repaired = await repairAgentAccess(this.#agentCell(library));
     await scheduleAlarm(this.ctx, library);
     return repaired;
+  }
+
+  // Anthropic's webhook, once a delivery: a session of the account's idled or ended, and its open
+  // turn is reconciled, or the agent's credential could not be refreshed, and it is repaired. The
+  // delivery's id is kept as a write's would be, so a delivery Anthropic sends again routes nothing
+  async agentWebhook(eventId: string, ask: WebhookAsk): Promise<void> {
+    const library = openCellLibrary(this.ctx, this.env);
+    const delivery = `anthropic-webhook:${eventId}`;
+    const prior = library.answered(delivery, WEBHOOK_SEEN);
+    if (!prior.ok || prior.value !== null) {
+      return;
+    }
+    const cell = this.#agentCell(library);
+    await (ask === "reconcile" ? reconcileTurn(cell) : repairAgentAccess(cell));
+    library.landApart({ answer: WEBHOOK_SEEN, opId: delivery }, () => true as const);
+    await scheduleAlarm(this.ctx, library);
   }
 
   // room for a file a device is about to upload to `/v1/blobs/<sha>`
