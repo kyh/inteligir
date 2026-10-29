@@ -71,7 +71,7 @@ const grantsOf = async (accountId: string) => {
 
 const jobsIn = (state: DurableObjectState): string[] =>
   state.storage.sql
-    .exec("SELECT kind FROM jobs WHERE kind LIKE 'agent-%' ORDER BY kind")
+    .exec("SELECT kind FROM jobs WHERE kind IN ('agent-teardown', 'agent-repair') ORDER BY kind")
     .toArray()
     .map((row) => String(row["kind"]));
 

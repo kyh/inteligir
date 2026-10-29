@@ -18,12 +18,12 @@ catalog:
   # exact, as its server sibling: the suites and the e2e drive the connector with the client the
   # server release is tested against, and the two move together
   "@modelcontextprotocol/client": 2.4.0
-  # exact: the adapters are spawned as child processes and the sdk speaks to them, so the wire is
-  # only verified against one set; a bump re-records packages/agent-runtime's adapter transcripts
   # exact: the built-in agent's Managed Agents client, a beta whose minor releases may break its
   # types (platform.claude.com/docs/en/cli-sdks-libraries/sdks/typescript#semantic-versioning); a
   # bump re-reads the recorded responses the cell's agent suites answer it with
   "@anthropic-ai/sdk": 1.3.0
+  # exact: the adapters are spawned as child processes and the sdk speaks to them, so the wire is
+  # only verified against one set; a bump re-records packages/agent-runtime's adapter transcripts
   "@agentclientprotocol/claude-agent-acp": 0.81.0
   "@agentclientprotocol/codex-acp": 1.13.0
   "@agentclientprotocol/sdk": 1.5.0
