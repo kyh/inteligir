@@ -8,7 +8,7 @@
 import { createAuth } from "../auth/auth";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";
-import type { AppPrincipal, Principal } from "../library/library-principal";
+import type { AppPrincipal } from "../library/library-principal";
 
 const fromOwnPage = (request: Request): boolean =>
   request.headers.get("sec-fetch-site") === "same-origin";
@@ -57,19 +57,6 @@ export const lazyPrincipal = (
   };
 };
 
-// the window a principal's calls spend: its device's, its browser session's or its grant's
-export const holderIdOf = (principal: Principal): string => {
-  const { actor } = principal;
-  switch (actor.kind) {
-    case "device": {
-      return actor.deviceId;
-    }
-    case "session": {
-      return actor.sessionId;
-    }
-    case "assistant": {
-      return actor.grantId;
-    }
-    // no default
-  }
-};
+// the window a principal's calls spend: its device's, or its browser session's
+export const holderIdOf = (principal: AppPrincipal): string =>
+  principal.actor.kind === "device" ? principal.actor.deviceId : principal.actor.sessionId;
