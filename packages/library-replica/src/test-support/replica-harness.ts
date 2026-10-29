@@ -1,6 +1,7 @@
-// A device for the replica's suites: the engine over its own in-memory SQLite, a clock moved by
-// hand, ids minted in order, staged files in a map, and a block merge that keeps both sides' text,
-// all reaching one fake cell through the device's own transport.
+// A device for the replica's suites, and the editor's that drive it: the engine over its own
+// in-memory SQLite, a clock moved by hand, ids minted in order, staged files in a map, and a block
+// merge that keeps both sides' text unless a suite hands its own, all reaching one fake cell
+// through the device's own transport.
 
 import type { BlockMerge, NewId, SocketDial, StagedBlobs } from "../replica-ports";
 import { openLibraryReplica } from "../library-replica";
@@ -84,6 +85,7 @@ interface DeviceOptions {
   readonly dial?: SocketDial;
   readonly clock?: FakeClock;
   readonly idPrefix?: number;
+  readonly merge?: BlockMerge;
 }
 
 export const openDevice = async (
@@ -100,7 +102,7 @@ export const openDevice = async (
     blobs,
     clock,
     dial: options.dial ?? null,
-    merge: keepBoth,
+    merge: options.merge ?? keepBoth,
     newId,
     sql,
     transport: network.transport,

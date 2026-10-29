@@ -3,12 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { deferred } from "@repo/editor/deferred";
 import type { Deferred } from "@repo/editor/deferred";
-import { createGuardedVaultIo } from "@repo/editor/guarded-vault-io";
-import type {
-  GuardedVaultPort,
-  GuardedWrite,
-  GuardedWriteResult,
-} from "@repo/editor/guarded-vault-io";
+import { createGuardedVaultIo } from "@repo/editor/stale-write";
+import type { GuardedVaultPort, GuardedWrite, GuardedWriteResult } from "@repo/editor/stale-write";
 import { VaultEditorController } from "@repo/editor/vault-editor";
 import { composeLinkBody } from "@repo/notes/items/item-body";
 import { composeItemFile } from "@repo/notes/items/item-frontmatter";

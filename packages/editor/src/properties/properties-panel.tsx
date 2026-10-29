@@ -1,13 +1,8 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import type { KeyboardEvent } from "react";
 import { PlusIcon } from "lucide-react";
-import type { SlateEditor } from "platejs";
 
-import {
-  parseProperties,
-  serializeProperties,
-  typeNewProperty,
-} from "@repo/notes/markdown/frontmatter";
+import { typeNewProperty } from "@repo/notes/markdown/frontmatter";
 import type {
   ParsedProperties,
   PropertyType,
@@ -16,9 +11,7 @@ import type {
 import { Input } from "@repo/ui/components/input";
 import { isImeComposing } from "@repo/ui/lib/ime";
 
-import { ITEM_KEYS } from "@repo/notes/items/item-kind";
-import { subscribeLiveEditors } from "@repo/editor/live-editor";
-import { readFrontmatterRaw, writeFrontmatterRaw } from "@repo/editor/properties/properties-node";
+import type { PropertyEdit, PropertySource } from "@repo/editor/properties/property-source";
 import {
   CheckboxField,
   NumberField,
@@ -200,68 +193,18 @@ const AddProperty = ({ onAdd }: { onAdd: (key: string, value: string) => void })
   );
 };
 
-// one row's change, applied to the frontmatter as it stands when the edit lands rather than to
-// the list the render drew: a pin, an undo or the previous edit may have moved it since
-type PropertyEdit =
-  | { readonly kind: "set"; readonly prop: TypedProperty }
-  | { readonly kind: "remove"; readonly key: string }
-  | { readonly kind: "add"; readonly prop: TypedProperty };
-
-const hasKey = (properties: readonly TypedProperty[], key: string): boolean =>
-  properties.some((p) => p.key === key);
-
-// null when the edit no longer applies: its row is gone, or the key it adds exists (a duplicate
-// key would make the whole block invalid)
-const applyEdit = (
-  properties: readonly TypedProperty[],
-  edit: PropertyEdit,
-): TypedProperty[] | null => {
-  switch (edit.kind) {
-    case "set": {
-      return hasKey(properties, edit.prop.key)
-        ? properties.map((p) => (p.key === edit.prop.key ? edit.prop : p))
-        : null;
-    }
-    case "remove": {
-      return hasKey(properties, edit.key) ? properties.filter((p) => p.key !== edit.key) : null;
-    }
-    case "add": {
-      return hasKey(properties, edit.prop.key) ? null : [...properties, edit.prop];
-    }
-    default: {
-      const exhaustive: never = edit;
-      return exhaustive;
-    }
-  }
-};
-
-const HIDDEN_KEYS: ReadonlySet<string> = new Set<string>([...ITEM_KEYS, "id"]);
-
-const isShownProperty = (prop: TypedProperty): boolean => !HIDDEN_KEYS.has(prop.key);
-
-export const PropertiesPanel = ({ editor }: { editor: SlateEditor }) => {
-  // outside the Plate tree, so no useEditorSelector: the live-editor channel carries its edits
-  const raw = useSyncExternalStore(subscribeLiveEditors, () => readFrontmatterRaw(editor));
-  const parsed = useMemo<ParsedProperties | null>(
-    () => (raw === null ? null : parseProperties(raw)),
-    [raw],
-  );
+// the rows a source holds, each editable in place; a source that cannot read them (a frontmatter
+// that is not a property list) is left untouched and says so
+export const PropertiesPanel = <S,>({ source }: { source: PropertySource<S> }) => {
+  const snapshot = useSyncExternalStore(source.subscribe, source.snapshot);
+  const parsed = useMemo<ParsedProperties>(() => source.read(snapshot), [source, snapshot]);
   const [overrides, setOverrides] = useState<Record<string, PropertyType>>({});
 
-  // the item's own keys and its id are Info's, which reads them from the index
-  const properties = parsed?.kind === "valid" ? parsed.properties.filter(isShownProperty) : [];
-  const invalid = parsed?.kind === "invalid";
+  const properties = parsed.kind === "valid" ? parsed.properties : [];
+  const invalid = parsed.kind === "invalid";
 
   const commit = (edit: PropertyEdit) => {
-    const current = readFrontmatterRaw(editor) ?? "";
-    const fresh = parseProperties(current);
-    if (fresh.kind === "invalid") {
-      return;
-    }
-    const next = applyEdit(fresh.kind === "valid" ? fresh.properties : [], edit);
-    if (next !== null) {
-      writeFrontmatterRaw(editor, serializeProperties(next, current));
-    }
+    source.commit(edit);
   };
 
   const applyOverride = (prop: TypedProperty): TypedProperty => {

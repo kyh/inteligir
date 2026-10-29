@@ -94,6 +94,7 @@
     "./sync/conflict-copy": "./src/sync/conflict-copy.ts",
     "./sync/reconcile-file": "./src/sync/reconcile-file.ts",
     "./sync/url-item-verdict": "./src/sync/url-item-verdict.ts",
+    "./test-support/library-items": "./src/test-support/library-items.ts",
     "./test-support/seeded-random": "./src/test-support/seeded-random.ts",
     "./text/clip-text": "./src/text/clip-text.ts",
     "./text/decode-text": "./src/text/decode-text.ts",

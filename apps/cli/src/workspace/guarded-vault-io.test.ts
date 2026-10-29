@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 import type { VaultWriteRequest } from "@repo/contract/local/vault/vault-schema";
-import { createGuardedVaultIo } from "@repo/editor/guarded-vault-io";
+import { createGuardedVaultIo } from "@repo/editor/stale-write";
 import { createNoteRuntime } from "@repo/editor/note/note-runtime";
 import { bootTestApp } from "../server/test-support/boot-app";
 import type { BootedTestApp } from "../server/test-support/boot-app";
@@ -11,7 +11,7 @@ import { createGuardedVaultPort } from "@repo/workspace/app/note/guarded-vault-i
 import type { GuardedVaultApi } from "@repo/workspace/app/note/guarded-vault-io";
 
 // the editor's write policy over this adapter, against a real server's CAS: the policy's own
-// suite runs over a fake store (packages/editor/src/guarded-vault-io.test.ts).
+// suite runs over a fake store (packages/editor/src/stale-write.test.ts).
 const recordingWrites = (client: BootedTestApp["client"]) => {
   const sent: VaultWriteRequest[] = [];
   const api: GuardedVaultApi = {

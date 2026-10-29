@@ -7,7 +7,9 @@
   "exports": {
     "./library-replica": "./src/library-replica.ts",
     "./memory-sql": "./src/memory-sql.ts",
-    "./replica-ports": "./src/replica-ports.ts"
+    "./replica-ports": "./src/replica-ports.ts",
+    "./test-support/fake-cell": "./src/test-support/fake-cell.ts",
+    "./test-support/replica-harness": "./src/test-support/replica-harness.ts"
   },
   "scripts": {
     "test": "vitest run",

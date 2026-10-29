@@ -1,9 +1,15 @@
-// The one answer to "what does a stale save do?", run by every host over its own store: a note is
-// written against the bytes it was read as, a write whose file moved is diff3-merged with the bytes
-// now there and retried once against them, and a create carries no base. A host adapts its store
-// to the port and keeps nothing of the policy.
+// The one answer to "what does a stale write do?", whichever store it meets. A note is written
+// against the bytes it was read as, a write whose file moved is diff3-merged with the bytes now
+// there and retried once against them, and a create carries no base; a host adapts its store to
+// the port and keeps nothing of the policy. A block two writers changed is merged the same way,
+// three ways over each side's markdown (`codec/block-markdown.ts`), and the replica runs it over
+// every block a CONFLICT names (`mergeBlocks`).
 
+import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { mergeItemTexts } from "@repo/notes/sync/url-item-verdict";
+import { diff3 } from "@repo/notes/text/diff3";
+
+import { blockFromMarkdown, faithfulMarkdown, filesIn, renamedBlock } from "./codec/block-markdown";
 import type { CreateOutcome, VaultIO, WriteOutcome } from "@repo/editor/vault-editor";
 
 // `absent` is a create, and carries no base: bytes not yet on disk are nothing a CAS could match.
@@ -96,4 +102,37 @@ export const createGuardedVaultIo = (port: GuardedVaultPort): VaultIO => {
   };
 
   return { create, read, remove, write };
+};
+
+// a block two writers changed, as the replica hands it over: `base` as this device's write was
+// computed from it, `mine` as it wrote it, `theirs` as the cell holds it now
+export interface BlockSides {
+  readonly base: LibraryBlock;
+  readonly mine: LibraryBlock;
+  readonly theirs: LibraryBlock;
+}
+
+// the replica's block merge (`@repo/library-replica`'s `BlockMerge`): the lines each side changed
+// both land and an overlap keeps mine, as a note's merge does; a side whose markdown does not read
+// back as itself makes the whole block an overlap. The answer keeps theirs' id, and the `ref`
+// whichever side moved it.
+export const mergeBlocks = ({ base, mine, theirs }: BlockSides): LibraryBlock => {
+  const ref = mine.ref === base.ref ? theirs.ref : mine.ref;
+  const kept = (block: LibraryBlock): LibraryBlock => renamedBlock(block, theirs.id, ref);
+  const files = filesIn([base, mine, theirs]);
+  const baseText = faithfulMarkdown(base, files);
+  const mineText = faithfulMarkdown(mine, files);
+  const theirsText = faithfulMarkdown(theirs, files);
+  if (baseText === null || mineText === null || theirsText === null) {
+    return kept(mine);
+  }
+  const { merged } = diff3(baseText, mineText, theirsText);
+  if (merged === mineText) {
+    return kept(mine);
+  }
+  if (merged === theirsText) {
+    return kept(theirs);
+  }
+  const read = blockFromMarkdown(merged, theirs.id, files);
+  return kept(read ?? mine);
 };

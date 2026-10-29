@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
-import { createGuardedVaultIo } from "@repo/editor/guarded-vault-io";
+import { createGuardedVaultIo } from "@repo/editor/stale-write";
 import { installEditorHost } from "@repo/editor/host-io";
 import type {
   EditorHostActions,

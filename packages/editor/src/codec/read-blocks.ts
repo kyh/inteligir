@@ -35,10 +35,12 @@ export interface LibraryFile {
 }
 
 // what a `[[…]]` or `![[…]]` reaches: an item (its title, which a link keeps as the name the writer
-// saw), a file's bytes, or nothing the library holds yet
+// saw), a file's bytes, no item but under a title the caller names as it was written, or nothing
+// the library holds yet, whose title is the written target's own name
 export type Reached =
   | { readonly kind: "item"; readonly itemId: string; readonly title: string }
   | { readonly kind: "file"; readonly file: LibraryFile }
+  | { readonly kind: "title"; readonly title: string }
   | null;
 
 export interface ReadPorts {
@@ -243,7 +245,8 @@ const readWiki = (node: TElement, embed: boolean, reading: Reading): TElement =>
   const link = wikiPartsOf(written);
   const reached = reading.ports.wiki(link, embed);
   const item = reached?.kind === "item" ? reached : null;
-  const title = item?.title ?? writtenTitle(written.title);
+  const named = reached?.kind === "title" ? reached.title : writtenTitle(written.title);
+  const title = item?.title ?? named;
   if (title.trim() === "") {
     return opaqueOf(`${embed ? "!" : ""}[[${wikiBodyOf(written) ?? ""}]]`);
   }
@@ -314,10 +317,11 @@ const readNode = (node: Descendant, scope: Scope, reading: Reading): Descendant[
   return [{ ...node, children: node.children.flatMap((child) => readNode(child, inner, reading)) }];
 };
 
-// an element's children tidied the way Slate keeps a line
-const tidyTree = (node: TElement): TElement => {
+// an element's children tidied the way Slate keeps a line, less the empty texts Slate keeps around
+// an inline void: the one spelling a block is stored in, whichever editor or reader made it
+export const tidyBlock = (node: TElement): TElement => {
   const children = node.children.map((child): Descendant =>
-    isElement(child) ? tidyTree(child) : child,
+    isElement(child) ? tidyBlock(child) : child,
   );
   const inline = children.every((child) => !isElement(child) || INLINE_TYPES.has(child.type));
   const tidied = inline ? tidyInlines(children) : children;
@@ -386,7 +390,7 @@ export const readBlocks = (
       if (!isElement(read)) {
         continue;
       }
-      const element = tidyTree(read);
+      const element = tidyBlock(read);
       const last = blocks.at(-1);
       const ref = person === null ? null : standaloneRef(element);
       if (ref !== null && last !== undefined && last.ref === null) {

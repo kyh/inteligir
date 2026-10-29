@@ -57,7 +57,7 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   are two answers to a stale save; a host's adapter only turns the base into its
   store's CAS token. Rejected: active-user-wins (discards concurrent body edits
   wholesale). `apps/cli/src/server/vault/vault-router.ts`,
-  `packages/editor/src/guarded-vault-io.ts`.
+  `packages/editor/src/stale-write.ts`.
 
 - **CONTAINMENT IS PHYSICAL, NOT LEXICAL, IN THE SERVER AND IN THE SHELL.** The
   vault realpaths the deepest existing ancestor and refuses symlinked leaves in

@@ -1,4 +1,4 @@
-import type { GuardedVaultPort, GuardedWrite } from "@repo/editor/guarded-vault-io";
+import type { GuardedVaultPort, GuardedWrite } from "@repo/editor/stale-write";
 import type { LocalClient } from "@repo/contract/local";
 import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 import type { VaultWriteGuard } from "@repo/contract/local/vault/vault-schema";

@@ -9,7 +9,7 @@ The Plate WYSIWYG: kits and nodes for every dialect construct, the md-rules
 table, the fixpoint serializer and its fixtures, and the open-note runtime a
 host drives through three seams: `VaultSessionPorts`
 (`packages/editor/src/note/vault-session.ts`), the `GuardedVaultPort` the one
-write policy runs over (`packages/editor/src/guarded-vault-io.ts`), and the
+write policy runs over (`packages/editor/src/stale-write.ts`), and the
 `EditorHost` singleton (`packages/editor/src/host-io.ts`, opened to React by
 `host.ts`), installed by one `installEditorHost` call per host. Its
 `EditorHostIo` carries the link resolver store and note formulas, so no host
@@ -93,12 +93,15 @@ alone, and no walk narrows structurally.
   both saved byte-exact. Rejected: reading either as a callout, a second grammar
   with its own node and index pass for kinds the five alerts cannot spell.
 
-- **FRONTMATTER IS THE ONLY PROPERTY STORE**: no metadata table, a note's UUID
-  is its `id:`, and YAML the typing rules cannot represent is preserved
-  byte-exactly. `@repo/notes/markdown/frontmatter`. The properties panel hides
-  an item's own keys (`ITEM_KEYS`) and `id`, which Info shows and writes
-  (`packages/editor/src/properties/properties-panel.tsx`), so no key has two
-  editors.
+- **AN ITEM'S PROPERTIES ARE ITS FIELDS, AND THE PANEL DRAWS ANY SOURCE OF
+  ROWS**: an item opened by id reads and patches its own fields, each row's
+  edit one property op over the value the item holds
+  (`packages/editor/src/item/item-properties.ts`); a vault note's are its
+  frontmatter, its UUID its `id:`, YAML the typing rules cannot represent kept
+  byte-exactly (`@repo/notes/markdown/frontmatter`), less an item's own keys
+  (`ITEM_KEYS`) and `id`, which Info shows and writes, so no key has two
+  editors (`packages/editor/src/properties/property-source.ts`). Rejected: a
+  frontmatter block in an item (its keys are columns).
 
 - **THE EDITOR COLUMN SHOWS ONE ITEM, AND NOTHING OPEN IS THE LIBRARY.** One
   `OpenNoteStore`, and every surface reads the open item. With nothing open the
@@ -302,12 +305,30 @@ alone, and no walk narrows structurally.
   codec only names what the dialect spells by words: a link's title to its
   item's id on the way in (`read-blocks.ts`), and on the way out an id to the
   name the caller spells it with and a sha to a path (`write-blocks.ts`).
-  Obsidian's `==mark==`, `%%x%%` and `^ref` read in the note's section only. An agent's edit must match once, keep the article's own
+  Obsidian's `==mark==`, `%%x%%` and `^ref` read in the note's section only.
+  An agent's edit must match once, keep the article's own
   lines and nest no deeper than the editor reads; only the blocks it spans are
   read again, matched by content so the rest keep their ids and markers, and a
   highlight it took either edge of is named. Rejected: a second markdown
   grammar for import (two readings drift) and re-reading a whole item per edit
   (every block's id would turn over). `packages/editor/src/codec/item-edit.ts`.
+
+- **AN ITEM IS EDITED BY ITS ID: ITS BLOCKS ARE THE VALUE, AND A PAUSE WRITES
+  OPS.** `createItemSession` opens an item over the replica's own read, write
+  and change feed (`ItemStore`): each top-level element is the block its Plate
+  node id names, read in the one spelling a block is stored in, and 800 ms
+  after the last keystroke the put, drop, insert and move ops of what changed
+  since the blocks last acknowledged go to the outbox, decided by hash (an
+  element's identity only skips its read); a field patch goes at once, under
+  its base. An id Plate minted again is a drop and an insert, a block typed
+  after the article's first block is the article's, and an element no block
+  stores is held back. A change from elsewhere is laid in with the editor's
+  transforms outside its undo, a block both sides changed merged by
+  `mergeBlocks`, diff3 over each side's markdown with an overlap keeping mine,
+  which the replica runs on a CONFLICT too (`packages/editor/src/stale-write.ts`).
+  Rejected: the value mirrored into React state (a render of the whole item per
+  keystroke); a whole-item write (two devices' edits to different blocks would
+  meet). `packages/editor/src/item/item-session.ts`, `item-diff.ts`.
 
 ## Vault: writes, git and containment
 
@@ -318,7 +339,7 @@ alone, and no walk narrows structurally.
   never retried, and leaving asks: discard, or re-create the note from the
   buffer. Rejected: refusing to leave (it holds the user there for good).
   `packages/editor/src/note/note-runtime.ts`,
-  `packages/editor/src/guarded-vault-io.ts`.
+  `packages/editor/src/stale-write.ts`.
 
 - **THE MERGE'S LINE DIFF IS BOUNDED, AND A MERGE THAT KEPT THE BUFFER OVER AN
   OVERLAP SAYS SO.** The diff runs inside a save's CAS retry, where an unbounded
@@ -330,7 +351,7 @@ alone, and no walk narrows structurally.
   no overlap said, as the sync and the phone's queue would
   (`@repo/notes/sync/url-item-verdict`). `@repo/notes/text/line-diff`,
   `packages/editor/src/vault-editor.ts`,
-  `packages/editor/src/guarded-vault-io.ts`.
+  `packages/editor/src/stale-write.ts`.
 
 - **A RENAME HOLDS THE OPEN NOTE THROUGH THE MOVE, NEVER LETS GO OF IT.** The
   session suspends the note's controller across the move (edits land in the

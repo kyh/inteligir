@@ -8,8 +8,8 @@ import { z } from "zod";
 
 import { removeAnnotationMarkers } from "@repo/editor/annotations/annotation-markers";
 import { clearAnnotationMeta, setAnnotationMeta } from "@repo/editor/annotations/annotation-store";
-import { createGuardedVaultIo } from "@repo/editor/guarded-vault-io";
-import type { GuardedVaultPort } from "@repo/editor/guarded-vault-io";
+import { createGuardedVaultIo } from "@repo/editor/stale-write";
+import type { GuardedVaultPort } from "@repo/editor/stale-write";
 import { installEditorHost } from "@repo/editor/host-io";
 import type {
   EditorHostActions,

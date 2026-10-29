@@ -6,6 +6,7 @@
 import type { LibraryScope } from "@repo/domain/library-scope";
 import { useLiveEditor } from "@repo/editor/live-editor";
 import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
+import { frontmatterProperties } from "@repo/editor/properties/property-source";
 import { TagsField } from "@repo/editor/properties/property-fields";
 import { openExternalUrl } from "@repo/editor/lib/open-external-url";
 import { parseItemTime } from "@repo/notes/items/item-time";
@@ -33,7 +34,7 @@ import {
   TagIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 import { client } from "../api";
@@ -72,13 +73,14 @@ export const InlineProperties = ({
   onOpenChange: (open: boolean) => void;
 }) => {
   const editor = useLiveEditor(open ? docPath : null);
+  const source = useMemo(() => (editor === null ? null : frontmatterProperties(editor)), [editor]);
   return (
     <FoldSection label="More properties" open={open} onOpenChange={onOpenChange}>
       <div className="px-3 pb-2">
-        {editor === null ? (
+        {source === null ? (
           <p className="pb-1 text-body text-muted-foreground">Open the item to edit properties.</p>
         ) : (
-          <PropertiesPanel editor={editor} />
+          <PropertiesPanel source={source} />
         )}
       </div>
     </FoldSection>

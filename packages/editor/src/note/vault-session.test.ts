@@ -1,8 +1,8 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { deferred } from "@repo/editor/deferred";
 import type { Deferred } from "@repo/editor/deferred";
-import { createGuardedVaultIo } from "@repo/editor/guarded-vault-io";
-import type { GuardedVaultPort, GuardedWrite } from "@repo/editor/guarded-vault-io";
+import { createGuardedVaultIo } from "@repo/editor/stale-write";
+import type { GuardedVaultPort, GuardedWrite } from "@repo/editor/stale-write";
 import type { VaultChangedEvent, VaultEntry } from "@repo/editor/host-io";
 import type { OpenPathChange } from "@repo/editor/note/open-note-store";
 import { createVaultSession } from "@repo/editor/note/vault-session";
