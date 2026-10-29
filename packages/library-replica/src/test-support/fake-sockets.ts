@@ -9,7 +9,7 @@ interface SocketEvent {
   readonly code?: number | undefined;
 }
 
-export interface FakeSocket extends ReplicaSocket {
+interface FakeSocket extends ReplicaSocket {
   readonly url: string;
   readonly sent: string[];
   closed: boolean;
