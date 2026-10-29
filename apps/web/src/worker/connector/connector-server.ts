@@ -53,7 +53,7 @@ To edit an item, pass the sequence read_item answered as the base of edit_item, 
 const SERVER_INFO = { name: "inteligir", title: "Inteligir", version: "1.0.0" } as const;
 
 // one write at its text cap (8 MiB) in the JSON-RPC envelope it rides in, as `/v1/rpc` takes it
-export const CONNECTOR_MAX_BODY_BYTES = 16 * 1024 * 1024;
+const CONNECTOR_MAX_BODY_BYTES = 16 * 1024 * 1024;
 
 // what the cell hands the handler for the request in hand, the principal aside
 export type ConnectorCell = (principal: AssistantPrincipal) => CellContext;

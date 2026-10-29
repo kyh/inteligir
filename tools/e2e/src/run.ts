@@ -20,6 +20,7 @@ import { browserExtension } from "./scenarios/browser-extension";
 import { browserSmoke } from "./scenarios/browser-smoke";
 import { builtCliBoot } from "./scenarios/built-cli-boot";
 import { builtWorkerBoot } from "./scenarios/built-worker-boot";
+import { connectorTools } from "./scenarios/connector-tools";
 import { cliDrive } from "./scenarios/cli-drive";
 import { connectorsBrowser } from "./scenarios/connectors-browser";
 import { debugLogTrace } from "./scenarios/debug-log";
@@ -87,6 +88,7 @@ const SCENARIOS: readonly Scenario[] = [
   phoneSaveHosted,
   phoneFillRaceHosted,
   accountHosted,
+  connectorTools,
   onboardingAccountBrowser,
   builtWorkerBoot,
   builtCliBoot,

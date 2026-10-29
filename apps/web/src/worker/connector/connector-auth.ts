@@ -38,14 +38,14 @@ const GRANT_IDLE_TTL_SECONDS = 30 * DAY_SECONDS;
 
 // what a grant keeps: whose library, and the client's name as it gave it on the consent page,
 // which History and the account's list of assistants show
-export const grantPropsSchema = z.strictObject({
+const grantPropsSchema = z.strictObject({
   accountId: z.string().min(1).max(128),
   clientName: z.string().min(1).max(128),
 });
 
 // an access token's: its grant's, and the grant it was minted under, which the token alone does not
 // say and every call's change set and budget are keyed on
-export const tokenPropsSchema = grantPropsSchema.extend({
+const tokenPropsSchema = grantPropsSchema.extend({
   grantId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/u),
 });
 
@@ -65,7 +65,7 @@ const siteOriginSchema = z.url({ protocol: /^https?$/u }).transform((value, issu
   return origin;
 });
 
-export const connectorResourceOf = (origin: string): string => `${origin}${CONNECTOR_PATH}`;
+const connectorResourceOf = (origin: string): string => `${origin}${CONNECTOR_PATH}`;
 
 const logRefusal = (refusal: {
   code: string;

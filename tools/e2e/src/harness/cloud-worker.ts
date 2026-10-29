@@ -115,6 +115,7 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
       const port = ports[0] ?? 0;
       const inspectorPort = ports[1] ?? 0;
       const inspectPort = ports[2] ?? 0;
+      const origin = `http://127.0.0.1:${String(port)}`;
       const child = spawnSupervised({
         argv: [
           path.join(e2eDir, "src", "harness", "worker-host.ts"),
@@ -129,6 +130,8 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
               BETTER_AUTH_SECRET,
               // the suite signs up more than one account from one IP.
               RATE_LIMIT_DISABLED: "true",
+              // the connector's issuer and resource, which the build names as production's
+              SITE_ORIGIN: origin,
               ...args.vars,
             },
           }),
@@ -141,7 +144,7 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
       const handle: CloudWorker = {
         ...child,
         inspectOrigin: `http://127.0.0.1:${String(inspectPort)}`,
-        origin: `http://127.0.0.1:${String(port)}`,
+        origin,
       };
       args.register(handle);
       args.onLog(`booting the cloud worker on ${handle.origin}`);

@@ -7,7 +7,7 @@
 import type { ConsentDescription } from "@cloudflare/workers-oauth-provider";
 
 // the five characters that can end an attribute or open a tag, as numeric references
-export const escapeHtml = (value: string): string =>
+const escapeHtml = (value: string): string =>
   value.replaceAll(/[&<>"']/gu, (char) => `&#${String(char.codePointAt(0))};`);
 
 // the site's own look in a few rules: no stylesheet to fetch, nothing a strict policy refuses

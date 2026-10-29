@@ -15,7 +15,7 @@ export const CONNECTOR_URL = `${ORIGIN}${CONNECTOR_PATH}`;
 
 // where a desktop client listens for its code; nothing listens here, since the test reads the
 // redirect itself
-export const REDIRECT_URI = "http://127.0.0.1:43123/callback";
+const REDIRECT_URI = "http://127.0.0.1:43123/callback";
 
 // what every client's request carries, which the connector's Host check reads, unless the test
 // names another
@@ -131,7 +131,7 @@ const tokenSchema = z.object({
 
 export type MintedToken = z.infer<typeof tokenSchema>;
 
-export const exchangeCode = async (
+const exchangeCode = async (
   clientId: string,
   code: string,
   verifier: string,
