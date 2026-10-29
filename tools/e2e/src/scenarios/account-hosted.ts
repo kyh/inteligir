@@ -8,12 +8,21 @@ import { hostedVaultEnv } from "../harness/hosted-vault";
 import type { AppInstance } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
+import { accountIdOf, holdingsOf, newItemId, uploadFile, v1Client } from "../harness/v1-wire";
 
 const REVOKED_DEADLINE_MS = 15_000;
 
+// a one-pixel PNG, the file the phone keeps in the library
+const PIXEL = new Uint8Array(
+  Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64",
+  ),
+);
+
 export const accountHosted: Scenario = {
   description:
-    "an account created in the app (`cloud.signUp`) against a Miniflare Worker signs that instance in as it; the invite is spent, so a second sign-up with it is FORBIDDEN; a second instance signs in with the same email and password, and the first lists both devices and revokes it; a wrong password deletes nothing, and the right one signs the first out, after which the password signs nothing in and the invite stays spent",
+    "an account created in the app (`cloud.signUp`) against a Miniflare Worker signs that instance in as it; the invite is spent, so a second sign-up with it is FORBIDDEN; a second instance signs in with the same email and password, and the first lists both devices and revokes it; a phone signs in over the one wire and writes a note and a file into the account's library cell; a wrong password deletes nothing, and the right one signs the first out and takes the cell's items, the files in R2 and the account's rows in D1 with it, after which the phone's credential reaches nothing, the password signs nothing in and the invite stays spent",
   name: "account-hosted",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -95,7 +104,8 @@ export const accountHosted: Scenario = {
     ctx.log("B's next request is refused: B reaches unauthorized");
     await pollUntil(
       async () => {
-        await b.api.cloud.syncNow();
+        // any request under B's credential hears the revocation; the refusal itself is expected
+        await safe(b.api.cloud.devices());
         return await b.api.cloud.status();
       },
       (status) => status.state === "unauthorized",
@@ -107,6 +117,43 @@ export const accountHosted: Scenario = {
     );
     const stillA = await a.api.cloud.status();
     expect(stillA.state === "signed-in", `A after revoking B is ${stillA.state}`);
+
+    ctx.log("a phone signs in over the one wire and writes the library through it");
+    const phone = await v1Client(worker, null).account.signIn({
+      ...OWNER,
+      deviceName: "E2E Phone",
+    });
+    const { library } = v1Client(worker, phone.credential);
+    const { item: note } = await library.items.createNote({
+      markdown: "Written over the one wire.",
+      title: "From the phone",
+    });
+    const read = await library.items.read({ id: note.id });
+    expectEq(read.view.markdown, "Written over the one wire.\n", "the phone's note read back");
+    const upload = await uploadFile(worker, phone.credential, { bytes: PIXEL, type: "image/png" });
+    expect(upload.status === 201, `the phone's upload answered ${String(upload.status)}`);
+    const { item: file } = await library.items.createFile({
+      folderId: null,
+      id: newItemId(),
+      name: "pixel.png",
+      savedAt: Date.now(),
+      sha: upload.sha,
+      tags: [],
+    });
+    const fileRead = await library.items.read({ id: file.id });
+    expect(fileRead.fields.kind === "image", `the phone's file landed as ${fileRead.fields.kind}`);
+    const accountId = await accountIdOf(worker, OWNER.email);
+    if (accountId === null) {
+      throw new Error("the worker host found no account for the owner's email");
+    }
+    const held = await holdingsOf(worker, accountId);
+    expect(
+      held.cell.items === 2 &&
+        held.cell.deleted === null &&
+        held.files === 1 &&
+        held.rows.users === 1,
+      `the account holds ${JSON.stringify(held)}`,
+    );
 
     ctx.log("A's deletion with a wrong password is refused, and A stays signed in");
     const [wrong] = await safe(a.api.cloud.deleteAccount({ password: "not-the-password" }));
@@ -123,6 +170,20 @@ export const accountHosted: Scenario = {
     expect(
       !existsSync(deviceCredentialPath(a.dataDir)),
       "A's credential file outlived the deletion",
+    );
+
+    ctx.log("the account's cell, its files in R2 and its rows in D1 went with it");
+    const gone = await holdingsOf(worker, accountId);
+    expect(
+      gone.cell.items === 0 && gone.cell.deleted !== null,
+      `the deleted account's cell holds ${JSON.stringify(gone.cell)}`,
+    );
+    expectEq(gone.files, 0, "the deleted account's files in R2");
+    expectEq(gone.rows, { devices: 0, sessions: 0, users: 0 }, "the deleted account's rows in D1");
+    const [unreachable] = await safe(library.items.list({}));
+    expect(
+      isDefinedError(unreachable) && unreachable.code === "UNAUTHORIZED",
+      `the phone after the deletion answered ${isDefinedError(unreachable) ? unreachable.code : String(unreachable)}`,
     );
 
     ctx.log("the account is gone: its password signs nothing in, and its invite stays spent");

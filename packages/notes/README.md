@@ -1,7 +1,11 @@
 # @repo/notes
 
-The pure, platform-neutral domain core: the knowledge engine
-(links/tags/search) over one markdown scan.
+The pure, platform-neutral domain core: the library model the cloud cut builds
+(an item as fields and a body of Plate blocks, its ops, its undo and its one
+SQL schema), and beside it, until their last clients move, the item model of
+the markdown vault (what a saved link, a file and a note are as one markdown
+file) and the knowledge engine (links/tags/search and the library listing)
+over one markdown scan.
 
 ## Why it exists
 
@@ -17,6 +21,22 @@ workspace.
 ```
 src/
   iso-date.ts          # a Date → local `YYYY-MM-DD`, the only date text shared
+  library/             # the library model: what the cell and both replicas share
+    library-nodes.ts   # the persisted node set, strict zod over Plate's own
+                       # node props, checked at the cell's boundary
+    library-item.ts    # an item's fields, one column each, capped to a row
+    block-ops.ts       # insert/put/drop/move and field patches, each naming
+                       # its base; the per-block guard, apply and rebase
+    block-order.ts, block-hash.ts, canonical-json.ts  # fractional order
+                       # keys, a block's hash, one spelling of a JSON value
+    derive-item.ts     # title, card, text, links, tags and anchored
+                       # highlights, from the fields and the blocks
+    revert-change.ts   # a change set taken back three ways, in
+                       # revert-edit's orientation, newest set first
+    library-schema.ts  # the ONE DDL, versioned by `meta.schema`
+    library-sql.ts     # the ports, plans as generators, statement chunking
+    library-queries.ts # every read and write over the schema, as plans
+    library-index.ts   # the listing over a replica's rows, in memory
   knowledge/           # derived-index engine
     projection.ts      # projectDoc — the ONE parse per doc (PROJECTION_VERSION)
     link-graph-index.ts  # pure link/tag/title/graph resolution, fed projections
@@ -63,7 +83,7 @@ src/
                        # nesting in every flow container; an opener whose
                        # container cannot be read whole stays prose
     text-escapes.ts    # which of a text's characters a backslash escape
-                       # wrote, so a pill, a date, a comment marker or a
+                       # wrote, so a pill, a date, an annotation marker or a
                        # `:::` line spelled with one stays text
     remark-inline-constructs.ts, remark-opaque.ts, table-pipes.ts,
     line-scan.ts
@@ -87,10 +107,25 @@ src/
                        # keeps a BOM and the note's line ending) + the
                        # typed-property ADT (YAML it cannot represent is
                        # preserved byte-exactly)
-  comments/            # the %%i:id:start/end%% anchor sidecar: thread bodies,
-                       # marker ids, the sidecar schema, and the entry-wise
-                       # merge two devices' stores take and revert an undo
-                       # takes (never a line merge)
+  items/               # what an item is, as one markdown file
+    item-kind.ts       # the kinds, a file's kind by its extension, the
+                       # library's own folders and the refusal sentences
+                       # every client says
+    item-url.ts        # a url's ONE key and its cleaned spelling, with no
+                       # platform URL
+    item-frontmatter.ts, item-body.ts  # the facts' reader, the line-cut
+                       # writes of them, and a link's composed body
+    item-files.ts      # a cover, an original and a page copy, computed from
+                       # the first embeds and links every time
+    item-name.ts, item-stub.ts, item-tags.ts, item-time.ts  # a page's
+                       # title as a name, a stub's text, tag edits, and the
+                       # one time spelling
+    library-index.ts   # the library listing: every doc and every bare
+                       # media file, sorted, filtered and counted in memory
+  annotations/         # the %%i:id:start/end%% markers' store: highlights,
+                       # notes and replies, marker ids, the store schema, and
+                       # the entry-wise merge two devices' stores take and
+                       # revert an undo takes (never a line merge)
   formulas/            # {{source|display|meta}} pills: collection, expression
                        # evaluation, the resolve graph and the walk that loads
                        # it across notes, and result formatting
@@ -104,6 +139,8 @@ src/
                        # desktop's sync and the phone's write queue both run
     conflict-copy.ts   # the copy's name, its parse, and the one sentence
                        # every surface says about it
+    url-item-verdict.ts  # two versions of one saved link settled on one
+                       # text, whichever device asks, before any line merge
 ```
 
 ## Invariants
@@ -127,6 +164,10 @@ src/
 
 ## Seams
 
+- `SqlPort` / `AsyncSqlPort` (`library/library-sql.ts`): one statement per
+  call and `transaction(work)`; the cell binds `ctx.storage.sql` and
+  `transactionSync`, a replica its driver. A plan (`library-queries.ts`) runs
+  on either through `runPlan` or `runPlanAsync`.
 - `SqlDriver` (`knowledge/sql-knowledge-store.ts`): the host binds it —
   better-sqlite3 in `apps/cli/src/server/knowledge/sqlite-driver.ts` — and
   throws `KnowledgeStoreError` for every database failure, the one failure the
@@ -134,10 +175,15 @@ src/
 
 ## Testing
 
-`pnpm --filter @repo/notes test` — vitest. `src/__tests__/` pins the
-knowledge engine: resolver tiers (including an oracle equivalence for the
-basename buckets), rename byte surgery, the search policy against both
-engines, the scan's prose against the editor's parse, and the diff3 merge. The
+`pnpm --filter @repo/notes test` — vitest, each suite beside the module it
+tests. The suites in `src/knowledge/` pin the knowledge engine: resolver tiers
+(including an oracle equivalence for the basename buckets), rename byte
+surgery, the search policy against both engines and the scan's prose against
+the editor's parse; `src/text/` pins the diff3 merge; `src/library/` runs its
+SQL on SQLite's own wasm build behind a port that refuses what a Durable
+Object refuses (`src/test-support/wasm-sql-port.ts`), and its properties
+(rebases commute, undo restores, revert-edit's orientation, chunking under
+both caps) draw from the one seeded generator. The
 suites run under a 512MB heap ceiling (`vitest.config.ts`), so an allocation
 that grows with a note's size, like a diff trace that copies the whole
 frontier every round, fails here rather than passing on a default heap.

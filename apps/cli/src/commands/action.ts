@@ -1,4 +1,5 @@
 import { setTimeout as delay } from "node:timers/promises";
+import type { LocalClient } from "@repo/contract/local";
 import {
   THREADS_LIST_DEFAULT_LIMIT,
   THREADS_LIST_MAX_LIMIT,
@@ -12,11 +13,12 @@ import type {
   UndoKeptReason,
   UndoTurnResponse,
 } from "@repo/contract/local/threads/threads-schema";
+import { actionPresetSchema } from "@repo/domain/action-preset";
 import { defineCommand } from "citty";
 import { parseBoundedInteger, parsePositiveNumber } from "../args";
-import { CliExitError, failureFrom, getErrorMessage } from "../cli-error";
+import { CliExitError, failureFrom, getErrorMessage, invalidUsage } from "../cli-error";
 import { apiFor } from "../context";
-import type { Api, CliDeps } from "../context";
+import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
 import {
   DEFAULT_WAIT_POLL_INTERVAL_MS,
@@ -73,6 +75,7 @@ const KEPT_BECAUSE: Record<UndoKeptReason, string> = {
   busy: "a running turn is changing it",
   "deleted-since": "deleted since the turn",
   "edited-since": "edited since the turn, where the turn changed it",
+  "linked-since": "another note links or embeds it since the turn",
   "recreated-since": "made again since the turn deleted it",
   unreadable: "not text an undo can merge",
 };
@@ -83,7 +86,7 @@ const undoLines = (body: UndoTurnResponse): string[] => [
 ];
 
 // the turn an undo with no --turn names: the newest one still applied.
-const newestAppliedTurn = async (api: Api, threadId: string): Promise<string> => {
+const newestAppliedTurn = async (api: LocalClient, threadId: string): Promise<string> => {
   const { turns } = await api.threads.turnChanges({ threadId });
   const newest = turns.findLast((turn) => turn.state === "applied");
   if (newest === undefined) {
@@ -94,7 +97,11 @@ const newestAppliedTurn = async (api: Api, threadId: string): Promise<string> =>
   return newest.turnId;
 };
 
-const turnStillApplied = async (api: Api, threadId: string, turnId: string): Promise<boolean> => {
+const turnStillApplied = async (
+  api: LocalClient,
+  threadId: string,
+  turnId: string,
+): Promise<boolean> => {
   const { turns } = await api.threads.turnChanges({ threadId });
   return turns.some((turn) => turn.turnId === turnId && turn.state === "applied");
 };
@@ -102,8 +109,9 @@ const turnStillApplied = async (api: Api, threadId: string, turnId: string): Pro
 const awaitingAnswer = (interactions: readonly PendingInteraction[]): string[] =>
   interactions.filter((row) => row.status === "pending").map((row) => row.id);
 
+// an approval is the person's to answer, on the action in the app.
 const answerHint = (ids: readonly string[]): string =>
-  `approval ${ids.join(", ")} (\`inteligir interactions answer <id> <decision>\`)`;
+  `approval ${ids.join(", ")}, which the person answers in the app`;
 
 // the hint is pasted back into a shell, so a value that is not one plain word is single-quoted.
 const shellWord = (word: string): string =>
@@ -209,7 +217,13 @@ export const actionCommand = (deps: CliDeps) =>
       new: defineCommand({
         args: {
           doc: { description: "Attach the action to this note", type: "string" },
-          prompt: { description: "The first turn's text", required: true, type: "positional" },
+          preset: {
+            description:
+              "Run a named action (tidy-library: file and tag everything in Unsorted or untagged)",
+            options: actionPresetSchema.options,
+            type: "enum",
+          },
+          prompt: { description: "The first turn's text", required: false, type: "positional" },
           ...jsonArg,
         },
         meta: {
@@ -217,6 +231,9 @@ export const actionCommand = (deps: CliDeps) =>
           name: "new",
         },
         run: async ({ args }) => {
+          if (args.prompt === undefined && args.preset === undefined) {
+            throw invalidUsage("give a prompt or --preset");
+          }
           const api = apiFor(deps);
           const { thread: createdThread } = await api.threads.create(
             args.doc === undefined ? {} : { originDocPath: args.doc },
@@ -224,7 +241,8 @@ export const actionCommand = (deps: CliDeps) =>
           let outcome: SendOutcome;
           try {
             outcome = await api.threads.send({
-              text: args.prompt,
+              preset: args.preset,
+              text: args.prompt ?? "",
               threadId: createdThread.id,
             });
           } catch (error) {
@@ -356,7 +374,7 @@ export const actionCommand = (deps: CliDeps) =>
             args.turn === undefined
               ? "; it stays the newest turn to undo, so pass --turn to undo an earlier one"
               : "";
-          // asked, not inferred: a comment store taken back in part is named kept, yet it was written.
+          // asked, not inferred: an annotation store taken back in part is named kept, yet it was written.
           if (
             body.reverted.length === 0 &&
             body.kept.length > 0 &&
@@ -392,15 +410,10 @@ export const actionCommand = (deps: CliDeps) =>
             description: `Give up after this many seconds (default ${DEFAULT_WAIT_TIMEOUT_SECONDS}, at most ${MAX_WAIT_TIMEOUT_SECONDS})`,
             type: "string",
           },
-          "until-input": {
-            description: "Stop with exit 4 once the thread waits on an approval",
-            type: "boolean",
-          },
           ...jsonArg,
         },
         meta: {
-          description:
-            "Block until the thread settles; exit 0 idle, 1 error, 2 timeout, 4 approval waiting (--until-input)",
+          description: "Block until the thread settles; exit 0 idle, 1 error, 2 timeout",
           name: "wait",
         },
         run: async ({ args }) => {
@@ -460,12 +473,6 @@ export const actionCommand = (deps: CliDeps) =>
               });
             }
             awaiting = awaitingAnswer(pendingInteractions);
-            if (awaiting.length > 0 && args["until-input"] === true) {
-              throw new CliExitError(
-                `Thread ${args.id} is waiting on ${answerHint(awaiting)}; answer it, then wait again`,
-                { code: "AWAITING_INTERACTION" },
-              );
-            }
             const fresh = awaiting.filter((id) => !noticed.has(id));
             if (fresh.length > 0 && args.json !== true) {
               out.warn(`Thread ${args.id} is waiting on ${answerHint(fresh)}; still waiting`);

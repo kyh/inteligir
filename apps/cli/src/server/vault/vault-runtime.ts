@@ -9,7 +9,7 @@ import type { DebugLog } from "../debug-log";
 import { assertVaultAndDataDirDisjoint } from "../path-containment";
 import { ensureVaultRepo } from "./git-bootstrap";
 import { createGitEngine } from "./git-engine";
-import type { GitEngine, GitEngineArgs } from "./git-engine";
+import type { GitEngine, GitEngineArgs, VaultGit } from "./git-engine";
 import { gitAt } from "./git-run";
 import type { GitRunner } from "./git-run";
 import { seedVault } from "./seed-vault";
@@ -60,7 +60,7 @@ type VaultDelivery =
 
 export interface VaultRuntime {
   readonly service: VaultService;
-  readonly git: GitEngine;
+  readonly git: VaultGit;
   dispose: () => Promise<void>;
 }
 

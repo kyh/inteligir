@@ -93,7 +93,7 @@ const DIFF_LINE = {
 
 const revisionBody = (unread: boolean, refused: boolean): string => {
   if (!unread) {
-    return "This version is what the note holds right now.";
+    return "This version is what the item holds right now.";
   }
   return refused ? "This version could not be read." : "Reading…";
 };
@@ -112,7 +112,7 @@ const DiffRowView = ({ row }: { row: DiffRow }) => {
   if (row.kind === "unaligned") {
     return (
       <div className="py-1 text-center text-muted-foreground">
-        Too many changes to pair line by line: the note&apos;s lines, then the version&apos;s
+        Too many changes to pair line by line: the item&apos;s lines, then the version&apos;s
       </div>
     );
   }
@@ -155,7 +155,7 @@ const RevisionDetail = ({
       if (!(await flushOpenNote())) {
         return {
           kind: "refused",
-          message: "The note could not be saved, so nothing was restored.",
+          message: "The item could not be saved, so nothing was restored.",
         };
       }
       // the auto-commit is session-shaped, so bytes saved seconds ago are in no revision yet. the
@@ -174,7 +174,7 @@ const RevisionDetail = ({
       if (isDefinedError(error) && error.code === "CAS_MISMATCH") {
         return {
           kind: "refused",
-          message: "The note changed while this restore was in flight. Look again and retry.",
+          message: "The item changed while this restore was in flight. Look again and retry.",
         };
       }
       return { kind: "refused", message: refusalMessage(error, RESTORE_REFUSED) };
@@ -270,7 +270,7 @@ export const HistoryTab = ({ docPath }: { docPath: string | null }) => {
 
   if (docPath === null) {
     return (
-      <p className="p-3 text-subtitle text-muted-foreground">Open a note to see its history.</p>
+      <p className="p-3 text-subtitle text-muted-foreground">Open an item to see its history.</p>
     );
   }
   if (selected !== null && current !== null) {

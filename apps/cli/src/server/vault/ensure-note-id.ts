@@ -1,6 +1,6 @@
 // A note keeps the id it has. One without is minted one through a guarded write, re-read once if
 // the note moved under it, because the user may be typing in it. Each caller decides what a
-// refusal costs it: a comment is refused, an action keeps its path alone.
+// refusal costs it: an annotation is refused, an action keeps its path alone.
 
 import { randomUUID } from "node:crypto";
 import { withFrontmatterId } from "@repo/notes/markdown/frontmatter";

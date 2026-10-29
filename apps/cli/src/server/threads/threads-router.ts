@@ -37,9 +37,6 @@ const interrupt = base.threads.interrupt.handler(async ({ context, input, errors
     case "not-found": {
       throw errors.NOT_FOUND({ message: THREAD_NOT_FOUND });
     }
-    case "remote": {
-      throw errors.CONFLICT({ message: outcome.message });
-    }
     // no default
   }
 });
@@ -101,6 +98,8 @@ const undoTurn = base.threads.undoTurn.handler(async ({ context, input, errors }
   const outcome = await context.turnUndo.undo(input.threadId, input.turnId);
   switch (outcome.kind) {
     case "undone": {
+      // a stub the turn had deleted comes back with no row to fill it
+      await context.items.adoptOwn(outcome.changes.reverted);
       return outcome.changes;
     }
     case "not-found": {
@@ -112,10 +111,6 @@ const undoTurn = base.threads.undoTurn.handler(async ({ context, input, errors }
     // no default
   }
 });
-
-const listInteractions = base.threads.listInteractions.handler(({ context, input }) => ({
-  interactions: context.threads.listInteractions(input.threadId),
-}));
 
 const answerInteraction = base.threads.answerInteraction.handler(({ context, input, errors }) => {
   const outcome = context.threads.answerInteraction(input);
@@ -143,7 +138,6 @@ export const threadsRouter = {
   get,
   interrupt,
   list,
-  listInteractions,
   send,
   timeline,
   turnChanges,

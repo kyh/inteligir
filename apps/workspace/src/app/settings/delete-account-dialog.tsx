@@ -14,12 +14,7 @@ import {
 import { useId, useState } from "react";
 import { LabelledField } from "../labelled-field";
 
-const DELETED = [
-  "The online copy of your notes",
-  "Your synced conversations with the agent",
-  "Captures from your phone that haven't reached a Mac",
-  "The sign-in on every device, this Mac included",
-] as const;
+const DELETED = ["Your online library", "The sign-in on every device, this Mac included"] as const;
 
 export interface DeleteAccountDialogProps {
   open: boolean;
@@ -71,7 +66,7 @@ export const DeleteAccountDialog = ({
               ))}
             </ul>
           </div>
-          <p className="text-body">Your notes on this Mac and their history stay here.</p>
+          <p className="text-body">Your library on this Mac and its history stay here.</p>
           <LabelledField
             id={passwordId}
             label="Password"

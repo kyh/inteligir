@@ -76,7 +76,7 @@ One per file; its header and its failure message state the rule in full.
 - `script-naming.test.ts`: a root script's workspace suffix and every `--filter` name a real workspace.
 - `catalog-spelling.test.ts`: a dependency two manifests name is `catalog:`, or a `DECLARED_SPLITS` row.
 - `tailwind-source.test.ts`: every `@source` glob's static base exists.
-- `workerd-compat-date.test.ts`: the Worker's `compatibilityDate` is the oldest workerd date the lockfile resolves.
+- `workerd-compat-date.test.ts`: the Worker's `compatibilityDate` is the oldest workerd date the lockfile resolves, and no earlier than the first date a Durable Object's pending I/O holds it from eviction.
 - `durable-git-stub.test.ts`: the durable-git stub's header names the version the lockfile resolves.
 - `d1-unique-index.test.ts`: no `d1-http` schema declares `.unique()`; a unique is a `uniqueIndex` row.
 - `agent-skills.test.ts`: every skill names itself, the hub indexes every skill, and the CLI's probe file exists.
@@ -86,8 +86,9 @@ One per file; its header and its failure message state the rule in full.
 - `ime-enter.test.ts`: a source testing a key against Enter imports `isImeComposing`, or is a `NOT_A_TEXT_FIELD` row.
 - `privacy-routes.test.ts`: every cloud `/v1/` route has a row in `docs/privacy.md`, and every row a route.
 - `decisions-index.test.ts`: `AGENTS.md` § Decisions indexes every nested `CLAUDE.md`, and the root one is `@AGENTS.md`.
+- `tests-beside-source.test.ts`: no tracked path sits in a `__tests__` folder; a suite is beside its module, shared test code in `test-support/`.
 
-Every exception table — `ALLOWED_EXPORTS`, `AWAITING_CONSUMER`, `NOT_DEMOED`,
+Every exception table — `ALLOWED_EXPORTS`, `NOT_DEMOED`,
 `dispatchedIn`, `elsewhere`, `ELSEWHERE`,
 `DECLARED_SPLITS`, `DATA_FILES`, `DELIBERATE_NON_REFERENCES`, `PROSE_SIZES`,
 `NOT_A_TEXT_FIELD` — has a companion assertion that no row is STALE: a row
@@ -125,7 +126,7 @@ subpath after the name is not resolved) or a path anchored on a workspace group
   against (the `inteligir` workspace, `apps/cli/scripts/smoke.ts`, a `dial()`
   row), so an empty population fails as "the sweep is broken, not the tree"
   rather than passing over nothing.
-- **Shipped and test are split.** `workspaceFiles` classes `__tests__/`,
+- **Shipped and test are split.** `workspaceFiles` classes
   `test-support/` and `*.test.*` as test; an edge only a test crosses is not a
   DAG edge but must still be declared in the manifest.
 - **This package reaches nothing.** Its `DECLARED_EDGES` row is empty: the

@@ -19,6 +19,9 @@ export interface SupervisedChild extends TrackedProcess {
   exited: () => boolean;
   // the leader alone, where stop() signals the whole group: what an OS quit sends an app
   signalLeader: (signal: NodeJS.Signals) => void;
+  // an OS quit, then the group: SIGTERM to the leader alone, which a server takes as one ordered
+  // shutdown, and once it exits (or `graceMs` runs out) stop() for whatever it left behind
+  quit: (graceMs: number) => Promise<void>;
 }
 
 // module scope: the runner's signal handlers need one place naming every group to kill.
@@ -137,19 +140,36 @@ export const spawnSupervised = (args: SpawnSupervisedArgs): SupervisedChild => {
   });
 
   let stopPromise: Promise<void> | null = null;
+  const stop = async (): Promise<void> => {
+    stopPromise ??= pid === undefined ? Promise.resolve() : stopProcessGroup(pid, args.name);
+    await stopPromise;
+  };
+  const signalLeader = (signal: NodeJS.Signals): void => {
+    if (pid !== undefined && !exited) {
+      process.kill(pid, signal);
+    }
+  };
   return {
     exited: () => exited,
     name: args.name,
     outputTail: (lines = 40) => outputLines.slice(-lines).join("\n"),
-    signalLeader: (signal) => {
-      if (pid !== undefined && !exited) {
-        process.kill(pid, signal);
+    async quit(graceMs) {
+      if (stopPromise === null) {
+        try {
+          signalLeader("SIGTERM");
+        } catch {
+          // the leader is already gone.
+        }
+        const deadline = Date.now() + graceMs;
+        // `exited` is set by the child's exit listener while this loop waits
+        for (let gone = exited; !gone && Date.now() < deadline; gone = exited) {
+          await delay(KILL_POLL_INTERVAL_MS);
+        }
       }
+      await stop();
     },
-    async stop() {
-      stopPromise ??= pid === undefined ? Promise.resolve() : stopProcessGroup(pid, args.name);
-      await stopPromise;
-    },
+    signalLeader,
+    stop,
   };
 };
 

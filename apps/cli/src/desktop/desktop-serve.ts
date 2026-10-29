@@ -8,12 +8,14 @@
 // line says where it listens, the one-time link that signs the window in, and how long a stop may
 // take before the shell kills it, which is the server's own budget and never spelled in the shell.
 
+import { homedir } from "node:os";
 import { readCliVersion, packageFile } from "../paths";
 import { runtimeModeOf } from "../server/config";
 import { DEBUG_NAMESPACES } from "../server/debug-log";
 import type { RunServeOptions, ServeOverrides } from "../server/serve";
 import { SHUTDOWN_TIMEOUT_MS } from "../server/shutdown";
 import { writeAgentLauncher } from "./agent-launcher";
+import { installAppNativeHost, installsNativeHost } from "./native-hosts";
 import { adoptServer, planServerStart, resolveServerTarget, verifyServer } from "./server-start";
 import type { ResolveServerTargetArgs } from "./server-start";
 
@@ -31,6 +33,21 @@ type Announcement =
 
 const announcementLine = (announcement: Announcement): string =>
   `${READY_MARKER}${JSON.stringify(announcement)}\n`;
+
+// the browsers' door, rewritten each boot beside the agent's launcher for the same reason: the app
+// may have moved since the last. A browser folder it cannot write costs that browser alone, noted in
+// the server's log
+const writeBrowserDoor = (homeDir: string): void => {
+  const { failed } = installAppNativeHost({
+    cliEntry: packageFile("dist/index.js"),
+    homeDir,
+    node: process.execPath,
+    platform: process.platform,
+  });
+  for (const failure of failed) {
+    process.stderr.write(`[native-host] could not write ${failure.path}: ${failure.reason}\n`);
+  }
+};
 
 const announce = async (announcement: Announcement): Promise<void> => {
   const written: PromiseWithResolvers<void> = Promise.withResolvers();
@@ -69,9 +86,13 @@ export const desktopServe = async (
     });
     process.exit(0);
   }
+  const mode = runtimeModeOf(resolveArgs.env);
+  if (installsNativeHost({ execPath: process.execPath, mode, target: resolved.target })) {
+    writeBrowserDoor(resolveArgs.homeDir ?? homedir());
+  }
   // the shell holds stdin's other end and never writes it, so it ends only when the shell is gone
   const options: RunServeOptions =
-    runtimeModeOf(resolveArgs.env) === "prod"
+    mode === "prod"
       ? {
           cliBinDir: writeAgentLauncher({
             cliEntry: packageFile("dist/index.js"),

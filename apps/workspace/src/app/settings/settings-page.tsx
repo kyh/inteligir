@@ -23,7 +23,9 @@ import { AdvancedSection } from "./advanced-section";
 import { AgentsSection } from "./agents-section";
 import { AttachmentsRow } from "./attachments-row";
 import { ConnectorsSection } from "./connectors-section";
-import { FoldersSection } from "./folders-section";
+import { FilingRulesRow } from "./filing-rules-row";
+import { BrowserExtensionRow } from "./browser-extension-row";
+import { ImportRow } from "./import-row";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
 import { SpellcheckRow } from "./spellcheck-row";
 import { UpdatesRow } from "./updates-row";
@@ -38,10 +40,9 @@ const THEMES: readonly { value: Theme; label: string }[] = [
 
 // Ids must agree with the section anchors below.
 const NAV = [
-  { id: "vault", label: "Vault" },
+  { id: "library", label: "Library" },
   { id: "agents", label: "Agent" },
   { id: "connectors", label: "Connectors" },
-  { id: "folders", label: "Connected folders" },
   { id: "account", label: "Account" },
   { id: "editor", label: "Editor" },
   { id: "advanced", label: "Advanced" },
@@ -79,7 +80,7 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
         <nav className="sticky top-10 hidden w-40 shrink-0 self-start md:block">
           <Button variant="ghost" size="compact" className="-ml-2 mb-6 gap-1.5" onClick={onBack}>
             <ArrowLeftIcon />
-            Notes
+            Library
           </Button>
           <ul className="space-y-1 text-subtitle">
             {NAV.map((item) => (
@@ -100,7 +101,7 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
             <Button
               variant="ghost"
               size="icon-compact"
-              aria-label="Back to notes"
+              aria-label="Back to library"
               className="md:hidden"
               onClick={onBack}
             >
@@ -109,8 +110,8 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
             <h2 className="text-title font-semibold">Settings</h2>
           </header>
 
-          <section id="vault" className="scroll-mt-10 space-y-2">
-            <SectionHeading>Vault</SectionHeading>
+          <section id="library" className="scroll-mt-10 space-y-2">
+            <SectionHeading>Library</SectionHeading>
             <dl className="space-y-1.5">
               <Row label="Location">
                 <span className="block truncate font-mono text-body" title={treeQuery.data?.root}>
@@ -133,20 +134,19 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
                 </span>
               </Row>
               <AttachmentsRow />
+              <BrowserExtensionRow />
+              <ImportRow />
               <VaultsRow />
             </dl>
           </section>
           <Separator />
           <div id="agents" className="scroll-mt-10">
             <AgentsSection />
+            <FilingRulesRow onBack={onBack} />
           </div>
           <Separator />
           <div id="connectors" className="scroll-mt-10">
             <ConnectorsSection />
-          </div>
-          <Separator />
-          <div id="folders" className="scroll-mt-10">
-            <FoldersSection />
           </div>
           <Separator />
           <div id="account" className="scroll-mt-10">

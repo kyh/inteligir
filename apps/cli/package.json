@@ -32,10 +32,10 @@
   ],
   "type": "module",
   "exports": {
-    "./desktop/door-answers": "./src/desktop/__tests__/door-answers.ts",
+    "./desktop/door-answers": "./src/desktop/test-support/door-answers.ts",
+    "./server/address-guard": "./src/server/items/capture/address-guard.ts",
     "./server/agent-shell-env": "./src/server/agents/agent-shell-env.ts",
     "./server/cloud/credential-store": "./src/server/cloud/credential-store.ts",
-    "./server/cloud/sync-cadence": "./src/server/cloud/sync-cadence.ts",
     "./server/config": "./src/server/config.ts",
     "./server/csp": "./src/server/csp.ts",
     "./server/dev-instance": "./src/server/dev-instance.ts",
@@ -54,7 +54,7 @@
   "scripts": {
     "build": "node scripts/build.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts && tsc --noEmit -p src/workspace",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts && tsc --noEmit -p src/workspace && tsc --noEmit -p src/server/items/capture/fill",
     "smoke": "node scripts/smoke.ts"
   },
   "dependencies": {
@@ -66,8 +66,8 @@
   "devDependencies": {
     "@hono/node-server": "catalog:",
     "@hono/node-ws": "catalog:",
+    "@kyh/tsconfig": "catalog:",
     "@orpc/client": "catalog:",
-    "@orpc/contract": "catalog:",
     "@orpc/server": "catalog:",
     "@repo/agent-runtime": "workspace:*",
     "@repo/agent-skills": "workspace:*",
@@ -76,6 +76,7 @@
     "@repo/domain": "workspace:*",
     "@repo/editor": "workspace:*",
     "@repo/notes": "workspace:*",
+    "@repo/page-reader": "workspace:*",
     "@repo/ui": "workspace:*",
     "@repo/workspace": "workspace:*",
     "@tanstack/react-query": "catalog:",

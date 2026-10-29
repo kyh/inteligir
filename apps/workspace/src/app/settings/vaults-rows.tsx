@@ -23,7 +23,7 @@ export const VaultsRow = () => {
   const { state } = vaults;
   const switchable = state.blocked === null;
   return (
-    <Row label="Vaults">
+    <Row label="Libraries">
       <div className="space-y-2">
         {switchable ? (
           <Button
@@ -34,7 +34,9 @@ export const VaultsRow = () => {
               run("picking", pickVault);
             }}
           >
-            {busy === "picking" || busy === "opening" ? "Opening…" : "Open another vault…"}
+            {busy === "picking" || busy === "opening"
+              ? "Opening…"
+              : "Switch or open another library…"}
           </Button>
         ) : (
           <span className="block text-subtitle text-muted-foreground">{state.blocked}</span>

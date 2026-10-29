@@ -3,6 +3,7 @@
 
 import { cp, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { build } from "esbuild";
 import type { BuildOptions, Metafile } from "esbuild";
@@ -120,6 +121,37 @@ const { metafile } = await build({
 });
 assertEntryLoadsNone(metafile, CLI_ENTRY, LOADED_ON_EVERY_VERB_REFUSED);
 
+// the DOM, the readable-content extractor, turndown and the editor live in the fill worker alone
+// (src/server/items/capture/item-fill-worker.ts, reading pages through @repo/page-reader): a static
+// or dynamic import of any of them from the server would ship them in the bundle every verb and the
+// desktop shell load. The server thread reaches the reader's zod wire and its url rule alone.
+const SERVER_REFUSED_ANYWHERE = [
+  "linkedom@",
+  "defuddle@",
+  "turndown@",
+  "platejs@",
+  "packages/editor/src/",
+];
+
+// the worker reaches the editor's headless fixpoint and nothing of its page: a React half or a
+// renderer bundled into it is a kit that stopped being headless (packages/editor/src/kits/headless)
+const FILL_WORKER_REFUSED = ["react-dom@", "pele@", "katex@", "lucide-react@", "packages/ui/src/"];
+
+// a package marker (`name@`) names the package's own store directory, never a peer suffix of
+// another's (`platejs@…_react-dom@…`); a path marker names a workspace folder
+const isMarked = (input: string, marker: string): boolean =>
+  marker.endsWith("@") ? input.includes(`node_modules/.pnpm/${marker}`) : input.includes(marker);
+
+const refusedInputs = (inputs: readonly string[], refused: readonly string[]): string[] =>
+  inputs.filter((input) => refused.some((marker) => isMarked(input, marker)));
+
+const mainRefused = refusedInputs(Object.keys(metafile.inputs), SERVER_REFUSED_ANYWHERE);
+if (mainRefused.length > 0) {
+  throw new Error(
+    `the server bundle reaches what only the fill worker may: ${mainRefused.slice(0, 10).join(", ")}`,
+  );
+}
+
 // each runs outside the entry's process or thread, so each needs its own file beside it.
 const SIBLING_BUNDLES = [
   // a child process the server forks
@@ -143,6 +175,51 @@ for (const { entry, external, outfile } of SIBLING_BUNDLES) {
     external,
     outfile: path.join(distDir, outfile),
   });
+}
+
+// the fill worker, a thread the capture starts (src/server/items/capture/fill-runner.ts): the
+// browser build of turndown, which parses with the DOM it is handed rather than bundling its own,
+// resolved from the reader that imports it, since an alias resolves from the working directory
+const FILL_WORKER_OUTFILE = "item-fill-worker.mjs";
+const readerRequire = createRequire(path.join(repoRoot, "packages", "page-reader", "package.json"));
+const fillWorker = await build({
+  ...shared,
+  alias: { turndown: readerRequire.resolve("turndown/lib/turndown.browser.es.js") },
+  entryPoints: [path.join(packageRoot, "src", "server", "items", "capture", "item-fill-worker.ts")],
+  external: [],
+  metafile: true,
+  outfile: path.join(distDir, FILL_WORKER_OUTFILE),
+});
+// what the worker bundles, not every module esbuild visited: an import tree-shaken to nothing (a
+// markdown extension's unused html renderer) ships no byte
+const workerInputs = Object.entries(fillWorker.metafile.outputs)
+  .filter(([name]) => name.endsWith(FILL_WORKER_OUTFILE))
+  .flatMap(([, output]) =>
+    Object.entries(output.inputs)
+      .filter(([, input]) => input.bytesInOutput > 0)
+      .map(([name]) => name),
+  );
+const workerRefused = refusedInputs(workerInputs, FILL_WORKER_REFUSED);
+if (workerInputs.length === 0 || workerRefused.length > 0) {
+  throw new Error(
+    workerInputs.length === 0
+      ? "esbuild's metafile names no input of the fill worker"
+      : `the fill worker bundles a page's half: ${workerRefused.slice(0, 10).join(", ")}`,
+  );
+}
+
+// the worker reaches no network and starts no process: node's own modules stay external to the
+// bundle, so they are read from what the bundle itself imports, whichever module asked for them
+const FILL_WORKER_REFUSED_BUILTINS =
+  /^(?:node:)?(?:http|https|http2|net|tls|dns|dgram|child_process|cluster)(?:\/|$)/u;
+const workerBuiltins = Object.entries(fillWorker.metafile.outputs)
+  .filter(([name]) => name.endsWith(FILL_WORKER_OUTFILE))
+  .flatMap(([, output]) => output.imports.map((imported) => imported.path))
+  .filter((imported) => FILL_WORKER_REFUSED_BUILTINS.test(imported));
+if (workerBuiltins.length > 0) {
+  throw new Error(
+    `the fill worker imports a network or process module: ${[...new Set(workerBuiltins)].join(", ")}`,
+  );
 }
 
 await cp(path.join(repoRoot, "packages", "db", "drizzle"), path.join(distDir, "drizzle"), {

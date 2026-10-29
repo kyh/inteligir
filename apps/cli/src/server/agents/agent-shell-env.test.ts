@@ -1,0 +1,67 @@
+import { accessSync, constants, mkdirSync, statSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import { makeTempDir } from "../test-support/temp-dir";
+import { resolveCliBinDir, toShellEnv } from "./agent-shell-env";
+import { fakeSessionFacts } from "./test-support/agent-test-harness";
+
+const CLI_BIN_DIR = "/repo/apps/cli/bin";
+
+describe("resolveCliBinDir", () => {
+  it("finds a directory holding an EXECUTABLE inteligir", () => {
+    const binDir = resolveCliBinDir();
+    expect(binDir).not.toBeNull();
+    if (binDir === null) {
+      return;
+    }
+    const binPath = path.join(binDir, "inteligir");
+    expect(statSync(binPath).isFile()).toBe(true);
+    expect(() => {
+      accessSync(binPath, constants.X_OK);
+    }).not.toThrow();
+  });
+
+  it("answers null when the shipped CLI is not executable", () => {
+    // npm strips the execute bit from every packed file not named in `bin`.
+    const binDir = path.join(makeTempDir("unexecutable-cli-"), "bin");
+    mkdirSync(binDir, { recursive: true });
+    writeFileSync(path.join(binDir, "inteligir"), "#!/bin/sh\n", { mode: 0o644 });
+
+    expect(resolveCliBinDir(binDir)).toBeNull();
+  });
+
+  it("answers null when no CLI ships beside this program", () => {
+    expect(resolveCliBinDir("/nowhere/at/all/bin")).toBeNull();
+  });
+});
+
+describe("toShellEnv", () => {
+  it("prepends the bin dir to the inherited PATH and names the instance", () => {
+    const env = toShellEnv(
+      fakeSessionFacts({ cliBinDir: CLI_BIN_DIR, dataDir: "/instances/one/data" }),
+      {
+        PATH: `/usr/bin${path.delimiter}/bin`,
+      },
+    );
+    expect(env).toEqual({
+      INTELIGIR_DATA_DIR: "/instances/one/data",
+      PATH: `${CLI_BIN_DIR}${path.delimiter}/usr/bin${path.delimiter}/bin`,
+    });
+  });
+
+  it("is the bin dir alone when the host process has no PATH", () => {
+    const env = toShellEnv(fakeSessionFacts({ cliBinDir: CLI_BIN_DIR }), {});
+    expect(env.PATH).toBe(CLI_BIN_DIR);
+  });
+
+  it("leaves PATH untouched when no CLI resolved — never a dangling entry", () => {
+    const env = toShellEnv(fakeSessionFacts(), { PATH: "/usr/bin" });
+    expect(env).toEqual({ INTELIGIR_DATA_DIR: "/instances/test/data" });
+  });
+
+  it("names the skills dir only when one resolved", () => {
+    expect(toShellEnv(fakeSessionFacts(), {})).not.toHaveProperty("INTELIGIR_SKILLS_DIR");
+    const env = toShellEnv(fakeSessionFacts({ skillsDir: "/repo/skills" }), {});
+    expect(env.INTELIGIR_SKILLS_DIR).toBe("/repo/skills");
+  });
+});

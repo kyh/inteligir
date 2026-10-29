@@ -5,18 +5,19 @@
 
 import { z } from "zod";
 
-import type { KnowledgeStore, StoredDocRow } from "./knowledge-store";
+import type { DocFingerprint, KnowledgeStore, StoredDocRow } from "./knowledge-store";
 import { PROJECTION_VERSION } from "./projection";
 import type { DocProjection } from "./projection";
 import { parseStoredProjection } from "./projection-row";
 import { searchExcerpt } from "./search-excerpt";
 import type { SearchHit } from "./search-index";
+import { renderFtsMatch } from "./fts-match";
 import { planSearchQuery, SEARCH_FIELD_WEIGHTS, TYPED_QUERY } from "./search-query";
 import type { SearchQueryOptions, SearchQueryPlan, SearchResult } from "./search-query";
 import type { DocText } from "./text-matches";
 
 // bump on any DDL change; a mismatch wipes and rebuilds
-export const KNOWLEDGE_SCHEMA_VERSION = 11;
+export const KNOWLEDGE_SCHEMA_VERSION = 12;
 
 type SqlValue = null | number | string;
 
@@ -82,11 +83,13 @@ CREATE TABLE files (
   path TEXT PRIMARY KEY,
   kind TEXT NOT NULL CHECK (kind IN ('doc', 'other')),
   content_hash TEXT,
-  projection TEXT
+  projection TEXT,
+  size INTEGER,
+  modified_ms REAL
 );
 CREATE VIRTUAL TABLE search_fts USING fts5(
-  title, headings, body,
-  title_stems, heading_stems, body_stems,
+  title, headings, meta, body,
+  title_stems, heading_stems, meta_stems, body_stems,
   path UNINDEXED,
   tokenize='unicode61 remove_diacritics 2 tokenchars ''_'''
 );
@@ -97,13 +100,15 @@ CREATE VIRTUAL TABLE search_fts USING fts5(
 const COLUMN_WEIGHTS = [
   SEARCH_FIELD_WEIGHTS.title,
   SEARCH_FIELD_WEIGHTS.headings,
+  SEARCH_FIELD_WEIGHTS.meta,
   SEARCH_FIELD_WEIGHTS.body,
 ].join(", ");
 const BM25_RANK = `bm25(search_fts, ${COLUMN_WEIGHTS}, ${COLUMN_WEIGHTS}) AS rank`;
 
-// the body comes back whole and search-excerpt.ts cuts it: fts5's snippet() cannot see a stem-only hit
+// the body comes back whole and search-excerpt.ts cuts it: fts5's snippet() cannot see a stem-only
+// hit. a hit on an item's properties alone is shown by them
 const SEARCH_SQL = `
-SELECT path, title, body, ${BM25_RANK}
+SELECT path, title, meta, body, ${BM25_RANK}
 FROM search_fts
 WHERE search_fts MATCH ?
 ORDER BY rank, path
@@ -121,7 +126,7 @@ LIMIT ?
 
 // keyset (`path > ?` on the pk) rather than offset, so page n costs the same as page 0
 const DOC_PAGE_SQL = `
-SELECT path, content_hash, projection
+SELECT path, content_hash, projection, size, modified_ms
 FROM files WHERE kind = 'doc' AND path > ? ORDER BY path LIMIT ?
 `;
 const OTHER_PAGE_SQL = `
@@ -129,22 +134,6 @@ SELECT path, content_hash FROM files WHERE kind = 'other' AND path > ? ORDER BY 
 `;
 
 const PATH_START = "";
-
-const LITERAL_COLUMNS = "{title headings body}";
-const STEM_COLUMNS = "{title_stems heading_stems body_stems}";
-
-// every term is quoted because fts5 reads AND/OR/NOT/NEAR, `*`, `^`, `:`, `-` and parens as
-// syntax, and the tokenizer cannot emit a `"`, so nothing can close the quote. literal arm OR
-// stem arm is the exact tier (search-index.ts has the porter example), and each term is
-// parenthesized so its inner OR cannot bind against the joining AND
-const renderFtsMatch = (plan: SearchQueryPlan): string =>
-  plan.terms
-    .map(
-      (term) =>
-        `(${LITERAL_COLUMNS}: "${term.token}"${term.prefix ? " *" : ""}` +
-        ` OR ${STEM_COLUMNS}: "${term.stem}")`,
-    )
-    .join(plan.match === "all" ? " AND " : " OR ");
 
 const columnNumber = (row: SqlRow, key: string): number => {
   const value = z.number().safeParse(row[key]);
@@ -164,6 +153,12 @@ const columnString = (row: SqlRow, key: string): string => {
 
 const columnNullableString = (row: SqlRow, key: string): string | null =>
   row[key] === null ? null : columnString(row, key);
+
+// both or neither: a row written without its stat reads as one the next reconcile reads again
+const fingerprintOf = (row: SqlRow): DocFingerprint | null =>
+  row["size"] === null || row["modified_ms"] === null
+    ? null
+    : { mtimeMs: columnNumber(row, "modified_ms"), size: columnNumber(row, "size") };
 
 // bm25 is lower-is-better; flip to match the pure index's direction
 const rankScore = (row: SqlRow): number => -columnNumber(row, "rank");
@@ -289,6 +284,7 @@ export const createSqlKnowledgeStore = (
   const readDocPage = (after: string, limit: number): StoredDocRow[] =>
     driver.all(DOC_PAGE_SQL, [after, limit]).map((row) => ({
       contentHash: columnString(row, "content_hash"),
+      fingerprint: fingerprintOf(row),
       path: columnString(row, "path"),
       projection: storedProjection(columnString(row, "projection")),
     }));
@@ -398,7 +394,10 @@ export const createSqlKnowledgeStore = (
       }
       return answered.rows.map((row) => {
         const title = columnString(row, "title");
-        const snippet = searchExcerpt(columnString(row, "body"), answered.plan.terms);
+        const { terms } = answered.plan;
+        const snippet =
+          searchExcerpt(columnString(row, "body"), terms) ||
+          searchExcerpt(columnString(row, "meta"), terms);
         return {
           path: columnString(row, "path"),
           score: rankScore(row),
@@ -422,17 +421,32 @@ export const createSqlKnowledgeStore = (
       }));
     },
 
+    setFingerprint(path, fingerprint) {
+      driver.run("UPDATE files SET size = ?, modified_ms = ? WHERE path = ? AND kind = 'doc'", [
+        fingerprint.size,
+        fingerprint.mtimeMs,
+        path,
+      ]);
+    },
+
     transaction,
 
     upsertDoc(row, search) {
       transaction(() => {
         driver.run(
-          `INSERT INTO files (path, kind, content_hash, projection)
-           VALUES (?, 'doc', ?, ?)
+          `INSERT INTO files (path, kind, content_hash, projection, size, modified_ms)
+           VALUES (?, 'doc', ?, ?, ?, ?)
            ON CONFLICT(path) DO UPDATE SET
              kind = 'doc', content_hash = excluded.content_hash,
-             projection = excluded.projection`,
-          [row.path, row.contentHash, JSON.stringify(row.projection)],
+             projection = excluded.projection, size = excluded.size,
+             modified_ms = excluded.modified_ms`,
+          [
+            row.path,
+            row.contentHash,
+            JSON.stringify(row.projection),
+            row.fingerprint?.size ?? null,
+            row.fingerprint?.mtimeMs ?? null,
+          ],
         );
         const rowid = rowidOf(row.path);
         if (rowid === null) {
@@ -441,15 +455,18 @@ export const createSqlKnowledgeStore = (
         driver.run("DELETE FROM search_fts WHERE rowid = ?", [rowid]);
         driver.run(
           `INSERT INTO search_fts
-             (rowid, title, headings, body, title_stems, heading_stems, body_stems, path)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+             (rowid, title, headings, meta, body, title_stems, heading_stems, meta_stems,
+              body_stems, path)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             rowid,
             search.title,
             search.headings,
+            search.meta,
             search.body,
             search.titleStems,
             search.headingStems,
+            search.metaStems,
             search.bodyStems,
             row.path,
           ],
@@ -466,7 +483,8 @@ export const createSqlKnowledgeStore = (
         driver.run(
           `INSERT INTO files (path, kind, content_hash) VALUES (?, 'other', ?)
            ON CONFLICT(path) DO UPDATE SET
-             kind = 'other', content_hash = excluded.content_hash, projection = NULL`,
+             kind = 'other', content_hash = excluded.content_hash, projection = NULL,
+             size = NULL, modified_ms = NULL`,
           [path, unprojectableHash ?? null],
         );
       });

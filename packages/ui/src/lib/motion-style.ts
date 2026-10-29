@@ -1,6 +1,5 @@
-// MotionStyle spells its optionals without `| undefined`, so under exactOptionalPropertyTypes
-// React's CSSProperties cannot be spread into a motion style; dropping undefined entries makes
-// the merge fit
+// React's CSSProperties and framer's MotionStyle merged left to right into one motion style, an
+// undefined entry skipped so it never erases an earlier one
 
 import type { MotionStyle } from "framer-motion";
 import type { CSSProperties, HTMLAttributes } from "react";

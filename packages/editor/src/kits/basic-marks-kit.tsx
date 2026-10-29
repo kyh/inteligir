@@ -3,11 +3,6 @@
 // writes it as `<u>…</u>`.
 
 import {
-  BaseBoldPlugin,
-  BaseCodePlugin,
-  BaseItalicPlugin,
-  BaseStrikethroughPlugin,
-  BaseUnderlinePlugin,
   BoldRules,
   CodeRules,
   ItalicRules,
@@ -26,14 +21,6 @@ import { KEYS } from "platejs";
 
 import { semanticLeaf } from "@repo/editor/kits/kit-utils";
 import { markPluginShortcuts } from "@repo/editor/mark-shortcuts";
-
-export const BasicMarksBaseKit = [
-  BaseBoldPlugin,
-  BaseItalicPlugin,
-  BaseUnderlinePlugin,
-  BaseStrikethroughPlugin,
-  BaseCodePlugin,
-];
 
 // chords come from MARK_SHORTCUTS, never Plate's own defaults, so the page that lists them is true
 export const BasicMarksKit = [

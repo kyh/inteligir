@@ -1,37 +1,52 @@
 name: 🐞 Bug Report
-description: Create a bug report to help us improve
+description: Tell us about something in Inteligir that doesn't work as it should
 title: "bug: "
 labels: ["🐞❔ unconfirmed bug"]
 body:
-  - type: textarea
+  - type: markdown
     attributes:
-      label: Provide environment information
+      value: |
+        Thank you for taking the time to tell us. The more of this form you fill in, the sooner we can find it.
+  - type: input
+    attributes:
+      label: Version
       description: |
-        Run this command in your project root and paste the results in a code block:
-        ```bash
-        npx envinfo --system --binaries
-        ```
+        On a Mac, it is in Settings › About. For the browser extension, it is on your browser's extensions page. On iPhone, it is the version TestFlight shows for Inteligir.
     validations:
       required: true
-  - type: textarea
+  - type: dropdown
     attributes:
-      label: Describe the bug
-      description: A clear and concise description of the bug, as well as what you expected to happen when encountering it.
+      label: Where it happened
+      options:
+        - The Mac app
+        - The iPhone app
+        - The browser extension
+        - The website or your account
     validations:
       required: true
   - type: input
     attributes:
-      label: Link to reproduction
-      description: Please provide a link to a reproduction of the bug. Issues without a reproduction repo may be ignored.
+      label: Your device
+      description: Your Mac's macOS version, your iPhone's iOS version, or your browser and its version.
+      placeholder: macOS 15.1 on a MacBook Air
     validations:
       required: true
   - type: textarea
     attributes:
-      label: To reproduce
-      description: Describe how to reproduce your bug. Steps, code snippets, reproduction repos etc.
+      label: What happened
+      description: What you did, step by step, what you expected to happen, and what happened instead.
+      placeholder: |
+        1. Saved a link from Safari's share sheet
+        2. Opened it on the Mac
+        3. Expected its title and picture, but it still says "Not read yet"
     validations:
       required: true
   - type: textarea
     attributes:
-      label: Additional information
-      description: Add any other information related to the bug here, screenshots if applicable.
+      label: The log
+      description: |
+        On a Mac, Settings › Advanced › Show log shows the app's log, `server.log`: drag it here. For more detail, turn on Debug logging there, quit and reopen Inteligir, do the steps again, then attach the log. It names the files in your library, so look it over before you attach it.
+  - type: textarea
+    attributes:
+      label: Anything else
+      description: Screenshots, or anything else that helps us see it.

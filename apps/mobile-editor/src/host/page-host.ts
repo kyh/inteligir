@@ -6,8 +6,8 @@
 import { deferred } from "@repo/editor/deferred";
 import { z } from "zod";
 
-import { removeCommentMarkers } from "@repo/editor/comments/comment-markers";
-import { clearCommentMeta, setCommentMeta } from "@repo/editor/comments/comment-store";
+import { removeAnnotationMarkers } from "@repo/editor/annotations/annotation-markers";
+import { clearAnnotationMeta, setAnnotationMeta } from "@repo/editor/annotations/annotation-store";
 import { createGuardedVaultIo } from "@repo/editor/guarded-vault-io";
 import type { GuardedVaultPort } from "@repo/editor/guarded-vault-io";
 import { installEditorHost } from "@repo/editor/host-io";
@@ -26,7 +26,7 @@ import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 import { confirmVanished, mergeConflictLine } from "@repo/editor/note/vanished-prompt";
 import { createVaultSession } from "@repo/editor/note/vault-session";
 import type { SaveError, VaultEditorState } from "@repo/editor/vault-editor";
-import { newCommentRefusal } from "@repo/notes/comments/comment-key";
+import { newAnnotationRefusal } from "@repo/notes/annotations/annotation-key";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
@@ -80,10 +80,10 @@ const base64Of = async (blob: Blob): Promise<string> => {
 };
 
 // `sent` once a write carrying it landed; the next write of the note goes as an ordinary one
-interface PendingComment {
+interface PendingAnnotation {
   readonly id: string;
   readonly path: string;
-  readonly text: string;
+  readonly quote: string;
   sent: boolean;
 }
 
@@ -111,9 +111,9 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
     return content;
   };
 
-  // a new comment waiting on the save that writes its markers, which carries it, so the phone lands
-  // the two as one change set and no pull ever finds markers with no comment behind them
-  let anchoring: PendingComment | null = null;
+  // a new annotation waiting on the save that writes its markers, which carries it, so the phone lands
+  // the two as one change set and no pull ever finds markers with no annotation behind them
+  let anchoring: PendingAnnotation | null = null;
 
   const port: GuardedVaultPort = {
     read: readFile,
@@ -121,23 +121,23 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
       await bridge.request("remove", { path: notePath });
     },
     write: async (notePath, content, guard) => {
-      const comment = anchoring;
+      const annotation = anchoring;
       if (
-        comment === null ||
-        comment.sent ||
-        comment.path !== notePath ||
+        annotation === null ||
+        annotation.sent ||
+        annotation.path !== notePath ||
         guard.kind !== "expected"
       ) {
         return await bridge.request("write", { content, guard, path: notePath });
       }
-      const result = await bridge.request("addComment", {
+      const result = await bridge.request("addAnnotation", {
         base: guard.base,
         content,
-        id: comment.id,
+        id: annotation.id,
         path: notePath,
-        text: comment.text,
+        quote: annotation.quote,
       });
-      comment.sent = result.kind === "written";
+      annotation.sent = result.kind === "written";
       return result;
     },
   };
@@ -224,15 +224,15 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
       if (await session.actions.flush()) {
         bridge.emit({ path: target, type: "navigate" });
       } else {
-        toast.error("Couldn't save this note — resolve that before leaving it.");
+        toast.error("Couldn't save this item — resolve that before leaving it.");
       }
     })();
   };
 
   const vault: VaultActions = {
     ...session.actions,
-    createFile: async (rawPath, content) => {
-      const created = await session.actions.createFileAt(rawPath, content);
+    createFile: async (rawPath) => {
+      const created = await session.actions.createFileAt(rawPath);
       if (created !== null) {
         navigate(created);
       }
@@ -259,6 +259,8 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
         changeListeners.delete(listener);
       };
     },
+    // the phone shows a picture, a PDF or a page's copy in a viewer of its own, through navigate
+    opensFiles: true,
     pickImage: async () => await bridge.request("pickImage", {}),
     readNoteFormulas: formulas.read,
     readVaultAsset,
@@ -272,20 +274,20 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
       }),
   };
 
-  // The toolbar puts the markers in at Save, so the flush's write carries them and the comment
+  // The toolbar puts the markers in at Save, so the flush's write carries them and the annotation
   // together. A chord's create opens its field after its markers are in, where the autosave has
   // already written them, so its entry lands in a set of its own once the flush writes nothing.
-  const createComment = async (id: string, text: string): Promise<boolean> => {
+  const createAnnotation = async (id: string, quote: string): Promise<boolean> => {
     const { editor, openPath } = store.state();
     if (openPath === null || editor.kind !== "open") {
       return false;
     }
-    const refusal = newCommentRefusal(editor.content);
+    const refusal = newAnnotationRefusal(editor.content);
     if (refusal !== null) {
       toast.error(refusal);
       return false;
     }
-    const pending: PendingComment = { id, path: openPath, sent: false, text };
+    const pending: PendingAnnotation = { id, path: openPath, quote, sent: false };
     anchoring = pending;
     try {
       if (!(await session.actions.flush())) {
@@ -298,24 +300,24 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
       if (flushed.kind !== "open" || flushed.path !== openPath) {
         return false;
       }
-      const result = await bridge.request("addComment", {
+      const result = await bridge.request("addAnnotation", {
         base: flushed.content,
         content: flushed.content,
         id,
         path: openPath,
-        text,
+        quote,
       });
       if (result.kind !== "written") {
         toast.error(
           result.kind === "missing"
-            ? "This note is no longer on your phone."
-            : "This note changed on your phone. Try again.",
+            ? "This item is no longer on your phone."
+            : "This item changed on your phone. Try again.",
         );
         return false;
       }
       return true;
     } catch (error) {
-      toast.error(`Couldn't add the comment — ${messageOf(error)}`);
+      toast.error(`Couldn't add the highlight — ${messageOf(error)}`);
       return false;
     } finally {
       if (anchoring === pending) {
@@ -324,12 +326,31 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
     }
   };
 
+  // a store write alone: the highlight's markers and entry already landed with `createAnnotation`
+  const editAnnotation = async (id: string, text: string): Promise<boolean> => {
+    const { openPath } = store.state();
+    if (openPath === null) {
+      return false;
+    }
+    try {
+      const result = await bridge.request("editAnnotation", { id, path: openPath, text });
+      if (result.kind === "refused") {
+        toast.error(result.message);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      toast.error(`Couldn't add the note — ${messageOf(error)}`);
+      return false;
+    }
+  };
+
   const flushFor = async (id: number): Promise<void> => {
     const ok = await session.actions.flush().catch(() => false);
     bridge.emit({ id, ok, type: "flushed" });
   };
 
-  // the paths the phone told this page the comments of, forgotten with the page
+  // the paths the phone told this page the annotations of, forgotten with the page
   const metaPaths = new Set<string>();
 
   // as the desktop does once its server deleted a thread: the markers go through the live editor,
@@ -340,12 +361,12 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
     if (editor === null) {
       return;
     }
-    // a marker is the comment's anchor, not the content of a locked block it sits in
+    // a marker is the annotation's anchor, not the content of a locked block it sits in
     withRichBlockLockLifted(editor, () => {
-      removeCommentMarkers(editor, ids);
+      removeAnnotationMarkers(editor, ids);
     });
     if (!(await session.actions.flush().catch(() => false))) {
-      toast.error("Couldn't save this note after deleting the comment.");
+      toast.error("Couldn't save this item after deleting the annotation.");
     }
   };
 
@@ -363,35 +384,31 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
       }
     } else if (event.type === "flush") {
       void flushFor(event.id);
-    } else if (event.type === "commentMeta") {
+    } else if (event.type === "annotationMeta") {
       metaPaths.add(event.path);
-      setCommentMeta(event.path, {
-        knownIds: new Set(event.knownIds),
-        resolvedIds: new Set(event.resolvedIds),
-      });
-    } else if (event.type === "commentsRemoved") {
+      setAnnotationMeta(event.path, { knownIds: new Set(event.knownIds) });
+    } else if (event.type === "annotationsRemoved") {
       void removeMarkers(event.ids);
     }
   };
 
   const hostActions: EditorHostActions = {
     agent: {
-      askAboutSelection: (selection) => {
-        const { openPath } = store.state();
-        if (openPath !== null) {
-          bridge.emit({ path: openPath, selection, type: "askAgent" });
-        }
+      // the phone asks no agent: the touch toolbar draws no Ask agent, so nothing calls this
+      askAboutSelection: () => {
+        /* empty */
       },
       // a tag has no screen on the phone
       showTag: () => {
         /* empty */
       },
     },
-    comments: {
-      create: createComment,
+    annotations: {
+      create: createAnnotation,
+      edit: editAnnotation,
       open: (ids) => {
         if (ids.length > 0) {
-          bridge.emit({ ids, type: "showComments" });
+          bridge.emit({ ids, type: "showAnnotations" });
         }
       },
     },
@@ -414,7 +431,7 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
       uninstall?.();
       uninstall = null;
       for (const metaPath of metaPaths) {
-        clearCommentMeta(metaPath);
+        clearAnnotationMeta(metaPath);
       }
       metaPaths.clear();
       session.stop();

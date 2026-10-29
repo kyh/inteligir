@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@kyh/tsconfig": "catalog:",
     "@repo/contract": "workspace:*",
     "@repo/domain": "workspace:*",
     "@types/node": "catalog:",

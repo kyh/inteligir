@@ -11,13 +11,18 @@ export const DEFAULT_STEP_TIMEOUT_MS = 5000;
 // listed in teardown order, which addTeardownStep enforces and the per-step comments explain.
 export const TEARDOWN_BUDGETS_MS = {
   listener: DEFAULT_STEP_TIMEOUT_MS,
-  // cloud sync writes the db and the vault, so it stops above both.
+  // the account socket starts vault syncs, so it stops above the vault.
   cloud: DEFAULT_STEP_TIMEOUT_MS,
   // a running sign-in's adapter is ended, then every session's at once, each given its own
   // shutdown before the kill (`terminateAdapter` in @repo/agent-runtime/acp/acp-runtime).
   agent: 12_000,
   // each running connector sign-in's vendor process is killed and its close awaited.
   connectors: 2000,
+  // an import stops between batches and persists its cursor; it hands fills to items, so it stops first.
+  imports: 2000,
+  // every fill request is aborted, the worker terminated and the pending rows written; a fill writes
+  // the vault and settles knowledge, so it stops above both.
+  items: DEFAULT_STEP_TIMEOUT_MS,
   knowledge: DEFAULT_STEP_TIMEOUT_MS,
   // a git commit over a large dirty tree; the step the ordering exists to protect.
   vault: 8000,

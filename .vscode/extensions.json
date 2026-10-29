@@ -1,7 +1,11 @@
 {
   "recommendations": [
     "TypeScriptTeam.native-preview",
+    "expo.vscode-expo-tools",
     "yoavbls.pretty-ts-errors",
-    "bradlc.vscode-tailwindcss"
+    "bradlc.vscode-tailwindcss",
+    "oxc.oxc-vscode",
+    "tauri-apps.tauri-vscode",
+    "rust-lang.rust-analyzer"
   ]
 }

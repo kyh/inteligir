@@ -1,6 +1,7 @@
-// not in inteligir.db (the thread log this credential uploads) and not in the
-// vault (a git repo pushed to a remote the user chose). the mode is re-applied
-// on every write: writeFileSync's mode is ignored for an existing file.
+// not in inteligir.db (a boot replaces a file on a history this build lacks, and
+// the sign-in outlives that) and not in the vault (a git repo pushed to a remote
+// the user chose). the mode is re-applied on every write: writeFileSync's mode is
+// ignored for an existing file.
 
 import { rmSync } from "node:fs";
 import { stagedWriteFileSync } from "../staged-write";

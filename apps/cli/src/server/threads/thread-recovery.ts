@@ -1,5 +1,4 @@
 import type { DbConnection } from "@repo/db/connection";
-import { turnStartOriginDeviceId } from "@repo/db/events";
 import { bindPathOnlyOrigins, listPathOnlyOriginPaths } from "@repo/db/threads";
 import type { ThreadRow } from "@repo/db/threads";
 import type { ThreadEvent } from "@repo/domain/provider-event";
@@ -18,16 +17,11 @@ type WedgedRecovery =
   | { kind: "turnless"; message: string }
   | { kind: "turn"; events: ThreadEvent[] };
 
-// only the process that owns a provider may declare it dead: a synced thread
-// can be active because another device's turn is running, so the turn/started
-// row is asked who wrote it.
-export const wedgedRecovery = (db: DbConnection, thread: ThreadRow): WedgedRecovery | null => {
+// every running thread's turn ran on this process's provider, which died with it.
+export const wedgedRecovery = (thread: ThreadRow): WedgedRecovery => {
   const { activeTurnId } = thread;
   if (activeTurnId === null) {
     return { kind: "turnless", message: RESTART_MESSAGE };
-  }
-  if (turnStartOriginDeviceId(db, { threadId: thread.id, turnId: activeTurnId }) !== null) {
-    return null;
   }
   return {
     events: [
@@ -48,9 +42,8 @@ export const wedgedRecovery = (db: DbConnection, thread: ThreadRow): WedgedRecov
   };
 };
 
-// a phone's request over a note with no id starts its thread on the path alone, because the
-// dispatch reads the id and never mints one; so does a create over a note that could not take one.
-// a thread bound by its path loses its note to a rename, so each such path takes the id its note
+// a create over a note that could not take an id starts its thread on the path alone, and a
+// thread bound by its path loses its note to a rename, so each such path takes the id its note
 // carries, minted through the create's own guarded step; a note that is gone or cannot take one
 // leaves its threads on the path. a bound row is never listed again, so a rerun reads only the
 // paths still without one.

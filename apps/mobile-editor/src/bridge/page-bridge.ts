@@ -25,7 +25,7 @@ type PageEvent = Unstamped<Exclude<PageFrame, { type: "request" | "ready" }>>;
 // what the native end tells a connected page on its own
 export type NativeEvent = Extract<
   NativeFrame,
-  { type: "vaultChanged" | "flush" | "commentMeta" | "commentsRemoved" }
+  { type: "vaultChanged" | "flush" | "annotationMeta" | "annotationsRemoved" | "fillJob" }
 >;
 
 // both ways, a frame is the JSON text of one, parsed by the end that receives it
@@ -55,7 +55,8 @@ export const REQUEST_TIMEOUT_MS = 10_000;
 // wait rather than report a failure that did not happen. A write keeps its deadline: it is guarded,
 // so its retry finds what landed. The picker waits on the user, for as long as they browse.
 const NO_DEADLINE: ReadonlySet<RequestKind> = new Set([
-  "addComment",
+  "addAnnotation",
+  "editAnnotation",
   "pickImage",
   "remove",
   "rename",

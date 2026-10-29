@@ -16,12 +16,12 @@ import { SizeProvider } from "@repo/ui/lib/size-context";
 import { ThemeProvider } from "@repo/ui/lib/theme";
 
 import type { PageBridge } from "./bridge/page-bridge";
-import type { PageInit } from "./bridge/protocol";
+import type { EditInit } from "./bridge/protocol";
 import { createPageHost } from "./host/page-host";
 
 // Mounted after the column, so the note's own title and body have registered their focus by the
 // time this effect runs; a frame later, so the body's editable is in the document.
-const FocusOnOpen = ({ focus, path }: { focus: PageInit["focus"]; path: string }) => {
+const FocusOnOpen = ({ focus, path }: { focus: EditInit["focus"]; path: string }) => {
   const shown = useOpenNote(
     (state) =>
       (state.openDoc.kind === "markdown" || state.openDoc.kind === "non-markdown") &&
@@ -58,7 +58,7 @@ const keepSystemTheme = (): void => {
   /* empty */
 };
 
-export const EditorPage = ({ init, store }: { init: PageInit; store: OpenNoteStore }) => (
+export const EditorPage = ({ init, store }: { init: EditInit; store: OpenNoteStore }) => (
   <ThemeProvider theme="system" setTheme={keepSystemTheme}>
     <SizeProvider size="compact">
       <MotionPolicy>
@@ -93,7 +93,7 @@ export const mountEditorPage = ({
 }: {
   bridge: PageBridge;
   container: Element;
-  init: PageInit;
+  init: EditInit;
 }): MountedPage => {
   const store = createOpenNoteStore();
   const host = createPageHost({ bridge, path: init.path, store });

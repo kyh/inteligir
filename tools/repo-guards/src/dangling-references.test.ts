@@ -16,14 +16,19 @@ const GENERATED_FILE = /(?:\.gen\.ts|pnpm-lock\.yaml)$/u;
 const DATA_DIR = /(?:^|\/)(?:fixtures|__fixtures__|seed)\//u;
 const DATA_FILES = new Map<string, string>([
   [
-    "packages/editor/src/__tests__/sample-notes.ts",
+    "packages/editor/src/test-support/sample-notes.ts",
     "sample note BODIES — the package names inside them are prose in a fake roadmap note, which is the input the parse is asserted against",
   ],
 ]);
 
-// each is a guard's own negative fixture; a blanket ignore-under-tests would hide the rot, which is
-// mostly in tests and configs.
-const DELIBERATE_NON_REFERENCES = new Map<string, string>();
+// each is a guard's own negative fixture, or a name that only looks like a path; a blanket
+// ignore-under-tests would hide the rot, which is mostly in tests and configs.
+const DELIBERATE_NON_REFERENCES = new Map<string, string>([
+  [
+    "tools/list",
+    "MCP's method that lists a server's tools, which the connector's cache hint is keyed by (apps/web/src/worker/connector/connector-server.ts)",
+  ],
+]);
 
 // this file names every key of the table above, so a hit here would keep a stale row alive.
 const GUARD_FILE = path.relative(REPO_ROOT, import.meta.filename);

@@ -5,7 +5,6 @@
 
 import { z } from "zod";
 import { threadEventScopeSchema, threadScopeSchema, turnScopeSchema } from "./thread-event-scope";
-import { MAX_THREAD_TITLE_LENGTH } from "./thread-title";
 import { viewContextSchema } from "./view-context";
 
 export const threadEventItemStatusSchema = z.enum([
@@ -127,15 +126,15 @@ export const threadEventSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     detail: z.string().optional(),
-    // the sync log mixes builds across devices: optional, since an older device's row carries none,
-    // and a class a newer device's build adds reads as none rather than costing the event its parse.
+    // optional, since a failure with no class carries none, and a class this build does not name
+    // reads as none rather than costing the event its parse.
     failure: z.preprocess(
       (value) =>
         value === undefined || providerFailureSchema.safeParse(value).success ? value : null,
       providerFailureSchema.nullable().optional(),
     ),
     message: z.string(),
-    // thread scope for a failure no running turn met: a dispatch refused before any provider was
+    // thread scope for a failure no running turn met: a start refused before any provider was
     // reached, or a restart's recovery. turn scope for every other, a refused session open included,
     // so the settle finds the failure's class on the turn's own rows.
     scope: threadEventScopeSchema,
@@ -148,36 +147,12 @@ export const threadEventSchema = z.discriminatedUnion("type", [
   z.object({
     // the notes the user attached by @-mention, held to the vault path grammar at the wire.
     contextPaths: z.array(z.string().min(1)).optional(),
-    // the phone's dispatch this request carries out, so the phone swaps its pending message for
-    // this row; an older device's build reading it off the sync log strips it, since this object is
-    // not strict.
-    dispatchId: z.string().min(1).optional(),
     // recorded before the provider accepts a turn, so no turn id exists yet.
     scope: threadScopeSchema,
     text: z.string(),
     threadId: z.string(),
     type: z.literal("client/turn/requested"),
     viewContext: viewContextSchema.optional(),
-  }),
-  // local: a thread's own facts ride its log, so another device learns them the way it learns the
-  // conversation. bb's thread/name/updated is a provider naming its session, not the app's title.
-  // a field present is the thread's value as of this row; an absent one is left as it is.
-  z.object({
-    originDocPath: z.string().min(1).optional(),
-    // the origin note's frontmatter id, stated only beside its path: a move anywhere keeps it.
-    originNoteId: z.string().min(1).optional(),
-    providerId: z.string().min(1).optional(),
-    // a fact about the thread itself, stated outside any turn.
-    scope: threadScopeSchema,
-    threadId: z.string(),
-    title: z.string().min(1).max(MAX_THREAD_TITLE_LENGTH).optional(),
-    type: z.literal("thread/meta"),
-  }),
-  z.object({
-    // a fact about the thread itself, stated outside any turn.
-    scope: threadScopeSchema,
-    threadId: z.string(),
-    type: z.literal("thread/archived"),
   }),
 ]);
 export type ThreadEvent = z.infer<typeof threadEventSchema>;
@@ -201,8 +176,6 @@ export const getThreadEventItemRef = (event: ThreadEvent): ThreadEventItemRef =>
     }
     case "client/turn/requested":
     case "provider/error":
-    case "thread/archived":
-    case "thread/meta":
     case "turn/completed":
     case "turn/started": {
       return { itemId: null, itemKind: null };
@@ -223,8 +196,6 @@ export const isThreadEventDelta = (event: ThreadEvent): event is ThreadEventDelt
     case "item/completed":
     case "item/started":
     case "provider/error":
-    case "thread/archived":
-    case "thread/meta":
     case "turn/completed":
     case "turn/started": {
       return false;

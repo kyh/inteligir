@@ -1,14 +1,9 @@
-import type { DbConnection, DbExecutor } from "@repo/db/connection";
-import { turnStartOriginDeviceId } from "@repo/db/events";
-import {
-  listAllOpenPendingInteractions,
-  listOpenPendingInteractions,
-} from "@repo/db/pending-interactions";
+import type { DbConnection } from "@repo/db/connection";
+import { listOpenPendingInteractions } from "@repo/db/pending-interactions";
 import type { PendingInteractionRow } from "@repo/db/pending-interactions";
 import { listQueuedThreadMessages } from "@repo/db/queued-messages";
 import { getThread, listThreads } from "@repo/db/threads";
 import type { ThreadRow } from "@repo/db/threads";
-import { isThreadRunning } from "@repo/domain/thread-status";
 import type {
   GetThreadResponse,
   ListThreadsResponse,
@@ -26,24 +21,13 @@ import { computeTimelineDelta } from "@repo/contract/local/thread-timeline";
 import type { ThreadOrigins } from "./thread-origins";
 import type { ThreadTimelineProjector } from "./timeline-projection";
 
-// a turn another device started answers to that device's provider alone.
-export const turnRunsElsewhere = (db: DbExecutor, row: ThreadRow): boolean =>
-  isThreadRunning(row.status) &&
-  row.activeTurnId !== null &&
-  turnStartOriginDeviceId(db, { threadId: row.id, turnId: row.activeTurnId }) !== null;
-
-const toWireThread = (
-  row: ThreadRow,
-  originDocPath: string | null,
-  runsElsewhere: boolean,
-): Thread => ({
+const toWireThread = (row: ThreadRow, originDocPath: string | null): Thread => ({
   activeTurnId: row.activeTurnId,
   archivedAt: row.archivedAt,
   createdAt: row.createdAt,
   id: row.id,
   originDocPath,
   providerId: row.providerId,
-  runsElsewhere,
   status: row.status,
   title: row.title,
   updatedAt: row.updatedAt,
@@ -68,12 +52,11 @@ export const wireThread = async (
   row: ThreadRow,
 ): Promise<Thread> => {
   const { originDocPath, originNoteId } = row;
-  const runsElsewhere = turnRunsElsewhere(db, row);
   if (originDocPath === null || originNoteId === null) {
-    return toWireThread(row, originDocPath, runsElsewhere);
+    return toWireThread(row, originDocPath);
   }
   const resolved = await origins.pathForNoteId(originNoteId, originDocPath);
-  return toWireThread(row, resolved ?? originDocPath, runsElsewhere);
+  return toWireThread(row, resolved ?? originDocPath);
 };
 
 export const listThreadPage = async (
@@ -119,17 +102,6 @@ export const threadDetail = async (
     })),
     thread: await wireThread(db, origins, thread),
   };
-};
-
-export const openInteractions = (
-  db: DbConnection,
-  threadId: string | undefined,
-): PendingInteraction[] => {
-  const rows =
-    threadId === undefined
-      ? listAllOpenPendingInteractions(db)
-      : listOpenPendingInteractions(db, threadId);
-  return rows.map(toWirePendingInteraction);
 };
 
 export const threadTimeline = (

@@ -167,7 +167,7 @@ export const AgentsSection = () => {
     <section className="space-y-2">
       <SectionHeading>Agent</SectionHeading>
       <p className="text-body text-muted-foreground">
-        The agent works on your notes with your own Claude or ChatGPT plan. An action keeps the
+        The agent works on your library with your own Claude or ChatGPT plan. An action keeps the
         agent it started on.
       </p>
       <RuntimeNote agent={agent} />
@@ -179,8 +179,8 @@ export const AgentsSection = () => {
         </div>
       )}
       <p className="text-body text-muted-foreground">
-        Each vault keeps its own choice of agent for new actions. Signing in to Claude or ChatGPT
-        counts for every vault on this Mac.
+        Each library keeps its own choice of agent for new actions. Signing in to Claude or ChatGPT
+        counts for every library on this Mac.
       </p>
     </section>
   );

@@ -1,6 +1,6 @@
 // A soft keyboard carries no chord and a finger makes no hover, so every mark, turn-into and
 // indent a hardware keyboard reaches is a button here. Each row is named by the table its desktop
-// twin reads (the mark chords, the editor's shortcuts, the slash menu, the comment chord), so a
+// twin reads (the mark chords, the editor's shortcuts, the slash menu, the annotation chord), so a
 // rename lands on both surfaces at once; only what no table holds is spelled in TOUCH_ACTIONS.
 // In-flow chrome, not a popup: pinned to the bottom of a viewport the host sizes above the
 // keyboard and holds at scale 1, since iOS zooms into a field whose text is under 16px and the
@@ -16,7 +16,6 @@ import {
   useEditorRef,
   useEditorSelector,
   useMarkToolbarButtonState,
-  useSelectionExpanded,
 } from "platejs/react";
 import type { PlateEditor } from "platejs/react";
 import {
@@ -27,10 +26,9 @@ import {
   KeyboardOffIcon,
   Link2Icon,
   ListIndentDecreaseIcon,
+  HighlighterIcon,
   ListIndentIncreaseIcon,
-  MessageSquarePlusIcon,
   Redo2Icon,
-  SparklesIcon,
   UnderlineIcon,
   Undo2Icon,
 } from "lucide-react";
@@ -40,15 +38,14 @@ import { Separator } from "@repo/ui/components/separator";
 import { toast } from "@repo/ui/components/sonner";
 import type { IconComponent } from "@repo/ui/lib/icon";
 
-import { askAgentAboutSelection } from "@repo/editor/agent-request";
 import {
-  ADD_COMMENT_SHORTCUT,
-  anchorNewComment,
-  selectionTakesComment,
-} from "@repo/editor/comments/comment-kit";
-import { removeCommentMarkers } from "@repo/editor/comments/comment-markers";
+  HIGHLIGHT_SHORTCUT,
+  highlightSelection,
+  noteHighlight,
+  selectionTakesHighlight,
+} from "@repo/editor/annotations/annotation-kit";
 import { CODE_MARK_SHORTCUT, runEditorShortcut } from "@repo/editor/editor-shortcuts";
-import { getEditorHostActions, getEditorHostIo } from "@repo/editor/host-io";
+import { getEditorHostIo } from "@repo/editor/host-io";
 import type { PickImageResult } from "@repo/editor/host-io";
 import { insertVaultImage } from "@repo/editor/kits/image-kit";
 import { indentBlocks, outdentBlocks } from "@repo/editor/kits/list-kit";
@@ -58,7 +55,6 @@ import { GROUPS } from "@repo/editor/slash-items";
 import type { SlashItem } from "@repo/editor/slash-items";
 
 export const TOUCH_ACTIONS = {
-  "ask-agent": { icon: SparklesIcon, label: "Ask agent" },
   "hide-keyboard": { icon: KeyboardOffIcon, label: "Hide keyboard" },
   image: { icon: ImageIcon, label: "Add image" },
   indent: { icon: ListIndentIncreaseIcon, label: "Indent" },
@@ -184,50 +180,33 @@ const ActionButton = ({
   );
 };
 
-// what the selection can be handed to: the agent, and a new comment the host writes. The comment's
-// field takes the row, so its markers go in only once there is text to write beside them.
-const SelectionButtons = ({
-  editor,
-  onComment,
-}: {
-  editor: PlateEditor;
-  onComment: () => void;
-}) => {
-  const expanded = useSelectionExpanded();
-  const commentable = useEditorSelector(selectionTakesComment, []);
+// what the selection can be handed to: a highlight the host writes. The phone asks no agent, so
+// the desktop's Ask agent has no row here. The highlight's note field takes the row first, so its
+// markers go in once, as it is submitted, note or none.
+const SelectionButtons = ({ onAnnotate }: { onAnnotate: () => void }) => {
+  const highlightable = useEditorSelector(selectionTakesHighlight, []);
   return (
     <>
-      <ActionButton
-        action="ask-agent"
-        disabled={!expanded}
-        onPress={() => {
-          askAgentAboutSelection(editor);
-        }}
-      />
-      <ToolbarButton label={ADD_COMMENT_SHORTCUT.label} disabled={!commentable} onPress={onComment}>
-        <MessageSquarePlusIcon />
+      <ToolbarButton
+        label={HIGHLIGHT_SHORTCUT.label}
+        disabled={!highlightable}
+        onPress={onAnnotate}
+      >
+        <HighlighterIcon />
       </ToolbarButton>
       <Sep />
     </>
   );
 };
 
-// A refused create strips the markers it went in with, as the desktop's popover does, and the host
-// says why.
-const commentOn = (editor: PlateEditor, at: TRange, text: string): void => {
+// The desktop's one gesture on the range the field was opened over: the highlight, then its note
+// when one was typed. A refused highlight strips the markers it went in with, and the host says why.
+const highlightOn = (editor: PlateEditor, at: TRange, text: string): void => {
   editor.tf.select(at);
-  const id = anchorNewComment(editor);
-  if (id === null) {
-    return;
+  const started = highlightSelection(editor);
+  if (started !== null) {
+    void noteHighlight(started.created, started.id, text);
   }
-  void (async () => {
-    const created = await getEditorHostActions()
-      .comments.create(id, text)
-      .catch(() => false);
-    if (!created) {
-      removeCommentMarkers(editor, [id]);
-    }
-  })();
 };
 
 // Never rejects: the press has already happened, so a rejection would reach nobody.
@@ -250,8 +229,8 @@ const pickImageInto = async (
   }
 };
 
-// a field that takes the row: a link's address, or a comment's text
-type PromptKind = "link" | "comment";
+// a field that takes the row: a link's address, or a highlight's optional note
+type PromptKind = "link" | "highlight";
 
 interface PromptField {
   readonly icon: IconComponent;
@@ -264,14 +243,14 @@ interface PromptField {
   >;
 }
 
-// the comment's words are the desktop popover's
+// the note is optional, so the submit names the highlight it makes either way
 const PROMPT_FIELDS = {
-  comment: {
-    icon: MessageSquarePlusIcon,
-    input: { enterKeyHint: "send", type: "text" },
-    label: "Comment",
-    placeholder: "Comment…",
-    submit: "Save",
+  highlight: {
+    icon: HighlighterIcon,
+    input: { enterKeyHint: "done", type: "text" },
+    label: "Note",
+    placeholder: "Add a note (optional)",
+    submit: "Highlight",
   },
   link: {
     icon: Link2Icon,
@@ -353,21 +332,24 @@ const TouchToolbar = () => {
     }
   };
 
-  const closePrompt = ({ at, kind }: OpenPrompt, value: string): void => {
+  // `value` null is a cancel; an empty highlight submit is a bare highlight, an empty link nothing
+  const closePrompt = ({ at, kind }: OpenPrompt, value: string | null): void => {
     const range = at.unref();
     setPrompt(null);
     setDraft(null);
-    if (value === "") {
+    if (value === null || (value === "" && kind === "link")) {
       return;
     }
     if (range === null) {
-      setDraft({ kind, value });
-      toast.warning("The note changed — select the text again.");
+      if (value !== "") {
+        setDraft({ kind, value });
+      }
+      toast.warning("The item changed — select the text again.");
     } else if (kind === "link") {
       editor.tf.select(range);
       upsertLink(editor, { skipValidation: true, url: value });
     } else {
-      commentOn(editor, range, value);
+      highlightOn(editor, range, value);
     }
   };
 
@@ -381,9 +363,8 @@ const TouchToolbar = () => {
         <>
           <div className="flex min-w-0 flex-1 items-center overflow-x-auto px-1">
             <SelectionButtons
-              editor={editor}
-              onComment={() => {
-                openPrompt("comment");
+              onAnnotate={() => {
+                openPrompt("highlight");
               }}
             />
             {MARK_SHORTCUTS.map((row) => (
@@ -455,7 +436,7 @@ const TouchToolbar = () => {
           kind={prompt.kind}
           initialValue={draft?.kind === prompt.kind ? draft.value : ""}
           onCancel={() => {
-            closePrompt(prompt, "");
+            closePrompt(prompt, null);
             editor.tf.focus();
           }}
           onSubmit={(value) => {

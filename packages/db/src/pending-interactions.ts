@@ -1,6 +1,6 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-import { and, asc, eq, isNotNull, isNull, ne } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import type { DbConnection } from "./connection";
 import { createPendingInteractionId } from "./ids";
 import { readJsonColumn } from "./json-column";
@@ -112,15 +112,6 @@ export const listThreadPendingInteractions = (
     .all()
     .map(readRow);
 
-export const listAllOpenPendingInteractions = (db: DbConnection): PendingInteractionRow[] =>
-  db
-    .select()
-    .from(pendingInteractions)
-    .where(eq(pendingInteractions.status, "pending"))
-    .orderBy(asc(pendingInteractions.createdAt), asc(pendingInteractions.id))
-    .all()
-    .map(readRow);
-
 export const interruptPendingInteraction = (
   db: DbConnection,
   notifier: DbNotifier,
@@ -204,37 +195,4 @@ export const resolvePendingInteraction = (
     return { kind: "not-found" };
   }
   return { interaction: existing, kind: "already-resolved" };
-};
-
-export type ApprovalRelay = NonNullable<PendingInteractionRow["relay"]>;
-
-// open here, on a turn, and never offered to the phone: the relay asks each whether its turn was
-// the phone's before it opens one there.
-export const listUnrelayedOpenInteractions = (db: DbConnection): PendingInteractionRow[] =>
-  db
-    .select()
-    .from(pendingInteractions)
-    .where(
-      and(
-        eq(pendingInteractions.status, "pending"),
-        isNull(pendingInteractions.relay),
-        isNotNull(pendingInteractions.turnId),
-      ),
-    )
-    .orderBy(asc(pendingInteractions.createdAt), asc(pendingInteractions.id))
-    .all()
-    .map(readRow);
-
-// offered to the phone and settled here since, however it settled: each is closed there.
-export const listSettledRelayedInteractions = (db: DbConnection): PendingInteractionRow[] =>
-  db
-    .select()
-    .from(pendingInteractions)
-    .where(and(eq(pendingInteractions.relay, "opened"), ne(pendingInteractions.status, "pending")))
-    .orderBy(asc(pendingInteractions.createdAt), asc(pendingInteractions.id))
-    .all()
-    .map(readRow);
-
-export const setInteractionRelay = (db: DbConnection, id: string, relay: ApprovalRelay): void => {
-  db.update(pendingInteractions).set({ relay }).where(eq(pendingInteractions.id, id)).run();
 };

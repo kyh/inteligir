@@ -33,7 +33,9 @@ const SignInPage = () => {
     if (failure !== null) {
       return authErrorMessage(failure);
     }
-    await router.navigate({ href: internalNextPath(next) ?? SIGNED_IN_HOME });
+    // a way back may be a page the Worker answers before this router (an assistant's consent
+    // page), so the sign-in loads the document it returns to
+    await router.navigate({ href: internalNextPath(next) ?? SIGNED_IN_HOME, reloadDocument: true });
     return null;
   });
 
@@ -89,7 +91,11 @@ export const Route = createFileRoute("/app/sign-in")({
   beforeLoad: async ({ search }) => {
     const session = await currentSession();
     if (session.kind === "signed-in") {
-      redirect({ href: internalNextPath(search.next) ?? SIGNED_IN_HOME, throw: true });
+      redirect({
+        href: internalNextPath(search.next) ?? SIGNED_IN_HOME,
+        reloadDocument: true,
+        throw: true,
+      });
     }
   },
   component: SignInPage,

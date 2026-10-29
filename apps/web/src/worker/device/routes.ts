@@ -5,12 +5,9 @@ import {
   listDevicesResponseSchema,
   revokeDeviceRequestSchema,
 } from "@repo/contract/cloud/device/device-schema";
-import type {
-  ListDevicesResponse,
-  RevokeDeviceResponse,
-} from "@repo/contract/cloud/device/device-schema";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import type { RevokeDeviceResponse } from "@repo/contract/cloud/device/device-schema";
 import { carriesDeviceCredential, verifyDeviceCredential } from "./device-auth";
+import { listDevices, revokeDevice } from "./devices";
 import { loginDevice } from "./login";
 import type { LoginFailure } from "./login";
 import { signUpDevice } from "./sign-up";
@@ -19,9 +16,7 @@ import { signUpBodyRefusal } from "../auth/invite";
 import { jsonNoStore, refuse, refuseNoDeviceCredential } from "../cloud-http";
 import { createDb } from "../db/client";
 import type { Db } from "../db/client";
-import { device } from "../db/schema";
-import { forgetDeviceBudgets, spendCallerBudget } from "../rate-limit";
-import { severDeviceSockets } from "../sync/thread-sync-stub";
+import { spendCallerBudget } from "../rate-limit";
 
 // login and sign-up ARE the authentication; sign-out is a device's alone, since a session naming
 // no device has nothing to sign out
@@ -32,6 +27,7 @@ import { severDeviceSockets } from "../sync/thread-sync-stub";
 const accountUserId = async (
   request: Request,
   env: Env,
+  ctx: ExecutionContext,
   db: Db,
   origin: string,
 ): Promise<string | null> => {
@@ -40,7 +36,9 @@ const accountUserId = async (
     const verified = await verifyDeviceCredential(db, authorization);
     return verified?.userId ?? null;
   }
-  const session = await createAuth(env, origin).api.getSession({ headers: request.headers });
+  const session = await createAuth(env, ctx.exports, origin).api.getSession({
+    headers: request.headers,
+  });
   return session?.user.id ?? null;
 };
 
@@ -51,36 +49,10 @@ const LOGIN_FAILURE_MESSAGE: Record<LoginFailure, string> = {
   "invalid-credentials": "Wrong email or password.",
 };
 
-// false when nothing matched: another account's device, or one already revoked
-const revokeDevice = async (
-  env: Env,
-  db: Db,
-  target: { deviceId: string; userId: string },
-): Promise<boolean> => {
-  const revoked = await db
-    .update(device)
-    .set({ revokedAt: new Date() })
-    .where(
-      and(
-        eq(device.id, target.deviceId),
-        eq(device.userId, target.userId),
-        isNull(device.revokedAt),
-      ),
-    )
-    .returning()
-    .get();
-  if (revoked === undefined) {
-    return false;
-  }
-  await forgetDeviceBudgets(db, [target.deviceId]);
-  // the credential is already dead in D1; this closes the sockets it still holds, which no per-request check reaches
-  await severDeviceSockets(env, target.userId, target.deviceId);
-  return true;
-};
-
 export const handleDeviceRoutes = async (
   request: Request,
   env: Env,
+  ctx: ExecutionContext,
   url: URL,
 ): Promise<Response> => {
   const db = createDb(env.DB);
@@ -94,7 +66,7 @@ export const handleDeviceRoutes = async (
     if (!body.success) {
       return refuse("bad-request", "Send { email, password, deviceName }.");
     }
-    const result = await loginDevice(db, createAuth(env, url.origin), body.data);
+    const result = await loginDevice(db, createAuth(env, ctx.exports, url.origin), body.data);
     if (!result.loggedIn) {
       return refuse(result.failure, LOGIN_FAILURE_MESSAGE[result.failure]);
     }
@@ -113,7 +85,11 @@ export const handleDeviceRoutes = async (
         signUpBodyRefusal(body.error, "Send { name, email, password, inviteCode, deviceName }."),
       );
     }
-    const result = await signUpDevice(db, createSignUpAuth(env, url.origin), body.data);
+    const result = await signUpDevice(
+      db,
+      createSignUpAuth(env, ctx.exports, url.origin),
+      body.data,
+    );
     if (!result.signedUp) {
       return refuse(result.failure, result.message);
     }
@@ -126,12 +102,12 @@ export const handleDeviceRoutes = async (
       return refuseNoDeviceCredential();
     }
     // a dashboard revoke landing after the verify already did the rest: signed out either way
-    await revokeDevice(env, db, verified);
+    await revokeDevice(ctx, db, verified);
     const response: RevokeDeviceResponse = { revoked: true };
     return Response.json(response);
   }
 
-  const userId = await accountUserId(request, env, db, url.origin);
+  const userId = await accountUserId(request, env, ctx, db, url.origin);
   if (userId === null) {
     return carriesDeviceCredential(request.headers.get("authorization"))
       ? refuseNoDeviceCredential()
@@ -139,23 +115,7 @@ export const handleDeviceRoutes = async (
   }
 
   if (route === `GET ${DEVICE_API_PATHS.list}`) {
-    const rows = await db
-      .select()
-      .from(device)
-      .where(eq(device.userId, userId))
-      // two sign-ins within one millisecond share a created_at; rowid is their arrival order
-      .orderBy(device.createdAt, sql`rowid`)
-      .all();
-    const body: ListDevicesResponse = {
-      devices: rows.map((row) => ({
-        createdAt: row.createdAt.getTime(),
-        id: row.id,
-        lastSeenAt: row.lastSeenAt?.getTime() ?? null,
-        name: row.name,
-        revokedAt: row.revokedAt?.getTime() ?? null,
-      })),
-    };
-    return Response.json(listDevicesResponseSchema.parse(body));
+    return Response.json(listDevicesResponseSchema.parse(await listDevices(db, userId)));
   }
 
   if (route === `POST ${DEVICE_API_PATHS.revoke}`) {
@@ -164,7 +124,7 @@ export const handleDeviceRoutes = async (
       return refuse("bad-request", "Send { deviceId }.");
     }
     // scoped to the caller's own userId, so another account's device answers not-found
-    if (!(await revokeDevice(env, db, { deviceId: body.data.deviceId, userId }))) {
+    if (!(await revokeDevice(ctx, db, { deviceId: body.data.deviceId, userId }))) {
       return refuse("not-found", "No such active device.");
     }
     const response: RevokeDeviceResponse = { revoked: true };

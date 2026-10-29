@@ -16,8 +16,10 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    # a backstop over the e2e runner's per-scenario deadlines
-    timeout-minutes: 30
+    # a backstop over the e2e runner's per-scenario deadlines; verify and the suite run about 25
+    # minutes on a four-core runner before the scenarios that read a page on the runner's own
+    # address, which only a runner with such an address runs
+    timeout-minutes: 45
     env:
       TURBO_TELEMETRY_DISABLED: 1
     steps:
@@ -44,9 +46,10 @@ jobs:
 
       # Tauri compiles the shell against WebKitGTK on Linux (the Mac ships its own WebKit), its menu
       # bar icon loads the appindicator at runtime, and the shell scenarios drive the window
-      # through WebKit's own WebDriver
+      # through WebKit's own WebDriver, `webkitgtk-webdriver` from Ubuntu 26.04 on, where it replaced
+      # webkit2gtk-driver
       - name: Desktop system libraries
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev webkit2gtk-driver
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev webkitgtk-webdriver
 
       # the toolchain apps/desktop/rust-toolchain.toml pins, which verify's clippy and cargo test run on
       - name: Desktop Rust toolchain
@@ -82,8 +85,10 @@ jobs:
         # outside verify on purpose: it boots real instances and drives them over the wire, because
         # every unit can pass while the composition fails. The two steps above provide the browser
         # and the shell's WebDriver and xvfb-run the display, so a skip is a broken setup, and
-        # --no-skip fails it rather than passing it behind a green step
-        run: xvfb-run -a pnpm e2e --no-skip
+        # --no-skip fails it rather than passing it behind a green step. Two lanes, half the
+        # runner's four cores, which is what a four-core machine's default runs, so a local run
+        # is the one CI runs; the shell scenarios hold the one display one at a time
+        run: xvfb-run -a pnpm e2e --no-skip --lanes 2
 
   # the app ships only as a macOS arm64 .app, and the suites meet APFS, FSEvents and a tmpdir
   # behind a symlink only here; typecheck, lint, knip, format and build read no platform, so the

@@ -2,10 +2,6 @@
   "$schema": "https://turborepo.dev/schema.json",
   "agentGuidance": false,
   "ui": "tui",
-  // every tsconfig extends the base, but turbo hashes only files inside a workspace: without this,
-  // loosening a compiler setting leaves every typecheck key unchanged, and CI, restoring `.turbo`
-  // from a branch-prefix key, serves a green typecheck it never re-ran
-  "globalDependencies": ["tsconfig.base.json"],
   // worktrees share one cache dir and turbo never evicts by default; eviction runs in the
   // background at the start of `turbo run`
   "cacheMaxSize": "10GB",
@@ -31,8 +27,14 @@
       "cache": false,
       "persistent": true
     },
+    // a workspace's generated sources (apps/web's Env and runtime types, from `cf workers types`),
+    // which its typecheck and its suites both read: a test file can carry type claims too. ^topo:
+    // the Env is typed from the entry's exports, which import other workspaces
+    "generate": {
+      "dependsOn": ["^topo"]
+    },
     "typecheck": {
-      "dependsOn": ["^topo"],
+      "dependsOn": ["^topo", "generate"],
       // tsc runs incremental, so its state is this task's output, or every restore re-checks from
       // cold; a glob, because a workspace with several programs writes one file each
       "outputs": [".cache/tsbuildinfo*.json"]
@@ -57,7 +59,7 @@
       "cache": false
     },
     "test": {
-      "dependsOn": ["^topo"],
+      "dependsOn": ["^topo", "generate"],
       // the suites run in parallel (four at once, or TEST_CONCURRENCY), so every vitest.config.ts
       // caps its own maxWorkers: uncapped pools exhaust the machine and kill workers mid-run
       "cache": false,

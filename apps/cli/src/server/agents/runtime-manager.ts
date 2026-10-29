@@ -39,7 +39,7 @@ import type {
 import type { GitEngine } from "../vault/git-engine";
 import { beginAgentTurnWrites, createVaultPathResolver } from "./agent-commits";
 import type { AgentTurnWrites, VaultPathResolver } from "./agent-commits";
-import { toInstructions } from "./agent-instructions";
+import { promptFactsFor, toInstructions } from "./agent-instructions";
 import { toShellEnv } from "./agent-shell-env";
 import type { AgentSessionFacts } from "./agent-shell-env";
 import { ProviderEventCoalescer } from "./event-coalescer";
@@ -92,9 +92,7 @@ export interface AcpTurnDriverDeps {
   vaultDir: string;
   git: GitEngine;
   models: HarnessModels;
-  // a getter read at every session open, never a value: connected folders are settings-mutable,
-  // and a value read once would tell every later session the set the first one saw.
-  sessionFacts: () => AgentSessionFacts;
+  sessionFacts: AgentSessionFacts;
   hostEnv: NodeJS.ProcessEnv;
   // a getter: the stored default can change between two thread starts
   defaultProviderId: () => HarnessId;
@@ -174,7 +172,7 @@ export class AcpTurnDriver implements TurnDriver {
         this.debug(`agent: ${line}`);
       },
       // spread: AgentShellEnv is an interface, which a string record does not take.
-      shellEnv: () => ({ ...toShellEnv(deps.sessionFacts(), deps.hostEnv) }),
+      shellEnv: () => ({ ...toShellEnv(deps.sessionFacts, deps.hostEnv) }),
       spawnAdapter: deps.spawnAdapter,
       workspacePath: deps.vaultDir,
     });
@@ -327,7 +325,11 @@ export class AcpTurnDriver implements TurnDriver {
       : await this.openThreadSession(args, harness);
     this.assertDispatching(args);
     await this.runtime.runTurn({
-      input: turnPromptInput(args, instructions),
+      input: turnPromptInput(
+        args,
+        promptFactsFor(this.deps.sessionFacts, this.deps.vaultDir),
+        instructions,
+      ),
       threadId: args.threadId,
       turnId: args.turnId,
     });
@@ -343,9 +345,9 @@ export class AcpTurnDriver implements TurnDriver {
   }
 
   // a fresh session is handed the instructions; a loaded one already holds the last set in its
-  // history, so it is handed them again only when they changed (a connected folder, AGENTS.md).
+  // history, so it is handed them again only when they changed (the library's AGENTS.md).
   private instructionsFor(threadId: string, loaded: boolean): string | undefined {
-    const instructions = toInstructions(this.deps.sessionFacts(), this.deps.vaultDir);
+    const instructions = toInstructions(this.deps.sessionFacts, this.deps.vaultDir);
     if (loaded && this.instructionHashes.get(threadId) === instructionsHash(instructions)) {
       return undefined;
     }

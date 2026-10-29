@@ -1,5 +1,5 @@
-// a refusal is a value, never a throw: the sync loop switches on the closed code, and an
-// `Error("HTTP 409")` would retry a batch the server refuses forever. `unreachable` is no
+// a refusal is a value, never a throw: every caller switches on the closed code, and an
+// `Error("HTTP 409")` would retry a request the server refuses forever. `unreachable` is no
 // verdict on the credential; `malformed` is a body this build cannot read (an intercepting proxy).
 
 import type { z } from "zod";
@@ -26,33 +26,6 @@ import type {
   RevokeDeviceRequest,
   RevokeDeviceResponse,
 } from "./device/device-schema";
-import {
-  ackDispatchesResponseSchema,
-  cancelDispatchResponseSchema,
-  claimDispatchesResponseSchema,
-  closeApprovalResponseSchema,
-  createDispatchResponseSchema,
-  DISPATCH_API_PATHS,
-  dispatchStatusResponseSchema,
-  listApprovalsResponseSchema,
-  openApprovalResponseSchema,
-} from "./dispatch/dispatch-schema";
-import type {
-  AckDispatchesRequest,
-  AckDispatchesResponse,
-  CancelDispatchResponse,
-  ClaimDispatchesRequest,
-  ClaimDispatchesResponse,
-  CloseApprovalResponse,
-  CreateDispatchRequest,
-  CreateDispatchResponse,
-  DispatchStatusResponse,
-  ListApprovalsResponse,
-  OpenApprovalRequest,
-  OpenApprovalResponse,
-} from "./dispatch/dispatch-schema";
-import { pullResponseSchema, pushResponseSchema, SYNC_API_PATHS } from "./sync/sync-schema";
-import type { PullQuery, PullResponse, PushRequest, PushResponse } from "./sync/sync-schema";
 import { vaultCommitResponseSchema, vaultConflictAnswerSchema } from "./vault/vault-commit-schema";
 import type {
   VaultCommitConflict,
@@ -79,7 +52,7 @@ import type {
 export type CloudFetch = (input: string, init?: RequestInit) => Promise<Response>;
 
 export type CloudFailure =
-  | { kind: "refused"; code: CloudErrorCode; message: string; deviceSeq: number | null }
+  | { kind: "refused"; code: CloudErrorCode; message: string }
   | { kind: "unreachable"; message: string }
   | { kind: "malformed"; message: string };
 
@@ -123,12 +96,7 @@ const failureOf = (status: number, envelope: CloudError | null): CloudFailure =>
       message: `The cloud answered HTTP ${status} with a body this build cannot read.`,
     };
   }
-  return {
-    code: envelope.error.code,
-    deviceSeq: envelope.error.deviceSeq ?? null,
-    kind: "refused",
-    message: envelope.error.message,
-  };
+  return { code: envelope.error.code, kind: "refused", message: envelope.error.message };
 };
 
 // a body that stopped arriving (the call's deadline mid-transfer, a reset) is the network failing,
@@ -263,8 +231,8 @@ const readCommitCall = async (
   };
 };
 
-// every call runs inside the single-flight pass, so a black-holed request stalls the whole
-// loop and the teardown waiting on it; undici's own default is 300s of headers timeout.
+// a black-holed request would stall its caller and the teardown waiting on it; undici's own
+// default is 300s of headers timeout.
 const REQUEST_TIMEOUT_MS = 30_000;
 // the deadline covers the body too, and a vault transfer carries up to an attachment's 10 MiB, a
 // commit's 16 MiB or a batch read's 4 MiB, which a phone on a slow connection cannot move in 30s
@@ -334,18 +302,6 @@ export const postDeviceSignUp = async (
   await postForCredential(endpoint, DEVICE_API_PATHS.signUp, request);
 
 export interface CloudClient {
-  push: (request: PushRequest) => Promise<CloudResult<PushResponse>>;
-  pull: (query: PullQuery) => Promise<CloudResult<PullResponse>>;
-  createDispatch: (request: CreateDispatchRequest) => Promise<CloudResult<CreateDispatchResponse>>;
-  claimDispatches: (
-    request: ClaimDispatchesRequest,
-  ) => Promise<CloudResult<ClaimDispatchesResponse>>;
-  ackDispatches: (request: AckDispatchesRequest) => Promise<CloudResult<AckDispatchesResponse>>;
-  dispatchStatus: (ids: readonly string[]) => Promise<CloudResult<DispatchStatusResponse>>;
-  cancelDispatch: (id: string) => Promise<CloudResult<CancelDispatchResponse>>;
-  openApproval: (request: OpenApprovalRequest) => Promise<CloudResult<OpenApprovalResponse>>;
-  closeApproval: (id: string) => Promise<CloudResult<CloseApprovalResponse>>;
-  listApprovals: () => Promise<CloudResult<ListApprovalsResponse>>;
   // ends the account the credential belongs to, every device's credential with it, once the
   // password checks out again
   deleteAccount: (password: string) => Promise<CloudResult<DeleteAccountResponse>>;
@@ -401,38 +357,12 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
     );
 
   return {
-    ackDispatches: async (request) =>
-      await send(DISPATCH_API_PATHS.ack, request, ackDispatchesResponseSchema),
-    cancelDispatch: async (id) =>
-      await send(DISPATCH_API_PATHS.cancel, { id }, cancelDispatchResponseSchema),
-    claimDispatches: async (request) =>
-      await send(DISPATCH_API_PATHS.claim, request, claimDispatchesResponseSchema),
-    closeApproval: async (id) =>
-      await send(DISPATCH_API_PATHS.approvalClose, { id }, closeApprovalResponseSchema),
-    createDispatch: async (request) =>
-      await send(DISPATCH_API_PATHS.dispatch, request, createDispatchResponseSchema),
     deleteAccount: async (password) => {
       const request: DeleteAccountRequest = { password };
       return await send(ACCOUNT_API_PATHS.delete, request, deleteAccountResponseSchema);
     },
-    dispatchStatus: async (ids) =>
-      await send(DISPATCH_API_PATHS.status, { ids }, dispatchStatusResponseSchema),
-    listApprovals: async () =>
-      await send(DISPATCH_API_PATHS.approvals, undefined, listApprovalsResponseSchema),
     listDevices: async () =>
       await send(DEVICE_API_PATHS.list, undefined, listDevicesResponseSchema),
-    openApproval: async (request) =>
-      await send(DISPATCH_API_PATHS.approval, request, openApprovalResponseSchema),
-    pull: async (query) =>
-      await send(
-        `${SYNC_API_PATHS.pull}?${new URLSearchParams({
-          afterSeq: String(query.afterSeq),
-          limit: String(query.limit),
-        })}`,
-        undefined,
-        pullResponseSchema,
-      ),
-    push: async (request) => await send(SYNC_API_PATHS.push, request, pushResponseSchema),
     revokeDevice: async (deviceId) => {
       const request: RevokeDeviceRequest = { deviceId };
       return await send(DEVICE_API_PATHS.revoke, request, revokeDeviceResponseSchema);

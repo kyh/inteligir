@@ -72,7 +72,7 @@ const FirstRunPage = () => {
               <FirstRun />
             ) : (
               <p className="text-body text-muted-foreground">
-                Open the Inteligir app to set up your notes.
+                Open the Inteligir app to set up your library.
               </p>
             )}
           </main>

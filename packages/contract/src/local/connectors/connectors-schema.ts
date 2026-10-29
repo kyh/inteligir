@@ -8,7 +8,6 @@ import { z } from "zod";
 // carry any name, and is only ever passed after `--`.
 export const CONNECTOR_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/u;
 export const CONNECTOR_NAME_MAX_LENGTH = 64;
-export const CONNECTOR_ARGS_MAX = 64;
 
 export const connectorNameSchema = z
   .string()
@@ -35,14 +34,12 @@ export const connectorUrlSchema = z
     }
   }, "must be an http:// or https:// URL");
 
-export const connectorTargetInputSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("http"), url: connectorUrlSchema }),
-  z.strictObject({
-    args: z.array(z.string().min(1)).max(CONNECTOR_ARGS_MAX),
-    command: z.string().min(1),
-    kind: z.literal("stdio"),
-  }),
-]);
+// the app adds a connector by its address alone: a command row is the vendor's own, set up in
+// Claude's or ChatGPT's config, which this app lists and removes but never writes.
+export const connectorTargetInputSchema = z.strictObject({
+  kind: z.literal("http"),
+  url: connectorUrlSchema,
+});
 export type ConnectorTargetInput = z.infer<typeof connectorTargetInputSchema>;
 
 // other: a transport the vendor holds and this app neither adds nor signs in to, named as the

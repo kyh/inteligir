@@ -31,6 +31,7 @@ import { z } from "zod";
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { isContainerContent } from "@repo/notes/markdown/remark-containers";
 import type {
+  ArticleSection,
   Column,
   ColumnGroup,
   ContainerContent,
@@ -41,7 +42,7 @@ import type {
 import type { OpaqueInline } from "@repo/notes/markdown/remark-opaque";
 import { parseFormulaRaw } from "@repo/notes/markdown/remark-inline-constructs";
 import type {
-  CommentMarker,
+  AnnotationMarker,
   DateChip,
   FormulaPill,
 } from "@repo/notes/markdown/remark-inline-constructs";
@@ -57,7 +58,7 @@ import type { WikiEmbed, WikiLink } from "@repo/notes/markdown/remark-wiki-link"
 import {
   CANVAS_BLOCK_KEY,
   CHART_BLOCK_KEY,
-  COMMENT_MARKER_KEY,
+  ANNOTATION_MARKER_KEY,
   FORMULA_PILL_KEY,
   FRONTMATTER_KEY,
   HTML_BLOCK_KEY,
@@ -348,8 +349,31 @@ const blockquoteRule: NonNullable<MdRules["blockquote"]> = {
   },
 };
 
+// an item's article section, which no editor node holds: only the codec, which splits an item's
+// sections before this table runs, builds the element, so an export writes the page a fill read
+// inside `:::article` after the person's note
+export const ARTICLE_SECTION_KEY = "article_section";
+
+// the editor holds no section, so a pasted `:::article` reads as the blocks inside it
+const articleSectionRule: WideMdRule = {
+  deserialize: (
+    node: ArticleSection,
+    deco: MdDecoration,
+    options: DeserializeMdOptions,
+  ): Descendant[] => convertChildrenDeserialize(node.children, deco, options),
+};
+
 export const MD_RULES: MdRules = {
   a: linkRule,
+
+  [ARTICLE_SECTION_KEY]: {
+    serialize: (node: TElement, options: SerializeMdOptions): ArticleSection => ({
+      children: containerFlow(node.children, options),
+      type: "articleSection",
+    }),
+  },
+
+  articleSection: articleSectionRule,
 
   // remark-stringify escapes `[` at phrasing start, which would re-emit an alert marker as
   // `> \[!NOTE]`; an alert's body is serialized apart and quoted as one verbatim `html` block.
@@ -417,17 +441,17 @@ export const MD_RULES: MdRules = {
     }),
   },
 
-  [COMMENT_MARKER_KEY]: {
-    deserialize: (node: CommentMarker): TElement => ({
+  [ANNOTATION_MARKER_KEY]: {
+    deserialize: (node: AnnotationMarker): TElement => ({
       children: [{ text: "" }],
       edge: node.edge,
       ids: node.ids,
-      type: COMMENT_MARKER_KEY,
+      type: ANNOTATION_MARKER_KEY,
     }),
-    serialize: (node: TElement): CommentMarker => ({
+    serialize: (node: TElement): AnnotationMarker => ({
       edge: node.edge === "end" ? "end" : "start",
       ids: stringProp(node, "ids") ?? "",
-      type: "commentMarker",
+      type: "annotationMarker",
     }),
   },
 

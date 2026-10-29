@@ -14,6 +14,7 @@ suite drives the same bytes and the same policy a user gets.
 ```sh
 pnpm e2e                      # every scenario (the runner builds the CLI first)
 pnpm e2e --only vault-sync    # one scenario (comma-separated, repeatable)
+pnpm e2e --lanes 1            # one scenario at a time, every line as it happens
 pnpm e2e --keep               # keep the scratch dirs for post-mortem
 pnpm e2e --list               # every scenario, in run order, and what it proves
 pnpm e2e --no-skip            # every SKIP FAILS: for a provisioned browser and display
@@ -23,10 +24,30 @@ Before the first scenario the runner builds the CLI bundle and the workspace
 UI it stages, through turbo (`--filter=inteligir`): a cache hit when nothing
 changed, and never a stale `dist/` booted as if it were this checkout.
 
+Scenarios run in lanes: `--lanes <n>` of them at once, by default half this
+machine's cores and at most four, each started in registry order as a lane
+frees. With more than one lane a scenario's lines are held and printed whole
+when it ends, after a live `[name] started` line, so two lanes never
+interleave; `--lanes 1` streams each line as it happens. A run that dies first
+(a signal, a crash, a job's timeout) prints what each scenario still running
+had written, under an `[name] INTERRUPTED` line. The summary lists
+every scenario in registry order whatever finished first. A scenario that needs
+something only one may hold at a time names it in `exclusive` and never runs
+beside another holding it: today that is `desktop-shell`, the shell's window on
+the run's one display, driven through WebKit's WebDriver. Everything else a
+scenario touches is its own, which is what lets it share a run: its scratch
+dir, ports reserved ephemerally and never handed to two lanes in one run
+(`src/harness/ports.ts`), and browser sessions named for it. A build a scenario
+makes through turbo (the Worker, the phone's editor page) runs once per run and
+one at a time (`src/harness/turbo-build.ts`), because a second build would
+rewrite the output a running Worker serves its assets from.
+
 Every scenario runs under a deadline (`timeoutMs`, default 180s; a scenario
 that builds or boots a Worker, or the desktop shell, declares more). A run
 still going past it FAILS with its instances' output tails and is torn down,
-so a hang costs one scenario, not the whole job.
+so a hang costs one scenario, not the whole job. Time its build sat queued
+behind another lane's moves the deadline out by as much, since the budget is
+for the scenario's own build.
 
 Deliberately OUTSIDE `pnpm verify`: the package typechecks/lints/formats in
 the gate (it has a `typecheck` script and lives under the root oxlint/oxfmt
@@ -47,10 +68,13 @@ scratch dir and tears everything down afterwards:
   its sign-in or edits its connectors on the host's account), a
   reserved free port (bind races retry with a fresh port,
   bounded), health-gated on `/health` answering `{ok:true}`. Registered for
-  teardown at SPAWN, before the health wait, and torn down as a process group
-  that is polled to verified-dead (SIGTERM →
-  SIGKILL → ESRCH) before its scratch is removed; Ctrl-C kills every live
-  group. `extraEnv` may not touch harness-owned keys (paths, vendor stores,
+  teardown at SPAWN, before the health wait. `stop()` is the quit a supervisor
+  sends: SIGTERM to the leader alone, so the server runs one ordered shutdown,
+  the vault flush included (a SIGTERM to the whole group reaches a source-mode
+  server through the bin and tsx more than once, and a second is its cue to
+  leave before the flush), then the process group is polled to verified-dead
+  (SIGTERM → SIGKILL → ESRCH) before its scratch is removed; Ctrl-C kills
+  every live group. `extraEnv` may not touch harness-owned keys (paths, vendor stores,
   port, NODE_ENV, `GIT_*`) — collisions are refused loudly. `seedVault` writes fixture files
   before boot; the app's repo init commits them. A seeded vault exists before
   boot, so the bootstrap adds no starter notes. `seedData` does the same for
@@ -58,7 +82,7 @@ scratch dir and tears everything down afterwards:
 - `bareRemote()` — a scratch bare git repo, returned as the `file://` URL for
   `INTELIGIR_VAULT_REMOTE` or `vault.setRemote`.
 - `cloudWorker({ vars? })` — the product Worker (apps/web), built through turbo
-  and booted from its `cf build` output under Miniflare
+  once per run and booted from its `cf build` output under Miniflare
   (`src/harness/worker-host.ts`) on a scratch persist dir, its D1 carrying
   apps/web's own `db:export` schema plus one invite row; `vars` override
   cloudflare.config.ts's text bindings (a storage cap a scenario can fill). Registered for teardown exactly like an
@@ -68,8 +92,8 @@ scratch dir and tears everything down afterwards:
   `instance.vaultDir` / `dataDir` for on-disk assertions.
 - `desktopShell({ seedVault?, seedOwnDir?, firstRun? })` — the checkout's
   built Tauri shell (`pnpm turbo run build:shell --filter=@repo/desktop`, an
-  unbundled debug build the runner makes before the first scenario that asks,
-  outside every deadline). It makes the default vault's folder before launch,
+  unbundled debug build the runner makes before the first scenario when any
+  selected one is `exclusive` on `desktop-shell`, outside every deadline). It makes the default vault's folder before launch,
   as a launch before first run left it, so the shell boots it; `firstRun: true`
   makes nothing, so the shell opens its first-run page and boots no server
   until a vault is chosen, and a relaunch over the same scratch finds the vault
@@ -103,13 +127,20 @@ workspace and Settings selectors (`selectors.ts`); `gitIn` and `readOrNull`
 (`agent-shell-cli.ts`); the account's sign-up and device routes against a dev
 Worker (`cloud-account.ts`); `NO_AUTO_SYNC` and the one strict sync pass,
 `syncExpectClean` (`vault-sync.ts`); the owner's sign-in and a signed-in
-instance's explicit sync against the hosted vault (`hosted-vault.ts`); and the
-phone's own runtime, logged in as `PHONE_NAME` (`phone-runtime.ts`).
+instance's explicit sync against the hosted vault (`hosted-vault.ts`); the
+phone's own runtime, logged in as `PHONE_NAME` (`phone-runtime.ts`); the page
+server a save's fetch may read, on this machine's own network address
+(`lan-fixture.ts`); the browser extension's door and its worker's save
+(`native-host-fixture.ts`); and the PNG reader for what a frame or a thumbnail
+draws (`png-pixels.ts`).
 
 ## Adding a scenario
 
 1. `src/scenarios/<name>.ts` exporting a `Scenario` (`name`, `description`,
-   `run(ctx)`, and `timeoutMs` only when a green run can near the default);
+   `run(ctx)`, `timeoutMs` only when a green run can near the default, and
+   `exclusive` when it holds something only one scenario may, such as the
+   desktop shell); it shares a run with others in lanes, so it binds no fixed
+   port and writes nothing outside its scratch dir;
    assert with `expect`/`expectEq`, bail with `skip(reason)` for a capability
    this environment/branch does not have yet. The `description` says what the
    scenario proves: it is what `pnpm e2e --list` prints and what the transcript
@@ -161,7 +192,8 @@ browser binary every browser scenario needs: `pnpm add -g agent-browser@X.Y.Z &&
 agent-browser install` (Linux: `--with-deps`), at the version
 `.github/workflows/ci.yml` pins so a local run drives the browser CI drives.
 The desktop shell opens a real window, so CI runs the suite under `xvfb-run -a`,
-with WebKitGTK's WebDriver (`webkit2gtk-driver`) and `cargo install tauri-driver
+with WebKitGTK's WebDriver (`webkitgtk-webdriver`, `webkit2gtk-driver` before
+Ubuntu 26.04) and `cargo install tauri-driver
 --version X.Y.Z --locked` beside it, at the version CI pins; with no display, no
 driver or no built shell, the shell scenarios skip. The first browser a run asks for probes the
 environment with `about:blank`, once per run and in a session of its own, so
@@ -175,9 +207,21 @@ environment was provisioned passes `--no-skip`, and every skip, the browser's
 and the display's alike, becomes a FAIL carrying the reason it would have
 skipped with.
 
+A scenario whose save must read a page serves it from `lan-fixture.ts`, on the
+first address of this machine that the guarded fetch reads from (private or
+public space, by the guard's own `classifyAddress`); a machine with none, such
+as a sandbox whose only address is in reserved space, skips that scenario at
+the fixture's start with "no usable LAN address". It is the one way such a
+scenario skips, and the guard is never widened for it: a CI runner's private
+address runs them all.
+
 The runner's suite-start build is what stages `apps/cli/dist/ui`; the harness
 still refuses to boot without it, because a server with no workspace UI
 answers the API and serves a 404 to the browser — a green API run beside a
-page that never loads. built-worker-boot builds apps/web for itself, through
-turbo, because the bundle it boots is the thing under test and no other
-scenario needs it.
+page that never loads. The Worker is built through turbo by the first scenario
+that boots one, once per run, rather than at suite start, because only the
+scenarios that boot a Worker need it.
+
+CI runs the suite in two lanes (`--lanes 2`), half its four-core runner, the
+same count a four-core machine's default gives, so a local default run is the
+one CI runs.

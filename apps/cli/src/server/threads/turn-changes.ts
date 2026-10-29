@@ -7,6 +7,8 @@ import type {
   TurnChangeState,
 } from "@repo/contract/local/threads/threads-schema";
 import type { DbConnection } from "@repo/db/connection";
+import { turnItemPaths } from "@repo/notes/items/turn-items";
+import type { TurnPathChange } from "@repo/notes/items/turn-items";
 import { getThread } from "@repo/db/threads";
 import type { ThreadRow } from "@repo/db/threads";
 import type { GitEngine } from "../vault/git-engine";
@@ -18,9 +20,24 @@ import type { TurnCommit } from "../vault/git-history";
 const CLOCK_SKEW_MARGIN_MS = 24 * 60 * 60 * 1000;
 
 interface FoldedTurn {
-  paths: Set<string>;
+  // each path with the first and the last way the turn's commits changed it
+  paths: Map<string, { first: string; last: string }>;
   state: TurnChangeState;
 }
+
+// how a path ended up across the turn: made, removed or edited; null for one made and removed
+// again within it, which changed no item
+const netChange = (span: { first: string; last: string }): TurnPathChange["change"] | null => {
+  const before = span.first !== "A";
+  const after = span.last !== "D";
+  if (before && after) {
+    return "modified";
+  }
+  if (before) {
+    return "deleted";
+  }
+  return after ? "added" : null;
+};
 
 // oldest first, since the log is read oldest first and a Map keeps its first insertion.
 export const foldTurnCommits = (commits: readonly TurnCommit[]): TurnChanges[] => {
@@ -28,9 +45,10 @@ export const foldTurnCommits = (commits: readonly TurnCommit[]): TurnChanges[] =
   for (const commit of commits) {
     switch (commit.trailers.kind) {
       case "turn": {
-        const turn = turns.get(commit.trailers.turnId) ?? { paths: new Set(), state: "applied" };
+        const turn = turns.get(commit.trailers.turnId) ?? { paths: new Map(), state: "applied" };
         for (const change of commit.changes) {
-          turn.paths.add(change.path);
+          const first = turn.paths.get(change.path)?.first ?? change.status;
+          turn.paths.set(change.path, { first, last: change.status });
         }
         turns.set(commit.trailers.turnId, turn);
         break;
@@ -46,14 +64,19 @@ export const foldTurnCommits = (commits: readonly TurnCommit[]): TurnChanges[] =
     }
   }
   return [...turns].map(([turnId, turn]) => ({
-    paths: [...turn.paths],
+    items: turnItemPaths(
+      [...turn.paths].flatMap(([path, span]) => {
+        const change = netChange(span);
+        return change === null ? [] : [{ change, path }];
+      }),
+    ),
+    paths: [...turn.paths.keys()],
     state: turn.state,
     turnId,
   }));
 };
 
-// a thread pulled from another device was created here when it arrived, so what that device
-// committed before then is not read.
+// a thread commits nothing before it was created, so the walk starts there, less the clock margin.
 export const readThreadTurnCommits = async (
   git: GitEngine,
   thread: ThreadRow,
@@ -66,7 +89,7 @@ interface ListTurnChangesArgs {
   threadId: string;
 }
 
-// null for a thread this device does not hold.
+// null for an unknown thread.
 export const listTurnChanges = async (
   args: ListTurnChangesArgs,
 ): Promise<TurnChangesResponse | null> => {

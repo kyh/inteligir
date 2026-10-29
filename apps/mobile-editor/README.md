@@ -14,13 +14,22 @@ keyboard toolbar). Everything it reads or writes, and every navigation, is a
 frame to the native screen that hosts it: the phone's store, its offline queue
 and its navigation stack stay native.
 
+The same page has a second mode, the reader: an `init` in `fill` mode mounts
+no editor and reads each page the phone fetched for a link it saved with
+`@repo/page-reader` over the WebView's own `DOMParser`
+(`src/fill/serve-fills.ts`), so a link reads as it would on a Mac. The phone
+keeps one such page open, a WebView nothing shows
+(`apps/mobile/src/items/reader-page.tsx`); the reader reaches no network
+either, since the page's policy refuses every connection and a parsed
+document loads nothing.
+
 ## The build
 
 `pnpm --filter @repo/mobile-editor build` writes `dist/`: `index.html`, ONE
 classic `<script defer>` and one stylesheet, relative to the page. A `file://`
 page in WKWebView loads no module script and no `crossorigin` tag
 (`vite/classic-page.ts` says why), so the build is one IIFE with every dynamic
-import inlined (mermaid, katex, the calendar, the wiki chip), and
+import inlined (pele, katex, the calendar, the wiki chip), and
 `vite/classic-page.ts` rewrites vite's entry tag and FAILS the build on a
 module script, a second script or chunk, a `crossorigin` tag or a
 modulepreload link. Every woff2 is inlined into the
@@ -44,18 +53,22 @@ both ends address the same files.
 - Page to native: `ready` (the door is installed; it knows no nonce yet), then
   requests `{ id, nonce, kind, payload }` — `list`, `read`, `write` (under the
   `absent` or `expected` guard, the base TEXT the native end compares with its
-  store), `addComment` (the open note's write that carries a new comment, so
-  the phone lands the note and the comment's entry as one change set),
-  `remove`, `rename`, `readAsset`, `writeAsset` (bytes as base64),
+  store), `addAnnotation` (the open note's write that carries a new highlight,
+  so the phone lands the note and the annotation's entry as one change set),
+  `editAnnotation` (an annotation's note, a write of the store alone), `remove`, `rename`, `readAsset`, `writeAsset` (bytes as base64),
   `wikiTargets`, `pickImage` — and events: `opened`, `openFailed` (the note
   could not be read, so the screen says why and offers a fresh load),
   `editorState` (dirty and why a save failed, sent only when either changes,
-  which the screen asks about before letting the note go), `showComments`,
-  `navigate`, `askAgent`, `flushed`.
-- Native to page: `init { nonce, path, focus }`, `response { id, ok }`,
-  `vaultChanged`, `flush` (answered by `flushed` with its id), `commentMeta`
-  (the note's threads and which are resolved, which its ranges are drawn by)
-  and `commentsRemoved` (threads deleted on the phone, whose markers the page
+  which the screen asks about before letting the note go), `showAnnotations`,
+  `navigate`, `flushed`.
+- Page to native, in fill mode: `fillAnswer { id, nonce, answer }`, what the
+  reader made of the page (its facts and article) or why it read nothing.
+- Native to page: `init { mode: "edit", nonce, path, focus }` or
+  `init { mode: "fill", nonce }`, `fillJob { id, nonce, job }` (a page's bytes
+  as base64, its charset and its address), `response { id, ok }`,
+  `vaultChanged`, `flush` (answered by `flushed` with its id), `annotationMeta`
+  (the note's annotations, which its ranges are drawn by) and
+  `annotationsRemoved` (annotations deleted on the phone, whose markers the page
   takes out and writes, from inside a locked block too). The page follows the
   phone's appearance through `prefers-color-scheme`, so no frame carries a
   theme.
@@ -67,7 +80,7 @@ which calls the door `connectPageBridge` installs on `window`, non-writable and
 non-configurable (`src/bridge/page-bridge.ts`): a message event is one a child
 frame's `parent.postMessage` could forge. The first well-formed `init` sets the
 nonce; a frame without it, or with another load's, is dropped, as is anything
-malformed. A rename, a remove, a new comment and a pasted file wait as long as
+malformed. A rename, a remove, a new annotation, its note and a pasted file wait as long as
 the phone takes, since the phone still lands one it answers late, and the
 photo picker waits on the user; every other request times out after
 `REQUEST_TIMEOUT_MS` (a write is guarded, so its retry finds what landed). An
@@ -81,11 +94,11 @@ page starts; the install hands `flushOpenNote` that host's flush. Opening a
 note (a wiki link, a created note) writes this one and sends `navigate`, so the
 native stack pushes the next page and keeps the back gesture. A vanished note
 asks through the page's own confirm dialog, in the desktop's words
-(`@repo/editor/note/vanished-prompt`). A new comment is the touch toolbar's:
-its markers go in at Save, and the flush that writes them goes as `addComment`
-rather than `write`, so no save ever lands markers without their comment; a
-hardware chord's create, whose markers the autosave already wrote, sends its
-entry on its own.
+(`@repo/editor/note/vanished-prompt`). A new annotation is the touch toolbar's:
+its markers go in at Save, and the flush that writes them goes as `addAnnotation`
+rather than `write`, so no save ever lands markers without their entry, and the
+note typed with it follows as `editAnnotation`; a hardware chord's create, whose
+markers the autosave already wrote, sends its entry on its own.
 
 ## Layout
 
@@ -94,7 +107,9 @@ index.html              the page, its CSP and a scale-1 viewport
 vite.config.ts          one IIFE, fonts inlined, the classic-page check
 vite/classic-page.ts    the entry rewrite and the build's refusal
 src/
-  main.tsx              connects the bridge, waits for init, mounts
+  main.tsx              connects the bridge, waits for init, mounts the editor
+                        or serves the reader
+  fill/serve-fills.ts   the reader mode, exported as ./reader-mode
   editor-page.tsx       the providers, the column under the touch profile,
                         the focus init asks for
   bridge/protocol.ts    the wire (zod), exported as ./bridge-protocol
@@ -111,12 +126,13 @@ src/
 pnpm --filter @repo/mobile-editor test
 ```
 
-`src/__tests__/fake-phone.ts` is the native end as the page sees it: a
+`src/test-support/fake-phone.ts` is the native end as the page sees it: a
 transport that records frames and answers from an in-memory vault that CASes
 on the base text. The suites cover correlation, timeouts and every dropped
-frame (`page-bridge.test.ts`), each host port as one frame kind and back
-(`page-host.test.ts`), and a mounted page whose typed paragraph reaches the
-phone as `serializeNote`'s bytes (`editor-page.test.tsx`, compiled like the
-shipped page). `vite/__tests__/classic-page.test.ts` pins the build's verdicts.
+frame (`src/bridge/page-bridge.test.ts`), each host port as one frame kind and
+back (`src/host/page-host.test.ts`), and a mounted page whose typed paragraph
+reaches the phone as `serializeNote`'s bytes (`src/editor-page.test.tsx`,
+compiled like the shipped page). `vite/classic-page.test.ts` pins the build's
+verdicts.
 The page in a real browser from `file://`, with a scripted phone on its
 bridge, is `tools/e2e/src/scenarios/phone-editor-page.ts`.

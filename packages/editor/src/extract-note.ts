@@ -14,7 +14,7 @@ import { checkNoteName } from "@repo/notes/knowledge/note-name";
 import { dirnamePath } from "@repo/notes/knowledge/vault-path";
 import { serializeWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
-import { isCommentMarker } from "@repo/editor/comments/comment-ranges";
+import { isAnnotationMarker } from "@repo/editor/annotations/annotation-ranges";
 import { WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { getLiveEditor, liveEditorPath } from "@repo/editor/live-editor";
@@ -61,10 +61,10 @@ const serializeBlocks = (editor: SlateEditor, blocks: TElement[]): string => {
 export const extractBlocksMarkdown = (editor: SlateEditor, paths: readonly Path[]): string =>
   serializeBlocks(editor, blocksAt(editor, paths));
 
-// a marker's thread lives in the comment store keyed by this note's id, so the marker would
+// a marker's thread lives in the annotation store keyed by this note's id, so the marker would
 // leave for a note whose store never heard of it
-const carriesCommentMarker = (block: TElement): boolean =>
-  [...NodeApi.elements(block)].some(([element]) => isCommentMarker(element));
+const carriesAnnotationMarker = (block: TElement): boolean =>
+  [...NodeApi.elements(block)].some(([element]) => isAnnotationMarker(element));
 
 const linkParagraph = (editor: SlateEditor, body: string): TElement => ({
   children: [{ text: "" }, { body, children: [{ text: "" }], type: WIKI_LINK_KEY }, { text: "" }],
@@ -118,8 +118,8 @@ export const extractBlocksToNote = async (
   if (blocks.length === 0) {
     return null;
   }
-  if (blocks.some(carriesCommentMarker)) {
-    toast.error("A comment's thread can't move to a new note, so nothing was extracted.");
+  if (blocks.some(carriesAnnotationMarker)) {
+    toast.error("A highlight can't move to a new note, so nothing was extracted.");
     return null;
   }
   const markdown = serializeBlocks(editor, blocks);
@@ -152,7 +152,7 @@ export const extractBlocksToNote = async (
     extractBlocksMarkdown(editor, current) === markdown;
   if (!unchanged) {
     toast.warning(
-      `Created ${docStem(created.path)}, but the note changed meanwhile, so the blocks stayed.`,
+      `Created ${docStem(created.path)}, but this item changed meanwhile, so the blocks stayed.`,
     );
     return null;
   }

@@ -7,24 +7,24 @@
   "exports": {
     "./app/actions/action-composer": "./src/app/actions/action-composer.tsx",
     "./app/actions/actions-panel": "./src/app/actions/actions-panel.tsx",
-    "./app/actions/comments-tab": "./src/app/actions/comments-tab.tsx",
+    "./app/actions/annotations-tab": "./src/app/actions/annotations-tab.tsx",
     "./app/actions/history-tab": "./src/app/actions/history-tab.tsx",
     "./app/actions/send-to-thread": "./src/app/actions/send-to-thread.ts",
     "./app/actions/undo-turn": "./src/app/actions/undo-turn.ts",
     "./app/agents/agent-sign-in": "./src/app/agents/agent-sign-in.tsx",
+    "./app/library/raindrop-import": "./src/app/library/raindrop-import.tsx",
     "./app/note/guarded-vault-io": "./src/app/note/guarded-vault-io.ts",
-    "./app/palette/vault-replace": "./src/app/palette/vault-replace.ts",
     "./app/prefs": "./src/app/prefs.ts",
     "./app/settings/advanced-section": "./src/app/settings/advanced-section.tsx",
     "./app/settings/agents-section": "./src/app/settings/agents-section.tsx",
     "./app/settings/connectors-section": "./src/app/settings/connectors-section.tsx",
     "./app/workspace-context": "./src/app/workspace-context.tsx",
     "./router": "./src/router.ts",
-    "./test-support/console-error-gate": "./src/app/__tests__/console-error-gate.ts",
-    "./test-support/dom-timeouts": "./src/app/__tests__/dom-timeouts.ts",
-    "./test-support/inert-socket": "./src/app/__tests__/inert-socket.ts",
-    "./test-support/jsdom-stubs": "./src/app/__tests__/jsdom-stubs.ts",
-    "./test-support/scripted-socket": "./src/app/__tests__/scripted-socket.ts"
+    "./test-support/console-error-gate": "./src/app/test-support/console-error-gate.ts",
+    "./test-support/dom-timeouts": "./src/app/test-support/dom-timeouts.ts",
+    "./test-support/inert-socket": "./src/app/test-support/inert-socket.ts",
+    "./test-support/jsdom-stubs": "./src/app/test-support/jsdom-stubs.ts",
+    "./test-support/scripted-socket": "./src/app/test-support/scripted-socket.ts"
   },
   "scripts": {
     "build": "vite build && vite build --mode first-run",
@@ -33,8 +33,8 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p scripts && tsc --noEmit -p src && tsc --noEmit -p src/tsconfig.page.json"
   },
   "devDependencies": {
+    "@kyh/tsconfig": "catalog:",
     "@orpc/client": "catalog:",
-    "@orpc/contract": "catalog:",
     "@orpc/tanstack-query": "catalog:",
     "@repo/contract": "workspace:*",
     "@repo/domain": "workspace:*",

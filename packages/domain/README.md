@@ -2,15 +2,14 @@
 
 The zod-only leaf: the thread grammar every wire in the product carries, and
 the vocabulary the write layer announces change through. The workspace UI,
-the local server, the cloud page planner and the phone all parse the same
-event with it, so it holds schemas and pure tables and nothing else — no node,
+the local server and the agent runtime's host all parse the same event with
+it, so it holds schemas and pure tables and nothing else — no node,
 no db, no transport, no React.
 
 ## Why it exists
 
-A thread event is written by the local server, replayed by the page,
-pushed through the Worker's merged log and pulled back down by another device,
-and every one of those parses it at its own boundary. One grammar in one
+A thread event is written by the local server, stored in its database and
+replayed by the page, and each of those parses it at its own boundary. One grammar in one
 package with one runtime dependency is what makes that the same parse on every
 target. The leaf-ness is held by `tools/repo-guards/src/dep-dag.test.ts` —
 `@repo/domain` is declared with no outgoing edge, only `@repo/workspace`
@@ -20,9 +19,8 @@ by `oxlint.config.ts`, which refuses its source a node or react import, and by
 `tsconfig.json` (`ES2023`, `types: []`), so a node global is a type error
 before it is a lint error.
 
-Consumers: `@repo/db`, `@repo/contract`, `@repo/agent-runtime`, the CLI server,
-the workspace UI, and `apps/mobile`, whose synced log is stored as this
-package's `ThreadEvent`.
+Consumers: `@repo/db`, `@repo/contract`, `@repo/agent-runtime`, the CLI server
+and the workspace UI. The phone holds no thread, so it reaches none of it.
 
 ## Layout
 
@@ -86,12 +84,9 @@ Every subpath is exported by name in `package.json`; there is no barrel.
   ws-reachability test holds every kind to a producer in shipped source and
   every fired kind to the declaration; nothing checks that a client consumes
   a kind.
-- `threadEventSchema` is what the cloud page planner
-  (`packages/contract/src/cloud/sync/plan-page.ts`) re-parses every pulled row
-  through before it may move a cursor.
 
 ## Testing
 
-`pnpm --filter @repo/domain test` — vitest. That a merged log folds to the
-same rows is fuzzed where the fold is reachable,
-`apps/cli/src/server/agents/__tests__/event-coalescer.test.ts`.
+`pnpm --filter @repo/domain test` — vitest. That a coalesced stream folds to
+the same rows is fuzzed where the fold is reachable,
+`apps/cli/src/server/agents/event-coalescer.test.ts`.

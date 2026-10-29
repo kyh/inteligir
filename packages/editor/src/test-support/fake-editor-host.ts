@@ -5,7 +5,7 @@ import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { installEditorHost } from "@repo/editor/host-io";
 import type {
   AgentRequestActions,
-  CommentActions,
+  AnnotationActions,
   CreateNewFileResult,
   EditorHostIo,
   LinkResolver,
@@ -39,7 +39,8 @@ export interface FakeEditorHostOptions {
   // null is a host with no frame to run an html block in
   readonly htmlFrameUrl?: string | null;
   readonly pickImage?: EditorHostIo["pickImage"];
-  readonly comments?: CommentActions;
+  readonly opensFiles?: boolean;
+  readonly annotations?: AnnotationActions;
   readonly agent?: AgentRequestActions;
 }
 
@@ -50,7 +51,7 @@ const ignore = (): void => {
 export const FAKE_HTML_FRAME_URL = "/html-frame-under-test";
 
 // Installs the singleton the hooks read; the io half answers as an empty, read-only vault, and the
-// shell refuses every comment and hears every other ask as nothing.
+// shell refuses every annotation and hears every other ask as nothing.
 export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   const calls: HostCall[] = [];
   const record =
@@ -66,6 +67,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     };
 
   const vault: VaultActions = {
+    closeFile: recordVoid("closeFile"),
     createFile: record("createFile", Promise.resolve()),
     createFileAt: async (path, seedContent) => {
       calls.push({ action: "createFileAt", args: [path, seedContent] });
@@ -80,7 +82,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
         options.refuseCreates === true ? { kind: "refused" } : { kind: "created", path };
       return await Promise.resolve(result);
     },
-    deleteEntry: record("deleteEntry", Promise.resolve()),
+    deleteEntry: record("deleteEntry", Promise.resolve(true)),
     editNote: recordVoid("editNote"),
     flush: async () => {
       calls.push({ action: "flush", args: [] });
@@ -103,6 +105,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     onVaultChanged: () => () => {
       // the fake vault announces no change, so there is no subscription to end
     },
+    opensFiles: options.opensFiles ?? false,
     pickImage: options.pickImage ?? null,
     readNoteFormulas: options.readNoteFormulas ?? (async () => await Promise.resolve(null)),
     readVaultAsset: async ({ path }) =>
@@ -120,8 +123,9 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   const uninstall = installEditorHost({
     actions: {
       agent: options.agent ?? { askAboutSelection: ignore, showTag: ignore },
-      comments: options.comments ?? {
+      annotations: options.annotations ?? {
         create: async () => await Promise.resolve(false),
+        edit: async () => await Promise.resolve(false),
         open: ignore,
       },
     },

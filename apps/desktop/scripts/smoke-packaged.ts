@@ -1,6 +1,6 @@
 // boots the packaged app itself, window and all: the shell, the node it ships beside it and the CLI
 // it carries as a resource, which the shell starts as its server, and the server its watcher and
-// ACP adapters on that same node. needs a macOS arm64 host with a display: CI's test-macos job runs
+// ACP adapters on that same node, and the browsers' door it writes for the extension. needs a macOS arm64 host with a display: CI's test-macos job runs
 // it on an ad-hoc pack.
 
 import { spawn } from "node:child_process";
@@ -9,12 +9,16 @@ import { once } from "node:events";
 import { accessSync, constants, existsSync, readdirSync, readFileSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createConnection } from "node:net";
-import { tmpdir } from "node:os";
+import { endianness, tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 // the workspace's links, not the packaged copies: `files` does not ship scripts, and the route
 // constants are the contract's own source, which node strips of its types
 import { HEALTH_PATH } from "@repo/contract/local/routes";
+// the browser wire and the extension's identity import nothing node cannot load as it stands
+import { BROWSER_WIRE_VERSION, browserHostReplySchema } from "@repo/contract/browser/browser-wire";
+import type { BrowserHostReply, BrowserHostRequest } from "@repo/contract/browser/browser-wire";
+import { EXTENSION_ORIGIN, NATIVE_HOST_NAME } from "@repo/contract/browser/extension-identity";
 import {
   exitOf,
   fail,
@@ -30,7 +34,10 @@ import type { Exit, Rpc } from "inteligir/scripts/smoke-lib";
 import { z } from "zod";
 
 const CLI_BIN_NAME = "inteligir";
-const TEST_DIR_NAME = "__tests__";
+// a suite sits beside the module it tests and a package's shared test code in test-support/
+// (tools/repo-guards/CLAUDE.md), so either name in the packaged tree is test code that shipped
+const TEST_FILE = /\.test\.[cm]?[jt]sx?$/u;
+const TEST_SUPPORT_DIR_NAME = "test-support";
 
 const packageRoot = path.resolve(import.meta.dirname, "..");
 const appDir = path.join(
@@ -63,6 +70,12 @@ const PROD_DATA_DIR_NAME = ".inteligir";
 const PROD_VAULT_DIR_NAME = "Inteligir";
 const VAULTS_DIR_NAME = "vaults";
 const CONFIG_FILE_NAME = "config.json";
+// the browsers' door the app writes at each boot (apps/cli/src/desktop/native-hosts.ts): a manifest
+// in each browser's folder the home already has, naming one launcher under the app's data folder
+const BROWSER_SUPPORT = path.join("Library", "Application Support");
+const CHROME_DIR = "Google/Chrome";
+const ARC_DIR = "Arc/User Data";
+const NATIVE_HOST_LAUNCHER = path.join(PROD_DATA_DIR_NAME, "native-host", "inteligir-native-host");
 // what the server says when the vendor refuses for want of a sign-in
 // (apps/cli/src/server/threads/provider-failure.ts)
 const CODEX_SIGNED_OUT = "ChatGPT is signed out on this Mac";
@@ -112,6 +125,12 @@ const timelineSchema = z.discriminatedUnion("kind", [
 ]);
 const historySchema = z.object({ revisions: z.array(z.object({ sha: z.string() })) });
 const systemStatusSchema = z.object({ dataDir: z.string(), vaultDir: z.string() });
+const nativeHostManifestSchema = z.object({
+  allowed_origins: z.array(z.string()),
+  name: z.string(),
+  path: z.string(),
+  type: z.literal("stdio"),
+});
 
 // what the pack must carry, read before anything launches
 const checkPackContents = (): void => {
@@ -157,11 +176,13 @@ const checkPackContents = (): void => {
   if (strays.length > 0) {
     fail(`the packaged CLI carries what its \`files\` does not ship: ${strays.join(", ")}`);
   }
-  const testDirs = readdirSync(runtimeRoot, { encoding: "utf-8", recursive: true }).filter(
-    (entry) => path.basename(entry) === TEST_DIR_NAME && !entry.startsWith("node_modules"),
+  const testEntries = readdirSync(runtimeRoot, { encoding: "utf-8", recursive: true }).filter(
+    (entry) =>
+      !entry.startsWith("node_modules") &&
+      (path.basename(entry) === TEST_SUPPORT_DIR_NAME || TEST_FILE.test(path.basename(entry))),
   );
-  if (testDirs.length > 0) {
-    fail(`the packaged CLI carries test files: ${testDirs.join(", ")}`);
+  if (testEntries.length > 0) {
+    fail(`the packaged CLI carries test files: ${testEntries.join(", ")}`);
   }
   log(`packaged CLI -> ${readdirSync(runtimeRoot).join(", ")}`);
 
@@ -427,6 +448,113 @@ const proveHostGitUntouched = (): void => {
   log("the host's git never ran");
 };
 
+// a frame as Chrome writes one: the length in the machine's byte order, then UTF-8 JSON
+const frameOf = (request: BrowserHostRequest): Buffer => {
+  const body = Buffer.from(JSON.stringify(request), "utf-8");
+  const header = Buffer.alloc(4);
+  if (endianness() === "LE") {
+    header.writeUInt32LE(body.length, 0);
+  } else {
+    header.writeUInt32BE(body.length, 0);
+  }
+  return Buffer.concat([header, body]);
+};
+
+const repliesOf = (bytes: Buffer): BrowserHostReply[] => {
+  const replies: BrowserHostReply[] = [];
+  let offset = 0;
+  while (offset + 4 <= bytes.length) {
+    const length = endianness() === "LE" ? bytes.readUInt32LE(offset) : bytes.readUInt32BE(offset);
+    const body = bytes.subarray(offset + 4, offset + 4 + length);
+    if (body.length < length) {
+      fail(`the native host wrote a cut-off frame: ${bytes.toString("utf-8")}`);
+    }
+    replies.push(browserHostReplySchema.parse(JSON.parse(body.toString("utf-8"))));
+    offset += 4 + length;
+  }
+  if (offset !== bytes.length) {
+    fail(`the native host wrote bytes that are not a frame: ${bytes.toString("utf-8")}`);
+  }
+  return replies;
+};
+
+// the door a store build of the extension dials: both browsers' manifests name the one launcher,
+// which runs the bundled node on the bundled CLI under a scrubbed environment and answers Chrome's
+// frames from the running server
+const proveBrowserDoor = async (home: string): Promise<void> => {
+  const launcher = path.join(home, NATIVE_HOST_LAUNCHER);
+  for (const browser of [CHROME_DIR, ARC_DIR]) {
+    const manifestFile = path.join(
+      home,
+      BROWSER_SUPPORT,
+      browser,
+      "NativeMessagingHosts",
+      `${NATIVE_HOST_NAME}.json`,
+    );
+    if (!existsSync(manifestFile)) {
+      fail(`the app wrote no native-messaging manifest for ${browser} at ${manifestFile}`);
+    }
+    const manifest = nativeHostManifestSchema.parse(
+      JSON.parse(readFileSync(manifestFile, "utf-8")),
+    );
+    if (
+      manifest.name !== NATIVE_HOST_NAME ||
+      manifest.path !== launcher ||
+      manifest.allowed_origins.join(" ") !== EXTENSION_ORIGIN
+    ) {
+      fail(`${browser}'s native-messaging manifest is not the app's: ${JSON.stringify(manifest)}`);
+    }
+  }
+  try {
+    accessSync(launcher, constants.X_OK);
+  } catch {
+    fail(`the browser's launcher is missing or not executable (${launcher})`);
+  }
+  const script = readFileSync(launcher, "utf-8");
+  if (
+    !script.includes("/usr/bin/env -i") ||
+    !script.includes(bundledNode) ||
+    !script.includes(path.join(runtimeRoot, "dist", "index.js"))
+  ) {
+    fail(`the browser's launcher does not run the bundled node on the bundled CLI:\n${script}`);
+  }
+  // as Chrome starts it: the extension's origin as its argument, frames on stdin and stdout
+  const child = spawn(launcher, [EXTENSION_ORIGIN], {
+    env: { HOME: home },
+    stdio: ["pipe", "pipe", "inherit"],
+  });
+  const chunks: Buffer[] = [];
+  child.stdout.on("data", (chunk: Buffer) => {
+    chunks.push(chunk);
+  });
+  child.stdin.end(
+    Buffer.concat([
+      frameOf({ type: "hello", v: BROWSER_WIRE_VERSION }),
+      // a page the save's fill is refused (loopback), so nothing leaves the machine
+      frameOf({
+        save: { target: "link", title: "Smoke link", url: "http://127.0.0.1:9/smoke" },
+        type: "save",
+        v: BROWSER_WIRE_VERSION,
+      }),
+    ]),
+  );
+  const exit = await Promise.race([exitOf(child), delay(EXIT_TIMEOUT_MS, null)]);
+  if (exit?.code !== 0) {
+    fail(`the browser's launcher did not exit 0 at the end of its input: ${JSON.stringify(exit)}`);
+  }
+  const [hello, saved, ...more] = repliesOf(Buffer.concat(chunks));
+  if (hello?.type !== "hello" || hello.library !== PROD_VAULT_DIR_NAME) {
+    fail(`the native host's hello did not name the library: ${JSON.stringify(hello)}`);
+  }
+  if (saved?.type !== "saved" || !saved.created || !saved.path.startsWith("Unsorted/")) {
+    fail(`the native host's save did not land in Unsorted: ${JSON.stringify(saved)}`);
+  }
+  if (more.length > 0) {
+    fail(`the native host answered more frames than it was sent: ${JSON.stringify(more)}`);
+  }
+  log(`browser door -> Chrome's and Arc's manifests; hello and a save reached ${saved.path}`);
+};
+
 let launched: Launched | null = null;
 
 try {
@@ -476,6 +604,11 @@ try {
   await stopApp(launched, dataDir);
   launched = null;
   proveHostGitUntouched();
+  // a data dir an env pins holds a server the browser's door could never find, so that launch
+  // writes no door (the default vault's launch below does)
+  if (existsSync(path.join(pinnedHome, NATIVE_HOST_LAUNCHER))) {
+    fail("the launch on a data dir an env pins wrote the browser's door");
+  }
 
   // a home with no vault and nothing pinning one opens the first run, whose window loads the page
   // the shell carries and boots nothing until a vault is chosen
@@ -523,10 +656,13 @@ try {
   const expectVaultBoot = async ({
     known,
     label,
+    prove,
     vault,
   }: {
     known: readonly string[];
     label: string;
+    // what else this launch proves while its server runs
+    prove?: () => Promise<void>;
     vault: string;
   }): Promise<string> => {
     launched = launchApp(selectorEnv);
@@ -551,15 +687,25 @@ try {
       fail(`the ${label}'s data dir holds no database of its own`);
     }
     log(`${label} -> ${vaultStatus.vaultDir} on ${vaultStatus.dataDir}`);
+    await prove?.();
+    // the shell holds its server as the open vault's only once the window exists, so a quit sent
+    // between a healthy server and that window has no server to stop
+    await waitWindowLoaded(launched);
     await stopApp(launched, vaultDataDir);
     launched = null;
     return dir;
   };
 
+  // a home whose person has run Chrome and Arc, so the app writes both browsers' doors
+  await mkdir(path.join(home, BROWSER_SUPPORT, CHROME_DIR), { recursive: true });
+  await mkdir(path.join(home, BROWSER_SUPPORT, ARC_DIR), { recursive: true });
   log(`launching under a scratch home on ${selectorUrl}: the default vault`);
   const defaultDir = await expectVaultBoot({
     known: [],
     label: "default vault",
+    prove: async () => {
+      await proveBrowserDoor(home);
+    },
     vault: path.join(home, PROD_VAULT_DIR_NAME),
   });
 

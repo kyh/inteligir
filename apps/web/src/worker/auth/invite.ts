@@ -4,7 +4,7 @@ import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
 } from "@repo/contract/cloud/device/device-schema";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { createSignUpAuth } from "./auth";
 import { createDb } from "../db/client";
@@ -37,6 +37,15 @@ export const claimInvite = async (db: Db, code: string, email: string): Promise<
   return claimed !== undefined;
 };
 
+// redeemed_at stays set: clearing it would hand a working sign-up to whoever still holds the
+// code. Case-insensitive because the gate stores the address as typed and Better Auth lowercases it.
+export const forgetInviteRedeemer = async (db: Db, email: string): Promise<void> => {
+  await db
+    .update(inviteCode)
+    .set({ redeemedBy: null })
+    .where(sql`lower(${inviteCode.redeemedBy}) = lower(${email})`);
+};
+
 // scoped to the email this request claimed with, so a loser never releases a concurrent winner's claim
 export const releaseInvite = async (db: Db, code: string, email: string): Promise<void> => {
   await db
@@ -59,9 +68,10 @@ const formRefusal = (status: number, message: string): Response =>
 const forwardSignUp = async (
   request: Request,
   env: Env,
-  origin: string,
+  exports: Cloudflare.Exports,
   body: SignUpRequest,
 ): Promise<Response> => {
+  const { origin } = new URL(request.url);
   const headers = new Headers(request.headers);
   // an inherited content-length would describe the body this route consumed
   headers.delete("content-length");
@@ -71,11 +81,14 @@ const forwardSignUp = async (
     headers,
     method: "POST",
   });
-  return await createSignUpAuth(env, origin).handler(forwarded);
+  return await createSignUpAuth(env, exports, origin).handler(forwarded);
 };
 
-export const handleInviteSignUp = async (request: Request, env: Env): Promise<Response> => {
-  const url = new URL(request.url);
+export const handleInviteSignUp = async (
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response> => {
   const db = createDb(env.DB);
 
   if (!(await spendCallerBudget(env, db, "inviteSignUp", request))) {
@@ -95,7 +108,7 @@ export const handleInviteSignUp = async (request: Request, env: Env): Promise<Re
     return formRefusal(403, INVITE_REFUSED);
   }
 
-  const response = await forwardSignUp(request, env, url.origin, parsed);
+  const response = await forwardSignUp(request, env, ctx.exports, parsed);
   if (!response.ok) {
     await releaseInvite(db, parsed.inviteCode, parsed.email);
   }

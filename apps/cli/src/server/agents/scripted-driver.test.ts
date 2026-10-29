@@ -1,0 +1,209 @@
+import { execFileSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { isDefinedError, safe } from "@orpc/client";
+import { describe, expect, it } from "vitest";
+import { resolveAgentDriver } from "./agent-driver";
+import { scriptedNotePath } from "./scripted-driver";
+import { bootTestApp, TEST_MACHINE_NAME } from "../test-support/boot-app";
+import type { BootedTestApp } from "../test-support/boot-app";
+import {
+  awaitThreadStatus,
+  createThread,
+  fakeSessionFacts,
+  fetchTimelineRows,
+  flattenTimelineRows,
+  sendMessage,
+} from "./test-support/agent-test-harness";
+import { hermeticGitEnv } from "../vault/test-support/git-test-env";
+import type { ItemsService } from "../items/items-service";
+import type { VaultService } from "../vault/vault-service";
+import { makeTempDir } from "../test-support/temp-dir";
+import { undoCommitMessage } from "../vault/turn-trailers";
+
+const gitIn = (vaultDir: string, args: readonly string[]): string =>
+  execFileSync("git", args, {
+    cwd: vaultDir,
+    encoding: "utf-8",
+    env: {
+      ...process.env,
+      ...hermeticGitEnv(),
+      GIT_AUTHOR_EMAIL: "a@b.c",
+      GIT_AUTHOR_NAME: "A",
+      GIT_COMMITTER_EMAIL: "a@b.c",
+      GIT_COMMITTER_NAME: "A",
+    },
+  });
+
+const gitLogHead = (vaultDir: string): string =>
+  gitIn(vaultDir, ["log", "-1", "--format=%an%n%ae%n%cn%n%s%n%(trailers)"]);
+
+// the save a scripted turn's `save` line runs: the booted items service, or a stand-in for a link
+// (a booted app's fetcher never answers, so a link's waited save would wait out its bound)
+type DriverItems = Pick<ItemsService, "saveLink" | "saveFile">;
+
+const bootScripted = async (
+  wrapItems: (items: DriverItems, vault: VaultService) => DriverItems = (items) => items,
+): Promise<BootedTestApp> =>
+  await bootTestApp({
+    agent: { mode: "scripted" },
+    makeDriver: ({ db, bus, items, vault, vaultDir, sink }) => {
+      const resolved = resolveAgentDriver({
+        config: {
+          agent: "scripted",
+          agentModels: { claude: null, codex: null },
+          vaultDir,
+        },
+        db,
+        defaultHarness: () => "claude",
+        items: wrapItems(items, vault.service),
+        notifier: bus,
+        sessionFacts: fakeSessionFacts(),
+        sink,
+        vault,
+      });
+      expect(resolved.status()).toEqual({ mode: "scripted" });
+      return { driver: resolved.driver };
+    },
+  });
+
+const runTurn = async (harness: BootedTestApp, threadId: string, text: string): Promise<string> => {
+  const turnId = await sendMessage(harness.client, threadId, text);
+  await awaitThreadStatus(harness.client, threadId, "idle");
+  return turnId;
+};
+
+describe("the scripted driver over real HTTP", () => {
+  it("runs the deterministic turn: timeline, vault file, agent-attributed commit", async () => {
+    const harness = await bootScripted();
+
+    const threadId = await createThread(harness.client);
+    const turnId = await sendMessage(harness.client, threadId, "remember the milk");
+
+    await awaitThreadStatus(harness.client, threadId, "idle");
+
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    const user = rows.find((row) => row.kind === "conversation" && row.role === "user");
+    expect(user).toMatchObject({ text: "remember the milk" });
+    const assistant = rows.find((row) => row.kind === "conversation" && row.role === "assistant");
+    expect(assistant).toMatchObject({ text: "Noted: remember the milk", turnId });
+    const fileChange = rows.find((row) => row.kind === "work" && row.workKind === "file-change");
+    expect(fileChange).toMatchObject({ status: "completed", turnId });
+
+    const notePath = path.join(harness.vaultDir, scriptedNotePath(threadId));
+    expect(readFileSync(notePath, "utf-8")).toContain("remember the milk");
+
+    const head = gitLogHead(harness.vaultDir);
+    const [authorName, authorEmail, committerName, subject, ...trailerLines] = head.split("\n");
+    expect(authorName).toBe("inteligir-agent");
+    expect(authorEmail).toBe("agent@inteligir.local");
+    expect(committerName).toBe(TEST_MACHINE_NAME);
+    expect(subject).toBe("agent: vault update");
+    expect(trailerLines.join("\n")).toContain(`Thread: ${threadId}`);
+    expect(trailerLines.join("\n")).toContain(`Turn: ${turnId}`);
+  });
+});
+
+describe("a thread's turn changes", () => {
+  it("lists each turn that changed the vault, oldest first, and flips one an undo names", async () => {
+    const harness = await bootScripted();
+    const threadId = await createThread(harness.client);
+    const other = await createThread(harness.client);
+    const first = await runTurn(harness, threadId, "remember the milk");
+    await runTurn(harness, other, "another action's turn");
+    const second = await runTurn(harness, threadId, "and the eggs");
+
+    const agentNote = scriptedNotePath(threadId);
+    expect(await harness.client.threads.turnChanges({ threadId })).toEqual({
+      turns: [
+        { items: [agentNote], paths: [agentNote], state: "applied", turnId: first },
+        { items: [agentNote], paths: [agentNote], state: "applied", turnId: second },
+      ],
+    });
+
+    writeFileSync(path.join(harness.vaultDir, agentNote), "# Agent note\n\nremember the milk\n");
+    gitIn(harness.vaultDir, ["add", "-A"]);
+    gitIn(harness.vaultDir, [
+      "-c",
+      "commit.gpgsign=false",
+      "commit",
+      "-m",
+      undoCommitMessage(threadId, second),
+    ]);
+    const { turns } = await harness.client.threads.turnChanges({ threadId });
+    expect(turns.map((turn) => [turn.turnId, turn.state])).toEqual([
+      [first, "applied"],
+      [second, "undone"],
+    ]);
+  });
+
+  it("answers an empty list for a thread with no turn, and NOT_FOUND for an unknown one", async () => {
+    const harness = await bootScripted();
+    const threadId = await createThread(harness.client);
+    expect(await harness.client.threads.turnChanges({ threadId })).toEqual({ turns: [] });
+
+    const [missing] = await safe(harness.client.threads.turnChanges({ threadId: "thr_missing" }));
+    expect(isDefinedError(missing) && missing.code).toBe("NOT_FOUND");
+  });
+});
+
+const committedPaths = (vaultDir: string): string[] =>
+  gitIn(vaultDir, ["show", "--name-only", "--format=", "HEAD"])
+    .split("\n")
+    .filter((line) => line !== "")
+    .toSorted();
+
+describe("a scripted turn's save lines", () => {
+  const SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>';
+
+  it("saves a file named by its absolute path, and every path it wrote joins the turn's commit", async () => {
+    const harness = await bootScripted();
+    const file = path.join(makeTempDir("inteligir-save-line-"), "diagram.svg");
+    writeFileSync(file, SVG);
+    const threadId = await createThread(harness.client);
+    const turnId = await runTurn(harness, threadId, `File this.\nsave ${file}`);
+
+    const fileChange = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId)).find(
+      (row) => row.kind === "work" && row.workKind === "file-change",
+    );
+    expect(fileChange).toMatchObject({ status: "completed", turnId });
+    expect(committedPaths(harness.vaultDir)).toEqual(
+      [scriptedNotePath(threadId), "Unsorted/diagram.md", "assets/diagram.svg"].toSorted(),
+    );
+    expect(gitLogHead(harness.vaultDir)).toContain(`Turn: ${turnId}`);
+    expect(readFileSync(path.join(harness.vaultDir, "assets", "diagram.svg"), "utf-8")).toBe(SVG);
+    expect(await harness.client.threads.turnChanges({ threadId })).toMatchObject({
+      turns: [{ state: "applied", turnId }],
+    });
+  });
+
+  it("saves a web link through the items service, waiting for its fill", async () => {
+    const asked: string[] = [];
+    const harness = await bootScripted((items, vault) => ({
+      saveFile: items.saveFile,
+      async saveLink(input) {
+        asked.push(`${input.url} wait=${String(input.wait)}`);
+        const { path: written } = await vault.write("Unsorted/example.com.md", "a link\n");
+        return { fill: { state: "pending" }, outcome: "created", path: written, wrote: [written] };
+      },
+    }));
+    const threadId = await createThread(harness.client);
+    await runTurn(harness, threadId, "save https://example.com/\nsave not-a-target");
+    expect(asked).toEqual(["https://example.com/ wait=true"]);
+    expect(committedPaths(harness.vaultDir)).toEqual(
+      [scriptedNotePath(threadId), "Unsorted/example.com.md"].toSorted(),
+    );
+  });
+
+  it("fails the turn with the save's own words when the save fails", async () => {
+    const harness = await bootScripted();
+    const threadId = await createThread(harness.client);
+    const missing = path.join(makeTempDir("inteligir-save-line-"), "gone.png");
+    const turnId = await sendMessage(harness.client, threadId, `save ${missing}`);
+    await awaitThreadStatus(harness.client, threadId, "error");
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    const error = rows.find((row) => row.kind === "error");
+    expect(error).toMatchObject({ message: "Scripted turn failed", turnId });
+    expect(error?.kind === "error" ? error.detail : null).toContain("gone.png");
+  });
+});

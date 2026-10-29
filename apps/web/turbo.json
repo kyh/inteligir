@@ -2,12 +2,21 @@
   "$schema": "https://turborepo.dev/schema.json",
   "extends": ["//"],
   "tasks": {
+    // the Env and runtime types src/worker/tsconfig.json includes, derived from cloudflare.config.ts
+    "generate": {
+      "outputs": [".cloudflare/types/**"]
+    },
     "build": {
       // /privacy and /terms bundle docs/privacy.md and docs/terms.md, which sit in no workspace,
       // so turbo hashes them only where they are named.
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/privacy.md", "$TURBO_ROOT$/docs/terms.md"],
       // the Build Output `cf deploy --prebuilt` uploads
       "outputs": [".cloudflare/output/**"]
+    },
+    "dev": {
+      // the tunnel's host, which vite answers beside localhost when the connector is reached from
+      // outside (.dev.vars.example); strict env mode hands a task no other variable
+      "passThroughEnv": ["__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS"]
     }
   }
 }

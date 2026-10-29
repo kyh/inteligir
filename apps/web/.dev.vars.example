@@ -1,7 +1,10 @@
 # Copy to apps/web/.dev.vars (gitignored — NEVER commit real values).
 #
-# `vite dev` loads this as the Worker's secrets. Production sets the same
-# keys with `cf workers secrets update` (see README.md -> Deploy).
+# `vite dev` loads this over the bindings cloudflare.config.ts declares.
+# BETTER_AUTH_SECRET is the one production secret, set with
+# `cf workers secrets update` (see README.md -> Deploy). RATE_LIMIT_DISABLED
+# is a text binding in cloudflare.config.ts, "false" wherever the Worker is
+# deployed, and a line here overrides it for this machine only.
 
 # Better Auth's signing key. Required — without it every /api/auth/* request
 # fails. Any value works locally: `openssl rand -base64 32`.
@@ -10,3 +13,13 @@ BETTER_AUTH_SECRET=
 # Set to "true" ONLY when a local script signs up several users from one IP —
 # auth is rate-limited to 10 requests/60s per IP (see src/worker/auth/auth.ts).
 # RATE_LIMIT_DISABLED=true
+
+# The connector's OAuth issuer, its resource and the one Host it answers all
+# follow this origin, http://localhost:5174 under `vite dev`. To reach the
+# connector through a public tunnel (an assistant's servers cannot reach
+# localhost), set it to the tunnel's https origin, and start `pnpm dev:web`
+# with __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=<your-tunnel-host>, since vite
+# answers no other host (vite.dev/config/server-options#server-allowedhosts).
+# The tunnel must pass on X-Forwarded-Proto: https, as tunnels do, or the
+# request reads as http and the connector, whose resource is https, says 404.
+# SITE_ORIGIN=https://<your-tunnel-host>

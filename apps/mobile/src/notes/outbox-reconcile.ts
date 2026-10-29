@@ -13,9 +13,9 @@ import type {
 import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";
 import { reconcileFile } from "@repo/notes/sync/reconcile-file";
 import type { FileSide, Reconciled } from "@repo/notes/sync/reconcile-file";
-import { putText, rebaseEdit, rewritePuts } from "./outbox-ops";
+import { isTextOp, putText, rebaseEdit, rewritePuts } from "./outbox-ops";
 import type {
-  CommentOp,
+  AnnotationOp,
   OutboxRow,
   RenameOp,
   Settle,
@@ -45,9 +45,11 @@ export interface ReconcileContext {
 // `local`: the vault already holds the answer, so nothing is sent. `retarget`: the row's own change
 // again, over what the vault holds now: a rename moves the version there and leaves out the links
 // it could not rewrite (`unlinked` names the notes another device changed first), a delete takes
-// the comment stores as they are now.
+// the annotation stores as they are now. `files`: a note's write names files the head already
+// holds something at, which the row moves or drops before it goes again.
 export type Resolution =
   | { kind: "send"; settle: Settle }
+  | { kind: "files"; held: readonly string[] }
   | {
       kind: "local";
       landings: readonly MirrorLanding[];
@@ -61,9 +63,16 @@ const ABSENT: FileSide = { kind: "absent" };
 
 // no resend settles these: the vault would refuse the same change the same way
 const PARKED_REASONS: ReadonlyMap<VaultConflictReason, string> = new Map([
-  ["blocked", "Something else in your vault already has this name."],
-  ["case-collision", "Another note has this name in different capitals."],
+  ["blocked", "Something else in your library already has this name."],
+  ["case-collision", "Another item has this name in different capitals."],
   ["unwritable", "This file cannot be changed from your phone."],
+]);
+
+// what a file's put meets at a name something else holds
+const NAME_TAKEN: ReadonlySet<VaultConflictReason> = new Set([
+  "exists",
+  "case-collision",
+  "blocked",
 ]);
 
 const NOT_KEPT_HERE = "Both versions could not be kept on your phone. Try again from your Mac.";
@@ -255,7 +264,7 @@ const reconcileText = async (
 // still holds. It goes even where the head already holds what it writes, so its landing comes back.
 const storePut = async (
   row: OutboxRow,
-  store: CommentOp["store"],
+  store: AnnotationOp["store"],
   entry: VaultConflict | undefined,
   conflict: VaultCommitConflict,
   ctx: ReconcileContext,
@@ -295,14 +304,14 @@ const storePut = async (
   };
 };
 
-// A comment edit that met a head another device moved: its store merges by entries, so a comment
+// An annotation edit that met a head another device moved: its store merges by entries, so an annotation
 // both devices made keeps both threads, and the note it anchored in is settled as a write is, its
 // copy and its report included. The note's side is the settle's `against`: named by the conflict,
 // held from the last round, or on the first its own base, which a conflict that names only the
 // store says the head still holds.
-const reconcileComment = async (
+const reconcileAnnotation = async (
   row: OutboxRow,
-  op: CommentOp,
+  op: AnnotationOp,
   conflict: VaultCommitConflict,
   ctx: ReconcileContext,
 ): Promise<Resolution> => {
@@ -357,26 +366,27 @@ const reconcileComment = async (
   };
 };
 
-// a delete of a note another device edited keeps the edit, and its comment stores with it; a
-// comment store or a dot-entry gets whatever reconcileFile answers for it. A store another device
-// wrote since still goes with a note that goes, as the server takes it whatever it holds.
+// a delete of a note another device edited keeps the edit, and what would have gone alongside it
+// (its annotation store, the files only it linked) with it; an annotation store or a dot-entry gets
+// whatever reconcileFile answers for it. A file another device wrote since still goes with a note
+// that goes, as the server takes it whatever it holds.
 const reconcileRemove = async (
   op: Extract<VaultOp, { op: "remove" }>,
   conflict: VaultCommitConflict,
   ctx: ReconcileContext,
 ): Promise<Resolution> => {
   const byPath = new Map(conflict.conflicts.map((entry) => [entry.path, entry]));
-  const stores = op.stores.flatMap((store) => {
-    const current = byPath.get(store.path)?.current;
+  const alongside = op.alongside.flatMap((file) => {
+    const current = byPath.get(file.path)?.current;
     if (current === undefined) {
-      return [store];
+      return [file];
     }
-    return current === null ? [] : [{ ...store, baseOid: current.oid }];
+    return current === null ? [] : [{ ...file, baseOid: current.oid }];
   });
   const entry = byPath.get(op.path);
   if (entry === undefined) {
-    return op.stores.some((store) => byPath.has(store.path))
-      ? { kind: "retarget", op: { ...op, stores }, unlinked: [] }
+    return op.alongside.some((file) => byPath.has(file.path))
+      ? { kind: "retarget", op: { ...op, alongside }, unlinked: [] }
       : parked(NOT_KEPT_HERE);
   }
   const theirs = await theirsAt(entry, conflict.head, ctx);
@@ -397,8 +407,8 @@ const reconcileRemove = async (
     if (against !== null) {
       changes.push({ base: against.oid, op: "delete", path: op.path });
     }
-    for (const store of stores) {
-      changes.push({ base: store.baseOid, op: "delete", path: store.path });
+    for (const file of alongside) {
+      changes.push({ base: file.baseOid, op: "delete", path: file.path });
     }
   }
   return settled(op.path, verdict, against, changes, null);
@@ -509,6 +519,17 @@ export const resolveConflict = async (
   if (op.op === "rename") {
     return await reconcileRename(row, op, conflict, ctx);
   }
+  // a file a note's write carries meets a head that holds something at its name: the row's files
+  // are settled first (withFilesMoved), and the set goes again
+  if (isTextOp(op)) {
+    const named = new Set(
+      conflict.conflicts.flatMap((entry) => (NAME_TAKEN.has(entry.reason) ? [entry.path] : [])),
+    );
+    const held = (op.assets ?? []).filter((asset) => named.has(asset.path));
+    if (held.length > 0) {
+      return { held: held.map((asset) => asset.path), kind: "files" };
+    }
+  }
   const refusal = refusedFor(conflict.conflicts);
   if (refusal !== null) {
     return parked(refusal);
@@ -521,11 +542,11 @@ export const resolveConflict = async (
     case "remove": {
       return await reconcileRemove(op, conflict, ctx);
     }
-    case "comment": {
-      return await reconcileComment(row, op, conflict, ctx);
+    case "annotation": {
+      return await reconcileAnnotation(row, op, conflict, ctx);
     }
     case "putAsset": {
-      return parked("A file with this name is already in your vault.");
+      return parked("A file with this name is already in your library.");
     }
     // no default
   }

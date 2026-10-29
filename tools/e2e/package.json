@@ -9,14 +9,16 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@modelcontextprotocol/client": "catalog:",
     "@orpc/client": "catalog:",
-    "@orpc/contract": "catalog:",
     "@repo/contract": "workspace:*",
     "@repo/mobile": "workspace:*",
     "@repo/mobile-editor": "workspace:*",
+    "@repo/page-reader": "workspace:*",
     "inteligir": "workspace:*"
   },
   "devDependencies": {
+    "@kyh/tsconfig": "catalog:",
     "@types/node": "catalog:",
     "miniflare": "catalog:",
     "tsx": "catalog:",

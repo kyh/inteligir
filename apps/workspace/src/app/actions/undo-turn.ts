@@ -2,29 +2,25 @@
 // both run, and the one wording of what came back and what was left.
 
 import type {
-  TurnChanges,
   UndoKeptReason,
   UndoTurnRequest,
   UndoTurnResponse,
 } from "@repo/contract/local/threads/threads-schema";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
+import { turnItemPaths } from "@repo/notes/items/turn-items";
 import { isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
+import type { LocalClient } from "@repo/contract/local";
 import { isDefinedError, refusalMessage, safe } from "../api";
-import type { client } from "../api";
 
 export interface UndoTurnApi {
-  threads: Pick<(typeof client)["threads"], "undoTurn">;
+  threads: Pick<LocalClient["threads"], "undoTurn">;
 }
 
 type UndoTurnOutcome =
   | { kind: "undone"; changes: UndoTurnResponse }
   | { kind: "refused"; message: string };
-
-// a turn's commit can carry comment stores and other dot-entries; what it changed is its notes.
-export const turnNotePaths = (turn: TurnChanges): string[] =>
-  turn.paths.filter((path) => !isVaultMetadataPath(path));
 
 const UNDO_REFUSED = "The agent's changes could not be undone.";
 
@@ -49,7 +45,7 @@ export const undoTurnChanges = async (
   if (isDefinedError(error) && error.code === "NOT_FOUND") {
     return {
       kind: "refused",
-      message: "These changes were not made on this device, so they can't be undone here.",
+      message: "These changes are no longer in this library's history, so they can't be undone.",
     };
   }
   return { kind: "refused", message: refusalMessage(error, UNDO_REFUSED) };
@@ -59,6 +55,7 @@ const KEPT_BECAUSE = {
   busy: "the agent is working on it",
   "deleted-since": "deleted since",
   "edited-since": "edited since",
+  "linked-since": "another item uses it",
   "recreated-since": "made again since",
   unreadable: "too large, or not text",
 } satisfies Record<UndoKeptReason, string>;
@@ -72,23 +69,24 @@ interface UndoSummary {
 }
 
 export const summarizeUndo = (changes: UndoTurnResponse): UndoSummary => {
-  // an undo reverts the turn's comment stores too; the user counts notes
+  // an undo reverts the turn's annotation stores, covers and both ends of a move too; the user
+  // counts items, by the rule the toast and the reply count them by
   const kept = changes.kept.filter((row) => !isVaultMetadataPath(row.path));
-  const reverted = changes.reverted.filter((path) => !isVaultMetadataPath(path));
+  const reverted = turnItemPaths(changes.reverted.map((path) => ({ change: null, path })));
   const undid =
-    reverted.length > 0 ? `Undid the agent's changes to ${plural(reverted.length, "note")}.` : null;
+    reverted.length > 0 ? `Undid the agent's changes to ${plural(reverted.length, "item")}.` : null;
   const [only] = kept;
   if (only === undefined) {
     return {
       historyPath: null,
-      message: undid ?? "The notes were already as they were before the agent's changes.",
+      message: undid ?? "Your items were already as they were before the agent's changes.",
       tone: "success",
     };
   }
   const left =
     kept.length === 1
       ? `Left ${only.path} as it is: ${KEPT_BECAUSE[only.reason]}.`
-      : `Left ${plural(kept.length, "note")} as they are: ${kept
+      : `Left ${plural(kept.length, "item")} as they are: ${kept
           .map((row) => `${row.path} (${KEPT_BECAUSE[row.reason]})`)
           .join(", ")}.`;
   return {

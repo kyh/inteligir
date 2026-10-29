@@ -1,0 +1,18 @@
+id,title,note,excerpt,url,folder,tags,created,cover,highlights,favorite
+101,File over app,For Tuesday.,"If you want to create digital artifacts that last, they must be files you can control.",https://stephango.com/file-over-app?utm_source=raindrop,Reading,"philosophy, files",2023-07-01T09:12:30.000Z,https://stephango.com/og.jpg,"Highlight: Files last.
+Note: The point.
+
+Highlight: Apps are ephemeral,
+but files are not.",true
+102,Pasta al limone,,A quick lemon pasta.,https://cooking.example.com/pasta-al-limone,Cooking / Weeknight,"recipes, #Quick Meals",1696147200,,Use the zest.,false
+103,Nested deep,,,https://example.com/deep,Reading/Long reads/2024,,garbage-date,not a url,,
+104,In the bin,,,https://example.com/binned,Trash,,,,,
+105,No link,,,,Reading,,,,,
+106,Script link,,,javascript:alert(1),Reading,,,,,
+107,File over app (again),,,https://www.stephango.com/file-over-app,Reading,"philosophy, ideas, 2024, c++",,,"Highlight: Files last.
+Highlight: A third one.",
+108,,,,https://example.com/untitled,,,,,,
+109,Unsorted one,,,https://example.com/unsorted,Unsorted,,,,,
+110,"Commas, ""quotes"" and
+lines","A note,
+over two lines.",,https://example.com/quoted,Reading,,,,,

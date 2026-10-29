@@ -1,0 +1,13 @@
+{
+  "extends": "@kyh/tsconfig/base.json",
+  "compilerOptions": {
+    // the extension's pages and its service worker run in Chrome 116 or later
+    "lib": ["ES2023", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    // WXT's alias for its srcDir, which .wxt/tsconfig.json spells as well
+    "paths": { "@/*": ["./src/*"] },
+    "resolveJsonModule": true,
+    "types": ["chrome"]
+  },
+  "include": ["src", ".wxt/wxt.d.ts", "wxt.config.ts", "vitest.config.ts"]
+}

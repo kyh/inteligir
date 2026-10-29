@@ -14,9 +14,15 @@ import type {
   VaultTreeResponse,
 } from "@repo/contract/cloud/vault/vault-schema";
 import { utf8ByteLength } from "@repo/contract/cloud/bytes";
-import { isCommentsStorePath } from "@repo/notes/comments/sidecar-schema";
+import { isAnnotationsStorePath } from "@repo/notes/annotations/store-schema";
+import { readItemFacts } from "@repo/notes/items/item-frontmatter";
+import type { ItemFacts } from "@repo/notes/items/item-frontmatter";
+import { ITEM_KINDS, PAGES_DIR } from "@repo/notes/items/item-kind";
+import { mediaKindOf } from "@repo/notes/items/library-index";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
-import { frontmatterAliases } from "@repo/notes/knowledge/link-extract";
+import { frontmatterAliases, scanDoc } from "@repo/notes/knowledge/link-extract";
+import type { ExtractedLink } from "@repo/notes/knowledge/link-extract";
+import { LINK_KINDS } from "@repo/notes/knowledge/link-kinds";
 import {
   frontmatterYaml,
   noteIdOfProperties,
@@ -37,12 +43,26 @@ const DELETE_PATHS_PER_STATEMENT = 500;
 
 type TreeEntry = VaultTreeResponse["entries"][number];
 
+// what a library card shows of a doc, read once from its text when the text lands: its item facts,
+// the links its cover, original and page copy are resolved from, and its tags
+export interface ItemCard {
+  facts: ItemFacts;
+  // the first embeds and the page copy's links only, in document order
+  links: readonly ExtractedLink[];
+  // every link that names a picture, a PDF, a video or a sound, so the listing knows which media
+  // files a doc shows and which stand as items of their own, as the Mac's does
+  media: readonly ExtractedLink[];
+  tags: readonly string[];
+}
+
 export interface MirrorRow extends TreeEntry {
   // the commit this path's blob first appeared at: an asset url pinned to it names the same bytes
   // until the blob changes, so an image's url outlives every commit that leaves it alone
   pinCommit: string;
   noteId: string | null;
   aliases: readonly string[];
+  // a doc's card; null for every other file, and for a doc whose text has not landed
+  item: ItemCard | null;
 }
 
 // over the rows whose text the mirror wants
@@ -122,12 +142,64 @@ export interface VaultMirror {
 export interface NoteFacts {
   noteId: string | null;
   aliases: readonly string[];
+  item: ItemCard | null;
 }
+
+const NO_FACTS: NoteFacts = { aliases: [], item: null, noteId: null };
 
 const aliasesSchema = z.array(z.string());
 
+const itemFactsSchema = z.strictObject({
+  author: z.string().nullable(),
+  description: z.string().nullable(),
+  fetchError: z.string().nullable(),
+  fetchedMs: z.number().nullable(),
+  hasId: z.boolean(),
+  host: z.string().nullable(),
+  kind: z.enum(ITEM_KINDS),
+  published: z.string().nullable(),
+  savedMs: z.number().nullable(),
+  site: z.string().nullable(),
+  url: z.string().nullable(),
+  urlKey: z.string().nullable(),
+}) satisfies z.ZodType<ItemFacts>;
+
+// key by key: an absent optional stays absent, never a key holding undefined
+const linkSchema = z
+  .object({
+    alias: z.string().optional(),
+    anchor: z.string().optional(),
+    embed: z.boolean(),
+    kind: z.enum(LINK_KINDS),
+    line: z.number(),
+    target: z.string(),
+  })
+  .transform((row): ExtractedLink => {
+    const link: ExtractedLink = {
+      embed: row.embed,
+      kind: row.kind,
+      line: row.line,
+      target: row.target,
+    };
+    if (row.alias !== undefined) {
+      link.alias = row.alias;
+    }
+    if (row.anchor !== undefined) {
+      link.anchor = row.anchor;
+    }
+    return link;
+  });
+
+const itemCardSchema = z.object({
+  facts: itemFactsSchema,
+  links: z.array(linkSchema),
+  media: z.array(linkSchema),
+  tags: z.array(z.string()),
+});
+
 const snapshotRowSchema = z.object({
   aliases: z.string(),
+  item: z.string().nullable(),
   note_id: z.string().nullable(),
   oid: z.string(),
   path: z.string(),
@@ -140,6 +212,7 @@ const diffRowSchema = z.object({ held: z.number(), oid: z.string(), path: z.stri
 const payloadSchema = z.object({
   aliases: z.string(),
   content: z.string(),
+  item: z.string().nullable(),
   note_id: z.string().nullable(),
 });
 type TextPayload = z.infer<typeof payloadSchema>;
@@ -174,19 +247,74 @@ const movedRowSchema = z.object({
   size: z.number(),
 });
 
-export const noteFactsOf = (content: string): NoteFacts => {
+// as many embeds as a card's cover and original are read from (itemFilesOf's own bound)
+const CARD_EMBEDS = 8;
+
+// a link a fill writes to the page's copy, root-relative as every item writer spells it
+const isPageCopyLink = (link: ExtractedLink): boolean =>
+  link.target.startsWith(`${PAGES_DIR}/`) && link.target.toLowerCase().endsWith(".html");
+
+// the first embeds and the page copy's links, which is all a card resolves its files from
+const cardLinks = (links: readonly ExtractedLink[]): ExtractedLink[] => {
+  let embeds = 0;
+  return links.filter((link) => {
+    if (link.embed && embeds < CARD_EMBEDS) {
+      embeds += 1;
+      return true;
+    }
+    return isPageCopyLink(link);
+  });
+};
+
+// a text too long for the vault to take, which is never mirrored, gets what its frontmatter says
+// and no scan of its body: the queue parks it, and a card needs no more
+const frontmatterFactsOf = (content: string): NoteFacts => {
   const yaml = frontmatterYaml(content);
   const properties = yaml === null ? null : parseProperties(yaml);
-  return { aliases: frontmatterAliases(properties), noteId: noteIdOfProperties(properties) };
+  return {
+    aliases: frontmatterAliases(properties),
+    item: { facts: readItemFacts(properties), links: [], media: [], tags: [] },
+    noteId: noteIdOfProperties(properties),
+  };
 };
+
+// what a held text says of itself: a doc's id, aliases and card, from one scan; nothing for an
+// annotation store, which names no note
+export const textFactsOf = (path: string, content: string): NoteFacts => {
+  if (!isDocPath(path)) {
+    return NO_FACTS;
+  }
+  if (utf8ByteLength(content) > VAULT_FILE_MAX_BYTES) {
+    return frontmatterFactsOf(content);
+  }
+  const scan = scanDoc(content);
+  return {
+    aliases: scan.aliases,
+    item: {
+      facts: scan.item,
+      links: cardLinks(scan.links),
+      media: scan.links.filter((link) => mediaKindOf(link.target) !== null),
+      tags: scan.tags,
+    },
+    noteId: scan.noteId,
+  };
+};
+
+const cardOfColumn = (column: string | null): ItemCard | null =>
+  column === null ? null : itemCardSchema.parse(JSON.parse(column));
 
 // read once per text, when it lands: a listing never re-parses a note
-const payloadOf = (content: string): TextPayload => {
-  const facts = noteFactsOf(content);
-  return { aliases: JSON.stringify(facts.aliases), content, note_id: facts.noteId };
+const payloadOf = (path: string, content: string): TextPayload => {
+  const facts = textFactsOf(path, content);
+  return {
+    aliases: JSON.stringify(facts.aliases),
+    content,
+    item: facts.item === null ? null : JSON.stringify(facts.item),
+    note_id: facts.noteId,
+  };
 };
 
-export const holdsText = (path: string): boolean => isDocPath(path) || isCommentsStorePath(path);
+export const holdsText = (path: string): boolean => isDocPath(path) || isAnnotationsStorePath(path);
 
 const wantsText = (entry: Pick<TreeEntry, "path" | "size">): boolean =>
   holdsText(entry.path) && entry.size <= VAULT_FILE_MAX_BYTES;
@@ -213,6 +341,8 @@ interface EntryRow {
   wantsText: boolean;
   noteId: string | null;
   aliases: string;
+  // the card's JSON
+  item: string | null;
   content: string | null;
 }
 
@@ -226,15 +356,17 @@ const upsertRows = async (tx: SqlExecutor, rows: readonly EntryRow[]): Promise<v
       row.wantsText ? 1 : 0,
       row.noteId,
       row.aliases,
+      row.item,
       row.content,
     ]);
     await tx.run(
-      `INSERT INTO mirror_entries (path, oid, size, pin_commit, wants_text, note_id, aliases, content)
-       VALUES ${placeholders(batch.length, 8)}
+      `INSERT INTO mirror_entries
+         (path, oid, size, pin_commit, wants_text, note_id, aliases, item, content)
+       VALUES ${placeholders(batch.length, 9)}
        ON CONFLICT (path) DO UPDATE SET
          oid = excluded.oid, size = excluded.size, pin_commit = excluded.pin_commit,
          wants_text = excluded.wants_text, note_id = excluded.note_id,
-         aliases = excluded.aliases, content = excluded.content`,
+         aliases = excluded.aliases, item = excluded.item, content = excluded.content`,
       params,
     );
   }
@@ -306,7 +438,7 @@ const applyTree = async (
       continue;
     }
     const [held] = await tx.all(
-      "SELECT content, note_id, aliases FROM mirror_entries WHERE path = ?",
+      "SELECT content, note_id, aliases, item FROM mirror_entries WHERE path = ?",
       [holder],
     );
     const parsed = payloadSchema.safeParse(held);
@@ -318,12 +450,15 @@ const applyTree = async (
   await upsertRows(
     tx,
     changed.map((entry): EntryRow => {
+      // a doc's card is its text's, so a copy under a name that is not a doc carries none
       const copy = copies.get(entry.oid);
+      const carried = copy === undefined ? null : payloadOf(entry.path, copy.content);
       return {
-        aliases: copy?.aliases ?? "[]",
+        aliases: carried?.aliases ?? "[]",
         commit,
-        content: copy?.content ?? null,
-        noteId: copy?.note_id ?? null,
+        content: carried?.content ?? null,
+        item: carried?.item ?? null,
+        noteId: carried?.note_id ?? null,
         oid: entry.oid,
         path: entry.path,
         size: entry.size,
@@ -354,12 +489,13 @@ const upsertRow = async (
   row: { path: string; oid: string; size: number; commit: string; text: string | null },
 ): Promise<void> => {
   const wanted = wantsText(row);
-  const payload = wanted && row.text !== null ? payloadOf(row.text) : null;
+  const payload = wanted && row.text !== null ? payloadOf(row.path, row.text) : null;
   await upsertRows(tx, [
     {
       aliases: payload?.aliases ?? "[]",
       commit: row.commit,
       content: payload?.content ?? null,
+      item: payload?.item ?? null,
       noteId: payload?.note_id ?? null,
       oid: row.oid,
       path: row.path,
@@ -415,11 +551,11 @@ const landedRow = (
   row: { path: string; oid: string; size: number; commit: string; text: string | null },
   held: MirrorRow | null,
 ): MirrorRow => {
-  let facts: NoteFacts = { aliases: [], noteId: null };
+  let facts: NoteFacts = NO_FACTS;
   if (held?.oid === row.oid) {
-    facts = { aliases: held.aliases, noteId: held.noteId };
+    facts = { aliases: held.aliases, item: held.item, noteId: held.noteId };
   } else if (row.text !== null && wantsText(row)) {
-    facts = noteFactsOf(row.text);
+    facts = textFactsOf(row.path, row.text);
   }
   return { ...facts, oid: row.oid, path: row.path, pinCommit: row.commit, size: row.size };
 };
@@ -478,11 +614,11 @@ const storeAnswer = async (
     if (oidOf.get(file.path) !== file.oid) {
       continue;
     }
-    const payload = payloadOf(file.content);
+    const payload = payloadOf(file.path, file.content);
     await tx.run(
-      `UPDATE mirror_entries SET content = ?, note_id = ?, aliases = ?
+      `UPDATE mirror_entries SET content = ?, note_id = ?, aliases = ?, item = ?
        WHERE path = ? AND oid = ? AND content IS NULL`,
-      [payload.content, payload.note_id, payload.aliases, file.path, file.oid],
+      [payload.content, payload.note_id, payload.aliases, payload.item, file.path, file.oid],
     );
   }
   for (const path of [...answer.missing, ...answer.refused.map((refusal) => refusal.path)]) {
@@ -619,12 +755,13 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
 
     async snapshot() {
       const listed = await db.all(
-        "SELECT path, oid, size, pin_commit, note_id, aliases FROM mirror_entries ORDER BY path",
+        "SELECT path, oid, size, pin_commit, note_id, aliases, item FROM mirror_entries ORDER BY path",
       );
-      const rows = listed.map((raw) => {
+      const rows = listed.map((raw): MirrorRow => {
         const row = snapshotRowSchema.parse(raw);
         return {
           aliases: aliasesSchema.parse(JSON.parse(row.aliases)),
+          item: cardOfColumn(row.item),
           noteId: row.note_id,
           oid: row.oid,
           path: row.path,
@@ -637,11 +774,12 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
     },
 
     async storeText(text, fence) {
-      const payload = payloadOf(text.content);
+      const payload = payloadOf(text.path, text.content);
       await fencedExclusive(db, fence, async (tx) => {
         await tx.run(
-          "UPDATE mirror_entries SET content = ?, note_id = ?, aliases = ? WHERE path = ? AND oid = ?",
-          [payload.content, payload.note_id, payload.aliases, text.path, text.oid],
+          `UPDATE mirror_entries SET content = ?, note_id = ?, aliases = ?, item = ?
+           WHERE path = ? AND oid = ?`,
+          [payload.content, payload.note_id, payload.aliases, payload.item, text.path, text.oid],
         );
       });
     },

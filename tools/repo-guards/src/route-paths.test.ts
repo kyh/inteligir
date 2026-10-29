@@ -2,6 +2,7 @@
 // that drift. tests are excluded on purpose: a route test that derived its URL from the contract
 // could not catch the contract moving.
 
+import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import {
   HEALTH_PATH,
@@ -24,10 +25,15 @@ const NAMESPACES = [
     paths: Object.values(VAULT_API_PATHS),
     use: "VAULT_API_PATHS from @repo/contract/cloud/vault/vault-schema",
   },
+  {
+    home: "packages/contract/src/cloud/v1-contract.ts",
+    paths: [V1_RPC_PATH],
+    use: "V1_RPC_PATH from @repo/contract/cloud/v1",
+  },
 ];
 
 // longest first, so the cloud's `/v1/vault/asset` is tried before the local `/vault/asset` it
-// contains.
+// contains, and `/v1/rpc` before the local `/rpc`.
 const GUARDED = NAMESPACES.flatMap((namespace) =>
   namespace.paths.map((path) => ({ home: namespace.home, path, use: namespace.use })),
 ).toSorted((left, right) => right.path.length - left.path.length);

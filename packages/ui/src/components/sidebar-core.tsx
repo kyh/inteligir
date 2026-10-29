@@ -224,8 +224,7 @@ const SidebarProvider = ({
   );
 };
 
-// framer's own prop type: a DOM-typed HTMLAttributes spread cannot satisfy motion.div under
-// exactOptionalPropertyTypes
+// framer's own prop type: a DOM-typed HTMLAttributes spread cannot satisfy motion.div
 type MotionSafeDivProps = Omit<HTMLMotionProps<"div">, "ref" | "children"> & {
   children?: ReactNode;
 };

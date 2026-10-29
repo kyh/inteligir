@@ -4,6 +4,8 @@
 
 import { z } from "zod";
 
+import type { ItemFacts } from "../items/item-frontmatter";
+import { ITEM_KINDS } from "../items/item-kind";
 import { LINK_KINDS } from "./link-kinds";
 import type { StoredLink, DocProjection } from "./projection";
 
@@ -22,18 +24,35 @@ const storedLinkRow = z.object({
   target: z.string(),
 });
 
+const storedItemFacts = z.strictObject({
+  author: z.string().nullable(),
+  description: z.string().nullable(),
+  fetchError: z.string().nullable(),
+  fetchedMs: z.number().nullable(),
+  hasId: z.boolean(),
+  host: z.string().nullable(),
+  kind: z.enum(ITEM_KINDS),
+  published: z.string().nullable(),
+  savedMs: z.number().nullable(),
+  site: z.string().nullable(),
+  url: z.string().nullable(),
+  urlKey: z.string().nullable(),
+}) satisfies z.ZodType<ItemFacts>;
+
 const storedProjectionRow = z.object({
   aliases: z.array(z.string()),
   headings: z.array(z.string()),
+  item: storedItemFacts,
   links: z.array(storedLinkRow),
   noteId: z.string().nullable(),
   // not optional: a PROJECTION_VERSION mismatch wipes and rebuilds, so no stored row can lack a current field
   pinned: z.boolean(),
+  preview: z.string(),
   tags: z.array(z.string()),
   title: z.string(),
 });
 
-// key by key, not spread: an absent optional must stay absent under exactOptionalPropertyTypes
+// key by key, not spread: an absent optional stays absent, never a key holding undefined
 const toStoredLink = (row: z.infer<typeof storedLinkRow>): StoredLink => {
   const link: StoredLink = {
     embed: row.embed,
@@ -56,9 +75,11 @@ const toStoredLink = (row: z.infer<typeof storedLinkRow>): StoredLink => {
 export const docProjectionSchema = storedProjectionRow.transform((row): DocProjection => ({
   aliases: row.aliases,
   headings: row.headings,
+  item: row.item,
   links: row.links.map(toStoredLink),
   noteId: row.noteId,
   pinned: row.pinned,
+  preview: row.preview,
   tags: row.tags,
   title: row.title,
 }));

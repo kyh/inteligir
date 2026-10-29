@@ -1,15 +1,16 @@
 # Vercel-style previews on Cloudflare Worker Previews. Every PR from a branch of this repo gets
 # its own Preview of inteligir-web once CI is green: its own URL and Durable Objects over the
-# preview-only D1 and bucket apps/web/cloudflare.config.ts binds when `isPreview`. The PR shows
-# it twice, as Vercel's does: one sticky status comment, and a "View deployment" button from a
+# preview-only D1, bucket, fill queue and OAuth namespace apps/web/cloudflare.config.ts binds when
+# `isPreview`. The PR shows it twice, as Vercel's does: one sticky status comment, and a "View deployment" button from a
 # GitHub deployment in "Preview – inteligir-web". Closing the PR deletes the Preview.
 #
 # workflow_run, not pull_request, for the reason Deploy gives: a preview of a red tree is noise.
 # workflow_run runs with secrets against PR code, so it is limited to this repo's own branches; a
 # fork's PR never reaches the build.
 #
-# Needs, beyond Deploy's CLOUDFLARE_API_TOKEN: the token also granted D1: Edit and Workers R2
-# Storage: Edit, the CLOUDFLARE_ACCOUNT_ID secret, and once, from a machine:
+# Needs, beyond Deploy's CLOUDFLARE_API_TOKEN: the token also granted D1: Edit, Workers R2
+# Storage: Edit, Queues: Edit and Workers KV Storage: Edit, the CLOUDFLARE_ACCOUNT_ID secret, and
+# once, from a machine:
 #   pnpm -F @repo/web exec wrangler preview base-config secret put BETTER_AUTH_SECRET --worker-name inteligir-web
 # (wrangler, as cf has no preview secret or delete command yet)
 name: Preview
@@ -76,7 +77,26 @@ jobs:
           fi
           pnpm exec cf r2 buckets get inteligir-vault-preview >/dev/null 2>&1 \
             || pnpm exec cf r2 buckets create --name inteligir-vault-preview >/dev/null
+          # the queue a preview's saves send to, which nothing consumes, so its links stay unread
+          pnpm exec cf queues list | jq -e '.[] | select(.queue_name == "inteligir-fill-preview")' >/dev/null \
+            || pnpm exec cf queues create --queue-name inteligir-fill-preview >/dev/null
+          # the connector's OAuth store, shared by every Preview as the D1 is: a token names the
+          # one Preview it was minted for, so another Preview's store refuses it
+          kv_id() { pnpm exec cf kv namespaces list --per-page 100 | jq -r '.[] | select(.title == "inteligir-oauth-preview") | .id'; }
+          kv="$(kv_id)"
+          if [ -z "$kv" ]; then
+            pnpm exec cf kv namespaces create --title inteligir-oauth-preview >/dev/null
+            kv="$(kv_id)"
+          fi
+          # a Preview's URL is <name>-<worker>.<subdomain>.workers.dev
+          # (developers.cloudflare.com/workers/previews/#urls), and its connector's OAuth issuer
+          subdomain="$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" \
+            | jq -r '.result.subdomain')"
+          [ -n "$kv" ] && [ -n "$subdomain" ] || { echo "::error::no KV namespace or workers.dev subdomain"; exit 1; }
           echo "d1_id=$id" >> "$GITHUB_OUTPUT"
+          echo "oauth_kv_id=$kv" >> "$GITHUB_OUTPUT"
+          echo "origin=https://pr-$PR_NUMBER-$PROJECT.$subdomain.workers.dev" >> "$GITHUB_OUTPUT"
 
       # --force: this is the preview database, and a PR's schema is the one it ships
       - name: Preview schema
@@ -98,11 +118,19 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PR_URL: ${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.workflow_run.pull_requests[0].number }}
+          # read by apps/web/cloudflare.config.ts as it evaluates the Preview's bindings
+          OAUTH_KV_PREVIEW_ID: ${{ steps.resources.outputs.oauth_kv_id }}
+          PREVIEW_ORIGIN: ${{ steps.resources.outputs.origin }}
+        # cf prints the build's log on stderr and its result as JSON on stdout, the Preview's
+        # addresses in `preview_urls` (developers.cloudflare.com/cf/projects/#deploy-a-preview)
         run: |
-          pnpm exec cf previews deploy "pr-$PR_NUMBER" | tee "$RUNNER_TEMP/preview.log"
-          url="$(grep -oE 'https://[^ ]+\.workers\.dev' "$RUNNER_TEMP/preview.log" | head -1)"
-          [ -n "$url" ] || { echo "::error::no Preview URL in cf's output"; exit 1; }
-          echo "url=$url" >> "$GITHUB_OUTPUT"
+          pnpm exec cf previews deploy "pr-$PR_NUMBER" > "$RUNNER_TEMP/preview.json"
+          # the connector's tokens name the origin the config was given, so a Preview served
+          # anywhere else could mint none its own resource accepts
+          jq -e --arg origin "$PREVIEW_ORIGIN" '.preview_urls | map(rtrimstr("/")) | index($origin)' \
+            "$RUNNER_TEMP/preview.json" >/dev/null \
+            || { echo "::error::the Preview is at $(jq -c '.preview_urls' "$RUNNER_TEMP/preview.json"), not $PREVIEW_ORIGIN"; exit 1; }
+          echo "url=$PREVIEW_ORIGIN" >> "$GITHUB_OUTPUT"
 
       - name: Report ready
         env:
@@ -142,7 +170,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm exec wrangler preview delete --worker-name inteligir-web --name "pr-$PR_NUMBER" --skip-confirmation || true
+        run: pnpm exec cf previews delete "pr-$PR_NUMBER" --worker inteligir-web --force || true
 
       - name: Report deleted
         run: node .github/scripts/worker-preview.mjs close inteligir-web

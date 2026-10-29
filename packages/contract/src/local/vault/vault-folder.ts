@@ -27,7 +27,7 @@ export type FolderFacts = z.infer<typeof folderFactsSchema>;
 export const vaultNameProblem = (name: string): string | null => {
   const trimmed = name.trim();
   if (trimmed === "") {
-    return "Give the vault a name.";
+    return "Give the library a name.";
   }
   if (/[/:]/u.test(trimmed)) {
     return "A name can't contain / or :.";
@@ -45,6 +45,6 @@ export interface OutsideSyncWarning {
 
 // two sync engines over one folder fight, so the service keeps it and the app stays off it
 export const outsideSyncWarning = (sync: ExternalSync): OutsideSyncWarning => ({
-  detail: "Inteligir won't sync these notes, and your phone won't see them.",
+  detail: "Inteligir won't sync this library, and your phone won't see it.",
   headline: `${externalSyncName(sync)} keeps syncing this folder.`,
 });

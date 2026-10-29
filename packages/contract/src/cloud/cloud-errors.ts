@@ -12,8 +12,6 @@ export const CLOUD_ERROR_CODES = [
   "not-found",
   "rate-limited",
   "device-limit",
-  "sync-conflict",
-  "sync-out-of-order",
   "account-deleted",
   "file-too-large",
   "vault-conflict",
@@ -36,8 +34,6 @@ export const CLOUD_ERROR_STATUS = {
   "invite-refused": 403,
   "not-found": 404,
   "rate-limited": 429,
-  "sync-conflict": 409,
-  "sync-out-of-order": 409,
   unauthorized: 401,
   "vault-conflict": 409,
   "vault-full": 507,
@@ -56,12 +52,6 @@ export const SYNC_TERMINAL_CODES: ReadonlySet<CloudErrorCode> = new Set([
   "client-outdated",
 ]);
 
-// this device's own outbox is wrong at the named deviceSeq: drop those rows, a resend is refused forever
-export const SYNC_OUTBOX_CODES: ReadonlySet<CloudErrorCode> = new Set([
-  "sync-conflict",
-  "sync-out-of-order",
-]);
-
 // a code this build does not know is a newer worker's: `internal` retries it and keeps the
 // worker's message, where refusing the envelope would read it as a body this build cannot read
 const errorCodeSchema = z
@@ -73,21 +63,11 @@ const errorCodeSchema = z
 export const cloudErrorSchema = z.object({
   error: z.object({
     code: errorCodeSchema,
-    // only on sync-conflict / sync-out-of-order: the outbox position that disagreed
-    deviceSeq: z.number().int().nonnegative().optional(),
     message: z.string(),
   }),
 });
 export type CloudError = z.infer<typeof cloudErrorSchema>;
 
-export const cloudError = (
-  code: CloudErrorCode,
-  message: string,
-  deviceSeq?: number,
-): CloudError => {
-  const error: CloudError["error"] = { code, message };
-  if (deviceSeq !== undefined) {
-    error.deviceSeq = deviceSeq;
-  }
-  return { error };
-};
+export const cloudError = (code: CloudErrorCode, message: string): CloudError => ({
+  error: { code, message },
+});

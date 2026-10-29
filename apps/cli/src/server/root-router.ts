@@ -2,10 +2,11 @@
 // row, or a procedure nobody implemented, fails to compile here.
 
 import { agentsRouter } from "./agents/agents-router";
+import { annotationsRouter } from "./annotations/annotations-router";
 import { cloudRouter } from "./cloud/cloud-router";
-import { commentsRouter } from "./comments/comments-router";
 import { connectorsRouter } from "./connectors/connectors-router";
-import { foldersRouter } from "./folders/folders-router";
+import { importsRouter } from "./imports/imports-router";
+import { itemsRouter } from "./items/items-router";
 import { knowledgeRouter } from "./knowledge/knowledge-router";
 import { base } from "./orpc";
 import { systemRouter } from "./system/system-router";
@@ -14,12 +15,15 @@ import { vaultRouter } from "./vault/vault-router";
 
 export const localRouter = base.router({
   agents: agentsRouter,
+  annotations: annotationsRouter,
   cloud: cloudRouter,
-  comments: commentsRouter,
   connectors: connectorsRouter,
-  folders: foldersRouter,
+  imports: importsRouter,
+  items: itemsRouter,
   knowledge: knowledgeRouter,
   system: systemRouter,
   threads: threadsRouter,
   vault: vaultRouter,
 });
+
+export type LocalRouter = typeof localRouter;

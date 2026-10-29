@@ -1,6 +1,6 @@
 // Literal occurrences, not the search engine's tokens: FTS5 cannot answer where inside a
-// line a hit sits, and a replace must touch exactly the bytes the rows showed. One matcher
-// serves the listing and the rewrite, so the two cannot disagree.
+// line a hit sits, and a jump must land on exactly the bytes the row showed. One matcher
+// serves the listing and the find bar, so the two cannot disagree.
 
 import { splitLinesKeepingTerminators } from "../text/source-lines";
 
@@ -45,11 +45,6 @@ export interface VaultMatches {
   total: number;
 }
 
-export interface TextReplacement {
-  text: string;
-  count: number;
-}
-
 const EXCERPT_BEFORE = 40;
 const EXCERPT_AFTER = 80;
 const ELLIPSIS = "…";
@@ -66,17 +61,6 @@ const matcher = (needle: string, options: TextMatchOptions): RegExp => {
     options.wholeWord ? wholeWord(literal) : literal,
     options.caseSensitive ? "gu" : "giu",
   );
-};
-
-// several needles as one whole-word, any-case pattern, longest first: an alternation takes the
-// first alternative that matches, so where two overlap (`Plan` inside `Plan B`) the longer takes
-// the site and the shorter is not counted again inside it. null for no needle
-export const anyWholeWordMatcher = (needles: readonly string[]): RegExp | null => {
-  const alternatives = needles
-    .filter((needle) => needle !== "")
-    .toSorted((a, b) => b.length - a.length)
-    .map(escapeRegExp);
-  return alternatives.length === 0 ? null : new RegExp(wholeWord(alternatives.join("|")), "giu");
 };
 
 const hitsIn = (pattern: RegExp, text: string): TextOffset[] => {
@@ -104,32 +88,6 @@ export const findLineMatches = (parts: readonly string[], pattern: RegExp): Text
     }
   }
   return found;
-};
-
-// a function replacement: a `$1` typed into the replace box is text, not a group reference
-export const replaceTextMatches = (
-  text: string,
-  needle: string,
-  replacement: string,
-  options: TextMatchOptions,
-): TextReplacement => {
-  if (needle === "") {
-    return { count: 0, text };
-  }
-  const pattern = matcher(needle, options);
-  const parts = splitLinesKeepingTerminators(text);
-  let count = 0;
-  // the callback form, not a replacement string: `$&` and friends in `replacement` are literal here
-  const substitute = (): string => {
-    count += 1;
-    return replacement;
-  };
-  for (let index = 0; index < parts.length; index += 2) {
-    const line = parts[index] ?? "";
-    pattern.lastIndex = 0;
-    parts[index] = line.replace(pattern, substitute);
-  }
-  return { count, text: parts.join("") };
 };
 
 export const excerptAround = (

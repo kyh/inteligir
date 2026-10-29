@@ -161,7 +161,7 @@ pub async fn vaults_pick(app: AppHandle) -> Answer<VaultsState> {
 pub async fn vaults_open(app: AppHandle, path: String) -> Answer<VaultsState> {
     blocking(move || {
         if !shell::is_remembered(&app, &path) {
-            return Answer::refused("That vault is not one the app remembers.");
+            return Answer::refused("That library is not one the app remembers.");
         }
         let outcome = shell::switch_vault(&app, &path, false);
         switch_answer(&app, outcome)

@@ -2,14 +2,14 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
-import { modChord } from "../harness/agent-browser";
+import { modChord, parseEval } from "../harness/agent-browser";
 import type { AgentBrowser } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import { exec, hermeticProcessEnv } from "../harness/exec";
 import type { AppInstance } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { EDITOR, PALETTE_INPUT, SIDEBAR } from "../harness/selectors";
+import { EDITOR, PALETTE_INPUT, SIDEBAR, libraryCard } from "../harness/selectors";
 
 const MOUNT_DEADLINE_MS = 60_000;
 // a late async failure must not slip in after the error sweep.
@@ -119,8 +119,20 @@ export const browserSmoke: Scenario = {
     await freshBrowser.close();
 
     const agentBrowser = await ctx.browser("smoke");
-    ctx.log(`opening ${app.baseUrl}/: the SPA mounts and the virgin-boot note opens`);
+    ctx.log(`opening ${app.baseUrl}/: the SPA mounts on the library, and its Welcome card opens`);
     await agentBrowser.openWorkspace(app);
+    await agentBrowser(["wait", libraryCard("Welcome.md")], MOUNT_DEADLINE_MS);
+    ctx.log("the starter library's pinned Welcome leads the grid");
+    const first = parseEval(
+      await agentBrowser([
+        "eval",
+        `document.querySelector('[role="gridcell"]')?.getAttribute("data-item-path") ?? ""`,
+      ]),
+      z.string(),
+    );
+    expect(first === "Welcome.md", `the grid's first card is ${JSON.stringify(first)}`);
+    await agentBrowser(["dblclick", libraryCard("Welcome.md")]);
+    await agentBrowser(["wait", EDITOR], MOUNT_DEADLINE_MS);
 
     const title = await agentBrowser(["get", "title"]);
     expect(title === "inteligir", `document title is ${JSON.stringify(title)}`);

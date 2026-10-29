@@ -277,7 +277,7 @@ fn ask_to_restart(app: &AppHandle, version: &str) {
         MessageDialogKind::Info,
         "Update ready",
         &format!(
-            "Inteligir {version} is ready to install. The app restarts to finish; your notes are saved first."
+            "Inteligir {version} is ready to install. The app restarts to finish; everything is saved first."
         ),
         "Restart now",
         "Later",

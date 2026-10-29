@@ -70,7 +70,12 @@ fn pick(app: &AppHandle, title: &str, create: bool, start_in: Option<&str>) -> O
 pub fn pick_parent(app: &AppHandle) -> Result<PickParent, String> {
     let shell = app.state::<Shell>();
     let proposal = shell.with_first_run(|first_run| first_run.proposal.parent.clone());
-    let Some(picked) = pick(app, "Where should the vault go?", true, proposal.as_deref()) else {
+    let Some(picked) = pick(
+        app,
+        "Where should the library go?",
+        true,
+        proposal.as_deref(),
+    ) else {
         return Ok(PickParent::Cancelled);
     };
     shell.with_first_run(|first_run| first_run.parents.insert(picked.clone()));
@@ -83,7 +88,7 @@ pub fn pick_parent(app: &AppHandle) -> Result<PickParent, String> {
 }
 
 pub fn pick_folder(app: &AppHandle) -> Result<PickFolder, String> {
-    let Some(picked) = pick(app, "Open a folder of notes", false, None) else {
+    let Some(picked) = pick(app, "Open a folder", false, None) else {
         return Ok(PickFolder::Cancelled);
     };
     app.state::<Shell>()

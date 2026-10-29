@@ -4,7 +4,6 @@ import {
   cloudDeleteAccountRequestSchema,
   cloudDevicesResponseSchema,
   cloudLoginRequestSchema,
-  cloudPrefsSchema,
   cloudRevokeDeviceRequestSchema,
   cloudRevokeDeviceResponseSchema,
   cloudSignUpRequestSchema,
@@ -46,17 +45,12 @@ export const cloudContract = {
   // revoke the cloud did not take is the signed-out status's revokeError
   logout: oc.output(cloudStatusResponseSchema),
 
-  // this Mac's own choices, kept whether or not it is signed in
-  prefs: oc.output(cloudPrefsSchema),
-
   // cuts another device off at its next request. BAD_REQUEST is this device's own id, which signs
   // out instead; NOT_FOUND a device the account no longer has signed in; the rest as devices'
   revokeDevice: oc
     .input(cloudRevokeDeviceRequestSchema)
     .output(cloudRevokeDeviceResponseSchema)
     .errors({ BAD_REQUEST: {}, NOT_FOUND: {}, PRECONDITION_FAILED: {}, PROVIDER_UNAVAILABLE }),
-
-  setPrefs: oc.input(cloudPrefsSchema).output(cloudPrefsSchema),
 
   // creates the account and signs this device into it in one step: FORBIDDEN is an invite code
   // that will not work, CONFLICT an email that already has an account, TOO_MANY_REQUESTS the
@@ -67,7 +61,4 @@ export const cloudContract = {
     .errors({ CONFLICT: {}, FORBIDDEN: {}, PROVIDER_UNAVAILABLE, TOO_MANY_REQUESTS: {} }),
 
   status: oc.output(cloudStatusResponseSchema),
-
-  // a refusal along the way is reported in lastError, never raised
-  syncNow: oc.output(cloudStatusResponseSchema),
 };

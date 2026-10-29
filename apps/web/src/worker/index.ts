@@ -1,20 +1,37 @@
 import { ACCOUNT_API_PATHS, AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
+import { V1_SOCKET_PATH } from "@repo/contract/cloud/library/library-socket";
+import { SYNC_WS_PATH } from "@repo/contract/cloud/sync/sync-ws";
 import { VAULT_GIT_PATH } from "@repo/contract/cloud/vault/vault-git";
 import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
+import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import { createAuth } from "./auth/auth";
 import { handleInviteSignUp } from "./auth/invite";
 import { refuseBelowFloor } from "./client-floor";
 import { refuse } from "./cloud-http";
 import { handleAccountRoute } from "./device/account";
 import { handleDeviceRoutes } from "./device/routes";
+import {
+  CONSENT_PATH,
+  connectorAuth,
+  isAuthorizationServerPath,
+  isConnectorPath,
+} from "./connector/connector-auth";
+import { handleConnector } from "./connector/connector-route";
+import { handleConsent } from "./connector/consent-route";
+import { consumeFills } from "./fill/fill-consumer";
+import type { FillJob } from "./fill/fill-job";
+import { handleLibrarySocket, handleSyncSocket } from "./library/socket-routes";
+import { handleBlobRoute, isBlobPath } from "./library/blob-routes";
+import { handleExportRoute, isExportPath } from "./library/export-routes";
 import { logUnhandled } from "./log";
-import { handleSyncRoutes } from "./sync/routes";
+import { rpcFault } from "./wire/rpc-refusal";
+import { handleV1Rpc } from "./wire/v1-rpc";
 import { handleVaultCommitRoute } from "./vault/commit-route";
 import { handleVaultGitRemote } from "./vault/git-remote";
 import { handleVaultReadRoutes, isVaultReadPath } from "./vault/read-routes";
 
 // Durable Object classes must be exported from the entry the runtime loads: this file for tests, ./server.ts for deploy
-export { ThreadSyncDO } from "./sync/thread-sync-do";
+export { LibraryDO } from "./library/library-do";
 export { RepoCell, Registry } from "durable-git";
 
 // No CORS: every browser client is served from this origin and a native app is not subject to
@@ -23,16 +40,60 @@ export { RepoCell, Registry } from "durable-git";
 // ./server.ts splits on these, so a route added below must be reachable through one or it never arrives
 const OWNED_PREFIXES = ["/api/", "/v1/"] as const;
 
-export const ownsPath = (pathname: string): boolean =>
-  OWNED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+// the connector, its OAuth endpoints and its consent page, which no prefix of their own holds
+const isConnectorRoute = (pathname: string): boolean =>
+  isConnectorPath(pathname) || isAuthorizationServerPath(pathname) || pathname === CONSENT_PATH;
 
-// every client of /v1 parses the error envelope, and a bare-text 5xx reads to it as an
-// unreachable cloud; the git mount answers git clients, whose stderr would print JSON as noise
+export const ownsPath = (pathname: string): boolean =>
+  OWNED_PREFIXES.some((prefix) => pathname.startsWith(prefix)) || isConnectorRoute(pathname);
+
+const isRpc = (pathname: string): boolean => pathname.startsWith(`${V1_RPC_PATH}/`);
+
+// every REST client of /v1 parses the error envelope, and a bare-text 5xx reads to it as an
+// unreachable cloud; the git mount answers git clients, whose stderr would print JSON as noise,
+// the one wire answers in its own protocol, and a file's or an export's bytes in HTTP's statuses
+// alone
 const speaksCloudEnvelope = (pathname: string): boolean =>
-  pathname.startsWith("/v1/") && !pathname.startsWith(VAULT_GIT_PATH);
+  pathname.startsWith("/v1/") &&
+  !pathname.startsWith(VAULT_GIT_PATH) &&
+  !isRpc(pathname) &&
+  !isBlobPath(pathname) &&
+  !isExportPath(pathname);
 
 const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {
   const url = new URL(request.url);
+
+  // an assistant's door, which names no build and takes no device credential: the token its
+  // OAuth endpoints minted, asked for on its consent page
+  if (isConnectorPath(url.pathname)) {
+    return await handleConnector(request, env, ctx);
+  }
+  if (isAuthorizationServerPath(url.pathname)) {
+    return await connectorAuth(env).authorizationServer.fetch(request, env, ctx);
+  }
+  if (url.pathname === CONSENT_PATH) {
+    return await handleConsent(request, env, ctx);
+  }
+
+  // a browser's socket cannot name its build, and its ticket came from a call that met the floor
+  if (url.pathname === V1_SOCKET_PATH) {
+    return await handleLibrarySocket(request, env, ctx, url);
+  }
+
+  // the one wire: its own floor, credential and refusals, all in its protocol
+  if (isRpc(url.pathname)) {
+    return await handleV1Rpc(request, env, ctx, url);
+  }
+
+  // the library's files: the floor and the credential checked as the wire checks them
+  if (isBlobPath(url.pathname)) {
+    return await handleBlobRoute(request, env, ctx, url);
+  }
+
+  // an export's zip, behind the same floor and credential as a file
+  if (isExportPath(url.pathname)) {
+    return await handleExportRoute(request, env, ctx, url);
+  }
 
   // before any route reads the request, so a shape retired behind the floor is never parsed
   const outdated = url.pathname.startsWith("/v1/")
@@ -43,19 +104,19 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
   }
 
   if (url.pathname.startsWith("/api/auth/")) {
-    return await createAuth(env, url.origin).handler(request);
+    return await createAuth(env, ctx.exports, url.origin).handler(request);
   }
 
   if (request.method === "POST" && url.pathname === AUTH_API_PATHS.signUp) {
-    return await handleInviteSignUp(request, env);
+    return await handleInviteSignUp(request, env, ctx);
   }
 
   if (url.pathname.startsWith("/v1/device/")) {
-    return await handleDeviceRoutes(request, env, url);
+    return await handleDeviceRoutes(request, env, ctx, url);
   }
 
-  if (url.pathname.startsWith("/v1/sync/")) {
-    return await handleSyncRoutes(request, env, url);
+  if (url.pathname === SYNC_WS_PATH) {
+    return await handleSyncSocket(request, env, ctx);
   }
 
   if (url.pathname.startsWith(VAULT_GIT_PATH)) {
@@ -71,7 +132,7 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
   }
 
   if (url.pathname === ACCOUNT_API_PATHS.delete) {
-    return await handleAccountRoute(request, env, url);
+    return await handleAccountRoute(request, env, ctx, url);
   }
 
   return speaksCloudEnvelope(url.pathname)
@@ -85,9 +146,16 @@ export default {
       return await route(request, env, ctx);
     } catch (error) {
       logUnhandled("worker", request, error);
-      return speaksCloudEnvelope(new URL(request.url).pathname)
+      const { pathname } = new URL(request.url);
+      if (isRpc(pathname)) {
+        return rpcFault();
+      }
+      return speaksCloudEnvelope(pathname)
         ? refuse("internal", "Something went wrong on our side.")
         : new Response("internal error", { status: 500 });
     }
   },
-} satisfies ExportedHandler<Env>;
+  async queue(batch: MessageBatch, env: Env, ctx: ExecutionContext): Promise<void> {
+    await consumeFills(batch, env, ctx);
+  },
+} satisfies ExportedHandler<Env, FillJob>;

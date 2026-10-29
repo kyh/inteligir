@@ -1,12 +1,20 @@
-import { copyFile, readFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
+import {
+  itemSaveResponseSchema,
+  itemTagResultSchema,
+} from "@repo/contract/local/items/items-schema";
+import type { ItemRowWire } from "@repo/contract/local/items/items-schema";
+import { knowledgeItemsResponseSchema } from "@repo/contract/local/knowledge/knowledge-schema";
 import { agentShellCli } from "../harness/agent-shell-cli";
 import type { AgentShellCli } from "../harness/agent-shell-cli";
 import { expect, expectEq } from "../harness/assert";
 import { readOrNull } from "../harness/exec";
+import type { AppInstance } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
-import type { Scenario } from "../harness/scenario";
+import type { Scenario, ScenarioContext } from "../harness/scenario";
 
 const NOTE_PATH = "notes/cli-drive.md";
 const NOTE_TOKEN = "clidrivetoken";
@@ -22,26 +30,119 @@ const turnChangesOutputSchema = z.looseObject({
   turns: z.array(z.looseObject({ paths: z.array(z.string()), state: z.string() })),
 });
 const undoOutputSchema = z.looseObject({ reverted: z.array(z.string()) });
-const duplicateIdRowSchema = z.looseObject({ id: z.string(), paths: z.array(z.string()) });
-type DuplicateIdRow = z.infer<typeof duplicateIdRowSchema>;
-const problemsOutputSchema = z.looseObject({
-  duplicateIds: z.looseObject({ rows: z.array(duplicateIdRowSchema) }),
-});
-const newIdOutputSchema = z.looseObject({ comments: z.literal("copied"), id: z.string() });
+const newIdOutputSchema = z.looseObject({ annotations: z.literal("copied"), id: z.string() });
 
 const SHARED_NOTE = "notes/shared.md";
 const SHARED_COPY = "notes/shared copy.md";
 const SHARED_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
 const SHARED_CONTENT = `---\ntitle: Shared\nid: ${SHARED_ID}\n---\n# Shared\n`;
+const SHARED_STORE = `${JSON.stringify(
+  {
+    first: { createdAt: 1, quote: "Shared", source: "user", text: "The first note", updatedAt: 1 },
+    second: {
+      createdAt: 2,
+      quote: "Shared",
+      source: "user",
+      text: "The second note",
+      updatedAt: 2,
+    },
+  },
+  null,
+  2,
+)}\n`;
 
-const duplicateIds = async (cli: AgentShellCli): Promise<DuplicateIdRow[]> => {
-  const problems = await cli("problems", "--json");
-  return problemsOutputSchema.parse(JSON.parse(problems.stdout)).duplicateIds.rows;
+// in TEST-NET-1, which the guarded fetch refuses before it opens a socket: the link saves, its
+// fill fails, and nothing leaves the machine (§0.2.9)
+const LINK = "http://192.0.2.10/reading-list";
+const PAPER = "Paper.pdf";
+
+const pathsOf = async (cli: AgentShellCli, ...argv: string[]): Promise<string[]> => {
+  const { stdout } = await cli("items", ...argv, "--limit", "500", "--json");
+  const { items } = knowledgeItemsResponseSchema.parse(JSON.parse(stdout));
+  return items.map((item: ItemRowWire) => item.path).toSorted();
+};
+
+const stdoutOf = async (cli: AgentShellCli, ...argv: string[]): Promise<string> => {
+  const run = await cli(...argv);
+  return run.stdout.trim();
+};
+
+// a PDF and a link saved into Unsorted, listed by kind, by folder and untagged, found by its url
+// however it is spelled, and tagged and untagged
+const drivesTheLibrary = async (
+  ctx: ScenarioContext,
+  app: AppInstance,
+  cli: AgentShellCli,
+): Promise<void> => {
+  const sources = path.join(ctx.scratchDir, "sources");
+  await mkdir(sources, { recursive: true });
+  // the starter library's own items, which every listing below also holds
+  const starters = new Set(await pathsOf(cli));
+  const saved = (paths: readonly string[]): string[] => paths.filter((p) => !starters.has(p));
+  const pdfFile = path.join(sources, PAPER);
+  await writeFile(pdfFile, Buffer.concat([Buffer.from("%PDF-1.4\n"), randomBytes(2048)]));
+  const paper = itemSaveResponseSchema.parse(
+    JSON.parse(await stdoutOf(cli, "save", pdfFile, "--json")),
+  );
+  expectEq(paper.path, "Unsorted/Paper.md", "the PDF's item");
+  const link = itemSaveResponseSchema.parse(
+    JSON.parse(await stdoutOf(cli, "save", `${LINK}?utm_source=cli-drive`, "--json")),
+  );
+  expectEq(link.fill.state, "failed", "the refused link's fill");
+  expect(link.path.startsWith("Unsorted/"), `the link lands in Unsorted: ${link.path}`);
+
+  const pdfs = saved(await pathsOf(cli, "--kind", "pdf"));
+  expectEq(pdfs.join(","), paper.path, "items --kind pdf");
+  const unsorted = saved(await pathsOf(cli, "--folder", "Unsorted"));
+  expectEq(
+    unsorted.join(","),
+    [link.path, paper.path].toSorted().join(","),
+    "items --folder Unsorted",
+  );
+  const untagged = await pathsOf(cli, "--untagged");
+  expect(
+    untagged.includes(paper.path) && untagged.includes(link.path),
+    `items --untagged lists both: ${untagged.join(", ")}`,
+  );
+
+  ctx.log("item find matches the link however it is spelled");
+  expectEq(await stdoutOf(cli, "item", "find", LINK), link.path, "item find on the bare link");
+  expectEq(
+    await stdoutOf(cli, "item", "find", `${LINK}?utm_medium=email#top`),
+    link.path,
+    "item find past tracking and a fragment",
+  );
+  const unsaved = await stdoutOf(cli, "item", "find", "http://192.0.2.10/never-saved");
+  expect(unsaved.includes("Not saved yet"), `item find on a link never saved: ${unsaved}`);
+
+  ctx.log("tag add and remove, in the frontmatter, and the listing follows");
+  expectEq(
+    await stdoutOf(cli, "tag", "add", "reading", paper.path),
+    `Tagged ${paper.path} #reading`,
+    "tag add",
+  );
+  const again = itemTagResultSchema.parse(
+    JSON.parse(await stdoutOf(cli, "tag", "add", "reading", paper.path, "--json")),
+  );
+  expectEq(again.outcome, "unchanged", "a second tag add");
+  const tagged = await readFile(path.join(app.vaultDir, paper.path), "utf-8");
+  expect(/^tags:\n {2}- reading$/mu.test(tagged), `the tag is in the frontmatter:\n${tagged}`);
+  const readingList = saved(await pathsOf(cli, "--tag", "reading"));
+  expectEq(readingList.join(","), paper.path, "items --tag");
+  const stillUntagged = await pathsOf(cli, "--untagged");
+  expect(!stillUntagged.includes(paper.path), "no longer untagged");
+  expectEq(
+    await stdoutOf(cli, "tag", "remove", "reading", paper.path),
+    `Removed #reading from ${paper.path}`,
+    "tag remove",
+  );
+  const untaggedAgain = await pathsOf(cli, "--untagged");
+  expect(untaggedAgain.includes(paper.path), "untagged again");
 };
 
 export const cliDrive: Scenario = {
   description:
-    "the CLI drives a real instance, and the env an agent's shell would get resolves against this checkout: vault write and read, search, action new, wait, show, changes and undo, and status; a byte copy's shared id is listed, and `vault new-id` gives it its own on the same line with a copy of the store",
+    "the CLI drives a real instance, and the env an agent's shell would get resolves against this checkout: vault write and read, search, action new, wait, show, changes and undo, and status; `vault new-id` gives a byte copy that shares its original's id one of its own on the same line, with a copy of the store; a saved PDF and link list by kind, folder and untagged, `item find` matches the link however it is spelled, and `tag add` and `tag remove` change the item",
   name: "cli-drive",
   // bin/inteligir runs src/ under tsx in a checkout; the bundle is built-cli-boot's to test, and
   // the packed tarball pnpm smoke:cli's.
@@ -134,31 +235,18 @@ export const cliDrive: Scenario = {
 
     ctx.log("a byte copy shares its original's id until vault new-id gives it one of its own");
     await cli("vault", "write", SHARED_NOTE, "--content", SHARED_CONTENT, "--if-absent");
-    await cli("comment", "add", SHARED_NOTE, "The first thread");
-    await cli("comment", "add", SHARED_NOTE, "The second thread");
+    // the store lands beside the app, as a synced one would: what new-id copies is its bytes
+    const sharedStore = path.join(app.vaultDir, ".inteligir", "annotations", `${SHARED_ID}.json`);
+    await mkdir(path.dirname(sharedStore), { recursive: true });
+    await writeFile(sharedStore, SHARED_STORE, "utf-8");
     const original = path.join(app.vaultDir, SHARED_NOTE);
     const originalBytes = await readFile(original, "utf-8");
-    const sharedStore = path.join(app.vaultDir, ".inteligir", "comments", `${SHARED_ID}.json`);
     const storeBytes = await readFile(sharedStore, "utf-8");
     // Finder's duplicate: the same bytes, landed beside the app rather than through it
     await copyFile(original, path.join(app.vaultDir, SHARED_COPY));
-    const sharing = (rows: DuplicateIdRow[]): boolean =>
-      rows.some((row) => row.id === SHARED_ID && row.paths.includes(SHARED_COPY));
-    await pollUntil(async () => await duplicateIds(cli), sharing, {
-      deadlineMs: SEARCH_DEADLINE_MS,
-      describe: (rows) => `problems never listed the copy's shared id: ${JSON.stringify(rows)}`,
-    });
     const given = await cli("vault", "new-id", SHARED_COPY, "--json");
     const newId = newIdOutputSchema.parse(JSON.parse(given.stdout)).id;
     expect(newId !== SHARED_ID, "the copy answers an id of its own");
-    await pollUntil(
-      async () => await duplicateIds(cli),
-      (rows) => rows.length === 0,
-      {
-        deadlineMs: SEARCH_DEADLINE_MS,
-        describe: (rows) => `problems still lists shared ids: ${JSON.stringify(rows)}`,
-      },
-    );
     expectEq(
       await readFile(path.join(app.vaultDir, SHARED_COPY), "utf-8"),
       originalBytes.replace(SHARED_ID, newId),
@@ -166,11 +254,17 @@ export const cliDrive: Scenario = {
     );
     expectEq(await readFile(original, "utf-8"), originalBytes, "the original is untouched");
     expectEq(
-      await readFile(path.join(app.vaultDir, ".inteligir", "comments", `${newId}.json`), "utf-8"),
+      await readFile(
+        path.join(app.vaultDir, ".inteligir", "annotations", `${newId}.json`),
+        "utf-8",
+      ),
       storeBytes,
-      "the copy's comment store is the original's, byte for byte",
+      "the copy's annotation store is the original's, byte for byte",
     );
     expectEq(await readFile(sharedStore, "utf-8"), storeBytes, "the original keeps its own");
+
+    ctx.log("the library: a PDF and a link, listed, found and tagged");
+    await drivesTheLibrary(ctx, app, cli);
 
     ctx.log("status reports the scripted agent");
     const status = await cli("status");

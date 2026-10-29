@@ -20,10 +20,10 @@ comes in through one call, `installEditorHost`, and everything above its
 store (the write policy, the link resolver, note formulas) is this package's,
 so a second host copies none of it. The package
 also ships ONE stylesheet, `styles.css` (toggle collapse, the callout marker
-swap, the hljs theme, the prose scope the appearance dials feed and typeset's
-table rules), inert until the host `@import`s `@repo/editor/styles.css` —
-`style-hooks.ts` spells the selectors it reads, and
-`__tests__/style-hooks.test.ts` pins the two together.
+swap, the hljs theme, the prose scope the appearance dials feed, typeset's
+table rules and the diagram frame's `--pele-*` variables), inert until the
+host `@import`s `@repo/editor/styles.css` — `style-hooks.ts` spells the
+selectors it reads, and `style-hooks.test.ts` pins the two together.
 
 ## Layout
 
@@ -32,6 +32,9 @@ src/
   markdown/            # the round trip: the Slate↔mdast rules, the one
                        # markdown→Slate conversion, the bounded fixpoint and
                        # `serializeNote`, the one way any save reaches bytes
+  codec/               # an item as markdown, headless: import and export of
+                       # one file, a folder's or zip's import plan and the
+                       # export's, and the agent's view of an item and its edits
   kits/                # the plugin kits: CONTENT_KIT and the desktop and touch
                        # compositions over it, the headless mirror the
                        # serializer runs, the markdown wiring, the rich-block lock
@@ -39,14 +42,21 @@ src/
   note/                # the open note: its store and React's door to it, the
                        # session's ordering, the autosave runtime, the raw/rich
                        # gate and the flush writers outside the note reach
-  comments/            # anchored-comment markers, ranges, gutter, store
+  annotations/         # annotation markers, ranges, gutter, store
   formulas/            # `{{…}}` pills: the `{{` picker, entry, editing, recompute
   wiki/                # `[[…]]` links: the `[[` picker, the chip, insertion, keys
   properties/          # the typed frontmatter panel
-  lib/                 # debounce, the dark-class hook, embed and url helpers
+  lib/                 # debounce, the one door a diagram's markup becomes
+                       # nodes through, embed and url helpers
   test-support/        # the fake editor host, for any suite that mounts the
-                       # editor (the desktop's included)
-  __tests__/fixtures/  # THE BYTE-PINNED ROUND-TRIP MATRIX (see below)
+                       # editor (the desktop's included), and what this
+                       # package's suites share: the DOM cleanup, a mounted
+                       # editor, a fake vault, sample and generated notes
+  test-support/fixtures/  # THE BYTE-PINNED ROUND-TRIP MATRIX (see below)
+  *.test.ts(x)         # each suite beside the module it names, in whichever
+                       # folder that module sits; one that holds several
+                       # modules (the round trip, the typing budget, kit
+                       # parity) sits here at the top
   *.ts(x)              # the editor surface and its column, the host seam
                        # (§ Seams), the write policy, and the in-document
                        # affordances: menus, toolbars, TOC, embeds
@@ -55,7 +65,7 @@ src/
 ## Invariants
 
 - **`roundTrip(raw) === raw` for every canonical file.** The fixture matrix
-  under `src/__tests__/fixtures/roundtrip/` is the contract: `canonical/` must
+  under `src/test-support/fixtures/roundtrip/` is the contract: `canonical/` must
   survive untouched and `churn/` pins the one normalization each input gets
   (`*.in.md` → `*.out.md`). There is no `raw/`: every input parses.
 - **Never hand-edit or format a fixture.** Their bytes are the assertion —
@@ -78,7 +88,7 @@ src/
   byte-exact, and the gate's reason says which (`GateReason` in
   `markdown/markdown-doc.ts`).
 - **Typing walks a long note only through its budget.**
-  `__tests__/typing-budget.test.tsx` types into a generated 10k-line note
+  `typing-budget.test.tsx` types into a generated 10k-line note
   (`generateLongNote`) and fails on a whole-note pass no row names, on a
   keystroke, a caret move or the settle after typing. A pass a keystroke cannot
   afford caches by top-level block (the outline, the count, the gutter's ids),
@@ -96,15 +106,16 @@ src/
   React or with no route to the shell. Its `EditorHostIo` carries the vault
   actions (`vault`), the link resolver store (the knowledge index's own `buildResolver` over
   the listing, for wiki targets and md urls alike, and the wiki targets it was
-  built over, which the `[[` picker and the slash menu's templates list —
-  subscribed to rather than read, because it moves with every refresh while the
+  built over, which the `[[` picker lists — subscribed to rather than read,
+  because it moves with every refresh while the
   actions never do), vault reads, asset bytes in and out, the knowledge queries,
   and the change events that invalidate them, plus what only some hosts have:
   a frame to run an html block in (`htmlFrameUrl`, null hides Run) and a
   native photo picker that writes what it picks (`pickImage`, null hides the
   touch toolbar's image button; a picked path lands through `insertVaultImage`,
   as a paste does). Its `EditorHostActions` are what the editor asks the shell
-  for (Ask agent and a `#tag` chip's `showTag`, a comment's create and open),
+  for (Ask agent and a `#tag` chip's `showTag`, an annotation's create, edit
+  and open),
   every one required, so a host that leaves one out fails to typecheck rather
   than drawing a button that does nothing. The install hands `flushOpenNote`
   the host's own flush, so a writer outside the note's tree reaches the open
@@ -140,7 +151,7 @@ src/
   the column. The desktop sets none; a touch host sets `touch` and gets the
   touch kit, no outline rail and a narrower inset.
 - `live-editor.ts` — the path-keyed registry the shell reaches a mounted
-  editor through (the pin, comments, the Metadata tab's properties). A render
+  editor through (the pin, annotations, Info's properties). A render
   SUBSCRIBES — `useLiveEditor`, or `subscribeLiveEditors` for a snapshot of
   the document — and never reads: the editor registers after the render that
   asked for it, and the compiler memoizes a render-time read on its inputs,

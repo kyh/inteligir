@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, readlinkSync, realpathSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import type { LocalClient } from "@repo/contract/local";
 import { resolveAppConfig } from "inteligir/server/config";
 import { resolveCheckoutRoot } from "inteligir/server/dev-instance";
 import { loopbackOrigin } from "inteligir/server/server-file";
@@ -8,8 +9,9 @@ import { SHUTDOWN_TIMEOUT_MS } from "inteligir/server/shutdown";
 import { skip } from "./assert";
 import { appLaunchEnv } from "./exec";
 import { createInstanceApi, makeVendorDirs, vendorEnv } from "./instance";
-import type { InstanceApi, VendorDirs } from "./instance";
+import type { VendorDirs } from "./instance";
 import { pollUntil } from "./poll";
+import { BACK_TO_LIBRARY, LIBRARY_GRID } from "./selectors";
 import { bootWithPorts, spawnSupervised } from "./tracked-child";
 import type { TrackedProcess } from "./tracked-child";
 import { NO_AUTO_SYNC } from "./vault-sync";
@@ -31,6 +33,16 @@ export const askShell = (
 ): string =>
   `window.__TAURI_INTERNALS__.invoke(${JSON.stringify(command)}, ${JSON.stringify(args)})`;
 const SERVER_LOG = path.join("logs", "server.log");
+const LIBRARY_DEADLINE_MS = 60_000;
+
+// from an open item, its topbar's way back, and the grid drawn again
+export const backToLibrary = async (page: WebDriverSession): Promise<void> => {
+  await page.clickWhenThere(BACK_TO_LIBRARY, LIBRARY_DEADLINE_MS);
+  await page.waitUntil(
+    `document.querySelector(${JSON.stringify(LIBRARY_GRID)}) !== null`,
+    LIBRARY_DEADLINE_MS,
+  );
+};
 
 // a cold boot starts the driver, the shell, its server, migrates, indexes and paints the window
 const READY_DEADLINE_MS = 90_000;
@@ -46,7 +58,7 @@ export interface ShellTarget {
 export interface DesktopShell extends TrackedProcess {
   // the server the shell runs now: the port is pinned across a switch, the bearer re-read per call,
   // so on a first run it answers once the chosen vault's server.json appears
-  api: InstanceApi;
+  api: LocalClient;
   serverOrigin: string;
   // what the shell resolves now, derived as the shell's CLI door derives it, so a switch moves it
   target: () => ShellTarget;
@@ -104,7 +116,7 @@ const requireShellSetup = (binary: string): void => {
   }
   if (!onPath("tauri-driver") || !onPath("WebKitWebDriver")) {
     skip(
-      "no WebDriver for the shell: install webkit2gtk-driver, then `cargo install tauri-driver --locked`",
+      "no WebDriver for the shell: install webkitgtk-webdriver (webkit2gtk-driver before Ubuntu 26.04), then `cargo install tauri-driver --locked`",
     );
   }
   if (!existsSync(binary)) {

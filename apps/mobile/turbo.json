@@ -1,0 +1,13 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    // `expo start` takes its keys from the terminal (open the simulator, reload, the debugger), and
+    // turbo hands a task the keyboard only when it is interactive, so it refuses this one outside its
+    // terminal UI (no terminal, or `CI`), where `pnpm --filter @repo/mobile dev` runs it bare. The
+    // root's `dev` is already persistent, and uncached as an interactive task must be.
+    "dev": {
+      "interactive": true
+    }
+  }
+}

@@ -12,7 +12,13 @@ import type {
 import { createLinkResolverFeed } from "@repo/editor/link-resolver-feed";
 import { createNoteFormulas } from "@repo/editor/note-formulas";
 import type { NoteFormulas } from "@repo/editor/note-formulas";
-import { readVaultTree, readWikiTargets, renameVaultEntry, useWikiTargets } from "../vault-hooks";
+import {
+  readMediaToken,
+  readVaultTree,
+  readWikiTargets,
+  renameVaultEntry,
+  useWikiTargets,
+} from "../vault-hooks";
 import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 import { confirmVanished, mergeConflictLine } from "@repo/editor/note/vanished-prompt";
@@ -30,8 +36,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 
 import { client } from "../api";
-import { forgetPref, PREFS, readPref, writePref } from "../prefs";
 import { useWorkspace } from "../workspace-context";
+import { movedItemOf } from "../library/selection-follow";
 import { createGuardedVaultPort } from "./guarded-vault-io";
 
 const noOpenPathMirror = (): void => {
@@ -103,13 +109,11 @@ const createVaultPort = ({ bootPath, queryClient, store }: VaultPortInputs): Vau
     askVanished: confirmVanished,
     boot: async (): Promise<WorkspaceBoot> => {
       const flat = listingEntries(await readVaultTree(queryClient));
-      const known = (path: string | null): path is string =>
-        path !== null && flat.some((entry) => entry.path === path && entry.kind === "doc");
-      // Welcome.md ahead of listing order, which lands on "Getting Started" first.
+      // nothing open is the library: only the deep link opens an item, and only one that is there
       const target =
-        [bootPath, readPref(PREFS.lastOpenNote), "Welcome.md"].find(known) ??
-        flat.find((entry) => entry.kind === "doc")?.path ??
-        null;
+        bootPath !== null && flat.some((entry) => entry.path === bootPath && entry.kind === "doc")
+          ? bootPath
+          : null;
       let openNote: WorkspaceBoot["openNote"] = null;
       if (target !== null) {
         const content = await io.read(target).catch(() => null);
@@ -136,13 +140,12 @@ const createVaultPort = ({ bootPath, queryClient, store }: VaultPortInputs): Vau
     },
     publishEditor: store.publishEditor,
     publishListing: linkResolver.setListing,
+    // a move the page did not make (a fill's rename, an agent's) is followed by the item's id;
+    // a null while the index still has a read out is no answer yet, so the item is not let go
+    findMoved: async (lastPath, id) =>
+      movedItemOf(await client.knowledge.pathForNoteId({ id, lastPath })),
     publishOpenPath: (path, change) => {
       store.publishOpenPath(path, change);
-      if (path === null) {
-        forgetPref(PREFS.lastOpenNote);
-      } else {
-        writePref(PREFS.lastOpenNote, path);
-      }
       mirrorOpenPath(path);
     },
     rename: async (from, to) => await renameVaultEntry(client, from, to),
@@ -214,12 +217,15 @@ export const VaultProvider = ({
       linkResolver: port.linkResolver,
       onVaultChanged: (listener) => vaultChanges.subscribe(listener),
       // the desktop takes images by paste and drop
+      // a file card's Open hands its bytes to the system's viewer
+      opensFiles: false,
       pickImage: null,
       readNoteFormulas: port.formulas.read,
       // A plain fetch, not a procedure: the ETag and sandbox CSP do not
       // survive an RPC envelope.
       readVaultAsset: async ({ path }) => {
-        const response = await fetch(vaultAssetUrl(window.location.origin, path));
+        const mediaToken = await readMediaToken(queryClient);
+        const response = await fetch(vaultAssetUrl(window.location.origin, path, mediaToken));
         if (!response.ok) {
           return { error: `asset ${String(response.status)}`, ok: false };
         }
@@ -239,7 +245,7 @@ export const VaultProvider = ({
       },
     };
     return installEditorHost({ actions: hostActions, io });
-  }, [vaultChanges, port, session, store, hostActions]);
+  }, [vaultChanges, port, session, store, hostActions, queryClient]);
 
   useEffect(() => {
     void session.start();

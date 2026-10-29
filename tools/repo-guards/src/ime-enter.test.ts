@@ -20,12 +20,7 @@ const IMPORTS_HELPER =
   /import\s*\{[^}]*\bisImeComposing\b[^}]*\}\s*from\s*["']@repo\/ui\/lib\/ime["']/u;
 
 // a key that never reaches a text field has no composition to wait out
-const NOT_A_TEXT_FIELD = new Map<string, string>([
-  [
-    "packages/ui/src/ai/diff-table.tsx",
-    "Enter on a focused DiffRow toggles the row: a table row takes no text, so no composition runs there",
-  ],
-]);
+const NOT_A_TEXT_FIELD = new Map<string, string>();
 
 const handlerFiles = workspaces()
   .flatMap((workspace) => workspaceFiles(workspace).shipped)

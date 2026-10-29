@@ -4,13 +4,12 @@
 import { describe, expect, it } from "vitest";
 
 import { sourceOf, workspaceFiles, workspaces } from "./repo";
-import { AWAITING_CONSUMER } from "./ui-package";
 
 const ROLES_DECLARED = "packages/ui/src/styles/globals.css";
 
-// where chrome is drawn. A file held in AWAITING_CONSUMER keeps its own sizes until a surface
-// draws it.
+// where chrome is drawn.
 const CHROME_ROOTS = [
+  "apps/extension/src/",
   "apps/workspace/src/",
   "packages/editor/src/",
   "packages/ui/src/components/",
@@ -32,9 +31,7 @@ const PROSE_SIZES = new Map<string, ProseSize>();
 
 const chromeFiles = workspaces()
   .flatMap((workspace) => workspaceFiles(workspace).shipped)
-  .filter(
-    (file) => CHROME_ROOTS.some((root) => file.startsWith(root)) && !AWAITING_CONSUMER.has(file),
-  )
+  .filter((file) => CHROME_ROOTS.some((root) => file.startsWith(root)))
   .toSorted();
 
 const rawSizesIn = (file: string): string[] =>

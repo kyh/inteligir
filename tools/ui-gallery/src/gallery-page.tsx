@@ -6,10 +6,9 @@ import { cn } from "@repo/ui/lib/cn";
 
 import { ActionsSection } from "./actions-section";
 import { AgentSection } from "./agent-section";
-import { DataSection } from "./data-section";
-import { EditingSection } from "./editing-section";
 import { FeedbackSection } from "./feedback-section";
 import { InputsSection } from "./inputs-section";
+import { LibrarySection } from "./library-section";
 import { NavigationSection } from "./navigation-section";
 import { OverlaysSection } from "./overlays-section";
 import { TokensSection } from "./tokens-section";
@@ -22,8 +21,7 @@ const NAV = [
   { id: "feedback", label: "Feedback" },
   { id: "navigation", label: "Navigation" },
   { id: "agent", label: "Agent surfaces" },
-  { id: "data", label: "Data" },
-  { id: "editing", label: "Editing" },
+  { id: "library", label: "Library" },
   { id: "tokens", label: "Tokens" },
 ] as const;
 
@@ -88,8 +86,7 @@ export const GalleryPage = () => {
           <FeedbackSection />
           <NavigationSection />
           <AgentSection />
-          <DataSection />
-          <EditingSection />
+          <LibrarySection />
           <TokensSection />
         </main>
       </div>

@@ -1,11 +1,17 @@
 # Inteligir
 
-> The workspace for knowledge work.
+> One library for everything you save.
 
-Notes with an agent that edits them beside you. Your notes are plain markdown
-files in a folder on your Mac. Ask Claude or ChatGPT to draft, tidy, link or
-summarize, and it edits those notes directly; every reply that changed a note
-can be undone, and every earlier version of a note is in its History.
+Save links and articles, videos, images, PDFs and files beside the notes you
+write, in one library that is a folder of plain markdown files on your Mac. It
+does the work of a bookmark manager like Raindrop and a notes app like Obsidian
+at once.
+
+Save from Chrome, Arc, Brave or Edge with the browser extension, by pasting or
+dropping onto the window, or from your iPhone's share sheet; the Mac or the
+iPhone you saved on reads each page itself, without asking a model. When you ask, Claude or ChatGPT, on your
+own plan, files, tags, summarizes and edits your library with you, and every
+reply that changed something can be undone.
 
 ## Get it
 
@@ -14,14 +20,20 @@ can be undone, and every earlier version of a note is in its History.
 What you need:
 
 - A Mac with Apple silicon.
+- To save from your browser, Chrome, Arc, Brave or Edge with the Inteligir
+  extension.
 - To use the agent, a paid Claude plan or any ChatGPT plan. The app signs in to
-  it for you and brings everything the agent needs; without a plan it is a notes
-  app.
+  it for you and brings everything the agent needs; without a plan it is a
+  library and a notes editor.
 - Nothing else to install or set up.
 
-An account is optional and needs an invite: it keeps your notes in step across
-your Macs and your iPhone, and lets your phone ask your Mac's agent. The iPhone
-app comes by TestFlight invite.
+An account is optional and needs an invite: it keeps your library in step
+across your Macs and your iPhone, and lets your phone save into it, read it and
+write in it. The agent runs on your Mac. The iPhone app comes by TestFlight
+invite.
+
+Coming from Raindrop? Import its CSV backup from Settings › Library. From
+Obsidian? Open its folder as your library: the notes stay where they are.
 
 What leaves your Mac, and when: [docs/privacy.md](./docs/privacy.md).
 
@@ -30,8 +42,10 @@ What leaves your Mac, and when: [docs/privacy.md](./docs/privacy.md).
 The app runs on your machine: one local Node process owns the vault (a git
 repo), indexes it, serves the API, and drives the agent — Claude or Codex over
 ACP — that edits those same files. Nothing reaches this project's cloud unless
-you sign in; the desktop app checks GitHub for updates and the agent talks to
-its own provider.
+you sign in; the desktop app checks GitHub for updates, the agent talks to its
+own provider, and a saved link's page is fetched from the Mac itself, through
+one guarded dial that never reaches this Mac or, unless you saved one, your
+home network.
 
 ### Install & run
 
@@ -39,8 +53,10 @@ The desktop app is the product: one window on that local server, which it
 starts and stops with itself — [`apps/desktop`](./apps/desktop/README.md). The
 signed, notarized macOS build is on the latest GitHub release (the site's
 Download button reads it), and an installed app offers each new release from
-Settings › About. Its first launch asks where your notes live, a new vault or
-a folder you already have, before it starts anything.
+Settings › About. Its first launch asks where your library lives, a new one or
+a folder you already have, before it starts anything. The browser extension is
+[`apps/extension`](./apps/extension/README.md), and the app writes the door it
+talks through at each launch.
 
 Without installing the app:
 
@@ -58,9 +74,10 @@ the vault the next server opens, is a client against a running server — see
 
 The agents ship inside the app: sign in with Claude or ChatGPT in
 Settings › Agent; a Mac already signed in to Claude Code or Codex stays signed
-in. Signed in to neither, the app is a notes editor and says so.
+in. Signed in to neither, the app is a library and a notes editor, and says so.
 
-From a checkout instead:
+From a checkout instead, with the prerequisites in
+[`docs/development.md`](./docs/development.md#prerequisites) installed:
 
 ```bash
 pnpm install
@@ -69,8 +86,8 @@ pnpm dev              # the desktop shell over a server on a per-checkout port
 
 ### Layout
 
-[`AGENTS.md`](./AGENTS.md) § Map has one line per workspace, and each
-workspace's README its own layout.
+[`AGENTS.md`](./AGENTS.md) § Map has one line per workspace of the product,
+and each workspace's README its own layout.
 
 Boundaries are enforced, not documented: `tools/repo-guards` derives the
 dependency DAG from the tree and fails on an undeclared edge, a cycle or an
@@ -93,3 +110,7 @@ committed:
 ```bash
 pnpm format:fix && pnpm verify
 ```
+
+## License
+
+Licensed under the [MIT license](./LICENSE).

@@ -10,7 +10,6 @@ export type GlobalShortcutAction =
   | "find-in-note"
   | "open-headings"
   | "open-settings"
-  | "open-daily-note"
   | "toggle-zen"
   | "toggle-rail"
   | "toggle-panel";
@@ -41,8 +40,7 @@ export const GLOBAL_SHORTCUTS: readonly GlobalShortcut[] = [
   { action: "open-action-composer", key: "k", label: "Ask the agent" },
   { action: "open-palette", key: "p", label: "Command palette" },
   { action: "open-headings", key: "o", label: "Go to heading", shift: true },
-  { action: "find-in-note", key: "f", label: "Find in note" },
-  { action: "open-daily-note", key: "d", label: "Daily note" },
+  { action: "find-in-note", key: "f", label: "Find…" },
   { action: "toggle-zen", key: "\\", label: "Zen mode" },
   { action: "open-settings", key: ",", label: "Settings" },
   // bare: ⌘[ and ⌘] are the browser's history keys
@@ -77,7 +75,8 @@ export const bindingCapsFor = (
   return hotkey === null ? [] : hotkeyCaps(hotkey, modifier);
 };
 
-const takesText = (target: EventTarget | null): boolean =>
+// a field, a text area or the editor: where a bare key types rather than commands
+export const isTextEntryTarget = (target: EventTarget | null): boolean =>
   target instanceof HTMLElement &&
   (target.isContentEditable ||
     target instanceof HTMLInputElement ||
@@ -94,7 +93,7 @@ export const globalShortcutFor = (
   }
   const key = event.key.toLowerCase();
   if (!event.metaKey && !event.ctrlKey) {
-    if (takesText(event.target)) {
+    if (isTextEntryTarget(event.target)) {
       return null;
     }
     return (

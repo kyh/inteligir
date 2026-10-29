@@ -1,16 +1,17 @@
 // deltas park until the next macrotask so a streaming burst lands as one ingest transaction and one ws frame,
 // and each item's run of deltas as one row; a non-delta event flushes its thread immediately, buffered deltas
-// first, so boundaries never reorder around deltas. a merged row stays inside the sync row cap, so a merge
-// never turns deltas that would each have synced whole into one the outbox has to clip.
+// first, so boundaries never reorder around deltas. a merged row stays bounded, so one long reply never
+// becomes one row the size of the reply, which the timeline and a ws frame would carry whole.
 
 import { utf8ByteLength } from "@repo/contract/cloud/bytes";
-import { EVENT_MAX_BYTES } from "@repo/contract/cloud/sync/sync-schema";
 import { isThreadEventDelta, mergeAdjacentDeltas } from "@repo/domain/provider-event";
 import type { DeltaRunLimit, ThreadEvent } from "@repo/domain/provider-event";
 
-const SYNC_ROW_LIMIT: DeltaRunLimit = {
+export const MERGED_ROW_MAX_BYTES = 64 * 1024;
+
+const MERGED_ROW_LIMIT: DeltaRunLimit = {
   jsonBytes: (value) => utf8ByteLength(JSON.stringify(value)),
-  maxBytes: EVENT_MAX_BYTES,
+  maxBytes: MERGED_ROW_MAX_BYTES,
 };
 
 export class ProviderEventCoalescer {
@@ -42,7 +43,7 @@ export class ProviderEventCoalescer {
       return;
     }
     this.pendingByThreadId.delete(threadId);
-    this.ingest(threadId, mergeAdjacentDeltas(pending, SYNC_ROW_LIMIT));
+    this.ingest(threadId, mergeAdjacentDeltas(pending, MERGED_ROW_LIMIT));
   }
 
   flushAll(): void {

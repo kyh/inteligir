@@ -1,4 +1,5 @@
-# CLOUDFLARE_API_TOKEN needs Workers Scripts: Edit + Workers Routes: Edit (inteligir.com).
+# CLOUDFLARE_API_TOKEN needs Workers Scripts: Edit + Workers Routes: Edit (inteligir.com), and
+# Workers KV Storage: Edit, with which the first deploy provisions the connector's OAuth namespace.
 # The D1 schema is not applied here: push it from a local machine before merging code
 # that needs it, or the deploy 500s against the old schema.
 name: Deploy

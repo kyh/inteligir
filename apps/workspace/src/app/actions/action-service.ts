@@ -1,3 +1,4 @@
+import type { ActionPreset } from "@repo/domain/action-preset";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { CreateThreadRequest } from "@repo/contract/local/threads/threads-schema";
 
@@ -12,6 +13,8 @@ export interface CreateActionArgs {
   viewContext: ViewContext | null;
   // a thread a refused first send already created; minting another on retry leaves an empty action behind.
   threadId: string | null;
+  // a named action, whose block the server composes; the prompt may then be empty
+  preset?: ActionPreset;
 }
 
 export interface CreateActionResult {
@@ -39,6 +42,9 @@ export const createAction = async (args: CreateActionArgs): Promise<CreateAction
   };
   if (args.viewContext !== null) {
     sendArgs.viewContext = args.viewContext;
+  }
+  if (args.preset !== undefined) {
+    sendArgs.preset = args.preset;
   }
   const send = await sendToThread(client, sendArgs);
   return { send, threadId };

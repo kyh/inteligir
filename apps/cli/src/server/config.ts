@@ -186,7 +186,7 @@ const ENV_VARS = {
     parse: ({ name, value }) => parseAgentModeValue(name, value),
   }),
   cloudUrl: defineEnvVar({
-    description: `Origin of the hosted deployment this install signs in to for thread sync; unset means ${PRODUCTION_CLOUD_ORIGIN}. Signing in is what turns sync on — an install with no device credential opens no socket and makes no request whatever this says.`,
+    description: `Origin of the hosted deployment this install signs in to, for the account and its hosted library; unset means ${PRODUCTION_CLOUD_ORIGIN}. Signing in is what turns sync on — an install with no device credential opens no socket and makes no request whatever this says.`,
     name: "INTELIGIR_CLOUD_URL",
     parse: ({ name, value }) => parseCloudUrlValue(name, value),
   }),

@@ -77,8 +77,6 @@ const VOCABULARIES: Vocabulary[] = [
   {
     declaredIn: "packages/domain/src/change-kinds.ts",
     dispatchedIn: {
-      "apps/cli/src/server/vault/vault-runtime.ts":
-        "the PRODUCER — the seam where the git engine's status changes and the watcher's batches become kinds on the bus, which is the only place that decides which kind a vault event is",
       "apps/workspace/src/app/change-batch.ts":
         "the client's ONE answer to which queries each kind invalidates; a kind weighed nowhere here is a frame the screen ignores",
     },

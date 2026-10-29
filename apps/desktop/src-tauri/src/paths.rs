@@ -15,7 +15,7 @@ pub fn resolve_vault_entry(vault_dir: &Path, relative: &str) -> Result<PathBuf, 
         && named
             .components()
             .all(|component| matches!(component, Component::Normal(_) | Component::CurDir));
-    let outside = || format!("{relative} is not in the vault");
+    let outside = || format!("{relative} is not in the library");
     if !plainly_relative {
         return Err(outside());
     }

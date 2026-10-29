@@ -104,15 +104,15 @@ export const NavigationSection = () => (
           <div className="flex h-9 items-center border-b border-line px-1.5">
             <TabsList aria-label="Panel tabs">
               <TabsTrigger value="actions">Actions</TabsTrigger>
-              <TabsTrigger value="comments">Comments</TabsTrigger>
+              <TabsTrigger value="annotations">Annotations</TabsTrigger>
               <TabsTrigger value="history">History</TabsTrigger>
             </TabsList>
           </div>
           <TabsContent value="actions">
             <p className="p-3 text-sm text-muted-foreground">Two actions on this note.</p>
           </TabsContent>
-          <TabsContent value="comments">
-            <p className="p-3 text-sm text-muted-foreground">One unresolved comment.</p>
+          <TabsContent value="annotations">
+            <p className="p-3 text-sm text-muted-foreground">One highlight with a note.</p>
           </TabsContent>
           <TabsContent value="history">
             <p className="p-3 text-sm text-muted-foreground">Four revisions.</p>

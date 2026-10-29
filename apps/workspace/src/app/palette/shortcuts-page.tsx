@@ -4,13 +4,14 @@ import {
   CommandItem,
   CommandShortcut,
 } from "@repo/ui/components/command";
-import { COMMENT_SHORTCUTS } from "@repo/editor/comments/comment-kit";
+import { ANNOTATION_SHORTCUTS } from "@repo/editor/annotations/annotation-kit";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
 import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
 import { hotkeyCaps, spellHotkey } from "@repo/ui/lib/hotkey-spelling";
 import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "../global-shortcuts";
+import { LIBRARY_SHORTCUTS, libraryShortcutHotkey } from "../library/library-keys";
 import { matchesQuery, PalettePage } from "./palette-page";
 
 interface ShortcutRow {
@@ -41,10 +42,17 @@ const shortcutGroups = (
     rows: GLOBAL_SHORTCUTS.map((row) => shortcutRow(row, globalShortcutHotkey(row), modifier)),
   },
   {
-    heading: "In the note",
-    rows: [...MARK_SHORTCUTS, ...EDITOR_SHORTCUTS, ...FIND_BAR_SHORTCUTS, ...COMMENT_SHORTCUTS].map(
-      (row) => shortcutRow(row, row.hotkey, modifier),
-    ),
+    heading: "In the library",
+    rows: LIBRARY_SHORTCUTS.map((row) => shortcutRow(row, libraryShortcutHotkey(row), modifier)),
+  },
+  {
+    heading: "In an item",
+    rows: [
+      ...MARK_SHORTCUTS,
+      ...EDITOR_SHORTCUTS,
+      ...FIND_BAR_SHORTCUTS,
+      ...ANNOTATION_SHORTCUTS,
+    ].map((row) => shortcutRow(row, row.hotkey, modifier)),
   },
 ];
 

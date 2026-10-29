@@ -9,10 +9,19 @@ import type { SearchHit } from "./search-index";
 import type { SearchQueryOptions, SearchResult } from "./search-query";
 import type { DocText } from "./text-matches";
 
+// what the listing said of a doc's file when its bytes were read: a reconcile that lists the same
+// pair skips the read
+export interface DocFingerprint {
+  size: number;
+  mtimeMs: number;
+}
+
 export interface StoredDocRow {
   path: string;
   contentHash: string;
   projection: DocProjection;
+  // null: the file's stat was not known when it was read, so the next reconcile reads it
+  fingerprint: DocFingerprint | null;
 }
 
 export interface KnowledgeStore {
@@ -22,6 +31,9 @@ export interface KnowledgeStore {
   upsertOther: (path: string, unprojectableHash?: string) => void;
 
   remove: (path: string) => void;
+
+  /** a doc read again whose bytes had not moved: only the stat its row is skipped by changes */
+  setFingerprint: (path: string, fingerprint: DocFingerprint) => void;
 
   search: (query: string, limit: number) => SearchResult[];
 

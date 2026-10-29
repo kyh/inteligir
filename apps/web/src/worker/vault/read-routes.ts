@@ -51,7 +51,7 @@ const resolveCommit = async (
 
 const refuseWalk = (refusal: TreeWalkRefusal): Response =>
   refusal === "missing"
-    ? refuse("not-found", "This vault has no content at that revision.")
+    ? refuse("not-found", "This library holds nothing at that version.")
     : refuse("internal", `Vault tree exceeds ${String(MAX_TREE_DIRS)} directories.`);
 
 const answerTree = async (
@@ -64,7 +64,7 @@ const answerTree = async (
 
   const commit = await resolveCommit(stub, ref);
   if (commit === null) {
-    return refuse("not-found", "This vault has no content at that revision.");
+    return refuse("not-found", "This library holds nothing at that version.");
   }
 
   const kept = await slot.read(commit);
@@ -115,7 +115,7 @@ const answerFile = async (
 ): Promise<Response> => {
   const commit = await resolveCommit(stub, query.ref);
   if (commit === null) {
-    return refuse("not-found", "This vault has no content at that revision.");
+    return refuse("not-found", "This library holds nothing at that version.");
   }
   const blob = await stub.readBlob(commit, encodeGitPath(query.path));
   if (blob === null) {
@@ -151,7 +151,7 @@ const answerFiles = async (
   // at a revision the repo does not hold every path would read as missing, which a mirror takes
   // for a deletion
   if ((await stub.readCommit(ref)) === null) {
-    return refuse("not-found", "This vault has no content at that revision.");
+    return refuse("not-found", "This library holds nothing at that version.");
   }
 
   const files: VaultFilesResponse["files"] = [];
@@ -191,8 +191,10 @@ const answerFiles = async (
 };
 
 // the sandbox csp is what makes svg safe: <img> never runs its script, but a navigation to this url
-// renders it as a document, and a sandbox with no allow-scripts refuses that. immutable holds
-// because the read pins a commit.
+// renders it as a document, and a sandbox with no allow-scripts refuses that. it holds for every
+// type, a PDF's included: the phone shows a PDF from its own cached copy, never from this url, so
+// the desktop's sandbox-free PDF policy has no reader here. immutable holds because the read pins
+// a commit.
 const ASSET_HEADERS = {
   "cache-control": "private, max-age=31536000, immutable",
   "content-security-policy": "default-src 'none'; sandbox",
@@ -205,7 +207,7 @@ const answerAsset = async (
 ): Promise<Response> => {
   const mediaType = assetMediaType(query.path);
   if (mediaType === null) {
-    return refuse("bad-request", "That extension is not an image type this vault serves.");
+    return refuse("bad-request", "That is not a file type this library serves.");
   }
 
   // size-gate from the tree first: readBlob inflates the whole blob in the cell and the rpc return
@@ -310,7 +312,7 @@ export const handleVaultReadRoutes = async <P extends VaultReadPath>(
   }
 
   if (!(await spendDeviceBudget(env, db, "vaultRead", verified.deviceId))) {
-    return refuse("rate-limited", "Too many vault reads from this device — wait a minute.");
+    return refuse("rate-limited", "Too many reads from this device — wait a minute.");
   }
 
   const route = VAULT_READS[path];
@@ -326,7 +328,7 @@ export const handleVaultReadRoutes = async <P extends VaultReadPath>(
   if (query.data.ref === undefined) {
     const info = await vaultRegistry(env).get(repo);
     if (info === null) {
-      return refuse("not-found", "This account has no hosted vault yet.");
+      return refuse("not-found", "This account has no online library yet.");
     }
   }
   return await route.answer(env.REPO.getByName(repo), query.data, env, repo);

@@ -28,7 +28,7 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // a leaf: content (markdown served to agents), imported as files.
     "@repo/agent-skills": [],
     // the @repo/notes edge is the parser-free grammars the contract validates against (vault-path,
-    // sidecar-schema, tag-grammar, link-kinds); widening it to a remark-carrying module drags
+    // store-schema, tag-grammar, link-kinds); widening it to a remark-carrying module drags
     // remark into every client bundle, which "the contract's @repo/notes edge" below walks for.
     "@repo/contract": ["@repo/domain", "@repo/notes"],
     // below the wire: an edge to @repo/contract would drag @orpc/contract and the contract's notes edge
@@ -41,25 +41,46 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // the `inteligir` edge is the binary it spawns and the config resolution naming this checkout's
     // instance; the @repo/mobile edge is the phone's own platform-free runtime, driven under node
     // against a real Worker, since no Expo boots headless; the @repo/mobile-editor edge is the
-    // bridge's protocol, so the scripted phone speaks the frames the page parses.
-    "@repo/e2e": ["@repo/contract", "@repo/mobile", "@repo/mobile-editor", "inteligir"],
+    // bridge's protocol, so the scripted phone speaks the frames the page parses, and its reader
+    // mode, which the phone's runtime reads a saved link with; the @repo/page-reader edge is the
+    // linkedom DOM that reader runs over under node, where the page has its WebView's.
+    "@repo/e2e": [
+      "@repo/contract",
+      "@repo/mobile",
+      "@repo/mobile-editor",
+      "@repo/page-reader",
+      "inteligir",
+    ],
     // the editor draws with the shared component kit; @repo/ui stays a leaf below it.
     "@repo/editor": ["@repo/notes", "@repo/ui"],
-    // a partial cloud client: reads the thread log and produces captures, never pushes or claims,
-    // and writes the vault only through the guarded commit route. the @repo/notes edge is the
-    // dialect's own parse, link resolver and the one conflict verdict its write queue settles
-    // with; the @repo/mobile-editor edge is the editor page's wire alone (EDITOR_PAGE_CLIENTS
-    // below), since the page itself ships built; it reaches no server, vault engine or agent.
-    "@repo/mobile": ["@repo/contract", "@repo/domain", "@repo/mobile-editor", "@repo/notes"],
+    // a page read into an item, over the DOM its host hands it: the article is written as the
+    // editor's own fixpoint (its headless markdown pipeline) under the dialect's fence names, so the
+    // Mac's fill worker and the phone's page run one reading.
+    "@repo/page-reader": ["@repo/editor", "@repo/notes"],
+    // the browser's Save: the /browser wire and the production origin it links (BROWSER_WIRE_CLIENTS
+    // below), drawn with the shared component kit; it reaches the Mac only through the native host.
+    "@repo/extension": ["@repo/contract", "@repo/ui"],
+    // a partial cloud client: reads the hosted vault and writes it only through the guarded
+    // commit route. the @repo/notes edge is the dialect's own parse, link resolver and the one
+    // conflict verdict its write queue settles with; the @repo/mobile-editor edge is the editor
+    // page's wire alone (EDITOR_PAGE_CLIENTS below), since the page itself ships built; it
+    // reaches no server, vault engine, agent or thread.
+    "@repo/mobile": ["@repo/contract", "@repo/mobile-editor", "@repo/notes"],
     // the phone's editor page: the desktop's editor in a WebView, reaching the phone only through
-    // its own bridge, so no contract and no cloud wire.
-    "@repo/mobile-editor": ["@repo/editor", "@repo/notes", "@repo/ui"],
+    // its own bridge, so no contract and no cloud wire. The @repo/page-reader edge is its reader
+    // mode: a link the phone saved is read with the Mac's own reader, over the WebView's DOM.
+    "@repo/mobile-editor": ["@repo/editor", "@repo/notes", "@repo/page-reader", "@repo/ui"],
     "@repo/notes": [],
     "@repo/repo-guards": [],
     "@repo/ui": [],
     // a dev page no row names, so an import of it from a shipped workspace fails here.
     "@repo/ui-gallery": ["@repo/ui"],
-    "@repo/web": ["@repo/contract", "@repo/ui"],
+    // the cloud: the @repo/notes edge is the library model the account's cell applies, the same
+    // pure plans and SQL every replica runs, injected with the cell's own storage; the
+    // @repo/editor edge is the markdown codec's headless kits (`@repo/editor/codec/*`), the one
+    // reading and writing of an item an agent's procedures go through; the @repo/page-reader edge
+    // is the cloud's fill, a saved page read by the reader every device runs, over linkedom
+    "@repo/web": ["@repo/contract", "@repo/editor", "@repo/notes", "@repo/page-reader", "@repo/ui"],
     // the page every vault's server answers and the first run the shell carries; it reaches no
     // server and no shell source, only the wire to each. Its suites that boot a server live in
     // apps/cli, so nothing here depends on `inteligir`.
@@ -70,8 +91,17 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
       "@repo/notes",
       "@repo/ui",
     ],
-    // the server reaches no page: no @repo/ui, no @repo/editor, no react.
-    inteligir: ["@repo/agent-runtime", "@repo/contract", "@repo/db", "@repo/domain", "@repo/notes"],
+    // the server reaches no page: no @repo/ui, no react and no @repo/editor; the fill worker reads
+    // a page through @repo/page-reader, and the server thread its wire alone
+    // (PAGE_READER_FROM_SERVER).
+    inteligir: [
+      "@repo/agent-runtime",
+      "@repo/contract",
+      "@repo/db",
+      "@repo/domain",
+      "@repo/notes",
+      "@repo/page-reader",
+    ],
   }),
 );
 
@@ -86,12 +116,23 @@ const ZOD_ONLY_LEAVES = ["@repo/domain"];
 // @repo/contract/cloud breaks only behind the client build floor (MIN_CLIENT_BUILD) and
 // @repo/contract/local breaks freely, so a workspace that ships apart from the desktop bundle
 // reaches the cloud entry alone; each row says why it ships apart.
+// the extension's identity: constants that import nothing and change only with its store listing, so
+// a cloud-only client may link the store with them (the site's "Save from anywhere")
+const EXTENSION_IDENTITY_ENTRY = "@repo/contract/browser/extension-identity";
 const CLOUD_ONLY_CLIENTS = new Map<string, string>([
   ["@repo/web", "it serves the cloud wire and only the cloud wire"],
   [
     "@repo/mobile",
     "a phone install may be months stale against the deployed Worker, while /local ships in the desktop bundle and may break freely",
   ],
+]);
+
+// The extension ships on the Web Store's cadence, apart from the desktop bundle that /local breaks
+// with, so it reaches the contract's versioned /browser wire (behind BROWSER_WIRE_FLOOR) and the
+// production origin its "Get Inteligir for Mac" links, and nothing else of it.
+const BROWSER_WIRE_ENTRIES = ["@repo/contract/browser/", "@repo/contract/cloud/origin"];
+const BROWSER_WIRE_CLIENTS = new Map<string, string>([
+  ["@repo/extension", "a browser install updates on the Web Store's cadence, not the app's"],
 ]);
 
 // The phone's editor page is DOM React built by Vite; a native client that hosts it reaches the
@@ -104,6 +145,15 @@ const EDITOR_PAGE_CLIENTS = new Map<string, string>([
     "React Native under Metro and TypeScript 6, hosting the page in a WebView from the app bundle",
   ],
 ]);
+
+// The server's reach into the page reader: the fill worker reads a page with it in its own thread,
+// so the DOM, the extractor and the editor's fixpoint stay out of the main bundle every verb loads.
+// The server thread reaches the reader's wire (the zod answer the worker posts) and its url rule,
+// which import no DOM; anything else of it outside the worker's folder lands the extractor there.
+const PAGE_READER_FROM_SERVER = {
+  dir: "apps/cli/src/server/items/capture/fill/",
+  anywhere: new Set(["@repo/page-reader/page-facts", "@repo/page-reader/web-url"]),
+} as const;
 
 const edgesFrom = (workspace: Workspace, files: readonly string[]): Map<string, string[]> => {
   const edges = new Map<string, string[]>();
@@ -379,12 +429,49 @@ describe("platform purity", () => {
           if (!specifier.startsWith("@repo/contract/")) {
             continue;
           }
-          if (specifier.startsWith("@repo/contract/cloud/")) {
+          if (
+            specifier.startsWith("@repo/contract/cloud/") ||
+            specifier === EXTENSION_IDENTITY_ENTRY
+          ) {
             continue;
           }
           violations.push(
             `LOCAL CONTRACT IN A CLOUD-ONLY CLIENT  ${file} imports "${specifier}"\n` +
-              `  rule: ${name} reaches @repo/contract/cloud/* alone — ${why}`,
+              `  rule: ${name} reaches @repo/contract/cloud/* (and the extension's identity) alone — ${why}`,
+          );
+        }
+      }
+    }
+    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+  });
+
+  it("every browser wire client reaches @repo/contract's browser entry and its origin, and nothing else", () => {
+    const violations: string[] = [];
+    for (const [name, why] of BROWSER_WIRE_CLIENTS) {
+      const client = workspaces().find((candidate) => candidate.name === name);
+      if (client === undefined) {
+        violations.push(
+          `BROWSER_WIRE_CLIENTS ROW NAMES NO WORKSPACE  ${name}\n` +
+            `  rule: a pin on a workspace that is gone pins nothing — delete the row from tools/repo-guards/src/dep-dag.test.ts`,
+        );
+        continue;
+      }
+      const files = workspaceFiles(client);
+      for (const file of [...files.shipped, ...files.test]) {
+        for (const specifier of importsOf(file)) {
+          if (resolveWorkspace(specifier)?.name !== "@repo/contract") {
+            continue;
+          }
+          if (
+            BROWSER_WIRE_ENTRIES.some((entry) =>
+              entry.endsWith("/") ? specifier.startsWith(entry) : specifier === entry,
+            )
+          ) {
+            continue;
+          }
+          violations.push(
+            `CONTRACT PAST THE BROWSER WIRE  ${file} imports "${specifier}"\n` +
+              `  rule: ${name} reaches ${BROWSER_WIRE_ENTRIES.join(" and ")} alone — ${why}`,
           );
         }
       }
@@ -422,7 +509,34 @@ describe("platform purity", () => {
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 
-  it("@repo/contract's cloud entry never reaches into its local entry", () => {
+  it("the server reads a page only from the fill worker, and its thread reaches the reader's wire alone", () => {
+    const server = workspaces().find((candidate) => candidate.name === "inteligir");
+    if (server === undefined) {
+      throw new Error("inteligir is not a workspace");
+    }
+    const violations: string[] = [];
+    // shipped source alone: the workspace UI's booted suites live here and drive the page whole
+    for (const file of workspaceFiles(server).shipped) {
+      for (const specifier of importsOf(file)) {
+        if (resolveWorkspace(specifier)?.name !== "@repo/page-reader") {
+          continue;
+        }
+        if (
+          file.startsWith(PAGE_READER_FROM_SERVER.dir) ||
+          PAGE_READER_FROM_SERVER.anywhere.has(specifier)
+        ) {
+          continue;
+        }
+        violations.push(
+          `PAGE READER IN THE SERVER THREAD  ${file} imports "${specifier}"\n` +
+            `  rule: only files under ${PAGE_READER_FROM_SERVER.dir} read a page with @repo/page-reader, in the fill worker's own thread; the server thread reaches ${[...PAGE_READER_FROM_SERVER.anywhere].join(" and ")} alone`,
+        );
+      }
+    }
+    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+  });
+
+  it("@repo/contract's cloud entry never reaches into its local entry, and its browser entry reaches only zod", () => {
     // a file under src/cloud reaching src/local by relative path is invisible to the cloud-only
     // pin above; the sanctioned crossing is the other direction (local reusing a cloud constant).
     const contract = workspaces().find((candidate) => candidate.name === "@repo/contract");
@@ -431,13 +545,37 @@ describe("platform purity", () => {
     }
     const cloudDir = path.join(contract.dir, "src", "cloud");
     const localDir = path.join(contract.dir, "src", "local");
+    const browserDir = path.join(contract.dir, "src", "browser");
     const files = workspaceFiles(contract);
     const violations: string[] = [];
+    const shipped = new Set(files.shipped);
     for (const file of [...files.shipped, ...files.test]) {
+      if (file.startsWith(`${browserDir}/`)) {
+        // the extension's whole reach into the contract, so what ships of it carries nothing but
+        // zod; its suites may reach node to derive what it states
+        for (const specifier of shipped.has(file) ? importsOf(file) : []) {
+          if (specifier !== "zod" && !specifier.startsWith(".")) {
+            violations.push(
+              `BROWSER REACHES PAST ZOD  ${file} imports "${specifier}"\n` +
+                `  rule: @repo/contract/browser is the extension's one wire — it imports zod and its own browser/ modules, so the extension bundle carries no other package`,
+            );
+          }
+          if (
+            specifier.startsWith(".") &&
+            !path.join(path.dirname(file), specifier).startsWith(`${browserDir}/`)
+          ) {
+            violations.push(
+              `BROWSER REACHES PAST ITS BUCKET  ${file} imports "${specifier}"\n` +
+                `  rule: @repo/contract/browser imports only its own browser/ modules; /local imports it, never the other way`,
+            );
+          }
+        }
+        continue;
+      }
       if (!file.startsWith(`${cloudDir}/`) && !file.startsWith(`${localDir}/`)) {
         violations.push(
           `THIRD BUCKET  ${file}\n` +
-            `  rule: every file under packages/contract/src lives in src/cloud or src/local — a third bucket is a file this guard never reads`,
+            `  rule: every file under packages/contract/src lives in src/cloud, src/local or src/browser — a fourth bucket is a file this guard never reads`,
         );
         continue;
       }
@@ -460,7 +598,7 @@ describe("platform purity", () => {
   });
 
   it("the Cloudflare Worker imports no Node package", () => {
-    // nodejs_compat shims some node: modules on workerd, not the native addons and spawned
+    // workerd's Node.js compatibility covers some node: modules, not the native addons and spawned
     // processes behind them.
     const reachesNode = new Map<string, boolean>();
     const resolve = (name: string, seen: Set<string>): boolean => {
@@ -625,8 +763,8 @@ describe("the contract's @repo/notes edge", () => {
 
 describe("tests are excluded from the shipped graph", () => {
   it("classifies suites, fixtures and test-only ports as tests", () => {
-    expect(isTestFile("packages/db/src/__tests__/db.test.ts")).toBe(true);
-    expect(isTestFile("apps/cli/src/server/__tests__/boot-app.ts")).toBe(true);
+    expect(isTestFile("packages/db/src/db.test.ts")).toBe(true);
+    expect(isTestFile("apps/cli/src/server/test-support/boot-app.ts")).toBe(true);
     expect(isTestFile("packages/agent-runtime/src/test-support/fake-acp-agent.mjs")).toBe(true);
     expect(isTestFile("packages/db/src/schema.ts")).toBe(false);
   });

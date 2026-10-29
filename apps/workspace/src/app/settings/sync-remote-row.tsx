@@ -96,7 +96,7 @@ export const SyncRemoteForm = ({ status, pending, onSave }: SyncRemoteFormProps)
   const accountNote =
     status.externalSync === null
       ? "Syncs through the account you sign in with under Account."
-      : `${externalSyncName(status.externalSync)} syncs this folder, so the hosted vault stays off here.`;
+      : `${externalSyncName(status.externalSync)} syncs this folder, so the online library stays off here.`;
 
   return (
     <Row label="Sync with">
@@ -128,7 +128,7 @@ export const SyncRemoteForm = ({ status, pending, onSave }: SyncRemoteFormProps)
         <Note>
           {kind === "account"
             ? accountNote
-            : `Uses this Mac's git credentials.${current.kind === "account" ? " Your phone and your other signed-in devices stop seeing this vault's notes." : ""}`}
+            : `Uses this Mac's git credentials.${current.kind === "account" ? " Your phone and your other signed-in devices stop seeing this library." : ""}`}
         </Note>
         <Button
           type="submit"
@@ -151,7 +151,7 @@ export const SyncRemoteRow = ({ status }: { status: VaultStatusResponse | undefi
   const setRemote = useMutation(
     orpc.vault.setRemote.mutationOptions({
       onError: (cause) => {
-        failed(cause, "Could not change where this vault syncs.");
+        failed(cause, "Could not change where this library syncs.");
       },
       onSuccess: (response) => {
         queryClient.setQueryData(orpc.vault.status.queryKey(), response);

@@ -17,13 +17,8 @@ import {
 // nothing listens on port 1, so claude's add looks for no sign-in and codex's finds none to start.
 const DEAD_URL = "http://127.0.0.1:1/mcp";
 const URL_NAME = "dead";
-const COMMAND_NAME = "local";
-const COMMAND = "npx";
-const ARGUMENT = "some-server";
+const CODEX_NAME = "dead-codex";
 const DEADLINE_MS = 60_000;
-
-const COMMAND_INPUT = `${CONNECTOR_FORM} input[placeholder="npx"]`;
-const ARGS_INPUT = `${CONNECTOR_FORM} textarea`;
 
 // the vendor's own file, which is what an agent session loads.
 const untilFile = async (
@@ -57,7 +52,7 @@ const openSettings = async (agentBrowser: AgentBrowser, app: AppInstance): Promi
 
 export const connectorsBrowser: Scenario = {
   description:
-    "Settings' connectors are the default agent's own config, through the real bundled binaries: a URL added under Claude lands in the instance's `.claude.json`, a command added under ChatGPT in its codex `config.toml`, and each Remove confirms and takes its row out of that file",
+    "Settings' connectors are the default agent's own config, through the real bundled binaries: a URL added under Claude lands in the instance's `.claude.json`, one added under ChatGPT in its codex `config.toml`, and each Remove confirms and takes its row out of that file",
   name: "connectors-browser",
   async run(ctx) {
     const app = await ctx.boot({ name: "solo" });
@@ -74,29 +69,26 @@ export const connectorsBrowser: Scenario = {
     await untilFile(claudeFile, (text) => text.includes(DEAD_URL), `held ${DEAD_URL}`);
     await untilBodyHolds(agentBrowser, [DEAD_URL], DEADLINE_MS);
 
-    ctx.log("under ChatGPT, the section lists codex's config, and a command lands in it");
+    ctx.log("under ChatGPT, the section lists codex's config, and a URL lands in it");
     await app.api.agents.setDefault({ id: "codex" });
     await openSettings(agentBrowser, app);
     await untilBodyHolds(agentBrowser, ["Apps and services ChatGPT can use"], DEADLINE_MS);
-    await agentBrowser(["fill", NAME_INPUT, COMMAND_NAME]);
-    await agentBrowser(["find", "role", "radio", "click", "--name", "Command", "--exact"]);
-    await agentBrowser(["wait", COMMAND_INPUT], 10_000);
-    await agentBrowser(["fill", COMMAND_INPUT, COMMAND]);
-    await agentBrowser(["fill", ARGS_INPUT, ARGUMENT]);
+    await agentBrowser(["fill", NAME_INPUT, CODEX_NAME]);
+    await agentBrowser(["fill", URL_INPUT, DEAD_URL]);
     await clickButtonIn(agentBrowser, CONNECTOR_FORM, "Add", 10_000);
     await untilFile(
       codexFile,
-      (text) => text.includes(`[mcp_servers.${COMMAND_NAME}]`) && text.includes(ARGUMENT),
-      `held [mcp_servers.${COMMAND_NAME}]`,
+      (text) => text.includes(`[mcp_servers.${CODEX_NAME}]`) && text.includes(DEAD_URL),
+      `held [mcp_servers.${CODEX_NAME}]`,
     );
-    await untilBodyHolds(agentBrowser, [`${COMMAND} ${ARGUMENT}`], DEADLINE_MS);
+    await untilBodyHolds(agentBrowser, [CODEX_NAME, DEAD_URL], DEADLINE_MS);
 
-    ctx.log("Remove confirms, then takes the command out of codex's config");
+    ctx.log("Remove confirms, then takes the row out of codex's config");
     await removeThroughConfirm(agentBrowser);
     await untilFile(
       codexFile,
-      (text) => !text.includes(`[mcp_servers.${COMMAND_NAME}]`),
-      `let go of [mcp_servers.${COMMAND_NAME}]`,
+      (text) => !text.includes(`[mcp_servers.${CODEX_NAME}]`),
+      `let go of [mcp_servers.${CODEX_NAME}]`,
     );
 
     ctx.log("back under Claude, Remove takes the URL out of claude's config");

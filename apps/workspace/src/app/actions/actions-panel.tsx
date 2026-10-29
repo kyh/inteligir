@@ -10,7 +10,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/ta
 import type { Thread } from "@repo/contract/local/threads/threads-schema";
 import { Button } from "@repo/ui/components/button";
 import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
-import { useState } from "react";
 import type { UseInfiniteQueryResult } from "@tanstack/react-query";
 
 import { useSignedOutHarness } from "../agents/agent-hooks";
@@ -19,21 +18,21 @@ import { THREAD_ACTIVITY_LABELS, threadActivity } from "../thread-activity";
 import type { ThreadActivity } from "../thread-activity";
 import { useNoteThreads, useThreads } from "./thread-hooks";
 import { ActionDetail } from "./action-detail";
-import { NoteMetadataTab } from "./metadata-tab";
-import type { NoteMetadataActions } from "./metadata-tab";
-import { CommentsTab } from "./comments-tab";
-import type { CommentFocus } from "./comments-tab";
+import { InfoTab } from "./info-tab";
+import type { InfoActions, PanelSubject } from "./info-tab";
+import { AnnotationsTab } from "./annotations-tab";
+import type { AnnotationFocus } from "./annotations-tab";
 import { HistoryTab } from "./history-tab";
 import { bindingFor } from "../global-shortcuts";
 
-export type PanelTab = "actions" | "comments" | "history" | "metadata";
+export type PanelTab = "info" | "annotations" | "actions" | "history";
 
-const PANEL_TABS: readonly PanelTab[] = ["actions", "comments", "history", "metadata"];
+const PANEL_TABS: readonly PanelTab[] = ["info", "annotations", "actions", "history"];
 const PANEL_TAB_LABELS = {
   actions: "Actions",
-  comments: "Comments",
+  annotations: "Annotations",
   history: "History",
-  metadata: "Metadata",
+  info: "Info",
 } satisfies Record<PanelTab, string>;
 
 export interface ActionsPanelProps {
@@ -42,11 +41,14 @@ export interface ActionsPanelProps {
   modifier: ShortcutModifier;
   tab: PanelTab;
   onTabChange: (tab: PanelTab) => void;
-  commentFocus: CommentFocus | null;
+  annotationFocus: AnnotationFocus | null;
   selectedThreadId: string | null;
   onSelectThread: (threadId: string | null) => void;
   onOpenDoc: (path: string) => void;
-  noteMetadata: NoteMetadataActions;
+  // what Info is about, and the verbs it offers over it
+  subject: PanelSubject;
+  selectionCount: number;
+  infoActions: InfoActions;
 }
 
 // ⌘K would open on the sign-in while the default agent is signed out, so the list offers it here.
@@ -58,7 +60,7 @@ const NoActionsYet = ({ modifier }: { modifier: ShortcutModifier }) =>
   ) : (
     <div className="space-y-3 p-3">
       <p className="text-subtitle text-muted-foreground">
-        No actions yet. Sign in to ask the agent to work on your notes.
+        No actions yet. Sign in to ask the agent to work on your library.
       </p>
       <AgentSignIn />
     </div>
@@ -122,14 +124,15 @@ export const ActionsPanel = ({
   docPath,
   tab,
   onTabChange,
-  commentFocus,
+  annotationFocus,
   selectedThreadId,
   onSelectThread,
   onOpenDoc,
-  noteMetadata,
+  subject,
+  selectionCount,
+  infoActions,
   modifier,
 }: ActionsPanelProps) => {
-  const [propertiesOpen, setPropertiesOpen] = useState(true);
   const recentQuery = useThreads();
   const noteQuery = useNoteThreads(docPath);
   const recent = recentQuery.data ?? [];
@@ -156,19 +159,18 @@ export const ActionsPanel = ({
           ))}
         </TabsList>
       </div>
-      <TabsContent value="comments">
-        <CommentsTab docPath={docPath} focus={commentFocus} modifier={modifier} />
+      <TabsContent value="annotations">
+        <AnnotationsTab docPath={docPath} focus={annotationFocus} modifier={modifier} />
       </TabsContent>
       <TabsContent value="history">
         <HistoryTab key={docPath} docPath={docPath} />
       </TabsContent>
-      <TabsContent value="metadata">
-        <NoteMetadataTab
-          docPath={docPath}
-          propertiesOpen={propertiesOpen}
-          onPropertiesOpenChange={setPropertiesOpen}
+      <TabsContent value="info">
+        <InfoTab
+          subject={subject}
+          selectionCount={selectionCount}
+          actions={infoActions}
           onOpenDoc={onOpenDoc}
-          actions={noteMetadata}
         />
       </TabsContent>
       <TabsContent value="actions">
@@ -177,14 +179,14 @@ export const ActionsPanel = ({
             {noteActions.length > 0 ? (
               <>
                 <p className="px-2 pt-1 pb-0.5 text-caption font-medium text-muted-foreground uppercase">
-                  This note
+                  This item
                 </p>
                 <TaskList variant="list">
                   {noteActions.map((thread) => (
                     <ActionRow key={thread.id} thread={thread} onSelect={onSelectThread} />
                   ))}
                 </TaskList>
-                <ShowMoreActions pages={noteQuery} label="Show more for this note" />
+                <ShowMoreActions pages={noteQuery} label="Show more for this item" />
               </>
             ) : null}
             {otherActions.length > 0 || recentQuery.hasNextPage ? (

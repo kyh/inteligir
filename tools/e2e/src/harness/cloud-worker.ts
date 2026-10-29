@@ -1,8 +1,9 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { buildProcessEnv, exec, hermeticProcessEnv } from "./exec";
+import { exec, hermeticProcessEnv } from "./exec";
 import { bootWithPorts, spawnSupervised } from "./tracked-child";
 import type { TrackedProcess } from "./tracked-child";
+import { turboBuildOnce } from "./turbo-build";
 
 const READY_POLL_INTERVAL_MS = 250;
 // a cold vite build of the whole Worker; a cached one returns at once.
@@ -23,6 +24,8 @@ export const E2E_INVITE_CODE = "E2E-INVITE";
 
 export interface CloudWorker extends TrackedProcess {
   origin: string;
+  // the host's own door to what an account holds (`./worker-host.ts`), never the Worker's
+  inspectOrigin: string;
 }
 
 export interface LaunchCloudWorkerArgs {
@@ -48,27 +51,44 @@ const workerAnswered = async (origin: string): Promise<boolean> => {
 };
 
 // the Worker that deploys, not its source: built through turbo rather than looked for on disk, as a
-// present artifact may be stale and boot last week's Worker.
+// present artifact may be stale and boot last week's Worker. Once per run, since every Worker a run
+// boots serves its assets from this one output, and a rebuild under a booted one would move them.
 const buildWorker = async (args: LaunchCloudWorkerArgs): Promise<void> => {
-  args.onLog("building the Worker (turbo, @repo/web)");
-  await exec("pnpm", ["turbo", "run", "build", "--filter=@repo/web"], {
-    cwd: args.repoRoot,
-    env: buildProcessEnv(),
+  await turboBuildOnce({
+    filter: "@repo/web",
+    onLog: args.onLog,
+    repoRoot: args.repoRoot,
     timeoutMs: BUILD_TIMEOUT_MS,
   });
 };
 
-const writeSchema = async (webDir: string, args: LaunchCloudWorkerArgs): Promise<string> => {
-  args.onLog("deriving the D1 auth schema (apps/web db:export)");
+// the schema's own DDL, derived once per run: it is a function of the checkout
+let exportedSchema: Promise<string> | null = null;
+
+const exportSchema = async (webDir: string): Promise<string> => {
   const ddl = await exec("pnpm", ["run", "--silent", "db:export"], {
     cwd: webDir,
     env: hermeticProcessEnv(),
     timeoutMs: SCHEMA_EXPORT_TIMEOUT_MS,
   });
+  return ddl.stdout;
+};
+
+const writeSchema = async (webDir: string, args: LaunchCloudWorkerArgs): Promise<string> => {
+  args.onLog("deriving the D1 auth schema (apps/web db:export, once per run)");
+  exportedSchema ??= exportSchema(webDir);
+  let ddl: string;
+  try {
+    ddl = await exportedSchema;
+  } catch (error) {
+    // a failed export is forgotten, so the next Worker derives it again
+    exportedSchema = null;
+    throw error;
+  }
   const schemaFile = path.join(args.scratchDir, "worker-schema.sql");
   await writeFile(
     schemaFile,
-    `${ddl.stdout}\nINSERT INTO invite_code (code) VALUES ('${E2E_INVITE_CODE}');\n`,
+    `${ddl}\nINSERT INTO invite_code (code) VALUES ('${E2E_INVITE_CODE}');\n`,
     "utf-8",
   );
   return schemaFile;
@@ -88,16 +108,19 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
     label: "the cloud worker",
     onLog: args.onLog,
     pollIntervalMs: READY_POLL_INTERVAL_MS,
-    // the Worker, plus the inspector it always opens.
-    portCount: 2,
+    // the Worker, the inspector it always opens, and the host's view of an account's holdings.
+    portCount: 3,
     ready: async (handle) => await workerAnswered(handle.origin),
     spawn: (ports) => {
       const port = ports[0] ?? 0;
       const inspectorPort = ports[1] ?? 0;
+      const inspectPort = ports[2] ?? 0;
+      const origin = `http://127.0.0.1:${String(port)}`;
       const child = spawnSupervised({
         argv: [
           path.join(e2eDir, "src", "harness", "worker-host.ts"),
           JSON.stringify({
+            inspectPort,
             inspectorPort,
             outputDir: path.join(webDir, ".cloudflare", "output", "v0", "workers", "default"),
             port,
@@ -107,6 +130,8 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
               BETTER_AUTH_SECRET,
               // the suite signs up more than one account from one IP.
               RATE_LIMIT_DISABLED: "true",
+              // the connector's issuer and resource, which the build names as production's
+              SITE_ORIGIN: origin,
               ...args.vars,
             },
           }),
@@ -116,7 +141,11 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
         file: path.join(e2eDir, "node_modules", ".bin", "tsx"),
         name: "cloud-worker",
       });
-      const handle: CloudWorker = { ...child, origin: `http://127.0.0.1:${String(port)}` };
+      const handle: CloudWorker = {
+        ...child,
+        inspectOrigin: `http://127.0.0.1:${String(inspectPort)}`,
+        origin,
+      };
       args.register(handle);
       args.onLog(`booting the cloud worker on ${handle.origin}`);
       return { child, handle };

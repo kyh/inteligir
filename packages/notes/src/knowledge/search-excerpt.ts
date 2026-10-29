@@ -2,7 +2,7 @@
 // and a stem-only hit lands in `body_stems`, so asking the literal column hands
 // back the note's opening words. Both engines cut here, over the literal text.
 
-import { clipSnippet } from "./projection";
+import { clipSnippet } from "../text/clip-text";
 import { stemToken, tokenize } from "./search-query";
 import type { SearchQueryTerm } from "./search-query";
 

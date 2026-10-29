@@ -1,0 +1,128 @@
+import { writeFileSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import {
+  AUDIENCE_INSTRUCTIONS,
+  CLI_POINTER_INSTRUCTIONS,
+  hasLibraryInstructions,
+  promptFactsFor,
+  toInstructions,
+} from "./agent-instructions";
+import { makeTempDir } from "../test-support/temp-dir";
+import { fakeSessionFacts } from "./test-support/agent-test-harness";
+
+const CLI_BIN_DIR = "/repo/apps/cli/bin";
+
+const makeVaultDir = (): string => makeTempDir("inteligir-instructions-test-");
+
+const afterAudience = (rest: string): string => `${AUDIENCE_INSTRUCTIONS}\n\n${rest}`;
+
+// the library's AGENTS.md, under the header that says it is the person's filing rules
+const RULES_HEADER = "The library's own instructions (its AGENTS.md, the person's filing rules):";
+const rules = (text: string): string => `${RULES_HEADER}\n\n${text}`;
+
+describe("the agent's words", () => {
+  it("speak of a library and its items, folders and tags, to someone who is not a developer", () => {
+    expect(AUDIENCE_INSTRUCTIONS).toContain("keeps a library in this app");
+    expect(AUDIENCE_INSTRUCTIONS).toContain("its items, folders and tags");
+    expect(AUDIENCE_INSTRUCTIONS).toContain("never ask them to run a command");
+    expect(CLI_POINTER_INSTRUCTIONS).toContain("drives this library from your shell");
+    expect(CLI_POINTER_INSTRUCTIONS).toContain("save links and files, list and tag items");
+  });
+
+  it("point at the items skill before saving, filing or tagging", () => {
+    expect(
+      toInstructions(fakeSessionFacts({ skillsDir: "/repo/skills" }), makeVaultDir()),
+    ).toContain(
+      "read inteligir-notes first, and inteligir-items before saving, filing or tagging an item",
+    );
+  });
+});
+
+describe("the prompt's facts", () => {
+  it("name the CLI only when its binary resolved, and the filing rules only when the library has them", () => {
+    const vaultDir = makeVaultDir();
+    expect(promptFactsFor(fakeSessionFacts(), vaultDir)).toEqual({
+      cli: false,
+      filingRules: false,
+    });
+    expect(hasLibraryInstructions(vaultDir)).toBe(false);
+    writeFileSync(path.join(vaultDir, "AGENTS.md"), "File recipes under Cooking.\n", "utf-8");
+    expect(promptFactsFor(fakeSessionFacts({ cliBinDir: CLI_BIN_DIR }), vaultDir)).toEqual({
+      cli: true,
+      filingRules: true,
+    });
+    writeFileSync(path.join(vaultDir, "AGENTS.md"), "  \n", "utf-8");
+    expect(hasLibraryInstructions(vaultDir)).toBe(false);
+  });
+});
+
+describe("toInstructions", () => {
+  it("states the audience first on every set", () => {
+    const vaultDir = makeVaultDir();
+    writeFileSync(path.join(vaultDir, "AGENTS.md"), "Vault rules.\n", "utf-8");
+    const sets = [
+      toInstructions(fakeSessionFacts(), makeVaultDir()),
+      toInstructions(fakeSessionFacts({ cliBinDir: CLI_BIN_DIR }), makeVaultDir()),
+      toInstructions(
+        fakeSessionFacts({ cliBinDir: CLI_BIN_DIR, skillsDir: "/repo/skills" }),
+        vaultDir,
+      ),
+    ];
+    for (const instructions of sets) {
+      expect(instructions.startsWith(AUDIENCE_INSTRUCTIONS)).toBe(true);
+    }
+    expect(sets.at(-1)?.endsWith("Vault rules.")).toBe(true);
+  });
+
+  it("points at the skills dir only when one resolved", () => {
+    const vaultDir = makeVaultDir();
+    expect(toInstructions(fakeSessionFacts({ skillsDir: "/repo/skills" }), vaultDir)).toContain(
+      "$INTELIGIR_SKILLS_DIR",
+    );
+    expect(toInstructions(fakeSessionFacts({ cliBinDir: CLI_BIN_DIR }), vaultDir)).not.toContain(
+      "$INTELIGIR_SKILLS_DIR",
+    );
+  });
+
+  it("is the audience and the CLI pointer alone when the vault has no AGENTS.md", () => {
+    expect(toInstructions(fakeSessionFacts({ cliBinDir: CLI_BIN_DIR }), makeVaultDir())).toBe(
+      afterAudience(CLI_POINTER_INSTRUCTIONS),
+    );
+  });
+
+  it("appends the vault's AGENTS.md below the CLI pointer", () => {
+    const vaultDir = makeVaultDir();
+    writeFileSync(path.join(vaultDir, "AGENTS.md"), "Always answer in haiku.\n", "utf-8");
+    expect(toInstructions(fakeSessionFacts({ cliBinDir: CLI_BIN_DIR }), vaultDir)).toBe(
+      afterAudience(`${CLI_POINTER_INSTRUCTIONS}\n\n${rules("Always answer in haiku.")}`),
+    );
+  });
+
+  it("omits the CLI pointer when no binary ships — instructions never promise a missing command", () => {
+    const vaultDir = makeVaultDir();
+    expect(toInstructions(fakeSessionFacts(), vaultDir)).toBe(AUDIENCE_INSTRUCTIONS);
+    writeFileSync(path.join(vaultDir, "AGENTS.md"), "Vault rules.\n", "utf-8");
+    expect(toInstructions(fakeSessionFacts(), vaultDir)).toBe(afterAudience(rules("Vault rules.")));
+  });
+
+  it("head-caps an oversized AGENTS.md — instruction bytes are a per-turn cost", () => {
+    const vaultDir = makeVaultDir();
+    writeFileSync(path.join(vaultDir, "AGENTS.md"), "x".repeat(40_000), "utf-8");
+    expect(toInstructions(fakeSessionFacts({ cliBinDir: CLI_BIN_DIR }), vaultDir)).toBe(
+      afterAudience(`${CLI_POINTER_INSTRUCTIONS}\n\n${rules("x".repeat(32_768))}`),
+    );
+  });
+
+  it("caps by UTF-8 BYTES and never splits a character", () => {
+    const vaultDir = makeVaultDir();
+    // each emoji is 4 UTF-8 bytes and 2 UTF-16 units.
+    writeFileSync(path.join(vaultDir, "AGENTS.md"), "😀".repeat(10_000), "utf-8");
+    const vaultPart = toInstructions(fakeSessionFacts(), vaultDir).slice(
+      afterAudience(rules("")).length,
+    );
+    expect(new TextEncoder().encode(vaultPart).byteLength).toBeLessThanOrEqual(32_768);
+    expect(vaultPart).not.toContain("�");
+    expect(vaultPart).toBe("😀".repeat(32_768 / 4));
+  });
+});

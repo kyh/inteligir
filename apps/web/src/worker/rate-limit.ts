@@ -4,8 +4,8 @@ import { rateLimit } from "./db/schema";
 
 // Fixed windows over Better Auth's own rate_limit table, which Better Auth prunes on its own
 // writes: a row whose last request is older than its longest window goes, the Worker's included.
-// Unauthenticated callers are keyed on their address, verified devices on the device; the kill
-// switch is read here, not per caller.
+// Unauthenticated callers are keyed on their address, verified devices on the device and an
+// assistant on its grant; the kill switch is read here, not per caller.
 
 export interface RateWindow {
   readonly max: number;
@@ -48,6 +48,9 @@ const allowInWindow = async (
 // named here because eviction must spend the same spellings the routes do; the table has no foreign key
 const DEVICE_RATE_KEY_PREFIXES = {
   accountDelete: "account-delete:",
+  blobs: "blobs:",
+  connector: "connector:",
+  rpc: "rpc:",
   vaultGit: "vault-git:",
   vaultRead: "vault-read:",
   vaultWrite: "vault-write:",
@@ -71,8 +74,9 @@ export const forgetDeviceBudgets = async (db: Db, deviceIds: readonly string[]):
 };
 
 // the unauthenticated routes, keyed on the caller's address: nothing else about the caller is
-// known yet, and a login with no throttle is a password oracle
+// known yet, a login with no throttle is a password oracle, and a registration with none fills KV
 const CALLER_RATE_KEY_PREFIXES = {
+  clientRegistration: "client-registration:",
   inviteSignUp: "invite-signup:",
   login: "device-login:",
 } as const;
@@ -92,9 +96,22 @@ export const RATE_WINDOWS = {
   // a password check behind a device credential, so a stolen one guesses here rather than at
   // login's per-address window; a person mistypes a few times, never dozens
   accountDelete: { max: 5, windowMs: 60_000 },
+  // an assistant registering itself with the connector's OAuth: each one is a client record KV
+  // keeps 90 days, and a person connects an assistant or two at a time, never dozens a minute
+  clientRegistration: { max: 10, windowMs: 60_000 },
   // low: a code is short enough to guess at volume, and Better Auth's limiter never sees a rejected invite
   inviteSignUp: { max: 10, windowMs: 60_000 },
   login: { max: 10, windowMs: 60_000 },
+  // a library's files, read and written: a grid of covers and a video read range by range are the
+  // legitimate bursts, as a note's embeds were the vault's
+  blobs: { max: 3000, windowMs: 60_000 },
+  // every call a connected assistant makes on the connector, keyed on its grant: a turn reads and
+  // edits a few dozen times, and a client listing and calling its tools in a loop is no person's
+  connector: { max: 300, windowMs: 60_000 },
+  // every signed call on /v1/rpc, keyed on the device or the browser session: a replica back from
+  // a week away pulls a thousand changes a page and its bodies four MB an answer while its outbox
+  // drains a write a call, which a few hundred calls cover, so a ceiling past that is a loop
+  rpc: { max: 1200, windowMs: 60_000 },
   // set from the worst legitimate minute: 20 devices, every push pings the others, and a pinged
   // device syncs at once, so one device can owe ~100 requests; a ceiling near that refuses real sync
   vaultGit: { max: 600, windowMs: 60_000 },

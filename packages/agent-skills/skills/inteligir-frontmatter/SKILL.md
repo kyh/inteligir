@@ -36,6 +36,12 @@ an agent structured context before it reads the body.
 | `type`        | The kind of note — `spec`, `research`, `meeting`                             |
 | `aliases`     | Other titles wiki links may resolve through                                  |
 
+A saved item carries keys the app writes (`kind`, `url`, `site`, `author`,
+`published`, `saved`, `fetched`, `fetch-error` and `description`; see
+`inteligir-items`). They read like any property, but the app owns them: never
+invent one, and never change `kind`, `url`, `saved` or what a page's read
+wrote. A note has no `kind` key at all.
+
 None of these are fixed enums. Reuse the values the vault already uses instead
 of inventing a parallel vocabulary; a `status: in-progress` next to twenty
 `status: active` notes just splits the group in two.
@@ -58,6 +64,7 @@ guessing at a broken mapping loses data. Leave it unless fixing it is the task.
 
 - Frontmatter is the first thing in the file and closes before the H1.
 - It parses as a top-level YAML mapping.
-- `id` is untouched; unrelated keys survived your edit byte for byte.
+- `id` and every key the app wrote are untouched; unrelated keys survived
+  your edit byte for byte.
 - Values reuse the vault's existing vocabulary.
 - The note has no frontmatter at all if it had nothing worth recording.

@@ -46,8 +46,8 @@ export const AgentStep = ({ onNext }: { onNext: () => void }) => (
     <div className="space-y-1">
       <h1 className="text-title font-medium">Work with an agent</h1>
       <p className="text-body text-muted-foreground">
-        The agent reads and edits your notes with you when you ask it to. It works on your own
-        Claude or ChatGPT plan.
+        The agent files, tags and edits your library with you when you ask it to. It works on your
+        own Claude or ChatGPT plan.
       </p>
     </div>
     <Offer onNext={onNext} />

@@ -141,16 +141,7 @@ export const createCodexMcpConfig = (context: VendorProcessContext): VendorMcpCo
   return {
     add: async (name, target) => {
       refuseTaken(CODEX, await list(), name);
-      if (target.kind === "http") {
-        return await addUrl(name, target.url);
-      }
-      await runVendorConfig(
-        CODEX,
-        ["mcp", "add", name, "--", target.command, ...target.args],
-        context,
-        `adding ${name}`,
-      );
-      return null;
+      return await addUrl(name, target.url);
     },
     list,
     remove: async (name) => {

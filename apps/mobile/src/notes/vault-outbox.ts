@@ -24,15 +24,18 @@ import type { SignInFence } from "../lib/sign-in-fence";
 import type { SqlDriver, SqlExecutor } from "../lib/sql-driver";
 import type { SessionPort } from "../sync/sync-runtime";
 import {
-  commentChanges,
+  annotationChanges,
   isTextOp,
+  opAssets,
   opPaths,
   putText,
   renameChanges,
   settleSchema,
   vaultOpSchema,
+  withAssets,
+  withFilesMoved,
 } from "./outbox-ops";
-import type { OutboxRow, RowState, Settle, TextOp, VaultOp } from "./outbox-ops";
+import type { OutboxRow, RowState, Settle, StagedAsset, TextOp, VaultOp } from "./outbox-ops";
 import type { OutboxFiles } from "./outbox-files";
 import { keptLanding, resolveConflict } from "./outbox-reconcile";
 import type { ReconcileContext } from "./outbox-reconcile";
@@ -49,8 +52,8 @@ const MAX_RETRY_MS = 5 * 60 * 1000;
 
 // the refusals that park a row, each with the words its notice says
 const PARKING_CODES: ReadonlyMap<CloudErrorCode, string> = new Map([
-  ["file-too-large", "This is too large to save to your vault from your phone."],
-  ["bad-request", "Your vault could not take this change."],
+  ["file-too-large", "This is too large to save to your library from your phone."],
+  ["bad-request", "Your library could not take this change."],
 ]);
 
 export const STAGED_FILE_GONE = "This attachment is no longer on your phone.";
@@ -64,7 +67,7 @@ type ParkedChange = ParkedKind & {
   seq: number;
   paths: readonly string[];
   reason: string;
-  // a note's text or an attachment can be kept under a free name; a rename, a delete or a comment
+  // a note's text or an attachment can be kept under a free name; a rename, a delete or an annotation
   // cannot
   canSaveAsNew: boolean;
 };
@@ -116,15 +119,22 @@ export interface VaultOutbox {
   load: (fence: Fence) => Promise<void>;
   // every row and staged file, with the mirror on a sign-out or a revocation
   wipe: () => Promise<void>;
-  // durable before it resolves; false only when the sign-in it ran under ended
-  enqueue: (op: VaultOp, fence: Fence) => Promise<boolean>;
-  // replaces the text of a queued write or create, keeping its base; `expected` is the text the
-  // caller read the row as, so a row a landing rebased meanwhile answers `stale`
+  // durable before it resolves, with whatever `alongside` writes in the same transaction; false only
+  // when the sign-in it ran under ended
+  enqueue: (
+    op: VaultOp,
+    fence: Fence,
+    alongside?: (tx: SqlExecutor) => Promise<void>,
+  ) => Promise<boolean>;
+  // replaces the text of a queued write or create, keeping its base, and adds the files the new text
+  // embeds; `expected` is the text the caller read the row as, so a row a landing rebased meanwhile
+  // answers `stale`
   coalesce: (
     seq: number,
     expected: string,
     content: string,
     fence: Fence,
+    assets?: readonly StagedAsset[],
   ) => Promise<"coalesced" | "stale" | "fenced">;
   stage: (name: string, bytes: Uint8Array) => Promise<void>;
   stagedUri: (name: string) => Promise<string | null>;
@@ -244,11 +254,11 @@ const removedBy = (op: VaultOp): readonly string[] => {
       return [op.from];
     }
     case "remove": {
-      return [op.path, ...op.stores.map((store) => store.path)];
+      return [op.path, ...op.alongside.map((file) => file.path)];
     }
     case "write":
     case "create":
-    case "comment":
+    case "annotation":
     case "putAsset": {
       return [];
     }
@@ -300,8 +310,8 @@ const landingsOf = (
     }
     if (change.op === "put") {
       const text = landedText(change);
-      const size =
-        text === null && row.op.op === "putAsset" ? row.op.size : utf8ByteLength(text ?? "");
+      const asset = opAssets(row.op).find((each) => each.path === change.path);
+      const size = text === null ? (asset?.size ?? 0) : utf8ByteLength(text);
       landings.push({ commit, kind: "put", oid, path: change.path, size, text });
     } else {
       const text = row.op.op === "rename" ? row.op.baseContent : null;
@@ -324,8 +334,26 @@ const landingsOf = (
   return landings;
 };
 
+// the path a landing leaves a blob at; none for a removal
+const heldAt = (landing: MirrorLanding): string | null => {
+  switch (landing.kind) {
+    case "put": {
+      return landing.path;
+    }
+    case "move": {
+      return landing.to;
+    }
+    case "remove": {
+      return null;
+    }
+    // no default
+  }
+};
+
 // a write made while its row was out lands as a new row on what the vault took: rebased when the
-// vault took a merge, kept as it is when the vault left no text to rebase onto
+// vault took a merge, kept as it is when the vault left no text to rebase onto. It keeps every file
+// the row names that the landing did not put, so a fill's cover that joined its stub's save while
+// that set was out goes with the fill's text, never behind it.
 const remainderOf = (
   now: OutboxRow,
   mine: string | null,
@@ -335,18 +363,20 @@ const remainderOf = (
     return null;
   }
   const { path } = now.op;
+  const held = new Set(landings.map(heldAt));
+  const assets = opAssets(now.op).filter((asset) => !held.has(asset.path));
   const landed = landings.find(
     (landing): landing is Extract<MirrorLanding, { kind: "put" }> =>
       landing.kind === "put" && landing.path === path,
   );
   if (landed === undefined || landed.text === null) {
-    return { ...now, settle: null, state: PENDING };
+    return { ...now, op: { ...now.op, assets }, settle: null, state: PENDING };
   }
   const content =
     landed.text === mine ? now.op.content : diff3(mine, now.op.content, landed.text).merged;
   return {
     ...now,
-    op: { baseContent: landed.text, baseOid: landed.oid, content, op: "write", path },
+    op: { assets, baseContent: landed.text, baseOid: landed.oid, content, op: "write", path },
     settle: null,
     state: PENDING,
   };
@@ -357,6 +387,37 @@ const mineOf = (row: OutboxRow): string | null => {
     return row.settle.mine;
   }
   return isTextOp(row.op) ? row.op.content : null;
+};
+
+// the set a row sends beside the files it puts: its settle once it has one, else its own change
+const ownChanges = (row: OutboxRow): readonly VaultChangeRequest[] => {
+  if (row.settle !== null) {
+    return row.settle.changes;
+  }
+  const { op } = row;
+  switch (op.op) {
+    case "write":
+    case "create": {
+      return [textPut(op)];
+    }
+    case "remove": {
+      return [op, ...op.alongside].map((removed): VaultChangeRequest => ({
+        base: removed.baseOid,
+        op: "delete",
+        path: removed.path,
+      }));
+    }
+    case "rename": {
+      return renameChanges(op);
+    }
+    case "annotation": {
+      return annotationChanges(op);
+    }
+    case "putAsset": {
+      return [];
+    }
+    // no default
+  }
 };
 
 type SendOutcome = "landed" | "parked" | "again" | "stop" | "fenced";
@@ -432,33 +493,64 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
 
   // a staged file goes once no row names it; two rows staging the same bytes share one
   const stagedBy = (file: string): boolean =>
-    rows.some((row) => row.op.op === "putAsset" && row.op.stagedFile === file);
+    rows.some((row) => opAssets(row.op).some((asset) => asset.stagedFile === file));
 
   const releaseStaged = async (op: VaultOp): Promise<void> => {
-    if (op.op !== "putAsset" || stagedBy(op.stagedFile)) {
-      return;
-    }
-    try {
-      await files.remove(op.stagedFile);
-    } catch {
-      // an orphan costs space until the next wipe clears the folder
+    for (const { stagedFile } of opAssets(op)) {
+      if (stagedBy(stagedFile)) {
+        continue;
+      }
+      try {
+        await files.remove(stagedFile);
+      } catch {
+        // an orphan costs space until the next wipe clears the folder
+      }
     }
   };
 
   // the bytes the vault now holds go to the attachment cache under the name a read looks for, so
   // they are not downloaded again; a failure costs only that
   const keepLanded = async (fence: Fence, op: VaultOp): Promise<void> => {
-    if (op.op !== "putAsset" || args.keepLanded === undefined) {
+    if (args.keepLanded === undefined) {
       return;
     }
-    try {
-      const bytes = await files.read(op.stagedFile);
-      if (fence()) {
-        await args.keepLanded(op.stagedFile, bytes);
+    for (const { stagedFile } of opAssets(op)) {
+      try {
+        const bytes = await files.read(stagedFile);
+        if (fence()) {
+          await args.keepLanded(stagedFile, bytes);
+        }
+      } catch {
+        // the next read of it downloads it
       }
-    } catch {
-      // the next read of it downloads it
     }
+  };
+
+  // each staged file a row puts, as the put the set carries; null when one is gone from the phone
+  const assetPuts = async (
+    assets: readonly StagedAsset[],
+    already: readonly VaultChangeRequest[],
+  ): Promise<VaultChangeRequest[] | null> => {
+    const named = new Set(already.flatMap(vaultChangePaths));
+    const puts: VaultChangeRequest[] = [];
+    for (const asset of assets) {
+      if (named.has(asset.path)) {
+        continue;
+      }
+      let bytes: Uint8Array;
+      try {
+        bytes = await files.read(asset.stagedFile);
+      } catch {
+        return null;
+      }
+      puts.push({
+        base: null,
+        content: { data: base64FromBytes(bytes), encoding: "base64" },
+        op: "put",
+        path: asset.path,
+      });
+    }
+    return puts;
   };
 
   const noticeOf = (report: SyncConflictReport): ConflictNotice => {
@@ -478,7 +570,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     return {
       copyPath: null,
       id: noticeIds,
-      message: `${docStem(path)} changed on another device first, so its link keeps the old name, which still opens the note.`,
+      message: `${docStem(path)} changed on another device first, so its link keeps the old name, which still opens the item.`,
       path,
     };
   };
@@ -532,51 +624,14 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     return landed.ran;
   };
 
+  // a note's files go ahead of its text in the set, and a settled row's set gains them as it is sent,
+  // so a resend after a lost answer, satisfied by what the head holds, carries them again
   const changesToSend = async (
     row: OutboxRow,
   ): Promise<{ kind: "set"; changes: readonly VaultChangeRequest[] } | { kind: "gone" }> => {
-    if (row.settle !== null) {
-      return { changes: row.settle.changes, kind: "set" };
-    }
-    const { op } = row;
-    switch (op.op) {
-      case "write":
-      case "create": {
-        return { changes: [textPut(op)], kind: "set" };
-      }
-      case "remove": {
-        return {
-          changes: [op, ...op.stores].map((removed): VaultChangeRequest => ({
-            base: removed.baseOid,
-            op: "delete",
-            path: removed.path,
-          })),
-          kind: "set",
-        };
-      }
-      case "rename": {
-        return { changes: renameChanges(op), kind: "set" };
-      }
-      case "comment": {
-        return { changes: commentChanges(op), kind: "set" };
-      }
-      case "putAsset": {
-        let bytes: Uint8Array;
-        try {
-          bytes = await files.read(op.stagedFile);
-        } catch {
-          return { kind: "gone" };
-        }
-        const put: VaultChangeRequest = {
-          base: null,
-          content: { data: base64FromBytes(bytes), encoding: "base64" },
-          op: "put",
-          path: op.path,
-        };
-        return { changes: [put], kind: "set" };
-      }
-      // no default
-    }
+    const own = ownChanges(row);
+    const puts = await assetPuts(opAssets(row.op), own);
+    return puts === null ? { kind: "gone" } : { changes: [...puts, ...own], kind: "set" };
   };
 
   // a refusal that ends the sign-in stops everything; one no resend passes parks the row; any
@@ -635,6 +690,27 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
           conflicts = [...conflicts, ...resolution.unlinked.map(unlinkedNotice)];
           changed([]);
         }
+        return "again";
+      }
+      case "files": {
+        const held = new Set(resolution.held);
+        const saved = await mutate(fence, async (tx) => {
+          const now = await readRow(tx, row.seq);
+          if (now !== null && isTextOp(now.op)) {
+            // the set is made again from the row as it stands, so no settle is kept
+            const kept: OutboxRow = {
+              ...now,
+              op: withFilesMoved(now.op, held, args.isTaken),
+              settle: null,
+            };
+            await saveRow(tx, kept);
+            replaceRow(kept);
+          }
+        });
+        if (!saved.ran) {
+          return "fenced";
+        }
+        changed([]);
         return "again";
       }
       case "local": {
@@ -780,7 +856,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
       const round = (rounds.get(row.seq) ?? 0) + 1;
       rounds.set(row.seq, round);
       if (round > MAX_ROUNDS_PER_ROW) {
-        lastError = "Your vault kept changing while this phone saved. It will try again.";
+        lastError = "Your library kept changing while this phone saved. It will try again.";
       }
       const outcome =
         round > MAX_ROUNDS_PER_ROW ? "stop" : await sendRow(current.client, fence, row);
@@ -824,7 +900,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
   };
 
   return {
-    coalesce: async (seq, expected, content, fence) => {
+    coalesce: async (seq, expected, content, fence, assets = []) => {
       const verdict = await mutate(fence, async (tx): Promise<"coalesced" | "stale"> => {
         const now = await readRow(tx, seq);
         if (now === null || !isTextOp(now.op) || now.op.content !== expected) {
@@ -833,7 +909,10 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
         // a parked settle was refused, so none of it is in the vault to land again
         const next: OutboxRow = {
           ...now,
-          op: { ...now.op, content },
+          op:
+            assets.length === 0
+              ? { ...now.op, content }
+              : { ...now.op, assets: withAssets(now.op.assets, assets), content },
           settle: isParked(now) ? null : now.settle,
           state: PENDING,
         };
@@ -875,8 +954,9 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
 
     drain,
 
-    enqueue: async (op, fence) => {
+    enqueue: async (op, fence, alongside) => {
       const landed = await mutate(fence, async (tx) => {
+        await alongside?.(tx);
         rows = [...rows, await insertRow(tx, op, Date.now())];
       });
       if (landed.ran) {
@@ -927,7 +1007,9 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
       }
       const path = freeNameBeside(op.path);
       const copy: VaultOp =
-        op.op === "putAsset" ? { ...op, path } : { content: op.content, op: "create", path };
+        op.op === "putAsset"
+          ? { ...op, path }
+          : { assets: op.assets, content: op.content, op: "create", path };
       const landed = await mutate(fence, async (tx) => {
         await tx.run("DELETE FROM outbox WHERE seq = ?", [seq]);
         dropRow(seq);

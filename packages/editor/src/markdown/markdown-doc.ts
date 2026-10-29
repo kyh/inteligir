@@ -6,6 +6,8 @@ import { ElementApi, createSlateEditor } from "platejs";
 import type { SlateEditor, Value } from "platejs";
 import { serializeMd } from "@platejs/markdown";
 
+import { recordFlowSpans } from "@repo/notes/markdown/flow-spans";
+import type { FlowSpan } from "@repo/notes/markdown/flow-spans";
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
@@ -44,7 +46,7 @@ export const gateReasonFor = (analysis: DocAnalysis): GateReason | null => {
 export const describeGateReason = (reason: GateReason): string => {
   switch (reason.kind) {
     case "too-deep": {
-      return "This note nests deeper than the rich editor can hold — opened in Raw";
+      return "This item nests deeper than the rich editor can hold — opened in Raw";
     }
     case "unstable": {
       return "Rich editing cannot settle this file's formatting — opened in Raw to protect it";
@@ -73,7 +75,7 @@ export class RoundTripError extends Error {
 }
 
 // fresh per call: Slate editors carry mutable state.
-const makeEditor = () => createSlateEditor({ plugins: BASE_KIT });
+export const headlessEditor = (): SlateEditor => createSlateEditor({ plugins: BASE_KIT });
 
 const letters = (s: string): string => s.replaceAll(/[^\p{L}\p{N}]+/gu, "").toLowerCase();
 
@@ -105,7 +107,7 @@ type Converted =
   | { ok: false; reason: GateReason };
 
 const convert = (md: string): Converted => {
-  const editor = makeEditor();
+  const editor = headlessEditor();
   const converted = mdToSlate(editor, md);
   if (!converted.ok) {
     return converted;
@@ -124,6 +126,26 @@ type Serialized = { ok: true; out: string } | { ok: false; reason: GateReason };
 // rules expect the pre-pass to have run, and Plate's own serializeMd skips it.
 export const serializeNote = (editor: SlateEditor, value: Value = editor.children): string =>
   serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY, value: pruneForMarkdown(value) });
+
+export interface SpannedNote {
+  readonly markdown: string;
+  // where each top-level node the rules wrote (a block, or a run of list items as one list) sits
+  readonly spans: readonly FlowSpan[];
+}
+
+// the same bytes, with where each top-level node landed: what the codec's view of an item maps an
+// edit back to its blocks by
+export const serializeNoteSpans = (editor: SlateEditor, value: Value): SpannedNote => {
+  const recorder = recordFlowSpans();
+  const markdown = serializeMd(editor, {
+    remarkStringifyOptions: {
+      ...MD_STRINGIFY,
+      handlers: { ...MD_STRINGIFY.handlers, root: recorder.root },
+    },
+    value: pruneForMarkdown(value),
+  });
+  return { markdown, spans: recorder.spans };
+};
 
 // stringify overflows the stack at the same depth the conversion does
 const serialize = (editor: SlateEditor, value: Value): Serialized => {
@@ -212,3 +234,33 @@ export const roundTrip = (md: string): string => {
 };
 
 export const toCanonical = (md: string): string => `${roundTrip(md).trimEnd()}\n`;
+
+// an imported page (the fill's article) written as the editor's own fixpoint: the bytes a rich
+// save of it would write, so the item opens rich and its first edit is a minimal diff.
+export interface ImportedDoc {
+  markdown: string;
+  // the share of the source's letters and digits the fixpoint still holds, which the caller weighs
+  // against a plainer spelling of the same page (an entity decoded, a mailto link unwrapped)
+  kept: number;
+}
+
+// null when the pipeline cannot settle the page (too deep, never stable, or a throw): a page is
+// hostile input, so no failure of the editor's own escapes the fill
+export const canonicalizeImported = (md: string): ImportedDoc | null => {
+  const sourceLetters = letters(md).length;
+  if (md.trim() === "") {
+    return { kept: 1, markdown: "" };
+  }
+  let markdown: string;
+  try {
+    markdown = toCanonical(md);
+    if (analyzeMarkdown(markdown).kind !== "canonical") {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+  const keptLetters = letters(markdown).length;
+  const kept = sourceLetters === 0 ? 1 : Math.min(keptLetters, sourceLetters) / sourceLetters;
+  return { kept, markdown };
+};

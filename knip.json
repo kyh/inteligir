@@ -11,16 +11,17 @@
         "src/index.ts",
         "src/desktop/desktop-entry.ts",
         "src/server/vault/watcher/parcel-child-entry.ts",
-        "src/server/knowledge/projection-worker.ts"
+        "src/server/knowledge/projection-worker.ts",
+        "src/server/items/capture/item-fill-worker.ts"
       ],
+      // the vault service's suite makes a named pipe with the system's own mkfifo, which no
+      // package provides
+      "ignoreBinaries": ["mkfifo"],
       // the ACP adapters are resolved with require from the running bundle, never imported
       "ignoreDependencies": [
         "@agentclientprotocol/claude-agent-acp",
         "@agentclientprotocol/codex-acp"
-      ],
-      // the vault service's suite makes a named pipe with the system's own mkfifo, which no
-      // package provides
-      "ignoreBinaries": ["mkfifo"]
+      ]
     },
     "apps/desktop": {
       "entry": ["scripts/*.ts"],
@@ -39,17 +40,33 @@
       // expo reads fingerprint.config.js by its name when it fingerprints the native build
       "entry": ["fingerprint.config.js"],
       // linked natively; knip's expo plugin counts it only while `updates` is on, and app.config.js
-      // leaves it off until the EAS project is committed
+      // leaves it off until the EAS project is committed. expo-linking, autolinked as
+      // expo-share-intent's peer, needs no row: the expo plugin counts it, and a row draws a hint.
       "ignoreDependencies": ["expo-updates"]
+    },
+    "apps/extension": {
+      // WXT's entrypoints live under its srcDir, src/, where knip's wxt plugin, which looks in
+      // entrypoints/ at the workspace root, does not; a page's entry is its index.html's script
+      "entry": ["src/entrypoints/*.ts", "src/entrypoints/*/main.tsx"],
+      "project": ["src/**/*.{ts,tsx,css}"],
+      // tailwindcss is @repo/ui's globals.css import, which knip does not follow
+      "ignoreDependencies": ["tailwindcss"]
     },
     "apps/mobile-editor": {
       "project": ["src/**/*.{ts,tsx,css}", "vite/**/*.ts"]
     },
     "apps/web": {
+      // the type claims are vitest's `typecheck.include`, which knip's vitest plugin does not read;
       // scripts/ is `pnpm og:cards`'s, run by node outside the build
-      "entry": ["cloudflare.config.ts", "src/worker/index.ts", "scripts/*.ts"],
+      "entry": [
+        "cloudflare.config.ts",
+        "src/worker/index.ts",
+        "src/worker/**/*.test-d.ts",
+        "scripts/*.ts"
+      ],
       "project": ["src/**/*.{ts,tsx,css}", "scripts/*.ts"],
-      "ignore": ["src/worker/types/durable-git.d.ts"],
+      // stubs the Worker's program maps by `paths` (src/worker/tsconfig.json), which knip does not follow
+      "ignore": ["src/worker/types/durable-git.d.ts", "src/worker/types/highlight-js.d.ts"],
       // `cloudflare:` is a workerd built-in module scheme, not a package
       "ignoreDependencies": ["cloudflare", "tailwindcss"]
     },
@@ -81,9 +98,9 @@
       "project": ["src/**/*.{ts,tsx}", "src/**/*.css"],
       "includeEntryExports": true,
       "ignoreExportsUsedInFile": true,
-      // src/ai is held ahead of its consumers by owner decision, export by export, in the orphan
-      // guard (tools/repo-guards/src/ui-orphan-exports.test.ts), which counts no gallery demo
-      "ignoreIssues": { "src/ai/**": ["exports"] }
+      // ApprovalCustomAnswer has no importer, not even a demo: it is an ALLOWED_EXPORTS row in the
+      // orphan guard (tools/repo-guards/src/ui-orphan-exports.test.ts), which says why it stays
+      "ignoreIssues": { "src/ai/approval-card.tsx": ["exports"] }
     }
   }
 }

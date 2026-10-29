@@ -1,0 +1,19 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    // the unpacked dev build the e2e loads with --extension
+    "build": {
+      "outputs": [".output/chrome-mv3/**"]
+    },
+    // the Web Store zip and the unpacked store build beside it (wxt.config.ts)
+    "zip": {
+      "dependsOn": ["^build"],
+      "outputs": [
+        ".output/chrome-mv3-store/**",
+        ".output/chrome-mv3-store-unpacked/**",
+        ".output/inteligir-extension-*.zip"
+      ]
+    }
+  }
+}

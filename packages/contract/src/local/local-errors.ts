@@ -9,12 +9,12 @@ import { contentHashSchema } from "./vault/vault-schema";
 
 // not BAD_REQUEST (an input schema's refusal): the filesystem's, decided after the value parsed
 export const INVALID_PATH = {
-  message: "That path is not one this vault can address",
+  message: "That path is not one this library can address",
 } as const;
 
-// the classes a VaultServiceError maps to (vault-refusals.ts is typed against these keys); a
-// comment-store row spreads them whole. PAYLOAD_TOO_LARGE is reachable from a comment store past
-// the vault's read cap.
+// the classes a VaultServiceError maps to (vault-refusals.ts is typed against these keys); an
+// annotation-store row spreads them whole. PAYLOAD_TOO_LARGE is reachable from an annotation store
+// past the vault's read cap.
 export const VAULT_REFUSAL_ERRORS = {
   CONFLICT: {},
   INVALID_PATH,
@@ -22,20 +22,15 @@ export const VAULT_REFUSAL_ERRORS = {
   PAYLOAD_TOO_LARGE: {},
 } as const;
 
-// the classes a CommentsError maps to (comments-router.ts is typed against these keys); every
-// comments row spreads them.
-export const COMMENTS_REFUSAL_ERRORS = {
+// the classes an AnnotationsError maps to (annotations-router.ts is typed against these keys);
+// every annotations row spreads them.
+export const ANNOTATIONS_REFUSAL_ERRORS = {
   BAD_REQUEST: {},
   CONFLICT: {},
 } as const;
 
 export const ALREADY_EXISTS = {
   message: "Something is already there",
-} as const;
-
-// not INVALID_PATH: the path is a valid one, and the list it would join is full
-export const LIMIT_REACHED = {
-  message: "There is no room for another",
 } as const;
 
 // `current` is absent when the file no longer exists: a delete that raced the write has nothing to merge against
@@ -73,6 +68,12 @@ export const DISPATCH_FAILED = {
   message: "The agent runtime refused the turn",
 } as const;
 
+// a file `imports.plan` cannot read as the source it was told; `reason` says which way it failed
+export const IMPORT_UNREADABLE = {
+  data: z.object({ reason: z.enum(["not-csv", "no-url-column", "empty"]) }),
+  message: "This file isn't a Raindrop export",
+} as const;
+
 // the status map is checked exhaustive against this: a code with no entry would default to 400 silently
 const LOCAL_ERRORS = {
   ALREADY_EXISTS,
@@ -80,9 +81,9 @@ const LOCAL_ERRORS = {
   ARCHIVED,
   CAS_MISMATCH,
   DISPATCH_FAILED,
+  IMPORT_UNREADABLE,
   INVALID_PATH,
   INVALID_RESOLUTION,
-  LIMIT_REACHED,
   PROVIDER_UNAVAILABLE,
   STALE_TURN,
 };
@@ -93,9 +94,9 @@ export const LOCAL_ERROR_STATUS_MAP = {
   ARCHIVED: 409,
   CAS_MISMATCH: 409,
   DISPATCH_FAILED: 503,
+  IMPORT_UNREADABLE: 400,
   INVALID_PATH: 400,
   INVALID_RESOLUTION: 400,
-  LIMIT_REACHED: 409,
   PROVIDER_UNAVAILABLE: 503,
   STALE_TURN: 409,
 } satisfies Record<keyof typeof LOCAL_ERRORS, number>;

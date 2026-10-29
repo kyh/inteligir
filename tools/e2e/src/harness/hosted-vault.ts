@@ -1,6 +1,8 @@
+import type { LocalClient } from "@repo/contract/local";
 import { expect } from "./assert";
 import { OWNER } from "./cloud-account";
-import type { AppInstance, InstanceApi } from "./instance";
+import { gitIn } from "./exec";
+import type { AppInstance } from "./instance";
 import { pollUntil } from "./poll";
 import { NO_AUTO_SYNC } from "./vault-sync";
 
@@ -29,7 +31,7 @@ export const signInOwner = async (
 // covers every change made before the call. "dirty" is a push that lost a race to another device's,
 // which the next pass integrates, so retry; any other state fails at once.
 export const syncUntil = async (
-  api: InstanceApi,
+  api: LocalClient,
   label: string,
   wanted: "clean" | "unauthorized",
 ): Promise<void> => {
@@ -54,4 +56,13 @@ export const syncUntil = async (
       intervalMs: POLL_INTERVAL_MS,
     },
   );
+};
+
+// the conflict copies a Mac's tree tracks, by the name a copy is given, joined for a message
+export const conflictCopies = async (mac: AppInstance): Promise<string> => {
+  const tracked = await gitIn(mac.vaultDir, ["ls-files"]);
+  return tracked
+    .split("\n")
+    .filter((file) => file.includes("(conflict,"))
+    .join(", ");
 };

@@ -1,18 +1,15 @@
 import { betterAuth } from "better-auth";
-// the adapter better-auth re-exports reads `db._.fullSchema`, gone in drizzle 1.0; relations-v2
-// reads `db._.relations`, which `createDb` populates.
+// relations-v2: the adapter better-auth re-exports reads `db._.fullSchema`, gone in drizzle 1.0
 import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
 import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
 } from "@repo/contract/cloud/device/device-schema";
-import { sql } from "drizzle-orm";
 import { deleteVaultGitRepo } from "../vault/vault-repo";
 import { createDb } from "../db/client";
-import { inviteCode } from "../db/schema";
-import { purgeDeviceRows } from "../device/login";
+import { authTables } from "../db/schema";
 import { AUTH_RATE_WINDOW_SECONDS, CALLER_IP_HEADER } from "../rate-limit";
-import { purgeThreadSync } from "../sync/thread-sync-stub";
+import { libraryCell } from "../library/library-cell";
 import { sendResetEmail } from "./reset-email";
 
 // Built per request: D1 is a runtime binding, not a module singleton. No baseURL config —
@@ -46,16 +43,12 @@ const DISABLED_PATHS = [
   "/verify-password",
 ];
 
-// redeemed_at stays set: clearing it would hand a working sign-up to whoever still holds the
-// code. Case-insensitive because the gate stores the address as typed and Better Auth lowercases it.
-const forgetInviteRedeemer = async (env: Env, email: string): Promise<void> => {
-  await createDb(env.DB)
-    .update(inviteCode)
-    .set({ redeemedBy: null })
-    .where(sql`lower(${inviteCode.redeemedBy}) = lower(${email})`);
-};
-
-const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
+const buildAuth = (
+  env: Env,
+  exports: Cloudflare.Exports,
+  baseURL: string,
+  disableSignUp: boolean,
+) =>
   betterAuth({
     advanced: {
       // the default reads x-forwarded-for and, finding more than one hop there, keys every such
@@ -63,7 +56,7 @@ const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
       ipAddress: { ipAddressHeaders: [CALLER_IP_HEADER] },
     },
     baseURL,
-    database: drizzleAdapter(createDb(env.DB), { provider: "sqlite" }),
+    database: drizzleAdapter(createDb(env.DB), { provider: "sqlite", schema: authTables }),
     disabledPaths: DISABLED_PATHS,
     emailAndPassword: {
       disableSignUp,
@@ -96,23 +89,23 @@ const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
     user: {
       deleteUser: {
         // beforeDelete, not afterDelete: a failure aborts the deletion and the account survives to
-        // retry. Credentials first: while a device row lives its credential verifies, and a request
-        // landing after the purge would rebuild the object; the object's tombstone then refuses the
-        // request that verified before step 1 committed.
+        // retry. The library cell runs the account's purge, in its order, its credentials last
+        // (../library/account-purge.ts); then the hosted vault, which no credential reaches any
+        // more, so no push can recreate it after the wipe (../vault/vault-repo.ts).
         beforeDelete: async (user) => {
-          await purgeDeviceRows(createDb(env.DB), user.id);
+          await libraryCell(exports, user.id).purge(user.email);
           await deleteVaultGitRepo(env, user.id);
-          await purgeThreadSync(env, user.id);
-          await forgetInviteRedeemer(env, user.email);
         },
         enabled: true,
       },
     },
   });
 
-export const createAuth = (env: Env, baseURL: string) => buildAuth(env, baseURL, true);
+export const createAuth = (env: Env, exports: Cloudflare.Exports, baseURL: string) =>
+  buildAuth(env, exports, baseURL, true);
 
 // Better Auth reads disableSignUp off the instance options with no per-call override, so the
 // invite gate's two doors (./invite.ts, ../device/sign-up.ts) need this second instance; the flag
 // also shuts auth.api.signUpEmail.
-export const createSignUpAuth = (env: Env, baseURL: string) => buildAuth(env, baseURL, false);
+export const createSignUpAuth = (env: Env, exports: Cloudflare.Exports, baseURL: string) =>
+  buildAuth(env, exports, baseURL, false);

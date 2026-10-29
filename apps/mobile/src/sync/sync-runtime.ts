@@ -1,23 +1,18 @@
-// the phone only pulls threads and never pushes or claims: what the dispatch inbox holds is a Mac's
-// to apply. while signed in and in the foreground it holds the account's socket, so a
-// running turn's pushes are pulled as they land; the poll stays, since the socket is latency and
-// never correctness.
+// the phone's sign-in: one session every request under it rides, and while it is live and the app
+// is in the foreground, the account's socket, which says another device moved the hosted vault.
+// the socket is latency and never correctness: a check of the sign-in runs as it opens, as a
+// revoked device's socket closes and on a timer, since only a request hears the verdict.
 
 import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
 import { createSocketLink } from "@repo/contract/cloud/sync/socket-link";
-import {
-  createSingleFlight,
-  createSyncSession,
-  pullPages,
-} from "@repo/contract/cloud/sync/sync-session";
-import type { SyncOutcome, SyncSessionHandle } from "@repo/contract/cloud/sync/sync-session";
+import { checkSignIn, createSyncSession } from "@repo/contract/cloud/sync/sync-session";
+import type { SyncSessionHandle } from "@repo/contract/cloud/sync/sync-session";
 import { createCloudClient, describeCloudFailure } from "@repo/contract/cloud/client";
 import type { ClientBuild } from "@repo/contract/cloud/client-build";
 import type { CloudClient, CloudFailure } from "@repo/contract/cloud/client";
 import type { CloudSocketOpener } from "@repo/contract/cloud/sync/cloud-socket";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
-import type { SyncStore } from "./sync-store";
 
 // restoring: no credential has been handed over yet, because the boot read of the stored one is
 // in flight. a screen deciding between signed in and out has no answer until it ends. outdated:
@@ -27,35 +22,25 @@ export type SyncStatus =
   | { state: "signed-out" }
   | { state: "unauthorized"; deviceId: string; detail: string }
   | { state: "outdated"; deviceId: string }
-  | {
-      state: "signed-in";
-      deviceId: string;
-      cursor: number;
-      lastSyncedAt: number | null;
-      lastError: string | null;
-    };
+  | { state: "signed-in"; deviceId: string };
 
-const POLL_INTERVAL_MS = 60_000;
+const CHECK_INTERVAL_MS = 60_000;
 
 export interface SyncRuntimeArgs {
-  // never reset here: whether a credential is a restore or a new sign-in is the composition root's
-  // to say, and only a restore keeps what the store holds
-  store: Pick<SyncStore, "applyPlan" | "readCursor">;
   cloudUrl: string;
   // what every request says this app is: the cloud refuses a build below its floor
   build: ClientBuild;
   createClient?: (credential: DeviceCredential) => CloudClient;
+  // null disables the check's timer
   pollIntervalMs?: number | null;
-  // absent is poll-only; the app's is React Native's dial under the shared opener
+  // absent is no socket; the app's is React Native's dial under the shared opener
   openSocket?: CloudSocketOpener;
   // another device pushed to the hosted vault
   onVaultPing?: () => void;
-  // the dispatch inbox holds something for this phone: a question a Mac is waiting on
-  onDispatchPing?: () => void;
   onDebug?: (message: string) => void;
 }
 
-// every other request under this sign-in rides the same session rather than a client of its own:
+// every request under this sign-in rides the same session rather than a client of its own:
 // one fence for all of them, and a revocation any of them hears ends the sign-in and publishes.
 // a caller checks `fenced` after its await and before recording: recordFailure ends whichever
 // session is live, so a late refusal from an earlier sign-in would end the next one.
@@ -68,11 +53,10 @@ export interface SyncRuntime extends ReadableStore<SyncStatus> {
   // null leaves `restoring` for signed-out when the boot read found nothing
   setCredential: (next: DeviceCredential | null) => void;
   start: () => void;
-  // the app is in the foreground again: the socket reopens and a pass runs
+  // the app is in the foreground again: the socket reopens and the sign-in is checked
   resume: () => void;
-  // the app left the foreground: the socket closes and nothing polls until it resumes
+  // the app left the foreground: the socket closes and nothing checks until it resumes
   suspend: () => void;
-  syncNow: () => Promise<void>;
   session: SessionPort;
 }
 
@@ -80,21 +64,20 @@ const sameCredential = (a: DeviceCredential, b: DeviceCredential): boolean =>
   a.deviceId === b.deviceId && a.credential === b.credential;
 
 export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
-  const pollIntervalMs = args.pollIntervalMs === undefined ? POLL_INTERVAL_MS : args.pollIntervalMs;
+  const checkIntervalMs =
+    args.pollIntervalMs === undefined ? CHECK_INTERVAL_MS : args.pollIntervalMs;
   const debug = (message: string): void => {
     args.onDebug?.(message);
   };
 
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let checkTimer: ReturnType<typeof setInterval> | null = null;
   let foreground = true;
-  let lastError: string | null = null;
-  let lastSyncedAt: number | null = null;
   const status = createExternalStore<SyncStatus>({ state: "restoring" });
 
   const clearTimer = (): void => {
-    if (pollTimer !== null) {
-      clearInterval(pollTimer);
-      pollTimer = null;
+    if (checkTimer !== null) {
+      clearInterval(checkTimer);
+      checkTimer = null;
     }
   };
 
@@ -114,10 +97,9 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
       debug(`credential refused (${failure.code}): ${failure.message}`);
     },
   });
-  const flight = createSingleFlight();
 
-  // the socket asks for a pass once the pass exists; it cannot open before start()
-  let requestPass: (() => void) | null = null;
+  // the socket asks for a check once the check exists; it cannot open before start()
+  let requestCheck: (() => void) | null = null;
 
   const link = createSocketLink({
     baseUrl: args.cloudUrl,
@@ -127,26 +109,18 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
       const current = session.current();
       return current.kind === "live" ? current.credential.credential : null;
     },
-    listener: () => ({ platform: "mobile" }),
     onConnectionChanged: (connected) => {
-      // a ping sent while the socket was down reached nothing; the pull carries what it announced
+      // a revocation that came while the socket was down is heard now
       if (connected) {
-        requestPass?.();
+        requestCheck?.();
       }
     },
-    // a sync ping the cursor covers (the log's high-water) is already here
-    onPing: (ping) => {
-      if (ping.type === "vault") {
-        args.onVaultPing?.();
-      } else if (ping.type === "dispatch") {
-        args.onDispatchPing?.();
-      } else if (ping.type === "sync" && ping.seq > args.store.readCursor()) {
-        requestPass?.();
-      }
+    onPing: () => {
+      args.onVaultPing?.();
     },
     // a hint; only an http refusal ends the sign-in
     onSevered: () => {
-      requestPass?.();
+      requestCheck?.();
     },
     openSocket: args.openSocket ?? null,
   });
@@ -193,13 +167,7 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
         return;
       }
       case "live": {
-        status.set({
-          cursor: args.store.readCursor(),
-          deviceId: current.credential.deviceId,
-          lastError,
-          lastSyncedAt,
-          state: "signed-in",
-        });
+        status.set({ deviceId: current.credential.deviceId, state: "signed-in" });
       }
       // no default
     }
@@ -216,76 +184,25 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
     return outcome;
   };
 
-  const recordPullFailure = (failure: CloudFailure): "continue" | "ended" => {
-    lastError = describeCloudFailure(failure);
-    const outcome = recordFailure(failure);
-    if (outcome === "continue") {
-      debug(lastError);
-      publish();
+  const check = async (): Promise<void> => {
+    const checked = await checkSignIn(session);
+    if (checked.kind === "failed" && recordFailure(checked.failure) === "continue") {
+      debug(describeCloudFailure(checked.failure));
     }
-    return outcome;
   };
 
-  const runPass = async (): Promise<SyncOutcome> => {
-    const current = session.current();
-    if (current.kind !== "live") {
-      return "fenced";
-    }
-    const sessionId = current.id;
-    const outcome = await pullPages({
-      applyPlan: async (steps) => {
-        await args.store.applyPlan(steps);
-      },
-      client: current.client,
-      fenced: () => session.fenced(sessionId),
-      onPage: () => {
-        lastError = null;
-        publish();
-      },
-      onSkipped: debug,
-      // the phone never pushes, so no earlier sign-in of its own can be in the log.
-      ownDeviceIds: new Set([current.credential.deviceId]),
-      readCursor: () => args.store.readCursor(),
-      recordFailure: recordPullFailure,
-    });
-    if (!session.fenced(sessionId)) {
-      return "fenced";
-    }
-    // a capped pull is still catching up and a failed one never reached the log: neither is synced.
-    if (outcome === "caught-up") {
-      lastSyncedAt = Date.now();
-      publish();
-    }
-    return outcome;
-  };
-
-  const syncNow = async (): Promise<void> => {
-    if (session.current().kind !== "live") {
-      return;
-    }
-    await flight.run({
-      onError: (message) => {
-        lastError = message;
-        debug(`sync pass failed: ${message}`);
-        publish();
-      },
-      pass: runPass,
-      repeat: () => session.current().kind === "live",
-    });
-  };
-
-  requestPass = () => {
-    void syncNow();
+  requestCheck = () => {
+    void check();
   };
 
   const armTimer = (): void => {
-    if (session.current().kind !== "live" || pollIntervalMs === null || pollTimer !== null) {
+    if (session.current().kind !== "live" || checkIntervalMs === null || checkTimer !== null) {
       return;
     }
-    pollTimer = setInterval(() => {
-      void syncNow();
-    }, pollIntervalMs);
-    pollTimer.unref?.();
+    checkTimer = setInterval(() => {
+      requestCheck?.();
+    }, checkIntervalMs);
+    checkTimer.unref?.();
   };
 
   // the transport a live sign-in runs while the app is in the foreground
@@ -295,11 +212,16 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
     }
     armTimer();
     link.connect();
-    void syncNow();
+    requestCheck?.();
   };
 
   return {
     get: status.get,
+    resume() {
+      foreground = true;
+      link.resetBackoff();
+      runTransport();
+    },
     session: { current: session.current, fenced: session.fenced, recordFailure },
     setCredential(next) {
       const current = session.current();
@@ -313,8 +235,6 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
       }
       haltTransport();
       link.resetBackoff();
-      lastError = null;
-      lastSyncedAt = null;
       if (next === null) {
         session.close();
       } else {
@@ -322,17 +242,11 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
       }
       publish();
     },
-    resume() {
-      foreground = true;
-      link.resetBackoff();
-      runTransport();
-    },
     start: runTransport,
     subscribe: status.subscribe,
     suspend() {
       foreground = false;
       haltTransport();
     },
-    syncNow,
   };
 };

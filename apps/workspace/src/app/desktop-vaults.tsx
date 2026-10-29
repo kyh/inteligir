@@ -50,7 +50,7 @@ const settleSwitch = async (
     }
   } catch (error) {
     console.warn("[vaults] the shell did not answer", error);
-    onRefused("Could not open that vault.");
+    onRefused("Could not open that library.");
   } finally {
     onSettled();
   }
