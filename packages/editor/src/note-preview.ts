@@ -22,12 +22,12 @@ export const notePreviewHead = (markdown: string): string => {
     }
     const line = raw
       .replace(ANNOTATION_MARKER_STRIP_RE, "")
-      .replace(WIKI_LINK_RE, (_, inner: string) => wikiLinkLabel(inner))
-      .replace(MD_LINK_RE, "$<label>")
-      .replace(FORMULA_RE, "")
+      .replaceAll(WIKI_LINK_RE, (_, inner: string) => wikiLinkLabel(inner))
+      .replaceAll(MD_LINK_RE, "$<label>")
+      .replaceAll(FORMULA_RE, "")
       .replace(HEADING_RE, "")
       .replace(BLOCKQUOTE_RE, "")
-      .replace(EMPHASIS_RE, "")
+      .replaceAll(EMPHASIS_RE, "")
       .trimEnd();
     if (line.trim() === "" && (lines.length === 0 || lines.at(-1) === "")) {
       continue;

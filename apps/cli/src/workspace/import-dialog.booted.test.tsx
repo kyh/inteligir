@@ -25,7 +25,7 @@ const mountImport = () => {
   );
   const field = screen.getByLabelText("Raindrop backup");
   if (!(field instanceof HTMLInputElement)) {
-    throw new Error("the chooser is a file field");
+    throw new TypeError("the chooser is a file field");
   }
   return { field, handle };
 };

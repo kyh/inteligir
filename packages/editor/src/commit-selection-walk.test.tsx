@@ -23,7 +23,7 @@ const Note = ({ tick }: NoteProps) => (
 const textOf = (element: Element | null | undefined): Text => {
   const text = element?.firstChild;
   if (!(text instanceof Text)) {
-    throw new Error("the paragraph holds its text");
+    throw new TypeError("the paragraph holds its text");
   }
   return text;
 };

@@ -92,7 +92,7 @@ export const runCliForTest = async (args: RunArgs): Promise<CliRunResult> => {
   }
   try {
     const code = await runCli(["node", "inteligir", ...args.argv], deps);
-    return { code, stderr: stderr.replace(ANSI, ""), stdout: stdout.replace(ANSI, "") };
+    return { code, stderr: stderr.replaceAll(ANSI, ""), stdout: stdout.replaceAll(ANSI, "") };
   } finally {
     outSpy.mockRestore();
     errSpy.mockRestore();

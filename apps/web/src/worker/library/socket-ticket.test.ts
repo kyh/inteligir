@@ -11,7 +11,7 @@ const base64Url = (text: string): string =>
   base64FromBytes(new TextEncoder().encode(text))
     .replaceAll("+", "-")
     .replaceAll("/", "_")
-    .replace(/=+$/u, "");
+    .replace(/[=]+$/u, "");
 
 describe("the socket's ticket", () => {
   it("names the account and the credential that asked, for a minute", async () => {

@@ -32,7 +32,7 @@ const base64Url = (bytes: Uint8Array): string =>
   btoa(String.fromCodePoint(...bytes))
     .replaceAll("+", "-")
     .replaceAll("/", "_")
-    .replace(/=+$/u, "");
+    .replace(/[=]+$/u, "");
 
 export const pkcePair = async (): Promise<{ verifier: string; challenge: string }> => {
   const verifier = base64Url(crypto.getRandomValues(new Uint8Array(32)));

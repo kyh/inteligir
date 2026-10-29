@@ -83,7 +83,7 @@ const openFromToast = (sentence: string): void => {
   const notice = screen.getByText(sentence).closest("[data-sonner-toast]");
   const button = notice?.querySelector("[data-action]");
   if (!(button instanceof HTMLElement)) {
-    throw new Error(`no Open on the toast saying ${sentence}`);
+    throw new TypeError(`no Open on the toast saying ${sentence}`);
   }
   fireEvent.click(button);
 };

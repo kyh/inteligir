@@ -106,7 +106,7 @@ const renderRemote = (status: VaultStatusResponse) => {
 const saveButton = (): HTMLButtonElement => {
   const button = screen.getByRole("button", { name: "Save" });
   if (!(button instanceof HTMLButtonElement)) {
-    throw new Error("Save is not a button");
+    throw new TypeError("Save is not a button");
   }
   return button;
 };

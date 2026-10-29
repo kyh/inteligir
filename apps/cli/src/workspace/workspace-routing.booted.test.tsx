@@ -38,7 +38,7 @@ const doubleClick = (target: HTMLElement): void => {
 const settingsBack = (): HTMLElement => {
   const main = screen.getByRole("heading", { name: "Settings" }).closest("main");
   if (!(main instanceof HTMLElement)) {
-    throw new Error("Settings draws no main");
+    throw new TypeError("Settings draws no main");
   }
   return within(main).getByRole("button", { name: "Back to library" });
 };

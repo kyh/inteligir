@@ -32,7 +32,7 @@ export interface SocketClaim {
 }
 
 const base64Url = (bytes: Uint8Array): string =>
-  base64FromBytes(bytes).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/u, "");
+  base64FromBytes(bytes).replaceAll("+", "-").replaceAll("/", "_").replace(/[=]+$/u, "");
 
 const BASE64_URL = /^[A-Za-z0-9_-]+$/u;
 

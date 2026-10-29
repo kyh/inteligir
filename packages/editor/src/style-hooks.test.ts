@@ -35,7 +35,7 @@ const readStylesheet = () => {
     body: match.groups?.body ?? "",
     selector: (match.groups?.selector ?? "").trim(),
   }));
-  return { rules, unparsed: css.replace(RULE, "").trim() };
+  return { rules, unparsed: css.replaceAll(RULE, "").trim() };
 };
 
 const colourOf = (rule: Rule): string | undefined =>

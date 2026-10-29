@@ -18,9 +18,9 @@ const WHITESPACE_RE = /\s+/gu;
 export const deviceLabel = (raw: string): string => {
   const cleaned = raw
     .normalize("NFC")
-    .replace(WHITESPACE_RE, " ")
-    .replace(UNSAFE_LABEL_RE, "")
-    .replace(WHITESPACE_RE, " ")
+    .replaceAll(WHITESPACE_RE, " ")
+    .replaceAll(UNSAFE_LABEL_RE, "")
+    .replaceAll(WHITESPACE_RE, " ")
     .trim();
   const label = [...cleaned].slice(0, MAX_DEVICE_LABEL_LENGTH).join("").trimEnd();
   return label === "" ? UNKNOWN_DEVICE : label;

@@ -12,7 +12,7 @@ const pageOf = (head: string, body = "<p>text</p>"): Document => {
 const frozen = (doc: Document): Element => {
   const cloned = doc.documentElement.cloneNode(true);
   if (!(cloned instanceof Element)) {
-    throw new Error("the clone is not an element");
+    throw new TypeError("the clone is not an element");
   }
   freezeStyles(doc, cloned);
   return cloned;
