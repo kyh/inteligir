@@ -373,6 +373,11 @@ pnpm --filter @repo/web db:push:remote
 # 4. Set the runtime secrets (NOT committed). BETTER_AUTH_SECRET is a DEDICATED
 #    signing key — generate a fresh random 32+ char value, don't reuse another.
 pnpm -F @repo/web exec cf workers secrets update BETTER_AUTH_SECRET --worker inteligir-web --text '...'
+#    The built-in agent's: an API key of the PRODUCTION Anthropic workspace (its own,
+#    never the preview's), and the signing key of the webhooks registered there.
+#    Without the key the agent is off and says it can't be reached.
+pnpm -F @repo/web exec cf workers secrets update ANTHROPIC_API_KEY --worker inteligir-web --text '...'
+pnpm -F @repo/web exec cf workers secrets update ANTHROPIC_WEBHOOK_SIGNING_KEY --worker inteligir-web --text '...'
 
 # 5. Password reset. Until the sending domain is onboarded, every reset email
 #    fails server-side and is only logged — the request response stays neutral
@@ -438,6 +443,14 @@ Setup, once:
 # repo needs a CLOUDFLARE_ACCOUNT_ID secret beside CLOUDFLARE_API_TOKEN
 # wrangler: cf has no preview secret command yet
 pnpm -F @repo/web exec wrangler preview base-config secret put BETTER_AUTH_SECRET --worker-name inteligir-web  # a preview-only value
+# the PREVIEW Anthropic workspace's own API key; a preview registers no webhook
+pnpm -F @repo/web exec wrangler preview base-config secret put ANTHROPIC_API_KEY --worker-name inteligir-web
 ```
+
+A Preview's built-in agent is the preview workspace's, applied from
+`agents/preview/library-agent/`, and every session it starts runs the PR's own
+definition as its overrides, at the Preview's own connector
+(`src/worker/agent/session-agent.ts`), so a PR's agent is the one its Preview
+runs.
 
 Locally, `pnpm -F @repo/web exec cf previews deploy <name>` deploys one.

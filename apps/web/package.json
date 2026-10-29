@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker && tsc --noEmit -p scripts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "catalog:",
     "@better-auth/drizzle-adapter": "catalog:",
     "@cloudflare/workers-oauth-provider": "catalog:",
     "@modelcontextprotocol/server": "catalog:",

@@ -12,6 +12,8 @@
 # Storage: Edit, Queues: Edit and Workers KV Storage: Edit, the CLOUDFLARE_ACCOUNT_ID secret, and
 # once, from a machine:
 #   pnpm -F @repo/web exec wrangler preview base-config secret put BETTER_AUTH_SECRET --worker-name inteligir-web
+#   pnpm -F @repo/web exec wrangler preview base-config secret put ANTHROPIC_API_KEY --worker-name inteligir-web
+# the second the preview Anthropic workspace's own key, never production's
 # (wrangler, as cf has no preview secret or delete command yet)
 name: Preview
 

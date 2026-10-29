@@ -13,6 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { stringify } from "yaml";
 
+import { CONNECTOR_PATH } from "@repo/contract/cloud/connector";
 import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/cloud/origin";
 
 import {
@@ -36,8 +37,8 @@ const FRONTMATTER = /^---\n[\s\S]*?\n---\n/u;
 // answers (RFC 2606's `.invalid`): every preview session overrides the servers with its own PR's
 // connector (src/worker/agent/session-agent.ts), so the applied agent's is never dialed
 const TARGETS = [
-  { connector: `${PRODUCTION_CLOUD_ORIGIN}/connector`, name: "production" },
-  { connector: "https://preview.inteligir.invalid/connector", name: "preview" },
+  { connector: `${PRODUCTION_CLOUD_ORIGIN}${CONNECTOR_PATH}`, name: "production" },
+  { connector: `https://preview.inteligir.invalid${CONNECTOR_PATH}`, name: "preview" },
 ] as const;
 
 // a limited network that reaches the agent's MCP server and nothing else: no packages and no hosts,

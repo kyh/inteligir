@@ -1,5 +1,7 @@
 import { bindings, defineConfig, defineWorker, exports, triggers } from "cf/config";
 import { z } from "zod";
+import previewAgentLock from "./agents/preview/library-agent/claude-lock.json" with { type: "json" };
+import productionAgentLock from "./agents/production/library-agent/claude-lock.json" with { type: "json" };
 import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
 import type { FillJob } from "./src/worker/fill/fill-job.ts";
 import {
@@ -71,7 +73,30 @@ const shared = {
   // what the fill consumer needs of its queues' config, handed over rather than imported, since the
   // dev server cannot load a module this file also loads (fill-queues.ts)
   FILL_DELIVERY: bindings.json({ deadLetterQueue: FILL_FAILED_QUEUE, retries: FILL_RETRIES }),
+  // the built-in agent's Managed Agents key, from each target's own Anthropic workspace:
+  // `cf workers secrets update` in production, a preview base-config secret
+  // (.github/workflows/preview.yml), .dev.vars locally. A deployment without it runs no agent
+  ANTHROPIC_API_KEY: bindings.secret(),
+  // the key Anthropic signs its webhooks with, which production alone registers
+  ANTHROPIC_WEBHOOK_SIGNING_KEY: bindings.secret(),
 };
+
+// the ids `ant apply` recorded in a target's lockfile for the agent and the environment it applied
+// from agents/<target>/library-agent/, keyed by each one's file; ant writes the file, and nothing
+// copies an id by hand. A resource not yet applied has no entry, and its binding is "", which the
+// Worker reads as no agent to run (src/worker/agent/managed-agents.ts)
+const agentLockSchema = z.object({
+  resources: z.record(
+    z.string(),
+    z.object({ id: z.string().min(1), version: z.string().min(1).optional() }),
+  ),
+});
+
+const appliedAgent = ({ resources }: z.infer<typeof agentLockSchema>) => ({
+  AGENT_ENVIRONMENT_ID: bindings.text<string>(resources["./environment.yaml"]?.id ?? ""),
+  AGENT_ID: bindings.text<string>(resources["./agent.md"]?.id ?? ""),
+  AGENT_VERSION: bindings.text<string>(resources["./agent.md"]?.version ?? ""),
+});
 
 // what the Preview job hands this deploy (.github/workflows/preview.yml). Node evaluates this file,
 // but the Worker's own program types it too and declares no `process`, so the job's environment is
@@ -104,6 +129,8 @@ const previewWorker = () => {
     triggers: [],
     env: {
       ...shared,
+      // the preview workspace's agent, which every preview session overrides with its PR's own
+      ...appliedAgent(agentLockSchema.parse(previewAgentLock)),
       DB: bindings.d1({ name: "inteligir-auth-preview" }),
       PACK_CACHE: bindings.r2({ name: "inteligir-vault-preview" }),
       BLOBS: bindings.r2({ name: "inteligir-vault-preview" }),
@@ -133,6 +160,7 @@ const productionWorker = (mode: string | undefined) => ({
   // client reconnects and catches up by itself, so none waits on the old code to drain
   env: {
     ...shared,
+    ...appliedAgent(agentLockSchema.parse(productionAgentLock)),
     // schema is src/worker/db/schema.ts, applied with drizzle-kit push (no migration files)
     DB: bindings.d1({ name: "inteligir-auth", id: "005d0e52-f102-4298-8da9-492b672ed00f" }),
     // pack bytes only; without it durable-git stores packs in the cell's SQLite, which
