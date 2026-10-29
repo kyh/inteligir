@@ -121,14 +121,16 @@ jobs:
           # read by apps/web/cloudflare.config.ts as it evaluates the Preview's bindings
           OAUTH_KV_PREVIEW_ID: ${{ steps.resources.outputs.oauth_kv_id }}
           PREVIEW_ORIGIN: ${{ steps.resources.outputs.origin }}
+        # cf prints the build's log on stderr and its result as JSON on stdout, the Preview's
+        # addresses in `preview_urls` (developers.cloudflare.com/cf/projects/#deploy-a-preview)
         run: |
-          pnpm exec cf previews deploy "pr-$PR_NUMBER" | tee "$RUNNER_TEMP/preview.log"
-          url="$(grep -oE 'https://[^ ]+\.workers\.dev' "$RUNNER_TEMP/preview.log" | head -1)"
-          [ -n "$url" ] || { echo "::error::no Preview URL in cf's output"; exit 1; }
+          pnpm exec cf previews deploy "pr-$PR_NUMBER" > "$RUNNER_TEMP/preview.json"
           # the connector's tokens name the origin the config was given, so a Preview served
           # anywhere else could mint none its own resource accepts
-          [ "$url" = "$PREVIEW_ORIGIN" ] || { echo "::error::the Preview is at $url, not $PREVIEW_ORIGIN"; exit 1; }
-          echo "url=$url" >> "$GITHUB_OUTPUT"
+          jq -e --arg origin "$PREVIEW_ORIGIN" '.preview_urls | map(rtrimstr("/")) | index($origin)' \
+            "$RUNNER_TEMP/preview.json" >/dev/null \
+            || { echo "::error::the Preview is at $(jq -c '.preview_urls' "$RUNNER_TEMP/preview.json"), not $PREVIEW_ORIGIN"; exit 1; }
+          echo "url=$PREVIEW_ORIGIN" >> "$GITHUB_OUTPUT"
 
       - name: Report ready
         env:
@@ -168,7 +170,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm exec wrangler preview delete --worker-name inteligir-web --name "pr-$PR_NUMBER" --skip-confirmation || true
+        run: pnpm exec cf previews delete "pr-$PR_NUMBER" --worker inteligir-web --force || true
 
       - name: Report deleted
         run: node .github/scripts/worker-preview.mjs close inteligir-web
