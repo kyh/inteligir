@@ -554,13 +554,14 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   `session-agent.ts`.
 
 - **THE BUILT-IN AGENT REACHES THE LIBRARY AS OUR OWN PUBLIC OAUTH CLIENT,
-  GRANTED IN ITS CELL.** One client a deployment, registered by
-  `createClient` with no secret, its id in D1 under the issuer; turning the
-  agent on runs `parseAuthRequest`, `completeAuthorization` and the token
-  endpoint in process, then makes one vault and one `mcp_oauth` credential
-  keyed to the connector, writing each id onto `agent_vault` and reading it
-  again after every call. Off revokes the grant and deletes the vault, and a
-  repair re-grants only a credential Anthropic judges invalid, never one
-  turned off. The consent page refuses a code sent back here. Rejected:
-  grants written to KV by hand; a client per account (deleting one scans every
-  grant). `apps/web/src/worker/agent/built-in-client.ts`, `agent-access.ts`.
+  GRANTED IN ITS CELL UNDER A HOLD ON ITS ROW.** One client a deployment,
+  registered by `createClient` with no secret, its id in D1; a turn-on claims
+  `agent_vault`, runs `parseAuthRequest`, `completeAuthorization` and the token
+  endpoint in process, and writes each id it makes onto the row, reading it
+  again after every call; a job lets go of one the platform ends. A repair
+  leases the row, re-grants only a credential Anthropic judges invalid, and
+  revokes the old grant once the new one is on the row. Off revokes every grant
+  of the agent's. Rejected: the provider's `revokeExistingGrants` (it revokes
+  a grant a concurrent call just made); grants written to KV by hand; a client
+  per account. `apps/web/src/worker/agent/built-in-client.ts`,
+  `agent-access.ts`.

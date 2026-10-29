@@ -6,17 +6,23 @@
 // (platform.claude.com/docs/en/managed-agents/vaults). The `agent_vault` row is the switch. A
 // turn-on claims it, writes each id onto it as its call returns, and reads it again after every call
 // that leaves the cell, since other calls land meanwhile (a turn-off, a second turn-on, the
-// account's deletion); one that finds the row no longer its own takes down what it made. Turning
-// it off deletes the row and takes the grant and the vault down at once, a job retrying until both
-// are gone, and nothing but the person turns it on again: a repair of a credential that is off
-// finds nothing to repair, so no failure re-grants it.
+// account's deletion); one that finds the row no longer its own takes down what it made, and one
+// the platform ended part way is let go of by its job once its hold runs out. A grant is made only
+// under a hold on the row, a turn-on's claim or a repair's lease, and revokes no other as it is
+// made, which could revoke one another call just made: a repair revokes the grant it replaced once
+// the row names the new one, and the grants a failed call left, which no row names, go before the
+// next is made and once the agent is off. Turning it off deletes the row and takes the grant and
+// the vault down at once, a job retrying until both are gone, and nothing but the person turns it
+// on again: a repair of a credential that is off finds nothing to repair, so no failure re-grants
+// it.
 
 import { z } from "zod";
 
 import type { SqlStatements } from "@repo/notes/library/library-sql";
 
+import { agentGrantIds } from "../connector/assistant-grants";
 import { connectorAuth } from "../connector/connector-auth";
-import type { LibraryEngine } from "../library/library-engine";
+import type { Built, LibraryEngine, WriteRequest } from "../library/library-engine";
 import type { LandingScope } from "../library/cell-landing";
 import { dropJob, dueJobs, retryJob, scheduleJob, waitingJobs } from "../library/cell-jobs";
 import type { DueJob } from "../library/cell-jobs";
@@ -38,6 +44,9 @@ export interface AgentCell {
   // the Worker, whose token endpoint the grant's code is traded at
   readonly endpoint: TokenEndpoint;
   readonly now: () => number;
+  // the cell's alarm set to its earliest job, so a job one of these calls queued runs even when the
+  // platform ends the call before its caller would set it
+  readonly scheduleAlarm: () => Promise<void>;
 }
 
 const switchedSchema = z.object({ enabled: z.boolean() });
@@ -47,11 +56,16 @@ type Switched = z.infer<typeof switchedSchema>;
 // what the vault and its credential are called in Anthropic's console
 const VAULT_NAME = "Inteligir library";
 
-// a turn-on's hold on the row: past it, an attempt the platform ended part way is taken over. It
-// outlasts a whole turn-on, two calls to Anthropic at most 30 seconds each and the grant's own
+// a hold on the row, a turn-on's claim or a repair's lease: past it, an attempt the platform ended
+// part way is taken over. It outlasts a whole attempt, the grant made in process and two calls to
+// Anthropic, each at most 30 seconds and sent once
 const LEASE_MS = 2 * 60_000;
 
-// a takedown a turn-off runs at once is asked again this long after, if it did not finish
+// a call to Anthropic sent once: a create, which a retry after a lost answer would make twice, and
+// each call of a repair, which its lease bounds and its job asks again
+const SEND_ONCE = { maxRetries: 0 } as const;
+
+// a takedown a call runs at once is asked again this long after, if it did not finish
 const TEARDOWN_AGAIN_MS = 60_000;
 
 // a credential whose verdict Anthropic could not reach is checked again after this
@@ -63,6 +77,8 @@ const SETTLE_POLLS = 10;
 const REPAIR_JOB = { id: "agent-repair", kind: "agent-repair", payload: "{}" } as const;
 
 const UNAVAILABLE = { ok: false, refusal: { kind: "agent-unavailable" } } as const;
+
+const LANDED = z.literal(true);
 
 // ---- the row ----
 
@@ -79,18 +95,21 @@ type Access =
       readonly grantId: string;
       readonly vaultId: string;
       readonly credentialId: string;
+      // when the repair holding the row leased it, null while none does
+      readonly repairStartedAt: number | null;
     };
 
 const accessRowSchema = z.object({
   credential_id: z.string().nullable(),
   grant_id: z.string().nullable(),
+  repair_started_at: z.number().int().nullable(),
   started_at: z.number().int(),
   vault_id: z.string().nullable(),
 });
 
 const accessOf = (sql: SqlStatements): Access | null => {
   const [raw] = sql.all(
-    "SELECT started_at, grant_id, vault_id, credential_id FROM agent_vault",
+    "SELECT started_at, grant_id, vault_id, credential_id, repair_started_at FROM agent_vault",
     [],
   );
   if (raw === undefined) {
@@ -102,6 +121,7 @@ const accessOf = (sql: SqlStatements): Access | null => {
         credentialId: row.credential_id,
         grantId: row.grant_id,
         kind: "on",
+        repairStartedAt: row.repair_started_at,
         startedAt: row.started_at,
         vaultId: row.vault_id,
       }
@@ -109,10 +129,32 @@ const accessOf = (sql: SqlStatements): Access | null => {
 };
 
 // the row a turn-on claimed at `startedAt`, still its own: neither turned off nor taken over
-const ownedBy = (sql: SqlStatements, startedAt: number): boolean => {
-  const held = accessOf(sql);
-  return held?.kind === "starting" && held.startedAt === startedAt;
+const claimedBy = (held: Access | null, startedAt: number): boolean =>
+  held?.kind === "starting" && held.startedAt === startedAt;
+
+const ownedBy = (sql: SqlStatements, startedAt: number): boolean =>
+  claimedBy(accessOf(sql), startedAt);
+
+// one transaction of the agent's, then the alarm set to the jobs it queued
+const landAgent = async <S extends z.ZodType>(
+  cell: AgentCell,
+  request: WriteRequest<S>,
+  work: (scope: LandingScope) => Built<z.input<S>>,
+): Promise<CellResult<z.output<S>>> => {
+  const landed = cell.library.landApart(request, work);
+  await cell.scheduleAlarm();
+  return landed;
 };
+
+// one that answers nothing but that it landed
+const inTransaction = async (
+  cell: AgentCell,
+  work: (scope: LandingScope) => void,
+): Promise<CellResult<true>> =>
+  await landAgent(cell, { answer: LANDED, opId: undefined }, (scope) => {
+    work(scope);
+    return true as const;
+  });
 
 // ---- taking it down ----
 
@@ -126,11 +168,13 @@ type Leftovers = z.infer<typeof leftoversSchema>;
 
 const NOTHING: Leftovers = { grantId: null, vaultId: null };
 
+const leftoversOf = (held: Access): Leftovers => ({ grantId: held.grantId, vaultId: held.vaultId });
+
 const teardownJobId = (leftovers: Leftovers): string =>
   `agent-teardown:${leftovers.grantId ?? ""}:${leftovers.vaultId ?? ""}`;
 
-// a takedown asked for in the transaction that lets the row go, so one the cell's eviction cut
-// short is run again by the alarm
+// a takedown asked for in the transaction that lets its ids go, so one the platform cuts short is
+// run again by the alarm
 const queueTeardown = (sql: SqlStatements, leftovers: Leftovers, at: number): void => {
   if (leftovers.grantId !== null || leftovers.vaultId !== null) {
     scheduleJob(
@@ -162,12 +206,6 @@ const tearDown = async (cell: AgentCell, leftovers: Leftovers): Promise<void> =>
   }
 };
 
-const inTransaction = (library: LibraryEngine, work: (scope: LandingScope) => void) =>
-  library.landApart({ answer: z.literal(true), opId: undefined }, (scope) => {
-    work(scope);
-    return true as const;
-  });
-
 // a queued takedown run now, and its job dropped once it is done; one that fails waits for the alarm
 const runTeardown = async (cell: AgentCell, leftovers: Leftovers): Promise<void> => {
   if (leftovers.grantId === null && leftovers.vaultId === null) {
@@ -179,10 +217,57 @@ const runTeardown = async (cell: AgentCell, leftovers: Leftovers): Promise<void>
     console.warn({ event: "agent-teardown-failed", ...callFailureFields(error) });
     return;
   }
-  inTransaction(cell.library, (scope) => {
+  await inTransaction(cell, (scope) => {
     dropJob(scope.storage, teardownJobId(leftovers));
   });
 };
+
+// the agent's grants no row names, revoked: those a grant made by a call the platform ended, or
+// whose next step failed, left on the account. Only while `holds` still holds once they are listed:
+// a call that will keep the grant it makes holds the row from before it makes one (a turn-on's
+// claim, a repair's lease), so a grant listed is one no later hold made, and one whose call lost its
+// hold meanwhile is let go of by that call anyway
+const revokeStrayGrants = async (
+  cell: AgentCell,
+  holds: (held: Access | null) => boolean,
+): Promise<void> => {
+  const { helpers } = connectorAuth(cell.env);
+  const listed = await agentGrantIds(helpers, cell.accountId);
+  const held = cell.library.read(accessOf);
+  if (!held.ok || !holds(held.value)) {
+    return;
+  }
+  const named = held.value?.grantId ?? null;
+  for (const grantId of listed) {
+    if (grantId !== named) {
+      await helpers.revokeGrant(grantId, cell.accountId);
+    }
+  }
+};
+
+// what the agent turned off, or a turn-on let go of, leaves: what the row named, taken down now (its
+// job asks again what fails), and every grant of the agent's a failed call left, while it is off
+const takeDownWhileOff = async (cell: AgentCell, leftovers: Leftovers): Promise<void> => {
+  await runTeardown(cell, leftovers);
+  try {
+    await revokeStrayGrants(cell, (held) => held === null);
+  } catch (error) {
+    console.warn({ event: "agent-stray-grants-failed", ...callFailureFields(error) });
+  }
+};
+
+// ---- turning it on ----
+
+// a turn-on's own job, asked for as it claims the row and dropped as it lands or lets go: one the
+// platform ended part way leaves the row claimed, which the job lets go of once the hold runs out
+const startJob = (startedAt: number) =>
+  ({
+    id: `agent-start:${String(startedAt)}`,
+    kind: "agent-start",
+    payload: JSON.stringify({ startedAt }),
+  }) as const;
+
+const startJobSchema = z.object({ startedAt: z.number().int() });
 
 // what a turn-on made, let go of: its row, while still its own, and the grant and vault it made,
 // taken down at once. A deleted account refuses the queue, and the takedown is tried all the same
@@ -191,17 +276,16 @@ const abandon = async (
   startedAt: number,
   made: Leftovers,
 ): Promise<CellResult<never>> => {
-  const released = inTransaction(cell.library, (scope) => {
+  const released = await inTransaction(cell, (scope) => {
     if (ownedBy(scope.storage, startedAt)) {
       scope.storage.run("DELETE FROM agent_vault", []);
+      dropJob(scope.storage, startJob(startedAt).id);
     }
     queueTeardown(scope.storage, made, scope.now + TEARDOWN_AGAIN_MS);
   });
-  await runTeardown(cell, made);
+  await takeDownWhileOff(cell, made);
   return released.ok ? UNAVAILABLE : released;
 };
-
-// ---- turning it on ----
 
 type Claim =
   | { readonly kind: "on" }
@@ -214,8 +298,8 @@ const claimSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("claimed"), startedAt: z.number() }),
 ]);
 
-// the row, claimed for a turn-on; one an attempt left past its lease is taken over, what it made
-// queued for its takedown
+// the row, claimed for a turn-on, with the job that lets it go if this call never ends; one an
+// attempt left past its hold is taken over, what it made queued for its takedown
 const claim = (scope: LandingScope, accountId: string): Claim => {
   const held = accessOf(scope.storage);
   if (held?.kind === "on") {
@@ -225,14 +309,16 @@ const claim = (scope: LandingScope, accountId: string): Claim => {
     return { kind: "busy" };
   }
   if (held !== null) {
-    queueTeardown(scope.storage, held, scope.now);
+    queueTeardown(scope.storage, leftoversOf(held), scope.now);
+    dropJob(scope.storage, startJob(held.startedAt).id);
   }
   scope.storage.run(
     `INSERT INTO agent_vault (account_id, started_at) VALUES (?, ?)
      ON CONFLICT (account_id) DO UPDATE SET started_at = excluded.started_at, grant_id = NULL,
-       vault_id = NULL, credential_id = NULL`,
+       vault_id = NULL, credential_id = NULL, repair_started_at = NULL`,
     [accountId, scope.now],
   );
+  scheduleJob(scope.storage, startJob(scope.now), scope.now + LEASE_MS);
   return { kind: "claimed", startedAt: scope.now };
 };
 
@@ -243,11 +329,12 @@ const recordOn = (
   column: "grant_id" | "vault_id",
   id: string,
 ): CellResult<true> =>
-  inTransaction(cell.library, (scope) => {
+  cell.library.landApart({ answer: LANDED, opId: undefined }, (scope) => {
     if (!ownedBy(scope.storage, startedAt)) {
       refuse({ kind: "agent-unavailable" });
     }
     scope.storage.run(`UPDATE agent_vault SET ${column} = ?`, [id]);
+    return true as const;
   });
 
 const credentialAuth = (grant: BuiltInGrant) => ({
@@ -266,8 +353,14 @@ const credentialAuth = (grant: BuiltInGrant) => ({
   type: "mcp_oauth" as const,
 });
 
-// the grant, then the vault, then its credential, each id on the row as it comes; a create is
-// sent once, since a retry after a lost answer would make a second one nothing names
+const grantFor = async (cell: AgentCell): Promise<BuiltInGrant> =>
+  await grantBuiltInAgent(connectorAuth(cell.env), cell.env, {
+    accountId: cell.accountId,
+    endpoint: cell.endpoint,
+  });
+
+// the grant, then the vault, then its credential, each id on the row as it comes, the grants an
+// earlier attempt left revoked first
 const provision = async (
   cell: AgentCell,
   agents: ManagedAgents,
@@ -276,17 +369,15 @@ const provision = async (
 ): Promise<CellResult<Switched>> => {
   let made = NOTHING;
   try {
-    const grant = await grantBuiltInAgent(connectorAuth(cell.env), cell.env, {
-      accountId: cell.accountId,
-      endpoint: cell.endpoint,
-    });
+    await revokeStrayGrants(cell, (held) => claimedBy(held, startedAt));
+    const grant = await grantFor(cell);
     made = { ...made, grantId: grant.grantId };
     if (!recordOn(cell, startedAt, "grant_id", grant.grantId).ok) {
       return await abandon(cell, startedAt, made);
     }
     const vault = await agents.client.beta.vaults.create(
       { display_name: VAULT_NAME, metadata: { account_id: cell.accountId } },
-      { maxRetries: 0 },
+      SEND_ONCE,
     );
     made = { ...made, vaultId: vault.id };
     if (!recordOn(cell, startedAt, "vault_id", vault.id).ok) {
@@ -295,13 +386,14 @@ const provision = async (
     const credential = await agents.client.beta.vaults.credentials.create(
       vault.id,
       { auth: credentialAuth(grant), display_name: VAULT_NAME },
-      { maxRetries: 0 },
+      SEND_ONCE,
     );
-    const on = cell.library.landApart({ answer: switchedSchema, opId }, (scope) => {
+    const on = await landAgent(cell, { answer: switchedSchema, opId }, (scope) => {
       if (!ownedBy(scope.storage, startedAt)) {
         refuse({ kind: "agent-unavailable" });
       }
       scope.storage.run("UPDATE agent_vault SET credential_id = ?", [credential.id]);
+      dropJob(scope.storage, startJob(startedAt).id);
       return { enabled: true };
     });
     return on.ok ? on : await abandon(cell, startedAt, made);
@@ -325,7 +417,7 @@ export const turnAgentOn = async (
   if (cell.agents === null) {
     return UNAVAILABLE;
   }
-  const claimed = cell.library.landApart({ answer: claimSchema, opId: undefined }, (scope) =>
+  const claimed = await landAgent(cell, { answer: claimSchema, opId: undefined }, (scope) =>
     claim(scope, cell.accountId),
   );
   if (!claimed.ok) {
@@ -353,16 +445,20 @@ export const turnAgentOff = async (
   opId?: string,
 ): Promise<CellResult<Switched>> => {
   let leftovers = NOTHING;
-  const off = cell.library.landApart({ answer: switchedSchema, opId }, (scope) => {
+  const off = await landAgent(cell, { answer: switchedSchema, opId }, (scope) => {
     const held = accessOf(scope.storage);
     if (held !== null) {
       scope.storage.run("DELETE FROM agent_vault", []);
-      leftovers = { grantId: held.grantId, vaultId: held.vaultId };
+      // a turn-on still under way finds its row gone and takes down what it made
+      dropJob(scope.storage, startJob(held.startedAt).id);
+      leftovers = leftoversOf(held);
       queueTeardown(scope.storage, leftovers, scope.now + TEARDOWN_AGAIN_MS);
     }
     return { enabled: false };
   });
-  await runTeardown(cell, leftovers);
+  if (off.ok) {
+    await takeDownWhileOff(cell, leftovers);
+  }
   return off;
 };
 
@@ -372,12 +468,115 @@ export const agentEnabled = (library: LibraryEngine): CellResult<boolean> =>
 // ---- repairing its credential ----
 
 // what a repair found: the agent off (nothing to repair), the credential sound, a new grant in
-// it, no verdict yet (ask again later), or no key to ask with
+// it, no verdict yet (ask again later, as when another repair is under way), or no key to ask with
 export type AgentRepair = "off" | "valid" | "repaired" | "later" | "unavailable";
 
-// Anthropic could not use the credential: its own probe judges it
+const leaseSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("off") }),
+  z.object({ kind: z.literal("busy") }),
+  z.object({
+    credentialId: z.string(),
+    grantId: z.string(),
+    kind: z.literal("leased"),
+    leasedAt: z.number(),
+    vaultId: z.string(),
+  }),
+]);
+
+type Leased = Extract<z.infer<typeof leaseSchema>, { kind: "leased" }>;
+
+// the row, leased for one repair while the agent is on, so two never make a grant each and hand
+// Anthropic the one the other revoked; a lease a repair the platform ended left is taken over once
+// it runs out
+const leaseRepair = (scope: LandingScope): z.input<typeof leaseSchema> => {
+  const held = accessOf(scope.storage);
+  if (held?.kind !== "on") {
+    return { kind: "off" };
+  }
+  if (held.repairStartedAt !== null && scope.now - held.repairStartedAt < LEASE_MS) {
+    return { kind: "busy" };
+  }
+  scope.storage.run("UPDATE agent_vault SET repair_started_at = ?", [scope.now]);
+  return {
+    credentialId: held.credentialId,
+    grantId: held.grantId,
+    kind: "leased",
+    leasedAt: scope.now,
+    vaultId: held.vaultId,
+  };
+};
+
+// the row as the repair that leased it at `leasedAt` left it: on, and still under its lease
+const leasedBy = (held: Access | null, leasedAt: number): boolean =>
+  held?.kind === "on" && held.repairStartedAt === leasedAt;
+
+const swapSchema = z.enum(["swapped", "lost", "off"]);
+
+// the new grant onto the row before Anthropic is handed it, the one it replaces queued to go, so
+// the row names the grant to revoke whatever happens next; one whose lease ran out or went with the
+// row queues its own new grant to go instead
+const swapGrant = (scope: LandingScope, leased: Leased, grantId: string) => {
+  const held = accessOf(scope.storage);
+  if (!leasedBy(held, leased.leasedAt) || scope.now - leased.leasedAt >= LEASE_MS) {
+    queueTeardown(scope.storage, { grantId, vaultId: null }, scope.now);
+    return held?.kind === "on" ? "lost" : "off";
+  }
+  scope.storage.run("UPDATE agent_vault SET grant_id = ?", [grantId]);
+  queueTeardown(
+    scope.storage,
+    { grantId: leased.grantId, vaultId: null },
+    scope.now + TEARDOWN_AGAIN_MS,
+  );
+  return "swapped";
+};
+
+// Anthropic's own probe judges the credential
 // (platform.claude.com/docs/en/managed-agents/vaults#diagnose-an-oauth-refresh-failure), and only
-// a credential it judges invalid is given a new grant, which revokes the one before it
+// one it judges invalid is given a new grant: the grants a failed repair left revoked first, the
+// grant made, swapped onto the row, handed to the credential, and only then the one it replaced
+// revoked
+const mend = async (
+  cell: AgentCell,
+  agents: ManagedAgents,
+  leased: Leased,
+): Promise<AgentRepair> => {
+  const { credentials } = agents.client.beta.vaults;
+  const checked = await credentials.mcpOAuthValidate(
+    leased.credentialId,
+    { vault_id: leased.vaultId },
+    SEND_ONCE,
+  );
+  if (checked.status !== "invalid") {
+    return checked.status === "valid" ? "valid" : "later";
+  }
+  await revokeStrayGrants(cell, (held) => leasedBy(held, leased.leasedAt));
+  const grant = await grantFor(cell);
+  const swapped = await landAgent(cell, { answer: swapSchema, opId: undefined }, (scope) =>
+    swapGrant(scope, leased, grant.grantId),
+  );
+  if (!swapped.ok || swapped.value !== "swapped") {
+    await runTeardown(cell, { grantId: grant.grantId, vaultId: null });
+    return swapped.ok && swapped.value === "lost" ? "later" : "off";
+  }
+  await credentials.update(
+    leased.credentialId,
+    {
+      auth: {
+        access_token: grant.accessToken,
+        expires_at: grant.expiresAt,
+        refresh: { refresh_token: grant.refreshToken },
+        type: "mcp_oauth",
+      },
+      vault_id: leased.vaultId,
+    },
+    SEND_ONCE,
+  );
+  await runTeardown(cell, { grantId: leased.grantId, vaultId: null });
+  return "repaired";
+};
+
+// Anthropic could not use the credential: a repair, under the row's lease, which it gives back
+// however it ends
 const repairAccess = async (cell: AgentCell): Promise<AgentRepair> => {
   const held = cell.library.read(accessOf);
   if (!held.ok || held.value?.kind !== "on") {
@@ -386,44 +585,28 @@ const repairAccess = async (cell: AgentCell): Promise<AgentRepair> => {
   if (cell.agents === null) {
     return "unavailable";
   }
-  const access = held.value;
-  const { credentials } = cell.agents.client.beta.vaults;
+  const lease = await landAgent(cell, { answer: leaseSchema, opId: undefined }, leaseRepair);
+  if (!lease.ok || lease.value.kind === "off") {
+    return "off";
+  }
+  // the repair under way reaches the verdict, and this asks again after it
+  if (lease.value.kind === "busy") {
+    return "later";
+  }
+  const leased = lease.value;
   try {
-    const checked = await credentials.mcpOAuthValidate(access.credentialId, {
-      vault_id: access.vaultId,
-    });
-    if (checked.status !== "invalid") {
-      return checked.status === "valid" ? "valid" : "later";
-    }
-    const grant = await grantBuiltInAgent(connectorAuth(cell.env), cell.env, {
-      accountId: cell.accountId,
-      endpoint: cell.endpoint,
-    });
-    // turned off while the grant was made: the new grant goes, and nothing holds it
-    const swapped = inTransaction(cell.library, (scope) => {
-      const current = accessOf(scope.storage);
-      if (current?.kind !== "on" || current.credentialId !== access.credentialId) {
-        refuse({ kind: "agent-unavailable" });
-      }
-      scope.storage.run("UPDATE agent_vault SET grant_id = ?", [grant.grantId]);
-    });
-    if (!swapped.ok) {
-      await runTeardown(cell, { grantId: grant.grantId, vaultId: null });
-      return "off";
-    }
-    await credentials.update(access.credentialId, {
-      auth: {
-        access_token: grant.accessToken,
-        expires_at: grant.expiresAt,
-        refresh: { refresh_token: grant.refreshToken },
-        type: "mcp_oauth",
-      },
-      vault_id: access.vaultId,
-    });
-    return "repaired";
+    return await mend(cell, cell.agents, leased);
   } catch (error) {
     console.warn({ event: "agent-repair-failed", ...callFailureFields(error) });
     return "later";
+  } finally {
+    cell.library.landApart({ answer: LANDED, opId: undefined }, (scope) => {
+      scope.storage.run(
+        "UPDATE agent_vault SET repair_started_at = NULL WHERE repair_started_at = ?",
+        [leased.leasedAt],
+      );
+      return true as const;
+    });
   }
 };
 
@@ -433,7 +616,7 @@ const repairAccess = async (cell: AgentCell): Promise<AgentRepair> => {
 export const repairAgentAccess = async (cell: AgentCell): Promise<AgentRepair> => {
   const repaired = await repairAccess(cell);
   if (repaired === "later") {
-    inTransaction(cell.library, (scope) => {
+    await inTransaction(cell, (scope) => {
       scheduleJob(scope.storage, REPAIR_JOB, scope.now + REPAIR_AGAIN_MS);
     });
   }
@@ -442,30 +625,58 @@ export const repairAgentAccess = async (cell: AgentCell): Promise<AgentRepair> =
 
 // ---- the alarm's ----
 
-const settledBy = async (cell: AgentCell, job: DueJob): Promise<boolean> => {
-  if (job.kind === "agent-repair") {
-    return (await repairAccess(cell)) !== "later";
-  }
-  try {
-    await tearDown(cell, leftoversSchema.parse(JSON.parse(job.payload)));
-    return true;
-  } catch (error) {
-    console.warn({ event: "agent-teardown-failed", ...callFailureFields(error) });
-    return false;
+// a turn-on the platform ended part way, let go of once its hold ran out: its row, unless a
+// turn-off or a later turn-on took it meanwhile, and what the row names
+const letGo = async (cell: AgentCell, job: DueJob): Promise<void> => {
+  const { startedAt } = startJobSchema.parse(JSON.parse(job.payload));
+  let leftovers = NOTHING;
+  await inTransaction(cell, (scope) => {
+    const held = accessOf(scope.storage);
+    if (held !== null && claimedBy(held, startedAt)) {
+      scope.storage.run("DELETE FROM agent_vault", []);
+      leftovers = leftoversOf(held);
+      queueTeardown(scope.storage, leftovers, scope.now + TEARDOWN_AGAIN_MS);
+    }
+  });
+  await takeDownWhileOff(cell, leftovers);
+};
+
+const AGENT_JOBS = ["agent-teardown", "agent-repair", "agent-start"] as const;
+
+const settledBy = async (
+  cell: AgentCell,
+  job: DueJob<(typeof AGENT_JOBS)[number]>,
+): Promise<boolean> => {
+  switch (job.kind) {
+    case "agent-repair": {
+      return (await repairAccess(cell)) !== "later";
+    }
+    case "agent-start": {
+      await letGo(cell, job);
+      return true;
+    }
+    case "agent-teardown": {
+      try {
+        await tearDown(cell, leftoversSchema.parse(JSON.parse(job.payload)));
+        return true;
+      } catch (error) {
+        console.warn({ event: "agent-teardown-failed", ...callFailureFields(error) });
+        return false;
+      }
+    }
+    // no default
   }
 };
 
-// the takedowns and repairs due, each dropped once done, else put off longer
+// the takedowns, repairs and unfinished turn-ons due, each dropped once done, else put off longer
 export const runAgentJobs = async (cell: AgentCell): Promise<void> => {
-  const due = cell.library.read((sql) =>
-    dueJobs(sql, cell.now(), ["agent-teardown", "agent-repair"]),
-  );
+  const due = cell.library.read((sql) => dueJobs(sql, cell.now(), AGENT_JOBS));
   if (!due.ok) {
     return;
   }
   for (const job of due.value) {
     const settled = await settledBy(cell, job);
-    inTransaction(cell.library, (scope) => {
+    await inTransaction(cell, (scope) => {
       if (settled) {
         dropJob(scope.storage, job.id);
       } else {

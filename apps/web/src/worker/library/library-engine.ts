@@ -85,7 +85,7 @@ export interface WriteRequest<S extends z.ZodType> {
 
 // an answer as a write's work may build it: its lists read-only, which the answer's schema gives
 // back as plain ones
-type Built<T> = T extends readonly (infer E)[]
+export type Built<T> = T extends readonly (infer E)[]
   ? readonly Built<E>[]
   : T extends object
     ? { readonly [K in keyof T]: Built<T[K]> }

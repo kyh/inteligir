@@ -64,14 +64,18 @@ describe("the built-in agent's OAuth client", () => {
     await client.close();
   });
 
-  it("is the deployment's one client, and an account's new grant replaces its last", async () => {
+  it("is the deployment's one client, and a new grant revokes none the account holds", async () => {
     const accountId = newAccountId();
     const auth = connectorAuth(env);
     const first = await grantBuiltInAgent(auth, env, { accountId, endpoint: exports.default });
     const second = await grantBuiltInAgent(auth, env, { accountId, endpoint: exports.default });
     expect(second.clientId).toBe(first.clientId);
+    // revoking what a grant replaces is its caller's, once nothing it hands Anthropic needs it
     const grants = await grantsOf(accountId);
-    expect(grants.map((held) => held.id)).toEqual([second.grantId]);
+    expect(grants.map((held) => held.id).toSorted()).toEqual(
+      [first.grantId, second.grantId].toSorted(),
+    );
+    expect(await auth.helpers.unwrapToken(first.accessToken)).not.toBeNull();
     const rows = await createDb(env.DB)
       .select()
       .from(builtInClient)

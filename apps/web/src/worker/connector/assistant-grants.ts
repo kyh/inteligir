@@ -9,6 +9,7 @@
 import type { GrantSummary, OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 
 import { grantMetadataSchema } from "./connector-auth";
+import type { GrantMetadata } from "./connector-auth";
 
 // a listing's page, at the most the provider answers in one
 const GRANT_PAGE = 1000;
@@ -37,12 +38,17 @@ const grantsOf = async (
   return grants;
 };
 
+// what the grant was made with, null for one that kept none of this Worker's shape
+const keptOf = (grant: GrantSummary): GrantMetadata | null => {
+  const metadata = grantMetadataSchema.safeParse(grant.metadata);
+  return metadata.success ? metadata.data : null;
+};
+
 // a grant as the account's list shows it: the name the client gave when it was let in (its id when
 // the grant kept none), and the time in ms, as every row the wire answers keeps it; null for the
 // built-in agent's
 const assistantOf = (grant: GrantSummary): Assistant | null => {
-  const metadata = grantMetadataSchema.safeParse(grant.metadata);
-  const kept = metadata.success ? metadata.data : null;
+  const kept = keptOf(grant);
   if (kept?.kind === "agent") {
     return null;
   }
@@ -75,6 +81,16 @@ export const revokeAssistant = async (
   }
   await helpers.revokeGrant(grantId, accountId);
   return true;
+};
+
+// the built-in agent's grants on the account, by id: its one while it is on, and any a grant made
+// by a call that then failed or was ended left beside it
+export const agentGrantIds = async (
+  helpers: OAuthHelpers,
+  accountId: string,
+): Promise<string[]> => {
+  const grants = await grantsOf(helpers, accountId);
+  return grants.flatMap((grant) => (keptOf(grant)?.kind === "agent" ? [grant.id] : []));
 };
 
 // every grant the account holds, the built-in agent's with its assistants', as its deletion

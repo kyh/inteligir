@@ -2,9 +2,10 @@
 // quiet, the daily prune of history, an upload whose room was held too long, a file no item named
 // in its first day, a stray file to take out of R2, a page's reading to send to the fill queue, an
 // import's next page, an export to write and one to let go, the built-in agent's access to take
-// down once it is off and its credential to check again. A job is a row, so it survives
-// eviction and a missed alarm; the alarm is set to the earliest due one, and only while any is
-// waiting (https://developers.cloudflare.com/durable-objects/api/alarms/).
+// down once it is off, its credential to check again and a turn-on the platform ended part way to
+// let go of. A job is a row, so it survives eviction and a missed alarm; the alarm is set to the
+// earliest due one, and only while any is waiting
+// (https://developers.cloudflare.com/durable-objects/api/alarms/).
 
 import { z } from "zod";
 
@@ -22,6 +23,7 @@ const JOB_KINDS = [
   "expire",
   "agent-teardown",
   "agent-repair",
+  "agent-start",
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 

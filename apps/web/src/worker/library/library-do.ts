@@ -123,6 +123,9 @@ export class LibraryDO extends DurableObject<Env> {
       env: this.env,
       library,
       now: Date.now,
+      scheduleAlarm: async () => {
+        await scheduleAlarm(this.ctx, library);
+      },
     };
   }
 

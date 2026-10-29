@@ -117,8 +117,10 @@ const authorizeRequest = (auth: ConnectorAuth, query: Record<string, string>): R
   return new Request(url);
 };
 
-// the account's grant, made anew: any earlier grant of this client for the account is revoked as
-// this one is completed (`completeAuthorization`'s `revokeExistingGrants`), so an account holds one
+// a new grant of the account's, beside any it holds: the provider's `revokeExistingGrants`, on by
+// default, would revoke every other grant of this client for the account as this one is made,
+// which another call in the cell may have just made and be about to hand Anthropic, so the caller
+// revokes what this one replaces once the row names it (`./agent-access`)
 export const grantBuiltInAgent = async (
   auth: ConnectorAuth,
   env: Env,
@@ -144,6 +146,7 @@ export const grantBuiltInAgent = async (
     metadata: { kind: "agent" } satisfies GrantMetadata,
     props: { accountId: grant.accountId, clientName: BUILT_IN_CLIENT_NAME },
     request: authRequest,
+    revokeExistingGrants: false,
     scope: [SCOPE],
     userId: grant.accountId,
   });

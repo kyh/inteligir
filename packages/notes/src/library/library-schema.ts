@@ -299,14 +299,16 @@ const CELL_DDL = [
   ) STRICT`,
   // the built-in agent's access, while it is on: the grant its OAuth client holds, and the vault
   // and the one credential Anthropic holds it in; a row whose credential is null is still being
-  // turned on, since `started_at`
+  // turned on, since `started_at`, and one on is being repaired, since `repair_started_at`
   `CREATE TABLE IF NOT EXISTS agent_vault (
     account_id TEXT PRIMARY KEY,
     started_at INTEGER NOT NULL,
     grant_id TEXT,
     vault_id TEXT,
     credential_id TEXT,
-    CHECK (credential_id IS NULL OR (grant_id IS NOT NULL AND vault_id IS NOT NULL))
+    repair_started_at INTEGER,
+    CHECK (credential_id IS NULL OR (grant_id IS NOT NULL AND vault_id IS NOT NULL)),
+    CHECK (repair_started_at IS NULL OR credential_id IS NOT NULL)
   ) STRICT`,
   `CREATE TABLE IF NOT EXISTS agent_turn (
     thread_id TEXT PRIMARY KEY,
