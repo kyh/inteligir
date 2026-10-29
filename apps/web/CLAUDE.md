@@ -463,16 +463,18 @@ how a bullet is written and cited.
   (the platform's kill skips it). `apps/web/src/worker/library/cell-imports.ts`,
   `apps/web/src/worker/library/cell-import-markdown.ts`.
 
-- **AN EXPORT IS A ZIP THE CELL STREAMS INTO R2 IN PARTS OF ONE SIZE, AND LETS
-  GO SEVEN DAYS ON.** One alarm run reads each live item as its turn comes,
-  writes the vault's format (`planExport`) through the zip writer, data
-  descriptors and ZIP64 included, into 8 MiB parts of one multipart upload
-  under `acct/<userId>/x/`, which the account's purge takes; an `expire` job
-  deletes it, and `/v1/exports/<id>` serves it from the verified account's
-  prefix alone. Rejected: an R2 lifecycle rule (by prefix only, and that prefix
-  holds the account's files); fflate (no ZIP64 writer) and zip.js (timers and a
-  worker pool). `apps/web/src/worker/library/cell-exports.ts`,
-  `apps/web/src/worker/zip/zip-write.ts`.
+- **AN EXPORT IS A ZIP THE CELL WRITES INTO R2 OVER MANY ALARM RUNS, AND LETS
+  GO SEVEN DAYS ON.** Each run is counted before it starts and does one page (a
+  thousand items planned, 2 MiB of their markdown, 128 MiB of their files, or
+  ten seconds on R2), ending in one transaction that keeps the plan's rows, the
+  entries' records, the parts' etags and the bytes past its last 8 MiB part, so
+  a run the platform ends is written again from there. A link is spelled from
+  the items filed under the keys it tries, which a seeded property holds equal
+  to the whole plan's resolver. Rejected: one run per export (a large
+  library's CPU outruns the alarm's 30 s); an R2 lifecycle rule (by prefix
+  only); fflate (no ZIP64 writer) and zip.js (timers and a worker pool).
+  `apps/web/src/worker/library/cell-exports.ts`, `cell-export-rows.ts`,
+  `packages/notes/src/knowledge/link-resolve.test.ts`.
 
 - **THE CLOUD KEEPS A PAGE'S COVER AS THE SITE SERVED IT, AND EACH DEVICE DRAWS
   ITS OWN THUMBNAIL.** The consumer keeps the first candidate that is really a

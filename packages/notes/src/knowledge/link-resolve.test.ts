@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import { mulberry32, pick } from "../test-support/seeded-random";
 import { isDocPath } from "./doc-file";
-import { buildResolver, wikiLinkFor, wikiTargetForPath } from "./link-resolve";
+import {
+  buildResolver,
+  wikiFilingKeys,
+  wikiLinkFor,
+  wikiTargetForPath,
+  wikiTargetKeys,
+} from "./link-resolve";
 import { checkNoteName } from "./note-name";
 import { parseWikiBody, serializeWikiBody } from "../markdown/remark-wiki-link";
 
@@ -308,6 +315,52 @@ describe("a written wiki link resolves back to its note", () => {
       const body = serializeWikiBody({ target: wikiTargetForPath(path, resolver.resolveWiki) });
       expect(body, path).not.toBeNull();
       expect(resolver.resolveWiki(parseWikiBody(body ?? "").target), path).toBe(path);
+    }
+  });
+});
+
+describe("a link's target spelled from the paths that share its keys", () => {
+  // names that collide by case, by the extension a link leaves off and with each other's aliases,
+  // in folders that nest
+  const NAMES = ["note", "Note", "NOTE", "plan", "Plan.md", "note.md", "a/note", "x"];
+  const FOLDERS = ["", "x", "X", "x/y", "deep/x"];
+  const EXTENSIONS = [".md", ".MD", ".txt", ""];
+
+  const vaultOf = (rand: () => number) => {
+    const docs = new Map<string, string[]>();
+    const count = 2 + Math.floor(rand() * 10);
+    for (let index = 0; index < count; index += 1) {
+      const folder = pick(rand, FOLDERS);
+      const path = `${folder === "" ? "" : `${folder}/`}${pick(rand, NAMES)}${pick(rand, EXTENSIONS)}`;
+      const aliases = rand() < 0.4 ? [pick(rand, NAMES), ` ${pick(rand, NAMES)} `] : [];
+      docs.set(path, aliases);
+    }
+    return docs;
+  };
+
+  it("answers wikiTargetForPath as a resolver over every path does, over 500 seeded vaults", () => {
+    for (let seed = 1; seed <= 500; seed += 1) {
+      const docs = vaultOf(mulberry32(seed));
+      const aliasEntries = [...docs].flatMap(([path, aliases]) =>
+        aliases.map((alias): [string, string] => [alias, path]),
+      );
+      const whole = buildResolver(docs.keys(), aliasEntries);
+      for (const path of docs.keys()) {
+        const keys = new Set(wikiTargetKeys(path));
+        const sharing = [...docs].filter(([other, aliases]) =>
+          wikiFilingKeys(other, aliases).some((key) => keys.has(key)),
+        );
+        const some = buildResolver(
+          sharing.map(([other]) => other),
+          sharing.flatMap(([other, aliases]) =>
+            aliases.map((alias): [string, string] => [alias, other]),
+          ),
+        );
+        expect(
+          wikiTargetForPath(path, (target) => some.resolveWiki(target)),
+          `seed ${String(seed)}: ${path}`,
+        ).toBe(wikiTargetForPath(path, (target) => whole.resolveWiki(target)));
+      }
     }
   });
 });

@@ -1,13 +1,17 @@
-// The library as a folder in today's vault format, the file list a zip is written from: each item
-// one markdown file named for its title in its folder, the filing rules as `AGENTS.md` at the
-// root, its highlights' store under `.inteligir/annotations/`, and every file it holds once under
-// `assets/` (a saved link's cover under `assets/covers/` and its page copy under `assets/pages/`,
-// as the vault's writers put them). A file is written under the name it was saved under, so a
-// `.canvas` stays one; only bytes no name came with take an extension from their media type. A
-// link is written by the shortest target that resolves back to its item among the exported files
-// (`wikiTargetForPath`), so the folder reads back into the same library. The files come one at a
-// time, each item read only when its turn comes, so a writer holds one item's text, never the
-// library's.
+// The library as a folder in today's vault format, the files a zip is written from: each item one
+// markdown file named for its title in its folder, the filing rules as `AGENTS.md` at the root, its
+// highlights' store under `.inteligir/annotations/`, and every file it holds once under `assets/`
+// (a saved link's cover under `assets/covers/` and its page copy under `assets/pages/`, as the
+// vault's writers put them). A file is written under the name it was saved under, so a `.canvas`
+// stays one; only bytes no name came with take an extension from their media type. A link is
+// written by the shortest target that resolves back to its item among the exported files
+// (`wikiTargetForPath`), so the folder reads back into the same library.
+//
+// The plan is made a step at a time over a store its writer keeps (`ExportStore`), so a writer
+// holds one item and its own page of the plan, never the library's: every path is taken in the
+// store, each item is given its file (`planExportDoc`) before any is written, then each item is
+// written alone (`exportDoc`), its link targets spelled from the files that share their keys
+// (`exportTarget`), and the files the items hold are written last, in the order they were placed.
 
 import { annotationsStorePath } from "@repo/notes/annotations/store-schema";
 import {
@@ -18,42 +22,51 @@ import {
 } from "@repo/notes/items/item-kind";
 import { itemNameFromTitle } from "@repo/notes/items/item-name";
 import { DEFAULT_ATTACHMENTS_FOLDER, freeAssetPathWhere } from "@repo/notes/knowledge/asset-name";
-import { freePath } from "@repo/notes/knowledge/doc-file";
+import { freePath, freePathFrom } from "@repo/notes/knowledge/doc-file";
 import { buildResolver, wikiTargetForPath } from "@repo/notes/knowledge/link-resolve";
 import { joinPath, vaultCollisionKey } from "@repo/notes/knowledge/vault-path";
-import type { LibraryItemFields } from "@repo/notes/library/library-item";
 
 import { exportItem } from "./item-markdown";
-import type { ExportItem, ExportPorts, HeldFile } from "./item-markdown";
+import type { ExportItem, HeldFile } from "./item-markdown";
 import type { WrittenFile } from "./write-blocks";
 
-interface ExportFolder {
+export interface ExportFolder {
   readonly id: string;
   readonly parentId: string | null;
   readonly name: string;
 }
 
-// what names an item's file: its fields alone, its body read when the file is written
+// what names an item's file: its title, its folder and its aliases, which a link may resolve by
 export interface ExportItemHead {
   readonly id: string;
-  readonly fields: LibraryItemFields;
-}
-
-export interface ExportLibrary {
-  readonly folders: readonly ExportFolder[];
-  // the live items; a deleted one stays in the library
-  readonly items: readonly ExportItemHead[];
-  // an item whole, read when its file is written; null when it went since its head was read
-  readonly read: (head: ExportItemHead) => ExportItem | null;
-  // a file's media type, by its sha: the extension of bytes no name came with
-  readonly mediaType: (sha: string) => string | null;
-  // the library's filing rules, which the agent reads
-  readonly rules: string | null;
+  readonly title: string;
+  readonly folderId: string | null;
+  readonly aliases: readonly string[];
 }
 
 export type ExportFile =
   | { readonly kind: "text"; readonly path: string; readonly text: string }
   | { readonly kind: "bytes"; readonly path: string; readonly sha: string };
+
+// what the plan keeps between its steps, wherever its writer keeps it
+export interface ExportStore {
+  // whether a path is taken, by the key a disk that folds case and normalization sees
+  readonly taken: (key: string) => boolean;
+  readonly take: (key: string, path: string) => void;
+  // how far the search for a free spelling of a name got, by the key of its first spelling
+  readonly searched: (key: string) => number | null;
+  readonly search: (key: string, n: number) => void;
+  // the place a file was given, by what it is (its role and its sha), or null before it has one
+  readonly placed: (key: string) => string | null;
+  // a file given its place, the bytes to write there later, in the order of the calls
+  readonly place: (key: string, file: { readonly path: string; readonly sha: string }) => void;
+}
+
+// an item's file in the plan, and the name its title is written under
+export interface PlannedExportDoc {
+  readonly name: string;
+  readonly path: string;
+}
 
 // a file's extension from its media type
 const MEDIA_EXTENSIONS = new Map<string, string>([
@@ -90,28 +103,35 @@ const extensionOf = (mediaType: string | null): string =>
 
 const UNTITLED = "Untitled";
 const FOLDER_DEPTH_MAX = 64;
+const DOC_EXTENSION = ".md";
 
-interface TakenPaths {
-  readonly has: (path: string) => boolean;
-  readonly take: (path: string) => string;
-}
+const isTaken =
+  (store: ExportStore) =>
+  (path: string): boolean =>
+    store.taken(vaultCollisionKey(path));
 
-// paths taken, as a disk that folds case and normalization sees them
-const takenPaths = (): TakenPaths => {
-  const taken = new Set<string>();
-  return {
-    has: (path: string): boolean => taken.has(vaultCollisionKey(path)),
-    take: (path: string): string => {
-      taken.add(vaultCollisionKey(path));
-      return path;
-    },
-  };
+const take = (store: ExportStore, path: string): string => {
+  store.take(vaultCollisionKey(path), path);
+  return path;
 };
 
-const folderPaths = (folders: readonly ExportFolder[]): Map<string, string> => {
+// the plan begun: the rules' name taken first, so no item is written over them
+export const beginExport = (store: ExportStore): void => {
+  take(store, LIBRARY_RULES_PATH);
+};
+
+// the library's filing rules, written at the root
+export const rulesFile = (rules: string): ExportFile => ({
+  kind: "text",
+  path: LIBRARY_RULES_PATH,
+  text: rules,
+});
+
+// every folder's path, each name made one a disk holds and told from its siblings
+export const exportFolderPaths = (folders: readonly ExportFolder[]): Map<string, string> => {
   const byId = new Map(folders.map((folder) => [folder.id, folder]));
   const paths = new Map<string, string>();
-  const taken = takenPaths();
+  const taken = new Set<string>();
   const pathOf = (id: string, depth: number): string => {
     const known = paths.get(id);
     const folder = byId.get(id);
@@ -120,7 +140,8 @@ const folderPaths = (folders: readonly ExportFolder[]): Map<string, string> => {
     }
     const parent = folder.parentId === null ? "" : pathOf(folder.parentId, depth + 1);
     const name = itemNameFromTitle(folder.name) ?? "Folder";
-    const path = taken.take(freePath(parent, name, "", taken.has));
+    const path = freePath(parent, name, "", (candidate) => taken.has(vaultCollisionKey(candidate)));
+    taken.add(vaultCollisionKey(path));
     paths.set(id, path);
     return path;
   };
@@ -130,27 +151,68 @@ const folderPaths = (folders: readonly ExportFolder[]): Map<string, string> => {
   return paths;
 };
 
+// an item given its file, named for its title in its folder (`dir`, the folder's path), the first
+// spelling no other file holds
+export const planExportDoc = (
+  head: ExportItemHead,
+  dir: string,
+  store: ExportStore,
+): PlannedExportDoc => {
+  const name = itemNameFromTitle(head.title) ?? UNTITLED;
+  const searchKey = vaultCollisionKey(joinPath(dir, `${name}${DOC_EXTENSION}`));
+  const free = freePathFrom(
+    dir,
+    name,
+    DOC_EXTENSION,
+    isTaken(store),
+    store.searched(searchKey) ?? 1,
+  );
+  store.search(searchKey, free.n);
+  return { name, path: take(store, free.path) };
+};
+
+// the link a file is written by among `candidates`, every file filed under one of
+// `wikiTargetKeys(path)` (`@repo/notes/knowledge/link-resolve`), which answer as the whole plan does
+export const exportTarget = (
+  path: string,
+  candidates: readonly { readonly path: string; readonly aliases: readonly string[] }[],
+): string => {
+  const resolver = buildResolver(
+    candidates.map((candidate) => candidate.path),
+    candidates.flatMap((candidate) =>
+      candidate.aliases.map((alias): [string, string] => [alias, candidate.path]),
+    ),
+  );
+  return wikiTargetForPath(path, (target) => resolver.resolveWiki(target));
+};
+
+export interface ExportDocPorts {
+  readonly store: ExportStore;
+  // a file's media type, by its sha: the extension of bytes no name came with
+  readonly mediaType: (sha: string) => string | null;
+  // the link an item is written by, null for one no file of the plan holds
+  readonly target: (itemId: string) => string | null;
+}
+
 const contentAddressed = (dir: string, sha: string, extension: string): string =>
   joinPath(dir, contentAddressedName(sha, extension));
 
-// every file an item holds, given one path per sha and role, in the vault's own places
-const filePaths = (mediaType: ExportLibrary["mediaType"], taken: TakenPaths) => {
-  const assigned = new Map<string, string>();
-  const bytes: ExportFile[] = [];
+// every file an item holds, given one place per sha and role, in the vault's own places
+const filePlaces = (ports: ExportDocPorts, title: string) => {
+  const { mediaType, store } = ports;
   const assign = (key: string, sha: string, choose: () => string): string => {
-    const held = assigned.get(key);
-    if (held !== undefined) {
+    const held = store.placed(key);
+    if (held !== null) {
       return held;
     }
-    const path = taken.take(choose());
-    assigned.set(key, path);
-    bytes.push({ kind: "bytes", path, sha });
+    const path = take(store, choose());
+    store.place(key, { path, sha });
     return path;
   };
   // an asset by its own name, under a folder of its bytes when another file holds that name
   const named = (sha: string, name: string): string => {
     const plain = joinPath(DEFAULT_ATTACHMENTS_FOLDER, name);
-    return taken.has(plain)
+    return isTaken(store)(plain)
       ? joinPath(DEFAULT_ATTACHMENTS_FOLDER, `${sha.slice(0, 16)}/${name}`)
       : plain;
   };
@@ -167,8 +229,7 @@ const filePaths = (mediaType: ExportLibrary["mediaType"], taken: TakenPaths) => 
             ),
           )
         : byName(file.sha, file.name),
-    bytes,
-    held: (file: HeldFile, title: string): string => {
+    held: (file: HeldFile): string => {
       const { sha } = file;
       switch (file.role) {
         case "cover": {
@@ -185,7 +246,7 @@ const filePaths = (mediaType: ExportLibrary["mediaType"], taken: TakenPaths) => 
                 freeAssetPathWhere(
                   DEFAULT_ATTACHMENTS_FOLDER,
                   `${title}.${extensionOf(mediaType(sha))}`,
-                  taken.has,
+                  isTaken(store),
                 ),
               )
             : byName(sha, file.name);
@@ -196,51 +257,23 @@ const filePaths = (mediaType: ExportLibrary["mediaType"], taken: TakenPaths) => 
   };
 };
 
-// the whole library as the files of a folder, the texts as each item is read and then the bytes
-export const planExport = function* planExport(
-  library: ExportLibrary,
-): Generator<ExportFile, void, undefined> {
-  const folders = folderPaths(library.folders);
-  // one set for every file written, the rules' name first, so no item is written over them
-  const taken = takenPaths();
-  taken.take(LIBRARY_RULES_PATH);
-  const docs = library.items.map((head) => {
-    const name = itemNameFromTitle(head.fields.title) ?? UNTITLED;
-    const dir = head.fields.folderId === null ? "" : (folders.get(head.fields.folderId) ?? "");
-    const path = taken.take(freePath(dir, name, ".md", taken.has));
-    return { head, name, path };
-  });
-  const resolver = buildResolver(
-    docs.map((doc) => doc.path),
-    docs.flatMap((doc) =>
-      doc.head.fields.aliases.map((alias): [string, string] => [alias, doc.path]),
-    ),
+// one item's files as the plan gave it its place: its markdown, and its highlights' store when it
+// keeps any; the files it holds are given their places in the store, to be written last
+export const exportDoc = (
+  item: ExportItem,
+  doc: PlannedExportDoc,
+  ports: ExportDocPorts,
+): ExportFile[] => {
+  const places = filePlaces(ports, doc.name);
+  // a file's name cuts and mends what a title may hold, so a title it cannot carry is written
+  const exported = exportItem(
+    item,
+    { held: places.held, path: places.body, target: ports.target, withIds: false },
+    doc.name === item.fields.title ? null : item.fields.title,
   );
-  const pathById = new Map(docs.map((doc) => [doc.head.id, doc.path]));
-  const files = filePaths(library.mediaType, taken);
-  if (library.rules !== null) {
-    yield { kind: "text", path: LIBRARY_RULES_PATH, text: library.rules };
+  const files: ExportFile[] = [{ kind: "text", path: doc.path, text: exported.text }];
+  if (exported.annotations !== null) {
+    files.push({ kind: "text", path: annotationsStorePath(item.id), text: exported.annotations });
   }
-  for (const { head, name, path } of docs) {
-    const item = library.read(head);
-    if (item === null) {
-      continue;
-    }
-    const ports: ExportPorts = {
-      held: (file) => files.held(file, name),
-      path: files.body,
-      target: (itemId) => {
-        const target = pathById.get(itemId);
-        return target === undefined ? null : wikiTargetForPath(target, resolver.resolveWiki);
-      },
-      withIds: false,
-    };
-    // a file's name cuts and mends what a title may hold, so a title it cannot carry is written
-    const exported = exportItem(item, ports, name === item.fields.title ? null : item.fields.title);
-    yield { kind: "text", path, text: exported.text };
-    if (exported.annotations !== null) {
-      yield { kind: "text", path: annotationsStorePath(item.id), text: exported.annotations };
-    }
-  }
-  yield* files.bytes;
+  return files;
 };

@@ -315,6 +315,35 @@ export const wikiTargetForPath = (
   );
 };
 
+// The keys, folded as the resolver's case-blind tiers fold them, that let a writer with no room for
+// the whole vault's resolver still spell `wikiTargetForPath` (the cloud's export, a page at a time):
+// every path that can answer one of the targets `wikiTargetForPath(path)` tries, by the exact, the
+// name or the alias tier, is filed under one of `wikiTargetKeys(path)`, so a resolver over the
+// paths filed under them answers each of those targets as one over every path does.
+
+const foldedKeys = (keys: readonly string[]): string[] => [
+  ...new Set(keys.map((key) => key.toLowerCase())),
+];
+
+// the keys a path with these aliases is filed under: its basename, its link name, each alias
+export const wikiFilingKeys = (path: string, aliases: readonly string[]): string[] =>
+  foldedKeys([
+    basenamePath(path),
+    wikiLinkName(path),
+    ...aliases.map((alias) => normalizePath(alias.trim())).filter((key) => key !== ""),
+  ]);
+
+// the keys whose paths can answer a target `wikiTargetForPath(path)` tries: each target's basename,
+// with and without the extension a link leaves off, and the target itself, an alias's key
+export const wikiTargetKeys = (path: string): string[] =>
+  foldedKeys(
+    [wikiLinkName(path), wikiLinkPath(path), path].flatMap((target) => {
+      const clean = normalizePath(target);
+      const base = basenamePath(clean);
+      return [base, `${base}${IMPLIED_LINK_EXTENSION}`, clean];
+    }),
+  );
+
 // the whole `[[…]]` for `path`, spelled as the `[[` picker writes it; null for a name no link can
 // carry, so a caller writes nothing rather than a link that lands elsewhere
 export const wikiLinkFor = (

@@ -5,8 +5,17 @@ import type { StoredBlock } from "@repo/notes/library/block-ops";
 import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
 
 import { CODEC_NOW, withoutId } from "../test-support/codec-ports";
-import { planExport } from "./export-plan";
-import type { ExportFile } from "./export-plan";
+import { wikiFilingKeys, wikiTargetKeys } from "@repo/notes/knowledge/link-resolve";
+
+import {
+  beginExport,
+  exportDoc,
+  exportFolderPaths,
+  exportTarget,
+  planExportDoc,
+  rulesFile,
+} from "./export-plan";
+import type { ExportFile, ExportStore, PlannedExportDoc } from "./export-plan";
 import {
   importPathKind,
   importPlannedDoc,
@@ -366,6 +375,56 @@ describe("an Obsidian vault read into the library", () => {
   });
 });
 
+// the plan's steps as a writer with room for the whole library takes them, over a store in memory:
+// every item given its file first, each written with its links spelled from the files that share
+// their keys, the files the items hold last
+const exportInSteps = (library: ReadLibrary, items: readonly ExportItem[]): ExportFile[] => {
+  const taken = new Map<string, string>();
+  const searched = new Map<string, number>();
+  const placed = new Map<string, { readonly path: string; readonly sha: string }>();
+  const store: ExportStore = {
+    place: (key, file) => placed.set(key, file),
+    placed: (key) => placed.get(key)?.path ?? null,
+    search: (key, n) => searched.set(key, n),
+    searched: (key) => searched.get(key) ?? null,
+    take: (key, path) => taken.set(key, path),
+    taken: (key) => taken.has(key),
+  };
+  beginExport(store);
+  const folders = exportFolderPaths(library.folders);
+  const planned = new Map<string, PlannedExportDoc & { readonly aliases: readonly string[] }>();
+  for (const item of items) {
+    const { aliases, folderId, title } = item.fields;
+    const dir = folderId === null ? "" : (folders.get(folderId) ?? "");
+    planned.set(item.id, {
+      ...planExportDoc({ aliases, folderId, id: item.id, title }, dir, store),
+      aliases,
+    });
+  }
+  const target = (itemId: string): string | null => {
+    const doc = planned.get(itemId);
+    if (doc === undefined) {
+      return null;
+    }
+    const keys = new Set(wikiTargetKeys(doc.path));
+    return exportTarget(
+      doc.path,
+      [...planned.values()].filter((other) =>
+        wikiFilingKeys(other.path, other.aliases).some((key) => keys.has(key)),
+      ),
+    );
+  };
+  const texts = items.flatMap((item) => {
+    const doc = planned.get(item.id);
+    return doc === undefined ? [] : exportDoc(item, doc, { mediaType: mediaTypeOf, store, target });
+  });
+  return [
+    ...(library.rules === null ? [] : [rulesFile(library.rules)]),
+    ...texts,
+    ...[...placed.values()].map((file): ExportFile => ({ kind: "bytes", ...file })),
+  ];
+};
+
 const exportOf = (library: ReadLibrary): ExportFile[] => {
   const folderIds = new Map(library.folders.map((folder) => [folder.path, folder.id]));
   const items = library.items.map((item): ExportItem => ({
@@ -383,16 +442,7 @@ const exportOf = (library: ReadLibrary): ExportFile[] => {
     },
     id: item.itemId,
   }));
-  const byId = new Map(items.map((item) => [item.id, item]));
-  return [
-    ...planExport({
-      folders: library.folders,
-      items: items.map(({ fields, id }) => ({ fields, id })),
-      mediaType: mediaTypeOf,
-      read: (head) => byId.get(head.id) ?? null,
-      rules: library.rules,
-    }),
-  ];
+  return exportInSteps(library, items);
 };
 
 // where an export writes bytes no name came with: under their sha, as the vault's writers did

@@ -555,7 +555,8 @@ account whose library holds about 2,000 items gives the timing check its load.
   `library.exports.start`. Passing: each import ends `done` with its counts,
   its links filled as above; the export's zip downloads from
   `/v1/exports/<id>` and opens in Finder as the library's folders and notes;
-  and seven days on the same address answers 404.
+  the Worker's logs show each alarm run that wrote it inside its CPU, none
+  exceeded; and seven days on the same address answers 404.
 
 ## 6. Publish
 

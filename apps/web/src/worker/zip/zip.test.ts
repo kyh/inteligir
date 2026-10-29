@@ -1,13 +1,14 @@
-// The zip codec over its own output and over another writer's: what the writer streams reads back
-// file for file, ZIP64's end records included once the files pass what a plain zip counts; a zip
-// Python's zipfile wrote reads as it was written; and what a stranger's zip may hold that a
-// library must not take is refused or left out.
+// The zip codec over its own output and over another writer's: what the writer streams, entry by
+// entry and then the directory from their records, reads back file for file, ZIP64's end records
+// included once the files pass what a plain zip counts; a zip Python's zipfile wrote reads as it
+// was written; and what a stranger's zip may hold that a library must not take is refused or left
+// out.
 
 import { describe, expect, it } from "vitest";
 
+import { zipFiles } from "../test-support/library-files";
 import { readZipEntries, readZipEntry, ZipError } from "./zip-read";
 import type { ByteSource } from "./zip-read";
-import { zipBytes } from "./zip-write";
 import type { ZipFile } from "./zip-write";
 
 const encoder = new TextEncoder();
@@ -17,14 +18,6 @@ const sourceOf = (bytes: Uint8Array): ByteSource => ({
   read: async (offset, length) => await Promise.resolve(bytes.slice(offset, offset + length)),
   size: bytes.length,
 });
-
-const zipped = async (files: readonly ZipFile[]): Promise<Uint8Array> => {
-  const chunks: Uint8Array[] = [];
-  for await (const chunk of zipBytes(files)) {
-    chunks.push(chunk);
-  }
-  return new Uint8Array(await new Blob(chunks).arrayBuffer());
-};
 
 const textFile = (path: string, text: string, deflate = true): ZipFile => ({
   deflate,
@@ -65,7 +58,7 @@ const onlyEntry = async (source: ByteSource) => {
 
 describe("a zip this writer streams", () => {
   it("reads back file for file, deflated or stored, its UTF-8 names whole", async () => {
-    const bytes = await zipped([
+    const bytes = await zipFiles([
       textFile("Notes/Café.md", "# Café\n\nDeflated, and read back.\n".repeat(50)),
       textFile("assets/raw.bin", "stored as it is", false),
       textFile("empty.md", ""),
@@ -81,14 +74,14 @@ describe("a zip this writer streams", () => {
     const files = Array.from({ length: 65_536 }, (_, index) =>
       textFile(`f/${String(index)}.txt`, String(index), false),
     );
-    const bytes = await zipped(files);
+    const bytes = await zipFiles(files);
     const entries = await readZipEntries(sourceOf(bytes));
     expect(entries).toHaveLength(65_536);
     expect(entries.at(-1)?.path).toBe("f/65535.txt");
   }, 60_000);
 
   it("refuses an entry whose bytes do not match its CRC", async () => {
-    const bytes = await zipped([textFile("note.md", "the bytes as written", false)]);
+    const bytes = await zipFiles([textFile("note.md", "the bytes as written", false)]);
     const source = sourceOf(bytes);
     const entry = await onlyEntry(source);
     // the stored bytes follow the 30-byte local header and the name
@@ -98,7 +91,7 @@ describe("a zip this writer streams", () => {
   });
 
   it("refuses an entry its directory says is encrypted", async () => {
-    const bytes = await zipped([textFile("secret.md", "hidden")]);
+    const bytes = await zipFiles([textFile("secret.md", "hidden")]);
     const source = sourceOf(bytes);
     const plain = await onlyEntry(source);
     expect(plain.encrypted).toBe(false);

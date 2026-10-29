@@ -47,20 +47,36 @@ export const takenIgnoringCase = (takenPaths: Iterable<string>): ((path: string)
   return (path) => taken.has(vaultCollisionKey(path));
 };
 
-// The first of `stem`, `stem 2`, `stem 3`… under `dir`, extension kept, that `isTaken` refuses.
+// a free spelling of a name, and which of its spellings it is (1 for the name itself)
+export interface FreePath {
+  readonly path: string;
+  readonly n: number;
+}
+
+// The first of `stem`, `stem 2`, `stem 3`… under `dir`, extension kept, that `isTaken` refuses,
+// counting from the `from`th, and the count it took, so a writer naming many files alike resumes
+// where its last search for that name stopped.
+export const freePathFrom = (
+  dir: string,
+  stem: string,
+  extension: string,
+  isTaken: (path: string) => boolean,
+  from: number,
+): FreePath => {
+  for (let n = Math.max(1, from); ; n += 1) {
+    const path = joinPath(dir, `${n === 1 ? stem : `${stem} ${String(n)}`}${extension}`);
+    if (!isTaken(path)) {
+      return { n, path };
+    }
+  }
+};
+
 export const freePath = (
   dir: string,
   stem: string,
   extension: string,
   isTaken: (path: string) => boolean,
-): string => {
-  for (let n = 1; ; n += 1) {
-    const path = joinPath(dir, `${n === 1 ? stem : `${stem} ${String(n)}`}${extension}`);
-    if (!isTaken(path)) {
-      return path;
-    }
-  }
-};
+): string => freePathFrom(dir, stem, extension, isTaken, 1).path;
 
 export const freeDocPath = (dir: string, stem: string, takenPaths: Iterable<string>): string =>
   freePath(dir, stem, DEFAULT_DOC_EXTENSION, takenIgnoringCase(takenPaths));
