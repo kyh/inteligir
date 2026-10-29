@@ -556,9 +556,13 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
         return;
       }
       void (async () => {
-        const item = await runPlanAsync(sql, readReplicaItem(itemId, []));
-        if (item !== null && !item.bodyHeld) {
-          kick();
+        try {
+          const item = await runPlanAsync(sql, readReplicaItem(itemId, []));
+          if (item !== null && !item.bodyHeld) {
+            kick();
+          }
+        } catch {
+          // a read the replica cannot make now; the next pass fetches the body all the same
         }
       })();
     },
