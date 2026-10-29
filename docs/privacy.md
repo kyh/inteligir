@@ -403,11 +403,14 @@ Specifically, in our cloud:
   the link is used. One never used stops working after an hour and is swept the
   next time anyone opens a reset link; account deletion does not look for it,
   and once the account is gone it opens nothing.
-- An assistant you connected keeps its grant until you disconnect it, or for
-  30 days after it last renewed its access. What an assistant registered (its
-  name and addresses, never yours) is deleted 90 days after it last used it;
-  deleting the account disconnects every assistant, but leaves a registration
-  to those 90 days, since none is filed under an account.
+- An assistant you connected keeps its grant until 30 days after it last
+  renewed its access, which it does while it keeps using it: removing the
+  connector in the assistant stops its requests, and the grant then lapses at
+  those 30 days. Deleting the account revokes every assistant's grant, which
+  our cloud stops answering everywhere within about a minute. What an assistant
+  registered (its name and addresses, never yours) is deleted 90 days after it
+  last used it, and deleting the account leaves a registration to those 90
+  days, since none is filed under an account.
 - Cloudflare's request log keeps each entry for up to seven days.
 
 **Your phone.** Signed in, the phone keeps its own copy, so it opens and edits
@@ -498,8 +501,9 @@ One travels from our cloud instead:
   What it writes lands in your library as a change named for it, which History
   can undo, and one you allowed only to read can change nothing. The page
   names the assistant as it named itself and where its access is sent.
-  Disconnecting it ends its access at its next request, and deleting the
-  account disconnects every one.
+  Removing the connector in your assistant stops its requests, and its
+  access lapses 30 days after it last renewed it; deleting the account ends
+  every assistant's access within about a minute.
 
 **Professional advisors.** Professional advisors, such as lawyers, auditors,
 bankers and insurers, in the course of the professional services that they

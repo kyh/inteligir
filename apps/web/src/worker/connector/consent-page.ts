@@ -84,7 +84,7 @@ ${local}
 <button type="submit" name="decision" value="deny" class="secondary">Don't allow</button>
 </div>
 </form>
-<p class="muted">You can disconnect it at any time.</p>`,
+<p class="muted">To stop it, remove the connector in your assistant: its access then ends within 30 days.</p>`,
   );
 };
 

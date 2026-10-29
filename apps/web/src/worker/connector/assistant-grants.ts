@@ -1,6 +1,6 @@
 // The assistants a person let into their library: each one grant of the connector's consent page,
 // held by the OAuth provider in KV and read through its helpers (`listUserGrants`, `revokeGrant`),
-// for the account's list in Settings, a revoke from there, and the account's deletion, which
+// for `account.assistants.list` and `account.assistants.revoke`, and the account's deletion, which
 // revokes every one. KV settles across locations within about a minute, so a revoked grant's
 // token may still be answered elsewhere for that long.
 
