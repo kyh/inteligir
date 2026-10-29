@@ -116,7 +116,9 @@ PR once their workload identity is configured, and applying is the owner's
 after the merge (`docs/releasing.md` § 5). `cloudflare.config.ts` binds a
 lockfile's ids as `AGENT_ID`, `AGENT_VERSION` and `AGENT_ENVIRONMENT_ID`; a
 target never applied binds none, and its agent answers that it cannot be
-reached, as one with no `ANTHROPIC_API_KEY` does.
+reached, as one with no `ANTHROPIC_API_KEY` does. `vite dev` binds none of a
+target's: a developer's own key reaches only their own workspace, whose agent
+`.dev.vars` names (`.dev.vars.example`).
 
 The agent reaches the library only through the connector, as the deployment's
 own public OAuth client, registered the first time any account needs it and

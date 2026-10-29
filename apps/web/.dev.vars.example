@@ -25,7 +25,15 @@ BETTER_AUTH_SECRET=
 # SITE_ORIGIN=https://<your-tunnel-host>
 
 # The built-in agent's Managed Agents key. Unset, the local Worker's agent is
-# off and says it can't be reached. A real key reaches a real agent, which also
-# needs the tunnel above, since Anthropic cannot reach localhost, and an agent
-# applied to that key's workspace (docs/releasing.md § 5).
+# off and says it can't be reached. A real key is one of your own workspace's,
+# never production's or the previews', and the local Worker names no agent of
+# theirs: copy agent.md and environment.yaml from agents/preview/library-agent
+# (not its claude-lock.json) to a folder of your own, run `ant apply` there
+# signed in to your workspace, and set the three ids its claude-lock.json
+# records below. Sessions here run this checkout's own agent definition over
+# that agent, as a preview's do (src/worker/agent/session-agent.ts). A real
+# agent also needs the tunnel above, since Anthropic cannot reach localhost.
 # ANTHROPIC_API_KEY=
+# AGENT_ID=
+# AGENT_VERSION=
+# AGENT_ENVIRONMENT_ID=

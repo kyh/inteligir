@@ -98,6 +98,11 @@ const appliedAgent = ({ resources }: z.infer<typeof agentLockSchema>) => ({
   AGENT_VERSION: bindings.text<string>(resources["./agent.md"]?.version ?? ""),
 });
 
+// the local Worker's: none of a target's, whose agents live in workspaces a developer's key does not
+// reach, so `vite dev` names no agent unless .dev.vars names one applied in that key's own
+// workspace (.dev.vars.example)
+const localAgent = appliedAgent({ resources: {} });
+
 // what the Preview job hands this deploy (.github/workflows/preview.yml). Node evaluates this file,
 // but the Worker's own program types it too and declares no `process`, so the job's environment is
 // parsed off `globalThis`; a Preview deployed without either value is refused here
@@ -160,7 +165,9 @@ const productionWorker = (mode: string | undefined) => ({
   // client reconnects and catches up by itself, so none waits on the old code to drain
   env: {
     ...shared,
-    ...appliedAgent(agentLockSchema.parse(productionAgentLock)),
+    ...(mode === "development"
+      ? localAgent
+      : appliedAgent(agentLockSchema.parse(productionAgentLock))),
     // schema is src/worker/db/schema.ts, applied with drizzle-kit push (no migration files)
     DB: bindings.d1({ name: "inteligir-auth", id: "005d0e52-f102-4298-8da9-492b672ed00f" }),
     // pack bytes only; without it durable-git stores packs in the cell's SQLite, which
