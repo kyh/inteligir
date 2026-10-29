@@ -74,8 +74,9 @@ export const forgetDeviceBudgets = async (db: Db, deviceIds: readonly string[]):
 };
 
 // the unauthenticated routes, keyed on the caller's address: nothing else about the caller is
-// known yet, and a login with no throttle is a password oracle
+// known yet, a login with no throttle is a password oracle, and a registration with none fills KV
 const CALLER_RATE_KEY_PREFIXES = {
+  clientRegistration: "client-registration:",
   inviteSignUp: "invite-signup:",
   login: "device-login:",
 } as const;
@@ -95,6 +96,9 @@ export const RATE_WINDOWS = {
   // a password check behind a device credential, so a stolen one guesses here rather than at
   // login's per-address window; a person mistypes a few times, never dozens
   accountDelete: { max: 5, windowMs: 60_000 },
+  // an assistant registering itself with the connector's OAuth: each one is a client record KV
+  // keeps 90 days, and a person connects an assistant or two at a time, never dozens a minute
+  clientRegistration: { max: 10, windowMs: 60_000 },
   // low: a code is short enough to guess at volume, and Better Auth's limiter never sees a rejected invite
   inviteSignUp: { max: 10, windowMs: 60_000 },
   login: { max: 10, windowMs: 60_000 },

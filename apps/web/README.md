@@ -88,44 +88,44 @@ its DOM-free signature (`packages/page-reader/src/read-html-api.ts`).
 
 ## Routes
 
-| Route                       | Auth              | What                                                                |
-| --------------------------- | ----------------- | ------------------------------------------------------------------- |
-| `/`                         | —                 | Marketing page (SSR); markdown to `Accept: text/markdown`           |
-| `/about`, `/contact`        | —                 | Trust pages from `lib/site-content.ts`, negotiated the same way     |
-| `/privacy`                  | —                 | Renders `docs/privacy.md` itself (SSR) — never a copy               |
-| `/terms`                    | —                 | Renders `docs/terms.md` itself (SSR) — never a copy                 |
-| `/llms.txt`, `/sitemap.xml` | —                 | Agent and crawler files, beside `/robots.txt`                       |
-| `/*` (anything else)        | —                 | 404; a markdown recovery body to `Accept: text/markdown`            |
-| `/app/sign-in`              | —                 | Sign-in (SSR when signed out — see `lib/session-guard.ts`)          |
-| `/app/sign-up`              | —                 | Sign-up form; submits to the invite gate                            |
-| `/app/forgot-password`      | —                 | Requests the reset link                                             |
-| `/app/reset-password`       | —                 | Where the emailed link lands (client-only, `no-store`, no referrer) |
-| `/app/devices`              | session           | The device table: list and revoke                                   |
-| `/api/auth/*`               | —                 | Better Auth (email+password, session cookie)                        |
-| `/v1/auth/sign-up`          | —                 | The invite gate in front of Better Auth's sign-up                   |
-| `POST /v1/device/login`     | —                 | Email + password in, the device credential and its account out      |
-| `POST /v1/device/sign-up`   | —                 | Sign-up from the app: account + device credential out               |
-| `GET /v1/device/list`       | session or device | The device table (revoked rows included)                            |
-| `POST /v1/device/revoke`    | session or device | Cut a device off — bites on its next request                        |
-| `POST /v1/device/sign-out`  | device            | The same revoke, for the device the credential names                |
-| `GET /v1/sync/ws`           | device            | Invalidation socket (Bearer on the upgrade; hibernatable)           |
-| `GET /v1/socket`            | ticket            | The same socket for any client, on a minute's ticket in the query   |
-| `/v1/git/vault.git/*`       | device            | The hosted vault git remote — smart HTTP, 90 MiB push, 1 GiB stored |
-| `POST /v1/vault/tree`       | device            | Flat listing — path, size, blob oid — at one commit                 |
-| `POST /v1/vault/file`       | device            | One note's bytes at that commit — 2 MB ceiling                      |
-| `POST /v1/vault/files`      | device            | Up to 40 notes at a pinned commit — 4 MiB, rest deferred            |
-| `POST /v1/vault/asset`      | device            | One embedded binary at that commit                                  |
-| `POST /v1/vault/commit`     | device            | A change set, each change CAS'd on its blob — one commit            |
-| `POST /v1/account/delete`   | device + password | Delete the account through Better Auth's `deleteUser`               |
-| `POST /v1/rpc/account/*`    | — or device/tab   | The account's oRPC rows: sign in or up, devices, delete, ticket     |
-| `POST /v1/rpc/library/*`    | device or tab     | The library's oRPC rows, forwarded to the account's library cell    |
-| `/v1/blobs/:sha`            | device or tab     | A file's bytes in R2: PUT once by its SHA-256, GET/HEAD by range    |
-| `GET /v1/exports/:id`       | device or tab     | An export's zip, by range, for seven days after it was written      |
-| `POST /connector`           | assistant token   | The connector: the library's tools, forwarded to the account's cell |
-| `/connect/authorize`        | session           | The consent page an assistant sends the person to, after sign-in    |
-| `/.well-known/oauth-*`      | —                 | The authorization server's and the connector's metadata             |
-| `POST /oauth/register`      | —                 | An assistant registers itself; unused for 90 days, it is let go     |
-| `POST /oauth/token`         | —                 | A code (PKCE S256) or refresh token for an access token; revocation |
+| Route                       | Auth              | What                                                                          |
+| --------------------------- | ----------------- | ----------------------------------------------------------------------------- |
+| `/`                         | —                 | Marketing page (SSR); markdown to `Accept: text/markdown`                     |
+| `/about`, `/contact`        | —                 | Trust pages from `lib/site-content.ts`, negotiated the same way               |
+| `/privacy`                  | —                 | Renders `docs/privacy.md` itself (SSR) — never a copy                         |
+| `/terms`                    | —                 | Renders `docs/terms.md` itself (SSR) — never a copy                           |
+| `/llms.txt`, `/sitemap.xml` | —                 | Agent and crawler files, beside `/robots.txt`                                 |
+| `/*` (anything else)        | —                 | 404; a markdown recovery body to `Accept: text/markdown`                      |
+| `/app/sign-in`              | —                 | Sign-in (SSR when signed out — see `lib/session-guard.ts`)                    |
+| `/app/sign-up`              | —                 | Sign-up form; submits to the invite gate                                      |
+| `/app/forgot-password`      | —                 | Requests the reset link                                                       |
+| `/app/reset-password`       | —                 | Where the emailed link lands (client-only, `no-store`, no referrer)           |
+| `/app/devices`              | session           | The device table: list and revoke                                             |
+| `/api/auth/*`               | —                 | Better Auth (email+password, session cookie)                                  |
+| `/v1/auth/sign-up`          | —                 | The invite gate in front of Better Auth's sign-up                             |
+| `POST /v1/device/login`     | —                 | Email + password in, the device credential and its account out                |
+| `POST /v1/device/sign-up`   | —                 | Sign-up from the app: account + device credential out                         |
+| `GET /v1/device/list`       | session or device | The device table (revoked rows included)                                      |
+| `POST /v1/device/revoke`    | session or device | Cut a device off — bites on its next request                                  |
+| `POST /v1/device/sign-out`  | device            | The same revoke, for the device the credential names                          |
+| `GET /v1/sync/ws`           | device            | Invalidation socket (Bearer on the upgrade; hibernatable)                     |
+| `GET /v1/socket`            | ticket            | The same socket for any client, on a minute's ticket in the query             |
+| `/v1/git/vault.git/*`       | device            | The hosted vault git remote — smart HTTP, 90 MiB push, 1 GiB stored           |
+| `POST /v1/vault/tree`       | device            | Flat listing — path, size, blob oid — at one commit                           |
+| `POST /v1/vault/file`       | device            | One note's bytes at that commit — 2 MB ceiling                                |
+| `POST /v1/vault/files`      | device            | Up to 40 notes at a pinned commit — 4 MiB, rest deferred                      |
+| `POST /v1/vault/asset`      | device            | One embedded binary at that commit                                            |
+| `POST /v1/vault/commit`     | device            | A change set, each change CAS'd on its blob — one commit                      |
+| `POST /v1/account/delete`   | device + password | Delete the account through Better Auth's `deleteUser`                         |
+| `POST /v1/rpc/account/*`    | — or device/tab   | The account's oRPC rows: sign in or up, devices, delete, ticket               |
+| `POST /v1/rpc/library/*`    | device or tab     | The library's oRPC rows, forwarded to the account's library cell              |
+| `/v1/blobs/:sha`            | device or tab     | A file's bytes in R2: PUT once by its SHA-256, GET/HEAD by range              |
+| `GET /v1/exports/:id`       | device or tab     | An export's zip, by range, for seven days after it was written                |
+| `POST /connector`           | assistant token   | The connector: the library's tools, forwarded to the account's cell           |
+| `/connect/authorize`        | session           | The consent page an assistant sends the person to, after sign-in              |
+| `/.well-known/oauth-*`      | —                 | The authorization server's and the connector's metadata                       |
+| `POST /oauth/register`      | —                 | An assistant registers itself, ten an address a minute; let go 90 days unused |
+| `POST /oauth/token`         | —                 | A code (PKCE S256) or refresh token for an access token; revocation           |
 
 "device" auth is the `igd_…` credential a login minted, verified per request by
 hash compare against D1 — never cached, so revocation is immediate; its

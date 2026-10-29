@@ -144,14 +144,14 @@ as:
   - **The sessions on our website** each keep the IP address and user agent they
     signed in from (see Account data, above).
   - **Your IP address, for throttling — the one row NOT tied to your account.**
-    Signing a device in, creating an account, redeeming an invite, and every
-    Better Auth route but the session read count attempts per caller address in
-    D1's `rate_limit` table: a row holds the address beside the route it counts,
-    a count and a timestamp. Before sign-in the address is all our cloud knows
-    about a caller, and a login with no throttle is a password oracle. Once
-    signed in, a device's reads and writes of the online library, and its attempts
-    to delete the account, are counted the same way under the device's id, never
-    an address.
+    Signing a device in, creating an account, redeeming an invite, an assistant
+    registering itself to connect, and every Better Auth route but the session
+    read count attempts per caller address in D1's `rate_limit` table: a row
+    holds the address beside the route it counts, a count and a timestamp.
+    Before sign-in the address is all our cloud knows about a caller, and a
+    login with no throttle is a password oracle. Once signed in, a device's
+    reads and writes of the online library, and its attempts to delete the
+    account, are counted the same way under the device's id, never an address.
   - **The app's version, on every request to our cloud.** The Mac app and the
     phone app say which version they are, and which of the two, on each request
     they send our cloud, so it can stop answering a version too old to sync with

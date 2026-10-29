@@ -42,9 +42,12 @@ export const pkcePair = async (): Promise<{ verifier: string; challenge: string 
 
 const registeredSchema = z.object({ client_id: z.string().min(1) });
 
-// a client that registers itself (RFC 7591), as one that publishes no metadata document does
-export const registerClient = async (clientName = "Claude"): Promise<string> => {
-  const response = await workerFetch(`${ORIGIN}/oauth/register`, {
+// a client registering itself (RFC 7591), as one that publishes no metadata document does
+export const registration = async (
+  clientName = "Claude",
+  headers: Record<string, string> = {},
+): Promise<Response> =>
+  await workerFetch(`${ORIGIN}/oauth/register`, {
     body: JSON.stringify({
       client_name: clientName,
       grant_types: ["authorization_code", "refresh_token"],
@@ -52,9 +55,12 @@ export const registerClient = async (clientName = "Claude"): Promise<string> => 
       response_types: ["code"],
       token_endpoint_auth_method: "none",
     }),
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...headers },
     method: "POST",
   });
+
+export const registerClient = async (clientName = "Claude"): Promise<string> => {
+  const response = await registration(clientName);
   expect(response.status).toBe(201);
   return registeredSchema.parse(await response.json()).client_id;
 };

@@ -499,18 +499,15 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 - **THE CONNECTOR'S OAUTH IS `@cloudflare/workers-oauth-provider`'S, ON KV,
   NAMED FROM ONE ORIGIN PER DEPLOYMENT** (owner decision). The provider owns
-  the challenge and both metadata documents, registration (a client's own,
-  kept 90 days unused, or its metadata document), PKCE S256, token, refresh
-  and revoke, the token's audience (RFC 8707) and the issuer on the redirect
-  (RFC 9207); `SITE_ORIGIN` names issuer and resource, never the request's
-  Host, so one deployment's tokens open no other's. A grant is `library` or
-  `library:read`, the person's choice on the consent page; the handler refuses
-  a token holding neither with `insufficientScope`, the grant's id rides each
-  access token's props (`tokenExchangeCallback`), and a grant lapses 30 days
-  after its last refresh. Rejected: the MCP SDK's bearer middleware or an
-  authorization server of our own (a second verifier to audit); the Host
-  header (the workers.dev name and the domain would be two servers whose
-  tokens refuse each other). `apps/web/src/worker/connector/connector-auth.ts`,
+  every OAuth surface, a registration spending its address's window first,
+  since each is a KV record; `SITE_ORIGIN` names issuer and resource, never the
+  request's Host, so one deployment's tokens open no other's. A grant is
+  `library` or `library:read`, the person's choice, and the handler refuses a
+  token holding neither: the provider advertises scopes but enforces none.
+  Rejected: the MCP SDK's bearer middleware or an authorization server of our
+  own (a second verifier to audit); the Host header (the workers.dev name and
+  the domain would be two servers whose tokens refuse each other).
+  `apps/web/src/worker/connector/connector-auth.ts`,
   `apps/web/cloudflare.config.ts`.
 
 - **THE CONSENT PAGE IS THE WORKER'S, AT `/connect/authorize`, OVER THE SITE'S

@@ -12,7 +12,7 @@ import { z } from "zod";
 
 import { createDb } from "../db/client";
 import { rateLimit } from "../db/schema";
-import { deviceRateKey } from "../rate-limit";
+import { CALLER_IP_HEADER, callerRateKey, deviceRateKey } from "../rate-limit";
 import {
   deviceHeaders,
   drained,
@@ -27,6 +27,7 @@ import {
   CONNECTOR_URL,
   pkcePair,
   registerClient,
+  registration,
   showConsent,
   workerFetch,
 } from "../test-support/connector-session";
@@ -273,7 +274,7 @@ describe("the account's assistants", () => {
   });
 });
 
-describe("a grant's budget", () => {
+describe("the connector's budgets", () => {
   // the suite config keeps the limiter off so suites do not 429 on one another
   let wasDisabled: Env["RATE_LIMIT_DISABLED"] = "true";
   beforeEach(() => {
@@ -305,5 +306,29 @@ describe("a grant's budget", () => {
     expect(z.object({ error: z.string() }).parse(await refused.json()).error).toBe(
       "too_many_requests",
     );
+  });
+
+  it("refuses an address's registrations once its minute is spent, and stores none of them", async () => {
+    const address = { [CALLER_IP_HEADER]: "203.0.113.40" };
+    const spent = { count: 1_000_000, lastRequest: Date.now() };
+    await createDb(env.DB)
+      .insert(rateLimit)
+      .values({
+        id: crypto.randomUUID(),
+        key: callerRateKey("clientRegistration", new Request(ORIGIN, { headers: address })),
+        ...spent,
+      })
+      .onConflictDoUpdate({ set: spent, target: rateLimit.key });
+    const before = await env.OAUTH_KV.list();
+    const refused = await registration("Claude", address);
+    expect(refused.status).toBe(429);
+    expect(z.object({ error: z.string() }).parse(await refused.json()).error).toBe(
+      "too_many_requests",
+    );
+    const after = await env.OAUTH_KV.list();
+    expect(after.keys).toEqual(before.keys);
+
+    const other = await drained(registration("Claude", { [CALLER_IP_HEADER]: "203.0.113.41" }));
+    expect(other.status).toBe(201);
   });
 });

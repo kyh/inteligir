@@ -16,7 +16,9 @@ import type {
 } from "@cloudflare/workers-oauth-provider";
 import { z } from "zod";
 
+import { createDb } from "../db/client";
 import { LIBRARY_SCOPES } from "../library/library-principal";
+import { spendCallerBudget } from "../rate-limit";
 
 // the person's own page, which signs them in and asks; the provider advertises it and refuses a
 // request parsed anywhere else
@@ -80,10 +82,22 @@ const logRefusal = (refusal: {
   });
 };
 
-const authorizationServerAt = (origin: string): OAuthAuthorizationServer<Env> =>
+// a registration the caller's address has no room left for this minute, refused before the
+// provider stores it (docs/advanced-configuration.md in the provider, "Client registration policy")
+const throttledRegistration = async (env: Env, request: Request) =>
+  (await spendCallerBudget(env, createDb(env.DB), "clientRegistration", request))
+    ? undefined
+    : {
+        code: "too_many_requests",
+        description: "Too many registrations. Try again in a minute.",
+        status: 429,
+      };
+
+const authorizationServerAt = (env: Env, origin: string): OAuthAuthorizationServer<Env> =>
   new OAuthAuthorizationServer<Env>({
     authorizeEndpoint: CONSENT_PATH,
     clientIdMetadataDocumentEnabled: true,
+    clientRegistrationCallback: async ({ request }) => await throttledRegistration(env, request),
     clientRegistrationEndpoint: REGISTRATION_PATH,
     clientRegistrationTTL: REGISTRATION_TTL_SECONDS,
     issuer: origin,
@@ -132,7 +146,7 @@ export interface ConnectorAuth {
 // every request builds its own and nothing outlives it
 export const connectorAuth = (env: Env): ConnectorAuth => {
   const origin = siteOriginSchema.parse(env.SITE_ORIGIN);
-  const authorizationServer = authorizationServerAt(origin);
+  const authorizationServer = authorizationServerAt(env, origin);
   const resource = connectorResourceOf(origin);
   return {
     authorizationServer,
