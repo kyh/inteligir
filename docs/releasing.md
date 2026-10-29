@@ -638,6 +638,13 @@ them.
   the Console no longer lists the vault, the account's grant is gone
   (`account.assistants.list` never showed it), and a session started with the
   old vault id is refused.
+- **The local Worker names no target's agent.** `pnpm dev:web` with your own
+  workspace's `ANTHROPIC_API_KEY` alone in `apps/web/.dev.vars`, then again with
+  the ids of an agent you applied there (`apps/web/.dev.vars.example`). Passing:
+  the first `library.agent.setEnabled({ enabled: true })` answers
+  `SERVICE_UNAVAILABLE` and your Console shows nothing; the second answers
+  `{ enabled: true }`, the vault is in your workspace, and neither target's
+  Console shows a new one.
 
 ## 6. Publish
 
