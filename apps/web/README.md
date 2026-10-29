@@ -52,6 +52,13 @@ src/
                      per request over the library's tool rows
                      (connector-server.ts, library-tools.ts) and the
                      account's grants (assistant-grants.ts)
+    agent/           The built-in agent: its one definition (library-agent.ts),
+                     the Managed Agents client from the deployment's bindings
+                     (managed-agents.ts), the agent a session runs
+                     (session-agent.ts), our own OAuth client and its grant
+                     (built-in-client.ts), and its access the person turns on
+                     and off, repaired and deleted with the account
+                     (agent-access.ts)
     fill/            The fill queue's consumer (fill-consumer.ts): a saved
                      link read through the guarded fetch (page-fetch.ts) and
                      the page reader, its files kept, landed in the cell
@@ -85,6 +92,40 @@ to `types/highlight-js.d.ts`, the one type lowlight takes from it (`LanguageFn`)
 the fill reads a page with `@repo/page-reader`, whose code is typed by the
 DOM's globals, so the one entry the Worker calls publishes a `types` condition,
 its DOM-free signature (`packages/page-reader/src/read-html-api.ts`).
+
+## The built-in agent
+
+The agent the app runs on Claude Managed Agents is files, one directory a
+target, synced by [`ant apply`](https://platform.claude.com/docs/en/cli-sdks-libraries/cli/apply)
+into that target's own Anthropic workspace:
+
+```
+agents/production/library-agent/   production's workspace
+agents/preview/library-agent/      the previews' workspace
+  agent.md                         the agent: its frontmatter the model, the connector and the
+                                   toolset; its body the system prompt
+  environment.yaml                 a cloud environment that reaches MCP servers alone
+  claude-lock.json                 ant's: the ids and the version its last apply recorded
+```
+
+`pnpm --filter @repo/web agents` (`scripts/agent-files.ts`) writes `agent.md`
+and `environment.yaml` from `src/worker/agent/library-agent.ts` and
+`@repo/agent-skills`; edit those and run it, never the files. Each
+`claude-lock.json` is ant's alone. The Agents workflow plans both targets on a
+PR once their workload identity is configured, and applying is the owner's
+after the merge (`docs/releasing.md` § 5). `cloudflare.config.ts` binds a
+lockfile's ids as `AGENT_ID`, `AGENT_VERSION` and `AGENT_ENVIRONMENT_ID`; a
+target never applied binds none, and its agent answers that it cannot be
+reached, as one with no `ANTHROPIC_API_KEY` does.
+
+The agent reaches the library only through the connector, as the deployment's
+own public OAuth client, registered the first time any account needs it and
+kept in D1's `built_in_client` under the deployment's origin. Turning the agent
+on (`library.agent.setEnabled`) grants that client the account's library in
+its cell, with no consent page, and makes the account's vault holding one
+credential for the connector, which Anthropic refreshes at `/oauth/token`;
+turning it off revokes the grant and deletes the vault. Its grant is not an
+assistant's, so `account.assistants` neither lists nor revokes it.
 
 ## Routes
 

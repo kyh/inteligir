@@ -7,7 +7,7 @@ import type { V1Client } from "@repo/contract/cloud/v1";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { cellOf, clockAt, engineIn, inCell } from "../test-support/library-cell";
+import { agentCellIn, cellOf, clockAt, engineIn, inCell } from "../test-support/library-cell";
 import type { Principal } from "./library-principal";
 import { LIBRARY_RPC_MAX_BODY_BYTES, serveLibraryRpc, V1_LIBRARY_RPC_PATH } from "./library-rpc";
 
@@ -21,8 +21,10 @@ const PRINCIPAL: Principal = {
 
 // the library's rows over the cell's handler, with a cap on what the library may hold
 const linkIn = (state: DurableObjectState, bytesCap: number) => {
+  const library = engineIn(state, clockAt(), bytesCap);
   const context = {
-    library: engineIn(state, clockAt(), bytesCap),
+    agent: agentCellIn(state, library),
+    library,
     principal: PRINCIPAL,
     settle: async <T>(result: T) => await Promise.resolve(result),
   };

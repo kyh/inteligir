@@ -23,6 +23,8 @@ import {
 import { ORPCError, implement } from "@orpc/server";
 import { z } from "zod";
 
+import { agentEnabled, turnAgentOff, turnAgentOn } from "../agent/agent-access";
+import type { AgentCell } from "../agent/agent-access";
 import { libraryTools } from "../connector/library-tools";
 import { cellCodec } from "./cell-codec";
 import { askFill } from "./cell-fills";
@@ -64,6 +66,8 @@ import type { Principal } from "./library-principal";
 export interface CellContext {
   readonly principal: Principal;
   readonly library: LibraryEngine;
+  // the built-in agent's access, which the person switches on and off
+  readonly agent: AgentCell;
   // what follows a committed write: the sockets told the new head, the alarm set
   readonly settle: <T>(result: CellResult<T>) => Promise<CellResult<T>>;
 }
@@ -106,6 +110,9 @@ const refusalError = (refusal: CellRefusal): Error => {
         message: "That cursor isn't one this library answered with.",
       });
     }
+    case "agent-unavailable": {
+      return new AgentUnavailableError();
+    }
     // no default
   }
 };
@@ -139,8 +146,8 @@ const deletedSchema = z.object({ deleted: z.literal(true) });
 const importAnswer = z.object({ job: importJobSchema });
 const exportAnswer = z.object({ export: exportJobSchema });
 
-// the agent arrives with Managed Agents: until a cell can start one, every ask of it is refused as
-// a Worker without the key refuses it, and nothing is charged
+// no turn runs in a cell yet: every ask of the agent is refused as a Worker without the key refuses
+// it, and nothing is charged
 const agentUnavailable = (): never => {
   throw new AgentUnavailableError();
 };
@@ -179,11 +186,22 @@ export const libraryRouter = os.router({
     ),
     respond: os.agent.respond.handler(agentUnavailable),
     send: os.agent.send.handler(agentUnavailable),
-    setEnabled: os.agent.setEnabled.handler(agentUnavailable),
-    // off, with no turns left today: no agent can run in this cell
-    status: os.agent.status.handler(() => {
+    setEnabled: os.agent.setEnabled.handler(async ({ context, input }) =>
+      committed(
+        context,
+        input.enabled
+          ? await turnAgentOn(context.agent, input.opId)
+          : await turnAgentOff(context.agent, input.opId),
+      ),
+    ),
+    // whether it is on, with no turn of the day's left, since none runs in a cell yet
+    status: os.agent.status.handler(({ context }) => {
       const now = Date.now();
-      return { enabled: false, resetsAt: now - (now % DAY_MS) + DAY_MS, turnsLeft: 0 };
+      return {
+        enabled: answer(agentEnabled(context.library)),
+        resetsAt: now - (now % DAY_MS) + DAY_MS,
+        turnsLeft: 0,
+      };
     }),
   },
   annotations: {

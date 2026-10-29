@@ -12,6 +12,7 @@ import { z } from "zod";
 import { createAuth } from "../auth/auth";
 import { CONSENT_PAGE_POLICY, consentPage, refusalPage } from "./consent-page";
 import { connectorAuth, READ_SCOPE } from "./connector-auth";
+import type { ConnectorAuth, GrantMetadata } from "./connector-auth";
 
 // where a person who is not signed in signs in, and is sent back from
 const SIGN_IN_PATH = "/app/sign-in";
@@ -42,8 +43,22 @@ const signInFirst = (url: URL): Response => {
   return Response.redirect(back.toString(), 302);
 };
 
-const ask = async (helpers: OAuthHelpers, request: Request, email: string): Promise<Response> => {
+// a code sent back to this deployment goes to no assistant: the built-in agent's client is the one
+// whose address is here, and the cell grants it with no page (`../agent/built-in-client`), so a
+// link asking a person to let it in, or any client naming an address here, is refused before it
+// is shown, and no approval here replaces the agent's grant
+const sendsHere = (redirectUri: string, origin: string): boolean =>
+  URL.parse(redirectUri)?.origin === origin;
+
+const ask = async (auth: ConnectorAuth, request: Request, email: string): Promise<Response> => {
+  const { helpers } = auth;
   const authRequest = await helpers.parseAuthRequest(request);
+  if (sendsHere(authRequest.redirectUri, auth.origin)) {
+    return pageResponse(
+      refusalPage(`This link doesn't come from an assistant. ${STARTED_ELSEWHERE}`, null),
+      400,
+    );
+  }
   // described first: a client that cannot be looked up leaves nothing in KV
   const details = await helpers.describeConsent(authRequest);
   const consent = await helpers.beginConsent(authRequest);
@@ -77,7 +92,7 @@ const answer = async (
   const { clientName } = await helpers.describeConsent(approved.request);
   const name = [...clientName.trim()].slice(0, NAME_MAX).join("");
   const { redirectTo } = await helpers.completeAuthorization({
-    metadata: { clientName: name },
+    metadata: { clientName: name, kind: "assistant" } satisfies GrantMetadata,
     props: { accountId, clientName: name },
     request: approved.request,
     scope: approved.request.scope,
@@ -104,11 +119,11 @@ export const handleConsent = async (
       ? signInFirst(url)
       : pageResponse(refusalPage(`You were signed out. ${STARTED_ELSEWHERE}`, null), 401);
   }
-  const { helpers } = connectorAuth(env);
+  const auth = connectorAuth(env);
   try {
     return request.method === "GET"
-      ? await ask(helpers, request, signedIn.user.email)
-      : await answer(helpers, request, signedIn.user.id);
+      ? await ask(auth, request, signedIn.user.email)
+      : await answer(auth.helpers, request, signedIn.user.id);
   } catch (error) {
     // the refusals a person can meet here, in their words; anything else is a fault, never theirs
     if (error instanceof AuthorizationError) {

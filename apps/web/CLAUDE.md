@@ -538,3 +538,29 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   rebuilds the same schemas); a device credential here (the door is an
   assistant's). `apps/web/src/worker/connector/connector-route.ts`,
   `connector-server.ts`, `apps/web/src/worker/library/library-principal.ts`.
+
+- **THE BUILT-IN AGENT IS FILES `ant apply` SYNCS, ONE DIRECTORY A TARGET, ITS
+  IDS READ FROM THE LOCKFILE.** `apps/web/agents/<target>/library-agent/`
+  holds `agent.md`, `environment.yaml` and ant's `claude-lock.json`; the
+  script writes the first two from one definition and `@repo/agent-skills`,
+  the same bytes for every account, and a guard regenerates and diffs them.
+  The toolset allows the registrar's tools by name, `delete_items` asking and
+  `undo_change` left out. The owner applies each target in its own workspace;
+  an unapplied target or a missing key leaves the agent unreachable. A
+  preview's session runs its PR's definition as overrides. Rejected: agents
+  made on the request path (apply refuses what it did not make); a toolset
+  allowing by default (a later tool runs unreviewed).
+  `apps/web/scripts/agent-files.ts`, `apps/web/src/worker/agent/library-agent.ts`,
+  `session-agent.ts`.
+
+- **THE BUILT-IN AGENT REACHES THE LIBRARY AS OUR OWN PUBLIC OAUTH CLIENT,
+  GRANTED IN ITS CELL.** One client a deployment, registered by
+  `createClient` with no secret, its id in D1 under the issuer; turning the
+  agent on runs `parseAuthRequest`, `completeAuthorization` and the token
+  endpoint in process, then makes one vault and one `mcp_oauth` credential
+  keyed to the connector, writing each id onto `agent_vault` and reading it
+  again after every call. Off revokes the grant and deletes the vault, and a
+  repair re-grants only a credential Anthropic judges invalid, never one
+  turned off. The consent page refuses a code sent back here. Rejected:
+  grants written to KV by hand; a client per account (deleting one scans every
+  grant). `apps/web/src/worker/agent/built-in-client.ts`, `agent-access.ts`.

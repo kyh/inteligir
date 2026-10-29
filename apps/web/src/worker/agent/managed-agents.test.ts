@@ -1,17 +1,8 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
-import { fakeManagedAgentsApi } from "../test-support/managed-agents-api";
+import { deployedEnv as deployed, fakeManagedAgentsApi } from "../test-support/managed-agents-api";
 import { managedAgents } from "./managed-agents";
-
-// what a deployment whose agent was applied, and whose key is set, binds
-const deployed = {
-  ...env,
-  AGENT_ENVIRONMENT_ID: "env_011CZkZ9",
-  AGENT_ID: "agent_011CZkZ8",
-  AGENT_VERSION: "3",
-  ANTHROPIC_API_KEY: "sk-ant-test",
-};
 
 describe("the Managed Agents client", () => {
   it("is none on a deployment without the key, so no agent call is made", () => {

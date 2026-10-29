@@ -139,6 +139,13 @@ never drawn by hand: `pnpm --filter @repo/web og:cards`
 `apps/web/src/lib/page-meta.ts` in the site's own type and logo. It needs
 Playwright's Chromium, and sits outside `pnpm verify` and the build.
 
+The built-in agent's files under `apps/web/agents/` are written, never edited
+by hand: `pnpm --filter @repo/web agents` (`apps/web/scripts/agent-files.ts`)
+writes each target's `agent.md` and `environment.yaml` from the agent's
+definition and `@repo/agent-skills`, and `tools/repo-guards` fails a tree whose
+files differ from what it would write. Applying them is the owner's
+(`apps/web/README.md` § The built-in agent).
+
 ## Browser extension
 
 `apps/extension` is the browser's Save: a Chromium extension that captures the

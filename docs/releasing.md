@@ -592,6 +592,53 @@ that deployment.
   tools and no write; the connector's description in ChatGPT reads as the
   instructions' first paragraph (`apps/web/src/worker/connector/connector-server.ts`).
 
+### The built-in agent
+
+Production and the previews each have their own Anthropic workspace, API key
+and agent (`apps/web/README.md` § The built-in agent); nothing here crosses
+them.
+
+- **Each workspace's agent is applied.** Once, per workspace: a service account
+  and a federation rule matching this repository's `pull_request` subject in
+  that workspace alone, as the repository variables `ANTHROPIC_ORGANIZATION_ID`,
+  `ANTHROPIC_<TARGET>_FEDERATION_RULE_ID` and
+  `ANTHROPIC_<TARGET>_SERVICE_ACCOUNT_ID` (`.github/workflows/agents.yml`).
+  After a merge that changed `apps/web/agents/`, the agent's files or the
+  skills, from a clean checkout of main, signed in to that workspace only:
+  `cd apps/web/agents/production/library-agent && ant apply --dry-run .`, then
+  `ant apply --yes .`, the same in `apps/web/agents/preview/library-agent`
+  with the preview workspace's credentials, and commit both lockfiles, even
+  after an apply that failed part way. Passing: each `claude-lock.json` names
+  the agent and environment with the agent's version, a second `--dry-run`
+  plans nothing, the Agents workflow on the next PR plans nothing, and once
+  deployed the Worker's `AGENT_ID`, `AGENT_VERSION` and `AGENT_ENVIRONMENT_ID`
+  are those ids.
+- **Each Worker holds its own workspace's key.** Production's
+  `ANTHROPIC_API_KEY` and `ANTHROPIC_WEBHOOK_SIGNING_KEY`, the previews'
+  `ANTHROPIC_API_KEY` (`apps/web/README.md` § Build & deploy, § Previews).
+  Passing: on a preview, `library.agent.setEnabled({ enabled: true })` from a
+  signed-in device answers `{ enabled: true }`, and the preview workspace's
+  Console shows one vault holding one credential for the preview's own
+  `/connector`; without the key the same call answers `SERVICE_UNAVAILABLE`
+  and Anthropic shows nothing.
+- **A real session reaches a preview's connector.** In the preview workspace's
+  Console, a session of the preview agent, overridden to the PR's connector as
+  `apps/web/src/worker/agent/session-agent.ts` overrides it, with the account's
+  vault: "list my library's tags". Passing: Anthropic's proxy reaches the
+  `workers.dev` address and the agent answers from the library, the session
+  provisions no container (it has no tools of its own), and the account's
+  History names no change.
+- **The refresh token rotates.** Leave that vault's credential past its hour,
+  then ask again. Passing: the agent answers, the Worker's log shows a
+  `refresh_token` grant at `/oauth/token` with no refusal, and a third ask an
+  hour later answers too (Anthropic kept the rotated token). A refusal
+  `invalid_grant` on the second refresh means it reuses the first: stop, and
+  give the built-in client refresh tokens that do not rotate.
+- **Off stays off.** `library.agent.setEnabled({ enabled: false })`. Passing:
+  the Console no longer lists the vault, the account's grant is gone
+  (`account.assistants.list` never showed it), and a session started with the
+  old vault id is refused.
+
 ## 6. Publish
 
 Only once every check has passed, and the three close together: the npm CLI

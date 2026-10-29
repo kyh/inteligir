@@ -30,7 +30,10 @@ export type CellRefusal =
   // an agent's edit of an item's markdown that cannot land: `edit` is its index in the request
   | { readonly kind: "edit-refused"; readonly refusal: EditRefusal }
   // a page's cursor this library never answered with
-  | { readonly kind: "bad-cursor" };
+  | { readonly kind: "bad-cursor" }
+  // the built-in agent could not be turned on or used: this deployment has no key or no applied
+  // agent, Anthropic did not answer, or the person turned it off meanwhile
+  | { readonly kind: "agent-unavailable" };
 
 // `head` is the sequence number the write moved the library to, which the cell's socket ping
 // carries, or null when it changed nothing

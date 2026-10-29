@@ -7,11 +7,17 @@
 // read `process.env` and the credential profiles a Worker cannot hold
 // (platform.claude.com/docs/en/cli-sdks-libraries/sdks/typescript).
 
-import Anthropic from "@anthropic-ai/sdk";
+import Anthropic, { APIError, NotFoundError } from "@anthropic-ai/sdk";
 import type { ClientOptions } from "@anthropic-ai/sdk";
 import { z } from "zod";
 
+import { errorFields } from "../log";
+
 const API_ORIGIN = "https://api.anthropic.com";
+
+// a call the cell waits on holds its caller with it, so it is bounded well under the SDK's own ten
+// minutes; a stream the cell holds sets its own
+const CALL_TIMEOUT_MS = 30_000;
 
 const deploymentSchema = z.object({
   AGENT_ENVIRONMENT_ID: z.string().min(1),
@@ -47,8 +53,20 @@ export const managedAgents = (env: Env, fetch?: ClientOptions["fetch"]): Managed
       apiKey: data.ANTHROPIC_API_KEY,
       baseURL: API_ORIGIN,
       fetch,
+      timeout: CALL_TIMEOUT_MS,
       webhookKey: data.ANTHROPIC_WEBHOOK_SIGNING_KEY ?? null,
     }),
     environmentId: data.AGENT_ENVIRONMENT_ID,
   };
 };
+
+// what a failed call logs: the SDK's error carries the status and the request id Anthropic's
+// support reads (platform.claude.com/docs/en/cli-sdks-libraries/sdks/typescript#handling-errors)
+export const callFailureFields = (cause: unknown) => ({
+  ...errorFields(cause),
+  requestId: cause instanceof APIError ? (cause.requestID ?? null) : null,
+  status: cause instanceof APIError ? (cause.status ?? null) : null,
+});
+
+// a call answered 404: what it would delete is already gone
+export const isGone = (cause: unknown): boolean => cause instanceof NotFoundError;

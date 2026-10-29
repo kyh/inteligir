@@ -16,7 +16,7 @@ import { all, run } from "./library-sql";
 import type { SqlPlan, SqlRow } from "./library-sql";
 
 // bump on any change below
-export const LIBRARY_SCHEMA_VERSION = 4;
+export const LIBRARY_SCHEMA_VERSION = 5;
 
 // STRICT tables are SQLite 3.37; a replica's engine is checked against it at open. The cell's is
 // the platform's own, and a Durable Object refuses sqlite_version() ("not authorized to use
@@ -297,11 +297,16 @@ const CELL_DDL = [
     mime TEXT NOT NULL,
     reserved_at INTEGER NOT NULL
   ) STRICT`,
+  // the built-in agent's access, while it is on: the grant its OAuth client holds, and the vault
+  // and the one credential Anthropic holds it in; a row whose credential is null is still being
+  // turned on, since `started_at`
   `CREATE TABLE IF NOT EXISTS agent_vault (
     account_id TEXT PRIMARY KEY,
-    vault_id TEXT NOT NULL,
-    credential_id TEXT NOT NULL,
-    grant_id TEXT NOT NULL
+    started_at INTEGER NOT NULL,
+    grant_id TEXT,
+    vault_id TEXT,
+    credential_id TEXT,
+    CHECK (credential_id IS NULL OR (grant_id IS NOT NULL AND vault_id IS NOT NULL))
   ) STRICT`,
   `CREATE TABLE IF NOT EXISTS agent_turn (
     thread_id TEXT PRIMARY KEY,

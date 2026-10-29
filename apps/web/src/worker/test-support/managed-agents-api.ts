@@ -4,7 +4,11 @@
 // it keeps the vaults, credentials and sessions the calls made, answers each call as the API
 // would, and records every request it was sent.
 
+import { env } from "cloudflare:workers";
 import { z } from "zod";
+
+import { managedAgents } from "../agent/managed-agents";
+import type { ManagedAgents } from "../agent/managed-agents";
 
 interface RecordedCall {
   readonly method: string;
@@ -22,7 +26,7 @@ const vaultBodySchema = z.looseObject({
 });
 
 const credentialBodySchema = z.looseObject({
-  auth: z.looseObject({ type: z.literal("mcp_oauth") }),
+  auth: z.looseObject({ refresh: z.looseObject({}).optional(), type: z.literal("mcp_oauth") }),
 });
 
 type CredentialAuth = z.infer<typeof credentialBodySchema>["auth"];
@@ -57,6 +61,8 @@ export const fakeManagedAgentsApi = () => {
   const sessions = new Map<string, { status: string }>();
   // what a validation answers, as the API would after its probe and any refresh it tried
   let validation: Validation = "valid";
+  // the next call that matches answers as the API does when it fails
+  let failing: { readonly method: string; readonly path: RegExp } | null = null;
   let minted = 0;
   const mint = (prefix: string): string => {
     minted += 1;
@@ -111,8 +117,11 @@ export const fakeManagedAgentsApi = () => {
       return refusal(404, "not_found_error", "credential not found");
     }
     const { auth } = parsedBody(credentialBodySchema, text);
-    // a field the update leaves out keeps its value, as the API merges an update
-    const updated = { auth: { ...held.auth, ...auth }, vaultId };
+    // a field the update leaves out keeps its value, the refresh block's included, as the API
+    // merges an update
+    const refresh =
+      auth.refresh === undefined ? held.auth.refresh : { ...held.auth.refresh, ...auth.refresh };
+    const updated = { auth: { ...held.auth, ...auth, refresh }, vaultId };
     credentials.set(id, updated);
     return Response.json(credentialRecord(id, updated));
   };
@@ -199,6 +208,13 @@ export const fakeManagedAgentsApi = () => {
     const { pathname } = new URL(request.url);
     const body = await request.text();
     calls.push({ body, headers: request.headers, method: request.method, path: pathname });
+    if (failing?.method === request.method && failing.path.test(pathname)) {
+      failing = null;
+      // marked as one no retry mends, so the SDK hands it straight back
+      const failed = refusal(500, "api_error", "Internal server error");
+      failed.headers.set("x-should-retry", "false");
+      return failed;
+    }
     for (const route of routes) {
       const matched = route.method === request.method ? route.path.exec(pathname) : null;
       if (matched !== null) {
@@ -211,6 +227,9 @@ export const fakeManagedAgentsApi = () => {
   return {
     calls,
     credentials,
+    failNext: (method: string, path: RegExp): void => {
+      failing = { method, path };
+    },
     fetch,
     // a session one of the account's threads holds
     holdSession: (status: string): string => {
@@ -224,4 +243,23 @@ export const fakeManagedAgentsApi = () => {
     },
     vaults,
   };
+};
+
+// what a deployment whose agent was applied, and whose key is set, binds: the ids its lockfile
+// recorded and its secret
+export const deployedEnv: Env = {
+  ...env,
+  AGENT_ENVIRONMENT_ID: "env_011CZkZ9",
+  AGENT_ID: "agent_011CZkZ8",
+  AGENT_VERSION: "3",
+  ANTHROPIC_API_KEY: "sk-ant-test",
+};
+
+// a deployment's client over the recorded API
+export const managedAgentsOver = (api: { readonly fetch: typeof fetch }): ManagedAgents => {
+  const agents = managedAgents(deployedEnv, api.fetch);
+  if (agents === null) {
+    throw new Error("a deployment with a key and an applied agent has a client");
+  }
+  return agents;
 };

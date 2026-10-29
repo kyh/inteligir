@@ -8,6 +8,7 @@ import { createRouterClient, ORPCError } from "@orpc/server";
 import { describe, expect, it } from "vitest";
 
 import {
+  agentCellIn,
   cellOf,
   clockAt,
   engineIn,
@@ -35,10 +36,17 @@ const laptop = (accountId: string): Principal => ({
 
 const newId = (): string => uuidV7(Date.now(), crypto.getRandomValues(new Uint8Array(16)));
 
-const clientIn = (state: DurableObjectState, clock: Clock, principal = laptop("account")) =>
-  createRouterClient(libraryRouter, {
-    context: { library: engineIn(state, clock), principal, settle: async (result) => result },
+const clientIn = (state: DurableObjectState, clock: Clock, principal = laptop("account")) => {
+  const library = engineIn(state, clock);
+  return createRouterClient(libraryRouter, {
+    context: {
+      agent: agentCellIn(state, library, { clock }),
+      library,
+      principal,
+      settle: async (result) => result,
+    },
   });
+};
 
 // the refusal a call met, as its client reads it
 const refusalOf = async (call: Promise<unknown>) => {

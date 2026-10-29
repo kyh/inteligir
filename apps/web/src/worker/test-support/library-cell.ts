@@ -6,13 +6,15 @@ import { ordsBetween } from "@repo/notes/library/block-order";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
 import { runInDurableObject } from "cloudflare:test";
-import { exports } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 
+import type { AgentCell } from "../agent/agent-access";
+import type { ManagedAgents } from "../agent/managed-agents";
 import type { CellActor } from "../library/cell-actor";
 import { cellIds } from "../library/cell-ids";
 import type { CellResult } from "../library/cell-refusal";
 import { cellStorageOf } from "../library/cell-storage";
-import { libraryCellName } from "../library/library-cell";
+import { cellAccountId, libraryCellName } from "../library/library-cell";
 import type { LibraryDO } from "../library/library-do";
 import { openLibraryEngine } from "../library/library-engine";
 import type { LibraryEngine } from "../library/library-engine";
@@ -40,6 +42,22 @@ export const engineIn = (state: DurableObjectState, clock: Clock, bytesCap = GiB
     now: () => clock.now,
     storage: cellStorageOf(state.storage),
   });
+
+// the built-in agent's access in a cell under test, over the test's clock: no Managed Agents
+// client unless the test hands it one (`./managed-agents-api`), and the Worker the cell reaches
+// through its own `exports`, as the deployed cell does, as the token endpoint its grant is traded at
+export const agentCellIn = (
+  state: DurableObjectState,
+  library: LibraryEngine,
+  options: { readonly agents?: ManagedAgents | null; readonly clock?: Clock } = {},
+): AgentCell => ({
+  accountId: cellAccountId(state.id.name),
+  agents: options.agents ?? null,
+  endpoint: state.exports.default,
+  env,
+  library,
+  now: () => options.clock?.now ?? Date.now(),
+});
 
 // the engine inside a fresh cell, its result handed back out
 export const inCell = async <T>(

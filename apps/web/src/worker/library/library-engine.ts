@@ -173,6 +173,14 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     return held === null ? null : deletedAtSchema.parse(held);
   };
 
+  // what the op answered when it landed, or null while it has not
+  const priorAnswer = <S extends z.ZodType>(opId: string, answer: S): z.output<S> | null => {
+    const [prior] = storage.all("SELECT answer FROM applied_ops WHERE op_id = ?", [opId]);
+    return prior === undefined
+      ? null
+      : answer.parse(JSON_TEXT.parse(answerRowSchema.parse(prior).answer));
+  };
+
   // one write: refused once the account is being deleted, answered from its op's record when it
   // already landed, else run whole or not at all
   const transact = <S extends z.ZodType>(
@@ -185,14 +193,9 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
           refuse({ kind: "gone" });
         }
         const now = deps.now();
-        if (request.opId !== undefined) {
-          const [prior] = storage.all("SELECT answer FROM applied_ops WHERE op_id = ?", [
-            request.opId,
-          ]);
-          if (prior !== undefined) {
-            const answer = JSON_TEXT.parse(answerRowSchema.parse(prior).answer);
-            return { head: null, ok: true, value: request.answer.parse(answer) };
-          }
+        const prior = request.opId === undefined ? null : priorAnswer(request.opId, request.answer);
+        if (prior !== null) {
+          return { head: null, ok: true, value: prior };
         }
         const taken: Taken = { seq: null, set: null };
         const scope: LandingScope = {
@@ -414,6 +417,14 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
 
   const read = <T>(work: (sql: SqlStatements) => T): CellResult<T> => reading(() => work(storage));
 
+  // what a write already answered under `opId`, or null while none has: a write whose work waits on
+  // the network between its transactions asks first, and lands its op with its last one
+  const answered = <S extends z.ZodType>(
+    opId: string | undefined,
+    answer: S,
+  ): CellResult<z.output<S> | null> =>
+    reading(() => (opId === undefined ? null : priorAnswer(opId, answer)));
+
   const fillWanted = (itemId: string, url: string): CellResult<boolean> =>
     reading(() => fillWaits(storage, itemId, url));
 
@@ -506,6 +517,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   };
 
   return {
+    answered,
     beginStrayRemovals,
     blobRemovals: () => blobRemovals(storage),
     bodies,

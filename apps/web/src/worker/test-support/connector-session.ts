@@ -9,6 +9,7 @@ import { exports } from "cloudflare:workers";
 import { expect } from "vitest";
 import { z } from "zod";
 
+import { pkcePair } from "../connector/pkce";
 import { cookieHeaderOf, ORIGIN } from "./cloud-helpers";
 
 export const CONNECTOR_URL = `${ORIGIN}${CONNECTOR_PATH}`;
@@ -26,18 +27,6 @@ export const workerFetch = async (input: string | URL | Request, init?: RequestI
     headers.set("host", new URL(request.url).host);
   }
   return await exports.default.fetch(new Request(request, { headers }));
-};
-
-const base64Url = (bytes: Uint8Array): string =>
-  btoa(String.fromCodePoint(...bytes))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/[=]+$/u, "");
-
-export const pkcePair = async (): Promise<{ verifier: string; challenge: string }> => {
-  const verifier = base64Url(crypto.getRandomValues(new Uint8Array(32)));
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
-  return { challenge: base64Url(new Uint8Array(digest)), verifier };
 };
 
 const registeredSchema = z.object({ client_id: z.string().min(1) });

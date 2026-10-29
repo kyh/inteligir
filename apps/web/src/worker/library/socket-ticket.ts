@@ -5,7 +5,7 @@
 // (https://developers.cloudflare.com/workers/runtime-apis/web-crypto/); its signature is compared
 // as hashes with `timingSafeEqual`, so the comparison takes the same time whatever was presented.
 
-import { base64FromBytes, bytesFromBase64 } from "@repo/contract/cloud/bytes";
+import { base64UrlFromBytes, bytesFromBase64 } from "@repo/contract/cloud/bytes";
 import { z } from "zod";
 
 import type { SocketHolder } from "./cell-sockets";
@@ -30,9 +30,6 @@ export interface SocketClaim {
   readonly holder: SocketHolder;
   readonly expiresAt: number;
 }
-
-const base64Url = (bytes: Uint8Array): string =>
-  base64FromBytes(bytes).replaceAll("+", "-").replaceAll("/", "_").replace(/[=]+$/u, "");
 
 const BASE64_URL = /^[A-Za-z0-9_-]+$/u;
 
@@ -72,11 +69,11 @@ export const mintSocketTicket = async (
   now: number,
 ): Promise<{ readonly ticket: string; readonly expiresAt: number }> => {
   const expiresAt = now + SOCKET_TICKET_TTL_MS;
-  const payload = base64Url(
+  const payload = base64UrlFromBytes(
     encoder.encode(JSON.stringify({ accountId: claim.accountId, expiresAt, holder: claim.holder })),
   );
   const signature = await signatureOf(await ticketKey(secret), payload);
-  return { expiresAt, ticket: `${payload}.${base64Url(signature)}` };
+  return { expiresAt, ticket: `${payload}.${base64UrlFromBytes(signature)}` };
 };
 
 // the claim a ticket signed and still holds, or null for one forged, mangled or expired

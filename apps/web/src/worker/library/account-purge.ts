@@ -1,13 +1,17 @@
 // An account's deletion, run by its library cell, one step after another and each one idempotent,
 // so a deletion that fails part way runs again from the top and the account survives to retry
 // (Better Auth's `beforeDelete`, `../auth/auth.ts`). First the tombstone, so every write, read and
-// socket that races the rest is refused; then what the cell holds, the tombstone written back at
-// once; then the account's files in R2; then the grants its assistants hold in KV; last its
-// credentials in D1, which until then still verify only to meet the tombstone. The tombstone
-// outlives the deletion, so a request that verified before the credentials went meets it too rather
-// than founding a library nobody can reach. A later step joins the list where its order says.
+// socket that races the rest is refused; then the built-in agent's conversations and vault at
+// Anthropic, whose ids only the cell's rows hold; then what the cell holds, the tombstone written
+// back at once; then the account's files in R2; then the grants its assistants and its agent hold
+// in KV; last its credentials in D1, which until then still verify only to meet the tombstone. The
+// tombstone outlives the deletion, so a request that verified before the credentials went meets it
+// too rather than founding a library nobody can reach. A later step joins the list where its order
+// says.
 
-import { revokeEveryAssistant } from "../connector/assistant-grants";
+import { purgeAgentData } from "../agent/agent-access";
+import type { ManagedAgents } from "../agent/managed-agents";
+import { revokeEveryGrant } from "../connector/assistant-grants";
 import { connectorAuth } from "../connector/connector-auth";
 import { createDb } from "../db/client";
 import { forgetInviteRedeemer } from "../auth/invite";
@@ -16,12 +20,15 @@ import { accountBlobPrefix } from "./cell-blobs";
 import { openCellSchema } from "./cell-schema";
 import { closeEverySocket } from "./cell-sockets";
 import { openCellLibrary } from "./cell-library";
+import { cellStorageOf } from "./cell-storage";
 
 export interface PurgeScope {
   readonly ctx: DurableObjectState;
   readonly env: Env;
   readonly accountId: string;
   readonly email: string;
+  // this deployment's Managed Agents client, or null with no key
+  readonly agents: ManagedAgents | null;
 }
 
 export interface PurgeStep {
@@ -45,6 +52,13 @@ export const ACCOUNT_PURGE_STEPS: readonly PurgeStep[] = [
     run: async ({ ctx, env }) => {
       await markDeleted(ctx, env);
       closeEverySocket(ctx);
+    },
+  },
+  {
+    // read past the tombstone, which refuses the engine's reads, from the cell's own rows
+    name: "agent",
+    run: async ({ agents, ctx }) => {
+      await purgeAgentData(agents, cellStorageOf(ctx.storage));
     },
   },
   {
@@ -77,11 +91,11 @@ export const ACCOUNT_PURGE_STEPS: readonly PurgeStep[] = [
     },
   },
   {
-    // every assistant let in through the connector, its tokens with it, before the credentials
-    // that could let one in again
+    // every assistant let in through the connector and the built-in agent's grant, their tokens
+    // with them, before the credentials that could let one in again
     name: "grants",
     run: async ({ accountId, env }) => {
-      await revokeEveryAssistant(connectorAuth(env).helpers, accountId);
+      await revokeEveryGrant(connectorAuth(env).helpers, accountId);
     },
   },
   {

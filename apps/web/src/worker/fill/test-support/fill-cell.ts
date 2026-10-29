@@ -16,7 +16,7 @@ import { cellStorageOf } from "../../library/cell-storage";
 import type { LibraryEngine } from "../../library/library-engine";
 import type { Principal } from "../../library/library-principal";
 import { libraryRouter } from "../../library/library-router";
-import { cellOf, inCell, newAccountId } from "../../test-support/library-cell";
+import { agentCellIn, cellOf, inCell, newAccountId } from "../../test-support/library-cell";
 import type { FillJob } from "../fill-job";
 import { FILL_QUEUE } from "../../../../fill-queues";
 
@@ -34,6 +34,7 @@ export const libraryIn = (
 ) =>
   createRouterClient(libraryRouter, {
     context: {
+      agent: agentCellIn(state, library),
       library,
       principal: laptop(accountId),
       settle: async (result) => await Promise.resolve(result),

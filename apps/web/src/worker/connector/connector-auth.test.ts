@@ -28,12 +28,12 @@ import {
   connectAssistant,
   CONNECTOR_URL,
   exchangeCode,
-  pkcePair,
   registerClient,
   registration,
   showConsent,
   workerFetch,
 } from "../test-support/connector-session";
+import { pkcePair } from "./pkce";
 
 // an MCP request any client opens with, here sent bare to see what answers it
 const initialize = (headers: Record<string, string> = {}) =>

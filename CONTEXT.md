@@ -100,11 +100,14 @@ runs on its own plan, never ours. Each one is a grant on the account, which
 Account shows. Not the **built-in agent**, though both call the same tools.
 
 **built-in agent** — the app's own agent: one Claude Managed Agents agent and
-environment per deployment target, configured by files in `apps/web` and
-synced with `ant apply`. The cell starts one session per thread and is the
-only reader of its events. It reaches the library only through the
-**connector**, as our own OAuth client whose token is held in the account's
-Managed Agents vault (Anthropic's credential store, not the library); it has
+environment per deployment target, configured by files in `apps/web/agents`
+(`apps/web/scripts/agent-files.ts` writes them) and synced with `ant apply`.
+The cell starts one session per thread and is the only reader of its events.
+It reaches the library only through the **connector**, as our own OAuth client
+(`apps/web/src/worker/agent/built-in-client.ts`) whose token is held in the
+account's Managed Agents vault (Anthropic's credential store, not the
+library), which turning the agent on makes and turning it off deletes
+(`apps/web/src/worker/agent/agent-access.ts`); it has
 no shell, files or web of its own, deleting is the one call that asks the
 person first, and at most one of its **turns** runs per account at a time. It
 runs on our bill, within the account's allowance. Not a **connected

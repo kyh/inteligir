@@ -101,9 +101,9 @@ accounts, `/v1` (the apps' one wire, `/v1/rpc`, beside the library's bytes
 and the socket that tells a device the library moved), the connector, the
 queue that reads saved pages, and every account's library cell. The built-in
 agent is Anthropic's: one agent and one environment per deployment target,
-configured by files in `apps/web` and synced with `ant apply`; the cell starts
-and reads its sessions, and the agent reaches the library only through the
-connector. `apps/desktop` is the Mac app, installed as the signed dmg: a
+configured by files in `apps/web/agents`, one directory a target, and synced
+with `ant apply`; the cell starts and reads its sessions, and the agent
+reaches the library only through the connector, as our own OAuth client. `apps/desktop` is the Mac app, installed as the signed dmg: a
 Tauri window showing the SPA `apps/workspace` builds, bundled into the .app,
 with the Mac's replica, the Keychain credential and the cache of the
 library's files in Rust, and no node; the same SPA is the browser tab the
@@ -128,7 +128,7 @@ change that touches that code rewrites the bullet in the same commit.
 ## Map
 
 ```
-apps/web                @repo/web — ONE Cloudflare Worker: site, accounts, /v1, the connector, fills, each account's library cell
+apps/web                @repo/web — ONE Cloudflare Worker: site, accounts, /v1, the connector, fills, each account's library cell; agents/ is the built-in agent's files
 apps/workspace          @repo/workspace — the SPA: the Mac app's window, and the browser tab at /library
 apps/desktop            @repo/desktop — THE MAC APP: the Tauri window around the SPA; the replica, credential and file cache in Rust
 apps/mobile             @repo/mobile — the iPhone app: the library in the editor page, over its own replica, offline

@@ -411,6 +411,10 @@ Specifically, in our cloud:
   registered (its name and addresses, never yours) is deleted 90 days after it
   last used it, and deleting the account leaves a registration to those 90
   days, since none is filed under an account.
+- The built-in agent's access to your library lasts while it is on, renewed
+  as it works: turning it off revokes it at once and deletes the vault at
+  Anthropic that holds it, and access nothing renews for 30 days lapses, as an
+  assistant's does.
 - Cloudflare's request log keeps each entry for up to seven days.
 
 **Your phone.** Signed in, the phone keeps its own copy, so it opens and edits
@@ -461,10 +465,20 @@ and email delivery). Specifically:
   account, sessions, devices, the invite you redeemed and the throttling rows;
   its KV storage holds each assistant you connected: what it registered (its
   name and the addresses it gave), its grant, filed under your account with
-  its name and what you let it do, and its tokens, kept only as hashes;
+  its name and what you let it do, and its tokens, kept only as hashes, and
+  the built-in agent's grant and tokens the same way while it is on;
   storage it keeps for your account alone (your own Durable Objects, and storage
   named for your library) holds your online library and your devices' live connections; its email sending delivers your password-reset emails; and it keeps the
   request log described above.
+- **Anthropic** runs the built-in agent for us, on Claude Managed Agents and
+  on our account, not yours. What you ask it, what you were looking at, and
+  everything it reads of your library through our connector to answer you
+  (items, their text, highlights, folders, tags and history) go to Anthropic
+  under its terms with us. Anthropic keeps each conversation's events, and a
+  vault holding the agent's access to your library: deleting a conversation
+  deletes its events there, turning the agent off revokes that access and
+  deletes the vault at once, and deleting the account deletes every
+  conversation and the vault before your online library goes.
 - **GitHub** hosts the Mac app's releases and its update feed, and the issues
   you open there.
 - **Expo** answers the iPhone app's update check.
@@ -580,16 +594,22 @@ account row itself goes:
 1. **Your library's store in our cloud is closed**, and your devices' live
    connections to it with it: from this moment it refuses every request, so
    nothing that arrives during the deletion can write to it.
-2. **Everything in that store is deleted**: every item, its text, highlights
+2. **Your conversations with the built-in agent are deleted at Anthropic**,
+   one still running stopped first, and so is the vault holding the agent's
+   access, while the store still names them: our cloud keeps their ids
+   nowhere else.
+3. **Everything in that store is deleted**: every item, its text, highlights
    and history. What stays is a marker saying when it was deleted and nothing
    else, so a request already on its way still finds it closed.
-3. **The files your library names** (images, PDFs and the like) are deleted
+4. **The files your library names** (images, PDFs and the like) are deleted
    from our storage.
-4. **Every device row you own**, with its throttling counters, is deleted from
+5. **Every assistant's access, and the built-in agent's, is revoked**, its
+   tokens with it.
+6. **Every device row you own**, with its throttling counters, is deleted from
    D1, and **your email is dropped from the invite you redeemed** (the code
    stays burned). This is late on purpose: until then your device can still ask
    again if a step failed.
-5. **Your online library** — every version of every file, created once a signed-in
+7. **Your online library** — every version of every file, created once a signed-in
    Mac first sends it — with the listing of its file names, sizes and content
    ids kept for your phone's reads and the cached copies of its history our
    cloud serves downloads from. No device can send to it any more by now. An
@@ -597,7 +617,7 @@ account row itself goes:
    idempotent either way.
 
 Then Better Auth deletes your sessions, your password hash and the account row.
-All five steps run BEFORE that, so a step that fails aborts the deletion and
+All seven steps run BEFORE that, so a step that fails aborts the deletion and
 leaves the account able to ask again; every step is idempotent, so asking again
 resumes. What deletion does NOT touch is your Mac: the local library, its history
 and the local databases are yours. Your phone erases its copy the next time it

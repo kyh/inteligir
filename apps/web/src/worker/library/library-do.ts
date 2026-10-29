@@ -11,6 +11,10 @@ import { CONNECTOR_PATH } from "@repo/contract/cloud/connector";
 import type { McpHttpHandler } from "@modelcontextprotocol/server";
 import { DurableObject } from "cloudflare:workers";
 
+import { repairAgentAccess, runAgentJobs } from "../agent/agent-access";
+import type { AgentCell, AgentRepair } from "../agent/agent-access";
+import { managedAgents } from "../agent/managed-agents";
+import type { ManagedAgents } from "../agent/managed-agents";
 import { refuse } from "../cloud-http";
 import { authInfoOf, createConnectorHandler } from "../connector/connector-server";
 import { fillLandingSchema } from "../fill/fill-landing";
@@ -50,7 +54,7 @@ import {
 import type { Principal } from "./library-principal";
 import type { CellContext } from "./library-router";
 import { serveLibraryRpc, V1_LIBRARY_RPC_PATH } from "./library-rpc";
-import type { UploadSettlement } from "./library-engine";
+import type { LibraryEngine, UploadSettlement } from "./library-engine";
 
 // an alarm whose run failed outright tries again after this; a job's own failure waits longer
 const ALARM_RETRY_MS = 60_000;
@@ -100,10 +104,33 @@ export class LibraryDO extends DurableObject<Env> {
     return principal?.accountId === this.#accountId ? principal : null;
   }
 
+  // this deployment's Managed Agents client, made on the cell's first need of it: the bindings it
+  // is made from are the deployment's, the same for the cell's whole life
+  #agents: ManagedAgents | null = null;
+
+  #managedAgents(): ManagedAgents | null {
+    this.#agents ??= managedAgents(this.env);
+    return this.#agents;
+  }
+
+  // the built-in agent's access over the engine: the Managed Agents client, and the Worker itself,
+  // whose token endpoint its grant is traded at
+  #agentCell(library: LibraryEngine): AgentCell {
+    return {
+      accountId: this.#accountId,
+      agents: this.#managedAgents(),
+      endpoint: this.ctx.exports.default,
+      env: this.env,
+      library,
+      now: Date.now,
+    };
+  }
+
   // a call's cell: the engine over this cell's storage, and what follows its commit
   #cellContext(principal: Principal): CellContext {
     const library = openCellLibrary(this.ctx, this.env);
     return {
+      agent: this.#agentCell(library),
       library,
       principal,
       settle: async (result) => await settleCommit(this.ctx, this.env, library, result),
@@ -157,8 +184,9 @@ export class LibraryDO extends DurableObject<Env> {
     });
   }
 
-  // the jobs due: the storage's own, then those that wait on R2 (strays, imports, exports) and
-  // the readings to send; whatever moved the library is told to the sockets once
+  // the jobs due: the storage's own, then those that wait on R2 (strays, imports, exports), the
+  // readings to send and the agent's access to take down or repair; whatever moved the library is
+  // told to the sockets once
   override async alarm(): Promise<void> {
     const library = openCellLibrary(this.ctx, this.env);
     const head = library.head();
@@ -177,6 +205,7 @@ export class LibraryDO extends DurableObject<Env> {
       await runImports(host);
       await runExports(host);
       await sendFills(this.ctx, this.env, library);
+      await runAgentJobs(this.#agentCell(library));
       const moved = library.head();
       if (moved !== head) {
         pingLibraryMoved(this.ctx, moved);
@@ -200,7 +229,22 @@ export class LibraryDO extends DurableObject<Env> {
 
   // the account's deletion, every step in order (`./account-purge`)
   async purge(email: string): Promise<void> {
-    await purgeAccount({ accountId: this.#accountId, ctx: this.ctx, email, env: this.env });
+    await purgeAccount({
+      accountId: this.#accountId,
+      agents: this.#managedAgents(),
+      ctx: this.ctx,
+      email,
+      env: this.env,
+    });
+  }
+
+  // Anthropic said the built-in agent's credential failed: a session's
+  // `mcp_authentication_failed_error`, or the `vault_credential.refresh_failed` webhook
+  async repairAgentAccess(): Promise<AgentRepair> {
+    const library = openCellLibrary(this.ctx, this.env);
+    const repaired = await repairAgentAccess(this.#agentCell(library));
+    await scheduleAlarm(this.ctx, library);
+    return repaired;
   }
 
   // room for a file a device is about to upload to `/v1/blobs/<sha>`

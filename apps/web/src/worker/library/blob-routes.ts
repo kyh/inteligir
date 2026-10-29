@@ -196,7 +196,8 @@ const refusalAnswer = (refusal: Pick<CellRefusal, "kind">): Response => {
     case "url-held":
     case "already-undone":
     case "edit-refused":
-    case "bad-cursor": {
+    case "bad-cursor":
+    case "agent-unavailable": {
       throw new Error(`a file's room answered ${refusal.kind}, which no upload meets`);
     }
     // no default
