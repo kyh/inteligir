@@ -25,7 +25,7 @@
     "@orpc/mcp": "catalog:",
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
-    "@react-three/fiber": "^9.8.1",
+    "@react-three/fiber": "^9.8.2",
     "@repo/contract": "workspace:*",
     "@repo/editor": "workspace:*",
     "@repo/notes": "workspace:*",

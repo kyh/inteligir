@@ -52,11 +52,11 @@ catalog:
   "@tailwindcss/vite": ^4.3.3
   "@testing-library/dom": ^10.4.2
   "@testing-library/react": ^16.3.3
-  "@tanstack/react-query": ^5.104.1
+  "@tanstack/react-query": ^5.104.5
   # exact: the committed route tree is an artifact of the plugin version
-  "@tanstack/react-router": 1.170.44
-  "@tanstack/react-start": 1.169.1
-  "@tanstack/router-plugin": 1.168.45
+  "@tanstack/react-router": 1.170.46
+  "@tanstack/react-start": 1.169.4
+  "@tanstack/router-plugin": 1.168.48
   "@types/better-sqlite3": ^9.6.0
   "@types/mdast": ^4.0.4
   # tracks engines.node; newer types let a 25+-only API typecheck and throw at runtime
@@ -101,8 +101,8 @@ catalog:
   expo-status-bar: ~57.0.1
   expo-updates: ~57.0.25
   hono: ^4.13.13
-  jsdom: ^30.1.2
-  lucide-react: ^1.55.0
+  jsdom: ^30.1.3
+  lucide-react: ^1.61.0
   nanoid: ^6.0.2
   # exact: nativewind's one Tailwind 4 line is a preview, which moves between previews, and
   # react-native-css is the build that preview is tested against; lift both when nativewind 5
@@ -132,15 +132,15 @@ catalog:
   typescript: ^7.0.2
   unified: ^11.0.5
   vite: ^8.3.5
-  vitest: ^4.1.11
+  vitest: ^4.1.12
   # exact: a beta, whose config API moves between releases
   cf: 1.0.0-beta.23
   # the one cf resolves; tools/e2e reads `cf build` output with it
   miniflare: 5.20261023.0-beta
   wrangler: ^4.153.0
   yaml: ^2.9.1
-  zod: ^4.6.5
-  zustand: ^5.0.15
+  zod: ^4.6.7
+  zustand: ^5.0.16
 
 catalogs:
   # the SDK-blessed react/typescript; bump only with an Expo SDK upgrade

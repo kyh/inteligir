@@ -20,7 +20,7 @@
     "@kyh/tsconfig": "catalog:",
     "@repo/contract": "workspace:*",
     "@repo/workspace": "workspace:*",
-    "@tauri-apps/cli": "^2.12.2",
+    "@tauri-apps/cli": "^2.12.4",
     "@types/node": "catalog:",
     "inteligir": "workspace:*",
     "typescript": "catalog:",
