@@ -11,6 +11,10 @@ const tests = ["**/test-support/**", "**/*.test.ts", "**/*.test.tsx"];
 const NODE = "^node:";
 const REACT = "^react(?:-dom)?(?:/|$)";
 const NODE_OR_REACT = "^(?:node:|react(?:-dom)?(?:/|$))";
+// the replica engine runs in the Mac's page, the browser tab, the phone's Hermes and node's tests:
+// no platform, no UI, and no editor, whose diff3 its host hands it as the block merge
+const REPLICA_IMPORTS =
+  "^(?:node:|react(?:-dom|-native)?(?:/|$)|expo(?:-[^/]+)?(?:/|$)|@expo/|@repo/(?:editor|ui)(?:/|$))";
 
 const NOTES_PURITY =
   "@repo/notes is pure and platform-neutral — no node/react/ui imports; callers inject platform capabilities";
@@ -169,6 +173,11 @@ export default defineConfig({
       "@repo/page-reader reads a page over the DOM its host hands it, in the Mac's network-less fill worker and in the phone's WebView, so it imports no node module (no socket a page could reach) and no React",
     ),
     platformPurity(
+      "packages/library-replica",
+      REPLICA_IMPORTS,
+      "@repo/library-replica is the replica engine every device runs, so it names no platform: its SQL, clock, ids, transport, socket, staged files and block merge are the ports its host hands it",
+    ),
+    platformPurity(
       "apps/extension",
       NODE,
       "@repo/extension runs in the browser: its pages and its service worker reach the Mac only through the native host",
@@ -241,6 +250,37 @@ export default defineConfig({
                 name: "URL",
               },
             ],
+          },
+        ],
+      },
+    },
+    {
+      // A test is one of the hosts, so it may hand the engine the platform's timers and fetch.
+      excludeFiles: tests,
+      files: ["packages/library-replica/src/**"],
+      rules: {
+        "no-restricted-globals": [
+          "error",
+          {
+            checkGlobalObject: true,
+            globals: [
+              "crypto",
+              "document",
+              "fetch",
+              "indexedDB",
+              "localStorage",
+              "navigator",
+              "setInterval",
+              "setTimeout",
+              "URL",
+              "WebSocket",
+              "window",
+              "XMLHttpRequest",
+            ].map((name) => ({
+              message:
+                "@repo/library-replica names no platform: take the clock, the transport, the socket or the ids from the host's ports (src/replica-ports.ts)",
+              name,
+            })),
           },
         ],
       },
