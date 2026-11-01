@@ -31,9 +31,7 @@ import { ChoiceRow, SectionHeading } from "./settings-chrome";
 // while any row waits on one.
 const SIGN_IN_POLL_MS = 1500;
 
-export const signInPollInterval = (
-  servers: readonly ConnectorView[] | undefined,
-): number | false =>
+export const signInPollInterval = (servers: readonly ConnectorView[] | undefined): number | false =>
   servers?.some((server) => server.signIn.state === "pending") === true ? SIGN_IN_POLL_MS : false;
 
 const useConnectors = () =>

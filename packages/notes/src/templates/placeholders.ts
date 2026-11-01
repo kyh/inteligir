@@ -182,7 +182,7 @@ const spellPlaceholders = (
   now: Date,
   spellTitle: (offset: number) => string,
 ): string =>
-  source.replace(PLACEHOLDER_RE, (_match, name: string, offset: number) => {
+  source.replaceAll(PLACEHOLDER_RE, (_match, name: string, offset: number) => {
     if (name === "date") {
       return formatIsoDate(now);
     }

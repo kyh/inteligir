@@ -30,13 +30,13 @@
     "verify": "turbo run typecheck lint knip format test build --continue=dependencies-successful --concurrency=${TEST_CONCURRENCY:-4}"
   },
   "devDependencies": {
-    "dotenv-cli": "^11.0.0",
-    "knip": "^6.43.0",
-    "oxfmt": "^0.72.0",
-    "oxlint": "^1.88.0",
+    "dotenv-cli": "^11.1.0",
+    "knip": "^6.44.1",
+    "oxfmt": "^0.75.0",
+    "oxlint": "^1.90.0",
     "turbo": "^2.11.10",
     "typescript": "catalog:",
-    "ultracite": "^8.0.0"
+    "ultracite": "^8.1.0"
   },
   "engines": {
     "node": "24.x"

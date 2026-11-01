@@ -83,7 +83,7 @@ const chevronOf = (text: string): HTMLElement => {
   const section = block(text).closest(".group\\/heading");
   const button = section?.querySelector("button");
   if (!(button instanceof HTMLElement)) {
-    throw new Error(`"${text}" has no chevron`);
+    throw new TypeError(`"${text}" has no chevron`);
   }
   return button;
 };

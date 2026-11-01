@@ -317,6 +317,7 @@ describe("the native end of the editor page's bridge", () => {
     let answered: boolean | null = null;
     const flushing = host.flush().then((ok) => {
       answered = ok;
+      return ok;
     });
     const flush = injected.findLast((frame) => frame.type === "flush");
     if (flush?.type !== "flush") {
