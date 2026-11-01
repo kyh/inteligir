@@ -129,6 +129,9 @@ export default defineConfig({
     },
   ],
   rules: {
+    // Keep established code style when upgrading the preset; avoid unrelated rewrites.
+    "anti-slop/no-array-filter-map": "off",
+    "anti-slop/require-readable-spacing": "off",
     // Its message asks for a `// SAFETY:` comment, which admits nothing now that
     // `typescript/consistent-type-assertions` refuses every assertion.
     "anti-slop/require-safety-comment-for-type-assertion": "off",

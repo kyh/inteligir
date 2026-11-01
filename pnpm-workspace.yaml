@@ -16,11 +16,11 @@ catalog:
   "@agentclientprotocol/codex-acp": 1.13.0
   "@agentclientprotocol/sdk": 1.5.0
   # optional peer @vitejs/plugin-react loads for `compiler: true`
-  oxc-transform-react: ^0.152.0
+  oxc-transform-react: ^0.156.0
   # exact: 1.65 drops `experimental.newConfig`, which `cf build` (cf beta) is configured through
   "@cloudflare/vite-plugin": 1.64.0
-  "@cloudflare/vitest-pool-workers": ^0.22.0
-  "@expo/metro-runtime": ~57.0.16
+  "@cloudflare/vitest-pool-workers": ^0.23.0
+  "@expo/metro-runtime": ~57.0.17
   "@expo/plist": ~0.8.1
   # node-server held on 1.x: @hono/node-ws has no 2.x-compatible release; lift both together
   "@hono/node-server": ~1.19.17
@@ -29,7 +29,7 @@ catalog:
   "@tailwindcss/vite": ^4.3.3
   "@testing-library/dom": ^10.4.2
   "@testing-library/react": ^16.3.3
-  "@tanstack/react-query": ^5.104.5
+  "@tanstack/react-query": ^5.105.0
   # exact: the committed route tree is an artifact of the plugin version
   "@tanstack/react-router": 1.170.46
   "@tanstack/react-start": 1.169.4
@@ -38,7 +38,7 @@ catalog:
   "@types/mdast": ^4.0.4
   # tracks engines.node; newer types let a 25+-only API typecheck and throw at runtime
   "@types/node": ^24.19.2
-  "@types/react": 19.2.17
+  "@types/react": 19.2.18
   "@types/react-dom": ^19.3.0
   "@vitejs/plugin-react": ^6.1.2
   # exact: 1.7.3+ drops account.issuer, which the D1 schema holds NOT NULL and unique-indexes;
@@ -47,7 +47,7 @@ catalog:
   better-auth: 1.7.2
   better-sqlite3: ^13.0.3
   citty: ^0.2.2
-  cn: ^0.4.0
+  cn: ^0.5.1
   consola: ^3.4.2
   drizzle-kit: 1.0.0-rc.4
   drizzle-orm: 1.0.0-rc.4
@@ -68,13 +68,13 @@ catalog:
   expo-sqlite: ~57.0.4
   expo-status-bar: ~57.0.1
   expo-updates: ~57.0.25
-  hono: ^4.13.13
+  hono: ^4.13.14
   jsdom: ^30.1.3
-  lucide-react: ^1.61.0
+  lucide-react: ^1.66.0
   nanoid: ^6.0.2
   # held under 19.3: @react-three/fiber 9 peers react <19.3
-  react: ~19.2.8
-  react-dom: ~19.2.8
+  react: ~19.2.9
+  react-dom: ~19.2.9
   react-native: ~0.86.3
   react-native-safe-area-context: ~5.7.0
   react-native-screens: ~4.26.2
@@ -96,7 +96,7 @@ catalog:
   cf: 1.0.0-beta.12
   # the one wrangler resolves; tools/e2e reads `cf build` output with it
   miniflare: 5.20261019.2-beta
-  wrangler: ^4.152.0
+  wrangler: ^4.156.0
   yaml: ^2.9.1
   zod: ^4.6.7
   zustand: ^5.0.16
@@ -135,6 +135,8 @@ allowBuilds:
   workerd: true
 
 overrides:
+  # Remark plugins augment these types; all importers must share the same module.
+  mdast-util-to-markdown: ^2.2.1
   # the adapter's auto-installed peer would otherwise resolve a second, newer core beside better-auth's
   "@better-auth/core": 1.7.2
   "@types/react": "catalog:"
@@ -149,7 +151,7 @@ patchedDependencies:
   # getPluginType resolves a throwaway plugin (two deep merges) for a key no plugin registers, and
   # the markdown serializer asks that of every mark rule on every text node: four fifths of a long
   # note's save. The patch answers from `editor.plugins`, dropped once a release does
-  "@platejs/core@53.3.15": patches/@platejs__core@53.3.15.patch
+  "@platejs/core@53.5.2": patches/@platejs__core@53.5.2.patch
   # the hosted vault is capped on what a repo cell stores, and the cell exposes no size; the patch
   # adds a `usage()` RPC over the SQLite file and the R2-held packs. Upstream takes no pull
   # requests, so it stays until a release exposes a size

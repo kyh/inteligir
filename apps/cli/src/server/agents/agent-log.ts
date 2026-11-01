@@ -13,7 +13,7 @@ const VOLATILE_ID_PATTERN =
   /\b[a-z]+_[a-z0-9-]{4,}\b|\b[0-9a-f]{12,}\b|(?:\/[\w.-]+){2,}|\b\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z|[+-]\d{2}:?\d{2})?|\b\d{3,}(?:\.\d+)?(?:ms)?\b/giu;
 
 export const boundedLogKey = (message: string): string =>
-  message.replace(VOLATILE_ID_PATTERN, "<id>");
+  message.replaceAll(VOLATILE_ID_PATTERN, "<id>");
 
 export const createBoundedAgentLog =
   (

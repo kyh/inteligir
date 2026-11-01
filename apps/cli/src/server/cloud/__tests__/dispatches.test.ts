@@ -253,9 +253,8 @@ describe("a phone's request reaching a Mac", () => {
     expect(cloud.dispatchStatus(TURN).state).toBe("delivered");
     expect(reader.driver.startedTurns.map((turn) => turn.threadId)).toEqual([thread.id]);
     expect(requestCount(reader, thread.id)).toBe(2);
-    const titles = listStoredThreadEvents(reader.db, { threadId: thread.id }).flatMap(
-      ({ event }) =>
-        event.type === "thread/meta" && event.title !== undefined ? [event.title] : [],
+    const titles = listStoredThreadEvents(reader.db, { threadId: thread.id }).flatMap(({ event }) =>
+      event.type === "thread/meta" && event.title !== undefined ? [event.title] : [],
     );
     expect(titles).toEqual(["Plan the week"]);
   });

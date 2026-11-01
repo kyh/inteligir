@@ -31,7 +31,7 @@
     "react-dom": "catalog:",
     "react-markdown": "^10.1.0",
     "remark-gfm": "catalog:",
-    "three": "^0.186.1",
+    "three": "^0.187.0",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -42,12 +42,12 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@types/three": "^0.186.0",
+    "@types/three": "^0.187.0",
     "@vitejs/plugin-react": "catalog:",
     "cf": "catalog:",
     "drizzle-kit": "catalog:",
     "oxc-transform-react": "catalog:",
-    "playwright-core": "1.63.0",
+    "playwright-core": "1.64.1",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

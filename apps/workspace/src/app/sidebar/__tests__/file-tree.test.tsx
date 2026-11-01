@@ -86,7 +86,7 @@ const createFromRail = (ops: TreeOps): string | undefined => {
 const row = (path: string): HTMLElement => {
   const element = document.querySelector(`[data-path="${path}"]`);
   if (!(element instanceof HTMLElement)) {
-    throw new Error(`no row for ${path}`);
+    throw new TypeError(`no row for ${path}`);
   }
   return element;
 };
