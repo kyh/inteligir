@@ -1028,6 +1028,9 @@ importers:
       '@orpc/client':
         specifier: 'catalog:'
         version: 2.0.0-beta.45
+      '@orpc/server':
+        specifier: 'catalog:'
+        version: 2.0.0-beta.45
       '@orpc/tanstack-query':
         specifier: 'catalog:'
         version: 2.0.0-beta.45(@tanstack/query-core@5.105.0)

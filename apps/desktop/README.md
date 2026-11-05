@@ -208,12 +208,15 @@ glue (`tools/e2e/README.md`): they launch the checkout's unbundled debug shell
 (`pnpm turbo run build:shell --filter=@repo/desktop`) on a scratch home through
 `tauri-driver` and WebKitGTK's WebDriver, against a booted Worker reached
 through a relay the scenario can cut. `desktop-onboarding` signs in through the
-window and finds the account's replica file; `desktop-shell` reads the library
-from the shell's replica, sees another device's write reach the open editor,
-draws a picture and a PDF over the files' scheme, is refused `window.open` and
-every permission, relaunches with the cloud cut and opens the item from the
-replica, queues an edit that lands once the cloud is back, and signs out,
-leaving no replica file. They run on Linux, under `xvfb-run` in CI: WebKit's
+window, finds the account's replica file, relaunches into the library, and
+signs out, leaving no replica file; `desktop-shell` reads the library from the
+shell's replica, sees another device's write reach the open editor, draws a
+picture and a PDF over the files' scheme, is refused `window.open` and every
+permission, relaunches with the cloud cut and opens the item from the replica,
+draws a PDF dropped offline from its staged bytes, saves a dropped file's
+Download to Downloads with the window left on it, quits within the editor's
+pause and finds the edit after the next launch, and sees that edit land once
+the cloud is back. They run on Linux, under `xvfb-run` in CI: WebKit's
 WebDriver is WebKitGTK's alone.
 
 ## Packaging

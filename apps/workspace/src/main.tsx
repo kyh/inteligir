@@ -15,7 +15,9 @@ import type { Root } from "react-dom/client";
 import { createLeaveGuard, replicaHolds } from "./app/cloud/leave-guard";
 import { openPageLibrary, signInHref } from "./app/cloud/page-library";
 import type { PageLibrary } from "./app/cloud/page-library";
+import { OpenFailedPage } from "./app/cloud/open-failed-page";
 import { createShellLeaveGuard, openShellLibrary } from "./app/cloud/shell-library";
+import type { ShellOpening } from "./app/cloud/shell-library";
 import { SignInPage } from "./app/cloud/sign-in-page";
 import { createPageQueryClient } from "./app/cloud/v1";
 import { installLightPrints } from "./app/light-prints";
@@ -91,10 +93,30 @@ const openInTab = async (target: Root): Promise<void> => {
   }
 };
 
+// the Mac's page opened again from the start: the library, or the sign-in once signed out
+const reloadShellPage = (): void => {
+  window.location.reload();
+};
+
 // the Mac's document never changes under it: its routes ride the hash, so a reload is the same file
 const openInShell = async (target: Root): Promise<void> => {
   const leave = createShellLeaveGuard();
-  const opening = await openShellLibrary(leave);
+  let opening: ShellOpening;
+  try {
+    opening = await openShellLibrary(leave);
+  } catch (error) {
+    // nothing is drawn yet, so no boundary would catch it: the window says what failed instead
+    target.render(
+      <StrictMode>
+        <OpenFailedPage
+          cause={error}
+          queryClient={createPageQueryClient()}
+          reload={reloadShellPage}
+        />
+      </StrictMode>,
+    );
+    return;
+  }
   switch (opening.kind) {
     case "signed-out": {
       target.render(
@@ -102,9 +124,7 @@ const openInShell = async (target: Root): Promise<void> => {
           <SignInPage
             config={opening.config}
             queryClient={createPageQueryClient()}
-            onSignedIn={() => {
-              window.location.reload();
-            }}
+            onSignedIn={reloadShellPage}
           />
         </StrictMode>,
       );

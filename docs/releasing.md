@@ -237,6 +237,18 @@ the owner's account; a spare macOS user keeps your own Keychain out of it.
   `com.inteligir.desktop`; Settings › Account lists this Mac by its name; and
   Quit and reopen goes straight to the library. Create an account with an
   invite code the same way, on a second spare user: the same.
+- **A Keychain that says no is said.** Lock the login keychain
+  (`security lock-keychain ~/Library/Keychains/login.keychain-db`), open the
+  app, and choose Deny when macOS asks for the keychain. Passing: the window
+  says your library didn't open and that the Keychain didn't let Inteligir in,
+  with Try again and Sign out; unlock the keychain and choose Try again, and the
+  library opens as it was.
+- **A development build is an app of its own.** With the release signed in,
+  run `pnpm dev` from a checkout and sign it in to `pnpm dev:web`'s Worker, then
+  sign it out. Passing: Keychain Access lists `com.inteligir.desktop.dev` beside
+  `com.inteligir.desktop`; `~/Library/Application Support/com.inteligir.desktop`
+  still holds `library/`; and the release opens on its library, signed in, with
+  nothing missing.
 - **Offline, the library is the Mac's.** Turn the network off, Quit and reopen.
   Passing: the library and an item open, a picture already seen draws, an edit
   types and the footer says it waits for a connection. Turn the network on.
@@ -246,16 +258,25 @@ the owner's account; a spare macOS user keeps your own Keychain out of it.
   first opened on this Mac. Passing: the picture draws; the PDF opens in
   WebKit's own viewer, with zoom and text selection; each recording plays,
   seeks and scrubs, which means AVFoundation's range requests were answered
-  through the shell's scheme. A file item's Download, and Settings › Import
-  and export's Download the zip, each land in Downloads under their own names.
+  through the shell's scheme. Then drop a PDF and an `.m4a` from Finder onto
+  the grid with the network off, and open each. Passing: the PDF opens in the
+  viewer and the recording plays, before the upload and again once the network
+  is back. A file item's Download, and Settings › Import and export's Download
+  the zip, each land in Downloads under their own names, and the window stays
+  on the item.
 - **Updates download by themselves and install on Quit.** With the previous
   release installed and this one published (`latest.json` on the release),
   open the previous build and wait a minute. Passing: Settings › Updates says
   the new version is downloading, then that it installs when you quit, and the
   app menu offers Restart to Update; Quit and reopen, and About Inteligir
-  names the new version. Again from the previous build, choose Restart to
-  Update once it is offered. Passing: the app relaunches at once as the new
-  version, with an edit typed just before still in the item.
+  names the new version. Again from the previous build, type in an item and
+  choose Restart to Update from the app menu at once. Passing: the app
+  relaunches at once as the new version, with the words just typed still in the
+  item.
+- **Quit keeps what was just typed.** Type a word in an item and press ⌘Q at
+  once; then the same with the menu-bar icon's Quit. Passing: each time, the
+  app reopens with the word in the item, and with the network on it reaches the
+  library's browser tab at `/library`.
 - **Dictation is the Mac's.** Press fn twice in a note and speak, then type.
   Passing: the words land once, at the caret, typing carries on after them, and
   the Edit menu shows Start Dictation….
@@ -263,7 +284,28 @@ the owner's account; a spare macOS user keeps your own Keychain out of it.
   Wikipedia page), find a word near its end with ⌘P, and open the hit.
   Passing: the match lands centred and holds still. Scroll back up to the top
   with the trackpad. Passing: the text moves only as far as you scroll, with no
-  leap.
+  leap. Drag a block past the 100th one down the note. Passing: the dragged
+  block stays in sight the whole way. Hover a table that ends at the 100th
+  block. Passing: its add-row bar shows and adds a row.
+- **Paste and drop.** Passing, each:
+  - With a card selected and no field focused, ⌘V of a copied link saves it
+    (the paste catcher), and the focus returns to the card; ⌘V of a screenshot
+    saves a picture.
+  - ⌘V inside a note still pastes into the note.
+  - A link dragged from Safari, Chrome and Arc onto the window saves, and so
+    does a file dragged from Finder onto the grid and onto a folder row.
+  - A card dragged onto a folder in the sidebar moves, never saves.
+- **Highlights.** In an item, select a passage and press ⌘⇧H. Passing: it
+  highlights at once and the note box opens under it, in the app's window as
+  in a browser.
+- **VoiceOver** reads the grid: its cells, and which are selected. Escape from
+  an open item returns to the library.
+- **Scale.** Sign in on a spare Mac user to an account of 20,000 to 50,000
+  items (a generated zip of notes, imported in the browser tab). Passing: the
+  first full pull ends with the footer reading "Up to date" while the window
+  stays responsive. Then Quit and reopen. Passing: the grid's first paint, read
+  from the Mac's replica through the bridge, is under about 2 s, and a search
+  with ⌘P answers as you type.
 - **Words.** Passing: no "vault", and no "notes" meaning the whole library,
   across the window, the menus, the dialogs, the sign-in and the update's
   prompts.

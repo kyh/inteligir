@@ -6,6 +6,7 @@
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import {
+  normalizeDeviceName,
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
 } from "@repo/contract/cloud/device/device-schema";
@@ -24,6 +25,9 @@ import type { ShellConfig } from "../../shell/shell-config";
 import { shellCredential } from "../../shell/shell-commands";
 import { NEEDS_CONNECTION, refusalText } from "./needs-connection";
 import { macTransport } from "./shell-library";
+import { shellTroubleText } from "./shell-trouble";
+
+const DID_NOT_WORK = "That didn't work. Try again.";
 
 type Mode = "sign-in" | "create";
 
@@ -70,17 +74,19 @@ const keepSignIn = async (config: ShellConfig, answer: DeviceLoginResponse): Pro
 
 const signIn = async (config: ShellConfig, typed: Typed): Promise<DeviceLoginResponse> => {
   const { account } = clientOf(config, null);
+  // this Mac's host name, which can be longer than the cloud keeps
+  const deviceName = normalizeDeviceName(config.deviceName);
   const answer =
     typed.mode === "create"
       ? await account.signUp({
-          deviceName: config.deviceName,
+          deviceName,
           email: typed.email,
           inviteCode: typed.inviteCode,
           name: typed.name,
           password: typed.password,
         })
       : await account.signIn({
-          deviceName: config.deviceName,
+          deviceName,
           email: typed.email,
           password: typed.password,
         });
@@ -111,10 +117,12 @@ const SignInForm = ({ config, onSignedIn }: { config: ShellConfig; onSignedIn: (
     email.trim() !== "" &&
     password.length >= PASSWORD_MIN_LENGTH &&
     (!creating || (name.trim() !== "" && inviteCode.trim() !== ""));
-  // a refusal answers the mode it was asked in; switched away, it would sit under the wrong fields
+  // a refusal answers the mode it was asked in; switched away, it would sit under the wrong fields;
+  // the cloud's says its own sentence, and the shell's, a Keychain that would not keep the
+  // credential, says the page's
   const refusal =
     asked.isError && asked.variables.mode === mode
-      ? refusalText(asked.error, "That didn't work. Try again.")
+      ? shellTroubleText(asked.error, refusalText(asked.error, DID_NOT_WORK))
       : null;
 
   return (
