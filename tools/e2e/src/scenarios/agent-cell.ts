@@ -97,7 +97,7 @@ const fakeStats = async (worker: CloudWorker) => {
 
 export const agentCell: Scenario = {
   description:
-    "the built-in agent's turns in a Miniflare Worker's library cell and each conversation's own object, against a scripted Claude: a turn's two notes land in one change set an undo takes back whole; a deletion the agent asks for waits for the person, and runs when allowed and not when denied; cancelling a turn that keeps working stops it; a turn whose next call the allowance cannot reserve ends there, and the next send goes on in the same conversation; and Claude never drops a replayed thinking block",
+    "the built-in agent's turns in a Miniflare Worker's library cell and each conversation's own object, against a scripted Claude: a turn's two notes land in one change set an undo takes back whole; a deletion the agent asks for waits for the person, and runs when allowed and not when denied; cancelling a turn that keeps working stops it; a turn whose next call the allowance cannot reserve ends there, and the next send goes on in the same conversation; a conversation the API compacts goes on from the compaction, telling a progress note before each tool call; and Claude never drops a replayed thinking block",
   name: "agent-cell",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -208,8 +208,32 @@ export const agentCell: Scenario = {
       ["budget", "done"],
       "the conversation, going on",
     );
+    ctx.log(
+      "a conversation the API compacts goes on from the compaction, and its next turn answers",
+    );
+    const compacted = await library.agent.send({
+      text: [
+        "Note this, then look again.",
+        'call create_note {"markdown":"Kept past a summary."}',
+        "compact",
+        'call search_library {"query":"summary"}',
+        'call search_library {"query":"kept"}',
+      ].join("\n"),
+    });
+    await untilStatus(library, compacted.threadId, "idle");
+    const after = await library.agent.send({ text: "And now?", threadId: compacted.threadId });
+    expectEq(after, { status: "running", threadId: compacted.threadId }, "the send after it");
+    await untilStatus(library, compacted.threadId, "idle");
+    expectEq(
+      await endingsOf(library, compacted.threadId),
+      ["done", "done"],
+      "the compacted conversation, going on",
+    );
+    const notes = await eventsOf(library, compacted.threadId, "agent.progress");
+    expectEq(notes.length, 3, "the progress notes, one before each tool call");
+
     const status = await library.agent.status();
-    expectEq(status.turnsLeft, ALLOWANCE.dayTurns - 6, "the turns left of the day");
+    expectEq(status.turnsLeft, ALLOWANCE.dayTurns - 8, "the turns left of the day");
 
     const stats = await fakeStats(worker);
     expectEq(stats.drops, 0, "the replayed thinking blocks Claude dropped");
