@@ -107,6 +107,6 @@ nobody, and git keeps it. A single export beside a drawn component is a reasoned
   (`packages/ui/src/components/card-grid.tsx`). `useVirtualizer` is a mutable
   instance read in render, so the compiler skips that component alone and still
   compiles the cells it renders; the workspace build's report of what the
-  compiler skipped names that file alone. Rejected: masonry (heights measured before a row is placed, jumping
-  as covers load); hand-rolled windowing (a second virtualizer to keep right);
-  virtua (a second library for one grid).
+  compiler skipped names that file alone. Rejected: masonry (heights measured
+  before a row is placed, jumping as covers load); hand-rolled windowing (a
+  second virtualizer to keep right); virtua (a second library for one grid).
