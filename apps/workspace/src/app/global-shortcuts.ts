@@ -1,16 +1,13 @@
 // a key both this table and `packages/editor/src/editor-shortcuts.ts` claim runs both.
 
-import { hotkeyCaps, spellHotkey } from "@repo/ui/lib/hotkey-spelling";
+import { spellHotkey } from "@repo/ui/lib/hotkey-spelling";
 import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { useEffect, useEffectEvent } from "react";
 
 export type GlobalShortcutAction =
-  | "open-action-composer"
+  | "open-agent"
   | "open-palette"
-  | "find-in-note"
-  | "open-headings"
   | "open-settings"
-  | "toggle-zen"
   | "toggle-rail"
   | "toggle-panel";
 
@@ -37,11 +34,8 @@ interface BareShortcut extends ShortcutRow {
 export type GlobalShortcut = ModShortcut | BareShortcut;
 
 export const GLOBAL_SHORTCUTS: readonly GlobalShortcut[] = [
-  { action: "open-action-composer", key: "k", label: "Ask the agent" },
-  { action: "open-palette", key: "p", label: "Command palette" },
-  { action: "open-headings", key: "o", label: "Go to heading", shift: true },
-  { action: "find-in-note", key: "f", label: "Find…" },
-  { action: "toggle-zen", key: "\\", label: "Zen mode" },
+  { action: "open-agent", key: "k", label: "Ask the agent" },
+  { action: "open-palette", key: "p", label: "Search" },
   { action: "open-settings", key: ",", label: "Settings" },
   // bare: ⌘[ and ⌘] are the browser's history keys
   { action: "toggle-rail", bare: true, key: "[", label: "Toggle sidebar" },
@@ -67,14 +61,6 @@ export const bindingFor = (
   return hotkey === null ? null : spellHotkey(hotkey, modifier);
 };
 
-export const bindingCapsFor = (
-  action: GlobalShortcutAction,
-  modifier: ShortcutModifier,
-): readonly string[] => {
-  const hotkey = hotkeyFor(action);
-  return hotkey === null ? [] : hotkeyCaps(hotkey, modifier);
-};
-
 // a field, a text area or the editor: where a bare key types rather than commands
 export const isTextEntryTarget = (target: EventTarget | null): boolean =>
   target instanceof HTMLElement &&
@@ -84,7 +70,7 @@ export const isTextEntryTarget = (target: EventTarget | null): boolean =>
     target instanceof HTMLSelectElement);
 
 // alt disqualifies outright; shift only matches the row that claims it.
-export const globalShortcutFor = (
+const globalShortcutFor = (
   event: KeyboardEvent,
   modifier: ShortcutModifier,
 ): GlobalShortcut | null => {

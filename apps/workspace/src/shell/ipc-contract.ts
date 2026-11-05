@@ -76,7 +76,11 @@ export const APP_COMMANDS = {
 } as const;
 
 // the first-run window's own commands, granted by its own capability: it has no server, so it asks
-// for nothing the app window asks for, and the app window for none of these
+// for nothing the app window asks for, and the app window for none of these. No page asks them
+// now that sign-in is the first run; the shell still answers them, and the wire's guard
+// (tools/repo-guards/src/desktop-shell-wire.test.ts) reads this table by text against it, until the
+// Mac app's own stage retires the window and its rows together
+/** @public */
 export const FIRST_RUN_COMMANDS = {
   // a vault that opens replaces the page before any answer lands, so what the page sees is a
   // refusal in the shell's words, or the boot's own failure

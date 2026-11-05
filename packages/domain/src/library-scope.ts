@@ -30,7 +30,16 @@ export type LibraryScope = z.infer<typeof libraryScopeSchema>;
 
 // the library cell's spelling of the same choice, its folder named by id as the cell keeps it; the
 // path-keyed scopes above go with the local server's last client
-export const cellItemScopeSchema = z.discriminatedUnion("kind", [
+const CELL_ITEM_SCOPES = [
   ...SHARED_SCOPES,
   z.object({ folderId: z.string().min(1), kind: z.literal("folder") }),
+] as const;
+
+export const cellItemScopeSchema = z.discriminatedUnion("kind", CELL_ITEM_SCOPES);
+
+// a scope the library's page shows: every item scope, and Deleted
+export const cellLibraryScopeSchema = z.discriminatedUnion("kind", [
+  ...CELL_ITEM_SCOPES,
+  z.object({ kind: z.literal("deleted") }),
 ]);
+export type CellLibraryScope = z.infer<typeof cellLibraryScopeSchema>;

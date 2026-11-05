@@ -1,10 +1,9 @@
 {
   "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
-    // the workspace UI's suites compile its page and this server together: the DOM for the one,
-    // ES2024 for the other, which runs on node. The page's own programs are apps/workspace's.
+    // the suites that hold the editor's browser-side serializer to this server's seed and its
+    // placement: the DOM for the one, ES2024 for the other, which runs on node
     "lib": ["ES2024", "dom", "dom.iterable"],
-    "jsx": "react-jsx",
     "types": ["vite/client"],
     "tsBuildInfoFile": "${configDir}/../../.cache/tsbuildinfo.workspace.json"
   },

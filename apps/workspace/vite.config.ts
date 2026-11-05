@@ -7,45 +7,46 @@ import { defineConfig } from "vite";
 const here = import.meta.dirname;
 const src = path.resolve(here, "src");
 
-// Two builds: the CLI stages the app page for every vault's server to answer
-// (apps/cli/scripts/build.ts), and the shell embeds the first-run page alone (`frontendDist` in
-// apps/desktop/src-tauri/tauri.conf.json), since the first run opens before any server exists.
-const PAGES = {
-  app: { input: "index.html", outDir: "dist/app" },
-  "first-run": { input: "first-run.html", outDir: "dist/first-run" },
-} as const;
+// the prefix the Worker serves the page under (`@repo/contract/cloud/library-page`'s
+// LIBRARY_PAGE_PATH), which every asset url the build writes starts with;
+// tools/repo-guards/src/route-paths.test.ts holds the two equal
+const BASE = "/library/";
 
-// fixed because `tauri dev` waits on it (`devUrl`); clear of `pnpm dev:web`'s pinned 5174, which
-// Vite's default search from 5173 walks onto
+// `pnpm dev:workspace`: the page's own server, pinned clear of `pnpm dev:web`'s 5174, which every
+// call goes on to (the Worker answers /v1, /api and the site's sign-in)
 const DEV_PORT = 31_000;
+const WORKER = "http://localhost:5174";
 
-export default defineConfig(({ mode }) => {
-  const page = mode === "first-run" ? PAGES["first-run"] : PAGES.app;
-  return {
-    build: {
-      emptyOutDir: true,
-      outDir: path.resolve(here, page.outDir),
-      rolldownOptions: { input: path.resolve(src, page.input) },
+export default defineConfig({
+  base: BASE,
+  build: {
+    emptyOutDir: true,
+    outDir: path.resolve(here, "dist"),
+    rolldownOptions: { input: path.resolve(src, "index.html") },
+  },
+  clearScreen: false,
+  // SQLite's wasm loads its own module beside it, which the dep optimizer would move away from it
+  // (https://www.npmjs.com/package/@sqlite.org/sqlite-wasm#usage-with-vite)
+  optimizeDeps: { exclude: ["@sqlite.org/sqlite-wasm"] },
+  // `compiler` loads the otherwise-unimported `oxc-transform-react` devDependency.
+  plugins: [
+    tanstackRouter({
+      autoCodeSplitting: true,
+      generatedRouteTree: path.resolve(src, "routeTree.gen.ts"),
+      routesDirectory: path.resolve(src, "routes"),
+      target: "react",
+    }),
+    viteReact({ compiler: { logDiagnostics: true } }),
+    tailwindcss(),
+  ],
+  root: src,
+  server: {
+    port: DEV_PORT,
+    proxy: {
+      "/api": { changeOrigin: false, target: WORKER },
+      "/app": { changeOrigin: false, target: WORKER },
+      "/v1": { changeOrigin: false, target: WORKER, ws: true },
     },
-    // tauri dev prints the shell's own lines into this terminal
-    clearScreen: false,
-    // `compiler` loads the otherwise-unimported `oxc-transform-react` devDependency.
-    plugins: [
-      tanstackRouter({
-        autoCodeSplitting: true,
-        generatedRouteTree: path.resolve(src, "routeTree.gen.ts"),
-        routesDirectory: path.resolve(src, "routes"),
-        target: "react",
-      }),
-      viteReact({ compiler: { logDiagnostics: true } }),
-      tailwindcss(),
-    ],
-    root: src,
-    server: {
-      // the page's files arrive through its server, but the hot-reload socket dials here directly
-      hmr: { clientPort: DEV_PORT, host: "localhost" },
-      port: DEV_PORT,
-      strictPort: true,
-    },
-  };
+    strictPort: true,
+  },
 });

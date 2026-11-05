@@ -496,24 +496,6 @@ importers:
       '@repo/page-reader':
         specifier: workspace:*
         version: link:../../packages/page-reader
-      '@repo/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
-      '@repo/workspace':
-        specifier: workspace:*
-        version: link:../workspace
-      '@tanstack/react-query':
-        specifier: 'catalog:'
-        version: 5.105.0(@types/react@19.2.17)(react@19.2.8)
-      '@tanstack/react-router':
-        specifier: 'catalog:'
-        version: 1.170.46(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
-      '@testing-library/dom':
-        specifier: 'catalog:'
-        version: 10.4.2
-      '@testing-library/react':
-        specifier: 'catalog:'
-        version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8))(react@19.2.8)
       '@types/better-sqlite3':
         specifier: 'catalog:'
         version: 9.6.0
@@ -1019,6 +1001,9 @@ importers:
       '@repo/editor':
         specifier: workspace:*
         version: link:../../packages/editor
+      '@repo/library-replica':
+        specifier: workspace:*
+        version: link:../../packages/library-replica
       '@repo/notes':
         specifier: workspace:*
         version: link:../../packages/notes

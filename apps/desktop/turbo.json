@@ -3,14 +3,14 @@
   "extends": ["//"],
   "tasks": {
     // The unbundled debug shell the scenario suite drives (tools/e2e/src/harness/desktop-shell.ts),
-    // with @repo/workspace's first-run page inside it. cargo keeps its own incremental cache, keyed
+    // with @repo/workspace's page inside it. cargo keeps its own incremental cache, keyed
     // on what turbo cannot see (the toolchain, ~/.cargo), so a turbo hit could only skip a no-op
     // compile.
     "build:shell": {
       "dependsOn": ["^build"],
       "cache": false
     },
-    // The .app is where the halves meet: the shell compiled with the first-run page inside it, the
+    // The .app is where the halves meet: the shell compiled with the page inside it, the
     // node it ships, and the CLI bundle, which already carries the app page, as a resource.
     "package": {
       "dependsOn": ["^build"],

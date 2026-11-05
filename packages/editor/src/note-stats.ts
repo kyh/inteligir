@@ -3,7 +3,6 @@
 
 import { NodeApi } from "platejs";
 import type { SlateEditor, TElement } from "platejs";
-import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 
 export interface NoteStats {
@@ -77,6 +76,3 @@ export const clearNoteStats = (path: string): void => {
 
 export const readNoteStats = (path: string): NoteStats | null =>
   statsStore.getState().get(path) ?? null;
-
-export const useNoteStats = (path: string | null): NoteStats | null =>
-  useStore(statsStore, (stats) => (path === null ? null : (stats.get(path) ?? null)));

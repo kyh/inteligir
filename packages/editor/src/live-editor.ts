@@ -3,7 +3,6 @@
 
 import { deferred } from "@repo/editor/deferred";
 import type { SlateEditor } from "platejs";
-import { useSyncExternalStore } from "react";
 
 const editors = new Map<string, SlateEditor>();
 // weak: a strong reverse map would pin every editor a session built.
@@ -53,11 +52,6 @@ export const isLiveEditor = (editor: SlateEditor): boolean => {
   const path = paths.get(editor);
   return path !== undefined && editors.get(path) === editor;
 };
-
-// a render must subscribe, never read getLiveEditor: the editor registers after the render that
-// asked for it, and nothing else would draw that render again
-export const useLiveEditor = (path: string | null): SlateEditor | null =>
-  useSyncExternalStore(subscribeLiveEditors, () => (path === null ? null : getLiveEditor(path)));
 
 // the editor serving `path` once it mounts; bounded, because a refused navigation mounts
 // nothing and the caller would otherwise wait forever

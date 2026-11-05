@@ -1,16 +1,14 @@
 // CLAUDE.md § THE GRID'S SELECTION IS A STORE. Finder's grammar: a click selects, ⌘-click toggles,
-// ⇧-click extends from the anchor, and an arrow moves the focus and the selection with it. ⌘A is
-// `all`, a statement about the scope rather than a list of names, since the grid has only the
-// rows it has loaded; the caller materializes it through `knowledge.itemPaths` before any gesture
-// that needs the names. The store is created once by the workspace, so leaving for an item and
-// coming back finds the selection as it was left.
+// ⇧-click extends from the anchor, and an arrow moves the focus and the selection with it. Every
+// name is an item's id, which no rename or move changes, and the listing is in memory, so ⌘A names
+// the scope's every id at once. The store is created once by the workspace, so leaving for an item
+// and coming back finds the selection as it was left.
 
 import { createStore } from "zustand/vanilla";
 import type { StoreApi } from "zustand/vanilla";
 
 export interface LibrarySelection {
   selected: ReadonlySet<string>;
-  all: boolean;
   anchor: string | null;
   focus: string | null;
 }
@@ -18,9 +16,9 @@ export interface LibrarySelection {
 export type MoveDelta = "left" | "right" | "up" | "down" | "first" | "last";
 
 export type SelectionGesture =
-  | { kind: "click"; path: string }
-  | { kind: "toggle"; path: string }
-  | { kind: "range"; path: string; order: readonly string[] }
+  | { kind: "click"; id: string }
+  | { kind: "toggle"; id: string }
+  | { kind: "range"; id: string; order: readonly string[] }
   | {
       kind: "move";
       delta: MoveDelta;
@@ -28,22 +26,18 @@ export type SelectionGesture =
       order: readonly string[];
       columns: number;
     }
-  | { kind: "all" }
+  | { kind: "all"; order: readonly string[] }
   | { kind: "clear" }
-  | { kind: "prune"; gone: ReadonlySet<string> }
-  // items that moved under the selection (a fill's rename, an agent's): each path is its new one
-  | { kind: "moved"; moves: ReadonlyMap<string, string> }
-  // the names an `all` stood for, once the caller has read them
-  | { kind: "materialize"; paths: readonly string[] };
+  // items no longer in the listing: deleted, restored or moved out of the scope
+  | { kind: "prune"; gone: ReadonlySet<string> };
 
 const EMPTY_SELECTION: LibrarySelection = {
-  all: false,
   anchor: null,
   focus: null,
   selected: new Set(),
 };
 
-// the paths between two in the grid's order, both ends included; one alone when either is absent
+// the ids between two in the grid's order, both ends included; one alone when either is absent
 const spanOf = (order: readonly string[], from: string, to: string): Set<string> => {
   const a = order.indexOf(from);
   const b = order.indexOf(to);
@@ -82,20 +76,20 @@ const stepped = (
 export const selectionAfter = (s: LibrarySelection, g: SelectionGesture): LibrarySelection => {
   switch (g.kind) {
     case "click": {
-      return { all: false, anchor: g.path, focus: g.path, selected: new Set([g.path]) };
+      return { anchor: g.id, focus: g.id, selected: new Set([g.id]) };
     }
     case "toggle": {
       const selected = new Set(s.selected);
-      if (selected.has(g.path)) {
-        selected.delete(g.path);
+      if (selected.has(g.id)) {
+        selected.delete(g.id);
       } else {
-        selected.add(g.path);
+        selected.add(g.id);
       }
-      return { all: false, anchor: g.path, focus: g.path, selected };
+      return { anchor: g.id, focus: g.id, selected };
     }
     case "range": {
-      const anchor = s.anchor ?? g.path;
-      return { all: false, anchor, focus: g.path, selected: spanOf(g.order, anchor, g.path) };
+      const anchor = s.anchor ?? g.id;
+      return { anchor, focus: g.id, selected: spanOf(g.order, anchor, g.id) };
     }
     case "move": {
       const focus = stepped(g.order, s.focus, g.delta, Math.max(1, g.columns));
@@ -104,44 +98,27 @@ export const selectionAfter = (s: LibrarySelection, g: SelectionGesture): Librar
       }
       if (g.extend) {
         const anchor = s.anchor ?? s.focus ?? focus;
-        return { all: false, anchor, focus, selected: spanOf(g.order, anchor, focus) };
+        return { anchor, focus, selected: spanOf(g.order, anchor, focus) };
       }
-      return { all: false, anchor: focus, focus, selected: new Set([focus]) };
+      return { anchor: focus, focus, selected: new Set([focus]) };
     }
     case "all": {
-      return { ...s, all: true };
+      return { ...s, selected: new Set(g.order) };
     }
     case "clear": {
       return EMPTY_SELECTION;
     }
     case "prune": {
-      if (![...s.selected].some((path) => g.gone.has(path)) && !g.gone.has(s.focus ?? "")) {
+      if (![...s.selected].some((id) => g.gone.has(id)) && !g.gone.has(s.focus ?? "")) {
         return s;
       }
-      const keep = (path: string | null): string | null =>
-        path !== null && g.gone.has(path) ? null : path;
+      const keep = (id: string | null): string | null =>
+        id !== null && g.gone.has(id) ? null : id;
       return {
-        all: s.all,
         anchor: keep(s.anchor),
         focus: keep(s.focus),
-        selected: new Set([...s.selected].filter((path) => !g.gone.has(path))),
+        selected: new Set([...s.selected].filter((id) => !g.gone.has(id))),
       };
-    }
-    case "moved": {
-      const at = (path: string | null): string | null =>
-        path === null ? null : (g.moves.get(path) ?? path);
-      if (![...s.selected, s.anchor, s.focus].some((path) => path !== null && g.moves.has(path))) {
-        return s;
-      }
-      return {
-        all: s.all,
-        anchor: at(s.anchor),
-        focus: at(s.focus),
-        selected: new Set([...s.selected].map((path) => g.moves.get(path) ?? path)),
-      };
-    }
-    case "materialize": {
-      return { ...s, all: false, selected: new Set(g.paths) };
     }
     default: {
       const exhaustive: never = g;
@@ -168,7 +145,3 @@ export const createLibrarySelection = (): LibrarySelectionStore => {
     store,
   };
 };
-
-// how many items a selection stands for: every item in the scope when `all`
-export const selectionCount = (s: LibrarySelection, total: number): number =>
-  s.all ? total : s.selected.size;

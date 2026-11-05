@@ -20,7 +20,7 @@ import {
   SYSTEM,
 } from "../test-support/library-cell";
 import type { Clock } from "../test-support/library-cell";
-import { uuidV7 } from "./cell-ids";
+import { uuidV7 } from "@repo/notes/library/uuid-v7";
 import { addFileBytes } from "./cell-quota";
 import { cellStorageOf } from "./cell-storage";
 import { cellActorOf } from "./library-principal";

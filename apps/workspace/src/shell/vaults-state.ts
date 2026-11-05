@@ -7,7 +7,6 @@ const vaultRefSchema = z.strictObject({
   name: z.string().min(1),
   path: z.string().min(1),
 });
-export type VaultRef = z.infer<typeof vaultRefSchema>;
 
 export const vaultsStateSchema = z.strictObject({
   // null when a switch would be honoured; else why the page offers no picker

@@ -1,58 +1,81 @@
-// The two small forms a card's or Info's verbs ask through: tags to add to or take from any
-// number of items, and a name (an item's rename, a new folder).
+// The small dialogs the library's verbs ask through: a folder to move items to, a tag to add or
+// take off, and a name (a new folder's, a renamed one's). Each answers its caller once and closes;
+// what the answer writes is the caller's.
 
-import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
-import { isTagName } from "@repo/notes/knowledge/tag-grammar";
+import type { ListingFolder } from "@repo/notes/library/library-index";
 import { Button } from "@repo/ui/components/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@repo/ui/components/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
 import { Input } from "@repo/ui/components/input";
-import { plural } from "@repo/ui/lib/plural";
 import { useState } from "react";
 
-// "#a b, c" → ["a", "b", "c"]: a person types tags the way they write them
-export const tagsFromText = (text: string): string[] => [
-  ...new Set(
-    text
-      .split(/[\s,]+/u)
-      .map((tag) => tag.trim().replace(/^#/u, ""))
-      .filter((tag) => tag !== ""),
-  ),
-];
+import { folderPaths } from "../sidebar/folder-paths";
 
-export interface TagDialogRequest {
-  readonly paths: readonly string[];
+export interface MoveRequest {
+  readonly count: number;
+  readonly onMove: (folderId: string | null) => void;
 }
+
+export const MoveDialog = ({
+  request,
+  folders,
+  onClose,
+}: {
+  request: MoveRequest | null;
+  folders: readonly ListingFolder[];
+  onClose: () => void;
+}) => (
+  <Dialog
+    open={request !== null}
+    onOpenChange={(open) => {
+      if (!open) {
+        onClose();
+      }
+    }}
+  >
+    <DialogContent>
+      <DialogTitle>
+        {request === null || request.count === 1
+          ? "Move to"
+          : `Move ${String(request.count)} items to`}
+      </DialogTitle>
+      <div className="flex max-h-80 flex-col gap-0.5 overflow-y-auto">
+        {[{ id: null, label: "No folder (Unsorted)" }, ...folderPaths(folders)].map((choice) => (
+          <Button
+            key={choice.id ?? "none"}
+            variant="ghost"
+            className="justify-start"
+            onClick={() => {
+              request?.onMove(choice.id);
+              onClose();
+            }}
+          >
+            {choice.label}
+          </Button>
+        ))}
+      </div>
+    </DialogContent>
+  </Dialog>
+);
+
+export interface TagRequest {
+  readonly count: number;
+  // the tags every subject carries now, which the dialog offers to take off
+  readonly held: readonly string[];
+  readonly onChange: (change: { add: string[]; remove: string[] }) => void;
+}
+
+const cleanTag = (raw: string): string => raw.trim().replace(/^#/u, "").replaceAll(/\s+/gu, "-");
 
 export const TagDialog = ({
   request,
   onClose,
-  onApply,
 }: {
-  request: TagDialogRequest | null;
+  request: TagRequest | null;
   onClose: () => void;
-  onApply: (paths: readonly string[], change: { add: string[]; remove: string[] }) => void;
 }) => {
-  const [text, setText] = useState("");
-  const [openedFor, setOpenedFor] = useState<TagDialogRequest | null>(null);
-  if (openedFor !== request) {
-    setOpenedFor(request);
-    setText("");
-  }
-  const tags = tagsFromText(text);
-  const bad = tags.filter((tag) => !isTagName(tag));
-  const usable = tags.length > 0 && bad.length === 0;
-  const count = request?.paths.length ?? 0;
-  const apply = (which: "add" | "remove"): void => {
-    if (request === null || !usable) {
-      return;
-    }
-    onApply(request.paths, which === "add" ? { add: tags, remove: [] } : { add: [], remove: tags });
+  const [draft, setDraft] = useState("");
+  const close = (): void => {
+    setDraft("");
     onClose();
   };
   return (
@@ -60,61 +83,62 @@ export const TagDialog = ({
       open={request !== null}
       onOpenChange={(open) => {
         if (!open) {
-          onClose();
+          close();
         }
       }}
     >
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>{count === 1 ? "Tag item" : `Tag ${plural(count, "item")}`}</DialogTitle>
-          <DialogDescription>
-            Type one or more tags. Add puts them on, Remove takes them off.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent>
+        <DialogTitle>
+          {request === null || request.count === 1 ? "Tag" : `Tag ${String(request.count)} items`}
+        </DialogTitle>
         <form
-          className="flex flex-col gap-3"
+          className="flex gap-2"
           onSubmit={(event) => {
             event.preventDefault();
-            apply("add");
+            const tag = cleanTag(draft);
+            if (tag !== "" && request !== null) {
+              request.onChange({ add: [tag], remove: [] });
+              close();
+            }
           }}
         >
           <Input
-            aria-label="Tags"
+            aria-label="Tag to add"
+            placeholder="Add a tag"
+            value={draft}
             autoFocus
-            placeholder="reading, #to-read"
-            value={text}
             onChange={(event) => {
-              setText(event.target.value);
+              setDraft(event.target.value);
             }}
           />
-          {bad.length > 0 ? (
-            <p className="m-0 text-body text-destructive">
-              {bad.map((tag) => `#${tag}`).join(", ")} can’t be a tag.
-            </p>
-          ) : null}
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="tertiary"
-              size="compact"
-              disabled={!usable}
-              onClick={() => {
-                apply("remove");
-              }}
-            >
-              Remove
-            </Button>
-            <Button type="submit" size="compact" disabled={!usable}>
-              Add
-            </Button>
-          </div>
+          <Button type="submit" disabled={cleanTag(draft) === ""}>
+            Add
+          </Button>
         </form>
+        {request === null || request.held.length === 0 ? null : (
+          <div className="flex flex-wrap gap-1.5">
+            {request.held.map((tag) => (
+              <Button
+                key={tag}
+                size="compact"
+                variant="secondary"
+                aria-label={`Remove the tag ${tag}`}
+                onClick={() => {
+                  request.onChange({ add: [], remove: [tag] });
+                  close();
+                }}
+              >
+                #{tag} ×
+              </Button>
+            ))}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
 };
 
-export interface NameDialogRequest {
+export interface NameRequest {
   readonly title: string;
   readonly label: string;
   readonly initial: string;
@@ -126,59 +150,49 @@ export const NameDialog = ({
   request,
   onClose,
 }: {
-  request: NameDialogRequest | null;
+  request: NameRequest | null;
   onClose: () => void;
 }) => {
-  const [value, setValue] = useState("");
-  const [openedFor, setOpenedFor] = useState<NameDialogRequest | null>(null);
-  if (openedFor !== request) {
-    setOpenedFor(request);
-    setValue(request?.initial ?? "");
-  }
-  const trimmed = value.trim();
-  const verdict = trimmed === "" ? null : checkNoteName(trimmed);
+  const [draft, setDraft] = useState<string | null>(null);
+  const value = draft ?? request?.initial ?? "";
+  const close = (): void => {
+    setDraft(null);
+    onClose();
+  };
   return (
     <Dialog
       open={request !== null}
       onOpenChange={(open) => {
         if (!open) {
-          onClose();
+          close();
         }
       }}
     >
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>{request?.title ?? ""}</DialogTitle>
-        </DialogHeader>
+      <DialogContent>
+        <DialogTitle>{request?.title ?? ""}</DialogTitle>
+        <DialogDescription>{request?.label ?? ""}</DialogDescription>
         <form
-          className="flex flex-col gap-3"
+          className="flex gap-2"
           onSubmit={(event) => {
             event.preventDefault();
-            if (request !== null && verdict?.ok === true && verdict.name !== request.initial) {
-              request.onSubmit(verdict.name);
+            const name = value.trim();
+            if (name !== "" && request !== null) {
+              request.onSubmit(name);
+              close();
             }
-            onClose();
           }}
         >
           <Input
             aria-label={request?.label ?? "Name"}
-            autoFocus
             value={value}
+            autoFocus
             onChange={(event) => {
-              setValue(event.target.value);
+              setDraft(event.target.value);
             }}
           />
-          {verdict !== null && !verdict.ok ? (
-            <p className="m-0 text-body text-destructive">{noteNameErrorMessage(verdict.reason)}</p>
-          ) : null}
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="tertiary" size="compact" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" size="compact" disabled={verdict?.ok !== true}>
-              {request?.confirm ?? "Save"}
-            </Button>
-          </div>
+          <Button type="submit" disabled={value.trim() === ""}>
+            {request?.confirm ?? "Save"}
+          </Button>
         </form>
       </DialogContent>
     </Dialog>

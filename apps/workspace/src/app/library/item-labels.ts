@@ -1,9 +1,9 @@
 // What a card and Info say about an item, spelled once: the kind's word, a size, the meta line.
 
-import type { ItemRowWire } from "@repo/contract/local/items/items-schema";
+import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import type { ItemKind } from "@repo/notes/items/item-kind";
 import { URL_ITEM_KINDS } from "@repo/notes/items/item-kind";
-import { parseItemTime } from "@repo/notes/items/item-time";
+import { urlHost } from "@repo/notes/items/item-url";
 import { relativeTimeLabel } from "../relative-time";
 
 export const KIND_LABELS = {
@@ -56,50 +56,39 @@ export const formatBytes = (bytes: number): string => {
   return bytes === 1 ? "1 byte" : `${String(bytes)} bytes`;
 };
 
-export const isUrlItem = (row: Pick<ItemRowWire, "kind" | "url">): boolean =>
+export const isUrlItem = (row: Pick<ReplicaListingRow, "kind" | "url">): boolean =>
   row.url !== null && URL_ITEM_KINDS.some((kind) => kind === row.kind);
 
-// when the item came in, else when it last changed: what the grid sorts by when nothing is said
-const itemTimeMs = (row: Pick<ItemRowWire, "saved" | "modifiedMs">): number | null =>
-  (row.saved === null ? null : parseItemTime(row.saved)) ?? row.modifiedMs;
-
-export const fileExtensionLabel = (path: string | null): string => {
-  if (path === null) {
+export const fileExtensionLabel = (name: string | null): string => {
+  if (name === null) {
     return "";
   }
-  const name = path.slice(path.lastIndexOf("/") + 1);
   const dot = name.lastIndexOf(".");
   return dot > 0 ? name.slice(dot + 1).toUpperCase() : "";
 };
 
+// where a saved page came from: its site's own name, else its address's host
+const whereFrom = (row: ReplicaListingRow): string | null =>
+  row.fields.site ?? (row.url === null ? null : urlHost(row.url));
+
 // the card's one line under the title: where it came from or what it is, when, and its tags
-export const cardMeta = (row: ItemRowWire, nowMs: number): string => {
+export const cardMeta = (row: ReplicaListingRow, nowMs: number): string => {
   const parts: string[] = [];
   switch (row.kind) {
     case "link":
     case "video":
     case "audio": {
-      const where = row.site ?? row.host;
-      parts.push(where ?? KIND_LABELS[row.kind]);
+      parts.push(whereFrom(row) ?? KIND_LABELS[row.kind]);
       break;
     }
     case "image":
-    case "pdf": {
+    case "pdf":
+    case "note": {
       parts.push(KIND_LABELS[row.kind]);
-      if (row.fileBytes !== null) {
-        parts.push(formatBytes(row.fileBytes));
-      }
       break;
     }
     case "file": {
-      parts.push(fileExtensionLabel(row.file) || KIND_LABELS.file);
-      if (row.fileBytes !== null) {
-        parts.push(formatBytes(row.fileBytes));
-      }
-      break;
-    }
-    case "note": {
-      parts.push(KIND_LABELS.note);
+      parts.push(fileExtensionLabel(row.fields.originalName) || KIND_LABELS.file);
       break;
     }
     default: {
@@ -107,10 +96,7 @@ export const cardMeta = (row: ItemRowWire, nowMs: number): string => {
       return exhaustive;
     }
   }
-  const at = itemTimeMs(row);
-  if (at !== null) {
-    parts.push(relativeTimeLabel(at, nowMs, { inSentence: true }).replace(/ ago$/u, ""));
-  }
+  parts.push(relativeTimeLabel(row.savedAt, nowMs, { inSentence: true }).replace(/ ago$/u, ""));
   const tags = row.tags.slice(0, 3).map((tag) => `#${tag}`);
   if (tags.length > 0) {
     parts.push(tags.join(" "));

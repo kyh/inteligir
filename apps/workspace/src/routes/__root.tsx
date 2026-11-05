@@ -1,40 +1,45 @@
-// Mounted above every route so /settings and back keeps the one QueryClient
-// and socket, but not above RouterProvider: RenderCrash is the router's
-// defaultErrorComponent, so a provider outside it throws with no boundary.
+// CLAUDE.md § WINDOW-LEVEL HOSTS MOUNT AT THE ROOT ROUTE. Mounted above every route so Settings
+// and back keeps one theme, one toaster and one confirm host; the QueryClient and the library are
+// the router's own context, wrapped around every route (`router.tsx`).
 
 import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { Toaster } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
 import { MotionPolicy } from "@repo/ui/lib/motion-policy";
-import { createRootRoute, Outlet } from "@tanstack/react-router";
+import { SizeProvider } from "@repo/ui/lib/size-context";
+import { ThemeProvider } from "@repo/ui/lib/theme";
+import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
 
-import { SignedOutNotice } from "../app/signed-out-notice";
-import { useSignedOut } from "../app/signed-out-state";
-import { WorkspaceProvider } from "../app/workspace-context";
+import { AppearanceProvider } from "../app/appearance";
+import { PREFS, usePref } from "../app/prefs";
+import type { PageContext } from "../router";
 
-// signed out, every call is refused: the one notice stands in for the toast each would raise.
 const RootLayout = () => {
-  const signedOut = useSignedOut();
+  const [theme, chooseTheme] = usePref(PREFS.theme);
   return (
-    <WorkspaceProvider>
-      <MotionPolicy>
-        <TooltipProvider>
-          <Outlet />
-          <ConfirmDialogHost />
-          {signedOut ? <SignedOutNotice /> : <Toaster position="bottom-right" />}
-        </TooltipProvider>
-      </MotionPolicy>
-    </WorkspaceProvider>
+    <ThemeProvider theme={theme} setTheme={chooseTheme}>
+      <SizeProvider size="compact">
+        <AppearanceProvider>
+          <MotionPolicy>
+            <TooltipProvider>
+              <Outlet />
+              <ConfirmDialogHost />
+              <Toaster position="bottom-right" />
+            </TooltipProvider>
+          </MotionPolicy>
+        </AppearanceProvider>
+      </SizeProvider>
+    </ThemeProvider>
   );
 };
 
 const NotFound = () => (
   <div className="flex min-h-dvh items-center justify-center">
-    <p>404: This page could not be found.</p>
+    <p>This page isn’t part of your library.</p>
   </div>
 );
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<PageContext>()({
   component: RootLayout,
   notFoundComponent: NotFound,
 });

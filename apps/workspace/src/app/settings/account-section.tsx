@@ -1,324 +1,293 @@
-// No on/off toggle: the credential on disk is the switch, and a second value could disagree with
-// it. The sync's raw state, this device's id and the last error are Settings › Advanced's; here a
-// person sees who they are signed in as and which devices share the account, removes one they
-// lost from any device still signed in, and deletes the account from any of them.
+// Settings › Account: who is signed in, the devices holding the account's credential, the
+// assistants let into the library through the connector, the built-in agent's switch, and signing
+// out or deleting the account. Each is the account's, kept in the cloud, so each waits for a
+// connection; a revoke or a switch refetches only the list it changed, once it has landed.
 
-import { cloudDevicesPageUrl } from "@repo/contract/local/cloud/cloud-schema";
-import type { CloudDevice } from "@repo/contract/local/cloud/cloud-schema";
 import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
+import { Input } from "@repo/ui/components/input";
 import { toast } from "@repo/ui/components/sonner";
+import { Switch } from "@repo/ui/components/switch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { AccountForm } from "../account-form";
-import { failed, orpc, refusalMessage } from "../api";
-import { useCloudSession } from "../cloud-session";
+
+import { useAccount, useReplica, useWire } from "../cloud/library-context";
+import { CellAnswer, NEEDS_CONNECTION, refusalText } from "../cloud/needs-connection";
+import { forgetPref, PREFS } from "../prefs";
 import { relativeTimeLabel, useNow } from "../relative-time";
-import { useVaultStatus } from "../vault-hooks";
-import { DeleteAccountDialog } from "./delete-account-dialog";
 import { Row, SectionHeading } from "./settings-chrome";
 
-export const RevokeFailedNotice = ({ cloudUrl }: { cloudUrl: string }) => {
-  const devicesUrl = cloudDevicesPageUrl(cloudUrl);
-  return (
-    <p className="text-body text-muted-foreground">
-      This Mac could not remove itself from your account. Remove it from Settings › Account on
-      another device, or at{" "}
-      <a
-        href={devicesUrl}
-        target="_blank"
-        rel="noreferrer"
-        className="underline underline-offset-2"
-      >
-        {devicesUrl}
-      </a>
-      .
-    </p>
-  );
-};
-
-export const SignedOutByAccount = ({ onSignInAgain }: { onSignInAgain: () => void }) => (
-  <div className="space-y-2">
-    <p className="text-body text-muted-foreground">This Mac was signed out of your account.</p>
-    <Button size="compact" variant="tertiary" onClick={onSignInAgain}>
-      Sign in again
-    </Button>
-  </div>
-);
-
-// the sign-in stands: the cloud refused this version, and the update signs back in as this Mac
-export const UpdateToSync = ({
-  onSignOut,
-  pending,
-}: {
-  onSignOut: () => void;
-  pending: boolean;
-}) => (
-  <div className="space-y-2">
-    <p className="text-body text-muted-foreground">
-      This version of Inteligir can&apos;t sync with your account anymore. Update it in Settings ›
-      About, and this Mac syncs again where it left off.
-    </p>
-    <Button size="compact" variant="ghost" onClick={onSignOut} disabled={pending}>
-      Sign out
-    </Button>
-  </div>
-);
-
-export type DeviceListState =
-  | { kind: "loading" }
-  | { kind: "failed"; retrying: boolean }
-  | { kind: "loaded"; devices: readonly CloudDevice[] };
-
-export interface AccountDevicesProps {
-  // what this Mac's commits and conflict copies call it
-  thisMacName: string | undefined;
-  // when the library last synced, which is what the account carries
-  lastSyncedAt: number | null;
-  nowMs: number;
-  devices: DeviceListState;
-  revokingId: string | null;
-  onRevoke: (deviceId: string) => void;
-  onRetry: () => void;
-}
-
-const DEVICES_UNREACHABLE = "Couldn't reach your account to list its devices.";
-
-const syncedLabel = (lastSyncedAt: number | null, nowMs: number): string =>
-  lastSyncedAt === null
-    ? "Not synced yet"
-    : `Synced ${relativeTimeLabel(lastSyncedAt, nowMs, { inSentence: true })}`;
-
-const lastSeenLabel = (lastSeenAt: number | null, nowMs: number): string =>
-  lastSeenAt === null
-    ? "Not seen yet"
-    : `Last seen ${relativeTimeLabel(lastSeenAt, nowMs, { inSentence: true })}`;
-
-const OtherDevices = ({
-  devices,
-  nowMs,
-  revokingId,
-  onRevoke,
-  onRetry,
-}: Omit<AccountDevicesProps, "thisMacName" | "lastSyncedAt">) => {
-  const askToRevoke = (device: CloudDevice): void => {
-    void (async () => {
-      const confirmed = await confirm({
-        body: `${device.name} stops syncing at once, and needs your password to sign in again. Nothing on it is deleted.`,
-        confirmLabel: "Revoke",
-        destructive: true,
-        title: `Revoke ${device.name}?`,
-      });
-      if (confirmed) {
-        onRevoke(device.id);
-      }
-    })();
-  };
-
-  switch (devices.kind) {
-    case "loading": {
-      return <span className="text-body text-muted-foreground">…</span>;
-    }
-    case "failed": {
-      return (
-        <span className="flex flex-wrap items-center gap-2">
-          <span className="text-body text-muted-foreground">{DEVICES_UNREACHABLE}</span>
-          <Button size="compact" variant="tertiary" disabled={devices.retrying} onClick={onRetry}>
-            Try again
-          </Button>
-        </span>
-      );
-    }
-    case "loaded": {
-      const others = devices.devices.filter((device) => !device.current);
-      if (others.length === 0) {
-        return <span className="text-body text-muted-foreground">None</span>;
-      }
-      return (
-        <ul className="space-y-1.5">
-          {others.map((device) => (
-            <li key={device.id} className="flex items-center justify-between gap-4">
-              <span className="min-w-0">
-                <span className="block truncate text-body">{device.name}</span>
-                <span className="block text-body text-muted-foreground">
-                  {lastSeenLabel(device.lastSeenAt, nowMs)}
-                </span>
-              </span>
-              <Button
-                size="compact"
-                variant="tertiary"
-                aria-label={`Revoke ${device.name}`}
-                disabled={revokingId === device.id}
-                onClick={() => {
-                  askToRevoke(device);
-                }}
-              >
-                Revoke
-              </Button>
-            </li>
-          ))}
-        </ul>
-      );
-    }
-    default: {
-      const exhaustive: never = devices;
-      return exhaustive;
-    }
-  }
-};
-
-export const AccountDevices = ({ thisMacName, lastSyncedAt, ...others }: AccountDevicesProps) => (
-  <>
-    <Row label="This Mac">
-      <span className="block truncate text-body">{thisMacName ?? "…"}</span>
-      <span className="block text-body text-muted-foreground">
-        {syncedLabel(lastSyncedAt, others.nowMs)}
-      </span>
-    </Row>
-    <Row label="Other devices">
-      <OtherDevices {...others} />
-    </Row>
-  </>
-);
-
-export const AccountSection = () => {
-  const session = useCloudSession();
-  const { status, pending, signOut } = session;
-  const vaultStatus = useVaultStatus().data;
-  const nowMs = useNow();
+const DevicesRow = () => {
+  const { orpc } = useWire();
   const queryClient = useQueryClient();
-  // the refused credential this person chose to replace: a later refusal asks again
-  const [signInAgainFor, setSignInAgainFor] = useState<string | null>(null);
-  // no bus kind names this query, so it re-reads on every mount; a refusal is shown at once, with
-  // its own Try again, rather than after a retry's backoff
-  const devicesQuery = useQuery({
-    ...orpc.cloud.devices.queryOptions(),
-    enabled: status?.state === "signed-in",
-    retry: false,
-    staleTime: 0,
-  });
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const deleteAccount = useMutation(
-    orpc.cloud.deleteAccount.mutationOptions({
-      onSuccess: (next) => {
-        queryClient.setQueryData(orpc.cloud.status.queryKey(), next);
-        setDeleteOpen(false);
-        toast.success("Your account was deleted. Your library on this Mac is still here.");
-      },
-    }),
-  );
+  const nowMs = useNow();
+  const devices = useQuery(orpc.account.devices.list.queryOptions());
   const revoke = useMutation(
-    orpc.cloud.revokeDevice.mutationOptions({
+    orpc.account.devices.revoke.mutationOptions({
       onError: (cause) => {
-        failed(cause, "Could not revoke that device.");
+        toast.error(refusalText(cause, "That device couldn't be signed out."));
       },
-      onSettled: () => {
-        void queryClient.invalidateQueries({ queryKey: orpc.cloud.devices.key() });
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({ queryKey: orpc.account.devices.key() });
       },
     }),
   );
-
-  const deviceList = (): DeviceListState => {
-    if (devicesQuery.isError) {
-      return { kind: "failed", retrying: devicesQuery.isFetching };
-    }
-    return devicesQuery.data === undefined
-      ? { kind: "loading" }
-      : { devices: devicesQuery.data.devices, kind: "loaded" };
-  };
-
-  const accountForm = (cloudUrl: string) => (
-    <AccountForm cloudUrl={cloudUrl} session={session} vault={vaultStatus} />
+  return (
+    <Row label="Devices">
+      <CellAnswer query={devices} failed="The devices couldn't be read.">
+        {(data) => {
+          const live = data.devices.filter((device) => device.revokedAt === null);
+          return live.length === 0 ? (
+            <span className="text-muted-foreground">No app is signed in yet.</span>
+          ) : (
+            <ul className="m-0 flex list-none flex-col gap-1 p-0" aria-label="Devices">
+              {live.map((device) => (
+                <li key={device.id} className="flex items-center gap-2">
+                  <span className="truncate">{device.name}</span>
+                  <span className="text-caption text-muted-foreground">
+                    {device.lastSeenAt === null ? "" : relativeTimeLabel(device.lastSeenAt, nowMs)}
+                  </span>
+                  <Button
+                    size="compact"
+                    variant="ghost"
+                    className="ml-auto"
+                    onClick={() => {
+                      revoke.mutate({ deviceId: device.id });
+                    }}
+                  >
+                    Sign out
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          );
+        }}
+      </CellAnswer>
+    </Row>
   );
+};
 
-  const body = () => {
-    if (status === undefined) {
-      return <p className="text-subtitle text-muted-foreground">…</p>;
-    }
-    if (status.state === "signed-out") {
-      return (
-        <div className="space-y-2">
-          {status.revokeError === null ? null : <RevokeFailedNotice cloudUrl={status.cloudUrl} />}
-          {accountForm(status.cloudUrl)}
-          <p className="text-body text-muted-foreground">
-            Each library on this Mac signs in on its own.
-          </p>
-        </div>
-      );
-    }
-    if (status.state === "outdated") {
-      return <UpdateToSync onSignOut={signOut} pending={pending} />;
-    }
-    if (status.state === "unauthorized") {
-      // a sign-in replaces the refused credential directly: there is nothing left to sign out of
-      return signInAgainFor === status.deviceId ? (
-        accountForm(status.cloudUrl)
-      ) : (
-        <SignedOutByAccount
-          onSignInAgain={() => {
-            setSignInAgainFor(status.deviceId);
-          }}
-        />
-      );
-    }
-    return (
-      <div className="space-y-2">
-        <dl className="space-y-1.5">
-          <Row label="Account">
-            <span className="block truncate text-body">{status.accountEmail}</span>
-          </Row>
-          <AccountDevices
-            thisMacName={vaultStatus?.device}
-            lastSyncedAt={vaultStatus?.lastSyncAt ?? null}
-            nowMs={nowMs}
-            devices={deviceList()}
-            revokingId={revoke.isPending ? (revoke.variables?.deviceId ?? null) : null}
-            onRevoke={(deviceId) => {
-              revoke.mutate({ deviceId });
-            }}
-            onRetry={() => {
-              void devicesQuery.refetch();
-            }}
-          />
-        </dl>
-        <div className="flex items-center gap-2">
-          <Button size="compact" variant="ghost" onClick={signOut} disabled={pending}>
-            Sign out
-          </Button>
-          <Button
-            size="compact"
-            variant="ghost"
-            className="text-destructive hover:text-destructive"
-            disabled={pending}
-            onClick={() => {
-              deleteAccount.reset();
-              setDeleteOpen(true);
+const AssistantsRow = () => {
+  const { orpc } = useWire();
+  const queryClient = useQueryClient();
+  const assistants = useQuery(orpc.account.assistants.list.queryOptions());
+  const revoke = useMutation(
+    orpc.account.assistants.revoke.mutationOptions({
+      onError: (cause) => {
+        toast.error(refusalText(cause, "That assistant couldn't be disconnected."));
+      },
+      onSuccess: async () => {
+        toast.success("Disconnected. It can't reach your library anymore.");
+        await queryClient.invalidateQueries({ queryKey: orpc.account.assistants.key() });
+      },
+    }),
+  );
+  return (
+    <Row label="Connected assistants">
+      <CellAnswer query={assistants} failed="The connected assistants couldn't be read.">
+        {(data) =>
+          data.assistants.length === 0 ? (
+            <span className="text-muted-foreground">
+              None. Claude or ChatGPT can reach your library once you connect it.
+            </span>
+          ) : (
+            <ul className="m-0 flex list-none flex-col gap-1 p-0" aria-label="Connected assistants">
+              {data.assistants.map((assistant) => (
+                <li key={assistant.grantId} className="flex items-center gap-2">
+                  <span className="truncate">{assistant.clientName}</span>
+                  <span className="text-caption text-muted-foreground">
+                    {assistant.scopes.includes("library") ? "Reads and changes" : "Reads only"}
+                  </span>
+                  <Button
+                    size="compact"
+                    variant="ghost"
+                    className="ml-auto"
+                    onClick={() => {
+                      revoke.mutate({ grantId: assistant.grantId });
+                    }}
+                  >
+                    Disconnect
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      </CellAnswer>
+    </Row>
+  );
+};
+
+const TIME = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+
+const AgentRow = () => {
+  const { orpc } = useWire();
+  const queryClient = useQueryClient();
+  const status = useQuery(orpc.library.agent.status.queryOptions());
+  const setEnabled = useMutation(
+    orpc.library.agent.setEnabled.mutationOptions({
+      onError: (cause) => {
+        toast.error(refusalText(cause, "The built-in agent couldn't be switched."));
+      },
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({ queryKey: orpc.library.agent.status.key() });
+      },
+    }),
+  );
+  return (
+    <Row label="Built-in agent">
+      <CellAnswer query={status} failed="The built-in agent's state couldn't be read.">
+        {(data) => (
+          <div className="flex flex-col gap-1">
+            <Switch
+              label={data.enabled ? "On" : "Off"}
+              checked={data.enabled}
+              disabled={setEnabled.isPending}
+              onCheckedChange={(enabled) => {
+                setEnabled.mutate({ enabled });
+              }}
+            />
+            <span className="text-caption text-muted-foreground">
+              {data.enabled
+                ? `${String(data.turnsLeft)} turns left today; more at ${TIME.format(data.resetsAt)}.`
+                : "Off: it answers nothing, and your conversations stay readable."}
+            </span>
+            {setEnabled.isPaused ? (
+              <span className="text-caption text-muted-foreground">{NEEDS_CONNECTION}</span>
+            ) : null}
+          </div>
+        )}
+      </CellAnswer>
+    </Row>
+  );
+};
+
+const DeleteAccount = () => {
+  const { client } = useWire();
+  const replica = useReplica();
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const remove = useMutation({
+    mutationFn: async (typed: string) => await client.account.delete({ password: typed }),
+    onError: (cause) => {
+      toast.error(refusalText(cause, "The account couldn't be deleted."));
+    },
+    onSuccess: async () => {
+      await replica.wipe();
+      forgetPref(PREFS.libraryScope);
+      window.location.assign("/");
+    },
+  });
+  return (
+    <>
+      <Button
+        size="compact"
+        variant="destructive"
+        className="self-start"
+        onClick={() => {
+          setOpen(true);
+        }}
+      >
+        Delete account…
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogTitle>Delete your account?</DialogTitle>
+          <DialogDescription>
+            Your library, its files, its history and your conversations with the agent are deleted
+            from our cloud for good. Type your password to go on.
+          </DialogDescription>
+          <form
+            className="flex flex-col gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (password !== "") {
+                remove.mutate(password);
+              }
             }}
           >
-            Delete account…
-          </Button>
-        </div>
-        <DeleteAccountDialog
-          open={deleteOpen}
-          onOpenChange={setDeleteOpen}
-          onDelete={(password) => {
-            deleteAccount.mutate({ password });
-          }}
-          pending={deleteAccount.isPending}
-          refusal={
-            deleteAccount.isError
-              ? refusalMessage(deleteAccount.error, "Could not delete the account.")
-              : null
-          }
-        />
-      </div>
-    );
-  };
+            <Input
+              type="password"
+              aria-label="Password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => {
+                setPassword(event.target.value);
+              }}
+            />
+            <Button
+              type="submit"
+              variant="destructive"
+              disabled={password === "" || remove.isPending}
+            >
+              Delete everything
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};
 
+export const AccountSection = () => {
+  const account = useAccount();
+  const { client } = useWire();
+  const replica = useReplica();
+  const signOut = useMutation({
+    mutationFn: async () => await client.account.signOut(),
+    onError: (cause) => {
+      toast.error(refusalText(cause, "Signing out didn't work. Try again."));
+    },
+    onSuccess: async () => {
+      await replica.wipe();
+      forgetPref(PREFS.libraryScope);
+      window.location.assign("/app/sign-in");
+    },
+  });
   return (
-    <section className="space-y-2">
+    <section id="account" className="scroll-mt-10 space-y-2">
       <SectionHeading>Account</SectionHeading>
-      {body()}
+      <dl className="space-y-3">
+        <Row label="Signed in as">
+          <span className="select-text">
+            {account.name === "" ? account.email : `${account.name} (${account.email})`}
+          </span>
+        </Row>
+        <DevicesRow />
+        <AssistantsRow />
+        <AgentRow />
+        <Row label="">
+          <div className="flex flex-col gap-2">
+            <Button
+              size="compact"
+              variant="secondary"
+              className="self-start"
+              disabled={signOut.isPending}
+              onClick={() => {
+                void (async () => {
+                  const status = replica.status();
+                  if (
+                    status.unsent > 0 &&
+                    !(await confirm({
+                      body: "Changes this page hasn't sent yet are lost if you sign out now.",
+                      confirmLabel: "Sign out",
+                      destructive: true,
+                      title: "Sign out before your changes are sent?",
+                    }))
+                  ) {
+                    return;
+                  }
+                  signOut.mutate();
+                })();
+              }}
+            >
+              Sign out
+            </Button>
+            <DeleteAccount />
+          </div>
+        </Row>
+      </dl>
     </section>
   );
 };

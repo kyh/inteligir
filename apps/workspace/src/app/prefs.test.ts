@@ -45,8 +45,6 @@ describe("bytes already in storage", () => {
   ][] = [
     ["inteligir.panel-open", "true", PREFS.panelOpen, true],
     ["inteligir.panel-open", "yes", PREFS.panelOpen, false],
-    ["inteligir.related-open", "false", PREFS.relatedOpen, false],
-    ["inteligir.related-open", "no", PREFS.relatedOpen, true],
     ["inteligir.sidebar-width", "300", PREFS.sidebarWidth, 300],
     ["inteligir.sidebar-width", "9999", PREFS.sidebarWidth, SIDEBAR_MAX_WIDTH],
     ["inteligir.sidebar-width", "wide", PREFS.sidebarWidth, 260],
@@ -57,24 +55,17 @@ describe("bytes already in storage", () => {
     ["inteligir.rail-tags-open", "closed", PREFS.railTagsOpen, true],
     [
       "inteligir.library-scope",
-      '{"kind":"folder","path":"Reading"}',
+      '{"kind":"folder","folderId":"0199a4c2-0000-7000-8000-000000000001"}',
       PREFS.libraryScope,
-      { kind: "folder", path: "Reading" },
+      { folderId: "0199a4c2-0000-7000-8000-000000000001", kind: "folder" },
     ],
     ["inteligir.library-scope", '{"kind":"tag","tag":""}', PREFS.libraryScope, { kind: "all" }],
     ["inteligir.library-scope", "unsorted", PREFS.libraryScope, { kind: "all" }],
+    ["inteligir.library-scope", '{"kind":"deleted"}', PREFS.libraryScope, { kind: "deleted" }],
     ["inteligir.theme", "dark", PREFS.theme, "dark"],
     ["inteligir.theme", "sepia", PREFS.theme, "system"],
     ["inteligir.spellcheck", "false", PREFS.spellcheck, false],
     ["inteligir.spellcheck", '{"enabled":false}', PREFS.spellcheck, true],
-    [
-      "inteligir.sync-conflict-seen-at",
-      "1790000000000",
-      PREFS.syncConflictSeenAt,
-      1_790_000_000_000,
-    ],
-    ["inteligir.sync-conflict-seen-at", "soon", PREFS.syncConflictSeenAt, null],
-    ["inteligir.sync-conflict-seen-at", "12.5", PREFS.syncConflictSeenAt, null],
     [
       "inteligir.appearance",
       '{"font":"serif","leading":"relaxed","measure":"wide","size":"large"}',
@@ -100,7 +91,6 @@ describe("bytes already in storage", () => {
 describe("a write", () => {
   it("stores the bytes a reader already understands", () => {
     writePref(PREFS.panelOpen, true);
-    writePref(PREFS.relatedOpen, false);
     writePref(PREFS.sidebarWidth, 300.4);
     writePref(PREFS.librarySort, "modified");
     writePref(PREFS.libraryScope, { kind: "unsorted" });
@@ -108,16 +98,13 @@ describe("a write", () => {
     writePref(PREFS.theme, "light");
     writePref(PREFS.spellcheck, false);
     writePref(PREFS.appearance, { ...APPEARANCE_DEFAULTS, size: "small" });
-    writePref(PREFS.syncConflictSeenAt, 1_790_000_000_000);
 
     expect(stored("inteligir.panel-open")).toBe("true");
-    expect(stored("inteligir.related-open")).toBe("false");
     expect(stored("inteligir.sidebar-width")).toBe("300");
     expect(stored("inteligir.library-sort")).toBe("modified");
     expect(stored("inteligir.library-scope")).toBe('{"kind":"unsorted"}');
     expect(stored("inteligir.rail-tags-open")).toBe("false");
     expect(stored("inteligir.theme")).toBe("light");
-    expect(stored("inteligir.sync-conflict-seen-at")).toBe("1790000000000");
     expect(stored("inteligir.spellcheck")).toBe("false");
     expect(JSON.parse(stored("inteligir.appearance") ?? "null")).toEqual({
       ...APPEARANCE_DEFAULTS,
@@ -126,9 +113,9 @@ describe("a write", () => {
   });
 
   it("forgets a key, which then reads as the fallback", () => {
-    writePref(PREFS.syncConflictSeenAt, 1_790_000_000_000);
-    forgetPref(PREFS.syncConflictSeenAt);
-    expect(stored("inteligir.sync-conflict-seen-at")).toBeNull();
-    expect(readPref(PREFS.syncConflictSeenAt)).toBeNull();
+    writePref(PREFS.librarySort, "title");
+    forgetPref(PREFS.librarySort);
+    expect(stored("inteligir.library-sort")).toBeNull();
+    expect(readPref(PREFS.librarySort)).toBe("saved");
   });
 });

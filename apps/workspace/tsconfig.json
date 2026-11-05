@@ -6,9 +6,8 @@
     "tsBuildInfoFile": "${configDir}/.cache/tsbuildinfo.config.json"
   },
   "include": ["vite.config.ts", "vitest.config.ts"],
-  // `src` is the page and its suites (src/tsconfig.json, and tsconfig.page.json at the window's
-  // stdlib): they type-check against the DOM and React rather than @types/node. `scripts` is a
-  // program of its own (scripts/tsconfig.json), resolved as node runs it. `pnpm typecheck` runs
-  // all four.
-  "exclude": ["node_modules", "dist", "scripts", "src"]
+  // `src` is the page and its suites (src/tsconfig.json, and tsconfig.page.json at the browser's
+  // stdlib): they type-check against the DOM and React rather than @types/node. `pnpm typecheck`
+  // runs all three.
+  "exclude": ["node_modules", "dist", "src"]
 }

@@ -2,7 +2,6 @@
 // modules stay external as prebuilt N-API addons npm installs.
 
 import { cp, rm } from "node:fs/promises";
-import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { build } from "esbuild";
@@ -11,9 +10,6 @@ import type { BuildOptions, Metafile } from "esbuild";
 const packageRoot = path.resolve(import.meta.dirname, "..");
 const distDir = path.join(packageRoot, "dist");
 const repoRoot = path.resolve(packageRoot, "..", "..");
-
-// the app page, which `serve` answers as the workspace UI (apps/workspace/vite.config.ts)
-const uiDir = path.join(repoRoot, "apps", "workspace", "dist", "app");
 
 const NODE_ESM_REQUIRE_BANNER = [
   'import { createRequire as __createRequire } from "node:module";',
@@ -235,14 +231,4 @@ await cp(path.join(repoRoot, "tools", "licenses"), path.join(distDir, "licenses"
   recursive: true,
 });
 
-// refused, not skipped: a bundle without the UI boots and opens a browser on a 404
-if (!existsSync(uiDir)) {
-  throw new Error(
-    `the workspace UI is missing (${uiDir}) — run \`pnpm --filter @repo/workspace build\` first`,
-  );
-}
-await cp(uiDir, path.join(distDir, "ui"), { recursive: true });
-
-process.stdout.write(
-  "inteligir: bundled the server, the CLI, the desktop shell's door and the workspace UI\n",
-);
+process.stdout.write("inteligir: bundled the server, the CLI and the desktop shell's door\n");

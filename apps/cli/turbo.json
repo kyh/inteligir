@@ -2,7 +2,6 @@
   "$schema": "https://turborepo.dev/schema.json",
   "extends": ["//"],
   "tasks": {
-    // The root's `^build` reaches @repo/workspace, whose app page this bundle stages as its UI.
     "build": {
       // The licence texts it stages sit at the repo root, in no workspace,
       // so turbo hashes them only where they are named.

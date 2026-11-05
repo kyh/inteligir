@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkspaceRouteImport } from './routes/_workspace'
 import { Route as WorkspaceIndexRouteImport } from './routes/_workspace/index'
 import { Route as WorkspaceSettingsRouteImport } from './routes/_workspace/settings'
-import { Route as WorkspaceWelcomeRouteImport } from './routes/_workspace/welcome'
 
 const WorkspaceRoute = WorkspaceRouteImport.update({
   id: '/_workspace',
@@ -28,40 +27,27 @@ const WorkspaceSettingsRoute = WorkspaceSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => WorkspaceRoute,
 } as any)
-const WorkspaceWelcomeRoute = WorkspaceWelcomeRouteImport.update({
-  id: '/welcome',
-  path: '/welcome',
-  getParentRoute: () => WorkspaceRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof WorkspaceIndexRoute
   '/settings': typeof WorkspaceSettingsRoute
-  '/welcome': typeof WorkspaceWelcomeRoute
 }
 export interface FileRoutesByTo {
   '/settings': typeof WorkspaceSettingsRoute
-  '/welcome': typeof WorkspaceWelcomeRoute
   '/': typeof WorkspaceIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_workspace': typeof WorkspaceRouteWithChildren
   '/_workspace/settings': typeof WorkspaceSettingsRoute
-  '/_workspace/welcome': typeof WorkspaceWelcomeRoute
   '/_workspace/': typeof WorkspaceIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/settings' | '/welcome'
+  fullPaths: '/' | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/settings' | '/welcome' | '/'
-  id:
-    | '__root__'
-    | '/_workspace'
-    | '/_workspace/settings'
-    | '/_workspace/welcome'
-    | '/_workspace/'
+  to: '/settings' | '/'
+  id: '__root__' | '/_workspace' | '/_workspace/settings' | '/_workspace/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -91,25 +77,16 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspaceSettingsRouteImport
       parentRoute: typeof WorkspaceRoute
     }
-    '/_workspace/welcome': {
-      id: '/_workspace/welcome'
-      path: '/welcome'
-      fullPath: '/welcome'
-      preLoaderRoute: typeof WorkspaceWelcomeRouteImport
-      parentRoute: typeof WorkspaceRoute
-    }
   }
 }
 
 interface WorkspaceRouteChildren {
   WorkspaceSettingsRoute: typeof WorkspaceSettingsRoute
-  WorkspaceWelcomeRoute: typeof WorkspaceWelcomeRoute
   WorkspaceIndexRoute: typeof WorkspaceIndexRoute
 }
 
 const WorkspaceRouteChildren: WorkspaceRouteChildren = {
   WorkspaceSettingsRoute: WorkspaceSettingsRoute,
-  WorkspaceWelcomeRoute: WorkspaceWelcomeRoute,
   WorkspaceIndexRoute: WorkspaceIndexRoute,
 }
 

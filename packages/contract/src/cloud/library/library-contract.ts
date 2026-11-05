@@ -403,9 +403,16 @@ const organizeContract = {
 };
 
 const historyContract = {
-  // the change sets that touched one item, or the library's newest
+  // the change sets that touched one item, those one conversation's turns made, or the library's
+  // newest
   list: signedBase
-    .input(z.strictObject({ cursor, itemId: idSchema.optional(), limit }))
+    .input(
+      z
+        .strictObject({ cursor, itemId: idSchema.optional(), limit, threadId: idSchema.optional() })
+        .refine((input) => input.itemId === undefined || input.threadId === undefined, {
+          error: "names one item or one conversation",
+        }),
+    )
     .output(z.object({ changeSets: z.array(changeSetSchema), cursor: cursorSchema.nullable() })),
 
   // an item as one revision left it, for History to show and a restore to patch back

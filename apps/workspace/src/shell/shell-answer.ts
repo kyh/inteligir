@@ -9,7 +9,6 @@ const refusedSchema = z.strictObject({ ok: z.literal(false), reason: z.string().
 
 // an answer that says only whether the shell did it
 export const doneAnswerSchema = z.discriminatedUnion("ok", [doneSchema, refusedSchema]);
-export type DoneAnswer = z.infer<typeof doneAnswerSchema>;
 
 export const answerSchema = <State extends z.ZodType>(state: State) =>
   z.discriminatedUnion("ok", [doneSchema.extend({ state }), refusedSchema]);

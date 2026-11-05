@@ -1,146 +1,105 @@
-// A look at a card without leaving the grid: the item's own stage in a dialog, a note or a saved
-// page drawn read-only over its bytes. The arrows step through the grid's order, Space or Escape
-// closes, Enter opens the item, and the focus goes back to the card it was opened from.
+// A look at a card without leaving the grid: its cover, where it came from, its first paragraph
+// and its outline, as the replica holds them. The arrows step through the grid's order, Space or
+// Escape closes, Enter opens the item, and the focus goes back to the card it was opened from.
 
-import { StaticNote } from "@repo/editor/static-note";
+import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
-import { Dialog, DialogContent, DialogTitle } from "@repo/ui/components/dialog";
-import { useQuery } from "@tanstack/react-query";
 import type { KeyboardEvent } from "react";
 
-import { orpc } from "../api";
-import {
-  FileStage,
-  ImageStage,
-  MediaStage,
-  PdfStage,
-  PendingStage,
-  SourceHeader,
-} from "../item/item-stages";
-import { useMediaOrigin } from "../vault-hooks";
-import { isUrlItem } from "./item-labels";
+import { useNow } from "../relative-time";
+import { blobUrl } from "./item-card";
+import { cardMeta } from "./item-labels";
 import { libraryShortcutFor } from "./library-keys";
-import { useItemRow } from "./library-items";
-import { parseItemTime } from "@repo/notes/items/item-time";
-import type { ItemRowWire } from "@repo/contract/local/items/items-schema";
-import type { MediaOrigin } from "../vault-hooks";
 
 export interface QuickLookProps {
-  path: string | null;
-  onClose: () => void;
-  onOpen: (path: string) => void;
+  readonly row: ReplicaListingRow | null;
+  readonly onClose: () => void;
+  readonly onOpen: (row: ReplicaListingRow) => void;
   // -1 or +1 along the grid's order
-  onStep: (path: string, by: -1 | 1) => void;
+  readonly onStep: (by: -1 | 1) => void;
 }
 
-const TextLook = ({ row }: { row: ItemRowWire }) => {
-  const read = useQuery(orpc.vault.read.queryOptions({ input: { path: row.path } }));
+const coverOf = (row: ReplicaListingRow): string | null =>
+  row.fields.coverSha ?? (row.kind === "image" ? row.fields.originalSha : null);
+
+const Look = ({ row }: { row: ReplicaListingRow }) => {
+  const nowMs = useNow();
+  const cover = coverOf(row);
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
-      {isUrlItem(row) && row.url !== null ? (
-        <SourceHeader
-          url={row.url}
-          site={row.site}
-          host={row.host}
-          savedMs={row.saved === null ? null : parseItemTime(row.saved)}
-        />
+    <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
+      {cover === null ? null : (
+        <img alt="" src={blobUrl(cover)} className="max-h-72 w-full rounded-md object-contain" />
+      )}
+      <DialogDescription>{cardMeta(row, nowMs)}</DialogDescription>
+      {row.fields.fetchState === "pending" ? (
+        <p className="m-0 text-body text-muted-foreground">
+          Not read yet: the page is read in the cloud, and its text lands here soon.
+        </p>
       ) : null}
-      <div className="px-8 py-6 text-subtitle">
-        {read.data === undefined ? (
-          <p className="m-0 text-muted-foreground">
-            {read.isError ? "This item could not be read." : "Loading…"}
-          </p>
-        ) : (
-          <StaticNote content={read.data.content} path={row.path} />
-        )}
-      </div>
+      {row.card.preview === "" ? null : (
+        <p className="m-0 text-subtitle break-words text-ink-2 select-text">{row.card.preview}</p>
+      )}
+      {row.card.outline.length === 0 ? null : (
+        <ul className="m-0 list-none p-0 text-body text-muted-foreground">
+          {row.card.outline.map((entry) => (
+            <li key={entry.blockId} style={{ paddingLeft: `${String((entry.level - 1) * 12)}px` }}>
+              {entry.text}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 };
 
-const LookStage = ({ row, media }: { row: ItemRowWire; media: MediaOrigin | null }) => {
-  if (row.pending) {
-    return <PendingStage onReadHere={null} />;
-  }
-  const { file } = row;
-  if (file === null || media === null || row.kind === "note" || row.kind === "link") {
-    return <TextLook row={row} />;
-  }
-  switch (row.kind) {
-    case "image": {
-      return <ImageStage file={file} media={media} />;
-    }
-    case "pdf": {
-      return <PdfStage file={file} media={media} />;
-    }
-    case "video":
-    case "audio": {
-      return <MediaStage file={file} kind={row.kind} media={media} />;
-    }
-    case "file": {
-      return <FileStage file={file} bytes={row.fileBytes} />;
-    }
-    default: {
-      const exhaustive: never = row.kind;
-      return exhaustive;
-    }
-  }
-};
-
-export const QuickLook = ({ path, onClose, onOpen, onStep }: QuickLookProps) => {
-  const rowQuery = useItemRow(path);
-  const row = rowQuery.data ?? null;
-  const media = useMediaOrigin();
-
+export const QuickLook = ({ row, onClose, onOpen, onStep }: QuickLookProps) => {
+  const modifier = platformShortcutModifier();
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (path === null || event.defaultPrevented) {
+    if (row === null) {
       return;
     }
-    const shortcut = libraryShortcutFor(event, "grid", platformShortcutModifier());
+    const shortcut = libraryShortcutFor(event, "grid", modifier);
     switch (shortcut?.action) {
-      case "move-left": {
-        onStep(path, -1);
-        break;
-      }
-      case "move-right": {
-        onStep(path, 1);
-        break;
-      }
-      case "quick-look":
-      case "clear-selection": {
+      case "quick-look": {
+        event.preventDefault();
         onClose();
-        break;
+        return;
       }
       case "open-item": {
-        onOpen(path);
+        event.preventDefault();
+        onOpen(row);
+        return;
+      }
+      case "move-left":
+      case "move-up": {
+        event.preventDefault();
+        onStep(-1);
+        return;
+      }
+      case "move-right":
+      case "move-down": {
+        event.preventDefault();
+        onStep(1);
         break;
       }
       default: {
-        return;
+        break;
       }
     }
-    event.preventDefault();
-    event.stopPropagation();
   };
-
   return (
     <Dialog
-      open={path !== null}
+      open={row !== null}
       onOpenChange={(open) => {
         if (!open) {
           onClose();
         }
       }}
     >
-      <DialogContent
-        className="flex h-[80vh] max-w-[min(100%-2rem,900px)] flex-col gap-0 overflow-hidden p-0"
-        onKeyDown={onKeyDown}
-      >
-        <div className="flex h-11 shrink-0 items-center border-b border-line px-4 pr-12">
-          {/* the dialog's name: the item's title, once its row has loaded */}
-          <DialogTitle className="truncate text-subtitle">{row?.title ?? "Quick Look"}</DialogTitle>
-        </div>
-        {row === null ? <div className="flex-1" /> : <LookStage row={row} media={media} />}
+      <DialogContent className="max-w-xl" onKeyDown={onKeyDown}>
+        <DialogTitle>{row?.title ?? ""}</DialogTitle>
+        {row === null ? null : <Look row={row} />}
       </DialogContent>
     </Dialog>
   );

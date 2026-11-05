@@ -23,4 +23,3 @@ export const diagnosticsStateSchema = z.discriminatedUnion("server", [
     server: z.literal("adopted"),
   }),
 ]);
-export type DiagnosticsState = z.infer<typeof diagnosticsStateSchema>;

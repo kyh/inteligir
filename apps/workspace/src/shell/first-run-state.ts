@@ -15,7 +15,6 @@ const folderPathSchema = z.string().min(1);
 export const firstRunStateSchema = z.strictObject({
   newVault: z.strictObject({ name: z.string().min(1), parent: folderPathSchema }),
 });
-export type FirstRunState = z.infer<typeof firstRunStateSchema>;
 
 const cancelledSchema = z.strictObject({ kind: z.literal("cancelled") });
 
@@ -28,7 +27,6 @@ export const pickParentAnswerSchema = z.discriminatedUnion("kind", [
     path: folderPathSchema,
   }),
 ]);
-export type PickParentAnswer = z.infer<typeof pickParentAnswerSchema>;
 
 export const pickFolderAnswerSchema = z.discriminatedUnion("kind", [
   cancelledSchema,
@@ -40,4 +38,3 @@ export const firstRunChoiceSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("create"), name: z.string(), parent: folderPathSchema }),
   z.strictObject({ kind: z.literal("open"), path: folderPathSchema }),
 ]);
-export type FirstRunChoice = z.infer<typeof firstRunChoiceSchema>;

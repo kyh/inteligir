@@ -11,6 +11,7 @@ import { Plate, usePlateEditor } from "platejs/react";
 import { cn } from "@repo/ui/lib/cn";
 
 import { Editor, EditorContainer, editorColumnPx } from "@repo/editor/editor-chrome";
+import { registerLiveEditor } from "@repo/editor/live-editor";
 import { useEditorProfile } from "@repo/editor/editor-profile";
 import { WRITE_PLACEHOLDER } from "@repo/editor/kits/block-placeholder-kit";
 import { PROFILE_KITS } from "@repo/editor/markdown-editor";
@@ -56,6 +57,9 @@ const ItemSurface = ({ itemId, ports, onSession }: ItemEditorProps) => {
       void session.close();
     };
   }, [session]);
+  // the editor answers for its item by the item's id, as a note's answers for its path: a
+  // highlight the chord makes, and a writer outside the surface, find it there
+  useEffect(() => registerLiveEditor(itemId, editor), [itemId, editor]);
   if (status.kind === "missing") {
     return (
       <p className={cn(editorColumnPx(profile), "pt-4 text-body text-muted-foreground")}>

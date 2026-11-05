@@ -407,6 +407,9 @@ export const changeSetSchema = z.object({
   // who in words: "You on this Mac", "Claude", "Raindrop import"
   label: z.string(),
   openedAt: isoInstant,
+  // the conversation and turn of the built-in agent's that made it; null for every other writer
+  threadId: idSchema.nullable(),
+  turn: z.number().int().positive().nullable(),
   undoneBy: idSchema.nullable(),
 });
 

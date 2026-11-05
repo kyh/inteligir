@@ -1,351 +1,162 @@
-// CLAUDE.md § THE LIBRARY IS HOME, AND AN ITEM IS SHOWN BY ITS KIND. An open item, full size: the
-// editor for a note, a saved page's source over its text, a viewer for a picture, a PDF, a video,
-// a sound or any other file, and the placeholder for a stub whose page is not read yet. A viewer
-// still opens its wrapper through the session (§ A VIEWER OPENS ITS DOC THROUGH THE SESSION), so
-// History, ⌘K and Info bind to that path; "Edit as note" swaps the viewer for the editor. Escape
-// goes back to the library, from anywhere the item view holds focus that is not text entry.
+// CLAUDE.md § THE LIBRARY IS HOME, AND AN ITEM IS SHOWN BY ITS KIND. An item opens full size in the
+// grid's place: a file's viewer above it, a saved page's source, and the item's own blocks in the
+// editor (`@repo/editor/item/item-editor`) over the replica, which writes what changed after a
+// pause and lays in what changed elsewhere. Escape outside the editor goes back to the library.
 
-import type { ItemRowWire } from "@repo/contract/local/items/items-schema";
-import type { LibraryScope } from "@repo/domain/library-scope";
-import { EditorColumn } from "@repo/editor/editor-column";
-import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
-import { URL_ITEM_KINDS } from "@repo/notes/items/item-kind";
+import { ItemEditor } from "@repo/editor/item/item-editor";
+import type { ItemSession, ItemSessionPorts } from "@repo/editor/item/item-session";
+import { mergeConflictLine } from "@repo/editor/note/vanished-prompt";
+import { mergeBlocks } from "@repo/editor/stale-write";
+import { setAnnotationMeta } from "@repo/editor/annotations/annotation-store";
+import { setFindBarAnchor } from "@repo/editor/find-bar";
+import { Button } from "@repo/ui/components/button";
+import { toast } from "@repo/ui/components/sonner";
+import { Tooltip } from "@repo/ui/components/tooltip";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
-import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeftIcon, PanelRightIcon } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { KeyboardEvent } from "react";
 
+import { useReplica, useReplicaQueries } from "../cloud/library-context";
 import { isTextEntryTarget } from "../global-shortcuts";
 import { libraryShortcutFor } from "../library/library-keys";
-import { useItemRow } from "../library/library-items";
-import { NoteFooter } from "../note-footer";
-import type { TopbarLeadProps } from "../topbar-lead";
-import { useMediaOrigin } from "../vault-hooks";
-import type { MediaOrigin } from "../vault-hooks";
-import {
-  FileStage,
-  ImageStage,
-  MediaStage,
-  PdfStage,
-  PendingStage,
-  SourceHeader,
-} from "./item-stages";
-import { ItemTopbar } from "./item-topbar";
-import type { ItemFace } from "./item-topbar";
-import { useOpenItem } from "./open-item-kind";
-import type { OpenItem } from "./open-item-kind";
-import { SnapshotFrame } from "./snapshot-frame";
+import { retitleItem } from "../library/library-verbs";
+import { FileStage, PendingNotice, SourceHeader } from "./item-stages";
+
+const after = (ms: number, run: () => void): (() => void) => {
+  const timer = setTimeout(run, ms);
+  return () => {
+    clearTimeout(timer);
+  };
+};
 
 export interface ItemViewProps {
-  store: OpenNoteStore;
-  lead: TopbarLeadProps;
-  insetTitleBar: boolean;
-  zen: boolean;
-  onGoToLibrary: (scope?: LibraryScope) => void;
-  onFindInNote: () => void;
-  annotationCount: number;
-  onOpenAnnotations: () => void;
-  onExportPdf: () => void;
-  // Refresh from the page, for a stub this Mac did not save
-  onReadHere: (path: string) => void;
+  readonly itemId: string;
+  readonly onBack: () => void;
+  readonly onTogglePanel: () => void;
+  readonly onSession: (session: ItemSession | null) => void;
 }
 
-// where a saved page came from: its address, its site and when it was saved
-interface Source {
-  readonly url: string;
-  readonly site: string | null;
-  readonly host: string | null;
-  readonly savedMs: number | null;
-}
-
-const sourceOf = (item: OpenItem): Source | null => {
-  const { facts } = item;
-  if (facts === null || facts.url === null || !URL_ITEM_KINDS.some((kind) => kind === item.kind)) {
-    return null;
-  }
-  return { host: facts.host, savedMs: facts.savedMs, site: facts.site, url: facts.url };
+const TitleField = ({ itemId, title }: { itemId: string; title: string }) => {
+  const replica = useReplica();
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = (): void => {
+    const next = (draft ?? title).trim();
+    setDraft(null);
+    if (next !== "" && next !== title) {
+      void retitleItem(replica, itemId, next);
+    }
+  };
+  return (
+    <input
+      aria-label="Title"
+      className="min-w-0 flex-1 truncate bg-transparent text-title font-medium outline-none"
+      value={draft ?? title}
+      placeholder="Untitled"
+      onChange={(event) => {
+        setDraft(event.target.value);
+      }}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          commit();
+        }
+      }}
+    />
+  );
 };
 
-// a viewer kind shows the original; a note and a saved page show the editor
-const showsViewer = (item: OpenItem, file: string | null): boolean => {
-  switch (item.kind) {
-    case "note":
-    case "link": {
-      return false;
-    }
-    case "video":
-    case "audio": {
-      return file !== null;
-    }
-    case "image":
-    case "pdf":
-    case "file": {
-      return true;
-    }
-    default: {
-      const exhaustive: never = item.kind;
-      return exhaustive;
-    }
-  }
-};
+export const ItemView = ({ itemId, onBack, onTogglePanel, onSession }: ItemViewProps) => {
+  const replica = useReplica();
+  const queries = useReplicaQueries();
+  const item = useQuery(queries.item(itemId));
+  const annotations = useQuery(queries.annotations(itemId)).data;
+  const modifier = platformShortcutModifier();
 
-const SourceBar = ({ source }: { source: Source }) => (
-  <SourceHeader url={source.url} site={source.site} host={source.host} savedMs={source.savedMs} />
-);
-
-// the editor, under a saved page's source when it has one
-const ArticleStage = ({
-  path,
-  source,
-  footer,
-}: {
-  path: string;
-  source: Source | null;
-  footer: boolean;
-}) => (
-  <>
-    {source === null ? null : <SourceBar source={source} />}
-    <div data-editor-scroller="" className="min-h-0 flex-1 overflow-y-auto print:overflow-visible">
-      <EditorColumn />
-    </div>
-    {footer ? <NoteFooter path={path} /> : null}
-  </>
-);
-
-const ViewerStage = ({
-  item,
-  file,
-  row,
-  media,
-}: {
-  item: OpenItem;
-  file: string;
-  row: ItemRowWire | null;
-  media: MediaOrigin;
-}) => {
-  switch (item.kind) {
-    case "image": {
-      return <ImageStage file={file} media={media} />;
-    }
-    case "pdf": {
-      return <PdfStage file={file} media={media} />;
-    }
-    case "video":
-    case "audio": {
-      return <MediaStage file={file} kind={item.kind} media={media} />;
-    }
-    case "file":
-    case "note":
-    case "link": {
-      return <FileStage file={file} bytes={row?.fileBytes ?? null} />;
-    }
-    default: {
-      const exhaustive: never = item.kind;
-      return exhaustive;
-    }
-  }
-};
-
-// how the open item is shown now: the stage, the face a saved page wears, and what may edit it
-interface Showing {
-  readonly stage: "pending" | "viewer" | "article" | "page-copy";
-  readonly file: string | null;
-  readonly copy: string | null;
-  readonly source: Source | null;
-}
-
-const showingOf = (
-  item: OpenItem,
-  row: ItemRowWire | null,
-  asNote: boolean,
-  face: ItemFace,
-): Showing => {
-  const file = item.bareFile ?? row?.file ?? null;
-  const copy = asNote ? null : (row?.copy ?? null);
-  const source = asNote ? null : sourceOf(item);
-  if (item.pending) {
-    return { copy: null, file, source: null, stage: "pending" };
-  }
-  if (!asNote && showsViewer(item, file)) {
-    return { copy, file, source, stage: "viewer" };
-  }
-  const pageCopy = source !== null && copy !== null && face === "page-copy";
-  return { copy, file, source, stage: pageCopy ? "page-copy" : "article" };
-};
-
-// a bare file the index no longer lists as an item: deleted or moved, with nothing to show
-const isGone = (item: OpenItem | null, read: boolean, row: ItemRowWire | null): boolean =>
-  item !== null && item.bareFile !== null && read && row === null;
-
-// what the top bar offers for what is shown: the editor's verbs, the address, the page's two faces
-const barFacts = (item: OpenItem, showing: Showing, face: ItemFace) => ({
-  editAsNote: showing.stage === "viewer" && item.bareFile === null,
-  editable:
-    (showing.stage === "article" || showing.stage === "page-copy") && item.bareFile === null,
-  face: showing.source !== null && showing.copy !== null ? face : null,
-  url: sourceOf(item)?.url ?? null,
-});
-
-// the stage the item is shown on, by what `showingOf` said
-const ShownStage = ({
-  showing,
-  item,
-  row,
-  media,
-  footer,
-  onReadHere,
-}: {
-  showing: Showing;
-  item: OpenItem;
-  row: ItemRowWire | null;
-  media: MediaOrigin | null;
-  footer: boolean;
-  onReadHere: (path: string) => void;
-}) => {
-  switch (showing.stage) {
-    case "pending": {
-      return (
-        <PendingStage
-          onReadHere={() => {
-            onReadHere(item.path);
-          }}
-        />
-      );
-    }
-    case "viewer": {
-      return showing.file === null || media === null ? (
-        <div className="flex min-h-0 flex-1" />
-      ) : (
-        <ViewerStage item={item} file={showing.file} row={row} media={media} />
-      );
-    }
-    case "page-copy": {
-      return showing.copy === null || media === null || showing.source === null ? null : (
-        <>
-          <SourceBar source={showing.source} />
-          <SnapshotFrame copy={showing.copy} media={media} />
-        </>
-      );
-    }
-    case "article": {
-      return (
-        <ArticleStage
-          path={item.path}
-          source={showing.source}
-          footer={footer && item.kind === "note"}
-        />
-      );
-    }
-    default: {
-      const exhaustive: never = showing.stage;
-      return exhaustive;
-    }
-  }
-};
-
-export const ItemView = ({
-  store,
-  lead,
-  insetTitleBar,
-  zen,
-  onGoToLibrary,
-  onFindInNote,
-  annotationCount,
-  onOpenAnnotations,
-  onExportPdf,
-  onReadHere,
-}: ItemViewProps) => {
-  const item = useOpenItem(store);
-  const path = item?.path ?? null;
-  const rowQuery = useItemRow(path);
-  const row = rowQuery.data ?? null;
-  const media = useMediaOrigin();
-  // both are the open item's own, so another item opens on its article, in its viewer
-  const [face, setFace] = useState<{ path: string; face: ItemFace } | null>(null);
-  const [asNote, setAsNote] = useState<string | null>(null);
-
-  // the keyboard lands in the item as it opens, so Escape goes back at once: opening from the
-  // grid unmounts the focused card and leaves the focus nowhere. Whatever already holds the focus
-  // (the editor's title, the panel, the composer) keeps it
-  const rootRef = useRef<HTMLDivElement | null>(null);
+  // the editor tints a highlight its store holds, and marks the ones that carry a note
   useEffect(() => {
-    const root = rootRef.current;
-    const nowhere = document.activeElement === null || document.activeElement === document.body;
-    if (path !== null && root !== null && nowhere) {
-      root.focus({ preventScroll: true });
-    }
-  }, [path]);
-
-  // a bare file that is no longer an item (deleted, moved) has nothing to show
-  const gone = isGone(item, rowQuery.isSuccess, row);
-  useEffect(() => {
-    if (gone) {
-      onGoToLibrary();
-    }
-  }, [gone, onGoToLibrary]);
-
-  if (item === null || path === null) {
-    return <div className="flex min-h-0 flex-1 flex-col" />;
-  }
-
-  const shownFace: ItemFace = face?.path === path ? face.face : "article";
-  const showing = showingOf(item, row, asNote === path, shownFace);
-
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (event.defaultPrevented || isTextEntryTarget(event.target)) {
+    if (annotations === undefined) {
       return;
     }
-    const shortcut = libraryShortcutFor(event, "item", platformShortcutModifier());
-    if (shortcut?.action === "back-to-library") {
+    const entries = Object.entries(annotations);
+    setAnnotationMeta(itemId, {
+      knownIds: new Set(entries.map(([id]) => id)),
+      notedIds: new Set(
+        entries.flatMap(([id, entry]) =>
+          entry.text === "" && !entries.some(([, reply]) => reply.parentId === id) ? [] : [id],
+        ),
+      ),
+    });
+  }, [annotations, itemId]);
+
+  // read once as the item opens: the editor holds them for its life
+  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
+  const [ports] = useState<ItemSessionPorts>(() => ({
+    after,
+    merge: mergeBlocks,
+    notifyOverlap: (title) => {
+      toast.warning(mergeConflictLine(title));
+    },
+    store: replica,
+  }));
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (isTextEntryTarget(event.target)) {
+      return;
+    }
+    if (libraryShortcutFor(event, "item", modifier)?.action === "back-to-library") {
       event.preventDefault();
-      onGoToLibrary();
+      onBack();
     }
   };
 
-  const bar = barFacts(item, showing, shownFace);
-
+  const held = item.data ?? null;
   return (
-    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- the item view's own key, Escape back to the library, listened on its root so a field inside keeps its own Escape
-    <div
-      ref={rootRef}
-      tabIndex={-1}
-      data-item-view={item.kind}
-      data-item-path={path}
-      className="flex min-h-0 flex-1 flex-col outline-none"
-      onKeyDown={onKeyDown}
-    >
-      {zen ? null : (
-        <ItemTopbar
-          path={path}
-          lead={lead}
-          insetTitleBar={insetTitleBar}
-          onGoToLibrary={onGoToLibrary}
-          editable={bar.editable}
-          url={bar.url}
-          face={bar.face}
-          onFaceChange={(next) => {
-            setFace({ face: next, path });
-          }}
-          onEditAsNote={
-            bar.editAsNote
-              ? () => {
-                  setAsNote(path);
-                }
-              : null
-          }
-          onFindInNote={onFindInNote}
-          annotationCount={annotationCount}
-          onOpenAnnotations={onOpenAnnotations}
-          onExportPdf={onExportPdf}
-        />
-      )}
-      <ShownStage
-        showing={showing}
-        item={item}
-        row={row}
-        media={media}
-        footer={!zen}
-        onReadHere={onReadHere}
-      />
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- the view's own Escape, which every control inside it hands up unless it holds the key itself
+    <div className="flex h-full min-h-0 flex-col" data-item-id={itemId} onKeyDown={onKeyDown}>
+      <header className="flex h-12 shrink-0 items-center gap-2 px-3">
+        <Tooltip content="Back to the library" side="bottom">
+          <Button
+            variant="ghost"
+            size="icon-compact"
+            aria-label="Back to the library"
+            onClick={onBack}
+          >
+            <ArrowLeftIcon />
+          </Button>
+        </Tooltip>
+        {held === null ? (
+          <span className="flex-1" />
+        ) : (
+          <TitleField key={held.fields.title} itemId={itemId} title={held.fields.title} />
+        )}
+        <Tooltip content="Info, highlights, History and the agent" side="bottom">
+          <Button
+            variant="ghost"
+            size="icon-compact"
+            aria-label="Info, highlights, History and the agent"
+            onClick={onTogglePanel}
+          >
+            <PanelRightIcon />
+          </Button>
+        </Tooltip>
+      </header>
+      {/* where the editor's find bar (⌘F) draws, over the item's text */}
+      <div ref={setFindBarAnchor} className="relative" />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {held === null ? null : (
+          <>
+            <SourceHeader fields={held.fields} />
+            {held.fields.fetchState === "pending" || held.fields.fetchState === "failed" ? (
+              <PendingNotice failed={held.fields.fetchError} />
+            ) : null}
+            <FileStage fields={held.fields} title={held.card.title} />
+          </>
+        )}
+        <ItemEditor itemId={itemId} ports={ports} onSession={onSession} />
+      </div>
     </div>
   );
 };

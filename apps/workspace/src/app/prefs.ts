@@ -5,9 +5,8 @@ import { parseTheme } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
 import { useCallback, useState } from "react";
 import { z } from "zod";
-import { libraryScopeSchema } from "@repo/domain/library-scope";
+import { cellLibraryScopeSchema } from "@repo/domain/library-scope";
 import { APPEARANCE_DEFAULTS, appearanceSchema } from "./appearance-options";
-import type { LibrarySort } from "./library/library-items";
 
 export interface PagePref<Value, Fallback> {
   readonly key: string;
@@ -20,15 +19,6 @@ const pref = <Value>(
   schema: z.ZodType<Value, string>,
   fallback: NoInfer<Value>,
 ): PagePref<Value, Value> => ({ fallback, key, schema });
-
-const unsetPref = <Value>(
-  key: string,
-  schema: z.ZodType<Value, string>,
-): PagePref<Value, null> => ({
-  fallback: null,
-  key,
-  schema,
-});
 
 const json = <Value>(schema: z.ZodType<Value>) =>
   z.codec(z.string(), z.unknown().pipe(schema), {
@@ -57,31 +47,23 @@ const railWidth = z.codec(
 
 const themeName = z.string().refine((raw): raw is Theme => parseTheme(raw) === raw);
 
-const epochMs = z.codec(z.string(), z.int().nonnegative(), { decode: Number, encode: String });
-
 // the orders the grid offers; a search ranks, so it takes none of them
-export const LIBRARY_SORTS = [
-  "saved",
-  "modified",
-  "title",
-] as const satisfies readonly LibrarySort[];
+export const LIBRARY_SORTS = ["saved", "modified", "title"] as const;
+export type LibrarySort = (typeof LIBRARY_SORTS)[number];
 
 export const PREFS = {
   appearance: pref("inteligir.appearance", json(appearanceSchema), APPEARANCE_DEFAULTS),
   // the scope the library opens on; a folder that is no longer listed reads as every item
-  libraryScope: pref("inteligir.library-scope", json(libraryScopeSchema), { kind: "all" }),
+  libraryScope: pref("inteligir.library-scope", json(cellLibraryScopeSchema), { kind: "all" }),
   librarySort: pref("inteligir.library-sort", z.enum(LIBRARY_SORTS), "saved"),
   // closed until asked for: an annotation focus or the top bar's Annotations opens it
   panelOpen: pref("inteligir.panel-open", flag, false),
   // the right panel is the same primitive as the rail, dragged by the same handle
   panelWidth: pref("inteligir.panel-width", railWidth, 320),
   railTagsOpen: pref("inteligir.rail-tags-open", flag, true),
-  relatedOpen: pref("inteligir.related-open", flag, true),
   sidebarWidth: pref("inteligir.sidebar-width", railWidth, 260),
   // the document's own `spellcheck`, which every field inherits unless it sets its own
   spellcheck: pref("inteligir.spellcheck", flag, true),
-  // the `at` of the newest sync conflict this window announced, on the server's clock
-  syncConflictSeenAt: unsetPref("inteligir.sync-conflict-seen-at", epochMs),
   theme: pref("inteligir.theme", themeName, "system"),
 };
 

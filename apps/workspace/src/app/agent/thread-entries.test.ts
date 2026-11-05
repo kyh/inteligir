@@ -1,0 +1,82 @@
+import { createORPCErrorFromJson } from "@orpc/client";
+import type { threadEventRowSchema } from "@repo/contract/cloud/library/library-wire";
+import type { z } from "zod";
+import { describe, expect, it } from "vitest";
+
+import {
+  agentRefusalWords,
+  endingWords,
+  threadEntries,
+  toolWords,
+  waitingApprovals,
+} from "./thread-entries";
+
+const THREAD = "0199a4c2-0000-7000-8000-000000000001";
+
+const row = (idx: number, event: z.infer<typeof threadEventRowSchema>["event"]) => ({
+  at: 1_790_000_000_000 + idx,
+  event,
+  eventId: `${THREAD}:1:${String(idx)}`,
+  idx,
+  seq: idx,
+  threadId: THREAD,
+  type: "x",
+});
+
+const asked = {
+  input: { ids: [] },
+  name: "delete_items",
+  toolUseId: "t1",
+  type: "approval.asked",
+  until: 9,
+};
+
+describe("a thread's entries", () => {
+  it("reads the stored events in order and skips one this build cannot parse", () => {
+    const entries = threadEntries([
+      row(2, { text: "Done.", type: "agent.message" }),
+      row(0, { text: "File these.", type: "user.message" }),
+      row(1, { kind: "from a newer cell", type: "agent.future" }),
+    ]);
+    expect(entries.map(({ event }) => event.type)).toEqual(["user.message", "agent.message"]);
+  });
+
+  it("names the approval still waiting by the event that asked, until it is answered", () => {
+    const waiting = threadEntries([row(0, asked)]);
+    expect(waitingApprovals(waiting)).toEqual([
+      { eventId: `${THREAD}:1:0`, name: "delete_items", until: 9 },
+    ]);
+    const answered = threadEntries([
+      row(0, asked),
+      row(1, { by: "person", result: "allow", toolUseId: "t1", type: "approval.answered" }),
+    ]);
+    expect(waitingApprovals(answered)).toEqual([]);
+  });
+
+  it("says a tool and an ending in the person's words", () => {
+    expect(toolWords("search_library")).toBe("Searched the library");
+    expect(toolWords("a_tool_from_later")).toBe("Used the library");
+    expect(endingWords("done")).toBe("");
+    expect(endingWords("cancelled")).toBe("Stopped.");
+  });
+});
+
+// a refusal as the client reads one the procedure declared
+const refused = (code: string, data?: { readonly resetsAt: number }) =>
+  createORPCErrorFromJson({ code, data, defined: true, message: code });
+
+describe("a refused send", () => {
+  it("says the allowance is used, and when it fills again", () => {
+    const budget = refused("AGENT_BUDGET", { resetsAt: Date.UTC(2026, 10, 6, 0, 0) });
+    expect(agentRefusalWords(budget, Date.UTC(2026, 10, 5, 12, 0))).toMatch(
+      /^The agent has used today’s allowance\. It’s back at /u,
+    );
+  });
+
+  it("says the agent is off or out of reach, and nothing for any other refusal", () => {
+    const off = refused("SERVICE_UNAVAILABLE");
+    expect(agentRefusalWords(off, 0)).toMatch(/turn it on in Settings/u);
+    expect(agentRefusalWords(refused("NOT_FOUND"), 0)).toBeNull();
+    expect(agentRefusalWords(new Error("offline"), 0)).toBeNull();
+  });
+});

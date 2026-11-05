@@ -25,15 +25,12 @@
     },
     "apps/desktop": {
       "entry": ["scripts/*.ts"],
-      // a build output and a dev server, never a module: src-tauri/tauri.conf.json embeds its
-      // first-run page and runs its Vite under `tauri dev`
+      // a build output and a dev server, never a module: src-tauri/tauri.conf.json embeds the
+      // page's build and runs its Vite under `tauri dev`
       "ignoreDependencies": ["@repo/workspace"]
     },
     "apps/workspace": {
-      // the first-run page is a build of its own (vite.config.ts), and first-run.html's script is
-      // read by knip's vite plugin only from index.html
-      "entry": ["src/first-run/first-run-main.tsx"],
-      "project": ["src/**/*.{ts,tsx,css}", "scripts/*.ts"],
+      "project": ["src/**/*.{ts,tsx,css}"],
       "ignoreDependencies": ["tailwindcss"]
     },
     "apps/mobile": {

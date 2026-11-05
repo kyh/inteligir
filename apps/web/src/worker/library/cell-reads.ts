@@ -560,6 +560,8 @@ const setRowSchema = z.object({
   label: z.string(),
   opened_at: z.number(),
   sealed_at: z.number().nullable(),
+  thread_id: z.string().nullable(),
+  turn: z.number().int().positive().nullable(),
   undone_by: z.string().nullable(),
 });
 const setItemSchema = z.object({
@@ -596,17 +598,34 @@ const setItemOf = (sql: SqlStatements, setId: string, raw: z.infer<typeof setIte
 export interface HistoryInput {
   readonly cursor?: string | undefined;
   readonly itemId?: string | undefined;
+  // the sets one conversation's turns opened, which its Undo takes back
+  readonly threadId?: string | undefined;
   readonly limit: number;
 }
 
+// the filter a listing narrows to: one item's sets, one conversation's, or the library's newest
+const historyFilter = (input: HistoryInput): { where: string; params: string[] } => {
+  if (input.itemId !== undefined) {
+    return {
+      params: [input.itemId],
+      where: "WHERE id IN (SELECT change_set_id FROM change_set_items WHERE item_id = ?)",
+    };
+  }
+  if (input.threadId !== undefined) {
+    return { params: [input.threadId], where: "WHERE thread_id = ?" };
+  }
+  return { params: [], where: "" };
+};
+
 export const listHistory = (sql: SqlStatements, input: HistoryInput) => {
   const offset = offsetOf(input.cursor);
+  const filter = historyFilter(input);
   const sets = sql
     .all(
-      `SELECT id, actor, label, opened_at, sealed_at, undone_by FROM change_sets
-       ${input.itemId === undefined ? "" : "WHERE id IN (SELECT change_set_id FROM change_set_items WHERE item_id = ?)"}
+      `SELECT id, actor, label, opened_at, sealed_at, thread_id, turn, undone_by FROM change_sets
+       ${filter.where}
        ORDER BY opened_at DESC, id DESC LIMIT ? OFFSET ?`,
-      [...(input.itemId === undefined ? [] : [input.itemId]), input.limit + 1, offset],
+      [...filter.params, input.limit + 1, offset],
     )
     .map((row) => setRowSchema.parse(row));
   const shown = sets.slice(0, input.limit);
@@ -631,6 +650,8 @@ export const listHistory = (sql: SqlStatements, input: HistoryInput) => {
         items,
         label: set.label,
         openedAt: isoOf(set.opened_at),
+        threadId: set.thread_id,
+        turn: set.turn,
         undoneBy: set.undone_by,
       };
     }),

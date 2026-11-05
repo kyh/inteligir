@@ -8,7 +8,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import type { InvokeArgs } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { z } from "zod";
-import { APP_COMMANDS, FIRST_RUN_COMMANDS, UPDATE_STATE_EVENT } from "./ipc-contract";
+import { APP_COMMANDS, UPDATE_STATE_EVENT } from "./ipc-contract";
 import type { CommandRoute, EventRoute } from "./ipc-contract";
 
 export const underShell = (): boolean => isTauri();
@@ -42,23 +42,11 @@ const event =
     };
   };
 
-// the shell starts the server, so only it can hand it the debug choice, restart it, or show the
-// log it writes and the data folder it lives in
-export const shellDiagnostics = {
-  getState: command(APP_COMMANDS.diagnostics.getState),
-  openDataFolder: command(APP_COMMANDS.diagnostics.openDataFolder),
-  restart: command(APP_COMMANDS.diagnostics.restart),
-  setDebug: command(APP_COMMANDS.diagnostics.setDebug),
-  showLog: command(APP_COMMANDS.diagnostics.showLog),
-};
-
 // the OS reaches a vault entry through the shell alone, which resolves and checks the path itself
 export const shellPaths = {
   open: command(APP_COMMANDS.paths.open),
   reveal: command(APP_COMMANDS.paths.reveal),
 };
-
-export const shellPrint = command(APP_COMMANDS.print);
 
 // the shell reduces the updater's state and pushes every move
 export const shellUpdates = {
@@ -76,14 +64,4 @@ export const shellVaults = {
   getState: command(APP_COMMANDS.vaults.getState),
   open: command(APP_COMMANDS.vaults.open),
   pick: command(APP_COMMANDS.vaults.pick),
-};
-
-// the first-run window's whole door: before the first boot there is no server, so it asks the
-// shell for the vault choice alone. The folders it names are ones the shell handed out, and
-// `finish` answers only when no vault opened
-export const shellFirstRun = {
-  finish: command(FIRST_RUN_COMMANDS.finish),
-  getState: command(FIRST_RUN_COMMANDS.getState),
-  pickFolder: command(FIRST_RUN_COMMANDS.pickFolder),
-  pickParent: command(FIRST_RUN_COMMANDS.pickParent),
 };
