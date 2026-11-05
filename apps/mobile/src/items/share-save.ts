@@ -31,8 +31,6 @@ const COVER_ACCEPT = "image/webp,image/png,image/jpeg,image/gif;q=0.8,*/*;q=0.5"
 // gigabytes, which drawing its thumbnail would decode
 const DECODE_MAX_PIXELS = 40_000_000;
 
-type ReadAnswer = Extract<FillAnswer, { kind: "read" }>;
-
 // the first candidate that is really a picture of a cover's size, kept whole as the site served it;
 // a page in private space may name a cover there, a public one never
 const coverOf = async (

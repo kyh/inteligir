@@ -269,10 +269,68 @@ export interface SaveLinkInput {
   readonly title?: string | undefined;
 }
 
+// a link no live item holds the address of, as an unread stub, `pending`, which the cloud reads
+// after the write; the passage the person had selected waits as a bare highlight until the
+// reading holds its text (`landFill`)
+const newStub = (
+  scope: LandingScope,
+  actor: CellActor,
+  ids: CellIds,
+  input: SaveLinkInput,
+  note: ReturnType<typeof noteBlocksOf> | null,
+  folderId: string | null,
+): LiveItemRow => {
+  const selected =
+    input.selection === undefined
+      ? []
+      : [bareHighlight(scope, { id: ids.annotation(), quote: input.selection })];
+  return landNew(scope, actor, {
+    annotations: [...(note?.highlights ?? []), ...selected],
+    blocks: note?.blocks ?? [],
+    fields: {
+      ...blankFields(scope.now),
+      fetchState: "pending",
+      folderId,
+      kind: kindForUrl(input.url),
+      savedAt: input.savedAt ?? scope.now,
+      tags: [...new Set(input.tags)],
+      title: input.title ?? itemNameFromUrl(input.url),
+      url: cleanUrl(input.url),
+    },
+    id: input.id ?? ids.item(),
+  });
+};
+
+interface HeldSelection {
+  readonly add: ReturnType<typeof bareHighlight>[];
+  readonly ops: readonly LibraryOp[];
+}
+
+// the passage the person had selected, as a highlight of the item that holds the address and the
+// ops placing it where the item's text (with `ops` applied) holds it; none for a passage a
+// highlight of the item already keeps
+const heldSelection = (
+  scope: LandingScope,
+  codec: CellCodec,
+  ids: CellIds,
+  held: HeldItem,
+  ops: readonly LibraryOp[],
+  given: string | undefined,
+): HeldSelection => {
+  const selection = selectionToKeep(readAnnotationRows(scope.storage, held.id), given ?? null);
+  if (selection === null) {
+    return { add: [], ops: [] };
+  }
+  const highlight = { id: ids.annotation(), quote: selection };
+  const placing = applyOps(held, ops);
+  return {
+    add: [bareHighlight(scope, highlight)],
+    ops: placing.kind === "applied" ? placeQuotes(placing.state, codec, [highlight]).ops : [],
+  };
+};
+
 // a url to read later: the item that holds it gains the tags, the note, the folder and the
-// passage the person had selected, placed in its text where it stands; else an unread stub lands,
-// `pending`, which the cloud reads after the write, placing the passage's highlight once it holds
-// the page's text (`landFill`)
+// passage the person had selected, placed in its text where it stands; else an unread stub lands
 export const saveLink = (
   scope: LandingScope,
   actor: CellActor,
@@ -285,31 +343,9 @@ export const saveLink = (
     input.note === undefined || input.note.trim() === ""
       ? null
       : noteBlocksOf(scope, codec, input.note);
-  const noteHighlights = note?.highlights ?? [];
   const held = heldItem(scope, input.url);
   if (held === null) {
-    const item = landNew(scope, actor, {
-      annotations:
-        input.selection === undefined
-          ? noteHighlights
-          : [
-              ...noteHighlights,
-              bareHighlight(scope, { id: ids.annotation(), quote: input.selection }),
-            ],
-      blocks: note?.blocks ?? [],
-      fields: {
-        ...blankFields(scope.now),
-        fetchState: "pending",
-        folderId: folderId ?? null,
-        kind: kindForUrl(input.url),
-        savedAt: input.savedAt ?? scope.now,
-        tags: [...new Set(input.tags)],
-        title: input.title ?? itemNameFromUrl(input.url),
-        url: cleanUrl(input.url),
-      },
-      id: input.id ?? ids.item(),
-    });
-    return { folded: false, item };
+    return { folded: false, item: newStub(scope, actor, ids, input, note, folderId ?? null) };
   }
   const ops: LibraryOp[] = [
     ...tagsOp(held.fields, input.tags ?? []),
@@ -318,21 +354,11 @@ export const saveLink = (
       : [{ base: held.fields.folderId, field: "folderId", op: "set", value: folderId } as const]),
     ...(note === null ? [] : appendedNote(held, note.blocks)),
   ];
-  // the passage lands where the item's text holds it, unless a highlight of the item keeps it
-  const selection = selectionToKeep(
-    readAnnotationRows(scope.storage, held.id),
-    input.selection ?? null,
-  );
-  const highlight = selection === null ? null : { id: ids.annotation(), quote: selection };
-  const placing = highlight === null ? null : applyOps(held, ops);
-  if (highlight !== null && placing?.kind === "applied") {
-    ops.push(...placeQuotes(placing.state, codec, [highlight]).ops);
-  }
+  const selected = heldSelection(scope, codec, ids, held, ops, input.selection);
   const item = landWrite(scope, actor, {
-    annotations:
-      highlight === null ? noteHighlights : [...noteHighlights, bareHighlight(scope, highlight)],
+    annotations: [...(note?.highlights ?? []), ...selected.add],
     itemId: held.id,
-    ops,
+    ops: [...ops, ...selected.ops],
   });
   return { folded: true, item };
 };

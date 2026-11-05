@@ -8,6 +8,7 @@
 import { bodyOf, composeLinkBody, embedMarkdown, linkMarkdown, withBody } from "./item-body";
 import { itemFactsOf, withItemFields } from "./item-frontmatter";
 import type { ItemFieldPatch } from "./item-frontmatter";
+import { pixelSize, sniffMedia } from "./sniff-media";
 
 type FilledKind = "link" | "video" | "audio";
 
@@ -47,6 +48,20 @@ export const FILL_LIMITS = {
   htmlBytes: 5 * MiB,
   pageBytes: 10 * MiB,
 } as const;
+
+// a fetched cover candidate as a page's cover: the picture its bytes are, unless its header names
+// a pixel or an icon by its size; the cloud's fill and the extension, which keep a cover as the
+// site served it, judge every candidate by this
+export const coverPicture = (bytes: Uint8Array): { readonly mime: string } | null => {
+  const sniffed = sniffMedia(bytes);
+  if (sniffed?.kind !== "image") {
+    return null;
+  }
+  const size = pixelSize(bytes, sniffed.mediaType);
+  return size !== null && Math.max(size.width, size.height) < FILL_LIMITS.coverMinEdge
+    ? null
+    : { mime: sniffed.mediaType };
+};
 
 // whether an answer is a page the reader reads, by the type it declared (none reads as one)
 export const isPageType = (mediaType: string | null): boolean =>

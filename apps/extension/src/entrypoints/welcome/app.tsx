@@ -1,68 +1,114 @@
-// the page the extension opens once installed: it says hello to the Mac's app and names the
-// library it reached, or links the download when no app answers.
+// the page the extension opens once installed: whose library this browser saves to, with
+// Disconnect, or the way to connect it, the site's page that hands it a credential. A failed
+// connection says so in its own words, never a save's.
 
+import { Button } from "@repo/ui/components/button";
 import { Spinner } from "@repo/ui/components/spinner";
 import { useEffect, useState } from "react";
-import type { ExtensionRequest, Outcome } from "@/messages";
-import { refusalCopy } from "@/outcome-copy";
+
+import type { ExtensionRequest, Outcome } from "../../messages";
 
 export interface WelcomeProps {
   ask: (request: ExtensionRequest) => Promise<Outcome>;
 }
 
-const Status = ({ outcome }: { outcome: Outcome | null }) => {
-  if (outcome === null) {
+type Status = Extract<Outcome, { kind: "status" }>;
+
+const CONNECT_COPY = "Connect this browser to your Inteligir library to save to it.";
+const UNREADABLE_COPY = "Couldn't read this browser's connection. Close this page and try again.";
+
+const Connection = ({
+  status,
+  onDisconnect,
+}: {
+  status: Status | "unreadable" | null;
+  onDisconnect: () => void;
+}) => {
+  if (status === null) {
     return (
       <p className="flex items-center gap-2 text-subtitle text-muted-foreground">
         <Spinner />
-        Looking for Inteligir on this Mac…
+        Looking for your library…
       </p>
     );
   }
-  if (outcome.kind === "hello") {
-    return <p className="text-subtitle text-foreground">Connected to {outcome.library}</p>;
-  }
-  if (outcome.kind === "refused") {
-    const copy = refusalCopy(outcome.reason);
-    return copy.href === null ? (
+  if (status === "unreadable") {
+    return (
       <p className="text-subtitle text-foreground" role="alert">
-        {copy.text}
+        {UNREADABLE_COPY}
       </p>
-    ) : (
-      <a
-        className="text-subtitle text-foreground underline"
-        href={copy.href}
-        rel="noreferrer"
-        target="_blank"
-      >
-        {copy.text}
-      </a>
     );
   }
-  return null;
+  if (status.connection === null) {
+    return (
+      <div className="flex flex-col items-start gap-3">
+        <p className="text-subtitle text-foreground">{CONNECT_COPY}</p>
+        <a
+          className="text-subtitle text-foreground underline"
+          href={status.connectUrl}
+          rel="noreferrer"
+          target="_blank"
+        >
+          Connect your library
+        </a>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col items-start gap-3">
+      <p className="text-subtitle text-foreground">{`Saving to ${status.connection.email}'s library`}</p>
+      <Button onClick={onDisconnect} size="compact" variant="tertiary">
+        Disconnect
+      </Button>
+    </div>
+  );
+};
+
+// the connection the worker answers, after a look or a disconnect
+const readStatus = async (
+  ask: WelcomeProps["ask"],
+  request: ExtensionRequest,
+): Promise<Status | "unreadable"> => {
+  const answer = await ask(request);
+  return answer.kind === "status" ? answer : "unreadable";
 };
 
 export const Welcome = ({ ask }: WelcomeProps) => {
-  const [outcome, setOutcome] = useState<Outcome | null>(null);
+  const [status, setStatus] = useState<Status | "unreadable" | null>(null);
 
   useEffect(() => {
     let live = true;
-    const hello = async () => {
-      const answer = await ask({ type: "hello" });
+    const look = async () => {
+      const answer = await readStatus(ask, { type: "status" });
       if (live) {
-        setOutcome(answer);
+        setStatus(answer);
       }
     };
-    void hello();
+    void look();
+    // a connection made in another tab shows here when this one is looked at again
+    const again = () => {
+      if (document.visibilityState === "visible") {
+        void look();
+      }
+    };
+    document.addEventListener("visibilitychange", again);
     return () => {
       live = false;
+      document.removeEventListener("visibilitychange", again);
     };
   }, [ask]);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 bg-background p-8 text-foreground">
       <h1 className="text-display">Save to Inteligir</h1>
-      <Status outcome={outcome} />
+      <Connection
+        onDisconnect={() => {
+          void (async () => {
+            setStatus(await readStatus(ask, { type: "disconnect" }));
+          })();
+        }}
+        status={status}
+      />
       <p className="text-body text-muted-foreground">
         Click the Inteligir button in the toolbar to save the page you&rsquo;re on, or right-click a
         page, a link, an image or a selection. Everything you save lands in Unsorted.

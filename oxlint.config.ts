@@ -204,7 +204,7 @@ export default defineConfig({
     platformPurity(
       "apps/extension",
       NODE,
-      "@repo/extension runs in the browser: its pages and its service worker reach the Mac only through the native host",
+      "@repo/extension runs in the browser: its pages and its service worker reach the library only through /v1, as every client does",
     ),
     platformPurity(
       "apps/mobile-editor",

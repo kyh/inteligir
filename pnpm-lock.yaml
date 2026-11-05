@@ -576,9 +576,18 @@ importers:
 
   apps/extension:
     dependencies:
+      '@orpc/client':
+        specifier: 'catalog:'
+        version: 2.0.0-beta.45
       '@repo/contract':
         specifier: workspace:*
         version: link:../../packages/contract
+      '@repo/notes':
+        specifier: workspace:*
+        version: link:../../packages/notes
+      '@repo/page-reader':
+        specifier: workspace:*
+        version: link:../../packages/page-reader
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -610,9 +619,6 @@ importers:
       '@types/babel__core':
         specifier: 'catalog:'
         version: 7.20.5
-      '@types/chrome':
-        specifier: ^0.3.5
-        version: 0.3.5
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -5797,9 +5803,6 @@ packages:
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
-
-  '@types/chrome@0.3.5':
-    resolution: {integrity: sha512-7HYsK7xalNxzLwGrP9lkCQPAA6V56VtPpOmv2CQnBnMzX5/Hpr+Iv5fqaIOIY/H/Q6ZBksLmurWh7zXPcZ4B7Q==}
 
   '@types/cli-progress@3.11.6':
     resolution: {integrity: sha512-cE3+jb9WRlu+uOSAugewNpITJDt1VF8dHOopPO4IABFc3SXYL5WE/+PTz/FCdZRRfIujiWW3n3aMbv1eIGVRWA==}
@@ -16632,11 +16635,6 @@ snapshots:
     dependencies:
       '@types/deep-eql': 4.0.2
       assertion-error: 2.0.1
-
-  '@types/chrome@0.3.5':
-    dependencies:
-      '@types/filesystem': 0.0.36
-      '@types/har-format': 1.2.16
 
   '@types/cli-progress@3.11.6':
     dependencies:

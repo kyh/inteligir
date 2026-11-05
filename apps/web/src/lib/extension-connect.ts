@@ -14,6 +14,7 @@ import type {
 } from "@repo/contract/cloud/extension/extension-connect";
 import { EXTENSION_ID } from "@repo/contract/cloud/extension/extension-identity";
 import type { DeviceLoginResponse } from "@repo/contract/cloud/device/device-schema";
+import type { JsonValue } from "@repo/notes/library/canonical-json";
 
 export interface ConnectPorts {
   // the extension's answer, or null when no extension of that id answers in this browser
@@ -47,40 +48,38 @@ export const connectExtension = async (ports: ConnectPorts): Promise<ConnectOutc
   return { kind: "not-taken" };
 };
 
-type SendMessage = (extensionId: string, message: unknown) => Promise<unknown>;
+// the messaging Chrome gives a page that an installed extension's `externally_connectable` names:
+// a message crosses as JSON, and an answer of none as undefined; what the extension answers is
+// the extension's to say, so it is parsed before anything reads it
+interface PageRuntime {
+  readonly sendMessage: (
+    extensionId: string,
+    message: ExtensionConnectRequest,
+  ) => Promise<JsonValue | undefined>;
+}
 
-// the messaging Chrome gives a page that an installed extension's `externally_connectable` names;
-// a browser holding no such extension gives none
-const pageSendMessage = (): SendMessage | null => {
-  const chrome: unknown = Reflect.get(globalThis, "chrome");
-  const runtime: unknown =
-    typeof chrome === "object" && chrome !== null ? Reflect.get(chrome, "runtime") : undefined;
-  const send: unknown =
-    typeof runtime === "object" && runtime !== null
-      ? Reflect.get(runtime, "sendMessage")
-      : undefined;
-  if (typeof send !== "function") {
-    return null;
+declare global {
+  interface Window {
+    // none in a browser holding no such extension
+    readonly chrome?: { readonly runtime?: PageRuntime };
   }
-  return async (extensionId, message) => {
-    const sent: unknown = Reflect.apply(send, runtime, [extensionId, message]);
-    return await sent;
-  };
-};
+}
 
 // a message to the extension, its answer parsed; no extension, a refused message or an answer
 // that is not one all read as no answer
 export const askExtension = async (
   request: ExtensionConnectRequest,
-  send: SendMessage | null = pageSendMessage(),
+  runtime: PageRuntime | undefined = window.chrome?.runtime,
 ): Promise<ExtensionConnectAnswer | null> => {
-  if (send === null) {
+  if (runtime === undefined) {
     return null;
   }
   try {
-    const answer = extensionConnectAnswerSchema.safeParse(
-      await send(EXTENSION_ID, extensionConnectRequestSchema.parse(request)),
+    const sent = await runtime.sendMessage(
+      EXTENSION_ID,
+      extensionConnectRequestSchema.parse(request),
     );
+    const answer = extensionConnectAnswerSchema.safeParse(sent);
     return answer.success ? answer.data : null;
   } catch {
     return null;

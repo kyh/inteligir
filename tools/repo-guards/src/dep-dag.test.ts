@@ -72,9 +72,11 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // editor's own fixpoint (its headless markdown pipeline) under the dialect's fence names, so the
     // Mac's fill worker and the phone's page run one reading.
     "@repo/page-reader": ["@repo/editor", "@repo/notes"],
-    // the browser's Save: the /browser wire and the production origin it links (BROWSER_WIRE_CLIENTS
-    // below), drawn with the shared component kit; it reaches the Mac only through the native host.
-    "@repo/extension": ["@repo/contract", "@repo/ui"],
+    // the browser's Save, a `/v1` client of its own: the @repo/contract edge is the wire and its
+    // connect page's messages, the @repo/page-reader edge the one reading of the page it saves,
+    // the @repo/notes edge the item fields a save fits, and the shared component kit draws its
+    // pages; it reaches no server code.
+    "@repo/extension": ["@repo/contract", "@repo/notes", "@repo/page-reader", "@repo/ui"],
     // a `/v1` client over its own replica (@repo/library-replica), as the Mac is: the
     // @repo/contract edge is the wire, the @repo/notes edge the library model its cards and
     // listing read, the @repo/domain edge the library scopes its listing names, the
@@ -156,23 +158,16 @@ const ZOD_ONLY_LEAVES = ["@repo/domain"];
 // @repo/contract/cloud breaks only behind the client build floor (MIN_CLIENT_BUILD) and
 // @repo/contract/local breaks freely, so a workspace that ships apart from the desktop bundle
 // reaches the cloud entry alone; each row says why it ships apart.
-// the extension's identity: constants that import nothing and change only with its store listing, so
-// a cloud-only client may link the store with them (the site's "Save from anywhere")
-const EXTENSION_IDENTITY_ENTRY = "@repo/contract/browser/extension-identity";
 const CLOUD_ONLY_CLIENTS = new Map<string, string>([
   ["@repo/web", "it serves the cloud wire and only the cloud wire"],
   [
     "@repo/mobile",
     "a phone install may be months stale against the deployed Worker, while /local ships in the desktop bundle and may break freely",
   ],
-]);
-
-// The extension ships on the Web Store's cadence, apart from the desktop bundle that /local breaks
-// with, so it reaches the contract's versioned /browser wire (behind BROWSER_WIRE_FLOOR) and the
-// production origin its "Get Inteligir for Mac" links, and nothing else of it.
-const BROWSER_WIRE_ENTRIES = ["@repo/contract/browser/", "@repo/contract/cloud/origin"];
-const BROWSER_WIRE_CLIENTS = new Map<string, string>([
-  ["@repo/extension", "a browser install updates on the Web Store's cadence, not the app's"],
+  [
+    "@repo/extension",
+    "a browser install updates on the Web Store's cadence, held by the client build floor as every client is",
+  ],
 ]);
 
 // The phone's editor page is DOM React built by Vite; a native client that hosts it loads the page
@@ -468,49 +463,12 @@ describe("platform purity", () => {
           if (!specifier.startsWith("@repo/contract/")) {
             continue;
           }
-          if (
-            specifier.startsWith("@repo/contract/cloud/") ||
-            specifier === EXTENSION_IDENTITY_ENTRY
-          ) {
+          if (specifier.startsWith("@repo/contract/cloud/")) {
             continue;
           }
           violations.push(
             `LOCAL CONTRACT IN A CLOUD-ONLY CLIENT  ${file} imports "${specifier}"\n` +
-              `  rule: ${name} reaches @repo/contract/cloud/* (and the extension's identity) alone — ${why}`,
-          );
-        }
-      }
-    }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
-  });
-
-  it("every browser wire client reaches @repo/contract's browser entry and its origin, and nothing else", () => {
-    const violations: string[] = [];
-    for (const [name, why] of BROWSER_WIRE_CLIENTS) {
-      const client = workspaces().find((candidate) => candidate.name === name);
-      if (client === undefined) {
-        violations.push(
-          `BROWSER_WIRE_CLIENTS ROW NAMES NO WORKSPACE  ${name}\n` +
-            `  rule: a pin on a workspace that is gone pins nothing — delete the row from tools/repo-guards/src/dep-dag.test.ts`,
-        );
-        continue;
-      }
-      const files = workspaceFiles(client);
-      for (const file of [...files.shipped, ...files.test]) {
-        for (const specifier of importsOf(file)) {
-          if (resolveWorkspace(specifier)?.name !== "@repo/contract") {
-            continue;
-          }
-          if (
-            BROWSER_WIRE_ENTRIES.some((entry) =>
-              entry.endsWith("/") ? specifier.startsWith(entry) : specifier === entry,
-            )
-          ) {
-            continue;
-          }
-          violations.push(
-            `CONTRACT PAST THE BROWSER WIRE  ${file} imports "${specifier}"\n` +
-              `  rule: ${name} reaches ${BROWSER_WIRE_ENTRIES.join(" and ")} alone — ${why}`,
+              `  rule: ${name} reaches @repo/contract/cloud/* alone — ${why}`,
           );
         }
       }
@@ -572,7 +530,7 @@ describe("platform purity", () => {
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 
-  it("@repo/contract's cloud entry never reaches into its local entry, and its browser entry reaches only zod", () => {
+  it("@repo/contract's cloud entry never reaches into its local entry", () => {
     // a file under src/cloud reaching src/local by relative path is invisible to the cloud-only
     // pin above; the sanctioned crossing is the other direction (local reusing a cloud constant).
     const contract = workspaces().find((candidate) => candidate.name === "@repo/contract");
@@ -581,37 +539,13 @@ describe("platform purity", () => {
     }
     const cloudDir = path.join(contract.dir, "src", "cloud");
     const localDir = path.join(contract.dir, "src", "local");
-    const browserDir = path.join(contract.dir, "src", "browser");
     const files = workspaceFiles(contract);
     const violations: string[] = [];
-    const shipped = new Set(files.shipped);
     for (const file of [...files.shipped, ...files.test]) {
-      if (file.startsWith(`${browserDir}/`)) {
-        // the extension's whole reach into the contract, so what ships of it carries nothing but
-        // zod; its suites may reach node to derive what it states
-        for (const specifier of shipped.has(file) ? importsOf(file) : []) {
-          if (specifier !== "zod" && !specifier.startsWith(".")) {
-            violations.push(
-              `BROWSER REACHES PAST ZOD  ${file} imports "${specifier}"\n` +
-                `  rule: @repo/contract/browser is the extension's one wire — it imports zod and its own browser/ modules, so the extension bundle carries no other package`,
-            );
-          }
-          if (
-            specifier.startsWith(".") &&
-            !path.join(path.dirname(file), specifier).startsWith(`${browserDir}/`)
-          ) {
-            violations.push(
-              `BROWSER REACHES PAST ITS BUCKET  ${file} imports "${specifier}"\n` +
-                `  rule: @repo/contract/browser imports only its own browser/ modules; /local imports it, never the other way`,
-            );
-          }
-        }
-        continue;
-      }
       if (!file.startsWith(`${cloudDir}/`) && !file.startsWith(`${localDir}/`)) {
         violations.push(
           `THIRD BUCKET  ${file}\n` +
-            `  rule: every file under packages/contract/src lives in src/cloud, src/local or src/browser — a fourth bucket is a file this guard never reads`,
+            `  rule: every file under packages/contract/src lives in src/cloud or src/local — a third bucket is a file this guard never reads`,
         );
         continue;
       }

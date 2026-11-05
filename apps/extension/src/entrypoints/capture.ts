@@ -1,15 +1,16 @@
 // the page capture executeScript injects: the rendered DOM, cloned without scripts or form values,
-// with its selection, as the /browser wire's captured page (§8.6). It runs in the extension's
-// isolated world, so the page's own scripts can neither see nor replace the function it defines;
-// the service worker's second executeScript calls it with the save's options.
+// with its selection. It runs in the extension's isolated world, so the page's own scripts can
+// neither see nor replace the function it defines; the service worker's second executeScript calls
+// it with the caps.
 
-import type { CapturedPageWire } from "@repo/contract/browser/browser-wire";
-import { serializePage } from "@/capture/serialize-page";
-import type { CaptureOptions } from "@/capture/serialize-page";
+import { defineUnlistedScript } from "wxt/utils/define-unlisted-script";
+
+import type { CaptureOptions, CapturedPage } from "../capture/captured-page";
+import { serializePage } from "../capture/serialize-page";
 
 declare global {
   interface Window {
-    inteligirCapture?: (options: CaptureOptions) => CapturedPageWire;
+    inteligirCapture?: (options: CaptureOptions) => CapturedPage;
   }
 }
 

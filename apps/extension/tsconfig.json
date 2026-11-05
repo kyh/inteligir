@@ -1,13 +1,12 @@
 {
-  "extends": "@kyh/tsconfig/base.json",
+  // the repo's strictness, then WXT's own generated config over it (`wxt prepare`, the `generate`
+  // task): its module settings and the types of what it builds
+  "extends": ["@kyh/tsconfig/base.json", "./.wxt/tsconfig.json"],
   "compilerOptions": {
-    // the extension's pages and its service worker run in Chrome 116 or later
-    "lib": ["ES2023", "dom", "dom.iterable"],
-    "jsx": "react-jsx",
-    // WXT's alias for its srcDir, which .wxt/tsconfig.json spells as well
-    "paths": { "@/*": ["./src/*"] },
-    "resolveJsonModule": true,
-    "types": ["chrome"]
+    // the language Chrome 148 runs every page and the service worker in, not WXT's ESNext
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx"
   },
   "include": ["src", ".wxt/wxt.d.ts", "wxt.config.ts", "vitest.config.ts"]
 }

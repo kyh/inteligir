@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { imageBytesOfDataUrl, MENU_ITEMS, menuAction } from "@/background/menus";
+
+import { bytesOfDataUrl, MENU_ITEMS, menuAction } from "./menus";
 
 describe("the right-click Save", () => {
   it("offers one item per thing a person points at", () => {
@@ -11,7 +12,7 @@ describe("the right-click Save", () => {
     ]);
   });
 
-  it("captures the tab for a page or a selection", () => {
+  it("reads the tab for a page or a selection", () => {
     expect(menuAction({ menuItemId: "save-page" })).toEqual({ kind: "page" });
     expect(menuAction({ menuItemId: "save-selection", selectionText: "a passage" })).toEqual({
       kind: "selection",
@@ -19,10 +20,10 @@ describe("the right-click Save", () => {
     });
   });
 
-  it("saves a link or an image by the address the click names, and nothing off the web", () => {
+  it("saves a link or a web picture by the address the click names, and nothing off the web", () => {
     expect(menuAction({ linkUrl: "https://example.test/a", menuItemId: "save-link" })).toEqual({
-      kind: "save",
-      save: { target: "link", title: null, url: "https://example.test/a" },
+      kind: "address",
+      url: "https://example.test/a",
     });
     expect(menuAction({ linkUrl: "mailto:someone@example.test", menuItemId: "save-link" })).toEqual(
       {
@@ -30,28 +31,45 @@ describe("the right-click Save", () => {
       },
     );
     expect(menuAction({ menuItemId: "save-image", srcUrl: "https://example.test/i.png" })).toEqual({
-      kind: "save",
-      save: { src: { kind: "url", url: "https://example.test/i.png" }, target: "image" },
+      kind: "address",
+      url: "https://example.test/i.png",
     });
     expect(menuAction({ menuItemId: "save-image", srcUrl: "blob:https://example.test/1" })).toEqual(
-      { kind: "unsupported" },
+      {
+        kind: "unsupported",
+      },
     );
     expect(menuAction({ menuItemId: "something-else" })).toEqual({ kind: "unsupported" });
   });
 
-  it("sends a data: image's bytes under the media type it names", () => {
+  it("saves a picture a page drew from its own bytes by those bytes", () => {
     expect(
       menuAction({ menuItemId: "save-image", srcUrl: "data:image/png;base64,iVBORw0KGgo=" }),
     ).toEqual({
-      kind: "save",
-      save: { src: { base64: "iVBORw0KGgo=", kind: "bytes", mime: "image/png" }, target: "image" },
+      bytes: Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      kind: "picture",
     });
-    expect(imageBytesOfDataUrl("data:image/svg+xml,%3Csvg%2F%3E")).toEqual({
-      base64: btoa("<svg/>"),
-      kind: "bytes",
-      mime: "image/svg+xml",
-    });
-    expect(imageBytesOfDataUrl("data:,no-type")).toBeNull();
-    expect(imageBytesOfDataUrl("data:image/png,%E0%A4%A")).toBeNull();
+  });
+});
+
+describe("a data: address's bytes", () => {
+  it("are its base64, or its percent-encoded body byte for byte, a binary escape included", () => {
+    expect(bytesOfDataUrl("data:image/png;base64,iVBORw0KGgo=")).toEqual(
+      Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    );
+    // %89 is no UTF-8, and still the one byte a PNG starts with
+    expect(bytesOfDataUrl("data:image/png,%89PNG%0D%0A")).toEqual(
+      Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]),
+    );
+    // copied into this realm's Uint8Array: jsdom's TextEncoder answers node's
+    expect(bytesOfDataUrl("data:image/svg+xml,<svg>é</svg>")).toEqual(
+      Uint8Array.from(new TextEncoder().encode("<svg>é</svg>")),
+    );
+  });
+
+  it("are none for a body that is not one", () => {
+    expect(bytesOfDataUrl("data:image/png;base64,***")).toBeNull();
+    expect(bytesOfDataUrl("data:image/png,100%")).toBeNull();
+    expect(bytesOfDataUrl("https://example.test/i.png")).toBeNull();
   });
 });

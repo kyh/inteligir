@@ -18,3 +18,6 @@ export type ExtensionConnectRequest = z.infer<typeof extensionConnectRequestSche
 // the account whose library the extension saves to once it has read the message, or none
 export const extensionConnectAnswerSchema = z.object({ email: z.string().min(1).nullable() });
 export type ExtensionConnectAnswer = z.infer<typeof extensionConnectAnswerSchema>;
+
+// the site's page that connects the extension, the one page its manifest lets message it
+export const CONNECT_EXTENSION_PATH = "/connect/extension";

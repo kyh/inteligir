@@ -1,19 +1,22 @@
 {
   "name": "@repo/extension",
-  "version": "0.1.0",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "wxt build",
     "clean": "git clean -xdf .cache .turbo .output .wxt node_modules",
     "dev": "wxt",
-    "postinstall": "wxt prepare",
+    "generate": "wxt prepare",
     "test": "vitest run",
-    "typecheck": "wxt prepare && tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "zip": "NODE_ENV=production wxt zip --mode store"
   },
   "dependencies": {
+    "@orpc/client": "catalog:",
     "@repo/contract": "workspace:*",
+    "@repo/notes": "workspace:*",
+    "@repo/page-reader": "workspace:*",
     "@repo/ui": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:",
@@ -26,7 +29,6 @@
     "@tailwindcss/vite": "catalog:",
     "@testing-library/react": "catalog:",
     "@types/babel__core": "catalog:",
-    "@types/chrome": "^0.3.5",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",

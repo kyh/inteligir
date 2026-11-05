@@ -1,25 +1,13 @@
-// the page as the person sees it, for the Mac to read: the rendered DOM cloned, never the markup
-// the server first sent, since a page built by script has nothing in that. The clone carries no
-// script but structured data, nothing typed into the page (no form value, no rich text box's
-// words), each image at the source the browser chose,
-// and a base so its relative links resolve where the page did. The Mac extracts the article; the
-// page is never read here.
+// the page as the person sees it, for the extension to read: the rendered DOM cloned, never the
+// markup the server first sent, since a page built by script has nothing in that. The clone
+// carries no script but structured data, nothing typed into the page or prefilled by its server
+// (no form value or choice, no rich text box's words), each image at the source the browser chose,
+// and a base so its relative links resolve where the page did. The page is read by the service
+// worker, over this clone; nothing is read here.
 
-// types alone: the wire's schemas are zod, which the script injected into every saved page has no
-// use for, so the worker hands it the cap
-import type { CapturedPageWire } from "@repo/contract/browser/browser-wire";
-import { freezeStyles } from "./freeze-styles";
-
-export interface CaptureOptions {
-  // "Keep a copy of the page": the styles are frozen into the clone, for a copy that looks right
-  keepCopy: boolean;
-  // CAPTURE_HTML_MAX_CHARS, past which the Mac reads the page from its url instead
-  htmlMaxChars: number;
-}
-
-// the wire's caps (@repo/contract/browser/browser-wire)
-const TITLE_MAX_CHARS = 2000;
-const SELECTION_MAX_CHARS = 20_000;
+// types alone: zod has no place in the script injected into every saved page, so the worker
+// hands it the caps
+import type { CaptureOptions, CapturedPage } from "./captured-page";
 
 // structured data describes the page (its author, its date) and runs nothing
 const KEPT_SCRIPT_TYPE = "application/ld+json";
@@ -38,13 +26,19 @@ const dropScripts = (clone: Element): void => {
 // DOM a clone copies, so it is emptied, as an editor that names itself a textbox is
 const EDITABLE = '[contenteditable]:not([contenteditable="false" i]), [role="textbox"]';
 
-// what a person typed lives in properties a clone never copies; a value the markup prefilled is
-// dropped too, and every rich text box emptied, so no field's content leaves the page
+// what a person typed lives in properties a clone never copies; a value or a choice the markup
+// prefilled (a saved address, a ticked box, a chosen country) is dropped too, and every rich text
+// box emptied, so no field's content leaves the page. An option's own value is the page's list of
+// choices, and stays
 const dropFormValues = (clone: Element): void => {
   for (const input of clone.querySelectorAll("input")) {
     if (!LABELLED_INPUT_TYPES.has(input.getAttribute("type")?.trim().toLowerCase() ?? "")) {
       input.removeAttribute("value");
     }
+    input.removeAttribute("checked");
+  }
+  for (const option of clone.querySelectorAll("option")) {
+    option.removeAttribute("selected");
   }
   for (const textarea of clone.querySelectorAll("textarea")) {
     textarea.textContent = "";
@@ -54,8 +48,9 @@ const dropFormValues = (clone: Element): void => {
   }
 };
 
-// the image the browser chose from a srcset, or loaded in place of a lazy placeholder; the two
-// trees match node for node, so the n-th image of one is the n-th of the other
+// the image the browser chose from a srcset or a <picture>, or loaded in place of a lazy
+// placeholder, as the clone's one source; the two trees match node for node, so the n-th image of
+// one is the n-th of the other
 const pinImages = (source: Document, clone: Element): void => {
   const live = [...source.querySelectorAll("img")];
   const cloned = [...clone.querySelectorAll("img")];
@@ -63,7 +58,12 @@ const pinImages = (source: Document, clone: Element): void => {
     const target = cloned[index];
     if (target !== undefined && image.currentSrc !== "") {
       target.setAttribute("src", image.currentSrc);
+      target.removeAttribute("srcset");
+      target.removeAttribute("sizes");
     }
+  }
+  for (const candidate of clone.querySelectorAll("picture > source")) {
+    candidate.remove();
   }
 };
 
@@ -81,24 +81,21 @@ const setBase = (clone: Element, baseUri: string): void => {
   }
 };
 
-const selectionOf = (selection: Selection | null): CapturedPageWire["selection"] => {
+const selectionOf = (selection: Selection | null, options: CaptureOptions): string | null => {
   const text = (selection?.toString() ?? "").trim();
-  return text === "" ? null : { text: text.slice(0, SELECTION_MAX_CHARS) };
+  return text === "" ? null : text.slice(0, options.selectionMaxChars);
 };
 
 export const serializePage = (
   source: Document,
   selection: Selection | null,
   options: CaptureOptions,
-): CapturedPageWire => {
+): CapturedPage => {
   const cloneNode = source.documentElement.cloneNode(true);
   const clone = cloneNode instanceof Element ? cloneNode : null;
   let html: string | null = null;
   if (clone !== null) {
-    // each pass that maps the live tree onto the clone runs before anything leaves the clone
-    if (options.keepCopy) {
-      freezeStyles(source, clone);
-    }
+    // the pass that maps the live tree onto the clone runs before anything leaves the clone
     pinImages(source, clone);
     dropScripts(clone);
     dropFormValues(clone);
@@ -108,8 +105,8 @@ export const serializePage = (
   }
   return {
     html,
-    selection: selectionOf(selection),
-    title: source.title.trim().slice(0, TITLE_MAX_CHARS),
+    selection: selectionOf(selection, options),
+    title: source.title.trim().slice(0, options.titleMaxChars),
     url: source.URL,
   };
 };

@@ -1,13 +1,13 @@
 // the extension's build: WXT over src/entrypoints (the service worker, the popup, the welcome page
 // and the capture script executeScript injects), the pages under the React Compiler, and the
 // manifest src/manifest.ts writes for the build's flavor, which is its mode. `wxt zip --mode store`
-// is the Web Store's zip, checked here before anything uploads it.
+// is the Web Store's zip, checked here before anything uploads it. Every module imports what it
+// uses (`imports: false`), so no global stands for one.
 
 import { spawnSync } from "node:child_process";
 import { cpSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { DEV_NATIVE_HOST_NAME } from "@repo/contract/browser/extension-identity";
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
@@ -15,7 +15,12 @@ import { defineConfig } from "wxt";
 import { z } from "zod";
 
 import extensionPackage from "./package.json" with { type: "json" };
-import { extensionManifest, flavorOfMode, nativeHostNameFor } from "./src/manifest";
+import {
+  connectPagePattern,
+  DEV_CLOUD_ORIGIN,
+  extensionManifest,
+  flavorOfMode,
+} from "./src/manifest";
 
 // the extension's version is its package's
 const { version } = extensionPackage;
@@ -35,10 +40,14 @@ const shippedFiles = (dir: string): string[] =>
     .toSorted();
 
 // the fields the store zip refuses on, read as the store would read the file
-const storeManifestSchema = z.looseObject({ version: z.string() });
+const storeManifestSchema = z.looseObject({
+  externally_connectable: z.looseObject({ matches: z.array(z.string()) }),
+  version: z.string(),
+});
 
 // what the store signs: no key, since the Web Store signs the item with its own, no host and never
-// every site, no file dialing a checkout's door, and the zip holding exactly the build's files
+// every site, the production site's connect page the one that may message it, no file naming a
+// checkout's cloud, and the zip holding exactly the build's files
 const checkStoreZip = (outDir: string, zipPath: string): void => {
   const manifest = storeManifestSchema.parse(
     JSON.parse(readFileSync(path.join(outDir, "manifest.json"), "utf-8")),
@@ -49,13 +58,16 @@ const checkStoreZip = (outDir: string, zipPath: string): void => {
   if ("host_permissions" in manifest || JSON.stringify(manifest).includes("<all_urls>")) {
     fail("the store manifest asks for a host: the store build has activeTab alone");
   }
+  if (!isDeepStrictEqual(manifest.externally_connectable.matches, [connectPagePattern("store")])) {
+    fail("the store manifest lets a page other than the production connect page message it");
+  }
   const files = shippedFiles(outDir);
   for (const file of NAMED_FILES.filter((named) => !files.includes(named))) {
     fail(`the store build has no ${file}`);
   }
   for (const file of files) {
-    if (readFileSync(path.join(outDir, file), "latin1").includes(DEV_NATIVE_HOST_NAME)) {
-      fail(`the store build's ${file} dials ${DEV_NATIVE_HOST_NAME}, a checkout's door`);
+    if (readFileSync(path.join(outDir, file), "latin1").includes(DEV_CLOUD_ORIGIN)) {
+      fail(`the store build's ${file} names ${DEV_CLOUD_ORIGIN}, a checkout's cloud`);
     }
   }
   const listed = spawnSync("/usr/bin/unzip", ["-Z1", zipPath], { encoding: "utf-8" });
@@ -96,7 +108,7 @@ export default defineConfig({
       }
     },
     // a zip is the store's, checked, and beside it the unpacked store build: the same files with the
-    // committed key, so a release check loads the store build under the id the app's door names
+    // committed key, so a release check loads the store build under the id the cloud answers
     "zip:extension:done": (wxt, zipPath) => {
       try {
         if (flavorOfMode(wxt.config.mode) !== "store") {
@@ -118,6 +130,7 @@ export default defineConfig({
       wxt.logger.success(`the unpacked store build: ${path.relative(wxt.config.root, unpacked)}`);
     },
   },
+  imports: false,
   // WXT writes manifest_version from its own manifestVersion, 3 for Chrome, and warns over one here
   manifest: ({ mode }) => {
     const { manifest_version: _written, ...manifest } = extensionManifest(
@@ -127,11 +140,7 @@ export default defineConfig({
     return manifest;
   },
   srcDir: "src",
-  vite: ({ mode }) => ({
-    // the one spelling of the host this build dials, read by src/background/host-name.ts
-    define: {
-      __INTELIGIR_NATIVE_HOST__: JSON.stringify(nativeHostNameFor(flavorOfMode(mode))),
-    },
+  vite: () => ({
     plugins: [viteReact(), babel({ presets: [reactCompilerPreset()] }), tailwindcss()],
   }),
   // the name docs/releasing.md uploads

@@ -38,7 +38,7 @@ const OUTCOME_TEXT = {
 } satisfies Record<ConnectOutcome["kind"], string>;
 
 const Outcome = ({ outcome }: { outcome: ConnectOutcome }) => (
-  <div className="grid gap-2 text-sm" role="status">
+  <div className="grid gap-2 text-sm">
     <p>{OUTCOME_TEXT[outcome.kind]}</p>
     {outcome.kind === "no-extension" ? (
       <a
@@ -72,8 +72,8 @@ const ConnectExtensionPage = () => {
           },
         }),
       );
-    } catch (cause) {
-      setError(refusalText(cause, CONNECTION_FAILED));
+    } catch (error_) {
+      setError(refusalText(error_, CONNECTION_FAILED));
     }
     setPending(false);
   };

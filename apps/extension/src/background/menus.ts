@@ -1,8 +1,8 @@
-// the right-click Save: one item per thing a person can point at, and what a click on each asks
-// the Mac to keep. A page or a selection is captured from the tab; a link or an image is saved by
-// what the click names, so no page needs scripting for them.
+// the right-click Save: one item per thing a person can point at, and what a click on each saves.
+// A page or a selection is read from the tab; a link or a web picture is saved by the address the
+// click names, which the cloud reads, and a picture a page drew from its own bytes by those bytes.
 
-import type { BrowserSave } from "@repo/contract/browser/browser-wire";
+import { isWebUrl } from "@repo/notes/items/item-url";
 
 export type MenuContext = "page" | "link" | "image" | "selection";
 
@@ -13,7 +13,7 @@ export const MENU_ITEMS = [
   { context: "selection", id: "save-selection", title: "Save as a highlight" },
 ] as const satisfies readonly { context: MenuContext; id: string; title: string }[];
 
-// the fields of a click this reads, as Chrome's OnClickData names them
+// the fields of a click this reads, as the browser's OnClickData names them
 export interface MenuClick {
   menuItemId: string | number;
   linkUrl?: string | undefined;
@@ -22,60 +22,53 @@ export interface MenuClick {
 }
 
 export type MenuAction =
-  // capture the tab, its selection included
+  // read the tab, its selection included
   | { kind: "page" }
-  // capture the tab for its selection; `text` is Chrome's own reading of it, for a page that
+  // read the tab for its selection; `text` is the browser's own reading of it, for a page that
   // cannot be scripted
   | { kind: "selection"; text: string }
-  | { kind: "save"; save: BrowserSave }
+  | { kind: "address"; url: string }
+  | { kind: "picture"; bytes: Uint8Array<ArrayBuffer> }
   | { kind: "unsupported" };
 
-const WEB_PROTOCOLS = new Set(["http:", "https:"]);
+const DATA_URL = /^data:(?<params>[^,]*),(?<data>.*)$/su;
+const ESCAPE_OR_TEXT = /%(?<hex>[0-9a-f]{2})|(?<text>[^%]+)|%/giu;
 
-export const isWebUrl = (value: string | undefined): value is string => {
-  if (value === undefined) {
-    return false;
-  }
+const bytesOfBase64 = (base64: string): Uint8Array<ArrayBuffer> | null => {
   try {
-    return WEB_PROTOCOLS.has(new URL(value).protocol);
+    return Uint8Array.from(atob(base64), (character) => character.codePointAt(0) ?? 0);
   } catch {
-    return false;
+    return null;
   }
 };
 
-const DATA_URL = /^data:(?<mime>[^;,]*)(?<params>(?:;[^;,]*)*),(?<data>.*)$/su;
-
-const base64OfBytes = (bytes: Uint8Array): string => {
-  const chunk = 0x80_00;
-  let binary = "";
-  for (let offset = 0; offset < bytes.length; offset += chunk) {
-    binary += String.fromCodePoint(...bytes.subarray(offset, offset + chunk));
+// a data: url's percent-encoded body as the bytes it names: an escape is one byte whatever it
+// spells (a PNG's %89 included), the rest its UTF-8; a stray % is no such body
+const bytesOfPercentEncoded = (data: string): Uint8Array<ArrayBuffer> | null => {
+  const encoder = new TextEncoder();
+  const bytes: number[] = [];
+  for (const match of data.matchAll(ESCAPE_OR_TEXT)) {
+    const { hex, text } = match.groups ?? {};
+    if (hex !== undefined) {
+      bytes.push(Number.parseInt(hex, 16));
+    } else if (text === undefined) {
+      return null;
+    } else {
+      bytes.push(...encoder.encode(text));
+    }
   }
-  return btoa(binary);
+  return Uint8Array.from(bytes);
 };
 
-// an image the page drew from a data: url has no address to save, so its bytes go instead, under
-// the media type it names; the Mac keeps them only if that is a picture's
-export const imageBytesOfDataUrl = (
-  url: string,
-): { base64: string; kind: "bytes"; mime: string } | null => {
+// the bytes a data: url holds; what they are is for the save to sniff
+export const bytesOfDataUrl = (url: string): Uint8Array<ArrayBuffer> | null => {
   const match = DATA_URL.exec(url);
   if (match?.groups === undefined) {
     return null;
   }
-  const { data = "", mime = "", params = "" } = match.groups;
-  if (mime === "") {
-    return null;
-  }
+  const { data = "", params = "" } = match.groups;
   const isBase64 = params.split(";").some((param) => param.trim().toLowerCase() === "base64");
-  try {
-    const base64 = isBase64
-      ? data
-      : base64OfBytes(new TextEncoder().encode(decodeURIComponent(data)));
-    return { base64, kind: "bytes", mime };
-  } catch {
-    return null;
-  }
+  return isBase64 ? bytesOfBase64(data) : bytesOfPercentEncoded(data);
 };
 
 export const menuAction = (click: MenuClick): MenuAction => {
@@ -87,18 +80,16 @@ export const menuAction = (click: MenuClick): MenuAction => {
       return { kind: "selection", text: click.selectionText ?? "" };
     }
     case "save-link": {
-      return isWebUrl(click.linkUrl)
-        ? { kind: "save", save: { target: "link", title: null, url: click.linkUrl } }
+      return click.linkUrl !== undefined && isWebUrl(click.linkUrl)
+        ? { kind: "address", url: click.linkUrl }
         : { kind: "unsupported" };
     }
     case "save-image": {
-      if (isWebUrl(click.srcUrl)) {
-        return { kind: "save", save: { src: { kind: "url", url: click.srcUrl }, target: "image" } };
+      if (click.srcUrl !== undefined && isWebUrl(click.srcUrl)) {
+        return { kind: "address", url: click.srcUrl };
       }
-      const bytes = click.srcUrl === undefined ? null : imageBytesOfDataUrl(click.srcUrl);
-      return bytes === null
-        ? { kind: "unsupported" }
-        : { kind: "save", save: { src: bytes, target: "image" } };
+      const bytes = click.srcUrl === undefined ? null : bytesOfDataUrl(click.srcUrl);
+      return bytes === null ? { kind: "unsupported" } : { kind: "picture", bytes };
     }
     default: {
       return { kind: "unsupported" };

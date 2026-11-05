@@ -15,7 +15,7 @@ import type { ReadHtml } from "@repo/page-reader/read-html";
 import { failureOf, fileOnlyLinked, TEXT_NOT_SAVED } from "@repo/notes/items/fill-sentences";
 import { originalFileName } from "@repo/notes/items/item-name";
 import { kindForUrl } from "@repo/notes/items/item-url";
-import { FILL_LIMITS, isPageType, playableKindOf } from "@repo/notes/items/link-fill";
+import { coverPicture, FILL_LIMITS, isPageType, playableKindOf } from "@repo/notes/items/link-fill";
 import {
   OEMBED_MAX_BYTES,
   oembedEndpoint,
@@ -23,7 +23,7 @@ import {
   youTubeStills,
 } from "@repo/notes/items/oembed";
 import type { OEmbed } from "@repo/notes/items/oembed";
-import { pixelSize, sniffMedia } from "@repo/notes/items/sniff-media";
+import { sniffMedia } from "@repo/notes/items/sniff-media";
 import { decodeText } from "@repo/notes/text/decode-text";
 
 import type { FillJob } from "./fill-job";
@@ -79,15 +79,11 @@ const keepCover = async (
       overflow: "refuse",
       url: candidate,
     });
-    const sniffed = fetched.ok ? sniffMedia(fetched.page.bytes) : null;
-    if (!fetched.ok || sniffed?.kind !== "image") {
+    const cover = fetched.ok ? coverPicture(fetched.page.bytes) : null;
+    if (!fetched.ok || cover === null) {
       continue;
     }
-    const size = pixelSize(fetched.page.bytes, sniffed.mediaType);
-    if (size !== null && Math.max(size.width, size.height) < FILL_LIMITS.coverMinEdge) {
-      continue;
-    }
-    const sha = await ports.keep({ bytes: fetched.page.bytes, mime: sniffed.mediaType });
+    const sha = await ports.keep({ bytes: fetched.page.bytes, mime: cover.mime });
     if (sha !== null) {
       return sha;
     }

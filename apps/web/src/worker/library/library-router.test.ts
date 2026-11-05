@@ -193,7 +193,8 @@ describe("the library's procedures", () => {
         url: "https://example.com/later/unread",
       });
       expect(stub.folded).toBe(false);
-      expect((await library.annotations.list({ itemId: stub.item.id })).highlights).toEqual([
+      const waiting = await library.annotations.list({ itemId: stub.item.id });
+      expect(waiting.highlights).toEqual([
         expect.objectContaining({ placed: false, quote: "a passage the page holds", text: "" }),
       ]);
 
@@ -205,13 +206,15 @@ describe("the library's procedures", () => {
       expect(highlights).toEqual([
         expect.objectContaining({ placed: true, quote: "brown fox jumps" }),
       ]);
-      expect((await library.items.read({ id: page.item.id })).view.markdown).toContain(
+      const read = await library.items.read({ id: page.item.id });
+      expect(read.view.markdown).toContain(
         `quick %%i:${highlights[0]?.id ?? ""}:start%%brown fox jumps%%i:`,
       );
 
       // the same passage sent again keeps the one highlight
       await library.items.saveLink({ selection: "brown fox jumps", url });
-      expect((await library.annotations.list({ itemId: page.item.id })).highlights).toHaveLength(1);
+      const again = await library.annotations.list({ itemId: page.item.id });
+      expect(again.highlights).toHaveLength(1);
     });
   });
 
