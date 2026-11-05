@@ -1,18 +1,17 @@
 // The native end of the bridge, as the page sees it: a transport that records every frame the page
-// sends, answers its requests from an in-memory vault and an in-memory library of items (which
-// lands an item page's ops only on the bases they name, as the phone's replica does) a case can
-// replace, and delivers native frames through the receiver the page installed.
+// sends, answers its requests from an in-memory library of items (which lands an item page's ops
+// only on the bases they name, as the phone's replica does) a case can replace, and delivers
+// native frames through the receiver the page installed.
 
-import { docStem } from "@repo/notes/knowledge/doc-file";
 import { applyOps, orderedBlocks } from "@repo/notes/library/block-ops";
 import type { ItemState } from "@repo/notes/library/block-ops";
 
 import type { BridgeTransport } from "../bridge/page-bridge";
 import { pageFrameSchema } from "@repo/editor-bridge/protocol";
 import type {
+  ItemInit,
   NativeFrame,
   PageFrame,
-  EditInit,
   RequestKind,
   RequestResult,
 } from "@repo/editor-bridge/protocol";
@@ -29,27 +28,6 @@ type PhoneAnswer =
 type Answerer = (request: PageRequest) => PhoneAnswer | null;
 
 const ok = (result: RequestResult<RequestKind>): PhoneAnswer => ({ ok: true, result });
-
-const refuse = (error: string): PhoneAnswer => ({ error, ok: false });
-
-// the base is compared with the text held, the page's CAS as the phone runs it
-const writeAnswer = (
-  files: Map<string, string>,
-  { content, guard, path }: Extract<PageRequest, { kind: "write" }>["payload"],
-): PhoneAnswer => {
-  const current = files.get(path);
-  if (guard.kind === "absent") {
-    if (current !== undefined) {
-      return ok({ kind: "exists" });
-    }
-  } else if (current === undefined) {
-    return ok({ kind: "missing" });
-  } else if (current !== guard.base) {
-    return ok({ current, kind: "changed" });
-  }
-  files.set(path, content);
-  return ok({ kind: "written" });
-};
 
 type HeldItem = Exclude<RequestResult<"item">["item"], null>;
 
@@ -80,8 +58,10 @@ const writeItemAnswer = (
   return ok({ kind: "queued" });
 };
 
-const answerFromVault =
-  (files: Map<string, string>, items: Map<string, ItemState>): Answerer =>
+// every item is a link target under its title, and a highlight is queued for the phone's store,
+// which a case reads off the request
+const answerFromLibrary =
+  (items: Map<string, ItemState>): Answerer =>
   (request) => {
     switch (request.kind) {
       case "item": {
@@ -91,53 +71,19 @@ const answerFromVault =
       case "writeItem": {
         return writeItemAnswer(items, request.payload);
       }
-      case "list": {
-        return ok({ paths: [...files.keys()] });
-      }
-      case "read": {
-        const content = files.get(request.payload.path);
-        return content === undefined ? refuse(`no ${request.payload.path}`) : ok({ content });
-      }
-      case "write": {
-        return writeAnswer(files, request.payload);
-      }
-      // the note lands as a write does; the annotation's entry is the phone's store's, which a case
-      // reads off the request
-      case "addAnnotation": {
-        const { base, content, path } = request.payload;
-        return writeAnswer(files, { content, guard: { base, kind: "expected" }, path });
-      }
-      // a store write alone, which a case reads off the request
-      case "editAnnotation": {
-        return ok({ kind: "done" });
-      }
-      case "remove": {
-        files.delete(request.payload.path);
-        return ok({});
-      }
-      case "rename": {
-        const { from, to } = request.payload;
-        const content = files.get(from);
-        if (content === undefined) {
-          return ok({ error: `no ${from}`, ok: false });
-        }
-        files.delete(from);
-        files.set(to, content);
-        return ok({ ok: true });
-      }
       case "wikiTargets": {
         return ok({
-          targets: [...files.keys()].map((path) => ({ path, title: docStem(path), type: "doc" })),
+          targets: [...items].map(([id, state]) => ({
+            id,
+            path: `${state.fields.title}.md`,
+            title: state.fields.title,
+            type: "doc" as const,
+          })),
         });
       }
-      case "readAsset": {
-        return refuse(`no attachment at ${request.payload.path}`);
-      }
-      case "writeAsset": {
-        return refuse("this phone takes no attachments");
-      }
-      case "pickImage": {
-        return ok({ kind: "cancelled" });
+      case "addHighlight":
+      case "noteHighlight": {
+        return ok({ queued: items.has(request.payload.itemId) });
       }
       default: {
         const exhaustive: never = request;
@@ -148,14 +94,13 @@ const answerFromVault =
 
 export interface FakePhone {
   readonly transport: BridgeTransport;
-  readonly files: Map<string, string>;
   readonly items: Map<string, ItemState>;
   readonly sent: PageFrame[];
   answer: Answerer;
   readonly deliver: (frame: NativeFrame) => void;
   // what a forged or broken sender could hand the receiver
   readonly deliverText: (text: string) => void;
-  readonly init: (overrides?: Partial<EditInit>) => void;
+  readonly init: (overrides: Partial<ItemInit> & Pick<ItemInit, "itemId">) => void;
   readonly requests: <K extends PageRequest["kind"]>(
     kind: K,
   ) => Extract<PageRequest, { kind: K }>[];
@@ -174,11 +119,7 @@ const isType =
   (frame: PageFrame): frame is Extract<PageFrame, { type: T }> =>
     frame.type === type;
 
-export const createFakePhone = (
-  initial: Readonly<Record<string, string>> = {},
-  library: Readonly<Record<string, ItemState>> = {},
-): FakePhone => {
-  const files = new Map(Object.entries(initial));
+export const createFakePhone = (library: Readonly<Record<string, ItemState>> = {}): FakePhone => {
   const items = new Map(Object.entries(library));
   const sent: PageFrame[] = [];
   let receive: ((frame: string) => void) | null = null;
@@ -195,22 +136,14 @@ export const createFakePhone = (
   };
 
   const phone: FakePhone = {
-    answer: answerFromVault(files, items),
+    answer: answerFromLibrary(items),
     deliver,
     deliverText,
     events: (type) => sent.filter(isType(type)),
-    files,
-    items,
-    init: (overrides = {}) => {
-      deliver({
-        focus: null,
-        mode: "edit",
-        nonce: PHONE_NONCE,
-        path: "Note.md",
-        type: "init",
-        ...overrides,
-      });
+    init: (overrides) => {
+      deliver({ focus: null, mode: "item", nonce: PHONE_NONCE, type: "init", ...overrides });
     },
+    items,
     requests: (kind) => sent.filter(isKind(kind)),
     sent,
     transport: {

@@ -21,7 +21,6 @@ import { SizeProvider } from "@repo/ui/lib/size-context";
 import { ThemeProvider } from "@repo/ui/lib/theme";
 
 import type { PageBridge } from "../bridge/page-bridge";
-import type { MountedPage } from "../editor-page";
 import { bridgeItemStore, installItemPageHost } from "./item-host";
 
 const after = (ms: number, run: () => void): (() => void) => {
@@ -55,7 +54,7 @@ const useEditorState = (bridge: PageBridge, session: ItemSession | null): void =
         last = key;
         bridge.emit({
           dirty,
-          saveError: failure === null ? null : { kind: "refused", message: failure },
+          saveError: failure,
           type: "editorState",
         });
       }
@@ -64,7 +63,11 @@ const useEditorState = (bridge: PageBridge, session: ItemSession | null): void =
   }, [bridge, session]);
 };
 
-const ItemPage = ({
+export interface MountedPage {
+  readonly unmount: () => void;
+}
+
+export const ItemPage = ({
   bridge,
   init,
   onSession,
@@ -118,7 +121,7 @@ export const mountItemPage = ({
   init: ItemInit;
 }): MountedPage => {
   // installed before the first render: the editor's kits read the host as they render
-  const host = installItemPageHost(bridge);
+  const host = installItemPageHost(bridge, init.itemId);
   const ports: ItemSessionPorts = {
     after,
     notifyOverlap: (title) => {

@@ -30,15 +30,7 @@ type PageEvent = Unstamped<Exclude<PageFrame, { type: "request" | "ready" }>>;
 // what the native end tells a connected page on its own
 export type NativeEvent = Extract<
   NativeFrame,
-  {
-    type:
-      | "vaultChanged"
-      | "itemChanged"
-      | "flush"
-      | "annotationMeta"
-      | "annotationsRemoved"
-      | "fillJob";
-  }
+  { type: "itemChanged" | "flush" | "fillJob" | "mergeJob" }
 >;
 
 // both ways, a frame is the JSON text of one, parsed by the end that receives it
@@ -64,17 +56,10 @@ export interface ConnectedPage {
 
 export const REQUEST_TIMEOUT_MS = 10_000;
 
-// The native end answers every request, and a mutation timed out here still lands there, so these
-// wait rather than report a failure that did not happen. A write keeps its deadline: it is guarded,
-// so its retry finds what landed. The picker waits on the user, for as long as they browse.
-const NO_DEADLINE: ReadonlySet<RequestKind> = new Set([
-  "addAnnotation",
-  "editAnnotation",
-  "pickImage",
-  "remove",
-  "rename",
-  "writeAsset",
-]);
+// The native end answers every request, and a highlight timed out here still lands there, so these
+// wait rather than report a failure that did not happen. A write keeps its deadline: it is guarded
+// by its bases, so its retry finds what landed.
+const NO_DEADLINE: ReadonlySet<RequestKind> = new Set(["addHighlight", "noteHighlight"]);
 
 interface Pending {
   readonly answer: Deferred<unknown>;

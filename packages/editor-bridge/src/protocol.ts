@@ -1,19 +1,19 @@
 // The wire between the phone editor page and the React Native screen that hosts it. Both ends ship
 // in one binary, so it breaks freely: no version field, no negotiation. Every frame crosses as a
-// JSON string and is parsed here by the end that receives it. The same page loads in one of three
-// modes, named by its `init`: a note's editor over its markdown, an item's editor over its blocks by
-// id, which reads and writes the phone's replica in ops, or the reader a saved link is filled with,
-// where the phone hands it a page's bytes and it answers what @repo/page-reader read of them.
+// JSON string and is parsed here by the end that receives it. The same page loads in one of two
+// modes, named by its `init`: an item's editor over its blocks by id, which reads and writes the
+// phone's replica in ops, or the headless page nothing shows, which reads a page the phone shares
+// into an item and merges a block two devices changed, since the editor and the reader live only
+// in the page.
 
 import { z } from "zod";
 
 import { annotationIdSchema } from "@repo/notes/annotations/store-schema";
-import { normalVaultPathSchema } from "@repo/notes/knowledge/vault-path-schema";
 import { blockHashSchema, libraryOpSchema } from "@repo/notes/library/block-ops";
 import { ordSchema } from "@repo/notes/library/block-order";
 import { libraryItemFieldsSchema } from "@repo/notes/library/library-item";
 import { librarySectionSchema, storableBlockSchema } from "@repo/notes/library/library-nodes";
-import { extractedPageSchema } from "@repo/page-reader/page-facts";
+import { pageFactsSchema, rungSchema } from "@repo/page-reader/page-facts";
 
 // Native reaches the page only by calling this, through `injectJavaScript`: a message event is
 // one a child frame's `parent.postMessage` could forge too.
@@ -25,40 +25,13 @@ const nonceSchema = z.string().min(16);
 
 const idSchema = z.number().int().nonnegative();
 
-const guardSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("absent") }),
-  z.strictObject({ base: z.string(), kind: z.literal("expected") }),
-]);
-
-const writtenSchema = z.strictObject({ kind: z.literal("written") });
-const changedSchema = z.strictObject({ current: z.string(), kind: z.literal("changed") });
-const missingSchema = z.strictObject({ kind: z.literal("missing") });
-
-const guardedWriteResultSchema = z.discriminatedUnion("kind", [
-  writtenSchema,
-  z.strictObject({ kind: z.literal("exists") }),
-  changedSchema,
-  missingSchema,
-]);
-
-const renameResultSchema = z.discriminatedUnion("ok", [
-  z.strictObject({ ok: z.literal(true) }),
-  z.strictObject({ error: z.string(), ok: z.literal(false) }),
-]);
-
-const pickImageResultSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("picked"), path: normalVaultPathSchema }),
-  z.strictObject({ kind: z.literal("cancelled") }),
-  z.strictObject({ kind: z.literal("refused"), message: z.string() }),
-]);
-
+// an item a link can name, by its id and by the title it goes by now, under a path of its own so
+// two items of one title are two targets
 const wikiTargetSchema = z.strictObject({
-  aliases: z.array(z.string()).exactOptional(),
-  id: z.string().min(1).exactOptional(),
-  path: normalVaultPathSchema,
-  pinned: z.boolean().exactOptional(),
+  id: z.string().min(1),
+  path: z.string().min(1),
   title: z.string(),
-  type: z.enum(["doc", "asset"]),
+  type: z.literal("doc"),
 });
 
 // the bridge carries strings, so bytes ride as base64 beside the media type the Blob is rebuilt with
@@ -94,71 +67,20 @@ const itemWriteOutcomeSchema = z.discriminatedUnion("kind", [
   z.strictObject({ fields: z.array(z.string()), kind: z.literal("invalid") }),
 ]);
 
-// One row per question the page asks. The page's store is the phone's, so a create is `write` under
-// the `absent` guard, as `GuardedVaultPort` spells it, and a note is read the same way whether it
-// is the open one or one an embed shows.
+// whether the phone queued a highlight's write
+const queuedSchema = z.strictObject({ queued: z.boolean() });
+
+// One row per question an item page asks.
 const REQUEST_SCHEMAS = {
-  // the open note's write under the `expected` guard, carrying a new highlight on the passage it
-  // anchors: the phone lands the note and the annotation's bare entry as one change set
-  addAnnotation: {
-    payload: z.strictObject({
-      base: z.string(),
-      content: z.string(),
-      id: annotationIdSchema,
-      path: normalVaultPathSchema,
-      quote: z.string().min(1),
-    }),
-    result: z.discriminatedUnion("kind", [writtenSchema, changedSchema, missingSchema]),
-  },
-  // the note on an annotation the store holds: a store write alone, the note's text untouched
-  editAnnotation: {
-    payload: z.strictObject({
-      id: annotationIdSchema,
-      path: normalVaultPathSchema,
-      text: z.string(),
-    }),
-    result: z.discriminatedUnion("kind", [
-      z.strictObject({ kind: z.literal("done") }),
-      z.strictObject({ kind: z.literal("refused"), message: z.string() }),
-    ]),
-  },
   // the item an item page shows, as the phone's replica reads it now; null for one it holds none of
   item: {
     payload: z.strictObject({ itemId: itemIdSchema }),
     result: z.strictObject({ item: heldItemSchema.nullable() }),
   },
-  list: {
-    payload: noPayload,
-    // files only; the page decides which are docs, through @repo/notes' one answer
-    result: z.strictObject({ paths: z.array(normalVaultPathSchema) }),
-  },
-  pickImage: { payload: noPayload, result: pickImageResultSchema },
-  read: {
-    payload: z.strictObject({ path: normalVaultPathSchema }),
-    result: z.strictObject({ content: z.string() }),
-  },
-  readAsset: {
-    payload: z.strictObject({ path: normalVaultPathSchema }),
-    result: assetBytesSchema,
-  },
-  remove: { payload: z.strictObject({ path: normalVaultPathSchema }), result: noPayload },
-  rename: {
-    payload: z.strictObject({ from: normalVaultPathSchema, to: normalVaultPathSchema }),
-    result: renameResultSchema,
-  },
+  // the items a link can name
   wikiTargets: {
     payload: noPayload,
     result: z.strictObject({ targets: z.array(wikiTargetSchema) }),
-  },
-  write: {
-    // `base` is the text the write was computed from; the native end compares it with what its
-    // store holds, the page's CAS
-    payload: z.strictObject({
-      content: z.string(),
-      guard: guardSchema,
-      path: normalVaultPathSchema,
-    }),
-    result: guardedWriteResultSchema,
   },
   // an item page's ops, each under the base it was computed from, with the bytes of every file a
   // block it puts names; the phone's replica queues them for the cell
@@ -170,22 +92,26 @@ const REQUEST_SCHEMAS = {
     }),
     result: itemWriteOutcomeSchema,
   },
-  // native picks the folder, from the vault's attachments choice and the note the page has open
-  writeAsset: {
-    payload: assetBytesSchema.extend({ baseName: z.string().min(1) }),
-    result: z.strictObject({ path: normalVaultPathSchema }),
+  // a highlight the editor just marked on the passage it anchors: its bare entry, beside the
+  // markers the item's next write carries
+  addHighlight: {
+    payload: z.strictObject({
+      id: annotationIdSchema,
+      itemId: itemIdSchema,
+      quote: z.string().min(1),
+    }),
+    result: queuedSchema,
+  },
+  // the note on a highlight the item holds
+  noteHighlight: {
+    payload: z.strictObject({ id: annotationIdSchema, itemId: itemIdSchema, text: z.string() }),
+    result: queuedSchema,
   },
 };
 
 type RequestSchemas = typeof REQUEST_SCHEMAS;
 
 export type RequestKind = keyof RequestSchemas;
-
-// what only an item page asks: its item, and its ops
-export type ItemRequestKind = "item" | "writeItem";
-
-// what a note page asks, over its markdown
-export type NoteRequestKind = Exclude<RequestKind, ItemRequestKind>;
 
 export type RequestPayload<K extends RequestKind> = z.output<RequestSchemas[K]["payload"]>;
 
@@ -213,14 +139,17 @@ const requestFrame = <K extends RequestKind, P extends RequestSchemas[K]["payloa
     type: z.literal("request"),
   });
 
-const saveErrorSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("vanished") }),
-  z.strictObject({ kind: z.literal("refused"), message: z.string() }),
-]);
-
-// what the reader made of a page, or why it read nothing (a page that broke the extractor)
+// what the reader made of a page: its facts and its article as the item's article blocks, in
+// order, or why it read nothing (a page that broke the extractor)
 const fillAnswerSchema = z.discriminatedUnion("kind", [
-  extractedPageSchema.extend({ kind: z.literal("read") }),
+  z.strictObject({
+    article: z.array(z.strictObject({ block: storableBlockSchema, ord: ordSchema })),
+    facts: pageFactsSchema,
+    kind: z.literal("read"),
+    // the share of the converted letters the editor's fixpoint kept
+    kept: z.number(),
+    rung: rungSchema.nullable(),
+  }),
   z.strictObject({ kind: z.literal("failed"), reason: z.string() }),
 ]);
 export type FillAnswer = z.infer<typeof fillAnswerSchema>;
@@ -236,55 +165,48 @@ const fillJobSchema = z.strictObject({
 });
 export type FillJob = z.infer<typeof fillJobSchema>;
 
+// a block two devices changed: as the phone's write was computed from it, as the phone wrote it,
+// and as the cell holds it now
+const mergeSidesSchema = z.strictObject({
+  base: storableBlockSchema,
+  mine: storableBlockSchema,
+  theirs: storableBlockSchema,
+});
+export type MergeSides = z.infer<typeof mergeSidesSchema>;
+
+// the block merged, and whether the phone's lines were kept over the other device's change to them;
+// null when the page could not merge it
+const mergedSchema = z
+  .strictObject({ block: storableBlockSchema, overlapped: z.boolean() })
+  .nullable();
+export type MergeAnswer = z.infer<typeof mergedSchema>;
+
 export const pageFrameSchema = z.discriminatedUnion("type", [
   z.discriminatedUnion("kind", [
-    requestFrame("addAnnotation", REQUEST_SCHEMAS.addAnnotation.payload),
-    requestFrame("editAnnotation", REQUEST_SCHEMAS.editAnnotation.payload),
+    requestFrame("addHighlight", REQUEST_SCHEMAS.addHighlight.payload),
     requestFrame("item", REQUEST_SCHEMAS.item.payload),
-    requestFrame("list", REQUEST_SCHEMAS.list.payload),
-    requestFrame("pickImage", REQUEST_SCHEMAS.pickImage.payload),
-    requestFrame("read", REQUEST_SCHEMAS.read.payload),
-    requestFrame("readAsset", REQUEST_SCHEMAS.readAsset.payload),
-    requestFrame("remove", REQUEST_SCHEMAS.remove.payload),
-    requestFrame("rename", REQUEST_SCHEMAS.rename.payload),
+    requestFrame("noteHighlight", REQUEST_SCHEMAS.noteHighlight.payload),
     requestFrame("wikiTargets", REQUEST_SCHEMAS.wikiTargets.payload),
-    requestFrame("write", REQUEST_SCHEMAS.write.payload),
-    requestFrame("writeAsset", REQUEST_SCHEMAS.writeAsset.payload),
     requestFrame("writeItem", REQUEST_SCHEMAS.writeItem.payload),
   ]),
   // the receiver is installed and the page waits for `init`; it knows no nonce yet
   z.strictObject({ type: z.literal("ready") }),
-  // the note the page shows, which a rename moves; null once it was deleted elsewhere and the page
-  // shows none
-  z.strictObject({
-    nonce: nonceSchema,
-    path: normalVaultPathSchema.nullable(),
-    type: z.literal("opened"),
-  }),
-  // the note this page was opened on could not be read, so the page shows none until a fresh load
-  // of it reads the note again
-  z.strictObject({
-    message: z.string(),
-    nonce: nonceSchema,
-    path: normalVaultPathSchema,
-    type: z.literal("openFailed"),
-  }),
   z.strictObject({
     dirty: z.boolean(),
     nonce: nonceSchema,
-    saveError: saveErrorSchema.nullable(),
+    // why the last write did not land, said in the person's words
+    saveError: z.string().nullable(),
     type: z.literal("editorState"),
   }),
+  // the highlights a tap on a marked passage names, which the phone's sheet shows
   z.strictObject({
     ids: z.array(z.string().min(1)).min(1),
     nonce: nonceSchema,
     type: z.literal("showAnnotations"),
   }),
-  // the page has flushed and asks the native stack to open this note, which keeps the back gesture
-  z.strictObject({ nonce: nonceSchema, path: normalVaultPathSchema, type: z.literal("navigate") }),
   // an item page has written what it holds and asks the native stack to open the item a link names
   z.strictObject({ itemId: itemIdSchema, nonce: nonceSchema, type: z.literal("openItem") }),
-  // the answer to a `flush`: whether the open note's edits are all written
+  // the answer to a `flush`: whether the open item's edits are all written
   z.strictObject({ id: idSchema, nonce: nonceSchema, ok: z.boolean(), type: z.literal("flushed") }),
   // the reader's answer to a `fillJob` with the same id
   z.strictObject({
@@ -293,25 +215,19 @@ export const pageFrameSchema = z.discriminatedUnion("type", [
     nonce: nonceSchema,
     type: z.literal("fillAnswer"),
   }),
+  // the merge's answer to a `mergeJob` with the same id
+  z.strictObject({
+    id: idSchema,
+    merged: mergedSchema,
+    nonce: nonceSchema,
+    type: z.literal("mergeAnswer"),
+  }),
 ]);
 
 export type PageFrame = z.infer<typeof pageFrameSchema>;
 
-const vaultChangedEventSchema = z.discriminatedUnion("kind", [
-  // a listing row moved; null paths is a change nobody could attribute, so every reader re-checks
-  z.strictObject({ kind: z.literal("files"), paths: z.array(normalVaultPathSchema).nullable() }),
-  z.strictObject({ kind: z.literal("content"), path: normalVaultPathSchema }),
-]);
-
 export const nativeFrameSchema = z.discriminatedUnion("type", [
   z.discriminatedUnion("mode", [
-    z.strictObject({
-      focus: z.enum(["title", "body"]).nullable(),
-      mode: z.literal("edit"),
-      nonce: nonceSchema,
-      path: normalVaultPathSchema,
-      type: z.literal("init"),
-    }),
     // an item's editor over its blocks, by its id
     z.strictObject({
       focus: z.enum(["title", "body"]).nullable(),
@@ -320,8 +236,8 @@ export const nativeFrameSchema = z.discriminatedUnion("type", [
       nonce: nonceSchema,
       type: z.literal("init"),
     }),
-    // the reader: no note, no editor, only `fillJob`s
-    z.strictObject({ mode: z.literal("fill"), nonce: nonceSchema, type: z.literal("init") }),
+    // the page nothing shows: no editor, only `fillJob`s and `mergeJob`s
+    z.strictObject({ mode: z.literal("headless"), nonce: nonceSchema, type: z.literal("init") }),
   ]),
   // a result is parsed by the request it answers, which knows its kind
   z.discriminatedUnion("ok", [
@@ -340,11 +256,6 @@ export const nativeFrameSchema = z.discriminatedUnion("type", [
       type: z.literal("response"),
     }),
   ]),
-  z.strictObject({
-    event: vaultChangedEventSchema,
-    nonce: nonceSchema,
-    type: z.literal("vaultChanged"),
-  }),
   // the phone's replica moved: these items changed, or the whole library did; an item page reads
   // its item again when it is among them, and says so when its own write was merged into it
   // keeping its lines over another device's change to the same ones (`overlapped`)
@@ -355,23 +266,9 @@ export const nativeFrameSchema = z.discriminatedUnion("type", [
     reset: z.boolean(),
     type: z.literal("itemChanged"),
   }),
-  // write the open note's edits now (the screen is leaving, the app is backgrounding); answered by
+  // write the open item's edits now (the screen is leaving, the app is backgrounding); answered by
   // a `flushed` frame with the same id
   z.strictObject({ id: idSchema, nonce: nonceSchema, type: z.literal("flush") }),
-  // what the note's annotation ranges are drawn by: every annotation its store holds; sent when the
-  // page opens the note and whenever the note or its store changes
-  z.strictObject({
-    knownIds: z.array(annotationIdSchema),
-    nonce: nonceSchema,
-    path: normalVaultPathSchema,
-    type: z.literal("annotationMeta"),
-  }),
-  // annotations deleted on the phone, whose markers the page takes out of the open note and writes
-  z.strictObject({
-    ids: z.array(annotationIdSchema).min(1),
-    nonce: nonceSchema,
-    type: z.literal("annotationsRemoved"),
-  }),
   // read this page; answered by a `fillAnswer` with the same id
   z.strictObject({
     id: idSchema,
@@ -379,13 +276,18 @@ export const nativeFrameSchema = z.discriminatedUnion("type", [
     nonce: nonceSchema,
     type: z.literal("fillJob"),
   }),
+  // merge this block; answered by a `mergeAnswer` with the same id
+  z.strictObject({
+    id: idSchema,
+    nonce: nonceSchema,
+    sides: mergeSidesSchema,
+    type: z.literal("mergeJob"),
+  }),
 ]);
 
 export type NativeFrame = z.infer<typeof nativeFrameSchema>;
 
 export type PageInit = Extract<NativeFrame, { type: "init" }>;
-
-export type EditInit = Extract<PageInit, { mode: "edit" }>;
 
 export type ItemInit = Extract<PageInit, { mode: "item" }>;
 

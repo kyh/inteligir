@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./reader-mode": "./src/fill/serve-fills.ts"
+    "./headless-mode": "./src/headless/headless-mode.ts"
   },
   "scripts": {
     "build": "vite build",

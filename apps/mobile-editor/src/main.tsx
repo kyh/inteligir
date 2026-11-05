@@ -1,6 +1,5 @@
 import { connectPageBridge, windowTransport } from "./bridge/page-bridge";
-import { mountEditorPage } from "./editor-page";
-import { serveFills } from "./fill/serve-fills";
+import { serveHeadless } from "./headless/headless-mode";
 import { mountItemPage } from "./item/item-page";
 import "./styles/globals.css";
 
@@ -12,13 +11,9 @@ if (container === null) {
 // an IIFE build has no top-level await
 void (async () => {
   const { bridge, init } = await connectPageBridge(windowTransport(window));
-  if (init.mode === "fill") {
-    serveFills(bridge);
+  if (init.mode === "headless") {
+    serveHeadless(bridge);
     return;
   }
-  if (init.mode === "item") {
-    mountItemPage({ bridge, container, init });
-    return;
-  }
-  mountEditorPage({ bridge, container, init });
+  mountItemPage({ bridge, container, init });
 })();

@@ -1,8 +1,11 @@
 // The page's item mode: the store an item session reads and writes (`@repo/editor/item/item-session`)
 // is the phone's replica on the other end of the bridge, so the page holds no copy of the library.
 // A link names its item by id, which is the key the editor resolves and opens it by: the page writes
-// what it holds and asks the native stack to push that item. What the page has no door to yet (a
-// note by path, a vault file, a picked image) answers that nothing is there.
+// what it holds and asks the native stack to push that item. A highlight the editor marks is
+// written to the item as its bare entry beside the markers the item's next write carries, its note
+// the same way, and a tap on a marked passage opens the phone's sheet of its highlights, as the
+// library's page does. What the page has no door to (a file by its path, a picked image, an html
+// block's frame) answers that nothing is there.
 
 import { installEditorHost } from "@repo/editor/host-io";
 import type { EditorHostIo, VaultActions } from "@repo/editor/host-io";
@@ -49,7 +52,7 @@ export const bridgeItemStore = (bridge: PageBridge): ItemStore => ({
 
 // what an item page does when the editor asks for a door it has not got: nothing
 const nothingToDo = (): void => {
-  /* an item page has no note by path, no agent and no highlight store of its own yet */
+  /* an item page has no note by path and no agent of its own */
 };
 
 const nothingThere = async (): Promise<never> => {
@@ -63,7 +66,7 @@ export interface ItemPageHost {
   readonly stop: () => void;
 }
 
-export const installItemPageHost = (bridge: PageBridge): ItemPageHost => {
+export const installItemPageHost = (bridge: PageBridge, itemId: string): ItemPageHost => {
   const feed = createLinkResolverFeed();
   let session: ItemSession | null = null;
   let targets: readonly WikiTarget[] = [];
@@ -82,8 +85,8 @@ export const installItemPageHost = (bridge: PageBridge): ItemPageHost => {
 
   // the resolver answers the path the phone lists an item under; the stack opens it by its id
   const open = (path: string): void => {
-    const itemId = targets.find((target) => target.path === path)?.id;
-    if (itemId === undefined) {
+    const linked = targets.find((target) => target.path === path)?.id;
+    if (linked === undefined) {
       return;
     }
     void (async () => {
@@ -93,7 +96,7 @@ export const installItemPageHost = (bridge: PageBridge): ItemPageHost => {
         toast.error("Couldn't save this item — resolve that before leaving it.");
         return;
       }
-      bridge.emit({ itemId, type: "openItem" });
+      bridge.emit({ itemId: linked, type: "openItem" });
     })();
   };
 
@@ -135,9 +138,20 @@ export const installItemPageHost = (bridge: PageBridge): ItemPageHost => {
     actions: {
       agent: { askAboutSelection: nothingToDo, showTag: nothingToDo },
       annotations: {
-        create: async () => await Promise.resolve(false),
-        edit: async () => await Promise.resolve(false),
-        open: nothingToDo,
+        create: async (id, quote) => {
+          const { queued } = await bridge.request("addHighlight", { id, itemId, quote });
+          return queued;
+        },
+        edit: async (id, text) => {
+          const { queued } = await bridge.request("noteHighlight", { id, itemId, text });
+          return queued;
+        },
+        open: (ids) => {
+          const [first, ...rest] = ids;
+          if (first !== undefined) {
+            bridge.emit({ ids: [first, ...rest], type: "showAnnotations" });
+          }
+        },
       },
     },
     io,

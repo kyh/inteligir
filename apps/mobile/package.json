@@ -5,12 +5,10 @@
   "main": "expo-router/entry",
   "exports": {
     "./items/page-fetch": "./src/items/page-fetch.ts",
+    "./items/share-save": "./src/items/share-save.ts",
     "./lib/compose-runtime": "./src/lib/compose-runtime.ts",
-    "./lib/node-sql-driver": "./src/lib/node-sql-driver.ts",
-    "./lib/phone-db": "./src/lib/phone-db.ts",
-    "./library/library-view": "./src/library/library-view.ts",
-    "./notes/attachment-files": "./src/notes/attachment-files.ts",
-    "./notes/outbox-files": "./src/notes/outbox-files.ts"
+    "./lib/node-replica-sql": "./src/lib/node-replica-sql.ts",
+    "./test-support/memory-folders": "./src/test-support/memory-folders.ts"
   },
   "scripts": {
     "dev": "expo start",
@@ -25,10 +23,16 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "catalog:",
+    "@orpc/client": "catalog:",
+    "@orpc/tanstack-query": "catalog:",
+    "@repo/agent-panel": "workspace:*",
     "@repo/contract": "workspace:*",
+    "@repo/domain": "workspace:*",
     "@repo/editor-bridge": "workspace:*",
+    "@repo/library-replica": "workspace:*",
     "@repo/mobile-editor": "workspace:*",
     "@repo/notes": "workspace:*",
+    "@tanstack/react-query": "catalog:",
     "expo": "catalog:",
     "expo-constants": "catalog:",
     "expo-crypto": "catalog:",

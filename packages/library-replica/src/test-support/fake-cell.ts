@@ -215,6 +215,7 @@ export const createFakeCell = (): FakeCell => {
   let page = 1000;
   let bodiesPerAnswer = 1000;
   let signedOut = false;
+  let signIns = 0;
   const items = new Map<string, CellItem>();
   const annotations = new Map<string, AnnotationRow>();
   const folders = new Map<string, FolderRow>();
@@ -477,6 +478,17 @@ export const createFakeCell = (): FakeCell => {
 
   const router = {
     account: {
+      // a device's sign-in answers a credential of its own, as the Worker's does
+      signIn: os.account.signIn.handler(({ input }) => {
+        signIns += 1;
+        return {
+          credential: `igd_${signIns.toString(16).padStart(64, "0")}`,
+          deviceId: `device-${String(signIns)}`,
+          email: input.email,
+          userId: "user-1",
+        };
+      }),
+      signOut: os.account.signOut.handler(() => ({ revoked: true as const })),
       socketTicket: os.account.socketTicket.handler(() => ({
         expiresAt: NOW + 60_000,
         ticket: "a-ticket",

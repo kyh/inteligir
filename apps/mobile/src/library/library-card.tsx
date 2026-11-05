@@ -1,41 +1,42 @@
+// One Library row: the title, the site and when it was saved, the tags, and the cover on the right,
+// drawn small from the phone's file cache, with a placeholder holding its place while it comes so
+// rows do not jump.
+
 import { Image, Pressable, Text, View } from "react-native";
-import { useCoverThumb } from "@/lib/app-runtime";
-import type { LibraryCard } from "./library-view";
+import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
+import { useFileUri } from "@/lib/library-hooks";
 
 const THUMB_SIZE = 64;
 
 const THUMB = { height: THUMB_SIZE, width: THUMB_SIZE } as const;
 
-// a stub is a link whose page the device that saved it has not read yet: this phone reads its own
-// saves once it is online, and its title and cover come with that read
+// a link the cloud has not read yet: its title and cover come with that read
 const PENDING_LINE = "Waiting to be read";
 
-const savedLine = (card: LibraryCard): string => {
-  const parts = [card.site, card.saved === null ? null : new Date(card.saved).toLocaleDateString()];
+const savedLine = (row: ReplicaListingRow): string => {
+  const parts = [row.fields.site, new Date(row.savedAt).toLocaleDateString()];
   return parts.filter((part) => part !== null && part !== "").join(" · ");
 };
 
-// a placeholder holds the cover's place while it is not on this phone yet, so rows do not jump
 const Thumb = ({ cover }: { cover: string }) => {
-  const uri = useCoverThumb(cover);
-  return uri === null ? (
+  const uri = useFileUri(cover, true);
+  return uri === null || uri === undefined ? (
     <View className="rounded-lg bg-muted" style={THUMB} />
   ) : (
     <Image accessibilityIgnoresInvertColors className="rounded-lg" source={{ uri }} style={THUMB} />
   );
 };
 
-// one Library row: the title, the site and when it was saved, the tags, and the cover on the right
 export const LibraryCardRow = ({
-  card,
   onLongPress,
   onPress,
+  row,
 }: {
-  card: LibraryCard;
+  row: ReplicaListingRow;
   onPress: () => void;
   onLongPress: () => void;
 }) => {
-  const caption = card.pending ? PENDING_LINE : savedLine(card);
+  const caption = row.fields.fetchState === "pending" ? PENDING_LINE : savedLine(row);
   return (
     <Pressable
       accessibilityRole="button"
@@ -45,20 +46,20 @@ export const LibraryCardRow = ({
     >
       <View className="grow basis-0 gap-0.5">
         <Text className="text-16 text-card-foreground" numberOfLines={2}>
-          {card.title}
+          {row.title}
         </Text>
         {caption === "" ? null : (
           <Text className="text-13 text-muted-foreground" numberOfLines={1}>
             {caption}
           </Text>
         )}
-        {card.tags.length === 0 ? null : (
+        {row.tags.length === 0 ? null : (
           <Text className="text-12 text-muted-foreground" numberOfLines={1}>
-            {card.tags.map((tag) => `#${tag}`).join(" ")}
+            {row.tags.map((tag) => `#${tag}`).join(" ")}
           </Text>
         )}
       </View>
-      {card.cover === null ? null : <Thumb cover={card.cover} />}
+      {row.fields.coverSha === null ? null : <Thumb cover={row.fields.coverSha} />}
     </Pressable>
   );
 };

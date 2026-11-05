@@ -6,10 +6,13 @@ import { nativeFrameScript, PAGE_RECEIVER } from "@repo/editor-bridge/protocol";
 import type { NativeFrame } from "@repo/editor-bridge/protocol";
 import { createFakePhone, PHONE_NONCE } from "../test-support/fake-phone";
 
+const ITEM = "0190a000-0000-7000-8000-000000000001";
+const OTHER = "0190a000-0000-7000-8000-000000000002";
+
 const connected = async () => {
   const phone = createFakePhone();
   const connecting = connectPageBridge(phone.transport);
-  phone.init();
+  phone.init({ itemId: ITEM });
   const { bridge, init } = await connecting;
   return { bridge, init, phone };
 };
@@ -23,18 +26,25 @@ const listening = async () => {
   return { bridge, heard, phone };
 };
 
-const answered = (id: number | undefined, content: string): NativeFrame => ({
+// an answer to `wikiTargets`, naming one item by `title`
+const answered = (id: number | undefined, title: string): NativeFrame => ({
   id: id ?? -1,
   nonce: PHONE_NONCE,
   ok: true,
-  result: { content },
+  result: { targets: [{ id: ITEM, path: `${title}.md`, title, type: "doc" }] },
   type: "response",
 });
 
+const targetsTitled = (title: string) => ({
+  targets: [{ id: ITEM, path: `${title}.md`, title, type: "doc" }],
+});
+
 const changed = {
-  event: { kind: "content", path: "Note.md" },
+  ids: [ITEM],
   nonce: PHONE_NONCE,
-  type: "vaultChanged",
+  overlapped: [],
+  reset: false,
+  type: "itemChanged",
 } satisfies NativeFrame;
 
 afterEach(() => {
@@ -47,18 +57,18 @@ describe("connecting", () => {
     const connecting = connectPageBridge(phone.transport);
     expect(phone.sent).toEqual([{ type: "ready" }]);
 
-    phone.init({ path: "Plans/Week.md" });
+    phone.init({ itemId: OTHER });
     const { init } = await connecting;
-    expect(init).toMatchObject({ nonce: PHONE_NONCE, path: "Plans/Week.md" });
+    expect(init).toMatchObject({ itemId: OTHER, nonce: PHONE_NONCE });
   });
 
   it("keeps the first load's nonce when a second init arrives", async () => {
     const { bridge, phone } = await connected();
-    phone.init({ nonce: "another-load-nonce-000" });
+    phone.init({ itemId: OTHER, nonce: "another-load-nonce-000" });
 
-    bridge.emit({ path: "Note.md", type: "navigate" });
-    expect(phone.events("navigate")).toEqual([
-      { nonce: PHONE_NONCE, path: "Note.md", type: "navigate" },
+    bridge.emit({ itemId: OTHER, type: "openItem" });
+    expect(phone.events("openItem")).toEqual([
+      { itemId: OTHER, nonce: PHONE_NONCE, type: "openItem" },
     ]);
   });
 });
@@ -68,25 +78,26 @@ describe("a request", () => {
     const { bridge, phone } = await connected();
     phone.answer = () => null;
 
-    const first = bridge.request("read", { path: "A.md" });
-    const second = bridge.request("read", { path: "B.md" });
-    const [a, b] = phone.requests("read");
+    const first = bridge.request("wikiTargets", {});
+    const second = bridge.request("wikiTargets", {});
+    const [a, b] = phone.requests("wikiTargets");
     phone.deliver(answered(b?.id, "b"));
     phone.deliver(answered(a?.id, "a"));
 
-    await expect(first).resolves.toEqual({ content: "a" });
-    await expect(second).resolves.toEqual({ content: "b" });
+    await expect(first).resolves.toEqual(targetsTitled("a"));
+    await expect(second).resolves.toEqual(targetsTitled("b"));
   });
 
   it("rejects with the phone's own words when it refuses", async () => {
-    const { bridge } = await connected();
-    await expect(bridge.request("read", { path: "Gone.md" })).rejects.toThrow("no Gone.md");
+    const { bridge, phone } = await connected();
+    phone.answer = () => ({ error: "the replica is closed", ok: false });
+    await expect(bridge.request("item", { itemId: ITEM })).rejects.toThrow("the replica is closed");
   });
 
   it("rejects an answer that is not the shape its kind promises", async () => {
     const { bridge, phone } = await connected();
-    phone.answer = () => ({ ok: true, result: { kind: "written" } });
-    await expect(bridge.request("read", { path: "A.md" })).rejects.toThrow();
+    phone.answer = () => ({ ok: true, result: { kind: "queued" } });
+    await expect(bridge.request("item", { itemId: ITEM })).rejects.toThrow();
   });
 
   it("gives up after its timeout, and a late answer changes nothing", async () => {
@@ -94,72 +105,55 @@ describe("a request", () => {
     const { bridge, phone } = await connected();
     phone.answer = () => null;
 
-    const asked = bridge.request("read", { path: "A.md" });
-    const settled = expect(asked).rejects.toThrow(/did not answer read/u);
+    const asked = bridge.request("wikiTargets", {});
+    const settled = expect(asked).rejects.toThrow(/did not answer wikiTargets/u);
     await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
     await settled;
 
-    const [frame] = phone.requests("read");
+    const [frame] = phone.requests("wikiTargets");
     expect(() => {
       phone.deliver(answered(frame?.id, "late"));
     }).not.toThrow();
   });
 
-  // a rename the phone is still landing reported failed would have the editor put the old name back
-  it("waits on a slow rename past the deadline, since the phone lands it however long it takes", async () => {
+  // a highlight the phone is still landing reported failed would have the editor take its markers out
+  it("waits on a slow highlight past the deadline, since the phone lands it however long it takes", async () => {
     vi.useFakeTimers();
     const { bridge, phone } = await connected();
     phone.answer = () => null;
 
-    const renaming = bridge.request("rename", { from: "Note.md", to: "Later.md" });
+    const marking = bridge.request("addHighlight", { id: "a1", itemId: ITEM, quote: "a passage" });
     let settled = false;
-    void renaming.finally(() => {
+    void marking.finally(() => {
       settled = true;
     });
     await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS * 2);
     expect(settled).toBe(false);
 
-    const [frame] = phone.requests("rename");
+    const [frame] = phone.requests("addHighlight");
     phone.deliver({
       id: frame?.id ?? -1,
       nonce: PHONE_NONCE,
       ok: true,
-      result: { ok: true },
+      result: { queued: true },
       type: "response",
     });
-    await expect(renaming).resolves.toEqual({ ok: true });
-  });
-
-  it("waits on the photo picker for as long as the user browses", async () => {
-    vi.useFakeTimers();
-    const { bridge, phone } = await connected();
-    phone.answer = () => null;
-
-    const picking = bridge.request("pickImage", {});
-    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS * 10);
-    const [frame] = phone.requests("pickImage");
-    phone.deliver({
-      id: frame?.id ?? -1,
-      nonce: PHONE_NONCE,
-      ok: true,
-      result: { kind: "cancelled" },
-      type: "response",
-    });
-
-    await expect(picking).resolves.toEqual({ kind: "cancelled" });
+    await expect(marking).resolves.toEqual({ queued: true });
   });
 
   it("refuses a malformed ask before it reaches the phone", async () => {
     const { bridge, phone } = await connected();
-    await expect(bridge.request("read", { path: "../outside.md" })).rejects.toThrow();
-    expect(phone.requests("read")).toEqual([]);
+    await expect(bridge.request("item", { itemId: "" })).rejects.toThrow();
+    expect(phone.requests("item")).toEqual([]);
   });
 });
 
 describe("what the page drops", () => {
   it("a frame with no nonce, or another load's", async () => {
     const { heard, phone } = await listening();
-    phone.deliverText(JSON.stringify({ event: changed.event, type: "vaultChanged" }));
+    phone.deliverText(
+      JSON.stringify({ ids: [ITEM], overlapped: [], reset: false, type: "itemChanged" }),
+    );
     phone.deliver({ ...changed, nonce: "another-load-nonce-000" });
     expect(heard).toEqual([]);
 
@@ -170,15 +164,20 @@ describe("what the page drops", () => {
   it("a response with no nonce, which settles nothing", async () => {
     const { bridge, phone } = await listening();
     phone.answer = () => null;
-    const asked = bridge.request("read", { path: "A.md" });
-    const [frame] = phone.requests("read");
+    const asked = bridge.request("wikiTargets", {});
+    const [frame] = phone.requests("wikiTargets");
 
     phone.deliverText(
-      JSON.stringify({ id: frame?.id, ok: true, result: { content: "forged" }, type: "response" }),
+      JSON.stringify({
+        id: frame?.id,
+        ok: true,
+        result: targetsTitled("forged"),
+        type: "response",
+      }),
     );
     phone.deliver(answered(frame?.id, "real"));
 
-    await expect(asked).resolves.toEqual({ content: "real" });
+    await expect(asked).resolves.toEqual(targetsTitled("real"));
   });
 
   it("anything that is not a frame", async () => {
@@ -188,8 +187,8 @@ describe("what the page drops", () => {
       "not json",
       "null",
       "42",
-      '"vaultChanged"',
-      JSON.stringify({ type: "vaultChanged" }),
+      '"itemChanged"',
+      JSON.stringify({ type: "itemChanged" }),
       JSON.stringify({ nonce: PHONE_NONCE, type: "format" }),
       JSON.stringify({ ...changed, extra: true }),
     ]) {
@@ -219,22 +218,22 @@ describe("the window transport", () => {
     // the script the native end injects calls the door with one string literal, the frame's JSON
     const script = nativeFrameScript({
       focus: "body",
-      mode: "edit",
+      itemId: ITEM,
+      mode: "item",
       nonce: PHONE_NONCE,
-      path: "Note.md",
       type: "init",
     });
     const call = /^window\.(?<door>\w+)\((?<literal>".*")\);true;$/su.exec(script);
     expect(call?.groups?.door).toBe(PAGE_RECEIVER);
     door?.(JSON.parse(call?.groups?.literal ?? '""'));
     const { bridge, init } = await connecting;
-    expect(init).toMatchObject({ focus: "body", mode: "edit" });
+    expect(init).toMatchObject({ focus: "body", itemId: ITEM, mode: "item" });
 
-    bridge.emit({ path: "Other.md", type: "navigate" });
+    bridge.emit({ itemId: OTHER, type: "openItem" });
     expect(JSON.parse(posted.at(-1) ?? "null")).toEqual({
+      itemId: OTHER,
       nonce: PHONE_NONCE,
-      path: "Other.md",
-      type: "navigate",
+      type: "openItem",
     });
   });
 });

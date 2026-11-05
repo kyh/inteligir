@@ -34,6 +34,26 @@ describe("what a share asks the phone to save", () => {
     });
   });
 
+  it("takes every spelling of the shared link out of its text, and makes no title of a link", () => {
+    const shared = "https://example.com/a";
+    for (const text of [`${shared}/`, `${shared}?utm_source=x`, ` ${shared} . `]) {
+      expect(sharedSaveOf({ meta: null, text, webUrl: shared })).toStrictEqual({
+        kind: "link",
+        note: null,
+        title: null,
+        url: shared,
+      });
+    }
+    expect(
+      sharedSaveOf({ meta: null, text: "Breaking: thing https://t.co/abc", webUrl: shared }),
+    ).toStrictEqual({
+      kind: "link",
+      note: "Breaking: thing https://t.co/abc",
+      title: null,
+      url: shared,
+    });
+  });
+
   it("hands text alone to the text save, which finds a link inside it", () => {
     expect(sharedSaveOf({ meta: null, text: "  a thought  ", webUrl: null })).toStrictEqual({
       kind: "text",
@@ -49,9 +69,9 @@ describe("the share extension's handoff", () => {
       expect(
         redirectSystemPath({ initial, path: "inteligir://dataUrl=inteligirShareKey#weburl" }),
       ).toBe("/");
-      expect(redirectSystemPath({ initial, path: "/item/Unsorted/Plan.md" })).toBe(
-        "/item/Unsorted/Plan.md",
-      );
+      expect(
+        redirectSystemPath({ initial, path: "/item/0190a000-0000-7000-8000-000000000001" }),
+      ).toBe("/item/0190a000-0000-7000-8000-000000000001");
     }
     expect(isShareHandoff("dataUrl=inteligirShareKey")).toBe(true);
     expect(isShareHandoff("inteligir://item/dataUrl=x")).toBe(false);

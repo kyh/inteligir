@@ -2,7 +2,7 @@ import { Stack } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { login, useLoginState, useSyncStatus } from "@/lib/app-runtime";
+import { login, useLoginState, useSession } from "@/lib/app-runtime";
 import { useTheme } from "@/lib/theme";
 import type { Palette } from "@/lib/palette";
 import { defaultDeviceName } from "@/login/device-name";
@@ -18,26 +18,9 @@ const screenOf = (theme: Palette) =>
 
 const FIELD_CLASS = "rounded-lg border border-input bg-card px-4 py-3 text-16 text-foreground";
 
-// the sign-in stands and what the phone holds is kept: the update picks up where it left off
-const UpdateNeeded = () => {
-  const theme = useTheme();
-  return (
-    <SafeAreaView style={screenOf(theme)}>
-      <Stack.Screen options={{ title: "inteligir" }} />
-      <View className="gap-3 self-stretch px-6">
-        <Text className="text-30 font-bold text-foreground">Update Inteligir</Text>
-        <Text className="text-center text-16 text-muted-foreground">
-          This version can&apos;t sync with your account anymore. Update the app to pick up where
-          you left off.
-        </Text>
-      </View>
-    </SafeAreaView>
-  );
-};
-
 const SignInScreen = () => {
   const theme = useTheme();
-  const status = useSyncStatus();
+  const session = useSession();
   const signIn = useLoginState();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -45,12 +28,8 @@ const SignInScreen = () => {
   const busy = signIn.kind === "signing-in";
   const ready = email.trim() !== "" && password !== "" && deviceName.trim() !== "";
   const reason =
-    status.state === "unauthorized"
-      ? "This device was signed out. Sign in again to resume syncing."
-      : "Sign in with your account to see and edit your library.";
-  if (status.state === "outdated") {
-    return <UpdateNeeded />;
-  }
+    (session.kind === "signed-out" ? session.notice : null) ??
+    "Sign in with your account to see and edit your library.";
 
   return (
     <SafeAreaView style={screenOf(theme)}>

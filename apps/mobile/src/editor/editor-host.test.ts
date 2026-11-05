@@ -3,7 +3,7 @@ import { nativeFrameSchema, PAGE_RECEIVER } from "@repo/editor-bridge/protocol";
 import type {
   NativeFrame,
   PageFrame,
-  NoteRequestKind,
+  RequestKind,
   RequestPayload,
   RequestResult,
 } from "@repo/editor-bridge/protocol";
@@ -32,121 +32,70 @@ const framesOf = (script: string): NativeFrame[] => {
   return received;
 };
 
+const ITEM = "0190a000-0000-7000-8000-000000000001";
+const OTHER = "0190a000-0000-7000-8000-000000000002";
+
 // one answer per kind, each distinct, so a frame routed to the wrong port shows
 const PORT_ANSWERS = {
-  addAnnotation: { current: "# a\n", kind: "changed" },
-  editAnnotation: { kind: "refused", message: "no such annotation" },
-  list: { paths: ["a.md"] },
-  pickImage: { kind: "cancelled" },
-  read: { content: "# a\n" },
-  readAsset: { base64: "AA==", mediaType: "image/png" },
-  remove: {},
-  rename: { ok: true },
-  wikiTargets: { targets: [{ path: "a.md", title: "a", type: "doc" }] },
-  write: { kind: "written" },
-  writeAsset: { path: "assets/p.jpg" },
-} satisfies { [K in NoteRequestKind]: RequestResult<K> };
+  addHighlight: { queued: true },
+  item: { item: null },
+  noteHighlight: { queued: false },
+  wikiTargets: { targets: [{ id: ITEM, path: "Plans.md", title: "Plans", type: "doc" }] },
+  writeItem: { kind: "missing" },
+} satisfies { [K in RequestKind]: RequestResult<K> };
 
 const PAYLOADS = {
-  addAnnotation: {
-    base: "# a\n",
-    content: "%%i:c1:start%%# a%%i:c1:end%%\n",
-    id: "c1",
-    path: "a.md",
-    quote: "a",
-  },
-  editAnnotation: { id: "c1", path: "a.md", text: "why?" },
-  list: {},
-  pickImage: {},
-  read: { path: "a.md" },
-  readAsset: { path: "assets/p.jpg" },
-  remove: { path: "a.md" },
-  rename: { from: "a.md", to: "b.md" },
+  addHighlight: { id: "c1", itemId: ITEM, quote: "a passage" },
+  item: { itemId: ITEM },
+  noteHighlight: { id: "c1", itemId: ITEM, text: "why?" },
   wikiTargets: {},
-  write: { content: "# a\nmore\n", guard: { base: "# a\n", kind: "expected" }, path: "a.md" },
-  writeAsset: { base64: "AA==", baseName: "p.jpg", mediaType: "image/jpeg" },
-} satisfies { [K in NoteRequestKind]: RequestPayload<K> };
+  writeItem: { files: [], itemId: ITEM, ops: [] },
+} satisfies { [K in RequestKind]: RequestPayload<K> };
 
-const KINDS: readonly NoteRequestKind[] = [
-  "list",
-  "pickImage",
-  "read",
-  "readAsset",
-  "remove",
-  "rename",
+const KINDS: readonly RequestKind[] = [
+  "item",
+  "writeItem",
   "wikiTargets",
-  "write",
-  "writeAsset",
-  "addAnnotation",
-  "editAnnotation",
+  "addHighlight",
+  "noteHighlight",
 ];
 
 // one request of each kind, in KINDS' order, each carrying its id's position
 const requestFrames = (nonce: string): PageFrame[] => [
-  { id: 0, kind: "list", nonce, payload: PAYLOADS.list, type: "request" },
-  { id: 1, kind: "pickImage", nonce, payload: PAYLOADS.pickImage, type: "request" },
-  { id: 2, kind: "read", nonce, payload: PAYLOADS.read, type: "request" },
-  { id: 3, kind: "readAsset", nonce, payload: PAYLOADS.readAsset, type: "request" },
-  { id: 4, kind: "remove", nonce, payload: PAYLOADS.remove, type: "request" },
-  { id: 5, kind: "rename", nonce, payload: PAYLOADS.rename, type: "request" },
-  { id: 6, kind: "wikiTargets", nonce, payload: PAYLOADS.wikiTargets, type: "request" },
-  { id: 7, kind: "write", nonce, payload: PAYLOADS.write, type: "request" },
-  { id: 8, kind: "writeAsset", nonce, payload: PAYLOADS.writeAsset, type: "request" },
-  { id: 9, kind: "addAnnotation", nonce, payload: PAYLOADS.addAnnotation, type: "request" },
-  { id: 10, kind: "editAnnotation", nonce, payload: PAYLOADS.editAnnotation, type: "request" },
+  { id: 0, kind: "item", nonce, payload: PAYLOADS.item, type: "request" },
+  { id: 1, kind: "writeItem", nonce, payload: PAYLOADS.writeItem, type: "request" },
+  { id: 2, kind: "wikiTargets", nonce, payload: PAYLOADS.wikiTargets, type: "request" },
+  { id: 3, kind: "addHighlight", nonce, payload: PAYLOADS.addHighlight, type: "request" },
+  { id: 4, kind: "noteHighlight", nonce, payload: PAYLOADS.noteHighlight, type: "request" },
 ];
 
 interface PortCall {
-  kind: NoteRequestKind;
-  payload: RequestPayload<NoteRequestKind>;
+  kind: RequestKind;
+  payload: RequestPayload<RequestKind>;
 }
 
 const recordingPorts = () => {
   const calls: PortCall[] = [];
   const ports: EditorRequestPorts = {
-    addAnnotation: async (payload) => {
-      calls.push({ kind: "addAnnotation", payload });
-      return PORT_ANSWERS.addAnnotation;
+    addHighlight: async (payload) => {
+      calls.push({ kind: "addHighlight", payload });
+      return PORT_ANSWERS.addHighlight;
     },
-    editAnnotation: async (payload) => {
-      calls.push({ kind: "editAnnotation", payload });
-      return PORT_ANSWERS.editAnnotation;
+    item: async (payload) => {
+      calls.push({ kind: "item", payload });
+      return PORT_ANSWERS.item;
     },
-    list: async (payload) => {
-      calls.push({ kind: "list", payload });
-      return PORT_ANSWERS.list;
-    },
-    pickImage: async (payload) => {
-      calls.push({ kind: "pickImage", payload });
-      return PORT_ANSWERS.pickImage;
-    },
-    read: async (payload) => {
-      calls.push({ kind: "read", payload });
-      return PORT_ANSWERS.read;
-    },
-    readAsset: async (payload) => {
-      calls.push({ kind: "readAsset", payload });
-      return PORT_ANSWERS.readAsset;
-    },
-    remove: async (payload) => {
-      calls.push({ kind: "remove", payload });
-      return PORT_ANSWERS.remove;
-    },
-    rename: async (payload) => {
-      calls.push({ kind: "rename", payload });
-      return PORT_ANSWERS.rename;
+    noteHighlight: async (payload) => {
+      calls.push({ kind: "noteHighlight", payload });
+      return PORT_ANSWERS.noteHighlight;
     },
     wikiTargets: async (payload) => {
       calls.push({ kind: "wikiTargets", payload });
       return PORT_ANSWERS.wikiTargets;
     },
-    write: async (payload) => {
-      calls.push({ kind: "write", payload });
-      return PORT_ANSWERS.write;
-    },
-    writeAsset: async (payload) => {
-      calls.push({ kind: "writeAsset", payload });
-      return PORT_ANSWERS.writeAsset;
+    writeItem: async (payload) => {
+      calls.push({ kind: "writeItem", payload });
+      return PORT_ANSWERS.writeItem;
     },
   };
   return { calls, ports };
@@ -166,7 +115,7 @@ const hostOver = (
   let minted = 0;
   const host = createEditorHost({
     flushTimeoutMs: options.flushTimeoutMs ?? 1000,
-    init: { focus: options.focus ?? null, path: "a.md" },
+    init: { focus: options.focus ?? null, itemId: ITEM },
     mintNonce: () => {
       minted += 1;
       return `nonce-${String(minted).padStart(16, "0")}`;
@@ -208,18 +157,9 @@ describe("the native end of the editor page's bridge", () => {
     const second = load();
     expect(first).not.toBe(second);
     expect(injected).toMatchObject([
-      { focus: "title", mode: "edit", nonce: first, path: "a.md", type: "init" },
-      { focus: null, mode: "edit", nonce: second, path: "a.md", type: "init" },
+      { focus: "title", itemId: ITEM, mode: "item", nonce: first, type: "init" },
+      { focus: null, itemId: ITEM, mode: "item", nonce: second, type: "init" },
     ]);
-  });
-
-  it("refuses an item page's request, since the phone opens a page over its note", async () => {
-    const { calls, fromPage, load, responses } = hostOver();
-    const nonce = load();
-    fromPage({ id: 0, kind: "item", nonce, payload: { itemId: "i1" }, type: "request" });
-    await nextTask();
-    expect(calls).toStrictEqual([]);
-    expect(responses()).toMatchObject([{ id: 0, nonce, ok: false, type: "response" }]);
   });
 
   it("routes every request kind to its own port and answers under the nonce it came with", async () => {
@@ -244,13 +184,13 @@ describe("the native end of the editor page's bridge", () => {
   it("answers a port's refusal as the page's error, in its words", async () => {
     const { fromPage, load, responses } = hostOver({
       ports: {
-        read: async () => {
+        item: async () => {
           throw new Error("This is not an item on this phone.");
         },
       },
     });
     const nonce = load();
-    fromPage({ id: 7, kind: "read", nonce, payload: { path: "a.md" }, type: "request" });
+    fromPage({ id: 7, kind: "item", nonce, payload: { itemId: ITEM }, type: "request" });
     await nextTask();
     expect(responses()).toStrictEqual([
       { error: "This is not an item on this phone.", id: 7, nonce, ok: false, type: "response" },
@@ -261,14 +201,14 @@ describe("the native end of the editor page's bridge", () => {
     const { calls, events, fromPage, load, responses } = hostOver();
     fromPage({
       id: 0,
-      kind: "list",
+      kind: "wikiTargets",
       nonce: "nonce-0000000000000001",
       payload: {},
       type: "request",
     });
     const nonce = load();
-    fromPage({ id: 1, kind: "list", nonce: `${nonce}x`, payload: {}, type: "request" });
-    fromPage({ nonce: `${nonce}x`, path: "b.md", type: "navigate" });
+    fromPage({ id: 1, kind: "wikiTargets", nonce: `${nonce}x`, payload: {}, type: "request" });
+    fromPage({ itemId: OTHER, nonce: `${nonce}x`, type: "openItem" });
     await nextTask();
     expect(calls).toStrictEqual([]);
     expect(responses()).toStrictEqual([]);
@@ -281,36 +221,30 @@ describe("the native end of the editor page's bridge", () => {
     expect(injected).toStrictEqual([]);
     const nonce = load();
     for (const url of ["about:srcdoc", "https://example.com/", "file:///elsewhere/index.html"]) {
-      fromPage({ id: 1, kind: "list", nonce, payload: {}, type: "request" }, url);
-      fromPage({ nonce, path: "b.md", type: "navigate" }, url);
+      fromPage({ id: 1, kind: "wikiTargets", nonce, payload: {}, type: "request" }, url);
+      fromPage({ itemId: OTHER, nonce, type: "openItem" }, url);
     }
     await nextTask();
     expect(calls).toStrictEqual([]);
     expect(events).toStrictEqual([]);
     // the page's own address with a fragment is still the page
-    fromPage({ nonce, path: "b.md", type: "navigate" }, `${PAGE_URL}#top`);
-    expect(events).toStrictEqual([{ nonce, path: "b.md", type: "navigate" }]);
+    fromPage({ itemId: OTHER, nonce, type: "openItem" }, `${PAGE_URL}#top`);
+    expect(events).toStrictEqual([{ itemId: OTHER, nonce, type: "openItem" }]);
   });
 
-  it("drops what the protocol refuses: broken json, an unknown kind, a path the vault would move", async () => {
+  it("drops what the protocol refuses: broken json, an unknown kind, a malformed payload", async () => {
     const { calls, host, load, responses } = hostOver();
     const nonce = load();
     // what the page never sends, so no frame type spells it
     for (const data of [
       "{not json",
       JSON.stringify({ id: 1, kind: "format", nonce, payload: {}, type: "request" }),
-      JSON.stringify({
-        id: 2,
-        kind: "read",
-        nonce,
-        payload: { path: "../out.md" },
-        type: "request",
-      }),
+      JSON.stringify({ id: 2, kind: "item", nonce, payload: { itemId: "" }, type: "request" }),
       JSON.stringify({
         id: 3,
-        kind: "read",
+        kind: "item",
         nonce,
-        payload: { extra: 1, path: "a.md" },
+        payload: { extra: 1, itemId: ITEM },
         type: "request",
       }),
     ]) {
@@ -324,11 +258,13 @@ describe("the native end of the editor page's bridge", () => {
   it("hands every other page event on, and a flush waits for the page's own answer", async () => {
     const { events, fromPage, host, injected, load } = hostOver();
     const nonce = load();
-    fromPage({ nonce, path: "b.md", type: "navigate" });
-    fromPage({ message: "no a.md", nonce, path: "a.md", type: "openFailed" });
+    fromPage({ itemId: OTHER, nonce, type: "openItem" });
+    fromPage({ dirty: true, nonce, saveError: "the library is full", type: "editorState" });
+    fromPage({ ids: ["c1"], nonce, type: "showAnnotations" });
     expect(events).toStrictEqual([
-      { nonce, path: "b.md", type: "navigate" },
-      { message: "no a.md", nonce, path: "a.md", type: "openFailed" },
+      { itemId: OTHER, nonce, type: "openItem" },
+      { dirty: true, nonce, saveError: "the library is full", type: "editorState" },
+      { ids: ["c1"], nonce, type: "showAnnotations" },
     ]);
 
     let answered: boolean | null = null;
@@ -361,15 +297,6 @@ describe("the native end of the editor page's bridge", () => {
     expect(await host.flush()).toBe(true);
   });
 
-  it("opens a later load on the note the page last said it shows, a rename's new name", () => {
-    const { fromPage, injected, load } = hostOver({ focus: "title" });
-    const nonce = load();
-    fromPage({ nonce, path: "renamed.md", type: "opened" });
-    fromPage({ nonce, path: null, type: "opened" });
-    load();
-    expect(injected.at(-1)).toMatchObject({ focus: null, path: "renamed.md", type: "init" });
-  });
-
   it("loads the page again when its content process dies, and answers only the new load", async () => {
     const { calls, fromPage, host, load, reloads, responses } = hostOver();
     const before = load();
@@ -378,9 +305,9 @@ describe("the native end of the editor page's bridge", () => {
     expect(reloads).toHaveLength(1);
     expect(await pending).toBe(false);
 
-    fromPage({ id: 1, kind: "list", nonce: before, payload: {}, type: "request" });
+    fromPage({ id: 1, kind: "wikiTargets", nonce: before, payload: {}, type: "request" });
     const after = load();
-    fromPage({ id: 2, kind: "list", nonce: after, payload: {}, type: "request" });
+    fromPage({ id: 2, kind: "wikiTargets", nonce: after, payload: {}, type: "request" });
     await nextTask();
     expect(calls).toHaveLength(1);
     expect(responses()).toMatchObject([{ id: 2, nonce: after }]);
@@ -388,27 +315,30 @@ describe("the native end of the editor page's bridge", () => {
 
   it("sends a change only to a loaded page, stamped with its nonce", () => {
     const { host, injected, load } = hostOver();
-    host.send({ event: { kind: "content", path: "a.md" }, type: "vaultChanged" });
+    host.send({ ids: [ITEM], overlapped: [], reset: false, type: "itemChanged" });
     expect(injected).toStrictEqual([]);
     const nonce = load();
-    host.send({ event: { kind: "files", paths: null }, type: "vaultChanged" });
+    host.send({ ids: [ITEM], overlapped: [ITEM], reset: false, type: "itemChanged" });
     expect(injected.at(-1)).toStrictEqual({
-      event: { kind: "files", paths: null },
+      ids: [ITEM],
       nonce,
-      type: "vaultChanged",
+      overlapped: [ITEM],
+      reset: false,
+      type: "itemChanged",
     });
   });
 
-  it("injects a frame the page reads back unchanged, whatever the note holds", async () => {
-    const hostile = `</script><script>alert("x")</script> 'single' "double"  line para \\ \`tick\` \${x}`;
+  it("injects a frame the page reads back unchanged, whatever the item holds", async () => {
+    const hostile = `</script><script>alert("x")</script> 'single' "double"  line para \\ \`tick\` \${x}`;
+    const answer = { targets: [{ id: ITEM, path: "x.md", title: hostile, type: "doc" as const }] };
     const { fromPage, load, responses } = hostOver({
-      ports: { read: async () => ({ content: hostile }) },
+      ports: { wikiTargets: async () => await Promise.resolve(answer) },
     });
     const nonce = load();
-    fromPage({ id: 1, kind: "read", nonce, payload: { path: "a.md" }, type: "request" });
+    fromPage({ id: 1, kind: "wikiTargets", nonce, payload: {}, type: "request" });
     await nextTask();
     expect(responses()).toStrictEqual([
-      { id: 1, nonce, ok: true, result: { content: hostile }, type: "response" },
+      { id: 1, nonce, ok: true, result: answer, type: "response" },
     ]);
   });
 });
@@ -436,7 +366,7 @@ describe("what the WebView may load", () => {
     for (const url of [
       "about:blank",
       "file:///etc/passwd",
-      "inteligir://notes/a.md",
+      "inteligir://item/a",
       "tel:5551234",
       ["javascript", "alert(1)"].join(":"),
     ]) {

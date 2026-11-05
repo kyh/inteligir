@@ -1,121 +1,52 @@
-// the phone keeps ONE database file, so every table in it rides one `user_version`, and each step
-// opens in the transaction that records it. No phone holds a file worth keeping until the first
-// build EAS makes (`easProject` in app.config.js), so until then the schema is one step, edited in
-// place; from that build on, a step is appended, never edited.
+// The phone keeps ONE database file. The library's replica is the engine's: it opens the shared
+// schema and versions it by `meta.schema` (`@repo/notes/library/library-schema`), starting over on
+// any other version. Beside it sit the phone's own tables, which this module opens once the engine
+// has, versioned the same way under a key of its own (`meta.phone_schema`), never `user_version`.
+// No phone holds a file worth keeping until the first build EAS makes (`easProject` in
+// app.config.js), so until then the phone's schema is one step, edited in place; from that build
+// on, a step is appended, never edited.
 
+import type { ReplicaSql } from "@repo/library-replica/replica-ports";
 import { z } from "zod";
-import type { SqlDriver, SqlExecutor } from "./sql-driver";
 
-// mirror_meta's tree_commit is the tree the rows hold, mirrored_commit the last one they held
-// every wanted text of. mirror_entries puts content last: a listing read stops at the columns
-// before it rather than walking a long note's overflow pages to reach one after it. `item` is a
-// doc's library card as JSON, read from its text when the text lands, so the library lists
-// without parsing a note.
-// outbox: the phone's unsent writes, oldest first; `op` and `settle` are JSON parsed on every
-// read. mirror_landings: which paths a landed write moved, in landing order, so a refresh that
-// listed the tree before a landing leaves those rows alone. pending_fills: the links this phone
-// saved and has not read yet, one row each, written in the transaction that queues the stub;
-// `not_before` and `created_at` are unix ms.
-const MIGRATIONS: readonly string[] = [
-  `CREATE TABLE mirror_meta (
-     id INTEGER PRIMARY KEY CHECK (id = 1),
-     tree_commit TEXT NOT NULL,
-     mirrored_commit TEXT
-   );
-   CREATE TABLE mirror_entries (
-     path TEXT PRIMARY KEY NOT NULL,
-     oid TEXT NOT NULL,
-     size INTEGER NOT NULL,
-     pin_commit TEXT NOT NULL,
-     wants_text INTEGER NOT NULL CHECK (wants_text IN (0, 1)),
-     note_id TEXT,
-     aliases TEXT NOT NULL DEFAULT '[]',
-     item TEXT,
-     content TEXT,
-     CHECK (content IS NOT NULL OR (note_id IS NULL AND aliases = '[]' AND item IS NULL))
-   );
-   CREATE TABLE outbox (
-     seq INTEGER PRIMARY KEY AUTOINCREMENT,
-     op TEXT NOT NULL,
-     state TEXT NOT NULL CHECK (state IN ('pending', 'parked')),
-     reason TEXT,
-     settle TEXT,
-     created_at INTEGER NOT NULL,
-     CHECK ((state = 'parked') = (reason IS NOT NULL))
-   );
-   CREATE TABLE mirror_landings (
-     seq INTEGER PRIMARY KEY AUTOINCREMENT,
-     path TEXT NOT NULL
-   );
-   CREATE TABLE pending_fills (
-     item_id TEXT PRIMARY KEY NOT NULL,
-     path TEXT NOT NULL,
-     url TEXT NOT NULL,
-     attempts INTEGER NOT NULL CHECK (attempts >= 0),
-     not_before INTEGER NOT NULL,
-     created_at INTEGER NOT NULL
-   );`,
+// phone_files: what the phone keeps of the library's files, by name (a file's SHA-256, or a
+// cover's thumbnail beside it), the place it is kept in and its size, and when a screen last drew
+// it, by which the discardable ones go least recently used first
+const PHONE_STEPS: readonly (readonly string[])[] = [
+  [
+    `CREATE TABLE phone_files (
+       name TEXT PRIMARY KEY,
+       place TEXT NOT NULL CHECK (place IN ('pinned', 'cache')),
+       bytes INTEGER NOT NULL CHECK (bytes >= 0),
+       used_at INTEGER NOT NULL
+     ) STRICT, WITHOUT ROWID`,
+    "CREATE INDEX phone_files_lru ON phone_files (place, used_at)",
+  ],
 ];
 
-const userVersionSchema = z.object({ user_version: z.number().int().min(0) });
+const storedSchema = z.array(z.object({ v: z.number().int().min(0) }));
 
-const migratePhoneDb = async (db: SqlDriver): Promise<void> => {
-  await db.exclusive(async (tx) => {
-    const [row] = await tx.all("PRAGMA user_version");
-    const version = userVersionSchema.parse(row).user_version;
-    if (version > MIGRATIONS.length) {
+// the phone's tables brought to this build's step; a file a newer build wrote is refused rather
+// than read in a shape this build does not know
+export const openPhoneTables = async (sql: ReplicaSql): Promise<void> => {
+  await sql.exclusive(async (tx) => {
+    const [row] = storedSchema.parse(
+      await tx.all("SELECT v FROM meta WHERE k = 'phone_schema'", []),
+    );
+    const version = row?.v ?? 0;
+    if (version > PHONE_STEPS.length) {
       throw new Error("This phone's library was saved by a newer version of the app.");
     }
-    for (const step of MIGRATIONS.slice(version)) {
-      await tx.exec(step);
+    for (const step of PHONE_STEPS.slice(version)) {
+      for (const statement of step) {
+        await tx.run(statement, []);
+      }
     }
-    if (version < MIGRATIONS.length) {
-      await tx.exec(`PRAGMA user_version = ${String(MIGRATIONS.length)}`);
+    if (version < PHONE_STEPS.length) {
+      await tx.run(
+        "INSERT INTO meta (k, v) VALUES ('phone_schema', ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v",
+        [PHONE_STEPS.length],
+      );
     }
   });
 };
-
-// true while the sign-in the work started under is still the one it may write for
-export type Fence = () => boolean;
-
-// every call through the returned driver waits out one migration, run on the first call so a
-// failed migration fails the call that asked rather than nobody, and forgotten when it fails so
-// the next call tries again. Every module over the one file shares it.
-export const openPhoneDb = (driver: SqlDriver): SqlDriver => {
-  let migrated: Promise<void> | null = null;
-  const ready = async (): Promise<void> => {
-    migrated ??= migratePhoneDb(driver);
-    const current = migrated;
-    try {
-      await current;
-    } catch (error) {
-      if (migrated === current) {
-        migrated = null;
-      }
-      throw error;
-    }
-  };
-  return {
-    all: async (sql, params) => {
-      await ready();
-      return await driver.all(sql, params);
-    },
-    exclusive: async (work) => {
-      await ready();
-      return await driver.exclusive(work);
-    },
-  };
-};
-
-export type Fenced<T> = { ran: true; value: T } | { ran: false };
-
-// the fence is checked again inside the transaction: a wipe queued ahead of it must win. `ran` when
-// `work` ran and committed
-export const fencedExclusive = async <T>(
-  db: SqlDriver,
-  fence: Fence,
-  work: (tx: SqlExecutor) => Promise<T>,
-): Promise<Fenced<T>> =>
-  await db.exclusive(async (tx) =>
-    fence() ? { ran: true, value: await work(tx) } : { ran: false },
-  );

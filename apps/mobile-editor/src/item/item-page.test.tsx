@@ -9,11 +9,11 @@ import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { noteFields } from "@repo/notes/test-support/library-items";
 
 import { connectPageBridge } from "../bridge/page-bridge";
-import type { MountedPage } from "../editor-page";
 import { createFakePhone, PHONE_NONCE } from "../test-support/fake-phone";
 import type { FakePhone } from "../test-support/fake-phone";
 import { bridgeItemStore } from "./item-host";
-import { mountItemPage } from "./item-page";
+import { ItemPage, mountItemPage } from "./item-page";
+import type { MountedPage } from "./item-page";
 
 const ITEM = "0190a000-0000-7000-8000-000000000001";
 
@@ -95,7 +95,7 @@ afterEach(() => {
 
 describe("an item page over the phone's replica", () => {
   it("reads the item, and lands a pause's edit on the phone as ops under their bases", async () => {
-    const phone = createFakePhone({}, { [ITEM]: itemOf(paragraph("p1", "first")) });
+    const phone = createFakePhone({ [ITEM]: itemOf(paragraph("p1", "first")) });
     const { editor, session, timers } = await sessionOver(phone);
     expect(phone.requests("item")).toHaveLength(1);
     editor.tf.insertText(" words", { at: { offset: 5, path: [0, 0] } });
@@ -115,10 +115,9 @@ describe("an item page over the phone's replica", () => {
   });
 
   it("settles a write the phone finds changed under it, and writes again over what it holds", async () => {
-    const phone = createFakePhone(
-      {},
-      { [ITEM]: itemOf(paragraph("p1", "first"), paragraph("p2", "x")) },
-    );
+    const phone = createFakePhone({
+      [ITEM]: itemOf(paragraph("p1", "first"), paragraph("p2", "x")),
+    });
     const { editor, overlaps, session, timers } = await sessionOver(phone);
     phone.items.set(
       ITEM,
@@ -142,7 +141,7 @@ describe("an item page over the phone's replica", () => {
   });
 
   it("says a merge the phone made kept this page's lines over the other device's", async () => {
-    const phone = createFakePhone({}, { [ITEM]: itemOf(paragraph("p1", "first")) });
+    const phone = createFakePhone({ [ITEM]: itemOf(paragraph("p1", "first")) });
     const { overlaps } = await sessionOver(phone);
     phone.deliver({
       ids: [ITEM],
@@ -157,7 +156,7 @@ describe("an item page over the phone's replica", () => {
   });
 
   it("reads the item again when the phone says it changed", async () => {
-    const phone = createFakePhone({}, { [ITEM]: itemOf(paragraph("p1", "first")) });
+    const phone = createFakePhone({ [ITEM]: itemOf(paragraph("p1", "first")) });
     const { editor, session } = await sessionOver(phone);
     phone.items.set(ITEM, itemOf(paragraph("p1", "from the Mac")));
     phone.deliver({
@@ -175,7 +174,7 @@ describe("an item page over the phone's replica", () => {
   });
 
   it("draws the item it was opened on, and answers a flush once it is written", async () => {
-    const phone = createFakePhone({}, { [ITEM]: itemOf(paragraph("p1", "Hello from the item.")) });
+    const phone = createFakePhone({ [ITEM]: itemOf(paragraph("p1", "Hello from the item.")) });
     const { bridge, init } = await connectItem(phone);
     const container = document.createElement("div");
     document.body.append(container);
@@ -188,4 +187,12 @@ describe("an item page over the phone's replica", () => {
       expect(phone.events("flushed")).toMatchObject([{ id: 4, ok: true }]);
     });
   });
+});
+
+// a component the compiler memoizes wrongly passes every other test and fails only on the phone
+it("holds the React Compiler's output for the page's components", () => {
+  expect(
+    ItemPage.toString(),
+    "the mobile-editor vitest project must run the React Compiler's Babel preset (reactCompilerPreset) over src/",
+  ).toContain("react.memo_cache_sentinel");
 });

@@ -1,236 +1,288 @@
-// the platform-free half of the composition root: app-runtime.ts binds it to the Keychain, the
-// database, the attachment and outbox files, SHA-1, the page's fetch and reader and the OS, so every
-// transition between signed in and out runs under test, and the scenario suite drives it under
-// node against a real Worker.
+// The platform-free half of the composition root: app-runtime.ts binds it to the Keychain, the
+// database, the file folders, the global fetch, React Native's socket, the editor page's merge and
+// the OS, so every move between signed in and signed out runs under test, and the scenario suite
+// drives it under node against a real Worker.
+//
+// Signed in, the phone holds the account's library as the replica engine every device runs
+// (`@repo/library-replica`) over its own SQLite: every screen reads it offline and every write goes
+// through its outbox, sent whenever the cloud can be reached. A sign-in starts the database over,
+// since it may hold another account's library; a relaunch opens what it holds, and a database
+// emptied meanwhile (the app reinstalled while the Keychain kept its credential) simply pulls the
+// library again. A sign-out, a revoked credential and a deleted account wipe the replica and the
+// files; a build the cloud no longer takes keeps everything until it is updated.
 
+import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import type { ClientBuild } from "@repo/contract/cloud/client-build";
-import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
-import { createFillQueue } from "../items/fill-queue";
-import type { FillQueue } from "../items/fill-queue";
-import { createItemOps } from "../items/item-ops";
-import type { ItemOps } from "../items/item-ops";
-import { fillLink } from "../items/link-fill";
-import type { LinkFillPorts } from "../items/link-fill";
+import type { V1Client } from "@repo/contract/cloud/v1";
+import { createThreadPreviews } from "@repo/agent-panel/thread-previews";
+import type { ThreadPreviews } from "@repo/agent-panel/thread-previews";
+import { openLibraryReplica } from "@repo/library-replica/library-replica";
+import type { LibraryReplica } from "@repo/library-replica/library-replica";
+import type {
+  BlockMerge,
+  NewId,
+  ReplicaClock,
+  ReplicaSql,
+  SocketDial,
+} from "@repo/library-replica/replica-ports";
+import type { KeptCredential } from "../credential/credential-codec";
+import { createFileCache } from "../files/file-cache";
+import type { FileCache, FileCachePorts, FileFolders } from "../files/file-cache";
 import { createLoginStore } from "../login/login-store";
 import type { LoginStore } from "../login/login-store";
-import type { AttachmentFiles } from "../notes/attachment-files";
-import { createAnnotationOps } from "../notes/annotation-ops";
-import type { AnnotationOps } from "../notes/annotation-ops";
-import { createFileOps } from "../notes/file-ops";
-import type { FileOps } from "../notes/file-ops";
-import { createNotesStore } from "../notes/notes-store";
-import type { CreateNotesStoreArgs, NotesStore } from "../notes/notes-store";
-import type { Sha1 } from "../notes/outbox-ops";
-import type { OutboxFiles } from "../notes/outbox-files";
-import { createSyncRuntime } from "../sync/sync-runtime";
-import type { SyncRuntime, SyncRuntimeArgs } from "../sync/sync-runtime";
 import { messageOf } from "./error-message";
-import type { SignInSource } from "./sign-in-fence";
-import type { SqlDriver } from "./sql-driver";
+import { createExternalStore } from "./external-store";
+import type { ReadableStore } from "./external-store";
+import { openPhoneTables } from "./phone-db";
+import { downloadBlob, phoneTransport, v1ClientOver } from "./phone-transport";
 
 export interface CredentialStore {
-  read: () => Promise<DeviceCredential | null>;
-  write: (credential: DeviceCredential) => Promise<void>;
-  clear: () => Promise<void>;
+  readonly read: () => Promise<KeptCredential | null>;
+  readonly write: (credential: KeptCredential) => Promise<void>;
+  readonly clear: () => Promise<void>;
 }
+
+// the discardable copies of the library's files, past which the least recently drawn go (spec §6:
+// about a gigabyte on the phone)
+const CACHE_BYTES = 1024 * 1024 * 1024;
 
 export interface ComposeRuntimeArgs {
-  cloudUrl: string;
-  build: ClientBuild;
-  credentials: CredentialStore;
-  // openPhoneDb's, opened once for the app's life; a restore keeps what it holds, every other
-  // sign-in wipes it
-  db: SqlDriver;
-  attachments: AttachmentFiles;
-  outboxFiles: OutboxFiles;
-  sha1: Sha1;
-  deviceName: string;
-  randomBytes: (length: number) => Uint8Array;
-  // a uuid: a saved item's id, and a note's for its first annotation
-  newId: () => string;
-  sync?: Omit<SyncRuntimeArgs, "build" | "cloudUrl" | "onVaultPing">;
-  retryBaseMs?: CreateNotesStoreArgs["retryBaseMs"];
-  // what a saved link is read through: the page's fetch, the reader, the cover's shrink and hash,
-  // and whether the phone is online now
-  fill: Omit<LinkFillPorts, "now" | "store"> & {
-    online: () => boolean;
-    setTimer?: (ms: number, run: () => void) => () => void;
-  };
+  readonly cloudUrl: string;
+  readonly build: ClientBuild;
+  readonly credentials: CredentialStore;
+  // the one database, opened once for the app's life
+  readonly openSql: () => Promise<ReplicaSql>;
+  readonly folders: FileFolders;
+  // the global fetch, which every `/v1` call rides
+  readonly fetch: (request: Request) => Promise<Response>;
+  // null keeps the replica on its check-in alone
+  readonly dial: SocketDial | null;
+  readonly clock: ReplicaClock;
+  readonly newId: NewId;
+  // the editor's block merge, which the phone runs in its editor page
+  readonly merge: BlockMerge;
+  readonly sha256Hex: (bytes: Uint8Array<ArrayBuffer>) => Promise<string>;
+  readonly shrinkCover: FileCachePorts["shrink"];
+  readonly cacheBytes?: number;
 }
 
-// `unsent`: the phone holds edits the vault has not taken, and signing out would discard them
-// `unread`: links saved here whose page no device will read once this phone signs out
+// the account's library as this phone holds it, while signed in
+export interface PhoneLibrary {
+  readonly email: string;
+  readonly replica: LibraryReplica;
+  // what only the cell answers (the agent, the account), which waits for a connection: the client,
+  // and TanStack Query's options over it, one set for the sign-in's link
+  readonly client: V1Client;
+  readonly queries: ReturnType<typeof createTanstackQueryUtils<V1Client>>;
+  readonly files: FileCache;
+  // the reply the agent is writing, as the socket carries it
+  readonly previews: ThreadPreviews;
+}
+
+export type PhoneSession =
+  | { readonly kind: "restoring" }
+  // `notice`: why this phone is signed out when it did not sign out itself
+  | { readonly kind: "signed-out"; readonly notice: string | null }
+  | { readonly kind: "signed-in"; readonly library: PhoneLibrary }
+  // the cloud no longer takes this build: everything is kept until the app is updated
+  | { readonly kind: "outdated" }
+  // the library could not open on this phone
+  | { readonly kind: "failed"; readonly message: string };
+
+// `unsent`: the phone holds changes the cloud has not taken, which signing out would discard
 export type LogoutOutcome =
-  | { kind: "signed-out" }
-  | { kind: "unsent"; edits: number; unread: number };
+  | { readonly kind: "signed-out" }
+  | { readonly kind: "unsent"; readonly edits: number };
 
 export interface AppRuntime {
-  sync: SyncRuntime;
-  notes: NotesStore;
-  fileOps: FileOps;
-  // saving a link or a thought into Unsorted
-  items: ItemOps;
-  // the links this phone saved and has not read yet
-  fills: FillQueue;
-  annotations: AnnotationOps;
-  login: LoginStore;
-  // reads the stored credential once and ends `restoring` either way
-  start: () => Promise<void>;
-  // refuses while edits are unsent, unless told to discard them
-  logout: (options?: { discardUnsent?: boolean }) => Promise<LogoutOutcome>;
-  // the app is back in the foreground or back online; every one no-ops while signed out
-  resume: () => void;
-  // the app left the foreground: the socket closes and nothing polls until it resumes
-  suspend: () => void;
+  readonly session: ReadableStore<PhoneSession>;
+  readonly login: LoginStore;
+  // reads the kept credential once and ends `restoring` either way
+  readonly start: () => Promise<void>;
+  // refuses while changes are unsent, unless told to discard them
+  readonly logout: (options?: { readonly discardUnsent?: boolean }) => Promise<LogoutOutcome>;
+  // the app is in front again, or back online: a pass runs and the socket dials
+  readonly resume: () => void;
+  // the app went behind: the socket closes and nothing runs until it resumes
+  readonly suspend: () => void;
 }
 
+export const SIGNED_OUT_ELSEWHERE = "This iPhone was signed out of your library.";
+export const ACCOUNT_DELETED = "Your account was deleted, and its library with it.";
+
 export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
-  // the ping reaches the notes store, which reads under the sync runtime's session and so is built
-  // after it; bound below, before start() can open the socket
-  let pinged: (() => void) | null = null;
-  const sync = createSyncRuntime({
-    ...args.sync,
-    build: args.build,
-    cloudUrl: args.cloudUrl,
-    onVaultPing: () => {
-      pinged?.();
-    },
-  });
-  const notesArgs: CreateNotesStoreArgs = {
-    attachments: args.attachments,
-    db: args.db,
-    deviceName: args.deviceName,
-    mintNoteId: args.newId,
-    outboxFiles: args.outboxFiles,
-    session: sync.session,
-    sha1: args.sha1,
+  const session = createExternalStore<PhoneSession>({ kind: "restoring" });
+  let sql: Promise<ReplicaSql> | null = null;
+  const database = async (): Promise<ReplicaSql> => {
+    sql ??= args.openSql();
+    try {
+      return await sql;
+    } catch (error) {
+      sql = null;
+      throw error;
+    }
   };
-  if (args.retryBaseMs !== undefined) {
-    notesArgs.retryBaseMs = args.retryBaseMs;
-  }
-  const notes = createNotesStore(notesArgs);
-  pinged = () => {
-    void notes.refresh();
+  // what the signed-in library stops when it goes: its status watch and its previews
+  let release: (() => void) | null = null;
+
+  const transportFor = (credential: string | null) =>
+    phoneTransport({ build: args.build, credential, fetch: args.fetch, origin: args.cloudUrl });
+
+  const filesOver = (db: ReplicaSql, credential: string): FileCache => {
+    const transport = transportFor(credential);
+    return createFileCache({
+      capBytes: args.cacheBytes ?? CACHE_BYTES,
+      download: async (sha) => await downloadBlob(transport, args.sha256Hex, sha),
+      folders: args.folders,
+      now: args.clock.now,
+      shrink: args.shrinkCover,
+      sql: db,
+    });
   };
 
-  const { online, setTimer, ...readers } = args.fill;
-  const fills = createFillQueue({
-    canFill: () => sync.get().state === "signed-in" && online(),
-    fill: async (row, mayRetry) =>
-      await fillLink({ ...readers, now: () => Date.now(), store: notes }, row, mayRetry),
-    now: () => Date.now(),
-    setTimer:
-      setTimer ??
-      ((ms, run) => {
-        const timer = setTimeout(run, ms);
-        return () => {
-          clearTimeout(timer);
-        };
-      }),
-    store: notes,
-  });
+  const replicaOver = async (db: ReplicaSql, files: FileCache, credential: string) => {
+    const opening = await openLibraryReplica({
+      blobs: files.staged,
+      clock: args.clock,
+      dial: args.dial,
+      merge: args.merge,
+      newId: args.newId,
+      sql: db,
+      transport: transportFor(credential),
+    });
+    if (opening.kind === "unsupported") {
+      throw new Error(
+        `This iPhone's SQLite (${opening.sqliteVersion}) is older than your library needs.`,
+      );
+    }
+    return opening.replica;
+  };
 
-  // the tree is fetched here so no screen carries its own cold-fetch effect, and the edits the last
-  // launch left are sent.
-  const activate = (credential: DeviceCredential, source: SignInSource): void => {
-    sync.setCredential(credential);
-    notes.reset(source);
-    sync.start();
-    void notes.refresh();
-    void notes.drain();
-    fills.wake();
+  // this phone leaves its account: every row, every unsent change and every file go
+  const leave = async (library: PhoneLibrary, notice: string | null): Promise<void> => {
+    release?.();
+    release = null;
+    await library.replica.wipe();
+    await library.files.clear();
+    let said = notice;
+    try {
+      await args.credentials.clear();
+    } catch (error) {
+      said = `Signed out, but the saved sign-in could not be removed and may return on the next launch: ${messageOf(error)}`;
+    }
+    session.set({ kind: "signed-out", notice: said });
+  };
+
+  const open = async (kept: KeptCredential, source: "restored" | "signed-in"): Promise<void> => {
+    const db = await database();
+    let files = filesOver(db, kept.credential);
+    let replica = await replicaOver(db, files, kept.credential);
+    await openPhoneTables(db);
+    if (source === "signed-in") {
+      // another account's library, or the last sign-in's, goes before this one's is pulled
+      await replica.wipe();
+      await files.clear();
+      files = filesOver(db, kept.credential);
+      replica = await replicaOver(db, files, kept.credential);
+    }
+    const client = v1ClientOver(transportFor(kept.credential));
+    const library: PhoneLibrary = {
+      client,
+      email: kept.email,
+      files,
+      previews: createThreadPreviews(replica.onThreadFrame),
+      queries: createTanstackQueryUtils(client),
+      replica,
+    };
+    const unwatch = replica.onStatus(() => {
+      const { failure } = replica.status();
+      if (failure?.kind !== "session" || session.get().kind !== "signed-in") {
+        return;
+      }
+      if (failure.end === "outdated") {
+        release?.();
+        release = null;
+        session.set({ kind: "outdated" });
+        return;
+      }
+      void leave(library, failure.end === "gone" ? ACCOUNT_DELETED : SIGNED_OUT_ELSEWHERE);
+    });
+    release = () => {
+      unwatch();
+      library.previews.stop();
+    };
+    session.set({ kind: "signed-in", library });
+    replica.start();
+    void (async () => {
+      try {
+        await files.sweep();
+      } catch {
+        // a sweep is tidying; the next launch sweeps again
+      }
+    })();
   };
 
   const login = createLoginStore({
-    client: { baseUrl: args.cloudUrl, build: args.build },
-    store: {
-      // the bearer alone: nothing the phone runs asks whose account it is
-      write: async (answer) => {
-        const credential: DeviceCredential = {
-          credential: answer.credential,
-          deviceId: answer.deviceId,
-        };
-        await args.credentials.write(credential);
-        activate(credential, "signed-in");
-      },
+    client: (credential) => v1ClientOver(transportFor(credential)),
+    keep: args.credentials.write,
+    signedIn: async (kept) => {
+      await open(kept, "signed-in");
     },
-  });
-
-  // whichever request hears the refusal, what this sign-in fetched is not served again. the
-  // credential stays stored, so the sign-in screen can still say this device was signed out.
-  let previous = sync.get().state;
-  sync.subscribe(() => {
-    const { state } = sync.get();
-    if (state === "unauthorized" && previous !== "unauthorized") {
-      notes.reset(null);
-    }
-    previous = state;
   });
 
   let started = false;
 
+  const signedIn = (): PhoneLibrary | null => {
+    const current = session.get();
+    return current.kind === "signed-in" ? current.library : null;
+  };
+
   return {
-    annotations: createAnnotationOps({
-      now: () => Math.floor(Date.now() / 1000),
-      randomBytes: args.randomBytes,
-      store: notes,
-    }),
-    fileOps: createFileOps(notes, { now: () => new Date() }),
-    fills,
-    items: createItemOps({
-      newId: args.newId,
-      now: () => new Date(),
-      linkSaved: fills.wake,
-      store: notes,
-    }),
     async logout(options = {}) {
-      const edits = await notes.unsentCount();
-      const unread = await notes.unreadCount();
-      if (edits + unread > 0 && options.discardUnsent !== true) {
-        return { edits, kind: "unsent", unread };
+      const library = signedIn();
+      if (library === null) {
+        return { kind: "signed-out" };
       }
-      // cleared before the runtimes stop: a sign-in the screen allows once they have would write
-      // a credential this delete could then remove.
+      const { unsent } = library.replica.status();
+      if (unsent > 0 && options.discardUnsent !== true) {
+        return { edits: unsent, kind: "unsent" };
+      }
       try {
-        await args.credentials.clear();
-      } catch (error) {
-        login.fail(
-          `Signed out, but the saved sign-in could not be removed and may return on the next launch: ${messageOf(error)}`,
-        );
+        await library.client.account.signOut();
+      } catch {
+        // offline, or the cloud did not answer: the device list still names this phone, to remove
       }
-      sync.setCredential(null);
-      notes.reset(null);
+      await leave(library, null);
       return { kind: "signed-out" };
     },
     login,
-    notes,
     resume() {
-      sync.resume();
-      void notes.refresh();
-      void notes.drain();
-      fills.wake();
+      signedIn()?.replica.resume();
     },
+    session,
     async start() {
       if (started) {
         return;
       }
       started = true;
-      let stored: DeviceCredential | null = null;
+      let kept: KeptCredential | null = null;
       try {
-        stored = await args.credentials.read();
+        kept = await args.credentials.read();
       } catch (error) {
         login.fail(`The saved sign-in could not be read: ${messageOf(error)}`);
       }
-      if (stored === null) {
-        sync.setCredential(null);
+      if (kept === null) {
+        session.set({ kind: "signed-out", notice: null });
         return;
       }
-      activate(stored, "restored");
+      try {
+        await open(kept, "restored");
+      } catch (error) {
+        session.set({ kind: "failed", message: messageOf(error) });
+      }
     },
     suspend() {
-      sync.suspend();
-      fills.suspend();
+      signedIn()?.replica.suspend();
     },
-    sync,
   };
 };

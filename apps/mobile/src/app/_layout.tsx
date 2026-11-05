@@ -1,12 +1,22 @@
+// The app's root: the session decides which screens exist (`Stack.Protected`, never a per-screen
+// branch). Signed in, the Library, an item, a file's viewer and the built-in agent's
+// conversations, each reading the one library this phone holds through its context, and the share
+// inbox and the headless page beside them; signed out, the sign-in. A build the cloud no longer
+// takes, or a library that would not open, says so in place of every screen.
+
+import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { ShareIntentProvider } from "expo-share-intent";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
+import { Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { ReaderPage } from "@/items/reader-page";
+import { HeadlessPage } from "@/editor/headless-page";
 import { ShareInbox } from "@/items/share-inbox";
-import { ensureStarted, useSyncStatus } from "@/lib/app-runtime";
+import { ensureStarted, queryClient, useSession } from "@/lib/app-runtime";
+import type { PhoneSession } from "@/lib/compose-runtime";
+import { LibraryContext } from "@/lib/library-hooks";
 import { useTheme } from "@/lib/theme";
 
 // the app's classes: one sheet, read once at the root, so every screen's className resolves
@@ -19,10 +29,15 @@ void SplashScreen.preventAutoHideAsync();
 // once the inbox is mounted, never dropped on the way to the foreground
 const SHARE_OPTIONS = { resetOnBackground: false };
 
+const stoppedLine = (session: Extract<PhoneSession, { kind: "outdated" | "failed" }>): string =>
+  session.kind === "outdated"
+    ? "This version of Inteligir is too old for your library. Update it from the App Store to go on."
+    : `Your library couldn't open on this iPhone: ${session.message}`;
+
 const RootLayout = () => {
-  const status = useSyncStatus();
+  const session = useSession();
   const theme = useTheme();
-  const restoring = status.state === "restoring";
+  const restoring = session.kind === "restoring";
 
   useEffect(() => {
     void ensureStarted();
@@ -39,32 +54,45 @@ const RootLayout = () => {
   if (restoring) {
     return null;
   }
+  if (session.kind === "outdated" || session.kind === "failed") {
+    return (
+      <View className="grow basis-0 items-center justify-center bg-background px-8">
+        <Text className="text-center text-16 text-foreground">{stoppedLine(session)}</Text>
+      </View>
+    );
+  }
 
-  const signedIn = status.state === "signed-in";
+  const library = session.kind === "signed-in" ? session.library : null;
   return (
     <SafeAreaProvider>
-      <ShareIntentProvider options={SHARE_OPTIONS}>
-        <Stack
-          screenOptions={{
-            contentStyle: { backgroundColor: theme.background },
-            headerShadowVisible: false,
-            headerStyle: { backgroundColor: theme.background },
-            headerTintColor: theme.foreground,
-          }}
-        >
-          <Stack.Protected guard={signedIn}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="item/[...path]" />
-            <Stack.Screen name="view/[...path]" />
-          </Stack.Protected>
-          <Stack.Protected guard={!signedIn}>
-            <Stack.Screen name="sign-in" />
-          </Stack.Protected>
-        </Stack>
-        {signedIn ? <ShareInbox /> : null}
-        {signedIn ? <ReaderPage /> : null}
-        <StatusBar />
-      </ShareIntentProvider>
+      <QueryClientProvider client={queryClient}>
+        <LibraryContext value={library}>
+          <ShareIntentProvider options={SHARE_OPTIONS}>
+            <Stack
+              screenOptions={{
+                contentStyle: { backgroundColor: theme.background },
+                headerShadowVisible: false,
+                headerStyle: { backgroundColor: theme.background },
+                headerTintColor: theme.foreground,
+              }}
+            >
+              <Stack.Protected guard={library !== null}>
+                <Stack.Screen name="index" />
+                <Stack.Screen name="item/[id]" />
+                <Stack.Screen name="view/[id]" />
+                <Stack.Screen name="agent/index" options={{ title: "Conversations" }} />
+                <Stack.Screen name="agent/[thread]" />
+              </Stack.Protected>
+              <Stack.Protected guard={library === null}>
+                <Stack.Screen name="sign-in" />
+              </Stack.Protected>
+            </Stack>
+            {library === null ? null : <ShareInbox />}
+            {library === null ? null : <HeadlessPage />}
+            <StatusBar />
+          </ShareIntentProvider>
+        </LibraryContext>
+      </QueryClientProvider>
     </SafeAreaProvider>
   );
 };

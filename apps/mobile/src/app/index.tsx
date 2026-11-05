@@ -1,5 +1,12 @@
+// Home: the library this phone holds, newest first, offline as online. A scope from the menu (every
+// item, Unsorted, a folder, Deleted), the kind chips and the header's search narrow it, the search
+// ranked by the replica's own full-text index; the field above saves a link or a thought where the
+// scope saves. The menu opens the built-in agent's conversations, which need a connection.
+// FlatList, not a ScrollView: a library holds thousands of items and an eager row each janks the
+// open.
+
 import { Stack } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActionSheetIOS,
   Alert,
@@ -12,29 +19,20 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { UNSORTED_FOLDER } from "@repo/notes/items/item-kind";
+import type { CellLibraryScope } from "@repo/domain/library-scope";
+import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import type { ItemKind } from "@repo/notes/items/item-kind";
-import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
-import { basenamePath, extnamePath } from "@repo/notes/knowledge/vault-path";
-import type { SavedItem } from "@/items/item-ops";
-import {
-  createNote,
-  deleteNote,
-  refreshNotes,
-  renameNote,
-  listsNow,
-  saveText,
-  useLibrary,
-} from "@/lib/app-runtime";
+import { createPhoneSaves } from "@/items/phone-saves";
+import { ingestPhoto } from "@/items/photo-ingest";
+import type { SavedItem } from "@/items/phone-saves";
+import { newBlockId } from "@/lib/app-runtime";
 import { messageOf } from "@/lib/error-message";
-import { openItem, openViewer } from "@/lib/routes";
+import { useLibrary, useListing, useReplicaStatus } from "@/lib/library-hooks";
+import { openConversations, openItem, openViewer } from "@/lib/routes";
 import { SPACE, useTheme } from "@/lib/theme";
 import { LibraryCardRow } from "@/library/library-card";
-import type { LibraryCard, LibraryFilter, PhoneScope } from "@/library/library-view";
-import { confirmDeleteNote } from "@/notes/confirm-delete-note";
-import { linksKeptLine } from "@/notes/file-ops";
-import type { NotesTreeState } from "@/notes/notes-store";
-import { OutboxBanner } from "@/notes/outbox-banner";
+import { listingQuery, saveFolderOf, scopeTitle } from "@/library/library-query";
+import { UnsentBanner } from "@/library/unsent-banner";
 import { confirmSignOut } from "@/ui/confirm-sign-out";
 
 // the chips over the list, in the order a person scans them
@@ -48,172 +46,21 @@ const KIND_CHIPS: readonly { kind: ItemKind; label: string }[] = [
   { kind: "note", label: "Notes" },
 ];
 
-const LOADING = "Loading your library…";
+// at most this many hits a search ranks
+const SEARCH_HITS = 500;
 
-const scopeTitle = (scope: PhoneScope): string => {
-  switch (scope.kind) {
-    case "all": {
-      return "Library";
-    }
-    case "unsorted": {
-      return UNSORTED_FOLDER;
-    }
-    case "folder": {
-      return scope.path.split("/").at(-1) ?? scope.path;
-    }
-    case "tag": {
-      return `#${scope.tag}`;
-    }
-    // no default
-  }
-};
-
-const emptyLabel = (tree: NotesTreeState, filtered: boolean): string => {
-  if (tree.state === "idle" || tree.state === "loading") {
-    return LOADING;
-  }
-  if (tree.state === "empty" || tree.state === "error") {
-    return tree.message;
-  }
-  return filtered
-    ? "Nothing here matches."
-    : "Nothing saved yet. Share a page to Inteligir, or type a link or a thought above.";
-};
-
-// a folder scope's new note lands in that folder; every other scope's in Unsorted
-const folderOf = (scope: PhoneScope): string =>
-  scope.kind === "folder" ? scope.path : UNSORTED_FOLDER;
-
-// an image or a PDF opens full size, and so does a file that is an item of its own; everything
-// else opens in the editor
-const openCard = (card: LibraryCard): void => {
-  const bare = card.file === card.path;
-  if ((card.kind === "image" || card.kind === "pdf" || bare) && card.file !== null) {
-    openViewer(card.file, bare ? null : card.path);
+// a picture or a PDF opens full size; everything else opens in the editor
+const openRow = (row: ReplicaListingRow): void => {
+  if (row.kind === "image" || row.kind === "pdf") {
+    openViewer(row.id);
     return;
   }
-  openItem(card.path);
+  openItem(row.id);
 };
 
-// the name a rename starts from: a note's title, a file's name without its extension, which the
-// rename keeps
-const renameStem = (path: string): string => {
-  if (isDocPath(path)) {
-    return docStem(path);
-  }
-  const name = basenamePath(path);
-  return name.slice(0, name.length - extnamePath(path).length);
-};
-
-const rename = (path: string): void => {
-  Alert.prompt(
-    "Rename",
-    undefined,
-    [
-      { style: "cancel", text: "Cancel" },
-      {
-        onPress: (name?: string) => {
-          void (async () => {
-            const outcome = await renameNote(path, name ?? "");
-            if (outcome.kind === "refused") {
-              Alert.alert("Couldn't rename", outcome.message);
-            } else if (outcome.unlinked.length > 0) {
-              Alert.alert("Renamed", linksKeptLine(outcome.unlinked));
-            }
-          })();
-        },
-        text: "Rename",
-      },
-    ],
-    "plain-text",
-    renameStem(path),
-  );
-};
-
-const confirmDelete = (path: string): void => {
-  confirmDeleteNote(path, () => {
-    void (async () => {
-      try {
-        await deleteNote(path);
-      } catch (error) {
-        Alert.alert("Couldn't delete", messageOf(error));
-      }
-    })();
-  });
-};
-
-interface CardAction {
-  readonly label: string;
-  readonly role?: "cancel" | "destructive";
-  readonly run: ((card: LibraryCard) => void) | null;
-}
-
-const CARD_ACTIONS: readonly CardAction[] = [
-  { label: "Cancel", role: "cancel", run: null },
-  { label: "Open", run: openCard },
-  {
-    label: "Rename",
-    run: (card) => {
-      rename(card.path);
-    },
-  },
-  {
-    label: "Delete",
-    role: "destructive",
-    run: (card) => {
-      confirmDelete(card.path);
-    },
-  },
-];
-
-const showCardActions = (card: LibraryCard): void => {
-  ActionSheetIOS.showActionSheetWithOptions(
-    {
-      cancelButtonIndex: CARD_ACTIONS.findIndex((action) => action.role === "cancel"),
-      destructiveButtonIndex: CARD_ACTIONS.findIndex((action) => action.role === "destructive"),
-      options: CARD_ACTIONS.map((action) => action.label),
-      title: card.title,
-    },
-    (index) => {
-      CARD_ACTIONS[index]?.run?.(card);
-    },
-  );
-};
-
-// a saved link or thought just lists; one the list in view leaves out (a scope, a kind or a
-// search hides Unsorted's newest), one already here, and one that could not be, each say so
-const tellSaved = (saved: SavedItem, filter: LibraryFilter): void => {
-  if (saved.kind === "refused") {
-    Alert.alert("Couldn't save", saved.message);
-    return;
-  }
-  if (saved.kind === "saved" && !listsNow(filter, saved.path)) {
-    Alert.alert(`Saved to ${UNSORTED_FOLDER}`, docStem(saved.path), [
-      { style: "cancel", text: "OK" },
-      {
-        onPress: () => {
-          openItem(saved.path);
-        },
-        text: "Open",
-      },
-    ]);
-    return;
-  }
-  if (saved.kind === "already") {
-    Alert.alert("Already in your library", docStem(saved.path), [
-      { style: "cancel", text: "OK" },
-      {
-        onPress: () => {
-          openItem(saved.path);
-        },
-        text: "Open",
-      },
-    ]);
-  }
-};
-
-const SaveField = ({ filter }: { filter: LibraryFilter }) => {
+const SaveField = ({ scope }: { scope: CellLibraryScope }) => {
   const theme = useTheme();
+  const { replica } = useLibrary();
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const save = (): void => {
@@ -224,15 +71,29 @@ const SaveField = ({ filter }: { filter: LibraryFilter }) => {
       setSaving(true);
       let saved: SavedItem;
       try {
-        saved = await saveText(draft);
+        saved = await createPhoneSaves({ newBlockId, replica }).saveText(draft, {
+          folderId: saveFolderOf(scope),
+        });
       } catch (error) {
         saved = { kind: "refused", message: messageOf(error) };
       }
       setSaving(false);
-      if (saved.kind !== "refused") {
-        setDraft("");
+      if (saved.kind === "refused") {
+        Alert.alert("Couldn't save", saved.message);
+        return;
       }
-      tellSaved(saved, filter);
+      setDraft("");
+      if (saved.made.folded) {
+        Alert.alert("Already in your library", undefined, [
+          { style: "cancel", text: "OK" },
+          {
+            onPress: () => {
+              openItem(saved.made.id);
+            },
+            text: "Open",
+          },
+        ]);
+      }
     })();
   };
   return (
@@ -290,53 +151,65 @@ const KindChips = ({
   </ScrollView>
 );
 
-const NOTICE_CLASS = "mb-2 text-13 text-muted-foreground";
-
-const Notices = ({ tree }: { tree: NotesTreeState }) => {
-  if (tree.state !== "ready") {
+// the replica's ranked hits for the words typed, offline as online
+const useSearchHits = (query: string): ReadonlyMap<string, number> | null => {
+  const { replica } = useLibrary();
+  const [hits, setHits] = useState<{ query: string; ranks: ReadonlyMap<string, number> } | null>(
+    null,
+  );
+  const words = query.trim();
+  useEffect(() => {
+    if (words === "") {
+      return;
+    }
+    let live = true;
+    void (async () => {
+      const found = await replica.search(words, SEARCH_HITS);
+      if (live) {
+        setHits({ query: words, ranks: new Map(found.map((hit, rank) => [hit.itemId, rank])) });
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [replica, words]);
+  if (words === "") {
     return null;
   }
-  return (
-    <>
-      {tree.progress === null ? null : (
-        <Text className={NOTICE_CLASS}>
-          {LOADING} {String(tree.progress.fetched)} of {String(tree.progress.total)}
-        </Text>
-      )}
-      {tree.refreshError === null ? null : (
-        <Text className={NOTICE_CLASS}>Refresh issue: {tree.refreshError}</Text>
-      )}
-    </>
-  );
+  return hits !== null && hits.query === words ? hits.ranks : new Map();
 };
 
-const isFolderScope = (scope: PhoneScope, path: string): boolean =>
-  scope.kind === "folder" && scope.path === path;
+const emptyLabel = (pulled: boolean, filtered: boolean): string => {
+  if (!pulled) {
+    return "Loading your library…";
+  }
+  return filtered
+    ? "Nothing here matches."
+    : "Nothing saved yet. Share a page to Inteligir, or type a link or a thought above.";
+};
 
-const isTagScope = (scope: PhoneScope, tag: string): boolean =>
-  scope.kind === "tag" && scope.tag === tag;
-
-// Home: everything saved, newest first. A scope from the menu, the kind chips and the header's
-// search narrow it; the field above saves a link or a thought into Unsorted. FlatList, not a
-// ScrollView: a library holds thousands of items and an eager row each janks the open.
 const LibraryScreen = () => {
   const theme = useTheme();
   // a value, not a class: className draws nothing on a SafeAreaView
   const screen = { backgroundColor: theme.background, flex: 1 };
-  const [scope, setScope] = useState<PhoneScope>({ kind: "all" });
+  const { replica } = useLibrary();
+  const status = useReplicaStatus();
+  const [scope, setScope] = useState<CellLibraryScope>({ kind: "all" });
   const [kinds, setKinds] = useState<ReadonlySet<ItemKind>>(() => new Set());
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
-  const filter = useMemo(() => ({ kinds, query, scope }), [kinds, query, scope]);
-  const { cards, scopes, tree } = useLibrary(filter);
+  const hits = useSearchHits(query);
+  const listingAsked = useMemo(() => listingQuery({ hits, kinds, scope }), [hits, kinds, scope]);
+  const { page } = useListing(listingAsked);
+  const folders = replica.folders();
 
-  const refresh = useCallback(async () => {
+  const refresh = async (): Promise<void> => {
     setRefreshing(true);
-    await refreshNotes();
+    await replica.sync();
     setRefreshing(false);
-  }, []);
+  };
 
-  const toggleKind = useCallback((kind: ItemKind) => {
+  const toggleKind = (kind: ItemKind): void => {
     setKinds((held) => {
       const next = new Set(held);
       if (next.has(kind)) {
@@ -346,16 +219,43 @@ const LibraryScreen = () => {
       }
       return next;
     });
-  }, []);
+  };
 
-  const newNote = useCallback(async () => {
-    const created = await createNote(folderOf(scope));
-    if (created.kind === "refused") {
-      Alert.alert("Couldn't create a note", created.message);
-      return;
+  const newNote = async (): Promise<void> => {
+    const made = await createPhoneSaves({ newBlockId, replica }).newNote({
+      folderId: saveFolderOf(scope),
+    });
+    openItem(made.id, "title");
+  };
+
+  const addPhoto = async (): Promise<void> => {
+    const added = await ingestPhoto(replica, saveFolderOf(scope));
+    if (added.kind === "refused") {
+      Alert.alert("Couldn't add the photo", added.message);
+    } else if (added.kind === "picked") {
+      openViewer(added.itemId);
     }
-    openItem(created.path, "title");
-  }, [scope]);
+  };
+
+  const rowActions = (row: ReplicaListingRow): void => {
+    const deleted = row.deletedAt !== null;
+    const options = ["Cancel", "Open", deleted ? "Restore" : "Move to Deleted"];
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        cancelButtonIndex: 0,
+        destructiveButtonIndex: deleted ? undefined : 2,
+        options,
+        title: row.title,
+      },
+      (index) => {
+        if (index === 1) {
+          openRow(row);
+        } else if (index === 2) {
+          void (deleted ? replica.restoreItems([row.id]) : replica.deleteItems([row.id]));
+        }
+      },
+    );
+  };
 
   const filtered = scope.kind !== "all" || kinds.size > 0 || query.trim() !== "";
 
@@ -369,9 +269,9 @@ const LibraryScreen = () => {
             onChangeText: (event) => {
               setQuery(event.nativeEvent.text);
             },
-            placeholder: "Search titles, sites and links",
+            placeholder: "Search your library",
           },
-          title: scopeTitle(scope),
+          title: scopeTitle(scope, folders),
         }}
       />
       <Stack.Toolbar placement="right">
@@ -383,7 +283,7 @@ const LibraryScreen = () => {
                 setScope({ kind: "all" });
               }}
             >
-              All
+              All items
             </Stack.Toolbar.MenuAction>
             <Stack.Toolbar.MenuAction
               isOn={scope.kind === "unsorted"}
@@ -391,43 +291,48 @@ const LibraryScreen = () => {
                 setScope({ kind: "unsorted" });
               }}
             >
-              {UNSORTED_FOLDER}
+              Unsorted
             </Stack.Toolbar.MenuAction>
-            <Stack.Toolbar.Menu title="Folders" hidden={scopes.folders.length === 0}>
-              {scopes.folders.map((folder) => (
+            <Stack.Toolbar.Menu title="Folders" hidden={folders.length === 0}>
+              {folders.map((folder) => (
                 <Stack.Toolbar.MenuAction
-                  key={folder}
-                  isOn={isFolderScope(scope, folder)}
+                  key={folder.id}
+                  isOn={scope.kind === "folder" && scope.folderId === folder.id}
                   onPress={() => {
-                    setScope({ kind: "folder", path: folder });
+                    setScope({ folderId: folder.id, kind: "folder" });
                   }}
                 >
-                  {folder}
+                  {folder.name}
                 </Stack.Toolbar.MenuAction>
               ))}
             </Stack.Toolbar.Menu>
-            <Stack.Toolbar.Menu title="Tags" hidden={scopes.tags.length === 0}>
-              {scopes.tags.map(({ count, tag }) => (
-                <Stack.Toolbar.MenuAction
-                  key={tag}
-                  isOn={isTagScope(scope, tag)}
-                  subtitle={String(count)}
-                  onPress={() => {
-                    setScope({ kind: "tag", tag });
-                  }}
-                >
-                  {`#${tag}`}
-                </Stack.Toolbar.MenuAction>
-              ))}
-            </Stack.Toolbar.Menu>
+            <Stack.Toolbar.MenuAction
+              isOn={scope.kind === "deleted"}
+              onPress={() => {
+                setScope({ kind: "deleted" });
+              }}
+            >
+              Deleted
+            </Stack.Toolbar.MenuAction>
           </Stack.Toolbar.Menu>
           <Stack.Toolbar.MenuAction
-            disabled={tree.state !== "ready"}
+            hidden={scope.kind === "deleted"}
             onPress={() => {
               void newNote();
             }}
           >
             New note
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
+            hidden={scope.kind === "deleted"}
+            onPress={() => {
+              void addPhoto();
+            }}
+          >
+            Add a photo
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction onPress={openConversations}>
+            Ask the agent
           </Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction
             onPress={() => {
@@ -459,31 +364,30 @@ const LibraryScreen = () => {
             }}
           />
         }
-        data={cards}
-        keyExtractor={(card) => card.path}
+        data={page.items}
+        keyExtractor={(row) => row.id}
         ListHeaderComponent={
           <>
-            <OutboxBanner onOpen={openItem} />
-            <SaveField filter={filter} />
+            <UnsentBanner />
+            {scope.kind === "deleted" ? null : <SaveField scope={scope} />}
             <KindChips kinds={kinds} toggle={toggleKind} />
-            <Notices tree={tree} />
           </>
         }
         ListEmptyComponent={
           <View className="items-center gap-2 px-6 py-24">
             <Text className="text-center text-16 text-muted-foreground">
-              {emptyLabel(tree, filtered)}
+              {emptyLabel(status.cursor > 0 || status.failure !== null, filtered)}
             </Text>
           </View>
         }
-        renderItem={({ item: card }) => (
+        renderItem={({ item: row }) => (
           <LibraryCardRow
-            card={card}
+            row={row}
             onPress={() => {
-              openCard(card);
+              openRow(row);
             }}
             onLongPress={() => {
-              showCardActions(card);
+              rowActions(row);
             }}
           />
         )}

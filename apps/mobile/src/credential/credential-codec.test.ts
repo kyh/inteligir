@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseStoredCredential, serializeCredential } from "./credential-codec";
 
-const VALID = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
+const VALID = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1", email: "ada@example.com" };
 
 describe("the credential codec parses at the boundary", () => {
   it("round-trips a valid credential", () => {
@@ -15,5 +15,8 @@ describe("the credential codec parses at the boundary", () => {
     // never as a token the cloud refuses on every request forever.
     expect(parseStoredCredential(JSON.stringify({ credential: "nope", deviceId: "d" }))).toBeNull();
     expect(parseStoredCredential(JSON.stringify({ deviceId: "d" }))).toBeNull();
+    // a record that does not name whose library it opens is no sign-in
+    const { email: _email, ...bare } = VALID;
+    expect(parseStoredCredential(JSON.stringify(bare))).toBeNull();
   });
 });

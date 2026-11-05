@@ -1,0 +1,157 @@
+// The screens' reads of the library this phone holds, each kept current with the replica's change
+// feed: the listing and its scopes from memory, an item, its highlights and the conversations from
+// the replica's SQL (every one with this phone's unsent writes laid over, and every one offline),
+// the reply the agent is writing from the socket, and a file's address from the file cache. The
+// signed-in library comes down through one context the root provides, so no screen holds a
+// runtime of its own.
+
+import { createContext, use, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import type { ListingPage, ListingQuery, ListingScopes } from "@repo/notes/library/library-index";
+import type {
+  ReplicaChange,
+  ReplicaItem,
+  ReplicaListingRow,
+  ReplicaStatus,
+} from "@repo/library-replica/library-replica";
+import type { AnnotationStore } from "@repo/notes/annotations/store-schema";
+import type { PhoneLibrary } from "./compose-runtime";
+
+export const LibraryContext = createContext<PhoneLibrary | null>(null);
+
+export const useLibrary = (): PhoneLibrary => {
+  const library = use(LibraryContext);
+  if (library === null) {
+    throw new Error("a library screen mounted outside the signed-in library");
+  }
+  return library;
+};
+
+// a count that moves whenever the replica says something changed that `moved` cares about
+const useChanges = (moved: (change: ReplicaChange) => boolean): number => {
+  const { replica } = useLibrary();
+  const [version, setVersion] = useState(0);
+  useEffect(
+    () =>
+      replica.onChange((change) => {
+        if (change.reset || moved(change)) {
+          setVersion((count) => count + 1);
+        }
+      }),
+    [moved, replica],
+  );
+  return version;
+};
+
+const anyItem = (change: ReplicaChange): boolean =>
+  change.kinds.has("item") || change.kinds.has("folder") || change.kinds.has("annotation");
+
+export interface ListingView {
+  readonly page: ListingPage<ReplicaListingRow>;
+  readonly scopes: ListingScopes;
+  // the change it was read after
+  readonly version: number;
+}
+
+export const useListing = (query: ListingQuery): ListingView => {
+  const { replica } = useLibrary();
+  const version = useChanges(anyItem);
+  // the listing is the replica's memory, which moves under a render: read again at each change it
+  // could show, which a memo on the query alone would miss
+  return useMemo(
+    () => ({ page: replica.listing(query), scopes: replica.scopes(), version }),
+    [query, replica, version],
+  );
+};
+
+export const useReplicaStatus = (): ReplicaStatus => {
+  const { replica } = useLibrary();
+  return useSyncExternalStore(replica.onStatus, replica.status);
+};
+
+// an async read of the replica, asked again whenever a change names what it read; undefined while
+// the first answer is on its way
+const useReplicaRead = <T>(
+  key: string,
+  read: () => Promise<T>,
+  moved: (change: ReplicaChange) => boolean,
+): T | undefined => {
+  const version = useChanges(moved);
+  const [answer, setAnswer] = useState<{ key: string; version: number; value: T } | null>(null);
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      const value = await read();
+      if (live) {
+        setAnswer({ key, value, version });
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [key, read, version]);
+  return answer !== null && answer.key === key ? answer.value : undefined;
+};
+
+export const useItem = (itemId: string): ReplicaItem | null | undefined => {
+  const { replica } = useLibrary();
+  return useReplicaRead(
+    `item:${itemId}`,
+    async () => await replica.item(itemId),
+    (change) => change.ids.has(itemId),
+  );
+};
+
+export const useAnnotations = (itemId: string): AnnotationStore | undefined => {
+  const { replica } = useLibrary();
+  return useReplicaRead(
+    `annotations:${itemId}`,
+    async () => await replica.annotations(itemId),
+    (change) => change.ids.has(itemId),
+  );
+};
+
+const anyThread = (change: ReplicaChange): boolean =>
+  change.kinds.has("thread") || change.kinds.has("thread_event");
+
+export const useThreads = () => {
+  const { replica } = useLibrary();
+  return useReplicaRead("threads", replica.threads, anyThread);
+};
+
+export const useThreadEvents = (threadId: string) => {
+  const { replica } = useLibrary();
+  return useReplicaRead(
+    `events:${threadId}`,
+    async () => await replica.threadEvents(threadId),
+    anyThread,
+  );
+};
+
+// the reply the agent is writing in `threadId`, as the socket carries it
+export const usePreview = (threadId: string): string | null => {
+  const { previews } = useLibrary();
+  return useSyncExternalStore(previews.subscribe, () => previews.get(threadId));
+};
+
+// where a file draws from on this phone, or a card's cover drawn small: undefined while it is
+// asked for, null when it cannot be had now (offline, before it was ever drawn here)
+export const useFileUri = (sha: string | null, small = false): string | null | undefined => {
+  const { files } = useLibrary();
+  const [held, setHeld] = useState<{ sha: string; uri: string | null } | null>(null);
+  useEffect(() => {
+    if (sha === null) {
+      return;
+    }
+    let live = true;
+    void (async () => {
+      const uri = small ? await files.thumbUri(sha) : await files.fileUri(sha);
+      if (live) {
+        setHeld({ sha, uri });
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [files, sha, small]);
+  return held !== null && held.sha === sha ? held.uri : undefined;
+};

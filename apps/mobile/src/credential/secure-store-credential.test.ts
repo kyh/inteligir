@@ -32,7 +32,11 @@ const fakeKeychain = (held: Record<string, Item> = {}) => {
   return { items, keychain };
 };
 
-const CREDENTIAL = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
+const CREDENTIAL = {
+  credential: `igd_${"a".repeat(64)}`,
+  deviceId: "dev_1",
+  email: "ada@example.com",
+};
 
 describe("the phone's stored credential", () => {
   it("is kept for this phone alone, so no backup restores it onto another", async () => {
@@ -46,7 +50,11 @@ describe("the phone's stored credential", () => {
   });
 
   it("replaces a revoked credential still stored, rather than keeping its accessibility", async () => {
-    const revoked = { credential: `igd_${"b".repeat(64)}`, deviceId: "dev_0" };
+    const revoked = {
+      credential: `igd_${"b".repeat(64)}`,
+      deviceId: "dev_0",
+      email: "ada@example.com",
+    };
     const { items, keychain } = fakeKeychain({
       "device-credential": { accessible: AFTER_FIRST_UNLOCK, value: serializeCredential(revoked) },
     });
