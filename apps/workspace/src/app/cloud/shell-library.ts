@@ -60,7 +60,7 @@ const diskLeaveGuard: LeaveGuard = {
 
 // this Mac leaves its account: the shell lets go of the credential, the replica's file and every
 // file of the account, and the page opens again on the sign-in
-export const leaveAccount = async (): Promise<void> => {
+const leaveAccount = async (): Promise<void> => {
   await shellCredential.forget();
   window.location.reload();
 };

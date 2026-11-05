@@ -31,7 +31,7 @@ export interface SignedIn {
 }
 
 // why this device leaves its account: a sign-out, or the account deleted
-export type LeaveReason = "signed-out" | "deleted";
+type LeaveReason = "signed-out" | "deleted";
 
 export interface PageLibrary {
   readonly replica: LibraryReplica;

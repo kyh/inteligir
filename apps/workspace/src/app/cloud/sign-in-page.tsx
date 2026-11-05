@@ -48,10 +48,7 @@ const clientOf = (config: ShellConfig, credential: string | null): V1Client => {
 
 // the sign-in's answer kept in the Keychain; one the shell could not keep is signed out again, its
 // slot given back, and the shell's own words said
-export const keepSignIn = async (
-  config: ShellConfig,
-  answer: DeviceLoginResponse,
-): Promise<void> => {
+const keepSignIn = async (config: ShellConfig, answer: DeviceLoginResponse): Promise<void> => {
   try {
     await shellCredential.keep({
       credential: {

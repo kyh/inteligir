@@ -50,12 +50,12 @@ const HARNESS_OWNED_ENV_KEYS = new Set([
   "NODE_ENV",
 ]);
 
-export interface VendorDirs {
+interface VendorDirs {
   claudeConfigDir: string;
   codexHome: string;
 }
 
-export const makeVendorDirs = async (root: string): Promise<VendorDirs> => {
+const makeVendorDirs = async (root: string): Promise<VendorDirs> => {
   const dirs: VendorDirs = {
     claudeConfigDir: path.join(root, "claude-config"),
     codexHome: path.join(root, "codex-home"),
@@ -68,7 +68,7 @@ export const makeVendorDirs = async (root: string): Promise<VendorDirs> => {
 // the vendors' stores are the launch's own, empty: nothing it starts runs the agent, or asks its
 // sign-in, on whatever account the machine running the suite is signed into. a scratch HOME alone
 // would not do it, since a keychain entry is not under HOME.
-export const vendorEnv = (dirs: VendorDirs) => ({
+const vendorEnv = (dirs: VendorDirs) => ({
   CLAUDE_CONFIG_DIR: dirs.claudeConfigDir,
   CODEX_HOME: dirs.codexHome,
 });
@@ -149,7 +149,7 @@ const healthAnswered = async (baseUrl: string): Promise<boolean> => {
 
 // the bearer is read per call, not captured once: server.json is written after listen, a client
 // may be built before the health wait, and a restarted server mints a new token.
-export const createInstanceApi = (baseUrl: string, dataDir: () => string): LocalClient => {
+const createInstanceApi = (baseUrl: string, dataDir: () => string): LocalClient => {
   const link = new RPCLink({
     headers: () => {
       const server = readServerFile(dataDir());

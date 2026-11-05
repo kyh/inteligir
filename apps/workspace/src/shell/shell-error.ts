@@ -5,7 +5,7 @@
 
 import { z } from "zod";
 
-export const shellErrorSchema = z.strictObject({
+const shellErrorSchema = z.strictObject({
   kind: z.enum([
     "signed-out",
     "transaction-gone",
