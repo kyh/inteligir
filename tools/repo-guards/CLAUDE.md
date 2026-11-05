@@ -42,17 +42,22 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   `packages/ui/components.json`'s `rsc: true` is inert: no consumer renders
   server components.
 
-- **THE REACT COMPILER IS ON FOR EVERY BUNDLE**: `@vitejs/plugin-react`'s
-  `compiler` in the workspace's, the web's and the phone editor page's vite
-  configs and in the extension's WXT config (`apps/extension/wxt.config.ts`),
-  and `reactCompiler: true` in `apps/mobile/app.config.js`. The suites run what
-  ships: the workspace's, `@repo/editor`'s, `@repo/ui`'s and the phone page's
-  DOM tests compile their sources the same way (not test files, where a fixture
-  hook minted in a factory is hoisted with no diagnostic), and a
-  `compiled-under-test` case in each fails without the plugin (the phone page's
-  in `apps/mobile-editor/src/editor-page.test.tsx`, the extension's in
+- **THE REACT COMPILER IS ON FOR EVERY BUNDLE, THROUGH react.dev's VITE PATH**
+  (owner decision): `@vitejs/plugin-react`'s `reactCompilerPreset` run by
+  `@rolldown/plugin-babel` in the workspace's, the web's, the phone editor
+  page's and the gallery's vite configs and the extension's WXT config
+  (`apps/extension/wxt.config.ts`), and `reactCompiler: true` in
+  `apps/mobile/app.config.js`; the workspace's build says each component the
+  compiler skipped (`apps/workspace/vite.config.ts`). The suites run what
+  ships: the workspace's, `@repo/editor`'s, `@repo/ui`'s, the phone page's and
+  the extension's DOM tests compile their sources the same way (not test files,
+  where a fixture hook minted in a factory is hoisted with no diagnostic), and
+  a `compiled-under-test` case in each fails without the preset (the phone
+  page's in `apps/mobile-editor/src/editor-page.test.tsx`, the extension's in
   `apps/extension/src/entrypoints/popup/popup.test.tsx`). A node suite cannot
-  run compiled: the plugin skips the ssr transform. The manual-memo sweep is
+  run compiled: the preset applies to the client environment alone. Rejected:
+  the plugin's own `compiler` option (marked experimental, over a second
+  compiler build that compiles code Babel's refuses). The manual-memo sweep is
   #820.
 
 - **TOOLING PINS, each with its reason beside it**: `vite` is a pnpm override,

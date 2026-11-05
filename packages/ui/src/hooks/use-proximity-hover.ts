@@ -194,19 +194,23 @@ export const useProximityHover = <T extends HTMLElement>(
 
   // the only place readiness is reported, so isMeasured cannot turn true while another pass is queued
   const scheduleMeasurement = useCallback(
-    // named so the retry recurses into the function itself, not the binding useCallback is still building
-    function schedule(attemptsLeft: number): void {
-      if (remeasureRafIdRef.current !== null) {
-        cancelAnimationFrame(remeasureRafIdRef.current);
-      }
-      remeasureRafIdRef.current = requestAnimationFrame(() => {
-        remeasureRafIdRef.current = null;
-        if (runMeasurement()) {
-          setIsMeasured(true);
-        } else if (attemptsLeft > 1) {
-          schedule(attemptsLeft - 1);
+    (attempts: number): void => {
+      // the retry recurses into this inner function, not the binding useCallback is still
+      // building; the compiler hoists a declaration but not a function expression's own name
+      const attempt = (attemptsLeft: number): void => {
+        if (remeasureRafIdRef.current !== null) {
+          cancelAnimationFrame(remeasureRafIdRef.current);
         }
-      });
+        remeasureRafIdRef.current = requestAnimationFrame(() => {
+          remeasureRafIdRef.current = null;
+          if (runMeasurement()) {
+            setIsMeasured(true);
+          } else if (attemptsLeft > 1) {
+            attempt(attemptsLeft - 1);
+          }
+        });
+      };
+      attempt(attempts);
     },
     [runMeasurement],
   );

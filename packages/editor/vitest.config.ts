@@ -1,5 +1,6 @@
 import path from "node:path";
-import react from "@vitejs/plugin-react";
+import babel from "@rolldown/plugin-babel";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { configDefaults, defineConfig } from "vitest/config";
 
 const alias = { "@repo/editor": path.resolve(import.meta.dirname, "src") };
@@ -16,9 +17,15 @@ const TYPING_BUDGET = "src/typing-budget.test.tsx";
 // the editor, so that job sets SKIP_TYPING_BUDGET and the Linux job holds the budget alone.
 const budgetProject = {
   plugins: [
-    react({
-      compiler: true,
-      exclude: [/\/node_modules\//u, /\.test\.tsx?$/u, /\/test-support\//u],
+    react(),
+    babel({
+      // the plugin's own default (node_modules and rolldown's runtime), which an exclude replaces
+      exclude: [
+        /[/\\]node_modules[/\\]|^\0rolldown\/runtime\.js$/u,
+        /\.test\.tsx?$/u,
+        /\/test-support\//u,
+      ],
+      presets: [reactCompilerPreset()],
     }),
   ],
   resolve: { alias },
@@ -55,9 +62,15 @@ export default defineConfig({
         // here rather than only in the built app. Test files stay uncompiled: a fixture hook
         // minted inside a factory is hoisted to module scope with no diagnostic.
         plugins: [
-          react({
-            compiler: true,
-            exclude: [/\/node_modules\//u, /\.test\.tsx?$/u, /\/test-support\//u],
+          react(),
+          babel({
+            // the plugin's own default (node_modules and rolldown's runtime), which an exclude replaces
+            exclude: [
+              /[/\\]node_modules[/\\]|^\0rolldown\/runtime\.js$/u,
+              /\.test\.tsx?$/u,
+              /\/test-support\//u,
+            ],
+            presets: [reactCompilerPreset()],
           }),
         ],
         resolve: { alias },

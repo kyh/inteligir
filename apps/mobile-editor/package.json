@@ -22,15 +22,18 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@babel/core": "catalog:",
     "@kyh/tsconfig": "catalog:",
+    "@rolldown/plugin-babel": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@testing-library/react": "catalog:",
+    "@types/babel__core": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
+    "babel-plugin-react-compiler": "catalog:",
     "jsdom": "catalog:",
-    "oxc-transform-react": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"

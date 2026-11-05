@@ -1,8 +1,10 @@
 import path from "node:path";
 import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
+import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
-import viteReact from "@vitejs/plugin-react";
+import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
+import type { Logger } from "babel-plugin-react-compiler";
 import { defineConfig } from "vite";
 
 const here = import.meta.dirname;
@@ -14,6 +16,20 @@ const BASE = `${LIBRARY_PAGE_PATH}/`;
 // pinned: `tauri dev` waits on it (`devUrl` in apps/desktop/src-tauri/tauri.conf.json), clear of
 // `pnpm dev:web`'s 5174
 const DEV_PORT = 31_000;
+
+// a component the compiler skipped, said as the build runs (react.dev/reference/react-compiler/
+// logger): the card grid is the one it may name (packages/ui/CLAUDE.md § THE CARD GRID IS
+// VIRTUALIZED BY UNIFORM ROWS)
+const reportSkips: Logger = {
+  logEvent: (filename, event) => {
+    if (event.kind !== "CompileError" && event.kind !== "PipelineError") {
+      return;
+    }
+    const at = event.fnLoc === null ? "" : `:${String(event.fnLoc.start.line)}`;
+    const why = event.kind === "CompileError" ? event.detail.reason : event.data;
+    console.warn(`React Compiler skipped ${filename ?? "a module"}${at}: ${why}`);
+  },
+};
 
 export default defineConfig({
   base: BASE,
@@ -35,7 +51,6 @@ export default defineConfig({
   // SQLite's wasm loads its own module beside it, which the dep optimizer would move away from it
   // (https://www.npmjs.com/package/@sqlite.org/sqlite-wasm#usage-with-vite)
   optimizeDeps: { exclude: ["@sqlite.org/sqlite-wasm"] },
-  // `compiler` loads the otherwise-unimported `oxc-transform-react` devDependency.
   plugins: [
     tanstackRouter({
       // one bundle (above): a route split off would be a lazy import inlined straight back
@@ -44,7 +59,9 @@ export default defineConfig({
       routesDirectory: path.resolve(src, "routes"),
       target: "react",
     }),
-    viteReact({ compiler: { reportDiagnostics: true } }),
+    viteReact(),
+    // the React Compiler, react.dev's Vite path (react.dev/learn/react-compiler/installation)
+    babel({ presets: [reactCompilerPreset({ logger: reportSkips })] }),
     tailwindcss(),
   ],
   root: src,

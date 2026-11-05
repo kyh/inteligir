@@ -116,6 +116,6 @@ describe("the phone editor page", () => {
 it("holds the React Compiler's output for the page's components", () => {
   expect(
     EditorPage.toString(),
-    "the mobile-editor vitest project must run @vitejs/plugin-react with the compiler over src/",
+    "the mobile-editor vitest project must run the React Compiler's Babel preset (reactCompilerPreset) over src/",
   ).toContain("react.memo_cache_sentinel");
 });

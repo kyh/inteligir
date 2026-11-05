@@ -33,8 +33,14 @@ catalog:
   "@agentclientprotocol/claude-agent-acp": 0.81.0
   "@agentclientprotocol/codex-acp": 1.13.0
   "@agentclientprotocol/sdk": 1.5.0
-  # optional peer @vitejs/plugin-react loads for `compiler: true`
-  oxc-transform-react: ^0.152.0
+  # the React Compiler, react.dev's Vite path: @vitejs/plugin-react's `reactCompilerPreset` run by
+  # @rolldown/plugin-babel over Babel's core. The plugin's caret stays under 0.3, since
+  # @vitejs/plugin-react 6.1 peers ^0.1.7 || ^0.2.0; the core stays on 7, the major the compiler's
+  # Babel plugin is built against (its @babel/types ^7)
+  "@babel/core": ^7.29.0
+  "@rolldown/plugin-babel": ^0.2.4
+  "@types/babel__core": ^7.20.5
+  babel-plugin-react-compiler: ^1.0.0
   # exact: the last 1.x with `experimental.newConfig`, the option a 1.x build reads
   # cloudflare.config.ts through; the line cf itself builds with is the 2.0 beta
   # (developers.cloudflare.com/cf/projects)

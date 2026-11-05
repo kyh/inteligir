@@ -1,5 +1,6 @@
+import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
-import viteReact from "@vitejs/plugin-react";
+import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 import { classicPage } from "./vite/classic-page";
@@ -25,5 +26,5 @@ export default defineConfig({
       output: { codeSplitting: false, format: "iife" },
     },
   },
-  plugins: [viteReact({ compiler: true }), tailwindcss(), classicPage()],
+  plugins: [viteReact(), babel({ presets: [reactCompilerPreset()] }), tailwindcss(), classicPage()],
 });

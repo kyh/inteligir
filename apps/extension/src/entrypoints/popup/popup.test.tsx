@@ -127,7 +127,7 @@ describe("the welcome page", () => {
 // so its mark is the memo cache it opens
 it("holds the React Compiler's output for the extension's pages", () => {
   const plugin =
-    "the extension vitest project must run @vitejs/plugin-react with the compiler over src/";
+    "the extension vitest project must run the React Compiler's Babel preset (reactCompilerPreset) over src/";
   expect(Welcome.toString(), plugin).toContain("react.memo_cache_sentinel");
   expect(Popup.toString(), plugin).toContain("const $ = ");
 });

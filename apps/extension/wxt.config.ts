@@ -8,8 +8,9 @@ import { cpSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:f
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { DEV_NATIVE_HOST_NAME } from "@repo/contract/browser/extension-identity";
+import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
-import viteReact from "@vitejs/plugin-react";
+import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "wxt";
 import { z } from "zod";
 
@@ -131,7 +132,7 @@ export default defineConfig({
     define: {
       __INTELIGIR_NATIVE_HOST__: JSON.stringify(nativeHostNameFor(flavorOfMode(mode))),
     },
-    plugins: [viteReact({ compiler: true }), tailwindcss()],
+    plugins: [viteReact(), babel({ presets: [reactCompilerPreset()] }), tailwindcss()],
   }),
   // the name docs/releasing.md uploads
   zip: { artifactTemplate: "inteligir-extension-{{version}}.zip" },

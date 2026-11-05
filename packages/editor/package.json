@@ -187,17 +187,20 @@
     "zustand": "catalog:"
   },
   "devDependencies": {
+    "@babel/core": "catalog:",
     "@kyh/tsconfig": "catalog:",
     "@repo/library-replica": "workspace:*",
+    "@rolldown/plugin-babel": "catalog:",
     "@testing-library/dom": "catalog:",
     "@testing-library/react": "catalog:",
+    "@types/babel__core": "catalog:",
     "@types/mdast": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
+    "babel-plugin-react-compiler": "catalog:",
     "jsdom": "catalog:",
-    "oxc-transform-react": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
