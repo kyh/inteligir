@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { createRef } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -44,7 +44,7 @@ const mountSidebar = (props: {
 }) => {
   render(
     <SidebarProvider open {...props}>
-      <Sidebar>rows</Sidebar>
+      <Sidebar label="Sidebar">rows</Sidebar>
     </SidebarProvider>,
   );
   return screen.getByRole("button", { name: "Resize or collapse sidebar" });
@@ -98,7 +98,7 @@ const inertAncestor = (element: HTMLElement): Element | null => element.closest(
 
 const panel = (open: boolean, peek = false) => (
   <SidebarProvider open={open} peek={peek}>
-    <Sidebar side="right">
+    <Sidebar side="right" label="Panel">
       <button type="button">Row action</button>
     </Sidebar>
   </SidebarProvider>
@@ -135,14 +135,17 @@ describe("the provider", () => {
     const onOpenChange = vi.fn<(open: boolean) => void>();
     render(
       <SidebarProvider open={false} onOpenChange={onOpenChange} actionsRef={actions}>
-        <Sidebar>rows</Sidebar>
+        <Sidebar label="Sidebar">rows</Sidebar>
       </SidebarProvider>,
     );
     expect(screen.queryByRole("dialog", { name: "Sidebar" })).toBeNull();
     act(() => {
       actions.current?.toggle();
     });
-    expect(await screen.findByRole("dialog", { name: "Sidebar" })).toBeDefined();
+    const sheet = await screen.findByRole("dialog", { name: "Sidebar" });
+    // named by its Dialog.Title, so a panel's sheet beside it is called something else
+    const title = within(sheet).getByRole("heading", { level: 2, name: "Sidebar" });
+    expect(sheet.getAttribute("aria-labelledby")).toBe(title.id);
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 });

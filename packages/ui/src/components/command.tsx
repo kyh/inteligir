@@ -30,7 +30,7 @@ export interface CommandRow {
   readonly onSelect: () => void;
 }
 
-// a type, not an interface, so a group meets Base UI's indexed group shape
+// a heading over its rows: Base UI's grouped `items` take any group whose `items` are its rows
 export interface CommandRowGroup<Row extends CommandRow = CommandRow> {
   readonly heading: string;
   readonly items: readonly Row[];

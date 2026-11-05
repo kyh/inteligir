@@ -566,7 +566,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
             writePref(PREFS.sidebarWidth, px);
           }}
         >
-          <Sidebar variant="floating" className="h-full print:hidden">
+          <Sidebar variant="floating" label="Sidebar" className="h-full print:hidden">
             <Rail
               scope={scope}
               itemOpen={openItem !== null}
@@ -690,7 +690,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                   </div>
                 )}
               </SidebarInset>
-              <Sidebar side="right" className="h-full print:hidden">
+              <Sidebar side="right" label="Panel" className="h-full print:hidden">
                 <Panel
                   itemId={panelItem}
                   session={panelItem !== null && panelItem === openItem ? session : null}

@@ -33,7 +33,7 @@ const SidebarDemo = () => {
   return (
     <div className="h-[260px] w-full overflow-hidden rounded-lg border border-line">
       <SidebarProvider className="h-full min-h-0" width="12rem" style={{ minHeight: "100%" }}>
-        <Sidebar variant="floating">
+        <Sidebar variant="floating" label="Sidebar">
           <SidebarHeader>
             <div className="flex items-center gap-1 pr-1.5">
               <span className="min-w-0 flex-1 truncate px-2 text-[13px] font-semibold">Vault</span>

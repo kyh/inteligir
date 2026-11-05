@@ -21,12 +21,13 @@ import type { SidebarSide, SidebarVariant } from "@repo/ui/components/sidebar-co
 
 interface SidebarSheetProps {
   side: SidebarSide;
+  title: string;
   open: boolean;
   onClose: () => void;
   children: ReactNode;
 }
 
-const SidebarSheet = ({ side, open, onClose, children }: SidebarSheetProps) => {
+const SidebarSheet = ({ side, title, open, onClose, children }: SidebarSheetProps) => {
   // the panel takes initial focus itself: left to the primitive, the trap lands on the top nav
   // row, and Chrome grants :focus-visible to script-driven focus, so it shows the keyboard ring
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -64,7 +65,6 @@ const SidebarSheet = ({ side, open, onClose, children }: SidebarSheetProps) => {
             />
 
             <DialogPrimitive.Popup
-              aria-label="Sidebar"
               initialFocus={panelRef}
               render={(popupProps, state) => {
                 const { style: baseStyle, ref: baseRef, ...rest } = motionProps(popupProps);
@@ -90,6 +90,7 @@ const SidebarSheet = ({ side, open, onClose, children }: SidebarSheetProps) => {
                     animate={{ opacity: 1, transition: spring.moderate, x: 0 }}
                     exit={{ opacity: 0.9999, transition: spring.moderate.exit, x: offscreen }}
                   >
+                    <DialogPrimitive.Title className="sr-only">{title}</DialogPrimitive.Title>
                     {children}
                   </Elevated>
                 );
@@ -105,11 +106,15 @@ const SidebarSheet = ({ side, open, onClose, children }: SidebarSheetProps) => {
 interface SidebarProps extends Omit<HTMLAttributes<HTMLDivElement>, MotionConflictHandler> {
   side?: SidebarSide;
   variant?: SidebarVariant;
+  // what the sidebar is called, the Dialog.Title of the sheet it becomes below the mobile
+  // breakpoint, so two sheets are told apart
+  label: string;
 }
 
 const Sidebar = ({
   side = "left",
   variant = "sidebar",
+  label,
   className,
   style,
   children,
@@ -122,6 +127,7 @@ const Sidebar = ({
     return (
       <SidebarSheet
         side={side}
+        title={label}
         open={openMobile}
         onClose={() => {
           setOpenMobile(false);
