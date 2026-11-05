@@ -221,6 +221,11 @@ overrides:
   "agents>@rolldown/plugin-babel": "-"
   # the adapter's auto-installed peer would otherwise resolve a second, newer core beside better-auth's
   "@better-auth/core": 1.7.14
+  # NativeWind 5's install pins lightningcss at 1.30.1, since past it react-native-css "may encounter
+  # deserialization errors" on the phone's sheet (nativewind.dev/v5/getting-started/installation);
+  # scoped to the two that compile that sheet, since Tailwind pins its own, exactly
+  "@expo/metro-config>lightningcss": 1.30.1
+  "react-native-css>lightningcss": 1.30.1
   "@types/react": "catalog:"
   # the catalog alone does not bind importers that don't spell `catalog:` (vitest's vite)
   vite: "catalog:"

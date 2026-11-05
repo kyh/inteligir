@@ -156,15 +156,19 @@ how it ships.
   schemes. Rejected: `StyleSheet.create` over a copied palette (a second
   spelling in each screen); `@repo/ui` (DOM, which the dep-dag guard refuses).
 
-- **THE PHONE'S STYLE PINS ARE NATIVEWIND'S RELEASE CANDIDATE PAIR, AND A REM
-  IS THE WEB'S.** Exact: nativewind 5.0.0-rc.0, its one Tailwind 4 line, and
-  the react-native-css 3.1.0-rc.0 it peers exactly (`pnpm-workspace.yaml`).
-  The sheet imports Tailwind's theme and utilities apart, with no preflight a
-  native view has no use for, and its `:root` font size is the 16px every rem
-  is read at, so Tailwind's scales are the web's (`p-4` is 16); a type size is
-  the phone's own, by its px, with a line height a `leading-*` class beside
-  it. Rejected: 5.0.0-preview.4 over 3.0.7 (a rem through a variable at 14px,
-  a line-height class drawing nothing); waiting for nativewind 5 stable.
+- **THE PHONE'S STYLE PINS ARE NATIVEWIND'S RELEASE CANDIDATE PAIR, SET UP AS
+  ITS INSTALL SAYS, AND A REM IS THE WEB'S.** Exact: nativewind 5.0.0-rc.0,
+  its one Tailwind 4 line, and the react-native-css 3.1.0-rc.0 it peers
+  exactly, which compiles the sheet with the lightningcss 1.30.1 the install
+  pins, since a later one may fail to read it (`pnpm-workspace.yaml`). The
+  sheet imports Tailwind's theme and preflight layered and its utilities
+  unlayered, as the install does, so no default sits above a class, and its
+  `:root` font size is the 16px every rem is read at, so Tailwind's scales are
+  the web's (`p-4` is 16); a type size is the phone's own, by its px, with a
+  line height a `leading-*` class beside it (`apps/mobile/src/styles.css`).
+  Rejected: 5.0.0-preview.4 over 3.0.7 (a rem through a variable at 14px, a
+  line-height class drawing nothing); waiting for nativewind 5 stable;
+  lightningcss unpinned (the install warns the sheet may then not build).
 
 - **A MULTI-LINE PHONE FIELD IS PADDED `pt-*` AND `pb-*`.** `py-*` compiles to
   `paddingBlock`, and iOS gives a multi-line `TextInput` with no `paddingTop`

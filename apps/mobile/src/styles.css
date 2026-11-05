@@ -1,8 +1,10 @@
-/* Tailwind's theme and utilities, imported apart as NativeWind 5 sets a sheet up: its preflight
-   resets the web's element defaults, which a native view has none of. The classes are the phone's
-   own sources wherever Metro runs from, never a suite's strings. */
+/* Tailwind imported apart, as NativeWind 5's install sets a sheet up
+   (nativewind.dev/v5/getting-started/installation): the theme and preflight layered, the utilities
+   unlayered, so no default the cascade holds can sit above a class. The classes are the phone's own
+   sources wherever Metro runs from, never a suite's strings. */
 @import "tailwindcss/theme.css" layer(theme);
-@import "tailwindcss/utilities.css" layer(utilities) source(".");
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css" source(".");
 @import "nativewind/theme";
 @source not "./**/*.test.ts";
 
