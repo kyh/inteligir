@@ -13,9 +13,10 @@ connector serves (`read_item` answers an item's text in this dialect, `edit_item
 `create_note` take it back), and the dialect — `[[Title|id]]` links, `{{formula}}` pills,
 `%%i:id%%` highlight markers, the `inteligir-*` fences, the `:::article` section — is not
 something a model guesses right. The agent has no shell and no files, so nothing here is read at
-run time: every word is inlined into the system prompt, in a fixed order, and each conversation
-freezes the prompt at its first turn, so every conversation of every account reads one cached
-prefix.
+run time: every word is inlined into the system prompt, in a fixed order, the same bytes for every
+conversation of every account, so all of them read one cached prefix. Each conversation freezes the
+prompt at its first turn, and a deploy that changes it, as an edit here does, is taken up at the
+start of the conversation's next turn, never mid-turn (`apps/web/src/worker/agent/thread-loop.ts`).
 
 ## Layout
 

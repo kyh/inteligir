@@ -1,7 +1,8 @@
 // The built-in agent's one definition, beside the code that runs it: its model and effort, and the
 // library tools it may call. The same bytes for every account (owner decision: one model for
-// everyone); each thread freezes the system and the tools at its first turn
-// (`./thread-request`), and the cell runs every call it asks for (`./agent-tools`).
+// everyone); each thread freezes the definition at its first turn, and takes up a deploy that
+// changes it at the start of its next turn, never mid-turn (`./thread-request`, `./thread-loop`),
+// and the cell runs every call it asks for (`./agent-tools`).
 
 // one model for everyone, at the effort Opus 5.5 defaults to, written out, so a change of default
 // changes nothing here
