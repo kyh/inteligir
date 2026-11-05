@@ -22,9 +22,9 @@ owner's.
   then set `BETTER_AUTH_SECRET` to anything. Without it every `/api/auth/*`
   request fails. The connector answers only `SITE_ORIGIN`'s host,
   `localhost:5174` here; the example says what to set to reach it through a
-  tunnel. The example's `MANAGED_AGENTS_FAKE_URL` points the built-in agent at
-  the fake Managed Agents API `dev:web` serves (`tools/managed-agents-fake`,
-  whose README says how to script a turn).
+  tunnel. The example's `ANTHROPIC_FAKE_URL` points the built-in agent at
+  the scripted Messages API `dev:web` serves (`tools/messages-fake`, whose
+  README says how to script a turn).
 
 ## Commands
 
@@ -36,8 +36,8 @@ pnpm dev:mobile         # apps/mobile: expo start, in a terminal (turbo refuses 
                         #   pnpm --filter @repo/mobile dev runs it without one)
 pnpm cli serve          # The server ALONE, from source, no window; a shell adopts it
 pnpm cli <verb>         # Every other verb, against this checkout's instance
-pnpm dev:web            # apps/web: vite + miniflare on :5174 (pinned, strictPort), and the fake
-                        #   Managed Agents API on :5177 its built-in agent talks to
+pnpm dev:web            # apps/web: vite + miniflare on :5174 (pinned, strictPort), and the scripted
+                        #   Messages API on :5177 its built-in agent talks to
 pnpm dev:gallery        # tools/ui-gallery: the @repo/ui gallery alone, at localhost:5175 (never deployed)
 pnpm dev:extension      # apps/extension: this checkout's browser door, then WXT's dev loop, rebuilding and reloading on change
 pnpm package:cli        # The npm artifact (apps/cli) — `npx inteligir serve`
@@ -142,11 +142,10 @@ never drawn by hand: `pnpm --filter @repo/web og:cards`
 `apps/web/src/lib/page-meta.ts` in the site's own type and logo. It needs
 Playwright's Chromium, and sits outside `pnpm verify` and the build.
 
-The built-in agent's files under `apps/web/agents/` are written, never edited
-by hand: `pnpm --filter @repo/web agents` (`apps/web/scripts/agent-files.ts`)
-writes each target's `agent.md` and `environment.yaml` from the agent's
-definition and `@repo/agent-skills`, and `tools/repo-guards` fails a tree whose
-files differ from what it would write. Applying them is the owner's
+The built-in agent's system prompt, `apps/web/src/worker/agent/agent-prompt.ts`,
+is written, never edited by hand: `pnpm --filter @repo/web agent-prompt`
+(`apps/web/scripts/agent-prompt.ts`) writes it from `@repo/agent-skills`, and
+`tools/repo-guards` fails a tree whose module differs from what it would write
 (`apps/web/README.md` § The built-in agent).
 
 ## Browser extension
@@ -188,7 +187,7 @@ its own door into a scratch profile
 | The page's vite dev server                        | 31000 (pinned — `strictPort`; `tauri dev` waits)                                   |
 | Site + cloud Worker (`pnpm dev:web`)              | 5174 (pinned — `strictPort`)                                                       |
 | UI gallery (`pnpm dev:gallery`)                   | 5175 (pinned — `strictPort`)                                                       |
-| Fake Managed Agents API (`pnpm dev:web`)          | 5177 (pinned — `.dev.vars`' `MANAGED_AGENTS_FAKE_URL` names it)                    |
+| Scripted Messages API (`pnpm dev:web`)            | 5177 (pinned — `.dev.vars`' `ANTHROPIC_FAKE_URL` names it)                         |
 | Extension dev server (`pnpm dev:extension`)       | 3000, or the first free port to 3010 (WXT's own probe)                             |
 | The vault selector, config.json                   | `~/.inteligir-dev/<hash>/data/` (prod: `~/.inteligir`)                             |
 | Each vault's SQLite and sign-in                   | `<that dir>/vaults/<hash of its physical path>/`                                   |

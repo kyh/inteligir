@@ -52,17 +52,17 @@ src/
                      per request over the library's tool rows
                      (connector-server.ts, library-tools.ts) and the
                      account's grants (assistant-grants.ts)
-    agent/           The built-in agent: its one definition (library-agent.ts),
-                     the Managed Agents client from the deployment's bindings
-                     (managed-agents.ts), the agent a session runs
-                     (session-agent.ts), our own OAuth client and its grant
-                     (built-in-client.ts), its access the person turns on
-                     and off, repaired and deleted with the account
-                     (agent-access.ts), the account's allowance
-                     (agent-allowance.ts), its turns, one an account, queued,
-                     started, streamed and sealed in the cell (agent-turns.ts
-                     and turn-*.ts), and Anthropic's webhook
-                     (anthropic-webhook.ts)
+    agent/           The built-in agent: its one definition (library-agent.ts)
+                     and its generated prompt (agent-prompt.ts), each
+                     conversation's object, AgentThreadDO (agent-thread.ts),
+                     with its tables (thread-schema.ts), its loop
+                     (thread-loop.ts), its requests (thread-request.ts) and
+                     its client through AI Gateway (anthropic-client.ts);
+                     and the cell's side: the tools it runs
+                     (agent-tools.ts), the allowance and the prices it books
+                     (agent-allowance.ts), the switch (agent-switch.ts), and
+                     each turn let in, handed over, landed and sealed
+                     (agent-turns.ts, turn-rows.ts)
     fill/            The fill queue's consumer (fill-consumer.ts): a saved
                      link read through the guarded fetch (page-fetch.ts) and
                      the page reader, its files kept, landed in the cell
@@ -99,54 +99,45 @@ its DOM-free signature (`packages/page-reader/src/read-html-api.ts`).
 
 ## The built-in agent
 
-The agent the app runs on Claude Managed Agents is files, one directory a
-target, synced by [`ant apply`](https://platform.claude.com/docs/en/cli-sdks-libraries/cli/apply)
-into that target's own Anthropic workspace:
+The agent is our own loop over the Messages API, one Durable Object a
+conversation, `AgentThreadDO`, named `agent-thread:<accountId>:<threadId>` by
+the account's cell alone and reached through `ctx.exports` with no namespace
+binding. It imports `agents/lifecycle` and nothing else of Cloudflare's Agents
+SDK: Lifecycle's durable job queue and its one alarm drive the loop, wake a
+conversation whose instance died, and deny an approval nobody answered in ten
+minutes. Its definition is code, the same bytes for every account: the model
+and effort (`src/worker/agent/library-agent.ts`), the system prompt
+(`src/worker/agent/agent-prompt.ts`, which `pnpm --filter @repo/web
+agent-prompt` writes from `@repo/agent-skills`; edit the skills and run it,
+never the module) and the tools (`agent-tools.ts`), which a thread freezes at
+its first turn and replays byte for byte.
 
-```
-agents/production/library-agent/   production's workspace
-agents/preview/library-agent/      the previews' workspace
-  agent.md                         the agent: its frontmatter the model, the connector and the
-                                   toolset; its body the system prompt
-  environment.yaml                 a cloud environment that reaches MCP servers alone
-  claude-lock.json                 ant's: the ids and the version its last apply recorded
-```
+A person's send (`library.agent.send`) is admitted in one transaction of the
+account's cell: refused `AGENT_UNAVAILABLE` while the agent is off or the
+Worker has no Claude to call, `AGENT_BUDGET` once the day's turns or list cost
+(`AGENT_ALLOWANCE`) are spent, queued behind its thread's open turn or while
+the account runs two, and otherwise opened and handed to its thread's object,
+again every 30 seconds until it lands. The object reserves each model call
+with the cell before it sends it, streams it with previews to the account's
+sockets, and lands only the whole reply, as returned, beside its usage; a call
+an instance died reading is sent again whole. Every tool call runs in the cell
+through the library's own procedures as that turn's, its write's op id derived
+from the call's, so one run again lands once; a deletion waits for the
+person. What the turn did reaches the cell as pushes, each once by its
+sequence, stored as the account's synced thread events; the push that ends a
+turn seals its one change set, books what it cost at list price
+(`AGENT_PRICES`), gives back a turn that cost nothing, and lets the links it
+saved be read.
 
-`pnpm --filter @repo/web agents` (`scripts/agent-files.ts`) writes `agent.md`
-and `environment.yaml` from `src/worker/agent/library-agent.ts` and
-`@repo/agent-skills`; edit those and run it, never the files. Each
-`claude-lock.json` is ant's alone. The Agents workflow plans both targets on a
-PR once their workload identity is configured, and applying is the owner's
-after the merge (`docs/releasing.md` § 5). `cloudflare.config.ts` binds a
-lockfile's ids as `AGENT_ID`, `AGENT_VERSION` and `AGENT_ENVIRONMENT_ID`; a
-target never applied binds none, and its agent answers that it cannot be
-reached, as one with no `ANTHROPIC_API_KEY` does. `vite dev` binds none of a
-target's: a developer's own key reaches only their own workspace, whose agent
-`.dev.vars` names (`.dev.vars.example`).
-
-The agent reaches the library only through the connector, as the deployment's
-own public OAuth client, registered the first time any account needs it and
-kept in D1's `built_in_client` under the deployment's origin. Turning the agent
-on (`library.agent.setEnabled`) grants that client the account's library in
-its cell, with no consent page, and makes the account's vault holding one
-credential for the connector, which Anthropic refreshes at `/oauth/token`;
-turning it off revokes the grant and deletes the vault. Its grant is not an
-assistant's, so `account.assistants` neither lists nor revokes it.
-
-A person's send (`library.agent.send`) is one turn of one Managed Agents
-session a thread, run in the account's cell: one turn an account at a time, a
-second send waiting in the cell's queue until the first seals. The turn opens
-the change set every one of the agent's connector writes joins, and the
-connector refuses the agent any call while no turn is open. The cell reads the
-session's stream inside `ctx.waitUntil`, in windows shorter than fifteen
-minutes, stores each event by its id before it tells the devices, and seals
-the turn when Anthropic confirms the session ended it; a deletion the agent
-asks for waits for the person's answer, and one unanswered for ten minutes is
-denied. Each turn is capped by a session budget from the account's daily
-allowance (`AGENT_ALLOWANCE`), checked before it starts. `POST
-/hooks/anthropic` is where Anthropic tells the Worker a session went idle or a
-credential could not be refreshed; the cell reconciles from it, and its alarm
-reconciles the same way when no delivery comes.
+Claude is reached through the target's AI Gateway, on its provider-native
+Anthropic route (`AGENT_GATEWAY_URL`): `inteligir` for production,
+`inteligir-preview` for every Preview, each holding its target's own Anthropic
+workspace key with provider credentials required and Authenticated Gateway
+on, so the Worker holds no Anthropic key, only the gateway's `AI_GATEWAY_TOKEN`,
+and every request asks the gateway to keep no prompt or reply. A Worker with
+no gateway refuses every send. `vite dev` names no target's gateway: its
+`.dev.vars` names the scripted Messages API or a gateway of the developer's
+own (`.dev.vars.example`).
 
 ## Routes
 
@@ -188,7 +179,6 @@ reconciles the same way when no delivery comes.
 | `/.well-known/oauth-*`      | —                 | The authorization server's and the connector's metadata                       |
 | `POST /oauth/register`      | —                 | An assistant registers itself, ten an address a minute; let go 90 days unused |
 | `POST /oauth/token`         | —                 | A code (PKCE S256) or refresh token for an access token; revocation           |
-| `POST /hooks/anthropic`     | Anthropic's sig   | A session's idle or end, or a failed refresh, routed to the account's cell    |
 
 "device" auth is the `igd_…` credential a login minted, verified per request by
 hash compare against D1 — never cached, so revocation is immediate; its
@@ -410,12 +400,13 @@ pnpm --filter @repo/web db:push
 > creds and hit the PRODUCTION D1. The bare `db:push` and `db:studio` are the
 > local ones.
 
-`pnpm dev:web` also starts the fake Managed Agents API on :5177
-(`tools/managed-agents-fake`), and `MANAGED_AGENTS_FAKE_URL` in `.dev.vars`
-points the built-in agent at it: the cell runs its turns through the SDK as it
-does deployed, with no key and no model, and the fake's agent calls this
-Worker's connector. The suites bind the same name and serve the fake in their
-own isolate.
+`pnpm dev:web` also starts the scripted Messages API on :5177
+(`tools/messages-fake`), and `ANTHROPIC_FAKE_URL` in `.dev.vars` points the
+built-in agent at it: each conversation's object runs its turns through the
+SDK as it does deployed, with no key and no model, and the cell runs the tools
+the script names. The suites bind the same name, and their outbound service
+answers it with the fake's handler and refuses every other address
+(`messages-service.ts`).
 
 Tests run inside workerd through `@cloudflare/vitest-plugin`, against the
 bindings `cloudflare.config.ts` declares, restated in `vitest.config.ts`
@@ -443,11 +434,11 @@ pnpm --filter @repo/web db:push:remote
 # 4. Set the runtime secrets (NOT committed). BETTER_AUTH_SECRET is a DEDICATED
 #    signing key — generate a fresh random 32+ char value, don't reuse another.
 pnpm -F @repo/web exec cf workers secrets update BETTER_AUTH_SECRET --worker inteligir-web --text '...'
-#    The built-in agent's: an API key of the PRODUCTION Anthropic workspace (its own,
-#    never the preview's), and the signing key of the webhooks registered there.
-#    Without the key the agent is off and says it can't be reached.
-pnpm -F @repo/web exec cf workers secrets update ANTHROPIC_API_KEY --worker inteligir-web --text '...'
-pnpm -F @repo/web exec cf workers secrets update ANTHROPIC_WEBHOOK_SIGNING_KEY --worker inteligir-web --text '...'
+#    The built-in agent's: the token of the `inteligir` AI Gateway, whose Authenticated
+#    Gateway admits only requests carrying it, and which stores the PRODUCTION Anthropic
+#    workspace's key itself (docs/releasing.md § 5). Without it the agent says it can't be
+#    reached. The deploy job's CLOUDFLARE_ACCOUNT_ID names the gateway's account.
+pnpm -F @repo/web exec cf workers secrets update AI_GATEWAY_TOKEN --worker inteligir-web --text '...'
 
 # 5. Password reset. Until the sending domain is onboarded, every reset email
 #    fails server-side and is only logged — the request response stays neutral
@@ -479,9 +470,11 @@ schema: the schema reaches production only from a local machine (step 3), so
 push it BEFORE merging a change that needs it — the schema is additive, so an
 old Worker against a new database ignores what it does not know, while a new
 Worker against an old database 500s on every request touching a table that
-isn't there. The workflow's one secret is `CLOUDFLARE_API_TOKEN` (Workers
+isn't there. The workflow's secrets are `CLOUDFLARE_API_TOKEN` (Workers
 Scripts: Edit, Queues: Edit, Workers KV Storage: Edit, for the namespace the
-first deploy creates, plus Workers Routes: Edit on the inteligir.com zone).
+first deploy creates, plus Workers Routes: Edit on the inteligir.com zone) and
+`CLOUDFLARE_ACCOUNT_ID`, which names the account of the built-in agent's
+gateway.
 
 ## Previews
 
@@ -513,14 +506,14 @@ Setup, once:
 # repo needs a CLOUDFLARE_ACCOUNT_ID secret beside CLOUDFLARE_API_TOKEN
 # wrangler: cf has no preview secret command yet
 pnpm -F @repo/web exec wrangler preview base-config secret put BETTER_AUTH_SECRET --worker-name inteligir-web  # a preview-only value
-# the PREVIEW Anthropic workspace's own API key; a preview registers no webhook
-pnpm -F @repo/web exec wrangler preview base-config secret put ANTHROPIC_API_KEY --worker-name inteligir-web
+# the token of the `inteligir-preview` AI Gateway, which stores the PREVIEW Anthropic
+# workspace's own key, never production's
+pnpm -F @repo/web exec wrangler preview base-config secret put AI_GATEWAY_TOKEN --worker-name inteligir-web
 ```
 
-A Preview's built-in agent is the preview workspace's, applied from
-`agents/preview/library-agent/`, and every session it starts runs the PR's own
-definition as its overrides, at the Preview's own connector
-(`src/worker/agent/session-agent.ts`), so a PR's agent is the one its Preview
-runs.
+A Preview's built-in agent calls Claude through the `inteligir-preview`
+gateway, so nothing a PR deploys can spend production's key, and runs the PR's
+own definition, since the definition is code; its conversations are the
+Preview's own `AgentThreadDO` namespace.
 
 Locally, `pnpm -F @repo/web exec cf previews deploy <name>` deploys one.

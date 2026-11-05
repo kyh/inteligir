@@ -87,11 +87,11 @@ scratch dir and tears everything down afterwards:
   apps/web's own `db:export` schema plus one invite row; `vars` override
   cloudflare.config.ts's text bindings (a storage cap a scenario can fill), and
   `json` its JSON bindings (the built-in agent's allowance). Each Worker's
-  built-in agent runs against its own fake Managed Agents API
-  (`tools/managed-agents-fake`), served in the runner's process on an
-  ephemeral port and named to the Worker as `MANAGED_AGENTS_FAKE_URL`, its
-  sessions calling that Worker's connector. Registered for teardown exactly
-  like an instance.
+  built-in agent runs against its own scripted Messages API
+  (`tools/messages-fake`), served in the runner's process on an ephemeral
+  port and named to the Worker as `ANTHROPIC_FAKE_URL`, the tools its script
+  names run by that Worker's own cell; its counters answer at
+  `/__fake/stats`. Registered for teardown exactly like an instance.
 - `instance.api` — the oRPC client over `@repo/contract/local`, carrying the device
   token this instance published in `<dataDir>/server.json`;
   `instance.vaultDir` / `dataDir` for on-disk assertions.

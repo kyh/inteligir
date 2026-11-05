@@ -62,8 +62,8 @@ library nothing else syncs (see the online library, below). The exception is wha
 agent reads, which goes to its provider (see [Tracking & Other
 Technologies](#tracking--other-technologies)). Your conversations with the
 built-in agent are your account's: our cloud keeps each one with your online
-library, so every device you sign in on shows it, and Anthropic keeps its
-events (see below). A conversation with an agent your Mac runs on your own
+library, so every device you sign in on shows it, and only our cloud keeps it
+(see below). A conversation with an agent your Mac runs on your own
 Claude or ChatGPT plan never leaves that Mac: only the changes it made to your
 library reach your other devices, as part of the library.
 
@@ -414,10 +414,9 @@ Specifically, in our cloud:
   registered (its name and addresses, never yours) is deleted 90 days after it
   last used it, and deleting the account leaves a registration to those 90
   days, since none is filed under an account.
-- The built-in agent's access to your library lasts while it is on, renewed
-  as it works: turning it off revokes it at once and deletes the vault at
-  Anthropic that holds it, and access nothing renews for 30 days lapses, as an
-  assistant's does.
+- A conversation with the built-in agent, the record of it in its own storage
+  and its messages in your online library alike, is kept until you delete it
+  or your account, and deleting it deletes both.
 - Cloudflare's request log keeps each entry for up to seven days.
 
 **Your phone.** Signed in, the phone keeps its own copy, so it opens and edits
@@ -468,20 +467,25 @@ and email delivery). Specifically:
   account, sessions, devices, the invite you redeemed and the throttling rows;
   its KV storage holds each assistant you connected: what it registered (its
   name and the addresses it gave), its grant, filed under your account with
-  its name and what you let it do, and its tokens, kept only as hashes, and
-  the built-in agent's grant and tokens the same way while it is on;
+  its name and what you let it do, and its tokens, kept only as hashes;
   storage it keeps for your account alone (your own Durable Objects, and storage
-  named for your library) holds your online library and your devices' live connections; its email sending delivers your password-reset emails; and it keeps the
-  request log described above.
-- **Anthropic** runs the built-in agent for us, on Claude Managed Agents and
-  on our account, not yours. What you ask it, what you were looking at, and
-  everything it reads of your library through our connector to answer you
-  (items, their text, highlights, folders, tags and history) go to Anthropic
-  under its terms with us. Anthropic keeps each conversation's events, and a
-  vault holding the agent's access to your library: deleting a conversation
-  deletes its events there, turning the agent off revokes that access and
-  deletes the vault at once, and deleting the account deletes every
-  conversation and the vault before your online library goes.
+  named for your library) holds your online library, your devices' live
+  connections and each conversation with the built-in agent; its AI Gateway
+  passes each request the built-in agent makes to Anthropic, and is asked to
+  keep only its metadata (the model, how many tokens, its status and how long
+  it took), never what it carries; its email sending delivers your
+  password-reset emails; and it keeps the request log described above.
+- **Anthropic** answers the built-in agent's questions for us, on our account,
+  not yours. What you ask it, what you were looking at, and everything it
+  reads of your library to answer you (items, their text, highlights, folders,
+  tags and history) go to Anthropic as each request it makes, through
+  Cloudflare's AI Gateway, under Anthropic's terms with us. Anthropic's API
+  keeps none of those requests or their answers once it has answered, past
+  the parts it caches for at most an hour to answer the next request of the
+  same conversation sooner. The conversation itself is kept by our cloud
+  alone: deleting it deletes it, and deleting the account deletes every
+  conversation before your online library goes, with nothing to delete at
+  Anthropic.
 - **GitHub** hosts the Mac app's releases and its update feed, and the issues
   you open there.
 - **Expo** answers the iPhone app's update check.
