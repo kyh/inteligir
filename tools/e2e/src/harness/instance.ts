@@ -5,12 +5,7 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { authorizationHeader, loopbackOrigin, readServerFile } from "inteligir/server/server-file";
 import type { LocalClient } from "@repo/contract/local";
-import {
-  browserHandoffUrl,
-  HEALTH_PATH,
-  healthResponseSchema,
-  RPC_PREFIX,
-} from "@repo/contract/local/routes";
+import { HEALTH_PATH, healthResponseSchema, RPC_PREFIX } from "@repo/contract/local/routes";
 import { appLaunchEnv } from "./exec";
 import { bootWithPorts, spawnSupervised } from "./tracked-child";
 import type { SupervisedChild, TrackedProcess } from "./tracked-child";
@@ -38,8 +33,6 @@ export interface LaunchAppArgs {
 export interface AppInstance extends TrackedProcess {
   api: LocalClient;
   baseUrl: string;
-  // a browser holds no bearer: each open signs it in through a fresh single-use handoff.
-  browserUrl: (pathAndSearch: string) => Promise<string>;
   dataDir: string;
   vaultDir: string;
   // the vendors' stores this instance runs them over, empty until something writes them.
@@ -185,10 +178,6 @@ const attachInstance = (child: SupervisedChild, dirs: InstanceDirs, port: number
     },
     api,
     baseUrl,
-    browserUrl: async (pathAndSearch) => {
-      const { nonce } = await api.system.browserHandoff();
-      return browserHandoffUrl(`${baseUrl}${pathAndSearch}`, nonce);
-    },
     dataDir,
     port,
     vaultDir,

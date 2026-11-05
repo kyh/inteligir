@@ -6,7 +6,9 @@
 
 import type { CellLibraryScope } from "@repo/domain/library-scope";
 import { LIBRARY_SELECTION_MAX } from "@repo/domain/view-context";
+import { jumpToFindMatch } from "@repo/editor/find-bar";
 import type { ItemSession } from "@repo/editor/item/item-session";
+import { getLiveEditor } from "@repo/editor/live-editor";
 import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
@@ -21,6 +23,7 @@ import { plural } from "@repo/ui/lib/plural";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useStore } from "zustand";
 
 import type { AgentViewContext } from "./agent/agent-panel";
 import { useReplica, useReplicaQueries, useWire } from "./cloud/library-context";
@@ -83,6 +86,35 @@ const uploadPicked = async (
   return made;
 };
 
+// a search's words, which the item it opened lands its find bar on once it has read its blocks
+interface PendingFind {
+  readonly itemId: string;
+  readonly query: string;
+}
+
+const findOnceOpen = (session: ItemSession, { itemId, query }: PendingFind): void => {
+  // answers whether the session is past opening, and lands the bar if it opened the item
+  const landed = (): boolean => {
+    const status = session.status();
+    if (status.kind === "opening") {
+      return false;
+    }
+    const editor = getLiveEditor(itemId);
+    if (status.kind === "open" && editor !== null) {
+      jumpToFindMatch(editor, query, 0);
+    }
+    return true;
+  };
+  if (landed()) {
+    return;
+  }
+  const stop = session.subscribe(() => {
+    if (landed()) {
+      stop();
+    }
+  });
+};
+
 export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => {
   const replica = useReplica();
   const wire = useWire();
@@ -104,6 +136,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [noteStore] = useState(createOpenNoteStore);
   const sessionRef = useRef<ItemSession | null>(null);
+  const findRef = useRef<PendingFind | null>(null);
   // the open item's session, which Info's properties write through
   const [session, setSession] = useState<ItemSession | null>(null);
   const hostRef = useRef<PageEditorHost | null>(null);
@@ -111,6 +144,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   // the rail opens and closes itself; the window's chord asks it to
   const railRef = useRef<SidebarActions | null>(null);
 
+  // the selection as it changes, which the panel's Info follows
+  const selected = useStore(selection.store, (state) => state.selected);
   const folders = useQuery(queries.folders()).data ?? [];
   const scope = listedScope(storedScope, folders);
   const page = useQuery(queries.listing(listingQuery({ kind, scope, sort }))).data;
@@ -415,8 +450,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   };
 
   // the panel's item: the open one, else the one card selected
-  const selectedIds = [...selection.store.getState().selected];
-  const panelItem = openItem ?? (selectedIds.length === 1 ? (selectedIds[0] ?? null) : null);
+  const [onlySelected = null, ...moreSelected] = selected;
+  const panelItem = openItem ?? (moreSelected.length === 0 ? onlySelected : null);
 
   return (
     <OpenNoteStoreProvider store={noteStore}>
@@ -536,6 +571,11 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                     onSession={(opened) => {
                       sessionRef.current = opened;
                       setSession(opened);
+                      const find = findRef.current;
+                      if (opened !== null && find?.itemId === openItem) {
+                        findRef.current = null;
+                        findOnceOpen(opened, find);
+                      }
                     }}
                   />
                 )}
@@ -549,6 +589,9 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                   threadId={threadId}
                   onThread={setThreadId}
                   viewContext={viewContext}
+                  flushOpen={async () => {
+                    await sessionRef.current?.flush();
+                  }}
                   infoActions={{
                     move: (itemId) => {
                       askMove([itemId]);
@@ -572,7 +615,13 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
           },
           askSaveLink,
           newNote,
-          openItem: (itemId) => {
+          openHit: (itemId, query) => {
+            const find = { itemId, query };
+            if (itemId === openItem && sessionRef.current !== null) {
+              findOnceOpen(sessionRef.current, find);
+              return;
+            }
+            findRef.current = find;
             open(itemId);
           },
           openSettings,

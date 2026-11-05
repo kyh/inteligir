@@ -55,6 +55,7 @@ type HeldItem = Exclude<RequestResult<"item">["item"], null>;
 
 const heldOf = (state: ItemState): HeldItem => ({
   blocks: orderedBlocks(state.blocks),
+  bodyHeld: true,
   fields: state.fields,
 });
 

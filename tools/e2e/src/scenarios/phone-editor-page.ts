@@ -122,6 +122,7 @@ const heldOf = (blocks: readonly LibraryBlock[]): HeldItem => ({
     ord: `a${String(index)}`,
     section: "note",
   })),
+  bodyHeld: true,
   fields: noteFields({ title: "Phone item" }),
 });
 

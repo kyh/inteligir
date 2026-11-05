@@ -2,6 +2,7 @@
 // no session sends the browser to the site's sign-in, which brings it back here. Sign-in is the
 // first run: there is nothing to choose before it.
 
+import { onlineManager } from "@tanstack/react-query";
 import { createBrowserHistory, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
@@ -40,12 +41,18 @@ switch (opening.kind) {
   case "ready": {
     const { library } = opening;
     library.replica.start();
-    // the socket and the minute's check-in rest while the tab is out of sight
+    // the socket and the minute's check-in rest while the tab is out of sight, and a tab in sight
+    // catches up the moment its connection comes back rather than at its next retry
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
         library.replica.resume();
       } else {
         library.replica.suspend();
+      }
+    });
+    onlineManager.subscribe((online) => {
+      if (online && document.visibilityState === "visible") {
+        library.replica.resume();
       }
     });
     const router = createAppRouter(createBrowserHistory(), {

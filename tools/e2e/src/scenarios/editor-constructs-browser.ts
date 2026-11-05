@@ -1,14 +1,13 @@
-import { readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import { modChord, parseEval } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
-import { pollUntil } from "../harness/poll";
+import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
+import { openLibraryTab, untilItemText } from "../harness/library-tab";
 import type { Scenario } from "../harness/scenario";
 import { EDITOR } from "../harness/selectors";
 
-const DOC_PATH = "Constructs.md";
+const TITLE = "Constructs";
 
 const DOC = `# Constructs
 
@@ -76,39 +75,41 @@ const themeFlipSchema = z
 
 export const editorConstructsBrowser: Scenario = {
   description:
-    "every live-preview construct renders in a real browser (jsdom has no layout, so the unit suite cannot prove a widget survived the bundle and a measure pass), the file is re-read to prove rendering wrote no bytes, and an edit keeps every construct on disk",
+    "every live-preview construct renders in a real browser tab under the page's policy (jsdom has no layout, so the unit suite cannot prove a widget survived the bundle and a measure pass), opening the item writes nothing to the cell, and an edit keeps every construct in the item's markdown",
   name: "editor-constructs-browser",
+  timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    const app = await ctx.boot({
-      name: "solo",
-      seedVault: async (vaultDir) => {
-        await writeFile(path.join(vaultDir, DOC_PATH), DOC, "utf-8");
+    let itemId = "";
+    let seq = 0;
+    ctx.log("opening the item by its deep link");
+    const { browser, library } = await openLibraryTab(ctx, "editor", {
+      path: () => `?item=${itemId}`,
+      ready: EDITOR,
+      seed: async (seeding) => {
+        const { item } = await seeding.items.createNote({ markdown: DOC, title: TITLE });
+        itemId = item.id;
+        ({ seq } = await seeding.items.read({ id: item.id }));
       },
     });
-
-    const agentBrowser = await ctx.browser("editor");
-
-    ctx.log(`opening ${DOC_PATH} by its deep link`);
-    await agentBrowser.openWorkspace(app, {
-      path: `/?item=${encodeURIComponent(DOC_PATH)}`,
-      ready: EDITOR,
-    });
-    await agentBrowser(["wait", `${EDITOR} table`], 30_000);
+    await browser(["wait", `${EDITOR} table`], 30_000);
 
     ctx.log("probing the rendered constructs");
-    const probe = parseEval(await agentBrowser(["eval", PROBE]), probeSchema);
+    const probe = parseEval(await browser(["eval", PROBE]), probeSchema);
     expect(probe.bold, "bold text did not render as <strong>");
     // the callout and the ordinary quote both render as blockquotes.
-    expect(probe.blockquotes >= 2, `expected 2 blockquotes, got ${probe.blockquotes}`);
-    expect(probe.checkboxes >= 2, `expected the 2 task checkboxes, got ${probe.checkboxes}`);
+    expect(probe.blockquotes >= 2, `expected 2 blockquotes, got ${String(probe.blockquotes)}`);
+    expect(
+      probe.checkboxes >= 2,
+      `expected the 2 task checkboxes, got ${String(probe.checkboxes)}`,
+    );
     expect(probe.fence, "the code fence did not render as <pre>");
     expect(probe.table, "the table did not render as <table>");
 
     ctx.log(
-      "the mermaid fence draws under the served CSP, and the theme recolours it with no redraw",
+      "the mermaid fence draws under the served policy, and the theme recolours it with no redraw",
     );
-    await agentBrowser(["wait", DIAGRAM], 30_000);
-    const flip = parseEval(await agentBrowser(["eval", THEME_FLIP]), themeFlipSchema);
+    await browser(["wait", DIAGRAM], 30_000);
+    const flip = parseEval(await browser(["eval", THEME_FLIP]), themeFlipSchema);
     if (flip === null) {
       throw new Error("the diagram drew no shape to read a fill from");
     }
@@ -121,22 +122,22 @@ export const editorConstructsBrowser: Scenario = {
       `a node's fill stayed ${flip.before} across the theme flip: the frame's --pele-* tokens did not reach the drawing`,
     );
 
-    ctx.log("rendering wrote nothing: the seeded bytes are untouched");
+    ctx.log("rendering wrote nothing: the item's sequence is the one it was seeded at");
+    // past the editor's pause before a write
     await delay(2500);
-    const onDisk = await readFile(path.join(app.vaultDir, DOC_PATH), "utf-8");
-    expectEq(onDisk, DOC, "opening the note changed its bytes");
+    const opened = await library.items.read({ id: itemId });
+    expectEq(opened.seq, seq, "opening the item wrote to it");
 
-    ctx.log("an edit keeps every construct on disk");
-    // the bottom toolbar floats over the note's lower half, so a text-target click can land under
-    // it.
-    await agentBrowser(["click", EDITOR]);
-    await agentBrowser(["press", modChord("Home")]);
-    await agentBrowser(["press", "End"]);
-    await agentBrowser(["type", EDITOR, " Edited."]);
-    const after = await pollUntil(
-      async () => await readFile(path.join(app.vaultDir, DOC_PATH), "utf-8"),
-      (bytes) => bytes.includes("Edited."),
-      { deadlineMs: 15_000, describe: (bytes) => `the edit never saved:\n${bytes}` },
+    ctx.log("an edit keeps every construct in the item");
+    await browser(["click", `${EDITOR} h1`]);
+    await browser(["press", modChord("Home")]);
+    await browser(["press", "End"]);
+    await browser(["keyboard", "type", " Edited."]);
+    const after = await untilItemText(
+      library,
+      itemId,
+      (markdown) => markdown.includes("Edited."),
+      "the edit never reached the cell",
     );
     for (const marker of [
       "**bold**",

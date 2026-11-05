@@ -156,6 +156,23 @@ describe("an item open in the editor", () => {
     expect(session.status()).toMatchObject({ fields: { title: "Plans" }, kind: "open" });
   });
 
+  it("opens an item that reaches this device after the editor asked for it", async () => {
+    const { mac, phone } = await devices();
+    const { id } = await mac.replica.createNote({
+      blocks: [{ block: paragraph("p1", "first"), ord: "a0", section: "note" }],
+      folderId: null,
+      tags: [],
+      title: "Plans",
+    });
+    await mac.replica.sync();
+    const { editor, session } = await openOn(phone, id);
+    expect(session.status()).toEqual({ kind: "missing" });
+    await phone.replica.sync();
+    await session.flush();
+    expect(editor.children.map((node) => node["id"])).toEqual(["p1"]);
+    expect(session.status()).toMatchObject({ fields: { title: "Plans" }, kind: "open" });
+  });
+
   it("writes nothing until a pause, then the edit as ops in the outbox, and lands them", async () => {
     const { cell, mac, phone } = await devices();
     const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), paragraph("p2", "x")]);

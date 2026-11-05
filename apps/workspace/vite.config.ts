@@ -30,7 +30,10 @@ export default defineConfig({
   // `compiler` loads the otherwise-unimported `oxc-transform-react` devDependency.
   plugins: [
     tanstackRouter({
-      autoCodeSplitting: true,
+      // one bundle: a route split into a chunk of its own would be fetched when first opened, and
+      // a tab whose connection dropped would reload on the failed fetch, losing the replica it
+      // holds in memory and every write not yet sent
+      autoCodeSplitting: false,
       generatedRouteTree: path.resolve(src, "routeTree.gen.ts"),
       routesDirectory: path.resolve(src, "routes"),
       target: "react",

@@ -1,7 +1,8 @@
 // CLAUDE.md § THERE IS ONE SEARCH SURFACE, AND IT IS ⌘P. One field over the library and the page's
 // commands: what is typed is searched in the replica's own full-text index (titles, notes, saved
-// articles and highlights), ranked as every device ranks it, and a typed web address offers to
-// save it. The commands are the page's verbs that need no item: a new note, a link, Settings.
+// articles and highlights), ranked as every device ranks it; a hit opens its item with the find
+// bar on the words, and a typed web address offers to save it. The commands are the page's verbs
+// that need no item: a new note, a link, Settings.
 
 import { isWebUrl } from "@repo/notes/items/item-url";
 import {
@@ -33,7 +34,8 @@ const Chord = ({ action }: { action: GlobalShortcutAction }) => {
 };
 
 export interface PaletteActions {
-  readonly openItem: (itemId: string) => void;
+  // a search's hit, opened on the words it was found by
+  readonly openHit: (itemId: string, query: string) => void;
   readonly newNote: () => void;
   readonly saveLink: (url: string) => void;
   readonly askSaveLink: () => void;
@@ -41,7 +43,13 @@ export interface PaletteActions {
   readonly askAgent: () => void;
 }
 
-const Results = ({ query, onOpen }: { query: string; onOpen: (itemId: string) => void }) => {
+const Results = ({
+  query,
+  onOpen,
+}: {
+  query: string;
+  onOpen: (itemId: string, query: string) => void;
+}) => {
   const hits = useQuery(useReplicaQueries().search(query, SEARCH_LIMIT)).data ?? [];
   return (
     <CommandGroup heading="Items">
@@ -51,7 +59,7 @@ const Results = ({ query, onOpen }: { query: string; onOpen: (itemId: string) =>
           action="Open"
           data-search-hit={hit.itemId}
           onSelect={() => {
-            onOpen(hit.itemId);
+            onOpen(hit.itemId, query);
           }}
         >
           <span className="flex min-w-0 flex-col">
@@ -108,9 +116,9 @@ export const CommandPalette = ({
         {typed === "" ? null : (
           <Results
             query={typed}
-            onOpen={(itemId) => {
+            onOpen={(itemId, words) => {
               close();
-              actions.openItem(itemId);
+              actions.openHit(itemId, words);
             }}
           />
         )}

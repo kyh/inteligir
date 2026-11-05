@@ -15,7 +15,7 @@ import { Button } from "@repo/ui/components/button";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, PlusIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { z } from "zod";
@@ -43,6 +43,8 @@ export interface AgentPanelProps {
   readonly onThread: (threadId: string | null) => void;
   // the screen the next message leaves from, read as it is sent
   readonly viewContext: () => AgentViewContext | undefined;
+  // writes what the open item holds unsaved, so an undo meets the item as the person sees it
+  readonly flushOpen: () => Promise<void>;
 }
 
 const STATUS_WORDS = {
@@ -215,7 +217,13 @@ const onRefused = (cause: unknown): void => {
   toast.error(refusalText(cause, "The agent couldn't be reached."));
 };
 
-const Conversation = ({ threadId }: { threadId: string }) => {
+const Conversation = ({
+  threadId,
+  flushOpen,
+}: {
+  threadId: string;
+  flushOpen: () => Promise<void>;
+}) => {
   const { orpc } = useWire();
   const queryClient = useQueryClient();
   const queries = useReplicaQueries();
@@ -225,7 +233,14 @@ const Conversation = ({ threadId }: { threadId: string }) => {
   const blocks = threadBlocks(entries);
   const waiting = waitingApprovals(entries);
   const preview = useLivePreview(threadId);
-  const sets = useQuery(orpc.library.history.list.queryOptions({ input: { threadId } }));
+  // a turn's change set seals in the push that ends it, so the list is asked again as each ends
+  const ended = rows.filter((row) => row.event.type === "turn.ended").length;
+  const listed = orpc.library.history.list.queryOptions({ input: { threadId } });
+  const sets = useQuery({
+    ...listed,
+    placeholderData: keepPreviousData,
+    queryKey: [...listed.queryKey, ended],
+  });
   const respond = useMutation(orpc.library.agent.respond.mutationOptions({ onError: onRefused }));
   const cancel = useMutation(orpc.library.agent.cancel.mutationOptions({ onError: onRefused }));
   const undo = useMutation(
@@ -241,12 +256,18 @@ const Conversation = ({ threadId }: { threadId: string }) => {
     }),
   );
   const changeSets = sets.data?.changeSets ?? [];
+  const undoSets = (ids: string[]): void => {
+    void (async () => {
+      await flushOpen();
+      undo.mutate({ changeSetIds: ids });
+    })();
+  };
   const undoTurn = (turn: number): (() => void) | null => {
     const ids = turnUndo(changeSets, turn);
     return ids === null
       ? null
       : () => {
-          undo.mutate({ changeSetIds: ids });
+          undoSets(ids);
         };
   };
   const whole = conversationUndo(changeSets);
@@ -306,7 +327,7 @@ const Conversation = ({ threadId }: { threadId: string }) => {
             size="compact"
             variant="ghost"
             onClick={() => {
-              undo.mutate({ changeSetIds: whole });
+              undoSets(whole);
             }}
           >
             Undo this conversation
@@ -377,7 +398,7 @@ const Composer = ({
   );
 };
 
-export const AgentPanel = ({ threadId, onThread, viewContext }: AgentPanelProps) => (
+export const AgentPanel = ({ threadId, onThread, viewContext, flushOpen }: AgentPanelProps) => (
   <div className="flex h-full min-h-0 flex-col" data-agent-panel>
     <div className="flex h-10 shrink-0 items-center gap-1 px-2">
       {threadId === null ? (
@@ -406,7 +427,11 @@ export const AgentPanel = ({ threadId, onThread, viewContext }: AgentPanelProps)
         <PlusIcon />
       </Button>
     </div>
-    {threadId === null ? <ThreadList onThread={onThread} /> : <Conversation threadId={threadId} />}
+    {threadId === null ? (
+      <ThreadList onThread={onThread} />
+    ) : (
+      <Conversation threadId={threadId} flushOpen={flushOpen} />
+    )}
     <Composer threadId={threadId} onThread={onThread} viewContext={viewContext} />
   </div>
 );

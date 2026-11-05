@@ -79,6 +79,8 @@ const heldItemSchema = z.strictObject({
       section: librarySectionSchema,
     }),
   ),
+  // false while its body is still to come from the cloud
+  bodyHeld: z.boolean(),
   fields: libraryItemFieldsSchema,
 });
 

@@ -51,8 +51,15 @@ const workerOptions = async (): Promise<MiniflareOptions["workers"]> => {
   const raw: unknown = JSON.parse(
     await readFile(path.join(args.outputDir, "worker.config.json"), "utf-8"),
   );
-  const { manifest, ...rest } = z.looseObject({ manifest: ManifestSchema }).parse(raw);
-  const config = MiniflareWorkerConfigBaseSchema.parse(rest);
+  const { assets, manifest, ...rest } = z
+    .looseObject({ assets: z.looseObject({}).optional(), manifest: ManifestSchema })
+    .parse(raw);
+  // the config's own routing (the library page's paths run the Worker first), over the output's
+  // directory, which the build names by where it wrote it rather than in the config
+  const config = MiniflareWorkerConfigBaseSchema.parse({
+    ...rest,
+    assets: { ...assets, directory: path.join(args.outputDir, "assets"), hasUserWorker: true },
+  });
   const modules = Object.fromEntries(
     await Promise.all(
       Object.entries(manifest.modules).map(async ([name, { type }]) => [
@@ -69,13 +76,6 @@ const workerOptions = async (): Promise<MiniflareOptions["workers"]> => {
     {
       config: {
         ...config,
-        // the config's own routing (the library page's paths run the Worker first), over the
-        // output's directory
-        assets: {
-          ...config.assets,
-          directory: path.join(args.outputDir, "assets"),
-          hasUserWorker: true,
-        },
         env: { ...config.env, ...vars },
         manifest: { mainModule: manifest.mainModule, modules },
         // the production routes would leave the local origin unrouted; the fill queues' consumers

@@ -52,6 +52,7 @@ const DevicesRow = () => {
                     size="compact"
                     variant="ghost"
                     className="ml-auto"
+                    aria-label={`Sign out ${device.name}`}
                     onClick={() => {
                       revoke.mutate({ deviceId: device.id });
                     }}
@@ -103,6 +104,7 @@ const AssistantsRow = () => {
                     size="compact"
                     variant="ghost"
                     className="ml-auto"
+                    aria-label={`Disconnect ${assistant.clientName}`}
                     onClick={() => {
                       revoke.mutate({ grantId: assistant.grantId });
                     }}
@@ -141,7 +143,7 @@ const AgentRow = () => {
         {(data) => (
           <div className="flex flex-col gap-1">
             <Switch
-              label={data.enabled ? "On" : "Off"}
+              aria-label="Built-in agent"
               checked={data.enabled}
               disabled={setEnabled.isPending}
               onCheckedChange={(enabled) => {

@@ -28,6 +28,8 @@ export interface PanelProps {
   readonly onThread: (threadId: string | null) => void;
   readonly viewContext: () => AgentViewContext | undefined;
   readonly infoActions: InfoActions;
+  // writes what the open item holds unsaved, which an undo does first
+  readonly flushOpen: () => Promise<void>;
 }
 
 const NoItem = () => (
@@ -43,6 +45,7 @@ export const Panel = ({
   onThread,
   viewContext,
   infoActions,
+  flushOpen,
 }: PanelProps) => (
   <Tabs
     value={tab}
@@ -73,10 +76,15 @@ export const Panel = ({
       {itemId === null ? <NoItem /> : <AnnotationsTab itemId={itemId} />}
     </TabsContent>
     <TabsContent value="history" className="min-h-0 flex-1 overflow-y-auto">
-      {itemId === null ? <NoItem /> : <HistoryTab itemId={itemId} />}
+      {itemId === null ? <NoItem /> : <HistoryTab itemId={itemId} flushOpen={flushOpen} />}
     </TabsContent>
     <TabsContent value="agent" className="flex min-h-0 flex-1 flex-col">
-      <AgentPanel threadId={threadId} onThread={onThread} viewContext={viewContext} />
+      <AgentPanel
+        threadId={threadId}
+        onThread={onThread}
+        viewContext={viewContext}
+        flushOpen={flushOpen}
+      />
     </TabsContent>
   </Tabs>
 );

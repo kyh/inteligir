@@ -67,8 +67,10 @@
       // stubs the Worker's program maps by `paths` (src/worker/tsconfig.json), which knip does not follow
       "ignore": ["src/worker/types/durable-git.d.ts", "src/worker/types/highlight-js.d.ts"],
       // `cloudflare:` is a workerd built-in module scheme, not a package; scripts/agent-prompt.ts reads
-      // @repo/agent-skills' files through `import.meta.resolve`, which knip does not follow
-      "ignoreDependencies": ["@repo/agent-skills", "cloudflare", "tailwindcss"]
+      // @repo/agent-skills' files through `import.meta.resolve`, which knip does not follow;
+      // @repo/workspace is the library's page, never imported: vite.config.ts copies its build into
+      // the Worker's assets, and the edge orders its build before the Worker's
+      "ignoreDependencies": ["@repo/agent-skills", "@repo/workspace", "cloudflare", "tailwindcss"]
     },
     "packages/notes": {
       "includeEntryExports": true,

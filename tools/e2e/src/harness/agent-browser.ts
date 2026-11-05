@@ -2,22 +2,25 @@ import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import { skip } from "./assert";
 import { describeExecError, exec } from "./exec";
-import type { AppInstance } from "./instance";
+import { OWNER } from "./cloud-account";
+import type { CloudWorker } from "./cloud-worker";
 import { pollUntil } from "./poll";
-import { LIBRARY_GRID, SIDEBAR } from "./selectors";
+import { LIBRARY_RAIL } from "./selectors";
 
 export type AgentBrowser = (args: readonly string[], timeoutMs?: number) => Promise<string>;
 
-interface OpenWorkspaceOptions {
+export interface OpenLibraryOptions {
+  // under /library, its query included (`?item=<id>` opens an item)
   path?: string;
-  // what the page shows once it is ready: the library's grid, which the window opens on, unless
-  // the path opened an item (`/?item=…`), whose caller names the editor or its viewer instead
+  // what the page shows once it is ready: its rail, unless the caller names the editor instead
   ready?: string;
 }
 
 interface ScenarioBrowserControls {
-  // signs the browser in through a fresh handoff and returns once the rail and `ready` mounted.
-  openWorkspace: (app: AppInstance, options?: OpenWorkspaceOptions) => Promise<void>;
+  // signs the browser in as the account `signUp` made, through the site's own sign-in, which comes
+  // back to the library's page, and returns once the page's rail and `ready` mounted. Sign-in is the
+  // page's first run: there is nothing to choose before it.
+  openLibrary: (worker: CloudWorker, options?: OpenLibraryOptions) => Promise<void>;
   close: () => Promise<void>;
 }
 
@@ -69,6 +72,28 @@ export const clickButtonIn = async (
     async () => parseEval(await browser(["eval", pressButtonIn(scope, name)]), z.string()),
     (outcome) => outcome === "clicked",
     { deadlineMs, describe: (outcome) => `the ${name} button in ${scope} stayed ${outcome}` },
+  );
+};
+
+// the element itself pressed, wherever it is drawn: a pointer's click lands where a sliding surface
+// was a moment ago. Retried until it lands, as `clickButtonIn` is.
+const pressElement = (selector: string): string => `(() => {
+  const element = document.querySelector(${JSON.stringify(selector)});
+  if (!(element instanceof HTMLElement)) return "missing";
+  if (element instanceof HTMLButtonElement && element.disabled) return "disabled";
+  element.click();
+  return "clicked";
+})()`;
+
+export const press = async (
+  browser: AgentBrowser,
+  selector: string,
+  deadlineMs = 30_000,
+): Promise<void> => {
+  await pollUntil(
+    async () => parseEval(await browser(["eval", pressElement(selector)]), z.string()),
+    (outcome) => outcome === "clicked",
+    { deadlineMs, describe: (outcome) => `${selector} stayed ${outcome}` },
   );
 };
 
@@ -134,6 +159,30 @@ export const dragSelectParagraph = async (
   } finally {
     await browser(["mouse", "up"]);
   }
+};
+
+// whether the caret is collapsed at the end of the text node it sits in
+const CARET_AT_END =
+  "String((() => { const sel = window.getSelection(); if (!sel || sel.rangeCount === 0) return false; const r = sel.getRangeAt(0); return r.collapsed && r.endContainer.textContent !== null && r.endOffset === r.endContainer.textContent.length; })())";
+
+// the caret put at the end of the editor's paragraph that holds `text`: a click lands it where the
+// pointer was, and an End the editor reads before the click's focus settled goes nowhere, so End
+// is pressed again until the caret is seen at the end
+export const caretToEndOf = async (
+  browser: AgentBrowser,
+  text: string,
+  deadlineMs = 15_000,
+): Promise<void> => {
+  await browser(["find", "text", text, "click"]);
+  await pollUntil(
+    async () => {
+      await browser(["press", "End"]);
+      await delay(100);
+      return parseEval(await browser(["eval", CARET_AT_END]), z.string());
+    },
+    (atEnd) => atEnd === "true",
+    { deadlineMs, describe: () => `the caret never reached the end of "${text}"` },
+  );
 };
 
 // the query the page's url carries: the open item, or none on the library
@@ -211,11 +260,20 @@ export const createScenarioBrowser = (
     close: async () => {
       await closeQuietly(run);
     },
-    openWorkspace: async (app, options = {}) => {
-      const url = await app.browserUrl(options.path ?? "/");
-      await run(["open", url], 60_000);
-      await run(["wait", SIDEBAR], 90_000);
-      await run(["wait", options.ready ?? LIBRARY_GRID], 90_000);
+    openLibrary: async (worker, options = {}) => {
+      const next = `/library${options.path ?? ""}`;
+      await run(
+        ["open", `${worker.origin}/app/sign-in?${new URLSearchParams({ next }).toString()}`],
+        60_000,
+      );
+      await run(["wait", "#email"], 60_000);
+      await run(["fill", "#email", OWNER.email]);
+      await run(["fill", "#password", OWNER.password]);
+      await run(["click", 'button[type="submit"]']);
+      await run(["wait", LIBRARY_RAIL], 90_000);
+      if (options.ready !== undefined) {
+        await run(["wait", options.ready], 90_000);
+      }
     },
   };
   return Object.assign(run, controls);

@@ -9,6 +9,7 @@ import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
 import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import type { V1Client } from "@repo/contract/cloud/v1";
+import { uuidV7 } from "@repo/notes/library/uuid-v7";
 import { z } from "zod";
 import { PHONE_BUILD } from "./cloud-account";
 import type { CloudWorker } from "./cloud-worker";
@@ -78,14 +79,6 @@ export const holdingsOf = async (
   return holdingsSchema.parse(await response.json());
 };
 
-// an id a device mints for an item it creates: a UUIDv7, its first six bytes the time
-export const newItemId = (now: number = Date.now()): string => {
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  for (let index = 0; index < 6; index += 1) {
-    bytes[index] = Math.floor(now / 2 ** (8 * (5 - index))) % 256;
-  }
-  bytes[6] = 0x70 + ((bytes[6] ?? 0) % 0x10);
-  bytes[8] = 0x80 + ((bytes[8] ?? 0) % 0x40);
-  const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-};
+// an id a device mints for an item or folder it creates, as every writer mints one
+export const newItemId = (now: number = Date.now()): string =>
+  uuidV7(now, crypto.getRandomValues(new Uint8Array(16)));

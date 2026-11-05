@@ -1,64 +1,42 @@
-// the workspace landmarks more than one scenario waits on or drives.
-export const SIDEBAR = '[data-slot="sidebar-wrapper"]';
+// the library page's landmarks more than one scenario waits on or drives.
+
+// the rail, which draws once the page has opened the library
+export const LIBRARY_RAIL = '[data-slot="sidebar-wrapper"] [aria-label="Library"]';
 export const EDITOR = '[data-slate-editor="true"]';
-export const COMPOSER = 'textarea[aria-label="Ask the agent"]';
-// prefix-matched: the placeholder ends in an ellipsis that is awkward to quote through a shell.
-export const PALETTE_INPUT = 'input[placeholder^="Search your library"]';
-// the library's grid, which the window opens on: nothing is open at boot.
-export const LIBRARY_GRID = '[data-slot="card-grid"]';
-// one item's card in the grid.
-export const libraryCard = (vaultPath: string): string =>
-  `[role="gridcell"][data-item-path="${vaultPath}"]`;
-// a folder's row in the rail's Folders group.
-export const folderRow = (folder: string): string => `[role="tree"] [data-folder="${folder}"]`;
+// a row of a listbox: the palette's and the editor's menus
 export const OPTION = "[role=option]";
 export const OPTION_COUNT = `String(document.querySelectorAll('${OPTION}').length)`;
-// the step /welcome draws over the workspace after a first run; none once it is finished.
-export const WELCOME_STEP = "[data-welcome-step]";
-export const welcomeStep = (step: "agent" | "account"): string => `[data-welcome-step="${step}"]`;
+// the palette's field: the one search surface
+export const PALETTE_INPUT = 'input[aria-label="Search the library"]';
+// the library's grid, which the page opens on: nothing is open at boot
+export const LIBRARY_GRID = '[data-slot="card-grid"]';
+// one item's card in the grid, by its id
+export const libraryCard = (itemId: string): string =>
+  `[role="gridcell"][data-item-id="${itemId}"]`;
+// a folder's row in the rail's Folders group, by its id
+export const folderRow = (folderId: string): string => `[data-folder-id="${folderId}"]`;
 export const TOAST = "[data-sonner-toast]";
 // every toast's text at once: another may be up beside the one a scenario waits on.
 export const TOAST_TEXT = `String([...document.querySelectorAll('${TOAST}')].map((el) => el.textContent).join("\\n"))`;
-// the action of the toast saying `toastText`, found by that text; answers "clicked" or "missing".
-export const clickToastAction = (toastText: string): string => `(() => {
-  const toast = [...document.querySelectorAll('${TOAST}')].find((el) => el.textContent.includes(${JSON.stringify(toastText)}));
-  const button = toast ? toast.querySelector("[data-action]") : null;
-  if (!button) return "missing";
-  button.click();
-  return "clicked";
-})()`;
-// the hand-written connector's form in Settings: the presets above it carry Add buttons of their
-// own. by placeholder inside it, since the ids are React-minted per mount.
-export const CONNECTOR_FORM = 'form[aria-label="Another connector"]';
-export const NAME_INPUT = `${CONNECTOR_FORM} input[placeholder="my-connector"]`;
-export const URL_INPUT = `${CONNECTOR_FORM} input[placeholder="https://example.com"]`;
-// the open one: an answered confirm stays in the DOM through its exit animation, and its buttons
-// answer nothing.
-export const ALERT_DIALOG = '[role="alertdialog"][data-open]';
-// any confirm at all, the closing one included: until it is gone it still covers the page.
-export const DIALOG_PRESENCE = `document.querySelector('[role="alertdialog"]') === null ? "gone" : "present"`;
-// a click on a card as a pointer makes it, ⌘-click (Ctrl off a Mac) when `toggle`: Finder's grammar,
-// which agent-browser's own click cannot hold a modifier for. Answers "clicked" or "missing".
-export const clickCard = (vaultPath: string, toggle = false): string => `(() => {
-  const card = document.querySelector(${JSON.stringify(libraryCard(vaultPath))});
+// a double-click on a card as a pointer makes it: a click, a second click counting two (the one the
+// card opens on), none of which agent-browser's own click makes. Answers "opened" or "missing".
+export const doubleClickCard = (itemId: string): string => `(() => {
+  const card = document.querySelector(${JSON.stringify(`[data-item-id="${itemId}"]`)});
   if (!card) return "missing";
-  const mac = /mac|iphone|ipad|ipod/i.test(navigator.userAgent);
-  card.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, metaKey: ${String(toggle)} && mac, ctrlKey: ${String(toggle)} && !mac }));
+  for (const detail of [1, 2]) {
+    card.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail }));
+  }
+  return "opened";
+})()`;
+// a click on a card as a pointer makes it. Answers "clicked" or "missing".
+export const clickCard = (itemId: string): string => `(() => {
+  const card = document.querySelector(${JSON.stringify(`[data-item-id="${itemId}"]`)});
+  if (!card) return "missing";
+  card.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1 }));
   card.focus();
   return "clicked";
 })()`;
-// a double-click on a card as a pointer makes it: a click, a second click counting two (the one the
-// card opens on), then the dblclick, none of which WebDriver's element click makes. Answers
-// "double-clicked" or "missing".
-export const doubleClickCard = (vaultPath: string): string => `(() => {
-  const card = document.querySelector(${JSON.stringify(libraryCard(vaultPath))});
-  if (!card) return "missing";
-  for (const [type, detail] of [["click", 1], ["click", 2], ["dblclick", 2]]) {
-    card.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, detail }));
-  }
-  return "double-clicked";
-})()`;
-// the open item's breadcrumb way back
-export const BACK_TO_LIBRARY = 'button[aria-label="Back to library"]';
-// the library's own header, which names the scope shown
-export const LIBRARY_TITLE = "[data-library-view] h1";
+// the open item's way back
+export const BACK_TO_LIBRARY = 'button[aria-label="Back to the library"]';
+// the agent panel's message field
+export const COMPOSER = 'textarea[aria-label="Message the agent"]';

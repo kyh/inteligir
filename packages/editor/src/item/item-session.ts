@@ -29,6 +29,8 @@ export interface HeldItem {
   readonly fields: LibraryItemFields;
   // in reading order: the note, then the article
   readonly blocks: readonly StoredBlock[];
+  // false while its body is still to come from the cloud: a row pulled ahead of its blocks
+  readonly bodyHeld: boolean;
 }
 
 // a file a block names by its sha, kept until the write that names it is queued
@@ -561,11 +563,35 @@ export const createItemSession = (
 
   const land = async (overlappedThere: boolean): Promise<void> => {
     const item = await ports.store.item(itemId);
-    if (item === null) {
-      missing = true;
-    } else {
+    missing = item === null;
+    // a body the replica no longer holds (it started over) is pulled again, and no block of it
+    // was removed meanwhile
+    if (item?.bodyHeld === true) {
       settle(item, overlappedThere);
     }
+    publish();
+  };
+
+  // the item read into the editor the first time: one this device does not hold yet (a link
+  // followed before the replica's first pull) is missing, and one whose row came ahead of its
+  // blocks is opening, until a change brings what was still to come
+  const open = async (): Promise<void> => {
+    const item = await ports.store.item(itemId);
+    missing = item === null;
+    if (item === null || !item.bodyHeld) {
+      publish();
+      return;
+    }
+    const state = stateOf(item);
+    acked = state;
+    withoutHistory(() => {
+      editor.tf.setValue(orderedBlocks(state.blocks).map((stored) => elementOf(stored.block)));
+    });
+    // the value is the item's now, so no undo reaches what the editor held before it, as Plate's
+    // own reset clears
+    editor.history.undos = [];
+    editor.history.redos = [];
+    seen = editor.children;
     publish();
   };
 
@@ -575,35 +601,15 @@ export const createItemSession = (
     }
     following = true;
     unsubscribe = ports.store.onChange((change) => {
-      if (following && acked !== null && (change.reset || change.ids.has(itemId))) {
+      if (following && (change.reset || change.ids.has(itemId))) {
         const overlapped = change.overlapped.has(itemId);
         void serial(async () => {
-          await land(overlapped);
+          await (acked === null ? open() : land(overlapped));
         });
       }
     });
     await serial(async () => {
-      if (acked !== null) {
-        await land(false);
-        return;
-      }
-      const item = await ports.store.item(itemId);
-      if (item === null) {
-        missing = true;
-        publish();
-        return;
-      }
-      const state = stateOf(item);
-      acked = state;
-      withoutHistory(() => {
-        editor.tf.setValue(orderedBlocks(state.blocks).map((stored) => elementOf(stored.block)));
-      });
-      // the value is the item's now, so no undo reaches what the editor held before it, as Plate's
-      // own reset clears
-      editor.history.undos = [];
-      editor.history.redos = [];
-      seen = editor.children;
-      publish();
+      await (acked === null ? open() : land(false));
     });
   };
 

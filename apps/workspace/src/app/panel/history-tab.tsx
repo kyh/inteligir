@@ -71,7 +71,14 @@ const RevisionDialog = ({
   );
 };
 
-export const HistoryTab = ({ itemId }: { itemId: string }) => {
+export const HistoryTab = ({
+  itemId,
+  flushOpen,
+}: {
+  itemId: string;
+  // writes what the open item holds unsaved, so an undo meets the item as the person sees it
+  flushOpen: () => Promise<void>;
+}) => {
   const { orpc } = useWire();
   const queryClient = useQueryClient();
   const nowMs = useNow();
@@ -127,7 +134,10 @@ export const HistoryTab = ({ itemId }: { itemId: string }) => {
                       variant="secondary"
                       disabled={set.undoneBy !== null || set.closedAt === null || undo.isPending}
                       onClick={() => {
-                        undo.mutate({ changeSetIds: [set.id] });
+                        void (async () => {
+                          await flushOpen();
+                          undo.mutate({ changeSetIds: [set.id] });
+                        })();
                       }}
                     >
                       Undo

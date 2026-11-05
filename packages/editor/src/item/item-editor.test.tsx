@@ -64,6 +64,7 @@ const itemOf = (title: string, ...blocks: LibraryBlock[]): ItemState => ({
 
 const heldOf = (state: ItemState): HeldItem => ({
   blocks: orderedBlocks(state.blocks),
+  bodyHeld: true,
   fields: state.fields,
 });
 
