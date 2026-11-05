@@ -310,9 +310,11 @@ runs it bare.
 - **`@repo/notes` is pure and platform-neutral**: no node, react or ui imports
   and no `crypto` global (lint-enforced); callers inject the SQL driver, the
   clock, random bytes and fresh ids.
-- **`pnpm knip` is a CI gate**: a new file must be reachable from an entry.
-  Knip's plugins find tests, routes and scripts, and `knip.json` names only
-  what they cannot see, `ignoreDependencies` included.
+- **knip is a CI gate**, `verify`'s `//#knip` task, which
+  `pnpm turbo run //#knip` runs alone after the extension's `generate`
+  (`docs/development.md` § Quality gates): a new file must be reachable from
+  an entry. Knip's plugins find tests, routes and scripts, and `knip.json`
+  names only what they cannot see, `ignoreDependencies` included.
 - **The record is the decision files and GitHub Issues.** No `plans/`, ADR docs
   or `*_GAPS.md`.
 - **A large change goes as stacked PRs, one per work stream**, each based on

@@ -340,12 +340,9 @@ from inteligir.com alone), with no dev build loaded.
 - **Disconnect.** The welcome page's Disconnect. Passing: the popup then
   offers Connect Inteligir to your library to save, and the devices page shows
   the extension revoked.
-- **No privacy prompt.** Passing: no macOS prompt names the browser, through
-  every check above.
-- **The store link**, once the listing is public. Passing: Settings › Library's
-  Get the Inteligir extension, the site's Save from anywhere link and the
-  starter notes' link (Welcome, Getting Started) each open the extension's Web
-  Store page.
+- **The store link**, once the listing is public. Passing: the site's Save
+  from anywhere link (inteligir.com) and Get the Inteligir extension on
+  inteligir.com/connect/extension each open the extension's Web Store page.
 
 ### The iPhone app, on the internal build
 

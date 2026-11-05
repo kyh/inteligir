@@ -223,11 +223,10 @@ The apps also hold to these, plainly:
   device and never through our cloud, to fill in its title, site, description,
   cover image and readable text. Refresh, on a Mac, fetches it again; a Mac
   never fetches a link saved on another of your devices unless you ask it to,
-  with Refresh or Keep a copy. It also fetches the cover image the page names. For YouTube, Vimeo, X, TikTok, Spotify and SoundCloud it asks that
+  with Refresh. It also fetches the cover image the page names. For YouTube, Vimeo, X, TikTok, Spotify and SoundCloud it asks that
   site's own oEmbed address (with X's `dnt=true`), for any other page the oEmbed
   address the page itself names, and the picture that answer names; for a
-  YouTube video it may also fetch the video's still picture from YouTube. Keep a
-  copy of the page also fetches the page's stylesheets, fonts and images. The
+  YouTube video it may also fetch the video's still picture from YouTube. The
   request carries no cookies, sign-in or referrer; the site sees that device's
   IP address, a Safari-compatible user agent naming inteligir and its version,
   and your preferred language, as a browser visit would. On a Mac, addresses on
@@ -244,7 +243,8 @@ The apps also hold to these, plainly:
   travels wherever your library syncs.
 - **Saving a link to your online library — from our cloud, to that site.** A
   link that reaches your account's online library without its page (one an
-  assistant you connected saved, one imported there, one refreshed there) is
+  assistant you connected saved, one imported there, one refreshed there, one
+  the browser extension sent as its address) is
   fetched once by our cloud, from Cloudflare's network, to fill in the same
   title, site, description, cover image and readable text, with the same
   oEmbed addresses and the cover picture a Raindrop import recorded. The
@@ -258,14 +258,22 @@ The apps also hold to these, plainly:
   Edge and Vivaldi reads the page you are on only when you click Save or choose Save from
   the right-click menu. It reads the page as it is shown (its address, its
   title and its HTML without its scripts) in your browser, and sends what it
-  read, the page's text, the facts it gives about itself and its cover
-  picture, to your Inteligir library in our cloud, signed in with a key of its
-  own that inteligir.com/connect/extension gave it, which you can revoke from
-  your devices. It fetches the cover picture the page names, without your
-  cookies, and nothing else. Nothing you typed into the page goes with it: form
-  fields, the choices a page filled in for you and every box you type into,
-  such as an email you are writing, are emptied first. A save made while you
-  are offline waits in the browser's storage for the extension as the page's
+  read, the page's text, the facts it gives about itself, its cover picture
+  and the passage you had selected, which your library keeps as a highlight,
+  to your Inteligir library in our cloud, signed in with a key of its own that
+  inteligir.com/connect/extension gave it, which you can revoke from your
+  devices. It fetches the cover picture the page names, from your browser and
+  without your cookies, and nothing else. Nothing you typed into the page goes
+  with it: form fields, the choices a page filled in for you and every box you
+  type into, such as an email you are writing, are emptied first. Some saves
+  send only an address, which our cloud then fetches and reads as it does any
+  link your online library holds unread (above): a link or a picture you save
+  from the right-click menu, and a page the extension cannot read in your
+  browser (the browser's own pages, the Web Store, a PDF, a page too large to
+  read there, or one it found no text in), which goes with its title and the
+  passage you selected. A picture a page drew itself, which has no address, is
+  uploaded to your library as a file of its own. A save made while you are
+  offline waits in the browser's storage for the extension as the page's
   address, title and the passage you selected, and is sent, for our cloud to
   read, once you are back online.
 - **Sharing from your iPhone.** Sharing a page to Inteligir has the phone fetch
@@ -1109,9 +1117,10 @@ Everything else the app reaches is someone else's:
 - **Your own git server**, if a library syncs to one instead of your account's
   online library.
 - **The sites you save**, from the Mac or the iPhone you saved on, when you
-  save a link or refresh it on a Mac, with the cover and page-copy files they
-  name, the cover a Raindrop import recorded, and the oEmbed addresses above;
-  and from our cloud, for a link your online library holds unread.
+  save a link or refresh it on a Mac, with the cover files they name, the
+  cover a Raindrop import recorded, and the oEmbed addresses above; from the
+  browser the extension runs in, for the cover picture of a page it saves; and
+  from our cloud, for a link your online library holds unread.
 
 ---
 

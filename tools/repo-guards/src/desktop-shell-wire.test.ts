@@ -1,10 +1,9 @@
 // The desktop shell is Rust and the page it carries is TypeScript, so the words they share cross no
 // compiler: every command the page may ask, the capability that grants it, the events the shell
 // pushes, the headers a staged file rides, the error kinds a command rejects with, the origins the
-// page runs on and calls, the scheme its files ride, the window's content policy, the bundle id
-// the browser's door opens the app by and the debug build's own. Each is read from both sides here
-// and held equal, so a rename on one side fails here rather than as a command no page can reach or
-// a call the policy refuses.
+// page runs on and calls, the scheme its files ride, the window's content policy and the debug
+// build's own bundle id. Each is read from both sides here and held equal, so a rename on one side
+// fails here rather than as a command no page can reach or a call the policy refuses.
 
 import { MAC_APP_ORIGIN, PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/cloud/origin";
 import { describe, expect, it } from "vitest";

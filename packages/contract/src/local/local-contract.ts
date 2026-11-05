@@ -32,8 +32,8 @@ export const localContract = {
 
 export type LocalContract = typeof localContract;
 
-// what every caller of the server types against: the page, the CLI's verbs, the browser's door and
-// the e2e harness, each over its own link
+// what every caller of the server types against: the page, the CLI's verbs and the e2e harness,
+// each over its own link
 export type LocalClient = RouterContractClient<LocalContract>;
 
 export type LocalInputs = InferRouterContractInputs<LocalContract>;

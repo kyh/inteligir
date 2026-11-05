@@ -188,7 +188,10 @@ ios`), so JavaScript Metro refuses fails here rather than on EAS. It is check-on
 step, never folded in. Format before gates, commit after gates. Turbo carries
 on past a failure to every task whose dependencies passed, so a red format
 cannot hide test regressions behind it, and `TEST_CONCURRENCY` caps how many
-tasks run at once (four by default), as it does for `pnpm test`.
+tasks run at once (four by default), as it does for `pnpm test`. To run knip on its own, use `pnpm turbo run //#knip`: knip
+reads the extension's program, which extends the `.wxt/tsconfig.json` its
+`generate` task writes, so a bare `pnpm knip` on a fresh checkout sees none of
+the extension's suites and calls the exports they use unused.
 
 CI then runs a few more that `verify` cannot: it installs agent-browser
 and the shell's WebDriver (`tauri-driver`, each pinned by hand, over
