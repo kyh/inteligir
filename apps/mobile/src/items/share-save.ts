@@ -9,6 +9,7 @@
 import { base64FromBytes } from "@repo/contract/cloud/bytes";
 import type { FillAnswer, FillJob } from "@repo/editor-bridge/protocol";
 import type { LibraryReplica, Made, PageInput } from "@repo/library-replica/library-replica";
+import { namesPrivateSpace } from "@repo/notes/items/host-names";
 import { FILL_LIMITS, isPageType } from "@repo/notes/items/link-fill";
 import { pixelSize, sniffMedia } from "@repo/notes/items/sniff-media";
 import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
@@ -46,17 +47,22 @@ const factsOf = (facts: ReadAnswer["facts"]): PageInput["facts"] => ({
   site: line(facts.site),
 });
 
-// the first candidate that is really a picture of a cover's size, kept whole as the site served it
+// the first candidate that is really a picture of a cover's size, kept whole as the site served it;
+// a page in private space may name a cover there, a public one never
 const coverOf = async (
   ports: ShareReadPorts,
+  pageUrl: string,
   candidates: readonly string[],
 ): Promise<PageInput["cover"]> => {
   for (const url of new Set(candidates)) {
+    if (!namesPrivateSpace(pageUrl) && namesPrivateSpace(url)) {
+      continue;
+    }
     const fetched = await ports.fetch({
       accept: COVER_ACCEPT,
       maxBytes: FILL_LIMITS.coverBytes,
       overflow: "refuse",
-      reachesPrivate: false,
+      reachesPrivate: namesPrivateSpace(pageUrl),
       url,
     });
     if (!fetched.ok) {
@@ -90,7 +96,8 @@ export const readSharedPage = async (
       accept: PAGE_ACCEPT,
       maxBytes: FILL_LIMITS.htmlBytes,
       overflow: "truncate",
-      reachesPrivate: false,
+      // a redirect reaches private space only from an address that names it itself
+      reachesPrivate: namesPrivateSpace(shared.url),
       url: shared.url,
     });
   } catch {
@@ -116,7 +123,7 @@ export const readSharedPage = async (
   return {
     article: answer.article,
     copy: null,
-    cover: await coverOf(ports, answer.facts.images),
+    cover: await coverOf(ports, shared.url, answer.facts.images),
     facts: factsOf(answer.facts),
     folderId: target.folderId,
     selection: null,

@@ -816,9 +816,6 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.2.8(patch_hash=4c603404c60581818ef6d35348ac18c39e0581e83dbc05216b6966588fb7f877)(react@19.2.8)
-      zod:
-        specifier: 'catalog:'
-        version: 4.6.7
     devDependencies:
       '@babel/core':
         specifier: 'catalog:'

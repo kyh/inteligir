@@ -14,7 +14,7 @@ const FRAME = "gap-2 rounded-lg border border-border bg-card p-3";
 const changes = (count: number): string => (count === 1 ? "1 change" : `${String(count)} changes`);
 
 // what waits on a connection, said once whatever the reason the last pass stopped
-export const waitingLine = (status: ReplicaStatus): string | null => {
+const waitingLine = (status: ReplicaStatus): string | null => {
   if (status.unsent === status.parked.length) {
     return null;
   }

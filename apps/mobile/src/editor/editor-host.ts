@@ -30,7 +30,7 @@ export type EditorPageEvent = Exclude<
 >;
 
 // what the phone tells a loaded page on its own: the replica moved
-export type EditorNativeEvent = Unstamped<Extract<NativeFrame, { type: "itemChanged" }>>;
+type EditorNativeEvent = Unstamped<Extract<NativeFrame, { type: "itemChanged" }>>;
 
 // the part of the WebView the host drives
 interface EditorView {

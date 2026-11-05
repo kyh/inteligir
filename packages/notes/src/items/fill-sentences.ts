@@ -94,10 +94,6 @@ export interface FillFailure {
 
 export const TEXT_NOT_SAVED = "The page's text couldn't be saved.";
 export const COPY_TOO_BIG = "The page is too big to keep a copy of; its text is saved.";
-// a picture the phone will not decode: its header names too many pixels, or no size at all
-export const PICTURE_ONLY_LINKED =
-  "This picture can't be opened on the iPhone; only its link is kept.";
-
 const MB = 1024 * 1024;
 
 const LIMIT_MB = 10;

@@ -30,7 +30,6 @@ import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
 import { extensionIntegrated } from "./scenarios/extension-integrated";
 import { fileItems } from "./scenarios/file-items";
 import { hostedVaultFull } from "./scenarios/hosted-vault-full";
-import { hostedVaultPhoneWrite } from "./scenarios/hosted-vault-phone-write";
 import { hostedVaultSecondMac } from "./scenarios/hosted-vault-second-mac";
 import { hostedVaultSync } from "./scenarios/hosted-vault-sync";
 import { importIntegrated } from "./scenarios/import-integrated";
@@ -40,8 +39,6 @@ import { linkCapture } from "./scenarios/link-capture";
 import { phoneAnnotationsHosted } from "./scenarios/phone-annotations-hosted";
 import { phoneEditorPage } from "./scenarios/phone-editor-page";
 import { phoneFileOpsHosted } from "./scenarios/phone-file-ops-hosted";
-import { phoneFillIntegrated } from "./scenarios/phone-fill-integrated";
-import { phoneFillRaceHosted } from "./scenarios/phone-fill-race-hosted";
 import { phoneOfflineEdit } from "./scenarios/phone-offline-edit";
 import { phoneSaveHosted } from "./scenarios/phone-save-hosted";
 import { raindropImport } from "./scenarios/raindrop-import";
@@ -69,14 +66,12 @@ const SCENARIOS: readonly Scenario[] = [
   sizeGate,
   hostedVaultSync,
   hostedVaultSecondMac,
-  hostedVaultPhoneWrite,
   hostedVaultFull,
   phoneOfflineEdit,
   phoneFileOpsHosted,
   phoneAnnotationsHosted,
   phoneEditorPage,
   phoneSaveHosted,
-  phoneFillRaceHosted,
   accountHosted,
   connectorTools,
   agentCell,
@@ -108,7 +103,6 @@ const SCENARIOS: readonly Scenario[] = [
   browserExtension,
   importIntegrated,
   extensionIntegrated,
-  phoneFillIntegrated,
 ];
 
 // half the machine's cores, at most four: a lane is a server, a browser and often a Worker, and

@@ -3,7 +3,7 @@ import { z } from "zod";
 
 // what the Keychain keeps of a sign-in: the device's bearer and its id, and whose library it opens,
 // which the account screen names
-export const keptCredentialSchema = deviceCredentialSchema.extend({ email: z.string().min(1) });
+const keptCredentialSchema = deviceCredentialSchema.extend({ email: z.string().min(1) });
 export type KeptCredential = z.infer<typeof keptCredentialSchema>;
 
 // a malformed record reads as "signed out", not as a credential the cloud refuses on every request.

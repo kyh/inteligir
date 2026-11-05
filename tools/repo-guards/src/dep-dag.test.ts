@@ -46,11 +46,12 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // instance; the @repo/mobile edge is the phone's own platform-free runtime, driven under node
     // against a real Worker, since no Expo boots headless; the @repo/editor-bridge edge is the
     // page's wire, so the scripted phone speaks the frames the page parses; the
-    // @repo/mobile-editor edge is the page's reader mode, which the phone's runtime reads a saved
-    // link with; the @repo/page-reader edge is the linkedom DOM that reader runs over under node,
-    // where the page has its WebView's; the @repo/messages-fake edge is the scripted Claude each
-    // Worker it boots runs its built-in agent against; the @repo/notes edge is the block hashes
-    // and fields the scripted phone's replica answers an item page with.
+    // @repo/mobile-editor edge is the page's headless reader and merge, which the phone's runtime
+    // reads a shared page and merges a block with; the @repo/page-reader edge is the linkedom DOM
+    // that reader runs over under node, where the page has its WebView's; the @repo/messages-fake
+    // edge is the scripted Claude each Worker it boots runs its built-in agent against; the
+    // @repo/notes edge is the block hashes and fields the scripted phone's replica answers an item
+    // page with.
     "@repo/e2e": [
       "@repo/contract",
       "@repo/editor-bridge",
@@ -74,16 +75,24 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // the browser's Save: the /browser wire and the production origin it links (BROWSER_WIRE_CLIENTS
     // below), drawn with the shared component kit; it reaches the Mac only through the native host.
     "@repo/extension": ["@repo/contract", "@repo/ui"],
-    // a partial cloud client: reads the hosted vault and writes it only through the guarded
-    // commit route. the @repo/notes edge is the dialect's own parse, link resolver and the one
-    // conflict verdict its write queue settles with; the @repo/editor-bridge edge is the editor
-    // page's wire (EDITOR_PAGE_CLIENTS below), since the page itself ships built; it reaches no
-    // server, vault engine, agent or thread.
-    "@repo/mobile": ["@repo/contract", "@repo/editor-bridge", "@repo/notes"],
+    // a `/v1` client over its own replica (@repo/library-replica), as the Mac is: the
+    // @repo/contract edge is the wire, the @repo/notes edge the library model its cards and
+    // listing read, the @repo/domain edge the library scopes its listing names, the
+    // @repo/agent-panel edge the built-in agent's conversation as every device reads it, and the
+    // @repo/editor-bridge edge the editor page's wire (EDITOR_PAGE_CLIENTS below), since the page
+    // itself ships built; it reaches no server code.
+    "@repo/mobile": [
+      "@repo/agent-panel",
+      "@repo/contract",
+      "@repo/domain",
+      "@repo/editor-bridge",
+      "@repo/library-replica",
+      "@repo/notes",
+    ],
     // the phone's editor page: the desktop's editor in a WebView, reaching the phone only through
     // its own bridge (@repo/editor-bridge), so no contract and no cloud wire. The
-    // @repo/page-reader edge is its reader mode: a link the phone saved is read with the Mac's own
-    // reader, over the WebView's DOM.
+    // @repo/page-reader edge is its headless page: a page the phone shares is read with the
+    // library's own reader, over the WebView's DOM.
     "@repo/mobile-editor": [
       "@repo/editor",
       "@repo/editor-bridge",

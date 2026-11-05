@@ -4,7 +4,10 @@
   "private": true,
   "main": "expo-router/entry",
   "exports": {
+    "./annotations/annotation-edits": "./src/annotations/annotation-edits.ts",
+    "./editor/item-ports": "./src/editor/item-ports.ts",
     "./items/page-fetch": "./src/items/page-fetch.ts",
+    "./items/phone-saves": "./src/items/phone-saves.ts",
     "./items/share-save": "./src/items/share-save.ts",
     "./lib/compose-runtime": "./src/lib/compose-runtime.ts",
     "./lib/node-replica-sql": "./src/lib/node-replica-sql.ts",
