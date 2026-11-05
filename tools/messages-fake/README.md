@@ -24,15 +24,17 @@ It refuses with a 400, in the API's words, what Claude Opus 5.5 refuses
 forced tool choice, a field on a message other than its role and content, an
 assistant message last, a system message out of place, a tool call with no
 result next, more than four breakpoints or a 1-hour one after a 5-minute one,
-a breakpoint on a thinking block, and a beta's field without its beta. It signs
+a breakpoint on a thinking block, a beta's field without its beta, and a
+compaction trigger other than input tokens or under 50,000 of them. It signs
 every thinking block it sends against the system, the tools and every message
 before it, chained to the block before (`src/fake-signature.ts`), so a request
 that leaves out a leading run of thinking blocks still verifies and any other
 edit does not: refused, or under `drop_block` dropped and counted. Every suite
-and scenario expects no drop. Once a conversation holds a compaction block, the
-fake reads it from its last one on, as the API does: what came before is
-ignored, the prefix a thinking block is bound to starts at the block, and the
-chain starts afresh there.
+and scenario expects no drop. Once a conversation holds a compaction block
+that kept a summary, the fake reads it from its last one on, as the API does:
+what came before is ignored, the prefix a thinking block is bound to starts at
+the block, and the chain starts afresh there. A compaction block whose content
+is null, a summary not written, is ignored itself, and compacts nothing.
 
 ## The agent's script
 

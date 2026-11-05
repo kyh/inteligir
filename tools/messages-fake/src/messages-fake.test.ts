@@ -2,7 +2,8 @@
 // directive a reply, every usage field on the stream, a 400 for each request shape Claude Opus 5.5
 // refuses, a replayed thinking block bound to everything before it but a leading run of thinking,
 // and one that fails dropped and counted under `drop_block` instead; progress notes shown under
-// `display: "updates"`; and a compaction the conversation is read from, and bound from, after it.
+// `display: "updates"`; and a compaction the conversation is read from, and bound from, after it,
+// but one that wrote no summary, which compacts nothing.
 
 import Anthropic, { APIError } from "@anthropic-ai/sdk";
 import type {
@@ -61,10 +62,12 @@ const bodyOf = (messages: BetaMessageParam[], extra: Partial<Body> = {}): Body =
   ...extra,
 });
 
-// what a request adds to ask for threshold compaction
+// what a request adds to ask for threshold compaction, at the least input the API takes
 const COMPACTING: Partial<Body> = {
   betas: [...BETAS, COMPACT_BETA],
-  context_management: { edits: [{ type: "compact_20260112" }] },
+  context_management: {
+    edits: [{ trigger: { type: "input_tokens", value: 50_000 }, type: "compact_20260112" }],
+  },
 };
 
 const send = async (fake: MessagesFake, body: Body): Promise<BetaMessage> =>
@@ -318,6 +321,16 @@ describe("the scripted Messages API", () => {
         bodyOf([person("Go.")], { betas: [] }),
         /block_binding/u,
       ],
+      [
+        "a compaction trigger under 50,000 input tokens",
+        bodyOf([person("Go.")], {
+          ...COMPACTING,
+          context_management: {
+            edits: [{ trigger: { type: "input_tokens", value: 49_999 }, type: "compact_20260112" }],
+          },
+        }),
+        /trigger\.value: must be at least 50000/u,
+      ],
     ];
     for (const [refused, body, message] of cases) {
       it(refused, async () => {
@@ -543,6 +556,30 @@ describe("the scripted Messages API", () => {
       expect(dropped.input_transformations?.map((entry) => entry.path)).toEqual([
         "messages.2.content.0",
         "messages.2.content.1",
+      ]);
+      expect(fake.stats().drops).toBe(2);
+    });
+
+    it("reads past a compaction block that wrote no summary, which compacts nothing", async () => {
+      const fake = messagesFake();
+      const first = await send(fake, bodyOf([person(CALL)], COMPACTING));
+      // a closing reply whose compaction wrote no summary, as one may when tools are defined
+      const unsummarized: BetaMessageParam = {
+        content: [
+          { content: null, type: "compaction" },
+          { text: "Done: create_note.", type: "text" },
+        ],
+        role: "assistant",
+      };
+      const kept = [replayed(first), resultsOf(first), unsummarized, person("And now?")];
+      const answered = await send(fake, bodyOf([person(CALL), ...kept], COMPACTING));
+      expect(answered.input_transformations).toEqual([]);
+      // the thinking before the block is still bound from the conversation's start, so an edit
+      // there fails it
+      const edited = await send(fake, bodyOf([person(`${CALL}\nAn edit.`), ...kept], COMPACTING));
+      expect(edited.input_transformations?.map((entry) => entry.path)).toEqual([
+        "messages.1.content.0",
+        "messages.1.content.1",
       ]);
       expect(fake.stats().drops).toBe(2);
     });

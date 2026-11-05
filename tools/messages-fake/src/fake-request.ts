@@ -4,9 +4,11 @@
 // sampling parameters, thinking other than adaptive, a forced tool choice, a field on a message
 // but its role and content, an assistant message last (a prefill), a system message out of place,
 // a tool call with no result next, a result with no call before it, cache breakpoints past four
-// or a 1-hour one after a 5-minute one, a breakpoint on a thinking block, and a beta's field
-// without its beta. A conversation the API compacted is read from its last compaction block on,
-// as the API reads it: everything before the block is ignored
+// or a 1-hour one after a 5-minute one, a breakpoint on a thinking block, a beta's field without
+// its beta, and a compaction trigger other than input tokens or under 50,000. A conversation the
+// API compacted is read from its last compaction block that kept a summary on, as the API reads it:
+// everything before the block is ignored, and a block whose summary was not written, its content
+// null, is ignored itself and compacts nothing
 // (platform.claude.com/docs/en/build-with-claude/compaction-threshold).
 
 import { z } from "zod";
@@ -18,8 +20,11 @@ const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 export const COMPACT_BETA = "compact-2026-01-12";
 const DISPLAY_BETA = "thinking-display-updates-2026-08-18";
 
-// the one compaction a request may ask for: at its threshold, on the server
+// the one compaction a request may ask for: at its threshold, on the server, which is input
+// tokens alone, at least this many
 const COMPACT_EDIT = "compact_20260112";
+const COMPACT_TRIGGER_TYPE = "input_tokens";
+const COMPACT_TRIGGER_LEAST = 50_000;
 
 const cacheControlSchema = z.strictObject({
   ttl: z.enum(["5m", "1h"]).optional(),
@@ -93,7 +98,16 @@ type FakeTool = z.infer<typeof toolSchema>;
 
 export const requestSchema = z.looseObject({
   context_management: z
-    .looseObject({ edits: z.array(z.looseObject({ type: z.string() })) })
+    .looseObject({
+      edits: z.array(
+        z.looseObject({
+          trigger: z
+            .strictObject({ type: z.literal(COMPACT_TRIGGER_TYPE), value: z.number().int() })
+            .nullish(),
+          type: z.string(),
+        }),
+      ),
+    })
     .optional(),
   fallbacks: z.union([z.literal("default"), z.array(z.json())]).optional(),
   max_tokens: z.number().int().positive(),
@@ -129,11 +143,12 @@ export interface BlockAt {
   readonly at: number;
 }
 
-// the last compaction block: what the API reads the conversation from, ignoring all before it
+// the last compaction block that kept a summary: what the API reads the conversation from,
+// ignoring all before it; one whose content is null it ignores
 export const anchorOf = (request: FakeRequest): BlockAt | null => {
   for (let index = request.messages.length - 1; index >= 0; index -= 1) {
     const at = request.messages[index]?.content.findLastIndex(
-      (block) => block.type === "compaction",
+      (block) => block.type === "compaction" && typeof block.content === "string",
     );
     if (at !== undefined && at !== -1) {
       return { at, index };
@@ -301,10 +316,16 @@ const betaRefusal = (request: FakeRequest, betas: ReadonlySet<string>): string |
   if (request.context_management !== undefined && !betas.has(COMPACT_BETA)) {
     return "context_management: Extra inputs are not permitted";
   }
-  const edit = request.context_management?.edits.find(({ type }) => type !== COMPACT_EDIT);
-  return edit === undefined
-    ? null
-    : `context_management.edits: "${edit.type}" is not a supported edit.`;
+  for (const [index, edit] of (request.context_management?.edits ?? []).entries()) {
+    const at = `context_management.edits.${String(index)}`;
+    if (edit.type !== COMPACT_EDIT) {
+      return `${at}: "${edit.type}" is not a supported edit.`;
+    }
+    if ((edit.trigger?.value ?? COMPACT_TRIGGER_LEAST) < COMPACT_TRIGGER_LEAST) {
+      return `${at}.trigger.value: must be at least ${String(COMPACT_TRIGGER_LEAST)} tokens.`;
+    }
+  }
+  return null;
 };
 
 // a conversation's ends: its first message the person's, or, compacted, the assistant message
