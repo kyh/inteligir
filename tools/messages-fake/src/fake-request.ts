@@ -148,7 +148,7 @@ export interface BlockAt {
 export const anchorOf = (request: FakeRequest): BlockAt | null => {
   for (let index = request.messages.length - 1; index >= 0; index -= 1) {
     const at = request.messages[index]?.content.findLastIndex(
-      (block) => block.type === "compaction" && typeof block.content === "string",
+      (block) => block.type === "compaction" && (block.content ?? null) !== null,
     );
     if (at !== undefined && at !== -1) {
       return { at, index };
