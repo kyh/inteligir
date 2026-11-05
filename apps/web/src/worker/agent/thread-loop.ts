@@ -11,7 +11,9 @@
 // - what the turn did reaches the cell through the outbox, in order, each push once;
 // - a turn is sent under the definition in force when it started: one a deploy changed is taken up
 //   at the next turn's start, never mid-turn, and from then on no request carries a thinking block
-//   from before that turn (`./thread-request`).
+//   from before that turn (`./thread-request`); a tool call the older definition named still runs
+//   against the cell's procedures as they stand, one they no longer take answered as an error
+//   (`./agent-tools`).
 // The filing rules a turn brings ride a system message after the person's: it goes as the last
 // message until the turn's first reply lands, and lands with it, so a turn that ends with no reply
 // leaves no system message last, which no message after could follow. They go again at the next
