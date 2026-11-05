@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { serveFakeManagedAgents } from "@repo/managed-agents-fake/serve";
+import { serveMessagesFake } from "@repo/messages-fake/serve";
 import { exec, hermeticProcessEnv } from "./exec";
 import { bootWithPorts, spawnSupervised } from "./tracked-child";
 import type { TrackedProcess } from "./tracked-child";
@@ -27,6 +27,8 @@ export interface CloudWorker extends TrackedProcess {
   origin: string;
   // the host's own door to what an account holds (`./worker-host.ts`), never the Worker's
   inspectOrigin: string;
+  // the scripted Messages API the Worker's built-in agent calls, whose counters a scenario reads
+  messagesOrigin: string;
 }
 
 export interface LaunchCloudWorkerArgs {
@@ -107,11 +109,10 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
 
   await buildWorker(args);
   const schemaFile = await writeSchema(webDir, args);
-  // the built-in agent's Managed Agents API, with no model and no account, in this process: the
-  // Worker's SDK reaches it by MANAGED_AGENTS_FAKE_URL, and its sessions call the Worker's
-  // connector back (tools/managed-agents-fake)
-  const agents = await serveFakeManagedAgents({ port: 0 });
-  args.register({ name: "managed-agents-fake", outputTail: () => "", stop: agents.close });
+  // the built-in agent's Claude, a scripted Messages API with no model and no account, in this
+  // process: each conversation's object reaches it by ANTHROPIC_FAKE_URL (tools/messages-fake)
+  const messages = await serveMessagesFake({ port: 0 });
+  args.register({ name: "messages-fake", outputTail: () => "", stop: messages.close });
 
   const worker = await bootWithPorts<CloudWorker>({
     deadlineMs: READY_DEADLINE_MS,
@@ -139,7 +140,7 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
             stateDir,
             vars: {
               BETTER_AUTH_SECRET,
-              MANAGED_AGENTS_FAKE_URL: agents.origin,
+              ANTHROPIC_FAKE_URL: messages.origin,
               // the suite signs up more than one account from one IP.
               RATE_LIMIT_DISABLED: "true",
               // the connector's issuer and resource, which the build names as production's
@@ -156,6 +157,7 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
       const handle: CloudWorker = {
         ...child,
         inspectOrigin: `http://127.0.0.1:${String(inspectPort)}`,
+        messagesOrigin: messages.origin,
         origin,
       };
       args.register(handle);
