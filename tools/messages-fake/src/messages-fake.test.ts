@@ -1,7 +1,8 @@
 // The scripted Messages API driven by the real SDK, as a conversation's object drives it: each
 // directive a reply, every usage field on the stream, a 400 for each request shape Claude Opus 5.5
 // refuses, a replayed thinking block bound to everything before it but a leading run of thinking,
-// and one that fails dropped and counted under `drop_block` instead.
+// and one that fails dropped and counted under `drop_block` instead; progress notes shown under
+// `display: "updates"`; and a compaction the conversation is read from, and bound from, after it.
 
 import Anthropic, { APIError } from "@anthropic-ai/sdk";
 import type {
@@ -16,6 +17,8 @@ import { messagesFake } from "./messages-fake.ts";
 import type { MessagesFake } from "./messages-fake.ts";
 
 const BETAS = ["thinking-binding-controls-2026-08-01", "server-side-fallback-2026-07-01"];
+const COMPACT_BETA = "compact-2026-01-12";
+const DISPLAY_BETA = "thinking-display-updates-2026-08-18";
 
 const TOOLS = [
   {
@@ -58,6 +61,12 @@ const bodyOf = (messages: BetaMessageParam[], extra: Partial<Body> = {}): Body =
   ...extra,
 });
 
+// what a request adds to ask for threshold compaction
+const COMPACTING: Partial<Body> = {
+  betas: [...BETAS, COMPACT_BETA],
+  context_management: { edits: [{ type: "compact_20260112" }] },
+};
+
 const send = async (fake: MessagesFake, body: Body): Promise<BetaMessage> =>
   await clientOf(fake).beta.messages.stream(body).finalMessage();
 
@@ -81,9 +90,9 @@ const person = (text: string): BetaMessageParam => ({
   role: "user",
 });
 
-// a reply as the next request carries it: its blocks as returned
-const replayed = (reply: BetaMessage): BetaMessageParam => ({
-  content: reply.content.flatMap((block): BetaContentBlockParam[] => {
+// a reply's blocks as the next request carries them: as returned
+const replayedBlocks = (reply: BetaMessage): BetaContentBlockParam[] =>
+  reply.content.flatMap((block): BetaContentBlockParam[] => {
     switch (block.type) {
       case "thinking": {
         return [{ signature: block.signature, thinking: block.thinking, type: "thinking" }];
@@ -94,11 +103,23 @@ const replayed = (reply: BetaMessage): BetaMessageParam => ({
       case "tool_use": {
         return [{ id: block.id, input: block.input, name: block.name, type: "tool_use" }];
       }
+      case "compaction": {
+        return [
+          {
+            content: block.content,
+            encrypted_content: block.encrypted_content,
+            type: "compaction",
+          },
+        ];
+      }
       default: {
         return [];
       }
     }
-  }),
+  });
+
+const replayed = (reply: BetaMessage): BetaMessageParam => ({
+  content: replayedBlocks(reply),
   role: "assistant",
 });
 
@@ -112,6 +133,16 @@ const resultsOf = (reply: BetaMessage): BetaMessageParam => ({
 });
 
 const CALL = 'call create_note {"markdown":"Paris"}';
+const SEARCH = 'call search_library {"query":"Paris"}';
+
+// a reply as the next request carries it, its thinking blocks at `positions` left out
+const without = (reply: BetaMessage, positions: readonly number[]): BetaMessageParam => ({
+  content: replayedBlocks(reply).filter((_, at) => !positions.includes(at)),
+  role: "assistant",
+});
+
+const thinkingOf = (reply: BetaMessage): string[] =>
+  reply.content.flatMap((block) => (block.type === "thinking" ? [block.thinking] : []));
 
 describe("the scripted Messages API", () => {
   it("thinks, calls the tool a step names, then closes naming it, the second request verifying the first's thinking", async () => {
@@ -119,7 +150,7 @@ describe("the scripted Messages API", () => {
     const opening = person(CALL);
     const first = await send(fake, bodyOf([opening]));
     expect(first.stop_reason).toBe("tool_use");
-    expect(first.content.map((block) => block.type)).toEqual(["thinking", "tool_use"]);
+    expect(first.content.map((block) => block.type)).toEqual(["thinking", "thinking", "tool_use"]);
     expect(first.input_transformations).toEqual([]);
     const second = await send(fake, bodyOf([opening, replayed(first), resultsOf(first)]));
     expect(second.stop_reason).toBe("end_turn");
@@ -338,14 +369,14 @@ describe("the scripted Messages API", () => {
       expect(strict).toMatchObject({ status: 400 });
       expect(strict.message).toMatch(/bound to a different conversation/u);
       const dropped = await send(fake, bodyOf(edited));
-      expect(dropped.input_transformations).toEqual([
-        {
-          path: "messages.1.content.0",
+      expect(dropped.input_transformations).toEqual(
+        [0, 1].map((at) => ({
+          path: `messages.1.content.${String(at)}`,
           reason: "prefix_binding_mismatch",
           type: "thinking_dropped",
-        },
-      ]);
-      expect(fake.stats().drops).toBe(1);
+        })),
+      );
+      expect(fake.stats().drops).toBe(2);
     });
 
     it("accepts the history with a leading run of thinking left out and a breakpoint moved", async () => {
@@ -373,6 +404,156 @@ describe("the scripted Messages API", () => {
       );
       expect(third.input_transformations).toEqual([]);
       expect(fake.stats().drops).toBe(0);
+    });
+  });
+
+  describe("shows what a thinking block holds as the request's display asks", () => {
+    it("under updates, each progress note before its tool call, the reasoning hidden", async () => {
+      const fake = messagesFake();
+      const updates = bodyOf([person(CALL)], {
+        betas: [...BETAS, DISPLAY_BETA],
+        thinking: {
+          block_binding: { prefix_mismatch_behavior: "drop_block" },
+          display: "updates",
+          type: "adaptive",
+        },
+      });
+      const first = await send(fake, updates);
+      expect(thinkingOf(first)).toEqual(["", "Calling create_note now."]);
+      expect(first.content.at(-1)?.type).toBe("tool_use");
+      // replayed as returned, the notes verify like any thinking block
+      const second = await send(fake, {
+        ...updates,
+        messages: [person(CALL), replayed(first), resultsOf(first)],
+      });
+      expect(thinkingOf(second)).toEqual([""]);
+      expect(second.input_transformations).toEqual([]);
+      expect(fake.stats().drops).toBe(0);
+    });
+
+    it("under summarized, every block's words, and under the default, none", async () => {
+      const fake = messagesFake();
+      const summarized = await send(
+        fake,
+        bodyOf([person(CALL)], {
+          thinking: { display: "summarized", type: "adaptive" },
+        }),
+      );
+      expect(thinkingOf(summarized)).toEqual([
+        "Call create_note as the person asked.",
+        "Calling create_note now.",
+      ]);
+      const omitted = await send(fake, bodyOf([person(CALL)]));
+      expect(thinkingOf(omitted)).toEqual(["", ""]);
+    });
+
+    it("refuses updates without their beta", async () => {
+      const refusal = await refusalOf(
+        messagesFake(),
+        bodyOf([person(CALL)], { thinking: { display: "updates", type: "adaptive" } }),
+      );
+      expect(refusal).toMatchObject({ status: 400 });
+      expect(refusal.message).toMatch(/display/u);
+    });
+  });
+
+  describe("compacts at a step its script marks, when the request asks", () => {
+    const opening = person(`compact\n${CALL}\n${SEARCH}`);
+
+    it("opens the reply with a compaction block, its sampling an iteration of its own", async () => {
+      const fake = messagesFake();
+      const first = await send(fake, bodyOf([opening], COMPACTING));
+      expect(first.content.map((block) => block.type)).toEqual([
+        "compaction",
+        "thinking",
+        "thinking",
+        "tool_use",
+      ]);
+      expect(first.content[0]).toMatchObject({ content: expect.any(String), type: "compaction" });
+      const iterations = first.usage.iterations ?? [];
+      expect(iterations.map((entry) => entry.type)).toEqual(["compaction", "message"]);
+      // the top level is every iteration's but the compaction's
+      const [compaction, answered] = iterations;
+      expect(first.usage.input_tokens).toBe(answered?.input_tokens);
+      expect(first.usage.output_tokens).toBe(answered?.output_tokens);
+      expect(compaction?.input_tokens).toBeGreaterThan(0);
+      // a request that does not ask compacts nothing, and reports no iterations
+      const plain = await send(fake, bodyOf([opening]));
+      expect(plain.content.map((block) => block.type)).toEqual([
+        "thinking",
+        "thinking",
+        "tool_use",
+      ]);
+      expect(plain.usage.iterations).toBeNull();
+    });
+
+    it("reads the conversation from the compaction block on, whatever came before it", async () => {
+      const fake = messagesFake();
+      const first = await send(fake, bodyOf([opening], COMPACTING));
+      // sent from the compaction block on: the person's script is what the compaction kept
+      const fromBlock = [replayed(first), resultsOf(first)];
+      const second = await send(fake, bodyOf(fromBlock, COMPACTING));
+      expect(second.content.at(-1)).toMatchObject({ name: "search_library", type: "tool_use" });
+      expect(second.usage.iterations?.map((entry) => entry.type)).toEqual(["message"]);
+      // sent whole, an edit before the block changes nothing: the API ignores what it summarized
+      const whole = await send(
+        fake,
+        bodyOf([person(`compact\n${CALL}\n${SEARCH}\nAn edit.`), ...fromBlock], COMPACTING),
+      );
+      expect(whole.content.at(-1)).toMatchObject({ name: "search_library", type: "tool_use" });
+      expect(whole.input_transformations).toEqual([]);
+      const third = await send(
+        fake,
+        bodyOf([...fromBlock, replayed(second), resultsOf(second)], COMPACTING),
+      );
+      expect(third.content.at(-1)).toMatchObject({
+        text: "Done: create_note, search_library.",
+        type: "text",
+      });
+      expect(third.input_transformations).toEqual([]);
+      expect(fake.stats().drops).toBe(0);
+    });
+
+    it("lets the leading run after the block go, and still fails a thinking block removed from the middle", async () => {
+      const fake = messagesFake();
+      const first = await send(fake, bodyOf([opening], COMPACTING));
+      const second = await send(fake, bodyOf([replayed(first), resultsOf(first)], COMPACTING));
+      const after = [replayed(second), resultsOf(second)];
+      // the first reply's two thinking blocks, the first and second after the compaction block
+      const leading = await send(
+        fake,
+        bodyOf([without(first, [1, 2]), resultsOf(first), ...after], COMPACTING),
+      );
+      expect(leading.input_transformations).toEqual([]);
+      expect(fake.stats().drops).toBe(0);
+      // the progress note alone, with the reasoning before it kept: the next reply's chain breaks
+      const middle = [without(first, [2]), resultsOf(first), ...after];
+      const strict = await refusalOf(
+        fake,
+        bodyOf(middle, {
+          ...COMPACTING,
+          thinking: { block_binding: { prefix_mismatch_behavior: "error" }, type: "adaptive" },
+        }),
+      );
+      expect(strict).toMatchObject({ status: 400 });
+      expect(strict.message).toMatch(
+        /messages\.2\.content\.0: .*bound to a different conversation/u,
+      );
+      const dropped = await send(fake, bodyOf(middle, COMPACTING));
+      expect(dropped.input_transformations?.map((entry) => entry.path)).toEqual([
+        "messages.2.content.0",
+        "messages.2.content.1",
+      ]);
+      expect(fake.stats().drops).toBe(2);
+    });
+
+    it("refuses compaction without its beta", async () => {
+      const refusal = await refusalOf(
+        messagesFake(),
+        bodyOf([opening], { context_management: COMPACTING.context_management }),
+      );
+      expect(refusal).toMatchObject({ status: 400 });
+      expect(refusal.message).toMatch(/context_management/u);
     });
   });
 

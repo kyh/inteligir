@@ -4,14 +4,22 @@
 // sampling parameters, thinking other than adaptive, a forced tool choice, a field on a message
 // but its role and content, an assistant message last (a prefill), a system message out of place,
 // a tool call with no result next, a result with no call before it, cache breakpoints past four
-// or a 1-hour one after a 5-minute one, and a breakpoint on a thinking block.
+// or a 1-hour one after a 5-minute one, a breakpoint on a thinking block, and a beta's field
+// without its beta. A conversation the API compacted is read from its last compaction block on,
+// as the API reads it: everything before the block is ignored
+// (platform.claude.com/docs/en/build-with-claude/compaction-threshold).
 
 import { z } from "zod";
 
-// the betas whose fields a request may carry: the thinking-block binding control, and server-side
-// fallback on a refusal
+// the betas whose fields a request may carry: the thinking-block binding control, server-side
+// fallback on a refusal, threshold compaction, and progress notes between tool calls
 export const BINDING_BETA = "thinking-binding-controls-2026-08-01";
 const FALLBACK_BETA = "server-side-fallback-2026-07-01";
+export const COMPACT_BETA = "compact-2026-01-12";
+const DISPLAY_BETA = "thinking-display-updates-2026-08-18";
+
+// the one compaction a request may ask for: at its threshold, on the server
+const COMPACT_EDIT = "compact_20260112";
 
 const cacheControlSchema = z.strictObject({
   ttl: z.enum(["5m", "1h"]).optional(),
@@ -52,6 +60,12 @@ const blockSchema = z.discriminatedUnion("type", [
     trigger: z.json().optional(),
     type: z.literal("fallback"),
   }),
+  z.looseObject({
+    ...cached,
+    content: z.string().nullable().optional(),
+    encrypted_content: z.string().nullable().optional(),
+    type: z.literal("compaction"),
+  }),
 ]);
 
 export type FakeBlock = z.infer<typeof blockSchema>;
@@ -78,6 +92,9 @@ const toolSchema = z.looseObject({
 type FakeTool = z.infer<typeof toolSchema>;
 
 export const requestSchema = z.looseObject({
+  context_management: z
+    .looseObject({ edits: z.array(z.looseObject({ type: z.string() })) })
+    .optional(),
   fallbacks: z.union([z.literal("default"), z.array(z.json())]).optional(),
   max_tokens: z.number().int().positive(),
   messages: z.array(messageSchema).min(1),
@@ -90,6 +107,7 @@ export const requestSchema = z.looseObject({
       block_binding: z
         .strictObject({ prefix_mismatch_behavior: z.enum(["error", "drop_block"]) })
         .optional(),
+      display: z.enum(["summarized", "omitted", "updates"]).optional(),
       type: z.string(),
     })
     .optional(),
@@ -100,6 +118,34 @@ export const requestSchema = z.looseObject({
 });
 
 export type FakeRequest = z.infer<typeof requestSchema>;
+
+// whether the request asks the API to compact the conversation at its threshold
+export const asksCompaction = (request: FakeRequest): boolean =>
+  request.context_management?.edits.some((edit) => edit.type === COMPACT_EDIT) === true;
+
+// where a block sits: messages[index].content[at]
+export interface BlockAt {
+  readonly index: number;
+  readonly at: number;
+}
+
+// the last compaction block: what the API reads the conversation from, ignoring all before it
+export const anchorOf = (request: FakeRequest): BlockAt | null => {
+  for (let index = request.messages.length - 1; index >= 0; index -= 1) {
+    const at = request.messages[index]?.content.findLastIndex(
+      (block) => block.type === "compaction",
+    );
+    if (at !== undefined && at !== -1) {
+      return { at, index };
+    }
+  }
+  return null;
+};
+
+// whether a block comes before the conversation's last compaction block, which the API ignores
+export const beforeAnchor = (anchor: BlockAt | null, position: BlockAt): boolean =>
+  anchor !== null &&
+  (position.index < anchor.index || (position.index === anchor.index && position.at < anchor.at));
 
 // a parse failure in the API's words: the path to the field, then what is wrong with it
 export const issueText = (error: z.ZodError): string => {
@@ -153,26 +199,32 @@ export const renderedBlocks = (request: FakeRequest): RenderedBlock[] => {
 const isBound = (block: FakeBlock): boolean =>
   block.type !== "thinking" && block.type !== "redacted_thinking" && block.type !== "fallback";
 
+// blocks as the next request's parse reads them back, each object's keys in the order that parse
+// gives them, so a block the fake made compares with the same block sent back: the fake compares
+// what was sent as parsed JSON, never as bytes
+export const asParsed = (blocks: readonly FakeBlock[]): FakeBlock[] =>
+  z.array(blockSchema).parse(blocks);
+
 // what a block at messages[index].content[at] is bound to: the system, the tools as a name-keyed
-// set and every message before it, compared without breakpoints and without thinking blocks
-export const prefixOf = (
-  request: FakeRequest,
-  position: { readonly index: number; readonly at: number },
-): string => {
+// set and every message before it from the conversation's last compaction block on, compared
+// without breakpoints and without thinking blocks
+export const prefixOf = (request: FakeRequest, position: BlockAt): string => {
+  const anchor = anchorOf(request) ?? { at: 0, index: 0 };
   const tools = (request.tools ?? [])
     .toSorted((left, right) => left.name.localeCompare(right.name))
     .map(withoutBreakpoint);
-  const messages = request.messages.slice(0, position.index + 1).map((message, index) => ({
-    content: (index === position.index ? message.content.slice(0, position.at) : message.content)
-      .filter(isBound)
-      .map(withoutBreakpoint),
-    role: message.role,
-  }));
-  return JSON.stringify({
-    messages,
-    system: (request.system ?? []).map(withoutBreakpoint),
-    tools,
-  });
+  const messages = request.messages
+    .slice(anchor.index, position.index + 1)
+    .map((message, offset) => {
+      const index = anchor.index + offset;
+      const from = index === anchor.index ? anchor.at : 0;
+      const to = index === position.index ? position.at : message.content.length;
+      return {
+        content: message.content.slice(from, to).filter(isBound).map(withoutBreakpoint),
+        role: message.role,
+      };
+    });
+  return JSON.stringify({ messages, system: (request.system ?? []).map(withoutBreakpoint), tools });
 };
 
 const toolUseIds = (message: FakeMessage | undefined): Set<string> =>
@@ -235,6 +287,46 @@ const breakpointRefusal = (request: FakeRequest): string | null => {
     : null;
 };
 
+// a field only a beta allows, sent without it, or a value it does not know
+const betaRefusal = (request: FakeRequest, betas: ReadonlySet<string>): string | null => {
+  if (request.thinking?.block_binding !== undefined && !betas.has(BINDING_BETA)) {
+    return "thinking.block_binding: Extra inputs are not permitted";
+  }
+  if (request.thinking?.display === "updates" && !betas.has(DISPLAY_BETA)) {
+    return 'thinking.display: "updates" is not a supported value.';
+  }
+  if (request.fallbacks !== undefined && !betas.has(FALLBACK_BETA)) {
+    return "fallbacks: Extra inputs are not permitted";
+  }
+  if (request.context_management !== undefined && !betas.has(COMPACT_BETA)) {
+    return "context_management: Extra inputs are not permitted";
+  }
+  const edit = request.context_management?.edits.find(({ type }) => type !== COMPACT_EDIT);
+  return edit === undefined
+    ? null
+    : `context_management.edits: "${edit.type}" is not a supported edit.`;
+};
+
+// a conversation's ends: its first message the person's, or, compacted, the assistant message
+// that holds its compaction block, and its last never the assistant's; a compaction block only
+// ever the assistant's
+const endsRefusal = (messages: readonly FakeMessage[]): string | null => {
+  const stray = messages.findIndex(
+    (message) =>
+      message.role !== "assistant" && message.content.some((block) => block.type === "compaction"),
+  );
+  if (stray !== -1) {
+    return `messages.${String(stray)}: a compaction block belongs in an assistant message.`;
+  }
+  const [first] = messages;
+  if (first?.role !== "user" && first?.content[0]?.type !== "compaction") {
+    return "messages.0.role: the first message must use the user role";
+  }
+  return messages.at(-1)?.role === "assistant"
+    ? "This model does not support assistant message prefill. The conversation must end with a user message."
+    : null;
+};
+
 // why the request is refused before any sampling, in the API's words, or null
 export const requestRefusal = (request: FakeRequest, betas: ReadonlySet<string>): string | null => {
   for (const name of ["temperature", "top_p", "top_k"] as const) {
@@ -245,22 +337,14 @@ export const requestRefusal = (request: FakeRequest, betas: ReadonlySet<string>)
   if (request.thinking !== undefined && request.thinking.type !== "adaptive") {
     return `thinking.type: "${request.thinking.type}" is not supported for this model. Use "adaptive".`;
   }
-  if (request.thinking?.block_binding !== undefined && !betas.has(BINDING_BETA)) {
-    return "thinking.block_binding: Extra inputs are not permitted";
-  }
-  if (request.fallbacks !== undefined && !betas.has(FALLBACK_BETA)) {
-    return "fallbacks: Extra inputs are not permitted";
-  }
   const forced = request.tool_choice?.type;
   if (forced === "any" || forced === "tool") {
     return 'tool_choice: type "tool" and "any" are not supported for this model.';
   }
-  const [first] = request.messages;
-  if (first?.role !== "user") {
-    return "messages.0.role: the first message must use the user role";
-  }
-  if (request.messages.at(-1)?.role === "assistant") {
-    return "This model does not support assistant message prefill. The conversation must end with a user message.";
-  }
-  return placementRefusal(request.messages) ?? breakpointRefusal(request);
+  return (
+    betaRefusal(request, betas) ??
+    endsRefusal(request.messages) ??
+    placementRefusal(request.messages) ??
+    breakpointRefusal(request)
+  );
 };

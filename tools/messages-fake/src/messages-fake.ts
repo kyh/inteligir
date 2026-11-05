@@ -9,9 +9,15 @@
 // counters, at `/__fake/stats`, and per request body the failures and stalls a script asked for.
 // Web-standard throughout, so the suites run it in workerd and `./serve.ts` in node.
 
-import { BINDING_BETA, issueText, requestRefusal, requestSchema } from "./fake-request.ts";
+import {
+  BINDING_BETA,
+  COMPACT_BETA,
+  issueText,
+  requestRefusal,
+  requestSchema,
+} from "./fake-request.ts";
 import type { FakeRequest } from "./fake-request.ts";
-import { FAKE_MODEL, planReply } from "./fake-reply.ts";
+import { conversationOf, FAKE_MODEL, planReply } from "./fake-reply.ts";
 import type { StreamPlan } from "./fake-reply.ts";
 import { scriptOf } from "./fake-script.ts";
 import { checkThinking } from "./fake-signature.ts";
@@ -114,17 +120,9 @@ const streamOf = (plan: StreamPlan, signal: AbortSignal): ReadableStream<Uint8Ar
   });
 };
 
-// the person's words the request carries, which its script is read from
-const scriptOfRequest = (request: FakeRequest) => {
-  const person = request.messages.findLast(
-    (message) => message.role === "user" && message.content.some((block) => block.type === "text"),
-  );
-  return scriptOf(
-    (person?.content ?? [])
-      .flatMap((block) => (block.type === "text" ? [block.text] : []))
-      .join("\n"),
-  );
-};
+// the person's words the request carries, or its last compaction kept, which its script is read
+// from
+const scriptOfRequest = (request: FakeRequest) => scriptOf(conversationOf(request).person);
 
 export const messagesFake = (): MessagesFake => {
   let requests = 0;
@@ -195,6 +193,7 @@ export const messagesFake = (): MessagesFake => {
         return true;
       },
       id: `msg_fake_${String(requests)}`,
+      iterating: betas.has(COMPACT_BETA),
       previousSignature: thinking.last,
       toolIdPrefix: `toolu_fake_${hash.slice(0, 16)}`,
     });

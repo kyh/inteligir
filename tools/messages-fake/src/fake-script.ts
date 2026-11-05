@@ -9,13 +9,17 @@
 //   refuse <category>           a refusal no fallback takes up
 //   fallback                    a refusal the request's `fallbacks` take up
 //   stall [thinking]            the next step's reply, the first time a body asks for it, streams
-//                               to the middle of its last block (of its thinking with `thinking`)
-//                               and holds until the client goes; asked again, it answers whole
+//                               to the middle of its last block (of its last thinking block with
+//                               `thinking`) and holds until the client goes; asked again, it
+//                               answers whole
 //   fail <status> <times>       each body is answered that status that many times before it is
 //                               answered at all
+//   compact                     the next step's reply opens with a compaction block, as the API's
+//                               threshold compaction would, when the request asks for compaction
 //
 // A `call` goes on to the next step; any other reply ends the turn, and with no step left the
-// reply ends it naming the tools it called.
+// reply ends it naming the tools it called. `stall` and `compact` take no step of their own: each
+// marks the step after it, or the closing reply when no step follows.
 
 import { z } from "zod";
 
@@ -43,13 +47,15 @@ export type StallAt = "thinking" | "last";
 export interface ScriptedStep {
   readonly step: FakeStep | null;
   readonly stall: StallAt | null;
+  readonly compact: boolean;
 }
 
 export interface FakeScript {
   // each step, the stall that holds its reply when one does; a closing reply is the step past them
   readonly steps: readonly ScriptedStep[];
-  // the stall that holds the closing reply, the one after every step
+  // the stall that holds the closing reply, the one after every step, and whether it compacts
   readonly closingStall: StallAt | null;
+  readonly closingCompact: boolean;
   readonly fail: { readonly status: number; readonly times: number } | null;
 }
 
@@ -59,6 +65,7 @@ const LONG = /^long\s+(?<chars>[1-9]\d{0,6})$/u;
 const REFUSE = /^refuse\s+(?<category>[a-z_]+)$/u;
 const STALL = /^stall(?:\s+(?<at>thinking))?$/u;
 const FAIL = /^fail\s+(?<status>[45]\d\d)\s+(?<times>[1-9]\d{0,2})$/u;
+const COMPACT = "compact";
 
 const parsedInput = (text: string) => {
   try {
@@ -97,9 +104,14 @@ const stepOf = (line: string): FakeStep | null => {
 export const scriptOf = (text: string): FakeScript => {
   const steps: ScriptedStep[] = [];
   let stall: StallAt | null = null;
+  let compact = false;
   let fail: FakeScript["fail"] = null;
   for (const raw of text.split(/\r?\n/u)) {
     const line = raw.trim();
+    if (line === COMPACT) {
+      compact = true;
+      continue;
+    }
     const stallMatch = STALL.exec(line);
     if (stallMatch !== null) {
       stall = stallMatch.groups?.["at"] === "thinking" ? "thinking" : "last";
@@ -112,14 +124,19 @@ export const scriptOf = (text: string): FakeScript => {
     }
     const step = stepOf(line);
     if (step !== null) {
-      steps.push({ stall, step });
+      steps.push({ compact, stall, step });
       stall = null;
+      compact = false;
     }
   }
-  return { closingStall: stall, fail, steps };
+  return { closingCompact: compact, closingStall: stall, fail, steps };
 };
 
 // the step a request asks for: the one after the replies since the person's message, or the
 // closing reply once none is left
 export const stepAt = (script: FakeScript, replies: number): ScriptedStep =>
-  script.steps[replies] ?? { stall: script.closingStall, step: null };
+  script.steps[replies] ?? {
+    compact: script.closingCompact,
+    stall: script.closingStall,
+    step: null,
+  };

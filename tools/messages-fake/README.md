@@ -9,24 +9,30 @@ so every conversation's object runs the one code path it runs deployed
 It answers `POST /v1/messages` and AI Gateway's provider-native path to it
 (`/v1/<account>/<gateway>/anthropic/v1/messages`), only a streamed request that
 carries the gateway's `cf-aig-authorization` header, and streams the
-documented events: thinking, text and tool calls with their deltas, every
-usage field with the 5-minute and 1-hour cache writes apart, and
+documented events: thinking, text, tool calls and compaction with their
+deltas, every usage field with the 5-minute and 1-hour cache writes apart,
+`usage.iterations` on every reply when the compaction beta is sent, and
 `input_transformations` when the thinking-binding beta is sent. Usage is
 deterministic: a quarter of a block's characters, rounded up, everything
 before the request's last breakpoint read from the cache, the block carrying
-it written at its lifetime.
+it written at its lifetime. A reply's thinking shows what `thinking.display`
+asks for: under `updates`, the progress note it writes before each tool call
+and nothing of its reasoning; under `summarized`, both; otherwise nothing.
 
 It refuses with a 400, in the API's words, what Claude Opus 5.5 refuses
 (`src/fake-request.ts`): sampling parameters, thinking other than adaptive, a
 forced tool choice, a field on a message other than its role and content, an
 assistant message last, a system message out of place, a tool call with no
 result next, more than four breakpoints or a 1-hour one after a 5-minute one,
-and a breakpoint on a thinking block. It signs every thinking block it sends
-against the system, the tools and every message before it, chained to the
-block before (`src/fake-signature.ts`), so a request that leaves out a leading
-run of thinking blocks still verifies and any other edit does not: refused, or
-under `drop_block` dropped and counted. Every suite and scenario expects no
-drop.
+a breakpoint on a thinking block, and a beta's field without its beta. It signs
+every thinking block it sends against the system, the tools and every message
+before it, chained to the block before (`src/fake-signature.ts`), so a request
+that leaves out a leading run of thinking blocks still verifies and any other
+edit does not: refused, or under `drop_block` dropped and counted. Every suite
+and scenario expects no drop. Once a conversation holds a compaction block, the
+fake reads it from its last one on, as the API does: what came before is
+ignored, the prefix a thinking block is bound to starts at the block, and the
+chain starts afresh there.
 
 ## The agent's script
 
@@ -44,6 +50,13 @@ the turn naming the tools it called. Nothing else steers it.
 | `fallback`                  | a refusal the request's `fallbacks` take up, answered by the fallback |
 | `stall [thinking]`          | the next reply holds mid-stream the first time, until the client goes |
 | `fail <status> <times>`     | each request body is answered that status that many times first       |
+| `compact`                   | the next reply opens with a compaction block, when the request asks   |
+
+`stall` and `compact` take no step of their own: each marks the step after
+it, or the closing reply. A compaction's summary keeps, in its opaque
+`encrypted_content`, the person's words and the replies since them, which is
+all a request sent from the block on tells the fake of them; its sampling is
+an entry of its own in `usage.iterations`.
 
 So `call create_note {"title":"Paris","markdown":"Paris"}` asks the thread to
 run that tool through the account's cell, and `spend 30` twice spends past a
