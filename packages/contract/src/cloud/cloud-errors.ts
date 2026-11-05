@@ -13,9 +13,6 @@ export const CLOUD_ERROR_CODES = [
   "rate-limited",
   "device-limit",
   "account-deleted",
-  "file-too-large",
-  "vault-conflict",
-  "vault-full",
   "client-outdated",
   "internal",
 ] as const;
@@ -28,15 +25,12 @@ export const CLOUD_ERROR_STATUS = {
   "bad-request": 400,
   "client-outdated": 426,
   "device-limit": 409,
-  "file-too-large": 413,
   internal: 500,
   "invalid-credentials": 401,
   "invite-refused": 403,
   "not-found": 404,
   "rate-limited": 429,
   unauthorized: 401,
-  "vault-conflict": 409,
-  "vault-full": 507,
 } as const satisfies Record<CloudErrorCode, number>;
 
 // the credential is dead: only a sign-in, which replaces it, comes back from these

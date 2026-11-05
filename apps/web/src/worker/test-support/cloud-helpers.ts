@@ -131,23 +131,6 @@ export const deviceHeaders = (credential: string) => ({
   authorization: `Bearer ${credential}`,
 });
 
-// loose on purpose: a refusal test posts what the contract refuses
-export type VaultReadBody = Readonly<
-  Record<string, string | number | boolean | readonly string[] | undefined>
->;
-
-// a vault read as this build's clients send it: the query in a POST body, never the URL
-export const postVaultRead = async (
-  path: string,
-  auth: Record<string, string>,
-  query: VaultReadBody,
-): Promise<Response> =>
-  await exports.default.fetch(`${ORIGIN}${path}`, {
-    body: JSON.stringify(query),
-    headers: { ...auth, "content-type": "application/json" },
-    method: "POST",
-  });
-
 // the one door deletion has: a device credential, and the password asked again
 export const postAccountDelete = async (
   authorization: Record<string, string>,

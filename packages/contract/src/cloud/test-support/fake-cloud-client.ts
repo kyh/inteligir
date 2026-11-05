@@ -13,11 +13,6 @@ export const fakeCloudClient = (answers: Partial<CloudClient> = {}): CloudClient
   listDevices: unreachable,
   revokeDevice: unreachable,
   signOut: unreachable,
-  vaultAsset: unreachable,
-  vaultCommit: unreachable,
-  vaultFile: unreachable,
-  vaultFiles: unreachable,
-  vaultTree: unreachable,
   ...answers,
 });
 

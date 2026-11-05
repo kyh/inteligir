@@ -5,7 +5,7 @@ import { declaredLength } from "../cloud-http";
 import { libraryCell } from "../library/library-cell";
 import { errorFields } from "../log";
 import { concatBytes } from "./git-objects";
-import { FLUSH_PKT, pktLine, readPktLines } from "./pkt-line";
+import { FLUSH_PKT, pktLine } from "./pkt-line";
 
 // The one door to a user's repo cell, for a client's request and the Worker's own push alike, so
 // both take the cell's ref CAS, both run the after-push effects and both meet the one quota gate.
@@ -216,57 +216,3 @@ export interface VaultPackPush {
 // report-status and no side band, so the answer is bare pkt-lines
 export const receivePackBody = ({ next, old, pack, ref }: VaultPackPush): Uint8Array =>
   concatBytes([pktLine(`${old} ${next} ${ref}\0report-status`), FLUSH_PKT, pack]);
-
-export type VaultPushOutcome =
-  | { readonly kind: "applied" }
-  | { readonly kind: "ref-moved" }
-  | { readonly kind: "full" }
-  | { readonly kind: "refused"; readonly reason: string };
-
-// durable-git answers a CAS that lost to another push `ng <ref> fetch first`, as git does
-const readReportStatus = (bytes: Uint8Array, ref: string): VaultPushOutcome => {
-  const lines = readPktLines(bytes);
-  if (lines === null) {
-    return { kind: "refused", reason: "unreadable report-status" };
-  }
-  const [unpack, ...statuses] = lines;
-  if (unpack !== "unpack ok") {
-    return { kind: "refused", reason: unpack ?? "empty report-status" };
-  }
-  const refused = `ng ${ref} `;
-  for (const status of statuses) {
-    if (status === `ok ${ref}`) {
-      return { kind: "applied" };
-    }
-    if (status.startsWith(refused)) {
-      const reason = status.slice(refused.length);
-      return reason === "fetch first" ? { kind: "ref-moved" } : { kind: "refused", reason };
-    }
-  }
-  return { kind: "refused", reason: `no status for ${ref}` };
-};
-
-// the handler reads the path alone, so any origin serves
-const CELL_ORIGIN = "https://vault-cell/";
-
-export const pushVaultPack = async (
-  door: VaultCellDoor,
-  push: VaultPackPush,
-): Promise<VaultPushOutcome> => {
-  const answer = await receiveIntoVaultCell(door, {
-    body: receivePackBody(push),
-    headers: new Headers({ "content-type": "application/x-git-receive-pack-request" }),
-    url: CELL_ORIGIN,
-  });
-  if (answer.kind === "over-limit") {
-    return answer.limit === "storage"
-      ? { kind: "full" }
-      : { kind: "refused", reason: "the pack is over the push cap" };
-  }
-  const { response } = answer;
-  if (!response.ok) {
-    await response.body?.cancel();
-    return { kind: "refused", reason: `the repo cell answered ${String(response.status)}` };
-  }
-  return readReportStatus(new Uint8Array(await response.arrayBuffer()), push.ref);
-};

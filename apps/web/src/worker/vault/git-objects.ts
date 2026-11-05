@@ -3,7 +3,7 @@ import { hexFromBytes } from "@repo/contract/cloud/bytes";
 // git's object and pack encodings, byte for byte: an oid is the SHA-1 of what these write, so an
 // order or a mode spelled differently from git's is a different object, or one fsck refuses.
 
-export type GitObjectType = "blob" | "commit" | "tree";
+type GitObjectType = "blob" | "commit" | "tree";
 
 export interface GitObject {
   readonly type: GitObjectType;
@@ -37,7 +37,7 @@ export const concatBytes = (parts: readonly Uint8Array[]): Uint8Array => {
 const sha1 = async (bytes: Uint8Array): Promise<Uint8Array> =>
   new Uint8Array(await crypto.subtle.digest("SHA-1", bytes));
 
-export const gitObject = async (type: GitObjectType, body: Uint8Array): Promise<GitObject> => {
+const gitObject = async (type: GitObjectType, body: Uint8Array): Promise<GitObject> => {
   const header = encoder.encode(`${type} ${String(body.length)}\0`);
   return { body, oid: hexFromBytes(await sha1(concatBytes([header, body]))), type };
 };
@@ -86,7 +86,7 @@ export const sortTreeEntries = (entries: readonly GitTreeEntry[]): GitTreeEntry[
   entries.toSorted(compareTreeEntries);
 
 // in the order given, so a listing read from a cell can be hashed back exactly as it was stored
-export const serializeTree = (entries: readonly GitTreeEntry[]): Uint8Array =>
+const serializeTree = (entries: readonly GitTreeEntry[]): Uint8Array =>
   concatBytes(
     entries.flatMap((entry) => [
       encoder.encode(`${entry.mode} `),

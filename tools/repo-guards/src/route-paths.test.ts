@@ -4,7 +4,6 @@
 
 import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
-import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import {
   HEALTH_PATH,
   HTML_FRAME_PATH,
@@ -31,11 +30,6 @@ const NAMESPACES: readonly Namespace[] = [
     use: "the constants in @repo/contract/local/routes",
   },
   {
-    home: "packages/contract/src/cloud/vault/vault-schema.ts",
-    paths: Object.values(VAULT_API_PATHS),
-    use: "VAULT_API_PATHS from @repo/contract/cloud/vault/vault-schema",
-  },
-  {
     home: "packages/contract/src/cloud/v1-contract.ts",
     paths: [V1_RPC_PATH],
     use: "V1_RPC_PATH from @repo/contract/cloud/v1",
@@ -48,8 +42,7 @@ const NAMESPACES: readonly Namespace[] = [
   },
 ];
 
-// longest first, so the cloud's `/v1/vault/asset` is tried before the local `/vault/asset` it
-// contains, and `/v1/rpc` before the local `/rpc`.
+// longest first, so the cloud's `/v1/rpc` is tried before the local `/rpc` it contains.
 const GUARDED = NAMESPACES.flatMap((namespace) =>
   namespace.paths.map((path) => ({
     home: namespace.home,

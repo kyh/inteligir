@@ -160,8 +160,8 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
    git fetch origin --tags --force
    gh run list --workflow Deploy --limit 3                  # the run after step 2's CI succeeded
    pnpm turbo query affected --packages @repo/web --base deployed/web --head HEAD   # names no package
-   curl -s -X POST -H 'x-inteligir-build: <version>+desktop' \
-     https://inteligir.com/v1/vault/commit                  # an "unauthorized" error, never "not-found"
+   curl -s -H 'x-inteligir-build: <version>+desktop' \
+     https://inteligir.com/v1/device/list                   # an "unauthorized" error, never "not-found"
    ```
 
    The query is the one Deploy asks. A package named means the Worker at this

@@ -1,9 +1,9 @@
+// The hosted vault's shapes the Mac's local server still reads: the path grammar, the asset
+// allowlist and its cap, the tree page its own routes answer, and an asset's query.
+
 import { normalVaultPathSchema as vaultPathSchema } from "@repo/notes/knowledge/vault-path-schema";
 import { z } from "zod";
 
-// a git push can place git's machinery and staging files in the hosted tree; the read routes
-// must hide what the local engine would never list
-export { isIgnoredEntryName } from "@repo/notes/knowledge/vault-path";
 export { normalVaultPathSchema as vaultPathSchema } from "@repo/notes/knowledge/vault-path-schema";
 export {
   assetKind,
@@ -13,43 +13,14 @@ export {
 } from "./vault-asset-media-types";
 export type { AssetKind } from "./vault-asset-media-types";
 
-export const VAULT_API_PATHS = {
-  asset: "/v1/vault/asset",
-  commit: "/v1/vault/commit",
-  file: "/v1/vault/file",
-  files: "/v1/vault/files",
-  tree: "/v1/vault/tree",
-} as const;
-
-export const VAULT_TREE_MAX_ENTRIES = 500;
-
-export const VAULT_FILE_MAX_BYTES = 2 * 1024 * 1024;
-
-// one read into the repo cell per path, beside the credential check, the budget and the commit
-// check: under the 50 subrequests a Workers Free invocation may make
-export const VAULT_FILES_MAX_PATHS = 40;
-
-// the content one batch answers; past it the rest is deferred to a follow-up, except the first
-// file, which always crosses so no note is deferred forever
-export const VAULT_FILES_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
+const VAULT_TREE_MAX_ENTRIES = 500;
 
 // the one spelling of a stored file's cap, which the desktop's routes re-export and an item's
-// original is held to (ITEM_FILE_MAX_BYTES, held equal by a contract test); enforced from the
-// tree's entry size before the blob crosses the repo cell's rpc, whose own message bound would
-// fail opaquely
+// original is held to (ITEM_FILE_MAX_BYTES, held equal by a contract test)
 export const VAULT_ASSET_MAX_BYTES = 10 * 1024 * 1024;
 
-export const gitOidSchema = z.string().regex(/^[0-9a-f]{40}$/u, "must be a full lowercase git oid");
+const gitOidSchema = z.string().regex(/^[0-9a-f]{40}$/u, "must be a full lowercase git oid");
 const commitShaSchema = gitOidSchema;
-
-// a read's query rides a POST body: a vault path names a file, and a URL is what Cloudflare's
-// request log and traces keep
-export const vaultTreeQuerySchema = z.strictObject({
-  after: vaultPathSchema.optional(),
-  limit: z.number().int().min(1).max(VAULT_TREE_MAX_ENTRIES).optional(),
-  ref: commitShaSchema.optional(),
-});
-export type VaultTreeQuery = z.infer<typeof vaultTreeQuerySchema>;
 
 export const vaultTreeResponseSchema = z.object({
   commit: commitShaSchema,
@@ -66,54 +37,8 @@ export const vaultTreeResponseSchema = z.object({
 });
 export type VaultTreeResponse = z.infer<typeof vaultTreeResponseSchema>;
 
-export const vaultFileQuerySchema = z.strictObject({
-  path: vaultPathSchema,
-  ref: commitShaSchema.optional(),
-});
-export type VaultFileQuery = z.infer<typeof vaultFileQuerySchema>;
-
-export const vaultFileResponseSchema = z.object({
-  commit: commitShaSchema,
-  content: z.string(),
-  oid: gitOidSchema,
-  path: vaultPathSchema,
-});
-export type VaultFileResponse = z.infer<typeof vaultFileResponseSchema>;
-
-// ref is required: a mirror diffs a tree page by oid and fetches what changed, so every batch must
-// read the revision that page named. Unpinned, a push landing mid-mirror would hand it bytes the
-// listing never saw, under a commit it never recorded.
-export const vaultFilesRequestSchema = z.strictObject({
-  paths: z
-    .array(vaultPathSchema)
-    .min(1)
-    .max(VAULT_FILES_MAX_PATHS)
-    .refine((paths) => new Set(paths).size === paths.length, "paths must be unique"),
-  ref: commitShaSchema,
-});
-export type VaultFilesRequest = z.infer<typeof vaultFilesRequestSchema>;
-
-// the single-file route's refusals, answered per path so one file never fails the batch
-const vaultFileRefusalSchema = z.enum(["file-too-large", "not-text"]);
-export type VaultFileRefusal = z.infer<typeof vaultFileRefusalSchema>;
-
-export const vaultFilesResponseSchema = z.object({
-  commit: commitShaSchema,
-  deferred: z.array(vaultPathSchema),
-  files: z.array(
-    z.object({
-      content: z.string(),
-      oid: gitOidSchema,
-      path: vaultPathSchema,
-    }),
-  ),
-  missing: z.array(vaultPathSchema),
-  refused: z.array(z.object({ code: vaultFileRefusalSchema, path: vaultPathSchema })),
-});
-export type VaultFilesResponse = z.infer<typeof vaultFilesResponseSchema>;
-
-// ref is required: a read pinned to a commit names immutable bytes, which the phone keeps under
-// their blob oid and the route answers `immutable`
+// ref is required: a read pinned to a commit names immutable bytes, which the route answers
+// `immutable`
 export const vaultAssetQuerySchema = z.strictObject({
   path: vaultPathSchema,
   ref: commitShaSchema,

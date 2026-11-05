@@ -1,11 +1,9 @@
 import { VAULT_GIT_MAX_PUSH_BYTES } from "@repo/contract/cloud/vault/vault-git";
-import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import { runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
 import { packCachePrefixes, vaultRepoName } from "./vault/vault-repo";
 import { vaultStorageCap } from "./vault/receive-pack";
-import { treeListingPrefix } from "./vault/tree-listing";
 import {
   buildHeaders,
   deviceHeaders,
@@ -14,7 +12,6 @@ import {
   openSocket,
   ORIGIN,
   postAccountDelete,
-  postVaultRead,
   signUpUser,
   userIdOf,
 } from "./test-support/cloud-helpers";
@@ -385,13 +382,6 @@ describe("account deletion's vault half", () => {
     const userId = await userIdOf(cookie);
     const repo = vaultRepoName(userId);
 
-    const listingPrefix = treeListingPrefix(repo);
-    const listed = await drained(
-      postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(credential), {}),
-    );
-    expect(listed.status).toBe(200);
-    const kept = await env.PACK_CACHE.list({ prefix: listingPrefix });
-    expect(kept.objects).toHaveLength(1);
     // the purge names durable-git's private layout; a spelling that drifted would list nothing here
     for (const prefix of packCachePrefixes(repo)) {
       const packs = await env.PACK_CACHE.list({ prefix });
@@ -409,7 +399,7 @@ describe("account deletion's vault half", () => {
     expect(refused.status).toBe(401);
 
     expect(await env.REGISTRY.getByName("registry").get(repo)).toBeNull();
-    for (const prefix of [listingPrefix, ...packCachePrefixes(repo)]) {
+    for (const prefix of packCachePrefixes(repo)) {
       const purged = await env.PACK_CACHE.list({ prefix });
       expect(purged.objects, prefix).toEqual([]);
     }

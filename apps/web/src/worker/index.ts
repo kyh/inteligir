@@ -2,7 +2,6 @@ import { ACCOUNT_API_PATHS, AUTH_API_PATHS } from "@repo/contract/cloud/account/
 import { V1_SOCKET_PATH } from "@repo/contract/cloud/library/library-socket";
 import { SYNC_WS_PATH } from "@repo/contract/cloud/sync/sync-ws";
 import { VAULT_GIT_PATH } from "@repo/contract/cloud/vault/vault-git";
-import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import { createAuth } from "./auth/auth";
 import { handleInviteSignUp } from "./auth/invite";
@@ -28,9 +27,7 @@ import { handleLibraryPage, isLibraryPagePath } from "./library/library-page";
 import { logUnhandled } from "./log";
 import { rpcFault } from "./wire/rpc-refusal";
 import { handleV1Rpc } from "./wire/v1-rpc";
-import { handleVaultCommitRoute } from "./vault/commit-route";
 import { handleVaultGitRemote } from "./vault/git-remote";
-import { handleVaultReadRoutes, isVaultReadPath } from "./vault/read-routes";
 
 // Durable Object classes must be exported from the entry the runtime loads: this file for tests, ./server.ts for deploy
 export { AgentThreadDO } from "./agent/agent-thread";
@@ -142,14 +139,6 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
 
   if (url.pathname.startsWith(VAULT_GIT_PATH)) {
     return await handleVaultGitRemote(request, env, ctx, url);
-  }
-
-  if (url.pathname === VAULT_API_PATHS.commit) {
-    return await handleVaultCommitRoute(request, env, ctx);
-  }
-
-  if (isVaultReadPath(url.pathname)) {
-    return await handleVaultReadRoutes(request, env, url.pathname);
   }
 
   if (url.pathname === ACCOUNT_API_PATHS.delete) {

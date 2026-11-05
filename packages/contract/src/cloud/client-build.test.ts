@@ -13,7 +13,6 @@ import { createCloudSocketOpener } from "./sync/cloud-socket";
 
 const BUILD: ClientBuild = { platform: "mobile", version: "0.7.0" };
 const SENT = "0.7.0+mobile";
-const COMMIT = "a".repeat(40);
 
 const release = (text: string): BuildVersion => {
   const parsed = parseReleaseVersion(text);
@@ -85,16 +84,6 @@ describe("every request an install sends names its build", () => {
     listDevices: async (client) => await client.listDevices(),
     revokeDevice: async (client) => await client.revokeDevice("dev_2"),
     signOut: async (client) => await client.signOut(),
-    vaultAsset: async (client) => await client.vaultAsset({ path: "media/a.png", ref: COMMIT }),
-    vaultCommit: async (client) =>
-      await client.vaultCommit({
-        changes: [
-          { base: null, content: { encoding: "utf-8", text: "x" }, op: "put", path: "a.md" },
-        ],
-      }),
-    vaultFile: async (client) => await client.vaultFile({ path: "a.md" }),
-    vaultFiles: async (client) => await client.vaultFiles({ paths: ["a.md"], ref: COMMIT }),
-    vaultTree: async (client) => await client.vaultTree({}),
   };
 
   it("on every call a device credential makes", async () => {

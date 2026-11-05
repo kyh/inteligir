@@ -31,20 +31,8 @@ describe("a body cut off mid-transfer", () => {
 
     const listed = await client.listDevices();
     expect(listed.ok || listed.failure.kind).toBe("unreachable");
-    const files = await client.vaultFiles({ paths: ["a.md"], ref: "b".repeat(40) });
-    expect(files.ok || files.failure.kind).toBe("unreachable");
-  });
-
-  it("reads as unreachable on a vault commit, whatever the status", async () => {
-    for (const status of [200, 409]) {
-      const client = clientAnswering(() => abortedMidBody(status));
-      const committed = await client.vaultCommit({
-        changes: [
-          { base: null, content: { encoding: "utf-8", text: "x" }, op: "put", path: "a.md" },
-        ],
-      });
-      expect(committed.ok || committed.failure.kind, `HTTP ${status}`).toBe("unreachable");
-    }
+    const revoked = await client.revokeDevice("dev_2");
+    expect(revoked.ok || revoked.failure.kind).toBe("unreachable");
   });
 
   it("reads as unreachable on a refusal whose envelope never arrived", async () => {

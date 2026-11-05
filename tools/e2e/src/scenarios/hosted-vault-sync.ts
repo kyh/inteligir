@@ -1,18 +1,16 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { createCloudClient, describeCloudFailure } from "@repo/contract/cloud/client";
 import { DEVICE_CREDENTIAL_PREFIX } from "@repo/contract/cloud/device/device-schema";
 import {
   readDeviceCredential,
   writeDeviceCredential,
 } from "inteligir/server/cloud/credential-store";
 import { expect, expectEq } from "../harness/assert";
-import { loginDevice, PHONE_BUILD, revokeDevice, signUp } from "../harness/cloud-account";
+import { loginDevice, revokeDevice, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { gitIn } from "../harness/exec";
 import { hostedVaultEnv, signInOwner, syncUntil } from "../harness/hosted-vault";
-import { PHONE_NAME } from "../harness/phone-runtime";
 import type { Scenario } from "../harness/scenario";
 
 const SHARED_PATH = "notes/shared.md";
@@ -48,7 +46,7 @@ const expectNoTokenInGitConfig = async (
 
 export const hostedVaultSync: Scenario = {
   description:
-    "the hosted loop for real: a Miniflare Worker, production sign-in, convergence through the derived remote, a phone's listing by blob id and batch read, boot clone, a same-line edit copied aside under the signed-in device's name, and revoke → unauthorized with the other device untouched",
+    "the hosted loop for real: a Miniflare Worker, production sign-in, convergence through the derived remote, boot clone, a same-line edit copied aside under the signed-in device's name, and revoke → unauthorized with the other device untouched",
   name: "hosted-vault-sync",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -68,28 +66,6 @@ export const hostedVaultSync: Scenario = {
       path: SHARED_PATH,
     });
     await syncUntil(a.api, "A after write", "clean");
-
-    ctx.log("a phone lists A's note under git's own blob id, and reads it in one batch");
-    const phone = await loginDevice(worker.origin, PHONE_NAME);
-    const phoneClient = createCloudClient({
-      baseUrl: worker.origin,
-      build: PHONE_BUILD,
-      credential: phone.credential,
-    });
-    const tree = await phoneClient.vaultTree({});
-    expect(tree.ok, `the phone's tree read: ${tree.ok ? "" : describeCloudFailure(tree.failure)}`);
-    const listed = tree.value.entries.find((entry) => entry.path === SHARED_PATH);
-    expect(listed !== undefined, "the phone's tree lists A's note");
-    expectEq(
-      listed.oid,
-      await gitIn(a.vaultDir, ["rev-parse", `${tree.value.commit}:${SHARED_PATH}`]),
-      "the listed oid",
-    );
-    const batch = await phoneClient.vaultFiles({ paths: [SHARED_PATH], ref: tree.value.commit });
-    expect(batch.ok, `the phone's batch: ${batch.ok ? "" : describeCloudFailure(batch.failure)}`);
-    expectEq(batch.value.files.length, 1, "files in the phone's batch");
-    expectEq(batch.value.files[0]?.content, FROM_A, "the batch's content");
-    expectEq(batch.value.files[0]?.oid, listed.oid, "the batch's oid");
 
     ctx.log("B holds a credential BEFORE boot: the clone path, not init+seed");
     const deviceB = await loginDevice(worker.origin, "E2E Device B");

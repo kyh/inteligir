@@ -1,8 +1,8 @@
 import { parseVaultPath } from "@repo/notes/knowledge/vault-path";
 import { describe, expect, it } from "vitest";
-import { vaultFileQuerySchema } from "./vault-schema";
+import { vaultPathSchema } from "./vault-schema";
 
-const wireAdmits = (path: string): boolean => vaultFileQuerySchema.safeParse({ path }).success;
+const wireAdmits = (path: string): boolean => vaultPathSchema.validate(path);
 
 // identity required: a path the engine would normalize must refuse, not silently rename
 const engineAdmits = (path: string): boolean => {

@@ -1,5 +1,4 @@
 import type { Registry } from "durable-git";
-import { treeListingPrefix } from "./tree-listing";
 
 // every door names the repo here: one derivation, so a push and a read cannot name different repos
 export const vaultRepoName = (userId: string): string => `vault-${userId}`;
@@ -17,9 +16,8 @@ export const packCachePrefixes = (repo: string): readonly string[] => [
 
 // A non-OK answer throws so beforeDelete aborts and the account survives to retry; a never-pushed
 // repo wipes empty tables, so it is idempotent. Residual: a push whose pack is still uploading can
-// recreate the repo after the wipe (dgit has no tombstone), and a tree read still walking can
-// rewrite its listing slot; either orphan is unreachable, since every credential that could name it
-// is revoked.
+// recreate the repo after the wipe (dgit has no tombstone); the orphan is unreachable, since every
+// credential that could name it is revoked.
 export const deleteVaultGitRepo = async (env: Env, userId: string): Promise<void> => {
   const repo = vaultRepoName(userId);
   // not gated on the registry: a purge must not trust an index, or a lost registry row leaves the bytes alive
@@ -31,7 +29,7 @@ export const deleteVaultGitRepo = async (env: Env, userId: string): Promise<void
     throw new Error(`vault git repo delete failed: ${response.status}`);
   }
   // dgit's own R2 purge logs a failure and answers ok, which a deletion hook cannot trust; a throw aborts the deletion
-  for (const prefix of [...packCachePrefixes(repo), treeListingPrefix(repo)]) {
+  for (const prefix of packCachePrefixes(repo)) {
     let cursor: string | undefined;
     do {
       const listing = await env.PACK_CACHE.list(

@@ -26,28 +26,6 @@ import type {
   RevokeDeviceRequest,
   RevokeDeviceResponse,
 } from "./device/device-schema";
-import { vaultCommitResponseSchema, vaultConflictAnswerSchema } from "./vault/vault-commit-schema";
-import type {
-  VaultCommitConflict,
-  VaultCommitRequest,
-  VaultCommitResponse,
-} from "./vault/vault-commit-schema";
-import {
-  assetMediaType,
-  VAULT_API_PATHS,
-  vaultFileResponseSchema,
-  vaultFilesResponseSchema,
-  vaultTreeResponseSchema,
-} from "./vault/vault-schema";
-import type {
-  VaultAssetQuery,
-  VaultFileQuery,
-  VaultFileResponse,
-  VaultFilesRequest,
-  VaultFilesResponse,
-  VaultTreeQuery,
-  VaultTreeResponse,
-} from "./vault/vault-schema";
 
 export type CloudFetch = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -164,79 +142,9 @@ export const readCloudCall = async <TSchema extends z.ZodType>(
   return await readValue(response, schema);
 };
 
-// the asset route answers raw bytes with their type in a header. The type must be the one the
-// allowlist names for the path: a renderer handed these bytes trusts it, and an intercepting proxy
-// could otherwise relabel an image as a document.
-const readAssetCall = async (
-  send: () => Promise<Response>,
-  path: string,
-): Promise<CloudResult<VaultAsset>> => {
-  let response: Response;
-  let bytes: Uint8Array;
-  try {
-    response = await send();
-    if (!response.ok) {
-      return { failure: await readFailure(response), ok: false };
-    }
-    bytes = new Uint8Array(await response.arrayBuffer());
-  } catch (error) {
-    return { failure: unreachable(error), ok: false };
-  }
-  const mediaType = assetMediaType(path);
-  if (mediaType === null || response.headers.get("content-type") !== mediaType) {
-    return {
-      failure: {
-        kind: "malformed",
-        message: "The cloud answered an attachment this build cannot read.",
-      },
-      ok: false,
-    };
-  }
-  return { ok: true, value: { bytes, mediaType } };
-};
-
-export type VaultCommitOutcome =
-  | ({ kind: "committed" } & VaultCommitResponse)
-  | ({ kind: "conflict" } & VaultCommitConflict);
-
-// a vault-conflict is an answer, not a failure: it carries the bytes the caller merges against. A
-// reader that knows only the envelope still reads it as a refusal it can name.
-const readCommitCall = async (
-  send: () => Promise<Response>,
-): Promise<CloudResult<VaultCommitOutcome>> => {
-  let response: Response;
-  try {
-    response = await send();
-  } catch (error) {
-    return { failure: unreachable(error), ok: false };
-  }
-  const body = await readBody(response);
-  if (!body.ok) {
-    return body;
-  }
-  if (response.ok) {
-    const committed = vaultCommitResponseSchema.safeParse(body.value);
-    return committed.success
-      ? { ok: true, value: { kind: "committed", ...committed.data } }
-      : { failure: UNREADABLE_OK, ok: false };
-  }
-  const answer = vaultConflictAnswerSchema.safeParse(body.value);
-  if (answer.success && answer.data.error.code === "vault-conflict") {
-    return { ok: true, value: { kind: "conflict", ...answer.data.conflict } };
-  }
-  const envelope = cloudErrorSchema.safeParse(body.value);
-  return {
-    failure: failureOf(response.status, envelope.success ? envelope.data : null),
-    ok: false,
-  };
-};
-
 // a black-holed request would stall its caller and the teardown waiting on it; undici's own
 // default is 300s of headers timeout.
 const REQUEST_TIMEOUT_MS = 30_000;
-// the deadline covers the body too, and a vault transfer carries up to an attachment's 10 MiB, a
-// commit's 16 MiB or a batch read's 4 MiB, which a phone on a slow connection cannot move in 30s
-const VAULT_TRANSFER_TIMEOUT_MS = 5 * 60_000;
 
 // undefined means GET; an undefined member is a key JSON.stringify drops
 type JsonBody =
@@ -259,11 +167,8 @@ export interface CloudEndpoint {
   signal?: AbortSignal;
 }
 
-const callSignal = (
-  signal: AbortSignal | undefined,
-  timeoutMs: number = REQUEST_TIMEOUT_MS,
-): AbortSignal => {
-  const timeout = AbortSignal.timeout(timeoutMs);
+const callSignal = (signal: AbortSignal | undefined): AbortSignal => {
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
   return signal === undefined ? timeout : AbortSignal.any([signal, timeout]);
 };
 
@@ -312,17 +217,6 @@ export interface CloudClient {
   // revokes the device the credential names: forgetting a credential leaves its row holding one
   // of the account's device slots
   signOut: () => Promise<CloudResult<RevokeDeviceResponse>>;
-  vaultTree: (query: VaultTreeQuery) => Promise<CloudResult<VaultTreeResponse>>;
-  vaultFile: (query: VaultFileQuery) => Promise<CloudResult<VaultFileResponse>>;
-  vaultFiles: (request: VaultFilesRequest) => Promise<CloudResult<VaultFilesResponse>>;
-  // the bytes themselves, for a page that cannot put a header on an <img>
-  vaultAsset: (query: VaultAssetQuery) => Promise<CloudResult<VaultAsset>>;
-  vaultCommit: (request: VaultCommitRequest) => Promise<CloudResult<VaultCommitOutcome>>;
-}
-
-export interface VaultAsset {
-  bytes: Uint8Array;
-  mediaType: string;
 }
 
 export interface CreateCloudClientArgs extends CloudEndpoint {
@@ -333,8 +227,8 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
   const call = args.fetch ?? fetch;
   const headers = { ...clientBuildHeaders(args.build), authorization: `Bearer ${args.credential}` };
 
-  const requestInit = (json: JsonBody, timeoutMs?: number): RequestInit => {
-    const signal = callSignal(args.signal, timeoutMs);
+  const requestInit = (json: JsonBody): RequestInit => {
+    const signal = callSignal(args.signal);
     return json === undefined
       ? { headers, method: "GET", signal }
       : {
@@ -349,10 +243,9 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
     path: string,
     json: JsonBody,
     schema: TSchema,
-    timeoutMs?: number,
   ): Promise<CloudResult<z.infer<TSchema>>> =>
     await readCloudCall(
-      async () => await call(endpointUrl(args.baseUrl, path), requestInit(json, timeoutMs)),
+      async () => await call(endpointUrl(args.baseUrl, path), requestInit(json)),
       schema,
     );
 
@@ -369,33 +262,5 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
     },
     // the credential names the device, so the body carries nothing
     signOut: async () => await send(DEVICE_API_PATHS.signOut, {}, revokeDeviceResponseSchema),
-    // every vault read posts its query and the credential rides a header: neither reaches the URL,
-    // which logs and traces keep
-    vaultAsset: async (query) =>
-      await readAssetCall(
-        async () =>
-          await call(
-            endpointUrl(args.baseUrl, VAULT_API_PATHS.asset),
-            requestInit(query, VAULT_TRANSFER_TIMEOUT_MS),
-          ),
-        query.path,
-      ),
-    vaultCommit: async (request) =>
-      await readCommitCall(
-        async () =>
-          await call(
-            endpointUrl(args.baseUrl, VAULT_API_PATHS.commit),
-            requestInit(request, VAULT_TRANSFER_TIMEOUT_MS),
-          ),
-      ),
-    vaultFile: async (query) => await send(VAULT_API_PATHS.file, query, vaultFileResponseSchema),
-    vaultFiles: async (request) =>
-      await send(
-        VAULT_API_PATHS.files,
-        request,
-        vaultFilesResponseSchema,
-        VAULT_TRANSFER_TIMEOUT_MS,
-      ),
-    vaultTree: async (query) => await send(VAULT_API_PATHS.tree, query, vaultTreeResponseSchema),
   };
 };

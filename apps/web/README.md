@@ -172,11 +172,6 @@ own (`.dev.vars.example`).
 | `GET /v1/sync/ws`           | device            | Invalidation socket (Bearer on the upgrade; hibernatable)                     |
 | `GET /v1/socket`            | ticket            | The same socket for any client, on a minute's ticket in the query             |
 | `/v1/git/vault.git/*`       | device            | The hosted vault git remote — smart HTTP, 90 MiB push, 1 GiB stored           |
-| `POST /v1/vault/tree`       | device            | Flat listing — path, size, blob oid — at one commit                           |
-| `POST /v1/vault/file`       | device            | One note's bytes at that commit — 2 MB ceiling                                |
-| `POST /v1/vault/files`      | device            | Up to 40 notes at a pinned commit — 4 MiB, rest deferred                      |
-| `POST /v1/vault/asset`      | device            | One embedded binary at that commit                                            |
-| `POST /v1/vault/commit`     | device            | A change set, each change CAS'd on its blob — one commit                      |
 | `POST /v1/account/delete`   | device + password | Delete the account through Better Auth's `deleteUser`                         |
 | `POST /v1/rpc/account/*`    | — or device/tab   | The account's oRPC rows: sign in or up, devices, delete, ticket               |
 | `POST /v1/rpc/library/*`    | device or tab     | The library's oRPC rows, forwarded to the account's library cell              |
@@ -196,10 +191,8 @@ VERIFIED credential's userId — never a path or a body — names the state it
 reaches: the socket upgrade to that user's own library cell, `LibraryDO`
 named `library:<userId>` (the one forwarded request, carrying the verified
 holder; a push, a revoke and a deletion call the cell by RPC), the git
-remote and the `/v1/vault/*` reads and commits to that user's own durable-git
-`RepoCell`, and the account deletion reads D1 directly. A commit is authored by the
-verified device row's name, and a stale base answers 409 `vault-conflict` with
-what the head holds beside the envelope; the Worker never merges. Every REST `/v1` refusal, an unknown route and
+remote to that user's own durable-git `RepoCell`, and the account deletion
+reads D1 directly. Every REST `/v1` refusal, an unknown route and
 an unhandled fault included, is the JSON error envelope; the git mount answers
 git clients in plain text, `/v1/rpc` in its own protocol, and `/v1/blobs` and
 `/v1/exports` in HTTP's statuses alone.
@@ -347,15 +340,10 @@ other method is refused `bad-request` (`src/worker/vault/read-routes.ts`).
   (`src/lib/auth-client.ts`), and `/app/devices` shows it, like a device list
   that failed to load, as its message and a retry
   (`src/routes/app/devices.tsx`). The hosted
-  vault's three budgets (`/v1/git/*` 600/min, the `/v1/vault/*` reads
-  3,000/min, `/v1/vault/commit` 300/min) spend the same table keyed on the
+  vault's git remote (`/v1/git/*`, 600/min) spends the same table keyed on the
   DEVICE, never the address: a stolen credential moves between addresses, and
-  the device row is what `/app/devices` revokes. A batch of files spends one
-  unit however many paths it names, so a phone's first mirror of 50,000 notes
-  costs about 1,350; a phone's queue sends one change set at a time, so 300
-  drains a long offline backlog within the minute. Three families so a drained
-  budget never takes another down: a looping writer still syncs and reads.
-  Revocation and account deletion drop the rows. Better Auth prunes the shared table on its own writes, every row past
+  the device row is what `/app/devices` revokes. Its family is its own, so a
+  drained budget never takes `/v1` down. Revocation and account deletion drop the rows. Better Auth prunes the shared table on its own writes, every row past
   its 60s window with it, so every Worker window is declared in `RATE_WINDOWS`
   and a guard holds each to 60s or less.
 - **No CORS**, deliberately: every browser client is served by this Worker from

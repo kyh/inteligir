@@ -3,11 +3,6 @@
 import { existsSync } from "node:fs";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import nodePath from "node:path";
-import {
-  deviceCommitEmail,
-  vaultCommitSubject,
-  WORKER_COMMITTER_EMAIL,
-} from "@repo/contract/cloud/vault/vault-git";
 import { describe, expect, it } from "vitest";
 import { ensureVaultRepo } from "./git-bootstrap";
 import { ENGINE_IDENTITY, identityEnv } from "./git-run";
@@ -199,27 +194,6 @@ describe("readNoteHistory", () => {
       ["agent", AGENT_COMMIT_AUTHOR.name],
       ["app", ENGINE_IDENTITY.name],
     ]);
-  });
-
-  it("counts a phone's edit, which the Worker committed for it, as the user's own", async () => {
-    const { root, run } = await makeVault();
-    await writeFile(nodePath.join(root, "Note.md"), "from the phone\n", "utf-8");
-    await run(["add", "-A"]);
-    await git.run(root, ["commit", "-m", vaultCommitSubject(["Note.md"])], {
-      env: {
-        GIT_AUTHOR_EMAIL: deviceCommitEmail("dev_1"),
-        GIT_AUTHOR_NAME: "Kai's iPhone",
-        GIT_COMMITTER_EMAIL: WORKER_COMMITTER_EMAIL,
-        GIT_COMMITTER_NAME: "Kai's iPhone",
-      },
-    });
-
-    const [phone] = await readNoteHistory(run, "Note.md", { limit: 1, skip: 0 });
-    expect(phone).toMatchObject({
-      authorKind: "app",
-      authorName: "Kai's iPhone",
-      subject: "vault: update Note.md",
-    });
   });
 
   it("answers an empty page for a path git has never seen", async () => {

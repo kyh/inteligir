@@ -160,46 +160,15 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   `apps/cli/src/server/cloud/sync-runtime.ts`,
   `packages/contract/src/cloud/sync/cloud-socket.ts`.
 
-- **THE HOSTED VAULT'S PATHS ARE BUDGETED PER DEVICE, and the budget buys time,
-  not prevention.** Reads, writes and git each consume a window keyed on the
-  device, never the address, since a stolen credential moves between addresses
-  and the device row is what revocation removes. Three families, so a drained
-  budget, a looping phone writer's included, never takes another down; each
-  ceiling is set from the worst legitimate minute, and revocation is the
-  control (`apps/web/src/worker/rate-limit.ts`). A read-scoped credential is the
+- **THE HOSTED VAULT'S GIT REMOTE IS BUDGETED PER DEVICE, and the budget buys
+  time, not prevention.** Its requests consume a window keyed on the device,
+  never the address, since a stolen credential moves between addresses and the
+  device row is what revocation removes; the window is a family of its own, so
+  a drained one never takes `/v1` down, its ceiling set from the worst
+  legitimate minute, and revocation is the control
+  (`apps/web/src/worker/rate-limit.ts`). A read-scoped credential is the
   deeper answer and is not built; the trigger is a second party holding a
   credential for someone else's account.
-
-- **THE HOSTED TREE IS WALKED ONCE PER HEAD INTO ONE SLOT PER REPO, AND A MIRROR
-  READ IS PINNED AND BATCHED.** Each directory is a cell call that pushes wait
-  on, so a head's listing is kept in one R2 slot, tagged by commit; a cache
-  failure is a miss, not a refusal. A phone fetches only what changed, at the
-  head the batch names (lest a push hand it bytes its listing lacks), forty
-  paths a request, each a cell call under a Free invocation's 50 subrequests;
-  past the byte budget the rest waits, never the first file. Rejected: a key
-  per commit (an object per head ever listed); one request per note (5,000 for
-  5,000 notes). `apps/web/src/worker/vault/tree-walk.ts`, `read-routes.ts`.
-
-- **A PHONE WRITE IS ONE CHANGE SET OF BLOB-CAS'D CHANGES, AND THE WORKER
-  COMMITS IT THROUGH THE CELL'S OWN RECEIVE-PACK.** Each change names its base
-  blob, and the set lands whole on the head it was checked against or not at
-  all; a stale base is refused with what the head holds, and the Worker never
-  merges. A blob base survives another note's desktop push, and a change the
-  head already holds is satisfied, making resends harmless. The Worker pushes
-  the objects it builds through the door every push takes, a per-ref CAS on a
-  serialized chain. Rejected: an idempotency key (a store to expire); a write
-  RPC in durable-git (a second writer and lock).
-  `apps/web/src/worker/vault/commit-route.ts`, `commit-changes.ts`,
-  `plan-change-set.ts`.
-
-- **A PHONE COMMIT IS REFUSED RATHER THAN GUESSED, AND NAMES ITS DEVICE.** An
-  account with no hosted vault yet is refused, never created: the Mac's first
-  push creates it. A tree that does not hash back to its own oid, and a name a
-  sibling holds in another case or normalization, are refused, since the cell
-  decodes names leniently and a Mac cannot hold both. Author and committer name
-  the device, because a conflict copy names the other device from the
-  committer. `apps/web/src/worker/vault/commit-route.ts`, `plan-change-set.ts`,
-  `commit-changes.ts`.
 
 - **THE HOSTED VAULT IS CAPPED ON WHAT THE CELL STORES, AND TAKES A PUSH OF AT
   MOST 90 MiB** (owner decision: free, about 1 GB an account counting every
@@ -207,8 +176,7 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   cap, large files later). Size is the cell's SQLite file plus its R2 packs
   (`patches/durable-git@0.0.8.patch`); the push cap sits under the edge's
   100 MB body, so the refusal is the Worker's own; ONE gate meets every pack
-  bound for a cell, desktop push or phone commit; reads are never refused for
-  size. Rejected: the gc guard's sum (double-counts a SQLite-held pack); a
+  bound for a cell; reads are never refused for size. Rejected: the gc guard's sum (double-counts a SQLite-held pack); a
   Worker-side meter (bytes offered, not kept); the head tree's size (ignores
   growing history). `apps/web/cloudflare.config.ts`,
   `apps/web/src/worker/vault/receive-pack.ts`.
@@ -216,23 +184,12 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
 - **A FULL HOSTED VAULT IS `full`, NOT OFFLINE, AND AN OVERSIZED HISTORY PUSHES
   IN STEPS.** The engine measures a push to the account remote first, so even
   the first refusal uploads nothing, and skips pushing while the refused tips
-  stand rather than re-upload the cap; commits land, pulls go on, and the phone
-  keeps refused edits queued. A commit holds at most 32 MiB of new bytes, a
+  stand rather than re-upload the cap; commits land and pulls go on. A commit holds at most 32 MiB of new bytes, a
   vault's first included, and no file over 10 MiB, so each push is the newest
   prefix of unpushed commits under the cap; only a single commit over it is
   refused as too-large. Rejected: one push of the whole history (a large first
   commit or an import never sends). `apps/cli/src/server/vault/git-engine.ts`,
   `git-stage.ts`.
-
-- **A VAULT READ CARRIES ITS PATH IN THE BODY, NEVER THE URL.** Cloudflare keeps
-  each request's path in the Worker's request log and sampled traces for up to
-  seven days (its query string redacted), and a vault path names a user's file,
-  so the tree, file and asset reads POST their query, and the Worker refuses
-  any other method before it reads the credential. Rejected: turning the
-  invocation log off (the traces keep their paths, and the operator loses the
-  one view of a failing route); reads addressed by blob oid (the asset route
-  cannot type or size-gate without the path).
-  `apps/web/src/worker/vault/read-routes.ts`.
 
 - **A PR PREVIEW IS A WORKER PREVIEW DRIVEN BY ACTIONS, not Workers Builds**,
   and it binds preview-only resources. Previews ride `workflow_run` after CI, as

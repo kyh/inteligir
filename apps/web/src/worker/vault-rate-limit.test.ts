@@ -1,7 +1,5 @@
 import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
-import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import { VAULT_GIT_PATH } from "@repo/contract/cloud/vault/vault-git";
-import { cloudErrorSchema } from "@repo/contract/cloud/errors";
 import { env, exports } from "cloudflare:workers";
 import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -12,18 +10,13 @@ import {
   buildHeaders,
   deviceHeaders,
   drained,
-  emitted,
   loginDevice,
   ORIGIN,
   postSignOut,
-  postVaultRead,
   sessionHeaders,
   signUpUser,
 } from "./test-support/cloud-helpers";
-import { pushVaultFiles, ZERO_OID } from "./test-support/git-pack";
 
-const FILES = `${ORIGIN}${VAULT_API_PATHS.files}`;
-const COMMIT = `${ORIGIN}${VAULT_API_PATHS.commit}`;
 const GIT_REFS = `${ORIGIN}${VAULT_GIT_PATH}/info/refs?service=git-upload-pack`;
 
 const spendBudget = async (key: string): Promise<void> => {
@@ -34,7 +27,10 @@ const spendBudget = async (key: string): Promise<void> => {
     .onConflictDoUpdate({ set: spent, target: rateLimit.key });
 };
 
-describe("the hosted vault's per-device budgets", () => {
+const gitRefs = async (headers: Record<string, string>): Promise<Response> =>
+  await drained(exports.default.fetch(GIT_REFS, { headers }));
+
+describe("the hosted vault's per-device budget", () => {
   // the suite config keeps the limiter off so suites do not 429 on one another
   let wasDisabled: Env["RATE_LIMIT_DISABLED"] = "true";
   beforeEach(() => {
@@ -45,48 +41,25 @@ describe("the hosted vault's per-device budgets", () => {
     env.RATE_LIMIT_DISABLED = wasDisabled;
   });
 
-  it("refuses vault reads once the device's budget is spent, and only that device's", async () => {
-    const { cookie } = await signUpUser("vault-budget-read@example.test");
-    const phone = await loginDevice(cookie, "Phone");
-    const laptop = await loginDevice(cookie, "Laptop");
+  it("refuses the git remote once the device's budget is spent, and only that device's", async () => {
+    const { cookie } = await signUpUser("vault-budget-git@example.test");
+    const spent = await loginDevice(cookie, "Laptop");
+    const other = await loginDevice(cookie, "Desktop");
 
-    await spendBudget(deviceRateKey("vaultRead", phone.deviceId));
+    await spendBudget(deviceRateKey("vaultGit", spent.deviceId));
 
-    const refused = await postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(phone.credential), {});
+    const refused = await gitRefs(deviceHeaders(spent.credential));
     expect(refused.status).toBe(429);
-    expect(emitted(cloudErrorSchema, await refused.text()).error.code).toBe("rate-limited");
-
-    const allowed = await drained(
-      postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(laptop.credential), {}),
-    );
+    const allowed = await gitRefs(deviceHeaders(other.credential));
     expect(allowed.status).not.toBe(429);
-  });
-
-  it("keeps the git remote's budget separate from the read rows'", async () => {
-    const { cookie } = await signUpUser("vault-budget-families@example.test");
-    const device = await loginDevice(cookie, "Laptop");
-
-    await spendBudget(deviceRateKey("vaultRead", device.deviceId));
-
-    const git = await drained(
-      exports.default.fetch(GIT_REFS, { headers: deviceHeaders(device.credential) }),
-    );
-    expect(git.status).not.toBe(429);
-
-    await spendBudget(deviceRateKey("vaultGit", device.deviceId));
-    const refused = await drained(
-      exports.default.fetch(GIT_REFS, { headers: deviceHeaders(device.credential) }),
-    );
-    expect(refused.status).toBe(429);
   });
 
   it("drops a revoked device's rows at once, not on Better Auth's next prune", async () => {
     const { cookie } = await signUpUser("vault-budget-revoke@example.test");
     const device = await loginDevice(cookie, "Laptop");
     const keys = [
-      deviceRateKey("vaultRead", device.deviceId),
       deviceRateKey("vaultGit", device.deviceId),
-      deviceRateKey("vaultWrite", device.deviceId),
+      deviceRateKey("rpc", device.deviceId),
     ];
     for (const key of keys) {
       await spendBudget(key);
@@ -110,96 +83,11 @@ describe("the hosted vault's per-device budgets", () => {
   });
 
   it("spends nothing for a credential that never verified", async () => {
-    const unauthorized = await drained(
-      postVaultRead(
-        VAULT_API_PATHS.tree,
-        { ...buildHeaders(), authorization: "Bearer igd_not-a-real-credential" },
-        {},
-      ),
-    );
+    const unauthorized = await gitRefs({
+      ...buildHeaders(),
+      authorization: "Bearer igd_not-a-real-credential",
+    });
     expect(unauthorized.status).toBe(401);
-  });
-});
-
-// outside the window above: a fourth sign-up there meets better auth's own sign-up throttle
-describe("a batch read's budget", () => {
-  it("spends one unit for the whole batch, however many paths it names", async () => {
-    const { cookie } = await signUpUser("vault-budget-batch@example.test");
-    const phone = await loginDevice(cookie, "Phone");
-    const paths = ["a.md", "b.md", "c.md", "notes/d.md"];
-    const pushed = await pushVaultFiles(
-      phone.credential,
-      "vault: initialize",
-      paths.map((path) => ({ content: `# ${path}\n`, path })),
-      ZERO_OID,
-    );
-    expect(pushed.response.status).toBe(200);
-    await pushed.response.arrayBuffer();
-
-    const wasDisabled = env.RATE_LIMIT_DISABLED;
-    env.RATE_LIMIT_DISABLED = "false";
-    try {
-      const batch = await drained(
-        exports.default.fetch(FILES, {
-          body: JSON.stringify({ paths, ref: pushed.commit }),
-          headers: { ...deviceHeaders(phone.credential), "content-type": "application/json" },
-          method: "POST",
-        }),
-      );
-      expect(batch.status).toBe(200);
-    } finally {
-      env.RATE_LIMIT_DISABLED = wasDisabled;
-    }
-
-    const rows = await createDb(env.DB)
-      .select({ count: rateLimit.count })
-      .from(rateLimit)
-      .where(eq(rateLimit.key, deviceRateKey("vaultRead", phone.deviceId)))
-      .all();
-    expect(rows).toEqual([{ count: 1 }]);
-  });
-});
-
-describe("a vault write's budget", () => {
-  it("refuses a commit once spent, and leaves the reads and the git remote whole", async () => {
-    const { cookie } = await signUpUser("vault-budget-write@example.test");
-    const phone = await loginDevice(cookie, "Phone");
-    const pushed = await pushVaultFiles(
-      phone.credential,
-      "vault: initialize",
-      [{ content: "# a\n", path: "a.md" }],
-      ZERO_OID,
-    );
-    expect(pushed.response.status).toBe(200);
-    await pushed.response.arrayBuffer();
-    await spendBudget(deviceRateKey("vaultWrite", phone.deviceId));
-
-    const wasDisabled = env.RATE_LIMIT_DISABLED;
-    env.RATE_LIMIT_DISABLED = "false";
-    try {
-      const refused = await exports.default.fetch(COMMIT, {
-        body: JSON.stringify({
-          changes: [
-            { base: null, content: { encoding: "utf-8", text: "# b\n" }, op: "put", path: "b.md" },
-          ],
-        }),
-        headers: { ...deviceHeaders(phone.credential), "content-type": "application/json" },
-        method: "POST",
-      });
-      expect(refused.status).toBe(429);
-      expect(emitted(cloudErrorSchema, await refused.text()).error.code).toBe("rate-limited");
-
-      const tree = await postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(phone.credential), {});
-      expect(tree.status).toBe(200);
-      await tree.arrayBuffer();
-      const git = await exports.default.fetch(GIT_REFS, {
-        headers: deviceHeaders(phone.credential),
-      });
-      expect(git.status).toBe(200);
-      await git.arrayBuffer();
-    } finally {
-      env.RATE_LIMIT_DISABLED = wasDisabled;
-    }
   });
 });
 
@@ -207,7 +95,7 @@ describe("a signed-out device's budgets", () => {
   it("go with it, as a revoked device's do", async () => {
     const { cookie } = await signUpUser("vault-budget-signout@example.test");
     const device = await loginDevice(cookie, "Laptop");
-    const key = deviceRateKey("vaultRead", device.deviceId);
+    const key = deviceRateKey("vaultGit", device.deviceId);
     await spendBudget(key);
 
     const signedOut = await drained(postSignOut(deviceHeaders(device.credential)));

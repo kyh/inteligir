@@ -21,7 +21,7 @@ import { expect, expectEq } from "./assert";
 import { OWNER, PHONE_BUILD } from "./cloud-account";
 import { pollUntil } from "./poll";
 
-export const PHONE_NAME = "E2E Phone";
+const PHONE_NAME = "E2E Phone";
 
 const LANDED_DEADLINE_MS = 20_000;
 

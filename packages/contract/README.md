@@ -68,7 +68,7 @@ src/
     device/            # the device credential and the one login flow
     sync/              # the session fence and the account socket that says the vault moved
     account/           # the account's rows (account-contract.ts), its deletion and the sign-up doors
-    vault/             # the hosted vault's paths and shapes
+    vault/             # the hosted vault's git remote and the shapes the Mac's local server reads
   browser/             the extension's wire, behind its own version
     browser-wire.ts    # the native host's frames, BROWSER_WIRE_VERSION and its floor
     extension-identity.ts # the extension's key, id, origin, host names and store link
@@ -153,13 +153,11 @@ src/
   `refused` (a code this build names, `internal` for one it does not),
   `unreachable` (no verdict on the credential) or `malformed` (a body this
   build cannot read); an `Error("HTTP 409")` would retry a request the server
-  refuses forever. One refusal is an answer: `vaultCommit` reads a 409
-  `vault-conflict` as the value `{ kind: "conflict" }`, since it carries the
-  bytes to merge against, while any reader that knows only the envelope,
-  `readCloudCall` included, still sees the refusal.
+  refuses forever.
 - **One spelling per route path.** `route-paths.test.ts` sweeps the repo for
-  the literal strings behind `@repo/contract/local/routes` and `VAULT_API_PATHS`
-  and refuses a second spelling outside the file that owns it.
+  the literal strings behind `@repo/contract/local/routes`, `V1_RPC_PATH` and
+  `LIBRARY_PAGE_PATH` and refuses a second spelling outside the file that owns
+  it.
 - **The `/ws` frame grammar is strict outbound, lenient inbound.** The
   `z.strictObject` schemas type what the server broadcasts and are what its tests
   parse the frames with; no broadcast is parsed at runtime. A client parses
