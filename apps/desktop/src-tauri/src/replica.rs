@@ -10,6 +10,10 @@
 //! when the token is dropped (a `rollback`, a page that went away, a newer `begin`) or when no
 //! statement comes for a while, so a page reloaded in the middle of a transaction never wedges the
 //! database. A statement outside waits out a running transaction, as the engine's port requires.
+//!
+//! The page sends its SQL whole, so the connection is held to the account's one file: no database
+//! can be attached to it, which `ATTACH` and `VACUUM INTO` (a copy written anywhere) both need, and
+//! an authorizer refuses either before it runs. Every other statement stays inside the file.
 
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -17,6 +21,8 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
+use rusqlite::hooks::{AuthAction, AuthContext, Authorization};
+use rusqlite::limits::Limit;
 use rusqlite::types::{Value, ValueRef};
 use rusqlite::{Connection, TransactionBehavior, params_from_iter};
 use serde_json::{Map, Number};
@@ -116,6 +122,24 @@ fn query(connection: &Connection, statement: &Statement) -> ShellResult<Vec<Row>
     Ok(read_rows)
 }
 
+/// Whether a statement may run on the replica's connection: anything but reaching another file.
+fn within_the_file(context: AuthContext<'_>) -> Authorization {
+    match context.action {
+        AuthAction::Attach { .. } | AuthAction::Detach { .. } => Authorization::Deny,
+        _ => Authorization::Allow,
+    }
+}
+
+/// The account's file, held to itself: WAL, so a crash mid-write keeps the last commit, and no
+/// other database reachable from it.
+fn open_held(path: &Path) -> ShellResult<Connection> {
+    let mut connection = Connection::open(path)?;
+    connection.pragma_update(None, "journal_mode", "WAL")?;
+    connection.set_limit(Limit::SQLITE_LIMIT_ATTACHED, 0)?;
+    connection.authorizer(Some(within_the_file))?;
+    Ok(connection)
+}
+
 /// A statement whose rows nobody reads: run to its end, so one that returns rows (an `INSERT …
 /// RETURNING`) runs as one that returns none.
 fn execute(connection: &Connection, statement: &Statement) -> ShellResult<()> {
@@ -181,15 +205,13 @@ impl Replica {
         }
     }
 
-    /// Opens the account's file, closing whatever was open; WAL, so a crash mid-write keeps the
-    /// last commit.
+    /// Opens the account's file, closing whatever was open.
     pub fn open(&self, path: &Path) -> ShellResult<()> {
         self.abandon();
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
-        let connection = Connection::open(path)?;
-        connection.pragma_update(None, "journal_mode", "WAL")?;
+        let connection = open_held(path)?;
         *lock(&self.inner.connection) = Some(connection);
         Ok(())
     }
@@ -332,6 +354,30 @@ mod tests {
 
     fn insert(body: &str) -> Statement {
         statement("INSERT INTO notes (body) VALUES (?)", vec![json!(body)])
+    }
+
+    #[test]
+    fn no_statement_reaches_a_file_but_the_replica_s() -> ShellResult<()> {
+        let (dir, replica) = opened(TRANSACTION_IDLE_LIMIT)?;
+        let elsewhere = dir.path().join("elsewhere.sqlite");
+        let target = elsewhere.to_string_lossy().replace('\'', "''");
+        for sql in [
+            format!("ATTACH DATABASE '{target}' AS other"),
+            format!("VACUUM INTO '{target}'"),
+        ] {
+            assert!(
+                matches!(
+                    replica.run(&statement(&sql, vec![])),
+                    Err(ShellError::Sql(_))
+                ),
+                "{sql}"
+            );
+        }
+        assert!(!elsewhere.exists());
+        // the replica's own file still takes every statement the engine sends
+        replica.run(&insert("still here"))?;
+        assert_eq!(bodies(&replica)?, vec![json!("still here")]);
+        Ok(())
     }
 
     #[test]

@@ -40,20 +40,23 @@ a bullet is written and cited.
   `apps/workspace/src/app/cloud/shell-library.ts`.
 
 - **THE MAC'S REPLICA IS ONE SQLITE FILE IN RUST, AND A COMMAND IS ONE
-  TRANSACTION.** Bundled rusqlite with FTS5 compiled in, so the Mac searches as
-  the cell and the tab do; one file an account in the app's data dir, one
+  TRANSACTION.** Bundled rusqlite with FTS5 compiled in, so the Mac searches
+  as the cell and the tab do; one file an account in the app's data dir, one
   connection behind one mutex, every command on a blocking thread. A statement
   the page sends alone is its own `IMMEDIATE` transaction. The engine's
   `exclusive`, whose results decide its next statement, is `begin`: a
-  transaction on a thread of its own that holds the connection and answers what
-  is sent under its token until `commit`, and rolls back when the token is
-  dropped (a rollback, a newer `begin`, a page load starting) or no statement
-  comes for ten seconds, so a page reloaded mid-transaction never wedges the
-  file. Rejected: the page's own SQLite in WebKit's storage (out of the shell's
-  reach on a sign-out, and the tab's in-memory one keeps nothing); a SQL
-  plugin's pool under the page's calls (a transaction's statements may land on
-  two connections); a transaction the page alone holds open across commands (a
-  reload leaves it holding the lock). `apps/desktop/src-tauri/src/replica.rs`.
+  transaction on a thread of its own that holds the connection and answers
+  what is sent under its token until `commit`, and rolls back when the token
+  is dropped (a rollback, a newer `begin`, a page load starting) or no
+  statement comes for ten seconds, so a page reloaded mid-transaction never
+  wedges the file. The page's SQL stays in that file: the connection attaches
+  no other database, and an authorizer refuses `ATTACH` and with it
+  `VACUUM INTO`. Rejected: the page's own SQLite in WebKit's storage (out of
+  the shell's reach on a sign-out, and the tab's in-memory one keeps nothing);
+  a SQL plugin's pool under the page's calls (a transaction's statements may
+  land on two connections); a transaction the page alone holds open across
+  commands (a reload leaves it holding the lock).
+  `apps/desktop/src-tauri/src/replica.rs`.
 
 - **THE DEVICE CREDENTIAL IS IN THE KEYCHAIN, AND THE PAGE HOLDS IT IN MEMORY.**
   The Mac's sign-in mints a device credential, which the shell keeps in the

@@ -11,7 +11,7 @@ use std::fmt::Write as _;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use sha2::{Digest, Sha256};
@@ -147,7 +147,7 @@ fn write_whole(path: &Path, bytes: &[u8]) -> io::Result<()> {
     written
 }
 
-pub struct FileCache {
+struct Folders {
     staged_dir: PathBuf,
     cache_dir: PathBuf,
     limit: u64,
@@ -155,34 +155,46 @@ pub struct FileCache {
     writing: Mutex<()>,
 }
 
+/// Cheap to clone, every clone the same folders and the same writer's lock: the scheme hands one to
+/// each blocking read it makes.
+#[derive(Clone)]
+pub struct FileCache {
+    folders: Arc<Folders>,
+}
+
 impl FileCache {
     pub fn new(staged_dir: PathBuf, cache_dir: PathBuf, limit: u64) -> Self {
         Self {
-            staged_dir,
-            cache_dir,
-            limit,
-            writing: Mutex::new(()),
+            folders: Arc::new(Folders {
+                staged_dir,
+                cache_dir,
+                limit,
+                writing: Mutex::new(()),
+            }),
         }
     }
 
     fn write_lock(&self) -> MutexGuard<'_, ()> {
-        self.writing.lock().unwrap_or_else(PoisonError::into_inner)
+        self.folders
+            .writing
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 
     fn staged_path(&self, sha: &str) -> PathBuf {
-        self.staged_dir.join(sha)
+        self.folders.staged_dir.join(sha)
     }
 
     fn cached_path(&self, sha: &str) -> PathBuf {
-        self.cache_dir.join(sha)
+        self.folders.cache_dir.join(sha)
     }
 
     fn staged_type_path(&self, sha: &str) -> PathBuf {
-        self.staged_dir.join(format!("{sha}{TYPE_SUFFIX}"))
+        self.folders.staged_dir.join(format!("{sha}{TYPE_SUFFIX}"))
     }
 
     fn type_path(&self, sha: &str) -> PathBuf {
-        self.cache_dir.join(format!("{sha}{TYPE_SUFFIX}"))
+        self.folders.cache_dir.join(format!("{sha}{TYPE_SUFFIX}"))
     }
 
     /// A file the outbox will upload, with the type it is sent as: kept until the write naming it
@@ -213,7 +225,7 @@ impl FileCache {
         if !from.exists() {
             return Ok(());
         }
-        fs::create_dir_all(&self.cache_dir)?;
+        fs::create_dir_all(&self.folders.cache_dir)?;
         // the type first: the bytes are what makes the file found, so it is never found untyped
         match fs::rename(self.staged_type_path(sha), self.type_path(sha)) {
             Err(error) if error.kind() != io::ErrorKind::NotFound => return Err(error.into()),
@@ -227,7 +239,7 @@ impl FileCache {
     /// Every staged file, as a wipe of the outbox drops them.
     pub fn clear_staged(&self) -> ShellResult<()> {
         let _writing = self.write_lock();
-        match fs::remove_dir_all(&self.staged_dir) {
+        match fs::remove_dir_all(&self.folders.staged_dir) {
             Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error.into()),
             _ => Ok(()),
         }
@@ -238,7 +250,7 @@ impl FileCache {
     pub fn clear(&self) -> ShellResult<()> {
         self.clear_staged()?;
         let _writing = self.write_lock();
-        match fs::remove_dir_all(&self.cache_dir) {
+        match fs::remove_dir_all(&self.folders.cache_dir) {
             Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error.into()),
             _ => Ok(()),
         }
@@ -291,7 +303,7 @@ impl FileCache {
     fn evict(&self) -> io::Result<()> {
         let mut files = Vec::new();
         let mut total = 0_u64;
-        let entries = match fs::read_dir(&self.cache_dir) {
+        let entries = match fs::read_dir(&self.folders.cache_dir) {
             Ok(entries) => entries,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
             Err(error) => return Err(error),
@@ -308,7 +320,7 @@ impl FileCache {
         }
         files.sort();
         for (_, len, sha) in files {
-            if total <= self.limit {
+            if total <= self.folders.limit {
                 break;
             }
             remove_if_there(&self.cached_path(&sha))?;

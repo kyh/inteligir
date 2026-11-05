@@ -63,6 +63,10 @@ again; so does a credential the cloud no longer takes.
 data dir (`library/<sha-256 of the user id>.sqlite`), on bundled rusqlite with
 FTS5 compiled in, so the Mac's search is the cell's and the tab's. One
 connection sits behind one mutex, and every command runs on a blocking thread.
+The page sends its SQL whole, so the connection is held to its file: it
+attaches no other database (`SQLITE_LIMIT_ATTACHED` is 0), and an authorizer
+refuses `ATTACH` and `DETACH`, so neither they nor `VACUUM INTO` reach a file
+outside the replica.
 
 The page's port (`ReplicaSql` in `@repo/library-replica`) is three calls, and
 the bridge carries each:

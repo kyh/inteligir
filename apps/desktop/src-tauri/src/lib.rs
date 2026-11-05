@@ -126,6 +126,7 @@ pub fn run() {
             file_scheme::SCHEME,
             |context, request, responder| {
                 let app = context.app_handle().clone();
+                // a miss's fetch waits on the runtime; the disk's work runs on blocking threads
                 tauri::async_runtime::spawn(async move {
                     let account = app.state::<Account>();
                     let response = file_scheme::answer(

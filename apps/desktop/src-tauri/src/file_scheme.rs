@@ -9,7 +9,7 @@
 
 use tauri::http::{Request, Response, StatusCode, header};
 
-use crate::file_cache::{self, CloudFiles, Fetched, FileCache, Located};
+use crate::file_cache::{self, CloudFiles, Fetched, FileCache, Held, Located};
 use crate::window::PAGE_ORIGIN;
 
 pub const SCHEME: &str = "inteligir-files";
@@ -89,6 +89,48 @@ fn served(located: &Located, range_header: Option<&str>) -> Response<Vec<u8>> {
         .unwrap_or_else(|_| refused(StatusCode::INTERNAL_SERVER_ERROR))
 }
 
+/// The file served from this Mac's disk, or None when it holds no such file.
+fn held(files: &FileCache, sha: &str, range_header: Option<&str>) -> Option<Response<Vec<u8>>> {
+    match files.locate(sha) {
+        Ok(Some(located)) => Some(served(&located, range_header)),
+        Ok(None) => None,
+        Err(error) => {
+            eprintln!("[files] could not look for {sha}: {error}");
+            Some(refused(StatusCode::INTERNAL_SERVER_ERROR))
+        }
+    }
+}
+
+/// A fetched file kept, then served from where it was kept.
+fn kept(
+    files: &FileCache,
+    sha: &str,
+    fetched: &Held,
+    range_header: Option<&str>,
+) -> Response<Vec<u8>> {
+    if let Err(error) = files.keep(sha, fetched) {
+        eprintln!("[files] could not keep {sha}: {error}");
+        return refused(StatusCode::BAD_GATEWAY);
+    }
+    held(files, sha, range_header).unwrap_or_else(|| refused(StatusCode::INTERNAL_SERVER_ERROR))
+}
+
+/// The disk's part of an answer, on a blocking thread, never the async runtime's, which the
+/// fetches and the commands share: a read is up to a whole file, a keep hashes it, writes it and
+/// walks the cache.
+async fn on_disk(
+    files: &FileCache,
+    work: impl FnOnce(&FileCache) -> Option<Response<Vec<u8>>> + Send + 'static,
+) -> Option<Response<Vec<u8>>> {
+    let files = files.clone();
+    tauri::async_runtime::spawn_blocking(move || work(&files))
+        .await
+        .unwrap_or_else(|error| {
+            eprintln!("[files] the disk's work stopped: {error}");
+            Some(refused(StatusCode::INTERNAL_SERVER_ERROR))
+        })
+}
+
 /// The answer to one of the page's file requests.
 pub async fn answer(
     files: &FileCache,
@@ -96,26 +138,25 @@ pub async fn answer(
     bearer: Option<String>,
     request: &Request<Vec<u8>>,
 ) -> Response<Vec<u8>> {
-    let sha = request.uri().path().trim_start_matches('/');
-    if !file_cache::is_sha(sha) {
+    let sha = request.uri().path().trim_start_matches('/').to_owned();
+    if !file_cache::is_sha(&sha) {
         return refused(StatusCode::NOT_FOUND);
     }
     let range_header = request
         .headers()
         .get(header::RANGE)
-        .and_then(|value| value.to_str().ok());
-    match files.locate(sha) {
-        Ok(Some(located)) => return served(&located, range_header),
-        Ok(None) => {}
-        Err(error) => {
-            eprintln!("[files] could not look for {sha}: {error}");
-            return refused(StatusCode::INTERNAL_SERVER_ERROR);
-        }
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
+    let (looking, range) = (sha.clone(), range_header.clone());
+    if let Some(response) =
+        on_disk(files, move |files| held(files, &looking, range.as_deref())).await
+    {
+        return response;
     }
     let Some(bearer) = bearer else {
         return refused(StatusCode::UNAUTHORIZED);
     };
-    let fetched = match file_cache::fetch(cloud, &bearer, sha).await {
+    let fetched = match file_cache::fetch(cloud, &bearer, &sha).await {
         Ok(Fetched::File(held)) => held,
         Ok(Fetched::Refused(status)) => {
             return refused(StatusCode::from_u16(status).unwrap_or(StatusCode::BAD_GATEWAY));
@@ -126,14 +167,11 @@ pub async fn answer(
             return refused(StatusCode::BAD_GATEWAY);
         }
     };
-    if let Err(error) = files.keep(sha, &fetched) {
-        eprintln!("[files] could not keep {sha}: {error}");
-        return refused(StatusCode::BAD_GATEWAY);
-    }
-    match files.locate(sha) {
-        Ok(Some(located)) => served(&located, range_header),
-        _ => refused(StatusCode::INTERNAL_SERVER_ERROR),
-    }
+    on_disk(files, move |files| {
+        Some(kept(files, &sha, &fetched, range_header.as_deref()))
+    })
+    .await
+    .unwrap_or_else(|| refused(StatusCode::INTERNAL_SERVER_ERROR))
 }
 
 #[cfg(test)]
@@ -144,7 +182,7 @@ mod tests {
 
     use super::*;
     use crate::error::{ShellError, ShellResult};
-    use crate::file_cache::{CACHE_LIMIT_BYTES, Held, sha_of};
+    use crate::file_cache::{CACHE_LIMIT_BYTES, sha_of};
 
     fn files_in(dir: &Path) -> FileCache {
         FileCache::new(dir.join("staged"), dir.join("cache"), CACHE_LIMIT_BYTES)
