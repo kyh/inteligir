@@ -5,7 +5,9 @@
 //! app's data dir stands in for it.
 //!
 //! The record is the whole answer the sign-in gave (the credential, its device and the account it
-//! names), so the page knows whose library it opens before any call.
+//! names), so the page knows whose library it opens before any call. Its item is the bundle id's,
+//! so Keychain Access names the app it belongs to, and a debug build, an app of its own
+//! (`tauri.local.conf.json`), never reads or overwrites the release's.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -15,8 +17,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{ShellError, ShellResult};
 
-/// The Keychain item's service, the bundle id, so Keychain Access names the app it belongs to.
-const SERVICE: &str = "com.inteligir.desktop";
 /// One credential a Mac: a sign-in replaces the one before it.
 const ACCOUNT: &str = "device";
 
@@ -34,28 +34,31 @@ type Persist = Box<dyn Fn() -> keyring_core::Result<()> + Send + Sync>;
 
 pub struct Credentials {
     store: Arc<CredentialStore>,
+    /// The item's service: the app's bundle id.
+    service: String,
     persist: Option<Persist>,
 }
 
 impl Credentials {
-    pub fn with_store(store: Arc<CredentialStore>) -> Self {
+    pub fn with_store(store: Arc<CredentialStore>, service: &str) -> Self {
         Self {
             store,
+            service: service.to_owned(),
             persist: None,
         }
     }
 
-    /// The Keychain's login store.
+    /// The Keychain's login store, under the app's bundle id.
     #[cfg(target_os = "macos")]
-    pub fn for_this_mac(_data_dir: &Path) -> ShellResult<Self> {
+    pub fn for_this_mac(bundle_id: &str, _data_dir: &Path) -> ShellResult<Self> {
         let store: Arc<CredentialStore> = apple_native_keyring_store::keychain::Store::new()?;
-        Ok(Self::with_store(store))
+        Ok(Self::with_store(store, bundle_id))
     }
 
     /// The scenario suite's stand-in: the sample store, saved to its file after every write,
     /// since it saves itself only when dropped.
     #[cfg(not(target_os = "macos"))]
-    pub fn for_this_mac(data_dir: &Path) -> ShellResult<Self> {
+    pub fn for_this_mac(bundle_id: &str, data_dir: &Path) -> ShellResult<Self> {
         std::fs::create_dir_all(data_dir)?;
         let backing = data_dir.join("credential-store.ron");
         let sample = keyring_core::sample::Store::new_with_backing(&backing.to_string_lossy())?;
@@ -63,12 +66,12 @@ impl Credentials {
         let store: Arc<CredentialStore> = sample;
         Ok(Self {
             persist: Some(Box::new(move || saving.save())),
-            ..Self::with_store(store)
+            ..Self::with_store(store, bundle_id)
         })
     }
 
     fn entry(&self) -> ShellResult<Entry> {
-        Ok(self.store.build(SERVICE, ACCOUNT, None)?)
+        Ok(self.store.build(&self.service, ACCOUNT, None)?)
     }
 
     fn persisted(&self) -> ShellResult<()> {
@@ -108,9 +111,11 @@ impl Credentials {
 mod tests {
     use super::*;
 
+    const BUNDLE_ID: &str = "com.inteligir.desktop";
+
     fn mocked() -> ShellResult<Credentials> {
         let store: Arc<CredentialStore> = keyring_core::mock::Store::new()?;
-        Ok(Credentials::with_store(store))
+        Ok(Credentials::with_store(store, BUNDLE_ID))
     }
 
     fn signed_in() -> DeviceCredential {
@@ -169,13 +174,25 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn another_bundle_id_keeps_a_credential_of_its_own() -> ShellResult<()> {
+        let store: Arc<CredentialStore> = keyring_core::mock::Store::new()?;
+        let release = Credentials::with_store(Arc::clone(&store), BUNDLE_ID);
+        let debug = Credentials::with_store(store, "com.inteligir.desktop.dev");
+        release.keep(&signed_in())?;
+        assert_eq!(debug.read()?, None);
+        debug.forget()?;
+        assert_eq!(release.read()?, Some(signed_in()));
+        Ok(())
+    }
+
     #[cfg(not(target_os = "macos"))]
     #[test]
     fn the_stand_in_keeps_the_credential_across_launches() -> ShellResult<()> {
         let dir = tempfile::tempdir()?;
-        Credentials::for_this_mac(dir.path())?.keep(&signed_in())?;
+        Credentials::for_this_mac(BUNDLE_ID, dir.path())?.keep(&signed_in())?;
         assert_eq!(
-            Credentials::for_this_mac(dir.path())?.read()?,
+            Credentials::for_this_mac(BUNDLE_ID, dir.path())?.read()?,
             Some(signed_in())
         );
         Ok(())

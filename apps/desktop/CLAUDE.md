@@ -29,10 +29,15 @@ a bullet is written and cited.
   The page's routes ride the hash there, since its document never changes. A
   release reaches the production cloud alone; a debug build reaches this
   machine's Worker, on the port `INTELIGIR_CLOUD_ORIGIN` names
-  (`apps/desktop/src-tauri/src/cloud.rs`). Rejected: the server child and its
-  page (a second writer beside the cell, and node and git in the bundle); the
-  Worker's tab in the window (online only, and a capability over a remote
-  origin). `apps/workspace/src/app/cloud/shell-library.ts`.
+  (`apps/desktop/src-tauri/src/cloud.rs`), as an app of its own:
+  `tauri.local.conf.json` names it `com.inteligir.desktop.dev`, so its data,
+  caches and Keychain item are never the release's, and under the release's
+  bundle id it refuses to start. Rejected: the server child and its page (a
+  second writer beside the cell, and node and git in the bundle); the Worker's
+  tab in the window (online only, and a capability over a remote origin); one
+  bundle id for both builds (a local sign-in overwrites the release's
+  credential, and a local sign-out removes its library).
+  `apps/workspace/src/app/cloud/shell-library.ts`.
 
 - **THE MAC'S REPLICA IS ONE SQLITE FILE IN RUST, AND A COMMAND IS ONE
   TRANSACTION.** Bundled rusqlite with FTS5 compiled in, so the Mac searches as

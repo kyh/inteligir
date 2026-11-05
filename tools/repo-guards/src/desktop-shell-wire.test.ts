@@ -1,8 +1,8 @@
 // The desktop shell is Rust and the page it carries is TypeScript, so the words they share cross no
 // compiler: every command the page may ask, the capability that grants it, the event the updater
 // pushes, the error kinds a command rejects with, the origins the page runs on and calls, the
-// scheme its files ride, the window's content policy and the bundle id the browser's door opens
-// the app by. Each is read from both sides here and held equal, so a rename on one side fails here
+// scheme its files ride, the window's content policy, the bundle id the browser's door opens the
+// app by and the debug build's own. Each is read from both sides here and held equal, so a rename on one side fails here
 // rather than as a command no page can reach or a call the policy refuses.
 
 import { MAC_APP_ORIGIN, PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/cloud/origin";
@@ -68,6 +68,7 @@ const tauriConfigSchema = z.looseObject({
 });
 const localConfigSchema = z.looseObject({
   app: z.looseObject({ security: z.looseObject({ csp: cspSchema }) }),
+  identifier: z.string(),
 });
 
 // a constant spelled as a string literal in a Rust file, `const NAME: &str = "…";`
@@ -84,6 +85,7 @@ const sources = (policy: Record<string, string>, directive: string): string[] =>
   (policy[directive] ?? "").split(" ").filter((source) => source !== "");
 
 const tauriConfig = () => readJsonFile(TAURI_CONFIG, tauriConfigSchema, "a Tauri config");
+const localConfig = () => readJsonFile(LOCAL_CONFIG, localConfigSchema, "a local Tauri config");
 
 describe("the desktop shell's wire", () => {
   const appCommands = sorted(
@@ -162,8 +164,7 @@ describe("the desktop shell's wire", () => {
   });
 
   it("lets a local build reach this machine alone", () => {
-    const local = readJsonFile(LOCAL_CONFIG, localConfigSchema, "a local Tauri config").app.security
-      .csp;
+    const local = localConfig().app.security.csp;
     expect(Object.keys(local), `${LOCAL_CONFIG} changes more than where the page may call`).toEqual(
       ["connect-src"],
     );
@@ -173,6 +174,14 @@ describe("the desktop shell's wire", () => {
         !/^(?:http|ws):\/\/(?:localhost|127\.0\.0\.1):\*$/u.test(source),
     );
     expect(remote, `${LOCAL_CONFIG} lets the page call off this machine`).toEqual([]);
+  });
+
+  it("makes a local build an app of its own, the one bundle id its shell runs under", () => {
+    expect(
+      localConfig().identifier,
+      `${LOCAL_CONFIG}'s identifier is not ${TAURI_CONFIG}'s with ${CLOUD}'s DEBUG_IDENTITY_SUFFIX.\n` +
+        `  rule: a debug build's data, caches and Keychain item are its own, so a sign-in to this machine's Worker never touches the release's; the shell refuses to run as anything else\n`,
+    ).toBe(`${tauriConfig().identifier}${rustConstant(CLOUD, "DEBUG_IDENTITY_SUFFIX")}`);
   });
 
   it("draws the library's files from the shell's own scheme", () => {

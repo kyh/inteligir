@@ -168,6 +168,7 @@ its own door into a scratch profile
 | The Mac app's replica and its staged files        | `~/Library/Application Support/com.inteligir.desktop/` (`library/`, `staged/`)   |
 | The Mac app's fetched files                       | `~/Library/Caches/com.inteligir.desktop/files/`, the least read let go past 5 GB |
 | The Mac app's credential                          | the Keychain, service `com.inteligir.desktop`                                    |
+| A debug shell's (`pnpm dev`), all three           | the same places under `com.inteligir.desktop.dev`, an app of its own             |
 | The fills a save still owes                       | the `pending_fills` table in that vault's `inteligir.db`                         |
 | The grid's thumbnails                             | `<that vault's data dir>/thumbs/`, a cache pruned to 256 MiB                     |
 | A Raindrop import's copy of its CSV and its job   | `<that vault's data dir>/imports/` (`job.json`), until the import ends           |

@@ -57,8 +57,11 @@ fn is_bundled() -> bool {
 }
 
 /// The account's state, its folders the platform's: the replica and the staged files in the app's
-/// data dir, outside any cache the OS may purge, and the fetched files in its caches dir.
+/// data dir, outside any cache the OS may purge, and the fetched files in its caches dir. All three
+/// and the Keychain item are named by the bundle id, which a debug build's config makes its own.
 fn manage_account(app: &App, version: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let bundle_id = app.config().identifier.clone();
+    cloud::own_identity(&bundle_id)?;
     let paths = app.path();
     let data_dir = paths.app_data_dir()?;
     let cache_dir = paths.app_cache_dir()?;
@@ -70,7 +73,7 @@ fn manage_account(app: &App, version: &str) -> Result<(), Box<dyn std::error::Er
     });
     app.manage(config);
     app.manage(Account::new(
-        Credentials::for_this_mac(&data_dir)?,
+        Credentials::for_this_mac(&bundle_id, &data_dir)?,
         Replica::new(TRANSACTION_IDLE_LIMIT),
         FileCache::new(
             data_dir.join("staged"),

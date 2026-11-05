@@ -47,7 +47,11 @@ A release reaches the production cloud alone, the origin `tauri.conf.json`'s
 policy names. A debug build (`pnpm dev`, the scenario suite) reaches this
 machine's Worker: `http://localhost:5174`, or the loopback origin
 `INTELIGIR_CLOUD_ORIGIN` names, under `src-tauri/tauri.local.conf.json`, which
-changes the policy's connect-src alone (`src-tauri/src/cloud.rs`).
+changes the policy's connect-src to this machine and makes the build an app of
+its own, `com.inteligir.desktop.dev`: its replica, its files and its Keychain
+item are never the installed app's, so signing it in to the local Worker or out
+of it leaves the installed app's library as it was. A debug build under the
+release's bundle id refuses to start (`src-tauri/src/cloud.rs`).
 
 Sign out, or an account deleted, forgets the credential, the account's replica
 file and every file the Mac holds of it, and the page opens on the sign-in

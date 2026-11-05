@@ -21,8 +21,9 @@ import type { WebDriverSession } from "./webdriver";
 
 // the page as the shell carries it (src-tauri/src/window.rs)
 export const SHELL_PAGE_URL = "tauri://localhost/library/";
-// the bundle id, which names the app's data dir under XDG_DATA_HOME (src-tauri/tauri.conf.json)
-const APP_ID = "com.inteligir.desktop";
+// the debug build's bundle id, which names the app's data dir under XDG_DATA_HOME
+// (src-tauri/tauri.local.conf.json, which build:shell builds under)
+const APP_ID = "com.inteligir.desktop.dev";
 // a cold launch starts the driver, the shell and its window
 const READY_DEADLINE_MS = 90_000;
 const READY_POLL_INTERVAL_MS = 500;

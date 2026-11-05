@@ -110,7 +110,7 @@ mod tests {
 
     fn account_in(dir: &Path, store: &Arc<CredentialStore>) -> Account {
         Account::new(
-            Credentials::with_store(Arc::clone(store)),
+            Credentials::with_store(Arc::clone(store), "com.inteligir.desktop"),
             Replica::new(TRANSACTION_IDLE_LIMIT),
             FileCache::new(dir.join("staged"), dir.join("cache"), CACHE_LIMIT_BYTES),
             dir.join("library"),

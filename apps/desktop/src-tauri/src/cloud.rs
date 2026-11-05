@@ -6,7 +6,9 @@
 //! page reach and `@repo/contract/cloud/origin` spells, held equal by
 //! `tools/repo-guards/src/desktop-shell-wire.test.ts`. A debug build is a local one (`pnpm dev`, the
 //! scenario suite), whose cloud is the Worker on this machine, `INTELIGIR_CLOUD_ORIGIN` naming
-//! another port; its policy (`tauri.local.conf.json`) lets the page reach loopback alone.
+//! another port; its policy (`tauri.local.conf.json`) lets the page reach loopback alone, and that
+//! config makes it an app of its own, its bundle id the release's and `.dev`, so its data, its caches
+//! and its Keychain item are never the release's.
 
 use serde::Serialize;
 
@@ -18,6 +20,20 @@ const CLOUD_ORIGIN_ENV_VAR: &str = "INTELIGIR_CLOUD_ORIGIN";
 
 /// The platform the cloud's build floor reads beside the version (`@repo/contract/cloud/client-build`).
 const PLATFORM: &str = "desktop";
+/// What a debug build's bundle id ends with (`tauri.local.conf.json`).
+const DEBUG_IDENTITY_SUFFIX: &str = ".dev";
+
+/// A debug build signs in to this machine's Worker, so under the release's bundle id its sign-in
+/// would overwrite the release's Keychain item and its sign-out remove the release's library: it
+/// runs as an app of its own or not at all.
+pub fn own_identity(bundle_id: &str) -> Result<(), String> {
+    if cfg!(debug_assertions) && !bundle_id.ends_with(DEBUG_IDENTITY_SUFFIX) {
+        return Err(format!(
+            "a debug build runs under src-tauri/tauri.local.conf.json, as an app of its own: {bundle_id} is the release's"
+        ));
+    }
+    Ok(())
+}
 
 /// A release's cloud is production's; a debug build's is this machine's Worker, on the port the
 /// environment names or `pnpm dev:web`'s, and never an address off this machine.
@@ -94,6 +110,12 @@ mod tests {
     #[test]
     fn names_this_mac() {
         assert_ne!(device_name(), "");
+    }
+
+    #[test]
+    fn a_debug_build_is_an_app_of_its_own() {
+        assert!(own_identity("com.inteligir.desktop.dev").is_ok());
+        assert!(own_identity("com.inteligir.desktop").is_err());
     }
 
     #[test]
