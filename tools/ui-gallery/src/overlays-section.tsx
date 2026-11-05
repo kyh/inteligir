@@ -29,11 +29,12 @@ import {
 } from "@repo/ui/components/dialog";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@repo/ui/components/hover-card";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
+import { SidebarGroupAction } from "@repo/ui/components/sidebar-core";
 import { Tooltip } from "@repo/ui/components/tooltip";
-import { FileTextIcon, SettingsIcon } from "lucide-react";
+import { FileTextIcon, FolderPlusIcon } from "lucide-react";
 import { useState } from "react";
 
-import { Demo, GallerySection } from "./gallery-chrome";
+import { Demo, DemoCase, GallerySection } from "./gallery-chrome";
 
 const confirmedNote = (confirmed: boolean | null): string | undefined => {
   if (confirmed === null) {
@@ -221,18 +222,20 @@ export const OverlaysSection = () => {
 
       <Demo
         name="Tooltip"
-        purpose="Names a control that shows only an icon. Never holds the only copy of anything."
+        purpose="Names a control that shows only an icon. An icon-size Button draws its aria-label as its own, so only a trigger that draws none, like a sidebar's group action, is wrapped. Never holds the only copy of anything."
       >
-        <Tooltip content="New note">
+        <DemoCase label="icon-size Button">
           <Button size="icon" variant="ghost" aria-label="New note">
             <FileTextIcon />
           </Button>
-        </Tooltip>
-        <Tooltip content="Settings" side="right">
-          <Button size="icon" variant="ghost" aria-label="Settings">
-            <SettingsIcon />
-          </Button>
-        </Tooltip>
+        </DemoCase>
+        <DemoCase label="wrapped group action">
+          <Tooltip content="New folder" side="right">
+            <SidebarGroupAction aria-label="New folder">
+              <FolderPlusIcon />
+            </SidebarGroupAction>
+          </Tooltip>
+        </DemoCase>
       </Demo>
 
       <Demo
