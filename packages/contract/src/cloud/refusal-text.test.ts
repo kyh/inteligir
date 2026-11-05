@@ -1,7 +1,7 @@
 import { createORPCErrorFromJson } from "@orpc/client";
 import { describe, expect, it } from "vitest";
 
-import { refusalText } from "./needs-connection";
+import { refusalText } from "./refusal-text";
 
 const FALLBACK = "That couldn't be done. Try again.";
 

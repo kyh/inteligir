@@ -28,7 +28,7 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { useLeaveGuard, useReplica, useReplicaQueries, useWire } from "./cloud/library-context";
-import { refusalText } from "./cloud/needs-connection";
+import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
 import { ItemView } from "./item/item-view";
 import { installPageEditorHost } from "./item/page-editor-host";

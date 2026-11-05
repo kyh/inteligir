@@ -42,7 +42,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { historyPages } from "../cloud/history-pages";
 import { useReplica, useReplicaQueries, useWire } from "../cloud/library-context";
-import { refusalText } from "../cloud/needs-connection";
+import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { relativeTimeLabel, useNow } from "../relative-time";
 
 export interface AgentPanelProps {

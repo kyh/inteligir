@@ -15,7 +15,8 @@ import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/reac
 import { useState } from "react";
 
 import { useAccount, useLeft, useReplica, useWire } from "../cloud/library-context";
-import { CellAnswer, refusalText } from "../cloud/needs-connection";
+import { refusalText } from "@repo/contract/cloud/refusal-text";
+import { CellAnswer } from "../cloud/needs-connection";
 import type { CloudWire } from "../cloud/v1";
 import { forgetPref, PREFS } from "../prefs";
 import { relativeTimeLabel, useNow } from "../relative-time";

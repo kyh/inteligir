@@ -15,7 +15,7 @@ import { Switch } from "@repo/ui/components/switch";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { useReplica, useReplicaQueries, useWire } from "../cloud/library-context";
-import { refusalText } from "../cloud/needs-connection";
+import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { formatCount, KIND_LABELS, isUrlItem } from "../library/item-labels";
 import { pinItems } from "../library/library-verbs";
 

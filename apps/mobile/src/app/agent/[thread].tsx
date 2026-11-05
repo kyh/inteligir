@@ -27,15 +27,13 @@ import {
 } from "@repo/agent-panel/thread-entries";
 import type { ThreadBlock, WaitingApproval } from "@repo/agent-panel/thread-entries";
 import { useLibrary, usePreview, useThreadEvents, useThreads } from "@/lib/library-hooks";
-import { refusalText } from "@/lib/refusal-text";
+import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { firstParam, NEW_THREAD } from "@/lib/routes";
 import { SPACE, useTheme } from "@/lib/theme";
 import { TextButton } from "@/ui/text-button";
 
 const NEEDS_CONNECTION = "Needs a connection";
 const UNREACHABLE = "The agent couldn't be reached.";
-
-// a line height stays a style value: the stylesheet resolves no line-height class
 
 // a refused send in the person's words, the allowance's naming when it fills again from now
 const refusalWords = (cause: unknown): string =>

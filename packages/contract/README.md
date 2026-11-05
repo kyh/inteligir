@@ -58,6 +58,7 @@ src/
   cloud/               the wire that breaks behind a floor, plus the client runtime core
     v1-contract.ts     # /v1's one oRPC wire: account.* and library.*, and the client type over it
     v1-errors.ts       # every refusal /v1 answers, declared once, and the status map every handler uses
+    refusal-text.ts    # what a screen says of a failed call: a declared refusal's own sentence, else its fallback
     library/           # the library's rows (library-contract.ts) and the shapes they carry (library-wire.ts)
     client-build.ts    # the build every request names, and the floor it is held to
     cloud-errors.ts    # the REST /cloud wire's code→status map, until its last client moves onto /v1

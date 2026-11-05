@@ -12,7 +12,7 @@ import type { KeptCredential } from "../credential/credential-codec";
 import { messageOf } from "../lib/error-message";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
-import { refusalText } from "../lib/refusal-text";
+import { refusalText } from "@repo/contract/cloud/refusal-text";
 
 export type LoginState =
   | { readonly kind: "idle" }

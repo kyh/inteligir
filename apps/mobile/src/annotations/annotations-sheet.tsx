@@ -13,8 +13,6 @@ import { SPACE } from "@/lib/theme";
 import { threadsOf } from "./annotation-edits";
 import type { AnnotationEdits } from "./annotation-edits";
 
-// a line height stays a style value: react-native-css 3.0.7 resolves a line-height class to nothing
-
 const entryMeta = (entry: AnnotationEntry): string =>
   `${annotationSourceLabel(entry.source)} · ${new Date(entry.createdAt * 1000).toLocaleDateString()}`;
 

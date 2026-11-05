@@ -20,7 +20,8 @@ import { useState } from "react";
 
 import { historyPages } from "../cloud/history-pages";
 import { useReplica, useWire } from "../cloud/library-context";
-import { CellAnswer, refusalText } from "../cloud/needs-connection";
+import { refusalText } from "@repo/contract/cloud/refusal-text";
+import { CellAnswer } from "../cloud/needs-connection";
 import { relativeTimeLabel, useNow } from "../relative-time";
 
 interface ShownRevision {

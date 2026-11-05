@@ -17,7 +17,8 @@ import { useRef, useState } from "react";
 import type { z } from "zod";
 
 import { useCloud, useWire } from "../cloud/library-context";
-import { NEEDS_CONNECTION, refusalText } from "../cloud/needs-connection";
+import { refusalText } from "@repo/contract/cloud/refusal-text";
+import { NEEDS_CONNECTION } from "../cloud/needs-connection";
 import { formatBytes, formatCount } from "../library/item-labels";
 import { saveBlob } from "../save-file";
 import { Row, SectionHeading } from "./settings-chrome";

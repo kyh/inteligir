@@ -5,7 +5,7 @@
 // asked from (a card's menu, a button, Settings), says so in one notice the page keeps up while
 // any waits. Spec §6, "Online only, said plainly in the UI".
 
-import { ORPCError } from "@orpc/client";
+import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { LoadingState } from "@repo/ui/ai/loading-state";
 import { toast } from "@repo/ui/components/sonner";
 import { onlineManager, useIsMutating } from "@tanstack/react-query";
@@ -13,14 +13,6 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import { useEffect, useSyncExternalStore } from "react";
 
 export const NEEDS_CONNECTION = "Needs a connection";
-
-// the sentence a refusal the contract declares carries, which is written for the person; any other
-// failure (no answer, a fault of the cloud's) is said by the screen's own fallback, never in the
-// words of the error it raised
-export const refusalText = (cause: unknown, fallback: string): string =>
-  cause instanceof ORPCError && cause.defined && cause.message.length > 0
-    ? cause.message
-    : fallback;
 
 const subscribeOnline = (listener: () => void): (() => void) => onlineManager.subscribe(listener);
 const readOnline = (): boolean => onlineManager.isOnline();

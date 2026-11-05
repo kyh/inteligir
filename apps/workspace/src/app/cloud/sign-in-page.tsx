@@ -23,7 +23,8 @@ import type { ComponentProps } from "react";
 
 import type { ShellConfig } from "../../shell/shell-config";
 import { shellCredential } from "../../shell/shell-commands";
-import { NEEDS_CONNECTION, refusalText } from "./needs-connection";
+import { refusalText } from "@repo/contract/cloud/refusal-text";
+import { NEEDS_CONNECTION } from "./needs-connection";
 import { macTransport } from "./shell-library";
 import { shellTroubleText } from "./shell-trouble";
 

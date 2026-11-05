@@ -22,6 +22,7 @@
     "./cloud/library/library-wire": "./src/cloud/library/library-wire.ts",
     "./cloud/library-page": "./src/cloud/library-page.ts",
     "./cloud/origin": "./src/cloud/cloud-origin.ts",
+    "./cloud/refusal-text": "./src/cloud/refusal-text.ts",
     "./cloud/sync/cloud-socket": "./src/cloud/sync/cloud-socket.ts",
     "./cloud/sync/socket-link": "./src/cloud/sync/socket-link.ts",
     "./cloud/sync/sync-session": "./src/cloud/sync/sync-session.ts",

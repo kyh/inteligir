@@ -58,7 +58,8 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   `scope`, and refetches in its own callbacks, awaited, only the family it
   moved. Rejected: a call outside TanStack (it fails at once offline); a note
   per button (a menu's verb has none). `apps/workspace/src/app/cloud/v1.ts`,
-  `apps/workspace/src/app/cloud/needs-connection.tsx`.
+  `apps/workspace/src/app/cloud/needs-connection.tsx`, over
+  `packages/contract/src/cloud/refusal-text.ts`, which the phone says too.
 
 - **THE PAGE IS ONE BUNDLE, AND CATCHES UP AS ITS CONNECTION RETURNS.** The
   build inlines every dynamic import (`codeSplitting: false`), the editor's lazy
