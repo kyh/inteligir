@@ -67,12 +67,15 @@ export interface MergedBlock {
 
 // a block two writers changed: `base` as this device's write was computed from it, `mine` as it
 // wrote it, `theirs` as the cell holds it now. The answer keeps `theirs`'s id; the editor's diff3
-// over each side's markdown projection (`@repo/editor`) answers one whatever the overlap
+// over each side's markdown projection (`@repo/editor`) answers one whatever the overlap. It
+// resolves, since a host may run the editor apart from the engine (the phone's runs in its editor
+// page's WebView, which keeps Plate out of Hermes); a merge that fails stops the pass, which goes
+// again on the doubling wait
 export type BlockMerge = (sides: {
   readonly base: LibraryBlock;
   readonly mine: LibraryBlock;
   readonly theirs: LibraryBlock;
-}) => MergedBlock;
+}) => Promise<MergedBlock>;
 
 // a fresh UUIDv7: an op's id, and an item's or a folder's this device makes, so one made offline
 // already has its id

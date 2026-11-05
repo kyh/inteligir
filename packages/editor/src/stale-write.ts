@@ -119,7 +119,8 @@ export interface MergedBlock {
   readonly overlapped: boolean;
 }
 
-// the replica's block merge (`@repo/library-replica`'s `BlockMerge`): the lines each side changed
+// a block both sides changed, merged as the editor lays a change from elsewhere in, and as the
+// replica settles a CONFLICT (`replicaMerge`): the lines each side changed
 // both land and an overlap keeps mine, as a note's merge does; a side whose markdown does not read
 // back as itself, or a merge that reads back as no one block, keeps mine whole over theirs, an
 // overlap too. The answer keeps theirs' id, and the `ref` whichever side moved it.
@@ -146,3 +147,8 @@ export const mergeBlocks = ({ base, mine, theirs }: BlockSides): MergedBlock => 
   const read = blockFromMarkdown(merged, theirs.id, files);
   return read === null ? kept(mine, true) : kept(read, conflicted);
 };
+
+// the replica's block merge (`@repo/library-replica`'s `BlockMerge`), which resolves, since a host
+// whose editor runs apart from its engine answers across a bridge (the phone's page)
+export const replicaMerge = async (sides: BlockSides): Promise<MergedBlock> =>
+  await Promise.resolve(mergeBlocks(sides));

@@ -33,7 +33,7 @@ export const textOf = (block: LibraryBlock): string =>
   block.children.map((child) => ("text" in child ? child.text : "")).join("");
 
 // a paragraph both sides changed holds theirs, then mine, as a diff3 that kept both would
-export const keepBoth: BlockMerge = ({ base, mine, theirs }) => {
+export const keepBoth: BlockMerge = async ({ base, mine, theirs }) => {
   const ours = textOf(mine);
   const others = textOf(theirs);
   if (ours === textOf(base) || ours === others) {

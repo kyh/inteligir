@@ -30,10 +30,8 @@ const writes = (cell: FakeCell, device: string): number =>
   cell.calls.filter((call) => call === `${device} library/write`).length;
 
 // a merge that keeps this device's block whole over the other's, and says it overlapped
-const keepMine: BlockMerge = ({ mine, theirs }) => ({
-  block: { ...mine, id: theirs.id },
-  overlapped: true,
-});
+const keepMine: BlockMerge = async ({ mine, theirs }) =>
+  await Promise.resolve({ block: { ...mine, id: theirs.id }, overlapped: true });
 
 // a note of two paragraphs, made on `device` and landed
 const landedNote = async (cell: FakeCell, device: TestDevice): Promise<string> => {

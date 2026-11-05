@@ -18,7 +18,7 @@ import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-node
 import { itemView } from "@repo/editor/codec/item-view";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { blockId } from "@repo/editor/node-props";
-import { mergeBlocks } from "@repo/editor/stale-write";
+import { replicaMerge } from "@repo/editor/stale-write";
 
 import { readElement } from "./item-diff";
 import { itemProperties } from "./item-properties";
@@ -143,7 +143,7 @@ const pause = async (phone: TestDevice, session: ItemSession): Promise<void> => 
 const devices = async () => {
   const cell = createFakeCell();
   const mac = await openDevice(cell, "mac");
-  const phone = await openDevice(cell, "phone", { merge: mergeBlocks });
+  const phone = await openDevice(cell, "phone", { merge: replicaMerge });
   return { cell, mac, phone };
 };
 

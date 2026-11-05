@@ -145,13 +145,13 @@ interface BlockSettle {
 
 // a put the cell met another block for: merged three ways over the current one, or, where another
 // device dropped it, standing again where its base stood
-const settlePut = (
+const settlePut = async (
   op: Extract<LibraryOp, { op: "put" }>,
   met: BlockCurrent,
   write: WriteOp,
   context: { readonly merge: BlockMerge; readonly moves: ReadonlyMap<string, string> },
   out: BlockSettle,
-): void => {
+): Promise<void> => {
   const { id } = op.block;
   const base = write.bases[id];
   const { current } = met;
@@ -169,7 +169,7 @@ const settlePut = (
   const merged =
     base === undefined
       ? { block: op.block, overlapped: false }
-      : context.merge({ base: base.block, mine: op.block, theirs: current.block });
+      : await context.merge({ base: base.block, mine: op.block, theirs: current.block });
   const block = merged.block.id === id ? merged.block : op.block;
   out.overlapped ||= merged.overlapped;
   if (blockHash(block) !== current.hash) {
@@ -205,13 +205,13 @@ const settleField = (
   return property.current === undefined ? rest : { ...rest, base: property.current };
 };
 
-const settleLibraryOp = (
+const settleLibraryOp = async (
   op: LibraryOp,
   met: Met,
   write: WriteOp,
   context: { readonly merge: BlockMerge; readonly moves: ReadonlyMap<string, string> },
   out: BlockSettle,
-): void => {
+): Promise<void> => {
   switch (op.op) {
     case "insert": {
       // the id is held: this device's insert landed once, or the cell holds another block there
@@ -230,7 +230,7 @@ const settleLibraryOp = (
         }
         return;
       }
-      settlePut(op, current, write, context, out);
+      await settlePut(op, current, write, context, out);
       return;
     }
     case "drop": {
@@ -321,18 +321,19 @@ const settleAnnotation = (
   }
 };
 
-export const settleWrite = (
+export const settleWrite = async (
   write: WriteOp,
   currents: readonly ConflictCurrent[],
   ports: { readonly merge: BlockMerge; readonly newId: NewId },
-): SettledWrite => {
+): Promise<SettledWrite> => {
   const met = metOf(currents);
   const moves = new Map(
     write.ops.flatMap((op) => (op.op === "move" ? [[op.blockId, op.ord] as const] : [])),
   );
   const out: BlockSettle = { bases: {}, ops: [], overlapped: false };
+  // one block at a time, in the write's order: a merge may be a round trip to the host's editor
   for (const op of write.ops) {
-    settleLibraryOp(op, met, write, { merge: ports.merge, moves }, out);
+    await settleLibraryOp(op, met, write, { merge: ports.merge, moves }, out);
   }
   const renames = new Map<string, string>();
   const annotations = write.annotations.flatMap((op) => {

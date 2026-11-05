@@ -33,7 +33,7 @@ const paragraph = (id: string, text: string): LibraryBlock => ({
 
 // the editor's diff3 keeps both sides of one paragraph two devices changed; this keeps theirs,
 // then mine
-const keepBoth: BlockMerge = ({ base, mine, theirs }) => {
+const keepBoth: BlockMerge = async ({ base, mine, theirs }) => {
   if (textOf(mine) === textOf(base) || textOf(mine) === textOf(theirs)) {
     return { block: theirs, overlapped: false };
   }
@@ -227,7 +227,7 @@ describe("the replica engine against the account's cell", () => {
       expect(phone.replica.row(file.id)?.unsent).toBe(true);
       expect(await textIn(phone.replica, id, "p1")).toBe("first");
 
-      await phone.blobs.put(file.sha, bytes);
+      await phone.blobs.put(file.sha, bytes, "image/png");
       const [parked] = phone.replica.status().parked;
       await phone.replica.retry(parked?.seq ?? 0);
       await phone.replica.sync();

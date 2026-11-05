@@ -10,7 +10,7 @@
 // carrying the credential and the build, since the Worker meets every install at its build floor.
 
 import { clientBuildValue, CLIENT_BUILD_HEADER } from "@repo/contract/cloud/client-build";
-import { mergeBlocks } from "@repo/editor/stale-write";
+import { replicaMerge } from "@repo/editor/stale-write";
 import { openLibraryReplica } from "@repo/library-replica/library-replica";
 import type { ReplicaTransport } from "@repo/library-replica/replica-ports";
 
@@ -95,7 +95,7 @@ export const openShellLibrary = async (leave: LeaveGuard): Promise<ShellOpening>
     blobs: shellStagedBlobs(),
     clock: pageClock,
     dial: (url) => new WebSocket(url),
-    merge: mergeBlocks,
+    merge: replicaMerge,
     newId,
     sql: shellReplicaSql(),
     transport,

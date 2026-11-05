@@ -403,12 +403,15 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       }
       switch (error.code) {
         case "CONFLICT": {
-          const outcome = settleWrite(op, error.data.current, {
-            merge: context.merge,
-            newId: context.newId,
-          });
-          const overlapped = outcome.kind === "resend" && outcome.overlapped;
-          return settled(row, outcome, (again) => again, overlapped ? [op.itemId] : []);
+          const { current } = error.data;
+          return (async () => {
+            const outcome = await settleWrite(op, current, {
+              merge: context.merge,
+              newId: context.newId,
+            });
+            const overlapped = outcome.kind === "resend" && outcome.overlapped;
+            return await settled(row, outcome, (again) => again, overlapped ? [op.itemId] : []);
+          })();
         }
         case "BLOB_MISSING": {
           return missingFiles(row, error.data.shas);

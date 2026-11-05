@@ -8,7 +8,7 @@
 // shell's (`shell-library.ts`).
 
 import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
-import { mergeBlocks } from "@repo/editor/stale-write";
+import { replicaMerge } from "@repo/editor/stale-write";
 import { openLibraryReplica } from "@repo/library-replica/library-replica";
 import type { LibraryReplica } from "@repo/library-replica/library-replica";
 import { openMemorySql } from "@repo/library-replica/memory-sql";
@@ -120,7 +120,7 @@ export const openPageLibrary = async (
     blobs: memoryStagedBlobs(),
     clock: pageClock,
     dial: (url) => new WebSocket(url),
-    merge: mergeBlocks,
+    merge: replicaMerge,
     newId,
     sql: await openMemorySql(),
     transport,
