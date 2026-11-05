@@ -1,12 +1,12 @@
 // "Undo this turn" and "Undo this conversation": the change sets the built-in agent's turns made in
 // one thread, as History lists them (newest first), less those already undone or still open. A
 // turn's writes are one set, so its undo is that set; a conversation's is every one of them,
-// newest first, in one undo of its own (spec §3, "Undoing an agent session").
+// newest first, in one undo of its own (spec §3, "Undoing an agent session"), or in as few as the
+// cell takes when the conversation made more sets than one undo names.
 
-import type { changeSetSchema } from "@repo/contract/cloud/library/library-wire";
-import type { z } from "zod";
+import { BULK_ITEMS_MAX } from "@repo/contract/cloud/library/library-wire";
 
-type ChangeSet = z.infer<typeof changeSetSchema>;
+import type { ChangeSet } from "../cloud/history-pages";
 
 const undoable = (set: ChangeSet): boolean => set.undoneBy === null && set.closedAt !== null;
 
@@ -20,4 +20,13 @@ export const turnUndo = (sets: readonly ChangeSet[], turn: number): string[] | n
 export const conversationUndo = (sets: readonly ChangeSet[]): string[] | null => {
   const ids = sets.filter((set) => set.threadId !== null && undoable(set)).map((set) => set.id);
   return ids.length === 0 ? null : ids;
+};
+
+// the undos that take `ids` back, newest first, each naming as many sets as one undo takes
+export const undoBatches = (ids: readonly string[]): string[][] => {
+  const batches: string[][] = [];
+  for (let start = 0; start < ids.length; start += BULK_ITEMS_MAX) {
+    batches.push(ids.slice(start, start + BULK_ITEMS_MAX));
+  }
+  return batches;
 };

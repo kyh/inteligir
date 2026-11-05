@@ -198,12 +198,14 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   item's markdown (a second reader of what the replica already parsed).
 
 - **HISTORY IS CHANGE SETS, AND UNDO IS ONE.** History lists the cell's change
-  sets that touched the item, newest first, by who and when; "Show this
-  version" reads the item as a set left it, and Undo takes a whole set back in a
-  change set of its own, after the open item's unsaved edit is written, so the
-  undo meets the item as the person sees it and a line changed since is kept.
-  History is the cell's, so it waits for a connection.
-  `apps/workspace/src/app/panel/history-tab.tsx`.
+  sets that touched the item, newest first, by who and when, a page at a time
+  and the older on "Show older", so every set the cell keeps is in reach;
+  "Show this version" reads the item as a set left it, and Undo takes a whole
+  set back in a change set of its own, after the open item's unsaved edit is
+  written, so the undo meets the item as the person sees it and a line changed
+  since is kept. History is the cell's, so it waits for a connection.
+  `apps/workspace/src/app/panel/history-tab.tsx`,
+  `apps/workspace/src/app/cloud/history-pages.ts`.
 
 - **THE AGENT PANEL IS THE ACCOUNT'S THREADS.** A conversation is the replica's
   synced thread rows and events, the same on every device, drawn from the
@@ -214,11 +216,14 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   allowance and an agent switched off are said in the person's words. Under
   each finished turn "Undo this turn" takes its change set back, and "Undo this
   conversation" every one of the conversation's, both after the open item's
-  unsaved edit is written; the conversation's sets are asked again as each turn
-  ends, since a turn's set seals with it. Rejected: the local server's ⌘K
-  composer and agents (no runtime on the device); a socket of the page's own to
-  the conversation's object. `apps/workspace/src/app/agent/agent-panel.tsx`,
-  `thread-entries.ts`, `thread-undo.ts`.
+  unsaved edit is written: the sets are read from every page the cell answers,
+  the whole conversation's Undo offered once all are in and sent in as few
+  undos as the cell takes, and asked again as each turn ends, since a turn's
+  set seals with it. Rejected: the local server's ⌘K composer and agents (no
+  runtime on the device); a socket of the page's own to the conversation's
+  object; one page of sets (a long conversation's oldest turns lost their
+  Undo). `apps/workspace/src/app/agent/agent-panel.tsx`, `thread-entries.ts`,
+  `thread-undo.ts`.
 
 ## Repo guards, vendoring and tooling
 

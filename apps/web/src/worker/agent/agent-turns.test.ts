@@ -384,6 +384,31 @@ describe("a turn's seal", () => {
     },
   );
 
+  it(
+    "lists one conversation's sets, by the turn that made each, and refuses an item beside it",
+    { timeout: TURN_MS },
+    async () => {
+      // the day's allowance in the suites is two turns: one a conversation
+      const account = agentAccount();
+      const first = await send(account, script('call create_note {"markdown":"Paris."}'));
+      await settled(account, first.threadId);
+      const other = await send(account, script('call create_note {"markdown":"Oslo."}'));
+      await settled(account, other.threadId);
+      await asLaptop(account, async (client) => {
+        const everything = await client.history.list({});
+        expect(everything.changeSets.filter((set) => set.actor === "agent")).toHaveLength(2);
+        const { changeSets } = await client.history.list({ threadId: first.threadId });
+        expect(changeSets.map((set) => [set.threadId, set.turn])).toEqual([[first.threadId, 1]]);
+        const [made] = changeSets[0]?.items ?? [];
+        expect(made).toBeDefined();
+        const both = await refusalOf(
+          client.history.list({ itemId: made?.id ?? "", threadId: first.threadId }),
+        );
+        expect(both.code).toBe("BAD_REQUEST");
+      });
+    },
+  );
+
   it("reads a link the agent saved only once its turn seals", { timeout: TURN_MS }, async () => {
     const account = agentAccount();
     const sent = await send(

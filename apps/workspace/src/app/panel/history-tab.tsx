@@ -2,15 +2,22 @@
 // change set that touched it, by who and when, newest first, and the item as that set left it. Undo
 // takes a whole set back, in a change set of its own, so an undo is itself in History; a line
 // changed since the set is kept, and the answer says so. History lives in the cell, so it waits
-// for a connection.
+// for a connection; it reads a page of sets at a time, the older ones on "Show older".
 
 import { itemView } from "@repo/editor/codec/item-view";
 import { Button } from "@repo/ui/components/button";
 import { Dialog, DialogContent, DialogTitle } from "@repo/ui/components/dialog";
 import { toast } from "@repo/ui/components/sonner";
-import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useState } from "react";
 
+import { changeSetsOf, historyPages } from "../cloud/history-pages";
 import { useReplica, useWire } from "../cloud/library-context";
 import { CellAnswer, refusalText } from "../cloud/needs-connection";
 import { relativeTimeLabel, useNow } from "../relative-time";
@@ -83,7 +90,7 @@ export const HistoryTab = ({
   const queryClient = useQueryClient();
   const nowMs = useNow();
   const [shown, setShown] = useState<ShownRevision | null>(null);
-  const history = useQuery(orpc.library.history.list.queryOptions({ input: { itemId } }));
+  const history = useInfiniteQuery(historyPages(orpc, { itemId }));
   const undo = useMutation(
     orpc.library.history.undo.mutationOptions({
       onError: (cause) => {
@@ -100,9 +107,9 @@ export const HistoryTab = ({
   return (
     <>
       <CellAnswer query={history} failed="History couldn't be read.">
-        {({ changeSets }) => (
+        {({ pages }) => (
           <ol className="m-0 flex list-none flex-col gap-2 p-3" aria-label="History">
-            {changeSets.map((set) => {
+            {changeSetsOf(pages).map((set) => {
               const rev = set.items.find((item) => item.id === itemId)?.rev ?? null;
               const when = relativeTimeLabel(Date.parse(set.openedAt), nowMs);
               return (
@@ -146,6 +153,20 @@ export const HistoryTab = ({
                 </li>
               );
             })}
+            {history.hasNextPage ? (
+              <li>
+                <Button
+                  size="compact"
+                  variant="ghost"
+                  disabled={history.isFetchingNextPage}
+                  onClick={() => {
+                    void history.fetchNextPage();
+                  }}
+                >
+                  Show older
+                </Button>
+              </li>
+            ) : null}
           </ol>
         )}
       </CellAnswer>

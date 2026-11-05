@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { conversationUndo, turnUndo } from "./thread-undo";
+import { BULK_ITEMS_MAX } from "@repo/contract/cloud/library/library-wire";
+
+import { changeSetsOf } from "../cloud/history-pages";
+import { conversationUndo, turnUndo, undoBatches } from "./thread-undo";
 
 const THREAD = "0199a4c2-0000-7000-8000-00000000000a";
 
@@ -37,5 +40,27 @@ describe("an agent conversation's undo", () => {
     ];
     expect(conversationUndo(sets)).toEqual(["c", "a"]);
     expect(conversationUndo([set("b", 2, { undoneBy: "x" })])).toBeNull();
+  });
+});
+
+describe("a conversation longer than one page of History", () => {
+  it("is undone from every page, each set once, in as few undos as the cell takes", () => {
+    // three pages as the cell answers them, newest first; a set made after the first page was
+    // asked moved the second page's first set onto it again
+    const turns = Array.from({ length: BULK_ITEMS_MAX + 20 }, (_, at) => BULK_ITEMS_MAX + 20 - at);
+    const sets = turns.map((turn) => set(`s${String(turn)}`, turn));
+    const pages = [
+      { changeSets: sets.slice(0, 50) },
+      { changeSets: sets.slice(49, 100) },
+      { changeSets: sets.slice(100) },
+    ];
+    const listed = changeSetsOf(pages);
+    expect(listed.map((one) => one.id)).toEqual(sets.map((one) => one.id));
+    expect(turnUndo(listed, 1)).toEqual(["s1"]);
+    const whole = conversationUndo(listed) ?? [];
+    const batches = undoBatches(whole);
+    expect(batches.map((batch) => batch.length)).toEqual([BULK_ITEMS_MAX, 20]);
+    expect(batches.flat()).toEqual(whole);
+    expect(batches[0]?.[0]).toBe(`s${String(BULK_ITEMS_MAX + 20)}`);
   });
 });

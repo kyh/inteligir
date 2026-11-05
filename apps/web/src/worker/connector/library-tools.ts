@@ -51,7 +51,7 @@ export const libraryTools = {
     list: history.list.meta(
       openapi({
         description:
-          "Lists the change sets that touched one item, or the library's most recent ones: who made each, when, and what it changed.",
+          "Lists the change sets that touched one item, those one conversation with the built-in agent made (each set names its conversation), or the library's most recent ones: who made each, when, and what it changed. It narrows to one item or one conversation, never both at once.",
         method: "GET",
         operationId: "item_history",
         summary: "Show history",

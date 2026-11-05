@@ -15,11 +15,12 @@ import { Button } from "@repo/ui/components/button";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, PlusIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { z } from "zod";
 
+import { changeSetsOf, historyPages } from "../cloud/history-pages";
 import { useReplica, useReplicaQueries, useWire } from "../cloud/library-context";
 import { refusalText } from "../cloud/needs-connection";
 import { relativeTimeLabel, useNow } from "../relative-time";
@@ -34,7 +35,7 @@ import {
   waitingApprovals,
 } from "./thread-entries";
 import type { ThreadBlock, ThreadEntry, ToolUse } from "./thread-entries";
-import { conversationUndo, turnUndo } from "./thread-undo";
+import { conversationUndo, turnUndo, undoBatches } from "./thread-undo";
 
 export type AgentViewContext = z.infer<typeof agentViewContextSchema>;
 
@@ -223,23 +224,43 @@ const Conversation = ({
   threadId: string;
   flushOpen: () => Promise<void>;
 }) => {
-  const { client, orpc } = useWire();
+  const { orpc } = useWire();
   const queryClient = useQueryClient();
   const queries = useReplicaQueries();
-  const rows = useQuery(queries.threadEvents(threadId)).data ?? [];
+  const stored = useQuery(queries.threadEvents(threadId));
+  const rows = stored.data ?? [];
   const thread = (useQuery(queries.threads()).data ?? []).find((row) => row.id === threadId);
   const entries = threadEntries(rows);
   const blocks = threadBlocks(entries);
   const waiting = waitingApprovals(entries);
   const preview = useLivePreview(threadId);
-  // a turn's change set seals in the push that ends it, so the count of ended turns is part of the
-  // list's key, and it is asked again as each turn ends, the last answer shown meanwhile
+  // the conversation's sets, every page of them: each finished turn's Undo and the whole
+  // conversation's need them all
+  const setPages = historyPages(orpc, { threadId });
+  const sets = useInfiniteQuery(setPages);
+  // asked again after every answer, since a refetch that meets a page still being asked starts the
+  // pages over and lands as the same data
+  const { dataUpdatedAt, fetchNextPage, hasNextPage, isFetching } = sets;
+  useEffect(() => {
+    if (dataUpdatedAt > 0 && hasNextPage && !isFetching) {
+      void fetchNextPage();
+    }
+  }, [dataUpdatedAt, fetchNextPage, hasNextPage, isFetching]);
+  // a turn's change set seals in the push that ends it, so the sets are asked again as each turn
+  // ends after the conversation was read, what was read shown meanwhile
   const ended = entries.filter((entry) => entry.event.type === "turn.ended").length;
-  const sets = useQuery({
-    placeholderData: keepPreviousData,
-    queryFn: async ({ signal }) => await client.library.history.list({ threadId }, { signal }),
-    queryKey: [...orpc.library.history.list.queryKey({ input: { threadId } }), ended],
-  });
+  const endedRead = useRef<number | null>(null);
+  const eventsRead = stored.data !== undefined;
+  const setsKey = setPages.queryKey;
+  useEffect(() => {
+    if (!eventsRead) {
+      return;
+    }
+    if (endedRead.current !== null && endedRead.current !== ended) {
+      void queryClient.invalidateQueries({ queryKey: setsKey });
+    }
+    endedRead.current = ended;
+  }, [ended, endedRead, eventsRead, queryClient, setsKey]);
   const respond = useMutation(orpc.library.agent.respond.mutationOptions({ onError: onRefused }));
   const cancel = useMutation(orpc.library.agent.cancel.mutationOptions({ onError: onRefused }));
   const undo = useMutation(
@@ -248,17 +269,24 @@ const Conversation = ({
         toast.error(refusalText(cause, "That couldn't be undone."));
       },
       onSuccess: async () => {
-        toast.success("Undone.");
         await queryClient.invalidateQueries({ queryKey: orpc.library.history.key() });
       },
       scope: { id: "history-undo" },
     }),
   );
-  const changeSets = sets.data?.changeSets ?? [];
-  const undoSets = (ids: string[]): void => {
+  const changeSets = changeSetsOf(sets.data?.pages ?? []);
+  const undoSets = (ids: readonly string[]): void => {
     void (async () => {
       await flushOpen();
-      undo.mutate({ changeSetIds: ids });
+      for (const batch of undoBatches(ids)) {
+        try {
+          await undo.mutateAsync({ changeSetIds: batch });
+        } catch {
+          // the undo's own onError said why; the batches after it are not sent
+          return;
+        }
+      }
+      toast.success("Undone.");
     })();
   };
   const undoTurn = (turn: number): (() => void) | null => {
@@ -269,7 +297,8 @@ const Conversation = ({
           undoSets(ids);
         };
   };
-  const whole = conversationUndo(changeSets);
+  // offered once every page is read, so it takes back the whole conversation
+  const whole = hasNextPage ? null : conversationUndo(changeSets);
   const working = thread?.status === "running" || thread?.status === "queued";
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3" data-thread={threadId}>

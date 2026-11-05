@@ -23,7 +23,7 @@ import { mergeBlocks } from "@repo/editor/stale-write";
 import { readElement } from "./item-diff";
 import { itemProperties } from "./item-properties";
 import { createItemSession, ITEM_IDLE_MS, KEPT_CHANGING } from "./item-session";
-import type { ItemSession, ItemStore } from "./item-session";
+import type { ItemSession, ItemStore, ItemStoreChange } from "./item-session";
 
 const code = (id: string, lines: readonly string[]): LibraryBlock => ({
   children: lines.map((text) => ({ children: [{ text }], type: "code_line" })),
@@ -330,6 +330,49 @@ describe("an item open in the editor", () => {
     await phone.replica.sync();
     expect(cellBlock(cell, id, "p1")).toEqual(paragraph("p1", "first!"));
     expect(cellBlock(cell, id, "p2")).toEqual(paragraph("p2", "from the Mac"));
+  });
+
+  it("keeps its blocks while a replica that started over holds the row ahead of the body", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), paragraph("p2", "x")]);
+    // the replica as it reads just after a reset: the row pulled again, its blocks still to come
+    let startedOver = false;
+    const told = new Set<(change: ItemStoreChange) => void>();
+    const store: ItemStore = {
+      item: async (itemId) => {
+        const held = await phone.replica.item(itemId);
+        return held === null || !startedOver ? held : { ...held, blocks: [], bodyHeld: false };
+      },
+      onChange: (listener) => {
+        told.add(listener);
+        const stop = phone.replica.onChange(listener);
+        return () => {
+          told.delete(listener);
+          stop();
+        };
+      },
+      write: phone.replica.write,
+    };
+    const { editor, session } = await openOn(phone, id, store);
+    startedOver = true;
+    for (const listener of told) {
+      listener({ ids: new Set(), overlapped: new Set(), reset: true });
+    }
+    await session.flush();
+    expect(editor.children.map((node) => node["id"])).toEqual(["p1", "p2"]);
+    expect(session.status()).toMatchObject({ kind: "open", unsaved: false });
+    // the body lands again, carrying another device's edit, and the editor follows it
+    startedOver = false;
+    const onMac = await mac.replica.item(id);
+    const held = onMac?.blocks[1];
+    await mac.replica.write(id, {
+      ops: [{ baseHash: held?.hash ?? "", block: paragraph("p2", "from the Mac"), op: "put" }],
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    await session.flush();
+    expect(editorText(editor, 0)).toBe("first");
+    expect(editorText(editor, 1)).toBe("from the Mac");
   });
 
   it("keeps a link to an item by its id through the item's rename", async () => {

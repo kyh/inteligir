@@ -33,7 +33,8 @@ export const CellAnswer = <T,>({
   failed,
   children,
 }: {
-  query: UseQueryResult<T>;
+  // a query's or an infinite query's state, as much of it as says where the answer stands
+  query: Pick<UseQueryResult<T>, "data" | "error" | "fetchStatus" | "isError">;
   // what to say when the call failed with nothing of its own to say
   failed: string;
   children: (data: T) => React.ReactNode;
