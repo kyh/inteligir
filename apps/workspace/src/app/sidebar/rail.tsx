@@ -238,17 +238,15 @@ export const Rail = ({
       <SidebarHeader>
         <div className="flex items-center gap-1 pr-1.5">
           <p className="m-0 min-w-0 flex-1 truncate px-2 text-subtitle font-medium">Library</p>
-          <Tooltip content="Search" side="bottom">
-            <Button
-              variant="ghost"
-              size="icon-compact"
-              className="size-6 shrink-0"
-              aria-label="Search"
-              onClick={onOpenSearch}
-            >
-              <SearchIcon />
-            </Button>
-          </Tooltip>
+          <Button
+            variant="ghost"
+            size="icon-compact"
+            className="size-6 shrink-0"
+            aria-label="Search"
+            onClick={onOpenSearch}
+          >
+            <SearchIcon />
+          </Button>
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -332,17 +330,15 @@ export const Rail = ({
       <SidebarFooter>
         <div className="flex items-center gap-1 pr-1.5">
           <SyncLine />
-          <Tooltip content="Settings" side="top">
-            <Button
-              variant="ghost"
-              size="icon-compact"
-              className="size-6 shrink-0"
-              aria-label="Settings"
-              onClick={onOpenSettings}
-            >
-              <SettingsIcon />
-            </Button>
-          </Tooltip>
+          <Button
+            variant="ghost"
+            size="icon-compact"
+            className="size-6 shrink-0"
+            aria-label="Settings"
+            onClick={onOpenSettings}
+          >
+            <SettingsIcon />
+          </Button>
         </div>
       </SidebarFooter>
     </>

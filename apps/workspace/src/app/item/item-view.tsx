@@ -11,7 +11,6 @@ import { setAnnotationMeta } from "@repo/editor/annotations/annotation-store";
 import { setFindBarAnchor } from "@repo/editor/find-bar";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
-import { Tooltip } from "@repo/ui/components/tooltip";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { isImeComposing } from "@repo/ui/lib/ime";
 import { useQuery } from "@tanstack/react-query";
@@ -121,31 +120,27 @@ export const ItemView = ({ itemId, onBack, onTogglePanel, onSession }: ItemViewP
     // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- the view's own Escape, which every control inside it hands up unless it holds the key itself
     <div className="flex h-full min-h-0 flex-col" data-item-id={itemId} onKeyDown={onKeyDown}>
       <header className="flex h-12 shrink-0 items-center gap-2 px-3">
-        <Tooltip content="Back to the library" side="bottom">
-          <Button
-            variant="ghost"
-            size="icon-compact"
-            aria-label="Back to the library"
-            onClick={onBack}
-          >
-            <ArrowLeftIcon />
-          </Button>
-        </Tooltip>
+        <Button
+          variant="ghost"
+          size="icon-compact"
+          aria-label="Back to the library"
+          onClick={onBack}
+        >
+          <ArrowLeftIcon />
+        </Button>
         {held === null ? (
           <span className="flex-1" />
         ) : (
           <TitleField key={held.fields.title} itemId={itemId} title={held.fields.title} />
         )}
-        <Tooltip content="Info, highlights, History and the agent" side="bottom">
-          <Button
-            variant="ghost"
-            size="icon-compact"
-            aria-label="Info, highlights, History and the agent"
-            onClick={onTogglePanel}
-          >
-            <PanelRightIcon />
-          </Button>
-        </Tooltip>
+        <Button
+          variant="ghost"
+          size="icon-compact"
+          aria-label="Info, highlights, History and the agent"
+          onClick={onTogglePanel}
+        >
+          <PanelRightIcon />
+        </Button>
       </header>
       {/* where the editor's find bar (⌘F) draws, over the item's text */}
       <div ref={setFindBarAnchor} className="relative" />

@@ -14,7 +14,7 @@ import {
   MediaCardMeta,
   MediaCardTitle,
 } from "@repo/ui/components/media-card";
-import { Tooltip } from "@repo/ui/components/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 import {
   CloudUploadIcon,
   FileTextIcon,
@@ -199,9 +199,20 @@ export const ItemCard = ({
           />
         ) : null}
         {row.fields.fetchError === null ? null : (
-          <Tooltip content={row.fields.fetchError} side="top">
-            <MediaCardBadge icon={<TriangleAlertIcon />}>Page not read</MediaCardBadge>
-          </Tooltip>
+          // why the page went unread is something to read, so it opens on a hover or a tap, which a
+          // tooltip, off on touch, would not
+          <Popover>
+            <PopoverTrigger
+              openOnHover
+              nativeButton={false}
+              render={<MediaCardBadge icon={<TriangleAlertIcon />} />}
+            >
+              Page not read
+            </PopoverTrigger>
+            <PopoverContent side="top" className="w-64 gap-0 rounded-xl p-3 text-body select-text">
+              {row.fields.fetchError}
+            </PopoverContent>
+          </Popover>
         )}
       </MediaCardCover>
       <MediaCardBody>
