@@ -118,7 +118,7 @@ export interface ToolUse {
 // what a conversation draws, in order: a message either way, a run of the agent's work between
 // them (its notes and its calls), an answered approval, and a turn's end
 // a progress note of the agent's, keyed by the event that carried it
-export interface WorkNote {
+interface WorkNote {
   readonly eventId: string;
   readonly text: string;
 }
