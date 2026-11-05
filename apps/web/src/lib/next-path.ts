@@ -23,5 +23,10 @@ export const internalNextPath = (value: string | undefined): string | null => {
   if (resolved.origin !== RESOLUTION_BASE) {
     return null;
   }
+  // a dot segment resolves away before a second slash (`/.//evil.example` is `//evil.example`),
+  // which the sign-in's document load reads as protocol-relative
+  if (resolved.pathname.startsWith("//")) {
+    return null;
+  }
   return `${resolved.pathname}${resolved.search}${resolved.hash}`;
 };
