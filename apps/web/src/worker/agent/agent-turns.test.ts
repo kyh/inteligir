@@ -26,6 +26,7 @@ import {
   settled,
   threadHolds,
   threadOf,
+  threadRows,
   threadStatus,
 } from "../test-support/agent-turns";
 import type { AgentAccount } from "../test-support/agent-turns";
@@ -84,6 +85,30 @@ const endingsOf = async (account: AgentAccount, threadId: string) => {
   return rows.map((row) =>
     z.object({ reason: z.string() }).parse(JSON.parse(endedSchema.parse(row).json)),
   );
+};
+
+// the object's instance gone, its tables of another version, and nothing left to wake it: what a
+// deploy that changes the thread's tables leaves, which the next instance's start wipes
+const startsOver = async (account: AgentAccount, threadId: string): Promise<void> => {
+  const thread = threadOf(account.accountId, threadId);
+  // committed before the reset, which drops what its own call wrote
+  await runInDurableObject(thread, async (_thread: AgentThreadDO, state) => {
+    state.storage.sql.exec("UPDATE meta SET v = '0' WHERE k = 'schema'");
+    await state.storage.deleteAlarm();
+  });
+  await expect(
+    runInDurableObject(thread, (_thread: AgentThreadDO, state) => {
+      state.abort("the object was reset");
+    }),
+  ).rejects.toThrow();
+};
+
+// the cell's watch, five minutes on: it asks after a turn its object has been quiet about
+const watchedLater = async (account: AgentAccount): Promise<void> => {
+  await inCell(account.cell, async (state) => {
+    const later = { now: Date.now() + 6 * 60_000 };
+    await runAgentJobs(agentCellIn(state, openCellLibrary(state, env), { clock: later }));
+  });
 };
 
 afterEach(async () => {
@@ -445,13 +470,61 @@ describe("the switch and deletion", () => {
         ),
       ).rejects.toThrow();
       // five minutes on, the cell's watch asks after it, which starts a fresh instance
-      await inCell(account.cell, async (state) => {
-        const later = { now: Date.now() + 6 * 60_000 };
-        await runAgentJobs(agentCellIn(state, openCellLibrary(state, env), { clock: later }));
-      });
+      await watchedLater(account);
       await settled(account, sent.threadId);
       expect(await endingsOf(account, sent.threadId)).toEqual([{ reason: "done" }]);
-      expect(await cellRows(account, "SELECT id FROM jobs WHERE kind LIKE 'agent-%'")).toEqual([]);
+      expect(
+        await cellRows(
+          account,
+          "SELECT id FROM jobs WHERE kind IN ('agent-deliver', 'agent-watch')",
+        ),
+      ).toEqual([]);
+    },
+  );
+
+  it(
+    "lands every push of an object that started over between turns",
+    { timeout: TURN_MS },
+    async () => {
+      const account = agentAccount();
+      const sent = await send(account, script("Before."));
+      await settled(account, sent.threadId);
+      await startsOver(account, sent.threadId);
+      await send(account, script("After."), sent.threadId);
+      await settled(account, sent.threadId);
+      expect(await endingsOf(account, sent.threadId)).toEqual([
+        { reason: "done" },
+        { reason: "done" },
+      ]);
+      // the conversation went with the old tables: the object holds the second turn alone
+      expect(
+        await threadRows(account.accountId, sent.threadId, "SELECT turn, role FROM transcript"),
+      ).toEqual([
+        { role: "user", turn: 2 },
+        { role: "assistant", turn: 2 },
+      ]);
+    },
+  );
+
+  it(
+    "hands a turn again to an object that started over in the middle of it",
+    { timeout: TURN_MS },
+    async () => {
+      const account = agentAccount();
+      const before = await heldSoFar();
+      const sent = await send(account, script("stall"));
+      await heldMidReply(account, [sent.threadId], before);
+      await startsOver(account, sent.threadId);
+      // the watch's ask starts a fresh instance, which holds the turn no more, and is handed it
+      await watchedLater(account);
+      await settled(account, sent.threadId);
+      expect(await endingsOf(account, sent.threadId)).toEqual([{ reason: "done" }]);
+      expect(
+        await threadRows(account.accountId, sent.threadId, "SELECT turn, role FROM transcript"),
+      ).toEqual([
+        { role: "user", turn: 1 },
+        { role: "assistant", turn: 1 },
+      ]);
     },
   );
 

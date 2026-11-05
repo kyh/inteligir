@@ -557,14 +557,17 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
 - **A CONVERSATION'S TRANSCRIPT IS CLAUDE'S REPLIES AS RETURNED, ONLY EVER
   APPENDED TO, AND A CUT CALL IS SENT AGAIN WHOLE.** A reply lands only once
   its stream ends, in one transaction with its usage; a call stamped by an
-  instance that died is cut and its step re-sent byte for byte, its cap the
-  first call's; the system and tools a thread started with are replayed byte
-  for byte; `cache_control` goes on a copy; per-account words ride a system
+  instance that died, or whose reply sent no byte, pings included, for three
+  minutes, is cut and its step re-sent byte for byte, its cap the first
+  call's; the system and tools a thread started with are replayed byte for
+  byte; `cache_control` goes on a copy; per-account words ride a system
   message after the person's, landing with the turn's first reply, so a turn
   that ends unanswered leaves none last. Rejected: continuing the partial reply
   (a prefill, a 400 on Opus 5.5); rebuilding messages from rows (one changed
-  byte before a thinking block is a 400).
-  `apps/web/src/worker/agent/thread-schema.ts`, `thread-request.ts`.
+  byte before a thinking block is a 400); a timeout on the SDK's events (it
+  never hands on a ping, and a long unshown thought is no lost call).
+  `apps/web/src/worker/agent/thread-schema.ts`, `thread-request.ts`,
+  `thread-loop.ts`.
 
 - **THE AGENT'S TOOLS ARE THE LIBRARY'S PROCEDURES, RUN BY ITS CELL UNDER A
   PRINCIPAL ONLY `agentTool` MINTS.** The registrar's tool rows minus
@@ -588,10 +591,11 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
 - **AN APPROVAL WAITS ON THE PERSON TEN MINUTES IN THE THREAD'S OWN ROWS, AND A
   CANCEL DENIES BEFORE IT STOPS.** `delete_items` is journaled awaiting the
   person under a Lifecycle job that denies at ten minutes; an answer decides
-  once; a cancel marks the turn durably, aborts the stream and answers every
-  open call `is_error`, so the next request is valid. Rejected: a tool that
-  waits in memory (it dies with an eviction); the platform's `auto` judgment
-  (not the person). `apps/web/src/worker/agent/agent-thread.ts`.
+  once; a cancel marks the turn durably, cuts the model call whether it is
+  still being reserved or already streaming, and answers every open call
+  `is_error`, so the next request is valid. Rejected: a tool that waits in
+  memory (it dies with an eviction); the platform's `auto` judgment (not the
+  person). `apps/web/src/worker/agent/agent-thread.ts`, `thread-loop.ts`.
 
 - **EVERY TURN IS COUNTED BEFORE IT STARTS AND EVERY CALL RESERVED BEFORE IT
   GOES** (owner decision: about fifty free turns a month, a day's share first).
@@ -608,9 +612,12 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   PUSHES** (owner decision: the phone asks the agent too). The cell stores each
   push once by its seq, in one transaction, as events of our own union, and
   frames each on the sockets after it commits; previews ride the sockets
-  alone. Rejected: the Agents SDK's client socket to the thread (a second
-  socket and auth, nothing offline); Anthropic's event shapes (a vendor's union
-  in every replica). `apps/web/src/worker/agent/agent-turns.ts`,
+  alone. An object that starts over on tables of another version keeps its seq
+  going, and the cell's watch hands it again a turn it lost. Rejected: the
+  Agents SDK's client socket to the thread (a second socket and auth, nothing
+  offline); Anthropic's event shapes (a vendor's union in every replica); an
+  epoch a push (a fence that resets, which a late push of the old one moves
+  back). `apps/web/src/worker/agent/agent-turns.ts`, `thread-schema.ts`,
   `packages/contract/src/cloud/library/agent-events.ts`.
 
 - **A LINK THE AGENT SAVES IS READ ONLY ONCE ITS TURN SEALS** (owner
@@ -623,11 +630,12 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   (owner decision). The provider-native `/anthropic` route, its key stored on
   the gateway with provider credentials required, the gateway authenticated by
   `AI_GATEWAY_TOKEN`, every request asking it to keep no payload; the SDK sends
-  no key and retries nothing, and a Worker with no gateway fails closed.
-  Rejected: the key on the Worker; Unified Billing (a fee, and its fallback is
-  silent); the AI binding (it reaches the account in local development);
-  `@ai-sdk/anthropic` (a second conversion of every block).
-  `apps/web/src/worker/agent/anthropic-client.ts`, `apps/web/cloudflare.config.ts`.
+  no key and retries nothing, and a Worker with no gateway fails closed, so
+  Deploy refuses a Build Output that names none. Rejected: the key on the
+  Worker; Unified Billing (a fee, and its fallback is silent); the AI binding
+  (it reaches the account in local development); `@ai-sdk/anthropic` (a second
+  conversion of every block). `apps/web/src/worker/agent/anthropic-client.ts`,
+  `apps/web/cloudflare.config.ts`, `.github/workflows/deploy.yml`.
 
 - **THE LOCAL WORKER, THE E2E AND THE SUITES RUN THE ONE THREAD PATH AGAINST A
   SCRIPTED MESSAGES API.** `ANTHROPIC_FAKE_URL`, which `vite dev` alone

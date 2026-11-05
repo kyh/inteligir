@@ -1,9 +1,9 @@
 // One request of a conversation, as the thread builds it from its frozen definition and its
 // transcript, sent through the thread's own client to the scripted Messages API and its replies
 // replayed as the thread keeps them: consecutive bodies share their system, their tools and every
-// message they both carry, byte for byte but for the breakpoints, so each replayed thinking block
-// meets the prefix it was signed against; three breakpoints, the hour's first; a message is its
-// role and content alone, and the last is never the assistant's.
+// message they both carry, byte for byte as sent, key order included, but for the breakpoints, so
+// each replayed thinking block meets the prefix it was signed against; three breakpoints, the
+// hour's first; a message is its role and content alone, and the last is never the assistant's.
 
 import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { env } from "cloudflare:workers";
@@ -22,7 +22,6 @@ import {
 import type { TranscriptMessage } from "./thread-request";
 
 const blockSchema = z.record(z.string(), z.json());
-type Block = z.infer<typeof blockSchema>;
 
 const bodySchema = z.looseObject({
   messages: z.array(z.strictObject({ content: z.array(blockSchema), role: z.string() })),
@@ -32,9 +31,30 @@ const bodySchema = z.looseObject({
 
 type Body = z.infer<typeof bodySchema>;
 
-// a block as the API compares it, its breakpoint left out
-const unmarked = (block: Block): Block =>
-  Object.fromEntries(Object.entries(block).filter(([key]) => key !== "cache_control"));
+const sentBlocksSchema = z.array(z.record(z.string(), z.unknown()));
+const sentSchema = z.looseObject({
+  messages: z.array(z.looseObject({ content: sentBlocksSchema })),
+  system: sentBlocksSchema,
+  tools: sentBlocksSchema,
+});
+
+// a body as it was sent, each breakpoint taken out where it stood and nothing else touched: the
+// text is read by JSON.parse, which keeps every key where it was sent, and narrowed, never parsed
+// into a copy, so writing a part out again gives the bytes the client sent for it
+const unmarkedOf = (text: string) => {
+  const value: unknown = JSON.parse(text);
+  if (!sentSchema.validate(value)) {
+    throw new Error("a body the thread did not send");
+  }
+  for (const block of [
+    ...value.system,
+    ...value.tools,
+    ...value.messages.flatMap((message) => message.content),
+  ]) {
+    Reflect.deleteProperty(block, "cache_control");
+  }
+  return value;
+};
 
 const markSchema = z.looseObject({
   cache_control: z.object({ ttl: z.enum(["5m", "1h"]).optional() }).optional(),
@@ -49,18 +69,18 @@ const breakpointsOf = (body: Body): string[] =>
     },
   );
 
-// the thread's client to the scripted API, keeping the bytes of every body it sends
+// the thread's client to the scripted API, keeping the text of every body it sends
 const recordingClient = () => {
-  const bodies: Body[] = [];
+  const sent: string[] = [];
   const client = anthropicClient(env, async (input, init) => {
     const request = new Request(input, init);
-    bodies.push(bodySchema.parse(JSON.parse(await request.clone().text())));
+    sent.push(await request.clone().text());
     return await fetch(request);
   });
   if (client === null) {
     throw new Error("the suites bind the scripted API");
   }
-  return { bodies, client };
+  return { client, sent };
 };
 
 // a reply as the thread keeps it: its content as returned, stored as JSON and read back
@@ -76,7 +96,7 @@ const person = (text: string): TranscriptMessage =>
 
 describe("a conversation's request", () => {
   it("shares its system, tools and messages with the request before it, but for breakpoints", async () => {
-    const { bodies, client } = recordingClient();
+    const { client, sent } = recordingClient();
     const definition = deployedDefinition();
     const send = async (transcript: readonly TranscriptMessage[]): Promise<BetaMessage> =>
       await client.beta.messages.stream(agentRequest(definition, transcript, 4096)).finalMessage();
@@ -104,7 +124,8 @@ describe("a conversation's request", () => {
     transcript.push(kept(second), person(script("Thanks.")), rules);
     const third = await send(transcript);
     transcript.push(kept(third));
-    expect(bodies).toHaveLength(3);
+    expect(sent).toHaveLength(3);
+    const bodies = sent.map((text) => bodySchema.parse(JSON.parse(text)));
     for (const [index, body] of bodies.entries()) {
       // the hour's breakpoints on the tools and the system, then the rolling one, never on thinking
       expect(breakpointsOf(body), `body ${String(index)}`).toEqual(["1h", "1h", "5m"]);
@@ -116,18 +137,21 @@ describe("a conversation's request", () => {
         }
       }
     }
-    for (const [index, body] of bodies.slice(1).entries()) {
-      const before = bodies[index];
+    const unmarked = sent.map(unmarkedOf);
+    for (const [index, body] of unmarked.slice(1).entries()) {
+      const before = unmarked[index];
       if (before === undefined) {
         throw new Error("a request with none before it");
       }
-      expect(body.system).toEqual(before.system);
-      expect(body.tools).toEqual(before.tools);
-      const shared = before.messages.length;
-      expect(body.messages.length).toBeGreaterThan(shared);
-      const sharedOf = (messages: Body["messages"]) =>
-        messages.map((message) => ({ ...message, content: message.content.map(unmarked) }));
-      expect(sharedOf(body.messages.slice(0, shared))).toEqual(sharedOf(before.messages));
+      expect(JSON.stringify(body.system)).toBe(JSON.stringify(before.system));
+      expect(JSON.stringify(body.tools)).toBe(JSON.stringify(before.tools));
+      expect(body.messages.length).toBeGreaterThan(before.messages.length);
+      for (const [at, message] of before.messages.entries()) {
+        expect(
+          JSON.stringify(body.messages[at]),
+          `body ${String(index + 1)} message ${String(at)}`,
+        ).toBe(JSON.stringify(message));
+      }
     }
     // the breakpoint went on a copy: what the thread keeps carries none
     expect(JSON.stringify(transcript)).not.toContain("cache_control");

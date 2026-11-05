@@ -245,10 +245,8 @@ describe("the prices", () => {
       }
     }
     const row = { cacheRead: 0.2, cacheWrite1h: 8, cacheWrite5m: 5, input: 4, output: 20 };
-    expect(agentPricesSchema.safeParse({ model: row }).success).toBe(true);
-    expect(agentPricesSchema.safeParse({ model: { ...row, cacheRead: 0.125 } }).success).toBe(
-      false,
-    );
+    expect(agentPricesSchema.validate({ model: row })).toBe(true);
+    expect(agentPricesSchema.validate({ model: { ...row, cacheRead: 0.125 } })).toBe(false);
   });
 
   it("price each part of a reply by the model that answered it, at list price by category", () => {

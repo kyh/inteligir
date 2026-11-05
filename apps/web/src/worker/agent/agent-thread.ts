@@ -4,7 +4,7 @@
 // (`./thread-loop`) runs on the Agents SDK's Lifecycle, its durable job queue and its one alarm,
 // and on nothing else of the SDK: a `drive` job starts the work detached from the alarm's dispatch
 // unless this instance runs it already, and stays, re-timed every 30 seconds, as the watchdog that
-// brings a dead instance's work back; an approval waits under a job that denies it at ten minutes;
+// brings a dead instance's work back and cuts a reply gone silent in a live one; an approval waits under a job that denies it at ten minutes;
 // a push the cell could not take waits under the `outbox` job. Every job is pushed to run once,
 // its outcome returned rather than thrown, since Lifecycle retries a job three times in process by
 // default. A fresh instance holds no work, so every `drive` job it finds is an orphan, woken at
@@ -23,14 +23,16 @@ import { errorFields } from "../log";
 import { anthropicClient } from "./anthropic-client";
 import {
   acceptDelivery,
+  cutSilentCalls,
   decideCall,
   drainOutbox,
   inspectThread,
+  listeningFetch,
   requestCancel,
   rulesHashOf,
   step,
 } from "./thread-loop";
-import type { ThreadHost } from "./thread-loop";
+import type { CallInFlight, ThreadHost } from "./thread-loop";
 import { openThreadSchema } from "./thread-schema";
 import { deliveryRequestSchema, respondRequestSchema } from "./thread-wire";
 import type { DeliveryRequest, RespondRequest, ThreadInspection } from "./thread-wire";
@@ -70,7 +72,7 @@ export class AgentThreadDO extends DurableObject<Env> {
 
   // this instance: a model call stamped with another was made by an instance that died
   readonly #isolate = crypto.randomUUID();
-  readonly #aborts = new Map<number, AbortController>();
+  readonly #calls = new Map<number, CallInFlight>();
   #driving: Promise<void> | null = null;
   // asked for more while the work ran, so the work goes on rather than resting
   #again = false;
@@ -81,10 +83,10 @@ export class AgentThreadDO extends DurableObject<Env> {
     const { accountId, threadId } = threadNameOf(this.ctx.id.name);
     const { jobs } = this.lifecycle;
     return {
-      aborts: this.#aborts,
+      calls: this.#calls,
       cell: () => this.ctx.exports.LibraryDO.getByName(libraryCellName(accountId)),
       client: () => {
-        this.#client ??= anthropicClient(this.env);
+        this.#client ??= anthropicClient(this.env, listeningFetch(this.#calls, Date.now));
         return this.#client;
       },
       isolate: this.#isolate,
@@ -161,12 +163,15 @@ export class AgentThreadDO extends DurableObject<Env> {
 
   // ---- the loop ----
 
-  // the work started, unless this instance runs it already; the job stays as the watchdog
+  // the work started, unless this instance runs it already, where a reply gone silent is cut for
+  // the loop to send again; the job stays as the watchdog
   #kick(): LifecycleJobOutcome {
     if (this.#driving === null) {
       const work = this.#driveThenRest();
       this.#driving = work;
       this.lifecycle.trackAlarmWork(work);
+    } else {
+      cutSilentCalls(this.#calls, Date.now());
     }
     return { rescheduleAt: Date.now() + WATCHDOG_MS };
   }
@@ -213,8 +218,8 @@ export class AgentThreadDO extends DurableObject<Env> {
       return;
     }
     this.#purged = true;
-    for (const abort of this.#aborts.values()) {
-      abort.abort(new Error("The conversation was deleted."));
+    for (const call of this.#calls.values()) {
+      call.abort.abort(new Error("The conversation was deleted."));
     }
     await this.lifecycle.disableAlarms();
     await this.ctx.storage.deleteAll();

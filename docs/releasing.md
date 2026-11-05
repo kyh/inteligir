@@ -607,6 +607,12 @@ them.
   limit. Passing: a request without `cf-aig-authorization` is refused; one
   with it and no `x-api-key` answers 200 for `max_tokens: 1`; the gateway's
   log shows that request with no prompt or reply.
+- **Production's Worker names its gateway.** The newest Deploy run's "Build &
+  deploy web" step printed `true` from its gateway check before `cf deploy`,
+  and signed in on inteligir.com, `library.agent.send({ text: "Hello." })`
+  answers `running`, never `SERVICE_UNAVAILABLE`. A check that fails means the
+  repository's `CLOUDFLARE_ACCOUNT_ID` secret is missing, or names an account
+  other than the gateway's (`apps/web/README.md` § Build & deploy, step 7).
 - **Each Anthropic workspace is its own and capped.** Production and preview
   workspaces, never the Default Workspace, each with a monthly spend limit; the
   organization is out of the Evaluation tier before the first outside tester.

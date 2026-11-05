@@ -11,8 +11,8 @@ import { z } from "zod";
 
 import type { AgentThreadDO } from "../agent/agent-thread";
 import { anthropicClient } from "../agent/anthropic-client";
-import { acceptDelivery, rulesHashOf, step } from "../agent/thread-loop";
-import type { StepResult, ThreadCell, ThreadHost } from "../agent/thread-loop";
+import { acceptDelivery, listeningFetch, rulesHashOf, step } from "../agent/thread-loop";
+import type { CallInFlight, StepResult, ThreadCell, ThreadHost } from "../agent/thread-loop";
 import { openThreadSchema } from "../agent/thread-schema";
 import { turnUserMessage } from "../agent/turn-message";
 import { bookTurn, dayOf } from "../agent/agent-allowance";
@@ -80,10 +80,11 @@ export const inSteppedThread = async <T>(
       const sql = cellStorageOf(state.storage);
       openThreadSchema(sql);
       const asked: AskedJobs = { approvals: new Map(), drives: [], outbox: [] };
+      const calls = new Map<number, CallInFlight>();
       const host: ThreadHost = {
-        aborts: new Map(),
+        calls,
         cell: () => options.cell?.(real()) ?? real(),
-        client: () => anthropicClient(env),
+        client: () => anthropicClient(env, listeningFetch(calls, Date.now)),
         isolate: crypto.randomUUID(),
         jobs: {
           approvalAt: async (toolUseId, at) => {

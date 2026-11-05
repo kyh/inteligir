@@ -11,7 +11,7 @@
 // given back, the links it saved read, and the next waiting send let in. A watch job asks after a
 // turn whose object it has not heard from in five minutes.
 
-import { agentEventSchema } from "@repo/contract/cloud/library/agent-events";
+import { agentEventSchema, agentPreviewSchema } from "@repo/contract/cloud/library/agent-events";
 import type { AgentEvent } from "@repo/contract/cloud/library/agent-events";
 import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
 import { THREAD_STATUSES, threadEventRowSchema } from "@repo/contract/cloud/library/library-wire";
@@ -93,6 +93,7 @@ import type {
   PushRequest,
   Reservation,
   ReserveRequest,
+  ThreadInspection,
   ToolAnswer,
   ToolRequest,
 } from "./thread-wire";
@@ -780,7 +781,8 @@ export const showPreview = (cell: AgentCell, request: PreviewRequest): CellAnswe
     return { ok: false, refusal: read.value.kind };
   }
   cell.tell({
-    event: { text: preview.text, type: "agent.preview" },
+    // the frame's event spelled once, by the contract its readers parse it with
+    event: agentPreviewSchema.parse({ text: preview.text, type: "agent.preview" }),
     preview: true,
     threadId: preview.threadId,
     type: "thread",
@@ -791,15 +793,20 @@ export const showPreview = (cell: AgentCell, request: PreviewRequest): CellAnswe
 // ---- the alarm's ----
 
 // a turn whose object the cell has not heard from in five minutes, asked after: the ask starts the
-// object, which wakes any work an instance left
+// object, which wakes any work an instance left, and an object that holds no open turn and nothing
+// unsent, one that started over on another version of its tables, is handed the turn again
 const watchTurn = async (cell: AgentCell, threadId: string): Promise<void> => {
   const read = cell.library.read((sql) => openTurnOf(sql, threadId));
   const turn = read.ok ? read.value : null;
   if (turn !== null && cell.now() - turn.heardAt >= WATCH_EVERY_MS) {
+    let inspection: ThreadInspection | null = null;
     try {
-      await threadStub(cell.exports, cell.accountId, threadId).inspect();
+      inspection = await threadStub(cell.exports, cell.accountId, threadId).inspect();
     } catch (error) {
       console.warn({ event: "agent-watch-failed", threadId, ...errorFields(error) });
+    }
+    if (inspection?.turn === null && inspection.outbox === 0) {
+      await deliverTurn(cell, threadId);
     }
   }
   await landRows(cell, (scope) => {

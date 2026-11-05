@@ -92,28 +92,22 @@ const JSON_TEXT = z.string().transform((text, context) => {
   }
 });
 
+// each validated, never parsed: a value narrowed keeps its keys in the order they were written,
+// which a parse would not
 const userContent = z.array(userBlockSchema).min(1);
 const replyContent = z.array(replyBlockSchema).min(1);
 const systemContent = z.array(textSchema).min(1);
 
-// each holds the value as it is, its keys in the order they were written, which a parse would not
-const isUserContent = (value: unknown): value is UserBlock[] =>
-  userContent.safeParse(value).success;
-const isReplyContent = (value: unknown): value is ReplyBlock[] =>
-  replyContent.safeParse(value).success;
-const isSystemContent = (value: unknown): value is TextBlock[] =>
-  systemContent.safeParse(value).success;
-
 // a stored row as the message it replays: the content exactly as it was written
 export const transcriptMessage = (role: string, content: string): TranscriptMessage => {
   const value: unknown = JSON.parse(content);
-  if (role === "user" && isUserContent(value)) {
+  if (role === "user" && userContent.validate(value)) {
     return { content: value, role };
   }
-  if (role === "assistant" && isReplyContent(value)) {
+  if (role === "assistant" && replyContent.validate(value)) {
     return { content: value, role };
   }
-  if (role === "system" && isSystemContent(value)) {
+  if (role === "system" && systemContent.validate(value)) {
     return { content: value, role };
   }
   throw new Error(`a ${role} row holds content this build cannot replay`);
@@ -125,7 +119,7 @@ export const replyBlocksOf = (content: readonly BetaContentBlock[]): ReplyBlock[
   if (content.length === 0) {
     return [];
   }
-  return isReplyContent(blocks) ? [...blocks] : null;
+  return replyContent.validate(blocks) ? [...blocks] : null;
 };
 
 // ---- the definition ----

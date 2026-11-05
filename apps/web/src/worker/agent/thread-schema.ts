@@ -3,8 +3,10 @@
 // Claude returned it or the thread wrote it, so a replay is byte for byte what was sent before: a
 // replayed thinking block is checked against everything before it. The definition is the system
 // and tools the thread started with, replayed as they were. No live preview is stored. Versioned
-// by the `schema` row of `meta`: an object that finds another version wipes itself and starts
-// over (AGENTS.md, no users yet), and a cell names no such thread again.
+// by the `schema` row of `meta`: an object that finds another version drops its tables and starts
+// over (AGENTS.md, no users yet), keeping only its push sequence, since its cell acknowledges a
+// sequence it has seen without reading the push again; a turn the cell holds open that the object
+// no longer does, the cell hands it again (`./agent-turns`).
 
 import type { SqlPort } from "@repo/notes/library/library-sql";
 import { z } from "zod";
@@ -100,7 +102,8 @@ const DDL = [
 
 const versionRowSchema = z.object({ v: z.string() });
 
-// the tables, made or kept; another version's are dropped first, the conversation with them
+// the tables, made or kept; another version's are dropped first, the conversation with them, and
+// every meta row but the push sequence, which never goes back
 export const openThreadSchema = (sql: SqlPort): void => {
   sql.transaction(() => {
     sql.run(DDL[0] ?? "", []);
@@ -111,7 +114,7 @@ export const openThreadSchema = (sql: SqlPort): void => {
         sql.run(`DROP TABLE IF EXISTS ${table}`, []);
       }
       sql.run("DROP TABLE IF EXISTS outbox", []);
-      sql.run("DELETE FROM meta", []);
+      sql.run("DELETE FROM meta WHERE k != 'push_seq'", []);
     }
     for (const statement of DDL) {
       sql.run(statement, []);

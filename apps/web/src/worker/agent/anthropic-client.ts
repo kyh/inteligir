@@ -18,7 +18,8 @@ import { z } from "zod";
 
 import { errorFields } from "../log";
 
-// a call is cut by the loop's own abort long before this; the SDK's own ceiling, written out
+// the SDK's own ceiling on the wait for a reply's headers, written out; the thread's watchdog cuts
+// a reply silent for three minutes first, headers or not (`./thread-loop`)
 const CALL_TIMEOUT_MS = 10 * 60_000;
 
 // the fake answers on this machine alone
@@ -60,7 +61,7 @@ const routeOf = (env: Env): { readonly baseURL: string; readonly token: string }
 // cell asks before it lets a send in
 export const agentConfigured = (env: Env): boolean => routeOf(env) !== null;
 
-// `fetch` is a suite's in-process fake; a deployment passes none and the SDK takes the platform's
+// `fetch` is the thread's listening one over the platform's (`./thread-loop`), or a suite's own
 export const anthropicClient = (env: Env, fetch?: ClientOptions["fetch"]): Anthropic | null => {
   const route = routeOf(env);
   if (route === null) {

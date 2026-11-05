@@ -7,6 +7,8 @@
 // - every tool call of a reply is journaled before any runs, and each is run by the cell under an
 //   op id of its own, so one run again lands once;
 // - every call is reserved with the cell before it is sent, and what it cost pushed after;
+// - a reply silent for three minutes, pings included, is cut as a lost connection is, and sent
+//   again;
 // - what the turn did reaches the cell through the outbox, in order, each push once.
 // The filing rules a turn brings ride a system message after the person's: it goes as the last
 // message until the turn's first reply lands, and lands with it, so a turn that ends with no reply
@@ -64,6 +66,8 @@ const RETRY_AFTER_MAX_MS = 5 * 60_000;
 const CELL_AGAIN_MS = 30_000;
 // a live preview of the reply is sent at most this often
 const PREVIEW_EVERY_MS = 250;
+// a reply this long without a byte, the API's pings included, is taken for a lost connection
+const SILENCE_MS = 3 * 60_000;
 
 const DECLINED = "The person declined this, so it did not run.";
 const STOPPED = "The person stopped this turn before this ran.";
@@ -98,11 +102,67 @@ export interface ThreadHost {
   // the cell, by a fresh stub each time, since a stub that saw a reset stays broken
   readonly cell: () => ThreadCell;
   readonly jobs: ThreadJobs;
-  // the stream each turn reads, which a cancel aborts
-  readonly aborts: Map<number, AbortController>;
+  // the model call each turn is making, which a stop, a purge or a silence cuts
+  readonly calls: Map<number, CallInFlight>;
   // the thread let go of: its cell holds it no more
   readonly purge: () => Promise<void>;
 }
+
+// a model call this instance is making: the abort that cuts it, and when its reply last moved, by
+// the bytes `listeningFetch` sees, pings included, which the SDK reads but never hands on
+export interface CallInFlight {
+  readonly abort: AbortController;
+  heardAt: number;
+}
+
+// what the watchdog cuts a silent reply with: the call failed reaching Claude, and is sent again
+class SilentReplyError extends Error {
+  constructor() {
+    super("No byte of the reply arrived for three minutes.");
+    this.name = "SilentReplyError";
+  }
+}
+
+// the platform's fetch, every call in flight heard as its request goes and as each chunk of its
+// reply arrives; the client a thread sends with is built over it (`./anthropic-client`)
+export const listeningFetch = (
+  calls: ReadonlyMap<number, CallInFlight>,
+  now: () => number,
+): typeof fetch => {
+  const heard = (): void => {
+    for (const call of calls.values()) {
+      call.heardAt = now();
+    }
+  };
+  return async (input, init) => {
+    heard();
+    const response = await fetch(input, init);
+    heard();
+    if (response.body === null) {
+      return response;
+    }
+    const listened = response.body.pipeThrough(
+      new TransformStream<Uint8Array, Uint8Array>({
+        transform: (chunk, controller) => {
+          heard();
+          controller.enqueue(chunk);
+        },
+      }),
+    );
+    return new Response(listened, response);
+  };
+};
+
+// every call whose reply has been silent too long, cut, which the loop takes for a lost connection;
+// the object's watchdog asks every 30 seconds while its work runs (`./agent-thread`)
+export const cutSilentCalls = (calls: ReadonlyMap<number, CallInFlight>, now: number): void => {
+  for (const [turn, call] of calls) {
+    if (now - call.heardAt >= SILENCE_MS && !call.abort.signal.aborted) {
+      console.warn({ event: "agent-reply-silent", silentMs: now - call.heardAt, turn });
+      call.abort.abort(new SilentReplyError());
+    }
+  }
+};
 
 // what a step left: more to do now, a retry the drive job was re-timed for, the person to wait on,
 // nothing to do, or the thread purged
@@ -587,9 +647,9 @@ const retryAfterMs = (error: APIError): number => {
 const isRetryable = (status: number | undefined): boolean =>
   status === undefined || status === 408 || status === 409 || status === 429 || status >= 500;
 
-// a call that did not land: cancelled by the person, refused by the API (the turn ends), or Claude
-// unreachable (sent again, three times, then the turn ends). A call the API answered with an error
-// cost nothing; one cut short may have, and is booked at what it reserved
+// a call that did not land: stopped by the person, refused by the API (the turn ends), or Claude
+// unreachable or silent (sent again, three times, then the turn ends). A call the API answered
+// with an error cost nothing; one cut short may have, and is booked at what it reserved
 const failedCall = async (
   host: ThreadHost,
   turn: OpenTurn,
@@ -597,7 +657,7 @@ const failedCall = async (
     readonly callId: string;
     readonly failedBefore: number;
     readonly error: Error;
-    readonly aborted: boolean;
+    readonly stopped: boolean;
   },
 ): Promise<StepResult> => {
   const now = host.now();
@@ -622,7 +682,7 @@ const failedCall = async (
       }
     });
   };
-  if (call.aborted) {
+  if (call.stopped) {
     // the next step settles the cancel
     settle("cancelled", null);
     return "continue";
@@ -660,10 +720,31 @@ const sendPreview = async (host: ThreadHost, turn: number, text: string): Promis
   }
 };
 
-const modelCall = async (
+// a call stopped before it went out: nothing sent, its reservation let go, and the stop settled by
+// the next step
+const unsentCall = (
+  host: ThreadHost,
+  turn: OpenTurn,
+  call: { readonly callId: string; readonly step: number; readonly attempt: number },
+): StepResult => {
+  const now = host.now();
+  host.sql.transaction(() => {
+    host.sql.run(
+      `INSERT INTO model_calls (call_id, turn, step, attempt, status, isolate, request_sha,
+         max_tokens, started_at, ended_at)
+       VALUES (?, ?, ?, ?, 'cancelled', ?, '', 0, ?, ?)`,
+      [call.callId, turn.turn, call.step, call.attempt, host.isolate, now, now],
+    );
+    enqueue(host.sql, turn.turn, [{ callId: call.callId, kind: "call", outcome: "free" }]);
+  });
+  return "continue";
+};
+
+const reserveAndSend = async (
   host: ThreadHost,
   turn: OpenTurn,
   transcript: readonly StoredMessage[],
+  signal: AbortSignal,
 ): Promise<StepResult> => {
   const { sql } = host;
   const now = host.now();
@@ -693,6 +774,9 @@ const modelCall = async (
       .agentReserve({ callId, estimate, resend, threadId: host.threadId, turn: turn.turn });
   } catch (error) {
     console.warn({ event: "agent-reserve-failed", ...callFailureFields(error) });
+    if (signal.aborted) {
+      return unsentCall(host, turn, { attempt: tries.tries, callId, step });
+    }
     await host.jobs.driveAt(now + CELL_AGAIN_MS);
     return "later";
   }
@@ -720,20 +804,17 @@ const modelCall = async (
     return "continue";
   }
   const body = agentRequest(definition, messages, reservation.maxTokens);
+  const requestSha = await sha256Hex(JSON.stringify(body));
+  // the last await before the request goes: a stop that landed while the call was reserved or its
+  // request hashed sends nothing
+  if (signal.aborted) {
+    return unsentCall(host, turn, { attempt: tries.tries, callId, step });
+  }
   sql.run(
     `INSERT INTO model_calls (call_id, turn, step, attempt, status, isolate, request_sha,
        max_tokens, started_at)
      VALUES (?, ?, ?, ?, 'streaming', ?, ?, ?, ?)`,
-    [
-      callId,
-      turn.turn,
-      step,
-      tries.tries,
-      host.isolate,
-      await sha256Hex(JSON.stringify(body)),
-      reservation.maxTokens,
-      now,
-    ],
+    [callId, turn.turn, step, tries.tries, host.isolate, requestSha, reservation.maxTokens, now],
   );
   const client = host.client();
   if (client === null) {
@@ -747,11 +828,9 @@ const modelCall = async (
     });
     return "continue";
   }
-  const abort = new AbortController();
-  host.aborts.set(turn.turn, abort);
   let message: BetaMessage;
   try {
-    const stream = client.beta.messages.stream(body, { signal: abort.signal });
+    const stream = client.beta.messages.stream(body, { signal });
     let preview = "";
     let sentAt = 0;
     for await (const streamed of stream) {
@@ -766,17 +845,31 @@ const modelCall = async (
     message = await stream.finalMessage();
   } catch (error) {
     return await failedCall(host, turn, {
-      aborted: abort.signal.aborted,
       callId,
       error: errorOf(error),
       failedBefore: tries.failed,
+      stopped: signal.aborted && !(signal.reason instanceof SilentReplyError),
     });
-  } finally {
-    host.aborts.delete(turn.turn);
   }
   logDroppedThinking(host.threadId, message);
   landReply(host, turn, { callId, message, rules });
   return "continue";
+};
+
+// one model call under an abort registered before its first await, so a stop that lands while the
+// call is reserved, hashed or streamed cuts it
+const modelCall = async (
+  host: ThreadHost,
+  turn: OpenTurn,
+  transcript: readonly StoredMessage[],
+): Promise<StepResult> => {
+  const call: CallInFlight = { abort: new AbortController(), heardAt: host.now() };
+  host.calls.set(turn.turn, call);
+  try {
+    return await reserveAndSend(host, turn, transcript, call.abort.signal);
+  } finally {
+    host.calls.delete(turn.turn);
+  }
 };
 
 // ---- one round of tool calls ----
@@ -1011,7 +1104,7 @@ export const requestCancel = (host: ThreadHost, turn: number): boolean => {
     ]);
     return held.length > 0;
   });
-  host.aborts.get(turn)?.abort(new Error("The person stopped this turn."));
+  host.calls.get(turn)?.abort.abort(new Error("The person stopped this turn."));
   return open;
 };
 
