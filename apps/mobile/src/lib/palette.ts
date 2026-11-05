@@ -1,6 +1,6 @@
 // The phone's colors as values, for what React Native takes as a value rather than a class: a
-// navigator's options, an ActivityIndicator, a field's placeholder, a safe area's or a WebView's
-// background. They are src/styles.css's variables, which the classes read, and src/styles.test.ts
+// navigator's options, an ActivityIndicator, a safe area's or a WebView's background (a field's
+// placeholder is a `placeholder:` class). They are src/styles.css's variables, which the classes read, and src/styles.test.ts
 // compiles that sheet to hold the two equal. No react-native import, so a node suite can read it,
 // and no @repo/ui import: it is web-only, and the dep-dag guard refuses the edge.
 

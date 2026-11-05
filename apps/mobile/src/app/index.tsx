@@ -59,7 +59,6 @@ const openRow = (row: ReplicaListingRow): void => {
 };
 
 const SaveField = ({ scope }: { scope: CellLibraryScope }) => {
-  const theme = useTheme();
   const { replica } = useLibrary();
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -100,9 +99,8 @@ const SaveField = ({ scope }: { scope: CellLibraryScope }) => {
     <View className="flex-row items-center gap-3">
       <TextInput
         accessibilityLabel="Save a link or a thought"
-        className="grow basis-0 rounded-lg border border-input bg-card px-3 py-2 text-16 text-foreground"
+        className="grow basis-0 rounded-lg border border-input bg-card px-3 py-2 text-16 text-foreground placeholder:text-muted-foreground"
         placeholder="Save a link or a thought"
-        placeholderTextColor={theme.mutedForeground}
         value={draft}
         editable={!saving}
         autoCapitalize="none"

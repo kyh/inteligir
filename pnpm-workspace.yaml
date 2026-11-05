@@ -123,11 +123,10 @@ catalog:
   # the popups' and controls' motion, imported from `motion/react` (motion.dev/docs/react-upgrade-guide)
   motion: ^14.9.1
   nanoid: ^6.0.2
-  # exact: nativewind's one Tailwind 4 line is a preview, which moves between previews, and
-  # react-native-css is the build that preview is tested against; lift both when nativewind 5
-  # ships stable
-  nativewind: 5.0.0-preview.4
-  react-native-css: 3.0.7
+  # exact: nativewind's one Tailwind 4 line is a release candidate, which moves between
+  # candidates, and peers this react-native-css exactly; lift both when nativewind 5 ships stable
+  nativewind: 5.0.0-rc.0
+  react-native-css: 3.1.0-rc.0
   # the PostCSS Expo runs the phone's sheet through, which the sheet's suite runs it through too
   postcss: ^8.5.29
   # held under 19.3: @react-three/fiber 9 peers react <19.3
@@ -222,14 +221,13 @@ overrides:
   "agents>@rolldown/plugin-babel": "-"
   # the adapter's auto-installed peer would otherwise resolve a second, newer core beside better-auth's
   "@better-auth/core": 1.7.14
-  # react-native-css compiles the phone's sheet with the lightningcss @expo/metro-config carries
-  # (its own peer only when that one is missing), and 3.0's visitor fails to deserialize under 1.30.2
-  # and later; scoped, since Tailwind pins its own, exactly. Lifted with react-native-css
-  "@expo/metro-config>lightningcss": 1.30.1
-  "react-native-css>lightningcss": 1.30.1
   "@types/react": "catalog:"
   # the catalog alone does not bind importers that don't spell `catalog:` (vitest's vite)
   vite: "catalog:"
+  # one react-native and one expo in the tree, the phone's: @react-three/fiber (the site) names both
+  # as optional peers, which would otherwise resolve to the newest of each beside the phone's
+  react-native: "catalog:"
+  expo: "catalog:"
 
 patchedDependencies:
   # the adapter marks every session root trusted, which has codex load the vault's own .codex

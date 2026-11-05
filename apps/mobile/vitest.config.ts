@@ -1,14 +1,9 @@
 import { defineConfig } from "vitest/config";
 
-// resolved from this file: cwd is apps/mobile under vitest but the repo root under knip.
-const HERE = import.meta.dirname;
-
 export default defineConfig({
-  // the routes import through `@/`, which tsconfig's `paths` maps for Metro and vitest never reads,
-  // and share-payload's suite imports a route (`+native-intent.ts`)
-  resolve: {
-    alias: { "@": `${HERE}/src` },
-  },
+  // the sources import through `@/`, the one spelling in tsconfig's `paths`, which Metro reads and
+  // Vite reads here, so the suites resolve what the bundle does
+  resolve: { tsconfigPaths: true },
   test: {
     include: ["src/**/*.test.ts"],
     maxWorkers: 1,

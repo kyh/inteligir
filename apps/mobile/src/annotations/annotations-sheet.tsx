@@ -9,12 +9,11 @@ import type { AnnotationThread } from "@repo/notes/annotations/annotation-thread
 import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { messageOf } from "@/lib/error-message";
 import { useAnnotations, useItem } from "@/lib/library-hooks";
-import { SPACE, useTheme } from "@/lib/theme";
+import { SPACE } from "@/lib/theme";
 import { threadsOf } from "./annotation-edits";
 import type { AnnotationEdits } from "./annotation-edits";
 
 // a line height stays a style value: react-native-css 3.0.7 resolves a line-height class to nothing
-const READING_LINE = { lineHeight: 21 } as const;
 
 const entryMeta = (entry: AnnotationEntry): string =>
   `${annotationSourceLabel(entry.source)} · ${new Date(entry.createdAt * 1000).toLocaleDateString()}`;
@@ -22,7 +21,6 @@ const entryMeta = (entry: AnnotationEntry): string =>
 const NOT_QUEUED = "The change could not be kept on this iPhone.";
 
 const ThreadCard = ({ edits, thread }: { edits: AnnotationEdits; thread: AnnotationThread }) => {
-  const theme = useTheme();
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   // a bare highlight's first words are its note; after that the field answers it
@@ -87,32 +85,24 @@ const ThreadCard = ({ edits, thread }: { edits: AnnotationEdits; thread: Annotat
         {thread.anchored ? "" : " · Not placed in the text"}
       </Text>
       {thread.root.quote === undefined ? null : (
-        <Text
-          className="border-l-2 border-border pl-3 text-15 text-muted-foreground"
-          style={READING_LINE}
-        >
+        <Text className="border-l-2 border-border pl-3 text-15 text-muted-foreground leading-[21px]">
           {thread.root.quote}
         </Text>
       )}
       {thread.root.text === "" ? null : (
-        <Text className="text-15 text-foreground" style={READING_LINE}>
-          {thread.root.text}
-        </Text>
+        <Text className="text-15 text-foreground leading-[21px]">{thread.root.text}</Text>
       )}
       {thread.replies.map((reply) => (
         <View key={reply.id} className="mt-1 gap-1 border-l-2 border-border pl-3">
           <Text className="text-12 text-muted-foreground">{entryMeta(reply.entry)}</Text>
-          <Text className="text-15 text-foreground" style={READING_LINE}>
-            {reply.entry.text}
-          </Text>
+          <Text className="text-15 text-foreground leading-[21px]">{reply.entry.text}</Text>
         </View>
       ))}
       <View className="mt-2 flex-row items-center gap-2">
         <TextInput
           accessibilityLabel={bare ? "Add a note to this highlight" : "Reply to this annotation"}
-          className="grow basis-0 rounded-lg border border-input bg-background px-3 py-2 text-16 text-foreground"
+          className="grow basis-0 rounded-lg border border-input bg-background px-3 py-2 text-16 text-foreground placeholder:text-muted-foreground"
           placeholder={bare ? "Add a note…" : "Reply…"}
-          placeholderTextColor={theme.mutedForeground}
           value={draft}
           editable={!busy}
           returnKeyType="send"

@@ -43,6 +43,8 @@ const PROBES = [
   ...TOKENS.map((token) => `bg-${cssName(token)}`),
   "p-4",
   "rounded-lg",
+  "leading-[22px]",
+  "placeholder:text-muted-foreground",
   ...SIZES.map((size) => `text-${String(size)}`),
 ];
 
@@ -107,10 +109,10 @@ describe("the phone's stylesheet", () => {
     );
   });
 
-  it("keeps the spacing step and the radii at the px the StyleSheets used", () => {
+  it("reads a rem at the root's 16px, so the spacing step and the radii are the web's", () => {
     expect(
       [declarationsOf("p-4"), declarationsOf("rounded-lg")],
-      "react-native-css 3.0.7 inlines a rem that reaches a class through a variable at 14px: write src/styles.css's scales in px",
+      "react-native-css reads a rem at src/styles.css's `:root` font size, else at 14",
     ).toEqual([[{ padding: 16 }], [{ borderRadius: 8 }]]);
   });
 
@@ -121,16 +123,14 @@ describe("the phone's stylesheet", () => {
     ).toEqual(SIZES.map((size) => [{ fontSize: size }]));
   });
 
-  it("sets no line height from a class, which react-native-css 3.0.7 resolves to nothing", () => {
-    const setting = (sheet.s ?? [])
-      .filter(([, rules]) =>
-        rules.some((rule) => JSON.stringify(rule.d ?? []).includes('"lineHeight"')),
-      )
-      .map(([name]) => name);
-    expect(
-      setting,
-      "a line-height class draws nothing on the phone: keep `lineHeight` in the element's style",
-    ).toEqual([]);
+  it("draws a line height from its class", () => {
+    expect(declarationsOf("leading-[22px]")).toEqual([{ lineHeight: 22 }]);
+  });
+
+  it("draws a placeholder's colour from the token's own variable", () => {
+    expect(JSON.stringify(declarationsOf("placeholder:text-muted-foreground"))).toBe(
+      JSON.stringify([[[{}, "var", "muted-foreground", 1], ["placeholderTextColor"], 1]]),
+    );
   });
 
   it("pads no multi-line field with py-*, which iOS's own top padding then overrides", () => {

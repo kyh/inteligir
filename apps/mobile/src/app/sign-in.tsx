@@ -16,7 +16,8 @@ const screenOf = (theme: Palette) =>
     justifyContent: "center",
   }) as const;
 
-const FIELD_CLASS = "rounded-lg border border-input bg-card px-4 py-3 text-16 text-foreground";
+const FIELD_CLASS =
+  "rounded-lg border border-input bg-card px-4 py-3 text-16 text-foreground placeholder:text-muted-foreground";
 
 const SignInScreen = () => {
   const theme = useTheme();
@@ -40,7 +41,6 @@ const SignInScreen = () => {
         <TextInput
           className={FIELD_CLASS}
           placeholder="Email"
-          placeholderTextColor={theme.mutedForeground}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -52,7 +52,6 @@ const SignInScreen = () => {
         <TextInput
           className={FIELD_CLASS}
           placeholder="Password"
-          placeholderTextColor={theme.mutedForeground}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -62,7 +61,6 @@ const SignInScreen = () => {
         <TextInput
           className={FIELD_CLASS}
           placeholder="This device's name"
-          placeholderTextColor={theme.mutedForeground}
           value={deviceName}
           onChangeText={setDeviceName}
           editable={!busy}

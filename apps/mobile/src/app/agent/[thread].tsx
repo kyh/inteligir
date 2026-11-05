@@ -36,7 +36,6 @@ const NEEDS_CONNECTION = "Needs a connection";
 const UNREACHABLE = "The agent couldn't be reached.";
 
 // a line height stays a style value: the stylesheet resolves no line-height class
-const READING_LINE = { lineHeight: 22 } as const;
 
 // a refused send in the person's words, the allowance's naming when it fills again from now
 const refusalWords = (cause: unknown): string =>
@@ -82,8 +81,7 @@ const Block = ({ block }: { block: ThreadBlock }) => {
       return (
         <Text
           selectable
-          className="self-end rounded-lg bg-muted px-3 py-2 text-16 text-foreground"
-          style={READING_LINE}
+          className="self-end rounded-lg bg-muted px-3 py-2 text-16 text-foreground leading-[22px]"
         >
           {event.text}
         </Text>
@@ -91,7 +89,7 @@ const Block = ({ block }: { block: ThreadBlock }) => {
     }
     case "agent.message": {
       return (
-        <Text selectable className="text-16 text-foreground" style={READING_LINE}>
+        <Text selectable className="text-16 text-foreground leading-[22px]">
           {event.text}
         </Text>
       );
@@ -165,9 +163,7 @@ const Conversation = ({ threadId }: { threadId: string }) => {
         <Block key={block.key} block={block} />
       ))}
       {preview === null ? null : (
-        <Text className="text-16 text-foreground" style={READING_LINE}>
-          {preview}
-        </Text>
+        <Text className="text-16 text-foreground leading-[22px]">{preview}</Text>
       )}
       {waiting.map((approval) => (
         <Approval
@@ -209,7 +205,6 @@ const Composer = ({
   onThread: (threadId: string) => void;
   threadId: string | null;
 }) => {
-  const theme = useTheme();
   const { queries } = useLibrary();
   const [text, setText] = useState("");
   // what the last send's refusal said, in the person's words; read when it failed, since the
@@ -240,9 +235,8 @@ const Composer = ({
       <View className="flex-row items-end gap-3">
         <TextInput
           accessibilityLabel="Message the agent"
-          className="grow basis-0 rounded-lg border border-input bg-card px-3 pt-2 pb-2 text-16 text-foreground"
+          className="grow basis-0 rounded-lg border border-input bg-card px-3 pt-2 pb-2 text-16 text-foreground placeholder:text-muted-foreground"
           placeholder={composerPlaceholder(false, threadId)}
-          placeholderTextColor={theme.mutedForeground}
           multiline
           value={text}
           editable={!send.isPending}
