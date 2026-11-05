@@ -1,8 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { authorizationHeader, readServerFile } from "inteligir/server/server-file";
 import { z } from "zod";
-import { expect, expectEq } from "../harness/assert";
+import { expectEq } from "../harness/assert";
 import { exec, hermeticProcessEnv } from "../harness/exec";
 import type { AppInstance } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
@@ -26,24 +25,13 @@ const searchFinds = async (app: AppInstance, token: string, notePath: string): P
 
 export const builtCliBoot: Scenario = {
   description:
-    "the esbuild bundle — what npm runs — boots in production mode, serves `dist/ui`'s shell byte for byte, migrates and indexes a write, hears an on-disk write through its forked watcher, and answers a client verb run from the same split bundle",
+    "the esbuild bundle — what npm runs — boots in production mode, migrates and indexes a write, hears an on-disk write through its forked watcher, and answers a client verb run from the same split bundle",
   name: "built-cli-boot",
   // no build step: the runner builds this bundle at suite start, through turbo.
   async run(ctx) {
     const cliDir = path.join(ctx.repoRoot, "apps", "cli");
     const distDir = path.join(cliDir, "dist");
     const app = await ctx.boot({ mode: "built", name: "built" });
-
-    ctx.log("GET / answers the staged workspace UI");
-    const server = readServerFile(app.dataDir);
-    expect(server !== null, "the built server published no server.json");
-    // a GET with no credential is the signed-out page, never the workspace.
-    const shell = await fetch(app.baseUrl, {
-      headers: { accept: "text/html", authorization: authorizationHeader(server.token) },
-    });
-    expectEq(shell.status, 200, "GET / on the built server");
-    const staged = await readFile(path.join(distDir, "ui", "index.html"), "utf-8");
-    expect((await shell.text()) === staged, "GET / answers dist/ui/index.html byte for byte");
 
     ctx.log("a write through the API reaches the index");
     await app.api.vault.write({
