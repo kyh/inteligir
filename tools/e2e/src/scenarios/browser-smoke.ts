@@ -1,4 +1,5 @@
 import { setTimeout as delay } from "node:timers/promises";
+import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
 import { z } from "zod";
 import { modChord, parseEval, untilBodyHolds } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
@@ -18,7 +19,7 @@ const TYPED = " Typed in the tab.";
 // here, not a unit test: no test task waits on a build, so a unit test over the assets reads the
 // previous build or one mid-write
 const assertDocumentPolicy = async (origin: string): Promise<void> => {
-  for (const path of ["/library", "/library/settings"]) {
+  for (const path of [LIBRARY_PAGE_PATH, `${LIBRARY_PAGE_PATH}/settings`]) {
     const response = await fetch(`${origin}${path}`, { headers: { accept: "text/html" } });
     expect(response.ok, `GET ${path} answered ${String(response.status)}`);
     const policy = response.headers.get("content-security-policy") ?? "";
@@ -74,7 +75,7 @@ export const browserSmoke: Scenario = {
       },
     );
     const back = new URL(await fresh(["get", "url"])).searchParams.get("next");
-    expect(back === "/library/settings", `the sign-in comes back to ${String(back)}`);
+    expect(back === `${LIBRARY_PAGE_PATH}/settings`, `the sign-in comes back to ${String(back)}`);
     await fresh.close();
 
     ctx.log("the signed-in tab pulled the library: the seeded item's card is in the grid");

@@ -1,9 +1,9 @@
 // The library's page (`@repo/workspace`, built into this Worker's assets under LIBRARY_PAGE_PATH):
 // every path under its prefix reaches the Worker first (`assets.runWorkerFirst` in
 // cloudflare.config.ts), which answers a file the build holds as it is and every other path with
-// the page's one document, so a deep link (`/library/settings`, `/library?item=…`) loads the page
-// and its router draws it. Only the hashed files under `/library/assets/` skip the Worker. No other
-// path falls back to the page, so a mistyped site route still answers the site's own 404.
+// the page's one document, so a deep link (the page's Settings, an item open by its query) loads
+// the page and its router draws it. Only the hashed files under its `assets/` skip the Worker. No
+// other path falls back to the page, so a mistyped site route still answers the site's own 404.
 //
 // The document's policy is the page's: its own scripts and SQLite's wasm, which the replica
 // compiles in the tab (`'wasm-unsafe-eval'`); calls and the socket to this origin alone; nothing

@@ -53,12 +53,17 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   offline would read alike). `apps/workspace/src/app/cloud/v1.ts`,
   `apps/workspace/src/app/cloud/needs-connection.tsx`.
 
-- **THE PAGE IS ONE BUNDLE, AND CATCHES UP AS ITS CONNECTION RETURNS.** No route
-  is split into a chunk of its own: a chunk first fetched by a tab that lost its
-  connection fails, and the router reloads the tab, losing the replica it holds
-  in memory and every write not yet sent. A tab in sight resumes the replica
-  the moment the browser says it is online again, rather than at its next
-  retry. `apps/workspace/vite.config.ts`, `apps/workspace/src/main.tsx`.
+- **THE PAGE IS ONE BUNDLE, AND CATCHES UP AS ITS CONNECTION RETURNS.** The
+  build inlines every dynamic import (`codeSplitting: false`), the editor's lazy
+  nodes (KaTeX, Mermaid, the calendar, the wiki chip) with the routes, so after
+  the page loads nothing is fetched but calls and files: a chunk first asked for
+  by a tab that lost its connection fails, the crash screen offers a reload, and
+  a reload loses the replica held in memory. The tab resumes the replica the
+  moment the browser says it is online again, rather than at its next retry.
+  Rejected: route splitting alone (the lazy nodes still split); warming each
+  chunk at boot (a tab offline before they land still fails); a boundary per
+  lazy node (nothing is left to fail to load). `apps/workspace/vite.config.ts`,
+  `apps/workspace/src/main.tsx`.
 
 - **THE TAB SENDS WHAT IT HOLDS UNTIL IT CLOSES, AND ASKS BEFORE LOSING IT.** A
   change the tab made lives only in its memory until the cell takes it, so the

@@ -1,6 +1,6 @@
 // The library's page in a browser tab over a booted Worker: the account `signUp` makes, a device of
 // its own signed in for a scenario to seed and read the library through `/v1` as an app does, and a
-// browser signed in through the site's own sign-in, which comes back to `/library`. What the tab
+// browser signed in through the site's own sign-in, which comes back to the page. What the tab
 // shows is the replica it pulled; what the cell holds is read through the device's client.
 
 import type { V1Client } from "@repo/contract/cloud/v1";

@@ -22,10 +22,11 @@ const worker = defineWorker({
   compatibilityDate,
   compatibilityFlags,
   workersDev: true,
-  // the library's page (@repo/workspace, LIBRARY_PAGE_PATH): every path under its prefix reaches
-  // the Worker first, which answers the page's document from these assets, so a deep link loads
-  // the page and no other path falls back to it; its hashed files go straight to the assets
-  // (src/worker/library/library-page.ts)
+  // the library's page (@repo/workspace): every path under its prefix reaches the Worker first,
+  // which answers the page's document from these assets, so a deep link loads the page and no
+  // other path falls back to it; its hashed files go straight to the assets
+  // (src/worker/library/library-page.ts). The prefix is LIBRARY_PAGE_PATH, written out since the
+  // dev server cannot load a module the Worker loads too (tools/repo-guards/src/route-paths.test.ts)
   assets: { runWorkerFirst: ["/library", "/library/*", "!/library/assets/*"] },
   // the log and the traces keep every request's path for up to seven days, so no route carries a
   // vault path in one (the vault reads post it), and drop the query string, which carries sign-in

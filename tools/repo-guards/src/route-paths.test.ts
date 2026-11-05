@@ -2,6 +2,7 @@
 // that drift. tests are excluded on purpose: a route test that derived its URL from the contract
 // could not catch the contract moving.
 
+import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import {
@@ -13,8 +14,17 @@ import {
 import { describe, expect, it } from "vitest";
 import { isTestFile, sourceOf, workspaceSourceFiles, workspaces } from "./repo";
 
-// `/ws` is absent: two characters plus a slash matches far too much ordinary prose and code.
-const NAMESPACES = [
+// `/ws` is absent: two characters plus a slash matches far too much ordinary prose and code. A
+// `quoted` path is a word module paths hold too (`@repo/notes/library/…`), so it counts only where
+// a string or a route pattern starts with it.
+interface Namespace {
+  readonly home: string;
+  readonly paths: readonly string[];
+  readonly use: string;
+  readonly quoted?: boolean;
+}
+
+const NAMESPACES: readonly Namespace[] = [
   {
     home: "packages/contract/src/local/local-routes.ts",
     paths: [VAULT_ASSET_PATH, HTML_FRAME_PATH, HEALTH_PATH, RPC_PREFIX],
@@ -30,19 +40,36 @@ const NAMESPACES = [
     paths: [V1_RPC_PATH],
     use: "V1_RPC_PATH from @repo/contract/cloud/v1",
   },
+  {
+    home: "packages/contract/src/cloud/library-page.ts",
+    paths: [LIBRARY_PAGE_PATH],
+    quoted: true,
+    use: "LIBRARY_PAGE_PATH from @repo/contract/cloud/library-page",
+  },
 ];
 
 // longest first, so the cloud's `/v1/vault/asset` is tried before the local `/vault/asset` it
 // contains, and `/v1/rpc` before the local `/rpc`.
 const GUARDED = NAMESPACES.flatMap((namespace) =>
-  namespace.paths.map((path) => ({ home: namespace.home, path, use: namespace.use })),
+  namespace.paths.map((path) => ({
+    home: namespace.home,
+    path,
+    quoted: namespace.quoted === true,
+    use: namespace.use,
+  })),
 ).toSorted((left, right) => right.path.length - left.path.length);
 
 // a caller that cannot import the contract, keyed by file, with why it cannot
-const ELSEWHERE = new Map<string, string>();
+const ELSEWHERE = new Map([
+  [
+    "apps/web/cloudflare.config.ts",
+    "its runWorkerFirst patterns: the dev server cannot load a module the config and the Worker both load (oxlint.config.ts, CONFIG_MODULES)",
+  ],
+]);
 
 interface Spelled {
   path: string;
+  quoted: boolean;
   home: string;
   use: string;
 }
@@ -53,11 +80,11 @@ interface Hit extends Spelled {
 
 // not followed by a word character or a dash, which tells `"/vault/asset?path="` from
 // `"./vault/asset-route"`.
-const spells = (source: string, path: string): boolean =>
-  new RegExp(`${path}(?![\\w-])`, "u").test(source);
+const spells = (source: string, { path, quoted }: Pick<Spelled, "path" | "quoted">): boolean =>
+  new RegExp(`${quoted ? "[\"'`!]" : ""}${path}(?![\\w-])`, "u").test(source);
 
 const spellings = (source: string): Spelled[] =>
-  GUARDED.filter((row) => spells(source, row.path)).slice(0, 1);
+  GUARDED.filter((row) => spells(source, row)).slice(0, 1);
 
 const sweptFiles = (): string[] =>
   workspaces()
@@ -66,14 +93,7 @@ const sweptFiles = (): string[] =>
     .toSorted();
 
 const hits = (files: readonly string[]): Hit[] =>
-  files.flatMap((file) =>
-    spellings(sourceOf(file)).map((row) => ({
-      file,
-      home: row.home,
-      path: row.path,
-      use: row.use,
-    })),
-  );
+  files.flatMap((file) => spellings(sourceOf(file)).map((row) => ({ ...row, file })));
 
 describe("one spelling per non-procedure route path", () => {
   const files = sweptFiles();

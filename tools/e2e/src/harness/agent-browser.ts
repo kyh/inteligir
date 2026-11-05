@@ -1,4 +1,5 @@
 import { setTimeout as delay } from "node:timers/promises";
+import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
 import { z } from "zod";
 import { skip } from "./assert";
 import { describeExecError, exec } from "./exec";
@@ -10,7 +11,7 @@ import { LIBRARY_RAIL } from "./selectors";
 export type AgentBrowser = (args: readonly string[], timeoutMs?: number) => Promise<string>;
 
 export interface OpenLibraryOptions {
-  // under /library, its query included (`?item=<id>` opens an item)
+  // under the page's prefix, its query included (`?item=<id>` opens an item)
   path?: string;
   // what the page shows once it is ready: its rail, unless the caller names the editor instead
   ready?: string;
@@ -261,7 +262,7 @@ export const createScenarioBrowser = (
       await closeQuietly(run);
     },
     openLibrary: async (worker, options = {}) => {
-      const next = `/library${options.path ?? ""}`;
+      const next = `${LIBRARY_PAGE_PATH}${options.path ?? ""}`;
       await run(
         ["open", `${worker.origin}/app/sign-in?${new URLSearchParams({ next }).toString()}`],
         60_000,
