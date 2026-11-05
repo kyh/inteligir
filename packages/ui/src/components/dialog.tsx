@@ -22,12 +22,17 @@ const DIALOG_OFFSET = 4;
 // The modal skin, Dialog's and AlertDialog's alike: the two primitives share their Backdrop and
 // Popup, so a second skin would only be a second look for one kind of surface. Both fade under the
 // Portal's presence (`@repo/ui/lib/popup-presence`), each with an exit of its own.
+// The backdrop is absolute where iOS WebKit runs the page, so it covers the visual viewport under
+// the browser's chrome (base-ui.com/react/overview/quick-start; body is relative in globals.css)
+const BACKDROP_CLASSES =
+  "fixed inset-0 min-h-dvh bg-black/40 supports-[-webkit-touch-callout:none]:absolute dark:bg-black/80";
+
 const renderDialogBackdrop = (backdropProps: HTMLProps<HTMLDivElement>) => {
   const { style: _style, ...rest } = motionProps(backdropProps);
   return (
     <motion.div
       {...rest}
-      className="fixed inset-0 z-50 bg-black/40 dark:bg-black/80"
+      className={cn(BACKDROP_CLASSES, "z-50")}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1, transition: spring.slow }}
       exit={{ opacity: 0, transition: spring.slow.exit }}
@@ -167,6 +172,7 @@ const DialogDescription = ({
 );
 
 export {
+  BACKDROP_CLASSES,
   Dialog,
   DialogCard,
   DialogContent,

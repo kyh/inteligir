@@ -75,7 +75,9 @@ const RootDocument = ({ children }: { children: React.ReactNode }) => {
         />
       </head>
       <body className="bg-background text-foreground font-sans antialiased">
-        {children}
+        {/* the site's own stacking context, so a popup Base UI portals into body stays above it
+            (https://base-ui.com/react/overview/quick-start) */}
+        <div className="isolate">{children}</div>
         <Scripts />
       </body>
     </html>

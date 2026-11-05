@@ -12,6 +12,7 @@ import { cn } from "@repo/ui/lib/cn";
 import { spring } from "@repo/ui/lib/springs";
 import { Elevated } from "@repo/ui/lib/elevated";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
+import { BACKDROP_CLASSES } from "@repo/ui/components/dialog";
 import { useSidebar, SidebarShell, SIDEBAR_WIDTH_MOBILE } from "@repo/ui/components/sidebar-core";
 import type { SidebarSide, SidebarVariant } from "@repo/ui/components/sidebar-core";
 
@@ -53,7 +54,7 @@ const SidebarSheet = ({ side, open, onClose, children }: SidebarSheetProps) => {
                 return (
                   <motion.div
                     {...rest}
-                    className="fixed inset-0 bg-black/40 dark:bg-black/80 z-40"
+                    className={cn(BACKDROP_CLASSES, "z-40")}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1, transition: { duration: 0.16 } }}
                     exit={{ opacity: 0, transition: spring.moderate.exit }}

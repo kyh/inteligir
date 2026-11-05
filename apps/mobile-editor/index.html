@@ -13,7 +13,8 @@
     <title>inteligir</title>
   </head>
   <body class="bg-background text-foreground antialiased">
-    <div id="root"></div>
+    <!-- the page's own stacking context, so a popup Base UI portals into body stays above it -->
+    <div id="root" class="isolate"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

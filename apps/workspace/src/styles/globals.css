@@ -34,14 +34,6 @@
   body {
     -webkit-user-select: none;
     user-select: none;
-    /* a dialog's backdrop covers the visual viewport on iOS Safari after a scroll
-       (https://base-ui.com/react/overview/quick-start) */
-    position: relative;
-  }
-  /* the page's own stacking context, the workspace and the Settings layer inside it, so a popup
-     Base UI portals into body stays above every layer of the page */
-  #root {
-    isolation: isolate;
   }
   input,
   textarea,

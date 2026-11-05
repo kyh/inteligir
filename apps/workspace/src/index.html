@@ -6,7 +6,9 @@
     <title>inteligir</title>
   </head>
   <body class="bg-background text-foreground antialiased">
-    <div id="root"></div>
+    <!-- the page's own stacking context, the workspace and the Settings layer inside it, so a popup
+         Base UI portals into body stays above every layer of the page -->
+    <div id="root" class="isolate"></div>
     <script type="module" src="/main.tsx"></script>
   </body>
 </html>
