@@ -81,9 +81,10 @@ a bullet is written and cited.
   navigation's URL alone, never its frame, so the files' origin passes
   whichever frame asks, and the page never sends the window there, saving a
   file through a blob of its own origin instead, the one a `download` link
-  keeps its name on (`apps/workspace/src/app/item/item-stages.tsx`). Any other
-  web page opens in the browser, at most once a second, since WebKit says
-  nothing of the click behind a navigation; anything else is refused,
+  keeps its name on (`apps/workspace/src/app/item/item-stages.tsx`), and a
+  blob the page made loads too, since WebKitGTK asks the hook about that link.
+  Any other web page opens in the browser, at most once a second, since WebKit
+  says nothing of the click behind a navigation; anything else is refused,
   `window.open` opens no window, and a download lands in Downloads
   (`apps/desktop/src-tauri/src/navigation.rs`). Closing the window hides it;
   the app lives on in the menu bar. Rejected: a file's address as the Download

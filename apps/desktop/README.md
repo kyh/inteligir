@@ -139,7 +139,9 @@ runs (`src-tauri/src/window.rs`):
   navigation's URL alone, never its frame, so the files' origin passes
   whichever frame asks; the page never sends the window there, since it saves
   a file by reading its bytes into a blob of its own origin
-  (`apps/workspace/src/app/item/item-stages.tsx`). A navigation anywhere else
+  (`apps/workspace/src/app/item/item-stages.tsx`), and a blob the page made
+  loads too, as WebKitGTK asks the hook about its `download` link (WebKit on
+  macOS saves one unasked). A navigation anywhere else
   is refused; an http(s) target is handed to the system browser instead, at
   most once a second, since WebKit tells the shell nothing of a user gesture.
 - **No second window.** `window.open` and `target="_blank"` are refused; a web

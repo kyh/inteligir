@@ -1,8 +1,10 @@
 //! What the window may load: the app's own page, and the shell's files inside it (a PDF's viewer
 //! is a frame of the page's). Tauri hands this hook a navigation's URL alone, never the frame it is
 //! for, so a load of the files' origin passes whichever frame asks; the page never sends the window
-//! itself there, since it saves a file through a blob of its own origin (`item-stages.tsx`). Any
-//! other web page opens in the browser instead, and nothing else loads.
+//! itself there, since it saves a file through a blob of its own origin (`item-stages.tsx`), whose
+//! `download` link WebKitGTK asks this hook about (WebKit on macOS hands a download over unasked),
+//! so a blob the page made passes too. Any other web page opens in the browser instead, and
+//! nothing else loads.
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -40,10 +42,23 @@ pub fn is_web_url(url: &Url) -> bool {
     matches!(url.scheme(), "http" | "https")
 }
 
+/// The origin a blob was made by: WebKit names one `blob:` before its maker's origin, and only that
+/// origin's own scripts can make one.
+fn blob_maker(target: &Url) -> Option<String> {
+    if target.scheme() != "blob" {
+        return None;
+    }
+    comparable_origin(&Url::parse(target.path()).ok()?)
+}
+
 /// Compared by origin, never by prefix: `tauri://localhost` prefixes `tauri://localhost.evil`.
 pub fn classify(target: &Url, pinned: &[&str]) -> Verdict {
-    let own = comparable_origin(target).is_some_and(|origin| pinned.contains(&origin.as_str()));
-    if own || is_frame_document(target) {
+    let pinned_origin =
+        |origin: Option<String>| origin.is_some_and(|origin| pinned.contains(&origin.as_str()));
+    if pinned_origin(comparable_origin(target))
+        || pinned_origin(blob_maker(target))
+        || is_frame_document(target)
+    {
         return Verdict::Allow;
     }
     if is_web_url(target) {
@@ -143,8 +158,24 @@ mod tests {
         );
         assert_eq!(classify(&url("file:///etc/passwd"), PINNED), Verdict::Deny);
         assert_eq!(classify(&url("javascript:alert(1)"), PINNED), Verdict::Deny);
+    }
+
+    #[test]
+    fn lets_a_blob_the_page_made_load_as_its_save_and_no_other() {
         assert_eq!(
-            classify(&url("blob:tauri://localhost/x"), PINNED),
+            classify(&url("blob:tauri://localhost/065f281d-fbc4"), PINNED),
+            Verdict::Allow
+        );
+        assert_eq!(
+            classify(&url("blob:https://example.com/065f281d-fbc4"), PINNED),
+            Verdict::Deny
+        );
+        assert_eq!(
+            classify(&url("blob:tauri://localhost.evil/065f281d-fbc4"), PINNED),
+            Verdict::Deny
+        );
+        assert_eq!(
+            classify(&url("blob:null/065f281d-fbc4"), PINNED),
             Verdict::Deny
         );
     }
