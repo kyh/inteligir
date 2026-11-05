@@ -4,12 +4,13 @@
 // (`./thread-loop`) runs on the Agents SDK's Lifecycle, its durable job queue and its one alarm,
 // and on nothing else of the SDK: a `drive` job starts the work detached from the alarm's dispatch
 // unless this instance runs it already, and stays, re-timed every 30 seconds, as the watchdog that
-// brings a dead instance's work back and cuts a reply gone silent in a live one; an approval waits under a job that denies it at ten minutes;
-// a push the cell could not take waits under the `outbox` job. Every job is pushed to run once,
-// its outcome returned rather than thrown, since Lifecycle retries a job three times in process by
-// default. A fresh instance holds no work, so every `drive` job it finds is an orphan, woken at
-// once. Each RPC starts the lifecycle, as native RPC needs, and is safe to repeat. A cell that
-// answers that it holds no such thread has the object purge itself.
+// brings a dead instance's work back and cuts a reply gone silent in a live one; an approval waits
+// under a job that denies it at ten minutes; a push the cell could not take waits under the
+// `outbox` job. Every job is pushed to run once, its outcome returned rather than thrown, since
+// Lifecycle retries a job three times in process by default. A fresh instance holds no work, so
+// every `drive` job it finds is an orphan, woken at once. Each RPC starts the lifecycle, as native
+// RPC needs, and is safe to repeat. A cell that answers that it holds no such thread has the object
+// purge itself.
 
 import type Anthropic from "@anthropic-ai/sdk";
 import { Lifecycle } from "agents/lifecycle";

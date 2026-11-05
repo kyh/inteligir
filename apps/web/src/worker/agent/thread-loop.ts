@@ -7,8 +7,7 @@
 // - every tool call of a reply is journaled before any runs, and each is run by the cell under an
 //   op id of its own, so one run again lands once;
 // - every call is reserved with the cell before it is sent, and what it cost pushed after;
-// - a reply silent for three minutes, pings included, is cut as a lost connection is, and sent
-//   again;
+// - a reply silent for three minutes, pings included, is cut as a lost connection and sent again;
 // - what the turn did reaches the cell through the outbox, in order, each push once.
 // The filing rules a turn brings ride a system message after the person's: it goes as the last
 // message until the turn's first reply lands, and lands with it, so a turn that ends with no reply
