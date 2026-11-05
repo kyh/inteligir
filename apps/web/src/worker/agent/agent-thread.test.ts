@@ -899,12 +899,14 @@ describe("a conversation's loop, stepped", () => {
   });
 
   it(
-    "takes up a deploy's definition at the next turn's start, never mid-turn, and replays no thinking from before it",
+    "takes up a deploy's definition at the next turn's start, never mid-turn, replaying no thinking from before it and the filing rules again",
     // nine model calls in four turns, each a round trip through the fake
     { timeout: 2 * TURN_MS },
     async () => {
       const account = agentAccount();
       const threadId = crypto.randomUUID();
+      const rules = "File trips under Travel.";
+      await rulesIn(account, rules);
       const first = deployedDefinition();
       // a deploy that changes the prompt and a tool's words, and another after it
       const redeployed = (words: string): ThreadDefinition => ({
@@ -934,19 +936,27 @@ describe("a conversation's loop, stepped", () => {
           for (const body of secondTurn) {
             expect(definitionSent(body)).toEqual(sentAs(second));
           }
-          // no thinking block of the turns before it, every reply of theirs still there
+          // no thinking block of the turns before it, every reply of theirs still there, and the
+          // filing rules sent again last, since what the turn's requests leave out may have taken
+          // the message they last went in
           const [opening = ""] = secondTurn;
           const openingTypes = blockTypesOf(unmarkedOf(opening));
           expect(openingTypes.flat()).not.toContain("thinking");
           expect(openingTypes).toEqual([
             ["text"],
+            ["text"],
             ["tool_use"],
             ["tool_result"],
             ["tool_use"],
             ["tool_result"],
+            ["text"],
             ["text"],
             ["text"],
           ]);
+          expect(unmarkedOf(opening).messages.at(-1)).toEqual({
+            content: rulesMessage(rules),
+            role: "system",
+          });
           expectSharedPrefixes(secondTurn);
           // deployed mid-turn: the turn ends under the definition it started under
           await deliver(
@@ -1006,6 +1016,14 @@ describe("a conversation's loop, stepped", () => {
         starts[1],
         starts[3],
       ]);
+      // the rules kept with the first reply of each turn that took up a definition, and of no other
+      const transcript = await transcriptOf(account, threadId);
+      const rolesOf = (turn: number) =>
+        transcript.filter((row) => row.turn === turn).map((row) => row.role);
+      expect(rolesOf(1).slice(0, 3)).toEqual(["user", "system", "assistant"]);
+      expect(rolesOf(2).slice(0, 3)).toEqual(["user", "system", "assistant"]);
+      expect(rolesOf(3)).not.toContain("system");
+      expect(rolesOf(4)).toEqual(["user", "system", "assistant"]);
       await expectRepliesAskedAsKept(account, threadId);
     },
   );
