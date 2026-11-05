@@ -648,11 +648,12 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   the routes it calls (the Mac's `/v1/rpc`, `/v1/blobs` and `/v1/exports`, the
   extension's first two), with no credentials, since both send a device
   credential as a bearer and never a cookie. The socket opens on a ticket and
-  asks no CORS, and every other origin meets none. Rejected: the shell's HTTP
-  plugin carrying the page's calls (a proxy in Rust for every call); host
-  permissions for the extension (an install warning, and the store build's
-  activeTab alone); a reflected origin (any page could read what a cookie
-  opened). `apps/web/src/worker/cors.ts`.
+  asks no CORS, and every other origin meets none; `vite dev` answers no
+  preflight of its own, so the Worker answers as deployed. Rejected: the
+  shell's HTTP plugin carrying the page's calls (a proxy in Rust for every
+  call); host permissions for the extension (an install warning, and the store
+  build's activeTab alone); a reflected origin (any page could read what a
+  cookie opened). `apps/web/src/worker/cors.ts`, `apps/web/vite.config.ts`.
 
 - **THE EXTENSION'S CREDENTIAL IS MINTED FOR THE SITE'S SESSION, ON A CLICK OF
   THE CONNECT PAGE.** `/connect/extension` is a site route that asks the person

@@ -99,7 +99,7 @@ export type CallFailure =
   // no answer, or one a later try may pass: the save waits to be sent again
   | { readonly kind: "unanswered" };
 
-export type CallRefusal = "update-extension" | "library-full" | "too-large" | "failed";
+type CallRefusal = "update-extension" | "library-full" | "too-large" | "failed";
 
 // the refusals a person can act on; any other the cloud answered under a 4xx no resend passes
 const REFUSALS = new Map<string, CallRefusal>([

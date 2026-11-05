@@ -49,8 +49,11 @@
     "//#format": {
       "cache": false
     },
+    // knip reads each workspace's tsconfig, and the extension's extends the one `wxt prepare`
+    // writes: without it knip sees none of the extension's suites
     "//#knip": {
-      "cache": false
+      "cache": false,
+      "dependsOn": ["@repo/extension#generate"]
     },
     "//#lint": {
       "cache": false

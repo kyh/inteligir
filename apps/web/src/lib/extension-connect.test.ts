@@ -62,31 +62,31 @@ describe("a message to the extension", () => {
   it("goes to the committed id alone, and reads only an answer that is one", async () => {
     const sent: unknown[][] = [];
     const answer = await askExtension(
-      { type: "hello" },
       {
         sendMessage: async (...args) => {
           sent.push(args);
           return { email: MINTED.email, extra: true };
         },
       },
+      { type: "hello" },
     );
     expect(answer).toEqual({ email: MINTED.email });
     expect(sent).toEqual([[EXTENSION_ID, { type: "hello" }]]);
     expect(
-      await askExtension({ type: "hello" }, { sendMessage: async () => "nonsense" }),
+      await askExtension({ sendMessage: async () => "nonsense" }, { type: "hello" }),
     ).toBeNull();
     expect(
       await askExtension(
-        { type: "hello" },
         {
           sendMessage: async () => {
             throw new Error("Could not establish connection. Receiving end does not exist.");
           },
         },
+        { type: "hello" },
       ),
     ).toBeNull();
     // a browser holding no extension that names this page has no runtime to ask
     const noExtension: Window["chrome"] = {};
-    expect(await askExtension({ type: "hello" }, noExtension.runtime)).toBeNull();
+    expect(await askExtension(noExtension.runtime, { type: "hello" })).toBeNull();
   });
 });

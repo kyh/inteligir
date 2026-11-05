@@ -67,8 +67,10 @@ export default defineConfig({
   resolve: {
     alias: { "@": src },
   },
-  // strictPort: every doc and script names :5174, so failing to bind beats moving.
-  server: { port: 5174, strictPort: true },
+  // strictPort: every doc and script names :5174, so failing to bind beats moving. No CORS of the
+  // dev server's own: its default answers every preflight itself, for loopback pages alone, so the
+  // Mac's page and the extension would meet it in place of the Worker's (src/worker/cors.ts)
+  server: { cors: false, port: 5174, strictPort: true },
   // `cf deploy` uploads whatever source maps the build emits
   environments: { ssr: { build: { sourcemap: true } } },
 });

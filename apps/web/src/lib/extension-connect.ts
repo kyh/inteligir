@@ -68,8 +68,8 @@ declare global {
 // a message to the extension, its answer parsed; no extension, a refused message or an answer
 // that is not one all read as no answer
 export const askExtension = async (
+  runtime: PageRuntime | undefined,
   request: ExtensionConnectRequest,
-  runtime: PageRuntime | undefined = window.chrome?.runtime,
 ): Promise<ExtensionConnectAnswer | null> => {
   if (runtime === undefined) {
     return null;

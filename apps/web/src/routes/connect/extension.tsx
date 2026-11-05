@@ -64,7 +64,7 @@ const ConnectExtensionPage = () => {
     try {
       setOutcome(
         await connectExtension({
-          ask: askExtension,
+          ask: async (request) => await askExtension(window.chrome?.runtime, request),
           mint: async () =>
             await v1Client(null).account.connectExtension({ deviceName: DEVICE_NAME }),
           revoke: async (credential) => {

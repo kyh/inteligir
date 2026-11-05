@@ -34,7 +34,7 @@ export const readConnection = async (): Promise<Connection | null> => {
   return parsed.success ? parsed.data : null;
 };
 
-export const keepConnection = async (connection: Connection): Promise<void> => {
+const keepConnection = async (connection: Connection): Promise<void> => {
   await browser.storage.local.set({ [CONNECTION_KEY]: connection });
 };
 

@@ -8,7 +8,7 @@ import { z } from "zod";
 
 // the rendered page's html past which the capture answers none and the save is the page's link,
 // which the cloud reads; in UTF-16 units, as a string's length counts
-export const CAPTURE_HTML_MAX_CHARS = 2 * 1024 * 1024;
+const CAPTURE_HTML_MAX_CHARS = 2 * 1024 * 1024;
 
 export interface CaptureOptions {
   readonly htmlMaxChars: number;
