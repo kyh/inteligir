@@ -2,6 +2,15 @@
   "$schema": "https://turborepo.dev/schema.json",
   "extends": ["//"],
   "tasks": {
+    // cargo compiles the shell for its tests and for clippy, and tauri::generate_context! reads the
+    // page @repo/workspace builds (frontendDist), so both wait on that build, as a fresh checkout has
+    // none
+    "test": {
+      "dependsOn": ["^topo", "generate", "^build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^topo", "generate", "^build"]
+    },
     // The unbundled debug shell the scenario suite drives (tools/e2e/src/harness/desktop-shell.ts),
     // with @repo/workspace's page inside it. cargo keeps its own incremental cache, keyed
     // on what turbo cannot see (the toolchain, ~/.cargo), so a turbo hit could only skip a no-op
