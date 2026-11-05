@@ -174,15 +174,14 @@ node is rather than discriminating structurally at each visit.
   edit answers null and falls to the copy.
   `packages/notes/src/sync/url-item-verdict.test.ts`.
 
-- **ONE URL-ITEM VERDICT RUNS IN EVERY MERGE, AND BOTH ASKERS LAND THE SAME
-  BYTES.** It takes a pair only when both read as a url item (or the image or
-  PDF a fill made of one) with one url key, over a base with that key or none.
-  Every rule is phrased by role and every diff3 runs in one orientation, so no
-  copy is made. It runs in reconcile-file (the desktop's sync merge and the
-  phone's queue) and in the editor's merges (`mergeItemTexts`). Rejected: a
-  Worker lease so one device fills (a new /cloud protocol for what a pure
-  verdict settles), and renaming on fill (git cannot pair the rename with a
-  concurrent phone edit). `@repo/notes/sync/url-item-verdict`.
+- **ONE URL-ITEM VERDICT RUNS IN THE SYNC'S MERGE, AND BOTH ASKERS LAND THE
+  SAME BYTES.** It takes a pair only when both read as a url item (or the image
+  or PDF a fill made of one) with one url key, over a base with that key or
+  none. Every rule is phrased by role and every diff3 runs in one orientation,
+  so no copy is made. It runs in reconcile-file (the local server's sync
+  merge). Rejected: a Worker lease so one device fills (a new /cloud protocol
+  for what a pure verdict settles), and renaming on fill (git cannot pair the
+  rename with a concurrent edit). `@repo/notes/sync/url-item-verdict`.
 
 ## Knowledge: index, search and links
 

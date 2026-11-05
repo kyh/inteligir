@@ -53,7 +53,7 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   login or restart. Rejected: forgetting the file alone (the row stays active
   against the twenty-device cap, so repeated sign-ins lock the account out).
   `apps/cli/src/server/cloud/sync-runtime.ts`,
-  `apps/mobile/src/sync/sync-runtime.ts`.
+  `apps/mobile/src/lib/compose-runtime.ts`.
 
 - **AN ACCOUNT IS DELETED FROM THE APP, THE PASSWORD ASKED AGAIN, THROUGH BETTER
   AUTH'S `deleteUser`** (owner decision: whoever lost their Mac deletes from any
@@ -110,13 +110,13 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 - **`@repo/contract/cloud` IS THE CLIENT RUNTIME CORE, not only the wire**: the
   login flow, the sync session, the sign-in check and the socket's keepalive and
-  reconnect are code BOTH clients run, injecting only stores, timers and a
-  socket dial, since a security discipline with two spellings is two to audit;
-  what only the CLI runs sits beside its consumer. Vault paths parse by
-  `parseVaultPath`, required to be the identity, in one schema
-  (`@repo/notes/knowledge/vault-path-schema`) the phone's editor page parses its
-  wire by too, and a `[[Title|uuid]]` link resolves by the frontmatter id on the
-  phone as on the desktop (`buildResolver`).
+  reconnect are code a client runs, injecting only stores, timers and a socket
+  dial, so a security discipline has one spelling to audit; what only the CLI
+  runs sits beside its consumer, and a replica's (the Mac's, the phone's) is
+  `@repo/library-replica`'s. Vault paths parse by `parseVaultPath`, required to
+  be the identity, in one schema (`@repo/notes/knowledge/vault-path-schema`),
+  and a `[[Title|uuid]]` link resolves by the frontmatter id
+  (`buildResolver`).
 
 - **A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, the Worker is held to exactly
   what it declares, and the wire breaks only behind the client build floor**
@@ -149,15 +149,15 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   aborts too. The fence is `@repo/contract/cloud/sync/sync-session.ts`.
 
 - **A REVOCATION IS HEARD BY A CHECK OF THE SIGN-IN, AND THE SOCKET ONLY HURRIES
-  IT.** Only an http refusal ends a sign-in, so both clients run `checkSignIn`
+  IT.** Only an http refusal ends a sign-in, so the CLI runs `checkSignIn`
   (`@repo/contract/cloud/sync/sync-session.ts`), the device list, the cheapest
   call a credential makes, as the sign-in starts, as the socket opens, when the
   cloud closes a revoked device's socket, and on a minute's timer; any other
-  request that hears a refusal ends the sign-in too. The socket drops itself
-  after two silent keepalives, since a half-open connection neither answers nor
-  closes. Rejected: a log polled only to carry the verdict.
+  request that hears a refusal ends the sign-in too, and a replica's (the
+  Mac's, the phone's) is its next pull, which the closed socket asks for. The
+  socket drops itself after two silent keepalives, since a half-open connection
+  neither answers nor closes. Rejected: a log polled only to carry the verdict.
   `apps/cli/src/server/cloud/sync-runtime.ts`,
-  `apps/mobile/src/sync/sync-runtime.ts`,
   `packages/contract/src/cloud/sync/cloud-socket.ts`.
 
 - **THE HOSTED VAULT'S PATHS ARE BUDGETED PER DEVICE, and the budget buys time,

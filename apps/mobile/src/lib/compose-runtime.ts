@@ -110,6 +110,16 @@ export interface AppRuntime {
 export const SIGNED_OUT_ELSEWHERE = "This iPhone was signed out of your library.";
 export const ACCOUNT_DELETED = "Your account was deleted, and its library with it.";
 
+// the account's device slot back, best-effort: offline, or a cloud that did not answer, leaves
+// the device list naming this phone, to remove
+const revokeQuietly = async (library: PhoneLibrary): Promise<void> => {
+  try {
+    await library.client.account.signOut();
+  } catch {
+    // nothing to do: the sign-out goes on without it
+  }
+};
+
 export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   const session = createExternalStore<PhoneSession>({ kind: "restoring" });
   let sql: Promise<ReplicaSql> | null = null;
@@ -247,11 +257,8 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       if (unsent > 0 && options.discardUnsent !== true) {
         return { edits: unsent, kind: "unsent" };
       }
-      try {
-        await library.client.account.signOut();
-      } catch {
-        // offline, or the cloud did not answer: the device list still names this phone, to remove
-      }
+      // never waited on, so an unreachable cloud holds no sign-out open
+      void revokeQuietly(library);
       await leave(library, null);
       return { kind: "signed-out" };
     },

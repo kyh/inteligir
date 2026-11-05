@@ -11,9 +11,10 @@ and cited.
   ids, the `/v1` transport, the socket dial, the staged files and the block
   merge are handed in; the package imports no node, React, React Native, Expo,
   editor or UI module and touches no platform global (`oxlint.config.ts`), so
-  the editor's diff3 is injected as the merge. Rejected: an engine per host
-  (the Mac's and the phone's rules would drift); importing the merge (Plate
-  into Hermes and every node suite).
+  the editor's diff3 is injected as the merge, which resolves, so the phone
+  runs it in its headless page (`apps/mobile/src/editor/headless-page-host.ts`).
+  Rejected: an engine per host (the Mac's and the phone's rules would drift);
+  importing the merge (Plate into Hermes and every node suite).
   `packages/library-replica/src/replica-ports.ts`.
 
 - **A PULLED ROW LANDS ONLY OVER AN OLDER ONE, A PAGE A TRANSACTION, AND ITS

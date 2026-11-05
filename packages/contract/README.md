@@ -5,7 +5,7 @@ the workspace UI and the CLI compile against and `inteligir serve`
 implements; a client of it, the page's, the CLI's or the e2e harness's, is typed as
 its `LocalClient`, never a `RouterContractClient` spelled again.
 `@repo/contract/cloud` is the wire between an install and the Cloudflare
-Worker — and the client runtime core both the CLI and the phone run over it.
+Worker — and the client runtime core the CLI runs over it.
 Its `cloud/v1` is that wire as one oRPC contract on `/v1/rpc`, `account.*`
 answered by the Worker and `library.*` by the account's library cell, typed by
 every app as `V1Client`; the REST rows beside it go as their last client moves
@@ -67,7 +67,7 @@ src/
     device/            # the device credential and the one login flow
     sync/              # the session fence and the account socket that says the vault moved
     account/           # the account's rows (account-contract.ts), its deletion and the sign-up doors
-    vault/             # the hosted vault's paths and shapes, and the phone's write
+    vault/             # the hosted vault's paths and shapes
   browser/             the extension's wire, behind its own version
     browser-wire.ts    # the native host's frames, BROWSER_WIRE_VERSION and its floor
     extension-identity.ts # the extension's key, id, origin, host names and store link
@@ -83,9 +83,10 @@ src/
   (`apps/cli/src/native-host/`) answers every `/browser` frame and adapts it
   to `/local`, and the desktop door writes the browsers' host manifests from
   the extension's identity (`apps/cli/src/desktop/native-hosts.ts`).
-- **apps/mobile** reads the hosted vault and commits change sets to it
-  (`vaultCommit`), and never speaks git, which a phone does not hold. It
-  reaches nothing under `/local` either, pinned by
+- **apps/mobile** reaches `/v1` alone, the library through its replica
+  (`@repo/library-replica`) and the account through `cloud/v1`, as the Mac's
+  window does, and never speaks git. It reaches nothing under `/local`
+  either, pinned by
   the same `dep-dag.test.ts` table (`CLOUD_ONLY_CLIENTS`) as apps/web: a phone
   install may be months stale against the deployed Worker.
 - **apps/workspace** compiles against `/local` alone, and the extension's
@@ -186,7 +187,7 @@ src/
   parse and keepalive stay one spelling. A runtime takes the resulting
   `CloudSocketOpener`, so a test hands it a fake that never dials.
 - `DeviceCredentialStore` (`device/login-flow.ts`): where the credential lands
-  is the only thing the CLI and the phone supply to the login flow.
+  is the only thing the CLI supplies to the login flow.
 
 ## Testing
 

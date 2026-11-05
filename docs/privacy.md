@@ -110,17 +110,13 @@ through the Service or otherwise includes:
     nothing else syncs.** Signed in, each Mac sends its library — items,
     attachments, highlights and every earlier version, each change named for the device that saved it
     and an agent's changes for the conversation that made them — to one hosted
-    copy per account, which your other Macs and your phone read from. Our cloud
-    also WRITES it: your phone's edits, saves, new notes, renames, deletions,
-    highlights and photos are saved into it by our cloud as changes named for
-    the phone, and every Mac takes them in at its next sync. A file over 10 MB is
+    copy per account, which your other Macs read from. A file over 10 MB is
     never sent: it stays on the Mac it is on. The online library is reachable
     only with a device credential from your own account, and holds about 1 GB,
     history included: a full one still opens and downloads everywhere, but takes
-    no new changes, which wait on your Macs and your phone until it has room. It
+    no new changes, which wait on your Macs until it has room. It
     is encrypted at rest by Cloudflare, but we can read it — there is no
-    end-to-end encryption; the trade is what lets your phone read and edit your
-    library without holding its history. A library with a git server of its own (see
+    end-to-end encryption. A library with a git server of its own (see
     [How we share your personal
     information](#how-we-share-your-personal-information)), or a folder iCloud
     Drive, Dropbox, Google Drive, OneDrive or Obsidian Sync already syncs, never
@@ -239,8 +235,7 @@ The apps also hold to these, plainly:
   addresses are never fetched, and an address on your own network is fetched
   only when it is the link you saved: a page on the internet can never send
   your Mac to one, by a redirect or by naming a picture there. Your iPhone
-  fetches a link you saved there once it is online and the app is open, and
-  only web addresses, a page on the internet only over https; from a page on
+  fetches a page you share to it as you share it, and only web addresses, a page on the internet only over https; from a page on
   the internet it never asks a picture, an oEmbed address or a redirect's
   next stop whose address names your own network by how it is spelled (it
   cannot look an address up first, as a Mac does). For a link imported
@@ -267,9 +262,11 @@ The apps also hold to these, plainly:
   browser's native messaging, and to nothing else. It sends nothing to us or to
   anyone. Nothing you typed into the page goes with it: form fields and every
   box you type into, such as an email you are writing, are emptied first.
-- **Sharing from your iPhone.** Sharing a page to Inteligir saves its address,
-  its title and any text you shared into your library, like any other edit on
-  the phone, and the phone then fetches the page as above to fill it in.
+- **Sharing from your iPhone.** Sharing a page to Inteligir has the phone fetch
+  the page as above and save what it read, its address, title, text and
+  cover, into your library, like any other edit on the phone; text you share
+  is saved as you shared it. A page it cannot read then, offline included, is
+  saved as its address, which our cloud reads once it arrives.
 - **Importing from Raindrop.** The CSV file you choose is read on your Mac and
   kept in the app's data folder only until the import ends. Each imported link
   is then filled in as above. Imported into your online library instead, the
@@ -423,33 +420,28 @@ Specifically, in our cloud:
 **Your phone.** Signed in, the phone keeps its own copy, so it opens and edits
 your library offline:
 
-- **Every item's text**, with its highlights, downloaded from your online
-  library, and a small picture for each card; an attachment only once you open
-  it.
-- **Whatever it has not sent yet.** Edits, saves, new notes, renames,
-  deletions, highlights and photos wait on the phone until the online library
-  takes them, and a link you saved there waits on the phone until the phone has
-  read it: no other device reads it unless you choose Refresh from the page on
-  a Mac. A change
-  the library cannot take as it is stays on the phone and says so, until you
-  retry it, keep it as a new note or discard it. A page you share to Inteligir
-  waits in the share sheet's own storage on the phone until the app saves it.
+- **Every item**, its text, highlights and folders, downloaded from your
+  online library, a small picture for each card, the pictures your own notes
+  show, and any other file once you open it.
+- **Whatever it has not sent yet.** Edits, saves, new notes, deletions,
+  highlights and photos wait on the phone until the online library takes them.
+  A change the library refuses stays on the phone and says so. A page you
+  share to Inteligir waits in the share sheet's own storage on the phone until
+  the app saves it.
 
 It all lives in the app's own storage on the phone. The items and unsent
-changes, photos waiting to be sent included, sit where the app keeps them
-out of the phone's iCloud backup: a phone restored from a backup downloads your
-library again, and anything it had not sent is gone. Attachments you opened sit in
-the app's cache, which iOS may clear and never backs up. The phone's sign-in is
-kept in the iPhone's Keychain for that iPhone alone: a backup restored onto
-another phone does not carry it, so the new phone signs in again and becomes a
-device of its own.
+changes, photos waiting to be sent and the pictures your notes show included,
+sit where the app keeps them out of the phone's iCloud backup: a phone
+restored from a backup downloads your library again, and anything it had not
+sent is gone. Other files you opened sit in the app's cache, which iOS may
+clear and never backs up. The phone's sign-in is kept in the iPhone's Keychain
+for that iPhone alone: a backup restored onto another phone does not carry it,
+so the new phone signs in again and becomes a device of its own.
 
-- **Signing out** on the phone erases all of it — items, attachments,
-  anything unsent and the links it has not read yet, which it asks about first
-  — and tells our cloud to remove the phone from your account. A link it had not
-  read stays unread on every device until you choose Refresh from the page on a
-  Mac. A phone that signs out offline
-  forgets its sign-in all the same; revoke it from Settings › Account on a Mac.
+- **Signing out** on the phone erases all of it — items, files and anything
+  unsent, which it asks about first — and tells our cloud to remove the phone
+  from your account. A phone that signs out offline forgets its sign-in all the
+  same; revoke it from Settings › Account on a Mac.
 - **Revoking the phone** from a Mac, or **deleting the account**, erases the
   same the next time the phone reaches our cloud and is refused, without
   asking. Until then it keeps what it holds.
@@ -1097,8 +1089,8 @@ to Better Auth under `/api/auth/`. Nothing else under `/v1/` exists.
 | `/v1/vault/tree`      | The names, sizes and content ids of the files in your online library.                                                                                                                                                                                                                                               | The device's credential, within a per-device budget.                                                                                            |
 | `/v1/vault/file`      | One item's text from your online library.                                                                                                                                                                                                                                                                           | The device's credential, within a per-device budget.                                                                                            |
 | `/v1/vault/files`     | Up to 40 items' text from your online library, in one request.                                                                                                                                                                                                                                                      | The device's credential, within a per-device budget.                                                                                            |
-| `/v1/vault/asset`     | One attachment from your online library, when your phone opens it or draws its card's picture.                                                                                                                                                                                                                      | The device's credential, within a per-device budget.                                                                                            |
-| `/v1/vault/commit`    | Your phone's edits, saves, new notes, renames, deletions, highlights and photos, saved into your online library as one change named for the phone; an item another device changed first answers its text and that device's name.                                                                                    | The device's credential, within a per-device budget.                                                                                            |
+| `/v1/vault/asset`     | One attachment from your online library.                                                                                                                                                                                                                                                                            | The device's credential, within a per-device budget.                                                                                            |
+| `/v1/vault/commit`    | Changes to your online library, as one change named for the device that sent them; an item another device changed first answers its text and that device's name.                                                                                                                                                    | The device's credential, within a per-device budget.                                                                                            |
 | `/v1/git/vault.git`   | Your library and its whole history, sent up from and down to your Macs.                                                                                                                                                                                                                                             | The device's credential, within a per-device budget.                                                                                            |
 
 Everything else the app reaches is someone else's:

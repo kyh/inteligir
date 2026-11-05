@@ -112,8 +112,8 @@ On main, clean, at the commit to ship:
 pnpm format:fix && pnpm verify && pnpm e2e && pnpm smoke:cli && pnpm smoke:desktop && pnpm package:extension
 ```
 
-Three scenarios serve real pages from the machine's own private address
-(`link-capture`, `import-integrated`, `phone-fill-integrated`), and skip with "no usable LAN address" on a machine
+Two scenarios serve real pages from the machine's own private address
+(`link-capture`, `import-integrated`), and skip with "no usable LAN address" on a machine
 that has none, as an agent's sandbox does. CI's runner has one and runs them
 under `--no-skip`, so they are proven by the release commit's green CI below,
 whatever a local run skipped.
@@ -349,91 +349,88 @@ account whose library holds about 2,000 items gives the timing check its load.
   share extension's profile. Passing: the upload passes with no ITMS-91053 for
   the `.appex`.
 
-- **Sign in** with the account's email and password. Passing: the first
-  mirror says Loading your library… with its count, then the library shows.
-  Kill the app and open it again. Passing: the splash holds
+- **Sign in** with the account's email and password. Passing: the library
+  pulls and shows. Kill the app and open it again. Passing: the splash holds
   until it knows, the sign-in form never flashes, and the phone is still
-  signed in.
+  signed in, its library there before any pull.
+- **The replica on the device.** Search the library for a word only an
+  article's body holds, then sign out and in again. Passing: the search finds
+  it (expo-sqlite's full-text search on the device), and the second sign-in
+  pulls the library afresh with no error.
 - **Edit.** Open a note, type, go back. Passing: typing, autocorrect and the
   keyboard's microphone each land once; the selection handles and the edit
   menu work, with no floating toolbar; the formatting toolbar rides the
-  keyboard; and the edit shows in the note on the Mac after its next sync.
-  Background the phone's app, change a note on the Mac, come back. Passing:
-  the change shows.
-- **The editor's edges.** Passing: a cold open of a note is editable within a
+  keyboard; and the edit shows on the Mac within seconds. Background the
+  phone's app, change a note on the Mac, come back. Passing: the change shows.
+- **The editor's edges.** Passing: a cold open of an item is editable within a
   second; New note opens with its title focused and the keyboard up; a
-  `[[link]]` pushes its note and back returns; an external link opens Safari
+  `[[link]]` pushes its item and back returns; an external link opens Safari
   and the page never navigates; a chart and tabs refuse edits; a Mermaid
   diagram draws, and recolours with no flash when dark mode flips; dark mode
   follows the system, with no light edge behind a pushed screen or the
   keyboard, even after switching it with the app open; typing and then
   backgrounding and killing the app keeps what was typed.
-- **Offline.** Sync once, turn on airplane mode, kill the app and open it.
-  Passing: the library and any item open. Edit a note and add
-  a photo while still offline, kill the app, open it, turn airplane mode off.
-  Passing: both reach the Mac.
-- **Both devices at once.** With the phone offline, change the same lines of
-  one note on the phone and on the Mac, then reconnect; repeat with different
-  lines. Passing: different lines merge; the same lines leave a copy named for
-  the device it came from, such as `Plan (conflict, <device>).md`, and the
-  phone's banner says how it settled, with Open.
-- **Create, rename, delete.** New note; rename a note another note links to;
-  delete a note with highlights. Passing: the Mac shows the new note, the link
-  rewritten to the new name, and Deleted on the Mac brings the note back with
-  its highlights. Delete an image item. Passing: its picture leaves the Mac's
-  `assets/` too, and Deleted on the Mac restores both.
+- **Offline.** Turn on airplane mode, kill the app and open it. Passing: the
+  library and any item open, an image a note embeds included. Edit a note and
+  add a photo while still offline, kill the app, open it, turn airplane mode
+  off. Passing: both reach the Mac, and the banner under the library counts
+  them down to nothing.
+- **Both devices at once.** With the phone offline, change one paragraph of a
+  note on the phone and another on the Mac, then reconnect; then change the
+  same lines of one paragraph on both. Passing: different paragraphs both
+  land; the same lines keep the phone's and say so on the phone, with nothing
+  lost from the Mac's in its History (the merge run in the headless page).
+- **Deleted.** Move an item with highlights to Deleted on the phone, then
+  restore it on the Mac. Passing: it leaves both libraries and comes back with
+  its highlights.
 - **Photos.** Add one from the camera and one from the library. Passing: each
-  lands in the library as `assets/<name>.jpg` of about 1 MB or less, draws in
-  its note on the Mac, and has no location: Preview's Inspector (⌘I) shows no
-  GPS tab.
-- **No agent on the phone.** Select text in a note. Passing: the toolbar over
-  the keyboard offers Highlight and no Ask agent, and no screen lists threads.
-  On the Mac, run an action that edits a note. Passing: the edit shows on the
-  phone, and the action itself does not.
+  is an image item of about 1 MB or less, draws on the Mac, and has no
+  location: the Mac's Info shows no place, and the original opened in Preview
+  shows no GPS tab in its Inspector (⌘I).
+- **The agent, online only.** Open the agent, ask it to tag an item, approve
+  what it asks, then turn on airplane mode and send again. Passing: the reply
+  writes in as it comes, the approval lands, the tag shows on both devices,
+  the thread lists on the Mac too, and offline the send says Needs a
+  connection and sends nothing.
 - **A Mac's edit arrives at once.** With the phone's app in the foreground on
-  an item, edit that item on the Mac and let it sync. Passing: the change shows
-  on the phone within seconds, well before the minute's sign-in check would
-  matter (the account's socket upgraded from the device, React Native's headers
-  argument carrying the bearer).
+  an item, edit that item on the Mac. Passing: the change shows on the phone
+  within seconds (the account's socket dialed from the device by its ticket).
 - **Sign out.** With an edit still unsent (airplane mode), Sign out. Passing: it
-  asks first and names the count; confirmed, the sign-in screen shows.
+  asks first and names the count; confirmed, the sign-in screen shows at once,
+  even offline.
 - **Revoke.** Sign the phone in again, then Revoke it in Settings › Account on
   the Mac. Passing: the phone's next request ends its sign-in, and the sign-in
   screen says this device was signed out.
 - **No iCloud backup of the library.** Settings › your name › iCloud › Manage
   Account Storage › Backups › this iPhone. Passing: Inteligir's backup is a
-  small fraction of the items it holds (the mirror downloads again from the
-  online library), and photos added in airplane mode do not grow it.
+  small fraction of the items it holds (the replica downloads again), and
+  photos added in airplane mode do not grow it.
 - **A new phone signs in as itself.** Restore this iPhone's encrypted backup
-  onto another iPhone and open the app. Passing: it shows the sign-in screen,
-  and once signed in Settings › Account on the Mac lists it beside the first
-  phone.
-- **Share a page.** With every Mac signed in to the account asleep or quit,
-  share a page from Safari to Save to Inteligir. Passing: it lands in Unsorted
-  named by the page's title, and within a few seconds the phone itself fills
-  it in: "Waiting to be read" goes away and the card shows the site and the
-  cover, and the item opens with the article. From YouTube, X and Mail: the
-  link is saved and read the same way. Shared offline: it is queued, and lands
-  and is read once the phone is online with the app open. Shared signed out:
-  it waits for the sign-in. A photo does not offer Inteligir.
+  onto another iPhone and open the app. Passing: it shows the sign-in screen
+  (the Keychain's credential is this device's only), and once signed in
+  Settings › Account on the Mac lists it beside the first phone.
+- **Share a page.** Share a page from Safari to Save to Inteligir. Passing: it
+  opens read, titled by the page, with its site, cover and article, within a
+  few seconds and before any Mac or the cloud reads it. From YouTube, X and
+  Mail: the link is saved and read the same way. Shared offline: it saves as
+  its link at once, "Waiting to be read", and is read once it reaches the
+  cloud. Shared signed out: it waits for the sign-in. A photo does not offer
+  Inteligir.
 - **A plain-http page and a redirect.** Share `http://neverssl.com` and a
-  shortened https link (a `bit.ly` one). Passing: the http page says at once,
-  in the item, that the iPhone reads a public page only over https, with no
-  retry; the short link is read at the address it redirects to.
-- **A share and the Macs.** With two Macs online when a phone's share lands.
-  Passing: one item and no conflict copy, read by the phone; neither Mac's
-  debug log names a fill of it. Pressing Refresh on a Mac while the phone adds
-  a tag keeps both.
+  shortened https link (a `bit.ly` one). Passing: the http page is saved as
+  its link for the cloud to read, never fetched by the phone; the short link
+  is read at the address it redirects to.
 - **The library.** Passing: a 2,000-item library scrolls with covers; an
   offline launch shows placeholders for covers not yet seen; the picture and
   PDF viewers open; and a bare highlight made on the phone shows on the Mac.
 - **The screens in light and dark.** With the system in Light, open the
-  library, an item and its Info and highlights sheets, a picture in the viewer
-  and, signed out,
-  the sign-in screen; switch to Dark in Control Center with the app open and
-  look again. Passing: every screen has the colors, spacing, type sizes and
-  corners the build before it had, a pressed text button dims, no line of text
-  runs into the next, and the switch recolours each screen without a relaunch.
+  library, an item and its Info and highlights sheets, a picture in the viewer,
+  the agent and, signed out, the sign-in screen; switch to Dark in Control
+  Center with the app open and look again. Passing: every screen has the
+  colors, spacing, type sizes and corners the build before it had (nativewind's
+  release candidate), a field's placeholder is muted, a pressed text button
+  dims, no line of text runs into the next, and the switch recolours each
+  screen without a relaunch.
 - **A page's copy and a file inside an item.** On the Mac, Keep a copy of the
   page on a saved article; on the phone, open the item and tap Copy of the
   page. Passing: the copy opens in the viewer as the page looked, nothing in it
@@ -454,24 +451,26 @@ account whose library holds about 2,000 items gives the timing check its load.
 ### The iPhone app, in the simulator or a development build
 
 - **The editor page's policy under WebKit.** In a development build
-  (`pnpm --filter @repo/mobile ios`), open a note, then Safari › Develop ›
-  Simulator › the note's page. Passing: the note is editable, and the console
+  (`pnpm --filter @repo/mobile ios`), open an item, then Safari › Develop ›
+  Simulator › the item's page. Passing: the item is editable, and the console
   has no `Refused to` line; the static CSP is otherwise proven in Chromium
   alone.
+- **The headless page under WebKit.** In the same build, share a page, then
+  Safari › Develop › Simulator › the hidden page. Passing: its console has no
+  `Refused to` line and no error, and the item opens read.
 - **The share address.** In the simulator, share a link from Safari to the
   app, once with the app quit and once with it open. Passing: `+native-intent`
   lands on the Library both times, with no Unmatched-route screen flashing
   first.
-- **A killed page reloads.** In the simulator, quit the note's
-  `com.apple.WebKit.WebContent` process in Activity Monitor. Passing: the note
+- **A killed page reloads.** In the simulator, quit the item's
+  `com.apple.WebKit.WebContent` process in Activity Monitor. Passing: the item
   reloads with its text.
-- **The database upgrades.** Every step appended to `MIGRATIONS` in
-  `apps/mobile/src/lib/phone-db.ts` since the build TestFlight last served:
-  install that build, sign in, sync, leave an edit unsent, then install this
-  build over it. Passing: it opens with no error, the unsent edit still waits,
-  and after one sync, turning on airplane mode and a cold launch shows the
-  library. The first TestFlight build has no build before it, so it skips
-  this.
+- **The database upgrades.** Every step appended to `apps/mobile/src/lib/phone-db.ts`
+  since the build TestFlight last served: install that build, sign in, leave an
+  edit unsent, then install this build over it. Passing: it opens with no
+  error, the unsent edit still waits, and turning on airplane mode and a cold
+  launch shows the library. The first TestFlight build has no build before it,
+  so it skips this.
 
 ### The site
 

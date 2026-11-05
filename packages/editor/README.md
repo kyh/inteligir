@@ -13,12 +13,11 @@ workspace above it consumes an editor rather than containing one.
 
 Deps: `@repo/notes` (the parse pipeline and the knowledge types), `@repo/ui`
 (the components). No node, and nothing of the desktop shell's. The host contract is this package's own
-`host-io.ts` (`EditorHost`: its `EditorHostIo` and its `EditorHostActions`),
-`note/vault-session.ts` (`VaultSessionPorts`) and
-`stale-write.ts` (`GuardedVaultPort`); a host implements all three and
-comes in through one call, `installEditorHost`, and everything above its
-store (the write policy, the link resolver, note formulas) is this package's,
-so a second host copies none of it. The package
+`host-io.ts` (`EditorHost`: its `EditorHostIo` and its `EditorHostActions`)
+and an item session's ports (`item/item-session.ts`); a host implements both
+and comes in through one call, `installEditorHost`, and everything above its
+store (the block diff, the merge, the link resolver) is this package's, so a
+second host copies none of it. The package
 also ships ONE stylesheet, `styles.css` (toggle collapse, the callout marker
 swap, the hljs theme, the prose scope the appearance dials feed, typeset's
 table rules and the diagram frame's `--pele-*` variables), inert until the
@@ -116,37 +115,21 @@ src/
   for (Ask agent and a `#tag` chip's `showTag`, an annotation's create, edit
   and open),
   every one required, so a host that leaves one out fails to typecheck rather
-  than drawing a button that does nothing. The install hands `flushOpenNote`
-  the host's own flush, so a writer outside the note's tree reaches the open
-  note on every host. The editor never reaches the
+  than drawing a button that does nothing. The editor never reaches the
   server for any of it; each host installs it once, through
   `installEditorHost`, ahead of the first render
   (`apps/workspace/src/app/item/page-editor-host.ts`, and the phone's
-  over its WebView bridge, `apps/mobile-editor/src/host/page-host.ts`),
-  feeding the resolver store through `link-resolver-feed.ts` and
-  `readNoteFormulas` with `note-formulas.ts` over its own reads, and `host.ts` is
+  over its WebView bridge, `apps/mobile-editor/src/item/item-host.ts`),
+  feeding the resolver store through `link-resolver-feed.ts`, and `host.ts` is
   React's door (`useVaultActions`, `useLinkResolver`, `useWikiTargets`, and
   `useVaultLinkTarget`, which reads an md url through `mdLinkTarget` and
   resolves it from the note it is written in — the open note, or the one an
   embed shows — so an image or a link lands where the index says it does).
-- `note/vault-session.ts` — `VaultSessionPorts`, what the open note's ordering
-  is driven through: boot (whose note the host reads through `note`, since
-  that read is the base the first save is guarded by), list, rename, the
-  `VaultIO` it reads and writes notes with (`vault-editor.ts`:
-  read/write/create/remove), the
-  publish/notify callbacks, and the one question it asks the user
-  (`askVanished`). Drivable without React.
-- `stale-write.ts` — what a stale write does, in one place. `GuardedVaultPort`
-  is the host's store under that `VaultIO`: a read, a write under an `absent`
-  or `expected` guard answering written, exists, changed (with the bytes now
-  there) or missing, and a remove. `createGuardedVaultIo` is the one write
-  policy over it, so no host decides what a stale save does: the base each
-  note was read as, a `changed` answer diff3-merged and retried once against
-  those bytes, `missing` as vanished. A host turns the base into whatever its
-  store compares (the desktop hashes it for the server's CAS). `mergeBlocks`
-  is the replica's block merge: a block two writers changed, diff3-merged over
-  each side's markdown (`codec/block-markdown.ts`), with whether it kept this
-  device's lines over the other's change to the same ones.
+- `stale-write.ts` — `mergeBlocks`, the replica's block merge: a block two
+  writers changed, diff3-merged over each side's markdown
+  (`codec/block-markdown.ts`), with whether it kept this device's lines over
+  the other's change to the same ones; `replicaMerge` is it as the engine's
+  port takes it.
 - `item/item-session.ts` — an item open in the editor by its id, over the
   replica (`ItemStore`): the value is the item's blocks, a pause writes the
   ops `item/item-diff.ts` reads off it, and a change from elsewhere is laid

@@ -180,8 +180,8 @@ const ActionButton = ({
   );
 };
 
-// what the selection can be handed to: a highlight the host writes. The phone asks no agent, so
-// the desktop's Ask agent has no row here. The highlight's note field takes the row first, so its
+// what the selection can be handed to: a highlight the host writes. The phone asks the agent from
+// an item's own screen, so the desktop's Ask agent has no row here. The highlight's note field takes the row first, so its
 // markers go in once, as it is submitted, note or none.
 const SelectionButtons = ({ onAnnotate }: { onAnnotate: () => void }) => {
   const highlightable = useEditorSelector(selectionTakesHighlight, []);

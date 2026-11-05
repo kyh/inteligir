@@ -3,8 +3,7 @@ import { describe, expect, it } from "vitest";
 import { composeLinkBody } from "../items/item-body";
 import { composeItemFile } from "../items/item-frontmatter";
 import type { ItemFileFields } from "../items/item-frontmatter";
-import { diff3 } from "../text/diff3";
-import { mergeItemTexts, urlItemVerdict } from "./url-item-verdict";
+import { urlItemVerdict } from "./url-item-verdict";
 
 const ID = "7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17";
 const URL = "https://stephango.com/file-over-app";
@@ -114,16 +113,13 @@ describe("urlItemVerdict, one side changed the fill (B)", () => {
     );
   });
 
-  it("lands the refresh's keys and the person's typing on the editor's retry after Refresh", () => {
+  it("lands the refresh's keys and the person's typing after Refresh, whichever side asks", () => {
     const loaded = filled("2026-10-17T09:12:33Z");
-    const buffer = `${loaded}\nMy own thoughts, typed after pressing Refresh.\n`;
+    const typed = `${loaded}\nMy own thoughts, typed after pressing Refresh.\n`;
     const refresh = filled("2026-10-18T08:00:00Z", { cover: COVER_2 });
-    const merged = mergeItemTexts(loaded, buffer, refresh);
-    expect(merged).toEqual({
-      conflicted: false,
-      merged: `${refresh}\nMy own thoughts, typed after pressing Refresh.\n`,
-    });
-    expect(urlItemVerdict({ base: loaded, mine: refresh, theirs: buffer })).toBe(merged.merged);
+    const merged = `${refresh}\nMy own thoughts, typed after pressing Refresh.\n`;
+    expect(urlItemVerdict({ base: loaded, mine: typed, theirs: refresh })).toBe(merged);
+    expect(urlItemVerdict({ base: loaded, mine: refresh, theirs: typed })).toBe(merged);
   });
 
   it("keeps a description the person edited unless the refresh changed it too", () => {
@@ -368,7 +364,6 @@ describe("urlItemVerdict, where it does not apply", () => {
     const tagged = filled("2026-10-17T09:12:33Z", { fields: { tags: ["read"] } });
     const noted = filled("2026-10-17T09:12:33Z", { note: "Mine." });
     expect(settle(base, tagged, noted)).toBeNull();
-    expect(mergeItemTexts(base, tagged, noted)).toEqual(diff3(base, tagged, noted));
   });
 
   it("answers null when both changed the fill to the same mark", () => {
@@ -381,15 +376,6 @@ describe("urlItemVerdict, where it does not apply", () => {
   it("answers null for a block it cannot read", () => {
     const broken = "---\nkind: link\nurl: [unclosed\n---\n";
     expect(settle(stub(), broken, filled("2026-10-17T09:12:33Z"))).toBeNull();
-  });
-});
-
-describe("mergeItemTexts", () => {
-  it("is diff3 for a note", () => {
-    const base = doc("# Plan", "", "alpha", "", "omega");
-    const mine = doc("# Plan", "", "alpha, mine", "", "omega");
-    const theirs = doc("# Plan", "", "alpha", "", "omega, theirs");
-    expect(mergeItemTexts(base, mine, theirs)).toEqual(diff3(base, mine, theirs));
   });
 });
 

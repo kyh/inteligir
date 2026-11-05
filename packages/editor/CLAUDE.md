@@ -1,17 +1,16 @@
 # Decisions: @repo/editor
 
-The editor, the dialect it round-trips, and the open note's write policy.
+The editor, the dialect it round-trips, and an open item's merge.
 `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Shape
 
 The Plate WYSIWYG: kits and nodes for every dialect construct, the md-rules
-table, the fixpoint serializer and its fixtures, and the open-note runtime a
-host drives through three seams: `VaultSessionPorts`
-(`packages/editor/src/note/vault-session.ts`), the `GuardedVaultPort` the one
-write policy runs over (`packages/editor/src/stale-write.ts`), and the
-`EditorHost` singleton (`packages/editor/src/host-io.ts`, opened to React by
-`host.ts`), installed by one `installEditorHost` call per host. Its
+table, the fixpoint serializer and its fixtures, and an item's editor
+(`packages/editor/src/item/item-editor.tsx`) a host drives through its
+session's ports and the `EditorHost` singleton
+(`packages/editor/src/host-io.ts`, opened to React by `host.ts`), installed by
+one `installEditorHost` call per host. Its
 `EditorHostIo` carries the link resolver store and note formulas, so no host
 writes its own; its `EditorHostActions` (Ask agent, `showTag`, a highlight's
 create, note and open, all required) are how a deep node asks the shell; its
@@ -103,15 +102,6 @@ alone, and no walk narrows structurally.
   editors (`packages/editor/src/properties/property-source.ts`). Rejected: a
   frontmatter block in an item (its keys are columns).
 
-- **THE EDITOR COLUMN SHOWS ONE ITEM, AND NOTHING OPEN IS THE LIBRARY.** One
-  `OpenNoteStore`, and every surface reads the open item. With nothing open the
-  column draws nothing, since the page draws the library there, and a file that
-  is no doc opens with no buffer, its viewer the page's
-  (`packages/editor/src/editor-column.tsx`). Registries keyed on a note's path
-  keep that key, so a late answer cannot land on the note that replaced it.
-  Rejected: a second pane and any pane vocabulary, and a raw/rich toggle (an
-  item is blocks, never markdown at rest, so there is no raw to show).
-
 - **THE PLATE SLASH MENU IS THE INSERTION SURFACE, AND THE TOUCH TOOLBAR IS ITS
   SOFT-KEYBOARD TWIN.** Slash rows are grouped data: each row's markdown
   re-parses to a modeled construct and is its own fixpoint, and no two rows
@@ -152,8 +142,7 @@ alone, and no walk narrows structurally.
   creates its note exclusively before touching the buffer, refuses blocks
   anchoring an annotation (its entry would stay behind), and lands the removal
   and the `[[link]]` in one flush, so one undo restores both; the created file
-  stays, since the vault has no transaction, stamped `saved` like every note the
-  session seeds (`packages/editor/src/note/vault-session.ts`). Rejected:
+  stays, since the vault has no transaction. Rejected:
   create-or-reuse (an existing file counts as success and the blocks are lost).
   `packages/editor/src/extract-note.ts`.
 
@@ -163,7 +152,7 @@ alone, and no walk narrows structurally.
   find one id (a recompute runs after each typing pause). The display a
   recompute rewrites lands outside the undo history, since the user never typed
   it and one undo must reach their own last edit. The id has one reader, in
-  `@repo/notes/markdown/frontmatter`. `packages/editor/src/note-formulas.ts`,
+  `@repo/notes/markdown/frontmatter`.
   `packages/editor/src/formulas/formula-recompute.ts`.
 
 - **A BLOCK OVERLAY NAMES ITS BLOCK BY NODE ID AND SUBSCRIBES TO THE DOCUMENT.**
@@ -324,48 +313,14 @@ alone, and no walk narrows structurally.
   item to item (a closing write would diff the next one's blocks).
   `packages/editor/src/item/item-session.ts`, `item-diff.ts`.
 
-## Vault: writes, git and containment
+## The open item's merge
 
-- **A SAVE THAT FAILS IS SAID ONCE AND RETRIED; ONE WHOSE FILE IS GONE IS ASKED
-  ABOUT.** A refused write keeps the buffer dirty, said once per failure and
-  retried on a backoff, since nothing else re-arms the autosave. A guarded write
-  that finds no file, its merge's retry included, answers `vanished` and is
-  never retried, and leaving asks: discard, or re-create the note from the
-  buffer. Rejected: refusing to leave (it holds the user there for good).
-  `packages/editor/src/note/note-runtime.ts`,
+- **THE MERGE'S LINE DIFF IS BOUNDED, AND A MERGE THAT KEPT MINE OVER AN
+  OVERLAP SAYS SO.** A block both sides changed merges by diff3 over each
+  side's markdown, and past its budget the line diff answers one hunk, which
+  diff3 reads as one changed region, since an unbounded trace cost gigabytes.
+  Rejected: conflicting on every over-budget merge (it warns when nothing was
+  lost). The merge answers its overlap, which the replica's change feed carries
+  from a CONFLICT's settle and the session's own landing hands its host's
+  `notifyOverlap`, said in the item's words. `@repo/notes/text/line-diff`,
   `packages/editor/src/stale-write.ts`.
-
-- **THE MERGE'S LINE DIFF IS BOUNDED, AND A MERGE THAT KEPT THE BUFFER OVER AN
-  OVERLAP SAYS SO.** The diff runs inside a save's CAS retry, where an unbounded
-  trace cost gigabytes; past its budget it answers one hunk, which diff3 reads
-  as one changed region. Rejected: conflicting on every over-budget merge (it
-  warns when nothing was lost). A conflicted merge's toast opens the note's
-  History (owner decision). `rebase` and the 409 retry ask `mergeItemTexts`
-  before diff3, so a fill or a Refresh under the person's typing lands both with
-  no overlap said, as the sync and the phone's queue would
-  (`@repo/notes/sync/url-item-verdict`). An item's block merge answers its
-  overlap too, which the replica's change feed carries from a CONFLICT's settle
-  and the session's own landing hands its host's `notifyOverlap`, said in the
-  note's words. `@repo/notes/text/line-diff`,
-  `packages/editor/src/vault-editor.ts`,
-  `packages/editor/src/stale-write.ts`.
-
-- **A RENAME HOLDS THE OPEN NOTE THROUGH THE MOVE, NEVER LETS GO OF IT.** The
-  session suspends the note's controller across the move (edits land in the
-  buffer, saves and reloads wait) and resumes it at the new path, or the old one
-  when the move failed. At a new path it reads before it writes, since the
-  guarded io holds no base there and the move writes the old name in as an
-  alias. Rejected: disposing it and opening the new path (a keystroke mid-move
-  reached no controller). `packages/editor/src/vault-editor.ts`.
-
-- **A MOVE THE PAGE DID NOT MAKE IS FOLLOWED BY THE ITEM'S ID.** A fill's rename
-  of a stub or an agent's `vault rename` is followed through the session's
-  `findMoved` port, so the item stays open at its new path and Back never names
-  the old one. While the index has a read out, or names a path the disk no
-  longer holds (it has not yet been told of the move), the answer is `unknown`,
-  not gone and not the old path: the item waits with no buffer, asked again on a
-  bounded schedule (about 14 s) and at each vault change, which never delays it;
-  only an id nothing answers, or the schedule's end, drops to the library, and a
-  navigation ends the follow. Rejected: dropping to the library on every vanish
-  or null read (it bounced people off just-renamed items).
-  `packages/editor/src/note/vault-session.ts`.

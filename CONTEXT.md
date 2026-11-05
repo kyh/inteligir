@@ -44,8 +44,7 @@ a **turn** is one set; a **connected assistant**'s writes are one set per
 grant, sealed after 10 idle minutes. Undo reverts sets three-way, newest
 first, and keeps every later edit; an undo is a set of its own. The cell keeps
 them (`apps/web/src/worker/library/change-sets.ts`), and the revert is
-`@repo/notes/library/revert-change`'s. Not a phone write's set of file
-changes for the hosted vault (**settle**, below).
+`@repo/notes/library/revert-change`'s.
 
 **block** — one top-level node of an item's body, a Plate element stored as a
 row of its own: its id, its fractional order key, its **section**, its JSON
@@ -161,12 +160,12 @@ changed where their edits overlap, written beside it as `<name> (conflict,
 <device>)<ext>`, while the path keeps the line merge with this device's lines at
 the overlaps. A note's copy drops its `id:`, so the two never answer to one
 `[[Title|uuid]]` link. Which paths get one is `@repo/notes/sync/reconcile-file`,
-the one verdict the desktop's sync and the phone's write queue both run; the
+the one verdict the local server's sync runs; the
 name and the sentence every surface says about it are
-`@repo/notes/sync/conflict-copy`. Not the open note's own overlap: a save that
-meets a concurrent write merges into the buffer and makes no copy
-(`packages/editor/src/vault-editor.ts`), because the person is looking at the
-note and its History holds the rest.
+`@repo/notes/sync/conflict-copy`. Not an open item's own overlap: a block its
+write finds changed elsewhere merges, mine kept where both changed a line, and
+makes no copy (`packages/editor/src/stale-write.ts`), because the person is
+looking at the item and its History holds the rest.
 
 **annotation** — a highlighted passage of an item and an optional note on it,
 with replies under it: markers `%%i:<ids>:start%%…%%i:<ids>:end%%` around the
@@ -228,19 +227,19 @@ folder already held is not a stub, so no Mac fills it unasked. Built by
 `@repo/notes/items/item-stub`.
 
 **fill** — what the device that saved a stub adds to it once it reads the
-page, the Mac's server or the phone: the fill-owned keys (`site`, `author`,
-`published`, `description`, `fetched`, or `fetched` with `fetch-error` when the
-page could not be read), the cover embed, and the article text after the
-stub's own body. Both read the page with `@repo/page-reader` and write by the
-rules of `@repo/notes/items/link-fill`; it calls no model and never writes
-`url` or `saved` (`apps/cli/src/server/items/capture/`,
-`apps/mobile/src/items/link-fill.ts`). A save's
+page, the Mac's server: the fill-owned keys (`site`, `author`, `published`,
+`description`, `fetched`, or `fetched` with `fetch-error` when the page could
+not be read), the cover embed, and the article text after the stub's own body.
+It reads the page with `@repo/page-reader` and writes by the rules of
+`@repo/notes/items/link-fill`; it calls no model and never writes `url` or
+`saved` (`apps/cli/src/server/items/capture/`). A save's
 answer says the fill's state: `pending`, `filled` or `failed`
 (`itemFillSchema` in `@repo/contract/local/items/items-schema`). A link the
 account's library holds unread (a `saveLink`, a refresh, an import's) is
 filled by the cloud: the cell asks the fill queue, and the Worker's consumer
 reads the page and lands only its `article` blocks and the fill-owned fields
-(`apps/web/src/worker/fill/`).
+(`apps/web/src/worker/fill/`). A page the phone's share sheet hands over is
+read on the phone and saved read, never a fill (`apps/mobile/src/items/share-save.ts`).
 
 **cover** — an item's picture: the first image its body embeds, computed at
 every read (`itemFilesOf` in `@repo/notes/items/item-files`), never a
@@ -266,46 +265,6 @@ snapshot of a saved page, stored by its hash under `assets/pages/`
 body, opt-in per item. It is served by its own sandboxed route
 (`PAGE_COPY_PATH` in `@repo/contract/local/routes`), never the asset route.
 Not the article text, which every fill writes into the item itself.
-
-## The phone's write queue
-
-The phone's unsent edits (`apps/mobile/src/notes/vault-outbox.ts`) have five
-words of their own, used across the outbox, the mirror and the reconcile.
-
-**fence** — a check that the sign-in a piece of work began under is still the
-one it may write for (`Fence` in `apps/mobile/src/lib/phone-db.ts`, made by
-`apps/mobile/src/lib/sign-in-fence.ts`). Work reads it after every await, and
-`fencedExclusive` again inside the transaction, so a wipe queued ahead of a
-write wins. A sign-out, a revocation and a new sign-in each make every earlier
-fence fall. Not a lock: nothing waits on a fence, and work under one that fell
-ends without writing.
-
-**settle** — the one change set an outbox row goes as, kept on the row
-(`settle` in `apps/mobile/src/notes/outbox-ops.ts`): a **pin**, or the set
-reconciling a stale one made (`apps/mobile/src/notes/outbox-reconcile.ts`),
-with the vault's version it was reconciled against and the text it was made
-from. A row with no settle goes as its own intent. Not a **turn** settling,
-which is a thread's turn ending, and not a refresh's `settled`
-(`apps/mobile/src/notes/vault-mirror.ts`), which says the tree it listed agrees
-with every write the phone landed since.
-
-**pin** — a text row's first set, kept as its **settle** before it is sent
-(`pinText` in `apps/mobile/src/notes/vault-outbox.ts`): a resend after a lost
-answer is that same set, which the vault answers as already held, and a text
-coalesced meanwhile lands rebased onto it rather than reconciled against the
-phone's own write.
-
-**land** — a set the vault committed, moved into the phone's mirror in the
-transaction that retires its row (`landInMirror` in
-`apps/mobile/src/notes/vault-mirror.ts`), each path it moved stamped so a
-refresh that listed the tree before the landing leaves those rows alone. A
-text written while the set was out stays queued as a write over what landed.
-
-**park** — an outbox row the vault refused for a reason no resend passes, kept
-with its bytes until the user retries it, saves a text or a photo as new, or
-discards it (`PARKING_CODES` in `apps/mobile/src/notes/vault-outbox.ts`). The
-rows on other paths go on, and a row sharing a path with it waits behind it.
-Not unreachable, which stops the whole queue and parks nothing.
 
 ## The agent
 

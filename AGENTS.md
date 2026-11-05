@@ -97,8 +97,8 @@ The premises every change builds from, each with its reason:
   the premise ends, a decision bullet or a line of the declines register that
   keeps a shape for an older install yields to it. The one exception is the
   phone's database, which appends a step once EAS has built the app, since it
-  cannot yet replace a file it cannot read (THE PHONE HOLDS EVERY NOTE'S TEXT
-  IN SQLITE, in `apps/mobile/CLAUDE.md`). The first outside tester ends the
+  cannot yet replace a file it cannot read (THE PHONE RUNS THE REPLICA ENGINE
+  OVER EXPO-SQLITE, in `apps/mobile/CLAUDE.md`). The first outside tester ends the
   premise: strike this bullet before their first build, and from then on a
   format change migrates.
 
@@ -376,7 +376,7 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 - [`apps/cli/src/server/items/CLAUDE.md`](apps/cli/src/server/items/CLAUDE.md) — Items: capture and fill, which the Worker takes over
 - [`apps/cli/src/server/agents/CLAUDE.md`](apps/cli/src/server/agents/CLAUDE.md) — the local agents and threads the built-in agent replaces
 - [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) — Cloud, sync and accounts
-- [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its editor page, store, queue and annotations, its look, and how it ships
+- [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its editor page, its replica and files, the agent, its look, and how it ships
 - [`apps/desktop/CLAUDE.md`](apps/desktop/CLAUDE.md) — the Mac app: its window and bridge, its replica, credential and files, updates, dictation, and the shell's e2e
 - [`apps/extension/CLAUDE.md`](apps/extension/CLAUDE.md) — the browser extension and its wire
 - [`apps/workspace/CLAUDE.md`](apps/workspace/CLAUDE.md) — the library's page: the page over the cell, and its surfaces

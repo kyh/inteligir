@@ -46,7 +46,7 @@ nobody, and git keeps it. A single export beside a drawn component is a reasoned
   included (`tools/repo-guards/src/type-roles.test.ts`): a role says what a line
   is, and a convention drifts. THE NOTE IS NOT CHROME: its prose sizes in em off
   the appearance dials, the title a multiple of `--editor-size`
-  (`packages/editor/src/editor-column.tsx`), and a fixed size in it is a
+  (`packages/editor/src/styles.css`), and a fixed size in it is a
   reasoned `PROSE_SIZES` row of that guard.
 
 - **`cn` IS CONFIGURED ONCE, BECAUSE THE MERGE ENGINE HAS TO BE TOLD THE ROLES

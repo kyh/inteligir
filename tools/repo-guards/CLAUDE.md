@@ -52,7 +52,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   the extension's DOM tests compile their sources the same way (not test files,
   where a fixture hook minted in a factory is hoisted with no diagnostic), and
   a `compiled-under-test` case in each fails without the preset (the phone
-  page's in `apps/mobile-editor/src/editor-page.test.tsx`, the extension's in
+  page's in `apps/mobile-editor/src/item/item-page.test.tsx`, the extension's in
   `apps/extension/src/entrypoints/popup/popup.test.tsx`). A node suite cannot
   run compiled: the preset applies to the client environment alone. Rejected:
   the plugin's own `compiler` option (marked experimental, over a second

@@ -1,8 +1,7 @@
 // Two versions of one saved link settle on one text, whichever device asks: when both carry the
 // same url key and at least one changed the fill since their base, the fill that wins comes from a
 // total order, and the other side's edits since base are carried onto it. reconcile-file asks it
-// before its line merge, and the editor's merges ask mergeItemTexts, so the sync, the phone's
-// queue and an open item's save all land the same bytes.
+// before its line merge, so the two devices a sync meets land the same bytes.
 //
 // Every rule is phrased by role (the winner and the loser, the filler and the editor), never by
 // which side is `mine`, and every diff3 runs in one orientation per role, so the two devices that
@@ -25,7 +24,6 @@ import {
 } from "../markdown/frontmatter";
 import type { TypedProperty } from "../markdown/frontmatter";
 import { diff3 } from "../text/diff3";
-import type { Diff3Result } from "../text/diff3";
 import { splitLines } from "../text/source-lines";
 
 export interface ItemTexts {
@@ -447,10 +445,4 @@ export const urlItemVerdict = (texts: ItemTexts): string | null => {
     return null;
   }
   return mineChanged ? oneFilled(mine, theirs, base) : oneFilled(theirs, mine, base);
-};
-
-// the editor's text merge: the verdict where it applies, else diff3
-export const mergeItemTexts = (base: string, mine: string, theirs: string): Diff3Result => {
-  const settled = urlItemVerdict({ base, mine, theirs });
-  return settled === null ? diff3(base, mine, theirs) : { conflicted: false, merged: settled };
 };
