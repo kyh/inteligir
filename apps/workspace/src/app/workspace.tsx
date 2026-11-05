@@ -556,7 +556,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
 
   return (
     <OpenNoteStoreProvider store={noteStore}>
-      <div className="isolate h-dvh" inert={covered}>
+      <div className="h-dvh" inert={covered}>
         <SidebarProvider
           className="h-full"
           actionsRef={railRef}

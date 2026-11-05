@@ -42,12 +42,6 @@ const event =
     };
   };
 
-// the OS reaches a vault entry through the shell alone, which resolves and checks the path itself
-export const shellPaths = {
-  open: command(APP_COMMANDS.paths.open),
-  reveal: command(APP_COMMANDS.paths.reveal),
-};
-
 // the shell reduces the updater's state and pushes every move
 export const shellUpdates = {
   check: command(APP_COMMANDS.updates.check),
@@ -55,13 +49,4 @@ export const shellUpdates = {
   getState: command(APP_COMMANDS.updates.getState),
   install: command(APP_COMMANDS.updates.install),
   onState: event(UPDATE_STATE_EVENT),
-};
-
-// the vault is the server's, so a switch restarts the child and replaces this window: `pick`
-// and `open` answer only when nothing changed (a cancelled picker, a refusal)
-export const shellVaults = {
-  forget: command(APP_COMMANDS.vaults.forget),
-  getState: command(APP_COMMANDS.vaults.getState),
-  open: command(APP_COMMANDS.vaults.open),
-  pick: command(APP_COMMANDS.vaults.pick),
 };

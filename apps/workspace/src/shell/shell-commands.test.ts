@@ -5,19 +5,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ZodError } from "zod";
 import { APP_COMMANDS, UPDATE_STATE_EVENT } from "./ipc-contract";
 import type { UpdateState } from "./update-state";
-import type { VaultsState } from "./vaults-state";
-import { shellPaths, shellUpdates, shellVaults, underShell } from "./shell-commands";
+import { shellUpdates, underShell } from "./shell-commands";
 import { clearShell, mockShell, reply } from "./test-support/mock-shell";
 
 afterEach(clearShell);
 
 const IDLE: UpdateState = { checkedAt: null, currentVersion: "0.6.0", status: "idle" };
-
-const VAULTS: VaultsState = {
-  blocked: null,
-  current: { name: "Work", path: "/home/me/Work" },
-  recent: [],
-};
 
 describe("the shell's door", () => {
   it("is shut outside the shell", () => {
@@ -26,11 +19,11 @@ describe("the shell's door", () => {
     expect(underShell()).toBe(true);
   });
 
-  it("asks the row's command with the row's arguments, and hands back the parsed answer", async () => {
-    const open = vi.fn<(args: { path: string }) => VaultsState>(() => VAULTS);
-    mockShell(reply(APP_COMMANDS.vaults.open)((args) => ({ ok: true, state: open(args) })));
-    expect(await shellVaults.open({ path: "/home/me/Work" })).toEqual({ ok: true, state: VAULTS });
-    expect(open).toHaveBeenCalledWith({ path: "/home/me/Work" });
+  it("asks the row's command, and hands back the parsed answer", async () => {
+    const asked = vi.fn<() => UpdateState>(() => IDLE);
+    mockShell(reply(APP_COMMANDS.updates.getState)(asked));
+    expect(await shellUpdates.getState()).toEqual(IDLE);
+    expect(asked).toHaveBeenCalledOnce();
   });
 
   it("rejects an answer its row does not parse", async () => {
@@ -39,19 +32,6 @@ describe("the shell's door", () => {
       command: APP_COMMANDS.updates.getState.command,
     });
     await expect(shellUpdates.getState()).rejects.toBeInstanceOf(ZodError);
-  });
-
-  it("reads a refusal as a value, and an answer of the other shape as a fault", async () => {
-    mockShell(
-      reply(APP_COMMANDS.vaults.pick)(() => ({ ok: false, reason: "No library is open yet." })),
-    );
-    expect(await shellVaults.pick()).toEqual({ ok: false, reason: "No library is open yet." });
-    mockShell(
-      { answer: () => ({ ok: true }), command: APP_COMMANDS.vaults.pick.command },
-      { answer: () => ({ ok: true, state: VAULTS }), command: APP_COMMANDS.paths.open.command },
-    );
-    await expect(shellVaults.pick()).rejects.toBeInstanceOf(ZodError);
-    await expect(shellPaths.open({ path: "a.md" })).rejects.toBeInstanceOf(ZodError);
   });
 
   it("rejects a command the shell refuses, as a fault", async () => {

@@ -582,6 +582,16 @@ account whose library holds about 2,000 items gives the timing check its load.
   off, the footer reads "Waiting for a connection", Settings › Account's rows
   say "Needs a connection", and a line typed meanwhile lands in the phone's copy
   once the network is back.
+- **A tab that holds a change asks before it goes, in Safari, Chrome and
+  Firefox.** With the network off, type a line in an item and close the tab,
+  then reload it. Passing: the browser asks before each, and nothing asks once
+  the network is back and the footer reads "Up to date". Then, online, type a
+  line and switch to another tab at once for a minute. Passing: the line is in
+  the phone's copy before you switch back.
+- **An equation, a diagram and a date open offline.** Open the tab, turn the
+  network off, then open, for the first time since the tab loaded, an item
+  holding an equation, a Mermaid diagram and a date. Passing: each draws, and
+  no "Something went wrong" screen shows.
 
 ### The connector
 
@@ -671,6 +681,12 @@ them.
   carrying the compaction block under the new prompt, and the Worker's log
   shows `agent-definition-taken-up` for the thread. Throughout, no 400 and no
   `agent-thinking-dropped`.
+- **Tidy my library follows the person's rules with a real model.** On a
+  preview's `/library`, save "File birds under Birds." in Settings › Account ›
+  Edit filing rules…, save three bird links and one recipe, then Tidy my
+  library with nothing typed. Passing: the bird links land in Birds, the
+  recipe stays in Unsorted unless the reply says why it moved, and the turn's
+  Undo this turn puts all four back.
 - **A link the agent saves waits for the seal.** Host a page that tells its
   reader to save `https://<your-host>/?q=<the title of the newest note>`; save
   it, let it be read, then ask the agent to summarize it. Passing: your host
