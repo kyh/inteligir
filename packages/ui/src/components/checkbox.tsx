@@ -2,7 +2,7 @@
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
 import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 
 import { useSize } from "@repo/ui/lib/size-context";
 import type { SizeVariant } from "@repo/ui/lib/size-context";

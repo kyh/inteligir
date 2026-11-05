@@ -1,7 +1,7 @@
-// React's CSSProperties and framer's MotionStyle merged left to right into one motion style, an
+// React's CSSProperties and Motion's MotionStyle merged left to right into one motion style, an
 // undefined entry skipped so it never erases an earlier one
 
-import type { MotionStyle } from "framer-motion";
+import type { MotionStyle } from "motion/react";
 import type { CSSProperties, HTMLAttributes } from "react";
 
 type MotionStyleValue = Exclude<
@@ -32,7 +32,7 @@ export const motionStyle = (
   return merged;
 };
 
-// the DOM handlers framer redefines with its own signatures
+// the DOM handlers Motion redefines with its own signatures
 export type MotionConflictHandler =
   | "onDrag"
   | "onDragStart"

@@ -24,7 +24,7 @@ import type {
   ReactNode,
   RefObject,
 } from "react";
-import { animate, useReducedMotion } from "framer-motion";
+import { animate, useReducedMotion } from "motion/react";
 import { SearchIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";

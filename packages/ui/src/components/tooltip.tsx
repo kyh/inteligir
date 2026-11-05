@@ -3,12 +3,12 @@
 
 import * as React from "react";
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
-import { motion, useMotionValue } from "framer-motion";
-import type { MotionStyle } from "framer-motion";
+import { motion, useMotionValue } from "motion/react";
+import type { MotionStyle } from "motion/react";
 
 import { cn } from "@repo/ui/lib/cn";
 import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
-import { PopupExit } from "@repo/ui/lib/popup-exit";
+import { PopupOpen, PopupPresence } from "@repo/ui/lib/popup-presence";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { radius } from "@repo/ui/lib/radius";
 import { spring } from "@repo/ui/lib/springs";
@@ -98,50 +98,52 @@ const Tooltip = ({
         delay={delay}
         onPointerMove={followCursor ? handleFollowMove : undefined}
       />
-      <TooltipPrimitive.Portal>
-        <TooltipPrimitive.Positioner side={side} sideOffset={sideOffset} className="z-50">
-          <TooltipPrimitive.Popup
-            render={(props, state) => {
-              const exiting = state.transitionStatus === "ending";
-              const { style: baseStyle, ...rest } = motionProps(props);
-              let followStyle: MotionStyle | undefined;
-              if (followCursor === "y") {
-                followStyle = { y: followOffset };
-              } else if (followCursor === "x") {
-                followStyle = { x: followOffset };
-              }
-              // the enter/exit slide rides the Popup element, the one Base UI waits on before it
-              // unmounts; the cursor-follow transform sits on the child so the two do not fight
-              return (
-                <PopupExit exiting={exiting}>
-                  <motion.div
-                    {...rest}
-                    style={motionStyle(baseStyle)}
-                    initial={{ opacity: 0, ...slideOffset }}
-                    animate={exiting ? { opacity: 0, ...slideOffset } : { opacity: 1, x: 0, y: 0 }}
-                    transition={exiting ? spring.fast.exit : spring.fast}
-                  >
+      <PopupOpen open={open}>
+        <PopupPresence>
+          <TooltipPrimitive.Portal keepMounted>
+            <TooltipPrimitive.Positioner side={side} sideOffset={sideOffset} className="z-50">
+              <TooltipPrimitive.Popup
+                render={(props) => {
+                  const { style: baseStyle, ...rest } = motionProps(props);
+                  let followStyle: MotionStyle | undefined;
+                  if (followCursor === "y") {
+                    followStyle = { y: followOffset };
+                  } else if (followCursor === "x") {
+                    followStyle = { x: followOffset };
+                  }
+                  // the enter/exit slide rides the Popup element, the one Base UI waits on before
+                  // it unmounts; the cursor-follow transform sits on the child so the two do not
+                  // fight
+                  return (
                     <motion.div
-                      className={cn(
-                        "bg-foreground text-background text-body px-2 py-1",
-                        "[text-box:trim-both_cap_alphabetic] supports-[text-box:trim-both]:py-2",
-                        radius.bg,
-                        className,
-                      )}
-                      style={motionStyle(
-                        { fontVariationSettings: fontWeights.medium },
-                        followStyle,
-                      )}
+                      {...rest}
+                      style={motionStyle(baseStyle)}
+                      initial={{ opacity: 0, ...slideOffset }}
+                      animate={{ opacity: 1, transition: spring.fast, x: 0, y: 0 }}
+                      exit={{ opacity: 0, ...slideOffset, transition: spring.fast.exit }}
                     >
-                      {content}
+                      <motion.div
+                        className={cn(
+                          "bg-foreground text-background text-body px-2 py-1",
+                          "[text-box:trim-both_cap_alphabetic] supports-[text-box:trim-both]:py-2",
+                          radius.bg,
+                          className,
+                        )}
+                        style={motionStyle(
+                          { fontVariationSettings: fontWeights.medium },
+                          followStyle,
+                        )}
+                      >
+                        {content}
+                      </motion.div>
                     </motion.div>
-                  </motion.div>
-                </PopupExit>
-              );
-            }}
-          />
-        </TooltipPrimitive.Positioner>
-      </TooltipPrimitive.Portal>
+                  );
+                }}
+              />
+            </TooltipPrimitive.Positioner>
+          </TooltipPrimitive.Portal>
+        </PopupPresence>
+      </PopupOpen>
     </TooltipPrimitive.Root>
   );
 

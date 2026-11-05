@@ -6,9 +6,24 @@ import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog
 
 import { DialogCard, renderDialogBackdrop } from "@repo/ui/components/dialog";
 import { cn } from "@repo/ui/lib/cn";
+import { PopupOpen, PopupPresence } from "@repo/ui/lib/popup-presence";
 
-const AlertDialog = ({ ...props }: AlertDialogPrimitive.Root.Props) => (
-  <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
+// controlled, as Dialog is: the Portal's presence reads the open it is handed
+interface AlertDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children?: React.ReactNode;
+}
+
+const AlertDialog = ({ open, onOpenChange, children }: AlertDialogProps) => (
+  <AlertDialogPrimitive.Root
+    open={open}
+    onOpenChange={(next) => {
+      onOpenChange(next);
+    }}
+  >
+    <PopupOpen open={open}>{children}</PopupOpen>
+  </AlertDialogPrimitive.Root>
 );
 
 interface AlertDialogContentProps extends Omit<
@@ -22,24 +37,25 @@ interface AlertDialogContentProps extends Omit<
 // Dialog's backdrop and card over the alert primitive's own parts, which keep the alertdialog role
 // and refuse an outside-press dismissal
 const AlertDialogContent = ({ className, size = "default", ...props }: AlertDialogContentProps) => (
-  <AlertDialogPrimitive.Portal>
-    <AlertDialogPrimitive.Backdrop render={renderDialogBackdrop} />
-    <AlertDialogPrimitive.Popup
-      {...props}
-      render={(popupProps, state) => (
-        <DialogCard
-          popupProps={popupProps}
-          exiting={state.transitionStatus === "ending"}
-          data-slot="alert-dialog-content"
-          data-size={size}
-          className={cn(
-            "group/alert-dialog-content grid w-full gap-6 data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-md",
-            className,
-          )}
-        />
-      )}
-    />
-  </AlertDialogPrimitive.Portal>
+  <PopupPresence>
+    <AlertDialogPrimitive.Portal keepMounted>
+      <AlertDialogPrimitive.Backdrop render={renderDialogBackdrop} />
+      <AlertDialogPrimitive.Popup
+        {...props}
+        render={(popupProps) => (
+          <DialogCard
+            popupProps={popupProps}
+            data-slot="alert-dialog-content"
+            data-size={size}
+            className={cn(
+              "group/alert-dialog-content grid w-full gap-6 data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-md",
+              className,
+            )}
+          />
+        )}
+      />
+    </AlertDialogPrimitive.Portal>
+  </PopupPresence>
 );
 
 const AlertDialogHeader = ({ className, ...props }: React.ComponentProps<"div">) => (

@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 
 import type { ItemRect } from "@repo/ui/hooks/use-proximity-hover";
 import { radius } from "@repo/ui/lib/radius";

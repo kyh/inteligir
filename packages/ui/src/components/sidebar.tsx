@@ -4,9 +4,9 @@
 import { useRef } from "react";
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
-import { PopupExit } from "@repo/ui/lib/popup-exit";
+import { PopupOpen, PopupPresence } from "@repo/ui/lib/popup-presence";
 import type { MotionConflictHandler } from "@repo/ui/lib/motion-style";
 import { cn } from "@repo/ui/lib/cn";
 import { spring } from "@repo/ui/lib/springs";
@@ -16,7 +16,7 @@ import { useSidebar, SidebarShell, SIDEBAR_WIDTH_MOBILE } from "@repo/ui/compone
 import type { SidebarSide, SidebarVariant } from "@repo/ui/components/sidebar-core";
 
 // Base UI Dialog, not Drawer: Drawer's swipe-to-dismiss writes inline transform onto its Popup
-// and expects CSS-transition choreography, which fights framer-motion on the same element.
+// and expects CSS-transition choreography, which fights Motion on the same element.
 
 interface SidebarSheetProps {
   side: SidebarSide;
@@ -33,9 +33,8 @@ const SidebarSheet = ({ side, open, onClose, children }: SidebarSheetProps) => {
   const offscreen = side === "left" ? "-100%" : "100%";
 
   // `dark:` only matches the explicit .dark class, so the base tint carries system-dark users.
-  // Base UI keeps the closing sheet mounted while the Popup's own animations run, and framer drives
-  // `x` on the main thread, where Base UI cannot see it; the near-1 opacity is a compositor
-  // animation of the same length that it can
+  // Motion drives `x` on the main thread, where Base UI cannot see it, so the sheet's exit also
+  // fades to a near-1 opacity, a compositor animation of the same length that it can
   return (
     <DialogPrimitive.Root
       open={open}
@@ -45,59 +44,59 @@ const SidebarSheet = ({ side, open, onClose, children }: SidebarSheetProps) => {
         }
       }}
     >
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop
-          render={(backdropProps, state) => {
-            const exiting = state.transitionStatus === "ending";
-            const { style: _style, ...rest } = motionProps(backdropProps);
-            return (
-              <motion.div
-                {...rest}
-                className="fixed inset-0 bg-black/40 dark:bg-black/80 z-40"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: exiting ? 0 : 1 }}
-                transition={exiting ? spring.moderate.exit : { duration: 0.16 }}
-              />
-            );
-          }}
-        />
+      <PopupOpen open={open}>
+        <PopupPresence>
+          <DialogPrimitive.Portal keepMounted>
+            <DialogPrimitive.Backdrop
+              render={(backdropProps) => {
+                const { style: _style, ...rest } = motionProps(backdropProps);
+                return (
+                  <motion.div
+                    {...rest}
+                    className="fixed inset-0 bg-black/40 dark:bg-black/80 z-40"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1, transition: { duration: 0.16 } }}
+                    exit={{ opacity: 0, transition: spring.moderate.exit }}
+                  />
+                );
+              }}
+            />
 
-        <DialogPrimitive.Popup
-          aria-label="Sidebar"
-          initialFocus={panelRef}
-          render={(popupProps, state) => {
-            const exiting = state.transitionStatus === "ending";
-            const { style: baseStyle, ref: baseRef, ...rest } = motionProps(popupProps);
-            // merge, don't replace: the primitive needs its own handle on the panel
-            const panelRefs = composeRefs(panelRef, baseRef);
-            return (
-              <PopupExit exiting={exiting}>
-                <Elevated
-                  {...rest}
-                  offset={2}
-                  shadowLevel={3}
-                  ref={panelRefs}
-                  tabIndex={-1}
-                  data-sidebar="sidebar"
-                  data-mobile="true"
-                  data-side={side}
-                  className={cn(
-                    "fixed inset-y-0 z-50 flex flex-col overflow-hidden outline-none",
-                    exiting && "pointer-events-none",
-                    side === "left" ? "left-0" : "right-0",
-                  )}
-                  style={motionStyle(baseStyle, { width: SIDEBAR_WIDTH_MOBILE })}
-                  initial={{ x: offscreen }}
-                  animate={{ opacity: exiting ? 0.9999 : 1, x: exiting ? offscreen : 0 }}
-                  transition={exiting ? spring.moderate.exit : spring.moderate}
-                >
-                  {children}
-                </Elevated>
-              </PopupExit>
-            );
-          }}
-        />
-      </DialogPrimitive.Portal>
+            <DialogPrimitive.Popup
+              aria-label="Sidebar"
+              initialFocus={panelRef}
+              render={(popupProps, state) => {
+                const { style: baseStyle, ref: baseRef, ...rest } = motionProps(popupProps);
+                // merge, don't replace: the primitive needs its own handle on the panel
+                const panelRefs = composeRefs(panelRef, baseRef);
+                return (
+                  <Elevated
+                    {...rest}
+                    offset={2}
+                    shadowLevel={3}
+                    ref={panelRefs}
+                    tabIndex={-1}
+                    data-sidebar="sidebar"
+                    data-mobile="true"
+                    data-side={side}
+                    className={cn(
+                      "fixed inset-y-0 z-50 flex flex-col overflow-hidden outline-none",
+                      !state.open && "pointer-events-none",
+                      side === "left" ? "left-0" : "right-0",
+                    )}
+                    style={motionStyle(baseStyle, { width: SIDEBAR_WIDTH_MOBILE })}
+                    initial={{ x: offscreen }}
+                    animate={{ opacity: 1, transition: spring.moderate, x: 0 }}
+                    exit={{ opacity: 0.9999, transition: spring.moderate.exit, x: offscreen }}
+                  >
+                    {children}
+                  </Elevated>
+                );
+              }}
+            />
+          </DialogPrimitive.Portal>
+        </PopupPresence>
+      </PopupOpen>
     </DialogPrimitive.Root>
   );
 };

@@ -17,8 +17,8 @@ import type {
   RefAttributes,
   RefObject,
 } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import type { HTMLMotionProps } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
+import type { HTMLMotionProps } from "motion/react";
 import { composeRefs } from "@repo/ui/lib/compose-refs";
 import { cssVars } from "@repo/ui/lib/css-vars";
 import { cn } from "@repo/ui/lib/cn";
@@ -224,7 +224,7 @@ const SidebarProvider = ({
   );
 };
 
-// framer's own prop type: a DOM-typed HTMLAttributes spread cannot satisfy motion.div
+// Motion's own prop type: a DOM-typed HTMLAttributes spread cannot satisfy motion.div
 type MotionSafeDivProps = Omit<HTMLMotionProps<"div">, "ref" | "children"> & {
   children?: ReactNode;
 };

@@ -4,13 +4,13 @@
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import type { HTMLProps } from "@base-ui/react/types";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { XIcon } from "lucide-react";
 
 import { Button } from "@repo/ui/components/button";
 import { Elevated } from "@repo/ui/lib/elevated";
 import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
-import { PopupExit } from "@repo/ui/lib/popup-exit";
+import { PopupOpen, PopupPresence } from "@repo/ui/lib/popup-presence";
 import type { MotionConflictHandler } from "@repo/ui/lib/motion-style";
 import { radius } from "@repo/ui/lib/radius";
 import { useSize } from "@repo/ui/lib/size-context";
@@ -20,20 +20,17 @@ import { cn } from "@repo/ui/lib/cn";
 const DIALOG_OFFSET = 4;
 
 // The modal skin, Dialog's and AlertDialog's alike: the two primitives share their Backdrop and
-// Popup, so a second skin would only be a second look for one kind of surface.
-const renderDialogBackdrop = (
-  backdropProps: HTMLProps<HTMLDivElement>,
-  state: DialogPrimitive.Backdrop.State,
-) => {
-  const exiting = state.transitionStatus === "ending";
+// Popup, so a second skin would only be a second look for one kind of surface. Both fade under the
+// Portal's presence (`@repo/ui/lib/popup-presence`), each with an exit of its own.
+const renderDialogBackdrop = (backdropProps: HTMLProps<HTMLDivElement>) => {
   const { style: _style, ...rest } = motionProps(backdropProps);
   return (
     <motion.div
       {...rest}
       className="fixed inset-0 z-50 bg-black/40 dark:bg-black/80"
       initial={{ opacity: 0 }}
-      animate={{ opacity: exiting ? 0 : 1 }}
-      transition={exiting ? spring.slow.exit : spring.slow}
+      animate={{ opacity: 1, transition: spring.slow }}
+      exit={{ opacity: 0, transition: spring.slow.exit }}
     />
   );
 };
@@ -42,49 +39,47 @@ interface DialogCardProps extends Omit<HTMLAttributes<HTMLDivElement>, MotionCon
   // what the primitive's render prop hands over; the card spreads it so the Popup element itself
   // is the one that animates, which is what Base UI waits on before it unmounts
   popupProps: HTMLProps<HTMLDivElement>;
-  exiting: boolean;
 }
 
-const DialogCard = ({ popupProps, exiting, className, style, ...props }: DialogCardProps) => {
+const DialogCard = ({ popupProps, className, style, ...props }: DialogCardProps) => {
   const { style: baseStyle, ...rest } = motionProps(popupProps);
   // centering rides CSS translate utilities, not motion x/y, so a consumer className can
   // override one axis
   return (
-    <PopupExit exiting={exiting}>
-      <Elevated
-        {...rest}
-        {...props}
-        offset={DIALOG_OFFSET}
-        className={cn(
-          "fixed top-1/2 left-1/2 z-50 -translate-x-1/2 -translate-y-1/2 p-6 focus:outline-none",
-          radius.container,
-          className,
-        )}
-        style={motionStyle(baseStyle, style)}
-        initial={{ opacity: 0, scale: 0.97 }}
-        animate={{ opacity: exiting ? 0 : 1, scale: exiting ? 0.97 : 1 }}
-        transition={exiting ? spring.slow.exit : spring.slow}
-      />
-    </PopupExit>
+    <Elevated
+      {...rest}
+      {...props}
+      offset={DIALOG_OFFSET}
+      className={cn(
+        "fixed top-1/2 left-1/2 z-50 -translate-x-1/2 -translate-y-1/2 p-6 focus:outline-none",
+        radius.container,
+        className,
+      )}
+      style={motionStyle(baseStyle, style)}
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={{ opacity: 1, scale: 1, transition: spring.slow }}
+      exit={{ opacity: 0, scale: 0.97, transition: spring.slow.exit }}
+    />
   );
 };
 
+// controlled, as the Portal's presence reads the open it is handed
 interface DialogProps {
-  open?: boolean;
-  defaultOpen?: boolean;
-  onOpenChange?: (open: boolean) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   modal?: boolean;
   children?: ReactNode;
 }
 
-const Dialog = ({ children, open, defaultOpen, onOpenChange, modal }: DialogProps) => (
+const Dialog = ({ children, open, onOpenChange, modal }: DialogProps) => (
   <DialogPrimitive.Root
     open={open}
-    defaultOpen={defaultOpen}
-    onOpenChange={(next) => onOpenChange?.(next)}
+    onOpenChange={(next) => {
+      onOpenChange(next);
+    }}
     modal={modal}
   >
-    {children}
+    <PopupOpen open={open}>{children}</PopupOpen>
   </DialogPrimitive.Root>
 );
 
@@ -104,42 +99,41 @@ const DialogContent = ({
 }: DialogContentProps & RefAttributes<HTMLDivElement>) => {
   const compact = useSize().variant === "compact";
 
-  // no `if (!open) return null`: Base UI's Popup unmounts itself after the motion tween finishes
-  // (via getAnimations()), and an early return would cut the closing animation.
   return (
-    <DialogPrimitive.Portal>
-      <DialogPrimitive.Backdrop render={renderDialogBackdrop} />
-      <DialogPrimitive.Popup
-        ref={ref}
-        initialFocus={initialFocus}
-        render={(popupProps, state) => (
-          <DialogCard
-            {...props}
-            popupProps={popupProps}
-            exiting={state.transitionStatus === "ending"}
-            data-slot="dialog-content"
-            className={cn(
-              "w-[calc(100%-2rem)]",
-              compact ? "max-w-[360px]" : "max-w-[400px]",
-              className,
-            )}
-            style={style}
-          >
-            {children}
-            {showCloseButton && (
-              <DialogPrimitive.Close
-                render={
-                  <Button variant="ghost" size="icon-compact" className="absolute top-3 right-3">
-                    <XIcon />
-                    <span className="sr-only">Close</span>
-                  </Button>
-                }
-              />
-            )}
-          </DialogCard>
-        )}
-      />
-    </DialogPrimitive.Portal>
+    <PopupPresence>
+      <DialogPrimitive.Portal keepMounted>
+        <DialogPrimitive.Backdrop render={renderDialogBackdrop} />
+        <DialogPrimitive.Popup
+          ref={ref}
+          initialFocus={initialFocus}
+          render={(popupProps) => (
+            <DialogCard
+              {...props}
+              popupProps={popupProps}
+              data-slot="dialog-content"
+              className={cn(
+                "w-[calc(100%-2rem)]",
+                compact ? "max-w-[360px]" : "max-w-[400px]",
+                className,
+              )}
+              style={style}
+            >
+              {children}
+              {showCloseButton && (
+                <DialogPrimitive.Close
+                  render={
+                    <Button variant="ghost" size="icon-compact" className="absolute top-3 right-3">
+                      <XIcon />
+                      <span className="sr-only">Close</span>
+                    </Button>
+                  }
+                />
+              )}
+            </DialogCard>
+          )}
+        />
+      </DialogPrimitive.Portal>
+    </PopupPresence>
   );
 };
 

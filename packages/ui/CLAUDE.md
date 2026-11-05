@@ -55,14 +55,20 @@ nobody, and git keeps it. A single export beside a drawn component is a reasoned
   in `packages/ui/src/lib/cn.ts` and imported from there: a second, unconfigured
   `cn` drops the size again.
 
-- **A POPUP'S MOTION RIDES ITS POPUP ELEMENT, AND REDUCED MOTION IS ONE
-  POLICY.** Base UI unmounts a closing popup once the Popup element's own
-  animations finish, so a framer popup renders its Popup as the motion element,
-  each exit wrapped in `PopupExit` (`packages/ui/src/lib/popup-exit.tsx`).
-  Reduced motion is `MotionPolicy` (`packages/ui/src/lib/motion-policy.tsx`) at
-  each app root, and tw-animate's classes collapse to 1ms in
+- **A POPUP'S MOTION RIDES ITS POPUP ELEMENT, ON BASE UI'S DOCUMENTED MOTION
+  PATH, AND REDUCED MOTION IS ONE POLICY.** A Motion popup's Root is
+  controlled, its Portal kept mounted under `AnimatePresence` while open, and
+  its Popup rendered as the motion element with an exit of its own, which
+  Motion starts in the closing commit, so the fade Base UI waits on is running
+  when it looks (`packages/ui/src/lib/popup-presence.tsx`). Reduced motion is
+  `MotionPolicy` (`packages/ui/src/lib/motion-policy.tsx`) at each app root,
+  and tw-animate's classes collapse to 1ms in
   `packages/ui/src/styles/globals.css`, so no class carries a `motion-reduce:`
-  suffix. Rejected: an `actionsRef` hold or a fallback timer.
+  suffix. Rejected: an exit keyed on `transitionStatus` (Motion starts it a
+  frame after Base UI looks, so the popup left at once, held only by an
+  undocumented resolver flush); `preventUnmountOnClose()` with
+  `actionsRef.unmount()` (a close the page makes by its `open` never passes
+  through `onOpenChange`); a fallback timer.
 
 ## Repo guards, vendoring and tooling
 

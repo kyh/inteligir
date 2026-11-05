@@ -1,7 +1,7 @@
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 import type { ReactNode, RefAttributes } from "react";
-import { motion } from "framer-motion";
-import type { HTMLMotionProps } from "framer-motion";
+import { motion } from "motion/react";
+import type { HTMLMotionProps } from "motion/react";
 
 import { cn } from "@repo/ui/lib/cn";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
