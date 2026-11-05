@@ -147,7 +147,7 @@ export const InfoTab = ({
               refresh.mutate({ id: itemId });
             }}
           >
-            {refresh.isPaused ? "Needs a connection" : "Read the page again"}
+            Read the page again
           </Button>
         </div>
       ) : null}

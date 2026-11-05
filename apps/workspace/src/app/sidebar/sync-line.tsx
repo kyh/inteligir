@@ -12,10 +12,9 @@ import {
   DropdownMenuTrigger,
 } from "@repo/ui/components/dropdown-menu";
 import { cn } from "@repo/ui/lib/cn";
-import { onlineManager } from "@tanstack/react-query";
-import { useSyncExternalStore } from "react";
 
 import { useReplica, useReplicaStatus } from "../cloud/library-context";
+import { useOnline } from "../cloud/needs-connection";
 import { syncWords } from "./sync-words";
 import type { SyncTone } from "./sync-words";
 
@@ -25,13 +24,6 @@ const TONE_DOT = {
   quiet: "bg-success",
   waiting: "bg-muted-foreground",
 } satisfies Record<SyncTone, string>;
-
-// the browser's own word on its connection, which TanStack Query pauses its cell calls by
-const useOnline = (): boolean =>
-  useSyncExternalStore(
-    (listener) => onlineManager.subscribe(listener),
-    () => onlineManager.isOnline(),
-  );
 
 export const SyncLine = () => {
   const replica = useReplica();

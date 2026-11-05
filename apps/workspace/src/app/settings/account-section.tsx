@@ -13,16 +13,27 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { useAccount, useReplica, useWire } from "../cloud/library-context";
-import { CellAnswer, NEEDS_CONNECTION, refusalText } from "../cloud/needs-connection";
+import { CellAnswer, refusalText } from "../cloud/needs-connection";
+import type { CloudWire } from "../cloud/v1";
 import { forgetPref, PREFS } from "../prefs";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import { Row, SectionHeading } from "./settings-chrome";
+
+// what the account's rows read, which Settings' route asks for as it opens: fresh for half a
+// minute, so a row drawing what the route asked does not ask the cell again as it mounts
+const ACCOUNT_FRESH_MS = 30_000;
+
+export const accountReads = (orpc: CloudWire["orpc"]) => ({
+  agent: orpc.library.agent.status.queryOptions({ staleTime: ACCOUNT_FRESH_MS }),
+  assistants: orpc.account.assistants.list.queryOptions({ staleTime: ACCOUNT_FRESH_MS }),
+  devices: orpc.account.devices.list.queryOptions({ staleTime: ACCOUNT_FRESH_MS }),
+});
 
 const DevicesRow = () => {
   const { orpc } = useWire();
   const queryClient = useQueryClient();
   const nowMs = useNow();
-  const devices = useQuery(orpc.account.devices.list.queryOptions());
+  const devices = useQuery(accountReads(orpc).devices);
   const revoke = useMutation(
     orpc.account.devices.revoke.mutationOptions({
       onError: (cause) => {
@@ -72,7 +83,7 @@ const DevicesRow = () => {
 const AssistantsRow = () => {
   const { orpc } = useWire();
   const queryClient = useQueryClient();
-  const assistants = useQuery(orpc.account.assistants.list.queryOptions());
+  const assistants = useQuery(accountReads(orpc).assistants);
   const revoke = useMutation(
     orpc.account.assistants.revoke.mutationOptions({
       onError: (cause) => {
@@ -126,7 +137,7 @@ const TIME = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-di
 const AgentRow = () => {
   const { orpc } = useWire();
   const queryClient = useQueryClient();
-  const status = useQuery(orpc.library.agent.status.queryOptions());
+  const status = useQuery(accountReads(orpc).agent);
   const setEnabled = useMutation(
     orpc.library.agent.setEnabled.mutationOptions({
       onError: (cause) => {
@@ -155,9 +166,6 @@ const AgentRow = () => {
                 ? `${String(data.turnsLeft)} turns left today; more at ${TIME.format(data.resetsAt)}.`
                 : "Off: it answers nothing, and your conversations stay readable."}
             </span>
-            {setEnabled.isPaused ? (
-              <span className="text-caption text-muted-foreground">{NEEDS_CONNECTION}</span>
-            ) : null}
           </div>
         )}
       </CellAnswer>

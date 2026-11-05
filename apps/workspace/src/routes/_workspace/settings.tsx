@@ -1,10 +1,13 @@
 // Settings as its own route: deep-linkable, back and forward work, and its account rows are
-// asked for as the route loads, so they draw at once when the cell has answered. With no
-// connection nothing is awaited, and each row says it needs one (`needs-connection.tsx`).
+// asked for as the route loads, so they draw at once when the cell has answered. The route waits
+// for one answer, never for the retries: a row whose seed failed asks again, with the client's own
+// retries, as it mounts. With no connection nothing is awaited, and each row says it needs one
+// (`needs-connection.tsx`).
 
 import { onlineManager } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
+import { accountReads } from "../../app/settings/account-section";
 import { SettingsPage } from "../../app/settings/settings-page";
 
 const Settings = () => {
@@ -24,21 +27,13 @@ export const Route = createFileRoute("/_workspace/settings")({
     if (!onlineManager.isOnline()) {
       return;
     }
-    const { orpc } = context.library.wire;
+    const reads = accountReads(context.library.wire.orpc);
+    const { queryClient } = context;
     // a row whose call failed draws its own refusal, so a refused seed is not the route's failure
     await Promise.allSettled([
-      context.queryClient.query({
-        ...orpc.account.devices.list.queryOptions(),
-        staleTime: "static",
-      }),
-      context.queryClient.query({
-        ...orpc.account.assistants.list.queryOptions(),
-        staleTime: "static",
-      }),
-      context.queryClient.query({
-        ...orpc.library.agent.status.queryOptions(),
-        staleTime: "static",
-      }),
+      queryClient.query({ ...reads.devices, retry: 0, staleTime: "static" }),
+      queryClient.query({ ...reads.assistants, retry: 0, staleTime: "static" }),
+      queryClient.query({ ...reads.agent, retry: 0, staleTime: "static" }),
     ]);
   },
 });

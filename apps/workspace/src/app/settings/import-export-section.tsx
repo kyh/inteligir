@@ -1,8 +1,9 @@
 // Bringing a library in and taking it out, both the cell's jobs (`library.imports.*`,
 // `library.exports.*`): a Raindrop export or a zip of markdown (this app's export, or an Obsidian
 // vault) goes up to the library's files by its SHA-256 and is read a page at a time, every item it
-// adds in one change set History shows; an export is a zip in the same format, written in the
-// cloud and downloaded from `/v1/exports/<id>` while it is kept. Each waits for a connection.
+// adds in one change set History shows, and Stop ends it after the page it is on, keeping what it
+// added; an export is a zip in the same format, written in the cloud and downloaded from
+// `/v1/exports/<id>` while it is kept. Each waits for a connection.
 
 import { V1_BLOBS_PATH, V1_EXPORTS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import type { importJobSchema } from "@repo/contract/cloud/library/library-wire";
@@ -52,6 +53,11 @@ export const importSentence = (job: ImportJob): string => {
   }
 };
 
+// the store's refusal of the file, in the person's words
+class UploadRefusedError extends Error {
+  override name = "UploadRefusedError";
+}
+
 // the file's bytes in the library's files, by their SHA-256, which the import then names
 const uploadFile = async (file: File): Promise<string> => {
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -63,7 +69,7 @@ const uploadFile = async (file: File): Promise<string> => {
     method: "PUT",
   });
   if (!response.ok) {
-    throw new Error(
+    throw new UploadRefusedError(
       response.status === 413
         ? "This file is larger than the library takes."
         : "The file couldn't be sent. Try again.",
@@ -92,12 +98,26 @@ const ImportRow = () => {
       return await client.library.imports.start({ sha, source: from });
     },
     onError: (cause) => {
-      toast.error(refusalText(cause, "The import couldn't start."));
+      toast.error(
+        cause instanceof UploadRefusedError
+          ? cause.message
+          : refusalText(cause, "The import couldn't start."),
+      );
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: orpc.library.imports.key() });
     },
   });
+  const stop = useMutation(
+    orpc.library.imports.cancel.mutationOptions({
+      onError: (cause) => {
+        toast.error(refusalText(cause, "The import couldn't be stopped."));
+      },
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({ queryKey: orpc.library.imports.key() });
+      },
+    }),
+  );
   const job = latest.data?.job ?? null;
   return (
     <Row label="Import">
@@ -134,13 +154,27 @@ const ImportRow = () => {
             }
           }}
         />
-        {start.isPaused || latest.fetchStatus === "paused" ? (
+        {latest.fetchStatus === "paused" ? (
           <p className="m-0 text-body text-muted-foreground">{NEEDS_CONNECTION}</p>
         ) : null}
         {job === null ? null : (
-          <p className="m-0 text-body text-muted-foreground" data-import-state={job.state}>
-            {importSentence(job)}
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="m-0 text-body text-muted-foreground" data-import-state={job.state}>
+              {importSentence(job)}
+            </p>
+            {job.state === "running" ? (
+              <Button
+                size="compact"
+                variant="ghost"
+                disabled={stop.isPending}
+                onClick={() => {
+                  stop.mutate({ id: job.id });
+                }}
+              >
+                Stop
+              </Button>
+            ) : null}
+          </div>
         )}
       </div>
     </Row>
@@ -182,9 +216,6 @@ const ExportRow = () => {
         >
           Export the library
         </Button>
-        {start.isPaused ? (
-          <p className="m-0 text-body text-muted-foreground">{NEEDS_CONNECTION}</p>
-        ) : null}
         {job === null ? null : (
           <p className="m-0 text-body text-muted-foreground" data-export-state={job.state}>
             {job.state === "writing" ? "Writing the zip…" : null}

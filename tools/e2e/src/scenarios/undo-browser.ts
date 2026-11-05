@@ -1,7 +1,8 @@
 // Undo in the tab, over the cell's change sets: a turn of the built-in agent rewrites a line of the
 // open item, and the conversation's "Undo this turn", pressed while a line the person typed since
 // still waits on the editor's pause, takes the agent's line back and keeps the person's; History
-// lists that undo as a change set of its own, and its Undo brings the agent's line back.
+// lists that undo as a change set of its own, and its Undo, pressed offline, says it needs a
+// connection and brings the agent's line back once the tab is online again.
 
 import { z } from "zod";
 import { caretToEndOf, clickButtonIn, parseEval, press } from "../harness/agent-browser";
@@ -12,7 +13,7 @@ import { openLibraryTab, untilItemText } from "../harness/library-tab";
 import type { Library } from "../harness/library-tab";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { EDITOR } from "../harness/selectors";
+import { EDITOR, TOAST_TEXT } from "../harness/selectors";
 
 const TITLE = "Draft";
 const FIRST = "First draft.";
@@ -23,6 +24,7 @@ const DOC = `# ${TITLE}\n\n${FIRST}\n\n${KEPT}\n`;
 const PANEL_TOGGLE = 'button[aria-label="Info, highlights, History and the agent"]';
 const PANEL = '[data-side="right"]';
 const DEADLINE_MS = 30_000;
+const NEEDS_CONNECTION = "Needs a connection";
 
 const editorText = async (browser: AgentBrowser): Promise<string> =>
   parseEval(
@@ -58,7 +60,7 @@ const untilIdle = async (library: Library, threadId: string): Promise<void> => {
 
 export const undoBrowser: Scenario = {
   description:
-    "in the tab: a built-in agent's turn rewrites a line of the open item; its Undo this turn, pressed inside the editor's pause after a line typed elsewhere in the item, takes the agent's line back and keeps the typed one, in the cell and the editor; History lists the undo as a change set of its own, whose Undo brings the agent's line back",
+    "in the tab: a built-in agent's turn rewrites a line of the open item; its Undo this turn, pressed inside the editor's pause after a line typed elsewhere in the item, takes the agent's line back and keeps the typed one, in the cell and the editor; History lists the undo as a change set of its own, whose Undo pressed offline says it needs a connection and brings the agent's line back once online",
   name: "undo-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -103,12 +105,27 @@ export const undoBrowser: Scenario = {
     );
     await untilEditor(browser, kept, "the editor never showed the first line and the typed one");
 
-    ctx.log("History lists the undo, and its Undo brings the agent's line back");
+    ctx.log("History lists the undo; its Undo pressed offline waits, and says so");
     const { changeSets } = await library.history.list({ itemId });
     const undone = changeSets.find((set) => set.actor === "undo");
     expect(undone !== undefined, `History holds no undo: ${JSON.stringify(changeSets)}`);
     await clickButtonIn(browser, PANEL, "History");
+    await browser(["wait", `[data-change-set="${undone.id}"]`], DEADLINE_MS);
+    await browser(["set", "offline", "on"]);
     await clickButtonIn(browser, `[data-change-set="${undone.id}"]`, "Undo");
+    await pollUntil(
+      async () => parseEval(await browser(["eval", TOAST_TEXT]), z.string()),
+      (text) => text.includes(NEEDS_CONNECTION),
+      {
+        deadlineMs: DEADLINE_MS,
+        describe: (text) => `the offline Undo never said it needs a connection; toasts:\n${text}`,
+      },
+    );
+    const waited = await untilItemText(library, itemId, () => true, "unread");
+    expect(!waited.includes(SECOND), `the offline Undo reached the cell:\n${waited}`);
+
+    ctx.log("back online, the Undo goes and brings the agent's line back");
+    await browser(["set", "offline", "off"]);
     const back = (text: string): boolean =>
       text.includes(SECOND) && text.includes(`${KEPT}${TYPED}`) && !text.includes(FIRST);
     await untilItemText(

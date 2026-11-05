@@ -20,7 +20,7 @@ import type { SidebarActions } from "@repo/ui/components/sidebar-core";
 import { toast } from "@repo/ui/components/sonner";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { plural } from "@repo/ui/lib/plural";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useStore } from "zustand";
@@ -349,6 +349,22 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     })();
   };
 
+  // calls only the cell answers, so each waits for a connection (CLAUDE.md § A CELL CALL PAUSES
+  // OFFLINE AND SAYS SO)
+  const purgeCall = useMutation(
+    wire.orpc.library.items.purge.mutationOptions({ scope: { id: "purge" } }),
+  );
+  const refreshCall = useMutation(
+    wire.orpc.library.items.refresh.mutationOptions({
+      onError: (cause) => {
+        toast.error(refusalText(cause, "The page couldn't be read again."));
+      },
+      onSuccess: () => {
+        toast.success("Reading the page again.");
+      },
+    }),
+  );
+
   const purge = (rows: readonly ReplicaListingRow[]): void => {
     void (async () => {
       if (
@@ -363,7 +379,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       }
       try {
         const purged = await purgeItems(
-          wire,
+          purgeCall.mutateAsync,
           rows.map((row) => row.id),
         );
         toast.success(`Deleted ${plural(purged, "item")} forever.`);
@@ -439,14 +455,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       // the grid draws its own Quick Look
     },
     refresh: (row) => {
-      void (async () => {
-        try {
-          await wire.client.library.items.refresh({ id: row.id });
-          toast.success("Reading the page again.");
-        } catch (error) {
-          toast.error(refusalText(error, "The page couldn't be read again."));
-        }
-      })();
+      refreshCall.mutate({ id: row.id });
     },
     remove: removeItems,
     restore: (rows) => {

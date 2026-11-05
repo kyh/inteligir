@@ -34,23 +34,28 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
 - **THE QUERY CLIENT IS THE ROUTER'S.** One `QueryClient` is made with the
   router and handed to it as context, its provider the router's `Wrap`, so a
   loader and a component share one cache; a loader seeds what its screen reads
-  with `queryClient.query({ ..., staleTime: "static" })`, once. A replica read
-  is a query that runs offline (`networkMode: "always"`, never stale), and the
-  replica's change invalidates only the families it moved; a cell call is
-  oRPC's TanStack utils over the same client. Rejected: a module-level client
+  with `queryClient.query({ ..., staleTime: "static" })`, once, over the options
+  its screen reads with their own freshness, waiting for one answer and not the
+  retries the screen's query makes itself. A replica read is a query that runs
+  offline (`networkMode: "always"`, never stale), and the replica's change
+  invalidates only the families it moved; a cell call is oRPC's TanStack utils
+  over the same client. Rejected: a module-level client
   (a test and a second router share it); `ensureQueryData`, `fetchQuery` and
   `prefetchQuery` (deprecated for `query`). `apps/workspace/src/router.tsx`,
   `apps/workspace/src/app/cloud/replica-queries.ts`.
 
-- **A CELL CALL PAUSES OFFLINE AND SAYS SO.** A call only the cell answers runs
-  online (`networkMode: "online"`), so with no connection it waits rather than
-  fails, and its screen says "Needs a connection"; a refusal says its own
-  sentence. The client's one retry rule never retries a refusal the contract
-  declares, so no screen spells `retry: false`, and a session that ended sends
-  the tab to sign in. A write whose order matters shares a `scope`, and a write
-  refetches in its own callbacks, awaited, only the family it moved. Rejected:
-  every call failing at once offline (a cloud that is down and a tab that is
-  offline would read alike). `apps/workspace/src/app/cloud/v1.ts`,
+- **A CELL CALL PAUSES OFFLINE AND SAYS SO.** A call only the cell answers is a
+  TanStack query or mutation run online (`networkMode: "online"`), so with no
+  connection it waits rather than fails: a read says "Needs a connection" where
+  it would draw, and a write, whether asked from a card's menu, a button or
+  Settings, in one notice the root keeps up while any waits offline. A refusal
+  the contract declares says its own sentence; any other failure says the
+  screen's fallback, never an error's own words. The one retry rule never
+  retries a declared refusal, so no screen spells `retry: false`, and a session
+  that ended sends the tab to sign in. A write whose order matters shares a
+  `scope`, and refetches in its own callbacks, awaited, only the family it
+  moved. Rejected: a call outside TanStack (it fails at once offline); a note
+  per button (a menu's verb has none). `apps/workspace/src/app/cloud/v1.ts`,
   `apps/workspace/src/app/cloud/needs-connection.tsx`.
 
 - **THE PAGE IS ONE BUNDLE, AND CATCHES UP AS ITS CONNECTION RETURNS.** The

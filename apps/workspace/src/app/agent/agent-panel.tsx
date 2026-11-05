@@ -21,7 +21,7 @@ import { useEffect, useState } from "react";
 import type { z } from "zod";
 
 import { useReplica, useReplicaQueries, useWire } from "../cloud/library-context";
-import { NEEDS_CONNECTION, refusalText } from "../cloud/needs-connection";
+import { refusalText } from "../cloud/needs-connection";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import {
   agentRefusalWords,
@@ -301,9 +301,6 @@ const Conversation = ({
               <ApprovalOption optionId="deny">Cancel</ApprovalOption>
             </ApprovalQuestion>
           </ApprovalCard>
-          {respond.isPaused ? (
-            <p className="m-0 text-caption text-muted-foreground">{NEEDS_CONNECTION}</p>
-          ) : null}
         </div>
       ))}
       <div className="flex flex-wrap items-center gap-1.5">
@@ -390,9 +387,6 @@ const Composer = ({
         disabled={send.isPending}
         textareaProps={{ "aria-label": "Message the agent" }}
       />
-      {send.isPaused ? (
-        <span className="text-caption text-muted-foreground">{NEEDS_CONNECTION}</span>
-      ) : null}
     </div>
   );
 };

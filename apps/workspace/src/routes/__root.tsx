@@ -1,5 +1,6 @@
 // CLAUDE.md § WINDOW-LEVEL HOSTS MOUNT AT THE ROOT ROUTE. Mounted above every route so Settings
-// and back keeps one theme, one toaster and one confirm host; the QueryClient and the library are
+// and back keeps one theme, one toaster, one confirm host and one notice of writes waiting for a
+// connection; the QueryClient and the library are
 // the router's own context, wrapped around every route (`router.tsx`).
 
 import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
@@ -11,6 +12,7 @@ import { ThemeProvider } from "@repo/ui/lib/theme";
 import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
 
 import { AppearanceProvider } from "../app/appearance";
+import { PausedWrites } from "../app/cloud/needs-connection";
 import { PREFS, usePref } from "../app/prefs";
 import type { PageContext } from "../router";
 
@@ -25,6 +27,7 @@ const RootLayout = () => {
               <Outlet />
               <ConfirmDialogHost />
               <Toaster position="bottom-right" />
+              <PausedWrites />
             </TooltipProvider>
           </MotionPolicy>
         </AppearanceProvider>

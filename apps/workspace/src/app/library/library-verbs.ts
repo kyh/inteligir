@@ -13,8 +13,6 @@ import { ordBetween } from "@repo/notes/library/block-order";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import { uuidV7 } from "@repo/notes/library/uuid-v7";
 
-import type { CloudWire } from "../cloud/v1";
-
 type FieldsOp = (fields: LibraryItemFields) => LibraryOp[];
 
 // one item's fields patch, written over the item as it reads now; true when it is queued or was
@@ -128,11 +126,15 @@ const chunked = <T>(items: readonly T[]): T[][] => {
   return out;
 };
 
-// emptying Deleted: the bodies and highlights go for good, and each id stays as a tombstone
-export const purgeItems = async (wire: CloudWire, itemIds: readonly string[]): Promise<number> => {
+// emptying Deleted: the bodies and highlights go for good, and each id stays as a tombstone; the
+// chunks the route takes go one after another, through the page's own call of the cell's purge
+export const purgeItems = async (
+  purge: (input: { ids: string[] }) => Promise<{ purged: readonly string[] }>,
+  itemIds: readonly string[],
+): Promise<number> => {
   let purged = 0;
   for (const ids of chunked(itemIds)) {
-    const answer = await wire.client.library.items.purge({ ids });
+    const answer = await purge({ ids });
     purged += answer.purged.length;
   }
   return purged;
