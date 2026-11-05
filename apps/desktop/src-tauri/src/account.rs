@@ -170,7 +170,7 @@ mod tests {
             .run(&statement("CREATE TABLE kept (body TEXT)"))?;
         let bytes = b"a staged photo";
         let sha = file_cache::sha_of(bytes);
-        account.files().stage(&sha, bytes)?;
+        account.files().stage(&sha, bytes, "image/png")?;
         account.forget()?;
         assert_eq!(account.bearer(), None);
         assert!(!dir.path().join("library").exists());

@@ -10,7 +10,7 @@
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { vi } from "vitest";
 import { z } from "zod";
-import type { BytesRoute, CommandRoute } from "../ipc-contract";
+import type { CommandRoute, FileRoute } from "../ipc-contract";
 
 // invoke sends `{}` for a row that takes nothing, which the shell reads as no arguments
 const NO_ARGS_SENT = z.strictObject({});
@@ -35,9 +35,10 @@ export const reply =
     command: route.command,
   });
 
-// a row whose request is raw bytes: the mock hands the reply the bytes it was sent
+// a row whose request is raw bytes: the mock hands the reply the bytes it was sent (Tauri's mock
+// drops the headers beside them)
 export const replyBytes =
-  <Answer extends z.ZodType>(route: BytesRoute<Answer>) =>
+  <Answer extends z.ZodType>(route: FileRoute<Answer>) =>
   (answer: (bytes: Uint8Array) => z.input<Answer> | Promise<z.input<Answer>>): ShellReply => ({
     answer: async (_command, payload) => await answer(z.instanceof(Uint8Array).parse(payload)),
     command: route.command,

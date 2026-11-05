@@ -1,9 +1,11 @@
 //! The library's files on this Mac, by their SHA-256. Two folders: the staged files, which the
 //! outbox has yet to upload and which nothing evicts, in the app's data dir; and the cache of
 //! files fetched from the cloud, which macOS may purge and which this module keeps under its limit
-//! by letting the least recently read go first, in the app's caches dir. Both are read by the
-//! page through the shell's own scheme (`file_scheme.rs`); a file neither holds is fetched from
-//! `/v1/blobs/<sha>` with the device's credential, checked against its sha and kept.
+//! by letting the least recently read go first, in the app's caches dir. Each file's type sits
+//! beside it (`<sha>.type`), the one the page staged it as or the cloud served it as, and moves
+//! with it. Both are read by the page through the shell's own scheme (`file_scheme.rs`); a file
+//! neither holds is fetched from `/v1/blobs/<sha>` with the device's credential, checked against
+//! its sha and kept.
 
 use std::fmt::Write as _;
 use std::fs::{self, File, OpenOptions};
@@ -99,6 +101,14 @@ fn length_if_there(path: &Path) -> io::Result<Option<u64>> {
     }
 }
 
+/// The type kept beside a file; one never kept serves as bytes.
+fn type_in(path: &Path) -> String {
+    fs::read_to_string(path)
+        .ok()
+        .filter(|kind| !kind.is_empty())
+        .unwrap_or_else(|| UNKNOWN_TYPE.to_owned())
+}
+
 fn remove_if_there(path: &Path) -> io::Result<()> {
     match fs::remove_file(path) {
         Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),
@@ -167,13 +177,18 @@ impl FileCache {
         self.cache_dir.join(sha)
     }
 
+    fn staged_type_path(&self, sha: &str) -> PathBuf {
+        self.staged_dir.join(format!("{sha}{TYPE_SUFFIX}"))
+    }
+
     fn type_path(&self, sha: &str) -> PathBuf {
         self.cache_dir.join(format!("{sha}{TYPE_SUFFIX}"))
     }
 
-    /// A file the outbox will upload: kept until the write naming it lands, whatever the cache's
-    /// limit. Bytes that do not hash to their sha are refused, as the cloud would refuse them.
-    pub fn stage(&self, sha: &str, bytes: &[u8]) -> ShellResult<()> {
+    /// A file the outbox will upload, with the type it is sent as: kept until the write naming it
+    /// lands, whatever the cache's limit. Bytes that do not hash to their sha are refused, as the
+    /// cloud would refuse them.
+    pub fn stage(&self, sha: &str, bytes: &[u8], content_type: &str) -> ShellResult<()> {
         let sha = checked(sha)?;
         if sha_of(bytes) != sha {
             return Err(ShellError::Invalid(format!(
@@ -181,6 +196,7 @@ impl FileCache {
             )));
         }
         let _writing = self.write_lock();
+        write_whole(&self.staged_type_path(sha), content_type.as_bytes())?;
         Ok(write_whole(&self.staged_path(sha), bytes)?)
     }
 
@@ -188,8 +204,8 @@ impl FileCache {
         Ok(read_if_there(&self.staged_path(checked(sha)?))?)
     }
 
-    /// The write naming the file landed, so the cloud holds it: its bytes move into the cache,
-    /// where the next read finds them without a fetch and the limit may let them go.
+    /// The write naming the file landed, so the cloud holds it: its bytes and its type move into
+    /// the cache, where the next read finds them without a fetch and the limit may let them go.
     pub fn unstage(&self, sha: &str) -> ShellResult<()> {
         let sha = checked(sha)?;
         let _writing = self.write_lock();
@@ -198,6 +214,11 @@ impl FileCache {
             return Ok(());
         }
         fs::create_dir_all(&self.cache_dir)?;
+        // the type first: the bytes are what makes the file found, so it is never found untyped
+        match fs::rename(self.staged_type_path(sha), self.type_path(sha)) {
+            Err(error) if error.kind() != io::ErrorKind::NotFound => return Err(error.into()),
+            _ => {}
+        }
         fs::rename(&from, self.cached_path(sha))?;
         self.evict()?;
         Ok(())
@@ -231,7 +252,7 @@ impl FileCache {
         if let Some(len) = length_if_there(&staged)? {
             return Ok(Some(Located {
                 path: staged,
-                content_type: UNKNOWN_TYPE.to_owned(),
+                content_type: type_in(&self.staged_type_path(sha)),
                 len,
             }));
         }
@@ -243,13 +264,9 @@ impl FileCache {
         if let Ok(file) = File::options().write(true).open(&path) {
             let _ = file.set_modified(SystemTime::now());
         }
-        let content_type = fs::read_to_string(self.type_path(sha))
-            .ok()
-            .filter(|kind| !kind.is_empty())
-            .unwrap_or_else(|| UNKNOWN_TYPE.to_owned());
         Ok(Some(Located {
             path,
-            content_type,
+            content_type: type_in(&self.type_path(sha)),
             len,
         }))
     }
@@ -443,7 +460,7 @@ mod tests {
             Err(ShellError::Invalid(_))
         ));
         assert!(matches!(
-            cache.stage(&sha, &other.bytes),
+            cache.stage(&sha, &other.bytes, &other.content_type),
             Err(ShellError::Invalid(_))
         ));
         assert!(matches!(
@@ -481,7 +498,7 @@ mod tests {
         let dir = tempfile::tempdir()?;
         let cache = cache_in(dir.path(), 0);
         let (sha, held) = file("a staged photo");
-        cache.stage(&sha, &held.bytes)?;
+        cache.stage(&sha, &held.bytes, &held.content_type)?;
         // a fetched file meets a limit of nothing and goes at once; the staged one stays
         let (other, other_file) = file("fetched");
         cache.keep(&other, &other_file)?;
@@ -499,16 +516,19 @@ mod tests {
     }
 
     #[test]
-    fn an_unstaged_file_stays_readable_from_the_cache() -> ShellResult<()> {
+    fn a_staged_file_keeps_its_type_before_and_after_its_upload() -> ShellResult<()> {
         let dir = tempfile::tempdir()?;
         let cache = cache_in(dir.path(), CACHE_LIMIT_BYTES);
-        let (sha, held) = file("uploaded");
-        cache.stage(&sha, &held.bytes)?;
+        let held = Held {
+            bytes: b"%PDF-1.4 uploaded".to_vec(),
+            content_type: "application/pdf".to_owned(),
+        };
+        let sha = sha_of(&held.bytes);
+        cache.stage(&sha, &held.bytes, &held.content_type)?;
+        assert_eq!(whole(&cache, &sha)?.as_ref(), Some(&held));
         cache.unstage(&sha)?;
-        assert_eq!(
-            whole(&cache, &sha)?.map(|held| held.bytes),
-            Some(held.bytes)
-        );
+        assert_eq!(whole(&cache, &sha)?.as_ref(), Some(&held));
+        assert!(dir.path().join("staged").read_dir()?.next().is_none());
         // unstaging what is not staged is nothing
         cache.unstage(&sha)?;
         Ok(())
@@ -520,7 +540,7 @@ mod tests {
         let cache = cache_in(dir.path(), CACHE_LIMIT_BYTES);
         let (staged, staged_file) = file("staged");
         let (kept, kept_file) = file("kept");
-        cache.stage(&staged, &staged_file.bytes)?;
+        cache.stage(&staged, &staged_file.bytes, &staged_file.content_type)?;
         cache.keep(&kept, &kept_file)?;
         cache.clear_staged()?;
         assert_eq!(cache.staged(&staged)?, None);

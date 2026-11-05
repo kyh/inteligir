@@ -48,9 +48,10 @@ export interface ReplicaSocket {
 export type SocketDial = (url: string) => ReplicaSocket;
 
 // a file waiting to be uploaded, by its SHA-256: the bytes stay on the device until the write that
-// names them lands, and outlive a relaunch
+// names them lands, and outlive a relaunch. Its type comes with them, for a host that serves the
+// file itself before the cloud holds it (the Mac's scheme)
 export interface StagedBlobs {
-  readonly put: (sha: string, bytes: Uint8Array<ArrayBuffer>) => Promise<void>;
+  readonly put: (sha: string, bytes: Uint8Array<ArrayBuffer>, mime: string) => Promise<void>;
   // null when the device no longer holds them
   readonly read: (sha: string) => Promise<Uint8Array<ArrayBuffer> | null>;
   readonly remove: (sha: string) => Promise<void>;

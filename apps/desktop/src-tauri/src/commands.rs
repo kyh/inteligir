@@ -2,7 +2,8 @@
 //! `apps/workspace/src/shell/ipc-contract.ts`. Each is `async`, takes its arguments owned and
 //! answers a `Result`, whose `ShellError` crosses as the call's rejection; the replica's and the
 //! files' work runs on a blocking thread, never the runtime's. Bytes cross raw both ways: a staged
-//! file comes in as the request's body, named by a header, and goes out as an `ipc::Response`.
+//! file comes in as the request's body, its sha and type in headers, and goes out as an
+//! `ipc::Response`.
 //!
 //! The window reaches these through `capabilities/app-window.json`, which grants them to the app's
 //! own page alone.
@@ -18,8 +19,9 @@ use crate::replica::{Row, Statement};
 use crate::update_state::UpdateState;
 use crate::updater::{self, Updates};
 
-/// The header a staged file's sha rides beside its raw bytes.
+/// The headers a staged file's sha and type ride beside its raw bytes.
 const FILE_SHA_HEADER: &str = "x-file-sha";
+const FILE_TYPE_HEADER: &str = "x-file-type";
 
 /// Blocking work (SQLite, the disk, the Keychain) runs off the async runtime's threads.
 async fn blocking<T: Send + 'static>(
@@ -120,7 +122,19 @@ pub async fn replica_rollback(app: AppHandle, token: u64) -> ShellResult<()> {
     .await
 }
 
-/// A file the outbox will upload: its bytes are the request's raw body, its sha a header.
+/// A header the request must carry, as text.
+fn named(request: &Request<'_>, header: &str) -> ShellResult<String> {
+    request
+        .headers()
+        .get(header)
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| ShellError::Invalid(format!("a staged file names its {header}")))
+}
+
+/// A file the outbox will upload: its bytes are the request's raw body, its sha and the type it is
+/// sent as are headers, and the scheme serves it as that type until the cloud holds it.
 #[tauri::command]
 pub async fn files_stage(app: AppHandle, request: Request<'_>) -> ShellResult<()> {
     let InvokeBody::Raw(bytes) = request.body() else {
@@ -128,14 +142,13 @@ pub async fn files_stage(app: AppHandle, request: Request<'_>) -> ShellResult<()
             "a staged file arrives as raw bytes".to_owned(),
         ));
     };
-    let sha = request
-        .headers()
-        .get(FILE_SHA_HEADER)
-        .and_then(|value| value.to_str().ok())
-        .ok_or_else(|| ShellError::Invalid(format!("a staged file names its {FILE_SHA_HEADER}")))?
-        .to_owned();
+    let sha = named(&request, FILE_SHA_HEADER)?;
+    let content_type = named(&request, FILE_TYPE_HEADER)?;
     let bytes = bytes.clone();
-    blocking(app, move |account| account.files().stage(&sha, &bytes)).await
+    blocking(app, move |account| {
+        account.files().stage(&sha, &bytes, &content_type)
+    })
+    .await
 }
 
 /// A staged file's bytes; one this Mac no longer holds is `missing`.

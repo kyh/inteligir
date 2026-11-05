@@ -19,6 +19,7 @@ import type { z } from "zod";
 import { useCloud, useWire } from "../cloud/library-context";
 import { NEEDS_CONNECTION, refusalText } from "../cloud/needs-connection";
 import { formatBytes, formatCount } from "../library/item-labels";
+import { saveBlob } from "../save-file";
 import { Row, SectionHeading } from "./settings-chrome";
 
 type ImportJob = z.infer<typeof importJobSchema>;
@@ -189,9 +190,6 @@ const ImportRow = () => {
 const savedNameOf = (disposition: string | null): string =>
   /filename="(?<name>[^"]+)"/u.exec(disposition ?? "")?.groups?.name ?? "library.zip";
 
-// how long a saved zip's address outlives the click that saved it, so the save has begun
-const SAVED_ADDRESS_MS = 60_000;
-
 // the zip fetched through the page's host and handed to the browser's own download: the tab's
 // cookie and the Mac's credential both ride the fetch, where a bare link carries neither of the Mac's
 const saveExport = async (cloud: ReplicaTransport, id: string): Promise<void> => {
@@ -200,14 +198,7 @@ const saveExport = async (cloud: ReplicaTransport, id: string): Promise<void> =>
     await response.body?.cancel();
     throw new UploadRefusedError("That export is gone. Export again.");
   }
-  const address = URL.createObjectURL(await response.blob());
-  const link = document.createElement("a");
-  link.href = address;
-  link.download = savedNameOf(response.headers.get("content-disposition"));
-  link.click();
-  setTimeout(() => {
-    URL.revokeObjectURL(address);
-  }, SAVED_ADDRESS_MS);
+  saveBlob(await response.blob(), savedNameOf(response.headers.get("content-disposition")));
 };
 
 const ExportRow = () => {

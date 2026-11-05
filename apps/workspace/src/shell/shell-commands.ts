@@ -15,7 +15,7 @@ import type {
 import { serialLock } from "@repo/library-replica/serial-lock";
 import type { z } from "zod";
 import { APP_COMMANDS, UPDATE_STATE_EVENT } from "./ipc-contract";
-import type { BytesRoute, CommandRoute, EventRoute } from "./ipc-contract";
+import type { CommandRoute, EventRoute, FileRoute } from "./ipc-contract";
 import { ShellError, shellErrorOf } from "./shell-error";
 
 export const underShell = (): boolean => isTauri();
@@ -37,12 +37,17 @@ const command =
     return route.answer.parse(answered);
   };
 
-const bytesCommand =
-  <Answer extends z.ZodType>(route: BytesRoute<Answer>) =>
-  async (name: string, bytes: Uint8Array<ArrayBuffer>): Promise<z.output<Answer>> => {
+const fileCommand =
+  <Answer extends z.ZodType>(route: FileRoute<Answer>) =>
+  async (
+    file: { readonly sha: string; readonly type: string },
+    bytes: Uint8Array<ArrayBuffer>,
+  ): Promise<z.output<Answer>> => {
     let answered: unknown;
     try {
-      answered = await invoke(route.command, bytes, { headers: { [route.header]: name } });
+      answered = await invoke(route.command, bytes, {
+        headers: { [route.shaHeader]: file.sha, [route.typeHeader]: file.type },
+      });
     } catch (error) {
       throw shellErrorOf(error);
     }
@@ -133,19 +138,20 @@ export const shellReplicaSql = (): ReplicaSql => {
 
 const files = {
   clearStaged: command(APP_COMMANDS.files.clearStaged),
-  stage: bytesCommand(APP_COMMANDS.files.stage),
+  stage: fileCommand(APP_COMMANDS.files.stage),
   staged: command(APP_COMMANDS.files.staged),
   unstage: command(APP_COMMANDS.files.unstage),
 };
 
-// The outbox's staged files as the shell keeps them: pinned in the app's data dir until the write
-// naming each lands, then handed to the shell's cache, where the next read finds them unfetched.
+// The outbox's staged files as the shell keeps them: pinned in the app's data dir with their type
+// until the write naming each lands, then handed to the shell's cache, where the next read finds
+// them unfetched; the scheme serves each as its type all the while.
 export const shellStagedBlobs = (): StagedBlobs => ({
   clear: async () => {
     await files.clearStaged();
   },
-  put: async (sha, bytes) => {
-    await files.stage(sha, bytes);
+  put: async (sha, bytes, mime) => {
+    await files.stage({ sha, type: mime }, bytes);
   },
   read: async (sha) => {
     try {

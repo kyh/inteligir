@@ -755,10 +755,10 @@ describe("the outbox's changes, one at a time", () => {
     const phone = await openDevice(cell, "phone", {
       blobs: {
         ...files,
-        put: async (sha, bytes) => {
+        put: async (sha, bytes, mime) => {
           putAsked.resolve();
           await putGate.promise;
-          await files.put(sha, bytes);
+          await files.put(sha, bytes, mime);
         },
       },
       sql: counted.sql,

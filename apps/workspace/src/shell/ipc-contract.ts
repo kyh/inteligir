@@ -16,10 +16,11 @@ export interface CommandRoute<Args extends z.ZodType, Answer extends z.ZodType> 
   readonly answer: Answer;
 }
 
-// the page hands the shell bytes as the request's raw body, named by a header
-export interface BytesRoute<Answer extends z.ZodType> {
+// the page hands the shell a file as the request's raw body, its sha and its type in headers
+export interface FileRoute<Answer extends z.ZodType> {
   readonly command: string;
-  readonly header: string;
+  readonly shaHeader: string;
+  readonly typeHeader: string;
   readonly answer: Answer;
 }
 
@@ -35,11 +36,11 @@ const route = <Args extends z.ZodType, Answer extends z.ZodType>(
   answer: Answer,
 ): CommandRoute<Args, Answer> => ({ answer, args, command });
 
-const bytesRoute = <Answer extends z.ZodType>(
+const fileRoute = <Answer extends z.ZodType>(
   command: string,
-  header: string,
+  headers: { readonly sha: string; readonly type: string },
   answer: Answer,
-): BytesRoute<Answer> => ({ answer, command, header });
+): FileRoute<Answer> => ({ answer, command, shaHeader: headers.sha, typeHeader: headers.type });
 
 // a command that takes nothing, and one that answers nothing
 const noArgs = z.undefined();
@@ -69,7 +70,8 @@ export const APP_COMMANDS = {
   },
   files: {
     clearStaged: route("files_clear_staged", noArgs, done),
-    stage: bytesRoute("files_stage", "x-file-sha", done),
+    // the type is the one the outbox uploads it as, which the shell serves it as meanwhile
+    stage: fileRoute("files_stage", { sha: "x-file-sha", type: "x-file-type" }, done),
     // a staged file's bytes; one this Mac no longer holds rejects `missing`
     staged: route("files_staged", shaArgs, bytesSchema),
     // the write naming it landed, so the cloud holds it

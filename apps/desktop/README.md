@@ -97,7 +97,9 @@ The page draws a file from `inteligir-files://localhost/<sha>`
   its sha, kept and served (`src-tauri/src/file_cache.rs`).
 - Fetched files sit in the caches dir, under 5 GB, the least recently read let
   go first. A file the outbox has yet to upload sits staged in the data dir,
-  never evicted, and moves into the cache once uploaded.
+  never evicted, and moves into the cache once uploaded. Each file's type sits
+  beside it and moves with it: the type the page staged it as (`files_stage`'s
+  `x-file-type`, the one the outbox uploads it as), or the one the cloud served.
 - Every file but a PDF is served under a script-less sandbox, as the cloud
   serves it; a PDF keeps WebKit's viewer under a policy that runs no script and
   that only the app's page may frame.
@@ -128,15 +130,20 @@ languages share.
 `src-tauri/src/navigation.rs` is pure, unit-tested, and the policy the window
 runs (`src-tauri/src/window.rs`):
 
-- The window shows **the page's origin**, and frames the shell's files. A
-  top-level navigation anywhere else is refused; an http(s) target is handed to
-  the system browser instead, at most once a second, since WebKit tells the
-  shell nothing of a user gesture.
+- The window shows **the page's origin**, and lets the shell's files load
+  inside it (a PDF's viewer is a frame of the page's). Tauri hands the hook a
+  navigation's URL alone, never its frame, so the files' origin passes
+  whichever frame asks; the page never sends the window there, since it saves
+  a file by reading its bytes into a blob of its own origin
+  (`apps/workspace/src/app/item/item-stages.tsx`). A navigation anywhere else
+  is refused; an http(s) target is handed to the system browser instead, at
+  most once a second, since WebKit tells the shell nothing of a user gesture.
 - **No second window.** `window.open` and `target="_blank"` are refused; a web
   URL among them goes to the browser.
 - **Every permission request is refused**: dictation is the operating
   system's, so the page needs no microphone, camera or location.
-- **A download** (an export) lands in the Downloads folder.
+- **A download** (a file item's Download, an export's zip) lands in the
+  Downloads folder under its own name.
 
 Origins are compared **by their parts**, and a URL that carries a login is
 never one. Closing the window hides it: the app lives on in the menu bar, and

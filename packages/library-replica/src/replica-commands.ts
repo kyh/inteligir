@@ -161,7 +161,7 @@ const staging = (files: readonly NewFile[]): Staging => {
       continue;
     }
     staged.push({ mime: file.mime, sha });
-    bytes.push({ bytes: file.bytes, sha });
+    bytes.push({ bytes: file.bytes, mime: file.mime, sha });
   }
   return { bytes, staged };
 };
@@ -194,7 +194,7 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
         }
         await enqueue(
           { input: made, kind: "createFile", staged: [{ mime: input.file.mime, sha }] },
-          [{ bytes: input.file.bytes, sha }],
+          [{ bytes: input.file.bytes, mime: input.file.mime, sha }],
         );
         return { folded: false, id, sha };
       }),

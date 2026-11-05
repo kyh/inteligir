@@ -1,13 +1,16 @@
 //! The shell's own scheme for the library's files, `inteligir-files://localhost/<sha>`, which the
-//! page names in an image's, a recording's or a PDF's address. Its own name, never `blob`, which
-//! WebKit already handles and would refuse to hand over. A file this Mac holds is served from
-//! disk, one range of it when asked; a miss is fetched from the cloud with the device's
-//! credential, kept, then served. Every file but a PDF is served under a script-less sandbox, as
-//! the cloud serves it, and none is ever a page the window navigates to (`navigation.rs`).
+//! page names in an image's, a recording's or a PDF's address, and fetches to save a file. Its own
+//! name, never `blob`, which WebKit already handles and would refuse to hand over. A file this Mac
+//! holds is served from disk, one range of it when asked; a miss is fetched from the cloud with the
+//! device's credential, kept, then served. Every file but a PDF is served under a script-less
+//! sandbox, as the cloud serves it. The page's origin alone may read an answer (CORS), since a
+//! save reads the bytes into a blob of the page's own origin: the window itself never goes to a
+//! file (`item-stages.tsx` in the page, `navigation.rs`).
 
 use tauri::http::{Request, Response, StatusCode, header};
 
 use crate::file_cache::{self, CloudFiles, Fetched, FileCache, Located};
+use crate::window::PAGE_ORIGIN;
 
 pub const SCHEME: &str = "inteligir-files";
 /// What the page puts before a file's sha: the scheme's, at the host WebKit hands a custom scheme.
@@ -30,9 +33,14 @@ fn is_pdf(content_type: &str) -> bool {
 fn refused(status: StatusCode) -> Response<Vec<u8>> {
     let mut response = Response::new(Vec::new());
     *response.status_mut() = status;
-    response.headers_mut().insert(
+    let headers = response.headers_mut();
+    headers.insert(
         header::CACHE_CONTROL,
         header::HeaderValue::from_static("no-store"),
+    );
+    headers.insert(
+        header::ACCESS_CONTROL_ALLOW_ORIGIN,
+        header::HeaderValue::from_static(PAGE_ORIGIN),
     );
     response
 }
@@ -55,6 +63,7 @@ fn served(located: &Located, range_header: Option<&str>) -> Response<Vec<u8>> {
     let mut builder = Response::builder()
         .header(header::CONTENT_TYPE, &located.content_type)
         .header(header::ACCEPT_RANGES, "bytes")
+        .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, PAGE_ORIGIN)
         // a file is its sha, so its bytes never change under its address
         .header(
             header::CACHE_CONTROL,
@@ -202,6 +211,11 @@ mod tests {
                 .map(header::HeaderValue::as_bytes),
             Some(SANDBOX_POLICY.as_bytes())
         );
+        // the page saves a file by reading it, which only its own origin may
+        assert_eq!(
+            header(&whole, header::ACCESS_CONTROL_ALLOW_ORIGIN),
+            Some(PAGE_ORIGIN.as_bytes())
+        );
         let ranged = served_now(&files, &nowhere(), None, &get(&sha, Some("bytes=2-4")));
         assert_eq!(ranged.status(), StatusCode::PARTIAL_CONTENT);
         assert_eq!(ranged.body(), &b"234".to_vec());
@@ -217,16 +231,38 @@ mod tests {
         Ok(())
     }
 
+    fn header(response: &Response<Vec<u8>>, name: header::HeaderName) -> Option<&[u8]> {
+        response
+            .headers()
+            .get(name)
+            .map(header::HeaderValue::as_bytes)
+    }
+
     #[test]
-    fn a_staged_file_is_served_before_any_fetch() -> ShellResult<()> {
+    fn a_pdf_added_on_this_mac_keeps_its_viewer_before_and_after_its_upload() -> ShellResult<()> {
         let dir = tempfile::tempdir()?;
         let files = files_in(dir.path());
-        let bytes = b"taken offline";
+        let bytes = b"%PDF-1.4 taken offline";
         let sha = sha_of(bytes);
-        files.stage(&sha, bytes)?;
-        let response = served_now(&files, &nowhere(), None, &get(&sha, None));
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.body(), &bytes.to_vec());
+        files.stage(&sha, bytes, "application/pdf")?;
+        for moment in ["staged", "uploaded"] {
+            if moment == "uploaded" {
+                files.unstage(&sha)?;
+            }
+            let response = served_now(&files, &nowhere(), None, &get(&sha, None));
+            assert_eq!(response.status(), StatusCode::OK, "{moment}");
+            assert_eq!(response.body(), &bytes.to_vec(), "{moment}");
+            assert_eq!(
+                header(&response, header::CONTENT_TYPE),
+                Some(b"application/pdf".as_slice()),
+                "{moment}"
+            );
+            assert_eq!(
+                header(&response, header::CONTENT_SECURITY_POLICY),
+                Some(PDF_POLICY.as_bytes()),
+                "{moment}"
+            );
+        }
         Ok(())
     }
 
@@ -245,6 +281,11 @@ mod tests {
                 .get(header::CACHE_CONTROL)
                 .map(header::HeaderValue::as_bytes),
             Some(b"no-store".as_slice())
+        );
+        // a save the page asked reads why it failed
+        assert_eq!(
+            header(&offline, header::ACCESS_CONTROL_ALLOW_ORIGIN),
+            Some(PAGE_ORIGIN.as_bytes())
         );
         let unnamed = served_now(&files, &nowhere(), Some("igd_x"), &get("not-a-sha", None));
         assert_eq!(unnamed.status(), StatusCode::NOT_FOUND);

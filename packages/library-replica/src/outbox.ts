@@ -90,6 +90,7 @@ type SendOutcome =
 // a file a row stages, put on the device with the row that names it
 export interface StagedBytes {
   readonly sha: string;
+  readonly mime: string;
   readonly bytes: Uint8Array<ArrayBuffer>;
 }
 
@@ -620,7 +621,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       const createdAt = context.clock.now();
       await hold(async () => {
         for (const file of files) {
-          await blobs.put(file.sha, file.bytes);
+          await blobs.put(file.sha, file.bytes, file.mime);
         }
         // the last row naming the item, a delete or a restore of several included, so a write
         // joins only a write nothing on its item has queued behind, and only one no pin has sent

@@ -5,9 +5,45 @@
 
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import { Button } from "@repo/ui/components/button";
+import { toast } from "@repo/ui/components/sonner";
+import { useMutation } from "@tanstack/react-query";
 import { DownloadIcon, ExternalLinkIcon } from "lucide-react";
 
 import { useFileUrl } from "../cloud/library-context";
+import { saveBlob } from "../save-file";
+
+// The file's bytes read where the host draws them, then saved under its own name: the Mac's
+// scheme is another origin than its page, where a `download` link would be followed instead
+// (save-file.ts). It reads what the device holds, so it runs with no connection too.
+const SaveFile = ({ url, name, label }: { url: string; name: string; label: string }) => {
+  const save = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        await response.body?.cancel();
+        throw new Error(`the file answered ${String(response.status)}`);
+      }
+      saveBlob(await response.blob(), name);
+    },
+    // a file the device holds saves offline; one it would fetch fails at once and says so
+    networkMode: "always",
+    onError: () => {
+      toast.error("The file couldn't be saved. Check your connection and try again.");
+    },
+  });
+  return (
+    <Button
+      variant="secondary"
+      disabled={save.isPending}
+      onClick={() => {
+        save.mutate();
+      }}
+    >
+      <DownloadIcon />
+      {label}
+    </Button>
+  );
+};
 
 export const FileStage = ({ fields, title }: { fields: LibraryItemFields; title: string }) => {
   const fileUrl = useFileUrl();
@@ -37,9 +73,11 @@ export const FileStage = ({ fields, title }: { fields: LibraryItemFields; title:
             type="application/pdf"
             className="h-[70vh] w-full rounded-md border border-border"
           >
-            <a href={url} download={fields.originalName ?? title}>
-              Download {fields.originalName ?? "the PDF"}
-            </a>
+            <SaveFile
+              url={url}
+              name={fields.originalName ?? title}
+              label={`Download ${fields.originalName ?? "the PDF"}`}
+            />
           </object>
         </div>
       );
@@ -65,20 +103,11 @@ export const FileStage = ({ fields, title }: { fields: LibraryItemFields; title:
     case "note": {
       return (
         <div className="px-8 pt-4">
-          <Button
-            variant="secondary"
-
-            render={
-              <a
-                href={url}
-                download={fields.originalName ?? title}
-                aria-label={`Download ${fields.originalName ?? "the file"}`}
-              />
-            }
-          >
-            <DownloadIcon />
-            Download {fields.originalName ?? "the file"}
-          </Button>
+          <SaveFile
+            url={url}
+            name={fields.originalName ?? title}
+            label={`Download ${fields.originalName ?? "the file"}`}
+          />
         </div>
       );
     }

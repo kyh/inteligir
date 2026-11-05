@@ -1,9 +1,10 @@
 // The desktop shell is Rust and the page it carries is TypeScript, so the words they share cross no
 // compiler: every command the page may ask, the capability that grants it, the event the updater
-// pushes, the error kinds a command rejects with, the origins the page runs on and calls, the
-// scheme its files ride, the window's content policy, the bundle id the browser's door opens the
-// app by and the debug build's own. Each is read from both sides here and held equal, so a rename on one side fails here
-// rather than as a command no page can reach or a call the policy refuses.
+// pushes, the headers a staged file rides, the error kinds a command rejects with, the origins the
+// page runs on and calls, the scheme its files ride, the window's content policy, the bundle id
+// the browser's door opens the app by and the debug build's own. Each is read from both sides here
+// and held equal, so a rename on one side fails here rather than as a command no page can reach or
+// a call the policy refuses.
 
 import { MAC_APP_ORIGIN, PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/cloud/origin";
 import { describe, expect, it } from "vitest";
@@ -17,6 +18,7 @@ const LIB = "apps/desktop/src-tauri/src/lib.rs";
 const CAPABILITY = "apps/desktop/src-tauri/capabilities/app-window.json";
 const UPDATER = "apps/desktop/src-tauri/src/updater.rs";
 const ERROR = "apps/desktop/src-tauri/src/error.rs";
+const COMMANDS = "apps/desktop/src-tauri/src/commands.rs";
 const CLOUD = "apps/desktop/src-tauri/src/cloud.rs";
 const WINDOW = "apps/desktop/src-tauri/src/window.rs";
 const FILE_SCHEME = "apps/desktop/src-tauri/src/file_scheme.rs";
@@ -45,7 +47,7 @@ const block = (file: string, opening: string, closing: string): string => {
   return source.slice(start, end === -1 ? undefined : end);
 };
 
-const ROUTE = /(?:route|bytesRoute)\(\s*"(?<name>[a-z_]+)"/gu;
+const ROUTE = /(?:route|fileRoute)\(\s*"(?<name>[a-z_]+)"/gu;
 const RUST_STRING = /"(?<name>[a-z_]+)"/gu;
 // a command's permission, as tauri-build names it: `allow-` and the name in kebab case
 const PERMISSION = /^allow-(?<name>[a-z-]+)$/u;
@@ -86,6 +88,8 @@ const sources = (policy: Record<string, string>, directive: string): string[] =>
 
 const tauriConfig = () => readJsonFile(TAURI_CONFIG, tauriConfigSchema, "a Tauri config");
 const localConfig = () => readJsonFile(LOCAL_CONFIG, localConfigSchema, "a local Tauri config");
+// the policy's source for the shell's own scheme
+const filesSource = (): string => `${rustConstant(FILE_SCHEME, "SCHEME")}:`;
 
 describe("the desktop shell's wire", () => {
   const appCommands = sorted(
@@ -132,6 +136,20 @@ describe("the desktop shell's wire", () => {
     );
   });
 
+  it("stages a file under the headers the shell reads", () => {
+    const named =
+      /fileRoute\(\s*"files_stage",\s*\{ sha: "(?<sha>[^"]+)", type: "(?<type>[^"]+)" \}/u.exec(
+        sourceOf(CONTRACT),
+      )?.groups;
+    expect(
+      { sha: named?.sha, type: named?.type },
+      `${CONTRACT}'s files_stage headers and ${COMMANDS}'s disagree\n`,
+    ).toEqual({
+      sha: rustConstant(COMMANDS, "FILE_SHA_HEADER"),
+      type: rustConstant(COMMANDS, "FILE_TYPE_HEADER"),
+    });
+  });
+
   it("rejects with the error kinds the page reads", () => {
     const thrown = sorted(
       allMatches(block(ERROR, "pub fn kind(", "\n    }\n"), /[=]> "(?<name>[a-z-]+)"/gu),
@@ -155,9 +173,11 @@ describe("the desktop shell's wire", () => {
     const socket = PRODUCTION_CLOUD_ORIGIN.replace(/^https:/u, "wss:");
     expect(
       sorted(sources(csp, "connect-src")),
-      `${TAURI_CONFIG}'s connect-src names more or less than the page's own origin, Tauri's IPC and the cloud.\n` +
-        `  rule: the page's calls and its socket reach the cloud's exact origin, and nothing else\n`,
-    ).toEqual(sorted(["'self'", ...TAURI_IPC_ORIGINS, PRODUCTION_CLOUD_ORIGIN, socket]));
+      `${TAURI_CONFIG}'s connect-src names more or less than the page's own origin, Tauri's IPC, the shell's files and the cloud.\n` +
+        `  rule: the page's calls and its socket reach the cloud's exact origin, its saves the shell's files, and nothing else\n`,
+    ).toEqual(
+      sorted(["'self'", ...TAURI_IPC_ORIGINS, filesSource(), PRODUCTION_CLOUD_ORIGIN, socket]),
+    );
     expect(sources(csp, "script-src"), `${TAURI_CONFIG} lets a script in from elsewhere`).toEqual([
       "'self'",
     ]);
@@ -170,7 +190,7 @@ describe("the desktop shell's wire", () => {
     );
     const remote = sources(local, "connect-src").filter(
       (source) =>
-        !["'self'", ...TAURI_IPC_ORIGINS].includes(source) &&
+        !["'self'", ...TAURI_IPC_ORIGINS, filesSource()].includes(source) &&
         !/^(?:http|ws):\/\/(?:localhost|127\.0\.0\.1):\*$/u.test(source),
     );
     expect(remote, `${LOCAL_CONFIG} lets the page call off this machine`).toEqual([]);
@@ -188,7 +208,7 @@ describe("the desktop shell's wire", () => {
     const scheme = rustConstant(FILE_SCHEME, "SCHEME");
     expect(rustConstant(FILE_SCHEME, "ORIGIN")).toBe(`${scheme}://localhost`);
     const { csp } = tauriConfig().app.security;
-    for (const directive of ["img-src", "media-src", "object-src"]) {
+    for (const directive of ["img-src", "media-src", "object-src", "connect-src"]) {
       expect(
         sources(csp, directive),
         `${TAURI_CONFIG}'s ${directive} does not let the page draw a file from ${scheme}:`,

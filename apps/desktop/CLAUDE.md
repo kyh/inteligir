@@ -71,14 +71,21 @@ a bullet is written and cited.
   runs only the bundle's own. `apps/desktop/src-tauri/src/credential.rs`,
   `account.rs`.
 
-- **THE WINDOW IS PINNED TO ITS OWN ORIGIN.** It shows the page's origin and
-  frames the shell's files (a PDF's viewer), compared by their parts, never by
-  prefix or by an origin type that answers opaque for a non-special scheme. Any
-  other web page opens in the browser, at most once a second, since WebKit says
+- **THE WINDOW IS PINNED TO ITS OWN ORIGIN.** It shows the page's origin,
+  compared by its parts, never by prefix or by an origin type that answers
+  opaque for a non-special scheme, and lets the shell's files load inside it
+  (a PDF's viewer is a frame of the page's): Tauri hands the hook a
+  navigation's URL alone, never its frame, so the files' origin passes
+  whichever frame asks, and the page never sends the window there, saving a
+  file through a blob of its own origin instead, the one a `download` link
+  keeps its name on (`apps/workspace/src/app/item/item-stages.tsx`). Any other
+  web page opens in the browser, at most once a second, since WebKit says
   nothing of the click behind a navigation; anything else is refused,
-  `window.open` opens no window, and a download (an export) lands in Downloads
-  (`apps/desktop/src-tauri/src/navigation.rs`). Closing the window hides it; the
-  app lives on in the menu bar.
+  `window.open` opens no window, and a download lands in Downloads
+  (`apps/desktop/src-tauri/src/navigation.rs`). Closing the window hides it;
+  the app lives on in the menu bar. Rejected: a file's address as the Download
+  link (another origin, so WebKit follows it, and the file took the window's
+  place with no way back).
 
 - **THE BRIDGE CARRIES ONLY WHAT A BROWSER CANNOT DO** (the replica, the
   credential, the staged files, the updater). Each command is one row of
@@ -99,24 +106,25 @@ a bullet is written and cited.
 - **THE LIBRARY'S FILES RIDE THE SHELL'S OWN SCHEME, KEPT BY THEIR SHA.** The
   page draws a file from `inteligir-files://localhost/<sha>`, a name of the
   app's own, never `blob`, which WebKit keeps. A file this Mac holds is served
-  from disk, a range of it when asked; a miss is fetched from `/v1/blobs/<sha>`
-  with the credential, checked against its sha, kept and served. Fetched files
-  sit in the caches dir under 5 GB, the least recently read evicted first; a
-  staged file, which the outbox has yet to upload, sits in the data dir, never
-  evicted, until its upload moves it into the cache. Every file but a PDF is
-  served under a script-less sandbox, as the cloud serves it; a PDF keeps
-  WebKit's viewer under a policy that runs no script and that only the app's
-  page may frame. Rejected: the cloud's route straight from the page (an
-  `<img>` carries no bearer, and offline it draws nothing); the asset protocol
-  over a scope of the disk (no fetch on a miss). Residual: WebKitGTK's player
-  loads nothing from a custom scheme, so a recording's playback is the owner's
-  check on a Mac (`docs/releasing.md`).
+  from disk, a range of it when asked; a miss is fetched from
+  `/v1/blobs/<sha>` with the credential, checked against its sha, kept and
+  served. Fetched files sit in the caches dir under 5 GB, the least recently
+  read evicted first; a staged file, which the outbox has yet to upload, sits
+  in the data dir, never evicted, until its upload moves it into the cache;
+  each file's type, the one the page staged it as or the cloud served, moves
+  with it. Every file but a PDF is served under a script-less sandbox, as the
+  cloud serves it; a PDF keeps WebKit's viewer under a policy that runs no
+  script and that only the app's page may frame. Rejected: the cloud's route
+  straight from the page (an `<img>` carries no bearer, and offline it draws
+  nothing); the asset protocol over a scope of the disk (no fetch on a miss).
+  Residual: WebKitGTK's player loads nothing from a custom scheme, so a
+  recording's playback is the owner's check on a Mac (`docs/releasing.md`).
   `apps/desktop/src-tauri/src/file_scheme.rs`, `file_cache.rs`.
 
 - **THE WINDOW'S POLICY IS STATIC, AND EVERY MESSAGE TO THE SHELL PASSES AN
   ISOLATION FRAME.** `tauri.conf.json`'s CSP runs the bundle's scripts alone,
   lets the page call its own origin, Tauri's IPC and the cloud's exact origin
-  and socket, and draw the shell's files; a debug build's
+  and socket, and draw and read the shell's files; a debug build's
   `tauri.local.conf.json` changes connect-src alone, to this machine. It names
   no frame-src or child-src: Tauri adds the isolation frame's origin, a scheme
   unique to each launch, to default-src alone, and a frame policy refuses it.

@@ -184,7 +184,7 @@ describe("the outbox's staged files over the door", () => {
       }),
     );
     const blobs = shellStagedBlobs();
-    await blobs.put(SHA, new Uint8Array([1, 2, 3]));
+    await blobs.put(SHA, new Uint8Array([1, 2, 3]), "application/pdf");
     expect(await blobs.read(SHA)).toEqual(new Uint8Array([1, 2, 3]));
     expect(await blobs.read("b".repeat(64))).toBeNull();
   });

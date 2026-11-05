@@ -1,5 +1,8 @@
-//! What the window may show: the app's own page, and the shell's files framed in it (a PDF's
-//! viewer). Any other web page opens in the browser instead, and nothing else loads.
+//! What the window may load: the app's own page, and the shell's files inside it (a PDF's viewer
+//! is a frame of the page's). Tauri hands this hook a navigation's URL alone, never the frame it is
+//! for, so a load of the files' origin passes whichever frame asks; the page never sends the window
+//! itself there, since it saves a file through a blob of its own origin (`item-stages.tsx`). Any
+//! other web page opens in the browser instead, and nothing else loads.
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
