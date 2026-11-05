@@ -136,17 +136,13 @@ alone, and no walk narrows structurally.
   `packages/editor/src/mark-shortcuts.ts`,
   `apps/workspace/src/app/global-shortcuts.ts`.
 
-- **A PIN IS THE FRONTMATTER KEY `pinned: true`, AND ITS EDIT IS A LINE CUT.**
-  It travels with the file, so every device and the agent agree, and a pinned
-  item leads the grid in every scope and sort; unpinning removes the key, never
-  writes `false`. The open note takes the edit through the live editor, so the
-  autosave carries it; any other note gets a guarded write whose mismatch is
-  reported, never merged, as every item field does (`editItemFields`,
-  `apps/workspace/src/app/note/item-frontmatter.ts`). The pinned set is the
-  index's, so a pin shows after the sweep. Rejected: a Pinned heading (more
-  height than it explains) and re-serializing the frontmatter (it restyles every
-  flow list). `@repo/notes/markdown/frontmatter`,
-  `apps/workspace/src/app/note/pin-note.ts`.
+- **A PIN IS THE ITEM'S `pinnedAt` FIELD, AND ITS EDIT IS ONE FIELD OP.** It is
+  the item's, so every device and the agent agree, and a pinned item leads the
+  grid in every scope and sort; unpinning sets it null. The op names the value it
+  was computed over, so a pin another device moved first is read again and
+  written once more over what it reads now, never merged, as every item field is
+  (`pinItems` in `apps/workspace/src/app/library/library-verbs.ts`). Rejected: a
+  Pinned heading (more height than it explains).
 
 - **GO TO HEADING IS THE PALETTE OVER THE TOC'S WALK, AND AN EXTRACT IS ONE
   HISTORY BATCH.** ⌘⇧O opens the palette on the outline and lands through the

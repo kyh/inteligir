@@ -12,12 +12,10 @@ and cited.
   `apps/desktop/resources/entitlements.mac.plist`), usage description, web
   permission, model or socket, and every window denies every permission request
   (`apps/desktop/src-tauri/src/window.rs`), which the shell's scenario reads
-  back. The ⌘K composer's "fn fn to dictate" beside Send is the app's one hint.
-  A dictated phrase lands as one IME-style commit, so the field carries no caret
-  repair (`tools/e2e/src/scenarios/os-dictation-browser.ts`). Rejected: an
-  in-app recognizer (live partials on a native addon in a worker, a ~100 MB
-  third-party download behind a sha gate, a dictation socket, the app's only
-  device grant).
+  back. A dictated phrase lands as one IME-style commit, so a field carries no
+  caret repair. Rejected: an in-app recognizer (live partials on a native addon
+  in a worker, a ~100 MB third-party download behind a sha gate, a dictation
+  socket, the app's only device grant).
 
 ## Server process and the desktop shell
 
@@ -63,17 +61,16 @@ and cited.
   vault's pending commit flushes before the bundle is replaced.
   `apps/desktop/src-tauri/src/updater.rs`, `apps/desktop/scripts/package.ts`.
 
-- **SPELL CHECK IS THE PAGE'S ATTRIBUTE, AND EXPORT AS PDF IS THE SHELL'S
-  PRINT** (#889), since WKWebView has no session-wide spell-check switch and
-  does nothing on `window.print()`. Spell check is a page pref like the theme,
-  set on the document root before the first paint and inherited by every field
-  but the note's title and body; macOS picks the languages, so the row names
-  none (`apps/workspace/src/app/spellcheck.ts`). Export as PDF has the shell
-  print the window, the note's title its file name, always light: the dark
-  theme steps aside between the print events WebKit fires around it
-  (`apps/workspace/src/app/note/export-pdf.ts`). Rejected: #889's print
-  stylesheet (a screen-only theme needs an at-rule in
-  `packages/editor/src/styles.css`, which its guard keeps flat).
+- **SPELL CHECK IS THE PAGE'S ATTRIBUTE, AND A PRINT IS ALWAYS LIGHT** (#889),
+  since WKWebView has no session-wide spell-check switch. Spell check is a page
+  pref like the theme, set on the document root before the first paint and
+  inherited by every field but the item's title and body; macOS picks the
+  languages, so the row names none (`apps/workspace/src/app/spellcheck.ts`). A
+  print is light whatever the window shows: the dark theme steps aside between
+  the print events WebKit fires around it
+  (`apps/workspace/src/app/light-prints.ts`). Rejected: #889's print stylesheet
+  (a screen-only theme needs an at-rule in `packages/editor/src/styles.css`,
+  which its guard keeps flat).
 
 - **THE SHELL ASKS THE LOGIN SHELL FOR PATH BEFORE THE FIRST CHILD.** A Finder
   or Dock launch inherits launchd's bare PATH; the agent's runtime is bundled,

@@ -66,7 +66,7 @@ local.
 
 `ThemeProvider` is controlled. Apps own persistence and pass `theme` plus
 `setTheme`. Current binders are `apps/web/src/components/theme-provider.tsx`
-and `apps/workspace/src/app/workspace-context.tsx`. Do not nest a third provider; its
+and `apps/workspace/src/routes/__root.tsx`. Do not nest a third provider; its
 document-class effect races the others.
 
 ## Verification

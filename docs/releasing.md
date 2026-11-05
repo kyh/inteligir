@@ -115,9 +115,8 @@ On main, clean, at the commit to ship:
 pnpm format:fix && pnpm verify && pnpm e2e && pnpm smoke:cli && pnpm smoke:desktop && pnpm package:extension
 ```
 
-Four scenarios serve real pages from the machine's own private address
-(`link-capture`, `library-integrated`, `import-integrated`,
-`phone-fill-integrated`), and skip with "no usable LAN address" on a machine
+Three scenarios serve real pages from the machine's own private address
+(`link-capture`, `import-integrated`, `phone-fill-integrated`), and skip with "no usable LAN address" on a machine
 that has none, as an agent's sandbox does. CI's runner has one and runs them
 under `--no-skip`, so they are proven by the release commit's green CI below,
 whatever a local run skipped.
@@ -565,6 +564,24 @@ account whose library holds about 2,000 items gives the timing check its load.
   `/v1/exports/<id>` and opens in Finder as the library's folders and notes;
   the Worker's logs show each alarm run that wrote it inside its CPU, none
   exceeded; and seven days on the same address answers 404.
+
+### The library in a browser tab
+
+- **The library's page on a preview and in production.** Sign in at
+  `<preview>/app/sign-in` with an account of the preview's D1 that a device
+  has filled, and open `<preview>/library`. Passing: the page draws the
+  library's items with no policy violation in the console (SQLite's wasm
+  compiles under `'wasm-unsafe-eval'`); `<preview>/library?item=<id>` opens that
+  item, and a reload keeps it open; `<preview>/library/assets/<a file the page
+  loaded>` answers from the asset server with no Worker invocation in the logs;
+  and `<preview>/libraryish` answers the site's 404. On the production deploy,
+  passing is the same at `inteligir.com/library`.
+- **The page in Safari, Chrome and Firefox.** In each, signed in, open
+  `/library`, then edit an item on the phone. Passing: the edit shows in the tab
+  without a reload and the rail's footer reads "Up to date"; with the network
+  off, the footer reads "Waiting for a connection", Settings › Account's rows
+  say "Needs a connection", and a line typed meanwhile lands in the phone's copy
+  once the network is back.
 
 ### The connector
 

@@ -34,13 +34,13 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   session it created, so a person never signs in twice in a row. The site's
   sign-up page stays, the phone stays sign-in only, and the CLI has no sign-up
   verb, since creating an account is a person's act.
-  `apps/web/src/worker/device/sign-up.ts`,
-  `apps/workspace/src/app/account-form.tsx`.
+  `apps/web/src/worker/device/sign-up.ts`.
 
-- **A DEVICE CREDENTIAL LISTS AND REVOKES ITS ACCOUNT'S DEVICES**, so any
-  signed-in Mac's Settings › Account removes a lost phone with no password
-  asked, as a sign-out asks none; the web's devices page stays as the fallback.
-  A Mac's own row offers no Revoke: this device leaves through a sign-out.
+- **A DEVICE CREDENTIAL, OR THE SITE'S SESSION, LISTS AND REVOKES ITS
+  ACCOUNT'S DEVICES**, so Settings › Account, in a signed-in Mac or the library's
+  browser tab, removes a lost phone with no password asked, as a sign-out asks
+  none; the web's devices page stays as the fallback. A Mac's own row offers no
+  Revoke: this device leaves through a sign-out.
   `apps/web/src/worker/device/routes.ts`,
   `apps/workspace/src/app/settings/account-section.tsx`.
 
@@ -666,3 +666,19 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   price input the API ignores); a thread on its first definition for good (its
   tools drift from the procedures they call).
   `apps/web/src/worker/agent/thread-request.ts`.
+
+- **THE LIBRARY'S PAGE IS THE WORKER'S, AT `/library`, FROM ITS OWN ASSETS AND
+  UNDER ITS OWN POLICY.** Every path under the prefix reaches the Worker first
+  (`assets.runWorkerFirst`), which answers a file the page's build holds as it
+  is and any other path with the page's one document, so a deep link loads and
+  the page's router draws it; only the hashed `/library/assets/*` skip the
+  Worker, and no other path falls back, so a mistyped site route still answers
+  the site's 404. The document carries a policy of its own: its scripts and
+  SQLite's wasm (`'wasm-unsafe-eval'`), calls and the socket to this origin
+  alone, nothing remote drawn in an item, no frame and no worker. The page's
+  build is copied into the Worker's assets (`apps/web/vite.config.ts`), so it
+  ships in the Worker's deploy and its calls meet no build floor. Rejected: a
+  Start route (the site's bundle and policy on the page); the asset server's
+  SPA fallback (every unknown path would answer the page); a page on an origin
+  of its own (a second sign-in, CORS on every call).
+  `apps/web/src/worker/library/library-page.ts`, `apps/web/cloudflare.config.ts`.

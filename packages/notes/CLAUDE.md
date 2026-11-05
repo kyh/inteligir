@@ -203,7 +203,6 @@ node is rather than discriminating structurally at each visit.
   note and disagrees on display once a name is not lowercase). What any other
   file is in the library is `fileKindOf` (`@repo/notes/items/item-kind`), and
   what a doc is as an item is its `kind`: one answer each, for every client.
-  `apps/workspace/src/app/vault-hooks.test.ts` walks the page for either shape.
 
 - **THE SCAN READS A NOTE IN THE EDITOR'S OWN GRAMMAR, AND THAT GRAMMAR IS
   TOTAL.** The knowledge scan walks the editor's plugin list as a bare parse
@@ -226,7 +225,7 @@ node is rather than discriminating structurally at each visit.
   NOT A SEARCH; AND A TAG RENAME IS THE LINK RENAME'S SURGERY.** No tag browser
   (owner decision): a `#tag` chip's `showTag` (`packages/editor/src/host-io.ts`)
   scopes the grid, as a rail Tags row does
-  (`apps/workspace/src/app/sidebar/tag-list.tsx`,
+  (`apps/workspace/src/app/sidebar/rail.tsx`,
   `apps/workspace/src/app/library/library-view.tsx`). `knowledge.items({tag})`
   pages the family (`notesInTagFamily` in `@repo/notes/knowledge/tag-notes`)
   with its whole count from the index, since search stops at its ceiling unsaid.
@@ -247,8 +246,8 @@ node is rather than discriminating structurally at each visit.
   (`searchBodyOf` in `@repo/notes/knowledge/search-columns`), so a match's line
   stays the file's; an item's url, site, author, description and tags are ranked
   as `meta`. The scan never rewrites: a many-note change is the agent's, under
-  History and Undo (`apps/workspace/src/app/palette/search-page.tsx`). The jump
-  lands by match ordinal, since a markdown column is not a Slate offset.
+  History and Undo. The jump lands by match ordinal, since a markdown column is
+  not a Slate offset.
 
 - **AN MD URL HAS ONE READING, AND THE EDITOR RESOLVES IT WITH THE INDEX'S
   RESOLVER.** The scan and the editor read a link's or an image's url through
@@ -277,9 +276,3 @@ node is rather than discriminating structurally at each visit.
   tie-break. Every writer's bytes come from `serializeWikiBody`
   (`@repo/notes/markdown/remark-wiki-link`), and its null writes nothing.
   `packages/notes/src/knowledge/link-resolve.test.ts`.
-
-- **COPY LINK COPIES THE ITEM'S `[[wiki link]]`, FOR EVERY KIND.** It copies
-  `wikiLinkFor`'s link, and a name no link can carry copies nothing and says so;
-  a url item also offers Copy address, which copies its `url`. Rejected: a
-  loopback URL (it opened nothing anywhere else and died with the port).
-  `apps/workspace/src/app/item/item-topbar.tsx`.

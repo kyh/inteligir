@@ -31,13 +31,13 @@ owner's.
 ```bash
 pnpm dev                # THE PRODUCT — the shell over its own server
 pnpm dev:desktop        # Alias of dev
-pnpm dev:workspace      # The page alone in a browser tab, on this checkout's server; no Rust
 pnpm dev:mobile         # apps/mobile: expo start, in a terminal (turbo refuses it piped or under CI;
                         #   pnpm --filter @repo/mobile dev runs it without one)
 pnpm cli serve          # The server ALONE, from source, no window; a shell adopts it
 pnpm cli <verb>         # Every other verb, against this checkout's instance
-pnpm dev:web            # apps/web: vite + miniflare on :5174 (pinned, strictPort), and the scripted
-                        #   Messages API on :5177 its built-in agent talks to
+pnpm dev:web            # apps/web: vite + miniflare on :5174 (pinned, strictPort), the library's
+                        #   page at /library rebuilt on change, and the scripted Messages API on
+                        #   :5177 its built-in agent talks to
 pnpm dev:gallery        # tools/ui-gallery: the @repo/ui gallery alone, at localhost:5175 (never deployed)
 pnpm dev:extension      # apps/extension: this checkout's browser door, then WXT's dev loop, rebuilding and reloading on change
 pnpm package:cli        # The npm artifact (apps/cli) — `npx inteligir serve`
@@ -67,12 +67,12 @@ the page's files from Vite, so an edit reloads in place
 (`apps/cli/src/server/ui-dev-server.ts`). An edit to the shell's Rust rebuilds
 and relaunches it.
 
-Iterating on the PAGE needs no Rust: `pnpm dev:workspace` starts the same Vite,
-then this checkout's server from source with `INTELIGIR_UI_DEV_URL` naming it,
-and opens a browser tab on that server, signed in through the same one-time
-handoff (`apps/workspace/scripts/dev.ts`). A CSS edit reloads in place with no
-cargo, and Ctrl+C stops both. Whatever needs the shell (the updater, the vault
-switch, Reveal, printing, the diagnostics) draws nothing in a tab.
+Iterating on the PAGE needs no Rust: `pnpm dev:web` rebuilds `@repo/workspace`
+as it changes (`vite build --watch`) and the local Worker serves that build at
+`localhost:5174/library`, through the same route and policy a deploy runs
+(`apps/web/src/worker/library/library-page.ts`); sign in at `/app/sign-in` and
+reload the tab after an edit. Whatever needs the shell (the updater, Reveal,
+printing, the diagnostics) draws nothing in a tab.
 
 Iterating on the SERVER is `pnpm cli serve` in its own terminal: that runs the
 TypeScript source under tsx, and a shell started afterwards ADOPTS it instead
@@ -132,7 +132,8 @@ package time), signed when the keychain holds a Developer ID and notarized when
 `.release/` is present (`apps/desktop/README.md` § Packaging).
 
 `pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, device
-login, the account's socket, the hosted vault git remote — over a local D1 file and
+login, `/v1`, every library cell and the account's socket, the library's page
+at `/library`, the hosted vault git remote — over a local D1 file and
 miniflare's Durable Objects. Sign-up is invite-only and there is no seeded account — `AGENTS.md`
 § "There is no seeded login" has the exact commands.
 

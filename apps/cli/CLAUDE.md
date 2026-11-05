@@ -122,8 +122,7 @@ dialect skills, the licence texts and `@repo/workspace`'s page as `dist/ui`.
   holder minted (`system.browserHandoff`), as the desktop window does (THE APP
   WINDOW IS THE SERVER'S OWN PAGE, in `apps/desktop/CLAUDE.md`). A request with
   neither gets a 401 page that runs nothing but names the ways in, not a
-  workspace whose every call fails unexplained
-  (`apps/workspace/src/app/signed-out-state.ts`). The ambient cookie must also
+  workspace whose every call fails unexplained. The ambient cookie must also
   prove same-origin, as loopback "site" ignores the port, and EVERY REQUEST MUST
   NAME 127.0.0.1 OR localhost AS ITS HOST, so a rebinding page gets nothing.
   Residual: a cookie is port-agnostic, so it is not the bearer and dies with the
@@ -185,8 +184,7 @@ dialect skills, the licence texts and `@repo/workspace`'s page as `dist/ui`.
   `apps/cli/src/server/vault/CLAUDE.md`). An HTML block's Run is a frame under
   `sandbox allow-scripts; default-src 'none'`
   (`apps/cli/src/server/html-block-frame.ts`). Rejected: dropping Run
-  (interaction is what the block is for). `pnpm dev` stamps no CSP, so only
-  `tools/e2e/src/scenarios/remote-content-browser.ts` sees either regress.
+  (interaction is what the block is for). `pnpm dev` stamps no CSP.
 
 - **THE LOCAL DATABASE MOVES BY COMMITTED MIGRATIONS, AND A FILE ON A HISTORY
   THIS BUILD LACKS IS REPLACED AT BOOT.** `inteligir.db` is on the user's disk

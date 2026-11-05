@@ -14,7 +14,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   agreement (`packages/db/src/schema-agreement.test.ts`), `@repo/ui`'s
   per-export orphans and type roles, the CLI guide and its `--json` flags, the
   editor's buffer invariant, and the words on every surface a person reads,
-  where "vault" and the engine's words are Settings › Advanced's alone
+  where neither "vault" nor an engine's word appears
   (`tools/repo-guards/src/product-words.test.ts`, a textual lower bound over
   quoted literals and JSX text, like `one-spelling.test.ts`). Coverage, if ever
   added, needs `coverage.include` (Vitest 4) and gates only `@repo/notes`. A
@@ -51,9 +51,9 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   hook minted in a factory is hoisted with no diagnostic), and a
   `compiled-under-test` case in each fails without the plugin (the phone page's
   in `apps/mobile-editor/src/editor-page.test.tsx`, the extension's in
-  `apps/extension/src/entrypoints/popup/popup.test.tsx`). A node suite, and the
-  workspace UI's booted ones (`apps/cli/src/workspace`), cannot run compiled:
-  the plugin skips the ssr transform. The manual-memo sweep is #820.
+  `apps/extension/src/entrypoints/popup/popup.test.tsx`). A node suite cannot
+  run compiled: the plugin skips the ssr transform. The manual-memo sweep is
+  #820.
 
 - **TOOLING PINS, each with its reason beside it**: `vite` is a pnpm override,
   since the catalog binds only the manifests that spell it; `@types/node` tracks
@@ -85,11 +85,11 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 - **A TURBO CACHE KEY NAMES EVERYTHING ITS OUTPUT READS**, because a hit replays
   the output with no error, and the e2e suite and `package:*` ship what it
   replays. Another workspace's files enter a key only through a `^` edge, and
-  no task names another workspace's: the CLI's build reaches
+  no task names another workspace's: the Worker's build reaches
   `@repo/workspace#build` through its own dependency, and the shell's tasks
-  reach both through theirs (`apps/desktop/turbo.json`). A file in no workspace
-  is a named input (`apps/cli/turbo.json`), and a followed file a named output
-  (`apps/web/turbo.json`); `tools/repo-guards/src/turbo-cache-keys.test.ts`
+  reach the page's and the CLI's through theirs (`apps/desktop/turbo.json`). A
+  file in no workspace is a named input (`apps/cli/turbo.json`), and a followed
+  file a named output (`apps/web/turbo.json`); `tools/repo-guards/src/turbo-cache-keys.test.ts`
   holds the `^` edges and a bundled import's input (`/privacy` renders
   `docs/privacy.md`). `NODE_ENV` is hashed, not passed through: vite emits
   React's dev build under `development`.
@@ -135,9 +135,8 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   documenting that escape. `oxlint.config.ts`.
 
 - **A RELEASE SCRIPT IS TYPESCRIPT NODE RUNS AS IT STANDS, CHECKED AS NODE
-  RESOLVES IT.** `apps/desktop/scripts`, `apps/cli/scripts` and
-  `apps/workspace/scripts` (the page's dev loop) are `.ts` files node 24 strips
-  of their types, each workspace's `typecheck` checking them as a
+  RESOLVES IT.** `apps/desktop/scripts` and `apps/cli/scripts` are `.ts` files
+  node 24 strips of their types, each workspace's `typecheck` checking them as a
   `scripts/tsconfig.json` program under `nodenext`, `erasableSyntaxOnly` and
   `verbatimModuleSyntax`, so an extensionless import, an enum or a type
   imported as a value fails the typecheck rather than the release. A relative

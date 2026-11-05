@@ -121,7 +121,7 @@ src/
   note on every host. The editor never reaches the
   server for any of it; each host installs it once, through
   `installEditorHost`, ahead of the first render
-  (`apps/workspace/src/app/note/vault-provider.tsx`, and the phone's
+  (`apps/workspace/src/app/item/page-editor-host.ts`, and the phone's
   over its WebView bridge, `apps/mobile-editor/src/host/page-host.ts`),
   feeding the resolver store through `link-resolver-feed.ts` and
   `readNoteFormulas` with `note-formulas.ts` over its own reads, and `host.ts` is

@@ -75,12 +75,8 @@ picked switch (File › Open Library…, Settings) asks first when another servi
 syncs the folder, in the first run's words (`outsideSyncWarning` in
 `@repo/contract/local/vault/vault-folder`).
 
-`/welcome` (`apps/workspace/src/routes/_workspace/welcome.tsx`) draws over the
-workspace like Settings, so the vault loads underneath, and offers two steps in
-turn, each with Skip for now: the agent (`AgentSignIn`), then an account
-(`AccountForm`). A fresh checkout's `pnpm dev` shows the first run too, since
-its dev instance has no vault yet; `INTELIGIR_VAULT_DIR` (or
-`INTELIGIR_DATA_DIR`) skips it.
+A fresh checkout's `pnpm dev` shows the first run too, since its dev instance
+has no vault yet; `INTELIGIR_VAULT_DIR` (or `INTELIGIR_DATA_DIR`) skips it.
 
 ## The window is the server's own page
 
@@ -252,18 +248,16 @@ root, a page preference, which WebKit's checker honours and every field
 inherits unless it sets its own (`apps/workspace/src/app/spellcheck.ts`). macOS
 picks the languages.
 
-WKWebView answers no `window.print()`, so Export as PDF asks the shell to run
-the print panel as a sheet over the window (`print_page`). A print is light
-whatever the window shows, because the theme steps aside between WebKit's
-`beforeprint` and `afterprint` (`apps/workspace/src/app/note/export-pdf.ts`), which
-it fires for the shell's sheet as a browser does for `window.print()`.
+A print is light whatever the window shows, because the theme steps aside
+between WebKit's `beforeprint` and `afterprint`
+(`apps/workspace/src/app/light-prints.ts`), which it fires for the shell's print
+sheet (`print_page`) as a browser does for `window.print()`.
 
 ## Running it
 
 ```bash
 pnpm dev              # tauri dev: the page's Vite server, the shell compiled and
                       # launched, and the CLI bundle rebuilt first
-pnpm dev:workspace    # the page alone in a browser tab, on the same server, no Rust
 ```
 
 The shell RUNS that bundle, which is why the dev task depends on `^build` — a

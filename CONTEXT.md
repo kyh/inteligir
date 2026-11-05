@@ -26,7 +26,7 @@ Worker (`apps/web/src/worker/library/library-do.ts`). It holds the items,
 their **blocks**, folders, tags, links, highlights, threads, the change log,
 History and the account's live sockets, and it is the library's only writer: every `/v1` library call and every **connector** call
 is forwarded to it. R2 holds the bytes it names by hash, and D1 only the
-accounts. Not the **online library** below, the hosted git vault, and not a
+accounts. Not the hosted git vault (`apps/web/src/worker/vault/`), and not a
 **replica**, which a device reads while it writes through the cell.
 
 **principal** — who a library call is by, as the Worker verified it: the
@@ -379,114 +379,74 @@ it is never handed the event.
 ## The words the user sees
 
 The product never says git, commit, remote, repo, terminal, CLI, PATH or MCP,
-and it calls the folder the **library** and what is in it **items**, so each
-word below stands for an engine concept with another name in code. Reading a
-report or a screenshot means translating back. "Vault" is code's, the CLI's and
-Settings › Advanced's word alone, and "note" means only what the person writes
-(New note, the Notes chip, Extract to new note…); a saved page, a picture or a
-PDF is an item, never a note (`tools/repo-guards/src/product-words.test.ts`).
+and it calls the whole of it the **library** and what is in it **items**, so
+each word below stands for an engine concept with another name in code. Reading
+a report or a screenshot means translating back. "Note" means only what the
+person writes (New note, the Notes chip); a saved page, a picture or a PDF is an
+item, never a note (`tools/repo-guards/src/product-words.test.ts`).
 
-**Library** — the window's home and Settings › Library: the VAULT folder as the
-person sees it, every item one card in one grid
-(`apps/workspace/src/app/library/library-view.tsx`). "Switch or open another
-library…", File › Open Library… and the first run's "Create a new library" all
-choose which vault folder the next server opens
-(`apps/cli/src/server/vault-switch.ts`). Not the **online library**.
+**Library** — the page's home: the account's LIBRARY CELL as the person sees
+it, every item one card in one grid
+(`apps/workspace/src/app/library/library-view.tsx`), read from this device's
+REPLICA. The browser tab opens it at `/library` once signed in.
 
-**Items** — the cards the library lists, each one markdown file, or a bare
-file no note embeds (`@repo/notes/items/library-index`); "Agent edited N items"
-and "Undid the agent's changes to N items" count a turn's items by
-`turnItemPaths` (`@repo/notes/items/turn-items`): each move once, at the path
-it made, a cover, an original or a page copy with the item that embeds it, and
-no dot-path at all. Not docs: a doc is a file classification, and a bare image
-is an item that is no doc.
+**Items** — the cards the library lists, one per item row, a note, a saved
+link, an image, a PDF or any other file alike
+(`@repo/library-replica/library-replica`'s listing). Not docs: a doc is a file
+classification of the import and export.
 
-**Unsorted** — the rail's row and the folder a save lands in when the window
-shows no folder (`UNSORTED_FOLDER`). A real directory: moving an item out of it
-is a rename.
-
-**Tidy my library** — the header button, the ⌘P command and the Unsorted row's
-menu: the ⌘K composer opened on a preset, which the server turns into the
-procedure that files and tags everything in Unsorted and everything untagged
-(`apps/cli/src/server/agents/action-preset-prompt.ts`). The thread stores what
-was typed, or the label. Not a background job: it is one agent turn, with
-**Undo changes** like any other.
-
-**Filing rules** — "Edit filing rules…" beside Tidy and in Settings › Agent:
-the library's own `AGENTS.md`, written from the starter rules when the library
-has none (`apps/workspace/src/app/library/filing-rules.ts`), which every agent
-session reads last. Not the repo's `AGENTS.md`.
+**Unsorted** — the rail's row: every item filed in no folder. A save lands
+there when the screen shows no folder.
 
 **Highlights** — a selection marked with ⌘⇧H or Highlight in the toolbar, with
-an optional note; the panel's **Annotations** tab lists them with their notes
-and replies. Each is an ANNOTATION (markers in the item, an entry in
-`.inteligir/annotations/<id>.json`); a bare one has no note. "Remove highlight"
-deletes its entry and its markers. There is no resolve.
+an optional note; the panel's **Highlights** tab lists them with their notes
+and replies (`apps/workspace/src/app/panel/annotations-tab.tsx`). Each is an
+ANNOTATION, written through the outbox like any edit; a bare one has no note.
+"Remove highlight" deletes it. There is no resolve.
 
-**Online library** — what an account keeps in the cloud for the phone and the
-other Macs: the HOSTED VAULT, the account remote the engine pushes to
-(`apps/web/src/worker/vault/`). "Your online library is full" is the engine's
-`full` state against it. Not the local library, which never needs it.
+**Sync** — the rail footer's state: the replica's outbox and pull against the
+account's cell, worded in one place
+(`apps/workspace/src/app/sidebar/sync-words.ts`): "Up to date", "Sending N
+changes…", "Waiting for a connection", and "N changes not saved" for a write
+the cell refused, which waits for the person (Try again, Let it go). Never a
+cursor, a head or an outbox.
 
-**Sync** — the rail footer's state, Sync now, and the account rows: the
-VAULT's pass against where it syncs
-(`apps/cli/src/server/vault/git-engine.ts`), worded in one place
-(`apps/workspace/src/app/vault-hooks.ts`). "Only on this Mac" is a library with
-nowhere to sync, and, in Info, a file over 10 MB the engine keeps out of
-history; "Synced by iCloud Drive" is a folder another service syncs, which the
-app leaves to it; "Sync paused" is any state only the engine can explain.
-Actions do not sync: a thread stays on the Mac that ran it, and only the edits
-its turns made reach other devices, as the library's own versions.
+**Needs a connection** — what a screen says of something only the cloud
+answers (History, the agent, import and export, the account) while the device
+is offline: the call waits rather than fails
+(`apps/workspace/src/app/cloud/needs-connection.tsx`).
 
-**History** — the panel tab listing an item's versions: the vault's own git log
-for that path (`apps/cli/src/server/vault/git-history.ts`), each version named
-by when and by whom (you, the agent, or another device), never by a commit
-subject or sha. Restoring one is an ordinary guarded write of its bytes. Not the
-editor's own undo (⌘Z), which lives and dies with the open item, and not **Undo
-changes**.
+**History** — the panel tab listing an item's CHANGE SETS, newest first, each
+by who made it and when (`apps/workspace/src/app/panel/history-tab.tsx`).
+"Show this version" reads the item as that set left it; **Undo** takes the set
+back. Not the editor's own undo (⌘Z), which lives and dies with the open item.
 
-**Deleted** — the rail's row: the files the log deleted, each restorable, a
-file deleted with the item that embedded it listed under that item and restored
-with it (`apps/cli/src/server/vault/held-files.ts`). There is no trash folder.
+**Undo** — History's button, "Undo this turn" under an agent's turn and "Undo
+this conversation" under a conversation: `library.history.undo` over the
+CHANGE SETS named, in a change set of its own, so an undo is itself in History.
+A block changed since stays, and an item whose later edits overlap the set's is
+kept whole and named.
 
-**Undo changes** — the button under an agent's reply, and the Undo on the "Agent
-edited N items" toast: a three-way revert of one turn's commit
-(`apps/cli/src/server/threads/turn-undo.ts`), which keeps every edit made since;
-an item whose later edits overlap the turn's is kept whole and named. Not a
-History restore, which puts back exact bytes and so drops whatever came after.
+**Deleted** — the rail's row: the items deleted, each restorable, and "Empty
+Deleted…", which removes them for good.
 
-**Kept both versions** — what the window says when a sync met an item two
-devices changed on the same lines: the **conflict copy** above, worded by
-`@repo/notes/sync/conflict-copy` and said once per report. There is no conflict
-state to clear: sync never stops for one.
+**Also changed elsewhere** — what the open item says when a write of this
+device met another device's change to the same lines of one block: both
+changes elsewhere in the block land, and this device's lines are kept where
+they overlap (`@repo/editor/stale-write`'s block merge). There is no conflict
+state to clear.
 
-**Keep a copy of the page** — the PAGE COPY: Info's, ⌘P's and the extension
-popup's way to keep a saved page as it looked, beside the article text every
-fill writes.
+**Keep a copy of the page** — the PAGE COPY: the extension popup's way to keep a
+saved page as it looked, beside the article text every fill writes.
 
-**Account** and **Devices** — Settings › Account: an inteligir account (Better
-Auth, in `apps/web`) and this install's DEVICE CREDENTIAL, the one secret a Mac
-or a phone keeps after signing in
-(`apps/cli/src/server/cloud/credential-store.ts`). Devices lists the account's
-credentials and revokes a lost one; each sign-in mints a new device, and this
-Mac leaves only by signing out. Not the agent's sign-in (**Sign in with
-Claude**), which holds no inteligir account.
+**Account**, **Devices** and **Connected assistants** — Settings › Account: an
+inteligir account (Better Auth, in `apps/web`), the apps signed in to it, each
+holding a DEVICE CREDENTIAL, and the assistants a person let into the library
+through the **connector** (`apps/workspace/src/app/settings/account-section.tsx`).
+Each device and assistant can be signed out or disconnected from there; the
+browser tab leaves by Sign out.
 
-**Advanced** — Settings › Advanced
-(`apps/workspace/src/app/settings/advanced-section.tsx`), the one product
-surface that keeps the engine's words: where the vault syncs, the raw sync state
-and git's last error, this device's id, the data folder and
-the debug-logging switch. Every other surface points here ("Sync details…")
-rather than quoting it.
-
-**Connectors** — Settings › Connectors: the MCP servers in the DEFAULT agent's
-own user config, read and edited through its bundled binary
-(`apps/cli/src/server/connectors/vendor-mcp-config.ts`), and signed in to by the
-vendor's own login; the app keeps no registry.
-
-**Sign in with Claude** (ChatGPT under Other) — an AGENT's sign-in: the vendor's
-own login, run by the server (`apps/cli/src/server/agents/agent-sign-in.ts`)
-into the vendor's shared store (`~/.claude`, `~/.codex`). "Claude" is the
-`claude` harness and "ChatGPT" the `codex` one (`@repo/domain/harness`); since
-the store is shared, signing out here signs the vendor's own app out too. Not an
-inteligir **Account**.
+**Built-in agent** — Settings › Account's switch and the panel's **Agent** tab:
+the account's conversations with the BUILT-IN AGENT, the same on every device
+(`apps/workspace/src/app/agent/agent-panel.tsx`). "The agent has used today's
+allowance" is its `AGENT_BUDGET` refusal.
