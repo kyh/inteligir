@@ -29,7 +29,7 @@ import { signThinking } from "./fake-signature.ts";
 
 export const FAKE_MODEL = "claude-opus-5-5";
 // what a refusal of the request model falls back to, as `fallbacks: "default"` names it
-export const FALLBACK_MODEL = "claude-opus-5";
+const FALLBACK_MODEL = "claude-opus-5";
 
 // list output prices, dollars per million tokens, which a `spend` costs its tokens out at
 const OUTPUT_PRICES = new Map([

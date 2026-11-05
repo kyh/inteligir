@@ -125,7 +125,7 @@ describe("the scripted Messages API", () => {
     expect(second.stop_reason).toBe("end_turn");
     expect(second.content.at(-1)).toMatchObject({ text: "Done: create_note.", type: "text" });
     expect(second.input_transformations).toEqual([]);
-    expect(fake.stats()).toEqual({ drops: 0, requests: 2 });
+    expect(fake.stats()).toEqual({ drops: 0, held: 0, requests: 2 });
   });
 
   it("reports every usage field, reading what comes before the last breakpoint and writing the block that carries it", async () => {
@@ -198,8 +198,10 @@ describe("the scripted Messages API", () => {
     await expect(reading).rejects.toThrow();
     expect(seen).toContain("content_block_start");
     expect(seen).not.toContain("message_stop");
+    expect(fake.stats().held).toBe(1);
     const whole = await send(fake, body);
     expect(whole.stop_reason).toBe("tool_use");
+    expect(fake.stats().held).toBe(1);
   });
 
   describe("refuses as Claude Opus 5.5 does", () => {
@@ -378,7 +380,7 @@ describe("the scripted Messages API", () => {
     const fake = messagesFake();
     await send(fake, bodyOf([person("Hello.")]));
     const stats = await fake.fetch(new Request("http://fake.test/__fake/stats"));
-    expect(await stats.json()).toEqual({ drops: 0, requests: 1 });
+    expect(await stats.json()).toEqual({ drops: 0, held: 0, requests: 1 });
     const unserved = await fake.fetch(new Request("http://fake.test/v1/models"));
     expect(unserved.status).toBe(404);
     const gateway = await send(fake, bodyOf([person("Hello.")]));

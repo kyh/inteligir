@@ -1,0 +1,566 @@
+[
+  {
+    "description": "Highlights a passage of an item, found by its exact text, with an optional note. A passage the item's text does not hold is kept as an unplaced highlight.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "itemId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "occurrence": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "quote": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        }
+      },
+      "type": "object",
+      "required": [
+        "itemId",
+        "quote"
+      ]
+    },
+    "name": "add_highlight"
+  },
+  {
+    "description": "Creates a note from markdown, optionally titled, tagged and filed in a folder. Links to other items are written [[Title]] or [[Title|id]].",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "maxLength": 1000
+                    }
+                  },
+                  "required": [
+                    "path"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "markdown": {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        "tags": {
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      },
+      "type": "object",
+      "required": [
+        "markdown"
+      ]
+    },
+    "name": "create_note"
+  },
+  {
+    "description": "Moves items to Deleted, where the person can restore them. The answer names the ids that matched nothing.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "ids": {
+          "minItems": 1,
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        }
+      },
+      "type": "object",
+      "required": [
+        "ids"
+      ]
+    },
+    "name": "delete_items"
+  },
+  {
+    "description": "Replaces exact passages of an item's markdown, as read_item returned it at the sequence named as the base. Each old text must stand exactly once; other passages, their highlights included, are left as they are.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "baseSeq": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "edits": {
+          "minItems": 1,
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "newText": {
+                "type": "string"
+              },
+              "oldText": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "newText",
+              "oldText"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "type": "object",
+      "required": [
+        "baseSeq",
+        "edits",
+        "id"
+      ]
+    },
+    "name": "edit_item"
+  },
+  {
+    "description": "Lists the change sets that touched one item, or the library's most recent ones: who made each, when, and what it changed.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "itemId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        }
+      },
+      "type": "object"
+    },
+    "name": "item_history"
+  },
+  {
+    "description": "Lists highlights and their notes, for one item or across the library since a date, newest first, with a cursor for the next page.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "itemId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "since": {
+          "type": "string",
+          "format": "date",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_highlights"
+  },
+  {
+    "description": "Lists items by folder, tag, kind or pin, newest saved first unless sorted otherwise, 50 at most per page, with a cursor for the next.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "folderId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "note",
+            "link",
+            "video",
+            "audio",
+            "image",
+            "pdf",
+            "file"
+          ]
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "pinned": {
+          "type": "boolean"
+        },
+        "responseFormat": {
+          "type": "string",
+          "enum": [
+            "concise",
+            "detailed"
+          ]
+        },
+        "sort": {
+          "type": "string",
+          "enum": [
+            "saved",
+            "updated",
+            "title"
+          ]
+        },
+        "tag": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      },
+      "type": "object"
+    },
+    "name": "list_items"
+  },
+  {
+    "description": "Lists the folder tree and every tag, each with how many items it holds.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {},
+      "type": "object"
+    },
+    "name": "list_tags_and_folders"
+  },
+  {
+    "description": "Adds and removes tags, files into a folder (made when its path is new), pins or unpins, and renames, for one or more items in one change set.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "addTags": {
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "maxLength": 1000
+                    }
+                  },
+                  "required": [
+                    "path"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ids": {
+          "minItems": 1,
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "pinned": {
+          "type": "boolean"
+        },
+        "removeTags": {
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      },
+      "type": "object",
+      "required": [
+        "ids"
+      ]
+    },
+    "name": "organize_items"
+  },
+  {
+    "description": "Reads an item: its fields, a page of its text as markdown from a block position, the items it links to and from, and how many highlights it has. Links to other items are written [[Title|id]].",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "from": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "responseFormat": {
+          "type": "string",
+          "enum": [
+            "concise",
+            "detailed"
+          ]
+        }
+      },
+      "type": "object",
+      "required": [
+        "id"
+      ]
+    },
+    "name": "read_item"
+  },
+  {
+    "description": "Saves a web address as an item, optionally titled, tagged, filed and with a note. A link the library already holds keeps its item, which gains the tags; the page is read in the background.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "maxLength": 1000
+                    }
+                  },
+                  "required": [
+                    "path"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        "savedAt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "tags": {
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 8192
+        }
+      },
+      "type": "object",
+      "required": [
+        "url"
+      ]
+    },
+    "name": "save_link"
+  },
+  {
+    "description": "Searches item titles, notes, saved articles and highlights, with optional kind, tag, folder and saved-date filters, best matches first, with a cursor for the next page.",
+    "input_schema": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "folderId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "kinds": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "note",
+              "link",
+              "video",
+              "audio",
+              "image",
+              "pdf",
+              "file"
+            ]
+          }
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "responseFormat": {
+          "type": "string",
+          "enum": [
+            "concise",
+            "detailed"
+          ]
+        },
+        "savedAfter": {
+          "type": "string",
+          "format": "date",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+        },
+        "savedBefore": {
+          "type": "string",
+          "format": "date",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+        },
+        "tag": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      },
+      "type": "object",
+      "required": [
+        "query"
+      ]
+    },
+    "name": "search_library"
+  }
+]

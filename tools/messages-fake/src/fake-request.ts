@@ -11,7 +11,7 @@ import { z } from "zod";
 // the betas whose fields a request may carry: the thinking-block binding control, and server-side
 // fallback on a refusal
 export const BINDING_BETA = "thinking-binding-controls-2026-08-01";
-export const FALLBACK_BETA = "server-side-fallback-2026-07-01";
+const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 
 const cacheControlSchema = z.strictObject({
   ttl: z.enum(["5m", "1h"]).optional(),
@@ -66,7 +66,7 @@ const messageSchema = z.strictObject({
   role: z.enum(["user", "assistant", "system"]),
 });
 
-export type FakeMessage = z.infer<typeof messageSchema>;
+type FakeMessage = z.infer<typeof messageSchema>;
 
 const toolSchema = z.looseObject({
   ...cached,
@@ -75,7 +75,7 @@ const toolSchema = z.looseObject({
   name: z.string(),
 });
 
-export type FakeTool = z.infer<typeof toolSchema>;
+type FakeTool = z.infer<typeof toolSchema>;
 
 export const requestSchema = z.looseObject({
   fallbacks: z.union([z.literal("default"), z.array(z.json())]).optional(),

@@ -5,6 +5,7 @@
 import { ordsBetween } from "@repo/notes/library/block-order";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { createRouterClient, ORPCError } from "@orpc/server";
+import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -590,29 +591,30 @@ describe("the library's procedures", () => {
       const newer = newId();
       const { sql } = state.storage;
       // what a turn the cell ran leaves behind: a thread row and the events it stored
-      const seedThread = (id: string, updatedAt: number, events: readonly string[]) => {
+      const seedThread = (id: string, updatedAt: number, count: number) => {
         sql.exec(
-          `INSERT INTO threads (id, session_id, title, status, created_at, updated_at, seq)
-           VALUES (?, NULL, ?, 'idle', ?, ?, 0)`,
+          `INSERT INTO threads (id, title, status, created_at, updated_at, seq)
+           VALUES (?, ?, 'idle', ?, ?, 0)`,
           id,
           `Thread at ${String(updatedAt)}`,
           updatedAt,
           updatedAt,
         );
-        for (const [idx, eventId] of events.entries()) {
+        for (let idx = 0; idx < count; idx += 1) {
           sql.exec(
             `INSERT INTO thread_events (event_id, thread_id, idx, type, json, at, seq)
              VALUES (?, ?, ?, 'agent.message', ?, ?, 0)`,
-            eventId,
+            `${id}:1:${String(idx)}`,
             id,
             idx,
-            JSON.stringify({ content: [{ text: `Said ${String(idx)}.`, type: "text" }] }),
+            JSON.stringify({ text: `Said ${String(idx)}.`, type: "agent.message" }),
             updatedAt,
           );
         }
       };
-      seedThread(older, 1000, ["sevt_a0", "sevt_a1", "sevt_a2"]);
-      seedThread(newer, 2000, ["sevt_b0"]);
+      seedThread(older, 1000, 3);
+      seedThread(newer, 2000, 1);
+      const olderEvents = [0, 1, 2].map((idx) => `${older}:1:${String(idx)}`);
 
       const first = await library.agent.list({ limit: 1 });
       expect(first.threads.map((thread) => thread.id)).toEqual([newer]);
@@ -620,10 +622,10 @@ describe("the library's procedures", () => {
       expect(rest).toMatchObject({ cursor: null, threads: [{ id: older, status: "idle" }] });
 
       const opening = await library.agent.events({ limit: 2, threadId: older });
-      expect(opening.events.map((event) => event.eventId)).toEqual(["sevt_a0", "sevt_a1"]);
+      expect(opening.events.map((event) => event.eventId)).toEqual(olderEvents.slice(0, 2));
       expect(opening.more).toBe(true);
       const closing = await library.agent.events({ after: 1, limit: 2, threadId: older });
-      expect(closing).toMatchObject({ events: [{ eventId: "sevt_a2", idx: 2 }], more: false });
+      expect(closing).toMatchObject({ events: [{ eventId: olderEvents[2], idx: 2 }], more: false });
 
       const before = await library.sync.pull({ cursor: 0, epoch: null });
       if (before.kind !== "changes") {
@@ -638,7 +640,7 @@ describe("the library's procedures", () => {
       expect(after.kind === "changes" ? after.changes : []).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ id: older, kind: "thread", row: null }),
-          ...["sevt_a0", "sevt_a1", "sevt_a2"].map((id) =>
+          ...olderEvents.map((id) =>
             expect.objectContaining({ id, kind: "thread_event", row: null }),
           ),
         ]),
@@ -701,32 +703,36 @@ describe("the library's procedures", () => {
     });
   });
 
-  it("refuses every ask of an agent this deployment cannot reach, and reads the account's threads", async () => {
+  it("refuses a send to an agent this deployment has no Claude for, charging nothing, and reads the account's threads", async () => {
     await inCell(cellOf(), async (state) => {
-      const library = clientIn(state, clockAt());
+      const clock = clockAt();
+      const library = engineIn(state, clock);
+      // a deployment with neither the scripted API nor a gateway
+      const unconfigured: Env = { ...env, AGENT_GATEWAY_URL: "", ANTHROPIC_FAKE_URL: undefined };
+      const { agent } = createRouterClient(libraryRouter, {
+        context: {
+          actor: () => cellActorOf(laptop("account")),
+          agent: agentCellIn(state, library, { clock, env: unconfigured }),
+          library,
+          settle: async (result) => result,
+        },
+      });
       const threadId = crypto.randomUUID();
+      expect(await refusalOf(agent.send({ text: "Tidy my library." }))).toMatchObject({
+        code: "SERVICE_UNAVAILABLE",
+        defined: true,
+      });
       for (const call of [
-        () => library.agent.send({ text: "Tidy my library." }),
-        () => library.agent.respond({ eventId: "sevt_1", result: "allow", threadId }),
-        () => library.agent.setEnabled({ enabled: true }),
+        () => agent.respond({ eventId: `${threadId}:1:0`, result: "allow", threadId }),
+        () => agent.cancel({ threadId }),
+        () => agent.events({ threadId }),
+        () => agent.delete({ threadId }),
       ]) {
-        expect(await refusalOf(call())).toMatchObject({
-          code: "SERVICE_UNAVAILABLE",
-          defined: true,
-        });
+        expect(await refusalOf(call())).toMatchObject({ code: "NOT_FOUND", defined: true });
       }
-      expect(await refusalOf(library.agent.cancel({ threadId }))).toMatchObject({
-        code: "NOT_FOUND",
-      });
-      // the day's allowance, untouched
-      expect(await library.agent.status()).toMatchObject({ enabled: false, turnsLeft: 2 });
-      expect(await library.agent.list({})).toEqual({ cursor: null, threads: [] });
-      expect(await refusalOf(library.agent.events({ threadId }))).toMatchObject({
-        code: "NOT_FOUND",
-      });
-      expect(await refusalOf(library.agent.delete({ threadId }))).toMatchObject({
-        code: "NOT_FOUND",
-      });
+      // on by default, with nothing to make, and the day's allowance untouched
+      expect(await agent.status()).toMatchObject({ enabled: true, turnsLeft: 2 });
+      expect(await agent.list({})).toEqual({ cursor: null, threads: [] });
     });
   });
 

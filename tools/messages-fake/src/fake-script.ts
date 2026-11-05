@@ -31,7 +31,7 @@ export type RefusalCategory = (typeof REFUSAL_CATEGORIES)[number];
 
 const inputSchema = z.record(z.string(), z.json());
 
-export type FakeStep =
+type FakeStep =
   | { readonly kind: "call"; readonly tool: string; readonly input: z.infer<typeof inputSchema> }
   | { readonly kind: "spend"; readonly cents: number }
   | { readonly kind: "long"; readonly chars: number }

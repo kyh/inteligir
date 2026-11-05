@@ -1,14 +1,12 @@
 import { execFileSync } from "node:child_process";
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
 import { configDefaults, defineConfig } from "vitest/config";
+import { AGENT_ALLOWANCE, AGENT_PRICES } from "./agent-limits.ts";
 import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
 import { FILL_FAILED_QUEUE, FILL_QUEUE, FILL_RETRIES } from "./fill-queues.ts";
+import { MESSAGES_FAKE_ORIGIN, messagesService } from "./messages-service.ts";
 import { replicaSqlService } from "./replica-sql-service.ts";
-import {
-  FAKE_MANAGED_AGENTS_ORIGIN,
-  ORIGIN,
-  TEST_WEBHOOK_SIGNING_KEY,
-} from "./src/worker/test-support/test-origin.ts";
+import { ORIGIN } from "./src/worker/test-support/test-origin.ts";
 
 // resolved from this file: cwd is apps/web under vitest but the repo root under knip.
 const HERE = import.meta.dirname;
@@ -54,11 +52,16 @@ export default defineConfig({
         // a replica's SQLite for the suite that runs the replica engine against the cell, served
         // from this node process: workerd cannot load sqlite-wasm (replica-sql-service.ts)
         serviceBindings: { REPLICA_SQL: replicaSqlService },
+        // every fetch the Worker and its objects make: the scripted Messages API at its address, and
+        // nothing else (messages-service.ts)
+        outboundService: messagesService,
         durableObjects: {
           // the plugin reads ctx.exports' classes from the source and their storage from here, so
           // this row is what makes ctx.exports.LibraryDO a SQLite namespace; only the suites read it
           // by name (test-support/env.d.ts)
           LIBRARY_CELL: { className: "LibraryDO", useSQLite: true },
+          // and ctx.exports.AgentThreadDO's, each conversation's object, which no suite reads by name
+          AGENT_THREAD: { className: "AgentThreadDO", useSQLite: true },
           REPO: { className: "RepoCell", useSQLite: true },
           REGISTRY: { className: "Registry", useSQLite: true },
         },
@@ -70,14 +73,11 @@ export default defineConfig({
           // every test shares one ip; vault-rate-limit.test.ts flips this per test.
           RATE_LIMIT_DISABLED: "true",
           FILL_DELIVERY: { deadLetterQueue: FILL_FAILED_QUEUE, retries: FILL_RETRIES },
-          // the deployed allowance; a suite that spends more hands its cell its own
-          AGENT_ALLOWANCE: { dayCents: 100, dayTurns: 2, turnCents: 50 },
-          // the fake Managed Agents API, served in process by the suite that asks for it
-          // (src/worker/test-support/managed-agents-api.ts); a cell no suite routes to it reaches
-          // nothing at this address
-          MANAGED_AGENTS_FAKE_URL: FAKE_MANAGED_AGENTS_ORIGIN,
-          // the key the suite signs Anthropic's webhooks with, as the Console's would
-          ANTHROPIC_WEBHOOK_SIGNING_KEY: TEST_WEBHOOK_SIGNING_KEY,
+          // the deployed allowance and prices; a suite that spends otherwise hands its cell its own
+          AGENT_ALLOWANCE,
+          AGENT_PRICES,
+          // the scripted Messages API, which the outbound service answers at this address
+          ANTHROPIC_FAKE_URL: MESSAGES_FAKE_ORIGIN,
           // the origin every suite addresses the Worker at, as the deployment's own
           SITE_ORIGIN: ORIGIN,
           TEST_SCHEMA,

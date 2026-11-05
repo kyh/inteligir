@@ -231,7 +231,15 @@ describe("every refusal's status", () => {
         409,
       ],
       [() => laptop.library.history.undo({ changeSetIds: setIds }), "ALREADY_UNDONE", 409],
-      [() => laptop.library.agent.send({ text: "Tidy my library." }), "SERVICE_UNAVAILABLE", 503],
+      [
+        async () => {
+          // the person turned the built-in agent off
+          await laptop.library.agent.setEnabled({ enabled: false });
+          return await laptop.library.agent.send({ text: "Tidy my library." });
+        },
+        "SERVICE_UNAVAILABLE",
+        503,
+      ],
       [() => laptop.library.search({ query: " " }), "BAD_REQUEST", 400],
     ] as const;
     for (const [call, code, status] of refusals) {

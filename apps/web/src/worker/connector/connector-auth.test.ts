@@ -236,7 +236,7 @@ describe("the connector's sign-in", () => {
     const { helpers } = connectorAuth(env);
     const { redirectTo } = await helpers.completeAuthorization({
       metadata: { clientName: "Claude" },
-      props: { accountId: userId, clientName: "Claude", kind: "assistant" },
+      props: { accountId: userId, clientName: "Claude" },
       request: await helpers.parseAuthRequest(new Request(authorizeUrl(clientId, challenge))),
       scope: ["profile"],
       userId,

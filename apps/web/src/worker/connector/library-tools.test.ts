@@ -4,7 +4,6 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { AGENT_TOOL_POLICIES, agentTools } from "../agent/library-agent";
 import { isLibraryTool, libraryTools } from "./library-tools";
 
 // the tools exactly as a client lists them, in the contract's own order: name, title and the
@@ -129,23 +128,6 @@ describe("the library's tools", () => {
       expect(tool.description?.length ?? 0).toBeGreaterThan(0);
       expect(tool.description?.length ?? 0).toBeLessThanOrEqual(DESCRIPTION_MAX);
       expect(EXPLICIT_HINTS.validate(tool.annotations), name).toBe(true);
-    }
-  });
-
-  it("are the built-in agent's to call, all but undo_change, a delete on the person's word", async () => {
-    // the agent's allowlist names every tool the connector lists but the one its person's Undo
-    // button stands for, so a tool the connector gains fails here until the agent file names it
-    const listed = Object.keys(await registered());
-    expect(Object.keys(AGENT_TOOL_POLICIES).toSorted()).toEqual(
-      listed.filter((name) => name !== "undo_change").toSorted(),
-    );
-    const [toolset, ...others] = agentTools();
-    expect(others).toEqual([]);
-    expect(toolset?.default_config).toEqual({ enabled: false });
-    for (const config of toolset?.configs ?? []) {
-      expect(config.permission_policy.type, config.name).toBe(
-        config.name === "delete_items" ? "always_ask" : "always_allow",
-      );
     }
   });
 

@@ -5,7 +5,7 @@
 // answers only a streamed request carrying the gateway's token header, refuses what Claude Opus
 // 5.5 refuses (`./fake-request.ts`), checks every replayed thinking block (`./fake-signature.ts`)
 // and drops and counts one that fails under `drop_block` instead of refusing, and replies by the
-// person's script (`./fake-script.ts`, `./fake-reply.ts`). It keeps no conversation: only its two
+// person's script (`./fake-script.ts`, `./fake-reply.ts`). It keeps no conversation: only its three
 // counters, at `/__fake/stats`, and per request body the failures and stalls a script asked for.
 // Web-standard throughout, so the suites run it in workerd and `./serve.ts` in node.
 
@@ -24,6 +24,9 @@ const MESSAGES_PATH = /^(?:\/v1\/[^/]+\/[^/]+\/anthropic)?\/v1\/messages$/u;
 export interface FakeStats {
   // the Messages requests answered, refusals and failures included
   readonly requests: number;
+  // the replies a stall held open mid-stream, each until its client went: a suite that cuts or
+  // stops a reply waits for this, so what it cuts is mid-reply
+  readonly held: number;
   // the replayed thinking blocks dropped under `drop_block`, each one a request the client got wrong
   readonly drops: number;
 }
@@ -126,6 +129,7 @@ const scriptOfRequest = (request: FakeRequest) => {
 export const messagesFake = (): MessagesFake => {
   let requests = 0;
   let drops = 0;
+  let held = 0;
   // per request body: how often a `fail` answered it, and whether a stall held it
   const failed = new Map<string, number>();
   const stalled = new Set<string>();
@@ -187,6 +191,7 @@ export const messagesFake = (): MessagesFake => {
           return false;
         }
         stalled.add(hash);
+        held += 1;
         return true;
       },
       id: `msg_fake_${String(requests)}`,
@@ -204,7 +209,7 @@ export const messagesFake = (): MessagesFake => {
       const incoming = new Request(input, init);
       const { pathname } = new URL(incoming.url);
       if (incoming.method === "GET" && pathname === FAKE_STATS_PATH) {
-        return Response.json({ drops, requests } satisfies FakeStats);
+        return Response.json({ drops, held, requests } satisfies FakeStats);
       }
       if (incoming.method === "POST" && MESSAGES_PATH.test(pathname)) {
         return await answer(incoming);
@@ -220,6 +225,6 @@ export const messagesFake = (): MessagesFake => {
         { status: 404 },
       );
     },
-    stats: () => ({ drops, requests }),
+    stats: () => ({ drops, held, requests }),
   };
 };

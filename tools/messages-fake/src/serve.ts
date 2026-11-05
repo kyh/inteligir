@@ -61,6 +61,11 @@ const answer = async (
       outgoing.write(read.value);
     }
   } catch (error) {
+    // a client that went away, as a cut or a stopped call does, is answered by no one and is no
+    // failure of the fake's
+    if (incoming.destroyed || outgoing.destroyed) {
+      return;
+    }
     console.error({
       event: "messages-fake-failed",
       message: error instanceof Error ? error.message : "the request failed",

@@ -10,7 +10,6 @@ import { connectorAuth } from "../connector/connector-auth";
 import { loginDevice, signUpUser, userIdOf } from "../test-support/cloud-helpers";
 import { connectAssistant } from "../test-support/connector-session";
 import {
-  agentCellIn,
   cellOf,
   clockAt,
   engineIn,
@@ -24,15 +23,14 @@ import {
   refusalOf,
   SYSTEM,
 } from "../test-support/library-cell";
-import { turnAgentOn } from "../agent/agent-access";
-import { fakeManagedAgentsApi, managedAgentsOver } from "../test-support/managed-agents-api";
+import { threadHolds, threadOf } from "../test-support/agent-turns";
 import { ACCOUNT_PURGE_STEPS } from "./account-purge";
 import { accountBlobPrefix, blobKey } from "./cell-blobs";
 import { openCellLibrary, scheduleAlarm, settleCommit } from "./cell-library";
 import type { CellRefusal } from "./cell-refusal";
 import { cellAccountId } from "./library-cell";
 import { PRINCIPAL_HEADER, principalHeaderValue } from "./library-principal";
-import type { Principal } from "./library-principal";
+import type { NamedPrincipal } from "./library-principal";
 import { V1_LIBRARY_RPC_PATH } from "./library-rpc";
 
 const SHA = "d".repeat(64);
@@ -43,7 +41,7 @@ const files = async (prefix: string): Promise<number> => {
 };
 
 // a laptop's call as the Worker stamps it, for the account named
-const principal = (accountId: string): Principal => ({
+const principal = (accountId: string): NamedPrincipal => ({
   accountId,
   actor: { deviceId: "laptop-1", deviceName: "Laptop", kind: "device" },
   scopes: ["library"],
@@ -106,12 +104,12 @@ describe("the library cell", () => {
   it("takes an app's call only on the wire, and an assistant's only on the connector", async () => {
     const accountId = newAccountId();
     const stub = cellOf(accountId);
-    const assistant: Principal = {
+    const assistant: NamedPrincipal = {
       accountId,
       actor: { clientId: "client-1", clientName: "Claude", grantId: "grant-1", kind: "assistant" },
       scopes: ["library"],
     };
-    const status = async (path: string, as: Principal): Promise<number> => {
+    const status = async (path: string, as: NamedPrincipal): Promise<number> => {
       const answer = await stub.fetch(`https://cell.test${path}`, {
         body: JSON.stringify({ json: { markdown: "Who wrote this?" } }),
         headers: {
@@ -252,7 +250,7 @@ describe("the library cell", () => {
 });
 
 describe("deleting the account from its cell", () => {
-  it("runs its steps in order: the tombstone, the agent's data at Anthropic, the cell's storage, its files, its grants, its credentials", async () => {
+  it("runs its steps in order: the tombstone, the agent's conversations, the cell's storage, its files, its grants, its credentials", async () => {
     expect(ACCOUNT_PURGE_STEPS.map((step) => step.name)).toEqual([
       "tombstone",
       "agent",
@@ -279,19 +277,27 @@ describe("deleting the account from its cell", () => {
       const rows = await db.select().from(device).where(eq(device.userId, accountId)).all();
       return rows.length;
     };
-    // a conversation still running and one at rest, and the agent's vault, all Anthropic's
-    const api = fakeManagedAgentsApi();
-    const agents = managedAgentsOver(api);
-    const sessions = [api.holdSession("running"), api.holdSession("idle")];
+    // two conversations the account's threads name, each holding rows in its own object
+    const threadIds = ["thread-0", "thread-1"];
+    for (const threadId of threadIds) {
+      await threadOf(accountId, threadId).inspect();
+    }
+    const heldThreads = async (): Promise<number> => {
+      let held = 0;
+      for (const threadId of threadIds) {
+        held += (await threadHolds(accountId, threadId)) ? 1 : 0;
+      }
+      return held;
+    };
     // what each step left behind, and what a read meeting the cell then heard
     interface Seen {
-      readonly anthropic: number;
       readonly alarm: number | null;
       readonly devices: number;
       readonly files: number;
       readonly grants: number;
       readonly items: number;
       readonly read: CellRefusal | null;
+      readonly threads: number;
     }
     const seen = new Map<string, Seen>();
     await inCell(cellOf(accountId), async (state) => {
@@ -303,58 +309,46 @@ describe("deleting the account from its cell", () => {
         }),
       );
       const library = openCellLibrary(state, env);
-      landedValue(await turnAgentOn(agentCellIn(state, library, { agents })));
-      for (const [index, sessionId] of sessions.entries()) {
-        const threadId = `thread-${String(index)}`;
+      for (const threadId of threadIds) {
         state.storage.sql.exec(
-          `INSERT INTO threads (id, session_id, title, status, created_at, updated_at, seq)
-           VALUES (?, ?, 'A thread', 'idle', 0, 0, 0)`,
-          threadId,
-          sessionId,
-        );
-        state.storage.sql.exec(
-          "INSERT INTO agent_sessions (session_id, thread_id, created_at) VALUES (?, ?, 0)",
-          sessionId,
+          `INSERT INTO threads (id, title, status, created_at, updated_at, seq)
+           VALUES (?, 'A thread', 'idle', 0, 0, 0)`,
           threadId,
         );
       }
       await scheduleAlarm(state, library);
-      const scope = { accountId, agents, ctx: state, email, env };
+      const scope = { accountId, ctx: state, email, env };
       for (const step of ACCOUNT_PURGE_STEPS) {
         await step.run(scope);
         seen.set(step.name, {
           alarm: await state.storage.getAlarm(),
-          anthropic: api.sessions.size + api.vaults.size,
           devices: await devices(),
           files: await files(accountBlobPrefix(accountId)),
           grants: await grants(),
           items: itemCount(state),
           read: refusalOf(engineIn(state, clockAt()).pull({ cursor: 0, epoch: null })),
+          threads: await heldThreads(),
         });
       }
     });
     const gone = { kind: "gone" };
-    const before = { alarm: expect.any(Number), devices: 1, files: 1, grants: 2, items: 1 };
+    const before = { alarm: expect.any(Number), devices: 1, files: 1, grants: 1, items: 1 };
     expect(Object.fromEntries(seen)).toEqual({
-      agent: { ...before, anthropic: 0, read: gone },
+      agent: { ...before, read: gone, threads: 0 },
       credentials: {
         alarm: null,
-        anthropic: 0,
         devices: 0,
         files: 0,
         grants: 0,
         items: 0,
         read: gone,
+        threads: 0,
       },
-      files: { alarm: null, anthropic: 0, devices: 1, files: 0, grants: 2, items: 0, read: gone },
-      grants: { alarm: null, anthropic: 0, devices: 1, files: 0, grants: 0, items: 0, read: gone },
-      storage: { alarm: null, anthropic: 0, devices: 1, files: 1, grants: 2, items: 0, read: gone },
-      tombstone: { ...before, anthropic: 3, read: gone },
+      files: { alarm: null, devices: 1, files: 0, grants: 1, items: 0, read: gone, threads: 0 },
+      grants: { alarm: null, devices: 1, files: 0, grants: 0, items: 0, read: gone, threads: 0 },
+      storage: { alarm: null, devices: 1, files: 1, grants: 1, items: 0, read: gone, threads: 0 },
+      tombstone: { ...before, read: gone, threads: 2 },
     });
-    // the running conversation was interrupted before it was deleted
-    expect(api.calls.map((call) => `${call.method} ${call.path}`)).toContain(
-      `POST /v1/sessions/${sessions[0] ?? ""}/events`,
-    );
     // another account's files stay, and the invite's redeemer is forgotten
     expect(await files(accountBlobPrefix(stranger))).toBe(1);
     const invites = await db.select().from(inviteCode).all();
@@ -375,44 +369,17 @@ describe("deleting the account from its cell", () => {
       expect(before.truncated).toBe(true);
       const filesStep = ACCOUNT_PURGE_STEPS.find((step) => step.name === "files");
       await inCell(cellOf(accountId), async (state) => {
-        await filesStep?.run({
-          accountId,
-          agents: null,
-          ctx: state,
-          email: "files-paged@example.test",
-          env,
-        });
+        await filesStep?.run({ accountId, ctx: state, email: "files-paged@example.test", env });
       });
       expect(await files(prefix)).toBe(0);
     },
   );
 
-  it("stops before the cell's rows go when Anthropic holds its data and no key can delete it", async () => {
-    const accountId = newAccountId();
-    const api = fakeManagedAgentsApi();
-    const agent = ACCOUNT_PURGE_STEPS.find((step) => step.name === "agent");
-    await inCell(cellOf(accountId), async (state) => {
-      const library = openCellLibrary(state, env);
-      landedValue(
-        await turnAgentOn(agentCellIn(state, library, { agents: managedAgentsOver(api) })),
-      );
-      const scope = { accountId, agents: null, ctx: state, email: "keyless@example.test", env };
-      await expect(agent?.run(scope)).rejects.toThrow(/no key/u);
-      expect(api.vaults.size).toBe(1);
-    });
-  });
-
   it("runs again from the top after a step failed, as Better Auth retries the deletion", async () => {
     const accountId = newAccountId();
     const stub = cellOf(accountId);
     await inCell(stub, async (state) => {
-      const scope = {
-        accountId,
-        agents: null,
-        ctx: state,
-        email: "never-signed-up@example.test",
-        env,
-      };
+      const scope = { accountId, ctx: state, email: "never-signed-up@example.test", env };
       const [tombstone, storage] = ACCOUNT_PURGE_STEPS;
       await tombstone?.run(scope);
       await storage?.run(scope);

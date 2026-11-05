@@ -9,11 +9,12 @@ import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-n
 import { runInDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 
-import type { AgentCell } from "../agent/agent-access";
-import type { ManagedAgents } from "../agent/managed-agents";
+import { runAgentTool } from "../agent/agent-tools";
+import { turnActorOf } from "../agent/agent-turns";
+import type { AgentCell } from "../agent/agent-turns";
 import type { CellActor } from "../library/cell-actor";
 import { cellIds } from "../library/cell-ids";
-import { scheduleAlarm } from "../library/cell-library";
+import { settleCommit } from "../library/cell-library";
 import { tellSockets } from "../library/cell-sockets";
 import type { CellResult } from "../library/cell-refusal";
 import { cellStorageOf } from "../library/cell-storage";
@@ -21,6 +22,7 @@ import { cellAccountId, libraryCellName } from "../library/library-cell";
 import type { LibraryDO } from "../library/library-do";
 import { openLibraryEngine } from "../library/library-engine";
 import type { LibraryEngine } from "../library/library-engine";
+import { libraryRouter } from "../library/library-router";
 
 export { blockHash as hashOf } from "@repo/notes/library/block-hash";
 
@@ -46,40 +48,42 @@ export const engineIn = (state: DurableObjectState, clock: Clock, bytesCap = GiB
     storage: cellStorageOf(state.storage),
   });
 
-// the built-in agent in a cell under test, over the test's clock: no Managed Agents client unless
-// the test hands it one (`./managed-agents-api`), the Worker the cell reaches through its own
-// `exports`, as the deployed cell does, as the token endpoint its grant is traded at, the cell's
-// own alarm and sockets, and the work it stays up for, which a test may hold to wait on
+// the built-in agent in a cell under test, as the cell makes it (`../library/library-do`): its
+// conversations' objects reached through the cell's own `exports`, its sockets, which a test may
+// listen on, every tool call run through the library's procedures as the turn's, and the commit's
+// follow-up the cell's own. `env` stands in for the deployment's bindings, `clock` for its time
 export const agentCellIn = (
   state: DurableObjectState,
   library: LibraryEngine,
   options: {
-    readonly agents?: ManagedAgents | null;
     readonly clock?: Clock;
     readonly env?: Env;
-    readonly background?: Promise<void>[];
     readonly frames?: LibrarySocketFrame[];
   } = {},
-): AgentCell => ({
-  accountId: cellAccountId(state.id.name),
-  agents: options.agents ?? null,
-  driver: { again: false, driving: false },
-  endpoint: state.exports.default,
-  env: options.env ?? env,
-  library,
-  now: () => options.clock?.now ?? Date.now(),
-  scheduleAlarm: async () => {
-    await scheduleAlarm(state, library);
-  },
-  tell: (frame) => {
-    options.frames?.push(frame);
-    tellSockets(state, frame);
-  },
-  waitUntil: (work) => {
-    options.background?.push(work);
-    state.waitUntil(work);
-  },
-});
+): AgentCell => {
+  const cellEnv = options.env ?? env;
+  const settle = async <T>(result: CellResult<T>): Promise<CellResult<T>> =>
+    await settleCommit(state, cellEnv, library, result);
+  const cell: AgentCell = {
+    accountId: cellAccountId(state.id.name),
+    env: cellEnv,
+    exports: state.exports,
+    library,
+    now: () => options.clock?.now ?? Date.now(),
+    runTool: async (request) =>
+      await runAgentTool(
+        libraryRouter,
+        { actor: turnActorOf(library, request), agent: cell, library, settle },
+        request,
+      ),
+    settle,
+    tell: (frame) => {
+      options.frames?.push(frame);
+      tellSockets(state, frame);
+    },
+  };
+  return cell;
+};
 
 // the engine inside a fresh cell, its result handed back out
 export const inCell = async <T>(

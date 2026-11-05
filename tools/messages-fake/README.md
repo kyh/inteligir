@@ -55,7 +55,8 @@ turn's ceiling.
 `apps/web/.dev.vars.example` names it as `ANTHROPIC_FAKE_URL`, a binding only
 `vite dev` declares. `src/serve.ts` serves it on a port of a caller's own: the
 e2e harness serves one beside each Worker it boots, on an ephemeral port
-(`tools/e2e/src/harness/cloud-worker.ts`), and the Worker's suites call its
-fetch handler in their own isolate (`apps/web/src/worker/test-support`). Its
-counters, the requests answered and the thinking blocks dropped, answer at
-`GET /__fake/stats`.
+(`tools/e2e/src/harness/cloud-worker.ts`), and the Worker's suites answer
+its address with its fetch handler from their outbound service, which refuses
+every other (`apps/web/messages-service.ts`). Its
+counters, the requests answered, the replies a stall held open and the
+thinking blocks dropped, answer at `GET /__fake/stats`.

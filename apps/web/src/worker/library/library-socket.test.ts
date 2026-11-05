@@ -227,13 +227,7 @@ describe("the account's socket", () => {
     const opened = await openWithTicket(ticket);
     await inCell(cellOf(accountId), async (state) => {
       const tombstone = ACCOUNT_PURGE_STEPS.find((step) => step.name === "tombstone");
-      await tombstone?.run({
-        accountId,
-        agents: null,
-        ctx: state,
-        email: "socket-deleted@example.test",
-        env,
-      });
+      await tombstone?.run({ accountId, ctx: state, email: "socket-deleted@example.test", env });
     });
     expect(await opened.closed).toBe(1001);
     const refused = await upgrade(`${V1_SOCKET_PATH}?ticket=${encodeURIComponent(ticket)}`);
