@@ -527,6 +527,12 @@ account whose library holds about 2,000 items gives the timing check its load.
   the network is back and the footer reads "Up to date". Then, online, type a
   line and switch to another tab at once for a minute. Passing: the line is in
   the phone's copy before you switch back.
+- **A long item's outline and its formulas, in the tab and in the Mac app.**
+  Open an item with three headings or more and scroll it, then import a zip
+  holding a note whose text is `{{2+2|5}}` and open that note. Passing: an
+  outline rail sits at the window's right, its light following the heading
+  under the scroll, a hover lists the headings and a click lands on one; and
+  the imported pill reads 4 once the note opens.
 - **An equation, a diagram and a date open offline.** Open the tab, turn the
   network off, then open, for the first time since the tab loaded, an item
   holding an equation, a Mermaid diagram and a date. Passing: each draws, and
