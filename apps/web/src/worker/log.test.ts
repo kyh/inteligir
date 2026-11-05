@@ -23,4 +23,12 @@ describe("an error's logged fields", () => {
     first.cause = second;
     expect(errorFields(first).causes).toHaveLength(8);
   });
+
+  it("keeps only the opening of a long message, which may quote its input", () => {
+    const row = `Unexpected token in JSON: ${"private text ".repeat(100)}`;
+    const fields = errorFields(new Error(row, { cause: new SyntaxError(row) }));
+    expect(fields.message).toHaveLength(301);
+    expect(fields.message.endsWith("…")).toBe(true);
+    expect(fields.causes[0]?.length).toBe(301);
+  });
 });
