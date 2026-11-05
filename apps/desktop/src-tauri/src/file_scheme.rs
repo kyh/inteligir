@@ -1,0 +1,315 @@
+//! The shell's own scheme for the library's files, `inteligir-files://localhost/<sha>`, which the
+//! page names in an image's, a recording's or a PDF's address. Its own name, never `blob`, which
+//! WebKit already handles and would refuse to hand over. A file this Mac holds is served from
+//! disk, one range of it when asked; a miss is fetched from the cloud with the device's
+//! credential, kept, then served. Every file but a PDF is served under a script-less sandbox, as
+//! the cloud serves it, and none is ever a page the window navigates to (`navigation.rs`).
+
+use tauri::http::{Request, Response, StatusCode, header};
+
+use crate::file_cache::{self, CloudFiles, Fetched, FileCache, Located};
+
+pub const SCHEME: &str = "inteligir-files";
+/// What the page puts before a file's sha: the scheme's, at the host WebKit hands a custom scheme.
+pub const ORIGIN: &str = "inteligir-files://localhost";
+
+// the cloud's own policies for a file (apps/web/src/worker/library/blob-routes.ts): a sandbox
+// blanks WebKit's PDF viewer, so a PDF alone keeps its viewer, runs no script, loads nothing but
+// itself, and only the app's page may frame it
+const PDF_POLICY: &str = "default-src 'none'; object-src 'self'; style-src 'unsafe-inline'; frame-ancestors tauri://localhost";
+// any other file: an <img> never runs an svg's script, but a navigation to its address would
+const SANDBOX_POLICY: &str = "default-src 'none'; sandbox";
+
+fn is_pdf(content_type: &str) -> bool {
+    content_type
+        .split(';')
+        .next()
+        .is_some_and(|kind| kind.trim().eq_ignore_ascii_case("application/pdf"))
+}
+
+fn refused(status: StatusCode) -> Response<Vec<u8>> {
+    let mut response = Response::new(Vec::new());
+    *response.status_mut() = status;
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        header::HeaderValue::from_static("no-store"),
+    );
+    response
+}
+
+fn served(located: &Located, range_header: Option<&str>) -> Response<Vec<u8>> {
+    let Ok(range) = file_cache::requested_range(range_header, located.len) else {
+        let mut response = refused(StatusCode::RANGE_NOT_SATISFIABLE);
+        if let Ok(value) = header::HeaderValue::from_str(&format!("bytes */{}", located.len)) {
+            response.headers_mut().insert(header::CONTENT_RANGE, value);
+        }
+        return response;
+    };
+    let bytes = match located.read(range) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            eprintln!("[files] could not read {}: {error}", located.path.display());
+            return refused(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    };
+    let mut builder = Response::builder()
+        .header(header::CONTENT_TYPE, &located.content_type)
+        .header(header::ACCEPT_RANGES, "bytes")
+        // a file is its sha, so its bytes never change under its address
+        .header(
+            header::CACHE_CONTROL,
+            "private, max-age=31536000, immutable",
+        )
+        .header(
+            header::CONTENT_SECURITY_POLICY,
+            if is_pdf(&located.content_type) {
+                PDF_POLICY
+            } else {
+                SANDBOX_POLICY
+            },
+        );
+    builder = match range {
+        Some((start, end)) => builder.status(StatusCode::PARTIAL_CONTENT).header(
+            header::CONTENT_RANGE,
+            format!("bytes {start}-{end}/{}", located.len),
+        ),
+        None => builder.status(StatusCode::OK),
+    };
+    builder
+        .body(bytes)
+        .unwrap_or_else(|_| refused(StatusCode::INTERNAL_SERVER_ERROR))
+}
+
+/// The answer to one of the page's file requests.
+pub async fn answer(
+    files: &FileCache,
+    cloud: &CloudFiles,
+    bearer: Option<String>,
+    request: &Request<Vec<u8>>,
+) -> Response<Vec<u8>> {
+    let sha = request.uri().path().trim_start_matches('/');
+    if !file_cache::is_sha(sha) {
+        return refused(StatusCode::NOT_FOUND);
+    }
+    let range_header = request
+        .headers()
+        .get(header::RANGE)
+        .and_then(|value| value.to_str().ok());
+    match files.locate(sha) {
+        Ok(Some(located)) => return served(&located, range_header),
+        Ok(None) => {}
+        Err(error) => {
+            eprintln!("[files] could not look for {sha}: {error}");
+            return refused(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    }
+    let Some(bearer) = bearer else {
+        return refused(StatusCode::UNAUTHORIZED);
+    };
+    let fetched = match file_cache::fetch(cloud, &bearer, sha).await {
+        Ok(Fetched::File(held)) => held,
+        Ok(Fetched::Refused(status)) => {
+            return refused(StatusCode::from_u16(status).unwrap_or(StatusCode::BAD_GATEWAY));
+        }
+        // offline, or the cloud unreachable: the page shows the file as not here yet
+        Err(error) => {
+            eprintln!("[files] could not fetch {sha}: {error}");
+            return refused(StatusCode::BAD_GATEWAY);
+        }
+    };
+    if let Err(error) = files.keep(sha, &fetched) {
+        eprintln!("[files] could not keep {sha}: {error}");
+        return refused(StatusCode::BAD_GATEWAY);
+    }
+    match files.locate(sha) {
+        Ok(Some(located)) => served(&located, range_header),
+        _ => refused(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::{BufRead, BufReader, Read, Write};
+    use std::net::TcpListener;
+    use std::path::Path;
+
+    use super::*;
+    use crate::error::{ShellError, ShellResult};
+    use crate::file_cache::{CACHE_LIMIT_BYTES, Held, sha_of};
+
+    fn files_in(dir: &Path) -> FileCache {
+        FileCache::new(dir.join("staged"), dir.join("cache"), CACHE_LIMIT_BYTES)
+    }
+
+    fn nowhere() -> CloudFiles {
+        CloudFiles {
+            client: file_cache::http_client().unwrap_or_default(),
+            // a port nothing listens on: a test that reaches it fails
+            origin: "http://127.0.0.1:9".to_owned(),
+            build: "0.6.0+desktop".to_owned(),
+        }
+    }
+
+    fn get(sha: &str, range: Option<&str>) -> Request<Vec<u8>> {
+        let mut builder = Request::builder().uri(format!("{ORIGIN}/{sha}"));
+        if let Some(range) = range {
+            builder = builder.header(header::RANGE, range);
+        }
+        builder.body(Vec::new()).unwrap_or_default()
+    }
+
+    fn served_now(
+        files: &FileCache,
+        cloud: &CloudFiles,
+        bearer: Option<&str>,
+        request: &Request<Vec<u8>>,
+    ) -> Response<Vec<u8>> {
+        tauri::async_runtime::block_on(answer(files, cloud, bearer.map(str::to_owned), request))
+    }
+
+    #[test]
+    fn the_origin_is_the_scheme_s() {
+        assert_eq!(ORIGIN, format!("{SCHEME}://localhost"));
+    }
+
+    #[test]
+    fn a_held_file_is_served_whole_or_by_its_range_under_a_sandbox() -> ShellResult<()> {
+        let dir = tempfile::tempdir()?;
+        let files = files_in(dir.path());
+        let bytes = b"0123456789";
+        let sha = sha_of(bytes);
+        files.keep(
+            &sha,
+            &Held {
+                bytes: bytes.to_vec(),
+                content_type: "video/webm".to_owned(),
+            },
+        )?;
+        let whole = served_now(&files, &nowhere(), None, &get(&sha, None));
+        assert_eq!(whole.status(), StatusCode::OK);
+        assert_eq!(whole.body(), &bytes.to_vec());
+        assert_eq!(
+            whole
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .map(header::HeaderValue::as_bytes),
+            Some(b"video/webm".as_slice())
+        );
+        assert_eq!(
+            whole
+                .headers()
+                .get(header::CONTENT_SECURITY_POLICY)
+                .map(header::HeaderValue::as_bytes),
+            Some(SANDBOX_POLICY.as_bytes())
+        );
+        let ranged = served_now(&files, &nowhere(), None, &get(&sha, Some("bytes=2-4")));
+        assert_eq!(ranged.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(ranged.body(), &b"234".to_vec());
+        assert_eq!(
+            ranged
+                .headers()
+                .get(header::CONTENT_RANGE)
+                .map(header::HeaderValue::as_bytes),
+            Some(b"bytes 2-4/10".as_slice())
+        );
+        let beyond = served_now(&files, &nowhere(), None, &get(&sha, Some("bytes=20-")));
+        assert_eq!(beyond.status(), StatusCode::RANGE_NOT_SATISFIABLE);
+        Ok(())
+    }
+
+    #[test]
+    fn a_staged_file_is_served_before_any_fetch() -> ShellResult<()> {
+        let dir = tempfile::tempdir()?;
+        let files = files_in(dir.path());
+        let bytes = b"taken offline";
+        let sha = sha_of(bytes);
+        files.stage(&sha, bytes)?;
+        let response = served_now(&files, &nowhere(), None, &get(&sha, None));
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.body(), &bytes.to_vec());
+        Ok(())
+    }
+
+    #[test]
+    fn a_miss_signed_out_or_offline_is_refused_and_kept_out_of_the_cache() -> ShellResult<()> {
+        let dir = tempfile::tempdir()?;
+        let files = files_in(dir.path());
+        let sha = "c".repeat(64);
+        let signed_out = served_now(&files, &nowhere(), None, &get(&sha, None));
+        assert_eq!(signed_out.status(), StatusCode::UNAUTHORIZED);
+        let offline = served_now(&files, &nowhere(), Some("igd_x"), &get(&sha, None));
+        assert_eq!(offline.status(), StatusCode::BAD_GATEWAY);
+        assert_eq!(
+            offline
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .map(header::HeaderValue::as_bytes),
+            Some(b"no-store".as_slice())
+        );
+        let unnamed = served_now(&files, &nowhere(), Some("igd_x"), &get("not-a-sha", None));
+        assert_eq!(unnamed.status(), StatusCode::NOT_FOUND);
+        assert!(files.locate(&sha)?.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn a_miss_is_fetched_with_the_bearer_kept_and_then_a_hit() -> ShellResult<()> {
+        let dir = tempfile::tempdir()?;
+        let files = files_in(dir.path());
+        let body: &'static [u8] = b"%PDF-1.4 a page";
+        let sha = sha_of(body);
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        let cloud = CloudFiles {
+            client: file_cache::http_client()?,
+            origin: format!("http://{}", listener.local_addr()?),
+            build: "0.6.0+desktop".to_owned(),
+        };
+        // one request answered, then the listener gone: a second fetch would fail
+        let serving = std::thread::spawn(move || -> Vec<String> {
+            let Ok((mut stream, _)) = listener.accept() else {
+                return Vec::new();
+            };
+            let Ok(read) = stream.try_clone() else {
+                return Vec::new();
+            };
+            let mut reader = BufReader::new(read);
+            let mut head = Vec::new();
+            loop {
+                let mut line = String::new();
+                if reader.read_line(&mut line).is_err() || line.trim().is_empty() {
+                    break;
+                }
+                head.push(line.trim().to_lowercase());
+            }
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: application/pdf\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                body.len()
+            );
+            let _ = stream.write_all(reply.as_bytes());
+            let _ = stream.write_all(body);
+            let _ = stream.read(&mut [0_u8; 1]);
+            head
+        });
+        let first = served_now(&files, &cloud, Some("igd_bearer"), &get(&sha, None));
+        assert_eq!(first.status(), StatusCode::OK);
+        assert_eq!(first.body(), &body.to_vec());
+        assert_eq!(
+            first
+                .headers()
+                .get(header::CONTENT_SECURITY_POLICY)
+                .map(header::HeaderValue::as_bytes),
+            Some(PDF_POLICY.as_bytes())
+        );
+        let head = serving
+            .join()
+            .map_err(|_| ShellError::Invalid("the listener panicked".to_owned()))?;
+        assert!(
+            head.contains(&"authorization: bearer igd_bearer".to_owned()),
+            "{head:?}"
+        );
+        let again = served_now(&files, &cloud, Some("igd_bearer"), &get(&sha, None));
+        assert_eq!(again.status(), StatusCode::OK);
+        assert_eq!(again.body(), &body.to_vec());
+        Ok(())
+    }
+}

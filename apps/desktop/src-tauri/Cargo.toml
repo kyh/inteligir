@@ -10,21 +10,36 @@ publish = false
 name = "inteligir_desktop"
 
 [build-dependencies]
-tauri-build = { version = "2.7", features = [] }
+tauri-build = { version = "2.7", features = ["isolation"] }
 
 [dependencies]
+# the network the file cache fetches a miss over, the same client and TLS the updater's plugin
+# links, so the shell carries one HTTP stack and one crypto provider
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
-tauri = { version = "2.12", features = ["image-png", "tray-icon"] }
+tauri = { version = "2.12", features = ["image-png", "isolation", "tray-icon"] }
 tauri-plugin-dialog = "2.8"
 tauri-plugin-opener = "2.7"
 tauri-plugin-single-instance = "2.5"
 tauri-plugin-updater = "2.13"
+thiserror = "2"
 time = { version = "0.3", features = ["formatting", "macros"] }
+keyring-core = "1"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { version = "1", features = ["keychain"] }
+
+# the shell runs on Linux only under the scenario suite, which has no Keychain: keyring-core's
+# sample store, in a file under the app's data dir, stands in for it there
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+keyring-core = { version = "1", features = ["sample"] }
 
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.31", features = ["signal"] }
+nix = { version = "0.31", features = ["hostname"] }
 signal-hook = "0.3"
 
 [dev-dependencies]
