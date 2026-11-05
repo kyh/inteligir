@@ -50,8 +50,7 @@ the first has not published its row yet.
 A browser cannot send that header, and it never sees the bearer. The link
 `serve` prints (and opens, under `--open`) carries a single-use handoff that the
 server trades once for a session cookie of the browser's own, answering with the
-same URL minus the handoff; `inteligir open` and the desktop's Open in Browser
-mint a fresh one over `system.browserHandoff`, which a server with no UI (an
+same URL minus the handoff; `inteligir open` mints a fresh one over `system.browserHandoff`, which a server with no UI (an
 unbuilt checkout) refuses as `NOT_FOUND`, since its link would land on a 404. A
 plain GET sets no cookie and gets a signed-out page naming those ways in, never
 the workspace, and a request naming any host but `127.0.0.1` or `localhost` is
@@ -71,8 +70,8 @@ resolution (`src/server/config.ts`) rather than re-deriving it:
 wherever the command started) holds `config.json`, whose `vaultDir` picks the
 vault unless `INTELIGIR_VAULT_DIR` does, and the data dir is
 `<root>/vaults/<hash of that vault's physical path>`. The walk up is what lets
-`pnpm dev` (which runs from `apps/desktop`) and `pnpm cli …` (run from wherever
-you stand) name the same instance.
+`pnpm cli serve` and `pnpm cli …`, each run from wherever you stand, name the
+same instance.
 
 There is deliberately NO "point the CLI at a URL" escape hatch. Under a bearer
 model, naming a URL is naming somewhere to SEND A CREDENTIAL — and the token

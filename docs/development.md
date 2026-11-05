@@ -29,11 +29,11 @@ owner's.
 ## Commands
 
 ```bash
-pnpm dev                # THE PRODUCT — the shell over its own server
+pnpm dev                # THE PRODUCT — the Mac app's window over the local Worker (pnpm dev:web)
 pnpm dev:desktop        # Alias of dev
 pnpm dev:mobile         # apps/mobile: expo start, in a terminal (turbo refuses it piped or under CI;
                         #   pnpm --filter @repo/mobile dev runs it without one)
-pnpm cli serve          # The server ALONE, from source, no window; a shell adopts it
+pnpm cli serve          # The local server ALONE, from source, no window
 pnpm cli <verb>         # Every other verb, against this checkout's instance
 pnpm dev:web            # apps/web: vite + miniflare on :5174 (pinned, strictPort), the library's
                         #   page at /library rebuilt on change, and the scripted Messages API on
@@ -44,7 +44,7 @@ pnpm package:cli        # The npm artifact (apps/cli) — `npx inteligir serve`
 pnpm package:desktop    # The macOS arm64 .app and dmg, signed + notarized when the keys are present
 pnpm package:extension  # The Web Store zip (wxt zip, checked) and the unpacked store build, under apps/extension/.output
 pnpm smoke:cli          # Pack, install into a scratch prefix, boot, probe, stop
-pnpm smoke:desktop      # Package the .app, launch it, drive its server and an agent turn, SIGTERM (macOS only)
+pnpm smoke:desktop      # Package the .app, check its bundle and signature, launch it to its page, SIGTERM (macOS only)
 pnpm testflight:mobile  # The phone: EAS builds it for iOS and submits it to TestFlight (owner; docs/releasing.md)
 pnpm hotfix:mobile      # A JS-only fix to the phone builds already out, as an EAS Update
 pnpm build              # Build all
@@ -57,79 +57,52 @@ pnpm e2e                # The scenario suite (one mode — the SPA is a static b
 
 ## Running
 
-`pnpm dev` runs `tauri dev`: the page's Vite dev server, the Rust shell
-compiled and launched, and the CLI's bundle rebuilt first — because the shell
-RUNS that bundle on your node, so a stale `dist/` would be a window on last
-week's server. Its child boots the server: config → SQLite open + migrate →
-Hono (the oRPC handler at /rpc, the /ws invalidation bus). No login. The window
-loads the server's own origin, as a packaged one does, and that server answers
-the page's files from Vite, so an edit reloads in place
-(`apps/cli/src/server/ui-dev-server.ts`). An edit to the shell's Rust rebuilds
-and relaunches it.
+`pnpm dev` runs `tauri dev` over the page's last build, with no dev server of
+its own (`--no-dev-server`) and the local policy
+(`apps/desktop/src-tauri/tauri.local.conf.json`, which lets the page call this
+machine alone): the Rust shell compiled and launched on its own page at
+`tauri://localhost/library/`, calling the Worker `pnpm dev:web` serves on
+`localhost:5174`, or the loopback origin `INTELIGIR_CLOUD_ORIGIN` names, the one
+variable a debug shell reads (`apps/desktop/src-tauri/src/cloud.rs`) and the one
+its turbo task passes through strict env mode (`apps/desktop/turbo.json`). Its
+first run is a sign-in with an account of that Worker (`AGENTS.md` § There is
+no seeded login). An edit to the shell's Rust rebuilds and relaunches it; an
+edit to the page reaches the window once `pnpm --filter @repo/workspace build`
+has run and the shell relaunches.
 
 Iterating on the PAGE needs no Rust: `pnpm dev:web` rebuilds `@repo/workspace`
 as it changes (`vite build --watch`) and the local Worker serves that build at
 `localhost:5174/library`, through the same route and policy a deploy runs
 (`apps/web/src/worker/library/library-page.ts`); sign in at `/app/sign-in` and
-reload the tab after an edit. Whatever needs the shell (the updater, Reveal,
-printing, the diagnostics) draws nothing in a tab.
+reload the tab after an edit. Whatever needs the shell (the updater, the
+replica on disk, the Keychain) draws nothing in a tab.
 
-Iterating on the SERVER is `pnpm cli serve` in its own terminal: that runs the
-TypeScript source under tsx, and a shell started afterwards ADOPTS it instead
-of starting a second one.
+Iterating on the local SERVER is `pnpm cli serve` in its own terminal: that
+runs the TypeScript source under tsx.
 
 The dev port and data dir are DERIVED PER CHECKOUT (sha256 of the checkout
 root — `apps/cli/src/server/dev-instance.ts` is the whole scheme), so parallel
 worktrees never share a database or collide on a socket; a busy derived port
 is probed upward and the winner logged. The checkout is walked up to from
-wherever the command started, so `pnpm dev` (from apps/desktop) and
-`pnpm cli …` (from wherever you stand) name the same instance. `INTELIGIR_PORT`
+wherever the command started, so every `pnpm cli …`, from wherever you stand,
+names the same instance. `INTELIGIR_PORT`
 and `INTELIGIR_DATA_DIR` override; a dev data dir is marked with its checkout
 path on first boot and refuses a different checkout thereafter.
 
-A checkout whose dev instance has no vault yet opens the shell on its FIRST
-RUN, as a fresh install does: a page that asks for a new vault or an existing
-folder before any server boots (`apps/desktop/README.md` § The first run is
-decided before any server exists). Its proposed vault is the dev instance's
-own `vault/` folder, so Create with the defaults never touches `~/Inteligir`.
-`INTELIGIR_VAULT_DIR` or `INTELIGIR_DATA_DIR` skips it, as does a vault an
-earlier `pnpm dev` or `pnpm cli serve` already made.
-
-Every `INTELIGIR_*` variable that module declares works on `pnpm dev`, and
-that is a fact `apps/desktop/turbo.json` has to keep: turbo runs in STRICT env
-mode, so a variable its `dev` task does not name is stripped before the
-process starts — silently, with no error to read, so
-`INTELIGIR_AGENT=scripted pnpm dev` would simply boot the default agent. The
-task list is held against the module's own declared set by
-`tools/repo-guards/src/turbo-passthrough.test.ts`, so adding a variable to
-`config.ts` fails the gate until the task names it.
-
 When something "didn't update", `INTELIGIR_DEBUG` names what to trace,
 comma-separated: `watcher`, `knowledge`, `sync`, `acp`
-(`INTELIGIR_DEBUG=watcher,knowledge pnpm dev`). The server then writes each
+(`INTELIGIR_DEBUG=watcher,knowledge pnpm cli serve`). The server then writes each
 decision those make to its stderr as a `[debug:<name>]` line, by path and id,
 never by a note's content or a credential; an unknown name is refused at boot.
 `inteligir guide` § Diagnostics is the user's copy, and
 `apps/cli/src/server/debug-log.ts` says what each one traces.
 
-A Finder-launched app has no env to set and no terminal to read, so the
-desktop shell carries both halves itself. Settings › Advanced › Debug logging
-is `diagnostics.json` in the shell's own folder, read before each start: on,
-the server the shell starts next runs with every namespace (`serve --debug`
-through the CLI's desktop entry), so a change asks for a restart; off, the
-shell's own `INTELIGIR_DEBUG` still reaches the child. Whatever that child
-prints, traced or not, is appended, stamped, to `<dataDir>/logs/server.log`,
-which rotates at 5 MiB into one `server.log.1`
-(`apps/desktop/src-tauri/src/server_log.rs`); Show log reveals it. A server the
-shell adopted is not its child, so neither the switch nor the log reaches it.
-
 The prod path is `pnpm package:cli`, which bundles the server and the CLI into
 `apps/cli/dist`; `inteligir serve` then runs plain
-`node` on port 4664. `pnpm package:desktop` stages that same package with its
-production dependencies as the .app's resource, beside the node it runs on and
-the git a Mac without the developer tools runs (both fetched and pinned at
-package time), signed when the keychain holds a Developer ID and notarized when
-`.release/` is present (`apps/desktop/README.md` § Packaging).
+`node` on port 4664. `pnpm package:desktop` builds the .app around the page's
+build, with nothing else to run inside it, signed when the keychain holds a
+Developer ID and notarized when `.release/` is present (`apps/desktop/README.md`
+§ Packaging).
 
 `pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, device
 login, `/v1`, every library cell and the account's socket, the library's page
@@ -168,11 +141,10 @@ door allows.
 THE DEV BUILD DIALS `com.inteligir.desktop.dev`, the manifest `--install`
 writes, whose launcher runs this checkout's `apps/cli/bin/inteligir
 native-host` from the checkout, so it reaches this checkout's instance (a
-`pnpm cli serve` or `pnpm dev`). The store builds (`pnpm package:extension`:
+`pnpm cli serve`). The store builds (`pnpm package:extension`:
 the Web Store zip and `.output/chrome-mv3-store-unpacked`, the same files with
-the key) dial `com.inteligir.desktop`, which the packaged app writes for every
-Chromium browser at each launch (`apps/cli/src/desktop/native-hosts.ts`), so
-they reach the installed app and never a checkout. `--install` writes a
+the key) dial `com.inteligir.desktop`, which nothing writes now: the Mac app
+runs no server for a door to reach, so a store build saves through no app. `--install` writes a
 manifest only where a browser's folder exists, so open the browser once first;
 on Linux it writes Chrome's and Chromium's under `~/.config`. `--install` is
 refused in the packaged mode, and the e2e's `browser-extension` scenario writes
@@ -181,30 +153,30 @@ its own door into a scratch profile
 
 ## Where state lives
 
-| What                                              | Where                                                                              |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| The product (`pnpm dev`)                          | derived port 21000–28999 (hash of checkout root)                                   |
-| An agent's preview server (`.claude/launch.json`) | 5176 (pinned — `INTELIGIR_PORT`, never probed)                                     |
-| The page's vite dev server                        | 31000 (pinned — `strictPort`; `tauri dev` waits)                                   |
-| Site + cloud Worker (`pnpm dev:web`)              | 5174 (pinned — `strictPort`)                                                       |
-| UI gallery (`pnpm dev:gallery`)                   | 5175 (pinned — `strictPort`)                                                       |
-| Scripted Messages API (`pnpm dev:web`)            | 5177 (pinned — `.dev.vars`' `ANTHROPIC_FAKE_URL` names it)                         |
-| Extension dev server (`pnpm dev:extension`)       | 3000, or the first free port to 3010 (WXT's own probe)                             |
-| The vault selector, config.json                   | `~/.inteligir-dev/<hash>/data/` (prod: `~/.inteligir`)                             |
-| Each vault's SQLite and sign-in                   | `<that dir>/vaults/<hash of its physical path>/`                                   |
-| Agent and vault prefs                             | JSON files beside them (the app writes these)                                      |
-| Connectors                                        | the agent's own: `~/.claude.json`, `~/.codex`                                      |
-| The desktop's server log                          | `<data dir>/logs/server.log` (+ one `.1`)                                          |
-| The desktop's own folder                          | `desktop/` beside config.json: recent vaults, the debug choice, Linux's web stores |
-| The fills a save still owes                       | the `pending_fills` table in that vault's `inteligir.db`                           |
-| The grid's thumbnails                             | `<that vault's data dir>/thumbs/`, a cache pruned to 256 MiB                       |
-| A Raindrop import's copy of its CSV and its job   | `<that vault's data dir>/imports/` (`job.json`), until the import ends             |
-| The browsers' door                                | `native-host/` beside config.json: the launcher the app writes at each boot        |
-| Highlights and their notes                        | `.inteligir/annotations/<item id>.json` in the vault itself                        |
-| The library's filing rules                        | `AGENTS.md` at the vault's root, which the agent reads                             |
-| Accounts, sessions, devices, invites              | D1 (local file under `apps/web/.wrangler`)                                         |
-| Library cells and their sockets, hosted vault     | Durable Objects (same `.wrangler` dir)                                             |
-| Connected assistants' clients, grants and tokens  | KV, `OAUTH_KV` (same `.wrangler` dir)                                              |
+| What                                              | Where                                                                            |
+| ------------------------------------------------- | -------------------------------------------------------------------------------- |
+| The local server (`pnpm cli serve`)               | derived port 21000–28999 (hash of checkout root)                                 |
+| An agent's preview server (`.claude/launch.json`) | 5176 (pinned — `INTELIGIR_PORT`, never probed)                                   |
+| Site + cloud Worker (`pnpm dev:web`)              | 5174 (pinned — `strictPort`)                                                     |
+| UI gallery (`pnpm dev:gallery`)                   | 5175 (pinned — `strictPort`)                                                     |
+| Scripted Messages API (`pnpm dev:web`)            | 5177 (pinned — `.dev.vars`' `ANTHROPIC_FAKE_URL` names it)                       |
+| Extension dev server (`pnpm dev:extension`)       | 3000, or the first free port to 3010 (WXT's own probe)                           |
+| The vault selector, config.json                   | `~/.inteligir-dev/<hash>/data/` (prod: `~/.inteligir`)                           |
+| Each vault's SQLite and sign-in                   | `<that dir>/vaults/<hash of its physical path>/`                                 |
+| Agent and vault prefs                             | JSON files beside them (the app writes these)                                    |
+| Connectors                                        | the agent's own: `~/.claude.json`, `~/.codex`                                    |
+| The Mac app's replica and its staged files        | `~/Library/Application Support/com.inteligir.desktop/` (`library/`, `staged/`)   |
+| The Mac app's fetched files                       | `~/Library/Caches/com.inteligir.desktop/files/`, the least read let go past 5 GB |
+| The Mac app's credential                          | the Keychain, service `com.inteligir.desktop`                                    |
+| The fills a save still owes                       | the `pending_fills` table in that vault's `inteligir.db`                         |
+| The grid's thumbnails                             | `<that vault's data dir>/thumbs/`, a cache pruned to 256 MiB                     |
+| A Raindrop import's copy of its CSV and its job   | `<that vault's data dir>/imports/` (`job.json`), until the import ends           |
+| The browsers' door                                | `native-host/` beside config.json: the launcher `native-host --install` writes   |
+| Highlights and their notes                        | `.inteligir/annotations/<item id>.json` in the vault itself                      |
+| The library's filing rules                        | `AGENTS.md` at the vault's root, which the agent reads                           |
+| Accounts, sessions, devices, invites              | D1 (local file under `apps/web/.wrangler`)                                       |
+| Library cells and their sockets, hosted vault     | Durable Objects (same `.wrangler` dir)                                           |
+| Connected assistants' clients, grants and tokens  | KV, `OAUTH_KV` (same `.wrangler` dir)                                            |
 
 ## Quality gates
 

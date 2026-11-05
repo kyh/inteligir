@@ -59,17 +59,12 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   wholesale). `apps/cli/src/server/vault/vault-router.ts`,
   `packages/editor/src/stale-write.ts`.
 
-- **CONTAINMENT IS PHYSICAL, NOT LEXICAL, IN THE SERVER AND IN THE SHELL.** The
-  vault realpaths the deepest existing ancestor and refuses symlinked leaves in
-  the one step every path-taking surface runs, a stat or a listing answering a
-  refused path as absent. The OS sees a vault entry only through the shell,
-  which checks plain relative components over both realpaths: the one rule the
-  Rust shell spells again, as the realpath alone, since asking the CLI costs a
-  node process per click and the grammar's other refusals guard writes. A
-  browser tab has no bridge and draws no row. Rejected: a lexical check (passes
-  a `notes.md` symlinked to a private key, which a hostile `git pull` can
-  plant). `apps/cli/src/server/vault/vault-service.ts`,
-  `apps/desktop/src-tauri/src/paths.rs`.
+- **CONTAINMENT IS PHYSICAL, NOT LEXICAL.** The vault realpaths the deepest
+  existing ancestor and refuses symlinked leaves in the one step every
+  path-taking surface runs, a stat or a listing answering a refused path as
+  absent. Rejected: a lexical check (passes a `notes.md` symlinked to a private
+  key, which a hostile `git pull` can plant).
+  `apps/cli/src/server/vault/vault-service.ts`.
 
 - **THE VAULT DIR AND THE DATA DIR ARE DISJOINT**, refused at boot, since a data
   dir inside the vault gets committed and pushed.

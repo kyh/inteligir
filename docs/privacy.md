@@ -162,9 +162,11 @@ as:
     answer, and keeps no record of it.
   - **The update check — to GitHub.** The packaged desktop app asks GitHub's
     release feed whether a newer version exists 15 seconds after launch and
-    every 4 minutes after that. GitHub sees your IP address, nothing about your
-    library or your account. Nothing downloads or installs without a click. `inteligir serve`, from a checkout or through
-    `npx`, makes no such check.
+    every 4 minutes after that, downloads a newer one from GitHub in the
+    background and installs it when you quit the app (or at once, with Restart
+    to Update). GitHub sees your IP address, nothing about your library or your
+    account. `inteligir serve`, from a checkout or through `npx`, makes no such
+    check.
   - **The phone's update check — to Expo.** Each time the phone app starts it
     asks Expo's update service whether a newer version of its app code exists,
     downloads one in the background and runs it from the next start. Expo sees
@@ -286,12 +288,11 @@ The apps also hold to these, plainly:
   pick. It keeps a copy at most 2048 pixels on its long side, saved again as a
   JPEG without its location or any other camera details and named for when you
   added it; only that copy reaches your library.
-- **The app's log.** The desktop app keeps what its local server prints in
-  `logs/server.log` inside its data folder (at most 5 MB, plus one older file),
-  whether or not Debug logging is on; with it on (Settings › Advanced), the log
-  also records each file change, sync step and agent message by file name and
-  id, never what an item says or a credential. Nothing reads or sends it: it
-  leaves the machine only if you attach it to a report yourself.
+- **The Mac's copy of your library, and its sign-in.** The Mac app keeps a
+  copy of your online library, and the files you open from it, in its own
+  folders on that Mac, so it reads them with no connection; signing out deletes
+  them. The device's sign-in is kept in the macOS Keychain and nowhere else on
+  disk. The app keeps no log.
 
 **Chat and other artificial intelligence ("AI") technologies**, such as those
 provided by Anthropic (Claude) and OpenAI (ChatGPT), that the Mac app runs on
@@ -563,11 +564,8 @@ was last seen; our website's account pages list your devices too. The sign-in
 page can email you a link to set a new password. To change anything else, such
 as your name or email address, contact us.
 
-**Privacy settings.** We make available certain privacy settings on the Service,
-including options to control where a library syncs (Settings › Advanced › Sync
-with), and whether the app's log records each file change, sync
-step and agent message (Debug logging, in Settings › Advanced). Signing a device
-out of your account stops it syncing.
+**Privacy settings.** Signing a device out of your account (Settings › Account)
+stops it syncing, and on a Mac deletes its copy of your library.
 
 **Cookies and other technologies.** Most browsers let you remove or reject
 cookies, and clear what a website keeps in web storage, in their settings. If

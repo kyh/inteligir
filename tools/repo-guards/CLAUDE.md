@@ -35,9 +35,8 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   reason. Every vendored file keeps its `// Vendored from X, MIT.` header, and
   the licence texts live under `tools/licenses`, staged into the artifact as
   `dist/licenses`, the set `pnpm smoke:cli` derives from the directory. The .app
-  ships its own licences, since only it carries what they cover: the bundled
-  git's and node's, and the notices of every Rust crate the shell links,
-  written at package time from cargo's resolve
+  ships its own notices, since only it carries what they cover: every Rust
+  crate the shell links, written at package time from cargo's resolve
   (`apps/desktop/scripts/rust-notices.ts`) and checked by the smoke.
   `packages/ui/components.json`'s `rsc: true` is inert: no consumer renders
   server components.
@@ -92,7 +91,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   replays. Another workspace's files enter a key only through a `^` edge, and
   no task names another workspace's: the Worker's build reaches
   `@repo/workspace#build` through its own dependency, and the shell's tasks
-  reach the page's and the CLI's through theirs (`apps/desktop/turbo.json`). A
+  reach the page's through theirs (`apps/desktop/turbo.json`). A
   file in no workspace is a named input (`apps/cli/turbo.json`), and a followed
   file a named output (`apps/web/turbo.json`); `tools/repo-guards/src/turbo-cache-keys.test.ts`
   holds the `^` edges and a bundled import's input (`/privacy` renders

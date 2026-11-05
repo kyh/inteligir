@@ -95,27 +95,25 @@ scratch dir and tears everything down afterwards:
 - `instance.api` — the oRPC client over `@repo/contract/local`, carrying the device
   token this instance published in `<dataDir>/server.json`;
   `instance.vaultDir` / `dataDir` for on-disk assertions.
-- `desktopShell({ seedVault?, seedOwnDir?, firstRun? })` — the checkout's
-  built Tauri shell (`pnpm turbo run build:shell --filter=@repo/desktop`, an
-  unbundled debug build the runner makes before the first scenario when any
-  selected one is `exclusive` on `desktop-shell`, outside every deadline). It makes the default vault's folder before launch,
-  as a launch before first run left it, so the shell boots it; `firstRun: true`
-  makes nothing, so the shell opens its first-run page and boots no server
-  until a vault is chosen, and a relaunch over the same scratch finds the vault
-  that run made. Launched by `tauri-driver` on a scratch `HOME` (never
-  `INTELIGIR_DATA_DIR`/`INTELIGIR_VAULT_DIR`, which would make it refuse a vault
-  switch), a pinned server port and `INTELIGIR_AGENT=scripted`. Its `window` is
-  a WebDriver session over the shell's FIRST window alone: Tauri hands WebKit's
-  automation the first web view it makes, and each vault's window lives in a
-  web context of its own, so a window made after it (a switch's, the app's
-  after a first run) is watched through its server and `serverLog()`, where the
-  shell notes each window it loads. `api` is the oRPC client over whichever
-  server it runs now; `target()` is the data and vault dir it resolves now,
-  derived as the shell's CLI door derives them; `ownDir` is the shell's own
-  folder (its recent vaults, its debug choice); `quit()` sends the shell the
-  SIGTERM it quits on. Registered for teardown like an instance. It runs on
-  Linux alone, and skips with no display (run the suite under `xvfb-run -a`),
-  no `tauri-driver` or `WebKitWebDriver`, or no built shell.
+- `cloudLink(worker)` — a relay to a booted Worker on a port of its own, so a
+  scenario can cut the cloud and restore it (`src/harness/cloud-link.ts`): a
+  cut refuses every new connection and drops every open one, as a Mac that lost
+  its network meets the cloud, and a restore listens on the same port again.
+  Registered for teardown like an instance.
+- `desktopShell({ cloudOrigin })` — the checkout's built Tauri shell
+  (`pnpm turbo run build:shell --filter=@repo/desktop`, an unbundled debug
+  build with the page inside it, which the runner makes before the first
+  scenario when any selected one is `exclusive` on `desktop-shell`, outside
+  every deadline), calling the cloud at `cloudOrigin`, a Worker's or a
+  `cloudLink`'s. Launched by `tauri-driver` on the scenario's scratch `HOME`,
+  which a second launch in the same scenario finds again, so a relaunch keeps
+  the replica and the credential's stand-in. Its `window` is a WebDriver
+  session over the shell's one window, `dataDir` is where the shell keeps the
+  account's replica and staged files, `replicaFiles()` lists the replicas it
+  holds (`replicaTitle` reads an item back off one), and `quit()` sends the
+  shell the SIGTERM it quits on. Registered for teardown like an instance. It
+  runs on Linux alone, and skips with no display (run the suite under
+  `xvfb-run -a`), no `tauri-driver` or `WebKitWebDriver`, or no built shell.
 - `browser(label)` — an agent-browser session registered for teardown like an
   instance, so a failed or abandoned scenario still closes it. It is callable
   with any agent-browser command, and `openLibrary(worker, { path?, ready? })`

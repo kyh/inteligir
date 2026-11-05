@@ -43,10 +43,5 @@ body:
       required: true
   - type: textarea
     attributes:
-      label: The log
-      description: |
-        On a Mac, Settings › Advanced › Show log shows the app's log, `server.log`: drag it here. For more detail, turn on Debug logging there, quit and reopen Inteligir, do the steps again, then attach the log. It names the files in your library, so look it over before you attach it.
-  - type: textarea
-    attributes:
       label: Anything else
       description: Screenshots, or anything else that helps us see it.

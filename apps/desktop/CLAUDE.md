@@ -1,15 +1,15 @@
 # Decisions: @repo/desktop
 
-The Tauri shell: its window and bridge, what the .app carries, first run,
-updates and diagnostics. `AGENTS.md` § Decisions says how a bullet is written
-and cited.
+The Tauri shell: its window and bridge, the Mac's replica, its credential and
+its files, what the .app carries, and updates. `AGENTS.md` § Decisions says how
+a bullet is written and cited.
 
 ## Dictation
 
 - **DICTATION IS THE OPERATING SYSTEM'S** (owner decision). macOS dictation (fn
   twice, Edit › Start Dictation) and the phone keyboard's mic type as a keyboard
-  does, so the app holds no microphone entitlement (absent on purpose from
-  `apps/desktop/resources/entitlements.mac.plist`), usage description, web
+  does, so the app is signed with no entitlement at all, a microphone's among
+  them (`apps/desktop/scripts/package.ts`), and holds no usage description, web
   permission, model or socket, and every window denies every permission request
   (`apps/desktop/src-tauri/src/window.rs`), which the shell's scenario reads
   back. A dictated phrase lands as one IME-style commit, so a field carries no
@@ -17,135 +17,146 @@ and cited.
   in a worker, a ~100 MB third-party download behind a sha gate, a dictation
   socket, the app's only device grant).
 
-## Server process and the desktop shell
+## The desktop shell
 
-- **THE APP WINDOW IS THE SERVER'S OWN PAGE, AND HOLDS NO BEARER** (#889). A
-  WKWebView scheme handler can neither carry the socket's upgrade nor stream a
-  body, so no custom scheme serves the page: the window opens on the server's
-  one-time handoff link and signs in as a browser tab does (THE CREDENTIAL IS A
-  FILE, in `apps/cli/CLAUDE.md`): same-origin, no CORS, no token in the page.
-  Rejected: a Rust proxy on a custom scheme and a socket relay over IPC (the
-  browser path rebuilt in a second language). Residual: the page holds the
-  per-boot cookie (HttpOnly, SameSite=Strict, dead with the boot); Tauri's IPC
-  from that origin falls back to `postMessage` under its CSP (one console line).
-  `apps/desktop/src-tauri/src/window.rs`.
+- **THE WINDOW IS THE PAGE THE BUNDLE CARRIES, OVER THE MAC'S OWN REPLICA.** The
+  .app embeds `@repo/workspace`'s build and runs nothing beside the shell: no
+  node, no server child, no local origin. The window loads the page from
+  `tauri://localhost/library/`, and the page opens the replica engine
+  (`@repo/library-replica`) over the shell's SQLite, so the Mac reads every item
+  and queues every write offline, and its calls go to the cloud's `/v1` across
+  origins (THE MAC'S PAGE CALLS `/v1` ACROSS ORIGINS, in `apps/web/CLAUDE.md`).
+  The page's routes ride the hash there, since its document never changes. A
+  release reaches the production cloud alone; a debug build reaches this
+  machine's Worker, on the port `INTELIGIR_CLOUD_ORIGIN` names
+  (`apps/desktop/src-tauri/src/cloud.rs`). Rejected: the server child and its
+  page (a second writer beside the cell, and node and git in the bundle); the
+  Worker's tab in the window (online only, and a capability over a remote
+  origin). `apps/workspace/src/app/cloud/shell-library.ts`.
 
-- **THE WINDOW IS PINNED TO ITS SERVER'S ORIGIN, AND EACH VAULT'S WINDOW KEEPS
-  A WEB STORE OF ITS OWN.** The origin is compared by its parts, never by prefix
-  or by an origin type that answers opaque for a non-special scheme. Any other
-  web page opens in the browser, at most once a second, since WebKit says
-  nothing of the click behind a navigation; anything else is refused, and
-  `window.open` opens no window (`apps/desktop/src-tauri/src/navigation.rs`).
-  Every vault's server answers on one port and the page's prefs are the
-  origin's, so each vault's window has its own store; that needs macOS 14,
-  below which every vault shares one.
+- **THE MAC'S REPLICA IS ONE SQLITE FILE IN RUST, AND A COMMAND IS ONE
+  TRANSACTION.** Bundled rusqlite with FTS5 compiled in, so the Mac searches as
+  the cell and the tab do; one file an account in the app's data dir, one
+  connection behind one mutex, every command on a blocking thread. A statement
+  the page sends alone is its own `IMMEDIATE` transaction. The engine's
+  `exclusive`, whose results decide its next statement, is `begin`: a
+  transaction on a thread of its own that holds the connection and answers what
+  is sent under its token until `commit`, and rolls back when the token is
+  dropped (a rollback, a newer `begin`, a page load starting) or no statement
+  comes for ten seconds, so a page reloaded mid-transaction never wedges the
+  file. Rejected: the page's own SQLite in WebKit's storage (out of the shell's
+  reach on a sign-out, and the tab's in-memory one keeps nothing); a SQL
+  plugin's pool under the page's calls (a transaction's statements may land on
+  two connections); a transaction the page alone holds open across commands (a
+  reload leaves it holding the lock). `apps/desktop/src-tauri/src/replica.rs`.
 
-- **THE BRIDGE CARRIES ONLY WHAT THE SHELL OWNS** (the updater, the vault
-  switch, Reveal/Open, printing, the diagnostics), because no server can answer
-  for any of them. Each command is one row of
+- **THE DEVICE CREDENTIAL IS IN THE KEYCHAIN, AND THE PAGE HOLDS IT IN MEMORY.**
+  The Mac's sign-in mints a device credential, which the shell keeps in the
+  Keychain under the bundle id (keyring-core over `apple-native-keyring-store`)
+  and nowhere else on disk, and hands the page when it opens; the page sends it
+  as the bearer of every `/v1` call, the socket opening on the short-lived
+  ticket it mints. Leaving the account forgets the credential, the account's
+  replica file and its files, and a credential the cloud no longer takes leaves
+  it too. On Linux, where the shell runs only under the scenario suite,
+  keyring-core's sample store in a file stands in. Rejected: the shell as the
+  page's proxy so the page never holds it (a scheme handler carries neither the
+  socket's upgrade nor a streamed body: the browser's path rebuilt in Rust); the
+  credential in WebKit's storage (a file, where the Keychain is the store macOS
+  guards). Residual: a script the page runs can read it, and the window's policy
+  runs only the bundle's own. `apps/desktop/src-tauri/src/credential.rs`,
+  `account.rs`.
+
+- **THE WINDOW IS PINNED TO ITS OWN ORIGIN.** It shows the page's origin and
+  frames the shell's files (a PDF's viewer), compared by their parts, never by
+  prefix or by an origin type that answers opaque for a non-special scheme. Any
+  other web page opens in the browser, at most once a second, since WebKit says
+  nothing of the click behind a navigation; anything else is refused,
+  `window.open` opens no window, and a download (an export) lands in Downloads
+  (`apps/desktop/src-tauri/src/navigation.rs`). Closing the window hides it; the
+  app lives on in the menu bar.
+
+- **THE BRIDGE CARRIES ONLY WHAT A BROWSER CANNOT DO** (the replica, the
+  credential, the staged files, the updater). Each command is one row of
   `apps/workspace/src/shell/ipc-contract.ts`, parsed by zod in the page and by
-  serde in the shell, and granted at runtime to that window on the server's
-  exact origin alone; a command no capability names is dropped from the build.
-  `tools/repo-guards/src/desktop-shell-wire.test.ts` holds the names, and the
-  desktop door's answers, equal across the two languages. A refusal crosses as
-  a value in one envelope, never a rejection, which the page reads as a fault
-  (`apps/desktop/src-tauri/src/answer.rs`); a command that can fail only by a
-  fault answers its value bare, and its error rejects.
+  serde in the shell: `async`, its arguments owned, answering a `Result` whose
+  `ShellError` crosses as the rejection with a kind the page reads, and bytes
+  raw both ways (a request's body, an `ipc::Response`). The capability is
+  static (`apps/desktop/src-tauri/capabilities/app-window.json`): the one
+  window, the local origin alone, no remote URL and no grant at runtime, and
+  every command is in the app manifest (`apps/desktop/src-tauri/build.rs`), so
+  one no capability names is dropped. Rejected: a refusal as a value in an
+  envelope (every command here fails by a fault or a kind the page reads); a
+  capability granted at runtime (it was for a server's port).
+  `tools/repo-guards/src/desktop-shell-wire.test.ts` holds the names, the
+  kinds, the event and the origins equal across the two languages.
+  `apps/desktop/src-tauri/src/commands.rs`, `error.rs`.
 
-- **UPDATES ARE TAURI'S UPDATER OVER THE GITHUB RELEASE, and nothing moves
-  without a click**. The pack writes the signed update and its feed beside the
-  dmg, and the owner's release step uploads them (`docs/releasing.md`); the
-  signing key is the owner's release secret, and a pack without it makes no
-  feed. A check runs soon after launch and then periodically; the download and
-  the restart are each a click. Install stops the server child first, so the
-  vault's pending commit flushes before the bundle is replaced.
-  `apps/desktop/src-tauri/src/updater.rs`, `apps/desktop/scripts/package.ts`.
+- **THE LIBRARY'S FILES RIDE THE SHELL'S OWN SCHEME, KEPT BY THEIR SHA.** The
+  page draws a file from `inteligir-files://localhost/<sha>`, a name of the
+  app's own, never `blob`, which WebKit keeps. A file this Mac holds is served
+  from disk, a range of it when asked; a miss is fetched from `/v1/blobs/<sha>`
+  with the credential, checked against its sha, kept and served. Fetched files
+  sit in the caches dir under 5 GB, the least recently read evicted first; a
+  staged file, which the outbox has yet to upload, sits in the data dir, never
+  evicted, until its upload moves it into the cache. Every file but a PDF is
+  served under a script-less sandbox, as the cloud serves it; a PDF keeps
+  WebKit's viewer under a policy that runs no script and that only the app's
+  page may frame. Rejected: the cloud's route straight from the page (an
+  `<img>` carries no bearer, and offline it draws nothing); the asset protocol
+  over a scope of the disk (no fetch on a miss). Residual: WebKitGTK's player
+  loads nothing from a custom scheme, so a recording's playback is the owner's
+  check on a Mac (`docs/releasing.md`).
+  `apps/desktop/src-tauri/src/file_scheme.rs`, `file_cache.rs`.
+
+- **THE WINDOW'S POLICY IS STATIC, AND EVERY MESSAGE TO THE SHELL PASSES AN
+  ISOLATION FRAME.** `tauri.conf.json`'s CSP runs the bundle's scripts alone,
+  lets the page call its own origin, Tauri's IPC and the cloud's exact origin
+  and socket, and draw the shell's files; a debug build's
+  `tauri.local.conf.json` changes connect-src alone, to this machine. It names
+  no frame-src or child-src: Tauri adds the isolation frame's origin, a scheme
+  unique to each launch, to default-src alone, and a frame policy refuses it.
+  The Isolation pattern runs every IPC message through `apps/desktop/isolation`,
+  a classic script, since the frame cannot run a module. Rejected: a policy
+  naming `isolation:` (it matches no launch's scheme, and every call hung).
+  `tools/repo-guards/src/desktop-shell-wire.test.ts` holds the policy.
+
+- **THE .APP IS SIGNED WITH THE HARDENED RUNTIME AND NO ENTITLEMENT.** The shell
+  runs no JavaScript of its own (WebKit compiles the page in its own process),
+  loads no unsigned code and is not sandboxed, so it asks for no JIT, no
+  unsigned executable memory and no network grant. The packaged smoke refuses a
+  bundle signed with one of them, or carrying a second executable or anything
+  runnable among its resources (`apps/desktop/scripts/smoke-packaged.ts`). An
+  ad-hoc pack carries no team, so it skips the runtime and opens only on the
+  Mac that built it. `apps/desktop/scripts/package.ts`.
+
+- **UPDATES DOWNLOAD BY THEMSELVES AND INSTALL ON QUIT, AND RESTART TO UPDATE
+  INSTALLS AT ONCE.** Tauri's updater over the GitHub release: the pack writes
+  the signed update and its feed beside the dmg, the owner's release step
+  uploads them (`docs/releasing.md`), and the private key reaches the bundler as
+  `TAURI_SIGNING_PRIVATE_KEY` in its environment alone, never a file a config
+  names; a pack without it makes no feed and reports updates off. A check runs
+  15 seconds after launch and every 4 minutes; one that finds an update
+  downloads it in the background, the plugin verifying its signature, and a
+  verified download installs when the app quits, so nothing restarts under the
+  person. Restart to Update, in the app menu and in Settings, installs and
+  relaunches. A failed download says so, and the next check tries again. Every
+  write is already in the outbox on disk, so a quit to install loses none. Rust
+  drives it all: the page holds no updater permission, mirrors the
+  `update-state` event and asks through the shell's commands. Rejected: a click
+  to download and another to restart (an update waits on a person who never
+  opens About); installing under a running app (its window would change under
+  the person). `apps/desktop/src-tauri/src/update_state.rs`, `updater.rs`.
 
 - **SPELL CHECK IS THE PAGE'S ATTRIBUTE, AND A PRINT IS ALWAYS LIGHT** (#889),
   since WKWebView has no session-wide spell-check switch. Spell check is a page
   pref like the theme, set on the document root before the first paint and
   inherited by every field but the item's title and body; macOS picks the
   languages, so the row names none (`apps/workspace/src/app/spellcheck.ts`). A
-  print is light whatever the window shows: the dark theme steps aside between
-  the print events WebKit fires around it
-  (`apps/workspace/src/app/light-prints.ts`). Rejected: #889's print stylesheet
-  (a screen-only theme needs an at-rule in `packages/editor/src/styles.css`,
-  which its guard keeps flat).
-
-- **THE SHELL ASKS THE LOGIN SHELL FOR PATH BEFORE THE FIRST CHILD.** A Finder
-  or Dock launch inherits launchd's bare PATH; the agent's runtime is bundled,
-  but the agent's bash and the vendor's stdio MCP servers run the user's own
-  commands by name. A packaged launch asks the login shell once, under a cap,
-  and prepends its PATH for every node child after it. Rejected: a fixed list
-  of bin dirs alone, and an `LSEnvironment` PATH in the bundle (neither can know
-  a version manager's directory). `apps/cli/src/desktop/login-shell-path.ts`.
-
-- **NODE SHIPS BESIDE THE SHELL, SIGNED, AND THE SHELL HANDS IT NO CODE-LOADING
-  ENVIRONMENT** (#889). The Tauri binary runs no JavaScript, so the server and
-  every child it forks run on the official darwin-arm64 node, a sidecar fetched
-  by a pinned sha-256 beside the CLI and its production `node_modules`
-  (`apps/desktop/scripts/fetch-node.ts`). The shell finds both only in its
-  bundle, never by a variable, and strips every `NODE_*` but `NODE_ENV` from
-  each node child, so an `open --env` runs no code in a process TCC counts as
-  Inteligir (`apps/desktop/src-tauri/src/runtime.rs`). Rejected: `bun build
-  --compile` (better-sqlite3 does not load); Node's single-executable apps (no
-  native addon, no split ESM entry).
-
-- **EVERY MACH-O THE .APP CARRIES IS SIGNED WITH THE HARDENED RUNTIME** before
-  bundling, the git, which runs no JIT, with no entitlements
-  (`apps/desktop/scripts/sign-resources.ts`). Residual: the bundled node is a
-  signed interpreter any local process can run; it carries the JIT entitlements
-  and no other grant.
-
-- **AN AGENT'S `inteligir` AND THE BROWSER'S NATIVE HOST RUN ON THE BUNDLED
-  NODE**, since a Mac may have no node of its own. The host's launcher starts it
-  under `env -i` with HOME and `NODE_ENV=production` alone, because the
-  browser's environment is whatever it was launched with, and a `NODE_OPTIONS`
-  or `NODE_ENV` there would run code, or another mode, inside the app's node (`apps/cli/src/desktop/native-hosts.ts`).
-
-- **THE APP WRITES EVERY CHROMIUM BROWSER'S NATIVE-MESSAGING MANIFEST AT EACH
-  BOOT, AND ARC'S TWICE.** A browser finds the extension's host by a manifest
-  in its folder naming a launcher and the one extension origin it lets start
-  it; since the app may have moved or updated, the server's desktop entry
-  rewrites the launcher
-  (`~/.inteligir/native-host/inteligir-native-host`, beside the agent's) and a
-  manifest for every Chrome, Chromium, Edge, Brave and Vivaldi channel whose
-  folder exists, Arc's in Chrome's folder too, since Arc reads both
-  (`apps/cli/src/desktop/native-hosts.ts`). A folder it cannot write costs that
-  browser alone. Rejected: Rust writing them (a second language beside
-  desktop-serve's rule; the shell owns only ordering); a launcher inside the
-  bundle (lost once the app moves).
-
-- **NO MANIFEST IS WRITTEN FOR A LAUNCH WHOSE DATA DIR AN ENV PINS, OR FOR A
-  TRANSLOCATED APP.** A pinned data dir (a harness, the smoke's first launch) is
-  a server the browser's door, which finds one through the root, could not find;
-  the shell pins every child's vault and never its data dir, so a vault pin is
-  no reason to skip. A translocated app's node is gone once it quits. The
-  packaged smoke reads both browsers' manifests from the default vault's launch,
-  drives the launcher with frames, and finds no launcher after its pinned first
-  launch. `installsNativeHost` in `apps/cli/src/desktop/native-hosts.ts`.
-
-- **DIAGNOSTICS ARE `INTELIGIR_DEBUG`'S NAMED TRACES, SHIPPED IN EVERY BUILD,
-  AND IN THE PACKAGED APP A SWITCH AND A FILE, BOTH THE SHELL'S.** The watcher,
-  the index, the sign-in check and the ACP adapter drop, skip and fence
-  silently, and a user's "it didn't update" cannot wait for a build. An off
-  namespace's log is `undefined`, so an untraced site costs one read. A line
-  names paths, ids and protocol words, never a note's content or a credential,
-  being written to be pasted into a report; the ACP tap drops any non-protocol
-  field. An unknown name is refused at boot (a misspelt one reads as "nothing
-  happened"). Rejected: a levelled logger (the value is these few decisions,
-  not volume). `apps/cli/src/server/debug-log.ts`.
-
-- **THE PACKAGED APP'S DEBUG SWITCH AND LOG ARE THE SHELL'S.** A Finder-launched
-  app has no env and drops the shell's stdout, so the switch is a Settings row
-  in the shell's own folder, read before the start it changes (the page's prefs
-  load later; config.json the shell reads but never writes); on, the next child
-  traces every namespace, as a report cannot know which decision went wrong. The
-  child's output goes to a rotated log in the data dir; a failed write costs the
-  log, never the shell. An adopted server is nobody's child here, so the switch
-  refuses, saying why. Rejected: the server writing its own file (a crash before
-  its logger is up is the line a report most needs).
-  `apps/desktop/src-tauri/src/diagnostics.rs`, `server_log.rs`.
+  print, the browser tab's (the window offers none), is light whatever the page
+  shows: the dark theme steps aside between the print events the browser fires
+  around it (`apps/workspace/src/app/light-prints.ts`). Rejected: #889's print
+  stylesheet (a screen-only theme needs an at-rule in
+  `packages/editor/src/styles.css`, which its guard keeps flat).
 
 - **THE RELEASE NOTES ARE THE CHANGELOG, WRITTEN FOR THE PERSON USING THE APP.**
   A release's GitHub body is `CHANGELOG.md`'s top section, so the release, the
@@ -156,74 +167,28 @@ and cited.
   builds the thing, they describe an update as "something changed").
   `apps/desktop/scripts/release-notes.ts`.
 
-- **FIRST RUN IS DECIDED BEFORE ANY SERVER EXISTS**, since a server is bound to
-  one vault and data dir, and a knowledge worker picks a new vault or a folder
-  they have. It asks only when nothing chose a vault and the default vault's
-  folder does not exist, so an upgrade, `inteligir serve` and a pinned harness
-  never meet it. Every folder the page names back is one the shell handed out,
-  resolved exactly as a boot would before anything is written; an existing
-  folder stays plain markdown where it is, shown with the server's inspection of
-  it. Rejected: booting the default vault unasked (it created, seeded and
-  committed `~/Inteligir` before the user spoke, and left it when they opened a
-  folder). `apps/cli/src/desktop/first-run.ts`.
-
-- **THE FIRST-RUN WINDOW IS ITS OWN, AND THE AGENT AND THE ACCOUNT FOLLOW IN THE
-  APP'S.** It is a page the bundle carries, pinned and locked down like a
-  vault's, with no server behind it and a capability granting its own commands
-  alone (`apps/desktop/src-tauri/capabilities/first-run.json`). It keeps the
-  default web store, since the scenario suite's WebDriver cannot drive a
-  non-persistent one, and every vault's window has a store of its own, so
-  nothing the first run keeps reaches one. The agent and the account follow as
-  skippable steps in the app window, composing the shared sign-in and account
-  form rather than spelling either flow again.
-
-- **THE .APP SHIPS ITS OWN GIT, AND RUNS IT WHERE THE MAC HAS NONE.** Every
-  vault write, sync and history read is git, as is an agent's own `git status`,
-  but a Mac without Xcode or its command-line tools, which is most people's, has
-  only `/usr/bin/git`'s stub, which fails and offers the install. So the pack
-  carries a pinned, signed and notarized git, set on the env of every node child
-  the shell starts on such a Mac, or on one whose own git is too old (A MAC WITH
-  THE DEVELOPER TOOLS KEEPS ITS OWN GIT); a dev or e2e launch keeps the host's.
-  Never `GIT_CONFIG_COUNT`: the hosted remote's bearer rides those rows per
-  invocation. `apps/cli/src/desktop/bundled-git.ts`; the smoke's first launch
-  plays such a Mac and proves the host's git never ran.
-
-- **A MAC WITH THE DEVELOPER TOOLS KEEPS ITS OWN GIT, UNLESS IT IS OLDER THAN
-  2.45** (owner decision: a user with the tools and an https remote of their own
-  keeps the Keychain helper, which the bundled build lacks). The bundled git
-  is used when the git the login PATH finds is older than 2.45 or will not say
-  its version: an older git sets its own `Transfer-Encoding` header, which
-  libcurl 8.7.0 and 8.7.1 mishandle, so a push past 1 MiB goes out as its first
-  4 bytes (Homebrew's 2.39.0 does). `apps/cli/src/desktop/bundled-git.ts`.
-
-- **THE BUNDLED GIT CARRIES ONLY WHAT A TRANSPORT RUNS.** The fetch drops Git
-  Credential Manager and Git LFS, which no config names and which are
-  five-sixths of the payload, and every dashed built-in's link a transport does
-  not run, since Tauri copies a link as the file it names (140-odd whole gits,
-  near 500 MB). Rejected: the dugite npm package (a JS API nothing calls, and a
-  postinstall download on every install). `apps/desktop/scripts/fetch-git.ts`.
-
 ## Repo guards, vendoring and tooling
 
 - **THE SHELL'S GLUE RUNS IN E2E OVER WEBDRIVER, AND ITS WIRE IS A GUARD.** The
-  shell's policies are pure and unit-tested (`cargo test`; the desktop door's
-  vitest); what joins them (sign-in, the pin, every command, the vault switch,
-  quit) runs in the desktop scenarios: the built shell on Linux through
-  `tauri-driver` and WebKitGTK's WebDriver, the page's one WebKit run, never
-  under the env pins, which make the shell refuse a switch. Only the first
-  window is driveable, so a later one is read through its server and the shell's
-  log. The packaged `.app` (bundle, signatures, sidecar; minutes to pack) stays
-  `pnpm smoke:desktop`'s, on the macOS job. The static half,
+  shell's policies are pure and unit-tested (`cargo test`: the replica's
+  transactions and their rollbacks, the scheme's hits, misses, ranges and
+  eviction, the Keychain record over keyring-core's mock store, the updater's
+  states); what joins them (the sign-in, the library read from the shell's
+  replica, the socket, the pin, the files, an offline relaunch and its queued
+  edit, sign-out, quit) runs in the desktop scenarios: the built debug shell on
+  Linux through `tauri-driver` and WebKitGTK's WebDriver, the page's one WebKit
+  run, against the local Worker through a relay the scenario cuts to go offline
+  (`tools/e2e/src/harness/cloud-link.ts`), the replica's file read back off disk
+  as the oracle. The packaged `.app` (bundle, signature, entitlements; minutes
+  to pack) stays `pnpm smoke:desktop`'s, on the macOS job. The static half,
   `tools/repo-guards/src/desktop-shell-wire.test.ts`, also holds the bundle id
   the browser's door opens (`apps/cli/src/desktop/app-identity.ts`) to
   `tauri.conf.json`'s `identifier`. `tools/e2e/src/scenarios/desktop-shell.ts`.
 
 - **THE SHELL'S PLUMBING IS COPIED BETWEEN REPOS AND DIVERGES ON PURPOSE.** The
-  shell's log, origin pin and runtime and the packaging scripts in
-  `apps/desktop/scripts` are copied from or to kyh/idlebiz, and the origin pin
-  from or to kyh/init too. Each copy is its own repo's code, shaped to the child
-  it runs and the product it ships, so there is no shared package and a fix is
-  ported by hand. The Rust toolchain (`apps/desktop/rust-toolchain.toml`) and
-  the bundled node (`apps/desktop/scripts/fetch-node.ts`) are the same in every
-  repo that carries them, and move together.
-  `apps/desktop/src-tauri/src/server_log.rs`, `navigation.rs`, `runtime.rs`.
+  origin pin and the packaging scripts in `apps/desktop/scripts` are copied from
+  or to kyh/idlebiz, and the origin pin from or to kyh/init too. Each copy is
+  its own repo's code, shaped to the product it ships, so there is no shared
+  package and a fix is ported by hand. The Rust toolchain
+  (`apps/desktop/rust-toolchain.toml`) is the same in every repo that carries
+  it, and moves with them. `apps/desktop/src-tauri/src/navigation.rs`.

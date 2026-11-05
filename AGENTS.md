@@ -328,8 +328,8 @@ is in the file named.
   guarded, applied and logged by the account's library cell; a device reads
   its replica and writes through its outbox, and the page asks the Mac's
   shell only what a browser cannot do (the replica, the credential, the file
-  cache, the updater, Reveal/Open, printing, the diagnostics), one row of
-  `apps/workspace/src/shell/ipc-contract.ts` each (`apps/desktop/CLAUDE.md`).
+  cache, the updater), one row of `apps/workspace/src/shell/ipc-contract.ts`
+  each (`apps/desktop/CLAUDE.md`).
 - **`/v1` breaks only behind the client build floor**: a client ignores what it
   does not know and the Worker refuses an older build (`apps/web/CLAUDE.md`).
 - **The phone holds a full replica, and asks the built-in agent online**: it
@@ -375,7 +375,7 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 - [`apps/cli/src/server/agents/CLAUDE.md`](apps/cli/src/server/agents/CLAUDE.md) — the local agents and threads the built-in agent replaces
 - [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) — Cloud, sync and accounts
 - [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its editor page, store, queue and annotations, its look, and how it ships
-- [`apps/desktop/CLAUDE.md`](apps/desktop/CLAUDE.md) — the desktop shell, dictation, and the shell's e2e
+- [`apps/desktop/CLAUDE.md`](apps/desktop/CLAUDE.md) — the Mac app: its window and bridge, its replica, credential and files, updates, dictation, and the shell's e2e
 - [`apps/extension/CLAUDE.md`](apps/extension/CLAUDE.md) — the browser extension and its wire
 - [`apps/workspace/CLAUDE.md`](apps/workspace/CLAUDE.md) — the library's page: the page over the cell, and its surfaces
 - [`tools/repo-guards/CLAUDE.md`](tools/repo-guards/CLAUDE.md) — Repo guards, vendoring and tooling

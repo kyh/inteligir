@@ -83,10 +83,7 @@ manifests allow must be that item's. Once:
    into `EXTENSION_PUBLIC_KEY`. `pnpm --filter @repo/contract test` then fails
    naming the id Chrome derives from it; set `EXTENSION_ID` to that, which is
    the draft's id on its dashboard too.
-4. Commit both, and release the app from that commit: the app writes
-   `allowed_origins` from `EXTENSION_ID` at every launch
-   (`apps/cli/src/desktop/native-hosts.ts`), so an app built before the swap
-   refuses the store's extension. Every later upload is § 6's.
+4. Commit both. Every later upload is § 6's.
 
 ## 1. Version and changelog
 
@@ -129,8 +126,8 @@ only on the Mac that built it, and one with no updater key ships an app that
 never updates. Package only through `pnpm smoke:desktop` or
 `pnpm package:desktop`: turbo's strict env mode strips `APPLE_API_*` exported
 in a shell (so they live in `.release/`), and the Tauri CLI run directly packs
-none of the resources (`apps/desktop/scripts/package.ts` names them) and
-signs none of the binaries inside them.
+no licence notices and writes no update feed (`apps/desktop/scripts/package.ts`
+sets both).
 
 Commit as `release: <version>`, push, and wait for CI on that commit to go
 green: `gh run list --commit "$(git rev-parse HEAD)"`.
@@ -214,169 +211,73 @@ app=apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app
 
 ### The Mac app
 
-- **Signed and notarized, the bundled node and git included.**
+Each on the signed pack, opened from Finder, against production, signed in to
+the owner's account; a spare macOS user keeps your own Keychain out of it.
+
+- **Signed and notarized, with nothing else to run and no entitlement.**
 
   ```sh
   codesign --verify --deep --strict --verbose=2 "$app"
-  codesign --verify --strict --verbose=2 "$app/Contents/MacOS/node"
-  codesign --verify --strict --verbose=2 "$app/Contents/Resources/git/bin/git"
+  codesign -d --entitlements - "$app"
   spctl --assess --type execute --verbose=4 "$app"
   xcrun stapler validate "$app"
   ```
 
-  Passing: the three `codesign` runs say `valid on disk` and
-  `satisfies its Designated Requirement`, `spctl` says `accepted` with
-  `source=Notarized Developer ID`, and `stapler` says
-  `The validate action worked!`.
+  Passing: `codesign` says `valid on disk` and
+  `satisfies its Designated Requirement`, the entitlements print none (no
+  `allow-jit`, no `allow-unsigned-executable-memory`, no `network.client`),
+  `spctl` says `accepted` with `source=Notarized Developer ID`, and `stapler`
+  says `The validate action worked!`. `pnpm smoke:desktop` on a Mac runs the
+  same pack to its page and quits it; it must pass on macOS 13.5, the oldest
+  the pack allows, as on the newest.
 
-- **Sign in with Claude, for real.** On a Mac user signed out of both agents (a
-  spare macOS user keeps your own sign-ins), open the app from Finder and
-  choose Sign in with Claude, in `/welcome`'s agent step or Settings › Agent.
-  Passing: the browser opens Claude's sign-in, and once you approve, the app
-  finishes on its own (Paste the code is only the fallback); the card turns
-  signed in without a reload; and the bundled binary agrees:
-  `"$(find "$app" -type f -perm +111 -name claude | head -1)" auth status`
-  reports signed in. Then sign out, start Sign in with Claude again and press
-  Cancel mid-way: the card goes back to signed out, and the attempt after it
-  completes.
-- **Sign in with ChatGPT**, under Other, the same way. Passing: as above, and
-  `"$(find "$app" -type f -perm +111 -name codex -path '*/bin/*' | head -1)" login status`
-  says logged in.
-- **A connector through the browser.** With a real Notion account, Settings ›
-  Connectors › Notion while Claude is the default agent. Passing: the browser
-  asks Notion to approve, the row turns connected, and a new action asked to
-  list your Notion pages calls a Notion tool and lists them. Make ChatGPT the
-  default in Settings › Agent and repeat: the same.
-- **A connector added outside the app.** With the bundled binary,
-  `"$(find "$app" -type f -perm +111 -name claude | head -1)" mcp add --scope user <name> -- <command>`
-  for any stdio server. Passing: Settings › Connectors lists it, and a new
-  action asked which tools it has lists that server's, with nothing set in the
-  app.
-- **A quit leaves no agent running.** Start an action on ChatGPT that runs a
-  long command (ask it to run `sleep 600` in a shell), and Quit while it runs.
-  Passing: within 15 seconds of the window closing, `pgrep -fl Inteligir.app/`
-  and `pgrep -fl 'sleep 600'` print nothing. Make Claude the default in Settings ›
-  Agent and repeat: the same.
-- **Dictation is the Mac's.** Press fn twice in the ⌘K composer and speak,
-  then type. Passing: the words land once, at the caret; typing carries on
-  after them; Enter while dictation is live does not send; the Edit menu shows
-  Start Dictation…; and dictating into a note behaves the same.
-- **An earlier install's actions start over once.** With the previous release
-  installed, signed in in two libraries, the one in the Inteligir folder of your
-  home and one elsewhere, each holding an action, install this build over it,
-  open it from Finder and open each library with File › Open Library…. Passing:
-  - The library in the Inteligir folder of your home opens signed out with no
-    actions. Signing in again in Settings › Account brings no action back, and
-    the account lists the Mac's earlier sign-in beside its new one.
-  - The other library opens still signed in with no actions, and its own log,
-    `~/.inteligir/vaults/<its hash>/logs/server.log` (Settings › Advanced › Show
-    log), has the `[db]` line saying the database was replaced.
-- **An earlier library opens as it is.** The same install, over a library the
-  previous release kept, with a few notes and a comment. Passing: the window
-  opens on the grid with every note a card and nothing rewritten on disk
-  (`git -C <library> status` is clean), and the commented passage shows a
-  dotted underline.
-- **Covers.** Save a link to a long article. Passing: its cover under
-  `assets/covers/` is a JPEG at most 640 px wide (`sips -g pixelWidth`), and a
-  page whose picture is a PNG with transparency keeps a PNG. The grid's cards
-  draw their pictures from `/vault/thumb` (Web Inspector's network panel), they
-  scroll smoothly at 5,000 items, and the data folder's `thumbs/` stays under
-  256 MB.
-- **Real sites.** Save a YouTube video, an X post, a Spotify track, a paywalled
-  article, a Wikipedia page and a long article. Passing: each fills in with its
-  title, site, cover and text, and opens in the editor.
-- **Networks.** Passing, each:
-  - Behind a TLS-inspecting proxy whose root is only in the Keychain, saving a
-    link still fills it in.
-  - A page on your home network (a NAS or the router's own page) fills in when
-    its own address is the link you saved.
-  - A public test page that redirects to the router's address, and one whose
-    `og:image` names a `192.168.x.x` address, save with the page's text, the
-    first saying the page pointed at an address on your own network, and a
-    network monitor on the router or the Mac shows no request reaching the
-    router.
-  - `http://localhost:3000` is kept as a link with the sentence saying an
-    address on this Mac isn't read.
-- **Restart.** Quit while a save is filling in, and open the app again.
-  Passing: the item fills in. Paste 20 links at once. Passing: all fill in, and
-  the ones still named by their address take their pages' titles; one opened
-  while it was still filling in stays open through its rename and shows its
-  article.
-- **Keep a copy of the page.** On a saved link. Passing: the copy opens in the
-  item's view, and Web Inspector shows its frame makes no request.
-- **PDF.** A PDF item. Passing: it opens full size in WebKit's own viewer (the
-  asset route answers it with no sandbox), with zoom and text selection, and
-  Open in Preview works.
-- **Media.** An `.mp4`, a `.mov` and an `.m4a` item. Passing: each plays,
-  seeks and scrubs in the item's view, which means AVFoundation's `bytes=0-1`
-  probe was answered 206 and the media token rode its range requests. Web
-  Inspector's network panel shows whether those requests carried
-  `Sec-Fetch-Site`; either way they are answered. A `curl` of the same asset
-  URL with the `m` token and no cookie answers 401.
+- **The first run is a sign-in, and the Keychain keeps it.** Open the app on
+  a Mac user that never ran it. Passing: the window opens on the sign-in;
+  signing in shows the account's library; Keychain Access lists an item named
+  `com.inteligir.desktop`; Settings › Account lists this Mac by its name; and
+  Quit and reopen goes straight to the library. Create an account with an
+  invite code the same way, on a second spare user: the same.
+- **Offline, the library is the Mac's.** Turn the network off, Quit and reopen.
+  Passing: the library and an item open, a picture already seen draws, an edit
+  types and the footer says it waits for a connection. Turn the network on.
+  Passing: the footer reads "Up to date" and the edit shows in the library's
+  browser tab at `/library`.
+- **Files.** A picture, a PDF, an `.mp4`, a `.mov` and an `.m4a` item, each
+  first opened on this Mac. Passing: the picture draws; the PDF opens in
+  WebKit's own viewer, with zoom and text selection; each recording plays,
+  seeks and scrubs, which means AVFoundation's range requests were answered
+  through the shell's scheme. A file item's Download, and Settings › Import
+  and export's Download the zip, each land in Downloads under their own names.
+- **Updates download by themselves and install on Quit.** With the previous
+  release installed and this one published (`latest.json` on the release),
+  open the previous build and wait a minute. Passing: Settings › Updates says
+  the new version is downloading, then that it installs when you quit, and the
+  app menu offers Restart to Update; Quit and reopen, and About Inteligir
+  names the new version. Again from the previous build, choose Restart to
+  Update once it is offered. Passing: the app relaunches at once as the new
+  version, with an edit typed just before still in the item.
+- **Dictation is the Mac's.** Press fn twice in a note and speak, then type.
+  Passing: the words land once, at the caret, typing carries on after them, and
+  the Edit menu shows Start Dictation….
 - **A long article.** Open a saved article of more than 300 blocks (a long
-  Wikipedia page). Press ⌘F, find a word near its end, and Return. Passing:
-  the match lands centred and holds still. Scroll back up to the top with the
-  trackpad. Passing: the text moves only as far as you scroll, with no leap.
-  Choose Export as PDF. Passing: the PDF holds the article's last paragraph, and
-  no page in it is blank. Drag a block past the 100th one down the note.
-  Passing: the dragged block stays in sight the whole way. Hover a table that
-  ends at the 100th block. Passing: its add-row bar shows and adds a row.
-- **Big files.** Passing: a 50 MB file dropped in Finder shows "Only on this
-  Mac" in Info, and sync stays green; twenty 8 MB PDFs reach the online library
-  in several pushes; a synced 9 MB file grown past 10 MB on one Mac shows in
-  Deleted on a second Mac and on the iPhone, and restores there as its 9 MB
-  version.
-- **Paste and drop.** Passing, each:
-  - With a card selected and no field focused, ⌘V of a copied link saves it
-    (the paste catcher), and the focus returns to the card; ⌘V of a screenshot
-    saves a picture.
-  - ⌘V inside a note still pastes into the note.
-  - A link dragged from Safari, Chrome and Arc onto the window saves, and so
-    does a file dragged from Finder onto the grid and onto a folder row.
-  - A card dragged onto a folder in the sidebar moves, never saves.
-- **Highlights.** In an item, select a passage and press ⌘⇧H. Passing: it
-  highlights at once and the note box opens under it, in the app's window as
-  in a browser.
-- **VoiceOver** reads the grid: its cells, and which are selected. Escape from
-  an open item returns to the library.
-- **A real Raindrop export.** Settings › Library › Import from Raindrop… with
-  the owner's own CSV backup (Raindrop's Settings › Backups), from an account
-  with nested collections, tags, favourites and highlight notes. Passing: the
-  file chooser opens, the summary's counts match Raindrop's, Import fills the
-  library with the sidebar's progress row counting up, each highlight lands on
-  its passage once its page fills (the synthetic fixture's reading of the
-  highlights cell, notes and colours, is what this proves), and dead links
-  keep theirs under `## Highlights`. A 5,000-link import keeps the window
-  responsive and sync green. The scrubbed export then replaces the synthetic
-  fixture in `apps/cli/src/server/imports/test-support/fixtures`.
-- **Tidy my library**, with Claude and then with ChatGPT, over a new library.
-  Passing: the four Unsorted examples are filed and tagged as the starter
-  `AGENTS.md` says, and Undo changes puts them back. With three items selected,
-  "Summarize these into a note" writes one note naming them.
-- **Scale.** On a generated library of 20,000 to 50,000 items, relaunch.
-  Passing: the grid's first paint is under about 2 s, and the boot line in
-  `server.log` reports the reads it skipped by fingerprint. A library in iCloud
-  Drive with Optimize Mac Storage on downloads no placeholder at boot.
-- **The privacy text** matches what a network monitor shows during a save:
-  the page, its cover, the oEmbed address for the sites docs/privacy.md names,
-  and nothing else.
+  Wikipedia page), find a word near its end with ⌘P, and open the hit.
+  Passing: the match lands centred and holds still. Scroll back up to the top
+  with the trackpad. Passing: the text moves only as far as you scroll, with no
+  leap.
 - **Words.** Passing: no "vault", and no "notes" meaning the whole library,
-  across the window, the File menu, the dialogs, the updater's prompt, the
-  first run and the iPhone's home screen.
-- **The browser's door.** After the app's first launch,
-  `~/.inteligir/native-host/inteligir-native-host` exists, and each installed
-  browser's `NativeMessagingHosts` folder (Arc's own and Chrome's, for Arc)
-  holds `com.inteligir.desktop.json` naming it.
+  across the window, the menus, the dialogs, the sign-in and the update's
+  prompts.
 
 ### The browser extension
 
 Load `apps/extension/.output/chrome-mv3-store-unpacked` with Developer mode on
-in Chrome, Arc, Brave and Edge, the released app installed and its first run
-finished.
+in Chrome, Arc, Brave and Edge. The Mac app no longer answers the extension:
+it runs no server and writes no `NativeMessagingHosts` manifest. So these
+checks wait for the build whose extension saves to `/v1` with a credential of
+its own.
 
 - **The id.** Passing: chrome://extensions shows `EXTENSION_ID`
-  (`packages/contract/src/browser/extension-identity.ts`), and all four
-  `NativeMessagingHosts` folders hold `com.inteligir.desktop.json`.
+  (`packages/contract/src/browser/extension-identity.ts`).
 - **The welcome tab** an install opens. Passing: it says the extension reached
   the app, and names the library.
 - **Save.** The toolbar button on an article. Passing: it lands in Unsorted
@@ -387,9 +288,6 @@ finished.
 - **The badge.** On a chrome:// page. Passing: the toolbar badge shows "!" and
   its tooltip says Inteligir can't save this kind of page; after a save it
   shows "✓" for two seconds.
-- **The app closed.** Quit Inteligir and Save. Passing: the app opens behind
-  the browser and the popup says saved within 30 s. Before the app's first run
-  has finished, Save brings the app forward and says to finish setting up.
 - **No app.** On a Mac without the app. Passing: the popup offers Get
   Inteligir for Mac.
 - **No privacy prompt.** Passing: no macOS prompt names the browser, through

@@ -6,8 +6,9 @@ preferences. `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Shape
 
-`src/main.tsx` opens the account's library (the session, then the replica) and
-mounts the router; `src/router.tsx` makes the router and the QueryClient it
+`src/main.tsx` opens the account's library (in the tab the session, then the
+replica; in the Mac app the shell's credential, then its replica) and mounts
+the router; `src/router.tsx` makes the router and the QueryClient it
 carries. `app/cloud/` holds the `/v1` client and its query utils, the replica's
 queries and the page's library context; `app/workspace.tsx` owns the rail, the
 grid or the open item, the panel and the palette; `app/library/` the grid, its
@@ -82,6 +83,24 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   listener always armed (it bars the back-forward cache).
   `apps/workspace/src/app/cloud/leave-guard.ts`, `apps/workspace/src/main.tsx`.
 
+- **IN THE MAC APP THE PAGE OPENS THE SHELL'S REPLICA, AFTER A SIGN-IN OF ITS
+  OWN.** The same build runs in the Mac's window, where `main.tsx` asks the
+  shell for its config and the credential a sign-in kept: with none the page is
+  the first run, a sign-in or a new account with an invite code, whose device
+  credential the shell keeps in the Keychain before the library opens (a
+  Keychain that refuses it gives the device's slot back, so no device is left
+  signed in with no credential); with one, the replica engine runs over the
+  shell's SQLite and staged files, its calls going to the cloud's origin with
+  the credential as the bearer and the build in a header. What differs by host
+  is one `PageLibrary`: where a file is drawn from, the transport an upload or
+  an export rides, what asks before the page leaves (nothing on the Mac, whose
+  outbox is on disk) and where a sign-out goes. The Mac's routes ride the
+  hash, since its document never changes. Rejected: a first-run window of the
+  shell's own (a second page beside the one the shell carries); the tab's
+  cookie in the window (a cross-site cookie WebKit would not send).
+  `apps/workspace/src/app/cloud/shell-library.ts`,
+  `apps/workspace/src/app/cloud/sign-in-page.tsx`.
+
 ## Surfaces
 
 - **WINDOW-LEVEL HOSTS MOUNT AT THE ROOT ROUTE.** `ConfirmDialogHost`, `Toaster`
@@ -125,7 +144,7 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   `apps/workspace/src/app/workspace.tsx`.
 
 - **THE OPEN ITEM RIDES THE URL, AND SETTINGS COVERS A WORKSPACE THAT STAYS
-  MOUNTED.** `?item=<id>` is the open item: every open is a history entry, so
+  MOUNTED.** `?item=<id>` is the open item (after the hash on the Mac): every open is a history entry, so
   the browser's Back leaves the item and Forward reopens it, and a link or a
   reload opens it, once the replica holds it. Settings is a layer in the
   pathless `_workspace` layout: the covered workspace is `inert`, its
@@ -168,7 +187,8 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   (`apps/workspace/src/app/library/library-view.tsx`). An item opens full size
   in its place and takes the keyboard unless something holds it, so Escape goes
   back (`apps/workspace/src/app/item/item-view.tsx`): a file's viewer over its
-  bytes at `/v1/blobs/<sha>`, a saved page's source above its text, a link not
+  bytes where its host draws them (`/v1/blobs/<sha>` in the tab, the shell's
+  scheme on the Mac), a saved page's source above its text, a link not
   yet read saying so, and the item's blocks in the editor over the replica
   (`apps/workspace/src/app/item/item-stages.tsx`). Rejected: a list beside an
   always-open item (saved pages read as text files).
