@@ -682,3 +682,14 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   SPA fallback (every unknown path would answer the page); a page on an origin
   of its own (a second sign-in, CORS on every call).
   `apps/web/src/worker/library/library-page.ts`, `apps/web/cloudflare.config.ts`.
+
+- **THE MAC'S PAGE CALLS `/v1` ACROSS ORIGINS, AND THE WORKER ANSWERS CORS FOR
+  ITS ORIGIN ALONE.** The shell serves the bundled page on `tauri://localhost`
+  (`MAC_APP_ORIGIN`), so each call, upload and export it makes is cross-origin;
+  the Worker answers the preflight and lets that origin read `/v1/rpc`,
+  `/v1/blobs` and `/v1/exports`, with no credentials, since the page sends its
+  device credential as a bearer and never a cookie. The socket opens on a
+  ticket and asks no CORS, and every other origin meets none. Rejected: the
+  shell's HTTP plugin carrying the page's calls (a second network stack, a
+  proxy in Rust for every call); a reflected origin (any page could read what a
+  cookie opened). `apps/web/src/worker/cors.ts`.
