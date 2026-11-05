@@ -506,6 +506,11 @@ account whose library holds about 2,000 items gives the timing check its load.
   (`eas update:list --branch production` names the group) counts a launch. An
   update that matches no build is the fingerprint trap in § Hotfixes.
 
+- **The note's Embed from URL dialog covers the screen on iOS 26.** In a note,
+  choose Embed from URL in the `/` menu with the note scrolled down. Passing:
+  the dimmed backdrop reaches every edge of the screen, and Cancel fades the
+  dialog out.
+
 ### The iPhone app, in the simulator or a development build
 
 - **The editor page's policy under WebKit.** In a development build
@@ -592,6 +597,22 @@ account whose library holds about 2,000 items gives the timing check its load.
   network off, then open, for the first time since the tab loaded, an item
   holding an equation, a Mermaid diagram and a date. Passing: each draws, and
   no "Something went wrong" screen shows.
+- **A dialog's backdrop covers the screen in Safari on an iPhone with iOS 26.**
+  Open `/library` in Safari on the phone, scroll the grid down, then open a
+  card's Quick Look and, from ⌘P's Save a link…, its dialog. Passing: the dimmed
+  backdrop reaches under the browser's own bars at the top and bottom, with no
+  undimmed strip, before and after the scroll.
+- **Popups fade out in Safari and in the Mac app.** In Safari, and in the Mac
+  app's window, open and close a dialog (Escape, and its Cancel), a card's
+  menu (Escape, and a row) and a tooltip (point at Settings in the rail, then
+  away). Passing: each fades out rather than vanishing at once, and nothing is
+  left on screen after it.
+- **⌘P in Safari and the Mac app.** Open ⌘P, press ↓ and ↑, type a word an item
+  holds, then press Return. Passing: the field keeps the caret throughout, the
+  light moves row by row and lands on the first hit as the hits arrive, the
+  footer names what Return does, and Return opens the lit hit with the find bar
+  on the word; VoiceOver reads the field as a combo box and each row as it
+  lights.
 
 ### The connector
 
