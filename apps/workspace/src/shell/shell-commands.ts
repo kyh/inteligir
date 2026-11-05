@@ -14,7 +14,7 @@ import type {
 } from "@repo/library-replica/replica-ports";
 import { serialLock } from "@repo/library-replica/serial-lock";
 import type { z } from "zod";
-import { APP_COMMANDS, UPDATE_STATE_EVENT } from "./ipc-contract";
+import { APP_COMMANDS, LEAVING_EVENT, UPDATE_STATE_EVENT } from "./ipc-contract";
 import type { CommandRoute, EventRoute, FileRoute } from "./ipc-contract";
 import { ShellError, shellErrorOf } from "./shell-error";
 
@@ -79,6 +79,12 @@ export const shellCredential = {
   forget: command(APP_COMMANDS.credential.forget),
   keep: command(APP_COMMANDS.credential.keep),
   restore: command(APP_COMMANDS.credential.restore),
+};
+
+// the shell asks before it quits or restarts, and goes once the page answers or a moment passes
+export const shellLeaving = {
+  onLeaving: event(LEAVING_EVENT),
+  ready: command(APP_COMMANDS.leaving.ready),
 };
 
 // the shell reduces the updater's state and pushes every move

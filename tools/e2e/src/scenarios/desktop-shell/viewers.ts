@@ -2,19 +2,24 @@
 // only through the shell's own scheme, which serves a file it holds and fetches one it does not
 // from the cloud with the device's credential. A picture's card draws its cover, and a PDF item
 // opens in WebKit's own viewer over the scheme and draws its red page, which only WebDriver's
-// screenshot of the window can read. A recording is the owner's to play on a Mac
+// screenshot of the window can read; so does a PDF dropped on this Mac while it is offline, served
+// as a PDF from its staged bytes, and a file dropped beside it saves to Downloads under its own
+// name with the window left on the item. A recording is the owner's to play on a Mac
 // (docs/releasing.md § 5): WebKitGTK's player loads nothing from a custom scheme, whatever the
 // scheme answers, so this engine cannot show it.
 
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import type { V1Client } from "@repo/contract/cloud/v1";
 import { z } from "zod";
-import { expect } from "../../harness/assert";
-import { backToLibrary } from "../../harness/desktop-shell";
+import { expect, expectEq } from "../../harness/assert";
+import { backToLibrary, SHELL_PAGE_URL } from "../../harness/desktop-shell";
+import type { DesktopShell } from "../../harness/desktop-shell";
 import { readPngPixels } from "../../harness/png-pixels";
 import type { Rgba } from "../../harness/png-pixels";
 import { pollUntil } from "../../harness/poll";
 import type { ScenarioContext } from "../../harness/scenario";
-import { doubleClickCard, libraryCard } from "../../harness/selectors";
+import { doubleClickCard, LIBRARY_GRID, libraryCard } from "../../harness/selectors";
 import { newItemId } from "../../harness/v1-wire";
 import type { WebDriverSession } from "../../harness/webdriver";
 
@@ -51,6 +56,12 @@ const pdfOf = (contents: string): Uint8Array<ArrayBuffer> => {
   return new TextEncoder().encode(text);
 };
 const RED_PAGE = pdfOf("1 0 0 rg\n0 0 612 792 re\nf");
+// the same red page in other bytes, so it is a file of its own, staged where it was dropped
+const DROPPED_PAGE = pdfOf("1 0 0 rg\n0 0 612 792 re\nf\n");
+const DROPPED_PDF_NAME = "dropped-page.pdf";
+const DROPPED_NOTES_NAME = "dropped-notes.txt";
+const DROPPED_NOTES = "Notes dropped on this Mac with no connection.\n";
+const SAVE_DEADLINE_MS = 30_000;
 
 export interface ViewerItems {
   readonly picture: string;
@@ -180,6 +191,91 @@ const pdfDraws = async (page: WebDriverSession, itemId: string): Promise<void> =
       intervalMs: 500,
     },
   );
+  await backToLibrary(page);
+};
+
+interface Dropped {
+  readonly name: string;
+  readonly type: string;
+  readonly bytes: Uint8Array;
+}
+
+// files dropped on the grid as Finder drops them: a drop whose transfer holds them, which the
+// page's own drop handler saves where the grid's scope saves
+const dropOnGrid = async (page: WebDriverSession, files: readonly Dropped[]): Promise<void> => {
+  const sent = files.map((file) => ({
+    base64: Buffer.from(file.bytes).toString("base64"),
+    name: file.name,
+    type: file.type,
+  }));
+  expectEq(
+    await page.run(
+      `const transfer = new DataTransfer();
+      for (const file of ${JSON.stringify(sent)}) {
+        const bytes = Uint8Array.from(atob(file.base64), (char) => char.charCodeAt(0));
+        transfer.items.add(new File([bytes], file.name, { type: file.type }));
+      }
+      const grid = document.querySelector(${JSON.stringify(LIBRARY_GRID)});
+      if (grid === null) return "no grid";
+      grid.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }));
+      return "dropped";`,
+      z.string(),
+    ),
+    "dropped",
+    "the drop on the grid",
+  );
+};
+
+// the item a card names, once the grid draws it
+const cardNamed = async (page: WebDriverSession, words: string): Promise<string> =>
+  await pollUntil(
+    async () =>
+      await page.run(
+        `const card = [...document.querySelectorAll('[role="gridcell"][data-item-id]')].find(
+          (cell) => cell.textContent.includes(${JSON.stringify(words)}),
+        );
+        return card === undefined ? null : card.getAttribute("data-item-id");`,
+        z.string().nullable(),
+      ),
+    (id): id is string => id !== null,
+    { deadlineMs: PAGE_DEADLINE_MS, describe: () => `no card named "${words}" was drawn` },
+  );
+
+// a file added on this Mac with the cloud cut: the outbox stages it in the shell, which serves it
+// as the type it was added as before any upload, and its Download saves it where the window is
+// not: a PDF dropped draws in WebKit's viewer, and a text file's Download lands in Downloads with
+// its bytes while the window stays on the item
+export const addedOfflineDraw = async (
+  ctx: ScenarioContext,
+  shell: DesktopShell,
+): Promise<void> => {
+  const page = shell.window;
+  ctx.log("a PDF dropped on this Mac offline draws in WebKit's viewer from its staged bytes");
+  await page.waitUntil(
+    `document.querySelector(${JSON.stringify(LIBRARY_GRID)}) !== null`,
+    PAGE_DEADLINE_MS,
+  );
+  const notes = new TextEncoder().encode(DROPPED_NOTES);
+  await dropOnGrid(page, [
+    { bytes: DROPPED_PAGE, name: DROPPED_PDF_NAME, type: "application/pdf" },
+    { bytes: notes, name: DROPPED_NOTES_NAME, type: "text/plain" },
+  ]);
+  await pdfDraws(page, await cardNamed(page, "dropped-page"));
+
+  ctx.log("a file's Download saves it to Downloads under its name, and the window stays put");
+  await openCard(page, await cardNamed(page, "dropped-notes"));
+  await page.clickButton(`Download ${DROPPED_NOTES_NAME}`, PAGE_DEADLINE_MS);
+  const saved = path.join(shell.downloadsDir, DROPPED_NOTES_NAME);
+  await pollUntil(
+    async () => await Promise.resolve(existsSync(saved) ? readFileSync(saved, "utf-8") : null),
+    (text) => text === DROPPED_NOTES,
+    {
+      deadlineMs: SAVE_DEADLINE_MS,
+      describe: (text) => `${saved} never held the dropped file's bytes; it holds ${String(text)}`,
+    },
+  );
+  const url = await page.url();
+  expect(url.startsWith(SHELL_PAGE_URL), `the Download took the window to ${url}`);
   await backToLibrary(page);
 };
 

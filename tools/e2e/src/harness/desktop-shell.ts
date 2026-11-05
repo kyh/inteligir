@@ -5,7 +5,7 @@
 // relaunch finds the credential and the replica the one before it kept.
 
 import { existsSync, readdirSync, readFileSync, readlinkSync, realpathSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
@@ -35,6 +35,8 @@ export interface DesktopShell extends TrackedProcess {
   window: WebDriverSession;
   // where the shell keeps the account's replica, its staged files and the credential's stand-in
   dataDir: string;
+  // where a file the page saves lands: the home's Downloads, as its user dirs name it
+  downloadsDir: string;
   // the replica's files, one an account the shell holds
   replicaFiles: () => string[];
   // SIGTERM to the shell, as Quit, a session's end or launchd at shutdown sends it
@@ -152,6 +154,15 @@ export const launchDesktopShell = async (args: LaunchDesktopShellArgs): Promise<
     home: homeDir,
   };
   await mkdir(home.dataHome, { recursive: true });
+  // WebKitGTK saves a download where the XDG user dirs name Downloads, and where it was started
+  // when they name none, which would be the checkout
+  const downloadsDir = path.join(homeDir, "Downloads");
+  await mkdir(downloadsDir, { recursive: true });
+  await mkdir(path.join(homeDir, ".config"), { recursive: true });
+  await writeFile(
+    path.join(homeDir, ".config", "user-dirs.dirs"),
+    'XDG_DOWNLOAD_DIR="$HOME/Downloads"\n',
+  );
   const dataDir = path.join(home.dataHome, APP_ID);
   const libraryDir = path.join(dataDir, "library");
 
@@ -193,6 +204,7 @@ export const launchDesktopShell = async (args: LaunchDesktopShellArgs): Promise<
       const shell: DesktopShell = {
         ...child,
         dataDir,
+        downloadsDir,
         async quit() {
           const pid = shellPid(binary, homeDir);
           if (pid !== null) {

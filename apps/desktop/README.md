@@ -172,6 +172,17 @@ updater permission: the state is one value, a union by status reduced in the
 shell (`src-tauri/src/update_state.rs`), pushed as `update-state` and parsed by
 the page (`apps/workspace/src/shell/update-state.ts`).
 
+## The way out
+
+Quit (the app menu's ⌘Q, the menu-bar icon's, a SIGTERM) and Restart to
+Update go through `src-tauri/src/leaving.rs`: the shell tells the page it is
+leaving (`leaving`), the page writes what it holds, the open item's edit still
+waiting out its pause, into the outbox on disk, and answers (`leaving_ready`),
+and the shell goes, after three seconds without an answer at the latest. Quit
+is the app's own menu item, since the predefined one ends the app before the
+page can answer. A quit macOS sends itself (the Dock's Quit, a log out) ends
+the app with no word to the page.
+
 ## Running it
 
 ```bash

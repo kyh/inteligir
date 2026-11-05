@@ -145,20 +145,34 @@ a bullet is written and cited.
 - **UPDATES DOWNLOAD BY THEMSELVES AND INSTALL ON QUIT, AND RESTART TO UPDATE
   INSTALLS AT ONCE.** Tauri's updater over the GitHub release: the pack writes
   the signed update and its feed beside the dmg, the owner's release step
-  uploads them (`docs/releasing.md`), and the private key reaches the bundler as
-  `TAURI_SIGNING_PRIVATE_KEY` in its environment alone, never a file a config
-  names; a pack without it makes no feed and reports updates off. A check runs
-  15 seconds after launch and every 4 minutes; one that finds an update
-  downloads it in the background, the plugin verifying its signature, and a
-  verified download installs when the app quits, so nothing restarts under the
-  person. Restart to Update, in the app menu and in Settings, installs and
-  relaunches. A failed download says so, and the next check tries again. Every
-  write is already in the outbox on disk, so a quit to install loses none. Rust
-  drives it all: the page holds no updater permission, mirrors the
-  `update-state` event and asks through the shell's commands. Rejected: a click
-  to download and another to restart (an update waits on a person who never
-  opens About); installing under a running app (its window would change under
-  the person). `apps/desktop/src-tauri/src/update_state.rs`, `updater.rs`.
+  uploads them (`docs/releasing.md`), and the private key reaches the bundler
+  as `TAURI_SIGNING_PRIVATE_KEY` in its environment alone, never a file a
+  config names; a pack without it makes no feed and reports updates off. A
+  check runs 15 seconds after launch and every 4 minutes; one that finds an
+  update downloads it in the background, the plugin verifying its signature,
+  and a verified download installs when the app quits, so nothing restarts
+  under the person. Restart to Update, in the app menu and in Settings,
+  installs and relaunches, once the page has written what it holds (A QUIT
+  WAITS FOR THE PAGE). A failed download says so, and the next check tries
+  again. Rust drives it all: the page holds no updater permission, mirrors the
+  `update-state` event and asks through the shell's commands. Rejected: a
+  click to download and another to restart (an update waits on a person who
+  never opens About); installing under a running app (its window would change
+  under the person). `apps/desktop/src-tauri/src/update_state.rs`,
+  `updater.rs`.
+
+- **A QUIT WAITS FOR THE PAGE TO WRITE WHAT IT HOLDS.** The outbox is on disk,
+  but the open item's last edit waits out its pause in the page's memory, so
+  Quit (the app menu's ⌘Q, the menu-bar icon's, a SIGTERM) and Restart to
+  Update tell the page the app is leaving, wait for it to write that edit into
+  the outbox and answer, and go, after three seconds without an answer at the
+  latest. Quit is the app's own menu item. Rejected: the predefined Quit (it
+  ends in applicationWillTerminate, with nothing after it to wait in, and lost
+  the last edit); a pause cut short on every keystroke. Residual: a quit macOS
+  sends itself (the Dock's Quit, a log out) gives the page no word, so an edit
+  typed in its last moment can be lost.
+  `apps/desktop/src-tauri/src/leaving.rs`,
+  `apps/workspace/src/app/cloud/shell-library.ts`.
 
 - **SPELL CHECK IS THE PAGE'S ATTRIBUTE, AND A PRINT IS ALWAYS LIGHT** (#889),
   since WKWebView has no session-wide spell-check switch. Spell check is a page

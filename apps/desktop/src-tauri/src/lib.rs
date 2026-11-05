@@ -11,6 +11,7 @@ mod dialogs;
 mod error;
 mod file_cache;
 mod file_scheme;
+mod leaving;
 mod menu;
 mod navigation;
 mod replica;
@@ -25,11 +26,12 @@ use crate::account::Account;
 use crate::cloud::ShellConfig;
 use crate::credential::Credentials;
 use crate::file_cache::{CACHE_LIMIT_BYTES, CloudFiles, FileCache};
+use crate::leaving::Leaving;
 use crate::replica::{Replica, TRANSACTION_IDLE_LIMIT};
 use crate::updater::Updates;
 
-/// SIGTERM and SIGINT quit as Quit does, so a ready update installs: a `kill`, launchd at shutdown
-/// and Ctrl-C under `tauri dev` all take the ordinary way out.
+/// SIGTERM and SIGINT quit as Quit does, the page's last edit written and a ready update installed:
+/// a `kill`, launchd at shutdown and Ctrl-C under `tauri dev` all take the ordinary way out.
 #[cfg(unix)]
 fn quit_on_signals(app: &tauri::AppHandle) {
     use signal_hook::consts::{SIGINT, SIGTERM};
@@ -39,7 +41,7 @@ fn quit_on_signals(app: &tauri::AppHandle) {
             let app = app.clone();
             std::thread::spawn(move || {
                 if signals.forever().next().is_some() {
-                    app.exit(0);
+                    leaving::quit(&app);
                 }
             });
         }
@@ -119,6 +121,7 @@ pub fn run() {
             &version,
             updater::disabled_reason(updates_configured, bundled),
         ))
+        .manage(Leaving::new())
         .register_asynchronous_uri_scheme_protocol(
             file_scheme::SCHEME,
             |context, request, responder| {
@@ -144,6 +147,7 @@ pub fn run() {
             commands::files_stage,
             commands::files_staged,
             commands::files_unstage,
+            commands::leaving_ready,
             commands::replica_all,
             commands::replica_begin,
             commands::replica_commit,
@@ -181,8 +185,9 @@ pub fn run() {
         RunEvent::ExitRequested {
             code: None, api, ..
         } => api.prevent_exit(),
-        // Cmd+Q ends in applicationWillTerminate, with nothing after it to wait in: a ready update
-        // installs here, and the replica's file closes after its last commit
+        // every way out ends here: Quit once the page wrote what it held (leaving.rs), or a quit
+        // macOS sends itself, which ends in applicationWillTerminate with nothing after it to wait
+        // in. A ready update installs, and the replica's file closes after its last commit
         RunEvent::Exit => {
             updater::install_on_quit(app);
             app.state::<Account>().replica().close();

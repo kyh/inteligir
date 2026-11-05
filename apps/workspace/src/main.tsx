@@ -15,7 +15,7 @@ import type { Root } from "react-dom/client";
 import { createLeaveGuard, replicaHolds } from "./app/cloud/leave-guard";
 import { openPageLibrary, signInHref } from "./app/cloud/page-library";
 import type { PageLibrary } from "./app/cloud/page-library";
-import { openShellLibrary } from "./app/cloud/shell-library";
+import { createShellLeaveGuard, openShellLibrary } from "./app/cloud/shell-library";
 import { SignInPage } from "./app/cloud/sign-in-page";
 import { createPageQueryClient } from "./app/cloud/v1";
 import { installLightPrints } from "./app/light-prints";
@@ -80,7 +80,10 @@ const openInTab = async (target: Root): Promise<void> => {
       // CLAUDE.md § THE TAB SENDS WHAT IT HOLDS UNTIL IT CLOSES, AND ASKS BEFORE LOSING IT: the
       // replica keeps running out of sight, since what it has not sent lives only in this tab, and
       // the browser asks before the tab goes while any of it is held
-      leave.hold(() => replicaHolds(library.replica.status()), library.replica.onStatus);
+      leave.hold({
+        holding: () => replicaHolds(library.replica.status()),
+        onMove: library.replica.onStatus,
+      });
       mount(library, createBrowserHistory(), LIBRARY_PAGE_PATH);
       break;
     }
@@ -90,7 +93,8 @@ const openInTab = async (target: Root): Promise<void> => {
 
 // the Mac's document never changes under it: its routes ride the hash, so a reload is the same file
 const openInShell = async (target: Root): Promise<void> => {
-  const opening = await openShellLibrary();
+  const leave = createShellLeaveGuard();
+  const opening = await openShellLibrary(leave);
   switch (opening.kind) {
     case "signed-out": {
       target.render(

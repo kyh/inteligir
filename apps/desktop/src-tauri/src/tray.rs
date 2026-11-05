@@ -6,7 +6,7 @@ use tauri::menu::{Menu, MenuBuilder};
 use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::{AppHandle, Wry};
 
-use crate::menu::{HIDE_APP, SHOW_APP};
+use crate::menu::{self, HIDE_APP, SHOW_APP};
 
 const TRAY_ID: &str = "inteligir";
 
@@ -15,7 +15,7 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .text(SHOW_APP, format!("Show {}", crate::window::app_title()))
         .text(HIDE_APP, "Hide")
         .separator()
-        .quit()
+        .item(&menu::quit_item(app)?)
         .build()
 }
 

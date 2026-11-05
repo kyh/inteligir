@@ -77,6 +77,10 @@ export const APP_COMMANDS = {
     // the write naming it landed, so the cloud holds it
     unstage: route("files_unstage", shaArgs, done),
   },
+  leaving: {
+    // the page wrote what it held, as the shell's `leaving` event asked before a quit or a restart
+    ready: route("leaving_ready", noArgs, done),
+  },
   replica: {
     all: route("replica_all", statementArgs, rowsSchema),
     begin: route("replica_begin", noArgs, tokenSchema),
@@ -97,4 +101,10 @@ export const APP_COMMANDS = {
 export const UPDATE_STATE_EVENT: EventRoute<typeof updateStateSchema> = {
   event: "update-state",
   payload: updateStateSchema,
+};
+
+// the shell is about to quit or restart, and waits a moment for the page to write what it holds
+export const LEAVING_EVENT: EventRoute<typeof done> = {
+  event: "leaving",
+  payload: done,
 };

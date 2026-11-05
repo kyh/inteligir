@@ -42,7 +42,7 @@ describe("asking before the tab leaves", () => {
     const target = new EventTarget();
     const guard = createLeaveGuard(target);
     const replica = holder(false);
-    guard.hold(replica.holding, replica.onMove);
+    guard.hold(replica);
     expect(leaving(target)).toBe("goes");
     replica.set(true);
     expect(leaving(target)).toBe("asks");
@@ -55,8 +55,8 @@ describe("asking before the tab leaves", () => {
     const guard = createLeaveGuard(target);
     const replica = holder(false);
     const editor = holder(true);
-    guard.hold(replica.holding, replica.onMove);
-    const release = guard.hold(editor.holding, editor.onMove);
+    guard.hold(replica);
+    const release = guard.hold(editor);
     expect(leaving(target)).toBe("asks");
     release();
     expect(leaving(target)).toBe("goes");
@@ -69,7 +69,7 @@ describe("asking before the tab leaves", () => {
     const target = new EventTarget();
     const guard = createLeaveGuard(target);
     const replica = holder(true);
-    guard.hold(replica.holding, replica.onMove);
+    guard.hold(replica);
     guard.drop();
     expect(leaving(target)).toBe("goes");
     replica.set(true);

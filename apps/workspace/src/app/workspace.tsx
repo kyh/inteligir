@@ -228,12 +228,19 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   }, [replica]);
 
   // CLAUDE.md § THE TAB SENDS WHAT IT HOLDS UNTIL IT CLOSES, AND ASKS BEFORE LOSING IT: the open
-  // item's edit counts as held until its pause writes it, and a tab going out of sight writes it at
-  // once, since it may never come back into sight to finish the pause
+  // item's edit counts as held until its pause writes it, the Mac writes it before it quits, and a
+  // tab going out of sight writes it at once, since it may never come back into sight to finish the
+  // pause
   const leave = useLeaveGuard();
   useEffect(
     () =>
-      session === null ? undefined : leave.hold(() => holdsUnsaved(session), session.subscribe),
+      session === null
+        ? undefined
+        : leave.hold({
+            holding: () => holdsUnsaved(session),
+            onMove: session.subscribe,
+            write: session.flush,
+          }),
     [leave, session],
   );
   useEffect(() => {

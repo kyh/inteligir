@@ -1,4 +1,3 @@
-import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
 import { OWNER, signUp } from "../harness/cloud-account";
@@ -16,7 +15,7 @@ import type { Scenario } from "../harness/scenario";
 import { EDITOR, doubleClickCard, libraryCard } from "../harness/selectors";
 import { uploadFile, v1Client } from "../harness/v1-wire";
 import { farJumpsHold, seedLongArticle } from "./desktop-shell/long-note";
-import { seedViewerItems, viewersDraw } from "./desktop-shell/viewers";
+import { addedOfflineDraw, seedViewerItems, viewersDraw } from "./desktop-shell/viewers";
 
 const TITLE = "Shell note";
 const SEEDED = "Seeded on another device.";
@@ -24,8 +23,6 @@ const WRITTEN = "Written by another device while this one reads.";
 const OFFLINE = " Typed with no connection.";
 const PAGE_DEADLINE_MS = 60_000;
 const EDITOR_DEADLINE_MS = 30_000;
-// past the editor's pause before it writes what was typed into the outbox
-const PAST_THE_PAUSE_MS = 2000;
 
 const editorText = async (shell: DesktopShell): Promise<string> =>
   await shell.window.textOf(EDITOR);
@@ -60,10 +57,11 @@ const openItem = async (shell: DesktopShell, itemId: string): Promise<void> => {
 
 export const desktopShell: Scenario = {
   description:
-    "the built Tauri shell over WebDriver against a booted Worker: the window is the page the shell carries, signed in on its own sign-in; the library reads the shell's own replica, and a write another device makes reaches the open editor through the socket; `window.open` is denied and every permission request refused; a picture and a PDF draw over the shell's file scheme, fetched with the credential; in WebKit, a far jump in a long article lands on its target and holds still and scrolling back up never leaps; with the cloud cut, a relaunch opens the library and the item from the replica, an edit queues, and once the cloud is back the edit lands in the cell",
+    "the built Tauri shell over WebDriver against a booted Worker: the window is the page the shell carries, signed in on its own sign-in; the library reads the shell's own replica, and a write another device makes reaches the open editor through the socket; `window.open` is denied and every permission request refused; a picture and a PDF draw over the shell's file scheme, fetched with the credential; in WebKit, a far jump in a long article lands on its target and holds still and scrolling back up never leaps; with the cloud cut, a relaunch opens the library and the item from the replica, a PDF dropped draws from its staged bytes, a file's Download lands in Downloads with the window left on it, an edit typed just before Quit is written before the app goes and survives the next launch, and once the cloud is back the edit lands in the cell",
   name: "desktop-shell",
-  // the shell launches twice beside a booted Worker, and the far jumps and viewers take their time
-  timeoutMs: WORKER_SCENARIO_TIMEOUT_MS + 300_000,
+  // the shell launches three times beside a booted Worker, and the far jumps and viewers take
+  // their time
+  timeoutMs: WORKER_SCENARIO_TIMEOUT_MS + 420_000,
   exclusive: ["desktop-shell"],
   async run(ctx) {
     const worker = await ctx.cloudWorker();
@@ -156,10 +154,11 @@ export const desktopShell: Scenario = {
     await shell.quit();
     await link.cut();
     const offline = await ctx.desktopShell({ cloudOrigin: link.origin });
+    await addedOfflineDraw(ctx, offline);
     await openItem(offline, item.id);
     await untilEditorHolds(offline, WRITTEN, "the relaunch read no item offline");
 
-    ctx.log("an edit made offline queues, and lands in the cell once the cloud is back");
+    ctx.log("an edit typed just before Quit is written before the app goes, and queues offline");
     await offline.window.run(
       `const editor = document.querySelector(${JSON.stringify(EDITOR)});
       const range = document.createRange();
@@ -174,12 +173,18 @@ export const desktopShell: Scenario = {
     );
     await offline.window.typeInto(EDITOR, OFFLINE);
     await untilEditorHolds(offline, OFFLINE.trim(), "the offline edit never showed");
-    await delay(PAST_THE_PAUSE_MS);
+    // within the editor's pause, which only the page's write as the shell quits can beat
+    await offline.quit();
+    const relaunched = await ctx.desktopShell({ cloudOrigin: link.origin });
+    await openItem(relaunched, item.id);
+    await untilEditorHolds(relaunched, OFFLINE.trim(), "the edit typed just before Quit was lost");
     const unsent = await library.items.read({ id: item.id });
     expect(
       !unsent.view.markdown.includes(OFFLINE.trim()),
       "the edit reached the cell with the cloud cut",
     );
+
+    ctx.log("once the cloud is back, the queued edit lands in the cell");
     await link.restore();
     await untilItemText(
       library,
@@ -187,6 +192,6 @@ export const desktopShell: Scenario = {
       (markdown) => markdown.includes(OFFLINE.trim()),
       "the queued edit never landed once the cloud was back",
     );
-    await offline.quit();
+    await relaunched.quit();
   },
 };

@@ -1,15 +1,21 @@
 //! The macOS menu bar, rebuilt when an update becomes ready, since the app menu then offers
-//! Restart to Update in place of Check for Updates…. A menu click is the main thread's, so
-//! anything that waits (a check, a dialog) runs on a thread of its own.
+//! Restart to Update in place of Check for Updates…. Quit is the app's own item, not the predefined
+//! one, which ends the app before the page could write its last edit (`leaving.rs`). A menu click
+//! is the main thread's, so anything that waits (a check, a dialog, the page's answer) runs on a
+//! thread of its own.
 
-use tauri::menu::{AboutMetadata, Menu, MenuBuilder, MenuEvent, Submenu, SubmenuBuilder};
+use tauri::menu::{
+    AboutMetadata, Menu, MenuBuilder, MenuEvent, MenuItem, MenuItemBuilder, Submenu, SubmenuBuilder,
+};
 use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::cloud::ShellConfig;
+use crate::leaving;
 use crate::updater::{self, Updates};
 
 const CHECK_FOR_UPDATES: &str = "check-for-updates";
+const QUIT: &str = "quit";
 const RESTART_TO_UPDATE: &str = "restart-to-update";
 const OPEN_IN_BROWSER: &str = "open-in-browser";
 pub const SHOW_APP: &str = "show-app";
@@ -17,6 +23,13 @@ pub const HIDE_APP: &str = "hide-app";
 
 /// Where Open in Browser goes: the library's page on the cloud, the browser tab's own.
 const LIBRARY_PAGE_PATH: &str = "/library";
+
+/// Quit, as the app menu and the menu-bar icon both offer it, under macOS's own chord.
+pub fn quit_item(app: &AppHandle) -> tauri::Result<MenuItem<Wry>> {
+    MenuItemBuilder::with_id(QUIT, format!("Quit {}", crate::window::app_title()))
+        .accelerator("CmdOrCtrl+Q")
+        .build(app)
+}
 
 fn app_menu(app: &AppHandle) -> tauri::Result<Submenu<Wry>> {
     let info = app.package_info();
@@ -39,7 +52,7 @@ fn app_menu(app: &AppHandle) -> tauri::Result<Submenu<Wry>> {
         .hide_others()
         .show_all()
         .separator()
-        .quit()
+        .item(&quit_item(app)?)
         .build()
 }
 
@@ -101,8 +114,11 @@ pub fn on_event(app: &AppHandle, event: &MenuEvent) {
         }
         RESTART_TO_UPDATE => {
             std::thread::spawn(move || {
-                updater::restart_to_update(&app);
+                leaving::restart_to_update(&app);
             });
+        }
+        QUIT => {
+            std::thread::spawn(move || leaving::quit(&app));
         }
         SHOW_APP => crate::window::show(&app),
         HIDE_APP => {

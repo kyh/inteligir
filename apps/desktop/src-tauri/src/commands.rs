@@ -15,6 +15,7 @@ use crate::account::Account;
 use crate::cloud::ShellConfig;
 use crate::credential::DeviceCredential;
 use crate::error::{ShellError, ShellResult};
+use crate::leaving::{self, Leaving};
 use crate::replica::{Row, Statement};
 use crate::update_state::UpdateState;
 use crate::updater::{self, Updates};
@@ -184,11 +185,18 @@ pub async fn updates_check(app: AppHandle) -> ShellResult<UpdateState> {
     Ok(updater::check(&app, "settings").await)
 }
 
-/// Restart to Update: installs the ready update and relaunches; the state answers only when
-/// nothing was ready, or the install failed.
+/// Restart to Update: once the page wrote what it holds, installs the ready update and relaunches;
+/// the state answers only when nothing was ready, or the install failed.
 #[tauri::command]
 pub async fn updates_install(app: AppHandle) -> ShellResult<UpdateState> {
-    tauri::async_runtime::spawn_blocking(move || updater::restart_to_update(&app))
+    tauri::async_runtime::spawn_blocking(move || leaving::restart_to_update(&app))
         .await
         .map_err(|error| ShellError::Invalid(format!("the shell's work stopped: {error}")))
+}
+
+/// The page wrote what it held, as a quit or a restart asked it to (`leaving.rs`).
+#[tauri::command]
+pub async fn leaving_ready(app: AppHandle) -> ShellResult<()> {
+    app.state::<Leaving>().answered();
+    Ok(())
 }

@@ -1,5 +1,5 @@
 // The desktop shell is Rust and the page it carries is TypeScript, so the words they share cross no
-// compiler: every command the page may ask, the capability that grants it, the event the updater
+// compiler: every command the page may ask, the capability that grants it, the events the shell
 // pushes, the headers a staged file rides, the error kinds a command rejects with, the origins the
 // page runs on and calls, the scheme its files ride, the window's content policy, the bundle id
 // the browser's door opens the app by and the debug build's own. Each is read from both sides here
@@ -17,6 +17,7 @@ const BUILD_SCRIPT = "apps/desktop/src-tauri/build.rs";
 const LIB = "apps/desktop/src-tauri/src/lib.rs";
 const CAPABILITY = "apps/desktop/src-tauri/capabilities/app-window.json";
 const UPDATER = "apps/desktop/src-tauri/src/updater.rs";
+const LEAVING = "apps/desktop/src-tauri/src/leaving.rs";
 const ERROR = "apps/desktop/src-tauri/src/error.rs";
 const COMMANDS = "apps/desktop/src-tauri/src/commands.rs";
 const CLOUD = "apps/desktop/src-tauri/src/cloud.rs";
@@ -127,12 +128,14 @@ describe("the desktop shell's wire", () => {
     ).toEqual({ local: true, remote: undefined, windows: [rustConstant(WINDOW, "MAIN")] });
   });
 
-  it("pushes the update state under the event the page hears", () => {
-    const heard = /event: "(?<name>[^"]+)"/u.exec(
-      block(CONTRACT, "export const UPDATE_STATE_EVENT", "};"),
-    )?.groups?.name;
-    expect(heard, `${CONTRACT}'s UPDATE_STATE_EVENT and ${UPDATER}'s disagree\n`).toBe(
-      rustConstant(UPDATER, "UPDATE_STATE_EVENT"),
+  it.each([
+    { constant: "UPDATE_STATE_EVENT", file: UPDATER },
+    { constant: "LEAVING_EVENT", file: LEAVING },
+  ])("pushes $constant under the name the page hears", ({ constant, file }) => {
+    const heard = /event: "(?<name>[^"]+)"/u.exec(block(CONTRACT, `export const ${constant}`, "};"))
+      ?.groups?.name;
+    expect(heard, `${CONTRACT}'s ${constant} and ${file}'s disagree\n`).toBe(
+      rustConstant(file, constant),
     );
   });
 

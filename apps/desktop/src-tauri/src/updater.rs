@@ -2,10 +2,11 @@
 //! seconds after launch and every 4 minutes after; one that finds an update downloads it in the
 //! background, the plugin verifying its signature, and a verified download installs when the app
 //! quits, so the next launch is the new version, and nothing restarts the app under the person.
-//! Restart to Update, in the app menu and in Settings, installs it and relaunches at once. Every
-//! write is already in the replica's outbox on disk, so a quit to install loses none. The page
-//! holds no updater permission: it mirrors this state from the `update-state` event and asks
-//! through the shell's own commands.
+//! Restart to Update, in the app menu and in Settings, installs it and relaunches at once. Either
+//! way out first has the page write the open item's last edit to the outbox on disk
+//! (`leaving.rs`), so a quit to install loses no edit the page held. The page holds no updater
+//! permission: it mirrors this state from the `update-state` event and asks through the shell's own
+//! commands.
 
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, SystemTime};
@@ -178,7 +179,8 @@ pub fn install_on_quit(app: &AppHandle) {
     }
 }
 
-/// Restart to Update: installs the ready update and relaunches at once.
+/// Restart to Update, once the page wrote what it held (`leaving::restart_to_update`): installs the
+/// ready update and relaunches at once.
 pub fn restart_to_update(app: &AppHandle) -> UpdateState {
     match install_ready(app) {
         Some(Ok(())) => app.restart(),

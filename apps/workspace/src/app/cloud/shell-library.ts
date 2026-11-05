@@ -2,7 +2,9 @@
 // the account in the app's data dir, read and written through the bridge), the device credential
 // the shell keeps in the Keychain and hands the page in memory, and the account's files under the
 // shell's scheme. Everything the page wrote is on disk the moment the engine queues it, so the Mac
-// reads and queues offline, and a quit or a relaunch loses nothing the outbox took.
+// reads and queues offline, and a quit or a relaunch loses nothing the outbox took; what the page
+// still holds (the open item's edit, waiting out its pause) it writes when the shell asks before a
+// quit.
 //
 // Its calls go to the cloud's origin across origins (the Worker answers CORS for the app's), each
 // carrying the credential and the build, since the Worker meets every install at its build floor.
@@ -16,10 +18,11 @@ import type { KeptCredential, ShellConfig } from "../../shell/shell-config";
 import {
   shellConfig,
   shellCredential,
+  shellLeaving,
   shellReplicaSql,
   shellStagedBlobs,
 } from "../../shell/shell-commands";
-import type { LeaveGuard } from "./leave-guard";
+import type { Held, LeaveGuard } from "./leave-guard";
 import { newId, pageClock } from "./page-library";
 import type { PageLibrary } from "./page-library";
 import { createCloudWire } from "./v1";
@@ -48,14 +51,30 @@ export const macTransport = (config: ShellConfig, credential: string | null): Re
   origin: config.cloudOrigin,
 });
 
-// the Mac's outbox is on disk, so a quit or a reload loses no change the outbox took: nothing asks
-const diskLeaveGuard: LeaveGuard = {
-  drop: () => {
-    // nothing is armed, so nothing is let go
-  },
-  hold: () => () => {
-    // nothing was held
-  },
+// The Mac's outbox is on disk, so nothing asks before the page goes; what a holder keeps in memory
+// it writes when the shell says it is about to quit or restart, and the page answers once all of
+// it is written, or once it failed, since the shell goes after a moment either way. Made before
+// anything else opens, so a quit from the sign-in, or from a library that would not open, is
+// answered at once.
+export const createShellLeaveGuard = (): LeaveGuard => {
+  const holders = new Set<Held>();
+  shellLeaving.onLeaving(() => {
+    void (async () => {
+      await Promise.allSettled([...holders].map(async (held) => await held.write?.()));
+      await shellLeaving.ready();
+    })();
+  });
+  return {
+    drop: () => {
+      // nothing is armed, so nothing is let go
+    },
+    hold: (held) => {
+      holders.add(held);
+      return () => {
+        holders.delete(held);
+      };
+    },
+  };
 };
 
 // this Mac leaves its account: the shell lets go of the credential, the replica's file and every
@@ -65,7 +84,7 @@ const leaveAccount = async (): Promise<void> => {
   window.location.reload();
 };
 
-export const openShellLibrary = async (): Promise<ShellOpening> => {
+export const openShellLibrary = async (leave: LeaveGuard): Promise<ShellOpening> => {
   const config = await shellConfig();
   const kept: KeptCredential | null = await shellCredential.restore();
   if (kept === null) {
@@ -90,7 +109,7 @@ export const openShellLibrary = async (): Promise<ShellOpening> => {
       account: { email: kept.email, name: "" },
       cloud: transport,
       fileUrl: (sha) => `${config.filesOrigin}/${sha}`,
-      leave: diskLeaveGuard,
+      leave,
       left: leaveAccount,
       replica: opening.replica,
       // a credential the cloud no longer takes (revoked elsewhere, the account deleted) can send

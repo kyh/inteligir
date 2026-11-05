@@ -85,20 +85,21 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
 
 - **IN THE MAC APP THE PAGE OPENS THE SHELL'S REPLICA, AFTER A SIGN-IN OF ITS
   OWN.** The same build runs in the Mac's window, where `main.tsx` asks the
-  shell for its config and the credential a sign-in kept: with none the page is
-  the first run, a sign-in or a new account with an invite code, whose device
-  credential the shell keeps in the Keychain before the library opens (a
-  Keychain that refuses it gives the device's slot back, so no device is left
-  signed in with no credential); with one, the replica engine runs over the
-  shell's SQLite and staged files, its calls going to the cloud's origin with
-  the credential as the bearer and the build in a header. What differs by host
-  is one `PageLibrary`: where a file is drawn from, the transport an upload or
-  an export rides, what asks before the page leaves (nothing on the Mac, whose
-  outbox is on disk) and where a sign-out goes. The Mac's routes ride the
-  hash, since its document never changes. Rejected: a first-run window of the
-  shell's own (a second page beside the one the shell carries); the tab's
-  cookie in the window (a cross-site cookie WebKit would not send).
-  `apps/workspace/src/app/cloud/shell-library.ts`,
+  shell for its config and the credential a sign-in kept: with none the page
+  is the first run, a sign-in or a new account with an invite code, whose
+  device credential the shell keeps in the Keychain before the library opens
+  (a Keychain that refuses it gives the device's slot back, so no device is
+  left signed in with no credential); with one, the replica engine runs over
+  the shell's SQLite and staged files, its calls going to the cloud's origin
+  with the credential as the bearer and the build in a header. What differs by
+  host is one `PageLibrary`: where a file is drawn from, the transport an
+  upload or an export rides, what the page does about what it holds before it
+  goes (the tab asks; the Mac, whose outbox is on disk, writes the open item's
+  edit when the shell says it is quitting) and where a sign-out goes. The
+  Mac's routes ride the hash, since its document never changes. Rejected: a
+  first-run window of the shell's own (a second page beside the one the shell
+  carries); the tab's cookie in the window (a cross-site cookie WebKit would
+  not send). `apps/workspace/src/app/cloud/shell-library.ts`,
   `apps/workspace/src/app/cloud/sign-in-page.tsx`.
 
 ## Surfaces
