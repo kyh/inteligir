@@ -210,6 +210,7 @@ describe("a call's reservation", () => {
               previous: null,
               promptTokens: 1000 + Math.floor(rand() * 20_000),
             },
+            model: AGENT_MODEL.id,
             resend: null,
             threadId: threads[call % 2] ?? "thread-a",
             turn: 1,

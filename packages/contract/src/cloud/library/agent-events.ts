@@ -44,6 +44,8 @@ export const agentEventSchema = z.discriminatedUnion("type", [
   }),
   // what the agent wrote back
   z.object({ text: z.string(), type: z.literal("agent.message") }),
+  // a short note of what the agent found or does next, written before the tool call it introduces
+  z.object({ text: z.string(), type: z.literal("agent.progress") }),
   z.object({
     input: z.json(),
     name: toolNameSchema,

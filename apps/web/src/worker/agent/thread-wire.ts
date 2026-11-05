@@ -33,6 +33,8 @@ export type CallEstimate = z.infer<typeof callEstimateSchema>;
 export const reserveRequestSchema = z.strictObject({
   callId: z.string().min(1).max(256),
   estimate: callEstimateSchema,
+  // the model the call goes to, its thread's definition's, which the cell prices it at
+  model: z.string().min(1).max(128),
   // the cap a step sent again after a cut or a failure keeps, so its bytes are those it was first
   // sent with; null for a step's first call
   resend: z.number().int().positive().nullable(),
@@ -60,8 +62,9 @@ export interface ToolAnswer {
   readonly isError: boolean;
 }
 
-// what one model call cost: its usage as the API reported it, priced by the cell; a call cut short
-// reports none, and is booked at what it reserved; one the API refused before it ran cost nothing
+// what one model call cost: its usage as the API reported it, priced by the cell at the model the
+// call went to where an iteration names none; a call cut short reports none, and is booked at what
+// it reserved; one the API refused before it ran cost nothing
 const callEntrySchema = z.discriminatedUnion("outcome", [
   z.strictObject({
     callId: z.string().min(1).max(256),

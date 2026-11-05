@@ -8,10 +8,15 @@
 //   op id of its own, so one run again lands once;
 // - every call is reserved with the cell before it is sent, and what it cost pushed after;
 // - a reply silent for three minutes, pings included, is cut as a lost connection and sent again;
-// - what the turn did reaches the cell through the outbox, in order, each push once.
+// - what the turn did reaches the cell through the outbox, in order, each push once;
+// - a turn is sent under the definition in force when it started: one a deploy changed is taken up
+//   at the next turn's start, never mid-turn, and from then on no request carries a thinking block
+//   from before that turn (`./thread-request`).
 // The filing rules a turn brings ride a system message after the person's: it goes as the last
 // message until the turn's first reply lands, and lands with it, so a turn that ends with no reply
-// leaves no system message last, which no message after could follow.
+// leaves no system message last, which no message after could follow. They go again at the next
+// turn after a compaction, which summarized the system messages before it, and at a turn that
+// takes up a new definition, whose requests may leave an earlier one out.
 
 import { APIError } from "@anthropic-ai/sdk";
 import type Anthropic from "@anthropic-ai/sdk";
@@ -26,9 +31,11 @@ import { callFailureFields } from "./anthropic-client";
 import { AGENT_MAX_TOKENS } from "./library-agent";
 import {
   agentRequest,
-  deployedDefinition,
+  frozenDefinition,
   logDroppedThinking,
   replyBlocksOf,
+  requestMessages,
+  sha256Hex,
   storedDefinition,
   tokensAtMost,
   transcriptMessage,
@@ -100,6 +107,8 @@ export interface ThreadHost {
   readonly client: () => Anthropic | null;
   // the cell, by a fresh stub each time, since a stub that saw a reset stays broken
   readonly cell: () => ThreadCell;
+  // what this deployment would start a turn under (`./thread-request` `deployedDefinition`)
+  readonly definition: () => ThreadDefinition;
   readonly jobs: ThreadJobs;
   // the model call each turn is making, which a stop, a purge or a silence cuts
   readonly calls: Map<number, CallInFlight>;
@@ -283,11 +292,6 @@ const endTurn = (
   enqueue(sql, turn, [eventEntry(ended)]);
 };
 
-const sha256Hex = async (text: string): Promise<string> => {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-};
-
 // ---- the outbox ----
 
 const outboxRowSchema = z.object({ json: z.string(), seq: z.number() });
@@ -368,29 +372,65 @@ export const rulesHashOf = async (rules: string | null): Promise<string | null> 
 
 // ---- the definition ----
 
-const definitionRowSchema = z.object({ system: z.string(), tools: z.string() });
+const definitionRowSchema = z.object({
+  effort: z.string(),
+  hash: z.string(),
+  model: z.string(),
+  since_seq: z.number(),
+  system: z.string(),
+  tools: z.string(),
+});
 
-const definitionOf = (sql: SqlStatements): ThreadDefinition | null => {
-  const [raw] = sql.all("SELECT system, tools FROM definition ORDER BY id DESC LIMIT 1", []);
-  return raw === undefined ? null : storedDefinition(definitionRowSchema.parse(raw));
+// the definition the thread's turns are sent under, and the transcript row it is in force from
+interface DefinitionInForce {
+  readonly definition: ThreadDefinition;
+  readonly hash: string;
+  readonly sinceSeq: number;
+}
+
+const definitionOf = (sql: SqlStatements): DefinitionInForce | null => {
+  const [raw] = sql.all(
+    "SELECT hash, model, effort, system, tools, since_seq FROM definition ORDER BY id DESC LIMIT 1",
+    [],
+  );
+  if (raw === undefined) {
+    return null;
+  }
+  const row = definitionRowSchema.parse(raw);
+  return { definition: storedDefinition(row), hash: row.hash, sinceSeq: row.since_seq };
 };
 
-// the turn's first rows: the definition frozen if this is the thread's first turn, then the
-// person's message
+// the definition a started turn is sent under, which its start wrote
+const definitionInForce = (sql: SqlStatements): DefinitionInForce => {
+  const held = definitionOf(sql);
+  if (held === null) {
+    throw new Error("a started turn has a definition");
+  }
+  return held;
+};
+
+// the turn's first rows: the definition this deployment starts turns under, when it is not the one
+// in force, from the person's message on, then that message. A thread takes up a deploy's
+// definition only here, so a turn is sent under one definition from its first call to its last
 const startTurn = async (host: ThreadHost, turn: OpenTurn): Promise<void> => {
-  const deployed = deployedDefinition();
-  const frozen = {
-    system: JSON.stringify(deployed.system),
-    tools: JSON.stringify(deployed.tools),
-  };
-  const hash = await sha256Hex(JSON.stringify(frozen));
+  const deployed = await frozenDefinition(host.definition());
   host.sql.transaction(() => {
-    if (definitionOf(host.sql) === null) {
+    const held = definitionOf(host.sql);
+    if (held?.hash !== deployed.hash) {
       host.sql.run(
-        `INSERT INTO definition (id, hash, system, tools, since_seq)
-         VALUES (1, ?, ?, ?, (SELECT coalesce(max(seq), 0) + 1 FROM transcript))`,
-        [hash, frozen.system, frozen.tools],
+        `INSERT INTO definition (id, hash, model, effort, system, tools, since_seq)
+         VALUES ((SELECT coalesce(max(id), 0) + 1 FROM definition), ?, ?, ?, ?, ?,
+           (SELECT coalesce(max(seq), 0) + 1 FROM transcript))`,
+        [deployed.hash, deployed.model, deployed.effort, deployed.system, deployed.tools],
       );
+      if (held !== null) {
+        console.info({
+          event: "agent-definition-taken-up",
+          threadId: host.threadId,
+          turn: turn.turn,
+        });
+        host.sql.run("DELETE FROM meta WHERE k = 'rules_hash'", []);
+      }
     }
     append(host.sql, { content: turn.content, role: "user", turn: turn.turn }, "person");
     host.sql.run("UPDATE turns SET started = 1 WHERE turn = ?", [turn.turn]);
@@ -407,12 +447,15 @@ const usageSchema = z.looseObject({
 
 const previousCallSchema = z.object({ ended_at: z.number(), usage: z.string() });
 
-// the last reply's prompt and when it landed, which the cell prices the cache by
-const previousCall = (sql: SqlStatements): CallEstimate["previous"] => {
+// the last reply's prompt under the definition in force from `sinceSeq`, and when it landed, which
+// the cell prices the cache by: a reply under an earlier definition warmed a prefix this one does
+// not share
+const previousCall = (sql: SqlStatements, sinceSeq: number): CallEstimate["previous"] => {
   const [raw] = sql.all(
     `SELECT usage, ended_at FROM model_calls WHERE status = 'done' AND usage IS NOT NULL
+       AND turn >= (SELECT turn FROM transcript WHERE seq = ?)
      ORDER BY ended_at DESC LIMIT 1`,
-    [],
+    [sinceSeq],
   );
   if (raw === undefined) {
     return null;
@@ -521,10 +564,15 @@ const endingOf = (message: BetaMessage): TurnEnding => {
   }
 };
 
+// what the person's devices show of a reply, in its order: its words, each progress note a
+// thinking block shows ahead of the tool call it introduces, and each call
 const replyEvents = (blocks: readonly ReplyBlock[]): PushEntry[] =>
   blocks.flatMap((block): PushEntry[] => {
     if (block.type === "text" && block.text !== "") {
       return [eventEntry({ text: block.text, type: "agent.message" })];
+    }
+    if (block.type === "thinking" && block.thinking !== "") {
+      return [eventEntry({ text: block.thinking, type: "agent.progress" })];
     }
     if (block.type === "tool_use") {
       return [
@@ -548,11 +596,17 @@ const resultEvent = (toolUseId: string, content: string, isError: boolean): Push
   });
 
 // the reply landed whole, with what it cost, in one transaction: its blocks as returned, after the
-// filing rules it was asked under, and the turn ended unless it asks for tools
+// filing rules it was asked under, and the turn ended unless it asks for tools; a compaction in it
+// has the next turn send the filing rules again
 const landReply = (
   host: ThreadHost,
   turn: OpenTurn,
-  call: { readonly callId: string; readonly rules: string | null; readonly message: BetaMessage },
+  call: {
+    readonly callId: string;
+    readonly model: string;
+    readonly rules: string | null;
+    readonly message: BetaMessage;
+  },
 ): void => {
   const { message } = call;
   const now = host.now();
@@ -567,7 +621,7 @@ const landReply = (
       {
         callId: call.callId,
         kind: "call",
-        model: message.model,
+        model: call.model,
         outcome: "billed",
         usage: z.json().parse(message.usage),
       },
@@ -607,6 +661,9 @@ const landReply = (
         { content: JSON.stringify(message.content), role: "assistant", turn: turn.turn },
         "model",
       );
+      if (blocks.some((block) => block.type === "compaction" && block.content !== null)) {
+        host.sql.run("DELETE FROM meta WHERE k = 'rules_hash'", []);
+      }
       entries.push(...replyEvents(blocks));
     }
     const uses = blocks.flatMap((block) => (block.type === "tool_use" ? [block] : []));
@@ -747,7 +804,7 @@ const reserveAndSend = async (
 ): Promise<StepResult> => {
   const { sql } = host;
   const now = host.now();
-  const definition = definitionOf(sql) ?? deployedDefinition();
+  const { definition, sinceSeq } = definitionInForce(sql);
   const step = transcript.filter(
     (message) => message.role === "assistant" && message.turn === turn.turn,
   ).length;
@@ -756,21 +813,26 @@ const reserveAndSend = async (
   // a step sent again keeps the cap it was first sent with, so its bytes are the same
   const resend = firstCapAt(sql, turn.turn, step);
   const rules = pendingRules(sql, turn, step);
-  const messages = withRules(transcript, rules);
+  const messages = withRules(requestMessages(transcript, sinceSeq), rules);
   const estimate: CallEstimate = {
     frozenTokens: tokensAtMost(
       JSON.stringify(definition.system).length + JSON.stringify(definition.tools).length,
     ),
-    previous: previousCall(sql),
+    previous: previousCall(sql, sinceSeq),
     promptTokens: tokensAtMost(
       JSON.stringify(agentRequest(definition, messages, AGENT_MAX_TOKENS)).length,
     ),
   };
   let reserved: CellAnswer<Reservation>;
   try {
-    reserved = await host
-      .cell()
-      .agentReserve({ callId, estimate, resend, threadId: host.threadId, turn: turn.turn });
+    reserved = await host.cell().agentReserve({
+      callId,
+      estimate,
+      model: definition.model,
+      resend,
+      threadId: host.threadId,
+      turn: turn.turn,
+    });
   } catch (error) {
     console.warn({ event: "agent-reserve-failed", ...callFailureFields(error) });
     if (signal.aborted) {
@@ -851,7 +913,7 @@ const reserveAndSend = async (
     });
   }
   logDroppedThinking(host.threadId, message);
-  landReply(host, turn, { callId, message, rules });
+  landReply(host, turn, { callId, message, model: definition.model, rules });
   return "continue";
 };
 

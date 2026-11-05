@@ -1,8 +1,10 @@
 // A conversation's object's own tables (`./agent-thread`). The transcript is append-only, its
 // triggers refusing every UPDATE and DELETE, and each row holds one message's content exactly as
 // Claude returned it or the thread wrote it, so a replay is byte for byte what was sent before: a
-// replayed thinking block is checked against everything before it. The definition is the system
-// and tools the thread started with, replayed as they were. No live preview is stored. Versioned
+// replayed thinking block is checked against everything before it. A definition row is the model,
+// effort, system and tools the thread's turns are sent under, replayed as they were, from the
+// transcript row its `since_seq` names on: the first at the thread's first turn, and another at
+// the start of the first turn after a deploy changed them. No live preview is stored. Versioned
 // by the `schema` row of `meta`: an object that finds another version drops its tables and starts
 // over (AGENTS.md, no users yet), keeping only its push sequence, since its cell acknowledges a
 // sequence it has seen without reading the push again; a turn the cell holds open that the object
@@ -11,7 +13,7 @@
 import type { SqlPort } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
-const THREAD_SCHEMA_VERSION = 1;
+const THREAD_SCHEMA_VERSION = 2;
 
 // where one model call stands: streaming while this instance reads it; done once its reply landed;
 // cut when an instance died reading it; refused before it was sent; failed or cancelled after
@@ -27,13 +29,16 @@ const oneOf = (values: readonly string[]): string => values.map((value) => `'${v
 
 const DDL = [
   `CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL) STRICT`,
-  // the system blocks and tool definitions as sent, frozen at the thread's first turn
+  // the model, effort, system blocks and tool definitions as sent, each row frozen at the start
+  // of the turn whose first transcript row is its since_seq; the newest is the one in force
   `CREATE TABLE IF NOT EXISTS definition (
     id INTEGER PRIMARY KEY,
     hash TEXT NOT NULL,
+    model TEXT NOT NULL,
+    effort TEXT NOT NULL,
     system TEXT NOT NULL,
     tools TEXT NOT NULL,
-    since_seq INTEGER NOT NULL
+    since_seq INTEGER NOT NULL UNIQUE
   ) STRICT`,
   `CREATE TABLE IF NOT EXISTS transcript (
     seq INTEGER PRIMARY KEY,

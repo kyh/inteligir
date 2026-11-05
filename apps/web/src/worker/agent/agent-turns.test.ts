@@ -35,6 +35,7 @@ import { openTurnInCell } from "../test-support/thread-host";
 import { dayOf, nextDayAt, UCENTS_PER_CENT } from "./agent-allowance";
 import type { AgentThreadDO } from "./agent-thread";
 import { landPush, reserveForCall, runAgentJobs, showPreview } from "./agent-turns";
+import { AGENT_MODEL } from "./library-agent";
 import type { PushRequest } from "./thread-wire";
 
 // a turn's end can take a few model calls, each a round trip through the fake
@@ -209,6 +210,7 @@ describe("what a conversation's object asks of its cell", () => {
     const reserve = {
       callId: `${threadId}:2:0:0`,
       estimate: { frozenTokens: 100, previous: null, promptTokens: 200 },
+      model: AGENT_MODEL.id,
       resend: null,
       threadId,
       turn: 2,
@@ -299,6 +301,7 @@ describe("what a conversation's object asks of its cell", () => {
         const reserved = reserveForCall(cell, {
           callId: `${threadId}:1:0:0`,
           estimate,
+          model: AGENT_MODEL.id,
           resend: null,
           threadId,
           turn: 1,

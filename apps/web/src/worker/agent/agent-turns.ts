@@ -53,7 +53,6 @@ import {
 } from "./agent-allowance";
 import type { Allowance, PriceTable } from "./agent-allowance";
 import { agentConfigured } from "./anthropic-client";
-import { AGENT_MODEL } from "./library-agent";
 import { filingRules, turnUserMessage } from "./turn-message";
 import {
   agentIsOn,
@@ -595,7 +594,7 @@ export const reserveForCall = (
   }
   const { callId, estimate, threadId, turn } = parsed.data;
   const allowance = allowanceOf(cell.env);
-  const prices = pricesFor(pricesOf(cell.env), AGENT_MODEL.id);
+  const prices = pricesFor(pricesOf(cell.env), parsed.data.model);
   const landed = cell.library.landApart(
     { answer: reserveOutcomeSchema, opId: undefined },
     (scope): z.infer<typeof reserveOutcomeSchema> => {

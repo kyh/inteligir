@@ -34,6 +34,7 @@ import {
   step,
 } from "./thread-loop";
 import type { CallInFlight, ThreadHost } from "./thread-loop";
+import { deployedDefinition } from "./thread-request";
 import { openThreadSchema } from "./thread-schema";
 import { deliveryRequestSchema, respondRequestSchema } from "./thread-wire";
 import type { DeliveryRequest, RespondRequest, ThreadInspection } from "./thread-wire";
@@ -90,6 +91,7 @@ export class AgentThreadDO extends DurableObject<Env> {
         this.#client ??= anthropicClient(this.env, listeningFetch(this.#calls, Date.now));
         return this.#client;
       },
+      definition: deployedDefinition,
       isolate: this.#isolate,
       jobs: {
         approvalAt: async (toolUseId, at) => {

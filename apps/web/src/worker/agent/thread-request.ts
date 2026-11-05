@@ -1,14 +1,22 @@
-// One request of a conversation, built from the thread's frozen definition and its transcript:
-// Claude Opus 5.5 at effort medium (`./library-agent`), adaptive thinking whose replayed blocks
-// are dropped rather than refused when they fail the conversation check, and a refusal answered by
-// the fallback model Anthropic names for its category inside the same call
-// (platform.claude.com/docs/en/build-with-claude/refusals-and-fallback). The system and the tools
-// are those the thread started with, byte for byte, each closed by a 1-hour cache breakpoint, so
-// every conversation of every account reads one cached prefix; the last block of the last message
+// One request of a conversation, built from the definition the thread's turns are sent under and
+// its transcript: the definition's model and effort (`./library-agent`), adaptive thinking whose
+// replayed blocks are dropped rather than refused when they fail the conversation check and whose
+// progress notes between tool calls come back as text, a refusal answered by the fallback model
+// Anthropic names for its category inside the same call
+// (platform.claude.com/docs/en/build-with-claude/refusals-and-fallback), and the conversation
+// compacted on the server once its input reaches the API's default threshold, 150,000 tokens
+// (platform.claude.com/docs/en/build-with-claude/compaction-threshold). The system and the tools
+// are the definition's, byte for byte, each closed by a 1-hour cache breakpoint, so every
+// conversation of every account reads one cached prefix; the last block of the last message
 // carries a 5-minute one on a copy, so each step reads the steps before it. A message is its role
 // and content alone, never an assistant's last: a replayed thinking block is checked against
-// everything before it, and a field the API does not expect is a 400. No tool choice, no sampling,
-// no eager input streaming. A drop is a bug, so every one is logged.
+// everything before it from the last compaction block on, and a field the API does not expect is a
+// 400. What the transcript holds reaches a request by one rule, the same on every request, so a
+// prefix never moves once a block is bound to it: nothing before the last compaction that kept a
+// summary, which the API ignores, and before the turn the thread took up its definition at, no
+// thinking block, which that definition's system and tools would fail, the leading run the API
+// lets go. No tool choice, no sampling, no eager input streaming. A drop is a bug, so every one is
+// logged.
 
 import type {
   BetaCacheControlEphemeral,
@@ -16,6 +24,7 @@ import type {
   BetaMessage,
   BetaMessageParam,
   BetaMessageStreamParams,
+  BetaOutputConfig,
   BetaTextBlockParam,
   BetaTool,
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
@@ -25,10 +34,13 @@ import { AGENT_SYSTEM_PROMPT } from "./agent-prompt";
 import { AGENT_TOOL_DEFINITIONS } from "./agent-tools";
 import { AGENT_MODEL } from "./library-agent";
 
-// the thinking-block binding control, and server-side fallback on a refusal
+// the thinking-block binding control, server-side fallback on a refusal, threshold compaction, and
+// the progress notes between tool calls shown
 export const AGENT_BETAS = [
   "thinking-binding-controls-2026-08-01",
   "server-side-fallback-2026-07-01",
+  "compact-2026-01-12",
+  "thinking-display-updates-2026-08-18",
 ] as const;
 
 const HOUR_CACHE = { ttl: "1h", type: "ephemeral" } as const;
@@ -54,6 +66,12 @@ const fallbackSchema = z.looseObject({
   to: z.looseObject({ model: z.string() }),
   type: z.literal("fallback"),
 });
+// the API's summary of the conversation before it, or null when it wrote none, replayed as
+// returned: a request reads the conversation from the last one that kept a summary
+const compactionSchema = z.looseObject({
+  content: z.string().nullable(),
+  type: z.literal("compaction"),
+});
 const toolResultSchema = z.looseObject({
   content: z.string(),
   is_error: z.boolean().optional(),
@@ -69,6 +87,7 @@ const replyBlockSchema = z.discriminatedUnion("type", [
   redactedSchema,
   toolUseSchema,
   fallbackSchema,
+  compactionSchema,
 ]);
 export type ReplyBlock = z.infer<typeof replyBlockSchema>;
 
@@ -82,15 +101,6 @@ export type TranscriptMessage =
   | { readonly role: "user"; readonly content: readonly UserBlock[] }
   | { readonly role: "assistant"; readonly content: readonly ReplyBlock[] }
   | { readonly role: "system"; readonly content: readonly TextBlock[] };
-
-const JSON_TEXT = z.string().transform((text, context) => {
-  try {
-    return z.json().parse(JSON.parse(text));
-  } catch {
-    context.addIssue({ code: "custom", message: "is not JSON" });
-    return z.NEVER;
-  }
-});
 
 // each validated, never parsed: a value narrowed keeps its keys in the order they were written,
 // which a parse would not
@@ -124,7 +134,14 @@ export const replyBlocksOf = (content: readonly BetaContentBlock[]): ReplyBlock[
 
 // ---- the definition ----
 
+const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const satisfies readonly NonNullable<
+  BetaOutputConfig["effort"]
+>[];
+
+// what a turn is sent under: the model and its effort, the system blocks and the tool definitions
 export interface ThreadDefinition {
+  readonly model: string;
+  readonly effort: (typeof EFFORTS)[number];
   readonly system: readonly BetaTextBlockParam[];
   readonly tools: readonly BetaTool[];
 }
@@ -135,20 +152,58 @@ const toolSchema = z.looseObject({
   name: z.string(),
 });
 
-// a definition row as the thread froze it
-export const storedDefinition = (row: {
+// a definition as its row keeps it: the system and the tools as the JSON they are sent as
+export interface FrozenDefinition {
+  readonly model: string;
+  readonly effort: string;
   readonly system: string;
   readonly tools: string;
-}): ThreadDefinition => ({
-  system: z.array(textSchema).min(1).parse(JSON_TEXT.parse(row.system)),
-  tools: z.array(toolSchema).parse(JSON_TEXT.parse(row.tools)),
-});
+}
 
-// what this deployment would freeze a thread with: the prompt and the tools as they stand
+const toolsContent = z.array(toolSchema);
+
+// a definition row as the thread froze it, its system and tools validated, never parsed, so each
+// keeps its keys in the order they were sent
+export const storedDefinition = (row: FrozenDefinition): ThreadDefinition => {
+  const system: unknown = JSON.parse(row.system);
+  const tools: unknown = JSON.parse(row.tools);
+  if (!systemContent.validate(system) || !toolsContent.validate(tools)) {
+    throw new Error("a definition row holds a system or tools this build cannot send");
+  }
+  return {
+    effort: z.enum(EFFORTS).parse(row.effort),
+    model: z.string().min(1).parse(row.model),
+    system,
+    tools,
+  };
+};
+
+// what this deployment would start a turn under: its model and effort, and the prompt and the tools
+// as they stand
 export const deployedDefinition = (): ThreadDefinition => ({
+  effort: AGENT_MODEL.effort,
+  model: AGENT_MODEL.id,
   system: [{ text: AGENT_SYSTEM_PROMPT, type: "text" }],
   tools: AGENT_TOOL_DEFINITIONS,
 });
+
+export const sha256Hex = async (text: string): Promise<string> => {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+};
+
+// the definition as its row keeps it, and the hash a deploy's definition is told apart by
+export const frozenDefinition = async (
+  definition: ThreadDefinition,
+): Promise<FrozenDefinition & { readonly hash: string }> => {
+  const frozen: FrozenDefinition = {
+    effort: definition.effort,
+    model: definition.model,
+    system: JSON.stringify(definition.system),
+    tools: JSON.stringify(definition.tools),
+  };
+  return { ...frozen, hash: await sha256Hex(JSON.stringify(frozen)) };
+};
 
 // ---- the request ----
 
@@ -160,6 +215,39 @@ const closedBy = <T extends object>(entries: readonly T[], cache: BetaCacheContr
 
 const isThinking = (block: { readonly type: string }): boolean =>
   block.type === "thinking" || block.type === "redacted_thinking";
+
+// a message as the thread keeps it, by its place in the transcript
+export type SequencedMessage = TranscriptMessage & { readonly seq: number };
+
+// a reply holding a compaction that kept a summary: the API reads the conversation from it on
+const compacts = (message: TranscriptMessage): boolean =>
+  message.role === "assistant" &&
+  message.content.some((block) => block.type === "compaction" && block.content !== null);
+
+// what a request carries of the transcript: every message from the last reply whose compaction
+// kept a summary on, since the API ignores what it summarized; and of the messages before
+// `sinceSeq`, the first of the turn the thread took up its definition at, none of their thinking,
+// a reply left with nothing left out with the system message it alone followed, since a system
+// message is followed by an assistant's or by nothing
+export const requestMessages = (
+  transcript: readonly SequencedMessage[],
+  sinceSeq: number,
+): TranscriptMessage[] => {
+  const sent: TranscriptMessage[] = [];
+  for (const message of transcript.slice(Math.max(0, transcript.findLastIndex(compacts)))) {
+    if (message.role !== "assistant" || message.seq >= sinceSeq) {
+      sent.push(message);
+      continue;
+    }
+    const content = message.content.filter((block) => !isThinking(block));
+    if (content.length > 0) {
+      sent.push({ content, role: "assistant" });
+    } else if (sent.at(-1)?.role === "system") {
+      sent.pop();
+    }
+  }
+  return sent;
+};
 
 // the message as the API takes it: its role and content and nothing else, the last message's last
 // block carrying the rolling breakpoint, on a copy, unless it is a thinking block
@@ -192,21 +280,25 @@ const messageParam = (message: TranscriptMessage, last: boolean): BetaMessagePar
   }
 };
 
+// the request for `messages`, which `requestMessages` read off the transcript
 export const agentRequest = (
   definition: ThreadDefinition,
-  transcript: readonly TranscriptMessage[],
+  messages: readonly TranscriptMessage[],
   maxTokens: number,
 ): BetaMessageStreamParams => ({
   betas: [...AGENT_BETAS],
+  context_management: { edits: [{ type: "compact_20260112" }] },
   fallbacks: "default",
   max_tokens: maxTokens,
-  messages: transcript.map((message, index) =>
-    messageParam(message, index === transcript.length - 1),
-  ),
-  model: AGENT_MODEL.id,
-  output_config: { effort: AGENT_MODEL.effort },
+  messages: messages.map((message, index) => messageParam(message, index === messages.length - 1)),
+  model: definition.model,
+  output_config: { effort: definition.effort },
   system: closedBy(definition.system, HOUR_CACHE),
-  thinking: { block_binding: { prefix_mismatch_behavior: "drop_block" }, type: "adaptive" },
+  thinking: {
+    block_binding: { prefix_mismatch_behavior: "drop_block" },
+    display: "updates",
+    type: "adaptive",
+  },
   tools: closedBy(definition.tools, HOUR_CACHE),
 });
 

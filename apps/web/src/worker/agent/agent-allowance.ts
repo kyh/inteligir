@@ -261,8 +261,10 @@ export interface PricedUsage {
   readonly costUcents: number;
 }
 
-// a reply's usage at list price: each of its iterations (a fallback model's, a compaction) at its
-// own model's prices, or the whole at the model that answered
+// a reply's usage at list price: each of its iterations (the model asked, a fallback model, a
+// compaction) at the prices of the model it names, one that names none, a compaction, which runs
+// on the model asked, at `model`'s, the model the call went to; a reply with no iterations whole
+// at `model`'s
 export const priceUsage = (
   report: z.infer<typeof usageReportSchema>,
   model: string,
