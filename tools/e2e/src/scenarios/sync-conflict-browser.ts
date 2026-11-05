@@ -1,7 +1,8 @@
 // Two tabs signed in to one account, the same item open in each: what one types is laid into the
 // other, an edit to another block merging with no conflict, and an edit to the same line made
 // while one tab was offline settling as the write policy says, that tab's line kept and the person
-// told so.
+// told so. A tab holding a change it has not sent asks before it goes, and one that goes out of
+// sight still sends what it holds.
 
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
@@ -22,10 +23,19 @@ const FROM_A = " From A.";
 const FROM_B = " From B.";
 const ONLINE_A = " Online A.";
 const OFFLINE_B = " Offline B.";
+const HIDDEN_B = " Hidden B.";
 const OVERLAP = `${TITLE} also changed elsewhere`;
 const DEADLINE_MS = 30_000;
 // past the editor's pause before it writes what was typed
 const PAST_THE_PAUSE_MS = 2000;
+
+// a leave as the browser makes it, without leaving: the page asks first when it prevents it
+const LEAVING = `window.dispatchEvent(new Event("beforeunload", { cancelable: true })) ? "goes" : "asks"`;
+// the tab goes out of sight, as a switch to another tab or a minimized window makes it
+const HIDE = `Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" }); document.dispatchEvent(new Event("visibilitychange")); true`;
+
+const leaving = async (browser: AgentBrowser): Promise<string> =>
+  parseEval(await browser(["eval", LEAVING]), z.string());
 
 const editorText = async (browser: AgentBrowser): Promise<string> =>
   parseEval(
@@ -52,7 +62,7 @@ const typeAfter = async (browser: AgentBrowser, line: string, typed: string): Pr
 
 export const syncConflictBrowser: Scenario = {
   description:
-    "two tabs on one account with one item open: each one's edit to its own block lands in the cell and is laid into the other; an edit to the same line made while one tab was offline settles once it is back, that tab's line kept in the cell and in both tabs, and that tab says both changed it",
+    "two tabs on one account with one item open: each one's edit to its own block lands in the cell and is laid into the other; an edit to the same line made while one tab was offline settles once it is back, that tab's line kept in the cell and in both tabs, and that tab says both changed it; a tab holding an edit it has not sent asks before it closes, and one gone out of sight right after typing still sends the edit",
   name: "sync-conflict-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -98,6 +108,10 @@ export const syncConflictBrowser: Scenario = {
     );
     const held = await untilItemText(library, itemId, () => true, "unread");
     expect(!held.includes(OFFLINE_B.trim()), `the offline tab's edit reached the cell:\n${held}`);
+    expect(
+      (await leaving(b)) === "asks",
+      "the offline tab let itself be closed with an edit it had not sent",
+    );
 
     ctx.log("B comes back: its line is kept, in the cell and in both tabs, and B says so");
     await b(["set", "offline", "off"]);
@@ -125,5 +139,23 @@ export const syncConflictBrowser: Scenario = {
     );
     await untilShows(a.browser, `${LINE_ONE}${FROM_A}${OFFLINE_B}`, "A");
     await untilShows(b, `${LINE_ONE}${FROM_A}${OFFLINE_B}`, "B");
+    await pollUntil(
+      async () => await leaving(b),
+      (answer) => answer === "goes",
+      {
+        deadlineMs: DEADLINE_MS,
+        describe: () => "tab B still asks before it closes with everything sent",
+      },
+    );
+
+    ctx.log("B goes out of sight right after typing: its edit is written and sent all the same");
+    await typeAfter(b, LINE_TWO, HIDDEN_B);
+    await b(["eval", HIDE]);
+    await untilItemText(
+      library,
+      itemId,
+      (markdown) => markdown.includes(`${LINE_TWO}${FROM_B}${HIDDEN_B}`),
+      "the edit of a tab gone out of sight never reached the cell",
+    );
   },
 };

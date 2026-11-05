@@ -26,7 +26,7 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import type { AgentViewContext } from "./agent/agent-panel";
-import { useReplica, useReplicaQueries, useWire } from "./cloud/library-context";
+import { useLeaveGuard, useReplica, useReplicaQueries, useWire } from "./cloud/library-context";
 import { refusalText } from "./cloud/needs-connection";
 import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
 import { ItemView } from "./item/item-view";
@@ -91,6 +91,12 @@ interface PendingFind {
   readonly itemId: string;
   readonly query: string;
 }
+
+// the open item holds an edit its pause has not written yet
+const holdsUnsaved = (session: ItemSession): boolean => {
+  const status = session.status();
+  return status.kind === "open" && status.unsaved;
+};
 
 const findOnceOpen = (session: ItemSession, { itemId, query }: PendingFind): void => {
   // answers whether the session is past opening, and lands the bar if it opened the item
@@ -197,6 +203,27 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       hostRef.current = null;
     };
   }, [replica]);
+
+  // CLAUDE.md § THE TAB SENDS WHAT IT HOLDS UNTIL IT CLOSES, AND ASKS BEFORE LOSING IT: the open
+  // item's edit counts as held until its pause writes it, and a tab going out of sight writes it at
+  // once, since it may never come back into sight to finish the pause
+  const leave = useLeaveGuard();
+  useEffect(
+    () =>
+      session === null ? undefined : leave.hold(() => holdsUnsaved(session), session.subscribe),
+    [leave, session],
+  );
+  useEffect(() => {
+    const writeWhenHidden = (): void => {
+      if (document.visibilityState === "hidden") {
+        void sessionRef.current?.flush();
+      }
+    };
+    document.addEventListener("visibilitychange", writeWhenHidden);
+    return () => {
+      document.removeEventListener("visibilitychange", writeWhenHidden);
+    };
+  }, []);
 
   useEffect(() => {
     hostRef.current?.showing(openItem);

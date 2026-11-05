@@ -60,6 +60,17 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   the moment the browser says it is online again, rather than at its next
   retry. `apps/workspace/vite.config.ts`, `apps/workspace/src/main.tsx`.
 
+- **THE TAB SENDS WHAT IT HOLDS UNTIL IT CLOSES, AND ASKS BEFORE LOSING IT.** A
+  change the tab made lives only in its memory until the cell takes it, so the
+  replica's socket, check-in and outbox keep running while the tab is out of
+  sight, a tab going out of sight writes the open item's edit at once, and while
+  the replica or the open item holds anything unsent the browser asks before the
+  tab closes, reloads or leaves, its listener there only then; a session that
+  ended asks nothing, since nothing can go. Rejected: suspending the replica
+  out of sight as the phone does (its outbox is on disk, the tab's is not); a
+  listener always armed (it bars the back-forward cache).
+  `apps/workspace/src/app/cloud/leave-guard.ts`, `apps/workspace/src/main.tsx`.
+
 ## Surfaces
 
 - **WINDOW-LEVEL HOSTS MOUNT AT THE ROOT ROUTE.** `ConfirmDialogHost`, `Toaster`

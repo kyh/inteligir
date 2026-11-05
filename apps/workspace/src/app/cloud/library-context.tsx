@@ -6,6 +6,7 @@ import type { LibraryReplica, ReplicaStatus } from "@repo/library-replica/librar
 import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useSyncExternalStore } from "react";
 
+import type { LeaveGuard } from "./leave-guard";
 import type { PageLibrary, SignedIn } from "./page-library";
 import { followReplica, replicaQueries } from "./replica-queries";
 import type { CloudWire } from "./v1";
@@ -25,6 +26,8 @@ export const useReplica = (): LibraryReplica => usePageLibrary().replica;
 export const useWire = (): CloudWire => usePageLibrary().wire;
 
 export const useAccount = (): SignedIn => usePageLibrary().account;
+
+export const useLeaveGuard = (): LeaveGuard => usePageLibrary().leave;
 
 export const useReplicaQueries = () => replicaQueries(useReplica());
 

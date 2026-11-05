@@ -12,6 +12,7 @@ import type { ReplicaClock, StagedBlobs } from "@repo/library-replica/replica-po
 import { uuidV7 } from "@repo/notes/library/uuid-v7";
 import { z } from "zod";
 
+import type { LeaveGuard } from "./leave-guard";
 import { createCloudWire } from "./v1";
 import type { CloudWire } from "./v1";
 
@@ -25,6 +26,8 @@ export interface PageLibrary {
   readonly replica: LibraryReplica;
   readonly wire: CloudWire;
   readonly account: SignedIn;
+  // what asks before the tab leaves while a change it holds has not reached the cell
+  readonly leave: LeaveGuard;
 }
 
 export type PageOpening =
@@ -88,7 +91,7 @@ const readSession = async (origin: string): Promise<SignedIn | null> => {
 
 export const openPageLibrary = async (
   origin: string,
-  onSessionEnd: () => void,
+  { leave, onSessionEnd }: { leave: LeaveGuard; onSessionEnd: () => void },
 ): Promise<PageOpening> => {
   const account = await readSession(origin);
   if (account === null) {
@@ -108,6 +111,11 @@ export const openPageLibrary = async (
   }
   return {
     kind: "ready",
-    library: { account, replica: opening.replica, wire: createCloudWire(origin, onSessionEnd) },
+    library: {
+      account,
+      leave,
+      replica: opening.replica,
+      wire: createCloudWire(origin, onSessionEnd),
+    },
   };
 };

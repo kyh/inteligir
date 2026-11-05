@@ -7,6 +7,7 @@ import { createBrowserHistory, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
+import { createLeaveGuard, replicaHolds } from "./app/cloud/leave-guard";
 import { openPageLibrary, signInHref } from "./app/cloud/page-library";
 import { createPageQueryClient } from "./app/cloud/v1";
 import { installLightPrints } from "./app/light-prints";
@@ -18,7 +19,11 @@ import "./styles/globals.css";
 applyStoredSpellcheck();
 installLightPrints();
 
+const leave = createLeaveGuard(window);
+
+// a session that ended leaves nothing the tab could still send, so the browser does not ask
 const goSignIn = (): void => {
+  leave.drop();
   window.location.assign(signInHref(window.location));
 };
 
@@ -27,7 +32,7 @@ if (container === null) {
   throw new Error("the document has no #root to mount into");
 }
 
-const opening = await openPageLibrary(window.location.origin, goSignIn);
+const opening = await openPageLibrary(window.location.origin, { leave, onSessionEnd: goSignIn });
 switch (opening.kind) {
   case "signed-out": {
     goSignIn();
@@ -41,17 +46,13 @@ switch (opening.kind) {
   case "ready": {
     const { library } = opening;
     library.replica.start();
-    // the socket and the minute's check-in rest while the tab is out of sight, and a tab in sight
-    // catches up the moment its connection comes back rather than at its next retry
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") {
-        library.replica.resume();
-      } else {
-        library.replica.suspend();
-      }
-    });
+    // CLAUDE.md § THE TAB SENDS WHAT IT HOLDS UNTIL IT CLOSES, AND ASKS BEFORE LOSING IT: the
+    // replica keeps running out of sight, since what it has not sent lives only in this tab, and
+    // the browser asks before the tab goes while any of it is held
+    leave.hold(() => replicaHolds(library.replica.status()), library.replica.onStatus);
+    // a tab catches up the moment its connection comes back, rather than at its next retry
     onlineManager.subscribe((online) => {
-      if (online && document.visibilityState === "visible") {
+      if (online) {
         library.replica.resume();
       }
     });
