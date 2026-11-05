@@ -52,7 +52,7 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   Settings, in one notice the root keeps up while any waits offline. A refusal
   the contract declares says its own sentence; any other failure says the
   screen's fallback, never an error's own words. The one retry rule never
-  retries a declared refusal, so no screen spells `retry: false`, and a session
+  retries a declared refusal, so no screen turns retries off itself, and a session
   that ended sends the tab to sign in. A write whose order matters shares a
   `scope`, and refetches in its own callbacks, awaited, only the family it
   moved. Rejected: a call outside TanStack (it fails at once offline); a note
@@ -109,10 +109,12 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   replica's own full-text index (titles, notes, saved articles and highlights),
   ranked as every device ranks it, beside the page's commands; a hit opens its
   item with the find bar on the words, and a typed web address offers "Save
-  this link". ⌘F IS NOT ONE OF THEM: it searches the open item, with its own
-  chord and bar. Rejected: searching through the cell (the replica holds the
-  same index, offline); a search field of the grid's own.
-  `apps/workspace/src/app/palette/command-palette.tsx`.
+  this link". The rows are groups of data the page hands `@repo/ui`'s palette,
+  Base UI's Autocomplete, which owns the field's keys, the light and the roles
+  (A PICKER IS BASE UI'S, in `packages/ui/CLAUDE.md`). ⌘F IS NOT ONE OF THEM:
+  it searches the open item, with its own chord and bar. Rejected: searching
+  through the cell (the replica holds the same index, offline); a search field
+  of the grid's own. `apps/workspace/src/app/palette/command-palette.tsx`.
 
 - **THE PANEL STARTS CLOSED, IS FLAT-TABBED, AND IS DRAGGED LIKE THE RAIL.**
   `panelOpen` defaults off, and every entry that shows something in it opens it

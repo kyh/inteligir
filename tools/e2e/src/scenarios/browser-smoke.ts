@@ -28,7 +28,7 @@ const assertDocumentPolicy = async (origin: string): Promise<void> => {
       `${path}'s document does not carry the page's policy: ${policy}`,
     );
     const html = await response.text();
-    expect(html.includes('<div id="root">'), `${path} did not answer the page's document`);
+    expect(html.includes('<div id="root"'), `${path} did not answer the page's document`);
     const inline = (html.match(/<script\b(?![^>]*\bsrc=)[^>]*>/gu) ?? []).filter(
       (tag) => !tag.includes("application/json"),
     );

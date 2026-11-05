@@ -7,7 +7,6 @@
 import { isWebUrl } from "@repo/notes/items/item-url";
 import {
   CommandDialog,
-  CommandEmpty,
   CommandFooter,
   CommandGroup,
   CommandInput,
@@ -15,8 +14,9 @@ import {
   CommandList,
   CommandShortcut,
 } from "@repo/ui/components/command";
+import type { CommandRow, CommandRowGroup } from "@repo/ui/components/command";
 import { hotkeyCaps, platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
-import { useQuery } from "@tanstack/react-query";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { TIDY_LABEL } from "../agent/tidy-library";
@@ -25,14 +25,6 @@ import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "../global-shortcuts";
 import type { GlobalShortcutAction } from "../global-shortcuts";
 
 const SEARCH_LIMIT = 20;
-
-// the chord a command answers to, as the window's table spells it
-const Chord = ({ action }: { action: GlobalShortcutAction }) => {
-  const row = GLOBAL_SHORTCUTS.find((shortcut) => shortcut.action === action);
-  return row === undefined ? null : (
-    <CommandShortcut caps={hotkeyCaps(globalShortcutHotkey(row), platformShortcutModifier())} />
-  );
-};
 
 export interface PaletteActions {
   // a search's hit, opened on the words it was found by
@@ -45,34 +37,37 @@ export interface PaletteActions {
   readonly startTidy: () => void;
 }
 
-const Results = ({
-  query,
-  onOpen,
-}: {
-  query: string;
-  onOpen: (itemId: string, query: string) => void;
-}) => {
-  const hits = useQuery(useReplicaQueries().search(query, SEARCH_LIMIT)).data ?? [];
+// a row of the palette: a search's hit, which draws its snippet under its title, or a verb, which
+// draws the chord the window answers it by
+interface PaletteRow extends CommandRow {
+  readonly hit?: { readonly itemId: string; readonly snippet: string } | undefined;
+  readonly chord?: GlobalShortcutAction | undefined;
+}
+
+// the chord a command answers to, as the window's table spells it
+const Chord = ({ action }: { action: GlobalShortcutAction }) => {
+  const row = GLOBAL_SHORTCUTS.find((shortcut) => shortcut.action === action);
+  return row === undefined ? null : (
+    <CommandShortcut caps={hotkeyCaps(globalShortcutHotkey(row), platformShortcutModifier())} />
+  );
+};
+
+const RowContent = ({ row }: { row: PaletteRow }) => {
+  if (row.hit !== undefined) {
+    return (
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate">{row.label}</span>
+        {row.hit.snippet === "" ? null : (
+          <span className="truncate text-caption text-muted-foreground">{row.hit.snippet}</span>
+        )}
+      </span>
+    );
+  }
   return (
-    <CommandGroup heading="Items">
-      {hits.map((hit) => (
-        <CommandItem
-          key={hit.itemId}
-          action="Open"
-          data-search-hit={hit.itemId}
-          onSelect={() => {
-            onOpen(hit.itemId, query);
-          }}
-        >
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate">{hit.title}</span>
-            {hit.snippet === "" ? null : (
-              <span className="truncate text-caption text-muted-foreground">{hit.snippet}</span>
-            )}
-          </span>
-        </CommandItem>
-      ))}
-    </CommandGroup>
+    <>
+      {row.label}
+      {row.chord === undefined ? null : <Chord action={row.chord} />}
+    </>
   );
 };
 
@@ -87,6 +82,9 @@ export const CommandPalette = ({
 }) => {
   const [query, setQuery] = useState("");
   const typed = query.trim();
+  const search = useReplicaQueries().search(typed, SEARCH_LIMIT);
+  const hits =
+    useQuery({ ...search, queryFn: typed === "" ? skipToken : search.queryFn }).data ?? [];
   const close = (): void => {
     onOpenChange(false);
     setQuery("");
@@ -95,6 +93,57 @@ export const CommandPalette = ({
     close();
     verb();
   };
+  const verb = (
+    value: string,
+    label: string,
+    act: () => void,
+    chord?: GlobalShortcutAction,
+  ): PaletteRow => ({ chord, label, onSelect: run(act), value });
+  const groups: CommandRowGroup<PaletteRow>[] = [
+    ...(typed === "" || hits.length === 0
+      ? []
+      : [
+          {
+            heading: "Items",
+            items: hits.map((hit): PaletteRow => ({
+              action: "Open",
+              hit: { itemId: hit.itemId, snippet: hit.snippet },
+              label: hit.title,
+              onSelect: run(() => {
+                actions.openHit(hit.itemId, typed);
+              }),
+              value: `hit:${hit.itemId}`,
+            })),
+          },
+        ]),
+    ...(isWebUrl(typed)
+      ? [
+          {
+            heading: "Save",
+            items: [
+              {
+                action: "Save",
+                label: "Save this link",
+                onSelect: run(() => {
+                  actions.saveLink(typed);
+                }),
+                value: "save-link",
+              },
+            ],
+          },
+        ]
+      : []),
+    {
+      heading: "Commands",
+      items: [
+        verb("new-note", "New note", actions.newNote),
+        verb("ask-save-link", "Save a link…", actions.askSaveLink),
+        verb("ask-agent", "Ask the agent", actions.askAgent, "open-agent"),
+        verb("tidy", TIDY_LABEL, actions.startTidy),
+        verb("settings", "Settings", actions.openSettings, "open-settings"),
+      ],
+    },
+  ];
   return (
     <CommandDialog
       open={open}
@@ -107,49 +156,21 @@ export const CommandPalette = ({
       }}
       title="Search"
       description="Search the library, or run a command"
+      query={query}
+      onQueryChange={setQuery}
+      groups={groups}
     >
-      <CommandInput
-        aria-label="Search the library"
-        placeholder="Search the library…"
-        value={query}
-        onValueChange={setQuery}
-      />
+      <CommandInput aria-label="Search the library" placeholder="Search the library…" />
       <CommandList>
-        {typed === "" ? null : (
-          <Results
-            query={typed}
-            onOpen={(itemId, words) => {
-              close();
-              actions.openHit(itemId, words);
-            }}
-          />
-        )}
-        {isWebUrl(typed) ? (
-          <CommandGroup heading="Save">
-            <CommandItem
-              action="Save"
-              onSelect={run(() => {
-                actions.saveLink(typed);
-              })}
-            >
-              Save this link
-            </CommandItem>
+        {groups.map((group) => (
+          <CommandGroup key={group.heading} heading={group.heading}>
+            {group.items.map((row) => (
+              <CommandItem key={row.value} row={row} data-search-hit={row.hit?.itemId}>
+                <RowContent row={row} />
+              </CommandItem>
+            ))}
           </CommandGroup>
-        ) : null}
-        <CommandGroup heading="Commands">
-          <CommandItem onSelect={run(actions.newNote)}>New note</CommandItem>
-          <CommandItem onSelect={run(actions.askSaveLink)}>Save a link…</CommandItem>
-          <CommandItem onSelect={run(actions.askAgent)}>
-            Ask the agent
-            <Chord action="open-agent" />
-          </CommandItem>
-          <CommandItem onSelect={run(actions.startTidy)}>{TIDY_LABEL}</CommandItem>
-          <CommandItem onSelect={run(actions.openSettings)}>
-            Settings
-            <Chord action="open-settings" />
-          </CommandItem>
-        </CommandGroup>
-        <CommandEmpty>Nothing matches.</CommandEmpty>
+        ))}
       </CommandList>
       <CommandFooter />
     </CommandDialog>

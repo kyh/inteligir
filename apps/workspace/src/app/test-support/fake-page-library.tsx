@@ -58,10 +58,13 @@ export interface FakeLibrary {
 export const fakePageLibrary = ({
   threads = [],
   events = [],
+  search = unread,
   answer,
 }: {
   threads?: readonly ThreadRow[];
   events?: readonly ThreadEventRow[];
+  // the replica's full-text search, for a screen that searches
+  search?: LibraryReplica["search"];
   // what the cell answers a call, by its procedure: every procedure answers an object
   answer: (call: CellCall) => object;
 }): FakeLibrary => {
@@ -94,7 +97,7 @@ export const fakePageLibrary = ({
     saveLink: unread,
     savePage: unread,
     scopes: unread,
-    search: unread,
+    search,
     start: unread,
     status: () => STATUS,
     suspend: unread,

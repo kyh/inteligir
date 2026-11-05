@@ -70,6 +70,17 @@ nobody, and git keeps it. A single export beside a drawn component is a reasoned
   `actionsRef.unmount()` (a close the page makes by its `open` never passes
   through `onOpenChange`); a fallback timer.
 
+- **A PICKER IS BASE UI'S AUTOCOMPLETE OR COMBOBOX, NEVER A HAND-ROLLED
+  LISTBOX.** The palette is Autocomplete as Base UI builds a command palette:
+  inline in a Dialog, `open`, `autoHighlight="always"`, the rows the page's
+  grouped data and nothing filtered or filled from them, so the field keeps
+  focus while the arrows move the light, Enter runs the lit row and a picked
+  row never becomes the query (`packages/ui/src/components/command.tsx`); the
+  editor's in-text menus are Combobox (`packages/editor/src/inline-combobox.tsx`).
+  Rejected: the palette's own listbox (its active descendant, arrows, Enter and
+  row registry were ours to keep right, under five lint suppressions); cmdk (a
+  second picker library beside Base UI).
+
 ## Repo guards, vendoring and tooling
 
 - **THE ORPHAN GUARD OVER `@repo/ui` IS PER EXPORT**: every named export under

@@ -5,7 +5,6 @@ import { Activity, Profiler } from "react";
 import type { ProfilerOnRenderCallback, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CommandDialog, CommandItem, CommandList } from "./command";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +20,7 @@ import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "./sidebar-menu"
 // proximity pick unscaled.
 const ROW_HEIGHT = 28;
 const ROW_WIDTH = 200;
-const ROW = '[data-sidebar="menu-item"], [data-dropdown-menu-item], [data-command-item]';
+const ROW = '[data-sidebar="menu-item"], [data-dropdown-menu-item]';
 const BOXED = `${ROW}, [data-sidebar="menu-button"]`;
 
 const rowTop = (element: HTMLElement): number => {
@@ -168,18 +167,6 @@ const expectLinearMount = (draw: (keys: readonly string[]) => ReactNode): void =
 describe("a list's rows register in one pass per commit", () => {
   it("mounts a sidebar menu of a thousand rows with one measure", () => {
     expectLinearMount((keys) => <Menu keys={keys} />);
-  });
-
-  it("mounts a command list of a thousand rows with one measure", () => {
-    expectLinearMount((keys) => (
-      <CommandDialog open onOpenChange={vi.fn()} title="Rows" description="A long list">
-        <CommandList>
-          {keys.map((key) => (
-            <CommandItem key={key}>{key}</CommandItem>
-          ))}
-        </CommandList>
-      </CommandDialog>
-    ));
   });
 
   it("mounts a dropdown of a thousand rows with one measure", () => {

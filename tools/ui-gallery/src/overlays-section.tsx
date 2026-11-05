@@ -11,7 +11,6 @@ import {
 import { Button } from "@repo/ui/components/button";
 import {
   CommandDialog,
-  CommandEmpty,
   CommandFooter,
   CommandGroup,
   CommandInput,
@@ -19,6 +18,7 @@ import {
   CommandList,
   CommandShortcut,
 } from "@repo/ui/components/command";
+import type { CommandRow, CommandRowGroup } from "@repo/ui/components/command";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import {
   Dialog,
@@ -42,12 +42,42 @@ const confirmedNote = (confirmed: boolean | null): string | undefined => {
   return confirmed ? "You confirmed." : "You cancelled.";
 };
 
+// the demo's rows, which a page filters by its own query before the palette draws them
+interface DemoRow extends CommandRow {
+  readonly caps?: readonly string[];
+}
+
+const demoRow = (label: string, caps?: readonly string[]): DemoRow => ({
+  action: label,
+  caps,
+  label,
+  onSelect: () => {
+    // the demo's rows run nothing; the footer names what Enter would do
+  },
+  value: label,
+});
+
+const PALETTE_ROWS: readonly CommandRowGroup<DemoRow>[] = [
+  { heading: "Notes", items: [demoRow("Release checklist"), demoRow("Weekly review")] },
+  {
+    heading: "Commands",
+    items: [demoRow("New note", ["⌘", "N"]), demoRow("Open settings", ["⌘", ","])],
+  },
+];
+
+const filterRows = (query: string): CommandRowGroup<DemoRow>[] =>
+  PALETTE_ROWS.map((group) => ({
+    heading: group.heading,
+    items: group.items.filter((row) => row.label.toLowerCase().includes(query.toLowerCase())),
+  })).filter((group) => group.items.length > 0);
+
 export const OverlaysSection = () => {
   const [confirmed, setConfirmed] = useState<boolean | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [alertOpen, setAlertOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState("");
+  const paletteGroups = filterRows(paletteQuery.trim());
 
   const ask = async () => {
     setConfirmed(
@@ -219,32 +249,31 @@ export const OverlaysSection = () => {
         </Button>
         <CommandDialog
           open={paletteOpen}
-          onOpenChange={setPaletteOpen}
+          onOpenChange={(open) => {
+            setPaletteOpen(open);
+            setPaletteQuery("");
+          }}
           title="Command palette"
           description="Open a note or run a command"
+          query={paletteQuery}
+          onQueryChange={setPaletteQuery}
+          groups={paletteGroups}
         >
           <CommandInput
             placeholder="Search notes or commands…"
             aria-label="Search notes or commands"
-            value={paletteQuery}
-            onValueChange={setPaletteQuery}
           />
           <CommandList>
-            <CommandEmpty>Nothing matches.</CommandEmpty>
-            <CommandGroup heading="Notes">
-              <CommandItem action="Release checklist">Release checklist</CommandItem>
-              <CommandItem action="Weekly review">Weekly review</CommandItem>
-            </CommandGroup>
-            <CommandGroup heading="Commands">
-              <CommandItem action="New note">
-                New note
-                <CommandShortcut caps={["⌘", "N"]} />
-              </CommandItem>
-              <CommandItem action="Open settings">
-                Open settings
-                <CommandShortcut caps={["⌘", ","]} />
-              </CommandItem>
-            </CommandGroup>
+            {paletteGroups.map((group) => (
+              <CommandGroup key={group.heading} heading={group.heading}>
+                {group.items.map((row) => (
+                  <CommandItem key={row.value} row={row}>
+                    {row.label}
+                    {row.caps === undefined ? null : <CommandShortcut caps={row.caps} />}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
           </CommandList>
           <CommandFooter />
         </CommandDialog>
