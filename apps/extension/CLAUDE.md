@@ -43,12 +43,12 @@ Decisions says how a bullet is written and cited.
   back online". A first try whose worker stopped mid-call is resent only once
   past the longest it can run (its cover fetches and two calls, each to its
   deadline), since a link landing under its op id first would stand in for its
-  page. A
-  build the cloud calls too old waits for the browser's update, which
-  `storage.local` outlives; any other refusal lets it go, a full library too,
-  which only the person can empty; a revoked credential forgets the connection
-  and every save made under it. Rejected: the page's HTML in the queue (2 MB a
-  save in a 10 MB store); a timer (the worker dies 30 s after its last event).
+  page. A waiting save the cloud refuses as too old a build waits for the
+  browser's update, which `storage.local` outlives; any other refusal lets it
+  go, a full library too, which only the person can empty; a revoked
+  credential forgets the connection and every save made under it. Rejected:
+  the page's HTML in the queue (2 MB a save in a 10 MB store); a timer (the
+  worker dies 30 s after its last event).
   `apps/extension/src/background/save-queue.ts`.
 
 - **THE CREDENTIAL AND THE QUEUE ARE STORAGE'S, AND THE WORKER HOLDS NOTHING.**

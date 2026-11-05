@@ -28,12 +28,14 @@ program extends.
 
 ```
 wxt.config.ts                     the build: the manifest, the store zip's checks
+worker-conditions.ts              how the worker's bundle and its suites resolve a package
 src/manifest.ts                   the MV3 manifest, one function of the build's flavor
 src/entrypoints/background.ts     the service worker: its listeners, the menus, the badge
 src/entrypoints/capture.ts        the script executeScript injects: the rendered DOM, cloned
 src/entrypoints/popup/            the toolbar's popup: the save and how it went
 src/entrypoints/welcome/          the page an install opens: the account it saves to, or Connect
 src/background/connection.ts      the credential, kept in storage, and the connect page's messages
+src/background/listeners.ts       who the worker hears: its own pages and the one connect page
 src/background/cloud.ts           the /v1 calls, their deadline and what a failure means
 src/background/save-page.ts       a tab, a link or a picture saved
 src/background/save-queue.ts      a save that waits, and the alarm that sends it
@@ -47,7 +49,8 @@ src/outcome-copy.ts               every sentence the popup, the welcome page and
 The pages ask the worker, and the worker asks the cloud. `pnpm
 dev:extension` (`docs/development.md` § Browser extension) runs `wxt`, which
 rebuilds `.output/chrome-mv3-dev` and reloads the extension on every change;
-`pnpm --filter @repo/extension test` runs the suites under `WxtVitest()` and
-jsdom, the pages compiled as they ship, and `pnpm e2e --only
+`pnpm --filter @repo/extension test` runs the suites under `WxtVitest()`, the
+worker's under node with no DOM, the pages' under jsdom and compiled as they
+ship, and `pnpm e2e --only
 browser-extension` loads the dev build in a real Chromium against a booted
 Worker.
