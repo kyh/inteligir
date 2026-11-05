@@ -2,8 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { BULK_ITEMS_MAX } from "@repo/contract/cloud/library/library-wire";
 
-import { changeSetsOf } from "../cloud/history-pages";
-import { conversationUndo, turnUndo, undoBatches } from "./thread-undo";
+import { changeSetsOf, conversationUndo, turnUndo, undoBatches } from "./thread-undo";
 
 const THREAD = "0199a4c2-0000-7000-8000-00000000000a";
 

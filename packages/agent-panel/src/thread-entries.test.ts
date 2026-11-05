@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 import {
   agentRefusalWords,
   endingWords,
+  isWorking,
+  statusWords,
   readsOnly,
   threadBlocks,
   threadEntries,
@@ -111,5 +113,15 @@ describe("a conversation's blocks", () => {
   it("tells a call that only reads from one that writes", () => {
     expect(readsOnly("read_item")).toBe(true);
     expect(readsOnly("edit_item")).toBe(false);
+  });
+});
+
+describe("a thread's state", () => {
+  it("says nothing while it rests, and a turn under way is working", () => {
+    expect(statusWords("idle")).toBe("");
+    expect(statusWords("awaiting_approval")).toBe("Waiting for you");
+    expect(isWorking("running")).toBe(true);
+    expect(isWorking("queued")).toBe(true);
+    expect(isWorking("awaiting_approval")).toBe(false);
   });
 });

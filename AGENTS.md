@@ -148,6 +148,7 @@ packages/editor         @repo/editor — the Plate WYSIWYG, and the markdown cod
 packages/editor-bridge  @repo/editor-bridge — the phone editor page's wire, which the page and the phone both parse
 packages/page-reader    @repo/page-reader — a saved page read into an item, over the DOM its host hands it
 packages/library-replica @repo/library-replica — the replica engine every device runs: the pull, the outbox and its sync, over the host's SQLite
+packages/agent-panel    @repo/agent-panel — the built-in agent's panel as every device reads it: a conversation's events, approvals, Undo and sends
 packages/agent-skills   @repo/agent-skills — the dialect spec the built-in agent's instructions are built from
 packages/ui             @repo/ui — the shared component vocabulary on Base UI
 tools/repo-guards       @repo/repo-guards — fitness tests over the repo itself
@@ -367,6 +368,7 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 - [`packages/notes/CLAUDE.md`](packages/notes/CLAUDE.md) — the Library model (nodes, ops, order, undo, SQL, listing); Items, annotations, and Knowledge: the scan, search, links and tags
 - [`packages/page-reader/CLAUDE.md`](packages/page-reader/CLAUDE.md) — reading a saved page into an item: the one reader, over its host's DOM
 - [`packages/library-replica/CLAUDE.md`](packages/library-replica/CLAUDE.md) — the replica engine: its ports, the pull, the overlay, the outbox, the socket and the in-memory SQLite
+- [`packages/agent-panel/CLAUDE.md`](packages/agent-panel/CLAUDE.md) — the built-in agent's panel, one package every device draws
 - [`packages/agent-runtime/CLAUDE.md`](packages/agent-runtime/CLAUDE.md) — the local agent runtime the built-in agent replaces: the provider grammar, and what a session may load from the vault
 - [`apps/cli/CLAUDE.md`](apps/cli/CLAUDE.md) — the local server the library cell replaces: its lock, composition, credential, shutdown, CSP, database, and a vault's data dir
 - [`apps/cli/src/server/vault/CLAUDE.md`](apps/cli/src/server/vault/CLAUDE.md) — the local vault the library cell replaces: writes, git and containment

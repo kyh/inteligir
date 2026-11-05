@@ -4,6 +4,7 @@
 // changed since the set is kept, and the answer says so. History lives in the cell, so it waits
 // for a connection; it reads a page of sets at a time, the older ones on "Show older".
 
+import { changeSetsOf } from "@repo/agent-panel/thread-undo";
 import { itemView } from "@repo/editor/codec/item-view";
 import { Button } from "@repo/ui/components/button";
 import { Dialog, DialogContent, DialogTitle } from "@repo/ui/components/dialog";
@@ -17,7 +18,7 @@ import {
 } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { changeSetsOf, historyPages } from "../cloud/history-pages";
+import { historyPages } from "../cloud/history-pages";
 import { useReplica, useWire } from "../cloud/library-context";
 import { CellAnswer, refusalText } from "../cloud/needs-connection";
 import { relativeTimeLabel, useNow } from "../relative-time";

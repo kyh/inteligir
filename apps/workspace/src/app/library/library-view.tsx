@@ -19,7 +19,7 @@ import {
 import type { CellLibraryScope } from "@repo/domain/library-scope";
 import { ArrowDownUpIcon, PlusIcon } from "lucide-react";
 
-import { TIDY_LABEL } from "../agent/tidy-library";
+import { TIDY_LABEL } from "@repo/agent-panel/tidy-library";
 import { LIBRARY_SORTS } from "../prefs";
 import type { LibrarySort } from "../prefs";
 import { formatCount } from "./item-labels";

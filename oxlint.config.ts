@@ -11,8 +11,9 @@ const tests = ["**/test-support/**", "**/*.test.ts", "**/*.test.tsx"];
 const NODE = "^node:";
 const REACT = "^react(?:-dom)?(?:/|$)";
 const NODE_OR_REACT = "^(?:node:|react(?:-dom)?(?:/|$))";
-// the replica engine runs in the Mac's page, the browser tab, the phone's Hermes and node's tests:
-// no platform, no UI, and no editor, whose diff3 its host hands it as the block merge
+// the replica engine and the agent's panel run in the Mac's page, the browser tab, the phone's
+// Hermes and node's tests: no platform, no UI, and no editor, whose diff3 the engine's host hands
+// it as the block merge
 const REPLICA_IMPORTS =
   "^(?:node:|react(?:-dom|-native)?(?:/|$)|expo(?:-[^/]+)?(?:/|$)|@expo/|@repo/(?:editor|ui)(?:/|$))";
 
@@ -194,6 +195,11 @@ export default defineConfig({
       "packages/library-replica",
       REPLICA_IMPORTS,
       "@repo/library-replica is the replica engine every device runs, so it names no platform: its SQL, clock, ids, transport, socket, staged files and block merge are the ports its host hands it",
+    ),
+    platformPurity(
+      "packages/agent-panel",
+      REPLICA_IMPORTS,
+      "@repo/agent-panel is the built-in agent's panel as every device reads it, so it names no platform and no UI: the Mac's and the tab's page draw it with @repo/ui, the phone natively",
     ),
     platformPurity(
       "apps/extension",

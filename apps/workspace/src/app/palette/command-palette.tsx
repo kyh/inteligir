@@ -19,7 +19,7 @@ import { hotkeyCaps, platformShortcutModifier } from "@repo/ui/lib/hotkey-spelli
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { TIDY_LABEL } from "../agent/tidy-library";
+import { TIDY_LABEL } from "@repo/agent-panel/tidy-library";
 import { useReplicaQueries } from "../cloud/library-context";
 import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "../global-shortcuts";
 import type { GlobalShortcutAction } from "../global-shortcuts";

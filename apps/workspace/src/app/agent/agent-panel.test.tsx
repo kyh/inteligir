@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
 import type { CellCall, ThreadEventRow, ThreadRow } from "../test-support/fake-page-library";
 import { AgentPanel } from "./agent-panel";
-import { TIDY_LABEL, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
+import { TIDY_LABEL, TIDY_VIEW_CONTEXT, tidyMessage } from "@repo/agent-panel/tidy-library";
 
 afterEach(cleanup);
 

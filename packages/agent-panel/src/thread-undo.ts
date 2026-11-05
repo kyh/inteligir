@@ -5,8 +5,28 @@
 // cell takes when the conversation made more sets than one undo names.
 
 import { BULK_ITEMS_MAX } from "@repo/contract/cloud/library/library-wire";
+import type { changeSetSchema } from "@repo/contract/cloud/library/library-wire";
+import type { z } from "zod";
 
-import type { ChangeSet } from "../cloud/history-pages";
+export type ChangeSet = z.infer<typeof changeSetSchema>;
+
+// the sets of every page of History asked so far, each once: the pages are counted from the
+// newest, so a set made after an older page was asked moves the next page's first set onto it
+// again
+export const changeSetsOf = (
+  pages: readonly { readonly changeSets: readonly ChangeSet[] }[],
+): ChangeSet[] => {
+  const seen = new Set<string>();
+  return pages.flatMap((page) =>
+    page.changeSets.filter((set) => {
+      if (seen.has(set.id)) {
+        return false;
+      }
+      seen.add(set.id);
+      return true;
+    }),
+  );
+};
 
 const undoable = (set: ChangeSet): boolean => set.undoneBy === null && set.closedAt !== null;
 

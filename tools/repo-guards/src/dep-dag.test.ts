@@ -24,6 +24,10 @@ import { GALLERY_DIR } from "./ui-package";
 // be declared in the manifest.
 const DECLARED_EDGES = new Map<string, readonly string[]>(
   Object.entries({
+    // the built-in agent's panel as every device reads it: `/v1`'s thread rows and events
+    // (@repo/contract) and the library's scopes a view context names (@repo/domain); each device
+    // draws it, so no UI edge
+    "@repo/agent-panel": ["@repo/contract", "@repo/domain"],
     "@repo/agent-runtime": ["@repo/domain"],
     // a leaf: content (markdown served to agents), imported as files.
     "@repo/agent-skills": [],
@@ -106,9 +110,11 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // is the cloud's fill, a saved page read by the reader every device runs, over linkedom
     "@repo/web": ["@repo/contract", "@repo/editor", "@repo/notes", "@repo/page-reader", "@repo/ui"],
     // the library's page, which the Worker serves and the Mac's window shows: the replica engine
-    // every device runs (@repo/library-replica) and `/v1`'s wire (@repo/contract) to the account's
-    // cell; it reaches no shell source, only the shell's IPC (SHELL_API_CLIENTS below)
+    // every device runs (@repo/library-replica), the agent's panel every device reads
+    // (@repo/agent-panel) and `/v1`'s wire (@repo/contract) to the account's cell; it reaches no
+    // shell source, only the shell's IPC (SHELL_API_CLIENTS below)
     "@repo/workspace": [
+      "@repo/agent-panel",
       "@repo/contract",
       "@repo/domain",
       "@repo/editor",

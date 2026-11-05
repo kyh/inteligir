@@ -1,0 +1,29 @@
+{
+  "name": "@repo/agent-panel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The built-in agent's panel as every device reads it: a thread's stored events folded into what a conversation draws, the approval waiting, each turn's ending and Undo, the reply being written as the socket carries it, and what a send asks. Pure: the Mac's and the tab's page draw it with @repo/ui, the phone natively.",
+  "type": "module",
+  "exports": {
+    "./agent-send": "./src/agent-send.ts",
+    "./thread-entries": "./src/thread-entries.ts",
+    "./thread-previews": "./src/thread-previews.ts",
+    "./thread-undo": "./src/thread-undo.ts",
+    "./tidy-library": "./src/tidy-library.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@orpc/client": "catalog:",
+    "@repo/contract": "workspace:*",
+    "@repo/domain": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@kyh/tsconfig": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

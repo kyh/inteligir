@@ -2,12 +2,12 @@
 // panel's tabs: Info, Highlights and History about one item (the open one, else the one card
 // selected), and the built-in agent's conversations about the whole library.
 
+import type { AgentViewContext } from "@repo/agent-panel/agent-send";
 import type { ItemSession } from "@repo/editor/item/item-session";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
 import { z } from "zod";
 
 import { AgentPanel } from "../agent/agent-panel";
-import type { AgentViewContext } from "../agent/agent-panel";
 import { AnnotationsTab } from "./annotations-tab";
 import { HistoryTab } from "./history-tab";
 import { InfoTab } from "./info-tab";

@@ -258,8 +258,8 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   set seals with it. Rejected: the local server's ⌘K composer and agents (no
   runtime on the device); a socket of the page's own to the conversation's
   object; one page of sets (a long conversation's oldest turns lost their
-  Undo). `apps/workspace/src/app/agent/agent-panel.tsx`, `thread-entries.ts`,
-  `thread-undo.ts`.
+  Undo). `apps/workspace/src/app/agent/agent-panel.tsx`, over
+  `packages/agent-panel/src/thread-entries.ts`, `thread-undo.ts`.
 
 - **TIDY MY LIBRARY IS A REQUEST FROM UNSORTED, AND THE FILING RULES ARE THE
   CELL'S.** The grid's header and ⌘P open the agent's composer on a new
@@ -270,7 +270,7 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   Unsorted is no folder and its items are the ones to file. Rejected: the
   request typed into the field (a person could edit it away); rules in the
   request (a second read beside the turn's).
-  `apps/workspace/src/app/agent/tidy-library.ts`,
+  `packages/agent-panel/src/tidy-library.ts`,
   `apps/workspace/src/app/settings/filing-rules.ts`.
 
 ## Repo guards, vendoring and tooling

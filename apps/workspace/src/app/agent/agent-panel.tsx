@@ -4,8 +4,29 @@
 // answer to an approval, a stop and an undo go to the cell, so each waits for a connection. A
 // message carries the screen it was sent from (the open item, or the grid's scope and selection).
 
-import { agentPreviewSchema } from "@repo/contract/cloud/library/agent-events";
-import type { agentViewContextSchema } from "@repo/contract/cloud/library/library-wire";
+import { composerPlaceholder, sendInput } from "@repo/agent-panel/agent-send";
+import type { AgentViewContext } from "@repo/agent-panel/agent-send";
+import {
+  agentRefusalWords,
+  approvalQuestion,
+  endingWords,
+  isWorking,
+  readsOnly,
+  statusWords,
+  threadBlocks,
+  threadEntries,
+  toolWords,
+  waitingApprovals,
+} from "@repo/agent-panel/thread-entries";
+import type { ThreadBlock, ThreadEntry, ToolUse } from "@repo/agent-panel/thread-entries";
+import { previewOf } from "@repo/agent-panel/thread-previews";
+import {
+  changeSetsOf,
+  conversationUndo,
+  turnUndo,
+  undoBatches,
+} from "@repo/agent-panel/thread-undo";
+import { TIDY_LABEL } from "@repo/agent-panel/tidy-library";
 import { ApprovalCard, ApprovalOption, ApprovalQuestion } from "@repo/ui/ai/approval-card";
 import type { ApprovalAnswer } from "@repo/ui/ai/approval-card";
 import { StreamingText } from "@repo/ui/ai/streaming-text";
@@ -18,27 +39,11 @@ import { plural } from "@repo/ui/lib/plural";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, PlusIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { z } from "zod";
 
-import { changeSetsOf, historyPages } from "../cloud/history-pages";
+import { historyPages } from "../cloud/history-pages";
 import { useReplica, useReplicaQueries, useWire } from "../cloud/library-context";
 import { refusalText } from "../cloud/needs-connection";
 import { relativeTimeLabel, useNow } from "../relative-time";
-import {
-  agentRefusalWords,
-  approvalQuestion,
-  endingWords,
-  readsOnly,
-  threadBlocks,
-  threadEntries,
-  toolWords,
-  waitingApprovals,
-} from "./thread-entries";
-import type { ThreadBlock, ThreadEntry, ToolUse } from "./thread-entries";
-import { conversationUndo, turnUndo, undoBatches } from "./thread-undo";
-import { TIDY_LABEL, TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
-
-export type AgentViewContext = z.infer<typeof agentViewContextSchema>;
 
 export interface AgentPanelProps {
   readonly threadId: string | null;
@@ -51,13 +56,6 @@ export interface AgentPanelProps {
   readonly tidying: boolean;
   readonly onTidyEnd: () => void;
 }
-
-const STATUS_WORDS = {
-  awaiting_approval: "Waiting for you",
-  idle: "",
-  queued: "Waiting its turn…",
-  running: "Working…",
-} as const;
 
 const EntryRow = ({
   entry,
@@ -185,7 +183,7 @@ const ThreadList = ({ onThread }: { onThread: (threadId: string | null) => void 
             >
               <span className="truncate">{thread.title}</span>
               <span className="ml-auto shrink-0 text-caption text-muted-foreground">
-                {STATUS_WORDS[thread.status] || relativeTimeLabel(thread.updatedAt, nowMs)}
+                {statusWords(thread.status) || relativeTimeLabel(thread.updatedAt, nowMs)}
               </span>
             </Button>
           </li>
@@ -200,16 +198,9 @@ const useLivePreview = (threadId: string | null): string | null => {
   useEffect(
     () =>
       replica.onThreadFrame((frame) => {
-        if (frame.threadId !== threadId) {
-          return;
-        }
-        if (!frame.preview) {
-          setPreview(null);
-          return;
-        }
-        const parsed = agentPreviewSchema.safeParse(frame.event);
-        if (parsed.success) {
-          setPreview({ text: parsed.data.text, threadId: frame.threadId });
+        const next = frame.threadId === threadId ? previewOf(frame) : null;
+        if (next !== null) {
+          setPreview(next.text === null ? null : { text: next.text, threadId: next.threadId });
         }
       }),
     [replica, threadId],
@@ -303,7 +294,7 @@ const Conversation = ({
   };
   // offered once every page is read, so it takes back the whole conversation
   const whole = hasNextPage ? null : conversationUndo(changeSets);
-  const working = thread?.status === "running" || thread?.status === "queued";
+  const working = thread !== undefined && isWorking(thread.status);
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3" data-thread={threadId}>
       {blocks.map((block, index) =>
@@ -337,8 +328,8 @@ const Conversation = ({
         </div>
       ))}
       <div className="flex flex-wrap items-center gap-1.5">
-        {thread === undefined || STATUS_WORDS[thread.status] === "" ? null : (
-          <span className="text-caption text-muted-foreground">{STATUS_WORDS[thread.status]}</span>
+        {thread === undefined || statusWords(thread.status) === "" ? null : (
+          <span className="text-caption text-muted-foreground">{statusWords(thread.status)}</span>
         )}
         {working ? (
           <Button
@@ -377,13 +368,6 @@ const TidyChip = ({ onDrop }: { onDrop: () => void }) => (
   </div>
 );
 
-const composerPlaceholder = (tidying: boolean, threadId: string | null): string => {
-  if (tidying) {
-    return TIDY_PLACEHOLDER;
-  }
-  return threadId === null ? "Ask the agent…" : "Reply…";
-};
-
 const Composer = ({
   threadId,
   onThread,
@@ -415,24 +399,14 @@ const Composer = ({
     }),
   );
   const submit = (): void => {
-    const message = text.trim();
-    if ((message === "" && !tidying) || send.isPending) {
+    if (send.isPending) {
       return;
     }
     // a Tidy starts a conversation of its own, from Unsorted, whatever the screen shows
-    if (tidying) {
-      send.mutate({ text: tidyMessage(message), viewContext: TIDY_VIEW_CONTEXT });
-      return;
+    const input = sendInput({ text, threadId, tidying, viewContext: viewContext() });
+    if (input !== null) {
+      send.mutate(input);
     }
-    const context = viewContext();
-    const input: Parameters<typeof send.mutate>[0] = { text: message };
-    if (threadId !== null) {
-      input.threadId = threadId;
-    }
-    if (context !== undefined) {
-      input.viewContext = context;
-    }
-    send.mutate(input);
   };
   return (
     <div className="flex shrink-0 flex-col gap-1.5 border-t border-border p-3">

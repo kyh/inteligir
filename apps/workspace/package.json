@@ -16,6 +16,7 @@
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/tanstack-query": "catalog:",
+    "@repo/agent-panel": "workspace:*",
     "@repo/contract": "workspace:*",
     "@repo/domain": "workspace:*",
     "@repo/editor": "workspace:*",

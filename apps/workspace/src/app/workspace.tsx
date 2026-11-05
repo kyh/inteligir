@@ -5,8 +5,9 @@
 // saved where the grid's scope saves. The open item rides the url (`?item=<id>`), so a reload, Back and a
 // link all open it.
 
+import { viewContextOf } from "@repo/agent-panel/agent-send";
+import type { AgentViewContext } from "@repo/agent-panel/agent-send";
 import type { CellLibraryScope } from "@repo/domain/library-scope";
-import { LIBRARY_SELECTION_MAX } from "@repo/domain/view-context";
 import { jumpToFindMatch } from "@repo/editor/find-bar";
 import type { ItemSession } from "@repo/editor/item/item-session";
 import { getLiveEditor } from "@repo/editor/live-editor";
@@ -26,7 +27,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useStore } from "zustand";
 
-import type { AgentViewContext } from "./agent/agent-panel";
 import { useLeaveGuard, useReplica, useReplicaQueries, useWire } from "./cloud/library-context";
 import { refusalText } from "./cloud/needs-connection";
 import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
@@ -537,25 +537,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   };
 
   // what the agent is told about the screen a message leaves from
-  const viewContext = (): AgentViewContext | undefined => {
-    if (openItem !== null) {
-      return { itemId: openItem, surface: "item" };
-    }
-    if (scope.kind === "deleted") {
-      return undefined;
-    }
-    const picked = [...selection.store.getState().selected];
-    const library: Extract<AgentViewContext, { surface: "library" }> = {
-      itemIds: picked.slice(0, LIBRARY_SELECTION_MAX),
-      scope,
-      selected: picked.length,
-      surface: "library",
-    };
-    if (kind !== null) {
-      library.kinds = [kind];
-    }
-    return library;
-  };
+  const viewContext = (): AgentViewContext | undefined =>
+    viewContextOf({ kind, openItem, scope, selected: [...selection.store.getState().selected] });
 
   // the panel's item: the open one, else the one card selected
   const [onlySelected = null, ...moreSelected] = selected;

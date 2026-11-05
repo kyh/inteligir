@@ -1,16 +1,35 @@
-// A conversation with the built-in agent as the panel reads it: the thread's stored events, each
-// parsed by the one union every device reads (`@repo/contract/cloud/library/agent-events`), and
-// what they say together (the approval still waiting, how each turn ended). An event this build
-// cannot parse is skipped, so a newer cell may add kinds. The words for each refusal and each
-// ending are the person's, never the wire's.
+// A conversation with the built-in agent as every device's panel reads it: the thread's stored
+// events, each parsed by the one union every device reads
+// (`@repo/contract/cloud/library/agent-events`), and what they say together (the approval still
+// waiting, how each turn ended, the runs of work between two messages). An event this build cannot
+// parse is skipped, so a newer cell may add kinds. The words for each refusal, each ending and each
+// thread's state are the person's, never the wire's; each device draws them its own way.
 
 import { agentEventSchema } from "@repo/contract/cloud/library/agent-events";
 import type { AgentEvent, TurnEndReason } from "@repo/contract/cloud/library/agent-events";
-import type { threadEventRowSchema } from "@repo/contract/cloud/library/library-wire";
+import type {
+  THREAD_STATUSES,
+  threadEventRowSchema,
+} from "@repo/contract/cloud/library/library-wire";
 import { ORPCError } from "@orpc/client";
 import { z } from "zod";
 
 type ThreadEventRow = z.infer<typeof threadEventRowSchema>;
+export type ThreadStatus = (typeof THREAD_STATUSES)[number];
+
+// what a thread's state says beside it in a list or under its conversation; "" while it rests
+const STATUS_WORDS = {
+  awaiting_approval: "Waiting for you",
+  idle: "",
+  queued: "Waiting its turn…",
+  running: "Working…",
+} satisfies Record<ThreadStatus, string>;
+
+export const statusWords = (status: ThreadStatus): string => STATUS_WORDS[status];
+
+// a turn under way: a send waits for it, and Stop ends it
+export const isWorking = (status: ThreadStatus): boolean =>
+  status === "running" || status === "queued";
 
 export interface ThreadEntry {
   readonly eventId: string;
