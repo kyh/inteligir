@@ -36,6 +36,7 @@ import {
 } from "./thread-entries";
 import type { ThreadBlock, ThreadEntry, ToolUse } from "./thread-entries";
 import { conversationUndo, turnUndo, undoBatches } from "./thread-undo";
+import { TIDY_LABEL, TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
 
 export type AgentViewContext = z.infer<typeof agentViewContextSchema>;
 
@@ -46,6 +47,9 @@ export interface AgentPanelProps {
   readonly viewContext: () => AgentViewContext | undefined;
   // writes what the open item holds unsaved, so an undo meets the item as the person sees it
   readonly flushOpen: () => Promise<void>;
+  // the composer holds Tidy my library's request, until it is sent or dropped
+  readonly tidying: boolean;
+  readonly onTidyEnd: () => void;
 }
 
 const STATUS_WORDS = {
@@ -363,14 +367,35 @@ const Conversation = ({
   );
 };
 
+// Tidy my library's request, above the field the person may add to
+const TidyChip = ({ onDrop }: { onDrop: () => void }) => (
+  <div className="flex items-center gap-1 px-1 pb-1" data-tidy-request>
+    <span className="rounded-full bg-muted px-2 py-0.5 text-caption">{TIDY_LABEL}</span>
+    <Button variant="ghost" size="compact" onClick={onDrop}>
+      Don’t tidy
+    </Button>
+  </div>
+);
+
+const composerPlaceholder = (tidying: boolean, threadId: string | null): string => {
+  if (tidying) {
+    return TIDY_PLACEHOLDER;
+  }
+  return threadId === null ? "Ask the agent…" : "Reply…";
+};
+
 const Composer = ({
   threadId,
   onThread,
   viewContext,
+  tidying,
+  onTidyEnd,
 }: {
   threadId: string | null;
   onThread: (threadId: string) => void;
   viewContext: () => AgentViewContext | undefined;
+  tidying: boolean;
+  onTidyEnd: () => void;
 }) => {
   const { orpc } = useWire();
   const [text, setText] = useState("");
@@ -384,13 +409,19 @@ const Composer = ({
       },
       onSuccess: (answer) => {
         setText("");
+        onTidyEnd();
         onThread(answer.threadId);
       },
     }),
   );
   const submit = (): void => {
     const message = text.trim();
-    if (message === "" || send.isPending) {
+    if ((message === "" && !tidying) || send.isPending) {
+      return;
+    }
+    // a Tidy starts a conversation of its own, from Unsorted, whatever the screen shows
+    if (tidying) {
+      send.mutate({ text: tidyMessage(message), viewContext: TIDY_VIEW_CONTEXT });
       return;
     }
     const context = viewContext();
@@ -409,7 +440,9 @@ const Composer = ({
         value={text}
         onValueChange={setText}
         onSend={submit}
-        placeholder={threadId === null ? "Ask the agent…" : "Reply…"}
+        placeholder={composerPlaceholder(tidying, threadId)}
+        sendsEmpty={tidying}
+        topSlot={tidying ? <TidyChip onDrop={onTidyEnd} /> : undefined}
         sendLabel="Send"
         minRows={2}
         maxRows={8}
@@ -420,7 +453,14 @@ const Composer = ({
   );
 };
 
-export const AgentPanel = ({ threadId, onThread, viewContext, flushOpen }: AgentPanelProps) => (
+export const AgentPanel = ({
+  threadId,
+  onThread,
+  viewContext,
+  flushOpen,
+  tidying,
+  onTidyEnd,
+}: AgentPanelProps) => (
   <div className="flex h-full min-h-0 flex-col" data-agent-panel>
     <div className="flex h-10 shrink-0 items-center gap-1 px-2">
       {threadId === null ? (
@@ -454,6 +494,12 @@ export const AgentPanel = ({ threadId, onThread, viewContext, flushOpen }: Agent
     ) : (
       <Conversation threadId={threadId} flushOpen={flushOpen} />
     )}
-    <Composer threadId={threadId} onThread={onThread} viewContext={viewContext} />
+    <Composer
+      threadId={threadId}
+      onThread={onThread}
+      viewContext={viewContext}
+      tidying={tidying}
+      onTidyEnd={onTidyEnd}
+    />
   </div>
 );

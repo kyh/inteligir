@@ -70,6 +70,7 @@ import type { CellActor } from "./cell-actor";
 import { listThreads, threadEvents } from "./cell-threads";
 import { landedSchema } from "./library-engine";
 import type { LibraryEngine } from "./library-engine";
+import { readLibraryRules, writeLibraryRules } from "./library-rules";
 
 export interface CellContext {
   // whom this call's writes are by, read at the moment a write lands: the built-in agent's is its
@@ -157,6 +158,7 @@ const highlightedSchema = z.object({
 const headSchema = z.object({ seq: z.number() });
 const importAnswer = z.object({ job: importJobSchema });
 const exportAnswer = z.object({ export: exportJobSchema });
+const rulesAnswer = z.object({ rules: z.string() });
 
 const summaryOfRow = (row: LiveItemRow) => summaryOf(row, "concise");
 
@@ -200,8 +202,21 @@ export const libraryRouter = os.router({
     send: os.agent.send.handler(async ({ context, input }) =>
       committed(context, await sendToAgent(context.agent, input)),
     ),
+    rules: os.agent.rules.handler(({ context }) =>
+      answer(context.library.read((sql) => ({ rules: readLibraryRules(sql) }))),
+    ),
     setEnabled: os.agent.setEnabled.handler(({ context, input }) =>
       committed(context, setAgentEnabled(context.agent, input)),
+    ),
+    // a meta row of the library's, joining no change set: rules are no item's
+    setRules: os.agent.setRules.handler(({ context, input }) =>
+      committed(
+        context,
+        context.library.landApart({ answer: rulesAnswer, opId: input.opId }, (scope) => {
+          writeLibraryRules(scope.storage, input.rules);
+          return { rules: input.rules };
+        }),
+      ),
     ),
     // whether it is on, and what is left of the day's allowance
     status: os.agent.status.handler(({ context }) => answer(agentStatus(context.agent))),

@@ -45,6 +45,7 @@ import {
   itemSummarySchema,
   libraryChangeSchema,
   liveItemRowSchema,
+  FILING_RULES_MAX,
   MARKDOWN_MAX,
   MESSAGE_MAX,
   newIdSchema,
@@ -567,6 +568,15 @@ const agentContract = {
     .errors({ [AgentUnavailableError.code]: AgentUnavailableError })
     .input(z.strictObject({ enabled: z.boolean(), opId }))
     .output(z.object({ enabled: z.boolean() })),
+
+  // the person's filing rules, which the agent follows over its own taste in every conversation;
+  // null while the library keeps none
+  rules: signedBase.output(z.object({ rules: z.string().nullable() })),
+
+  // the filing rules as the person wrote them, from the next turn on; an import never replaces them
+  setRules: signedBase
+    .input(z.strictObject({ opId, rules: z.string().max(FILING_RULES_MAX) }))
+    .output(z.object({ rules: z.string() })),
 };
 
 export const libraryContract = {

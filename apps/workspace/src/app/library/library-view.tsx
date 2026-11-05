@@ -19,6 +19,7 @@ import {
 import type { CellLibraryScope } from "@repo/domain/library-scope";
 import { ArrowDownUpIcon, PlusIcon } from "lucide-react";
 
+import { TIDY_LABEL } from "../agent/tidy-library";
 import { LIBRARY_SORTS } from "../prefs";
 import type { LibrarySort } from "../prefs";
 import { formatCount } from "./item-labels";
@@ -59,6 +60,8 @@ export interface LibraryViewProps {
   readonly actions: LibraryItemActions;
   readonly add: LibraryAdd;
   readonly onEmptyDeleted: () => void;
+  // offered while the library holds items to file or tag
+  readonly onTidy: (() => void) | null;
 }
 
 interface EmptyWords {
@@ -181,6 +184,7 @@ export const LibraryView = ({
   actions,
   add,
   onEmptyDeleted,
+  onTidy,
 }: LibraryViewProps) => {
   const empty = emptyWords(scope);
   if (page === undefined) {
@@ -200,6 +204,11 @@ export const LibraryView = ({
           {formatCount(page.total)}
         </span>
         <div className="ml-auto flex items-center gap-1.5">
+          {onTidy === null || scope.kind === "deleted" ? null : (
+            <Button size="compact" variant="ghost" onClick={onTidy}>
+              {TIDY_LABEL}
+            </Button>
+          )}
           <SortMenu sort={sort} onSortChange={onSortChange} />
           {scope.kind === "deleted" ? (
             <Button

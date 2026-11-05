@@ -1,7 +1,8 @@
 // The library's page: the rail of scopes, the grid of the scope or the item open in its place, and
 // the right panel (Info, Highlights, History, the agent), over the replica the page holds. Every
 // screen reads the replica and writes through its outbox; what only the cell answers goes as a
-// call that needs a connection. The open item rides the url (`?item=<id>`), so a reload, Back and a
+// call that needs a connection. A link or a file pasted or dropped where no field takes it is
+// saved where the grid's scope saves. The open item rides the url (`?item=<id>`), so a reload, Back and a
 // link all open it.
 
 import type { CellLibraryScope } from "@repo/domain/library-scope";
@@ -33,6 +34,9 @@ import { ItemView } from "./item/item-view";
 import { installPageEditorHost } from "./item/page-editor-host";
 import type { PageEditorHost } from "./item/page-editor-host";
 import { runBulk } from "./library/bulk-actions";
+import { filesPayload } from "./library/capture/capture-payload";
+import type { CapturedLink, CapturePayload } from "./library/capture/capture-payload";
+import { useWindowCapture } from "./library/capture/window-capture";
 import { MoveDialog, NameDialog, TagDialog } from "./library/item-dialogs";
 import type { MoveRequest, NameRequest, TagRequest } from "./library/item-dialogs";
 import type { LibraryItemActions } from "./library/item-menu";
@@ -133,6 +137,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const [kind, setKind] = useState<ItemKind | null>(null);
   const [tab, setTab] = useState<PanelTab>("info");
   const [threadId, setThreadId] = useState<string | null>(null);
+  // the agent's composer holds Tidy my library's request, on a conversation of its own
+  const [tidying, setTidying] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moveRequest, setMoveRequest] = useState<MoveRequest | null>(null);
   const [tagRequest, setTagRequest] = useState<TagRequest | null>(null);
@@ -153,6 +159,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   // the selection as it changes, which the panel's Info follows
   const selected = useStore(selection.store, (state) => state.selected);
   const folders = useQuery(queries.folders()).data ?? [];
+  const counts = useQuery(queries.scopes()).data;
   const scope = listedScope(storedScope, folders);
   const page = useQuery(queries.listing(listingQuery({ kind, scope, sort }))).data;
   const listingRows = page?.items ?? [];
@@ -168,6 +175,22 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     setTab(next);
     setPanelOpen(true);
   };
+
+  const startTidy = (): void => {
+    setThreadId(null);
+    setTidying(true);
+    revealPanel("agent");
+  };
+
+  // a conversation chosen while a Tidy waits to be sent lets the Tidy go
+  const chooseThread = (next: string | null): void => {
+    setThreadId(next);
+    if (next !== null) {
+      setTidying(false);
+    }
+  };
+  // offered while something waits to be filed or tagged
+  const tidyOffered = counts !== undefined && counts.unsorted + counts.untagged > 0;
 
   // the editor's host, made once for the page: links open items, the chord's highlight lands on
   // the item open now, and "Ask the agent" opens the panel's composer
@@ -292,23 +315,65 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     })();
   };
 
-  const saveLink = (url: string): void => {
+  const saveLinks = (links: readonly CapturedLink[]): void => {
     void (async () => {
-      const made = await replica.saveLink({
-        folderId: saveFolderOf(scope),
-        tags: saveTagsOf(scope),
-        url,
-      });
-      toast.success(made.folded ? "Your library already holds that link." : "Saved.", {
+      const made = [];
+      for (const link of links) {
+        const into = { folderId: saveFolderOf(scope), tags: saveTagsOf(scope), url: link.url };
+        made.push(
+          await replica.saveLink(link.title === null ? into : { ...into, title: link.title }),
+        );
+      }
+      const [only, ...more] = made;
+      if (only === undefined) {
+        return;
+      }
+      if (more.length > 0) {
+        toast.success(`Saved ${plural(made.length, "link")}.`);
+        return;
+      }
+      toast.success(only.folded ? "Your library already holds that link." : "Saved.", {
         action: {
           label: "Open",
           onClick: () => {
-            open(made.id);
+            open(only.id);
           },
         },
       });
     })();
   };
+
+  const saveLink = (url: string): void => {
+    saveLinks([{ title: null, url }]);
+  };
+
+  // what a paste, a drop or the file picker handed over: each file and each link saved where the
+  // grid's scope saves, and what could not be taken said
+  const savePayload = (payload: CapturePayload): void => {
+    for (const sentence of payload.refused) {
+      toast.error(sentence);
+    }
+    if (payload.urls.length > 0) {
+      saveLinks(payload.urls);
+    }
+    if (payload.files.length > 0) {
+      void (async () => {
+        const made = await uploadPicked(
+          replica,
+          payload.files,
+          saveFolderOf(scope),
+          saveTagsOf(scope),
+        );
+        toast.success(`Added ${plural(made, "file")}.`);
+      })();
+    }
+  };
+
+  const { catcherRef, dropInto } = useWindowCapture({
+    enabled: !covered,
+    into: () => (scope.kind === "folder" ? scopeTitle(scope, folders) : "Unsorted"),
+    onCapture: savePayload,
+  });
 
   const askSaveLink = (): void => {
     setNameRequest({
@@ -594,6 +659,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                     onEmptyDeleted={() => {
                       purge(listingRows);
                     }}
+                    onTidy={tidyOffered ? startTidy : null}
                   />
                 ) : (
                   <ItemView
@@ -615,6 +681,14 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                     }}
                   />
                 )}
+                {dropInto === null ? null : (
+                  <div
+                    aria-live="polite"
+                    className="pointer-events-none absolute inset-3 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-primary/50 bg-surface/80 text-title font-medium text-ink"
+                  >
+                    Drop to save to {dropInto}
+                  </div>
+                )}
               </SidebarInset>
               <Sidebar side="right" className="h-full print:hidden">
                 <Panel
@@ -623,7 +697,11 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                   tab={tab}
                   onTab={setTab}
                   threadId={threadId}
-                  onThread={setThreadId}
+                  onThread={chooseThread}
+                  tidying={tidying}
+                  onTidyEnd={() => {
+                    setTidying(false);
+                  }}
                   viewContext={viewContext}
                   flushOpen={async () => {
                     await sessionRef.current?.flush();
@@ -662,7 +740,14 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
           },
           openSettings,
           saveLink,
+          startTidy,
         }}
+      />
+      <textarea
+        ref={catcherRef}
+        aria-hidden
+        tabIndex={-1}
+        className="pointer-events-none fixed -top-full left-0 size-px opacity-0"
       />
       <input
         ref={filesRef}
@@ -674,15 +759,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
           const files = [...(event.currentTarget.files ?? [])];
           event.currentTarget.value = "";
           if (files.length > 0) {
-            void (async () => {
-              const made = await uploadPicked(
-                replica,
-                files,
-                saveFolderOf(scope),
-                saveTagsOf(scope),
-              );
-              toast.success(`Added ${plural(made, "file")}.`);
-            })();
+            savePayload(filesPayload(files));
           }
         }}
       />

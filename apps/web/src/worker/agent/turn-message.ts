@@ -7,7 +7,7 @@
 
 import type { SqlStatements } from "@repo/notes/library/library-sql";
 
-import { readLibraryRules } from "../library/cell-import-markdown";
+import { readLibraryRules } from "../library/library-rules";
 import type { TurnMessage } from "./turn-rows";
 
 interface TextBlock {

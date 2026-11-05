@@ -22,7 +22,7 @@ import {
 import { cellOf, clockAt, engineIn, inCell, newAccountId } from "../test-support/library-cell";
 import { readBlobRow } from "./cell-blobs";
 import { LIBRARY_FULL } from "./cell-import-host";
-import { readLibraryRules } from "./cell-import-markdown";
+import { readLibraryRules } from "./library-rules";
 import { runImports } from "./cell-imports";
 import { cellStorageOf } from "./cell-storage";
 

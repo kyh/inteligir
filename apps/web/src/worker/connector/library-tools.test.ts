@@ -59,8 +59,10 @@ const router = os.router({
     events: os.agent.events.handler(unimplemented),
     list: os.agent.list.handler(unimplemented),
     respond: os.agent.respond.handler(unimplemented),
+    rules: os.agent.rules.handler(unimplemented),
     send: os.agent.send.handler(unimplemented),
     setEnabled: os.agent.setEnabled.handler(unimplemented),
+    setRules: os.agent.setRules.handler(unimplemented),
     status: os.agent.status.handler(unimplemented),
   },
   annotations: {

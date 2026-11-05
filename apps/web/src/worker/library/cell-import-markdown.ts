@@ -19,7 +19,7 @@ import {
 import type { ImportEntry, ImportPlan, PlannedDoc } from "@repo/editor/codec/import-plan";
 import { urlKey } from "@repo/notes/items/item-url";
 import { libraryItemFieldsSchema } from "@repo/notes/library/library-item";
-import { readItem, readMeta, writeMeta } from "@repo/notes/library/library-queries";
+import { readItem } from "@repo/notes/library/library-queries";
 import { runPlan } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
 import { frontmatterEnd } from "@repo/notes/markdown/frontmatter";
@@ -48,17 +48,7 @@ import { landNew, storeAdds } from "./cell-items";
 import { ITEM_TEXT_MAX_BYTES, urlHolder } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";
 import type { CellStorage } from "./cell-storage";
-
-// the filing rules an import brings, which the built-in agent reads; an import never replaces the
-// library's own
-const LIBRARY_RULES_META = "library_rules";
-const RULES_MAX_BYTES = 256 * 1024;
-
-const rulesSchema = z.string().nullable();
-
-// the filing rules the library keeps, null while it keeps none
-export const readLibraryRules = (sql: SqlStatements): string | null =>
-  rulesSchema.parse(runPlan(sql, readMeta(LIBRARY_RULES_META)));
+import { adoptImportedRules } from "./library-rules";
 
 // a file read whole to hash it; a larger one is read twice, once to hash it and once to store it
 const BUFFERED_MAX_BYTES = 8 * 1024 * 1024;
@@ -334,12 +324,9 @@ const writePlan = (scope: LandingScope, host: ImportHost, job: ImportJob): void 
     ROWS.store,
     plan.stores.map((value, idx) => ({ idx, value })),
   );
-  if (
-    plan.rules !== null &&
-    plan.rules.length <= RULES_MAX_BYTES &&
-    readLibraryRules(sql) === null
-  ) {
-    runPlan(sql, writeMeta(LIBRARY_RULES_META, plan.rules));
+  // the filing rules the vault brings, which never replace the library's own
+  if (plan.rules !== null) {
+    adoptImportedRules(sql, plan.rules);
   }
   dropImportRows(sql, job.id, ROWS.entry);
   advanceImport(sql, job.id, { cursor: 0, phase: "landing", total: plan.docs.length });

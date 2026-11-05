@@ -30,6 +30,9 @@ export interface PanelProps {
   readonly infoActions: InfoActions;
   // writes what the open item holds unsaved, which an undo does first
   readonly flushOpen: () => Promise<void>;
+  // the agent's composer holds Tidy my library's request
+  readonly tidying: boolean;
+  readonly onTidyEnd: () => void;
 }
 
 const NoItem = () => (
@@ -46,6 +49,8 @@ export const Panel = ({
   viewContext,
   infoActions,
   flushOpen,
+  tidying,
+  onTidyEnd,
 }: PanelProps) => (
   <Tabs
     value={tab}
@@ -59,9 +64,7 @@ export const Panel = ({
   >
     <TabsList className="shrink-0 px-2">
       <TabsTrigger value="info">Info</TabsTrigger>
-      <TabsTrigger value="annotations" aria-label="Annotations">
-        Highlights
-      </TabsTrigger>
+      <TabsTrigger value="annotations">Highlights</TabsTrigger>
       <TabsTrigger value="history">History</TabsTrigger>
       <TabsTrigger value="agent">Agent</TabsTrigger>
     </TabsList>
@@ -84,6 +87,8 @@ export const Panel = ({
         onThread={onThread}
         viewContext={viewContext}
         flushOpen={flushOpen}
+        tidying={tidying}
+        onTidyEnd={onTidyEnd}
       />
     </TabsContent>
   </Tabs>

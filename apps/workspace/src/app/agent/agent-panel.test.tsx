@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
 import type { CellCall, ThreadEventRow, ThreadRow } from "../test-support/fake-page-library";
 import { AgentPanel } from "./agent-panel";
+import { TIDY_LABEL, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
 
 afterEach(cleanup);
 
@@ -50,6 +51,8 @@ const panel = (flushOpen = vi.fn(async () => await Promise.resolve())) => (
     onThread={vi.fn<(threadId: string | null) => void>()}
     viewContext={() => {}}
     flushOpen={flushOpen}
+    tidying={false}
+    onTidyEnd={vi.fn<() => void>()}
   />
 );
 
@@ -121,5 +124,33 @@ describe("the agent panel's conversation", () => {
         { changeSetIds: ["s2", "s1"] },
       ]);
     });
+  });
+
+  it("sends Tidy my library from Unsorted, with nothing typed, and lets the request go once sent", async () => {
+    const onThread = vi.fn<(threadId: string | null) => void>();
+    const onTidyEnd = vi.fn<() => void>();
+    const { calls, library } = fakePageLibrary({
+      answer: () => ({ status: "running", threadId: THREAD }),
+    });
+    renderOnLibrary(
+      <AgentPanel
+        threadId={null}
+        onThread={onThread}
+        viewContext={() => ({ itemId: THREAD, surface: "item" })}
+        flushOpen={vi.fn(async () => await Promise.resolve())}
+        tidying
+        onTidyEnd={onTidyEnd}
+      />,
+      library,
+    );
+    expect(screen.getByText(TIDY_LABEL)).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => {
+      expect(onThread).toHaveBeenCalledWith(THREAD);
+    });
+    expect(callsTo(calls, "library.agent.send")).toEqual([
+      { text: tidyMessage(""), viewContext: TIDY_VIEW_CONTEXT },
+    ]);
+    expect(onTidyEnd).toHaveBeenCalledOnce();
   });
 });

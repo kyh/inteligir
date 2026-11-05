@@ -188,6 +188,18 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   only what landed (`apps/workspace/src/app/library/bulk-actions.ts`). A delete
   of more than fifty asks first; any delete toasts its Undo.
 
+- **A SAVE FROM THE WINDOW IS A PASTE OR A DROP THAT NO FIELD CLAIMED.** A paste
+  lands where nothing takes text, a drop where no field or editor took it; a
+  drop holding nothing to save keeps the browser's handling, and a drag started
+  inside the page never saves (WebKit fires no paste off an editable target, so
+  ⌘V there pastes into an off-screen catcher). Each link and file goes through
+  the outbox where the grid's scope saves (its folder, else Unsorted, a tag's
+  tag), files over links, and a folder or a file past the store's 100 MB is
+  refused before a byte is queued, the file picker held to the same cap.
+  Rejected: a save field of the grid's own.
+  `apps/workspace/src/app/library/capture/window-capture.ts`,
+  `capture-payload.ts`.
+
 - **AN ITEM'S INFO IS ITS FIELDS.** Info reads the item's fields from the
   replica and writes each as one field op on the value it read: the open item's
   properties through its editor's session, so the pause carries them, any other
@@ -224,6 +236,18 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   object; one page of sets (a long conversation's oldest turns lost their
   Undo). `apps/workspace/src/app/agent/agent-panel.tsx`, `thread-entries.ts`,
   `thread-undo.ts`.
+
+- **TIDY MY LIBRARY IS A REQUEST FROM UNSORTED, AND THE FILING RULES ARE THE
+  CELL'S.** The grid's header and ⌘P open the agent's composer on a new
+  conversation holding the request, sent from Unsorted with nothing typed or
+  with what the person adds for this run; the request never says whether rules
+  exist, since every turn carries the rules the cell read for it. Settings'
+  Edit filing rules… opens the cell's rules, or the starter rules, which say
+  Unsorted is no folder and its items are the ones to file. Rejected: the
+  request typed into the field (a person could edit it away); rules in the
+  request (a second read beside the turn's).
+  `apps/workspace/src/app/agent/tidy-library.ts`,
+  `apps/workspace/src/app/settings/filing-rules.ts`.
 
 ## Repo guards, vendoring and tooling
 

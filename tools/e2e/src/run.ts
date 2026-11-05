@@ -52,6 +52,7 @@ import { slashMenuBrowser } from "./scenarios/slash-menu-browser";
 import { slowStorage } from "./scenarios/slow-storage";
 import { syncConflictBrowser } from "./scenarios/sync-conflict-browser";
 import { threadsScripted } from "./scenarios/threads-scripted";
+import { tidyLibraryBrowser } from "./scenarios/tidy-library-browser";
 import { tidyLibraryScripted } from "./scenarios/tidy-library-scripted";
 import { undoBrowser } from "./scenarios/undo-browser";
 import { undoScripted } from "./scenarios/undo-scripted";
@@ -80,6 +81,7 @@ const SCENARIOS: readonly Scenario[] = [
   connectorTools,
   agentCell,
   agentPanelBrowser,
+  tidyLibraryBrowser,
   builtWorkerBoot,
   builtCliBoot,
   desktopShell,

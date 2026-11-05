@@ -1,15 +1,17 @@
 // Settings › Account: who is signed in, the devices holding the account's credential, the
-// assistants let into the library through the connector, the built-in agent's switch, and signing
-// out or deleting the account. Each is the account's, kept in the cloud, so each waits for a
+// assistants let into the library through the connector, the built-in agent's switch and the
+// filing rules it follows, and signing out or deleting the account. Each is the account's, kept in the cloud, so each waits for a
 // connection; a revoke or a switch refetches only the list it changed, once it has landed.
 
+import { FILING_RULES_MAX } from "@repo/contract/cloud/library/library-wire";
 import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
 import { Input } from "@repo/ui/components/input";
 import { toast } from "@repo/ui/components/sonner";
 import { Switch } from "@repo/ui/components/switch";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Textarea } from "@repo/ui/components/textarea";
+import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { useAccount, useReplica, useWire } from "../cloud/library-context";
@@ -17,6 +19,7 @@ import { CellAnswer, refusalText } from "../cloud/needs-connection";
 import type { CloudWire } from "../cloud/v1";
 import { forgetPref, PREFS } from "../prefs";
 import { relativeTimeLabel, useNow } from "../relative-time";
+import { FILING_RULES_TEXT } from "./filing-rules";
 import { Row, SectionHeading } from "./settings-chrome";
 
 // what the account's rows read, which Settings' route asks for as it opens: fresh for half a
@@ -173,6 +176,92 @@ const AgentRow = () => {
   );
 };
 
+const RulesEditor = ({ initial, onSaved }: { initial: string; onSaved: () => void }) => {
+  const { orpc } = useWire();
+  const queryClient = useQueryClient();
+  const [text, setText] = useState(initial);
+  const save = useMutation(
+    orpc.library.agent.setRules.mutationOptions({
+      onError: (cause) => {
+        toast.error(refusalText(cause, "The filing rules couldn't be saved."));
+      },
+      onSuccess: async () => {
+        toast.success("Saved. The agent follows them from its next answer.");
+        await queryClient.invalidateQueries({ queryKey: orpc.library.agent.rules.key() });
+        onSaved();
+      },
+    }),
+  );
+  return (
+    <form
+      className="flex flex-col gap-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        save.mutate({ rules: text });
+      }}
+    >
+      <Textarea
+        aria-label="Filing rules"
+        className="min-h-72 font-mono"
+        maxLength={FILING_RULES_MAX}
+        value={text}
+        onChange={(event) => {
+          setText(event.target.value);
+        }}
+      />
+      <Button type="submit" className="self-end" disabled={save.isPending}>
+        Save
+      </Button>
+    </form>
+  );
+};
+
+// the rules the built-in agent follows over its own taste, which Tidy my library files by; the
+// starter rules fill the page the first time, until the person saves their own
+const FilingRulesRow = () => {
+  const { orpc } = useWire();
+  const [open, setOpen] = useState(false);
+  const rules = useQuery(
+    orpc.library.agent.rules.queryOptions({ input: open ? undefined : skipToken }),
+  );
+  return (
+    <Row label="Filing rules">
+      <div className="flex flex-col items-start gap-1">
+        <Button
+          size="compact"
+          variant="secondary"
+          onClick={() => {
+            setOpen(true);
+          }}
+        >
+          Edit filing rules…
+        </Button>
+        <span className="text-caption text-muted-foreground">
+          How the agent files and tags what you save, and what Tidy my library follows.
+        </span>
+      </div>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogTitle>Filing rules</DialogTitle>
+          <DialogDescription>
+            Write them as you would to a person. The agent reads them in every conversation.
+          </DialogDescription>
+          <CellAnswer query={rules} failed="The filing rules couldn't be read.">
+            {(data) => (
+              <RulesEditor
+                initial={data.rules ?? FILING_RULES_TEXT}
+                onSaved={() => {
+                  setOpen(false);
+                }}
+              />
+            )}
+          </CellAnswer>
+        </DialogContent>
+      </Dialog>
+    </Row>
+  );
+};
+
 const DeleteAccount = () => {
   const { client } = useWire();
   const replica = useReplica();
@@ -267,6 +356,7 @@ export const AccountSection = () => {
         <DevicesRow />
         <AssistantsRow />
         <AgentRow />
+        <FilingRulesRow />
         <Row label="">
           <div className="flex flex-col gap-2">
             <Button

@@ -1,7 +1,8 @@
 // The library in the tab, over the replica it pulled: the grid of every item, an item opened and
 // left by the url's history, the rail's folder and tag scopes and the grid's kind chips, Quick
 // Look, a tag added from Info, a card's Delete with its Undo, a folder made from the rail and an
-// item moved into it, and an open item following a rename made on another device.
+// item moved into it, an open item following a rename made on another device, and a link pasted
+// and a file dropped onto the grid each saved as an item.
 
 import { ordBetween } from "@repo/notes/library/block-order";
 import { z } from "zod";
@@ -48,6 +49,26 @@ const CARD_IDS = `JSON.stringify([...document.querySelectorAll('[role="gridcell"
 const TITLE_TEXT = `String(document.querySelector('[data-library-scope] h1')?.textContent ?? "")`;
 const DIALOG_TEXT = `String(document.querySelector('[role="dialog"]')?.textContent ?? "")`;
 const TITLE_FIELD = 'input[aria-label="Title"]';
+// a host no page answers (TEST-NET-1), so the pasted link's reading fails without leaving the
+// machine
+const PASTED = "http://192.0.2.10/pasted";
+const DROPPED = "field-notes.txt";
+// a paste and a drop as the browser hands them over, onto the page where no field takes them
+const PASTE = `(() => {
+  const data = new DataTransfer();
+  data.setData("text/plain", ${JSON.stringify(PASTED)});
+  document.body.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data }));
+  return true;
+})()`;
+const DROP = `(() => {
+  const grid = document.querySelector(${JSON.stringify(LIBRARY_GRID)});
+  if (!grid) return "missing";
+  const data = new DataTransfer();
+  data.items.add(new File(["Notes from the field."], ${JSON.stringify(DROPPED)}, { type: "text/plain" }));
+  grid.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: data }));
+  grid.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: data }));
+  return "dropped";
+})()`;
 
 // a right-click on a card, as a pointer makes it. Answers "opened" or "missing".
 const contextMenuOn = (itemId: string): string => `(() => {
@@ -114,7 +135,7 @@ const pickMenuItem = async (browser: AgentBrowser, itemId: string, name: string)
 
 export const libraryBrowser: Scenario = {
   description:
-    "the tab's grid draws every item the replica pulled; a double-click opens one and the url's Back and Forward leave and reopen it; a folder row, a tag row and a kind chip each narrow the grid; Space is Quick Look; a tag added from Info lands in the cell; a card's Delete goes to Deleted and its toast's Undo brings it back; a folder made from the rail takes an item moved into it; and an open item follows a rename another device made",
+    "the tab's grid draws every item the replica pulled; a double-click opens one and the url's Back and Forward leave and reopen it; a folder row, a tag row and a kind chip each narrow the grid; Space is Quick Look; a tag added from Info lands in the cell; a card's Delete goes to Deleted and its toast's Undo brings it back; a folder made from the rail takes an item moved into it; an open item follows a rename another device made; and a link pasted and a file dropped onto the grid are each saved as an item",
   name: "library-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -301,5 +322,25 @@ export const libraryBrowser: Scenario = {
       { deadlineMs: DEADLINE_MS, describe: (value) => `the open item's title stayed "${value}"` },
     );
     await untilItemParam(browser, ids.field);
+
+    ctx.log("a link pasted onto the grid and a file dropped on it are saved as items");
+    await browser(["click", BACK_TO_LIBRARY]);
+    await browser(["wait", LIBRARY_GRID], DEADLINE_MS);
+    await browser(["eval", PASTE]);
+    expectEq(parseEval(await browser(["eval", DROP]), z.string()), "dropped", "the drop");
+    await pollUntil(
+      async () => {
+        const listed = await library.items.list({});
+        return listed.items;
+      },
+      (items) =>
+        items.some((item) => item.url === PASTED) &&
+        items.some((item) => item.kind === "file" && item.title.includes("field-notes")),
+      {
+        deadlineMs: DEADLINE_MS,
+        describe: (items) =>
+          `the cell never held the pasted link and the dropped file: ${JSON.stringify(items.map((item) => [item.kind, item.title, item.url]))}`,
+      },
+    );
   },
 };

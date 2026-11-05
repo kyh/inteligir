@@ -26,6 +26,7 @@ import { cellStorageOf } from "./cell-storage";
 import { cellActorOf } from "./library-principal";
 import type { NamedPrincipal } from "./library-principal";
 import { libraryRouter } from "./library-router";
+import { adoptImportedRules } from "./library-rules";
 
 const SHA = "a".repeat(64);
 const GiB = 1024 * 1024 * 1024;
@@ -451,6 +452,22 @@ describe("the library's procedures", () => {
       await expect(library.organize.outline()).resolves.toMatchObject({
         folders: [{ name: "Recipes" }],
       });
+    });
+  });
+
+  it("keeps the person's filing rules, which an import of a vault's own never replaces", async () => {
+    await inCell(cellOf(), async (state) => {
+      const library = clientIn(state, clockAt());
+      expect(await library.agent.rules()).toEqual({ rules: null });
+      expect(await library.agent.setRules({ rules: "File recipes under Cooking." })).toEqual({
+        rules: "File recipes under Cooking.",
+      });
+      adoptImportedRules(cellStorageOf(state.storage), "File everything under Inbox.");
+      expect(await library.agent.rules()).toEqual({ rules: "File recipes under Cooking." });
+      // cleared, they stay the person's: an empty page is rules none of an import replaces
+      await library.agent.setRules({ rules: "" });
+      adoptImportedRules(cellStorageOf(state.storage), "File everything under Inbox.");
+      expect(await library.agent.rules()).toEqual({ rules: "" });
     });
   });
 

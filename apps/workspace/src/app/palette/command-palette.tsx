@@ -2,7 +2,7 @@
 // commands: what is typed is searched in the replica's own full-text index (titles, notes, saved
 // articles and highlights), ranked as every device ranks it; a hit opens its item with the find
 // bar on the words, and a typed web address offers to save it. The commands are the page's verbs
-// that need no item: a new note, a link, Settings.
+// that need no item: a new note, a link, the agent and Tidy my library, Settings.
 
 import { isWebUrl } from "@repo/notes/items/item-url";
 import {
@@ -19,6 +19,7 @@ import { hotkeyCaps, platformShortcutModifier } from "@repo/ui/lib/hotkey-spelli
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { TIDY_LABEL } from "../agent/tidy-library";
 import { useReplicaQueries } from "../cloud/library-context";
 import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "../global-shortcuts";
 import type { GlobalShortcutAction } from "../global-shortcuts";
@@ -41,6 +42,7 @@ export interface PaletteActions {
   readonly askSaveLink: () => void;
   readonly openSettings: () => void;
   readonly askAgent: () => void;
+  readonly startTidy: () => void;
 }
 
 const Results = ({
@@ -141,6 +143,7 @@ export const CommandPalette = ({
             Ask the agent
             <Chord action="open-agent" />
           </CommandItem>
+          <CommandItem onSelect={run(actions.startTidy)}>{TIDY_LABEL}</CommandItem>
           <CommandItem onSelect={run(actions.openSettings)}>
             Settings
             <Chord action="open-settings" />

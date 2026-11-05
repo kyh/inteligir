@@ -75,6 +75,9 @@ export const ANNOTATION_NOTE_MAX = 20_000;
 export const MARKDOWN_MAX = 1_000_000;
 // a message to the built-in agent
 export const MESSAGE_MAX = 20_000;
+// the person's filing rules, which ride every conversation with the built-in agent as a system
+// message: a few pages of prose at most
+export const FILING_RULES_MAX = 65_536;
 // what an agent or a list reads at once
 export const PAGE_MAX = 50;
 
