@@ -613,6 +613,11 @@ account whose library holds about 2,000 items gives the timing check its load.
   footer names what Return does, and Return opens the lit hit with the find bar
   on the word; VoiceOver reads the field as a combo box and each row as it
   lights.
+- **An unread page says why on a tap and on a hover.** On a card whose page
+  could not be read, tap "Page not read" in Safari on an iPhone, and point at it
+  in the Mac app's window. Passing: the reason opens in a small popover in each,
+  and its words can be selected and copied without opening the item or the
+  card's menu.
 
 ### The connector
 
