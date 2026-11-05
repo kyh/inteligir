@@ -878,25 +878,30 @@ describe("a conversation's loop, stepped", () => {
     },
   );
 
-  it("hears a reply as its bytes arrive, so one still streaming is never cut", async () => {
-    const account = agentAccount();
-    const threadId = crypto.randomUUID();
-    await inSteppedThread(account, threadId, script("long 4000"), async ({ host, run }) => {
-      const resting = run();
-      let first: number | null = null;
-      await vi.waitFor(
-        () => {
-          const heardAt = host.calls.get(1)?.heardAt;
-          first ??= heardAt ?? null;
-          expect(heardAt ?? 0).toBeGreaterThan((first ?? Infinity) + 250);
-        },
-        { interval: 25, timeout: 10_000 },
-      );
-      expect(await resting).toEqual(["continue", "continue", "idle"]);
-    });
-    const calls = await callsOf(account, threadId);
-    expect(calls.map((call) => call.status)).toEqual(["done"]);
-  });
+  it(
+    "hears a reply as its bytes arrive, so one still streaming is never cut",
+    // the fake streams 4,000 characters slowly on purpose, and the wait for its bytes allows 10 s
+    { timeout: TURN_MS },
+    async () => {
+      const account = agentAccount();
+      const threadId = crypto.randomUUID();
+      await inSteppedThread(account, threadId, script("long 4000"), async ({ host, run }) => {
+        const resting = run();
+        let first: number | null = null;
+        await vi.waitFor(
+          () => {
+            const heardAt = host.calls.get(1)?.heardAt;
+            first ??= heardAt ?? null;
+            expect(heardAt ?? 0).toBeGreaterThan((first ?? Infinity) + 250);
+          },
+          { interval: 25, timeout: 10_000 },
+        );
+        expect(await resting).toEqual(["continue", "continue", "idle"]);
+      });
+      const calls = await callsOf(account, threadId);
+      expect(calls.map((call) => call.status)).toEqual(["done"]);
+    },
+  );
 
   it(
     "takes up a deploy's definition at the next turn's start, never mid-turn, replaying no thinking from before it and the filing rules again",
