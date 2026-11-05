@@ -122,7 +122,6 @@ export const readSharedPage = async (
   }
   return {
     article: answer.article,
-    copy: null,
     cover: await coverOf(ports, shared.url, answer.facts.images),
     facts: factsOf(answer.facts),
     folderId: target.folderId,

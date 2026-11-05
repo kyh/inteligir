@@ -78,7 +78,6 @@ const pageSave = (
   article: articleOf(
     overrides.article ?? [paragraph("p1", "The quick brown fox jumps over the lazy dog.")],
   ),
-  copySha: null,
   coverSha: null,
   facts: { ...FACTS, site: "example.com" },
   folderId: null,
@@ -183,6 +182,36 @@ describe("the library's procedures", () => {
       await library.items.save(empty);
       const read = await placedAgain("Later: a %%i:");
       expect(read.fields.fetchState).toBe("filled");
+    });
+  });
+
+  it("keeps a link's selection as a highlight: waiting on a stub, placed in an item that holds its text", async () => {
+    await inCell(cellOf(), async (state) => {
+      const library = clientIn(state, clockAt());
+      const stub = await library.items.saveLink({
+        selection: "a passage the page holds",
+        url: "https://example.com/later/unread",
+      });
+      expect(stub.folded).toBe(false);
+      expect((await library.annotations.list({ itemId: stub.item.id })).highlights).toEqual([
+        expect.objectContaining({ placed: false, quote: "a passage the page holds", text: "" }),
+      ]);
+
+      const url = "https://example.com/fox";
+      const page = await library.items.save(pageSave(url));
+      const folded = await library.items.saveLink({ selection: "brown fox jumps", url });
+      expect(folded).toMatchObject({ folded: true, item: { id: page.item.id } });
+      const { highlights } = await library.annotations.list({ itemId: page.item.id });
+      expect(highlights).toEqual([
+        expect.objectContaining({ placed: true, quote: "brown fox jumps" }),
+      ]);
+      expect((await library.items.read({ id: page.item.id })).view.markdown).toContain(
+        `quick %%i:${highlights[0]?.id ?? ""}:start%%brown fox jumps%%i:`,
+      );
+
+      // the same passage sent again keeps the one highlight
+      await library.items.saveLink({ selection: "brown fox jumps", url });
+      expect((await library.annotations.list({ itemId: page.item.id })).highlights).toHaveLength(1);
     });
   });
 

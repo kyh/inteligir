@@ -96,6 +96,24 @@ describe("a page's reading, landed", () => {
     });
   });
 
+  it("places the passage a link was saved with once the reading holds its text", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const library = libraryIn(state, accountId);
+      const url = "https://pages.example/selected";
+      const saved = await library.items.saveLink({ selection: "the passage itself", url });
+      openCellLibrary(state, env).landReading(
+        read({ itemId: saved.item.id, url }, [
+          paragraph("p1", "Before it, the passage itself, and after."),
+        ]),
+      );
+      const { highlights } = await library.annotations.list({ itemId: saved.item.id });
+      expect(highlights).toEqual([
+        expect.objectContaining({ placed: true, quote: "the passage itself" }),
+      ]);
+    });
+  });
+
   it("never touches the person's note or a title they gave while it waited", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {

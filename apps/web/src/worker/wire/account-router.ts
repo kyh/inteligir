@@ -1,8 +1,9 @@
 // The account's procedures, which the Worker answers itself on `/v1/rpc/account`: a device's
-// sign-in and sign-up, signing out, the account's devices, its deletion with the password asked
-// again, the socket's ticket, and the assistants let in through the connector. A signed row meets
-// its credential in one middleware, verified lazily from the request's context
-// (`./v1-principal`); a sign-in or sign-up spends its caller's window. Each row shares its core with the REST door today's apps still call (`../device/*`).
+// sign-in and sign-up, signing out, the browser extension's credential, the account's devices, its
+// deletion with the password asked again, the socket's ticket, and the assistants let in through
+// the connector. A signed row meets its credential in one middleware, verified lazily from the
+// request's context (`./v1-principal`); a sign-in or sign-up spends its caller's window. Each row
+// shares its core with the REST door today's apps still call (`../device/*`).
 
 import {
   TooManyRequestsError,
@@ -19,10 +20,10 @@ import { createAuth, createSignUpAuth } from "../auth/auth";
 import { listAssistants, revokeAssistant } from "../connector/assistant-grants";
 import { connectorAuth } from "../connector/connector-auth";
 import { createDb } from "../db/client";
-import { session } from "../db/schema";
+import { session, user } from "../db/schema";
 import { deleteAccountWithPassword } from "../device/account";
 import { listDevices, revokeDevice } from "../device/devices";
-import { loginDevice } from "../device/login";
+import { loginDevice, mintDeviceCredential } from "../device/login";
 import { signUpDevice } from "../device/sign-up";
 import type { AppPrincipal } from "../library/library-principal";
 import { mintSocketTicket } from "../library/socket-ticket";
@@ -76,6 +77,33 @@ const accountRouter = os.router({
       return { revoked: true as const };
     }),
   },
+  // a browser's session alone mints the extension its credential: a device's could otherwise mint
+  // credentials that outlive its own revocation. The session stays, the site's own
+  connectExtension: os.connectExtension
+    .use(signedIn)
+    .handler(async ({ context, errors, input }) => {
+      const { db, signedIn: principal } = context;
+      if (principal.actor.kind !== "session") {
+        throw errors.UNAUTHORIZED();
+      }
+      const owner = await db
+        .select({ email: user.email, id: user.id })
+        .from(user)
+        .where(eq(user.id, principal.accountId))
+        .get();
+      if (owner === undefined) {
+        throw errors.GONE();
+      }
+      const minted = await mintDeviceCredential(db, {
+        deviceName: input.deviceName,
+        sessionToken: null,
+        user: owner,
+      });
+      if (minted === null) {
+        throw errors.DEVICE_LIMIT();
+      }
+      return minted;
+    }),
   delete: os.delete.use(signedIn).handler(async ({ context, errors, input }) => {
     const { db, env, signedIn: principal } = context;
     if (!(await spendDeviceBudget(env, db, "accountDelete", holderIdOf(principal)))) {

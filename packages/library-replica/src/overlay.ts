@@ -152,7 +152,6 @@ const madeBy = (op: Extract<OutboxOp, { input: { id: string } }>): ItemState => 
         fields: {
           ...blankFields(input.savedAt),
           ...input.facts,
-          copySha: input.copySha,
           coverSha: input.coverSha,
           fetchState: "filled",
           folderId: input.folderId,

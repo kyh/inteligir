@@ -1,6 +1,7 @@
 // The account's procedures, which the Worker answers itself on `/v1/rpc/account` (the library's go
-// on to the account's cell): a device's credential and its sign-in, the account's devices, its
-// deletion, the ticket its socket opens with and the assistants it has let in.
+// on to the account's cell): a device's credential and its sign-in, the browser extension's
+// credential, the account's devices, its deletion, the ticket its socket opens with and the
+// assistants it has let in.
 
 import { z } from "zod";
 
@@ -56,6 +57,13 @@ export const accountContract = {
 
   // revokes the credential that asks
   signOut: signedBase.output(revokeDeviceResponseSchema),
+
+  // the browser extension's own credential, minted for the site's signed-in session alone, which
+  // the site's /connect/extension page hands the extension
+  connectExtension: signedBase
+    .errors({ [DeviceLimitError.code]: DeviceLimitError })
+    .input(deviceLoginRequestSchema.pick({ deviceName: true }))
+    .output(deviceLoginResponseSchema),
 
   devices: {
     list: signedBase.output(listDevicesResponseSchema),

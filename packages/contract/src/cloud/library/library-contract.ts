@@ -230,7 +230,6 @@ const itemsContract = {
         article: z
           .array(z.strictObject({ block: storableBlockSchema, ord: ordSchema }))
           .max(WRITE_OPS_MAX),
-        copySha: shaSchema.nullable(),
         coverSha: shaSchema.nullable(),
         facts: z.strictObject({
           author: FIELDS.author,
@@ -252,8 +251,9 @@ const itemsContract = {
     )
     .output(saved),
 
-  // a url to read later: it lands at once, unread, and the cloud reads the page; an `id` another
-  // item holds is a conflict naming it
+  // a url to read later: it lands at once, unread, and the cloud reads the page, placing the
+  // passage the person had selected once it holds the page's text; an `id` another item holds is a
+  // conflict naming it
   saveLink: signedBase
     .errors({
       [ConflictError.code]: ConflictError,
@@ -268,6 +268,8 @@ const itemsContract = {
         note: z.string().max(MARKDOWN_MAX).optional(),
         opId,
         savedAt: FIELDS.savedAt.optional(),
+        // a passage of the page to keep as a highlight
+        selection: z.string().min(1).max(ANNOTATION_QUOTE_MAX).optional(),
         tags: FIELDS.tags.optional(),
         title: FIELDS.title.optional(),
         url: FIELDS.url.unwrap(),

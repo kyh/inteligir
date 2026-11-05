@@ -280,7 +280,6 @@ const foldOnto = (
     readAnnotationRows(scope.storage, holderId),
     {
       article: landing.article,
-      copySha: null,
       coverSha: landing.coverSha,
       facts: landing.facts,
       folderId: null,

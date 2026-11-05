@@ -85,14 +85,10 @@ export interface LinkInput {
   readonly tags: readonly string[];
 }
 
-// a page this device read itself, with its cover and its page copy when it kept them
-export interface PageInput extends Omit<
-  SaveInput,
-  "copySha" | "coverSha" | "id" | "savedAt" | "tags"
-> {
+// a page this device read itself, with its cover when it kept one
+export interface PageInput extends Omit<SaveInput, "coverSha" | "id" | "savedAt" | "tags"> {
   readonly tags: readonly string[];
   readonly cover: NewFile | null;
-  readonly copy: NewFile | null;
 }
 
 export interface FileInput {
@@ -260,13 +256,12 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
       await serial(async () => {
         const id = newId();
         const holder = await runPlanAsync(sql, heldAtAddress(input.url));
-        const { copy: copyFile, cover: coverFile, tags, ...page } = input;
-        const files = staging([coverFile, copyFile].filter((file) => file !== null));
+        const { cover: coverFile, tags, ...page } = input;
+        const files = staging(coverFile === null ? [] : [coverFile]);
         await enqueue(
           {
             input: {
               ...page,
-              copySha: copyFile === null ? null : fileSha(copyFile.bytes),
               coverSha: coverFile === null ? null : fileSha(coverFile.bytes),
               id,
               savedAt: clock.now(),

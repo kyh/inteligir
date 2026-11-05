@@ -78,7 +78,6 @@ export interface SaveInput {
   readonly facts: Pick<LibraryItemFields, "author" | "description" | "lang" | "published" | "site">;
   readonly article: readonly { readonly block: LibraryBlock; readonly ord: string }[];
   readonly coverSha: string | null;
-  readonly copySha: string | null;
   readonly folderId: string | null;
   readonly savedAt: number;
   readonly tags: readonly string[];
@@ -88,7 +87,7 @@ export interface SaveInput {
 // what a page brings to the item that holds its address, however it was read
 export type ReadPage = Pick<
   SaveInput,
-  "article" | "copySha" | "coverSha" | "facts" | "folderId" | "tags" | "title"
+  "article" | "coverSha" | "facts" | "folderId" | "tags" | "title"
 >;
 
 const articleOf = (input: ReadPage): PlacedBlock[] =>
@@ -98,7 +97,7 @@ const articleOf = (input: ReadPage): PlacedBlock[] =>
 const changes = (op: LibraryOp): boolean => op.op !== "set" || op.base !== op.value;
 
 // the read page's facts over the item's: what the fill owns, the page's title for a stub never
-// read (its own was the address's placeholder), and the page's files where it brought any
+// read (its own was the address's placeholder), and the page's cover where it brought one
 const factOps = (state: ItemState, input: ReadPage, now: number): LibraryOp[] => {
   const { fields } = state;
   const { facts } = input;
@@ -109,12 +108,6 @@ const factOps = (state: ItemState, input: ReadPage, now: number): LibraryOp[] =>
     { base: fields.lang, field: "lang", op: "set", value: facts.lang },
     { base: fields.published, field: "published", op: "set", value: facts.published },
     { base: fields.site, field: "site", op: "set", value: facts.site },
-    {
-      base: fields.copySha,
-      field: "copySha",
-      op: "set",
-      value: input.copySha ?? fields.copySha,
-    },
     {
       base: fields.coverSha,
       field: "coverSha",
@@ -149,7 +142,6 @@ const newPage = (
   const fields: LibraryItemFields = {
     ...blankFields(scope.now),
     ...input.facts,
-    copySha: input.copySha,
     coverSha: input.coverSha,
     fetchState: "filled",
     fetchedAt: scope.now,
@@ -272,12 +264,15 @@ export interface SaveLinkInput {
   readonly note?: string | undefined;
   readonly folder?: FolderTarget | undefined;
   readonly savedAt?: number | undefined;
+  readonly selection?: string | undefined;
   readonly tags?: readonly string[] | undefined;
   readonly title?: string | undefined;
 }
 
-// a url to read later: the item that holds it gains the tags, the note and the folder; else an
-// unread stub lands, `pending`, which the cloud reads after the write
+// a url to read later: the item that holds it gains the tags, the note, the folder and the
+// passage the person had selected, placed in its text where it stands; else an unread stub lands,
+// `pending`, which the cloud reads after the write, placing the passage's highlight once it holds
+// the page's text (`landFill`)
 export const saveLink = (
   scope: LandingScope,
   actor: CellActor,
@@ -290,11 +285,17 @@ export const saveLink = (
     input.note === undefined || input.note.trim() === ""
       ? null
       : noteBlocksOf(scope, codec, input.note);
-  const highlights = note?.highlights ?? [];
+  const noteHighlights = note?.highlights ?? [];
   const held = heldItem(scope, input.url);
   if (held === null) {
     const item = landNew(scope, actor, {
-      annotations: highlights,
+      annotations:
+        input.selection === undefined
+          ? noteHighlights
+          : [
+              ...noteHighlights,
+              bareHighlight(scope, { id: ids.annotation(), quote: input.selection }),
+            ],
       blocks: note?.blocks ?? [],
       fields: {
         ...blankFields(scope.now),
@@ -317,6 +318,21 @@ export const saveLink = (
       : [{ base: held.fields.folderId, field: "folderId", op: "set", value: folderId } as const]),
     ...(note === null ? [] : appendedNote(held, note.blocks)),
   ];
-  const item = landWrite(scope, actor, { annotations: highlights, itemId: held.id, ops });
+  // the passage lands where the item's text holds it, unless a highlight of the item keeps it
+  const selection = selectionToKeep(
+    readAnnotationRows(scope.storage, held.id),
+    input.selection ?? null,
+  );
+  const highlight = selection === null ? null : { id: ids.annotation(), quote: selection };
+  const placing = highlight === null ? null : applyOps(held, ops);
+  if (highlight !== null && placing?.kind === "applied") {
+    ops.push(...placeQuotes(placing.state, codec, [highlight]).ops);
+  }
+  const item = landWrite(scope, actor, {
+    annotations:
+      highlight === null ? noteHighlights : [...noteHighlights, bareHighlight(scope, highlight)],
+    itemId: held.id,
+    ops,
+  });
   return { folded: true, item };
 };

@@ -410,6 +410,24 @@ describe("the account's rows", () => {
     expect(await fresh.library.items.list({})).toEqual({ cursor: null, items: [] });
   });
 
+  it("mints the browser extension its own credential for the site's session alone", async () => {
+    const email = "rpc-extension@example.test";
+    const { accountId, cookie, laptop } = await signedUp(email);
+    const tab = linkWith(sessionHeaders(cookie));
+    const extension = await tab.account.connectExtension({ deviceName: "Browser extension" });
+    expect(extension).toMatchObject({ email, userId: accountId });
+    const { devices } = await laptop.account.devices.list();
+    expect(devices.map((row) => row.name).toSorted()).toEqual(["Browser extension", "Laptop"]);
+    // the extension's credential reaches the library, and the tab's session stays
+    const fromExtension = linkWith(deviceHeaders(extension.credential));
+    expect(await fromExtension.library.items.list({})).toEqual({ cursor: null, items: [] });
+    expect(await tab.library.items.list({})).toEqual({ cursor: null, items: [] });
+    // a device's credential mints none: one stolen would mint credentials outliving its revocation
+    expect(
+      await laptop.refusalOf(laptop.account.connectExtension({ deviceName: "Another" })),
+    ).toMatchObject({ code: "UNAUTHORIZED", status: 401 });
+  });
+
   it("ends a browser tab's own session when it signs out", async () => {
     const { cookie } = await signedUp("rpc-tab-sign-out@example.test");
     const tab = linkWith(sessionHeaders(cookie));

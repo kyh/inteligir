@@ -559,7 +559,7 @@ export const createFakeCell = (): FakeCell => {
         }),
         save: os.library.items.save.handler(({ input }) =>
           once(input.opId, z.object({ folded: z.boolean() }).and(landedSchema), () => {
-            needsBlobs([input.coverSha, input.copySha].filter((sha) => sha !== null));
+            needsBlobs(input.coverSha === null ? [] : [input.coverSha]);
             const holder = holderOf(input.url);
             if (holder !== null) {
               return foldTags(holder, input.tags);
@@ -572,7 +572,6 @@ export const createFakeCell = (): FakeCell => {
                 {
                   ...blankFields(input.savedAt),
                   ...input.facts,
-                  copySha: input.copySha,
                   coverSha: input.coverSha,
                   fetchState: "filled",
                   folderId: input.folderId,

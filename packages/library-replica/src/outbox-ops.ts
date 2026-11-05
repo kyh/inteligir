@@ -84,7 +84,6 @@ const saveLinkSchema = z.strictObject({
 const saveSchema = z.strictObject({
   input: z.strictObject({
     article: z.array(z.strictObject({ block: storableBlockSchema, ord: ordSchema })),
-    copySha: shaSchema.nullable(),
     coverSha: shaSchema.nullable(),
     facts: z.strictObject({
       author: FIELDS.author,
