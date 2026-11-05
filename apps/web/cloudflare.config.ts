@@ -89,8 +89,9 @@ const shared = {
 // each target's AI Gateway on its provider-native Anthropic route
 // (developers.cloudflare.com/ai-gateway/usage/providers/anthropic/): production's `inteligir`,
 // every preview's `inteligir-preview`. The account comes from the deploy job's
-// CLOUDFLARE_ACCOUNT_ID, parsed off `globalThis` as `previewDeploy` parses its values; a build
-// without it, CI's, names no gateway, and its Worker refuses every agent send
+// CLOUDFLARE_ACCOUNT_ID (apps/web/turbo.json hands it to the build task), parsed off `globalThis`
+// as `previewDeploy` parses its values; a build without it, CI's, names no gateway, and its
+// Worker refuses every agent send
 const GATEWAYS = { preview: "inteligir-preview", production: "inteligir" } as const;
 
 const gatewayUrl = (gateway: (typeof GATEWAYS)[keyof typeof GATEWAYS]): string => {

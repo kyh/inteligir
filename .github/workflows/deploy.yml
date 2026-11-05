@@ -83,8 +83,14 @@ jobs:
           runtime: node@24
           cache: true
 
+      # the Build Output carries AGENT_GATEWAY_URL as the build evaluated it, and `--prebuilt`
+      # uploads it unchanged, so a build that named no gateway is refused before it ships
       - name: Build & deploy web
-        run: pnpm turbo run build --filter=@repo/web... && pnpm -F @repo/web exec cf deploy --prebuilt
+        run: |
+          pnpm turbo run build --filter=@repo/web...
+          jq -e '.env.AGENT_GATEWAY_URL.value | startswith("https://gateway.ai.cloudflare.com/v1/")' \
+            apps/web/.cloudflare/output/v0/workers/default/worker.config.json
+          pnpm -F @repo/web exec cf deploy --prebuilt
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           # the account of the built-in agent's AI Gateway, which apps/web/cloudflare.config.ts

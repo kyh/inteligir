@@ -456,8 +456,14 @@ pnpm -F @repo/web exec cf queues create --queue-name inteligir-fill-failed
 # 6c. The connector's OAuth namespace takes no step: OAUTH_KV names no id, so the first
 #     deploy creates it and keeps it linked to the Worker after
 
-# 7. Deploy — the exact command the `Deploy` workflow runs
-pnpm turbo run build --filter=@repo/web... && pnpm -F @repo/web exec cf deploy --prebuilt
+# 7. Deploy — the exact commands the `Deploy` workflow runs. The build bakes the agent's
+#    gateway into the Build Output from CLOUDFLARE_ACCOUNT_ID (apps/web/turbo.json hands it
+#    the build), and the check refuses an output that names none
+export CLOUDFLARE_ACCOUNT_ID=...
+pnpm turbo run build --filter=@repo/web...
+jq -e '.env.AGENT_GATEWAY_URL.value | startswith("https://gateway.ai.cloudflare.com/v1/")' \
+  apps/web/.cloudflare/output/v0/workers/default/worker.config.json
+pnpm -F @repo/web exec cf deploy --prebuilt
 
 # (optional) tail logs: cf cannot tail yet
 pnpm -F @repo/web exec wrangler tail inteligir-web
