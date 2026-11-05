@@ -135,7 +135,9 @@ read the cell through `/v1` (`openLibraryTab` and `untilItemText`,
 Worker (`cloud-account.ts`); `NO_AUTO_SYNC` and the one strict sync pass,
 `syncExpectClean` (`vault-sync.ts`); the owner's sign-in and a signed-in
 instance's explicit sync against the hosted vault (`hosted-vault.ts`); the
-phone's own runtime, logged in as `PHONE_NAME` (`phone-runtime.ts`); the page
+phone's own runtime under node over its own database, signed in as the
+owner, a second one standing in for another device, with a network a
+scenario can take away (`phone-runtime.ts`); the page
 server a save's fetch may read, on this machine's own network address
 (`lan-fixture.ts`); the browser extension's door and its worker's save
 (`native-host-fixture.ts`); and the PNG reader for what a frame or a thumbnail
