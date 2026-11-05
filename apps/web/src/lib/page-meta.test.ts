@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { pageHead, pageTitle } from "./page-head";
 import { PAGES, statedDate } from "./page-meta";
 import { siteConfig } from "./site-config";
+import { homeMarkdown } from "./site-content";
 import { buildSitemap } from "./sitemap";
 import { pageGraph } from "./structured-data";
 
@@ -36,6 +37,10 @@ describe("page metadata", () => {
     const head = pageHead(PAGES.about);
     expect(metaContent(head, "og:url")).toBe(`${siteConfig.url}/about`);
     expect(metaContent(head, "og:image")).toBe(`${siteConfig.url}/og/about.jpg`);
+  });
+
+  it("titles the home page as its own heading names it", () => {
+    expect(homeMarkdown.split("\n", 1)[0]).toBe(`# ${siteConfig.name}: ${PAGES.home.title}`);
   });
 
   it("gives the home page its own image", () => {
