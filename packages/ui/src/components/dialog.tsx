@@ -127,13 +127,12 @@ const DialogContent = ({
               {showCloseButton && (
                 <DialogPrimitive.Close
                   render={
-                    <Button
-                      variant="ghost"
-                      size="icon-compact"
-                      aria-label="Close"
-                      className="absolute top-3 right-3"
-                    >
+                    // named by its text, not an aria-label: the Button would draw that as a
+                    // tooltip, which opens as the dialog's first focus lands here and takes the
+                    // first Escape for itself
+                    <Button variant="ghost" size="icon-compact" className="absolute top-3 right-3">
                       <XIcon />
+                      <span className="sr-only">Close</span>
                     </Button>
                   }
                 />
