@@ -371,10 +371,11 @@ account whose library holds about 2,000 items gives the timing check its load.
   keyboard, even after switching it with the app open; typing and then
   backgrounding and killing the app keeps what was typed.
 - **Offline.** Turn on airplane mode, kill the app and open it. Passing: the
-  library and any item open, an image a note embeds included. Edit a note and
-  add a photo while still offline, kill the app, open it, turn airplane mode
-  off. Passing: both reach the Mac, and the banner under the library counts
-  them down to nothing.
+  library and any item open, a picture item opened once before opens in the
+  viewer, and one never opened says it is not on this iPhone yet. Edit a note
+  and add a photo while still offline, kill the app, open it, turn airplane
+  mode off. Passing: both reach the Mac, the banner under the library counts
+  them down to nothing, and the photo then opens offline with no download.
 - **Both devices at once.** With the phone offline, change one paragraph of a
   note on the phone and another on the Mac, then reconnect; then change the
   same lines of one paragraph on both. Passing: different paragraphs both
@@ -431,12 +432,6 @@ account whose library holds about 2,000 items gives the timing check its load.
   release candidate), a field's placeholder is muted, a pressed text button
   dims, no line of text runs into the next, and the switch recolours each
   screen without a relaunch.
-- **A page's copy and a file inside an item.** On the Mac, Keep a copy of the
-  page on a saved article; on the phone, open the item and tap Copy of the
-  page. Passing: the copy opens in the viewer as the page looked, nothing in it
-  runs and a tap on its links goes nowhere. In a note that embeds a PDF, tap
-  the file card's Open. Passing: the PDF viewer opens; a card for any other
-  file says it opens on your Mac.
 - **An update reaches an installed build.** While the internal build is the
   only one out, `pnpm hotfix:mobile` from the release commit, then open the app
   twice. Passing: `pnpm --filter @repo/mobile exec eas update:insights <group id>`

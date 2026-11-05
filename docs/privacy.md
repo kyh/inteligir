@@ -421,8 +421,8 @@ Specifically, in our cloud:
 your library offline:
 
 - **Every item**, its text, highlights and folders, downloaded from your
-  online library, a small picture for each card, the pictures your own notes
-  show, and any other file once you open it.
+  online library, a small picture for each card, and a picture, PDF or other
+  file once you open it.
 - **Whatever it has not sent yet.** Edits, saves, new notes, deletions,
   highlights and photos wait on the phone until the online library takes them.
   A change the library refuses stays on the phone and says so. A page you
@@ -430,7 +430,7 @@ your library offline:
   the app saves it.
 
 It all lives in the app's own storage on the phone. The items and unsent
-changes, photos waiting to be sent and the pictures your notes show included,
+changes, photos waiting to be sent and the files your notes embed included,
 sit where the app keeps them out of the phone's iCloud backup: a phone
 restored from a backup downloads your library again, and anything it had not
 sent is gone. Other files you opened sit in the app's cache, which iOS may

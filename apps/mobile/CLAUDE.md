@@ -76,14 +76,21 @@ how it ships.
   revocation wipe the rows and every file; the boot keeps them, and a kept
   credential over an empty database pulls the library afresh.
 
-- **A FILE'S BYTES ARE KEPT BY ITS HASH: PINNED, OR CACHED AND DROPPED OLDEST
-  FIRST.** A staged upload and an image a note of the person's embeds are
-  pinned in Documents, so that note reads whole offline; every other file and
-  thumbnail is in the purgeable cache, its use stamped in `phone_files` and the
-  least recent dropped past the cap. A file over 512 KB lists from a 320 px
-  thumbnail made once. A sign-out moves the cache's generation, so a download
-  begun before it lands nothing (`apps/mobile/src/files/file-cache.ts`).
-  Rejected: `expo-file-system/legacy` (its promise API is deprecated).
+- **A FILE'S BYTES ARE KEPT BY ITS HASH, FETCHED ONCE: PINNED, OR CACHED AND
+  DROPPED OLDEST FIRST.** A file is downloaded once however many screens ask
+  for it at once, and a cover's thumbnail is made from the bytes that crossed.
+  A staged upload, and a file a live note of the person's embeds, are pinned in
+  Documents; every other file and thumbnail is in the purgeable cache, its use
+  stamped in `phone_files` and the least recent dropped past the cap. An upload
+  whose write landed moves into the cache, or stays pinned, so the phone never
+  downloads what it sent. A screen draws a file only as an item's own, its
+  card's cover or its viewer's original: the item page answers no file inside
+  a note (`apps/mobile-editor/src/item/item-host.ts`). A file over 512 KB lists
+  from a 320 px thumbnail made once. A sign-out moves the cache's generation,
+  so a download begun before it lands nothing
+  (`apps/mobile/src/files/file-cache.ts`). Rejected: `expo-file-system/legacy`
+  (its promise API is deprecated); a staged upload discarded once sent (the
+  next draw downloaded what the phone had just sent).
 
 - **THE PHONE'S CREDENTIAL IS IN THE KEYCHAIN, THIS DEVICE ONLY, AFTER FIRST
   UNLOCK.** It reads in the background a share wakes, never moves to another
@@ -103,7 +110,7 @@ how it ships.
   EXIF.** The Mac's editor draws no HEIC, so a photo is re-encoded to at most
   2048px on its long edge with no EXIF, so no location reaches the library's
   history, and saved as a file item whose bytes are staged, pinned, until the
-  upload lands (`apps/mobile/src/items/photo-ingest.ts`,
+  upload lands, then kept (`apps/mobile/src/items/photo-ingest.ts`,
   `apps/mobile/src/items/photo-plan.ts`). Rejected: a picked image placed in a
   note (the page has no door to the phone's files).
 

@@ -111,12 +111,15 @@ and a resume or a reconnect pulls and sends (`src/lib/app-runtime.ts`).
 
 ## Files
 
-A file is kept by its hash (`src/files/file-cache.ts`): a staged upload and an
-image a note of the person's embeds are pinned in Documents, out of the
-device backup, so the note reads whole offline; every other file is in
-`Paths.cache`, stamped as used and dropped oldest first past the cap, and a
-file over 512 KB lists from a 320 px thumbnail made once. A sign-out moves the
-cache's generation, so a download begun before it lands nothing.
+A file is kept by its hash (`src/files/file-cache.ts`), fetched once however
+many screens ask: a staged upload, and a file a live note of the person's
+embeds, are pinned in Documents, out of the device backup; every other file is
+in `Paths.cache`, stamped as used and dropped oldest first past the cap, and a
+file over 512 KB lists from a 320 px thumbnail made once. An upload whose write
+landed is kept as a fetched file is. A screen draws a file as an item's own,
+its card's cover or its viewer's original; the item page has no file door, so
+a file inside a note does not draw. A sign-out moves the cache's generation,
+so a download begun before it lands nothing.
 
 ## Sharing to the phone
 
