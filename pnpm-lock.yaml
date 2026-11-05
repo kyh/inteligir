@@ -950,9 +950,9 @@ importers:
       '@repo/library-replica':
         specifier: workspace:*
         version: link:../../packages/library-replica
-      '@repo/managed-agents-fake':
+      '@repo/messages-fake':
         specifier: workspace:*
-        version: link:../../tools/managed-agents-fake
+        version: link:../../tools/messages-fake
       '@tailwindcss/vite':
         specifier: 'catalog:'
         version: 4.3.3(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
@@ -998,9 +998,6 @@ importers:
       wrangler:
         specifier: 'catalog:'
         version: 4.153.0(@types/node@24.19.2)
-      yaml:
-        specifier: 'catalog:'
-        version: 2.9.1
 
   apps/workspace:
     devDependencies:
@@ -1607,9 +1604,9 @@ importers:
       '@repo/editor-bridge':
         specifier: workspace:*
         version: link:../../packages/editor-bridge
-      '@repo/managed-agents-fake':
+      '@repo/messages-fake':
         specifier: workspace:*
-        version: link:../managed-agents-fake
+        version: link:../messages-fake
       '@repo/mobile':
         specifier: workspace:*
         version: link:../../apps/mobile
@@ -1644,34 +1641,6 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 4.6.7
-
-  tools/managed-agents-fake:
-    dependencies:
-      '@anthropic-ai/sdk':
-        specifier: 'catalog:'
-        version: 1.3.0(zod@4.6.7)
-      '@modelcontextprotocol/client':
-        specifier: 'catalog:'
-        version: 2.4.0
-      zod:
-        specifier: 'catalog:'
-        version: 4.6.7
-    devDependencies:
-      '@kyh/tsconfig':
-        specifier: 'catalog:'
-        version: 1.3.0
-      '@modelcontextprotocol/server':
-        specifier: 'catalog:'
-        version: 2.4.0
-      '@types/node':
-        specifier: 'catalog:'
-        version: 24.19.2
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.12(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(jsdom@30.1.3(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   tools/messages-fake:
     dependencies:

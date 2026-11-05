@@ -34,7 +34,7 @@ const SERVER_ONLY = {
 const CONFIG_MODULES = {
   message:
     "cloudflare.config.ts loads this module, so the dev server cannot load it in the Worker too: read the value from a binding the config declares",
-  regex: "(?:^|/)(?:compatibility|fill-queues|cloudflare\\.config)(?:\\.ts)?$",
+  regex: "(?:^|/)(?:compatibility|fill-queues|agent-limits|cloudflare\\.config)(?:\\.ts)?$",
 };
 
 // The Worker runs the built-in agent on the Agents SDK's Lifecycle alone, its job queue and its one

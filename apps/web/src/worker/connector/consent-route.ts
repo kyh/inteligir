@@ -43,10 +43,9 @@ const signInFirst = (url: URL): Response => {
   return Response.redirect(back.toString(), 302);
 };
 
-// a code sent back to this deployment goes to no assistant: the built-in agent's client is the one
-// whose address is here, and the cell grants it with no page (`../agent/built-in-client`), so a
-// link asking a person to let it in, or any client naming an address here, is refused before it
-// is shown, and no approval here replaces the agent's grant
+// a code sent back to this deployment goes to no assistant: no client of this Worker's own takes
+// one, so a client naming an address here is refused before its page is shown, lest the page say
+// this site is where the person's access goes
 const sendsHere = (redirectUri: string, origin: string): boolean =>
   URL.parse(redirectUri)?.origin === origin;
 
@@ -92,8 +91,8 @@ const answer = async (
   const { clientName } = await helpers.describeConsent(approved.request);
   const name = [...clientName.trim()].slice(0, NAME_MAX).join("");
   const { redirectTo } = await helpers.completeAuthorization({
-    metadata: { clientName: name, kind: "assistant" } satisfies GrantMetadata,
-    props: { accountId, clientName: name, kind: "assistant" },
+    metadata: { clientName: name } satisfies GrantMetadata,
+    props: { accountId, clientName: name },
     request: approved.request,
     scope: approved.request.scope,
     userId: accountId,

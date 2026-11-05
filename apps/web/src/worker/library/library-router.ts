@@ -25,8 +25,7 @@ import {
 import { ORPCError, implement } from "@orpc/server";
 import { z } from "zod";
 
-import { turnAgentOff, turnAgentOn } from "../agent/agent-access";
-import type { AgentCell } from "../agent/agent-access";
+import { setAgentEnabled } from "../agent/agent-switch";
 import {
   agentStatus,
   cancelTurn,
@@ -34,9 +33,10 @@ import {
   respondToAgent,
   sendToAgent,
 } from "../agent/agent-turns";
+import type { AgentCell } from "../agent/agent-turns";
 import { libraryTools } from "../connector/library-tools";
 import { cellCodec } from "./cell-codec";
-import { askFill } from "./cell-fills";
+import { askFill, askFillAfterTurn } from "./cell-fills";
 import { exportJobView, readExportJob, startExport } from "./cell-exports";
 import { writeFolders } from "./cell-folders";
 import { importJobView, latestImportJob, readImportJob } from "./cell-import-jobs";
@@ -52,7 +52,7 @@ import {
   refreshItem,
   setDeleted,
 } from "./cell-items";
-import type { LiveItemRow } from "./cell-landing";
+import type { LandingScope, LiveItemRow } from "./cell-landing";
 import {
   isoOf,
   listHighlights,
@@ -72,11 +72,11 @@ import { landedSchema } from "./library-engine";
 import type { LibraryEngine } from "./library-engine";
 
 export interface CellContext {
-  // whom this call's writes are by, read at the moment a write lands: the built-in agent's is the
-  // account's open turn, and refused once none is
+  // whom this call's writes are by, read at the moment a write lands: the built-in agent's is its
+  // turn, and refused once that turn is no longer open
   readonly actor: () => CellActor;
   readonly library: LibraryEngine;
-  // the built-in agent's access, which the person switches on and off
+  // the built-in agent's turns, which `library.agent.*` asks of
   readonly agent: AgentCell;
   // what follows a committed write: the sockets told the new head, the alarm set
   readonly settle: <T>(result: CellResult<T>) => Promise<CellResult<T>>;
@@ -160,6 +160,16 @@ const exportAnswer = z.object({ export: exportJobSchema });
 
 const summaryOfRow = (row: LiveItemRow) => summaryOf(row, "concise");
 
+// the cloud's reading of a link a write left waiting: a built-in agent's turn holds it until the
+// turn seals, so the agent never reads, within its turn, a page it saved
+const askReading = (scope: LandingScope, actor: CellActor, item: LiveItemRow): void => {
+  if (actor.kind === "agent") {
+    askFillAfterTurn(scope, item, scope.set().id);
+  } else {
+    askFill(scope, item);
+  }
+};
+
 const os = implement(libraryTools).$context<CellContext>();
 
 export const libraryRouter = os.router({
@@ -190,13 +200,8 @@ export const libraryRouter = os.router({
     send: os.agent.send.handler(async ({ context, input }) =>
       committed(context, await sendToAgent(context.agent, input)),
     ),
-    setEnabled: os.agent.setEnabled.handler(async ({ context, input }) =>
-      committed(
-        context,
-        input.enabled
-          ? await turnAgentOn(context.agent, input.opId)
-          : await turnAgentOff(context.agent, input.opId),
-      ),
+    setEnabled: os.agent.setEnabled.handler(({ context, input }) =>
+      committed(context, setAgentEnabled(context.agent, input)),
     ),
     // whether it is on, and what is left of the day's allowance
     status: os.agent.status.handler(({ context }) => answer(agentStatus(context.agent))),
@@ -412,7 +417,7 @@ export const libraryRouter = os.router({
         context,
         context.library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => {
           const item = refreshItem(scope, actor, input.id);
-          askFill(scope, item);
+          askReading(scope, actor, item);
           return { item };
         }),
       );
@@ -452,7 +457,7 @@ export const libraryRouter = os.router({
             input,
           );
           if (!saved.folded) {
-            askFill(scope, saved.item);
+            askReading(scope, actor, saved.item);
           }
           return saved;
         }),

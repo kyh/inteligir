@@ -1,7 +1,6 @@
 import { bindings, defineConfig, defineWorker, exports, triggers } from "cf/config";
 import { z } from "zod";
-import previewAgentLock from "./agents/preview/library-agent/claude-lock.json" with { type: "json" };
-import productionAgentLock from "./agents/production/library-agent/claude-lock.json" with { type: "json" };
+import { AGENT_ALLOWANCE, AGENT_PRICES } from "./agent-limits.ts";
 import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
 import type { FillJob } from "./src/worker/fill/fill-job.ts";
 import {
@@ -36,6 +35,9 @@ const worker = defineWorker({
   exports: {
     // each account's library cell (src/worker/library/library-do.ts)
     LibraryDO: exports.durableObject({ storage: "sqlite" }),
+    // each conversation with the built-in agent, which only its account's cell names
+    // (src/worker/agent/agent-thread.ts)
+    AgentThreadDO: exports.durableObject({ storage: "sqlite" }),
     // the account socket's old class, retired: its namespace stays a tombstone until a deploy's
     // response names it safe to drop
     ThreadSyncDO: exports.durableObject({ state: "deleted" }),
@@ -73,39 +75,41 @@ const shared = {
   // what the fill consumer needs of its queues' config, handed over rather than imported, since the
   // dev server cannot load a module this file also loads (fill-queues.ts)
   FILL_DELIVERY: bindings.json({ deadLetterQueue: FILL_FAILED_QUEUE, retries: FILL_RETRIES }),
-  // the built-in agent's Managed Agents key, from each target's own Anthropic workspace:
-  // `cf workers secrets update` in production, a preview base-config secret
-  // (.github/workflows/preview.yml), .dev.vars locally. A deployment without it runs no agent
-  ANTHROPIC_API_KEY: bindings.secret(),
-  // the key Anthropic signs its webhooks with, which production alone registers
-  ANTHROPIC_WEBHOOK_SIGNING_KEY: bindings.secret(),
-  // what the built-in agent may spend for one account (src/worker/agent/agent-allowance.ts): about
-  // fifty free turns a month, held first as a UTC day's two turns and a dollar of list cost, and
-  // the fifty cents one turn may cost
-  AGENT_ALLOWANCE: bindings.json({ dayCents: 100, dayTurns: 2, turnCents: 50 }),
+  // the token of the target's AI Gateway, whose Authenticated Gateway admits only requests that
+  // carry it (src/worker/agent/anthropic-client.ts): `cf workers secrets update` in production, a
+  // preview base-config secret (.github/workflows/preview.yml), .dev.vars for a gateway of a
+  // developer's own. The Worker holds no Anthropic key: each gateway stores its target's
+  AI_GATEWAY_TOKEN: bindings.secret(),
+  // what the built-in agent may spend for one account, and the list prices its calls are booked
+  // at, a fallback model's included (agent-limits.ts, read by src/worker/agent/agent-allowance.ts)
+  AGENT_ALLOWANCE: bindings.json(AGENT_ALLOWANCE),
+  AGENT_PRICES: bindings.json(AGENT_PRICES),
 };
 
-// the ids `ant apply` recorded in a target's lockfile for the agent and the environment it applied
-// from agents/<target>/library-agent/, keyed by each one's file; ant writes the file, and nothing
-// copies an id by hand. A resource not yet applied has no entry, and its binding is "", which the
-// Worker reads as no agent to run (src/worker/agent/managed-agents.ts)
-const agentLockSchema = z.object({
-  resources: z.record(
-    z.string(),
-    z.object({ id: z.string().min(1), version: z.string().min(1).optional() }),
-  ),
-});
+// each target's AI Gateway on its provider-native Anthropic route
+// (developers.cloudflare.com/ai-gateway/usage/providers/anthropic/): production's `inteligir`,
+// every preview's `inteligir-preview`. The account comes from the deploy job's
+// CLOUDFLARE_ACCOUNT_ID, parsed off `globalThis` as `previewDeploy` parses its values; a build
+// without it, CI's, names no gateway, and its Worker refuses every agent send
+const GATEWAYS = { preview: "inteligir-preview", production: "inteligir" } as const;
 
-const appliedAgent = ({ resources }: z.infer<typeof agentLockSchema>) => ({
-  AGENT_ENVIRONMENT_ID: bindings.text<string>(resources["./environment.yaml"]?.id ?? ""),
-  AGENT_ID: bindings.text<string>(resources["./agent.md"]?.id ?? ""),
-  AGENT_VERSION: bindings.text<string>(resources["./agent.md"]?.version ?? ""),
-});
-
-// the local Worker's: none of a target's, whose agents live in workspaces a developer's key does not
-// reach, so `vite dev` names no agent unless .dev.vars names one applied in that key's own
-// workspace (.dev.vars.example), or the fake `pnpm dev:web` serves (tools/managed-agents-fake)
-const localAgent = appliedAgent({ resources: {} });
+const gatewayUrl = (gateway: (typeof GATEWAYS)[keyof typeof GATEWAYS]): string => {
+  const account = z
+    .object({
+      process: z.object({
+        env: z.object({
+          CLOUDFLARE_ACCOUNT_ID: z
+            .string()
+            .regex(/^[0-9a-f]{32}$/u)
+            .optional(),
+        }),
+      }),
+    })
+    .parse(globalThis).process.env.CLOUDFLARE_ACCOUNT_ID;
+  return account === undefined
+    ? ""
+    : `https://gateway.ai.cloudflare.com/v1/${account}/${gateway}/anthropic`;
+};
 
 // what the Preview job hands this deploy (.github/workflows/preview.yml). Node evaluates this file,
 // but the Worker's own program types it too and declares no `process`, so the job's environment is
@@ -138,8 +142,8 @@ const previewWorker = () => {
     triggers: [],
     env: {
       ...shared,
-      // the preview workspace's agent, which every preview session overrides with its PR's own
-      ...appliedAgent(agentLockSchema.parse(previewAgentLock)),
+      // the preview gateway, which holds the preview Anthropic workspace's key, never production's
+      AGENT_GATEWAY_URL: bindings.text<string>(gatewayUrl(GATEWAYS.preview)),
       DB: bindings.d1({ name: "inteligir-auth-preview" }),
       PACK_CACHE: bindings.r2({ name: "inteligir-vault-preview" }),
       BLOBS: bindings.r2({ name: "inteligir-vault-preview" }),
@@ -169,12 +173,14 @@ const productionWorker = (mode: string | undefined) => ({
   // client reconnects and catches up by itself, so none waits on the old code to drain
   env: {
     ...shared,
-    ...(mode === "development"
-      ? localAgent
-      : appliedAgent(agentLockSchema.parse(productionAgentLock))),
-    // the fake Managed Agents API the local Worker's .dev.vars names (.dev.vars.example), declared
+    // none for the local Worker: its .dev.vars names the scripted Messages API, or a gateway of the
+    // developer's own (.dev.vars.example), never a target's
+    AGENT_GATEWAY_URL: bindings.text<string>(
+      mode === "development" ? "" : gatewayUrl(GATEWAYS.production),
+    ),
+    // the scripted Messages API the local Worker's .dev.vars names (tools/messages-fake), declared
     // by `vite dev` alone, so no deployed Worker can be pointed at one
-    MANAGED_AGENTS_FAKE_URL: mode === "development" ? bindings.text<string>("") : undefined,
+    ANTHROPIC_FAKE_URL: mode === "development" ? bindings.text<string>("") : undefined,
     // schema is src/worker/db/schema.ts, applied with drizzle-kit push (no migration files)
     DB: bindings.d1({ name: "inteligir-auth", id: "005d0e52-f102-4298-8da9-492b672ed00f" }),
     // pack bytes only; without it durable-git stores packs in the cell's SQLite, which

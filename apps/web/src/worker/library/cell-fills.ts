@@ -48,21 +48,41 @@ interface FillRequest {
 
 const fillJobId = (itemId: string): string => `fill:${itemId}`;
 
+// a row the built-in agent's turn holds names its change set, and waits until the set seals
 const requestSchema = z.strictObject({
   coverHint: z.string().nullable(),
+  heldBy: z.string().nullable(),
   itemId: z.string(),
   url: z.string(),
 });
 
+// how long a held row waits before it is looked at again, should its turn somehow never seal: the
+// seal re-times every row it holds to now
+const HELD_MS = 24 * 60 * 60_000;
+
 // the reading of an item asked for in the write that made it wait: a second ask before the first
 // was sent replaces it, since one reading of the page as it is now answers both
-const queueFill = (sql: SqlStatements, request: FillRequest, now: number): void => {
+const queueFill = (
+  sql: SqlStatements,
+  request: FillRequest & { readonly heldBy: string | null },
+  at: number,
+): void => {
   scheduleJob(
     sql,
-    { id: fillJobId(request.itemId), kind: "fill", payload: JSON.stringify(request) },
-    now,
+    {
+      id: fillJobId(request.itemId),
+      kind: "fill",
+      payload: JSON.stringify(requestSchema.parse(request)),
+    },
+    at,
   );
 };
+
+const waitsForFill = (
+  item: LiveItemRow,
+): item is LiveItemRow & {
+  readonly fields: LiveItemRow["fields"] & { readonly url: string };
+} => item.fields.fetchState === "pending" && item.fields.url !== null;
 
 // the reading of an item a write left waiting for one: a link saved to read later, one refreshed,
 // one an import brought
@@ -71,9 +91,56 @@ export const askFill = (
   item: LiveItemRow,
   coverHint: string | null = null,
 ): void => {
-  if (item.fields.fetchState === "pending" && item.fields.url !== null) {
-    queueFill(scope.storage, { coverHint, itemId: item.id, url: item.fields.url }, scope.now);
+  if (waitsForFill(item)) {
+    queueFill(
+      scope.storage,
+      { coverHint, heldBy: null, itemId: item.id, url: item.fields.url },
+      scope.now,
+    );
   }
+};
+
+// the reading of a link the built-in agent saved, held until its turn seals (owner decision):
+// within the turn the agent could otherwise save a page, read what it says and act on it, a web
+// reader it was never given. The row names the turn's change set, which the seal re-times
+export const askFillAfterTurn = (
+  scope: LandingScope,
+  item: LiveItemRow,
+  changeSetId: string,
+): void => {
+  if (waitsForFill(item)) {
+    queueFill(
+      scope.storage,
+      { coverHint: null, heldBy: changeSetId, itemId: item.id, url: item.fields.url },
+      scope.now + HELD_MS,
+    );
+  }
+};
+
+const heldSchema = z.object({ id: z.string() });
+
+// the readings a sealed turn held, due now
+export const releaseHeldFills = (
+  sql: SqlStatements,
+  changeSetIds: readonly string[],
+  now: number,
+): void => {
+  for (const changeSetId of changeSetIds) {
+    for (const raw of sql.all(
+      "SELECT id FROM jobs WHERE kind = 'fill' AND json_extract(payload, '$.heldBy') = ?",
+      [changeSetId],
+    )) {
+      sql.run("UPDATE jobs SET next_at = ? WHERE id = ?", [now, heldSchema.parse(raw).id]);
+    }
+  }
+};
+
+const sealedSchema = z.object({ sealed_at: z.number().nullable() });
+
+// whether a held row's turn has sealed: a set the library no longer keeps holds nothing
+const turnSealed = (sql: SqlStatements, changeSetId: string): boolean => {
+  const [row] = sql.all("SELECT sealed_at FROM change_sets WHERE id = ?", [changeSetId]);
+  return row === undefined || sealedSchema.parse(row).sealed_at !== null;
 };
 
 export interface ClaimedFill {
@@ -86,10 +153,15 @@ export interface ClaimedFill {
 // the readings waiting to be sent, each put off a minute, so a send that never answers is sent
 // again by the alarm and two commits in flight do not both send one
 export const claimFills = (sql: SqlStatements, now: number): ClaimedFill[] =>
-  dueJobs(sql, now, ["fill"]).map((job) => {
+  dueJobs(sql, now, ["fill"]).flatMap((job) => {
+    const { heldBy, ...request } = requestSchema.parse(JSON.parse(job.payload));
+    if (heldBy !== null && !turnSealed(sql, heldBy)) {
+      deferJob(sql, job.id, now + HELD_MS);
+      return [];
+    }
     const resendAt = now + RESEND_AFTER_MS;
     deferJob(sql, job.id, resendAt);
-    return { job, request: requestSchema.parse(JSON.parse(job.payload)), resendAt };
+    return [{ job, request, resendAt }];
   });
 
 // the readings the queue took; a row asked for again since its claim stays for its own send

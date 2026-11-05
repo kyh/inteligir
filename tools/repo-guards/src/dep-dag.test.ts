@@ -44,13 +44,13 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // page's wire, so the scripted phone speaks the frames the page parses; the
     // @repo/mobile-editor edge is the page's reader mode, which the phone's runtime reads a saved
     // link with; the @repo/page-reader edge is the linkedom DOM that reader runs over under node,
-    // where the page has its WebView's; the @repo/managed-agents-fake edge is the Managed Agents
-    // API each Worker it boots runs its built-in agent against; the @repo/notes edge is the
-    // block hashes and fields the scripted phone's replica answers an item page with.
+    // where the page has its WebView's; the @repo/messages-fake edge is the scripted Claude each
+    // Worker it boots runs its built-in agent against; the @repo/notes edge is the block hashes
+    // and fields the scripted phone's replica answers an item page with.
     "@repo/e2e": [
       "@repo/contract",
       "@repo/editor-bridge",
-      "@repo/managed-agents-fake",
+      "@repo/messages-fake",
       "@repo/mobile",
       "@repo/mobile-editor",
       "@repo/notes",
@@ -91,9 +91,9 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // schema and SQL its cell runs (@repo/notes); the block merge is the editor's diff3, which its
     // host injects, so no @repo/editor edge
     "@repo/library-replica": ["@repo/contract", "@repo/notes"],
-    // a leaf: the Managed Agents API with no model behind it, which the local Worker, the e2e
-    // scenarios and the Worker's suites drive the built-in agent against
-    "@repo/managed-agents-fake": [],
+    // a leaf: a scripted Claude Messages API with no model behind it, which the local Worker, the
+    // e2e scenarios and the Worker's suites run the built-in agent against
+    "@repo/messages-fake": [],
     "@repo/notes": [],
     "@repo/repo-guards": [],
     "@repo/ui": [],

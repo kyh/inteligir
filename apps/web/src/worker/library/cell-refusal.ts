@@ -31,8 +31,8 @@ export type CellRefusal =
   | { readonly kind: "edit-refused"; readonly refusal: EditRefusal }
   // a page's cursor this library never answered with
   | { readonly kind: "bad-cursor" }
-  // the built-in agent could not be turned on or used: this deployment has no key or no applied
-  // agent, Anthropic did not answer, or the person turned it off meanwhile
+  // the built-in agent cannot be used: this deployment has no Claude to call, its conversation's
+  // object could not be reached, or the person turned it off
   | { readonly kind: "agent-unavailable" }
   // the day's allowance of the built-in agent is spent, until `resetsAt`
   | { readonly kind: "agent-budget"; readonly resetsAt: number };

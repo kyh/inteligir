@@ -307,19 +307,22 @@ const CELL_DDL = [
     changed_at INTEGER NOT NULL
   ) STRICT`,
   // each thread's open turn, at most one: its number in the thread, which keys the change set its
-  // writes open, what the person sent, where it stands, whether the person stopped it, and when
-  // its conversation's object was last heard from, which the watch job asks after
+  // writes open, what the person sent, where it stands and how many of its calls wait on the
+  // person, whether the person stopped it, and when its conversation's object was last heard
+  // from, which the watch job asks after
   `CREATE TABLE IF NOT EXISTS agent_turns (
     thread_id TEXT PRIMARY KEY,
     turn INTEGER NOT NULL,
     message TEXT NOT NULL,
     phase TEXT NOT NULL CHECK (phase IN (${oneOf(AGENT_TURN_PHASES)})),
+    waiting INTEGER NOT NULL DEFAULT 0 CHECK (waiting >= 0),
     cancel INTEGER NOT NULL DEFAULT 0 CHECK (cancel IN (0, 1)),
     started_at INTEGER NOT NULL,
     heard_at INTEGER NOT NULL
   ) STRICT`,
   // every model call a turn reserved before it was sent: what it may spend, in micro-cents, and
-  // once its reply or its cut is pushed what it cost, on the day it was reserved
+  // once its reply or its cut is pushed what it cost, on the day it was reserved; a call cut short
+  // reports no usage, so it is booked at what it reserved and marked cut
   `CREATE TABLE IF NOT EXISTS agent_calls (
     call_id TEXT PRIMARY KEY,
     thread_id TEXT NOT NULL,
@@ -328,6 +331,7 @@ const CELL_DDL = [
     reserved_ucents INTEGER NOT NULL,
     max_tokens INTEGER NOT NULL,
     cost_ucents INTEGER,
+    cut INTEGER NOT NULL DEFAULT 0 CHECK (cut IN (0, 1)),
     reserved_at INTEGER NOT NULL
   ) STRICT`,
   `CREATE INDEX IF NOT EXISTS agent_calls_turn ON agent_calls (thread_id, turn)`,

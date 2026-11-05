@@ -1,11 +1,10 @@
 // The cell's one alarm runs what the `jobs` table holds: a change set to seal once its actor goes
 // quiet, the daily prune of history, an upload whose room was held too long, a file no item named
 // in its first day, a stray file to take out of R2, a page's reading to send to the fill queue, an
-// import's next page, an export to write and one to let go, the built-in agent's access to take
-// down once it is off, its credential to check again and a turn-on the platform ended part way to
-// let go of, and its turns: the open one's reconcile, an approval nobody answered, the next send
-// waiting for its turn, and a session to delete at Anthropic. A job is a row, so it survives eviction and a missed alarm; the alarm is set to the
-// earliest due one, and only while any is waiting
+// import's next page, an export to write and one to let go, and the built-in agent's turns: one to
+// hand to its conversation's object, and one whose object has gone quiet to ask after. A job is a
+// row, so it survives eviction and a missed alarm; the alarm is set to the earliest due one, and
+// only while any is waiting
 // (https://developers.cloudflare.com/durable-objects/api/alarms/).
 
 import { z } from "zod";
@@ -22,13 +21,8 @@ const JOB_KINDS = [
   "import",
   "export",
   "expire",
-  "agent-teardown",
-  "agent-repair",
-  "agent-start",
-  "agent-turn",
-  "agent-approval",
-  "agent-queue",
-  "agent-forget",
+  "agent-deliver",
+  "agent-watch",
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
@@ -118,19 +112,6 @@ export const dueJobs = <K extends JobKind>(
     )
     .map((row) => rowSchema.parse(row));
 };
-
-const waitingRowSchema = z.object({
-  attempts: z.number().int().nonnegative(),
-  id: z.string(),
-  kind: z.enum(JOB_KINDS),
-  payload: z.string(),
-});
-
-// every job of `kind` waiting, due or not, as an account's deletion reads what is left to do
-export const waitingJobs = (sql: SqlStatements, kind: JobKind): DueJob[] =>
-  sql
-    .all("SELECT id, kind, payload, attempts FROM jobs WHERE kind = ? ORDER BY next_at, id", [kind])
-    .map((row) => waitingRowSchema.parse(row));
 
 const nextRowSchema = z.object({ next: z.number().nullable() });
 

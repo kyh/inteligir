@@ -4,7 +4,6 @@ import { SYNC_WS_PATH } from "@repo/contract/cloud/sync/sync-ws";
 import { VAULT_GIT_PATH } from "@repo/contract/cloud/vault/vault-git";
 import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
-import { ANTHROPIC_WEBHOOK_PATH, handleAnthropicWebhook } from "./agent/anthropic-webhook";
 import { createAuth } from "./auth/auth";
 import { handleInviteSignUp } from "./auth/invite";
 import { refuseBelowFloor } from "./client-floor";
@@ -32,6 +31,7 @@ import { handleVaultGitRemote } from "./vault/git-remote";
 import { handleVaultReadRoutes, isVaultReadPath } from "./vault/read-routes";
 
 // Durable Object classes must be exported from the entry the runtime loads: this file for tests, ./server.ts for deploy
+export { AgentThreadDO } from "./agent/agent-thread";
 export { LibraryDO } from "./library/library-do";
 export { RepoCell, Registry } from "durable-git";
 
@@ -46,9 +46,7 @@ const isConnectorRoute = (pathname: string): boolean =>
   isConnectorPath(pathname) || isAuthorizationServerPath(pathname) || pathname === CONSENT_PATH;
 
 export const ownsPath = (pathname: string): boolean =>
-  OWNED_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
-  isConnectorRoute(pathname) ||
-  pathname === ANTHROPIC_WEBHOOK_PATH;
+  OWNED_PREFIXES.some((prefix) => pathname.startsWith(prefix)) || isConnectorRoute(pathname);
 
 const isRpc = (pathname: string): boolean => pathname.startsWith(`${V1_RPC_PATH}/`);
 
@@ -63,12 +61,8 @@ const speaksCloudEnvelope = (pathname: string): boolean =>
   !isBlobPath(pathname) &&
   !isExportPath(pathname);
 
-// the doors a whole path names: the connector's consent page, and Anthropic's own POST, verified
-// by its signature alone
-const PATH_ROUTES = new Map([
-  [CONSENT_PATH, handleConsent],
-  [ANTHROPIC_WEBHOOK_PATH, handleAnthropicWebhook],
-]);
+// the doors a whole path names: the connector's consent page
+const PATH_ROUTES = new Map([[CONSENT_PATH, handleConsent]]);
 
 const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {
   const url = new URL(request.url);

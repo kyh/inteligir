@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "agent-prompt": "node scripts/agent-prompt.ts",
     "build": "cf build",
     "db:export": "drizzle-kit export --dialect=sqlite --schema=./src/worker/db/schema.ts",
     "db:push": "drizzle-kit push --config drizzle.config.local.ts --force",
@@ -13,7 +14,6 @@
     "dev": "cf dev",
     "generate": "cf workers types",
     "og:cards": "node scripts/og-cards.ts",
-    "agents": "node scripts/agent-files.ts",
     "start": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker && tsc --noEmit -p scripts"
@@ -56,7 +56,7 @@
     "@orpc/client": "catalog:",
     "@repo/agent-skills": "workspace:*",
     "@repo/library-replica": "workspace:*",
-    "@repo/managed-agents-fake": "workspace:*",
+    "@repo/messages-fake": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
@@ -71,7 +71,6 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
-    "wrangler": "catalog:",
-    "yaml": "catalog:"
+    "wrangler": "catalog:"
   }
 }

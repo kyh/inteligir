@@ -106,35 +106,27 @@ runs on its own plan, never ours. Each one is a grant on the account, which
 `account.assistants` lists and revokes (`assistant-grants.ts`), and Settings ›
 Account shows. Not the **built-in agent**, though both call the same tools.
 
-**built-in agent** — the app's own agent: one Claude Managed Agents agent and
-environment per deployment target, configured by files in `apps/web/agents`
-(`apps/web/scripts/agent-files.ts` writes them) and synced with `ant apply`.
-The cell starts one session per thread and is the only reader of its events.
-It reaches the library only through the **connector**, as our own OAuth client
-(`apps/web/src/worker/agent/built-in-client.ts`) whose token is held in the
-account's Managed Agents vault (Anthropic's credential store, not the
-library), which turning the agent on makes and turning it off deletes
-(`apps/web/src/worker/agent/agent-access.ts`); it has
-no shell, files or web of its own, deleting is the one call that asks the
-person first, and at most one of its **turns** runs per account at a time. It
-runs on our bill, within the account's allowance. Not a **connected
-assistant**.
+**built-in agent** — the app's own agent: our loop over Claude, a Durable
+Object for each **thread** (`apps/web/src/worker/agent/agent-thread.ts`),
+calling Claude through AI Gateway. It changes the library only through the
+account's cell, by the procedures the **connector** serves, run as the
+agent's; it has no shell, files or web of its own, deleting is the one call
+that asks the person first, and it runs on our bill, within the account's
+allowance. Not a **connected assistant**.
 
 **turn** — one message to the **built-in agent** and the work it does until
-its session goes idle on a final stop reason (`end_turn`, `retries_exhausted`,
-`budget_reached`, `refusal`) or terminates; idling to ask an approval does not
-end it. The cell checks the account's allowance before it starts and the
-session's budget caps it, and its writes are one **change set**, which "Undo
-this turn" reverts. A send while one runs waits its turn, and the built-in
-client's calls are taken only while one is open
-(`apps/web/src/worker/agent/agent-turns.ts`). Not a connected assistant's
-call, which is no turn, and not the Mac runtime's turn under The agent, below.
+Claude ends it, the person stops it, or the allowance does; waiting on an
+approval does not end it. The cell checks the allowance before it starts and
+reserves each model call before it is sent, and its writes are one **change
+set**, which "Undo this turn" reverts. A send while its thread's turn runs
+waits its turn (`apps/web/src/worker/agent/agent-turns.ts`). Not a connected
+assistant's call, which is no turn, and not the Mac runtime's turn under The
+agent, below.
 
-**thread** — a conversation with the **built-in agent**: one Managed Agents
-session, the account's, so every device shows it, and the events the cell
-stored of it, synced as rows (`apps/web/src/worker/agent/turn-rows.ts`). One
-whose session stopped at the allowance or ended goes on in a fresh one that
-remembers what was said. Not the Mac runtime's thread under The agent, below.
+**thread** — a conversation with the **built-in agent**, the account's, so
+every device shows it: its transcript in its own object and its events synced
+as rows (`agent-turns.ts`). Not the Mac runtime's thread under The agent,
+below.
 
 ## The library (the vault, in code)
 

@@ -1,13 +1,14 @@
 // The cell's rows of the built-in agent's conversations, read and written inside the cell's
-// transactions: a thread and its status, the sessions the account holds at Anthropic, the account's
-// one open turn, and the sends waiting for it. A thread and its events are synced rows, so each
-// write takes the library's next sequence number and logs the change for every replica.
+// transactions: a thread and its status, each thread's one open turn, the sends waiting for a turn,
+// the last push each thread's object landed, and the switch. A thread and its events are synced
+// rows, so each write of one takes the library's next sequence number and logs the change for
+// every replica; the rest are the cell's alone.
 
 import { agentViewContextSchema, THREAD_STATUSES } from "@repo/contract/cloud/library/library-wire";
 import { recordChanges } from "@repo/notes/library/library-queries";
 import { AGENT_TURN_PHASES } from "@repo/notes/library/library-schema";
 import { runPlan } from "@repo/notes/library/library-sql";
-import type { SqlStatements } from "@repo/notes/library/library-sql";
+import type { SqlRow, SqlStatements } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
 import type { CellActor } from "../library/cell-actor";
@@ -45,20 +46,16 @@ const messageText = JSON_TEXT.pipe(turnMessageSchema);
 
 // ---- threads ----
 
-const threadStateSchema = z.object({
-  session_id: z.string().nullable(),
-  status: z.enum(THREAD_STATUSES),
-  title: z.string(),
-});
+const threadStateSchema = z.object({ status: z.enum(THREAD_STATUSES), title: z.string() });
 
 export const threadState = (sql: SqlStatements, threadId: string) => {
-  const [row] = sql.all("SELECT session_id, status, title FROM threads WHERE id = ?", [threadId]);
+  const [row] = sql.all("SELECT status, title FROM threads WHERE id = ?", [threadId]);
   return row === undefined ? null : threadStateSchema.parse(row);
 };
 
-// whether the thread stored any event yet: one that never spoke is one its first send just made
-export const threadSpoke = (sql: SqlStatements, threadId: string): boolean =>
-  sql.all("SELECT 1 FROM thread_events WHERE thread_id = ? LIMIT 1", [threadId]).length > 0;
+// a thread that must exist for the call to mean anything
+export const knownThread = (sql: SqlStatements, threadId: string) =>
+  threadState(sql, threadId) ?? refuse({ kind: "not-found" });
 
 const titleOf = (text: string): string => {
   const line = text.split(/\r?\n/u).find((candidate) => candidate.trim() !== "") ?? "";
@@ -69,8 +66,8 @@ const titleOf = (text: string): string => {
 export const createThread = (scope: LandingScope, threadId: string, text: string): void => {
   const seq = scope.seq();
   scope.storage.run(
-    `INSERT INTO threads (id, session_id, title, status, created_at, updated_at, seq)
-     VALUES (?, NULL, ?, 'idle', ?, ?, ?)`,
+    `INSERT INTO threads (id, title, status, created_at, updated_at, seq)
+     VALUES (?, ?, 'idle', ?, ?, ?)`,
     [threadId, titleOf(text), scope.now, scope.now, seq],
   );
   runPlan(scope.storage, recordChanges([{ gone: false, id: threadId, kind: "thread", seq }]));
@@ -96,141 +93,61 @@ export const setThreadStatus = (
   runPlan(scope.storage, recordChanges([{ gone: false, id: threadId, kind: "thread", seq }]));
 };
 
-// the thread's session, the one its next turn continues; null starts a fresh one
-export const setThreadSession = (
-  scope: LandingScope,
-  threadId: string,
-  sessionId: string | null,
-): void => {
-  scope.storage.run("UPDATE threads SET session_id = ? WHERE id = ?", [sessionId, threadId]);
-};
+const idSchema = z.object({ id: z.string() });
 
-// ---- sessions ----
+export const everyThreadId = (sql: SqlStatements): string[] =>
+  sql.all("SELECT id FROM threads ORDER BY id", []).map((row) => idSchema.parse(row).id);
 
-const sessionRowSchema = z.object({
-  cached_tokens: z.number(),
-  cost_cents: z.number(),
-  cursor: z.string().nullable(),
-  input_tokens: z.number(),
-  output_tokens: z.number(),
-  thread_id: z.string(),
-});
-
-export const sessionRow = (sql: SqlStatements, sessionId: string) => {
-  const [row] = sql.all(
-    `SELECT thread_id, cursor, cost_cents, input_tokens, cached_tokens, output_tokens
-     FROM agent_sessions WHERE session_id = ?`,
-    [sessionId],
-  );
-  return row === undefined ? null : sessionRowSchema.parse(row);
-};
-
-// a session Anthropic made for the thread, recorded before anything else is asked of it
-export const holdSession = (scope: LandingScope, sessionId: string, threadId: string): void => {
-  scope.storage.run(
-    `INSERT INTO agent_sessions (session_id, thread_id, created_at) VALUES (?, ?, ?)
-     ON CONFLICT (session_id) DO NOTHING`,
-    [sessionId, threadId, scope.now],
-  );
-};
-
-// a session no thread runs in any more, which waits to be deleted at Anthropic
-export const dropSession = (sql: SqlStatements, sessionId: string, now: number): void => {
-  sql.run("UPDATE agent_sessions SET dropped_at = ? WHERE session_id = ? AND dropped_at IS NULL", [
-    now,
-    sessionId,
-  ]);
-};
-
-export const forgetSession = (sql: SqlStatements, sessionId: string): void => {
-  sql.run("DELETE FROM agent_sessions WHERE session_id = ?", [sessionId]);
-};
-
-const sessionIdSchema = z.object({ session_id: z.string() });
-
-// every session the account holds at Anthropic, those it let go of included
-export const heldSessionIds = (sql: SqlStatements): string[] =>
-  sql
-    .all("SELECT session_id FROM agent_sessions ORDER BY created_at", [])
-    .map((row) => sessionIdSchema.parse(row).session_id);
-
-// every session a thread ran in, the one it runs in now included
-export const threadSessionIds = (sql: SqlStatements, threadId: string): string[] =>
-  sql
-    .all("SELECT session_id FROM agent_sessions WHERE thread_id = ? AND dropped_at IS NULL", [
-      threadId,
-    ])
-    .map((row) => sessionIdSchema.parse(row).session_id);
-
-// ---- the open turn ----
+// ---- the open turns ----
 
 export type TurnPhase = (typeof AGENT_TURN_PHASES)[number];
 
-// why a turn ends: a final stop reason of its idle, or its session's end
-const TURN_ENDS = [
-  "end_turn",
-  "retries_exhausted",
-  "budget_reached",
-  "refusal",
-  "terminated",
-] as const;
-
-export type TurnEnd = (typeof TURN_ENDS)[number];
-
-const pendingSchema = JSON_TEXT.pipe(z.array(z.string()).min(1));
-
 const turnRowSchema = z.object({
-  asked_at: z.number().nullable(),
-  ends: z.enum(TURN_ENDS).nullable(),
-  interrupted: z.number(),
+  cancel: z.number(),
+  heard_at: z.number(),
   message: z.string(),
-  pending: z.string().nullable(),
   phase: z.enum(AGENT_TURN_PHASES),
-  session_id: z.string().nullable(),
   started_at: z.number(),
   thread_id: z.string(),
   turn: z.number(),
+  waiting: z.number(),
 });
 
 export interface OpenTurn {
   readonly threadId: string;
-  readonly sessionId: string | null;
   readonly turn: number;
-  readonly phase: TurnPhase;
   readonly message: TurnMessage;
-  readonly ends: TurnEnd | null;
-  // the calls the session waits on the person's answer to, and since when
-  readonly pending: readonly string[];
-  readonly askedAt: number | null;
-  readonly interrupted: boolean;
+  readonly phase: TurnPhase;
+  // the calls of the turn waiting on the person
+  readonly waiting: number;
+  readonly cancel: boolean;
   readonly startedAt: number;
+  // when its conversation's object last called
+  readonly heardAt: number;
 }
 
-export const openTurn = (sql: SqlStatements): OpenTurn | null => {
-  const [raw] = sql.all(
-    `SELECT thread_id, session_id, turn, phase, message, ends, pending, asked_at, interrupted,
-       started_at FROM agent_turn`,
-    [],
-  );
-  if (raw === undefined) {
-    return null;
-  }
+const TURN_COLUMNS = "thread_id, turn, message, phase, waiting, cancel, started_at, heard_at";
+
+const openTurnFrom = (raw: SqlRow): OpenTurn => {
   const row = turnRowSchema.parse(raw);
   return {
-    askedAt: row.asked_at,
-    ends: row.ends,
-    interrupted: row.interrupted === 1,
+    cancel: row.cancel === 1,
+    heardAt: row.heard_at,
     message: messageText.parse(row.message),
-    pending: row.pending === null ? [] : pendingSchema.parse(row.pending),
     phase: row.phase,
-    sessionId: row.session_id,
     startedAt: row.started_at,
     threadId: row.thread_id,
     turn: row.turn,
+    waiting: row.waiting,
   };
 };
 
-// the actor a turn's writes are by, which every call its session makes joins
+export const openTurnOf = (sql: SqlStatements, threadId: string): OpenTurn | null => {
+  const [raw] = sql.all(`SELECT ${TURN_COLUMNS} FROM agent_turns WHERE thread_id = ?`, [threadId]);
+  return raw === undefined ? null : openTurnFrom(raw);
+};
+
+// the actor a turn's writes are by, which every call it runs joins
 export const turnActor = (turn: Pick<OpenTurn, "threadId" | "turn">): CellActor => ({
   kind: "agent",
   label: AGENT_LABEL,
@@ -238,66 +155,68 @@ export const turnActor = (turn: Pick<OpenTurn, "threadId" | "turn">): CellActor 
   turn: turn.turn,
 });
 
-const turnNumberSchema = z.object({ turn: z.number().nullable() });
+const countSchema = z.object({ count: z.number() });
 
-// the thread's next turn's number, after every change set an earlier one opened
+// the thread's next turn's number: one past every turn it opened, each of which kept the person's
+// message as its event, which only the thread's deletion takes
 export const nextTurnNumber = (sql: SqlStatements, threadId: string): number => {
-  const [row] = sql.all("SELECT max(turn) AS turn FROM change_sets WHERE thread_id = ?", [
-    threadId,
-  ]);
-  return (turnNumberSchema.parse(row).turn ?? 0) + 1;
+  const [row] = sql.all(
+    "SELECT count(*) AS count FROM thread_events WHERE thread_id = ? AND type = 'user.message'",
+    [threadId],
+  );
+  return countSchema.parse(row).count + 1;
 };
 
 export const insertTurn = (
   sql: SqlStatements,
   turn: {
     readonly threadId: string;
-    readonly sessionId: string | null;
     readonly turn: number;
     readonly message: TurnMessage;
-    readonly startedAt: number;
+    readonly at: number;
   },
 ): void => {
   sql.run(
-    `INSERT INTO agent_turn (slot, thread_id, session_id, turn, phase, message, started_at)
-     VALUES (1, ?, ?, ?, 'starting', ?, ?)`,
+    `INSERT INTO agent_turns (thread_id, turn, message, phase, waiting, cancel, started_at,
+       heard_at)
+     VALUES (?, ?, ?, 'running', 0, 0, ?, ?)`,
     [
       turn.threadId,
-      turn.sessionId,
       turn.turn,
       JSON.stringify(turnMessageSchema.parse(turn.message)),
-      turn.startedAt,
+      turn.at,
+      turn.at,
     ],
   );
 };
 
-export const setTurnSession = (sql: SqlStatements, sessionId: string | null): void => {
-  sql.run("UPDATE agent_turn SET session_id = ?", [sessionId]);
+// the turn's object called: what the watch job asks after
+export const heardFrom = (sql: SqlStatements, threadId: string, now: number): void => {
+  sql.run("UPDATE agent_turns SET heard_at = ? WHERE thread_id = ?", [now, threadId]);
 };
 
-export const setTurnRunning = (sql: SqlStatements): void => {
-  sql.run("UPDATE agent_turn SET phase = 'running', pending = NULL, asked_at = NULL", []);
-};
-
-export const setTurnAwaiting = (sql: SqlStatements, pending: readonly string[], at: number) => {
+// a call of the turn began waiting on the person, or stopped waiting
+export const moveWaiting = (sql: SqlStatements, threadId: string, by: 1 | -1): TurnPhase => {
   sql.run(
-    "UPDATE agent_turn SET phase = 'awaiting_approval', pending = ?, asked_at = coalesce(asked_at, ?)",
-    [JSON.stringify(pending), at],
+    `UPDATE agent_turns SET waiting = max(0, waiting + ?),
+       phase = CASE WHEN max(0, waiting + ?) > 0 THEN 'awaiting_approval' ELSE 'running' END
+     WHERE thread_id = ?`,
+    [by, by, threadId],
   );
+  return openTurnOf(sql, threadId)?.phase ?? "running";
 };
 
-export const setTurnEnding = (sql: SqlStatements, ends: TurnEnd): void => {
-  sql.run("UPDATE agent_turn SET phase = 'ending', pending = NULL, asked_at = NULL, ends = ?", [
-    ends,
-  ]);
+export const markCancel = (sql: SqlStatements, threadId: string): void => {
+  sql.run("UPDATE agent_turns SET cancel = 1 WHERE thread_id = ?", [threadId]);
 };
 
-export const markInterrupted = (sql: SqlStatements): void => {
-  sql.run("UPDATE agent_turn SET interrupted = 1", []);
+export const dropTurn = (sql: SqlStatements, threadId: string): void => {
+  sql.run("DELETE FROM agent_turns WHERE thread_id = ?", [threadId]);
 };
 
-export const dropTurn = (sql: SqlStatements): void => {
-  sql.run("DELETE FROM agent_turn", []);
+export const openTurnCount = (sql: SqlStatements): number => {
+  const [row] = sql.all("SELECT count(*) AS count FROM agent_turns", []);
+  return countSchema.parse(row).count;
 };
 
 // ---- the queue ----
@@ -325,17 +244,8 @@ export const enqueue = (sql: SqlStatements, send: QueuedSend): void => {
   ]);
 };
 
-// the send that has waited longest, taken off the queue
-export const dequeue = (sql: SqlStatements): QueuedSend | null => {
-  const [raw] = sql.all(
-    "SELECT id, thread_id, message, queued_at FROM agent_queue ORDER BY queued_at, id LIMIT 1",
-    [],
-  );
-  if (raw === undefined) {
-    return null;
-  }
+const queuedFrom = (raw: SqlRow): QueuedSend => {
   const row = queuedRowSchema.parse(raw);
-  sql.run("DELETE FROM agent_queue WHERE id = ?", [row.id]);
   return {
     id: row.id,
     message: messageText.parse(row.message),
@@ -344,44 +254,80 @@ export const dequeue = (sql: SqlStatements): QueuedSend | null => {
   };
 };
 
-const firstQueuedSchema = z.object({ first: z.number().nullable() });
-const queuedThreadSchema = z.object({ thread_id: z.string() });
-
-// a send whose turn could not start, put back where it waited: ahead of every send queued since
-export const requeueFirst = (
-  sql: SqlStatements,
-  turn: Pick<OpenTurn, "threadId" | "message" | "startedAt">,
-  id: string,
-): void => {
-  const [row] = sql.all("SELECT min(queued_at) AS first FROM agent_queue", []);
-  const first = firstQueuedSchema.parse(row).first ?? turn.startedAt;
-  enqueue(sql, {
-    id,
-    message: turn.message,
-    queuedAt: Math.min(first, turn.startedAt) - 1,
-    threadId: turn.threadId,
-  });
+// the send that has waited longest of a thread with no open turn, the thread `first` names
+// before any other, taken off the queue
+export const dequeueNext = (sql: SqlStatements, first: string | null): QueuedSend | null => {
+  const [own] =
+    first === null
+      ? []
+      : sql.all(
+          `SELECT id, thread_id, message, queued_at FROM agent_queue WHERE thread_id = ?
+           AND thread_id NOT IN (SELECT thread_id FROM agent_turns) ORDER BY queued_at, id LIMIT 1`,
+          [first],
+        );
+  const [raw] =
+    own === undefined
+      ? sql.all(
+          `SELECT id, thread_id, message, queued_at FROM agent_queue
+           WHERE thread_id NOT IN (SELECT thread_id FROM agent_turns) ORDER BY queued_at, id
+           LIMIT 1`,
+          [],
+        )
+      : [own];
+  if (raw === undefined) {
+    return null;
+  }
+  const send = queuedFrom(raw);
+  sql.run("DELETE FROM agent_queue WHERE id = ?", [send.id]);
+  return send;
 };
 
-export const queuedFor = (sql: SqlStatements, threadId: string): number =>
-  sql.all("SELECT id FROM agent_queue WHERE thread_id = ?", [threadId]).length;
-
-export const queueWaits = (sql: SqlStatements): boolean =>
-  sql.all("SELECT 1 FROM agent_queue LIMIT 1", []).length > 0;
-
-// every send waiting, which a turned-off agent lets go of, by thread
-export const dropQueue = (sql: SqlStatements): string[] => {
-  const threads = sql
-    .all("SELECT DISTINCT thread_id FROM agent_queue", [])
-    .map((row) => queuedThreadSchema.parse(row).thread_id);
-  sql.run("DELETE FROM agent_queue", []);
-  return threads;
+export const queuedFor = (sql: SqlStatements, threadId: string): number => {
+  const [row] = sql.all("SELECT count(*) AS count FROM agent_queue WHERE thread_id = ?", [
+    threadId,
+  ]);
+  return countSchema.parse(row).count;
 };
 
 export const dropQueuedFor = (sql: SqlStatements, threadId: string): void => {
   sql.run("DELETE FROM agent_queue WHERE thread_id = ?", [threadId]);
 };
 
-// a thread that must exist for the call to mean anything
-export const knownThread = (sql: SqlStatements, threadId: string) =>
-  threadState(sql, threadId) ?? refuse({ kind: "not-found" });
+// ---- pushes ----
+
+const pushSeqSchema = z.object({ seq: z.number() });
+
+export const lastPush = (sql: SqlStatements, threadId: string): number => {
+  const [row] = sql.all("SELECT seq FROM agent_pushes WHERE thread_id = ?", [threadId]);
+  return row === undefined ? 0 : pushSeqSchema.parse(row).seq;
+};
+
+export const recordPush = (sql: SqlStatements, threadId: string, seq: number): void => {
+  sql.run(
+    `INSERT INTO agent_pushes (thread_id, seq) VALUES (?, ?)
+     ON CONFLICT (thread_id) DO UPDATE SET seq = max(seq, excluded.seq)`,
+    [threadId, seq],
+  );
+};
+
+export const forgetPushes = (sql: SqlStatements, threadId: string): void => {
+  sql.run("DELETE FROM agent_pushes WHERE thread_id = ?", [threadId]);
+};
+
+// ---- the switch ----
+
+const switchSchema = z.object({ enabled: z.number() });
+
+// on unless the person turned it off: there is nothing to make for it to be on
+export const agentIsOn = (sql: SqlStatements): boolean => {
+  const [row] = sql.all("SELECT enabled FROM agent_switch WHERE slot = 1", []);
+  return row === undefined || switchSchema.parse(row).enabled === 1;
+};
+
+export const setSwitch = (sql: SqlStatements, enabled: boolean, now: number): void => {
+  sql.run(
+    `INSERT INTO agent_switch (slot, enabled, changed_at) VALUES (1, ?, ?)
+     ON CONFLICT (slot) DO UPDATE SET enabled = excluded.enabled, changed_at = excluded.changed_at`,
+    [enabled ? 1 : 0, now],
+  );
+};

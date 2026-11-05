@@ -1,20 +1,32 @@
-// What the built-in agent may spend for one account, which the cell checks before every turn: a
-// UTC day's turns and list cost, and the most one turn may cost (owner decision: about fifty free
-// turns a month, enforced first as a daily cap). The numbers are the deployment's own data,
-// `AGENT_ALLOWANCE` in cloudflare.config.ts, never code. Each session is created with a budget and
-// has it set again before each turn, so the platform itself stops a turn at its share
-// (platform.claude.com/docs/en/managed-agents/budgets): what the session already consumed, plus the
-// smaller of what the day has left and one turn's ceiling, and always at least a cent more, since
-// the consumed figure is rounded to the cent and a cap at or below it is refused.
-
-import { z } from "zod";
+// What the built-in agent may spend for one account, and what each call cost (owner decision:
+// about fifty free turns a month, held first as a day's share). The numbers are the deployment's
+// own data, `AGENT_ALLOWANCE` and `AGENT_PRICES` in cloudflare.config.ts, never code. A send is
+// counted as a turn when it is let in; each model call is reserved before it is sent, its
+// `max_tokens` what the turn's ceiling and the day's remainder buy after its input, the input
+// priced as the cache will most likely bill it; and each reply settles at its exact usage at list
+// price. Money is integer micro-cents throughout: a price of two decimals in dollars a million
+// tokens is a whole number of micro-cents a token, so nothing rounds.
 
 import type { SqlStatements } from "@repo/notes/library/library-sql";
+import { z } from "zod";
+
+import { AGENT_MAX_TOKENS } from "./library-agent";
+import type { CallEstimate } from "./thread-wire";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const FIVE_MINUTES_MS = 5 * 60_000;
+const HOUR_MS = 60 * 60_000;
+
+// micro-cents a cent
+export const UCENTS_PER_CENT = 1_000_000;
+
+// below this an answer has no room to be one, and the call is not made
+export const MIN_MAX_TOKENS = 2048;
 
 const allowanceSchema = z.object({
-  // the turns a day allows, the list cost in cents it allows, and one turn's ceiling in cents
+  // the turns that may run at once across the account's threads
+  concurrentTurns: z.number().int().positive(),
+  // the list cost in cents a UTC day allows, and one turn's ceiling
   dayCents: z.number().int().positive(),
   dayTurns: z.number().int().positive(),
   turnCents: z.number().int().positive(),
@@ -24,77 +36,409 @@ export type Allowance = z.infer<typeof allowanceSchema>;
 
 export const allowanceOf = (env: Env): Allowance => allowanceSchema.parse(env.AGENT_ALLOWANCE);
 
+// dollars a million tokens, at most two decimals, so a token is a whole number of micro-cents
+const priceSchema = z
+  .number()
+  .nonnegative()
+  .refine((price) => Math.abs(price * 100 - Math.round(price * 100)) < 1e-9, {
+    error: "a price has at most two decimals",
+  });
+
+const modelPricesSchema = z.strictObject({
+  cacheRead: priceSchema,
+  cacheWrite1h: priceSchema,
+  cacheWrite5m: priceSchema,
+  input: priceSchema,
+  output: priceSchema,
+});
+
+export const agentPricesSchema = z.record(z.string(), modelPricesSchema);
+
+// one model's prices in micro-cents a token
+export interface TokenPrices {
+  readonly input: number;
+  readonly output: number;
+  readonly cacheRead: number;
+  readonly cacheWrite5m: number;
+  readonly cacheWrite1h: number;
+}
+
+export type PriceTable = ReadonlyMap<string, TokenPrices>;
+
+const ucents = (dollarsPerMillion: number): number => Math.round(dollarsPerMillion * 100);
+
+export const priceTableOf = (prices: z.infer<typeof agentPricesSchema>): PriceTable =>
+  new Map(
+    Object.entries(prices).map(([model, row]) => [
+      model,
+      {
+        cacheRead: ucents(row.cacheRead),
+        cacheWrite1h: ucents(row.cacheWrite1h),
+        cacheWrite5m: ucents(row.cacheWrite5m),
+        input: ucents(row.input),
+        output: ucents(row.output),
+      },
+    ]),
+  );
+
+export const pricesOf = (env: Env): PriceTable =>
+  priceTableOf(agentPricesSchema.parse(env.AGENT_PRICES));
+
+// a model's row, or the dearest row for one the table does not price, which is logged
+export const pricesFor = (table: PriceTable, model: string): TokenPrices => {
+  const row = table.get(model);
+  if (row !== undefined) {
+    return row;
+  }
+  console.error({ event: "agent-unpriced-model", model });
+  let dearest: TokenPrices | null = null;
+  for (const candidate of table.values()) {
+    if (dearest === null || candidate.output > dearest.output) {
+      dearest = candidate;
+    }
+  }
+  if (dearest === null) {
+    throw new Error("AGENT_PRICES prices no model");
+  }
+  return dearest;
+};
+
+// ---- days ----
+
 // the UTC day `now` falls in, as the ledger keys it, and when the next one starts
-const dayOf = (now: number): string => new Date(now).toISOString().slice(0, 10);
+export const dayOf = (now: number): string => new Date(now).toISOString().slice(0, 10);
 
 export const nextDayAt = (now: number): number => now - (now % DAY_MS) + DAY_MS;
 
-// the session's cap for its next turn, in cents: above what it consumed, by at most the ceiling
-export const turnCap = (spend: {
-  readonly consumedCents: number;
-  readonly remainingCents: number;
-  readonly ceilingCents: number;
-}): number => spend.consumedCents + Math.max(1, Math.min(spend.remainingCents, spend.ceilingCents));
+// ---- the reservation ----
 
-// a cap as a budget takes it: an integer string of cents, never a decimal
-export const budgetOf = (cents: number) => ({
-  max_list_cost: { amount: String(Math.trunc(cents)), currency: "USD" as const },
-  type: "limit" as const,
+export interface ReservationLimits {
+  // what the turn's ceiling has left, its open reservations taken out
+  readonly turnUcents: number;
+  // what the day has left, every open reservation of the account taken out
+  readonly dayUcents: number;
+}
+
+export type ReservationAnswer =
+  | {
+      readonly kind: "granted";
+      readonly maxTokens: number;
+      readonly inputUcents: number;
+      readonly reservedUcents: number;
+    }
+  | { readonly kind: "refused" };
+
+// the input as the cache will most likely bill it: within five minutes of the previous call its
+// prompt is read and the rest written for five minutes; within the hour the frozen system and
+// tools are read; past it they are written for the hour
+export const inputUcentsOf = (estimate: CallEstimate, prices: TokenPrices, now: number): number => {
+  const { frozenTokens, previous, promptTokens } = estimate;
+  const age = previous === null ? Number.POSITIVE_INFINITY : now - previous.endedAt;
+  if (previous !== null && age <= FIVE_MINUTES_MS) {
+    const read = Math.min(previous.promptTokens, promptTokens);
+    return read * prices.cacheRead + (promptTokens - read) * prices.cacheWrite5m;
+  }
+  const frozen = Math.min(frozenTokens, promptTokens);
+  const rest = (promptTokens - frozen) * prices.cacheWrite5m;
+  return age <= HOUR_MS ? frozen * prices.cacheRead + rest : frozen * prices.cacheWrite1h + rest;
+};
+
+// the call's cap: what is left of the smaller limit after its input, in output tokens, at most
+// the agent's ceiling; too little to answer in is no call
+export const reservationOf = (
+  estimate: CallEstimate,
+  prices: TokenPrices,
+  limits: ReservationLimits,
+  now: number,
+): ReservationAnswer => {
+  const inputUcents = inputUcentsOf(estimate, prices, now);
+  const available = Math.min(limits.turnUcents, limits.dayUcents) - inputUcents;
+  const maxTokens = Math.min(
+    AGENT_MAX_TOKENS,
+    prices.output === 0 ? AGENT_MAX_TOKENS : Math.floor(available / prices.output),
+  );
+  if (maxTokens < MIN_MAX_TOKENS) {
+    return { kind: "refused" };
+  }
+  return {
+    inputUcents,
+    kind: "granted",
+    maxTokens,
+    reservedUcents: inputUcents + maxTokens * prices.output,
+  };
+};
+
+// a step sent again after a cut or a failure, at the cap it was first sent with, so its bytes are
+// those it first went out with: the day must hold it, and the turn's ceiling, already spent once
+// on this step, is not asked again, so one call at most is paid twice
+export const resendReservationOf = (
+  estimate: CallEstimate,
+  prices: TokenPrices,
+  maxTokens: number,
+  limits: ReservationLimits,
+  now: number,
+): ReservationAnswer => {
+  const inputUcents = inputUcentsOf(estimate, prices, now);
+  const reservedUcents = inputUcents + maxTokens * prices.output;
+  return reservedUcents > limits.dayUcents
+    ? { kind: "refused" }
+    : { inputUcents, kind: "granted", maxTokens, reservedUcents };
+};
+
+// ---- the settlement ----
+
+const cacheCreationSchema = z.looseObject({
+  ephemeral_1h_input_tokens: z.number().int().nonnegative().nullish(),
+  ephemeral_5m_input_tokens: z.number().int().nonnegative().nullish(),
 });
 
-const spentSchema = z.object({ cost_cents: z.number(), turns: z.number() });
-const countSchema = z.object({ count: z.number() });
+const usagePartSchema = z.looseObject({
+  cache_creation: cacheCreationSchema.nullish(),
+  cache_creation_input_tokens: z.number().int().nonnegative().nullish(),
+  cache_read_input_tokens: z.number().int().nonnegative().nullish(),
+  input_tokens: z.number().int().nonnegative().nullish(),
+  output_tokens: z.number().int().nonnegative().nullish(),
+});
 
-// what today took so far: its turns, the sends waiting for one, and its list cost
-const spentToday = (sql: SqlStatements, now: number) => {
-  const [row] = sql.all("SELECT turns, cost_cents FROM agent_usage WHERE day = ?", [dayOf(now)]);
-  const spent = row === undefined ? { cost_cents: 0, turns: 0 } : spentSchema.parse(row);
-  const [queued] = sql.all("SELECT count(*) AS count FROM agent_queue", []);
+// a reply's usage as the API reports it, read at the cell's door
+export const usageReportSchema = usagePartSchema.extend({
+  iterations: z
+    .array(usagePartSchema.extend({ model: z.string().nullish(), type: z.string() }))
+    .nullish(),
+});
+
+// the tokens one call was billed, by category
+interface UsageTokens {
+  readonly input: number;
+  readonly cacheRead: number;
+  readonly cacheWrite5m: number;
+  readonly cacheWrite1h: number;
+  readonly output: number;
+}
+
+const NO_TOKENS: UsageTokens = {
+  cacheRead: 0,
+  cacheWrite1h: 0,
+  cacheWrite5m: 0,
+  input: 0,
+  output: 0,
+};
+
+const tokensOf = (part: z.infer<typeof usagePartSchema>): UsageTokens => {
+  const split = part.cache_creation;
+  const written1h = split?.ephemeral_1h_input_tokens ?? 0;
+  // a write the split does not attribute is a 5-minute one, the cheaper lifetime never assumed
+  // past what the report says
+  const written5m =
+    split?.ephemeral_5m_input_tokens ??
+    Math.max(0, (part.cache_creation_input_tokens ?? 0) - written1h);
   return {
-    costCents: spent.cost_cents,
-    queued: countSchema.parse(queued).count,
-    turns: spent.turns,
+    cacheRead: part.cache_read_input_tokens ?? 0,
+    cacheWrite1h: written1h,
+    cacheWrite5m: written5m,
+    input: part.input_tokens ?? 0,
+    output: part.output_tokens ?? 0,
   };
+};
+
+const costOf = (tokens: UsageTokens, prices: TokenPrices): number =>
+  tokens.input * prices.input +
+  tokens.cacheRead * prices.cacheRead +
+  tokens.cacheWrite5m * prices.cacheWrite5m +
+  tokens.cacheWrite1h * prices.cacheWrite1h +
+  tokens.output * prices.output;
+
+const added = (left: UsageTokens, right: UsageTokens): UsageTokens => ({
+  cacheRead: left.cacheRead + right.cacheRead,
+  cacheWrite1h: left.cacheWrite1h + right.cacheWrite1h,
+  cacheWrite5m: left.cacheWrite5m + right.cacheWrite5m,
+  input: left.input + right.input,
+  output: left.output + right.output,
+});
+
+export interface PricedUsage {
+  readonly tokens: UsageTokens;
+  readonly costUcents: number;
+}
+
+// a reply's usage at list price: each of its iterations (a fallback model's, a compaction) at its
+// own model's prices, or the whole at the model that answered
+export const priceUsage = (
+  report: z.infer<typeof usageReportSchema>,
+  model: string,
+  table: PriceTable,
+): PricedUsage => {
+  const iterations = report.iterations ?? [];
+  if (iterations.length === 0) {
+    const tokens = tokensOf(report);
+    return { costUcents: costOf(tokens, pricesFor(table, model)), tokens };
+  }
+  let tokens = NO_TOKENS;
+  let costUcents = 0;
+  for (const iteration of iterations) {
+    const part = tokensOf(iteration);
+    tokens = added(tokens, part);
+    costUcents += costOf(part, pricesFor(table, iteration.model ?? model));
+  }
+  return { costUcents, tokens };
+};
+
+// ---- the ledger ----
+
+const spentSchema = z.object({ cost_ucents: z.number(), turns: z.number() });
+const countSchema = z.object({ count: z.number() });
+const sumSchema = z.object({ total: z.number().nullable() });
+
+const spentOn = (sql: SqlStatements, day: string) => {
+  const [row] = sql.all("SELECT turns, cost_ucents FROM agent_usage WHERE day = ?", [day]);
+  return row === undefined ? { cost_ucents: 0, turns: 0 } : spentSchema.parse(row);
 };
 
 // how many more turns today allows, the waiting sends counted as taken; none once its cost is spent
 export const turnsLeft = (sql: SqlStatements, allowance: Allowance, now: number): number => {
-  const spent = spentToday(sql, now);
-  return spent.costCents >= allowance.dayCents
+  const spent = spentOn(sql, dayOf(now));
+  const [queued] = sql.all("SELECT count(*) AS count FROM agent_queue", []);
+  return spent.cost_ucents >= allowance.dayCents * UCENTS_PER_CENT
     ? 0
-    : Math.max(0, allowance.dayTurns - spent.turns - spent.queued);
+    : Math.max(0, allowance.dayTurns - spent.turns - countSchema.parse(queued).count);
 };
 
-// what the day has left of its list cost, for the next turn's cap
-export const centsLeft = (sql: SqlStatements, allowance: Allowance, now: number): number =>
-  Math.max(0, allowance.dayCents - spentToday(sql, now).costCents);
-
-// a turn begun is booked on its day, so the allowance counts it from its start
-export const bookTurn = (sql: SqlStatements, now: number, turns: 1 | -1): void => {
+// a turn begun is booked on its day, so the allowance counts it from its start, and one that cost
+// nothing is given back on the day it was booked
+export const bookTurn = (sql: SqlStatements, day: string, turns: 1 | -1): void => {
   sql.run(
-    `INSERT INTO agent_usage (day, turns, input_tokens, cached_tokens, output_tokens, cost_cents)
-     VALUES (?, ?, 0, 0, 0, 0)
-     ON CONFLICT (day) DO UPDATE SET turns = max(0, turns + excluded.turns)`,
-    [dayOf(now), turns],
+    `INSERT INTO agent_usage (day, turns, input_tokens, cache_read_tokens, cache_write_5m_tokens,
+       cache_write_1h_tokens, output_tokens, cost_ucents)
+     VALUES (?, max(0, ?), 0, 0, 0, 0, 0, 0)
+     ON CONFLICT (day) DO UPDATE SET turns = max(0, turns + ?)`,
+    [day, turns, turns],
   );
 };
 
-export interface UsageDelta {
-  readonly costCents: number;
-  readonly input: number;
-  readonly cached: number;
-  readonly output: number;
-}
-
-// what a session spent since the ledger last booked it, on the day it was reported
-export const bookUsage = (sql: SqlStatements, now: number, delta: UsageDelta): void => {
+const bookUsage = (sql: SqlStatements, day: string, priced: PricedUsage): void => {
+  const { tokens } = priced;
   sql.run(
-    `INSERT INTO agent_usage (day, turns, input_tokens, cached_tokens, output_tokens, cost_cents)
-     VALUES (?, 0, ?, ?, ?, ?)
+    `INSERT INTO agent_usage (day, turns, input_tokens, cache_read_tokens, cache_write_5m_tokens,
+       cache_write_1h_tokens, output_tokens, cost_ucents)
+     VALUES (?, 0, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (day) DO UPDATE SET input_tokens = input_tokens + excluded.input_tokens,
-       cached_tokens = cached_tokens + excluded.cached_tokens,
+       cache_read_tokens = cache_read_tokens + excluded.cache_read_tokens,
+       cache_write_5m_tokens = cache_write_5m_tokens + excluded.cache_write_5m_tokens,
+       cache_write_1h_tokens = cache_write_1h_tokens + excluded.cache_write_1h_tokens,
        output_tokens = output_tokens + excluded.output_tokens,
-       cost_cents = cost_cents + excluded.cost_cents`,
-    [dayOf(now), delta.input, delta.cached, delta.output, delta.costCents],
+       cost_ucents = cost_ucents + excluded.cost_ucents`,
+    [
+      day,
+      tokens.input,
+      tokens.cacheRead,
+      tokens.cacheWrite5m,
+      tokens.cacheWrite1h,
+      tokens.output,
+      priced.costUcents,
+    ],
   );
+};
+
+const callRowSchema = z.object({
+  cost_ucents: z.number().nullable(),
+  day: z.string(),
+  max_tokens: z.number(),
+  reserved_ucents: z.number(),
+});
+
+export const heldReservation = (sql: SqlStatements, callId: string) => {
+  const [row] = sql.all(
+    "SELECT day, reserved_ucents, max_tokens, cost_ucents FROM agent_calls WHERE call_id = ?",
+    [callId],
+  );
+  return row === undefined ? null : callRowSchema.parse(row);
+};
+
+// what the turn and the day have left to reserve: the turn's calls at what they cost or hold, but
+// a cut one, which the day pays for and whose step is sent again with the turn's room
+export const limitsOf = (
+  sql: SqlStatements,
+  turn: { readonly threadId: string; readonly turn: number },
+  allowance: Allowance,
+  now: number,
+): ReservationLimits => {
+  const [turnSpent] = sql.all(
+    `SELECT coalesce(sum(coalesce(cost_ucents, reserved_ucents)), 0) AS total FROM agent_calls
+     WHERE thread_id = ? AND turn = ? AND cut = 0`,
+    [turn.threadId, turn.turn],
+  );
+  const [open] = sql.all(
+    "SELECT coalesce(sum(reserved_ucents), 0) AS total FROM agent_calls WHERE cost_ucents IS NULL",
+    [],
+  );
+  const daySpent = spentOn(sql, dayOf(now)).cost_ucents;
+  return {
+    dayUcents: allowance.dayCents * UCENTS_PER_CENT - daySpent - (sumSchema.parse(open).total ?? 0),
+    turnUcents: allowance.turnCents * UCENTS_PER_CENT - (sumSchema.parse(turnSpent).total ?? 0),
+  };
+};
+
+export const recordReservation = (
+  sql: SqlStatements,
+  call: {
+    readonly callId: string;
+    readonly threadId: string;
+    readonly turn: number;
+    readonly maxTokens: number;
+    readonly reservedUcents: number;
+  },
+  now: number,
+): void => {
+  sql.run(
+    `INSERT INTO agent_calls (call_id, thread_id, turn, day, reserved_ucents, max_tokens,
+       reserved_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (call_id) DO NOTHING`,
+    [call.callId, call.threadId, call.turn, dayOf(now), call.reservedUcents, call.maxTokens, now],
+  );
+};
+
+// a call settled once, on the day it was reserved: at its priced usage, at its reservation when
+// it was cut short, or at nothing when the API answered it with an error
+export const settleCall = (
+  sql: SqlStatements,
+  callId: string,
+  settlement: PricedUsage | "reserved" | "free",
+): void => {
+  const held = heldReservation(sql, callId);
+  if (held === null || held.cost_ucents !== null) {
+    return;
+  }
+  let priced: PricedUsage = { costUcents: 0, tokens: NO_TOKENS };
+  if (settlement === "reserved") {
+    priced = { costUcents: held.reserved_ucents, tokens: NO_TOKENS };
+  } else if (settlement !== "free") {
+    priced = settlement;
+  }
+  sql.run("UPDATE agent_calls SET cost_ucents = ?, cut = ? WHERE call_id = ?", [
+    priced.costUcents,
+    settlement === "reserved" ? 1 : 0,
+    callId,
+  ]);
+  bookUsage(sql, held.day, priced);
+};
+
+const openCallSchema = z.object({ call_id: z.string() });
+
+// what a turn ending settles: every call still open booked at what it reserved, since it may have
+// cost that much; and what the turn cost in all
+export const settleTurnCalls = (
+  sql: SqlStatements,
+  turn: { readonly threadId: string; readonly turn: number },
+): number => {
+  for (const raw of sql.all(
+    "SELECT call_id FROM agent_calls WHERE thread_id = ? AND turn = ? AND cost_ucents IS NULL",
+    [turn.threadId, turn.turn],
+  )) {
+    settleCall(sql, openCallSchema.parse(raw).call_id, "reserved");
+  }
+  const [row] = sql.all(
+    "SELECT coalesce(sum(cost_ucents), 0) AS total FROM agent_calls WHERE thread_id = ? AND turn = ?",
+    [turn.threadId, turn.turn],
+  );
+  return sumSchema.parse(row).total ?? 0;
 };

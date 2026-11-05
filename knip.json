@@ -59,7 +59,7 @@
     },
     "apps/web": {
       // the type claims are vitest's `typecheck.include`, which knip's vitest plugin does not read;
-      // scripts/ is `pnpm og:cards`'s, run by node outside the build
+      // scripts/ is `pnpm og:cards`'s and `pnpm agent-prompt`'s, run by node outside the build
       "entry": [
         "cloudflare.config.ts",
         "src/worker/index.ts",
@@ -69,7 +69,7 @@
       "project": ["src/**/*.{ts,tsx,css}", "scripts/*.ts"],
       // stubs the Worker's program maps by `paths` (src/worker/tsconfig.json), which knip does not follow
       "ignore": ["src/worker/types/durable-git.d.ts", "src/worker/types/highlight-js.d.ts"],
-      // `cloudflare:` is a workerd built-in module scheme, not a package; scripts/agent-files.ts reads
+      // `cloudflare:` is a workerd built-in module scheme, not a package; scripts/agent-prompt.ts reads
       // @repo/agent-skills' files through `import.meta.resolve`, which knip does not follow
       "ignoreDependencies": ["@repo/agent-skills", "cloudflare", "tailwindcss"]
     },

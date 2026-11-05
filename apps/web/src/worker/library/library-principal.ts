@@ -1,11 +1,12 @@
-// Who a call to the library is by, as the Worker verified it: the account, what it may do, and the
-// actor whose change set its writes join. The Worker resolves it from the credential the request
-// carried (a device's bearer and a browser's session on `/v1`, an assistant's or the built-in
-// agent's OAuth token on the connector), drops any copy the request brought, and stamps it on the
-// request it forwards to the account's cell (`../wire/v1-rpc`, `../connector/connector-route`);
-// the cell takes it from there alone, since only the Worker reaches a cell, and holds it to the
-// account its own name gives. Procedures read the actor it resolves to, never a header; the
-// built-in agent's is its open turn's, which only the cell knows.
+// Who a call to the library is by: the account, what it may do, and the actor whose change set its
+// writes join. The Worker resolves it from the credential the request carried (a device's bearer
+// and a browser's session on `/v1`, an assistant's OAuth token on the connector), drops any copy
+// the request brought, and stamps it on the request it forwards to the account's cell
+// (`../wire/v1-rpc`, `../connector/connector-route`); the cell takes it from there alone, since
+// only the Worker reaches a cell, and holds it to the account its own name gives. The built-in
+// agent's principal is never a header's: the cell mints it in `agentTool`, for one turn of one
+// thread, and its writes are refused once that turn is no longer open. Procedures read the actor
+// a principal resolves to, never a header.
 
 import { z } from "zod";
 
@@ -38,44 +39,50 @@ const assistantActorSchema = z.strictObject({
   kind: z.literal("assistant"),
 });
 
-// the built-in agent, under the one grant its switch made: its calls join whichever turn of the
-// account's is open, and none is taken while none is
-const agentActorSchema = z.strictObject({
-  clientId: z.string().min(1).max(2048),
-  grantId: holderId,
-  kind: z.literal("agent"),
-});
-
+// what a header may carry: every principal but the built-in agent's, so no request names one
 export const principalSchema = z.strictObject({
   accountId: z.string().min(1).max(128),
   actor: z.discriminatedUnion("kind", [
     deviceActorSchema,
     sessionActorSchema,
     assistantActorSchema,
-    agentActorSchema,
   ]),
   scopes: z.array(z.enum(LIBRARY_SCOPES)).min(1),
 });
 
-export type Principal = z.infer<typeof principalSchema>;
+// a principal its own claim names, as the Worker stamps it
+export type NamedPrincipal = z.infer<typeof principalSchema>;
+
+// the built-in agent in one turn of one thread, which only the cell names
+export interface AgentPrincipal {
+  readonly accountId: string;
+  readonly actor: { readonly kind: "agent"; readonly threadId: string; readonly turn: number };
+  readonly scopes: readonly ["library"];
+}
+
+export type Principal = NamedPrincipal | AgentPrincipal;
+
+export const agentPrincipal = (
+  accountId: string,
+  turn: { readonly threadId: string; readonly turn: number },
+): AgentPrincipal => ({
+  accountId,
+  actor: { kind: "agent", threadId: turn.threadId, turn: turn.turn },
+  scopes: ["library"],
+});
 
 // what an app's credential verifies to on `/v1`, which takes no assistant
-export type AppPrincipal = Principal & {
+export type AppPrincipal = NamedPrincipal & {
   readonly actor: z.infer<typeof deviceActorSchema> | z.infer<typeof sessionActorSchema>;
 };
 
-// what the connector takes: an assistant's grant, or the built-in agent's
-export type ConnectorPrincipal = Principal & {
-  readonly actor: z.infer<typeof assistantActorSchema> | z.infer<typeof agentActorSchema>;
-};
-
-// a principal whose actor its own claim names, every one but the built-in agent's
-export type NamedPrincipal = Principal & {
-  readonly actor: Exclude<Principal["actor"], z.infer<typeof agentActorSchema>>;
+// what the connector takes: an assistant's grant, the person's own Claude or ChatGPT
+export type ConnectorPrincipal = NamedPrincipal & {
+  readonly actor: z.infer<typeof assistantActorSchema>;
 };
 
 export const isConnectorPrincipal = (principal: Principal): principal is ConnectorPrincipal =>
-  principal.actor.kind === "assistant" || principal.actor.kind === "agent";
+  principal.actor.kind === "assistant";
 
 export const isAppPrincipal = (principal: Principal): principal is AppPrincipal =>
   principal.actor.kind === "device" || principal.actor.kind === "session";
@@ -89,10 +96,11 @@ export const changesLibrary = (principal: Principal): boolean =>
 
 // a header carries Latin-1 alone and a device's name may hold any letter, so the JSON is
 // percent-encoded
-export const principalHeaderValue = (principal: Principal): string =>
+export const principalHeaderValue = (principal: NamedPrincipal): string =>
   encodeURIComponent(JSON.stringify(principalSchema.parse(principal)));
 
-export const principalFromHeader = (value: string | null): Principal | null => {
+// the principal a header names, never the built-in agent's
+export const principalFromHeader = (value: string | null): NamedPrincipal | null => {
   if (value === null) {
     return null;
   }

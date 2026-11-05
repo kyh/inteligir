@@ -9,6 +9,7 @@ import api, { ownsPath } from "./index";
 
 // the runtime instantiates Durable Objects from the deployed entry's exports, each under the name
 // cloudflare.config.ts declares it by
+export { AgentThreadDO } from "./agent/agent-thread";
 export { LibraryDO } from "./library/library-do";
 export { RepoCell, Registry } from "durable-git";
 

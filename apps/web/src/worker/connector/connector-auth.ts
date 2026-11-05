@@ -24,9 +24,8 @@ import { spendCallerBudget } from "../rate-limit";
 // request parsed anywhere else
 export const CONSENT_PATH = "/connect/authorize";
 
-// where a code and a refresh token are traded: an assistant's, Anthropic's for the built-in agent,
-// and the built-in agent's grant in the cell (`../agent/built-in-client`)
-export const TOKEN_PATH = "/oauth/token";
+// where an assistant trades its code and its refresh token
+const TOKEN_PATH = "/oauth/token";
 const REGISTRATION_PATH = "/oauth/register";
 
 // the scope any access needs, which a client asks for first; the consent page grants it, or
@@ -40,13 +39,11 @@ const REGISTRATION_TTL_SECONDS = 90 * DAY_SECONDS;
 // a grant lives 30 days from its last refresh, so one an assistant keeps using never lapses
 const GRANT_IDLE_TTL_SECONDS = 30 * DAY_SECONDS;
 
-// what a grant keeps: whose library, the client's name as it gave it on the consent page, which
-// History and the account's list of assistants show, and whose grant it is: an assistant's, which
-// the person let in, or the built-in agent's, whose every call joins the account's open turn
+// what a grant keeps: whose library, and the client's name as it gave it on the consent page,
+// which History and the account's list of assistants show
 const grantPropsSchema = z.strictObject({
   accountId: z.string().min(1).max(128),
   clientName: z.string().min(1).max(128),
-  kind: z.enum(["assistant", "agent"]),
 });
 
 // an access token's: its grant's, and the grant it was minted under, which the token alone does not
@@ -57,13 +54,8 @@ const tokenPropsSchema = grantPropsSchema.extend({
 
 export type TokenProps = z.infer<typeof tokenPropsSchema>;
 
-// the grant's metadata, which a listing reads unencrypted: an assistant's names the client as the
-// person let it in, and the built-in agent's says only that it is the agent's, whose own switch
-// turns it on and off, so the account's list of assistants leaves it out
-export const grantMetadataSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ clientName: z.string().min(1).max(128), kind: z.literal("assistant") }),
-  z.strictObject({ kind: z.literal("agent") }),
-]);
+// the grant's metadata, which a listing reads unencrypted: the client as the person let it in
+export const grantMetadataSchema = z.strictObject({ clientName: z.string().min(1).max(128) });
 
 export type GrantMetadata = z.infer<typeof grantMetadataSchema>;
 

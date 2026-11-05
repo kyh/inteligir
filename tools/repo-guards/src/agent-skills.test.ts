@@ -1,15 +1,12 @@
 // The skills are the built-in agent's dialect, and its system prompt is built from them:
-// apps/web/scripts/agent-files.ts writes each target's agent.md for `ant apply` from this package,
-// in the order the hub's index names the skills. This holds the set and the hub's index together,
-// the agent files to what the script writes, and what those files declare to the shape an agent
-// whose only tools are the connector's needs.
+// apps/web/scripts/agent-prompt.ts writes the prompt every conversation freezes as a module of the
+// Worker's, from this package in the order the hub's index names the skills. This holds the set and
+// the hub's index together, and the module to what the script writes.
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { parse } from "yaml";
-import { z } from "zod";
 
 import { REPO_ROOT, trackedFiles } from "./repo";
 
@@ -29,84 +26,9 @@ const FENCE_OPENING = /^\s*(?:`{3,}|~{3,})\s*(?<lang>inteligir-[a-z-]+)(?=\s|$)/
 // the starter vault a first run copies: the notes a new user reads first and imitates after.
 const SEED_DIR = "apps/cli/seed/";
 
-const AGENT_FILES_SCRIPT = "apps/web/scripts/agent-files.ts";
-const AGENT_TARGETS = ["production", "preview"] as const;
-const agentFile = (target: string, name: string): string =>
-  `apps/web/agents/${target}/library-agent/${name}`;
-
-// Managed Agents takes a system prompt of at most this many characters
-const SYSTEM_MAX_CHARS = 100_000;
+const AGENT_PROMPT_SCRIPT = "apps/web/scripts/agent-prompt.ts";
 
 const readRepoFile = (file: string): string => fs.readFileSync(path.join(REPO_ROOT, file), "utf-8");
-
-// an agent.md as ant reads it: YAML frontmatter, and the body, trimmed, as its `system`
-const AGENT_FILE = /^---\n(?<frontmatter>[\s\S]*?)\n---\n(?<body>[\s\S]*)$/u;
-
-interface AgentFile {
-  readonly frontmatter: unknown;
-  readonly system: string;
-}
-
-const agentOf = (target: string): AgentFile => {
-  const groups = AGENT_FILE.exec(readRepoFile(agentFile(target, "agent.md")))?.groups;
-  if (groups === undefined) {
-    throw new Error(`${agentFile(target, "agent.md")}: expected frontmatter, then the prompt`);
-  }
-  return { frontmatter: parse(groups["frontmatter"] ?? ""), system: (groups["body"] ?? "").trim() };
-};
-
-// what a connector-only agent declares: one url server, credential-free, and one toolset for it,
-// an allowlist; no agent toolset, no custom tool and no skills
-const connectorOnlyAgent = z.strictObject({
-  description: z.string().min(1),
-  mcp_servers: z.tuple([
-    z.strictObject({ name: z.literal("library"), type: z.literal("url"), url: z.url() }),
-  ]),
-  model: z.strictObject({ effort: z.string().min(1), id: z.string().min(1) }),
-  name: z.string().min(1),
-  tools: z.tuple([
-    z.strictObject({
-      configs: z
-        .array(
-          z.strictObject({
-            enabled: z.literal(true),
-            name: z.string().min(1),
-            permission_policy: z.strictObject({ type: z.enum(["always_allow", "always_ask"]) }),
-          }),
-        )
-        .min(1),
-      default_config: z.strictObject({ enabled: z.literal(false) }),
-      mcp_server_name: z.literal("library"),
-      type: z.literal("mcp_toolset"),
-    }),
-  ]),
-});
-
-// a limited network that reaches MCP servers and nothing else: no packages, no hosts
-const mcpOnlyEnvironment = z.strictObject({
-  config: z.strictObject({
-    networking: z.strictObject({ allow_mcp_servers: z.literal(true), type: z.literal("limited") }),
-    type: z.literal("cloud"),
-  }),
-  description: z.string().min(1),
-  name: z.string().min(1),
-});
-
-// ant's own lockfile, which only `ant apply` writes: a resource it has not applied has no entry
-const antLockfile = z.strictObject({
-  origin: z
-    .strictObject({
-      base_url: z.string().optional(),
-      organization_id: z.string().optional(),
-      workspace_id: z.string().optional(),
-    })
-    .optional(),
-  resources: z.record(
-    z.string(),
-    z.looseObject({ id: z.string().min(1), kind: z.string().min(1) }),
-  ),
-  version: z.literal(1),
-});
 
 const skillDirs = (): string[] =>
   fs
@@ -276,45 +198,16 @@ describe("the agent skills", () => {
   });
 });
 
-describe("the built-in agent's files", () => {
-  it("are what scripts/agent-files.ts writes from the skills", { timeout: 30_000 }, () => {
-    // node starts and reads every skill: well under a second here, seconds on a loaded runner
+describe("the built-in agent's system prompt", () => {
+  it("is what scripts/agent-prompt.ts writes from the skills", { timeout: 30_000 }, () => {
+    // node starts and reads every skill: well under a second here, seconds on a loaded runner;
+    // the script refuses a prompt past its cap, and writes nothing of an account or a request
     expect(() =>
-      execFileSync("node", [AGENT_FILES_SCRIPT, "--check"], {
+      execFileSync("node", [AGENT_PROMPT_SCRIPT, "--check"], {
         cwd: REPO_ROOT,
         encoding: "utf-8",
         stdio: "pipe",
       }),
     ).not.toThrow();
-  });
-
-  it("carry one system prompt for every target, within the API's cap", () => {
-    const [first, ...rest] = AGENT_TARGETS.map((target) => agentOf(target).system);
-    expect(first?.length ?? 0).toBeGreaterThan(0);
-    expect(first?.length ?? 0).toBeLessThanOrEqual(SYSTEM_MAX_CHARS);
-    // a prompt one target alone carries names something of that deployment, and a cached prefix
-    // is the prompt's bytes
-    for (const other of rest) {
-      expect(other).toBe(first);
-    }
-  });
-
-  it("each declare the connector alone, its tools an allowlist", () => {
-    for (const target of AGENT_TARGETS) {
-      const declared = connectorOnlyAgent.safeParse(agentOf(target).frontmatter);
-      expect(declared.error?.issues ?? [], agentFile(target, "agent.md")).toEqual([]);
-      const environment = mcpOnlyEnvironment.safeParse(
-        parse(readRepoFile(agentFile(target, "environment.yaml"))),
-      );
-      expect(environment.error?.issues ?? [], agentFile(target, "environment.yaml")).toEqual([]);
-    }
-  });
-
-  it("each keep a lockfile in ant's own shape", () => {
-    for (const target of AGENT_TARGETS) {
-      const file = agentFile(target, "claude-lock.json");
-      const lock = antLockfile.safeParse(JSON.parse(readRepoFile(file)));
-      expect(lock.error?.issues ?? [], file).toEqual([]);
-    }
   });
 });

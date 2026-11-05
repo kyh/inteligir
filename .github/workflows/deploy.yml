@@ -87,6 +87,9 @@ jobs:
         run: pnpm turbo run build --filter=@repo/web... && pnpm -F @repo/web exec cf deploy --prebuilt
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # the account of the built-in agent's AI Gateway, which apps/web/cloudflare.config.ts
+          # names as the deploy evaluates it; without it the agent refuses every send
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Mark what was deployed
         run: |

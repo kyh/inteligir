@@ -8,9 +8,12 @@ developers, on Apple silicon, that nobody uses yet. Each account's library is
 one SQLite Durable Object, its library cell, on the one Cloudflare Worker we
 ship, which also carries the site, accounts, the library's bytes and the
 reading of saved pages; every device holds a replica of that library, reads
-it offline and queues what it writes. The built-in agent runs on Claude
-Managed Agents and reaches the library only through the connector, the same
-door the user's own Claude or ChatGPT uses. Everything we host is Cloudflare.
+it offline and queues what it writes. The built-in agent is our own loop over
+Claude, a Durable Object of its own for each conversation on the same Worker,
+woken by Cloudflare's Agents SDK and calling Claude through AI Gateway; it
+changes the library only through the account's cell, by the same procedures
+the connector serves the user's own Claude or ChatGPT. Everything we host is
+Cloudflare.
 
 This is the root guide for every coding agent; `CLAUDE.md` imports it. Each
 workspace's durable decisions live in a `CLAUDE.md` beside its code
@@ -44,8 +47,9 @@ The premises every change builds from, each with its reason:
 - **The apps and every agent call the same oRPC procedures, and a tool is a
   procedure tagged with `mcp.tool`.** The cell implements the library's
   contract once and serves it at two doors, `/v1` for the apps and the
-  connector for agents, because an agent should do what the app does, guarded
-  the same way, and nothing the app cannot.
+  connector for assistants, and runs it itself for the built-in agent's tool
+  calls, because an agent should do what the app does, guarded the same way,
+  and nothing the app cannot.
 - **The Mac and the phone read everything offline and queue writes; the
   agent, import, export, History and the account need a connection**, because
   every row and body is on the device while those run in the cell, and an
@@ -59,18 +63,20 @@ The premises every change builds from, each with its reason:
   read the page they are on; a paste, an import or an agent's save lands at
   once as an unread item that the Worker's fill reads; the agent files, tags
   and summarizes only when asked, because a save should be instant and free.
-- **The built-in agent runs on Claude Managed Agents, on our bill, and the
-  user's own Claude or ChatGPT reaches the same library through the
-  connector**, because a knowledge worker has no agent to install and no plan
-  to bring, and an assistant they already pay for should find the library
-  where it already looks. An assistant signs in to us with OAuth on our consent
-  page, so the app holds no model credential of the user's and never asks for
-  a key.
-- **Model calls happen only inside Managed Agents sessions the cell starts,
-  each capped by a session budget and checked against the account's allowance
-  before every turn**, because every model call is one we pay for, and one no
-  budget holds is an unbounded bill. A save, a sync and a connected assistant's
-  call make none.
+- **The built-in agent is ours, on our bill, and the user's own Claude or
+  ChatGPT reaches the same library through the connector**, because a
+  knowledge worker has no agent to install and no plan to bring, and an
+  assistant they already pay for should find the library where it already
+  looks. Each conversation runs the agent's loop in an object of its own, and
+  its tools are the library's procedures, which the account's cell runs as the
+  agent's, so it does what the app does, guarded the same way, and nothing the
+  app cannot. An assistant signs in to us with OAuth on our consent page, so
+  the app holds no model credential of the user's and never asks for a key.
+- **Model calls happen only in a conversation's object, through our AI
+  Gateway, each reserved against the turn's ceiling and the account's
+  allowance before it is sent and booked at its exact usage after**, because
+  every model call is one we pay for, and one no budget holds is an unbounded
+  bill. A save, a sync and a connected assistant's call make none.
 - **History and undo are revisions and change sets, and no product surface
   says git, commit, remote, repo, terminal, CLI, PATH or MCP**, because none of
   those words is the user's; the connector is what Claude itself calls an MCP
@@ -100,10 +106,11 @@ The premises every change builds from, each with its reason:
 accounts, `/v1` (the apps' one wire, `/v1/rpc`, beside the library's bytes
 and the socket that tells a device the library moved), the connector, the
 queue that reads saved pages, and every account's library cell. The built-in
-agent is Anthropic's: one agent and one environment per deployment target,
-configured by files in `apps/web/agents`, one directory a target, and synced
-with `ant apply`; the cell starts and reads its sessions, and the agent
-reaches the library only through the connector, as our own OAuth client. `apps/desktop` is the Mac app, installed as the signed dmg: a
+agent is ours too: one `AgentThreadDO` a conversation, its loop on the Agents
+SDK's Lifecycle over Claude through AI Gateway, its instructions built from
+`@repo/agent-skills`, and its tools the library's procedures, which the
+account's cell runs as the agent's. `apps/desktop` is the Mac app, installed
+as the signed dmg: a
 Tauri window showing the SPA `apps/workspace` builds, bundled into the .app,
 with the Mac's replica, the Keychain credential and the cache of the
 library's files in Rust, and no node; the same SPA is the browser tab the
@@ -128,7 +135,7 @@ change that touches that code rewrites the bullet in the same commit.
 ## Map
 
 ```
-apps/web                @repo/web — ONE Cloudflare Worker: site, accounts, /v1, the connector, fills, each account's library cell; agents/ is the built-in agent's files
+apps/web                @repo/web — ONE Cloudflare Worker: site, accounts, /v1, the connector, fills, each account's library cell, each conversation with the built-in agent
 apps/workspace          @repo/workspace — the SPA: the Mac app's window, and the browser tab at /library
 apps/desktop            @repo/desktop — THE MAC APP: the Tauri window around the SPA; the replica, credential and file cache in Rust
 apps/mobile             @repo/mobile — the iPhone app: the library in the editor page, over its own replica, offline
@@ -146,7 +153,7 @@ packages/ui             @repo/ui — the shared component vocabulary on Base UI
 tools/repo-guards       @repo/repo-guards — fitness tests over the repo itself
 tools/e2e               @repo/e2e — the scenario suite `pnpm e2e` runs
 tools/ui-gallery        @repo/ui-gallery — the @repo/ui gallery `pnpm dev:gallery` serves, never deployed
-tools/managed-agents-fake @repo/managed-agents-fake — the Managed Agents API with no model the local Worker, the e2e and the suites run against
+tools/messages-fake     @repo/messages-fake — a scripted Claude Messages API with no model, which the local Worker, the e2e and the suites run the built-in agent against
 ```
 
 The replica engine is `@repo/library-replica`, pure as `@repo/notes` is.
@@ -154,8 +161,9 @@ Turborepo + pnpm, oxlint/oxfmt, vitest, knip. The site is TanStack Start,
 React 19 and Tailwind 4 on the Worker; auth is Better Auth on D1 (email and
 password, invite-gated, no social providers); the library cell is a SQLite
 Durable Object, the bytes are in R2, saved pages are read off a Queue, OAuth
-is `@cloudflare/workers-oauth-provider` on KV, and the cell drives the
-built-in agent with `@anthropic-ai/sdk`. The Mac is Tauri 2; the phone is
+is `@cloudflare/workers-oauth-provider` on KV, and each conversation's object
+calls Claude with `@anthropic-ai/sdk` through AI Gateway, woken by
+`agents/lifecycle`. The Mac is Tauri 2; the phone is
 Expo, shipped to TestFlight by EAS. The workspaces' READMEs own their layouts
 and loops; `apps/web/README.md` has the Worker's routes and deploy,
 `docs/privacy.md` what each device sends and where.
@@ -175,16 +183,17 @@ No bootstrap script, and no Cloudflare or Anthropic account. Node 24 and pnpm
 12 (`corepack enable`; `.codex/environments/environment.toml` runs `pnpm i` for
 cloud runners).
 
-The local Worker's built-in agent talks to a fake Managed Agents API
-(`tools/managed-agents-fake`, which `pnpm dev:web` serves), chosen by
-`MANAGED_AGENTS_FAKE_URL`, a dev-only binding the example `.dev.vars` sets: no
-key, no model, and the mode every e2e scenario runs. A real agent needs
-`ANTHROPIC_API_KEY` there instead of the fake, with the
-ids of an agent applied in that key's own workspace, never a target's, and a
-public tunnel to the connector, since Anthropic's MCP proxy cannot reach
-localhost (`apps/web/.dev.vars.example` says what each needs set). A
-deployed Worker without the key fails closed: it refuses every agent send,
-never fakes one. The model is the agent file's, one for everyone.
+The local Worker's built-in agent talks to a scripted Claude
+(`tools/messages-fake`, which `pnpm dev:web` serves), chosen by
+`ANTHROPIC_FAKE_URL`, a dev-only binding the example `.dev.vars` sets: no key,
+no model, and the mode every e2e scenario runs. A real agent needs an AI
+Gateway of your own in its place, `AGENT_GATEWAY_URL` and `AI_GATEWAY_TOKEN`
+naming one in your own Cloudflare account that holds your own Anthropic key,
+never a target's; nothing outside has to reach localhost, since the agent's
+tools run in the cell (`apps/web/.dev.vars.example` says what each needs set).
+A deployed Worker without its gateway fails closed: it refuses every agent
+send, never fakes one. The model is the agent's definition's, one for
+everyone.
 
 ### There is no seeded login, and sign-up is invite-only
 
@@ -257,20 +266,20 @@ credential adds its check to `docs/releasing.md` § 5, under its surface.
 Every surface, and how an agent sees it run; a scenario is one of
 `tools/e2e/src/scenarios`, run as `pnpm e2e --only <name>`.
 
-| Surface                 | Dev command          | Agent-verifiable at runtime?                                                                                      |
-| ----------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| The site and the Worker | `pnpm dev:web`       | **Yes**: agent-browser or curl on `localhost:5174`; `built-worker-boot`, `account-hosted`                         |
-| The library in a tab    | `pnpm dev:web`       | **Yes**: agent-browser on `localhost:5174/library`; `browser-smoke`, `library-browser`                            |
-| The connector           | `pnpm dev:web`       | **Yes**: an MCP client on `localhost:5174/connector`, signed in by OAuth with PKCE; `connector-tools`             |
-| The built-in agent      | `pnpm dev:web`       | **Over the fake Managed Agents API**: a turn's events and its writes, `agent-cell`; a real session is the owner's |
-| The Mac app             | `pnpm dev`           | **On Linux**: `desktop-shell`, `desktop-onboarding` (under `xvfb-run -a`); on a Mac, `pnpm smoke:desktop`         |
-| The browser extension   | `pnpm dev:extension` | **In Chromium**: `browser-extension` loads the dev build beside a running Worker                                  |
-| The phone               | `pnpm dev:mobile`    | **Its parts**: `phone-editor-page` (its editor page), `phone-offline-edit` (its runtime under node)               |
+| Surface                 | Dev command          | Agent-verifiable at runtime?                                                                              |
+| ----------------------- | -------------------- | --------------------------------------------------------------------------------------------------------- |
+| The site and the Worker | `pnpm dev:web`       | **Yes**: agent-browser or curl on `localhost:5174`; `built-worker-boot`, `account-hosted`                 |
+| The library in a tab    | `pnpm dev:web`       | **Yes**: agent-browser on `localhost:5174/library`; `browser-smoke`, `library-browser`                    |
+| The connector           | `pnpm dev:web`       | **Yes**: an MCP client on `localhost:5174/connector`, signed in by OAuth with PKCE; `connector-tools`     |
+| The built-in agent      | `pnpm dev:web`       | **Over a scripted Claude**: a turn's events and its writes, `agent-cell`; a real turn is the owner's      |
+| The Mac app             | `pnpm dev`           | **On Linux**: `desktop-shell`, `desktop-onboarding` (under `xvfb-run -a`); on a Mac, `pnpm smoke:desktop` |
+| The browser extension   | `pnpm dev:extension` | **In Chromium**: `browser-extension` loads the dev build beside a running Worker                          |
+| The phone               | `pnpm dev:mobile`    | **Its parts**: `phone-editor-page` (its editor page), `phone-offline-edit` (its runtime under node)       |
 
 What no agent can run is the owner's, in `docs/releasing.md` § 5: the signed
 .app opened from Finder, the store extension in Chrome, Arc, Brave and Edge,
-the phone app itself, which needs the simulator or the device, a real Managed
-Agents session against a preview's connector, and the connector signed in from
+the phone app itself, which needs the simulator or the device, a real turn on
+a preview through its gateway, and the connector signed in from
 claude.ai, Claude Code and ChatGPT. `pnpm dev:mobile` also needs a terminal:
 turbo hands `expo start` the keyboard (`apps/mobile/turbo.json`) and refuses
 to start it without one, or under `CI`, where `pnpm --filter @repo/mobile dev`

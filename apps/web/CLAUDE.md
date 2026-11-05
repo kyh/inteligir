@@ -253,7 +253,7 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   refusal is an `error()` factory, oRPC's own code where it means the same, and
   the floor, credential and budget the Worker meets before any procedure are
   answered in the same protocol. Every library write takes an `opId` the cell
-  keeps; only the bytes, the socket and Anthropic's webhook stay plain HTTP.
+  keeps; only the bytes and the socket stay plain HTTP.
   The REST rows go as each client moves. Rejected: REST beside RPC (two
   serializers, two error vocabularies) and oRPC's default statuses (an unmapped
   code answers 400). `packages/contract/src/cloud/v1-errors.ts`,
@@ -281,11 +281,13 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   (`apps/web/replica-sql-service.ts`). Rejected: a hand-written `Env`
   beside the generated one (it drifts from what deploys, and a secret it names
   is never checked against the config). The date and flags are one module, the
-  fills' queues another, that the configs and suites import and the Worker's
-  own code never does: the dev server cannot load a module the config loads,
-  so the consumer reads its queue's settings from `FILL_DELIVERY`, and
-  `oxlint.config.ts` refuses the import. `apps/web/cloudflare.config.ts`,
-  `apps/web/compatibility.ts`, `apps/web/fill-queues.ts`.
+  fills' queues another, the agent's allowance and prices a third, that the
+  configs and suites import and the Worker's own code never does: the dev
+  server cannot load a module the config loads, so the consumer reads its
+  queue's settings from `FILL_DELIVERY` and the cell its limits from
+  `AGENT_ALLOWANCE` and `AGENT_PRICES`, and `oxlint.config.ts` refuses the
+  import. `apps/web/cloudflare.config.ts`, `apps/web/compatibility.ts`,
+  `apps/web/fill-queues.ts`, `apps/web/agent-limits.ts`.
 
 - **THE WORKER'S SUITES RUN INSIDE workerd THROUGH `@cloudflare/vitest-plugin`,
   ON THE BINDINGS `cloudflare.config.ts` DECLARES, RESTATED.** A suite reaches
@@ -302,8 +304,10 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   GIVES.** Naming an object creates it, so `library:<userId>` comes from a
   credential the Worker verified, or from a fill message, which only the
   account's cell writes, from its own `ctx.id.name`, onto a queue only this
-  Worker produces to; `cloudflare.config.ts` declares the class in `exports`
-  with SQLite storage and binds no namespace, and the retired `ThreadSyncDO`
+  Worker produces to, and a conversation's `agent-thread:<accountId>:<threadId>`
+  from its cell alone, for a thread its rows hold; `cloudflare.config.ts`
+  declares `LibraryDO` and `AgentThreadDO` in `exports` with SQLite storage and
+  binds no namespace, and the retired `ThreadSyncDO`
   stays a tombstone until a deploy lets it go. The schema opens under
   `blockConcurrencyWhile`; one of another version wipes the cell under a new
   epoch. Rejected: a namespace binding (anything holding `env` could name any
@@ -521,139 +525,117 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   `apps/web/src/routes/app/sign-in.tsx`.
 
 - **THE CONNECTOR IS SERVED IN THE ACCOUNT'S CELL, A FRESH SERVER A REQUEST
-  OVER ONE OF THREE REGISTRARS, ITS PRINCIPAL AN AGENT'S.** The Worker refuses
-  a Host or Origin not this deployment's, the provider checks the token, the
-  grant spends its budget, and the request goes on whole by `stub.fetch`,
-  stamped with an assistant's principal or, by the grant's props, the built-in
-  agent's; the cell takes either only here. The read-only registrar holds the
+  OVER ONE OF TWO REGISTRARS, ITS PRINCIPAL AN ASSISTANT'S.** The Worker
+  refuses a Host or Origin not this deployment's, the provider checks the
+  token, the grant spends its budget, and the request goes on whole by
+  `stub.fetch`, stamped with an assistant's principal, which the cell takes
+  only here. The read-only registrar holds the
   GET rows; each server is stateless, its tools/list private to the client,
   and it advertises no `listChanged`, since a grant's tools never change and a
   `subscriptions/listen` would hold the cell open. Rejected: a session object
   per client (state nothing needs); a registrar per request (it rebuilds the
-  same schemas); a device credential here (the door is an agent's).
+  same schemas); a device credential here (the door is an assistant's).
   `apps/web/src/worker/connector/connector-route.ts`, `connector-server.ts`,
   `apps/web/src/worker/library/library-principal.ts`.
 
-- **THE BUILT-IN AGENT IS FILES `ant apply` SYNCS, ONE DIRECTORY A TARGET, ITS
-  IDS READ FROM THE LOCKFILE.** `apps/web/agents/<target>/library-agent/`
-  holds `agent.md`, `environment.yaml` and ant's `claude-lock.json`; the
-  script writes the first two from one definition and `@repo/agent-skills`,
-  the same bytes for every account, and a guard regenerates and diffs them.
-  The toolset allows the registrar's tools by name, `delete_items` asking and
-  `undo_change` left out. The owner applies each target in its own workspace;
-  an unapplied target or a missing key leaves the agent unreachable. A
-  preview's session runs its PR's definition as overrides. Rejected: agents
-  made on the request path (apply refuses what it did not make); a toolset
-  allowing by default (a later tool runs unreviewed).
-  `apps/web/scripts/agent-files.ts`, `apps/web/src/worker/agent/library-agent.ts`,
-  `session-agent.ts`.
+- **THE BUILT-IN AGENT IS OUR OWN LOOP, ONE `AgentThreadDO` A CONVERSATION,
+  WOKEN BY THE AGENTS SDK'S LIFECYCLE** (owner decision: the Agents SDK, Claude
+  through AI Gateway). Named `agent-thread:<accountId>:<threadId>`, reached
+  only through `ctx.exports` from its account's cell, which alone names one,
+  and reaching only that cell back; it imports `agents/lifecycle` alone, for
+  the job queue and the one alarm the cell's own never shares. The definition
+  (model, effort, prompt from `@repo/agent-skills`, the tools) is code, the
+  same bytes for every account. Rejected: the loop in the cell (Lifecycle takes
+  its host's one alarm); ThinkHarness (its recovery re-sends a cut reply as a
+  prefill Opus 5.5 refuses, and it takes an approval answered after a later
+  turn); PiHarness (`drop_block` on every request, a compaction that drops
+  every kept thinking block, a hook that cannot refuse a call); Managed Agents
+  (a vault, a public connector, a webhook and an account-wide turn lock to
+  attribute writes). `apps/web/src/worker/agent/agent-thread.ts`,
+  `library-agent.ts`.
 
-- **THE BUILT-IN AGENT REACHES THE LIBRARY AS OUR OWN PUBLIC OAUTH CLIENT,
-  GRANTED IN ITS CELL UNDER A HOLD ON ITS ROW.** One client a deployment,
-  registered by `createClient` with no secret, its id in D1; a turn-on claims
-  `agent_vault`, runs `parseAuthRequest`, `completeAuthorization` and the token
-  endpoint in process, and writes each id it makes onto the row, reading it
-  again after every call; a job lets go of one the platform ends. A repair
-  leases the row, re-grants only a credential Anthropic judges invalid, and
-  revokes the old grant once the new one is on the row. Off revokes every grant
-  of the agent's. Rejected: the provider's `revokeExistingGrants` (it revokes
-  a grant a concurrent call just made); grants written to KV by hand; a client
-  per account. `apps/web/src/worker/agent/built-in-client.ts`,
-  `agent-access.ts`.
+- **A CONVERSATION'S TRANSCRIPT IS CLAUDE'S REPLIES AS RETURNED, ONLY EVER
+  APPENDED TO, AND A CUT CALL IS SENT AGAIN WHOLE.** A reply lands only once
+  its stream ends, in one transaction with its usage; a call stamped by an
+  instance that died is cut and its step re-sent byte for byte, its cap the
+  first call's; the system and tools a thread started with are replayed byte
+  for byte; `cache_control` goes on a copy; per-account words ride a system
+  message after the person's, landing with the turn's first reply, so a turn
+  that ends unanswered leaves none last. Rejected: continuing the partial reply
+  (a prefill, a 400 on Opus 5.5); rebuilding messages from rows (one changed
+  byte before a thinking block is a 400).
+  `apps/web/src/worker/agent/thread-schema.ts`, `thread-request.ts`.
 
-- **A THREAD IS THE ACCOUNT'S: ONE MANAGED AGENTS SESSION, ITS EVENTS SYNCED
-  ROWS** (owner decision: the phone asks the agent too). The cell keeps each
-  thread and the events its session gave, stored once by their `sevt_` id, and
-  every device pulls them as it pulls items. A session's id and cumulative
-  usage are an `agent_sessions` row, written in the transaction that learns
-  it, the only record its deletion at Anthropic reads; a thread whose session
-  stopped seeds a fresh one with its text history. Rejected: a thread in the
-  database of the Mac that ran it (no other device could ask); a session per
-  turn (no prompt cache, no compaction).
-  `apps/web/src/worker/agent/turn-rows.ts`, `turn-events.ts`, `turn-message.ts`.
+- **THE AGENT'S TOOLS ARE THE LIBRARY'S PROCEDURES, RUN BY ITS CELL UNDER A
+  PRINCIPAL ONLY `agentTool` MINTS.** The registrar's tool rows minus
+  `undo_change`, each by its `operationId` with its input less `opId`; the cell
+  runs one through its own router as `agent{threadId, turn}` only while that
+  turn is open, its write's op id derived from `agent:<threadId>:<toolUseId>`,
+  so a call run again lands once; no header carries an agent. Rejected: the
+  connector over HTTP (a credential to mint and refresh, a turn lock to
+  attribute it); the API's MCP connector (no permission policy, a public URL).
+  `apps/web/src/worker/agent/agent-tools.ts`,
+  `apps/web/src/worker/library/library-principal.ts`.
 
-- **ONE BUILT-IN TURN PER ACCOUNT, AND ONLY IT TAKES THE BUILT-IN CLIENT'S
-  CALLS.** A tool call carries the account's token, not the session's, so the
-  cell runs one turn at a time; a second send waits in `agent_queue` and
-  starts once the first seals. The connector admits the agent's grant only
-  while a turn is open, each write reading the open turn as it lands and
-  joining that turn's one change set, and refuses it when none is. A turn
-  seals only once `sessions.retrieve` shows its session at rest. Rejected: a
-  vault and grant per thread (two more creates a thread, for misattribution
-  never seen). `apps/web/src/worker/agent/agent-turns.ts`, `turn-state.ts`,
-  `apps/web/src/worker/library/library-do.ts`.
+- **THE BUILT-IN AGENT'S RESULTS FIT IN 40,000 CHARACTERS.** A result is
+  replayed into every later call of its conversation and written to the cache
+  once, so a paged list is asked again at half its rows until it fits, and
+  what still does not is refused, a read told to ask for less and a write that
+  it landed; a synced event carries 2,000 characters of it. Rejected: the
+  connector's budget (claude.ai takes 150,000); refusing every long page.
+  `apps/web/src/worker/agent/agent-tools.ts`.
 
-- **A TURN'S STREAM IS READ INSIDE `ctx.waitUntil` IN WINDOWS, AND THE LIST
-  RECONCILES IT.** The cell opens `events.stream` with `agent.message`
-  deltas, then lists the events since the last one stored, deduping by id,
-  and stores each event before the sockets hear it; a window closes at the
-  session's idle or after 14 minutes. The alarm reconciles the open turn every
-  minute and Anthropic's webhook at every idle, so an evicted cell or a
-  dropped stream loses nothing, and no timer runs. Rejected: a reader outside
-  the cell (a second writer of thread rows); listing alone (the agent's words
-  a minute late). `apps/web/src/worker/agent/turn-stream.ts`.
+- **AN APPROVAL WAITS ON THE PERSON TEN MINUTES IN THE THREAD'S OWN ROWS, AND A
+  CANCEL DENIES BEFORE IT STOPS.** `delete_items` is journaled awaiting the
+  person under a Lifecycle job that denies at ten minutes; an answer decides
+  once; a cancel marks the turn durably, aborts the stream and answers every
+  open call `is_error`, so the next request is valid. Rejected: a tool that
+  waits in memory (it dies with an eviction); the platform's `auto` judgment
+  (not the person). `apps/web/src/worker/agent/agent-thread.ts`.
 
-- **A CREATE OR A SEND GOES ONCE, AND IS LOOKED FOR BEFORE IT GOES AGAIN.**
-  `sessions.create` and `events.send` go with no retries and a 20-second
-  timeout; a failure that may have landed (a timeout, a lost connection, a
-  5xx) is looked for, a session by its metadata since the turn began and a
-  message by its text, before the cell takes it as not sent, and a start the
-  platform cut short is started again the same way. A send that cannot start
-  answers `AGENT_UNAVAILABLE`, counted against nothing. Rejected: the SDK's
-  retries (a lost answer makes a second session or says a message twice).
-  `apps/web/src/worker/agent/turn-calls.ts`, `turn-start.ts`.
+- **EVERY TURN IS COUNTED BEFORE IT STARTS AND EVERY CALL RESERVED BEFORE IT
+  GOES** (owner decision: about fifty free turns a month, a day's share first).
+  A send that finds the day's turns or list cost spent is refused
+  `AGENT_BUDGET`; each call's `max_tokens` is what the turn's ceiling and the
+  day's remainder buy after its input, priced as the cache will likely bill
+  it; each reply books its exact usage at list price in micro-cents, a cut call
+  its reservation against the day but not its turn's ceiling, and a turn that
+  cost nothing is refunded. Rejected: the gateway's spend limit (eventually
+  consistent, a backstop); an estimate booked as spend.
+  `apps/web/src/worker/agent/agent-allowance.ts`.
 
-- **AN APPROVAL WAITS ON THE PERSON TEN MINUTES, AND A CANCEL DENIES BEFORE IT
-  INTERRUPTS.** A `requires_action` idle pauses the turn and closes its
-  stream; `respond` sends one `user.tool_confirmation` an event, the alarm
-  denies what nobody answered in ten minutes, lest a forgotten card hold the
-  account's one turn, and a cancel denies each paused call with a
-  `deny_message`, then interrupts, since an interrupt alone leaves a paused
-  session paused; the interrupt is kept on the turn. Rejected: the platform's
-  `auto` permission (its evaluation is not the person).
-  `apps/web/src/worker/agent/agent-turns.ts`.
+- **A THREAD IS THE ACCOUNT'S: ITS EVENTS ARE SYNCED ROWS ITS OBJECT'S OUTBOX
+  PUSHES** (owner decision: the phone asks the agent too). The cell stores each
+  push once by its seq, in one transaction, as events of our own union, and
+  frames each on the sockets after it commits; previews ride the sockets
+  alone. Rejected: the Agents SDK's client socket to the thread (a second
+  socket and auth, nothing offline); Anthropic's event shapes (a vendor's union
+  in every replica). `apps/web/src/worker/agent/agent-turns.ts`,
+  `packages/contract/src/cloud/library/agent-events.ts`.
 
-- **EVERY TURN IS CAPPED BY THE PLATFORM AND COUNTED BEFORE IT STARTS**
-  (owner decision: about fifty free turns a month, a day's share first). A
-  send that finds the day's turns or list cost spent is refused
-  `AGENT_BUDGET` with when the day refills; each turn sets its session's
-  budget to what it consumed plus the smaller of the day's remainder and one
-  turn's ceiling, a cent at least, in integer cents; the ledger books each
-  `session.usage` as its difference from the last; a turn that reaches its cap
-  stops its thread and its session is deleted. Rejected: raising a paused
-  session's cap (the next turn would resume the old work).
-  `apps/web/src/worker/agent/agent-allowance.ts`, `turn-events.ts`,
-  `apps/web/cloudflare.config.ts`.
+- **A LINK THE AGENT SAVES IS READ ONLY ONCE ITS TURN SEALS** (owner
+  decision). Its fill row names the turn's change set and waits for the seal.
+  Rejected: reading it at once (the agent could save a page, read it and act on
+  it within the turn: a web reader it was never given).
+  `apps/web/src/worker/library/cell-fills.ts`.
 
-- **ANTHROPIC'S WEBHOOK IS VERIFIED BY ITS SIGNATURE, ANSWERED AT ONCE AND
-  ROUTED ONCE.** `/hooks/anthropic` reads the raw body and has
-  `webhooks.unwrap` check its Standard Webhooks signature under the
-  deployment's key, refusing a body that fails with 400; a verified one is
-  answered 200 and routed after it: a session's idle or end to the cell its
-  metadata names, which reconciles, and a failed refresh to the cell its
-  vault's metadata names, which repairs. The cell keeps each delivery's id
-  beside its writes' op ids, so a redelivery routes nothing. Rejected: a
-  route that waits on the cell (a slow answer gets the endpoint disabled).
-  `apps/web/src/worker/agent/anthropic-webhook.ts`.
+- **CLAUDE IS REACHED THROUGH ONE AI GATEWAY A TARGET, WHICH HOLDS THE KEY**
+  (owner decision). The provider-native `/anthropic` route, its key stored on
+  the gateway with provider credentials required, the gateway authenticated by
+  `AI_GATEWAY_TOKEN`, every request asking it to keep no payload; the SDK sends
+  no key and retries nothing, and a Worker with no gateway fails closed.
+  Rejected: the key on the Worker; Unified Billing (a fee, and its fallback is
+  silent); the AI binding (it reaches the account in local development);
+  `@ai-sdk/anthropic` (a second conversion of every block).
+  `apps/web/src/worker/agent/anthropic-client.ts`, `apps/web/cloudflare.config.ts`.
 
-- **THE LOCAL WORKER, THE E2E AND THE SUITES RUN THE ONE CELL PATH AGAINST A
-  FAKE MANAGED AGENTS API.** `MANAGED_AGENTS_FAKE_URL`, which `vite dev` alone
-  declares, the e2e harness binds and must name this machine, points the cell's SDK at
-  `tools/managed-agents-fake` through its `baseURL`; its sessions really call
-  the connector with the vault's token. The suites serve it in process, the
-  e2e harness beside each built Worker it boots, and a deployed Worker without
-  `ANTHROPIC_API_KEY` fails closed. Rejected: a
-  scripted driver inside the cell (a path no deploy runs); mocking the SDK
-  (its stream, paging and errors would be ours to imitate).
-  `apps/web/src/worker/agent/managed-agents.ts`,
-  `tools/managed-agents-fake/src/fake-api.ts`.
-
-- **THE BUILT-IN AGENT'S RESULTS FIT IN 40,000 CHARACTERS.** Managed Agents
-  writes a result over 100,000 characters into a sandbox file a `read` tool
-  this agent lacks would open, so the agent's own registrar, which lists only
-  the tools its definition allows, asks a paged list again at half its rows
-  until text and structured content together fit, and refuses what still
-  does not, telling a read to ask for less and a write that it landed.
-  Rejected: one budget for every client (claude.ai takes 150,000); refusing
-  every long page (a library of long titles could list nothing).
-  `apps/web/src/worker/connector/connector-server.ts`.
+- **THE LOCAL WORKER, THE E2E AND THE SUITES RUN THE ONE THREAD PATH AGAINST A
+  SCRIPTED MESSAGES API.** `ANTHROPIC_FAKE_URL`, which `vite dev` alone
+  declares and the e2e harness binds, must name this machine, and points the
+  client at `tools/messages-fake`, which refuses what Opus 5.5 refuses and
+  counts every dropped thinking block; the suites reach it through their
+  outbound service, which refuses every other address, and every suite and
+  scenario expects no drop. Rejected: a mock model (the SDK's stream, the
+  API's refusals and the transcript rules would be ours to imitate); a
+  recorded replay (it cannot answer a request it never saw).
+  `tools/messages-fake/src/messages-fake.ts`, `apps/web/messages-service.ts`.
