@@ -1,14 +1,22 @@
-// The library as this page holds it: the replica engine every device runs
-// (`@repo/library-replica`), over SQLite's own wasm in memory, with the session cookie for its
-// credential. The tab keeps nothing between loads: it pulls the library again each time it opens,
-// and a write it queued goes once the cell answers, so the tab is online only (spec §6, "Web").
-// The Mac's window (stage 10c) hands the same screens a replica of its own.
+// The library as this page holds it, whichever host serves the page: the replica engine every
+// device runs (`@repo/library-replica`), the wire to the cell, the account, and what the host
+// decides (where a file is drawn from, how `/v1` is reached for bytes, where a sign-out goes).
+//
+// The browser tab's: SQLite's own wasm in memory, with the session cookie for its credential. The
+// tab keeps nothing between loads: it pulls the library again each time it opens, and a write it
+// queued goes once the cell answers, so the tab is online only (spec §6, "Web"). The Mac's is the
+// shell's (`shell-library.ts`).
 
+import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { mergeBlocks } from "@repo/editor/stale-write";
 import { openLibraryReplica } from "@repo/library-replica/library-replica";
 import type { LibraryReplica } from "@repo/library-replica/library-replica";
 import { openMemorySql } from "@repo/library-replica/memory-sql";
-import type { ReplicaClock, StagedBlobs } from "@repo/library-replica/replica-ports";
+import type {
+  ReplicaClock,
+  ReplicaTransport,
+  StagedBlobs,
+} from "@repo/library-replica/replica-ports";
 import { uuidV7 } from "@repo/notes/library/uuid-v7";
 import { z } from "zod";
 
@@ -16,18 +24,28 @@ import type { LeaveGuard } from "./leave-guard";
 import { createCloudWire } from "./v1";
 import type { CloudWire } from "./v1";
 
-// who is signed in, as the site's session answers it: Settings › Account names them
+// who is signed in: Settings › Account names them
 export interface SignedIn {
   readonly email: string;
   readonly name: string;
 }
 
+// why this device leaves its account: a sign-out, or the account deleted
+export type LeaveReason = "signed-out" | "deleted";
+
 export interface PageLibrary {
   readonly replica: LibraryReplica;
   readonly wire: CloudWire;
   readonly account: SignedIn;
-  // what asks before the tab leaves while a change it holds has not reached the cell
+  // what asks before the page leaves while a change it holds has not reached the cell
   readonly leave: LeaveGuard;
+  // where a file of the library is drawn from: the cloud's own route in the tab, the shell's
+  // scheme on the Mac
+  readonly fileUrl: (sha: string) => string;
+  // `/v1` for the bytes the wire does not carry: a file uploaded for an import, an export saved
+  readonly cloud: ReplicaTransport;
+  // this device has left its account, its replica already wiped: the host's next screen
+  readonly left: (reason: LeaveReason) => Promise<void>;
 }
 
 export type PageOpening =
@@ -48,7 +66,7 @@ const SIGN_IN_PATH = "/app/sign-in";
 export const signInHref = (here: Pick<Location, "pathname" | "search">): string =>
   `${SIGN_IN_PATH}?${new URLSearchParams({ next: `${here.pathname}${here.search}` }).toString()}`;
 
-const browserClock: ReplicaClock = {
+export const pageClock: ReplicaClock = {
   after: (ms, run) => {
     const timer = setTimeout(run, ms);
     return () => {
@@ -58,7 +76,7 @@ const browserClock: ReplicaClock = {
   now: () => Date.now(),
 };
 
-const newId = (): string => uuidV7(Date.now(), crypto.getRandomValues(new Uint8Array(16)));
+export const newId = (): string => uuidV7(Date.now(), crypto.getRandomValues(new Uint8Array(16)));
 
 // a file waiting for the write that names it to land: in memory, as the rows are, so a reload
 // takes it with the write it waited for
@@ -97,14 +115,15 @@ export const openPageLibrary = async (
   if (account === null) {
     return { kind: "signed-out" };
   }
+  const transport: ReplicaTransport = { fetch: async (request) => await fetch(request), origin };
   const opening = await openLibraryReplica({
     blobs: memoryStagedBlobs(),
-    clock: browserClock,
+    clock: pageClock,
     dial: (url) => new WebSocket(url),
     merge: mergeBlocks,
     newId,
     sql: await openMemorySql(),
-    transport: { fetch: async (request) => await fetch(request), origin },
+    transport,
   });
   if (opening.kind === "unsupported") {
     return { kind: "unsupported" };
@@ -113,9 +132,16 @@ export const openPageLibrary = async (
     kind: "ready",
     library: {
       account,
+      cloud: transport,
+      fileUrl: (sha) => `${V1_BLOBS_PATH}/${sha}`,
       leave,
+      left: async (reason) => {
+        leave.drop();
+        window.location.assign(reason === "deleted" ? "/" : SIGN_IN_PATH);
+        await Promise.resolve();
+      },
       replica: opening.replica,
-      wire: createCloudWire(origin, onSessionEnd),
+      wire: createCloudWire(transport, onSessionEnd),
     },
   };
 };

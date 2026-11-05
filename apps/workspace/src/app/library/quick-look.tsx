@@ -9,7 +9,7 @@ import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import type { KeyboardEvent } from "react";
 
 import { useNow } from "../relative-time";
-import { blobUrl } from "./item-card";
+import { useFileUrl } from "../cloud/library-context";
 import { cardMeta, KIND_LABELS } from "./item-labels";
 import { libraryShortcutFor } from "./library-keys";
 
@@ -26,11 +26,12 @@ const coverOf = (row: ReplicaListingRow): string | null =>
 
 const Look = ({ row }: { row: ReplicaListingRow }) => {
   const nowMs = useNow();
+  const fileUrl = useFileUrl();
   const cover = coverOf(row);
   return (
     <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
       {cover === null ? null : (
-        <img alt="" src={blobUrl(cover)} className="max-h-72 w-full rounded-md object-contain" />
+        <img alt="" src={fileUrl(cover)} className="max-h-72 w-full rounded-md object-contain" />
       )}
       <div className="flex items-center gap-2">
         <Badge variant="outline">{KIND_LABELS[row.kind]}</Badge>

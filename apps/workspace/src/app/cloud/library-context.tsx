@@ -29,6 +29,15 @@ export const useAccount = (): SignedIn => usePageLibrary().account;
 
 export const useLeaveGuard = (): LeaveGuard => usePageLibrary().leave;
 
+// where a file of the library is drawn from, as the page's host serves it
+export const useFileUrl = (): PageLibrary["fileUrl"] => usePageLibrary().fileUrl;
+
+// `/v1` for the bytes the wire does not carry
+export const useCloud = (): PageLibrary["cloud"] => usePageLibrary().cloud;
+
+// where the page goes once this device left its account
+export const useLeft = (): PageLibrary["left"] => usePageLibrary().left;
+
 export const useReplicaQueries = () => replicaQueries(useReplica());
 
 // where the replica stands: syncing, what stopped it, the writes it holds; the replica keeps one

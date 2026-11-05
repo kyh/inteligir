@@ -14,7 +14,8 @@ const store = createBridgeStore<UpdateState>({
 
 export const useDesktopUpdates = store.use;
 
-// each action answers with the state it left behind, adopted like a pushed frame
+// each action answers with the state it left behind, adopted like a pushed frame: a check, or
+// Restart to Update, which relaunches the app once the update is in
 export const runUpdateAction = async (action: UpdateAction): Promise<void> => {
-  await store.run(shellUpdates[action.action]);
+  await store.run(action.action === "check" ? shellUpdates.check : shellUpdates.install);
 };

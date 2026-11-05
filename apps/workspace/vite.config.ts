@@ -10,12 +10,11 @@ import { defineConfig } from "vite";
 const here = import.meta.dirname;
 const src = path.resolve(here, "src");
 
-// the prefix the Worker serves the page under, which every asset url the build writes starts with
+// the prefix the Worker serves the page under, which every asset url the build writes starts with;
+// the build lays its files under it too, so `dist/` mirrors the paths both hosts serve: the
+// Worker's assets (apps/web/vite.config.ts) and the Mac's bundle (`frontendDist`), where the page
+// is `library/` on the app's own origin
 const BASE = `${LIBRARY_PAGE_PATH}/`;
-
-// pinned: `tauri dev` waits on it (`devUrl` in apps/desktop/src-tauri/tauri.conf.json), clear of
-// `pnpm dev:web`'s 5174
-const DEV_PORT = 31_000;
 
 // a component the compiler skipped, said as the build runs (react.dev/reference/react-compiler/
 // logger): the card grid is the one it may name (packages/ui/CLAUDE.md § THE CARD GRID IS
@@ -38,7 +37,7 @@ export default defineConfig({
     // there to catch a dependency that doubles it
     chunkSizeWarningLimit: 6000,
     emptyOutDir: true,
-    outDir: path.resolve(here, "dist"),
+    outDir: path.resolve(here, "dist", LIBRARY_PAGE_PATH.slice(1)),
     rolldownOptions: {
       input: path.resolve(src, "index.html"),
       // CLAUDE.md § THE PAGE IS ONE BUNDLE: every dynamic import (the editor's lazy nodes: KaTeX,
@@ -65,5 +64,4 @@ export default defineConfig({
     tailwindcss(),
   ],
   root: src,
-  server: { port: DEV_PORT, strictPort: true },
 });

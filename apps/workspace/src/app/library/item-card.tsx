@@ -1,8 +1,7 @@
-// One item as a card: its cover from the library's files (`/v1/blobs/<sha>`, which the session
-// cookie reads as the wire does), else a tile for its kind; a note shows its first paragraph. The
+// One item as a card: its cover from the library's files (where the page's host draws them: the
+// cloud's own route in the tab, the shell's scheme on the Mac), else a tile for its kind; a note shows its first paragraph. The
 // card only reports gestures: the grid owns the selection, the focus and the menu.
 
-import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { FileKindIcon } from "@repo/editor/nodes/file-card";
 import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import {
@@ -27,9 +26,8 @@ import {
 import { useState } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 
+import { useFileUrl } from "../cloud/library-context";
 import { cardMeta, fileExtensionLabel } from "./item-labels";
-
-export const blobUrl = (sha: string): string => `${V1_BLOBS_PATH}/${sha}`;
 
 export interface ItemCardProps {
   readonly row: ReplicaListingRow;
@@ -100,6 +98,7 @@ const GlyphTile = ({ row }: { row: ReplicaListingRow }) => {
 
 // the cover, or nothing once the library could not answer it
 const CoverImage = ({ sha }: { sha: string }) => {
+  const fileUrl = useFileUrl();
   const [failed, setFailed] = useState(false);
   if (failed) {
     return null;
@@ -110,7 +109,7 @@ const CoverImage = ({ sha }: { sha: string }) => {
       draggable={false}
       loading="lazy"
       decoding="async"
-      src={blobUrl(sha)}
+      src={fileUrl(sha)}
       onError={() => {
         setFailed(true);
       }}

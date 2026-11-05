@@ -1,4 +1,4 @@
-import { cp, lstat, symlink } from "node:fs/promises";
+import { cp, readlink, rm, symlink } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { cloudflare } from "@cloudflare/vite-plugin";
@@ -12,9 +12,9 @@ import type { Plugin } from "vite";
 
 const src = fileURLToPath(new URL("src", import.meta.url));
 
-// the library's page, `@repo/workspace`'s build, which turbo builds first (`^build`): its files go
-// into the site's own assets under LIBRARY_PAGE_PATH, where the Worker answers the page's document
-// for every path under it (src/worker/library/library-page.ts)
+// the library's page, `@repo/workspace`'s build, which turbo builds first (`^build`): it lays its
+// files under LIBRARY_PAGE_PATH already, so they go into the site's own assets as they are, where
+// the Worker answers the page's document for every path under it (src/worker/library/library-page.ts)
 const LIBRARY_PAGE_BUILD = fileURLToPath(new URL("../workspace/dist", import.meta.url));
 // the prefix without its leading slash, as a directory of the assets
 const LIBRARY_PAGE_DIR = LIBRARY_PAGE_PATH.slice(1);
@@ -26,7 +26,7 @@ const libraryPage = (): Plugin => ({
     if (options.dir === undefined) {
       throw new Error("the site's client build names no output directory");
     }
-    await cp(LIBRARY_PAGE_BUILD, path.join(options.dir, LIBRARY_PAGE_DIR), { recursive: true });
+    await cp(LIBRARY_PAGE_BUILD, options.dir, { recursive: true });
   },
 });
 
@@ -37,9 +37,11 @@ const libraryPageInDev = (): Plugin => ({
   apply: "serve",
   configureServer: async () => {
     const link = fileURLToPath(new URL(`public/${LIBRARY_PAGE_DIR}`, import.meta.url));
-    const held = await lstat(link).catch(() => null);
-    if (held === null) {
-      await symlink(LIBRARY_PAGE_BUILD, link, "dir");
+    const target = path.join(LIBRARY_PAGE_BUILD, LIBRARY_PAGE_DIR);
+    // a link left by a checkout whose build laid out otherwise is pointed at this one's
+    if ((await readlink(link).catch(() => null)) !== target) {
+      await rm(link, { force: true, recursive: true });
+      await symlink(target, link, "dir");
     }
   },
   name: "inteligir:library-page-dev",

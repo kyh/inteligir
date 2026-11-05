@@ -14,7 +14,7 @@ import { Textarea } from "@repo/ui/components/textarea";
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { useAccount, useReplica, useWire } from "../cloud/library-context";
+import { useAccount, useLeft, useReplica, useWire } from "../cloud/library-context";
 import { CellAnswer, refusalText } from "../cloud/needs-connection";
 import type { CloudWire } from "../cloud/v1";
 import { forgetPref, PREFS } from "../prefs";
@@ -265,6 +265,7 @@ const FilingRulesRow = () => {
 const DeleteAccount = () => {
   const { client } = useWire();
   const replica = useReplica();
+  const left = useLeft();
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
   const remove = useMutation({
@@ -275,7 +276,7 @@ const DeleteAccount = () => {
     onSuccess: async () => {
       await replica.wipe();
       forgetPref(PREFS.libraryScope);
-      window.location.assign("/");
+      await left("deleted");
     },
   });
   return (
@@ -333,6 +334,7 @@ export const AccountSection = () => {
   const account = useAccount();
   const { client } = useWire();
   const replica = useReplica();
+  const left = useLeft();
   const signOut = useMutation({
     mutationFn: async () => await client.account.signOut(),
     onError: (cause) => {
@@ -341,7 +343,7 @@ export const AccountSection = () => {
     onSuccess: async () => {
       await replica.wipe();
       forgetPref(PREFS.libraryScope);
-      window.location.assign("/app/sign-in");
+      await left("signed-out");
     },
   });
   return (

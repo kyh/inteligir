@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
-use tauri::webview::{NewWindowResponse, PageLoadEvent, PermissionResponse};
+use tauri::webview::{DownloadEvent, NewWindowResponse, PageLoadEvent, PermissionResponse};
 use tauri::{
     AppHandle, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
@@ -91,6 +91,19 @@ pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         })
         // dictation is the operating system's, so the page needs no microphone, and no camera either
         .on_permission_request(|_, _| PermissionResponse::Deny)
+        // a file the page saves (a `download` link: an item's original, an export's zip) lands in
+        // the Downloads folder under its own name, numbered rather than over another
+        .on_download(|_, event| {
+            if let DownloadEvent::Finished {
+                success: false,
+                url,
+                ..
+            } = event
+            {
+                eprintln!("[desktop] a download from {} did not finish", url.scheme());
+            }
+            true
+        })
         .on_page_load(move |window, payload| match payload.event() {
             PageLoadEvent::Started => {
                 window.app_handle().state::<Account>().replica().abandon();

@@ -42,6 +42,7 @@ describe("the Mac page's cross-origin calls", () => {
     );
     expect(answered.status).toBe(400);
     expect(answered.headers.get("access-control-allow-origin")).toBe(MAC_APP_ORIGIN);
+    expect(answered.headers.get("access-control-expose-headers")).toBe("content-disposition");
   });
 
   it("lets the Mac page read a file's answer", async () => {

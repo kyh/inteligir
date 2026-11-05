@@ -28,8 +28,6 @@ pub enum ShellError {
     Keychain(#[from] keyring_core::Error),
     #[error("The cloud could not be reached: {0}")]
     Network(#[from] reqwest::Error),
-    #[error(transparent)]
-    Tauri(#[from] tauri::Error),
 }
 
 impl ShellError {
@@ -44,7 +42,6 @@ impl ShellError {
             Self::Io(_) => "io",
             Self::Keychain(_) => "keychain",
             Self::Network(_) => "network",
-            Self::Tauri(_) => "shell",
         }
     }
 }

@@ -12,7 +12,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "files_stage",
             "files_staged",
             "files_unstage",
-            "print_page",
             "replica_all",
             "replica_begin",
             "replica_commit",

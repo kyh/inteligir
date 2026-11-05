@@ -4,7 +4,6 @@
 // subscriber, never at import.
 
 import { useSyncExternalStore } from "react";
-import type { BridgeAnswer } from "../shell/shell-answer";
 import { underShell } from "../shell/shell-commands";
 
 type BridgeSnapshot<TState> =
@@ -24,8 +23,6 @@ export interface BridgeStore<TState> {
   use: () => BridgeSnapshot<TState>;
   // runs an action against the shell and adopts the state it answers; a no-op outside the shell
   run: (action: () => Promise<TState>) => Promise<void>;
-  // the shell's refusal, in its words, or null once the answer is adopted or outside the shell
-  settle: (ask: () => Promise<BridgeAnswer<TState>>) => Promise<string | null>;
 }
 
 export const createBridgeStore = <TState>(args: BridgeStoreArgs<TState>): BridgeStore<TState> => {
@@ -80,17 +77,6 @@ export const createBridgeStore = <TState>(args: BridgeStoreArgs<TState>): Bridge
         return;
       }
       adopt(await action());
-    },
-    settle: async (ask) => {
-      if (!underShell()) {
-        return null;
-      }
-      const answer = await ask();
-      if (!answer.ok) {
-        return answer.reason;
-      }
-      adopt(answer.state);
-      return null;
     },
     use: () => useSyncExternalStore(subscribe, getSnapshot),
   };

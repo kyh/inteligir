@@ -30,6 +30,9 @@ const allowOrigin = (headers: Headers): void => {
   headers.append("vary", "Origin");
 };
 
+// what the page reads of an answer beyond its body: an export's own name for itself
+const EXPOSED_HEADERS = "content-disposition";
+
 // what WebKit asks before the page's call: the methods and headers the page sends
 export const answerPreflight = (): Response => {
   const headers = new Headers({
@@ -46,6 +49,7 @@ export const answerPreflight = (): Response => {
 export const letMacPageRead = (response: Response): Response => {
   const headers = new Headers(response.headers);
   allowOrigin(headers);
+  headers.set("access-control-expose-headers", EXPOSED_HEADERS);
   return new Response(response.body, {
     headers,
     status: response.status,

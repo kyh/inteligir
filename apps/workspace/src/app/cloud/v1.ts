@@ -1,14 +1,17 @@
-// The page's one wire to its account: `/v1/rpc` on the origin that served it, signed in by the
-// session cookie the site's own sign-in set, so the page holds no credential and names no build
-// (the Worker reads a same-origin page as its own deploy's). Every call the replica does not answer
-// (History, the built-in agent, imports, exports, the account) goes through these utils, as
-// TanStack queries and mutations the page's one QueryClient holds.
+// The page's one wire to its account: `/v1/rpc` through the transport its host hands it. In the
+// browser tab that is the origin that served the page, signed in by the session cookie the site's
+// own sign-in set, so the tab holds no credential and names no build (the Worker reads a
+// same-origin page as its own deploy's); in the Mac app it is the cloud's origin with the device's
+// credential and the build. Every call the replica does not answer (History, the built-in agent,
+// imports, exports, the account) goes through these utils, as TanStack queries and mutations the
+// page's one QueryClient holds.
 
 import { createORPCClient, isDefinedError, onError, ORPCError } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import type { V1Client } from "@repo/contract/cloud/v1";
+import type { ReplicaTransport } from "@repo/library-replica/replica-ports";
 import { QueryClient } from "@tanstack/react-query";
 
 type V1Queries = ReturnType<typeof createTanstackQueryUtils<V1Client>>;
@@ -25,8 +28,12 @@ export const sessionEnded = (cause: unknown): boolean =>
   cause.defined &&
   (cause.code === "UNAUTHORIZED" || cause.code === "GONE");
 
-export const createCloudWire = (origin: string, onSessionEnd: () => void): CloudWire => {
+export const createCloudWire = (
+  transport: ReplicaTransport,
+  onSessionEnd: () => void,
+): CloudWire => {
   const link = new RPCLink({
+    fetch: async (url, init) => await transport.fetch(new Request(url, init)),
     // the link's own interceptor sees every call's failure once, before its caller does
     interceptors: [
       onError((cause: unknown) => {
@@ -35,7 +42,7 @@ export const createCloudWire = (origin: string, onSessionEnd: () => void): Cloud
         }
       }),
     ],
-    origin,
+    origin: transport.origin,
     url: V1_RPC_PATH,
   });
   const client: V1Client = createORPCClient(link);

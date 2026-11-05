@@ -16,7 +16,6 @@
     "allow-files-stage",
     "allow-files-staged",
     "allow-files-unstage",
-    "allow-print-page",
     "allow-replica-all",
     "allow-replica-begin",
     "allow-replica-commit",

@@ -1,7 +1,8 @@
 // The shell's end of the door, for a suite: Tauri's own IPC mock answers each command by the
 // name its row gives the shell, after that row's argument parse, so the page's real calls and
-// their answer parse run. A command no reply names is refused the way the shell refuses one its
-// capability does not grant, which is how a suite reaches the fault path.
+// their answer parse run. A command no reply names is refused the way Tauri refuses one its
+// capability does not grant, which is how a suite reaches the bridge's fault path; a reply that
+// throws rejects as the shell's own error would.
 //
 // mockIPC fakes the IPC alone, not the marker the runtime sets on every page it hosts, and that
 // marker is all isTauri() reads, so the suite sets it too.
@@ -9,7 +10,7 @@
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { vi } from "vitest";
 import { z } from "zod";
-import type { CommandRoute } from "../ipc-contract";
+import type { BytesRoute, CommandRoute } from "../ipc-contract";
 
 // invoke sends `{}` for a row that takes nothing, which the shell reads as no arguments
 const NO_ARGS_SENT = z.strictObject({});
@@ -27,8 +28,18 @@ export interface ShellReply {
 export const reply =
   <Args extends z.ZodType, Answer extends z.ZodType>(route: CommandRoute<Args, Answer>) =>
   (answer: (args: z.output<Args>) => z.input<Answer> | Promise<z.input<Answer>>): ShellReply => ({
-    answer: async (_command, payload) =>
-      await answer(route.args.parse(NO_ARGS_SENT.safeParse(payload).success ? undefined : payload)),
+    answer: async (_command, payload) => {
+      const nothing = NO_ARGS_SENT.safeParse(payload);
+      return await answer(route.args.parse(nothing.success ? undefined : payload));
+    },
+    command: route.command,
+  });
+
+// a row whose request is raw bytes: the mock hands the reply the bytes it was sent
+export const replyBytes =
+  <Answer extends z.ZodType>(route: BytesRoute<Answer>) =>
+  (answer: (bytes: Uint8Array) => z.input<Answer> | Promise<z.input<Answer>>): ShellReply => ({
+    answer: async (_command, payload) => await answer(z.instanceof(Uint8Array).parse(payload)),
     command: route.command,
   });
 

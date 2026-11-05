@@ -8,7 +8,7 @@
 //! own page alone.
 
 use tauri::ipc::{InvokeBody, Request, Response};
-use tauri::{AppHandle, Manager, WebviewWindow};
+use tauri::{AppHandle, Manager};
 
 use crate::account::Account;
 use crate::cloud::ShellConfig;
@@ -178,10 +178,4 @@ pub async fn updates_install(app: AppHandle) -> ShellResult<UpdateState> {
     tauri::async_runtime::spawn_blocking(move || updater::restart_to_update(&app))
         .await
         .map_err(|error| ShellError::Invalid(format!("the shell's work stopped: {error}")))
-}
-
-/// WKWebView answers no `window.print()`, so the shell prints the window.
-#[tauri::command]
-pub async fn print_page(window: WebviewWindow) -> ShellResult<()> {
-    Ok(window.print()?)
 }

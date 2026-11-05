@@ -1,19 +1,21 @@
 // What an item that is a file shows above its note: the image, the PDF, the recording or a way to
-// download the file, from the library's files (`/v1/blobs/<sha>`) under the page's own cookie; and
+// download the file, from the library's files where the page's host draws them (the cloud's own
+// route under the tab's cookie, or the Mac shell's scheme); and
 // what a saved page shows before its text arrives.
 
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import { Button } from "@repo/ui/components/button";
 import { DownloadIcon, ExternalLinkIcon } from "lucide-react";
 
-import { blobUrl } from "../library/item-card";
+import { useFileUrl } from "../cloud/library-context";
 
 export const FileStage = ({ fields, title }: { fields: LibraryItemFields; title: string }) => {
+  const fileUrl = useFileUrl();
   const sha = fields.originalSha;
   if (sha === null) {
     return null;
   }
-  const url = blobUrl(sha);
+  const url = fileUrl(sha);
   switch (fields.kind) {
     case "image": {
       return (

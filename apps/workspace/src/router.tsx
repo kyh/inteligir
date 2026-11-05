@@ -18,15 +18,23 @@ export interface PageContext {
   readonly library: PageLibrary;
 }
 
-// the window's router over the browser's history, and a suite's over a memory one
-export const createAppRouter = (history: RouterHistory, context: PageContext) =>
+// where the page's routes sit: under the Worker's prefix in the browser tab, where the address is
+// the page's own; at the root of the Mac's hash history, whose document never changes
+export type PageBasepath = typeof LIBRARY_PAGE_PATH | "/";
+
+// the tab's router over the browser's history, the Mac's over the hash, and a suite's over memory
+export const createAppRouter = (
+  history: RouterHistory,
+  context: PageContext,
+  basepath: PageBasepath = LIBRARY_PAGE_PATH,
+) =>
   createRouter({
     Wrap: ({ children }) => (
       <QueryClientProvider client={context.queryClient}>
         <PageLibraryProvider library={context.library}>{children}</PageLibraryProvider>
       </QueryClientProvider>
     ),
-    basepath: LIBRARY_PAGE_PATH,
+    basepath,
     context,
     // Router-level, not the root route's errorComponent, which would leave every child route
     // unguarded.

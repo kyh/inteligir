@@ -1,7 +1,7 @@
 //! The Inteligir desktop shell: a Rust window over the library's page the bundle carries, and what
 //! only a native host can do for that page: the replica of the account's library on disk, the
 //! credential in the Keychain, the library's files under the shell's own scheme, the updates,
-//! menus, the menu-bar icon and printing.
+//! menus and the menu-bar icon.
 
 mod account;
 mod cloud;
@@ -141,7 +141,6 @@ pub fn run() {
             commands::files_stage,
             commands::files_staged,
             commands::files_unstage,
-            commands::print_page,
             commands::replica_all,
             commands::replica_begin,
             commands::replica_commit,

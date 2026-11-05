@@ -113,7 +113,10 @@ export const fakePageLibrary = ({
     calls,
     library: {
       account: { email: "person@example.com", name: "" },
+      cloud: { fetch: unread, origin: "https://library.test" },
+      fileUrl: (sha) => `https://library.test/v1/blobs/${sha}`,
       leave: createLeaveGuard(new EventTarget()),
+      left: unread,
       replica,
       wire: { client, orpc: createTanstackQueryUtils(client) },
     },

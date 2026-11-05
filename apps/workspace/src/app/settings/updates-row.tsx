@@ -11,7 +11,7 @@ const statusLabel = (state: UpdateState): string => {
       return state.reason;
     }
     case "idle": {
-      return "Checked automatically a few minutes after launch, then every few minutes.";
+      return "Updates download by themselves and install when you quit.";
     }
     case "checking": {
       return "Checking…";
@@ -19,17 +19,14 @@ const statusLabel = (state: UpdateState): string => {
     case "up-to-date": {
       return `Inteligir ${state.currentVersion} is the newest version.`;
     }
-    case "available": {
-      return `Inteligir ${state.version} is available.`;
-    }
     case "downloading": {
-      return `Downloading — ${state.percent}%`;
+      return `Downloading Inteligir ${state.version} — ${String(state.percent)}%`;
     }
-    case "downloaded": {
-      return `Inteligir ${state.version} is ready. Restart to finish.`;
+    case "ready": {
+      return `Inteligir ${state.version} installs when you quit.`;
     }
     case "error": {
-      return "The last step failed.";
+      return "The last update didn't go through. Inteligir tries again on its next check.";
     }
     // no default
   }
@@ -39,9 +36,6 @@ const actionLabel = (action: UpdateAction): string => {
   switch (action.action) {
     case "check": {
       return "Check for updates";
-    }
-    case "download": {
-      return `Download ${action.version}`;
     }
     case "install": {
       return "Restart to update";
