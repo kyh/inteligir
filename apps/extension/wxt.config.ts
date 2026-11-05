@@ -11,6 +11,7 @@ import { isDeepStrictEqual } from "node:util";
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
+import { defaultClientConditions } from "vite";
 import { defineConfig } from "wxt";
 import { z } from "zod";
 
@@ -142,6 +143,10 @@ export default defineConfig({
   srcDir: "src",
   vite: () => ({
     plugins: [viteReact(), babel({ presets: [reactCompilerPreset()] }), tailwindcss()],
+    // the service worker is a worker, with no DOM, and shares its chunks with the pages: a package's
+    // `worker` build is the one both can run, where its `browser` build may reach for `document`
+    // as it loads (the markdown codec's entity decoder does)
+    resolve: { conditions: ["worker", ...defaultClientConditions] },
   }),
   // the name docs/releasing.md uploads
   zip: { artifactTemplate: "inteligir-extension-{{version}}.zip" },
