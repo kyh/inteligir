@@ -22,6 +22,11 @@ const worker = defineWorker({
   compatibilityDate,
   compatibilityFlags,
   workersDev: true,
+  // the library's page (@repo/workspace, LIBRARY_PAGE_PATH): every path under its prefix reaches
+  // the Worker first, which answers the page's document from these assets, so a deep link loads
+  // the page and no other path falls back to it; its hashed files go straight to the assets
+  // (src/worker/library/library-page.ts)
+  assets: { runWorkerFirst: ["/library", "/library/*", "!/library/assets/*"] },
   // the log and the traces keep every request's path for up to seven days, so no route carries a
   // vault path in one (the vault reads post it), and drop the query string, which carries sign-in
   // codes and tickets (docs/privacy.md)
@@ -58,6 +63,8 @@ const MIN_CLIENT_BUILD = "0.6.0";
 
 // what both modes bind alike
 const shared = {
+  // the site's and the library page's built files (vite.config.ts copies the page's in)
+  ASSETS: bindings.assets(),
   // REPO and REGISTRY are durable-git's own classes, re-exported through the entry
   REPO: bindings.durableObject({ worker, exportName: "RepoCell" }),
   REGISTRY: bindings.durableObject({ worker, exportName: "Registry" }),

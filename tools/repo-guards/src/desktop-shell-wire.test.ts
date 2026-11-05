@@ -1,7 +1,7 @@
 // The desktop shell is Rust, and the page and the CLI it runs are TypeScript, so the words they share
 // cross no compiler: every command a page may ask, the capability that grants it, the event the
 // updater pushes, the line the server announces itself on, the entry the shell runs, the bundle id
-// the browser's door opens the app by, the first run's content policy, the env the shell pins on a child (and the page's dev loop on its server)
+// the browser's door opens the app by, the first run's content policy, the env the shell pins on a child
 // and the fields of every answer the CLI's desktop door gives. Each is read from both sides here and held equal, so a rename on one side
 // fails here rather than as a command no window can reach or a server the shell never hears.
 
@@ -40,8 +40,6 @@ const SHELL = "apps/desktop/src-tauri/src/shell.rs";
 const LAUNCH = "apps/desktop/src-tauri/src/launch.rs";
 const DOOR_ANSWERS = "apps/cli/src/desktop/test-support/door-answers.ts";
 const DOOR_FIXTURES = "apps/desktop/src-tauri/fixtures";
-// the page's own dev loop, a script node runs as it stands, which cannot import the CLI's source
-const WORKSPACE_DEV = "apps/workspace/scripts/dev.ts";
 
 // Tauri's own transport for commands, how the first run reaches its four; it carries IPC alone
 const TAURI_IPC_ORIGINS = ["ipc:", "http://ipc.localhost"];
@@ -257,14 +255,6 @@ describe("the desktop shell's wire", () => {
       `${SHELL} spells an INTELIGIR_ name outside its constants.\n` +
         `  rule: every name the shell sets is a constant held to the CLI's own here\n`,
     ).toEqual([]);
-  });
-
-  it("names the page's Vite to the server under the name the CLI reads", () => {
-    const named = /const UI_DEV_URL_ENV_VAR = "(?<value>[^"]+)";/u.exec(sourceOf(WORKSPACE_DEV))
-      ?.groups?.value;
-    expect(named, `${WORKSPACE_DEV}'s UI_DEV_URL_ENV_VAR is not the CLI's\n`).toBe(
-      UI_DEV_URL_ENV_VAR,
-    );
   });
 
   it("reads every door answer by the fields the CLI writes", () => {

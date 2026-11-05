@@ -69,7 +69,13 @@ const workerOptions = async (): Promise<MiniflareOptions["workers"]> => {
     {
       config: {
         ...config,
-        assets: { directory: path.join(args.outputDir, "assets"), hasUserWorker: true },
+        // the config's own routing (the library page's paths run the Worker first), over the
+        // output's directory
+        assets: {
+          ...config.assets,
+          directory: path.join(args.outputDir, "assets"),
+          hasUserWorker: true,
+        },
         env: { ...config.env, ...vars },
         manifest: { mainModule: manifest.mainModule, modules },
         // the production routes would leave the local origin unrouted; the fill queues' consumers

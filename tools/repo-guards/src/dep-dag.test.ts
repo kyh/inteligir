@@ -105,13 +105,14 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // reading and writing of an item an agent's procedures go through; the @repo/page-reader edge
     // is the cloud's fill, a saved page read by the reader every device runs, over linkedom
     "@repo/web": ["@repo/contract", "@repo/editor", "@repo/notes", "@repo/page-reader", "@repo/ui"],
-    // the page every vault's server answers and the first run the shell carries; it reaches no
-    // server and no shell source, only the wire to each. Its suites that boot a server live in
-    // apps/cli, so nothing here depends on `inteligir`.
+    // the library's page, which the Worker serves and the Mac's window shows: the replica engine
+    // every device runs (@repo/library-replica) and `/v1`'s wire (@repo/contract) to the account's
+    // cell; it reaches no shell source, only the shell's IPC (SHELL_API_CLIENTS below)
     "@repo/workspace": [
       "@repo/contract",
       "@repo/domain",
       "@repo/editor",
+      "@repo/library-replica",
       "@repo/notes",
       "@repo/ui",
     ],

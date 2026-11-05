@@ -105,3 +105,80 @@ export const agentRefusalWords = (cause: unknown, nowMs: number): string | null 
   }
   return null;
 };
+
+// one call the agent made, as a run of work shows it
+export interface ToolUse {
+  readonly toolUseId: string;
+  readonly name: string;
+  // the result's first characters when the call failed, null while it runs or once it landed
+  readonly failure: string | null;
+  readonly answered: boolean;
+}
+
+// what a conversation draws, in order: a message either way, a run of the agent's work between
+// them (its notes and its calls), an answered approval, and a turn's end
+export type ThreadBlock =
+  | { readonly kind: "entry"; readonly key: string; readonly entry: ThreadEntry }
+  | {
+      readonly kind: "work";
+      readonly key: string;
+      readonly notes: readonly string[];
+      readonly uses: readonly ToolUse[];
+    };
+
+const isWork = (entry: ThreadEntry): boolean =>
+  entry.event.type === "agent.progress" ||
+  entry.event.type === "agent.tool_use" ||
+  entry.event.type === "agent.tool_result";
+
+export const threadBlocks = (entries: readonly ThreadEntry[]): ThreadBlock[] => {
+  const blocks: ThreadBlock[] = [];
+  let notes: string[] = [];
+  let uses: ToolUse[] = [];
+  let key: string | null = null;
+  const close = (): void => {
+    if (key !== null) {
+      blocks.push({ key, kind: "work", notes, uses });
+    }
+    notes = [];
+    uses = [];
+    key = null;
+  };
+  for (const entry of entries) {
+    if (!isWork(entry)) {
+      close();
+      // an asked approval is drawn as the card that answers it, never as a row
+      if (entry.event.type !== "approval.asked") {
+        blocks.push({ entry, key: entry.eventId, kind: "entry" });
+      }
+      continue;
+    }
+    key ??= entry.eventId;
+    const { event } = entry;
+    if (event.type === "agent.progress") {
+      notes.push(event.text);
+    } else if (event.type === "agent.tool_use") {
+      uses.push({ answered: false, failure: null, name: event.name, toolUseId: event.toolUseId });
+    } else if (event.type === "agent.tool_result") {
+      uses = uses.map((use) =>
+        use.toolUseId === event.toolUseId
+          ? { ...use, answered: true, failure: event.isError ? event.summary : null }
+          : use,
+      );
+    }
+  }
+  close();
+  return blocks;
+};
+
+// the calls that only read the library, drawn with the read icon; every other one writes
+const READS = new Set([
+  "item_history",
+  "list_highlights",
+  "list_items",
+  "list_tags_and_folders",
+  "read_item",
+  "search_library",
+]);
+
+export const readsOnly = (name: string): boolean => READS.has(name);

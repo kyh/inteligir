@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 import {
   agentRefusalWords,
   endingWords,
+  readsOnly,
+  threadBlocks,
   threadEntries,
   toolWords,
   waitingApprovals,
@@ -78,5 +80,34 @@ describe("a refused send", () => {
     expect(agentRefusalWords(off, 0)).toMatch(/turn it on in Settings/u);
     expect(agentRefusalWords(refused("NOT_FOUND"), 0)).toBeNull();
     expect(agentRefusalWords(new Error("offline"), 0)).toBeNull();
+  });
+});
+
+describe("a conversation's blocks", () => {
+  it("draws a run of the agent's notes and calls as one block, each call with how it ended", () => {
+    const blocks = threadBlocks(
+      threadEntries([
+        row(0, { text: "File these.", type: "user.message" }),
+        row(1, { text: "Looking first.", type: "agent.progress" }),
+        row(2, { input: {}, name: "search_library", toolUseId: "a", type: "agent.tool_use" }),
+        row(3, { isError: false, summary: "[]", toolUseId: "a", type: "agent.tool_result" }),
+        row(4, { input: {}, name: "organize_items", toolUseId: "b", type: "agent.tool_use" }),
+        row(5, { isError: true, summary: "Not found.", toolUseId: "b", type: "agent.tool_result" }),
+        row(6, asked),
+        row(7, { text: "Done.", type: "agent.message" }),
+      ]),
+    );
+    expect(blocks.map((block) => block.kind)).toEqual(["entry", "work", "entry"]);
+    const [, work] = blocks;
+    expect(work?.kind === "work" ? work.notes : null).toEqual(["Looking first."]);
+    expect(work?.kind === "work" ? work.uses.map((use) => [use.name, use.failure]) : null).toEqual([
+      ["search_library", null],
+      ["organize_items", "Not found."],
+    ]);
+  });
+
+  it("tells a call that only reads from one that writes", () => {
+    expect(readsOnly("read_item")).toBe(true);
+    expect(readsOnly("edit_item")).toBe(false);
   });
 });

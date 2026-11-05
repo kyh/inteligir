@@ -6,9 +6,15 @@
 
 import { agentPreviewSchema } from "@repo/contract/cloud/library/agent-events";
 import type { agentViewContextSchema } from "@repo/contract/cloud/library/library-wire";
+import { ApprovalCard, ApprovalOption, ApprovalQuestion } from "@repo/ui/ai/approval-card";
+import type { ApprovalAnswer } from "@repo/ui/ai/approval-card";
+import { StreamingText } from "@repo/ui/ai/streaming-text";
+import { Thinking, ThinkingReasoning } from "@repo/ui/ai/thinking";
+import { ToolChip, ToolChipDetail, ToolChipList } from "@repo/ui/ai/tool-chips";
 import { Button } from "@repo/ui/components/button";
+import { InputMessage } from "@repo/ui/components/input-message";
 import { toast } from "@repo/ui/components/sonner";
-import { Textarea } from "@repo/ui/components/textarea";
+import { plural } from "@repo/ui/lib/plural";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, PlusIcon } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -21,11 +27,13 @@ import {
   agentRefusalWords,
   approvalQuestion,
   endingWords,
+  readsOnly,
+  threadBlocks,
   threadEntries,
   toolWords,
   waitingApprovals,
 } from "./thread-entries";
-import type { ThreadEntry } from "./thread-entries";
+import type { ThreadBlock, ThreadEntry, ToolUse } from "./thread-entries";
 import { conversationUndo, turnUndo } from "./thread-undo";
 
 export type AgentViewContext = z.infer<typeof agentViewContextSchema>;
@@ -61,19 +69,19 @@ const EntryRow = ({
       );
     }
     case "agent.message": {
-      return <p className="m-0 text-body whitespace-pre-wrap select-text">{event.text}</p>;
+      return (
+        <StreamingText
+          className="select-text"
+          text={event.text}
+          streaming={false}
+          animate={false}
+        />
+      );
     }
-    case "agent.progress": {
-      return <p className="m-0 text-caption text-muted-foreground italic">{event.text}</p>;
-    }
-    case "agent.tool_use": {
-      return <p className="m-0 text-caption text-muted-foreground">{toolWords(event.name)}</p>;
-    }
-    case "agent.tool_result": {
-      return event.isError ? (
-        <p className="m-0 text-caption text-destructive select-text">{event.summary}</p>
-      ) : null;
-    }
+    // a run of work and an asked approval draw as blocks of their own (`threadBlocks`)
+    case "agent.progress":
+    case "agent.tool_use":
+    case "agent.tool_result":
     case "approval.asked": {
       return null;
     }
@@ -101,6 +109,49 @@ const EntryRow = ({
     // no default
   }
 };
+
+const ToolRow = ({ use }: { use: ToolUse }) => (
+  <ToolChip
+    icon={readsOnly(use.name) ? "read" : "write"}
+    label={toolWords(use.name)}
+    chip={use.answered ? "" : "…"}
+    failed={use.failure !== null}
+  >
+    {use.failure === null ? null : <ToolChipDetail>{use.failure}</ToolChipDetail>}
+  </ToolChip>
+);
+
+// the agent's work between two messages: its notes, then the calls it made
+const WorkBlock = ({
+  block,
+  live,
+}: {
+  block: Extract<ThreadBlock, { kind: "work" }>;
+  live: boolean;
+}) => (
+  <Thinking
+    label={block.notes.at(-1) ?? "Working"}
+    doneLabel={
+      block.uses.length === 0
+        ? "Thought it through"
+        : `Worked through ${plural(block.uses.length, "step")}`
+    }
+    working={live}
+    data-agent-work
+  >
+    {block.notes.map((note, index) => (
+      // oxlint-disable-next-line react/no-array-index-key -- a run's notes are appended, never reordered
+      <ThinkingReasoning key={index}>{note}</ThinkingReasoning>
+    ))}
+    {block.uses.length === 0 ? null : (
+      <ToolChipList summary={plural(block.uses.length, "library call")}>
+        {block.uses.map((use) => (
+          <ToolRow key={use.toolUseId} use={use} />
+        ))}
+      </ToolChipList>
+    )}
+  </Thinking>
+);
 
 const ThreadList = ({ onThread }: { onThread: (threadId: string | null) => void }) => {
   const threads = useQuery(useReplicaQueries().threads()).data ?? [];
@@ -171,6 +222,7 @@ const Conversation = ({ threadId }: { threadId: string }) => {
   const rows = useQuery(queries.threadEvents(threadId)).data ?? [];
   const thread = (useQuery(queries.threads()).data ?? []).find((row) => row.id === threadId);
   const entries = threadEntries(rows);
+  const blocks = threadBlocks(entries);
   const waiting = waitingApprovals(entries);
   const preview = useLivePreview(threadId);
   const sets = useQuery(orpc.library.history.list.queryOptions({ input: { threadId } }));
@@ -201,42 +253,34 @@ const Conversation = ({ threadId }: { threadId: string }) => {
   const working = thread?.status === "running" || thread?.status === "queued";
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3" data-thread={threadId}>
-      {entries.map((entry) => (
-        <EntryRow key={entry.eventId} entry={entry} undo={undoTurn} />
-      ))}
-      {preview === null ? null : (
-        <p className="m-0 text-body whitespace-pre-wrap text-ink-2" data-agent-preview>
-          {preview}
-        </p>
+      {blocks.map((block, index) =>
+        block.kind === "work" ? (
+          <WorkBlock key={block.key} block={block} live={working && index === blocks.length - 1} />
+        ) : (
+          <EntryRow key={block.key} entry={block.entry} undo={undoTurn} />
+        ),
       )}
+      {preview === null ? null : <StreamingText text={preview} streaming data-agent-preview />}
       {waiting.map((approval) => (
-        <div
-          key={approval.eventId}
-          className="flex flex-col gap-2 rounded-md border border-border p-2.5"
-          data-approval={approval.eventId}
-        >
-          <p className="m-0 text-body">{approvalQuestion(approval)}</p>
-          <div className="flex gap-1.5">
-            <Button
-              size="compact"
-              disabled={respond.isPending}
-              onClick={() => {
-                respond.mutate({ eventId: approval.eventId, result: "allow", threadId });
-              }}
+        <div key={approval.eventId} data-approval={approval.eventId}>
+          <ApprovalCard
+            sentLabel="Answered"
+            onSubmit={(answers: readonly ApprovalAnswer[]) => {
+              const picked = answers[0]?.optionIds[0];
+              if (picked === "allow" || picked === "deny") {
+                respond.mutate({ eventId: approval.eventId, result: picked, threadId });
+              }
+            }}
+          >
+            <ApprovalQuestion
+              questionId={approval.eventId}
+              prompt={approvalQuestion(approval)}
+              kind="radio"
             >
-              Approve
-            </Button>
-            <Button
-              size="compact"
-              variant="secondary"
-              disabled={respond.isPending}
-              onClick={() => {
-                respond.mutate({ eventId: approval.eventId, result: "deny", threadId });
-              }}
-            >
-              Cancel
-            </Button>
-          </div>
+              <ApprovalOption optionId="allow">Approve</ApprovalOption>
+              <ApprovalOption optionId="deny">Cancel</ApprovalOption>
+            </ApprovalQuestion>
+          </ApprovalCard>
           {respond.isPaused ? (
             <p className="m-0 text-caption text-muted-foreground">{NEEDS_CONNECTION}</p>
           ) : null}
@@ -314,38 +358,22 @@ const Composer = ({
     send.mutate(input);
   };
   return (
-    <form
-      className="flex shrink-0 flex-col gap-1.5 border-t border-border p-3"
-      onSubmit={(event) => {
-        event.preventDefault();
-        submit();
-      }}
-    >
-      <Textarea
-        aria-label="Message the agent"
-        placeholder={threadId === null ? "Ask the agent…" : "Reply…"}
-        rows={3}
-        className="resize-none"
+    <div className="flex shrink-0 flex-col gap-1.5 border-t border-border p-3">
+      <InputMessage
         value={text}
-        onChange={(event) => {
-          setText(event.target.value);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-            event.preventDefault();
-            submit();
-          }
-        }}
+        onValueChange={setText}
+        onSend={submit}
+        placeholder={threadId === null ? "Ask the agent…" : "Reply…"}
+        sendLabel="Send"
+        minRows={2}
+        maxRows={8}
+        disabled={send.isPending}
+        textareaProps={{ "aria-label": "Message the agent" }}
       />
-      <div className="flex items-center gap-2">
-        {send.isPaused ? (
-          <span className="text-caption text-muted-foreground">{NEEDS_CONNECTION}</span>
-        ) : null}
-        <Button type="submit" size="compact" className="ml-auto" disabled={text.trim() === ""}>
-          Send
-        </Button>
-      </div>
-    </form>
+      {send.isPaused ? (
+        <span className="text-caption text-muted-foreground">{NEEDS_CONNECTION}</span>
+      ) : null}
+    </div>
   );
 };
 

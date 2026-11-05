@@ -7,17 +7,30 @@ import { isWebUrl } from "@repo/notes/items/item-url";
 import {
   CommandDialog,
   CommandEmpty,
+  CommandFooter,
   CommandGroup,
   CommandInput,
   CommandItem,
   CommandList,
+  CommandShortcut,
 } from "@repo/ui/components/command";
+import { hotkeyCaps, platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { useReplicaQueries } from "../cloud/library-context";
+import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "../global-shortcuts";
+import type { GlobalShortcutAction } from "../global-shortcuts";
 
 const SEARCH_LIMIT = 20;
+
+// the chord a command answers to, as the window's table spells it
+const Chord = ({ action }: { action: GlobalShortcutAction }) => {
+  const row = GLOBAL_SHORTCUTS.find((shortcut) => shortcut.action === action);
+  return row === undefined ? null : (
+    <CommandShortcut caps={hotkeyCaps(globalShortcutHotkey(row), platformShortcutModifier())} />
+  );
+};
 
 export interface PaletteActions {
   readonly openItem: (itemId: string) => void;
@@ -116,11 +129,18 @@ export const CommandPalette = ({
         <CommandGroup heading="Commands">
           <CommandItem onSelect={run(actions.newNote)}>New note</CommandItem>
           <CommandItem onSelect={run(actions.askSaveLink)}>Save a link…</CommandItem>
-          <CommandItem onSelect={run(actions.askAgent)}>Ask the agent</CommandItem>
-          <CommandItem onSelect={run(actions.openSettings)}>Settings</CommandItem>
+          <CommandItem onSelect={run(actions.askAgent)}>
+            Ask the agent
+            <Chord action="open-agent" />
+          </CommandItem>
+          <CommandItem onSelect={run(actions.openSettings)}>
+            Settings
+            <Chord action="open-settings" />
+          </CommandItem>
         </CommandGroup>
         <CommandEmpty>Nothing matches.</CommandEmpty>
       </CommandList>
+      <CommandFooter />
     </CommandDialog>
   );
 };

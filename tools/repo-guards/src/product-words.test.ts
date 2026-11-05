@@ -37,16 +37,8 @@ const SENTENCE_MODULES = [
 // assistant sends the person to
 const HTML_PAGES = ["apps/web/src/worker/connector/consent-page.ts"] as const;
 
-// Settings › Advanced, the one place that shows the engine's raw state (apps/workspace/CLAUDE.md)
-const EXEMPT = new Set(["apps/workspace/src/app/settings/advanced-section.tsx"]);
-
 // a file that may say a word, and why: a row that no longer matches anything is stale
-const ALLOWED: ReadonlyMap<string, string> = new Map([
-  [
-    "apps/workspace/src/app/settings/sync-remote-row.tsx",
-    "Settings › Advanced's own sync row, rendered only there, names the person's own git server and its URL",
-  ],
-]);
+const ALLOWED: ReadonlyMap<string, string> = new Map<string, string>();
 
 interface Word {
   name: string;
@@ -233,9 +225,7 @@ const surfaceFiles = (): string[] => {
     .readdirSync(path.join(REPO_ROOT, RUST_UI_DIR))
     .filter((name) => name.endsWith(".rs"))
     .map((name) => `${RUST_UI_DIR}/${name}`);
-  return [...scripts, ...SENTENCE_MODULES, ...HTML_PAGES, ...rust]
-    .filter((file) => !EXEMPT.has(file))
-    .toSorted();
+  return [...scripts, ...SENTENCE_MODULES, ...HTML_PAGES, ...rust].toSorted();
 };
 
 const allHits = (): Hit[] =>
@@ -284,23 +274,18 @@ describe("product surfaces speak the person's words", () => {
         (hit) =>
           `${hit.file}:${String(hit.line)}  says ${hit.word}: "${hit.text.trim()}"\n` +
           `  rule: a product surface calls the folder the library and what is in it items, and names no engine; vault stays code's and the CLI's word (AGENTS.md § Rules that matter)\n` +
-          `  fix: say library or item, or the person's own words for the engine; a file that must say it (Settings › Advanced's) is a row of ALLOWED with its reason`,
+          `  fix: say library or item, or the person's own words for the engine; a file that must say it is a row of ALLOWED with its reason`,
       );
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 
-  it("no ALLOWED or EXEMPT row is stale", () => {
+  it("no ALLOWED row is stale", () => {
     const said = new Set(allHits().map((hit) => hit.file));
-    const stale = [
-      ...[...ALLOWED].flatMap(([file, why]) =>
-        said.has(file)
-          ? []
-          : [`STALE ROW  ${file}\n  it says none of the words now, so its reason is spent: ${why}`],
-      ),
-      ...[...EXEMPT].flatMap((file) =>
-        fs.existsSync(path.join(REPO_ROOT, file)) ? [] : [`STALE EXEMPTION  ${file} is gone`],
-      ),
-    ];
+    const stale = [...ALLOWED].flatMap(([file, why]) =>
+      said.has(file)
+        ? []
+        : [`STALE ROW  ${file}\n  it says none of the words now, so its reason is spent: ${why}`],
+    );
     expect(stale, `\n${stale.join("\n\n")}\n`).toEqual([]);
   });
 });

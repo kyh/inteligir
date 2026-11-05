@@ -12,10 +12,9 @@ const src = path.resolve(here, "src");
 // tools/repo-guards/src/route-paths.test.ts holds the two equal
 const BASE = "/library/";
 
-// `pnpm dev:workspace`: the page's own server, pinned clear of `pnpm dev:web`'s 5174, which every
-// call goes on to (the Worker answers /v1, /api and the site's sign-in)
+// pinned: `tauri dev` waits on it (`devUrl` in apps/desktop/src-tauri/tauri.conf.json), clear of
+// `pnpm dev:web`'s 5174
 const DEV_PORT = 31_000;
-const WORKER = "http://localhost:5174";
 
 export default defineConfig({
   base: BASE,
@@ -40,13 +39,5 @@ export default defineConfig({
     tailwindcss(),
   ],
   root: src,
-  server: {
-    port: DEV_PORT,
-    proxy: {
-      "/api": { changeOrigin: false, target: WORKER },
-      "/app": { changeOrigin: false, target: WORKER },
-      "/v1": { changeOrigin: false, target: WORKER, ws: true },
-    },
-    strictPort: true,
-  },
+  server: { port: DEV_PORT, strictPort: true },
 });

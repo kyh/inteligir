@@ -23,6 +23,7 @@ import type { FillJob } from "./fill/fill-job";
 import { handleLibrarySocket, handleSyncSocket } from "./library/socket-routes";
 import { handleBlobRoute, isBlobPath } from "./library/blob-routes";
 import { handleExportRoute, isExportPath } from "./library/export-routes";
+import { handleLibraryPage, isLibraryPagePath } from "./library/library-page";
 import { logUnhandled } from "./log";
 import { rpcFault } from "./wire/rpc-refusal";
 import { handleV1Rpc } from "./wire/v1-rpc";
@@ -46,7 +47,9 @@ const isConnectorRoute = (pathname: string): boolean =>
   isConnectorPath(pathname) || isAuthorizationServerPath(pathname) || pathname === CONSENT_PATH;
 
 export const ownsPath = (pathname: string): boolean =>
-  OWNED_PREFIXES.some((prefix) => pathname.startsWith(prefix)) || isConnectorRoute(pathname);
+  OWNED_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
+  isConnectorRoute(pathname) ||
+  isLibraryPagePath(pathname);
 
 const isRpc = (pathname: string): boolean => pathname.startsWith(`${V1_RPC_PATH}/`);
 
@@ -74,6 +77,10 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
   }
   if (isAuthorizationServerPath(url.pathname)) {
     return await connectorAuth(env).authorizationServer.fetch(request, env, ctx);
+  }
+  // the library's page, its document from the assets for every path under its prefix
+  if (isLibraryPagePath(url.pathname)) {
+    return await handleLibraryPage(request, env.ASSETS);
   }
   const byPath = PATH_ROUTES.get(url.pathname);
   if (byPath !== undefined) {

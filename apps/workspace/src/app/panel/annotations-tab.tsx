@@ -12,7 +12,8 @@ import type { AnnotationEntry } from "@repo/notes/annotations/store-schema";
 import { mintAnnotationId } from "@repo/notes/annotations/store-schema";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
-import { spellHotkey, platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
+import { platformShortcutModifier, spellHotkey } from "@repo/ui/lib/hotkey-spelling";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -68,6 +69,9 @@ const NoteField = ({
       }}
       onBlur={commit}
       onKeyDown={(event) => {
+        if (isImeComposing(event)) {
+          return;
+        }
         if (event.key === "Enter" && !event.shiftKey) {
           event.preventDefault();
           commit();

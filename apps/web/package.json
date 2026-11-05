@@ -57,6 +57,7 @@
     "@repo/agent-skills": "workspace:*",
     "@repo/library-replica": "workspace:*",
     "@repo/messages-fake": "workspace:*",
+    "@repo/workspace": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

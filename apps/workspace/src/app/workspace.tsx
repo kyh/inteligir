@@ -14,6 +14,7 @@ import type { ItemKind } from "@repo/notes/items/item-kind";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Sidebar } from "@repo/ui/components/sidebar";
 import { SidebarInset, SidebarProvider } from "@repo/ui/components/sidebar-core";
+import type { SidebarActions } from "@repo/ui/components/sidebar-core";
 import { toast } from "@repo/ui/components/sonner";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { plural } from "@repo/ui/lib/plural";
@@ -91,7 +92,6 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const [storedScope, storeScope] = usePref(PREFS.libraryScope);
   const [sort, setSort] = usePref(PREFS.librarySort);
   const [panelOpen, setPanelOpen] = usePref(PREFS.panelOpen);
-  const [railOpen, setRailOpen] = useState(true);
   const [kind, setKind] = useState<ItemKind | null>(null);
   const [tab, setTab] = useState<PanelTab>("info");
   const [threadId, setThreadId] = useState<string | null>(null);
@@ -108,6 +108,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const [session, setSession] = useState<ItemSession | null>(null);
   const hostRef = useRef<PageEditorHost | null>(null);
   const filesRef = useRef<HTMLInputElement | null>(null);
+  // the rail opens and closes itself; the window's chord asks it to
+  const railRef = useRef<SidebarActions | null>(null);
 
   const folders = useQuery(queries.folders()).data ?? [];
   const scope = listedScope(storedScope, folders);
@@ -209,7 +211,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
         break;
       }
       case "toggle-rail": {
-        setRailOpen(!railOpen);
+        railRef.current?.toggle();
         break;
       }
       // no default
@@ -421,8 +423,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       <div className="isolate h-dvh" inert={covered}>
         <SidebarProvider
           className="h-full"
-          open={railOpen}
-          onOpenChange={setRailOpen}
+          actionsRef={railRef}
           shortcut={bindingFor("toggle-rail", modifier)}
           width={`${String(readPref(PREFS.sidebarWidth))}px`}
           onWidthCommitted={(px) => {
@@ -494,21 +495,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                   <LibraryView
                     scope={scope}
                     title={scopeTitle(scope, folders)}
-                    page={
-                      page ?? {
-                        items: [],
-                        kindCounts: {
-                          audio: 0,
-                          file: 0,
-                          image: 0,
-                          link: 0,
-                          note: 0,
-                          pdf: 0,
-                          video: 0,
-                        },
-                        total: 0,
-                      }
-                    }
+                    page={page}
                     kind={kind}
                     onKindChange={setKind}
                     sort={sort}

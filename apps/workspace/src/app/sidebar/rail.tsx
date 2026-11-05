@@ -20,11 +20,17 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
 } from "@repo/ui/components/sidebar-core";
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@repo/ui/components/sidebar-menu";
+import {
+  SidebarMenu,
+  SidebarMenuAction,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@repo/ui/components/sidebar-menu";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { useQuery } from "@tanstack/react-query";
 import {
   ChevronDownIcon,
+  EllipsisIcon,
   FolderIcon,
   FolderPlusIcon,
   HashIcon,
@@ -122,6 +128,15 @@ const FolderRows = ({
                 {row.name}
                 <Count count={countOf(row.id)} />
               </SidebarMenuButton>
+              <SidebarMenuAction
+                showOnHover
+                aria-label={`More for ${row.name}`}
+                onClick={(event) => {
+                  setMenu({ anchor: event.currentTarget, id: row.id, name: row.name });
+                }}
+              >
+                <EllipsisIcon />
+              </SidebarMenuAction>
             </SidebarMenuItem>
           );
         })}

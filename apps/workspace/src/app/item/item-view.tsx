@@ -13,6 +13,7 @@ import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
+import { isImeComposing } from "@repo/ui/lib/ime";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeftIcon, PanelRightIcon } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -59,6 +60,9 @@ const TitleField = ({ itemId, title }: { itemId: string; title: string }) => {
       }}
       onBlur={commit}
       onKeyDown={(event) => {
+        if (isImeComposing(event)) {
+          return;
+        }
         if (event.key === "Enter") {
           event.preventDefault();
           commit();

@@ -3,13 +3,14 @@
 // Escape closes, Enter opens the item, and the focus goes back to the card it was opened from.
 
 import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
+import { Badge } from "@repo/ui/components/badge";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import type { KeyboardEvent } from "react";
 
 import { useNow } from "../relative-time";
 import { blobUrl } from "./item-card";
-import { cardMeta } from "./item-labels";
+import { cardMeta, KIND_LABELS } from "./item-labels";
 import { libraryShortcutFor } from "./library-keys";
 
 export interface QuickLookProps {
@@ -31,7 +32,10 @@ const Look = ({ row }: { row: ReplicaListingRow }) => {
       {cover === null ? null : (
         <img alt="" src={blobUrl(cover)} className="max-h-72 w-full rounded-md object-contain" />
       )}
-      <DialogDescription>{cardMeta(row, nowMs)}</DialogDescription>
+      <div className="flex items-center gap-2">
+        <Badge variant="outline">{KIND_LABELS[row.kind]}</Badge>
+        <DialogDescription>{cardMeta(row, nowMs)}</DialogDescription>
+      </div>
       {row.fields.fetchState === "pending" ? (
         <p className="m-0 text-body text-muted-foreground">
           Not read yet: the page is read in the cloud, and its text lands here soon.

@@ -22,11 +22,6 @@ const ALLOWED_EXPORTS = new Map<string, string>([
     "The trace vocabulary's tool row, held with the wired Thinking for the timeline that renders tool calls.",
   ],
   [
-    "packages/ui/src/ai/task-rows.tsx#TaskItemDetails",
-    "The consumed TaskRows surface's expandable half, held for the panel that grows per-row detail lines.",
-  ],
-  ["packages/ui/src/ai/task-rows.tsx#TaskDetail", "A row inside TaskItemDetails — held with it."],
-  [
     "packages/ui/src/ai/approval-card.tsx#ApprovalActions",
     "The consumed ApprovalCard's multi-answer footer — single-choice questions commit on pick today; held for the first multi-answer approval.",
   ],
@@ -37,14 +32,6 @@ const ALLOWED_EXPORTS = new Map<string, string>([
   [
     "packages/ui/src/ai/streaming-text.tsx#StreamingAction",
     "The consumed StreamingText's inline action chip, held for answer-with-actions turns.",
-  ],
-  [
-    "packages/ui/src/components/dropdown-menu.tsx#DropdownMenuRadioGroup",
-    "The menu vocabulary's one-choice half, so a picker is a Base UI radio group and not a hand-built listbox.",
-  ],
-  [
-    "packages/ui/src/components/dropdown-menu.tsx#DropdownMenuRadioItem",
-    "A row inside DropdownMenuRadioGroup — held with it.",
   ],
 ]);
 

@@ -6,15 +6,6 @@ import {
 } from "@repo/ui/ai/approval-card";
 import { LoadingState } from "@repo/ui/ai/loading-state";
 import { StreamingAction, StreamingText } from "@repo/ui/ai/streaming-text";
-import {
-  TaskDetail,
-  TaskItem,
-  TaskItemDetails,
-  TaskItemLabel,
-  TaskItemRow,
-  TaskList,
-  TaskStatusLabel,
-} from "@repo/ui/ai/task-rows";
 import { Thinking, ThinkingReasoning, ThinkingStep, ThinkingTool } from "@repo/ui/ai/thinking";
 import { ToolChip, ToolChipDetail, ToolChipList } from "@repo/ui/ai/tool-chips";
 import { useState } from "react";
@@ -89,44 +80,6 @@ export const AgentSection = () => {
               <ToolChipDetail>18 tasks, all green</ToolChipDetail>
             </ToolChip>
           </ToolChipList>
-        </div>
-      </Demo>
-
-      <Demo
-        name="TaskList · TaskItem · TaskItemRow · TaskDetail"
-        purpose="The actions list: one row per agent conversation, with its lifecycle state."
-        stack
-      >
-        <div className="w-full max-w-md">
-          <TaskList variant="capsules">
-            <TaskItem>
-              <TaskItemRow status="running" ordinal={1}>
-                <TaskItemLabel>Summarize this note in two lines</TaskItemLabel>
-                <TaskStatusLabel>running</TaskStatusLabel>
-              </TaskItemRow>
-              <TaskItemDetails>
-                <TaskDetail meta="just now">Reading Getting Started.md</TaskDetail>
-              </TaskItemDetails>
-            </TaskItem>
-            <TaskItem>
-              <TaskItemRow status="done" ordinal={2}>
-                <TaskItemLabel>Add a section about backlinks</TaskItemLabel>
-                <TaskStatusLabel>done</TaskStatusLabel>
-              </TaskItemRow>
-            </TaskItem>
-            <TaskItem>
-              <TaskItemRow status="failed" ordinal={3}>
-                <TaskItemLabel>Rename every link to the old title</TaskItemLabel>
-                <TaskStatusLabel>failed</TaskStatusLabel>
-              </TaskItemRow>
-            </TaskItem>
-            <TaskItem>
-              <TaskItemRow status="pending" ordinal={4}>
-                <TaskItemLabel>Draft the release notes</TaskItemLabel>
-                <TaskStatusLabel>queued</TaskStatusLabel>
-              </TaskItemRow>
-            </TaskItem>
-          </TaskList>
         </div>
       </Demo>
 

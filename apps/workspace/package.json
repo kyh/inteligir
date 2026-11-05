@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite",
+    "dev": "vite build --watch",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p src && tsc --noEmit -p src/tsconfig.page.json"
   },

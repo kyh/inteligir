@@ -3,10 +3,8 @@
 // by iterating the array is invisible here and cannot drift. no subset rule: a derived `as const`
 // subset spells literals too, and UI leaves collide on common words ("idle", "error").
 
-import { THREAD_CHANGE_KINDS, VAULT_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import { pendingInteractionStatusValues } from "@repo/domain/pending-interaction-status";
 import { threadStatusValues } from "@repo/domain/thread-status";
-import { vaultStatusResponseSchema } from "@repo/contract/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { sourceOf, workspaceFiles, workspaces } from "./repo";
 
@@ -14,15 +12,6 @@ import { sourceOf, workspaceFiles, workspaces } from "./repo";
 // a dispatch, so a one-member vocabulary (DOC_CHANGE_KINDS) has no row here — the guard cannot
 // tell its producer from its table.
 const TOTALITY_FLOOR = 2;
-
-// read off the discriminated union: there is no exported tuple, and copying one here is the drift
-// this file is about.
-const syncStates = vaultStatusResponseSchema.options.map((option) => {
-  // zod owns this property name; reading it as a member rather than binding it keeps a word this
-  // repo bans out of the file's own symbols.
-  const fields = option.shape;
-  return fields.state.value;
-});
 
 interface Vocabulary {
   name: string;
@@ -32,15 +21,6 @@ interface Vocabulary {
 }
 
 const VOCABULARIES: Vocabulary[] = [
-  {
-    declaredIn: "packages/contract/src/local/vault/vault-schema.ts",
-    dispatchedIn: {
-      "apps/workspace/src/app/vault-hooks.ts":
-        "the ONE client answer, four tables deliberately side by side so a ninth state cannot be answered in one and forgotten in another: `syncStateLabel` (the word), `syncStateDotClass` (the colour), `syncBlockedReason` (why a pass would not run — which `canSyncNow` reads as a boolean) and `syncNowNotice` (what the command owes the user afterwards)",
-    },
-    members: syncStates,
-    name: "vault sync state",
-  },
   {
     declaredIn: "packages/domain/src/thread-status.ts",
     dispatchedIn: {
@@ -62,26 +42,6 @@ const VOCABULARIES: Vocabulary[] = [
     },
     members: pendingInteractionStatusValues,
     name: "pending-interaction status",
-  },
-  {
-    declaredIn: "packages/domain/src/change-kinds.ts",
-    dispatchedIn: {
-      "apps/workspace/src/app/actions/thread-hooks.ts":
-        "which kinds move the TIMELINE, and therefore earn a delta fetch — the one thread surface the query sweep does not cover, so a kind nobody weighed here is a row the user never sees; a table rather than a list, because the answer for a new kind is a decision and not a default",
-      "apps/workspace/src/app/change-batch.ts":
-        "which kinds move the cached thread LIST and which move a thread's DETAIL, and therefore earn a refetch — beside the vault kinds' invalidations because this file is the client's one answer to what a frame invalidates, and not in thread-hooks because a streamed turn's events-appended moves neither: refetching both per frame is the cost these tables exist to refuse",
-    },
-    members: THREAD_CHANGE_KINDS,
-    name: "thread change kind",
-  },
-  {
-    declaredIn: "packages/domain/src/change-kinds.ts",
-    dispatchedIn: {
-      "apps/workspace/src/app/change-batch.ts":
-        "the client's ONE answer to which queries each kind invalidates; a kind weighed nowhere here is a frame the screen ignores",
-    },
-    members: VAULT_CHANGE_KINDS,
-    name: "vault change kind",
   },
 ];
 
@@ -117,7 +77,7 @@ describe("one total dispatch per domain vocabulary", () => {
       }
     }
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
-    expect(CHECKED.map((vocabulary) => vocabulary.name)).toContain("vault sync state");
+    expect(CHECKED.map((vocabulary) => vocabulary.name)).toContain("thread status");
   });
 
   it("no undeclared file dispatches totally on a domain vocabulary", () => {

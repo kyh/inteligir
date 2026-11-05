@@ -3,6 +3,7 @@
 // connection TanStack Query pauses it rather than failing it, and the screen says it needs one;
 // a refusal says its own sentence. Spec §6, "Online only, said plainly in the UI".
 
+import { LoadingState } from "@repo/ui/ai/loading-state";
 import type { UseQueryResult } from "@tanstack/react-query";
 
 export const NEEDS_CONNECTION = "Needs a connection";
@@ -35,5 +36,5 @@ export const CellAnswer = <T,>({
       <p className="m-0 px-3 py-2 text-body text-destructive">{refusalText(query.error, failed)}</p>
     );
   }
-  return <p className="m-0 px-3 py-2 text-body text-muted-foreground">Loading…</p>;
+  return <LoadingState className="px-3 py-2" label="Asking your library" variant="dots" />;
 };

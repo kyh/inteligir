@@ -6,6 +6,7 @@ import type { ItemKind } from "@repo/notes/items/item-kind";
 import type { ListingPage } from "@repo/notes/library/library-index";
 import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import { Button } from "@repo/ui/components/button";
+import { MediaCardSkeleton } from "@repo/ui/components/media-card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +27,9 @@ import { KindChips } from "./kind-chips";
 import { LibraryGrid } from "./library-grid";
 import type { LibrarySelectionStore } from "./library-selection";
 
+// what the grid draws while the listing is first read
+const SKELETON_CARDS = ["a", "b", "c", "d", "e", "f"] as const;
+
 const SORT_LABELS = {
   modified: "Last changed",
   saved: "Date saved",
@@ -45,7 +49,8 @@ interface LibraryAdd {
 export interface LibraryViewProps {
   readonly scope: CellLibraryScope;
   readonly title: string;
-  readonly page: ListingPage<ReplicaListingRow>;
+  // undefined until the replica's listing has been read once
+  readonly page: ListingPage<ReplicaListingRow> | undefined;
   readonly kind: ItemKind | null;
   readonly onKindChange: (kind: ItemKind | null) => void;
   readonly sort: LibrarySort;
@@ -178,6 +183,15 @@ export const LibraryView = ({
   onEmptyDeleted,
 }: LibraryViewProps) => {
   const empty = emptyWords(scope);
+  if (page === undefined) {
+    return (
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 p-4" aria-busy>
+        {SKELETON_CARDS.map((key) => (
+          <MediaCardSkeleton key={key} />
+        ))}
+      </div>
+    );
+  }
   return (
     <div className="flex h-full min-h-0 flex-col" data-library-scope={scope.kind}>
       <header className="flex h-12 shrink-0 items-center gap-2 px-4">
