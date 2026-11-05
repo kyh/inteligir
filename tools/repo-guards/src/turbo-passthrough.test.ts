@@ -18,13 +18,8 @@ import type { Workspace } from "./repo";
 const CONFIG_READER = "resolveAppConfig";
 
 // reads the config but runs through no turbo task, with the path that starts it; drains when one
-// gains a turbo.json.
-const RUNS_OUTSIDE_TURBO = new Map<string, string>([
-  [
-    "@repo/e2e",
-    "`pnpm e2e` starts it through pnpm, never turbo, and the harness resolves the desktop shell's dirs from an env it builds, never its own",
-  ],
-]);
+// gains a turbo.json. None does today.
+const RUNS_OUTSIDE_TURBO = new Map<string, string>();
 
 interface TurboTask {
   name: string;

@@ -184,22 +184,6 @@ THREAD, so each needs a real file on disk resolved as a sibling of the running
 entry. In a checkout the worker runs its `.ts` source under tsx's hook instead
 (`src/server/worker-entry.ts`).
 
-**The desktop shell's door is a second entry, `dist/desktop.js`**
-(`src/desktop/desktop-entry.ts`), over the same chunks. The shell is Rust, and
-every rule it acts by that is the server's own is asked of this entry instead
-of spelled twice: which vault a launch boots, what a first run's choice opens,
-whether a switch may go ahead, a picked folder's facts, the selector's write
-and a browser's handoff, one question per process, answered as one JSON line
-(`src/desktop/desktop-door.ts`). `serve` is the one that stays: it is the
-server, run on the node the app ships, and it announces itself to the shell on
-one marked line (`src/desktop/desktop-serve.ts`), or adopts a server already
-serving its data dir at this version that can sign a window in (one built
-without its app is refused, in words). Its stdin is the shell's lifeline: it
-closes only when the shell is gone, and the server then stops itself rather
-than go on holding the data dir. Packaged, it writes the agents' `inteligir`
-as a launcher into the data dir (`src/desktop/agent-launcher.ts`), which runs
-that same node on this CLI, since a Mac need hold no node of its own.
-
 Every node child the server starts it starts itself, with `child_process` over
 its own `process.execPath`: the watcher, and each ACP adapter. codex is the one
 adapter that runs a node script of its own (its bundled launcher, through
@@ -242,11 +226,8 @@ checkout on every CI run.
 
 The published surface is the bin and nothing else: `publishConfig.exports` is
 `{}`, so pnpm rewrites the manifest on the way out. The subpath map in
-`package.json` is a WORKSPACE seam — apps/desktop's smoke compiles against
-`inteligir/scripts/smoke-lib`, tools/e2e and tools/repo-guards against
-`inteligir/server/*`, and repo-guards' shell-wire guard against
-`inteligir/desktop/door-answers`, the door's answer schemas its tests share
-(`src/desktop/test-support/`) — and it is unshippable as written, since those
+`package.json` is a WORKSPACE seam — tools/e2e and tools/repo-guards compile
+against `inteligir/server/*` — and it is unshippable as written, since those
 modules target `src/`, which `files` does not carry, and import devDependencies
 and unpublished `@repo/*` packages. Advertising a subpath a real install
 answers with ERR_MODULE_NOT_FOUND is the failure this closes.

@@ -11,7 +11,6 @@ import {
   installFatalErrorHandlers,
   installShutdownSignals,
   SHUTDOWN_SIGNALS,
-  SHUTDOWN_TIMEOUT_MS,
   shutdownDeadlineMs,
   TEARDOWN_BUDGETS_MS,
 } from "./shutdown";
@@ -246,13 +245,7 @@ describe("createGracefulShutdown", () => {
   });
 });
 
-describe("the exported ceiling", () => {
-  it("covers every step budget the process can register", () => {
-    const declared = Object.values(TEARDOWN_BUDGETS_MS).reduce((total, ms) => total + ms, 0);
-    // the desktop shell's SIGKILL grace derives from this; a ceiling under the sum kills the process mid-step.
-    expect(SHUTDOWN_TIMEOUT_MS).toBeGreaterThan(declared);
-  });
-
+describe("the step budgets", () => {
   it("holds the agent step's two adapter teardowns whole", () => {
     // a step cut short exits the server before the adapter's group is killed.
     expect(TEARDOWN_BUDGETS_MS.agent).toBeGreaterThanOrEqual(2 * ADAPTER_TEARDOWN_MS);

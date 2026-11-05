@@ -9,14 +9,11 @@ import {
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../server/test-support/boot-app";
 import {
-  appLauncherPath,
   browserRoots,
+  devLauncherPath,
   devLauncherScript,
-  installAppNativeHost,
   installNativeHost,
-  installsNativeHost,
 } from "./native-hosts";
-import { resolveServerTarget } from "./server-start";
 
 const SUPPORT = path.join("Library", "Application Support");
 
@@ -39,19 +36,23 @@ const browserFolder = (home: string, relative: string): string => {
 const manifestAt = (home: string, relative: string, host = NATIVE_HOST_NAME): string =>
   path.join(home, SUPPORT, relative, "NativeMessagingHosts", `${host}.json`);
 
-describe("the browsers' door the app writes", () => {
+// the door with a launcher that runs nothing: what the manifests name is all these cases read
+const installDoor = (home: string) =>
+  installNativeHost({
+    homeDir: home,
+    hostName: NATIVE_HOST_NAME,
+    launcher: { path: devLauncherPath(home), script: "#!/bin/sh\nexit 0\n" },
+    platform: "darwin",
+  });
+
+describe("the browsers' door", () => {
   it("writes a manifest only into the folders of browsers this Mac has, and Arc's into Chrome's too", () => {
     const home = makeTempDir("inteligir-native-hosts-");
     browserFolder(home, "BraveSoftware/Brave-Browser");
     browserFolder(home, "Arc/User Data");
-    const result = installAppNativeHost({
-      cliEntry: "/Applications/Inteligir.app/Contents/Resources/server/dist/index.js",
-      homeDir: home,
-      node: "/Applications/Inteligir.app/Contents/MacOS/node",
-      platform: "darwin",
-    });
+    const result = installDoor(home);
     expect(result.failed).toEqual([]);
-    expect(result.launcher).toBe(appLauncherPath(home));
+    expect(result.launcher).toBe(devLauncherPath(home));
     expect(result.written.toSorted()).toEqual(
       [
         manifestAt(home, "Arc/User Data"),
@@ -66,14 +67,14 @@ describe("the browsers' door the app writes", () => {
   it("writes the exact manifest Chrome reads: the host's name, its launcher and the extension alone", () => {
     const home = makeTempDir("inteligir-native-hosts-");
     browserFolder(home, "Google/Chrome");
-    installAppNativeHost({ cliEntry: "/e.js", homeDir: home, node: "/node", platform: "darwin" });
+    installDoor(home);
     expect(readFileSync(manifestAt(home, "Google/Chrome"), "utf-8")).toBe(
       `${JSON.stringify(
         {
           allowed_origins: [EXTENSION_ORIGIN],
           description: "Inteligir",
           name: NATIVE_HOST_NAME,
-          path: appLauncherPath(home),
+          path: devLauncherPath(home),
           type: "stdio",
         },
         null,
@@ -82,15 +83,19 @@ describe("the browsers' door the app writes", () => {
     );
   });
 
-  it("writes a launcher at 0755 that runs the app's node on its CLI under a scrubbed environment", () => {
+  it("writes a launcher at 0755 that runs node on the CLI under a scrubbed environment", () => {
     const root = makeTempDir("inteligir-native-hosts-");
     const home = path.join(root, "a 'quoted' home");
     mkdirSync(home);
-    const cliEntry = echoingCli(root);
-    const { launcher } = installAppNativeHost({
-      cliEntry,
+    const checkout = path.join(root, "the checkout");
+    mkdirSync(checkout);
+    const { launcher } = installNativeHost({
       homeDir: home,
-      node: process.execPath,
+      hostName: NATIVE_HOST_NAME,
+      launcher: {
+        path: devLauncherPath(home),
+        script: devLauncherScript({ checkout, cliBin: echoingCli(root), node: process.execPath }),
+      },
       platform: "darwin",
     });
     expect(statSync(launcher).mode.toString(8).slice(-3)).toBe("755");
@@ -107,7 +112,7 @@ describe("the browsers' door the app writes", () => {
       },
     });
     const ran: unknown = JSON.parse(printed);
-    const handed = { HOME: home, NODE_ENV: "production" };
+    const handed = { HOME: home };
     expect(ran).toEqual({
       args: ["native-host", EXTENSION_ORIGIN],
       // exactly what the launcher handed, or that and the one variable macOS adds to every
@@ -119,10 +124,9 @@ describe("the browsers' door the app writes", () => {
   it("is the same door however often it is written", () => {
     const home = makeTempDir("inteligir-native-hosts-");
     browserFolder(home, "Google/Chrome");
-    const args = { cliEntry: "/e.js", homeDir: home, node: "/node", platform: "darwin" } as const;
-    const first = installAppNativeHost(args);
+    const first = installDoor(home);
     const manifest = readFileSync(manifestAt(home, "Google/Chrome"), "utf-8");
-    const second = installAppNativeHost(args);
+    const second = installDoor(home);
     expect(second).toEqual(first);
     expect(readFileSync(manifestAt(home, "Google/Chrome"), "utf-8")).toBe(manifest);
   });
@@ -133,12 +137,7 @@ describe("the browsers' door the app writes", () => {
     const edge = browserFolder(home, "Microsoft Edge");
     // a file where the manifests' folder must be
     writeFileSync(path.join(edge, "NativeMessagingHosts"), "");
-    const result = installAppNativeHost({
-      cliEntry: "/e.js",
-      homeDir: home,
-      node: "/node",
-      platform: "darwin",
-    });
+    const result = installDoor(home);
     expect(result.written).toEqual([manifestAt(home, "Google/Chrome")]);
     expect(result.failed.map((failure) => failure.path)).toEqual([
       manifestAt(home, "Microsoft Edge"),
@@ -148,16 +147,12 @@ describe("the browsers' door the app writes", () => {
   it("writes no manifest when the launcher it would name cannot be written", () => {
     const home = makeTempDir("inteligir-native-hosts-");
     browserFolder(home, "Google/Chrome");
-    // a file where the app's data folder must be
-    writeFileSync(path.join(home, ".inteligir"), "");
-    const result = installAppNativeHost({
-      cliEntry: "/e.js",
-      homeDir: home,
-      node: "/node",
-      platform: "darwin",
-    });
+    // a file where the launcher's folder must be
+    mkdirSync(path.dirname(path.dirname(devLauncherPath(home))), { recursive: true });
+    writeFileSync(path.dirname(devLauncherPath(home)), "");
+    const result = installDoor(home);
     expect(result.written).toEqual([]);
-    expect(result.failed.map((failure) => failure.path)).toEqual([appLauncherPath(home)]);
+    expect(result.failed.map((failure) => failure.path)).toEqual([devLauncherPath(home)]);
   });
 
   it("knows every Chromium browser's folder on a Mac, and a checkout's two on linux", () => {
@@ -207,60 +202,5 @@ describe("the browsers' door the app writes", () => {
       env: { HOME: home },
     });
     expect(JSON.parse(printed)).toMatchObject({ args: ["native-host", EXTENSION_ORIGIN] });
-  });
-});
-
-describe("whether a launch writes the door", () => {
-  const unpinned = { dataDirSource: "default", vaultDirSource: "default" } as const;
-  const selected = { dataDirSource: "default", vaultDirSource: "managed-config" } as const;
-  // the shell's every child: its vault pinned so a selector rewritten since cannot move it
-  const shellChild = { dataDirSource: "default", vaultDirSource: "env" } as const;
-  // a harness, and the smoke's first launch
-  const dataDirPinned = { dataDirSource: "env", vaultDirSource: "default" } as const;
-  const bothPinned = { dataDirSource: "env", vaultDirSource: "env" } as const;
-  const app = "/Applications/Inteligir.app/Contents/MacOS/node";
-
-  it("writes it from the packaged app, on a data dir the root derives, where it was installed", () => {
-    expect(installsNativeHost({ execPath: app, mode: "prod", target: unpinned })).toBe(true);
-    expect(installsNativeHost({ execPath: app, mode: "prod", target: selected })).toBe(true);
-  });
-
-  it("writes it under the shell, which pins every child's vault but never its data dir", () => {
-    expect(installsNativeHost({ execPath: app, mode: "prod", target: shellChild })).toBe(true);
-    // the env the shell's server_command hands its child, resolved as desktop-serve does
-    const homeDir = makeTempDir("inteligir-door-home-");
-    const vaultDir = path.join(homeDir, "Inteligir");
-    const childOf = (env: NodeJS.ProcessEnv) => {
-      const resolved = resolveServerTarget({ env, homeDir });
-      if (resolved.kind !== "resolved") {
-        throw new Error(resolved.error);
-      }
-      return resolved.target;
-    };
-    const shellEnv = { INTELIGIR_VAULT_DIR: vaultDir, NODE_ENV: "production" };
-    expect(installsNativeHost({ execPath: app, mode: "prod", target: childOf(shellEnv) })).toBe(
-      true,
-    );
-    expect(
-      installsNativeHost({
-        execPath: app,
-        mode: "prod",
-        target: childOf({ ...shellEnv, INTELIGIR_DATA_DIR: path.join(homeDir, "pinned") }),
-      }),
-    ).toBe(false);
-  });
-
-  it("never from a checkout, a data dir an env pins, or an app macOS translocated", () => {
-    expect(installsNativeHost({ execPath: app, mode: "dev", target: shellChild })).toBe(false);
-    expect(installsNativeHost({ execPath: app, mode: "prod", target: dataDirPinned })).toBe(false);
-    expect(installsNativeHost({ execPath: app, mode: "prod", target: bothPinned })).toBe(false);
-    expect(
-      installsNativeHost({
-        execPath:
-          "/private/var/folders/x/T/AppTranslocation/1234/d/Inteligir.app/Contents/MacOS/node",
-        mode: "prod",
-        target: shellChild,
-      }),
-    ).toBe(false);
   });
 });

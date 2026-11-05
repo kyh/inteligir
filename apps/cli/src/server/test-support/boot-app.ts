@@ -47,7 +47,7 @@ import type { FakeTurnDriverOptions } from "./fake-turn-driver";
 import { makeTempDir } from "./temp-dir";
 import type { TempDirOptions } from "./temp-dir";
 
-export { makeTempDir, TEMP_DIR_FOLDS_CASE } from "./temp-dir";
+export { makeTempDir } from "./temp-dir";
 export { FAKE_ACCOUNT, FakeCloud } from "../cloud/test-support/fake-cloud";
 
 export const TEST_SERVER_TOKEN = "test-server-token";

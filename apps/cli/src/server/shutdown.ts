@@ -5,7 +5,7 @@
 
 import { errnoCode } from "./errno";
 
-export const DEFAULT_STEP_TIMEOUT_MS = 5000;
+const DEFAULT_STEP_TIMEOUT_MS = 5000;
 
 // the one place a budget is written; addTeardownStep takes a name from here, so no step carries its own number.
 // listed in teardown order, which addTeardownStep enforces and the per-step comments explain.
@@ -57,10 +57,6 @@ const DEADLINE_SLACK_MS = 1000;
 const deadlineFor = (budgets: readonly number[]): number =>
   budgets.reduce((total, budget) => total + budget, 0) + DEADLINE_SLACK_MS;
 
-// the desktop shell's SIGKILL grace is this plus headroom (desktop-serve.ts announces it); a shorter
-// grace lands the kill mid-flush.
-export const SHUTDOWN_TIMEOUT_MS = deadlineFor(Object.values(TEARDOWN_BUDGETS_MS));
-
 export interface ShutdownStep {
   name: string;
   timeoutMs?: number;
@@ -73,7 +69,7 @@ const stepTimeoutMs = (step: ShutdownStep): number => step.timeoutMs ?? DEFAULT_
 export const shutdownDeadlineMs = (steps: readonly ShutdownStep[]): number =>
   deadlineFor(steps.map(stepTimeoutMs));
 
-export interface ShutdownResult {
+interface ShutdownResult {
   ok: boolean;
   failed: readonly string[];
 }

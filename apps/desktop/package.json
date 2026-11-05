@@ -18,11 +18,9 @@
   },
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",
-    "@repo/contract": "workspace:*",
     "@repo/workspace": "workspace:*",
     "@tauri-apps/cli": "^2.12.4",
     "@types/node": "catalog:",
-    "inteligir": "workspace:*",
     "typescript": "catalog:",
     "zod": "catalog:"
   }

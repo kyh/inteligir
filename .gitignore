@@ -18,12 +18,6 @@ dist/
 .output/
 # wxt's generated types and tsconfig (apps/extension), written by `wxt prepare`
 .wxt/
-# the desktop app's git and node, fetched and pinned by apps/desktop/scripts/fetch-git.ts and
-# fetch-node.ts at package time
-apps/desktop/resources/git/
-apps/desktop/resources/git.partial/
-apps/desktop/resources/node/
-apps/desktop/resources/node.partial/
 
 # misc
 .DS_Store

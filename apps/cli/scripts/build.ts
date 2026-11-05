@@ -102,14 +102,12 @@ const CLI_ENTRY = "src/index.ts";
 
 // split so a client verb parses the client alone: every dynamic import is a chunk loaded on use.
 // the chunks sit flat beside index.js, because `import.meta.url` and `import.meta.dirname` in any
-// of them must name dist/ (src/paths.ts, and the sibling lookups of the bundles below). the desktop
-// shell's own door (src/desktop/desktop-entry.ts) is a second entry over the same chunks, so the
-// server it runs is the one `inteligir serve` runs, loaded once.
+// of them must name dist/ (src/paths.ts, and the sibling lookups of the bundles below).
 const { metafile } = await build({
   ...shared,
   chunkNames: "chunk-[hash]",
   entryNames: "[name]",
-  entryPoints: { desktop: "src/desktop/desktop-entry.ts", index: CLI_ENTRY },
+  entryPoints: { index: CLI_ENTRY },
   external: NATIVE,
   metafile: true,
   outdir: distDir,

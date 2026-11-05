@@ -99,9 +99,6 @@ type Json = boolean | number | string | null | readonly Json[] | { readonly [key
 // `answer` parses the fields of the procedure's answer the caller reads, and no more
 export type Rpc = <T>(procedure: string, answer: z.ZodType<T>, input?: Json) => Promise<T>;
 
-// every procedure answers an object; this one is for the answer a caller does not read
-export const unreadAnswer = z.object({});
-
 // hand-rolled: the typed client needs a bundler the smokes do not have
 export const rpcClient =
   (baseUrl: string, token: string): Rpc =>

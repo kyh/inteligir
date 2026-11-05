@@ -28,9 +28,9 @@ const serverIdentitySchema = z.object({
   version: z.string().min(1),
 });
 
-export type ServerIdentity = z.infer<typeof serverIdentitySchema>;
+type ServerIdentity = z.infer<typeof serverIdentitySchema>;
 
-export type StatusAnswer =
+type StatusAnswer =
   | { kind: "answered"; body: unknown }
   | { kind: "silent" }
   // the connection, the token or the call itself

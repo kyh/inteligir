@@ -26,9 +26,7 @@ dialect skills and the licence texts.
   `<root>/vaults/<sha256(physical path)[:16]>/`, derived once in `config.ts`
   unless `INTELIGIR_DATA_DIR` pins one; the root holds the selector,
   `config.json`, and the shared `native-host/`
-  (`apps/cli/src/desktop/native-hosts.ts`). The shell switches only a child it
-  started, in a new window, as a webview's data store is fixed at creation.
-  Rejected: the default keeping the root and the rest keyed by stored spelling
+  (`apps/cli/src/desktop/native-hosts.ts`). Rejected: the default keeping the root and the rest keyed by stored spelling
   (a second resolve, a scope the page branched on, one folder keying two dirs).
   Cost accepted: the credential and agent default are per vault, so each starts
   signed out and off the hosted remote; connectors, the agent's, are shared.
@@ -39,47 +37,23 @@ dialect skills and the licence texts.
   the default", "already open", "inside the app's data" and "synced by another
   service" judge that one spelling, which a selection stores too
   (`resolveVaultCandidate`). Only case escapes it: a name not made yet keeps its
-  typed case, so where the volume folds case the default's name in another case
-  is the default (`isDefaultVault` in `apps/cli/src/desktop/first-run.ts`). The
-  vault service's guard stays its own (CONTAINMENT IS PHYSICAL, in
+  typed case. The vault service's guard stays its own (CONTAINMENT IS PHYSICAL, in
   `apps/cli/src/server/vault/CLAUDE.md`): async, against its own non-native
   root.
 
-- **A VAULT SWITCH IS THE CLI'S PLAN, AND THE SHELL ONLY ORDERS ITS MOVES.**
-  Every rule is asked of the desktop door
-  (`apps/cli/src/desktop/desktop-door.ts` over `vaults.ts`). A failure restores
-  the previous vault; a rollback that cannot rewrite the selector quits, so
-  `config.json` never names the failed vault (`switch_vault` in
-  `apps/desktop/src-tauri/src/shell.rs`). A first run writes the selector before
-  the first child unless it chose the default, and a failed first boot removes
-  it, so the next launch asks again. The shell picks the folder, so the page
-  names no path it was not handed; a folder another service syncs asks first, in
-  the first run's words. `inteligir vault open <dir>` runs the same plan
-  (`apps/cli/src/server/vault-switch.ts`), restarting nothing.
-  `apps/workspace/src/shell/vaults-state.ts`.
+- **A VAULT SWITCH IS THE CLI'S PLAN.** `inteligir vault open <dir>` resolves
+  the folder as a boot would and writes the selector only once the folder
+  passes every refusal a boot has, restarting nothing
+  (`apps/cli/src/server/vault-switch.ts`).
 
 ## Server process and the desktop shell
 
 - **ONE BINARY, TWO MODES: `inteligir serve` IS the server, and `npx` is a
   verb**. `npx inteligir serve --open` is the developer's and the agent's
-  zero-install path, with one exit code; a user installs the signed dmg and
-  never meets it. The Rust shell runs the server as its one child, on the node
-  the .app carries, and never restarts it, since a fresh child mints a session
-  the window's cookie does not hold. Whether `server.json`'s owner still serves
+  zero-install path, with one exit code; a user installs the signed dmg, which
+  runs no server, and never meets it. Whether `server.json`'s owner still serves
   has ONE reading, `apps/cli/src/server/server-probe.ts`, which the boot's guard
-  and the shell's adoption both project; the shell refuses a server of another
-  version, because `/local`'s two ends break freely only while they ship
-  together.
-
-- **THE SHELL'S CHILD STOPS WITH THE SHELL, ONCE, AND AFTER ITS FLUSH.** A quit
-  sends SIGTERM and waits the teardown budget the child announced before
-  SIGKILL, inside `RunEvent::Exit`, since Cmd+Q leaves no later step. The child
-  holds a pipe the shell never writes, so a shell that crashes or is killed
-  closes it and the server shuts down rather than hold the data dir; it runs in
-  its own process group, so a signal to the shell's group reaches it once,
-  through the shell, since a second skips the flush
-  (`apps/desktop/src-tauri/src/server.rs`, and the `lifeline` `runServe` watches
-  once its signals are wired, in `apps/cli/src/server/serve.ts`).
+  and the browsers' door both project.
 
 - **A DATA DIR HAS ONE SERVER, AND THE LOCK, NOT THE ROW, DECIDES IT.**
   `server.json` is published only after listen, so two boots started together
@@ -119,8 +93,7 @@ dialect skills and the licence texts.
 
 - **A BROWSER CANNOT SEND A HEADER, SO IT HOLDS A PER-BOOT COOKIE**, HttpOnly
   and SameSite=Strict, set only by trading a single-use handoff nonce a bearer
-  holder minted (`system.browserHandoff`), as the desktop window does (THE APP
-  WINDOW IS THE SERVER'S OWN PAGE, in `apps/desktop/CLAUDE.md`). A request with
+  holder minted (`system.browserHandoff`). A request with
   neither gets a 401 page that runs nothing but names the ways in, not a
   workspace whose every call fails unexplained. The ambient cookie must also
   prove same-origin, as loopback "site" ignores the port, and EVERY REQUEST MUST
@@ -167,12 +140,9 @@ dialect skills and the licence texts.
 
 - **THE CSP IS STATIC, and a plain Vite SPA is what buys it.** The page injects
   no inline script, so `script-src` is `'self'` and one fixed header serves
-  every page the server answers, the desktop window's included; `connect-src`
+  every page the server answers; `connect-src`
   earns the most, since a script that cannot reach a third-party origin cannot
-  exfiltrate the vault (`apps/cli/src/server/csp.ts`). The first run is the
-  shell's own page, whose policy (`apps/desktop/src-tauri/tauri.conf.json`)
-  `tools/repo-guards/src/desktop-shell-wire.test.ts` holds to the server's for a
-  page with no socket, plus Tauri's IPC origins. The phone's editor page loads
+  exfiltrate the vault (`apps/cli/src/server/csp.ts`). The phone's editor page loads
   from disk under a meta tag held to the same, each departure a reasoned row of
   `tools/repo-guards/src/phone-page-csp.test.ts`.
 

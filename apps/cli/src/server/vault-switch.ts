@@ -15,7 +15,7 @@ export type VaultSelectionRefusal =
 export type CurrentVault = Pick<AppConfig, "vaultDir" | "vaultDirSource" | "dataDirSource">;
 
 // what the env pins is not config.json's to change: the next boot reads the env first
-export const selectionBlockedByEnv = (
+const selectionBlockedByEnv = (
   current: Pick<CurrentVault, "vaultDirSource" | "dataDirSource">,
 ): Extract<VaultSelectionRefusal, "vault-pinned-by-env" | "data-dir-pinned-by-env"> | null => {
   if (current.vaultDirSource === "env") {

@@ -9,7 +9,6 @@
     "apps/cli": {
       "entry": [
         "src/index.ts",
-        "src/desktop/desktop-entry.ts",
         "src/server/vault/watcher/parcel-child-entry.ts",
         "src/server/knowledge/projection-worker.ts",
         "src/server/items/capture/item-fill-worker.ts"
@@ -24,9 +23,11 @@
       ]
     },
     "apps/desktop": {
-      "entry": ["scripts/*.ts"],
-      // a build output and a dev server, never a module: src-tauri/tauri.conf.json embeds the
-      // page's build and runs its Vite under `tauri dev`
+      // the isolation app's hook, which Tauri inlines into the frame every message to the shell
+      // passes through (src-tauri/tauri.conf.json's `pattern`)
+      "entry": ["scripts/*.ts", "isolation/index.js"],
+      // a build output, never a module: src-tauri/tauri.conf.json embeds the page's build, and the
+      // edge orders that build before the shell's
       "ignoreDependencies": ["@repo/workspace"]
     },
     "apps/workspace": {
