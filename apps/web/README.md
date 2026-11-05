@@ -122,10 +122,11 @@ the account runs two, and otherwise opened and handed to its thread's object,
 again every 30 seconds until it lands. The object reserves each model call
 with the cell before it sends it, streams it with previews to the account's
 sockets, and lands only the whole reply, as returned, beside its usage; a call
-an instance died reading is sent again whole. A conversation past 150,000
-input tokens is compacted by the API inside the request that reaches them, its
-summary landing with the reply, and every request after carries the
-conversation from that summary on. Every tool call runs in the cell
+an instance died reading is sent again whole. A conversation past 50,000
+input tokens, the least the API compacts at, is compacted by the API inside
+the request that reaches them, its summary landing with the reply, and every
+request after carries the conversation from that summary on; at the API's
+default of 150,000, a turn after a pause could not afford its first call. Every tool call runs in the cell
 through the library's own procedures as that turn's, its write's op id derived
 from the call's, so one run again lands once; a deletion waits for the
 person. What the turn did reaches the cell as pushes, each once by its

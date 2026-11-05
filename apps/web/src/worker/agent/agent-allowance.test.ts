@@ -1,8 +1,9 @@
 // What a call may spend and what it cost (seeded, so a failure replays): a reservation covers what
 // the call is billed whenever the cache bills it as guessed, and overshoots by at most the prompt
 // written cold when it does not; two threads reserving at once never pass the day's cap together;
-// every list price is a whole number of micro-cents a token; usage is priced by the model that
-// answered each part of a reply, and a model the table does not price at its dearest row.
+// every list price is a whole number of micro-cents a token; a conversation resumed after a pause
+// can still be sent at the compaction trigger; usage is priced by the model that answered each part
+// of a reply, and a model the table does not price at its dearest row.
 
 import { mulberry32 } from "@repo/notes/test-support/seeded-random";
 import { env } from "cloudflare:workers";
@@ -31,6 +32,7 @@ import {
 import type { ReservationLimits, TokenPrices } from "./agent-allowance";
 import { reserveForCall } from "./agent-turns";
 import { AGENT_MODEL } from "./library-agent";
+import { COMPACTION_TRIGGER_TOKENS, deployedDefinition, tokensAtMost } from "./thread-request";
 import { createThread, insertTurn } from "./turn-rows";
 import type { CallEstimate } from "./thread-wire";
 
@@ -154,6 +156,37 @@ describe("a call's reservation", () => {
     expect(
       resendReservationOf(estimate, prices(), 3000, { dayUcents: input, turnUcents: 0 }, NOW),
     ).toEqual({ kind: "refused" });
+  });
+
+  it("grants a conversation resumed after a pause at the compaction trigger, and would refuse one at the API's default", () => {
+    const definition = deployedDefinition();
+    const frozenTokens = tokensAtMost(
+      JSON.stringify(definition.system).length + JSON.stringify(definition.tools).length,
+    );
+    const turn = allowanceOf(env).turnCents * UCENTS_PER_CENT;
+    const fresh = { dayUcents: turn, turnUcents: turn };
+    // a turn's first call, `idleMs` after the last: a prompt of `tokens` real tokens in a body of
+    // `chars` characters a token, which the estimate counts a third of
+    const resumed = (tokens: number, chars: number, idleMs: number): CallEstimate => ({
+      frozenTokens,
+      previous: { endedAt: NOW - idleMs, promptTokens: tokens },
+      promptTokens: tokensAtMost(tokens * chars),
+    });
+    for (const idleMs of [6 * MINUTE, 61 * MINUTE, 24 * 60 * MINUTE]) {
+      const label = `idle ${String(idleMs / MINUTE)} minutes`;
+      // four and a half characters a token: the estimate half again the real count
+      const atTrigger = reservationOf(
+        resumed(COMPACTION_TRIGGER_TOKENS, 4.5, idleMs),
+        prices(),
+        fresh,
+        NOW,
+      );
+      expect(atTrigger.kind, label).toBe("granted");
+      // three characters a token, the estimate the real count: the input alone outgrows the turn
+      const atDefault = resumed(150_000, 3, idleMs);
+      expect(inputUcentsOf(atDefault, prices(), NOW), label).toBeGreaterThan(turn);
+      expect(reservationOf(atDefault, prices(), fresh, NOW), label).toEqual({ kind: "refused" });
+    }
   });
 
   // two threads, a thousand calls between them, each reservation and settlement a cell transaction

@@ -4,7 +4,7 @@
 // progress notes between tool calls come back as text, a refusal answered by the fallback model
 // Anthropic names for its category inside the same call
 // (platform.claude.com/docs/en/build-with-claude/refusals-and-fallback), and the conversation
-// compacted on the server once its input reaches the API's default threshold, 150,000 tokens
+// compacted on the server once its input reaches 50,000 tokens, the least threshold the API takes
 // (platform.claude.com/docs/en/build-with-claude/compaction-threshold). The system and the tools
 // are the definition's, byte for byte, each closed by a 1-hour cache breakpoint, so every
 // conversation of every account reads one cached prefix; the last block of the last message
@@ -45,6 +45,13 @@ export const AGENT_BETAS = [
 
 const HOUR_CACHE = { ttl: "1h", type: "ephemeral" } as const;
 const ROLLING_CACHE = { type: "ephemeral" } as const;
+
+// the input a request is compacted at, the least the API takes: a turn's first call after a pause
+// is reserved with its prompt written to the cache again (`./agent-allowance`), which a prompt this
+// long still leaves room in a turn's ceiling to answer after, and which at the API's default,
+// 150,000, costs more than the ceiling alone, so such a thread would end every turn refused before
+// its first call and never reach the threshold
+export const COMPACTION_TRIGGER_TOKENS = 50_000;
 
 // ---- what a transcript row holds ----
 
@@ -287,7 +294,14 @@ export const agentRequest = (
   maxTokens: number,
 ): BetaMessageStreamParams => ({
   betas: [...AGENT_BETAS],
-  context_management: { edits: [{ type: "compact_20260112" }] },
+  context_management: {
+    edits: [
+      {
+        trigger: { type: "input_tokens", value: COMPACTION_TRIGGER_TOKENS },
+        type: "compact_20260112",
+      },
+    ],
+  },
   fallbacks: "default",
   max_tokens: maxTokens,
   messages: messages.map((message, index) => messageParam(message, index === messages.length - 1)),

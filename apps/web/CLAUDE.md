@@ -649,16 +649,20 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   recorded replay (it cannot answer a request it never saw).
   `tools/messages-fake/src/messages-fake.ts`, `apps/web/messages-service.ts`.
 
-- **A LONG CONVERSATION IS COMPACTED BY THE API AT ITS THRESHOLD, AND A
+- **A LONG CONVERSATION IS COMPACTED BY THE API AT 50,000 TOKENS, AND A
   DEPLOY'S DEFINITION IS TAKEN UP BETWEEN TURNS.** Every request asks for
-  server-side compaction at 150,000 tokens (beta `compact-2026-01-12`); its
-  `compaction` block lands in the reply and is replayed, each request carrying
-  the conversation from the last one that kept a summary, where the prefix the
-  API checks starts. A thread whose definition a deploy changed moves onto the
-  new one at a turn's start, its requests from then on leaving out every
-  thinking block before that turn, the leading run the API lets go. Rejected:
-  keep-tail compaction of our own (every kept thinking block is invalid after
-  it); on-demand compaction (its retention standing unsettled); sending what a
-  compaction summarized (the reservation would price input the API ignores); a
-  thread on its first definition for good (its tools drift from the procedures
-  they call). `apps/web/src/worker/agent/thread-request.ts`.
+  server-side compaction at 50,000 input tokens, the API's least (beta
+  `compact-2026-01-12`), since a turn after a pause is reserved with its
+  prompt written to the cache again; its `compaction` block lands in the reply
+  and is replayed, each request carrying the conversation from the last one
+  that kept a summary, where the prefix the API checks starts. A thread whose
+  definition a deploy changed moves onto the new one at a turn's start, its
+  requests from then on leaving out every thinking block before that turn, the
+  leading run the API lets go. Rejected: the API's default, 150,000 (a resumed
+  turn's input alone would pass a turn's ceiling, so the thread would end
+  every send `budget`); keep-tail compaction of our own (every kept thinking
+  block is invalid after it); on-demand compaction (its retention standing
+  unsettled); sending what a compaction summarized (the reservation would
+  price input the API ignores); a thread on its first definition for good (its
+  tools drift from the procedures they call).
+  `apps/web/src/worker/agent/thread-request.ts`.

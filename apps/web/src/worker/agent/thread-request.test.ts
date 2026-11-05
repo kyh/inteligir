@@ -132,8 +132,11 @@ describe("a conversation's request", () => {
         "compact-2026-01-12",
         "thinking-display-updates-2026-08-18",
       ],
-      // the API's own trigger, 150,000 input tokens, and its own summary prompt
-      context_management: { edits: [{ type: "compact_20260112" }] },
+      // at the least input the API takes, which a turn after a pause can still reach, and the
+      // API's own summary prompt
+      context_management: {
+        edits: [{ trigger: { type: "input_tokens", value: 50_000 }, type: "compact_20260112" }],
+      },
       fallbacks: "default",
       max_tokens: 2048,
       model: "claude-opus-5-5",
