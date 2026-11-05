@@ -59,6 +59,7 @@ import { undoScripted } from "./scenarios/undo-scripted";
 import { vaultCrud } from "./scenarios/vault-crud";
 import { vaultRemoteSetting } from "./scenarios/vault-remote-setting";
 import { vaultSync } from "./scenarios/vault-sync";
+import { viewContextBrowser } from "./scenarios/view-context-browser";
 
 const SCENARIOS: readonly Scenario[] = [
   vaultCrud,
@@ -81,6 +82,7 @@ const SCENARIOS: readonly Scenario[] = [
   connectorTools,
   agentCell,
   agentPanelBrowser,
+  viewContextBrowser,
   tidyLibraryBrowser,
   builtWorkerBoot,
   builtCliBoot,
