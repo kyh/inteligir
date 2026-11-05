@@ -11,10 +11,11 @@ mounts the router; `src/router.tsx` makes the router and the QueryClient it
 carries. `app/cloud/` holds the `/v1` client and its query utils, the replica's
 queries and the page's library context; `app/workspace.tsx` owns the rail, the
 grid or the open item, the panel and the palette; `app/library/` the grid, its
-scope, selection, Quick Look and the verbs over items; `app/item/` the open
-item, its stages and the editor's host; `app/panel/` Info, Highlights and
-History; `app/agent/` the built-in agent's conversations; `app/palette/` ⌘P;
-`app/sidebar/` the rail; `app/settings/` the Settings layer. Every shell answer
+scope, selection, Quick Look, the verbs over items and what a paste or a drop
+saves; `app/item/` the open item, its stages and the editor's host;
+`app/panel/` Info, Highlights and History; `app/agent/` the built-in agent's
+conversations and Tidy; `app/palette/` ⌘P; `app/sidebar/` the rail;
+`app/settings/` the Settings layer. Every shell answer
 is parsed in `src/shell/shell-commands.ts` and mirrored through one
 `app/bridge-store.ts`.
 

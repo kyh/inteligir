@@ -39,7 +39,7 @@ export const FOLDER_REFUSAL = "Folders can't be saved; drop the files inside";
 const MB = 1024 * 1024;
 
 // a file larger than one file of the library may be, said in whole megabytes
-export const tooLargeSentence = (name: string): string =>
+const tooLargeSentence = (name: string): string =>
   `“${name}” is larger than ${String(BLOB_MAX_BYTES / MB)} MB, the most one file can be.`;
 
 const EMPTY: CapturePayload = { files: [], refused: [], urls: [] };

@@ -210,15 +210,16 @@ extension's (`fileKindOf`); a saved url's is `kindForUrl`
 (`@repo/notes/items/item-url`). `link`, `video` and `audio` are the url kinds,
 the only ones a stub can be.
 
-**Unsorted** — the folder a save lands in when it names none
-(`UNSORTED_FOLDER` in `@repo/notes/items/item-kind`). A real directory, not a
-state: an item stays Unsorted until it is moved, whatever it is tagged.
+**Unsorted** — where an item filed in no folder shows: its `folderId` is null
+(the `unsorted` scope of `@repo/domain/library-scope`). Not a folder: an item
+stays Unsorted until it is filed, whatever it is tagged.
 
-**filing rules** — what the person wrote for the agent about their library, in
-the library's own `AGENTS.md` (`LIBRARY_RULES_PATH` in
-`@repo/notes/items/item-kind`), which the grid hides and every agent session
-reads last (`apps/cli/src/server/agents/agent-instructions.ts`). Tidy my
-library files and tags by them. Not the repo's `AGENTS.md`.
+**filing rules** — what the person wrote for the agent about their library, one
+row of the account's library cell (`apps/web/src/worker/library/library-rules.ts`)
+written from Settings › Account, or brought by an import's `AGENTS.md` while the
+library keeps none, which every turn of the built-in agent carries after the
+person's message. Tidy my library files and tags by them. Not the repo's
+`AGENTS.md`.
 
 **stub** — an app-made url item whose page is not read yet: a url kind, a web
 `url`, no `fetched`, and the `id` and `saved` every app writer stamps

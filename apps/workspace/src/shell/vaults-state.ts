@@ -15,6 +15,5 @@ export const vaultsStateSchema = z.strictObject({
   // the others, newest first; the current one is never in it
   recent: z.array(vaultRefSchema),
 });
-export type VaultsState = z.infer<typeof vaultsStateSchema>;
 
 export const vaultPathSchema = z.string().min(1);
