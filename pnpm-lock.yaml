@@ -873,6 +873,9 @@ importers:
       '@modelcontextprotocol/server':
         specifier: 'catalog:'
         version: 2.4.0
+      '@orpc/client':
+        specifier: 'catalog:'
+        version: 2.0.0-beta.45
       '@orpc/contract':
         specifier: 'catalog:'
         version: 2.0.0-beta.45
@@ -961,9 +964,6 @@ importers:
       '@modelcontextprotocol/client':
         specifier: 'catalog:'
         version: 2.4.0
-      '@orpc/client':
-        specifier: 'catalog:'
-        version: 2.0.0-beta.45
       '@repo/agent-skills':
         specifier: workspace:*
         version: link:../../packages/agent-skills

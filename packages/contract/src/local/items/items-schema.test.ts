@@ -5,8 +5,8 @@ import {
   VAULT_ASSET_MAX_BYTES,
   VAULT_ASSET_MEDIA_TYPES,
 } from "../../cloud/vault/vault-schema";
-import { CAPTURE_HTML_MAX_CHARS } from "../../browser/browser-wire";
 import {
+  CAPTURE_HTML_MAX_CHARS,
   capturedPageSchema,
   ITEM_TAGS_MAX,
   itemsSaveFileRequestSchema,
@@ -57,7 +57,7 @@ describe("a save's request", () => {
     expect(itemsSaveLinkRequestSchema.safeParse({ tags: ["not a tag"], url }).success).toBe(false);
   });
 
-  it("takes a captured page's html up to the browser wire's cap", () => {
+  it("takes a captured page's html up to its cap", () => {
     const page = { html: "x", selection: null, title: "T", url: "https://example.com/" };
     expect(capturedPageSchema.safeParse(page).success).toBe(true);
     expect(

@@ -30,10 +30,6 @@ const EXCLUDED_COMMANDS = new Map<string, string>([
     "vault open",
     "it writes the selector `serve` reads and dials no server: this table drives every leaf against a booted server over a real home, and this one would rewrite the developer's own config.json; vault-open.test.ts drives it over a scratch home instead, refusals included",
   ],
-  [
-    "native-host",
-    "the browser's door: Chrome runs it with its origin and it speaks length-prefixed frames on stdin/stdout for its whole life, so a --json document would be a frame Chrome rejects; apps/cli/src/native-host/run-native-host.test.ts drives both modes",
-  ],
 ]);
 
 const HELLO_PATH = "notes/hello.md";

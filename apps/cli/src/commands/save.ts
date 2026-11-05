@@ -4,9 +4,9 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { buffer } from "node:stream/consumers";
-import { CAPTURE_HTML_MAX_CHARS } from "@repo/contract/browser/browser-wire";
 import type { LocalClient } from "@repo/contract/local";
 import {
+  CAPTURE_HTML_MAX_CHARS,
   fileTooLargeMessage,
   itemSaveResponseSchema,
 } from "@repo/contract/local/items/items-schema";

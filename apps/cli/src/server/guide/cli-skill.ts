@@ -407,9 +407,6 @@ it lives in Settings › Account, where it says what goes and what stays.
 - \`inteligir status\` — server version, data dir, agent runtime state, and
   the current thread context.
 - \`inteligir guide\` — print this manual.
-- \`inteligir native-host\` — the browser extension's door; Chrome starts it,
-  never run it yourself (\`--install\` writes a checkout's door for the dev
-  extension).
 
 ## Diagnostics
 

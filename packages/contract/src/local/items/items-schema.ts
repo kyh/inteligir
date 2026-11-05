@@ -6,7 +6,6 @@ import { parseItemTime } from "@repo/notes/items/item-time";
 import { isWebUrl } from "@repo/notes/items/item-url";
 import { isTagName, TAG_NAME_RULE } from "@repo/notes/knowledge/tag-grammar";
 import { z } from "zod";
-import { CAPTURE_HTML_MAX_CHARS } from "../../browser/browser-wire";
 import { vaultPathSchema } from "../vault/vault-schema";
 
 // spelled in @repo/notes/items/item-kind, since the phone reaches no /local module; re-exported
@@ -103,6 +102,9 @@ export const itemsSaveLinkRequestSchema = z.strictObject({
   wait: z.boolean().default(false),
 });
 export type ItemsSaveLinkRequest = z.infer<typeof itemsSaveLinkRequestSchema>;
+
+// a captured page's html past which `inteligir save --html` refuses it
+export const CAPTURE_HTML_MAX_CHARS = 8 * 1024 * 1024;
 
 export const capturedPageSchema = z.strictObject({
   // null: too big or not scriptable, so the Mac fetches the url

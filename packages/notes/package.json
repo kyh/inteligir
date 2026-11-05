@@ -36,6 +36,7 @@
     "./items/library-index": "./src/items/library-index.ts",
     "./items/link-fill": "./src/items/link-fill.ts",
     "./items/oembed": "./src/items/oembed.ts",
+    "./items/saved-facts": "./src/items/saved-facts.ts",
     "./items/sniff-media": "./src/items/sniff-media.ts",
     "./items/turn-items": "./src/items/turn-items.ts",
     "./knowledge/asset-name": "./src/knowledge/asset-name.ts",

@@ -9,6 +9,7 @@
 // the DOM it reads over load with the first page a consumer reads, never with the Worker's start,
 // which every request waits on.
 
+import { fieldLine, savedFacts } from "@repo/notes/items/saved-facts";
 import type { ExtractedPageBlocks } from "@repo/page-reader/page-reading";
 import type { ReadHtml } from "@repo/page-reader/read-html";
 import { failureOf, fileOnlyLinked, TEXT_NOT_SAVED } from "@repo/notes/items/fill-sentences";
@@ -140,12 +141,6 @@ const coverCandidates = (job: FillJob, images: readonly string[], oembed: OEmbed
   ...(job.coverHint === null ? [] : [job.coverHint]),
 ];
 
-// a text no field takes past a line's length is clipped to it, as every field's cap is
-const line = (value: string | null): string | null => {
-  const trimmed = value?.trim() ?? "";
-  return trimmed === "" ? null : trimmed.slice(0, 1000);
-};
-
 const newBlockId = (): string => crypto.randomUUID();
 
 const loadReader = async (): Promise<ReadHtml> => {
@@ -167,13 +162,12 @@ const articleOf = (
 };
 
 // what the page says of itself, and what a media host's oEmbed says where the page says nothing
-const factsOf = (facts: ExtractedPageBlocks["facts"], oembed: OEmbed | null) => ({
-  author: line(facts.author ?? oembed?.author ?? null),
-  description: facts.description?.trim().slice(0, 10_000) || null,
-  lang: line(facts.lang),
-  published: line(facts.published),
-  site: line(facts.site ?? oembed?.provider ?? null),
-});
+const factsOf = (facts: ExtractedPageBlocks["facts"], oembed: OEmbed | null) =>
+  savedFacts({
+    ...facts,
+    author: facts.author ?? oembed?.author ?? null,
+    site: facts.site ?? oembed?.provider ?? null,
+  });
 
 const pageRead = async (ports: ReadPorts, job: FillJob, page: FetchedPage): Promise<PageRead> => {
   const kind = kindForUrl(job.url);
@@ -197,7 +191,7 @@ const pageRead = async (ports: ReadPorts, job: FillJob, page: FetchedPage): Prom
       itemId: job.itemId,
       kind: "read",
       playable: null,
-      title: line(read.facts.title ?? oembed?.title ?? null),
+      title: fieldLine(read.facts.title ?? oembed?.title ?? null),
       url: job.url,
     },
   };

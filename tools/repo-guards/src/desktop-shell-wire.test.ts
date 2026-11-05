@@ -23,7 +23,6 @@ const COMMANDS = "apps/desktop/src-tauri/src/commands.rs";
 const CLOUD = "apps/desktop/src-tauri/src/cloud.rs";
 const WINDOW = "apps/desktop/src-tauri/src/window.rs";
 const FILE_SCHEME = "apps/desktop/src-tauri/src/file_scheme.rs";
-const APP_IDENTITY = "apps/cli/src/desktop/app-identity.ts";
 const TAURI_CONFIG = "apps/desktop/src-tauri/tauri.conf.json";
 const LOCAL_CONFIG = "apps/desktop/src-tauri/tauri.local.conf.json";
 const ISOLATION_PAGE = "apps/desktop/isolation/index.html";
@@ -233,15 +232,5 @@ describe("the desktop shell's wire", () => {
       [csp["frame-src"], csp["child-src"]],
       `${TAURI_CONFIG} names a frame policy, which would refuse the isolation frame`,
     ).toEqual([undefined, undefined]);
-  });
-
-  it("opens the app by the bundle id the shell is built under", () => {
-    const named = /export const APP_BUNDLE_ID = "(?<value>[^"]+)";/u.exec(sourceOf(APP_IDENTITY))
-      ?.groups?.value;
-    expect(
-      named,
-      `${APP_IDENTITY}'s APP_BUNDLE_ID is not ${TAURI_CONFIG}'s identifier.\n` +
-        `  rule: the browser's door opens the app by its bundle id, so a renamed bundle is an app the door can never open\n`,
-    ).toBe(tauriConfig().identifier);
   });
 });

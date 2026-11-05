@@ -12,7 +12,7 @@ import type { LibraryReplica, Made, PageInput } from "@repo/library-replica/libr
 import { namesPrivateSpace } from "@repo/notes/items/host-names";
 import { FILL_LIMITS, isPageType } from "@repo/notes/items/link-fill";
 import { pixelSize, sniffMedia } from "@repo/notes/items/sniff-media";
-import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
+import { fieldLine, savedFacts } from "@repo/notes/items/saved-facts";
 import type { PageFetch } from "./page-fetch";
 import { createPhoneSaves } from "./phone-saves";
 import type { SavedItem, SaveTarget } from "./phone-saves";
@@ -32,20 +32,6 @@ const COVER_ACCEPT = "image/webp,image/png,image/jpeg,image/gif;q=0.8,*/*;q=0.5"
 const DECODE_MAX_PIXELS = 40_000_000;
 
 type ReadAnswer = Extract<FillAnswer, { kind: "read" }>;
-
-// a fact fitted to the field that keeps it
-const line = (value: string | null): string | null => {
-  const trimmed = value?.trim() ?? "";
-  return trimmed === "" ? null : trimmed.slice(0, ITEM_FIELD_CAPS.line);
-};
-
-const factsOf = (facts: ReadAnswer["facts"]): PageInput["facts"] => ({
-  author: line(facts.author),
-  description: facts.description?.trim().slice(0, ITEM_FIELD_CAPS.description) || null,
-  lang: line(facts.lang),
-  published: line(facts.published),
-  site: line(facts.site),
-});
 
 // the first candidate that is really a picture of a cover's size, kept whole as the site served it;
 // a page in private space may name a cover there, a public one never
@@ -123,11 +109,11 @@ export const readSharedPage = async (
   return {
     article: answer.article,
     cover: await coverOf(ports, shared.url, answer.facts.images),
-    facts: factsOf(answer.facts),
+    facts: savedFacts(answer.facts),
     folderId: target.folderId,
     selection: null,
     tags: [],
-    title: line(answer.facts.title) ?? line(shared.title) ?? "",
+    title: fieldLine(answer.facts.title) ?? fieldLine(shared.title) ?? "",
     url: shared.url,
   };
 };

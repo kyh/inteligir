@@ -9,9 +9,8 @@ The server process, its credential and boot, and the binary around it.
 (`apps/cli/src/server/compose.ts`); every other verb but `vault open` is a citty
 leaf that is a client of a running one. Every leaf takes `--json` and is
 EXECUTED by the fitness test against the refusal path, except the reasoned rows
-of `EXCLUDED_COMMANDS` (`apps/cli/src/json-flag-enforcement.test.ts`): `serve`,
-`vault open` and `native-host`, whose stdout is framed messages for its whole
-life. Every app-written JSON file in the data dir is read through
+of `EXCLUDED_COMMANDS` (`apps/cli/src/json-flag-enforcement.test.ts`): `serve`
+and `vault open`. Every app-written JSON file in the data dir is read through
 `readJsonFile` in `json-file-store.ts` and written through `staged-write.ts`,
 with `JsonFileStore` the per-use store over the two; the app reads
 `config.json` at boot and writes only its `vaultDir`, the selector a switch
@@ -25,9 +24,9 @@ dialect skills and the licence texts.
   SESSION AND A NEW WINDOW.** Every vault, the default included, lives in
   `<root>/vaults/<sha256(physical path)[:16]>/`, derived once in `config.ts`
   unless `INTELIGIR_DATA_DIR` pins one; the root holds the selector,
-  `config.json`, and the shared `native-host/`
-  (`apps/cli/src/desktop/native-hosts.ts`). Rejected: the default keeping the root and the rest keyed by stored spelling
-  (a second resolve, a scope the page branched on, one folder keying two dirs).
+  `config.json`. Rejected: the default keeping the root and the rest keyed by
+  stored spelling (a second resolve, a scope the page branched on, one folder
+  keying two dirs).
   Cost accepted: the credential and agent default are per vault, so each starts
   signed out and off the hosted remote; connectors, the agent's, are shared.
 
@@ -53,7 +52,7 @@ dialect skills and the licence texts.
   zero-install path, with one exit code; a user installs the signed dmg, which
   runs no server, and never meets it. Whether `server.json`'s owner still serves
   has ONE reading, `apps/cli/src/server/server-probe.ts`, which the boot's guard
-  and the browsers' door both project.
+  projects.
 
 - **A DATA DIR HAS ONE SERVER, AND THE LOCK, NOT THE ROW, DECIDES IT.**
   `server.json` is published only after listen, so two boots started together
@@ -109,23 +108,6 @@ dialect skills and the licence texts.
   send neither on a video's range requests. The token alone is no credential,
   and no other route reads it (`requireMediaRequest` in
   `apps/cli/src/server/app.ts`).
-
-- **THE BROWSER'S DOOR IS `inteligir native-host`, AN ADAPTER FROM /browser TO
-  /local THAT NEVER TOUCHES THE LIBRARY.** Chrome starts it per save with the
-  extension's origin first, and only the committed key's origin
-  (`EXTENSION_ORIGIN`) may drive it. It finds the server through the data dir; a
-  packaged app not running is opened behind the browser (`open -g -b`) and
-  waited for up to 30 s, a dev server never, and a pending first run
-  (`planLaunch`'s `first-run`) answers `not-set-up` and brings the app forward.
-  Rejected: the host writing the library (a second writer without the server's
-  guards, index or commits) and a host held open for the worker's life (ONE
-  `connectNative` PER SAVE, in `apps/extension/CLAUDE.md`).
-  `apps/cli/src/native-host/run-native-host.ts`, `reach-server.ts`,
-  `open-app.ts`.
-
-- **THE HOST'S STDOUT IS CHROME'S FRAMING AND NOTHING ELSE**: a length in the
-  machine's byte order, then UTF-8 JSON, one message at a time in order, and a
-  frame past the cap ends the stream (`apps/cli/src/native-host/frames.ts`).
 
 - **Shutdown is ORDERED, per-step TIME-BOXED, and its exit code is the truth.**
   Writers stop, the vault flush runs, handles close; each step has its own

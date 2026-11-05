@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { EXTENSION_STORE_URL } from "@repo/contract/browser/extension-identity";
+import { EXTENSION_STORE_URL } from "@repo/contract/cloud/extension/extension-identity";
 import { analyzeMarkdown, toCanonical } from "@repo/editor/markdown/markdown-doc";
 import { annotationStoreSchema } from "@repo/notes/annotations/store-schema";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";

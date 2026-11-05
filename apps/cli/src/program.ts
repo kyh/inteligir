@@ -4,7 +4,6 @@
 import { stripVTControlCharacters } from "node:util";
 import { runCommand, defineCommand, renderUsage } from "citty";
 import type { CommandDef } from "citty";
-import { z } from "zod";
 import {
   CliExitError,
   EXIT_ERROR,
@@ -34,7 +33,6 @@ import {
 import { importCommand } from "./commands/import";
 import { itemCommand } from "./commands/item";
 import { itemsCommand } from "./commands/items";
-import { nativeHostCommand } from "./commands/native-host";
 import { openCommand } from "./commands/open";
 import { saveCommand } from "./commands/save";
 import { statusCommand } from "./commands/status";
@@ -70,7 +68,6 @@ export const buildProgram = (deps: CliDeps): CommandDef =>
       item: itemCommand(deps),
       items: itemsCommand(deps),
       matches: matchesCommand(deps),
-      "native-host": nativeHostCommand(deps),
       open: openCommand(deps),
       related: relatedCommand(deps),
       save: saveCommand(deps),
@@ -126,23 +123,6 @@ const asCliExitError = (cause: unknown): CliExitError => {
   return new CliExitError(message, { code: "UNEXPECTED" });
 };
 
-// a leaf that speaks a protocol of its own (native-host's frames) cannot print a failure line, so it
-// answers its exit code through process.exitCode; read once and put back, so one run never sees
-// another's.
-const leafExitCodeSchema = z.number().int();
-
-const runLeaf = async (program: CommandDef, rawArgs: readonly string[]): Promise<number> => {
-  const inherited = process.exitCode;
-  process.exitCode = undefined;
-  try {
-    await runCommand(program, { rawArgs: [...rawArgs] });
-    const answered = leafExitCodeSchema.safeParse(process.exitCode);
-    return answered.success ? answered.data : 0;
-  } finally {
-    process.exitCode = inherited;
-  }
-};
-
 export const runCli = async (argv: readonly string[], deps: CliDeps): Promise<number> => {
   const rawArgs = argv.slice(2);
   const jsonMode = wantsJsonOutput(rawArgs);
@@ -171,7 +151,8 @@ export const runCli = async (argv: readonly string[], deps: CliDeps): Promise<nu
       process.stderr.write(forStream(`${await renderUsage(program)}\n`, process.stderr));
       return EXIT_ERROR;
     }
-    return await runLeaf(program, rawArgs);
+    await runCommand(program, { rawArgs: [...rawArgs] });
+    return 0;
   } catch (error) {
     const failure = asCliExitError(error);
     if (jsonMode) {

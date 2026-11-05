@@ -211,10 +211,8 @@ a bullet is written and cited.
   run, against the local Worker through a relay the scenario cuts to go offline
   (`tools/e2e/src/harness/cloud-link.ts`), the replica's file read back off disk
   as the oracle. The packaged `.app` (bundle, signature, entitlements; minutes
-  to pack) stays `pnpm smoke:desktop`'s, on the macOS job. The static half,
-  `tools/repo-guards/src/desktop-shell-wire.test.ts`, also holds the bundle id
-  the browser's door opens (`apps/cli/src/desktop/app-identity.ts`) to
-  `tauri.conf.json`'s `identifier`. `tools/e2e/src/scenarios/desktop-shell.ts`.
+  to pack) stays `pnpm smoke:desktop`'s, on the macOS job.
+  `tools/e2e/src/scenarios/desktop-shell.ts`.
 
 - **THE SHELL'S PLUMBING IS COPIED BETWEEN REPOS AND DIVERGES ON PURPOSE.** The
   origin pin and the packaging scripts in `apps/desktop/scripts` are copied from

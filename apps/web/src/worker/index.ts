@@ -17,7 +17,7 @@ import {
 } from "./connector/connector-auth";
 import { handleConnector } from "./connector/connector-route";
 import { handleConsent } from "./connector/consent-route";
-import { answerPreflight, fromMacPage, letMacPageRead } from "./cors";
+import { answerPreflight, crossOriginPage, letPageRead } from "./cors";
 import { consumeFills } from "./fill/fill-consumer";
 import type { FillJob } from "./fill/fill-job";
 import { handleLibrarySocket, handleSyncSocket } from "./library/socket-routes";
@@ -34,9 +34,9 @@ export { AgentThreadDO } from "./agent/agent-thread";
 export { LibraryDO } from "./library/library-do";
 export { RepoCell, Registry } from "durable-git";
 
-// CORS for one origin alone, the Mac app's page, which its shell serves (./cors.ts): every other
-// page is this Worker's own, and a reflected allow-origin beside a cookie-bearing auth surface
-// would be worse than none.
+// CORS for two origins alone, the Mac app's page, which its shell serves, and the browser
+// extension's (./cors.ts): every other page is this Worker's own, and a reflected allow-origin
+// beside a cookie-bearing auth surface would be worse than none.
 
 // ./server.ts splits on these, so a route added below must be reachable through one or it never arrives
 const OWNED_PREFIXES = ["/api/", "/v1/"] as const;
@@ -167,13 +167,14 @@ const answer = async (request: Request, env: Env, ctx: ExecutionContext): Promis
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    if (!fromMacPage(request, new URL(request.url).pathname)) {
+    const page = crossOriginPage(request, new URL(request.url).pathname);
+    if (page === null) {
       return await answer(request, env, ctx);
     }
     if (request.method === "OPTIONS") {
-      return answerPreflight();
+      return answerPreflight(page);
     }
-    return letMacPageRead(await answer(request, env, ctx));
+    return letPageRead(await answer(request, env, ctx), page);
   },
   async queue(batch: MessageBatch, env: Env, ctx: ExecutionContext): Promise<void> {
     await consumeFills(batch, env, ctx);

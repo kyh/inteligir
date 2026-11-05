@@ -86,8 +86,7 @@ list|read|history|revision|restore|write|rename|delete|deleted|mkdir|new-id|atta
 · `search` (`tag:` terms pass through) · `matches` · `backlinks` · `related` ·
 `tags` · `tag add|remove|rename` · `import raindrop|status|cancel` · `action
 list|new|send|show|stop|wait|archive|changes|undo` · `annotation list|add|edit|reply|remove` ·
-`agents list|default` · `cloud status` · `status` · `guide` ·
-`native-host` (hidden: the browser extension's door, which Chrome starts).
+`agents list|default` · `cloud status` · `status` · `guide`.
 
 Exit codes: 0 success · 1 error (including an action settling in error) ·
 2 `action wait` timeout · 3 no server reachable · 130 interrupted. Each class the CLI raises

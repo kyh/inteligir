@@ -1,4 +1,4 @@
-import { EXTENSION_STORE_URL } from "@repo/contract/browser/extension-identity";
+import { EXTENSION_STORE_URL } from "@repo/contract/cloud/extension/extension-identity";
 import { PAGES } from "@/lib/page-meta";
 import { siteConfig } from "@/lib/site-config";
 
