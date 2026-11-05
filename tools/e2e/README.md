@@ -62,7 +62,7 @@ scratch dir and tears everything down afterwards:
 - `boot({ name, mode?, vaultRemote?, extraEnv?, seedVault?, seedData? })` — a
   fresh instance. `mode` is `source` (the default: `bin/inteligir`, which runs
   `src/` under tsx in a checkout) or `built` (`dist/index.js` under
-  `NODE_ENV=production`, what npm and the .app run). Scratch `data/` + `vault/`
+  `NODE_ENV=production`, what npm runs). Scratch `data/` + `vault/`
   siblings, empty vendor stores of its own (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`,
   named on the instance as `vendorDirs`, so no instance runs the agent, asks
   its sign-in or edits its connectors on the host's account), a
