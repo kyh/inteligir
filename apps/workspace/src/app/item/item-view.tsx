@@ -144,7 +144,9 @@ export const ItemView = ({ itemId, onBack, onTogglePanel, onSession }: ItemViewP
       </header>
       {/* where the editor's find bar (⌘F) draws, over the item's text */}
       <div ref={setFindBarAnchor} className="relative" />
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* the editor's scroller: a far jump, the outline and WebKit's missing scroll anchor are
+          kept against it (packages/editor/src/run-anchoring.ts, scroll-reveal.ts, toc.tsx) */}
+      <div className="min-h-0 flex-1 overflow-y-auto" data-editor-scroller="">
         {held === null ? null : (
           <>
             <SourceHeader fields={held.fields} />

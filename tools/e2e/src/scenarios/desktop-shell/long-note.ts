@@ -5,15 +5,14 @@
 // draws, and scrolling back up must move the text exactly as far as the scroll, with no leap
 // where a run draws. Chromium keeps its own anchor, so only this engine can show either.
 
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
+import type { V1Client } from "@repo/contract/cloud/v1";
 import { z } from "zod";
-import { expect, expectEq } from "../../harness/assert";
+import { expect } from "../../harness/assert";
 import type { ScenarioContext } from "../../harness/scenario";
-import { LIBRARY_GRID, doubleClickCard, libraryCard } from "../../harness/selectors";
+import { PALETTE_INPUT, libraryCard } from "../../harness/selectors";
 import type { WebDriverSession } from "../../harness/webdriver";
 
-const ITEM = "Reading/A long article.md";
+const TITLE = "A long article";
 const FIND_INPUT = 'input[aria-label="Find"]';
 const PAGE_DEADLINE_MS = 60_000;
 // a run is 100 blocks; eight of them, a heading every tenth block among article paragraphs
@@ -36,12 +35,13 @@ const article = (): string => {
       );
     }
   }
-  return `---\nsaved: 2026-10-01T09:00:00Z\n---\n${blocks.join("\n\n")}\n`;
+  return `${blocks.join("\n\n")}\n`;
 };
 
-export const seedLongArticle = async (vaultDir: string): Promise<void> => {
-  await mkdir(path.join(vaultDir, path.dirname(ITEM)), { recursive: true });
-  await writeFile(path.join(vaultDir, ITEM), article());
+// the article as a note the account holds, its id answered
+export const seedLongArticle = async (library: V1Client["library"]): Promise<string> => {
+  const { item } = await library.items.createNote({ markdown: article(), title: TITLE });
+  return item.id;
 };
 
 // the page-side helpers every probe below uses: the scroller, a block by its opening words, its
@@ -125,28 +125,39 @@ const climb = async (page: WebDriverSession, words: string): Promise<z.infer<typ
 
 // from the library: the article opens from its card, and the find bar's far jumps and the scroll
 // back up are measured in it
-export const farJumpsHold = async (ctx: ScenarioContext, page: WebDriverSession): Promise<void> => {
+// the palette's chord as the window's listener hears it, held by the modifier the page reads off
+// the user agent (WebKitGTK's names a Mac)
+const OPEN_PALETTE = `const mac = /mac|iphone|ipad|ipod/iu.test(navigator.userAgent);
+window.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, code: "KeyP", key: "p", ctrlKey: !mac, metaKey: mac }));
+return null;`;
+
+// from the library: the palette finds the article's first block, its hit opens the article with
+// the find bar on the words, and the find bar's far jumps and the scroll back up are measured in it
+export const farJumpsHold = async (
+  ctx: ScenarioContext,
+  page: WebDriverSession,
+  itemId: string,
+): Promise<void> => {
   await page.waitUntil(
-    `document.querySelector(${JSON.stringify(LIBRARY_GRID)}) !== null`,
+    `document.querySelector(${JSON.stringify(libraryCard(itemId))}) !== null`,
     PAGE_DEADLINE_MS,
   );
-  const card = libraryCard(ITEM);
+  await page.run(OPEN_PALETTE, z.null());
   await page.waitUntil(
-    `document.querySelector(${JSON.stringify(card)}) !== null`,
+    `document.querySelector(${JSON.stringify(PALETTE_INPUT)}) !== null`,
     PAGE_DEADLINE_MS,
   );
-  expectEq(await page.run(`return ${doubleClickCard(ITEM)};`, z.string()), "double-clicked", ITEM);
-  await page.waitUntil(`document.querySelector("[data-slate-editor]") !== null`, PAGE_DEADLINE_MS);
-  const shown = await page.run(
-    `return { runs: document.querySelectorAll("[data-slate-chunk]").length, blocks: document.querySelector("[data-slate-editor]").children.length, raw: document.querySelector("textarea") !== null }`,
-    z.object({ blocks: z.number(), raw: z.boolean(), runs: z.number() }),
-  );
-  ctx.log(`the article opened as ${JSON.stringify(shown)}`);
-  await page.clickButton("Find", PAGE_DEADLINE_MS);
+  await page.typeInto(PALETTE_INPUT, "Run 0 block 1.");
+  await page.clickWhenThere(`[data-search-hit="${itemId}"]`, PAGE_DEADLINE_MS);
   await page.waitUntil(
     `document.querySelector(${JSON.stringify(FIND_INPUT)}) !== null`,
     PAGE_DEADLINE_MS,
   );
+  const shown = await page.run(
+    `return { runs: document.querySelectorAll("[data-slate-chunk]").length, blocks: document.querySelector("[data-slate-editor]").children.length }`,
+    z.object({ blocks: z.number(), runs: z.number() }),
+  );
+  ctx.log(`the article opened as ${JSON.stringify(shown)}`);
   const anchoring = await page.run(`return CSS.supports("overflow-anchor", "auto")`, z.boolean());
   ctx.log(`this engine keeps its own scroll anchor: ${String(anchoring)}`);
 

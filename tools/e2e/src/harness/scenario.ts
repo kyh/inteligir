@@ -2,6 +2,8 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { createScenarioBrowser, requireHeadlessBrowser } from "./agent-browser";
 import type { ScenarioBrowser, ScenarioBrowserOptions } from "./agent-browser";
+import { openCloudLink } from "./cloud-link";
+import type { CloudLink } from "./cloud-link";
 import { launchCloudWorker } from "./cloud-worker";
 import type { CloudWorker, LaunchCloudWorkerArgs } from "./cloud-worker";
 import { launchDesktopShell } from "./desktop-shell";
@@ -28,9 +30,11 @@ export interface ScenarioContext {
   boot: (options: BootOptions) => Promise<AppInstance>;
   bareRemote: (name?: string) => Promise<string>;
   cloudWorker: (options?: Pick<LaunchCloudWorkerArgs, "json" | "vars">) => Promise<CloudWorker>;
-  // the built Tauri shell on a scratch home, driven over WebDriver; skips with no display, no
-  // driver or no built shell.
-  desktopShell: (options?: DesktopShellOptions) => Promise<DesktopShell>;
+  // a relay to a booted Worker the scenario can cut and restore, closed at teardown
+  cloudLink: (worker: CloudWorker) => Promise<CloudLink>;
+  // the built Tauri shell on the scenario's scratch home, which outlives a launch, driven over
+  // WebDriver; skips with no display, no driver or no built shell.
+  desktopShell: (options: DesktopShellOptions) => Promise<DesktopShell>;
   // skips the scenario when no headless browser can launch; closed at teardown like an instance.
   browser: (label: string, options?: ScenarioBrowserOptions) => Promise<ScenarioBrowser>;
 }
@@ -125,6 +129,11 @@ export const createScenarioContext = (args: CreateScenarioContextArgs): Scenario
     own(args, { name: `browser "${label}"`, outputTail: () => "", stop: browser.close });
     return browser;
   },
+  async cloudLink(worker) {
+    const link = await openCloudLink(worker.origin);
+    own(args, { name: "the cloud link", outputTail: () => "", stop: link.close });
+    return link;
+  },
   async cloudWorker(options) {
     const launch: LaunchCloudWorkerArgs = {
       onLog: args.log,
@@ -142,7 +151,7 @@ export const createScenarioContext = (args: CreateScenarioContextArgs): Scenario
     }
     return await launchCloudWorker(launch);
   },
-  async desktopShell(options = {}) {
+  async desktopShell(options) {
     return await launchDesktopShell({
       ...options,
       onLog: args.log,

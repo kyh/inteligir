@@ -68,3 +68,6 @@ export const reserveFreePorts = async (count: number): Promise<number[]> => {
   }
   return fresh;
 };
+
+// a port on this machine as an origin a client calls
+export const loopbackOrigin = (port: number): string => `http://127.0.0.1:${String(port)}`;

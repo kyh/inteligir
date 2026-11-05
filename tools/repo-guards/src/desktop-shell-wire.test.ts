@@ -195,8 +195,12 @@ describe("the desktop shell's wire", () => {
     expect(page, `${ISOLATION_PAGE} loads a module, which the frame cannot run`).not.toContain(
       'type="module"',
     );
-    // Tauri adds the isolation frame's origin to default-src alone, so a frame-src must name it
-    expect(sources(csp, "frame-src")).toContain("isolation:");
+    // Tauri adds the isolation frame's origin, a scheme unique to each launch, to default-src
+    // alone, so a frame-src or a child-src would refuse the frame every message passes through
+    expect(
+      [csp["frame-src"], csp["child-src"]],
+      `${TAURI_CONFIG} names a frame policy, which would refuse the isolation frame`,
+    ).toEqual([undefined, undefined]);
   });
 
   it("opens the app by the bundle id the shell is built under", () => {
