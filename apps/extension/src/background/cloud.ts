@@ -35,7 +35,7 @@ export interface Cloud {
   readonly signOut: () => Promise<void>;
 }
 
-const CALL_DEADLINE_MS = 25_000;
+export const CALL_DEADLINE_MS = 25_000;
 
 // the build every request names: this extension's version, from its manifest
 const buildHeaders = (version: string): Record<string, string> =>

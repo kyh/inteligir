@@ -12,7 +12,10 @@ import type { CaptureOptions, CapturedPage } from "../capture/captured-page";
 // src/entrypoints/capture.ts, which WXT writes at this path and types as one of its own
 const CAPTURE_SCRIPT = "/capture.js" satisfies PublicPath;
 
-const COVER_DEADLINE_MS = 10_000;
+// a cover candidate's fetch, and how many candidates a save fetches at most (the reader names no
+// more): together the longest a save's search for its cover runs (./save-queue)
+export const COVER_DEADLINE_MS = 10_000;
+export const COVER_TRIES = 8;
 
 // null when the tab cannot be scripted, or answered something that is not a captured page
 export const captureTab = async (tabId: number): Promise<CapturedPage | null> => {

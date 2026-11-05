@@ -5,28 +5,20 @@
 // held in memory: the connection and the queue are storage's.
 
 import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
-import {
-  CONNECT_EXTENSION_PATH,
-  extensionConnectRequestSchema,
-} from "@repo/contract/cloud/extension/extension-connect";
+import { CONNECT_EXTENSION_PATH } from "@repo/contract/cloud/extension/extension-connect";
 import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/cloud/origin";
 import { browser } from "wxt/browser";
 import type { Browser, PublicPath } from "wxt/browser";
 import { defineBackground } from "wxt/utils/define-background";
 
-import { extensionRequestSchema } from "../messages";
 import type { ExtensionRequest, Outcome } from "../messages";
 import { DEV_CLOUD_ORIGIN, flavorOfMode } from "../manifest";
 import { showOutcome, showSaving } from "../background/badge";
 import { captureTab, fetchCover } from "../background/capture-tab";
 import { cloudOf } from "../background/cloud";
-import {
-  answerConnectPage,
-  connectPageOrigin,
-  forgetConnection,
-  readConnection,
-} from "../background/connection";
+import { forgetConnection, readConnection } from "../background/connection";
 import type { Connection } from "../background/connection";
+import { connectPageListener, ownPagesListener } from "../background/listeners";
 import { MENU_ITEMS, menuAction } from "../background/menus";
 import type { MenuContext } from "../background/menus";
 import { saveAddress, savePicture, saveTab } from "../background/save-page";
@@ -139,10 +131,6 @@ const answer = async (request: ExtensionRequest): Promise<Outcome> => {
   }
 };
 
-// the extension's own pages, wherever they are open; a script in a web page carries that page's url
-const fromOwnPages = (sender: Browser.runtime.MessageSender): boolean =>
-  sender.id === browser.runtime.id && sender.url?.startsWith(browser.runtime.getURL("/")) === true;
-
 const clicked = async (info: Browser.contextMenus.OnClickData, tab?: Browser.tabs.Tab) => {
   const facts = tab === undefined ? null : tabFacts(tab);
   if (facts === null) {
@@ -216,41 +204,17 @@ const starting = async (): Promise<void> => {
 // worker runs main() in its first turn, which is where MV3 wants its listeners
 export default defineBackground({
   main() {
-    const flavor = flavorOfMode(import.meta.env.MODE);
-    browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      if (!fromOwnPages(sender)) {
-        return false;
-      }
-      const parsed = extensionRequestSchema.safeParse(message);
-      if (!parsed.success) {
-        return false;
-      }
-      void (async () => {
-        sendResponse(await answer(parsed.data));
-      })();
-      // the answer comes later, so the channel stays open for it
-      return true;
-    });
-    // the one page the manifest names, checked again by its origin, and a message it parses
-    browser.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
-      const origin = connectPageOrigin(flavor, sender);
-      const parsed = extensionConnectRequestSchema.safeParse(message);
-      if (origin === null || !parsed.success) {
-        return false;
-      }
-      void (async () => {
-        sendResponse(
-          await answerConnectPage(parsed.data, origin, {
-            revoke: async (connection) => {
-              await cloudFor(connection).signOut();
-            },
-          }),
-        );
-        // a save made before the connection waits no longer than this
-        await sendQueued(sendDeps);
-      })();
-      return true;
-    });
+    browser.runtime.onMessage.addListener(ownPagesListener(answer));
+    browser.runtime.onMessageExternal.addListener(
+      connectPageListener(flavorOfMode(import.meta.env.MODE), {
+        answered: async () => {
+          await sendQueued(sendDeps);
+        },
+        revoke: async (connection) => {
+          await cloudFor(connection).signOut();
+        },
+      }),
+    );
     browser.contextMenus.onClicked.addListener((info, tab) => {
       void clicked(info, tab);
     });

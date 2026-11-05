@@ -20,6 +20,7 @@ import type { ExtractedPageBlocks } from "@repo/page-reader/page-reading";
 
 import type { CapturedPage } from "../capture/captured-page";
 import type { Outcome } from "../messages";
+import { COVER_TRIES } from "./capture-tab";
 import { failureOf } from "./cloud";
 import type { Cloud, Saved } from "./cloud";
 import type { Connection } from "./connection";
@@ -98,14 +99,14 @@ const readCapture = (deps: SaveDeps, html: string, url: string): ExtractedPageBl
 // the first candidate this browser can read that is a picture of a cover's size, kept by its sha;
 // one the cloud refused is no cover, and a call it never answered waits with the save. A page in
 // private space may name a cover there, a public one never, so no page sends this browser into the
-// person's network
+// person's network. No more than COVER_TRIES are fetched, which bounds how long a first try runs
 const keepCover = async (
   deps: SaveDeps,
   cloud: Cloud,
   pageUrl: string,
   candidates: readonly string[],
 ): Promise<string | null> => {
-  for (const candidate of new Set(candidates)) {
+  for (const candidate of [...new Set(candidates)].slice(0, COVER_TRIES)) {
     if (!namesPrivateSpace(pageUrl) && namesPrivateSpace(candidate)) {
       continue;
     }

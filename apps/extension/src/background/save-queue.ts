@@ -9,17 +9,23 @@
 import { browser } from "wxt/browser";
 import { z } from "zod";
 
-import { failureOf } from "./cloud";
-import type { Cloud, LinkSave } from "./cloud";
+import { COVER_DEADLINE_MS, COVER_TRIES } from "./capture-tab";
+import { CALL_DEADLINE_MS, failureOf } from "./cloud";
+import type { CallFailure, Cloud, LinkSave } from "./cloud";
 import type { Connection } from "./connection";
 
 const KEY_PREFIX = "save:";
 export const SEND_ALARM = "send-saves";
 // how often a waiting save is tried again
 const RETRY_MINUTES = 0.5;
-// a save whose first try never said how it went, its worker stopped mid-call, is sent again
-// after this, by which time that try has met its deadline
-const ABANDONED_MS = 60_000;
+// the longest a first try runs (./save-page): every cover candidate it fetches, each to its
+// deadline, then the cover's put and the save, each to theirs
+const FIRST_TRY_MS = COVER_TRIES * COVER_DEADLINE_MS + 2 * CALL_DEADLINE_MS;
+// a save whose first try never said how it went is sent again once that try is past its longest,
+// since its worker was stopped mid-call; a resend sooner could land the link under the save's op id
+// while the first try's page was still on its way, and the cell would answer that with the link.
+// The margin is the page's reading, which runs before the first call
+const ABANDONED_MS = FIRST_TRY_MS + 30_000;
 
 const queuedSaveSchema = z.strictObject({
   // the device it was made under: a save is never sent under another connection's credential
@@ -108,8 +114,14 @@ export interface SendDeps {
   readonly now: () => number;
 }
 
-// every waiting save sent oldest first, until one goes unanswered: the cloud is not there yet, so
-// the rest wait with it
+// a call a later try may pass with nothing asked of the person: no answer, or a build too old for
+// the cloud, which the browser updates by itself while `storage.local` keeps what waits
+const waitsToResend = (failure: CallFailure): boolean =>
+  failure.kind === "unanswered" ||
+  (failure.kind === "refused" && failure.reason === "update-extension");
+
+// every waiting save sent oldest first, until one cannot go yet: the cloud is not there, or not for
+// this build, so the rest wait with it
 export const sendQueued = async (deps: SendDeps): Promise<void> => {
   const connection = await deps.connection();
   for (const save of await queuedSaves()) {
@@ -126,7 +138,7 @@ export const sendQueued = async (deps: SendDeps): Promise<void> => {
       await dropSave(save);
     } catch (error) {
       const failure = failureOf(error);
-      if (failure.kind === "unanswered") {
+      if (waitsToResend(failure)) {
         await markWaiting(save, deps.now());
         break;
       }

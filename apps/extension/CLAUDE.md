@@ -17,6 +17,7 @@ Decisions says how a bullet is written and cited.
   is revoked. Rejected: a password typed into the extension (a second sign-in
   form, on the Web Store's cadence); the Mac's app as its door (no save with
   the Mac closed). `apps/extension/src/background/connection.ts`,
+  `apps/extension/src/background/listeners.ts`,
   `apps/web/src/lib/extension-connect.ts`.
 
 - **THE EXTENSION READS THE PAGE ITSELF, OVER THE DOM THE PERSON SEES, AND SAVES
@@ -39,10 +40,16 @@ Decisions says how a bullet is written and cited.
   once never write over each other; a save the cloud did not answer is sent
   again as `items.saveLink` under its own ids, every 30 s by an alarm made
   again at every start while one waits, and the popup says "Saved when you're
-  back online". A refusal no resend passes lets it go; a revoked credential
-  forgets the connection and every save made under it. Rejected: the page's
-  HTML in the queue (2 MB a save in a 10 MB store); a timer (the worker dies
-  30 s after its last event). `apps/extension/src/background/save-queue.ts`.
+  back online". A first try whose worker stopped mid-call is resent only once
+  past the longest it can run (its cover fetches and two calls, each to its
+  deadline), since a link landing under its op id first would stand in for its
+  page. A
+  build the cloud calls too old waits for the browser's update, which
+  `storage.local` outlives; any other refusal lets it go, a full library too,
+  which only the person can empty; a revoked credential forgets the connection
+  and every save made under it. Rejected: the page's HTML in the queue (2 MB a
+  save in a 10 MB store); a timer (the worker dies 30 s after its last event).
+  `apps/extension/src/background/save-queue.ts`.
 
 - **THE CREDENTIAL AND THE QUEUE ARE STORAGE'S, AND THE WORKER HOLDS NOTHING.**
   `storage.local` is opened to trusted contexts alone as the worker starts, so
@@ -91,9 +98,12 @@ Decisions says how a bullet is written and cited.
   the program extends `.wxt/tsconfig.json`, which `wxt prepare` writes as the
   `generate` task the typecheck and the suites wait on, and the suites run
   under `WxtVitest()`. The build resolves a package's `worker` export first,
-  since the worker shares the pages' chunks and has no DOM. Rejected: a plain
-  Vite build (two configs and a manifest plugin kept in step by hand); CRXJS
-  (a second framework, no template). `apps/extension/wxt.config.ts`,
+  since the worker shares the pages' chunks and has no DOM, and the worker's
+  suites run under node with the same conditions, the pages' under jsdom, so
+  no worker suite passes on a DOM the worker lacks. Rejected: a plain Vite
+  build (two configs and a manifest plugin kept in step by hand); CRXJS (a
+  second framework, no template); one jsdom run (the reader takes a fallback
+  there that the worker never takes). `apps/extension/wxt.config.ts`,
   `apps/extension/vitest.config.ts`.
 
 - **`browser.*` AT CHROME 148, AND A PRODUCTION ZIP THAT CHECKS ITSELF**
@@ -105,3 +115,12 @@ Decisions says how a bullet is written and cited.
   list, and writes the unpacked store build beside it. Rejected: `chrome.*`
   under `@types/chrome` (a second spelling of every API).
   `apps/extension/package.json`, `apps/extension/wxt.config.ts`.
+
+- **NO COPY OF THE PAGE: AN ITEM KEEPS WHAT THE EXTENSION READ, AND OPEN
+  ORIGINAL OPENS THE PAGE.** `items.save` carries the article, the facts, a
+  cover and the passage, never a copy; a `copySha` comes only with an import,
+  which an export writes back out. Rejected: Keep a copy on `items.save` (no
+  device opens a copy, so it would upload bytes nobody reads; a single-file
+  copy needs every stylesheet, font and picture the page names, which an
+  `activeTab` extension with no host cannot fetch across origins; the frozen
+  DOM alone could spend the capture's 2 MB). `apps/extension/src/background/save-page.ts`.
