@@ -74,6 +74,7 @@ Inteligir is now a library of everything you save: links, articles, videos, imag
 
 ### Removed
 
+- **⌘T no longer moves to the title.** To rename an item, click its title above the text.
 - **Settings › Advanced, Settings › Connectors and signing in an agent.** The agent is built in and needs no sign-in, and your own Claude or ChatGPT reaches your library through the connector, which Settings › Account lists under Connected assistants.
 - **Raw editing.** No note opens as plain text any more: every note opens with rich editing, including one that used to open in Raw because the editor could not keep it exactly as written. Your first edit to such a note may write some of it a little differently, keeping its words and lines. A note nested more deeply than the editor can show opens with a message instead, and nothing in it is changed.
 - **Share with agent.** It is gone from a note's ⋯ menu. Ask the agent with ⌘K instead, which takes the item you have open or the items you selected.

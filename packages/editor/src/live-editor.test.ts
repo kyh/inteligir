@@ -2,7 +2,6 @@ import { createSlateEditor } from "platejs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  announceLiveEditorEdit,
   getLiveEditor,
   registerLiveEditor,
   subscribeLiveEditors,
@@ -25,14 +24,12 @@ const listen = () => {
 };
 
 describe("the live-editor channel", () => {
-  it("tells a reader when an editor registers, leaves and edits", () => {
+  it("tells a reader when an editor registers and leaves", () => {
     const listener = listen();
     const off = registerLiveEditor("a.md", createSlateEditor());
     expect(listener).toHaveBeenCalledTimes(1);
-    announceLiveEditorEdit();
-    expect(listener).toHaveBeenCalledTimes(2);
     off();
-    expect(listener).toHaveBeenCalledTimes(3);
+    expect(listener).toHaveBeenCalledTimes(2);
   });
 
   it("stays quiet when a replaced editor's disposer runs, since the path still answers", () => {

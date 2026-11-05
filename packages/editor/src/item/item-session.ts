@@ -10,7 +10,7 @@
 // is said, whether this session or the replica's outbox made it. Construction is inert: nothing
 // reads, subscribes or schedules until `start()`.
 
-import { ElementApi, NodeApi, TextApi } from "platejs";
+import { NodeApi, TextApi } from "platejs";
 import type { Point, SlateEditor, TElement } from "platejs";
 
 import { applyOps, libraryOpSchema, orderedBlocks } from "@repo/notes/library/block-ops";
@@ -118,10 +118,6 @@ export const ITEM_IDLE_MS = 800;
 // a write refused on a moved base is settled and sent again, this many times in one go
 const SETTLE_TRIES = 3;
 export const KEPT_CHANGING = "This item kept changing elsewhere while it saved. It will try again.";
-
-const isElement = (node: unknown): node is TElement => ElementApi.isElement(node);
-
-const elementsOf = (editor: SlateEditor): TElement[] => editor.children.filter(isElement);
 
 // a stored block as the element the editor holds
 export const elementOf = (block: LibraryBlock): TElement => ({ ...block });
@@ -446,7 +442,7 @@ export const createItemSession = (
     if (base === null) {
       return;
     }
-    const value = elementsOf(editor);
+    const value = editor.children;
     const landing = landingOf(base, item, value, reads, merge);
     const target = valueAfter(landing, value);
     const { selection } = editor;
@@ -484,7 +480,7 @@ export const createItemSession = (
       if (base === null) {
         return "done";
       }
-      const diff = diffValue(base.blocks, elementsOf(editor), reads);
+      const diff = diffValue(base.blocks, editor.children, reads);
       heldBack = diff.heldBack.length;
       const sentFields = pendingFields;
       const ops = [...diff.ops, ...sentFields];

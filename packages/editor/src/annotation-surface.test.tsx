@@ -14,7 +14,6 @@ import {
 } from "@repo/editor/annotations/annotation-kit";
 import { findAnnotationMarker } from "@repo/editor/annotations/annotation-markers";
 import {
-  clearAnnotationMeta,
   setAnnotationMeta,
   setPendingNote,
   useAnnotationSurface,
@@ -99,8 +98,7 @@ const markedId = (editor: PlateEditor): string | null => {
 describe("the highlight tint", () => {
   beforeEach(() => {
     setPendingNote(null);
-    clearAnnotationMeta(OPEN_PATH);
-    clearAnnotationMeta(OTHER_PATH);
+    useAnnotationSurface.setState({ meta: new Map() });
   });
   afterEach(cleanup);
 
@@ -135,7 +133,7 @@ describe("the highlight tint", () => {
 describe("the note popover", () => {
   beforeEach(() => {
     setPendingNote(null);
-    clearAnnotationMeta(OPEN_PATH);
+    useAnnotationSurface.setState({ meta: new Map() });
   });
   afterEach(cleanup);
 
@@ -222,7 +220,7 @@ describe("the note popover", () => {
 describe("the highlight gesture", () => {
   beforeEach(() => {
     setPendingNote(null);
-    clearAnnotationMeta(OPEN_PATH);
+    useAnnotationSurface.setState({ meta: new Map() });
   });
   afterEach(cleanup);
 

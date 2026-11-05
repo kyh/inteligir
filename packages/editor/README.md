@@ -86,11 +86,12 @@ src/
   which the fixtures and `analyzeMarkdown` (`RoundTripFailure` in
   `markdown/markdown-doc.ts`) name.
 - **Typing walks a long note only through its budget.**
-  `typing-budget.test.tsx` types into a generated 10k-line note
-  (`generateLongNote`) and fails on a whole-note pass no row names, on a
-  keystroke, a caret move or the settle after typing. A pass a keystroke cannot
-  afford caches by top-level block (the outline, the count, the gutter's ids),
-  which an edit replaces while keeping every other by identity.
+  `typing-budget.test.tsx` types into a generated 10k-line note opened in the
+  item editor (`generateLongNote`, `test-support/memory-item.tsx`) and fails
+  on a whole-note pass no row names, on a keystroke, a caret move or the settle
+  after typing. A pass a keystroke cannot afford caches by top-level block (the
+  outline, the gutter's ids), which an edit replaces while keeping every other
+  by identity.
 - **View state keys by note path.** The workspace holds ONE open-note store
   (an instance, `note/open-note-context.tsx`), and every module holding view
   state — heading folds included — keys by the note's own path: a module
@@ -145,13 +146,11 @@ src/
 - `editor-profile.tsx` — `EditorProfileProvider`, set once by a host around
   the column. The desktop sets none; a touch host sets `touch` and gets the
   touch kit, no outline rail and a narrower inset.
-- `live-editor.ts` — the path-keyed registry the shell reaches a mounted
-  editor through (the pin, annotations, Info's properties). A render
-  SUBSCRIBES — `useLiveEditor`, or `subscribeLiveEditors` for a snapshot of
-  the document — and never reads: the editor registers after the render that
-  asked for it, and the compiler memoizes a render-time read on its inputs,
-  so it never re-runs. `MarkdownEditor` announces every edit on the same
-  channel, because Slate's one `onChange` slot is Plate's.
+- `live-editor.ts` — the registry the shell reaches a mounted editor through
+  by the item's id (the pin, annotations, Info's properties). A render
+  SUBSCRIBES — `subscribeLiveEditors`, told of each registration — and never
+  reads: the editor registers after the render that asked for it, and the
+  compiler memoizes a render-time read on its inputs, so it never re-runs.
 
 ## Testing
 

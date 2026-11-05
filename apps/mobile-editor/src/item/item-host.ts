@@ -134,7 +134,7 @@ export const installItemPageHost = (bridge: PageBridge, itemId: string): ItemPag
     writeVaultAsset: nothingThere,
   };
 
-  const dispose = installEditorHost({
+  installEditorHost({
     actions: {
       agent: { askAboutSelection: nothingToDo, showTag: nothingToDo },
       annotations: {
@@ -171,9 +171,6 @@ export const installItemPageHost = (bridge: PageBridge, itemId: string): ItemPag
     attach: (next) => {
       session = next;
     },
-    stop: () => {
-      unsubscribe();
-      dispose();
-    },
+    stop: unsubscribe,
   };
 };

@@ -130,26 +130,12 @@ export interface EditorHost {
 
 let installed: EditorHost | null = null;
 
-// The host a writer outside the note's tree flushes through (`flushOpenNote`). A disposer clears
-// it only while it still names that disposer's host, so a dispose landing after a newer install
-// keeps the newer one's flush.
-let flushing: EditorHost | null = null;
-
-// Installed once, ahead of the first render: the note the boot opens mounts hooks that read the
-// host as they render. The disposer ends the host's flush and leaves the host installed until the
-// next install replaces it, because an answer in flight when the note unmounts still reads it.
-export const installEditorHost = (host: EditorHost): (() => void) => {
+// Installed once, ahead of the first render: the item the boot opens mounts hooks that read the
+// host as they render. It stays installed until the next install replaces it, because an answer in
+// flight when the item unmounts still reads it.
+export const installEditorHost = (host: EditorHost): void => {
   installed = host;
-  flushing = host;
-  return () => {
-    if (flushing === host) {
-      flushing = null;
-    }
-  };
 };
-
-export const installedFlush = (): (() => Promise<boolean>) | null =>
-  flushing === null ? null : flushing.io.vault.flush;
 
 const installedHost = (): EditorHost => {
   if (installed === null) {

@@ -10,7 +10,7 @@ import type { Value } from "platejs";
 
 import type { EditorProfile } from "@repo/editor/editor-profile";
 import { registerLiveEditor } from "@repo/editor/live-editor";
-import { PROFILE_KITS } from "@repo/editor/markdown-editor";
+import { PROFILE_KITS } from "@repo/editor/kits/profile-kits";
 import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 import { EDITOR_CHUNK } from "@repo/editor/style-hooks";

@@ -7,7 +7,7 @@ import { createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { insertAnnotationMarkers } from "@repo/editor/annotations/annotation-markers";
-import { clearAnnotationMeta, setAnnotationMeta } from "@repo/editor/annotations/annotation-store";
+import { setAnnotationMeta, useAnnotationSurface } from "@repo/editor/annotations/annotation-store";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 
@@ -46,7 +46,7 @@ describe("annotation range decoration", () => {
   });
   afterEach(() => {
     cleanup();
-    clearAnnotationMeta(NOTE_PATH);
+    useAnnotationSurface.setState({ meta: new Map() });
   });
 
   it("tints the text between a marker pair and leaves the tail plain", () => {
@@ -122,7 +122,7 @@ describe("annotation gutter", () => {
   });
   afterEach(() => {
     cleanup();
-    clearAnnotationMeta(NOTE_PATH);
+    useAnnotationSurface.setState({ meta: new Map() });
   });
 
   it("draws a noted highlight's dot beside a callout whose body its range starts in", () => {

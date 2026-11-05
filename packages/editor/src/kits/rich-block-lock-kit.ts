@@ -120,31 +120,13 @@ const lockInstalled = (editor: SlateEditor): boolean =>
 export const selectionEdgeLocked = (editor: SlateEditor): boolean =>
   editor.selection !== null && lockInstalled(editor) && edgeInsideLocked(editor, editor.selection);
 
-const lifted = new WeakSet<SlateEditor>();
-
-// An annotation's markers are its anchor, not the content of the block they sit in, so a thread
-// deleted elsewhere takes its markers out of a locked block too. Every op `fn` applies passes, the
-// normalization a `withoutNormalizing` inside it runs on the way out included.
-export const withRichBlockLockLifted = (editor: SlateEditor, fn: () => void): void => {
-  if (lifted.has(editor)) {
-    fn();
-    return;
-  }
-  lifted.add(editor);
-  try {
-    fn();
-  } finally {
-    lifted.delete(editor);
-  }
-};
-
 export const RichBlockLockKit = [
   createSlatePlugin({ key: RICH_BLOCK_LOCK_KEY }).overrideEditor(({ editor, tf: { apply } }) => {
     const locked = lockedBlockTypes(editor);
     return {
       transforms: {
         apply(op) {
-          if (!lifted.has(editor) && refuses(editor, locked, op)) {
+          if (refuses(editor, locked, op)) {
             return;
           }
           apply(op);

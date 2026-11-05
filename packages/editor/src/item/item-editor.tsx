@@ -3,23 +3,31 @@
 // surface holds no copy of the value: a change only tells the session the value moved. Each item
 // gets an editor and a session of its own, so the last write of the item left behind diffs that
 // item's value and never the next one's, and the editor is drawn only once the item's blocks are
-// in it, so nothing is typed into a value the item then replaces.
+// in it, so nothing is typed into a value the item then replaces. A formula's display follows the
+// pills it names, and the desktop draws the outline beside the text.
 
 import { useEffect, useEffectEvent, useState, useSyncExternalStore } from "react";
-import { Plate, usePlateEditor } from "platejs/react";
+import { Plate, useEditorRef, usePlateEditor } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/cn";
 
 import { Editor, EditorContainer, editorColumnPx } from "@repo/editor/editor-chrome";
-import { registerLiveEditor } from "@repo/editor/live-editor";
 import { useEditorProfile } from "@repo/editor/editor-profile";
+import {
+  cancelFormulaRecompute,
+  scheduleFormulaRecompute,
+} from "@repo/editor/formulas/formula-recompute";
+import { getEditorHostIo } from "@repo/editor/host-io";
 import { WRITE_PLACEHOLDER } from "@repo/editor/kits/block-placeholder-kit";
-import { PROFILE_KITS } from "@repo/editor/markdown-editor";
+import { PROFILE_KITS } from "@repo/editor/kits/profile-kits";
+import { registerLiveEditor } from "@repo/editor/live-editor";
+import { TableOfContents } from "@repo/editor/toc";
 
 import { createItemSession } from "./item-session";
 import type { ItemSession, ItemSessionPorts } from "./item-session";
 
-// a long item's top level renders in runs of this many blocks, as a note's does
+// a long item's top level renders in runs of this many blocks, so a keystroke re-renders one run
+// and a run off screen skips its layout and paint (EditorChunk, in editor-chrome.tsx)
 const CHUNK_BLOCKS = 100;
 
 export const MISSING_ITEM =
@@ -34,10 +42,29 @@ export interface ItemEditorProps {
   readonly onSession: (session: ItemSession | null) => void;
 }
 
+// the item's pills recomputed once it opens, after each change (behind the recompute's own pause)
+// and when another item changes, since a pill may name one
+const FormulaRecompute = () => {
+  const editor = useEditorRef();
+  useEffect(() => {
+    scheduleFormulaRecompute(editor);
+    const unsubscribe = getEditorHostIo().onVaultChanged(() => {
+      scheduleFormulaRecompute(editor);
+    });
+    return () => {
+      unsubscribe();
+      cancelFormulaRecompute(editor);
+    };
+  }, [editor]);
+  return null;
+};
+
 const ItemSurface = ({ itemId, ports, onSession }: ItemEditorProps) => {
   const profile = useEditorProfile();
   const editor = usePlateEditor({
     chunking: { chunkSize: CHUNK_BLOCKS, contentVisibilityAuto: false },
+    // Plate's navigation flash, which no surface uses, subscribes every element to the editor:
+    // one store atom per element, each recomputed on every change
     navigationFeedback: false,
     plugins: PROFILE_KITS[profile],
   });
@@ -72,12 +99,15 @@ const ItemSurface = ({ itemId, ports, onSession }: ItemEditorProps) => {
   }
   const handleValueChange = (): void => {
     session.edited();
+    scheduleFormulaRecompute(editor);
   };
   return (
     <Plate editor={editor} onValueChange={handleValueChange}>
       <EditorContainer>
         <Editor placeholder={WRITE_PLACEHOLDER} spellCheck={false} />
       </EditorContainer>
+      <FormulaRecompute />
+      {profile === "desktop" ? <TableOfContents /> : null}
     </Plate>
   );
 };

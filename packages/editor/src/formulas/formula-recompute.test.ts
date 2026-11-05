@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ElementApi, createSlateEditor } from "platejs";
 import type { TElement } from "platejs";
 
-import { collectFormulas } from "@repo/notes/formulas/collect-formulas";
+import { formulasIn } from "@repo/notes/test-support/formulas-in";
 import { recomputeFormulas } from "@repo/editor/formulas/formula-recompute";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
@@ -43,9 +43,7 @@ const hostOver = (notes: Readonly<Record<string, string>>) => {
       asked.push(noteId);
       const markdown = notes[noteId];
       return await Promise.resolve(
-        markdown === undefined
-          ? null
-          : { formulas: collectFormulas(markdown), path: `${noteId}.md` },
+        markdown === undefined ? null : { formulas: formulasIn(markdown), path: `${noteId}.md` },
       );
     },
   });
@@ -135,7 +133,7 @@ describe("the note a bound ref names", () => {
     const read = deferred<string>();
     installFakeEditorHost({
       readNoteFormulas: async () => ({
-        formulas: collectFormulas(await read.promise),
+        formulas: formulasIn(await read.promise),
         path: "b.md",
       }),
     });

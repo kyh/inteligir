@@ -16,7 +16,6 @@ export interface PageEditorHost {
   readonly showing: (itemId: string | null) => void;
   // the library's items moved: the links' targets are read again
   readonly refreshTargets: () => void;
-  readonly stop: () => void;
 }
 
 export interface PageEditorPorts {
@@ -98,7 +97,7 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
     writeVaultAsset: nothingThere,
   };
 
-  const dispose = installEditorHost({
+  installEditorHost({
     actions: {
       agent: { askAboutSelection: ports.askAgent, showTag: ports.showTag },
       annotations: {
@@ -149,6 +148,5 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
     showing: (itemId) => {
       showing = itemId;
     },
-    stop: dispose,
   };
 };

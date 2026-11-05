@@ -1,11 +1,6 @@
-// Parsed, not regexed: a pill inside a code fence is literal in the editor and must be here too.
+// A pill as the formula graph reads it, and a note's pills by their linked id.
 
-import { SKIP, visit } from "unist-util-visit";
-
-import { parseMdast } from "../markdown/parse";
-import { parseFormulaMeta } from "./formula-meta";
 import type { FormulaMeta } from "./formula-meta";
-import { parseExpression } from "./expression";
 import type { ExpressionNode } from "./expression";
 
 export interface CollectedFormula {
@@ -15,21 +10,6 @@ export interface CollectedFormula {
   /** null = symbolic (not executable). */
   expression: ExpressionNode | null;
 }
-
-export const collectFormulas = (markdown: string): CollectedFormula[] => {
-  const collected: CollectedFormula[] = [];
-  visit(parseMdast(markdown).root, "formulaPill", (node) => {
-    const { source, display, meta } = node;
-    collected.push({
-      display,
-      expression: parseExpression(source),
-      meta: parseFormulaMeta(meta),
-      source,
-    });
-    return SKIP;
-  });
-  return collected;
-};
 
 export const formulasById = (
   formulas: readonly CollectedFormula[],

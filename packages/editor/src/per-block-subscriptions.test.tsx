@@ -1,19 +1,15 @@
-// A store atom every block holds is recomputed on every change, so a keystroke in a long note
+// A store atom every block holds is recomputed on every change, so a keystroke in a long item
 // pays for each block. Plate's navigation flash and its flat-model toggle hider each hold one,
 // read no block's content, and so leave no stack in the typing budget's watched block: the
 // budget's ratio alone would only catch them by timing. Here they are held off by name.
 
-import { act, render } from "@testing-library/react";
 import { TogglePlugin } from "@platejs/toggle/react";
 import { createPlateEditor, NavigationFeedbackPlugin } from "platejs/react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { indexNoToggles, wrapNoBlock } from "@repo/editor/kits/toggle-kit";
-import { getLiveEditor } from "@repo/editor/live-editor";
-import { MarkdownEditor } from "@repo/editor/markdown-editor";
-import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { mountItem } from "./test-support/memory-item";
 
 describe("the per-block store work a keystroke would pay", () => {
   beforeAll(() => {
@@ -33,20 +29,7 @@ describe("the per-block store work a keystroke would pay", () => {
   });
 
   it("is off in the editor the app mounts: no navigation flash, no flat-model toggle hider", async () => {
-    const store = createOpenNoteStore();
-    store.publishOpenPath("note.md");
-    render(
-      <OpenNoteStoreProvider store={store}>
-        <MarkdownEditor path="note.md" value={"# Note\n\nBody.\n"} onChange={() => {}} />
-      </OpenNoteStoreProvider>,
-    );
-    await act(async () => {
-      await Promise.resolve();
-    });
-    const editor = getLiveEditor("note.md");
-    if (editor === null || editor === undefined) {
-      throw new Error("the note registered no live editor");
-    }
+    const { editor } = await mountItem("note", "# Note\n\nBody.\n");
     // a plugin switched off is never registered
     expect(Object.keys(editor.plugins)).not.toContain(NavigationFeedbackPlugin.key);
     expect(Object.keys(createPlateEditor().plugins)).toContain(NavigationFeedbackPlugin.key);

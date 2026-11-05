@@ -216,8 +216,8 @@ alone, and no walk narrows structurally.
 - **A KEYSTROKE PAYS FOR NO STORE ATOM PER BLOCK.** Plate's navigation flash and
   flat-model toggle hider each hold one that every change recomputes, so both
   are off (`packages/editor/src/kits/toggle-kit.tsx`, `navigationFeedback` in
-  `packages/editor/src/markdown-editor.tsx`). They read no block, so they leave
-  the budget no stack, and
+  `packages/editor/src/item/item-editor.tsx`). They read no block, so they
+  leave the budget no stack, and
   `packages/editor/src/per-block-subscriptions.test.tsx` holds them off by name.
 
 - **THE PHONE RUNS THE DESKTOP'S EDITOR THROUGH A TOUCH KIT, AND ITS RICH BLOCKS
@@ -225,10 +225,11 @@ alone, and no walk narrows structurally.
   kit, the lock and touch chrome, so a desktop pointer surface stays off the
   phone until named (`packages/editor/src/kits/touch-editor-kit.ts`). Inside a
   rich block (chart, canvas, html, tabs, columns) every op but a whole-block
-  insert, remove or move is refused, so a re-seed lands and undo restores a
-  deletion (`packages/editor/src/kits/rich-block-lock-kit.ts`), and
-  `beforeinput` refuses keystrokes inside, which slate-react defers to an input
-  event never fired. Rejected: the desktop kit minus its pointer chrome, and
+  insert, remove or move is refused, so a block changed elsewhere lands whole
+  and undo restores a deletion
+  (`packages/editor/src/kits/rich-block-lock-kit.ts`), and `beforeinput`
+  refuses keystrokes inside, which slate-react defers to an input event never
+  fired. Rejected: the desktop kit minus its pointer chrome, and
   hiding only the edit buttons (a paste or key still gets in). A host with no
   html frame draws no Run.
 
@@ -254,7 +255,7 @@ alone, and no walk narrows structurally.
 - **A LONG NOTE RENDERS IN RUNS OF A HUNDRED BLOCKS THAT SKIP THEIR LAYOUT AND
   PAINT OFF SCREEN, AND EVERY BLOCK STAYS MOUNTED.** Slate's chunking splits the
   top level into runs (`CHUNK_BLOCKS` in
-  `packages/editor/src/markdown-editor.tsx`), so a keystroke re-renders one.
+  `packages/editor/src/item/item-editor.tsx`), so a keystroke re-renders one.
   Each run is a `content-visibility: auto` flow-root held at an estimated, then
   its last, height (`EditorChunk` in `packages/editor/src/editor-chrome.tsx`),
   overhanging the column by the gutter for the handles that hang left; what

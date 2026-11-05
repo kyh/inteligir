@@ -222,7 +222,6 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     });
     return () => {
       unsubscribe();
-      host.stop();
       hostRef.current = null;
     };
   }, [replica]);

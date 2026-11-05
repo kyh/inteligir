@@ -54,17 +54,6 @@ export const setAnnotationMeta = (path: string, meta: AnnotationMeta): void => {
   useAnnotationSurface.setState((state) => ({ meta: new Map(state.meta).set(path, meta) }));
 };
 
-export const clearAnnotationMeta = (path: string): void => {
-  useAnnotationSurface.setState((state) => {
-    if (!state.meta.has(path)) {
-      return state;
-    }
-    const next = new Map(state.meta);
-    next.delete(path);
-    return { meta: next };
-  });
-};
-
 export const setPendingNote = (pending: PendingNote | null): void => {
   useAnnotationSurface.setState({ pendingNote: pending });
 };

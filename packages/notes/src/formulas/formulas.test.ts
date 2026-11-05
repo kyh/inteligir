@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { frontmatterId } from "../markdown/frontmatter";
-import { collectFormulas, formulasById } from "./collect-formulas";
+import { formulasIn } from "../test-support/formulas-in";
+import { formulasById } from "./collect-formulas";
 import type { CollectedFormula } from "./collect-formulas";
 import { evaluateExpression, parseExpression } from "./expression";
 import { formatResult } from "./format-result";
@@ -103,30 +103,9 @@ describe("metadata", () => {
   });
 });
 
-describe("collection", () => {
-  it("collects pills with their kinds and skips fenced literals", () => {
-    const md = [
-      "---",
-      "id: 9e64c3df-c1e2-4a4d-8c07-91528f422413",
-      "---",
-      "",
-      "A one-off {{2+2|4}} and a symbolic {{time|9am|id=t1}}.",
-      "",
-      "```",
-      "{{3+3|6}} literal",
-      "```",
-      "",
-    ].join("\n");
-    expect(frontmatterId(md)).toBe("9e64c3df-c1e2-4a4d-8c07-91528f422413");
-    const formulas = collectFormulas(md);
-    expect(formulas).toHaveLength(2);
-    expect(formulas[0]?.expression).not.toBeNull();
-    expect(formulas[1]?.expression).toBeNull();
-    expect(formulas[1]?.meta.id).toBe("t1");
-  });
-
+describe("formulas by id", () => {
   it("first instance wins for linked ids", () => {
-    const formulas = collectFormulas("{{1|1|id=a;name=x}} and {{2|2|id=a;name=x}}\n");
+    const formulas = formulasIn("{{1|1|id=a;name=x}} and {{2|2|id=a;name=x}}\n");
     expect(formulasById(formulas).get("a")?.source).toBe("1");
   });
 });
@@ -139,7 +118,7 @@ describe("the graph (the skill's own type-scale example)", () => {
   ].join("\n\n");
 
   it("resolves a bound reference through the same note", () => {
-    const formulas = collectFormulas(`${doc}\n`);
+    const formulas = formulasIn(`${doc}\n`);
     const [, bound] = formulas;
     expect(bound?.expression).not.toBeNull();
     if (bound === undefined || bound.expression === null) {
@@ -155,7 +134,7 @@ describe("the graph (the skill's own type-scale example)", () => {
   });
 
   it("answers cyclic for a reference loop", () => {
-    const cyclic = collectFormulas(
+    const cyclic = formulasIn(
       [`{{@(b#${NOTE}#idb)+1|0|id=ida;name=a}}`, `{{@(a#${NOTE}#ida)+1|0|id=idb;name=b}}`, ""].join(
         "\n",
       ),
@@ -174,7 +153,7 @@ describe("the graph (the skill's own type-scale example)", () => {
   });
 
   it("answers missing-ref for an absent note or id", () => {
-    const formulas = collectFormulas(`{{@(x#other-note#nope)+1|0|id=ida}}\n`);
+    const formulas = formulasIn(`{{@(x#other-note#nope)+1|0|id=ida}}\n`);
     const [first] = formulas;
     if (first === undefined || first.expression === null) {
       throw new Error("expected an executable pill");
@@ -184,8 +163,8 @@ describe("the graph (the skill's own type-scale example)", () => {
   });
 
   it("resolves across notes", () => {
-    const other = collectFormulas("{{100|100|id=base;name=base}}\n");
-    const local = collectFormulas(`{{@(base#other#base)*2|200|id=d}}\n`);
+    const other = formulasIn("{{100|100|id=base;name=base}}\n");
+    const local = formulasIn(`{{@(base#other#base)*2|200|id=d}}\n`);
     const [first] = local;
     if (first === undefined || first.expression === null) {
       throw new Error("expected an executable pill");
@@ -206,7 +185,7 @@ const vault = (notes: Readonly<Record<string, string>>) => {
   const read = async (noteId: string): Promise<CollectedFormula[] | null> => {
     reads.push(noteId);
     const markdown = notes[noteId];
-    return await Promise.resolve(markdown === undefined ? null : collectFormulas(markdown));
+    return await Promise.resolve(markdown === undefined ? null : formulasIn(markdown));
   };
   return { read, reads };
 };
@@ -230,7 +209,7 @@ describe("loading the graph", () => {
       b: "{{@(c#c#fc)+1|0|id=fb;name=b}}\n",
       c: "{{40|40|id=fc;name=c}}\n",
     });
-    const local = collectFormulas("{{@(b#b#fb)*2|0|id=fa;name=a}}\n");
+    const local = formulasIn("{{@(b#b#fb)*2|0|id=fa;name=a}}\n");
 
     expect(await resolveFirst(local, read)).toEqual({ ok: true, value: 82 });
     expect(reads).toEqual(["b", "c"]);
@@ -240,7 +219,7 @@ describe("loading the graph", () => {
     const { read, reads } = vault({
       b: "{{@(a#a#fa)+1|0|id=fb;name=b}}\n",
     });
-    const local = collectFormulas("{{@(b#b#fb)+1|0|id=fa;name=a}}\n");
+    const local = formulasIn("{{@(b#b#fb)+1|0|id=fa;name=a}}\n");
 
     expect(await resolveFirst(local, read)).toEqual({ ok: false, reason: "cyclic" });
     expect(reads).toEqual(["b"]);
@@ -251,7 +230,7 @@ describe("loading the graph", () => {
       b: "{{@(c#c#fc)+1|0|id=fb;name=b}}\n",
       c: "{{40|40|id=fc;name=c}}\n",
     });
-    const local = collectFormulas("{{@(b#b#fb)*2|0|id=fa;name=a}}\n");
+    const local = formulasIn("{{@(b#b#fb)*2|0|id=fa;name=a}}\n");
 
     expect(await resolveFirst(local, read, 1)).toEqual({ ok: false, reason: "missing-ref" });
     expect(reads).toEqual(["b"]);

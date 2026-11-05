@@ -5,19 +5,16 @@
 // must; a pass no row names fails, named by the function that ran it.
 
 import { serializeMd } from "@platejs/markdown";
-import { act, render } from "@testing-library/react";
+import { act } from "@testing-library/react";
 import { createSlateEditor, TextApi } from "platejs";
 import type { Point, SlateEditor, TElement } from "platejs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
-import { getLiveEditor } from "@repo/editor/live-editor";
-import { MarkdownEditor } from "@repo/editor/markdown-editor";
 import { MD_STRINGIFY, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { blockId } from "@repo/editor/node-props";
-import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
+import { mountItem } from "./test-support/memory-item";
 
 import { generateLongNote } from "./test-support/markdown-doc-generator";
 
@@ -31,7 +28,7 @@ const SEED = 704;
 const LONG_LINES = 10_000;
 const SHORT_LINES = LONG_LINES / 8;
 const KEYSTROKES = 6;
-// past the serialize debounce and the formula recompute behind it
+// past the item's pause before it writes, and the formula recompute beside it
 const SETTLE_MS = 1000;
 
 // every inline construct of the dialect, so a pass over any one kind of them reaches this block
@@ -226,7 +223,7 @@ const expectBudget = (
   const stale = allowed.filter((pass) => !observed.has(pass));
   expect(
     over,
-    `${moment} walked the whole note through ${over.join(", ")}; its budget is ${String(allowed.length)} passes, ${allowed.join(", ")}. Take the pass off this path (a cache keyed by the top-level block, as toc.tsx and note-stats.ts keep, walks only the block that changed), or add a row with the reason it must run.`,
+    `${moment} walked the whole note through ${over.join(", ")}; its budget is ${String(allowed.length)} passes, ${allowed.join(", ")}. Take the pass off this path (a cache keyed by the top-level block, as toc.tsx keeps, walks only the block that changed), or add a row with the reason it must run.`,
   ).toEqual([]);
   expect(
     stale,
@@ -280,29 +277,19 @@ const moveCaret = async (editor: SlateEditor, to: Point): Promise<void> => {
   });
 };
 
-const openNote = async (path: string, lines: number): Promise<OpenNote> => {
-  const store = createOpenNoteStore();
-  store.publishOpenPath(path);
+const openNote = async (itemId: string, lines: number): Promise<OpenNote> => {
   // Plate leaves NodeIdPlugin off under NODE_ENV=test; the app runs it, and the fold and the drag
-  // handle key every block by its id, so without it they would do none of their work here.
+  // handle key every block by its id, so without it they would do none of their work here. The
+  // editor is made in the mount's first render, before the item's read is awaited.
   vi.stubEnv("NODE_ENV", "development");
-  const view = render(
-    <OpenNoteStoreProvider store={store}>
-      <MarkdownEditor path={path} value={noteOf(lines)} onChange={() => {}} />
-    </OpenNoteStoreProvider>,
-  );
+  const mounting = mountItem(itemId, noteOf(lines));
   vi.unstubAllEnvs();
+  const { editor, unmount } = await mounting;
   await settle();
-  const editor = getLiveEditor(path);
-  const watched = editor?.children.at(-2);
-  const closing = editor?.children.at(-1);
-  if (
-    editor === null ||
-    watched === undefined ||
-    closing === undefined ||
-    blockId(watched) === undefined
-  ) {
-    throw new Error("the note opens rich, with node ids");
+  const watched = editor.children.at(-2);
+  const closing = editor.children.at(-1);
+  if (watched === undefined || closing === undefined || blockId(watched) === undefined) {
+    throw new Error("the item opens rich, with node ids");
   }
   // Slate's own way to swap a value outside an operation: NodeIdPlugin clones an inserted node, so
   // an insert would never put the watched block itself in the document.
@@ -321,7 +308,7 @@ const openNote = async (path: string, lines: number): Promise<OpenNote> => {
     editor,
     elsewhere: textEdge(editor, Math.floor(middle / 2), "start"),
     typeAt,
-    unmount: view.unmount,
+    unmount,
   };
 };
 
@@ -396,10 +383,10 @@ describe(`typing in a ${String(LONG_LINES)}-line note`, () => {
     vi.stubGlobal("ResizeObserver", ResizeObserverStub);
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
     installFakeEditorHost();
-    const small = await openNote("short.md", SHORT_LINES);
+    const small = await openNote("short", SHORT_LINES);
     short = await measure(small);
     small.unmount();
-    const note = await openNote("long.md", LONG_LINES);
+    const note = await openNote("long", LONG_LINES);
     long = await measure(note);
     observed = await observe(note);
     note.unmount();

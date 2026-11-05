@@ -7,8 +7,7 @@ import type { SlateEditor } from "platejs";
 const editors = new Map<string, SlateEditor>();
 // weak: a strong reverse map would pin every editor a session built.
 const paths = new WeakMap<SlateEditor, string>();
-// one channel for a registration and an edit alike: the column shows one note, so a reader
-// re-checking its snapshot on a change it does not care about costs a lookup
+// told of each registration and each unregistration
 const listeners = new Set<() => void>();
 
 const notify = (): void => {
@@ -34,12 +33,6 @@ export const registerLiveEditor = (path: string, editor: SlateEditor): (() => vo
       notify();
     }
   };
-};
-
-// Slate has one onChange slot and the Plate surface owns it, so the surface announces each
-// edit here for the readers outside its tree.
-export const announceLiveEditorEdit = (): void => {
-  notify();
 };
 
 export const getLiveEditor = (path: string): SlateEditor | null => editors.get(path) ?? null;

@@ -122,7 +122,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     writeVaultAsset: async () => await Promise.reject(new Error("read-only")),
   };
 
-  const uninstall = installEditorHost({
+  installEditorHost({
     actions: {
       agent: options.agent ?? { askAboutSelection: ignore, showTag: ignore },
       annotations: options.annotations ?? {
@@ -134,5 +134,5 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     io,
   });
 
-  return { calls, uninstall };
+  return { calls };
 };

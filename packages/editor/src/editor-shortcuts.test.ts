@@ -1,7 +1,7 @@
 // jsdom cannot host Plate's editable (slate's hasEditableTarget needs a real
 // isContentEditable), so the plugin's onKeyDown body is driven with a structural event.
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createPlateEditor } from "platejs/react";
 import type { PlateEditor } from "platejs/react";
 import type { Value } from "platejs";
@@ -15,8 +15,6 @@ import type { EditorShortcut, ShortcutKeyEvent } from "@repo/editor/editor-short
 import { ANNOTATION_SHORTCUTS } from "@repo/editor/annotations/annotation-kit";
 import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { registerLiveEditor } from "@repo/editor/live-editor";
-import { registerNoteTitleFocus } from "@repo/editor/note-title-focus";
 
 const press = (
   editor: PlateEditor,
@@ -84,37 +82,6 @@ describe("editor shortcuts", () => {
     expect(editor.children[0]).toMatchObject({ checked: false, listStyleType: "todo" });
     press(editor, "c", 67, { shift: true });
     expect(editor.children[0]).not.toHaveProperty("listStyleType");
-  });
-
-  it("⌘T focuses the title of the note the pressed editor serves", () => {
-    const editorA = mount(PARAGRAPH);
-    const editorB = mount(PARAGRAPH);
-    const offEditors = [registerLiveEditor("a.md", editorA), registerLiveEditor("b.md", editorB)];
-    const focusA = vi.fn<() => void>();
-    const focusB = vi.fn<() => void>();
-    const offTitleA = registerNoteTitleFocus("a.md", focusA);
-    const offTitleB = registerNoteTitleFocus("b.md", focusB);
-    try {
-      expect(press(editorB, "t", 84).claimed).toBe(true);
-      expect(focusB).toHaveBeenCalledTimes(1);
-      expect(focusA).not.toHaveBeenCalled();
-
-      offTitleB();
-      expect(press(editorA, "t", 84).claimed).toBe(true);
-      expect(focusA).toHaveBeenCalledTimes(1);
-      expect(focusB).toHaveBeenCalledTimes(1);
-    } finally {
-      offTitleA();
-      offTitleB();
-      for (const off of offEditors) {
-        off();
-      }
-    }
-  });
-
-  it("⌘T leaves the key alone when the pressed editor has no mounted title", () => {
-    const editor = mount(PARAGRAPH);
-    expect(press(editor, "t", 84).claimed).toBe(false);
   });
 
   it("⌘L and ⌘⇧L toggle bulleted and numbered lists", () => {
