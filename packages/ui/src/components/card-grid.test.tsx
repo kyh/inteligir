@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
 import type { ComponentProps } from "react";
+import { createPortal } from "react-dom";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { CardGrid } from "./card-grid";
@@ -98,5 +99,26 @@ describe("the card grid", () => {
     const handleRef = createRef<CardGridHandle>();
     mount({ handleRef });
     expect(handleRef.current?.scrollToCell).toBeTypeOf("function");
+  });
+
+  // React bubbles a portal's keys to its React parents, so a cell's popup under <body> would
+  // otherwise move the light or delete the selection while the person reads it
+  it("takes the keys pressed in its cells, never those of a popup a cell opened", () => {
+    const onKeyDown = vi.fn();
+    mount({
+      count: 1,
+      onKeyDown,
+      renderCell: () => (
+        <MediaCard aria-label="card 0" tabIndex={0}>
+          {createPortal(<input aria-label="Note on the card" />, document.body)}
+        </MediaCard>
+      ),
+    });
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Note on the card" }), {
+      key: "Delete",
+    });
+    expect(onKeyDown).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getByRole("gridcell", { name: "card 0" }), { key: "Delete" });
+    expect(onKeyDown).toHaveBeenCalledTimes(1);
   });
 });

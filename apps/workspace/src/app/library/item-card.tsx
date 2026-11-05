@@ -15,6 +15,7 @@ import {
   MediaCardTitle,
 } from "@repo/ui/components/media-card";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
+import { landedInside } from "@repo/ui/lib/landed-inside";
 import {
   CloudUploadIcon,
   FileTextIcon,
@@ -165,7 +166,12 @@ export const ItemCard = ({
       tabIndex={tabStop ? 0 : -1}
       data-item-id={row.id}
       aria-label={row.title}
+      // each gesture is the card's only where it landed on the card: the unread reason's popover
+      // is its child in React's tree, and a double-click selecting a word there would open the item
       onClick={(event) => {
+        if (!landedInside(event)) {
+          return;
+        }
         onPress(row, event);
         // a double-click opens on its second click, never on the `dblclick` after it: the click
         // before it can have re-rendered this card into a new element, where the `dblclick` lands
@@ -175,12 +181,15 @@ export const ItemCard = ({
         }
       }}
       onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
-        if (event.key === "ContextMenu") {
+        if (landedInside(event) && event.key === "ContextMenu") {
           event.preventDefault();
           onMenu(row, event.currentTarget);
         }
       }}
       onContextMenu={(event) => {
+        if (!landedInside(event)) {
+          return;
+        }
         event.preventDefault();
         onMenu(row, event.currentTarget);
       }}

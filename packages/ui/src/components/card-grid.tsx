@@ -13,6 +13,7 @@ import { Fragment, useEffect, useImperativeHandle, useLayoutEffect, useRef, useS
 import type { KeyboardEventHandler, ReactNode, RefObject } from "react";
 
 import { cn } from "@repo/ui/lib/cn";
+import { landedInside } from "@repo/ui/lib/landed-inside";
 
 export interface CardGridHandle {
   scrollToCell: (index: number) => void;
@@ -34,6 +35,8 @@ interface CardGridProps {
   // jsdom lays nothing out, so a suite names the box the grid would have
   initialRect?: { width: number; height: number };
   handleRef?: RefObject<CardGridHandle | null>;
+  // a key pressed in the grid's own box: a popup a cell opens is the cell's child in React's tree
+  // but sits under <body>, so its keys never reach this
   onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
   className?: string;
   "aria-label": string;
@@ -179,7 +182,11 @@ export const CardGrid = ({
       aria-multiselectable={ariaMultiselectable}
       aria-rowcount={rowCount}
       aria-colcount={columns}
-      onKeyDown={onKeyDown}
+      onKeyDown={(event) => {
+        if (landedInside(event)) {
+          onKeyDown?.(event);
+        }
+      }}
       data-slot="card-grid"
       className={cn("relative min-h-0 flex-1 overflow-y-auto outline-none", className)}
     >
