@@ -173,12 +173,13 @@ own (`.dev.vars.example`).
 | `GET /v1/socket`            | ticket            | The same socket for any client, on a minute's ticket in the query             |
 | `/v1/git/vault.git/*`       | device            | The hosted vault git remote — smart HTTP, 90 MiB push, 1 GiB stored           |
 | `POST /v1/account/delete`   | device + password | Delete the account through Better Auth's `deleteUser`                         |
-| `POST /v1/rpc/account/*`    | — or device/tab   | The account's oRPC rows: sign in or up, devices, delete, ticket               |
+| `POST /v1/rpc/account/*`    | — or device/tab   | The account's oRPC rows: sign in or up, devices, delete, ticket, extension    |
 | `POST /v1/rpc/library/*`    | device or tab     | The library's oRPC rows, forwarded to the account's library cell              |
 | `/v1/blobs/:sha`            | device or tab     | A file's bytes in R2: PUT once by its SHA-256, GET/HEAD by range              |
 | `GET /v1/exports/:id`       | device or tab     | An export's zip, by range, for seven days after it was written                |
 | `POST /connector`           | assistant token   | The connector: the library's tools, forwarded to the account's cell           |
 | `/connect/authorize`        | session           | The consent page an assistant sends the person to, after sign-in              |
+| `/connect/extension`        | session           | The site's page that hands the browser extension a credential of its own      |
 | `/.well-known/oauth-*`      | —                 | The authorization server's and the connector's metadata                       |
 | `POST /oauth/register`      | —                 | An assistant registers itself, ten an address a minute; let go 90 days unused |
 | `POST /oauth/token`         | —                 | A code (PKCE S256) or refresh token for an access token; revocation           |

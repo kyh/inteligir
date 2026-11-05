@@ -31,8 +31,7 @@ and no model is called.
 ## Read and highlight
 
 A saved page opens as its readable article; a picture, a PDF or a video opens in its own viewer.
-Highlight a passage and add a note to it, and keep a copy of a page when you want it exactly as it
-looked.
+Highlight a passage and add a note to it, wherever you saved the page from.
 
 ## Write notes
 

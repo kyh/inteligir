@@ -640,13 +640,27 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   of its own (a second sign-in, CORS on every call).
   `apps/web/src/worker/library/library-page.ts`, `apps/web/cloudflare.config.ts`.
 
-- **THE MAC'S PAGE CALLS `/v1` ACROSS ORIGINS, AND THE WORKER ANSWERS CORS FOR
-  ITS ORIGIN ALONE.** The shell serves the bundled page on `tauri://localhost`
-  (`MAC_APP_ORIGIN`), so each call, upload and export it makes is cross-origin;
-  the Worker answers the preflight and lets that origin read `/v1/rpc`,
-  `/v1/blobs` and `/v1/exports`, with no credentials, since the page sends its
-  device credential as a bearer and never a cookie. The socket opens on a
-  ticket and asks no CORS, and every other origin meets none. Rejected: the
-  shell's HTTP plugin carrying the page's calls (a second network stack, a
-  proxy in Rust for every call); a reflected origin (any page could read what a
-  cookie opened). `apps/web/src/worker/cors.ts`.
+- **TWO PAGES THE WORKER NEVER SERVED CALL `/v1` ACROSS ORIGINS, AND IT ANSWERS
+  CORS FOR THOSE ORIGINS ALONE.** The Mac's shell serves its page on
+  `tauri://localhost` (`MAC_APP_ORIGIN`) and the browser extension's worker
+  calls from its own id's origin (`EXTENSION_ORIGIN`), so each call is
+  cross-origin; the Worker answers the preflight and lets each exact origin read
+  the routes it calls (the Mac's `/v1/rpc`, `/v1/blobs` and `/v1/exports`, the
+  extension's first two), with no credentials, since both send a device
+  credential as a bearer and never a cookie. The socket opens on a ticket and
+  asks no CORS, and every other origin meets none. Rejected: the shell's HTTP
+  plugin carrying the page's calls (a proxy in Rust for every call); host
+  permissions for the extension (an install warning, and the store build's
+  activeTab alone); a reflected origin (any page could read what a cookie
+  opened). `apps/web/src/worker/cors.ts`.
+
+- **THE EXTENSION'S CREDENTIAL IS MINTED FOR THE SITE'S SESSION, ON A CLICK OF
+  THE CONNECT PAGE.** `/connect/extension` is a site route that asks the person
+  to Connect, then `account.connectExtension` mints a device credential for the
+  session's account, never a device's (a stolen bearer would mint credentials
+  outliving its own revocation), and leaves the session alone; the page hands it
+  to the committed id only and revokes one the extension did not take.
+  Rejected: connecting on load (any page linking there could fill the device
+  cap); the id from the link (a link could name another extension).
+  `apps/web/src/routes/connect/extension.tsx`,
+  `apps/web/src/worker/wire/account-router.ts`.

@@ -70,8 +70,8 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   are pinned by hand in `.github/workflows/ci.yml`, a global install riding no
   lockfile, and the Rust toolchain by `apps/desktop/rust-toolchain.toml`, beside
   the `Cargo.lock` every cargo step runs `--locked` against. The
-  browser-extension scenario passes agent-browser's `--profile` and
-  `--extension` on every call (`tools/e2e/src/scenarios/browser-extension.ts`),
+  browser-extension scenarios pass agent-browser's `--profile` and
+  `--extension` on every call (`tools/e2e/src/harness/extension-fixture.ts`),
   since agent-browser launches its browser on whichever call comes first. The
   arguments are `pnpm-workspace.yaml`'s comments.
 

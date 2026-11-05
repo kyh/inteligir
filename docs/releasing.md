@@ -13,12 +13,11 @@ outright.
 | The iPhone app     | TestFlight: the internal `Owner` group, then the `Cohort` group | `pnpm testflight:mobile` (EAS Build, submitted to App Store Connect)   |
 | The extension      | the Chrome Web Store, for Chrome, Arc, Brave, Edge and Vivaldi  | `pnpm package:extension`, uploaded to the store item                   |
 
-The three app manifests carry one version (`apps/cli`, `apps/desktop`,
-`apps/mobile`; `tools/repo-guards/src/release-versions.test.ts` refuses a
-split), while the extension keeps its own (`apps/extension/package.json`),
-since it ships on the Web Store's cadence and speaks the app only through the
-versioned `/browser` wire, and a release's notes are `CHANGELOG.md`'s top section
-(`tools/repo-guards/src/changelog.test.ts`).
+The four manifests carry one version (`apps/cli`, `apps/desktop`,
+`apps/extension`, `apps/mobile`; `tools/repo-guards/src/release-versions.test.ts`
+refuses a split), since the extension calls `/v1` as the apps do and one client
+build floor holds them all, and a release's notes are `CHANGELOG.md`'s top
+section (`tools/repo-guards/src/changelog.test.ts`).
 
 The Worker is not one of them: `.github/workflows/deploy.yml` deploys it after
 every green CI on main and moves the `deployed/web` tag to what it deployed.
@@ -68,11 +67,11 @@ The owner publishes once, when every step and every check below has passed.
 ## Once per product: the extension's store item
 
 The committed extension key (`EXTENSION_PUBLIC_KEY` in
-`packages/contract/src/browser/extension-identity.ts`) is one this repo
+`packages/contract/src/cloud/extension/extension-identity.ts`) is one this repo
 generated and threw the private half of away, so the dev build and the unpacked
 store build have a stable id before any listing. The Web Store signs the real
-item with a key of its own, and the id every installed app's native-messaging
-manifests allow must be that item's. Once:
+item with a key of its own, and the id the Worker answers CORS for and the site's
+connect page hands a credential to must be that item's. Once:
 
 1. A Chrome Web Store developer account (the one-time registration fee) on the
    owner's Google account.
@@ -89,10 +88,11 @@ manifests allow must be that item's. Once:
 
 On main, clean, at the commit to ship:
 
-1. Set `version` in `apps/cli/package.json`, `apps/desktop/package.json` and
-   `apps/mobile/package.json` to the release's `<version>`. The shell reports
-   its own version and ships the CLI's tree, each refuses a server of another
-   version, and the phone's marketing version is its package's.
+1. Set `version` in `apps/cli/package.json`, `apps/desktop/package.json`,
+   `apps/extension/package.json` and `apps/mobile/package.json` to the
+   release's `<version>`. The shell reports its own version and ships the CLI's
+   tree, each refuses a server of another version, the phone's marketing
+   version is its package's, and the extension names it in every call.
 2. Retitle `CHANGELOG.md`'s `## Unreleased` as `## <version> — <YYYY-MM-DD>`,
    and read the section once as a user would: it is the GitHub release's body,
    word for word.
@@ -102,9 +102,9 @@ On main, clean, at the commit to ship:
    version, so a change that retires a `/cloud` shape those checkouts read
    cannot raise the floor past them, and the comment names the shape this
    release retires.
-4. When `apps/extension` changed since its last upload, raise `version` in
-   `apps/extension/package.json`: the store refuses an upload whose version it
-   already holds.
+4. Every release uploads the extension (§ 6), whether or not it changed: the
+   floor names the product's version, so a store build left a release behind
+   is refused the day the floor passes it.
 
 ## 2. Gates
 
@@ -313,25 +313,33 @@ the owner's account; a spare macOS user keeps your own Keychain out of it.
 ### The browser extension
 
 Load `apps/extension/.output/chrome-mv3-store-unpacked` with Developer mode on
-in Chrome, Arc, Brave and Edge. The Mac app no longer answers the extension:
-it runs no server and writes no `NativeMessagingHosts` manifest. So these
-checks wait for the build whose extension saves to `/v1` with a credential of
-its own.
+in Chrome, Arc, Brave and Edge, against production (the store build connects
+from inteligir.com alone), with no dev build loaded.
 
+- **Chrome 148, Arc included.** Passing: each browser loads the unpacked store
+  build with no error on chrome://extensions; Arc on its Chromium is the one
+  this repo has not seen load it.
 - **The id.** Passing: chrome://extensions shows `EXTENSION_ID`
-  (`packages/contract/src/browser/extension-identity.ts`).
-- **The welcome tab** an install opens. Passing: it says the extension reached
-  the app, and names the library.
-- **Save.** The toolbar button on an article. Passing: it lands in Unsorted
-  with its title, cover and text, and a second click says it is already in
-  your library. Right-click a link, an image and a selection: each saves, the
-  selection as a highlight on the page. In the popup, Keep a copy of the page
-  adds the copy to the item.
+  (`packages/contract/src/cloud/extension/extension-identity.ts`).
+- **Connect.** The welcome tab an install opens. Passing: it offers Connect
+  your library; that opens inteligir.com/connect/extension, which signs you in
+  if it must, and Connect there says Connected; the welcome tab then says
+  whose library it saves to, and the account's devices page lists Browser
+  extension. A second browser connected the same way lists a second device.
+- **Save.** The toolbar button on an article. Passing: it lands in Unsorted,
+  read, with its title, text and, where the site lets the extension read it,
+  its cover, and a second click says it is already in your library.
+  Right-click a link, an image and a selection: each saves, the selection as a
+  highlight placed in the page's text.
+- **Offline.** Turn the network off and click the toolbar button on an article.
+  Passing: the popup says Saved when you're back online; turn it on, and within
+  a minute the page is in the library, its selection kept as a highlight.
 - **The badge.** On a chrome:// page. Passing: the toolbar badge shows "!" and
   its tooltip says Inteligir can't save this kind of page; after a save it
   shows "✓" for two seconds.
-- **No app.** On a Mac without the app. Passing: the popup offers Get
-  Inteligir for Mac.
+- **Disconnect.** The welcome page's Disconnect. Passing: the popup then
+  offers Connect Inteligir to your library to save, and the devices page shows
+  the extension revoked.
 - **No privacy prompt.** Passing: no macOS prompt names the browser, through
   every check above.
 - **The store link**, once the listing is public. Passing: Settings › Library's
@@ -704,16 +712,18 @@ refuses a server of another version, so npm and the Mac app ship as one.
    second publish of that version is refused.
 3. **The phone's cohort.** `apps/mobile/README.md` § Per release, steps 4 to
    6: What to Test, Beta App Review, then the invites.
-4. **The extension**, when step 1 raised its version. Upload
+4. **The extension.** Upload
    `apps/extension/.output/inteligir-extension-<version>.zip` to the store
    item, and keep the listing true to what it does: the description, the
    screenshots, the single-purpose statement ("saves the page you are on to
-   the Inteligir app on this Mac"), a justification for each permission
-   (`nativeMessaging` to hand the page to the app, `activeTab` and `scripting`
-   to read the page only when you click, `contextMenus` for the right-click
-   Save), the privacy practices (website content, handled on this device only,
-   never sold or transferred) and the policy URL `https://inteligir.com/privacy`.
-   Submit for review; § 7 installs what the store approves.
+   your Inteligir library"), a justification for each permission (`activeTab`
+   and `scripting` to read the page only when you click, `contextMenus` for the
+   right-click Save, `storage` to keep the sign-in and a save made offline,
+   `alarms` to send that save once you're back online), the privacy practices
+   (website content and authentication information, sent to the person's own
+   Inteligir library, never sold or transferred) and the policy URL
+   `https://inteligir.com/privacy`. Submit for review; § 7 installs what the
+   store approves.
 
 ## 7. After
 
@@ -726,8 +736,9 @@ refuses a server of another version, so npm and the Mac app ship as one.
   was.
 - **The extension.** Once the store approves this upload, install it from
   `chromewebstore.google.com/detail/<EXTENSION_ID>` in a browser with no dev
-  build loaded. Passing: chrome://extensions shows `EXTENSION_ID`, and the
-  toolbar button saves the page into the released app.
+  build loaded. Passing: chrome://extensions shows `EXTENSION_ID`, it connects
+  from inteligir.com/connect/extension, and the toolbar button saves the page
+  into the library.
 - **npm.** Passing: `npm view inteligir version` and
   `npx -y inteligir@<version> --version` both print `<version>`.
 - **The cohort.** Passing: the phone build is approved in the `Cohort` group,

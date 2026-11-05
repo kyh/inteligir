@@ -1,6 +1,6 @@
 # @repo/contract
 
-ONE contract package, THREE entry points. `@repo/contract/local` is the oRPC contract
+ONE contract package, TWO entry points. `@repo/contract/local` is the oRPC contract
 the workspace UI and the CLI compile against and `inteligir serve`
 implements; a client of it, the page's, the CLI's or the e2e harness's, is typed as
 its `LocalClient`, never a `RouterContractClient` spelled again.
@@ -9,12 +9,12 @@ Worker — and the client runtime core the CLI runs over it.
 Its `cloud/v1` is that wire as one oRPC contract on `/v1/rpc`, `account.*`
 answered by the Worker and `library.*` by the account's library cell, typed by
 every app as `V1Client`; the REST rows beside it go as their last client moves
-onto it. `@repo/contract/browser` is the wire between the browser extension and
-`inteligir native-host`, and the extension's identity.
+onto it. Its `cloud/extension` is the browser extension's identity and the
+messages the site's connect page hands it a credential with.
 
 ## Why it exists
 
-Three entries rather than one router because their compatibility obligations
+Two entries rather than one router because their compatibility obligations
 differ. `/local`'s two ends ship in one bundle, so it may break freely on any
 commit; a CLI installed apart from the app is refused by the release the
 server's `server.json` names, not kept compatible. `/cloud` is a deployed
@@ -30,14 +30,8 @@ only with a deliberate bump. The library's rows are plain contract rows: which
 of them an agent sees as a tool, and how, is decorated in the Worker
 (`apps/web/src/worker/connector/library-tools.ts`), so no client bundle carries
 MCP or OpenAPI (`oxlint.config.ts` refuses either import anywhere else).
-`/browser` is its own entry, not a corner of either:
-the extension ships on the Web Store's cadence, apart from both the app and
-the Worker, so its wire breaks only behind a version of its own
-(`BROWSER_WIRE_VERSION`, a peer below `BROWSER_WIRE_FLOOR` told to update),
-which neither the `/cloud` client build floor nor `/local`'s free breaks could
-carry; the native host adapts it to `/local`. It imports zod alone, so through
-it the extension's bundle carries nothing of the contract beyond the production
-origin it links.
+The browser extension is a `/cloud` client like the phone, its version the
+product's, so the one build floor holds it.
 
 The package is platform-neutral by construction (`lib: ["ES2023",
 "WebWorker"]`, `types: []`): it loads in the desktop page, on node, on workerd
@@ -69,9 +63,7 @@ src/
     sync/              # the session fence and the account socket that says the vault moved
     account/           # the account's rows (account-contract.ts), its deletion and the sign-up doors
     vault/             # the hosted vault's git remote and the shapes the Mac's local server reads
-  browser/             the extension's wire, behind its own version
-    browser-wire.ts    # the native host's frames, BROWSER_WIRE_VERSION and its floor
-    extension-identity.ts # the extension's key, id, origin, host names and store link
+    extension/         # the extension's key, id, origin and store link, and the connect page's messages
 ```
 
 ## Who consumes which entry
@@ -80,22 +72,19 @@ src/
   `dep-dag.test.ts` pins that per import. It also decorates the library's rows
   as the connector's tools, the one place MCP and OpenAPI meta are written.
 - **apps/cli** implements `/local` and, in `src/server/cloud/`, consumes the
-  device routes, the account socket and the hosted vault's git remote. Its `inteligir native-host`
-  (`apps/cli/src/native-host/`) answers every `/browser` frame and adapts it
-  to `/local`, and the desktop door writes the browsers' host manifests from
-  the extension's identity (`apps/cli/src/desktop/native-hosts.ts`).
+  device routes, the account socket and the hosted vault's git remote.
 - **apps/mobile** reaches `/v1` alone, the library through its replica
   (`@repo/library-replica`) and the account through `cloud/v1`, as the Mac's
   window does, and never speaks git. It reaches nothing under `/local`
   either, pinned by
   the same `dep-dag.test.ts` table (`CLOUD_ONLY_CLIENTS`) as apps/web: a phone
   install may be months stale against the deployed Worker.
-- **apps/workspace** compiles against `/local` alone, and the extension's
-  identity (`browser/extension-identity`) for the store link Settings shows,
-  as the site does.
-- **apps/extension** speaks `/browser` and links `cloud/origin`, and nothing
-  else of the contract (`BROWSER_WIRE_CLIENTS` in `dep-dag.test.ts`): a
-  browser install updates on the Web Store's cadence, not the app's.
+- **apps/workspace** reaches `/v1` through its replica and `cloud/v1`, as the
+  phone does.
+- **apps/extension** reaches `/v1` alone, the library's saves and the
+  account's sign-out through `cloud/v1` and its connect page's messages
+  through `cloud/extension`, pinned by `CLOUD_ONLY_CLIENTS` in
+  `dep-dag.test.ts`: a browser install updates on the Web Store's cadence.
 
 ## Invariants
 
@@ -131,17 +120,13 @@ src/
   `CloudClient` method). `client-outdated` ends a session as `outdated`, not
   `unauthorized`: the credential stands, and only an update moves past it
   (`sync/sync-session.ts`).
-- **`src/` holds exactly three buckets.** The cloud-never-reaches-local and
-  browser-reaches-only-zod guards populate themselves from `src/cloud` and
-  `src/browser`, so a file outside the three is one no guard reads;
-  `dep-dag.test.ts` refuses a fourth. The sanctioned crossing is
-  `local` importing a `cloud` or `browser` constant (`local/vault/vault-schema.ts`
+- **`src/` holds exactly two buckets.** The cloud-never-reaches-local guard
+  populates itself from `src/cloud`, so a file outside the two is one no guard
+  reads; `dep-dag.test.ts` refuses a third. The sanctioned crossing is
+  `local` importing a `cloud` constant (`local/vault/vault-schema.ts`
   takes the asset media-type allowlist and the hash helpers;
-  `local/cloud/cloud-schema.ts` the device name bound;
-  `local/items/items-schema.ts` the captured page's size cap) — a number copied
-  by hand passes locally and is refused at the far end as a shape error. The
-  other direction never: `/cloud` reaches no `/local` file, and `/browser`
-  reaches only its own.
+  `local/cloud/cloud-schema.ts` the device name bound) — a number copied by hand
+  passes locally and is refused at the far end as a shape error. The other direction never: `/cloud` reaches no `/local` file.
 - **Every local row declares only the error classes it can raise.** A base
   carrying every class hands each client switch unreachable branches; the
   vault rows' declared set is held against the handlers by

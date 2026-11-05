@@ -1,70 +1,85 @@
 # Decisions: @repo/extension
 
-The browser extension: what it captures, what it may reach, and its wire to the
-Mac. `AGENTS.md` § Decisions says how a bullet is written and cited.
+The browser extension: how it connects to an account, what it reads of a page,
+how it saves and waits, what it may reach, and how it builds. `AGENTS.md` §
+Decisions says how a bullet is written and cited.
 
 ## Browser extension
 
-- **THE EXTENSION CAPTURES, THE MAC EXTRACTS.** A save sends the rendered DOM,
-  cloned in the page's isolated world: no script but `application/ld+json`, no
-  form value, typed or prefilled, every rich text box emptied, each image at its
-  `currentSrc`, a `<base>` at the page's own, and, for Keep a copy of the page,
-  every readable and adopted sheet frozen in place; past
-  `CAPTURE_HTML_MAX_CHARS` it sends none and the Mac reads the url. The capture,
-  an unlisted IIFE importing only the wire's types, injects 3 KB, not zod.
-  Rejected: Readability or defuddle in the page (a second extractor, on the Web
-  Store's cadence and in every page's process, that must agree with the Mac's
-  fill). `apps/extension/src/entrypoints/capture.ts`,
-  `apps/extension/src/capture/serialize-page.ts`, `freeze-styles.ts`.
+- **THE EXTENSION IS A `/v1` CLIENT WITH A DEVICE CREDENTIAL OF ITS OWN, HANDED
+  OVER BY THE SITE'S CONNECT PAGE.** Signed in there, a click mints it a
+  credential for the session's account (`account.connectExtension`, refused to
+  a device's bearer) and sends it through `externally_connectable` to the one
+  id the committed key names; the manifest lets that page message it and no
+  other extension, the worker checks the sender's origin exactly and parses
+  the message before it keeps anything, and the page's origin becomes the
+  cloud it calls. A credential the extension did not take, or one it replaces,
+  is revoked. Rejected: a password typed into the extension (a second sign-in
+  form, on the Web Store's cadence); the Mac's app as its door (no save with
+  the Mac closed). `apps/extension/src/background/connection.ts`,
+  `apps/web/src/lib/extension-connect.ts`.
 
-- **A PAGE THE BROWSER WILL NOT SCRIPT IS SAVED BY ITS ADDRESS**, and a
-  right-clicked selection on one by Chrome's own reading of it, for the Mac to
-  place. `apps/extension/src/background/save-tab.ts`.
+- **THE EXTENSION READS THE PAGE ITSELF, OVER THE DOM THE PERSON SEES, AND SAVES
+  IT READ.** The capture clones the rendered DOM in the page's isolated world:
+  no script but `application/ld+json`, no form value or choice, typed or
+  prefilled, every rich text box emptied, each image at its `currentSrc` alone,
+  a `<base>` at the page's own; past `CAPTURE_HTML_MAX_CHARS` (2 MB) it sends
+  none. The worker reads the clone with `@repo/page-reader` over linkedom, the
+  host with no DOM of its own, and calls `items.save` with the article, the
+  facts, a cover it could read, put by its sha, and the passage selected. A
+  page it cannot script or read is saved as its link, the passage with it, for
+  the cloud's fill. Rejected: an offscreen document for `DOMParser` (a second
+  context and a permission, for the DOM linkedom already gives the cloud's
+  fill); the reader injected into the page (a megabyte parsed into every saved
+  page). `apps/extension/src/background/save-page.ts`,
+  `apps/extension/src/capture/serialize-page.ts`.
 
-- **ACTIVETAB, NEVER `<all_urls>`.** The store builds ask `activeTab`,
-  `contextMenus`, `nativeMessaging` and `scripting` and no host: the click on
-  the toolbar, the shortcut or a menu grants the one tab every save is made
-  over. Only the dev build adds the loopback hosts, so the e2e scripts its
-  fixture page without a click, and the store zip refuses a manifest carrying
-  one, or `<all_urls>` anywhere. There is no `externally_connectable`, and the
-  worker answers only the extension's own pages, so no web page can ask it
-  anything. Rejected: `<all_urls>` (an install warning that every page is
-  readable at any time, for a save that only follows a click).
-  `apps/extension/src/manifest.ts`,
+- **A SAVE IS QUEUED BEFORE ITS FIRST CALL, AS ITS ADDRESS, TITLE AND PASSAGE,
+  AND AN ALARM SENDS WHAT WAITS.** One `storage.local` key a save, so two at
+  once never write over each other; a save the cloud did not answer is sent
+  again as `items.saveLink` under its own ids, every 30 s by an alarm made
+  again at every start while one waits, and the popup says "Saved when you're
+  back online". A refusal no resend passes lets it go; a revoked credential
+  forgets the connection and every save made under it. Rejected: the page's
+  HTML in the queue (2 MB a save in a 10 MB store); a timer (the worker dies
+  30 s after its last event). `apps/extension/src/background/save-queue.ts`.
+
+- **THE CREDENTIAL AND THE QUEUE ARE STORAGE'S, AND THE WORKER HOLDS NOTHING.**
+  `storage.local` is opened to trusted contexts alone as the worker starts, so
+  the capture script it injects into a page reads neither; every listener is
+  registered in `main()`'s first turn, an async answer returns `true`, and
+  every call has a deadline under the 30 s a worker waits on a fetch.
   `apps/extension/src/entrypoints/background.ts`.
 
-- **ONE `connectNative` PER SAVE.** Each request opens its own port, posts
-  once, takes the first reply and closes, and Chrome's sentences as a port
-  closes read as no app (`…not found.`), a door for another extension
-  (`…forbidden.`) or a crash. Rejected: one port held for the worker's life (a
-  host process running for nothing, dying with the worker MV3 stops anyway, and
-  the old app's process after an update).
-  `apps/extension/src/background/ask-host.ts`.
+- **ACTIVETAB, NEVER `<all_urls>`.** The store builds ask `activeTab`,
+  `alarms`, `contextMenus`, `scripting` and `storage` and no host: the click
+  on the toolbar, the shortcut or a menu grants the one tab every save is made
+  over. The cloud answers CORS for the extension's exact origin
+  (`apps/web/src/worker/cors.ts`), so a call needs no host; a cover on another
+  site is kept only where it lets the extension read it, else the item has
+  none. Only the dev build adds `127.0.0.1`, so the e2e scripts its fixture
+  page without a click, and the store zip refuses a manifest carrying a host,
+  `<all_urls>` or a connect page but production's. Rejected: `<all_urls>` (an
+  install warning that every page is readable at any time, for a save that
+  only follows a click); the cloud's origin as a host (a second spelling of
+  what CORS answers). `apps/extension/src/manifest.ts`.
+
+- **THE BUILD FLOOR HOLDS THE EXTENSION AS IT HOLDS EVERY CLIENT.** Every call
+  names its build (`<version>+extension`) and its version is the product's
+  (`tools/repo-guards/src/release-versions.test.ts`), so the one
+  `MIN_CLIENT_BUILD` refuses an extension below it as it refuses a Mac or a
+  phone, and the popup says to update it. Rejected: a version of its own (the
+  floor would refuse it, or need a second floor per platform).
+  `apps/extension/src/background/cloud.ts`.
 
 - **THE ID IS THE COMMITTED KEY'S, AND THE STORE ZIP STRIPS IT.** The dev build
   and the unpacked store build carry `EXTENSION_PUBLIC_KEY`, so their id is
-  Chrome's derivation of it, known before any store listing and the door's one
-  allowed origin; the zip carries no key, since the Web Store signs the item
-  with its own, whose public half the owner commits once in its place
-  (`docs/releasing.md`). The dev build dials `com.inteligir.desktop.dev`, which
-  `inteligir native-host --install` writes for a checkout, and the store builds
-  `com.inteligir.desktop`, which the app writes, so neither reaches the other's
-  server. `packages/contract/src/browser/extension-identity.ts`,
+  Chrome's derivation of it, known before any store listing: the origin the
+  cloud answers CORS for and the id the connect page sends to. The zip carries
+  no key, since the Web Store signs the item with its own, whose public half
+  the owner commits once in its place (`docs/releasing.md`).
+  `packages/contract/src/cloud/extension/extension-identity.ts`,
   `apps/extension/wxt.config.ts`.
-
-- **THE WIRE IS /browser, VERSIONED AND LENIENT.** The extension ships on the
-  Web Store's cadence and the app on its own, so their wire is its own: plain
-  `z.object`s that drop the unknown, a refusal reason either end never heard of
-  read as `failed`, and each message's `v` read before its shape, a peer above
-  `BROWSER_WIRE_VERSION` told to update the app and one below
-  `BROWSER_WIRE_FLOOR` the extension. The host adapts it to `/local`, which
-  breaks freely, and never touches the library; a page never names what the
-  host keeps, since image bytes are saved only under a media type the library
-  serves as a picture. The extension reaches `@repo/contract/browser/*` and
-  `@repo/contract/cloud/origin` alone (`BROWSER_WIRE_CLIENTS` in
-  `tools/repo-guards/src/dep-dag.test.ts`).
-  `packages/contract/src/browser/browser-wire.ts`,
-  `apps/cli/src/native-host/host-requests.ts`.
 
 - **WXT BUILDS IT, AS kyh/init BUILDS ITS EXTENSION** (owner decision).
   `src/entrypoints/` holds the module worker, the popup, and the unlisted
@@ -72,17 +87,21 @@ Mac. `AGENTS.md` § Decisions says how a bullet is written and cited.
   `StrictMode`; `wxt` is the reloading dev loop, `wxt build` the dev build,
   `wxt zip --mode store` the store's. WXT takes `extensionManifest`, a function
   of the flavor (the mode), and fails a build whose manifest differs, so the
-  tests call what ships; the paths the worker injects and opens are typed
-  `PublicPath`s. Rejected: a plain Vite build (two configs, a manifest plugin
-  and two unreloading watches kept in step by hand, beside the template's
-  shape, to save one framework's cadence); CRXJS (a second framework, no
-  template). `apps/extension/wxt.config.ts`.
+  tests call what ships. Every module imports what it uses (`imports: false`),
+  the program extends `.wxt/tsconfig.json`, which `wxt prepare` writes as the
+  `generate` task the typecheck and the suites wait on, and the suites run
+  under `WxtVitest()`. The build resolves a package's `worker` export first,
+  since the worker shares the pages' chunks and has no DOM. Rejected: a plain
+  Vite build (two configs and a manifest plugin kept in step by hand); CRXJS
+  (a second framework, no template). `apps/extension/wxt.config.ts`,
+  `apps/extension/vitest.config.ts`.
 
-- **THREE THINGS kyh/init HAS NO NEED OF: A PRODUCTION ZIP, A HOOK THAT CHECKS
-  IT, AND `chrome.*`.** The zip runs under `NODE_ENV=production`, since WXT sets
-  NODE_ENV to the mode and `--mode store` alone ships React's development build.
-  The zip's hook refuses any other flavor, checks the store manifest and the
-  zip's file list, and writes the unpacked store build beside it. The worker
-  calls `chrome.*` under `@types/chrome` rather than WXT's `browser`, which on
-  Chromium, the one browser it ships to, is `chrome`.
+- **`browser.*` AT CHROME 148, AND A PRODUCTION ZIP THAT CHECKS ITSELF**
+  (owner decision). From Chrome 148 every API is under `browser`, so the
+  extension calls WXT's `browser` alone, at `minimum_chrome_version` 148; Arc
+  on that Chromium is an owner check (`docs/releasing.md` § 5). The zip runs
+  under `NODE_ENV=production`, since WXT sets NODE_ENV to the mode, and its
+  hook refuses any other flavor, checks the store manifest and the zip's file
+  list, and writes the unpacked store build beside it. Rejected: `chrome.*`
+  under `@types/chrome` (a second spelling of every API).
   `apps/extension/package.json`, `apps/extension/wxt.config.ts`.

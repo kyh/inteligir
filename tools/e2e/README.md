@@ -139,8 +139,9 @@ phone's own runtime under node over its own database, signed in as the
 owner, a second one standing in for another device, with a network a
 scenario can take away (`phone-runtime.ts`); the page
 server a save's fetch may read, on this machine's own network address
-(`lan-fixture.ts`); the browser extension's door and its worker's save
-(`native-host-fixture.ts`); and the PNG reader for what a frame or a thumbnail
+(`lan-fixture.ts`); the browser extension's dev build, connected through the
+site's connect page, and its worker's save (`extension-fixture.ts`); and the PNG
+reader for what a frame or a thumbnail
 draws (`png-pixels.ts`).
 
 ## Adding a scenario

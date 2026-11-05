@@ -1,11 +1,11 @@
 # @repo/extension — the browser's Save
 
 The Chromium extension (Chrome, Arc, Brave, Edge, Vivaldi): a toolbar button
-and a right-click Save that capture the page you're on and hand it to the
-Inteligir Mac app on the same machine, through `inteligir native-host`. It
-never talks to the network, the account or the library itself: the host it
-dials adapts the versioned `/browser` wire (`@repo/contract/browser`) to the
-running app's `/local`, and the app reads, fills and files the page.
+and a right-click Save that read the page you're on and save it to your
+Inteligir library over `/v1`, with a device credential of its own, so a save
+needs no app open. It connects to an account through the site's
+`/connect/extension` page, reads the page with `@repo/page-reader`, and keeps a
+save the cloud did not answer until it does.
 
 ## The build
 
@@ -15,35 +15,39 @@ WXT builds it from `src/entrypoints/` (`wxt.config.ts`). `pnpm --filter
 checked against `src/manifest.ts`), the popup and welcome pages, the
 `background.js` service worker and the `capture.js` script `executeScript`
 injects (an unlisted script, one IIFE). A build's flavor is its mode: `wxt` and
-`wxt build` dial `com.inteligir.desktop.dev` and carry the committed key and
-the loopback hosts, `--mode store` dials `com.inteligir.desktop`.
-`pnpm package:extension` (`NODE_ENV=production wxt zip --mode store`) writes the Web Store zip,
+`wxt build` carry the committed key, connect from a local Worker on
+`localhost` and may script `127.0.0.1`; `--mode store` connects from
+inteligir.com alone. `pnpm package:extension` (`NODE_ENV=production wxt zip
+--mode store`) writes the Web Store zip,
 `.output/inteligir-extension-<version>.zip`, after checking it, and the
 unpacked store build beside it at `.output/chrome-mv3-store-unpacked`.
+`wxt prepare` (the `generate` task) writes `.wxt/`, the tsconfig and types the
+program extends.
 
 ## The pieces
 
 ```
-wxt.config.ts                   the build: the manifest, the host it dials, the store zip's checks
-src/manifest.ts                 the MV3 manifest, one function of the build's flavor
-src/entrypoints/background.ts   the service worker: the menus, the pages' requests, the badge
-src/entrypoints/capture.ts      the script executeScript injects: the rendered DOM, cloned
-src/entrypoints/popup/          the toolbar's popup: the save, Keep a copy of the page, Open Inteligir
-src/entrypoints/welcome/        the page an install opens: which library it reached
-src/background/ask-host.ts      one connectNative per request, Chrome's errors as reasons
-src/background/save-tab.ts      a tab's capture, and the save it asks for
-src/background/menus.ts         what each right-click item saves
-src/capture/                    the capture's clone of the page and its frozen styles
-src/messages.ts                 what the pages ask the worker, and its answers
-src/outcome-copy.ts             every sentence the popup, the welcome page and the badge say
+wxt.config.ts                     the build: the manifest, the store zip's checks
+src/manifest.ts                   the MV3 manifest, one function of the build's flavor
+src/entrypoints/background.ts     the service worker: its listeners, the menus, the badge
+src/entrypoints/capture.ts        the script executeScript injects: the rendered DOM, cloned
+src/entrypoints/popup/            the toolbar's popup: the save and how it went
+src/entrypoints/welcome/          the page an install opens: the account it saves to, or Connect
+src/background/connection.ts      the credential, kept in storage, and the connect page's messages
+src/background/cloud.ts           the /v1 calls, their deadline and what a failure means
+src/background/save-page.ts       a tab, a link or a picture saved
+src/background/save-queue.ts      a save that waits, and the alarm that sends it
+src/background/capture-tab.ts     the capture injected, and a cover's bytes fetched
+src/background/menus.ts           what each right-click item saves
+src/capture/                      the capture's clone of the page and the shape it answers
+src/messages.ts                   what the pages ask the worker, and its answers
+src/outcome-copy.ts               every sentence the popup, the welcome page and the badge say
 ```
 
-The pages ask the worker, the worker asks the host, and the host asks the app:
-the wire to the host is `@repo/contract/browser`, versioned on its own, and the
-extension imports nothing else of the contract but the production origin its
-download link names. `pnpm dev:extension` (`docs/development.md` § Browser
-extension) writes this checkout's door, then runs `wxt`, which rebuilds
-`.output/chrome-mv3-dev` and reloads the extension on every change;
-`pnpm --filter @repo/extension test` runs the suites under jsdom, the pages
-compiled as they ship, and `pnpm e2e --only browser-extension` loads the dev
-build in a real Chromium against a running app.
+The pages ask the worker, and the worker asks the cloud. `pnpm
+dev:extension` (`docs/development.md` § Browser extension) runs `wxt`, which
+rebuilds `.output/chrome-mv3-dev` and reloads the extension on every change;
+`pnpm --filter @repo/extension test` runs the suites under `WxtVitest()` and
+jsdom, the pages compiled as they ship, and `pnpm e2e --only
+browser-extension` loads the dev build in a real Chromium against a booted
+Worker.

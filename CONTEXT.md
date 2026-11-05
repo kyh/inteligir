@@ -259,10 +259,10 @@ dedupes by it and `item find` matches by it. Not what `url:` holds: that is
 `cleanUrl`, which drops only the userinfo and the tracking parameters, and
 the key is never stored.
 
-**page copy** — "Keep a copy of the page": a single-file, script-free HTML
-snapshot of a saved page, stored by its hash under `assets/pages/`
-(`PAGES_DIR` in `@repo/notes/items/item-kind`) and linked from the item's
-body, opt-in per item. It is served by its own sandboxed route
+**page copy** — a single-file, script-free HTML snapshot of a saved page,
+stored by its hash under `assets/pages/` (`PAGES_DIR` in
+`@repo/notes/items/item-kind`) and linked from the item's body; in the library,
+an item's `copySha`, which only an import brings. It is served by its own sandboxed route
 (`PAGE_COPY_PATH` in `@repo/contract/local/routes`), never the asset route.
 Not the article text, which every fill writes into the item itself.
 
@@ -396,8 +396,10 @@ changes elsewhere in the block land, and this device's lines are kept where
 they overlap (`@repo/editor/stale-write`'s block merge). There is no conflict
 state to clear.
 
-**Keep a copy of the page** — the PAGE COPY: the extension popup's way to keep a
-saved page as it looked, beside the article text every fill writes.
+**Connect your library** — the browser extension's sign-in: the site's
+`/connect/extension` page hands the extension a DEVICE CREDENTIAL of its own
+for the signed-in account, and the account's devices list it as Browser
+extension (`apps/extension/src/background/connection.ts`).
 
 **Account**, **Devices** and **Connected assistants** — Settings › Account: an
 inteligir account (Better Auth, in `apps/web`), the apps signed in to it, each

@@ -256,12 +256,18 @@ The apps also hold to these, plainly:
   page itself is not kept.
 - **The browser extension.** The Inteligir extension for Chrome, Arc, Brave,
   Edge and Vivaldi reads the page you are on only when you click Save or choose Save from
-  the right-click menu. It hands the page as it is shown (its address, its
-  title and its HTML without its scripts, with the styles it is drawn in when
-  you ask for a copy of the page) to the Inteligir app on the same Mac, over the
-  browser's native messaging, and to nothing else. It sends nothing to us or to
-  anyone. Nothing you typed into the page goes with it: form fields and every
-  box you type into, such as an email you are writing, are emptied first.
+  the right-click menu. It reads the page as it is shown (its address, its
+  title and its HTML without its scripts) in your browser, and sends what it
+  read, the page's text, the facts it gives about itself and its cover
+  picture, to your Inteligir library in our cloud, signed in with a key of its
+  own that inteligir.com/connect/extension gave it, which you can revoke from
+  your devices. It fetches the cover picture the page names, without your
+  cookies, and nothing else. Nothing you typed into the page goes with it: form
+  fields, the choices a page filled in for you and every box you type into,
+  such as an email you are writing, are emptied first. A save made while you
+  are offline waits in the browser's storage for the extension as the page's
+  address, title and the passage you selected, and is sent, for our cloud to
+  read, once you are back online.
 - **Sharing from your iPhone.** Sharing a page to Inteligir has the phone fetch
   the page as above and save what it read, its address, title, text and
   cover, into your library, like any other edit on the phone; text you share
