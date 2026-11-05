@@ -80,7 +80,6 @@ try {
       "the dialect skills",
       nodePath.join(installRoot, "dist", "skills", "inteligir-notes", "SKILL.md"),
     ],
-    ["the workspace UI", nodePath.join(installRoot, "dist", "ui", "index.html")],
     ["the starter vault", nodePath.join(installRoot, "seed", "Welcome.md")],
   ] as const) {
     if (!existsSync(path)) {
@@ -133,16 +132,6 @@ try {
   // read once the server listens, which is when it publishes the file
   const token = readServerToken(dataDir);
   const rpc = rpcClient(baseUrl, token);
-
-  // with the bearer: a request carrying no credential gets the signed-out page instead
-  const shell = await fetch(baseUrl, {
-    headers: { accept: "text/html", authorization: `Bearer ${token}` },
-  });
-  const html = await shell.text();
-  if (!shell.ok || !html.includes("<title>inteligir</title>")) {
-    fail(`the SPA shell did not answer (${shell.status}, ${html.length} bytes)`);
-  }
-  log(`SPA shell -> ${shell.status} ${html.length} bytes`);
 
   const vaultList = await rpc("vault/tree", vaultTreeSchema);
   log(`vault tree -> ${vaultList.entries.length} entries`);

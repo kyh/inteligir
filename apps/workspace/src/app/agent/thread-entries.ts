@@ -117,12 +117,18 @@ export interface ToolUse {
 
 // what a conversation draws, in order: a message either way, a run of the agent's work between
 // them (its notes and its calls), an answered approval, and a turn's end
+// a progress note of the agent's, keyed by the event that carried it
+export interface WorkNote {
+  readonly eventId: string;
+  readonly text: string;
+}
+
 export type ThreadBlock =
   | { readonly kind: "entry"; readonly key: string; readonly entry: ThreadEntry }
   | {
       readonly kind: "work";
       readonly key: string;
-      readonly notes: readonly string[];
+      readonly notes: readonly WorkNote[];
       readonly uses: readonly ToolUse[];
     };
 
@@ -133,7 +139,7 @@ const isWork = (entry: ThreadEntry): boolean =>
 
 export const threadBlocks = (entries: readonly ThreadEntry[]): ThreadBlock[] => {
   const blocks: ThreadBlock[] = [];
-  let notes: string[] = [];
+  let notes: WorkNote[] = [];
   let uses: ToolUse[] = [];
   let key: string | null = null;
   const close = (): void => {
@@ -156,7 +162,7 @@ export const threadBlocks = (entries: readonly ThreadEntry[]): ThreadBlock[] => 
     key ??= entry.eventId;
     const { event } = entry;
     if (event.type === "agent.progress") {
-      notes.push(event.text);
+      notes.push({ eventId: entry.eventId, text: event.text });
     } else if (event.type === "agent.tool_use") {
       uses.push({ answered: false, failure: null, name: event.name, toolUseId: event.toolUseId });
     } else if (event.type === "agent.tool_result") {

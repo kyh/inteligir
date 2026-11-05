@@ -118,11 +118,9 @@ const requireBuilt = (file: string): void => {
   }
 };
 
-// both modes serve dist/ui: a server with no workspace UI answers the API and 404s the browser.
 // built runs the bundle directly, as the bin does for a published install, because in a checkout
 // the bin always picks the source.
 const resolveCommand = (cliDir: string, mode: LaunchMode): LaunchCommand => {
-  requireBuilt(path.join(cliDir, "dist", "ui", "index.html"));
   if (mode === "source") {
     return { argv: ["serve"], env: {}, file: path.join(cliDir, "bin", "inteligir") };
   }

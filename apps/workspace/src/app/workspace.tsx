@@ -436,11 +436,11 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     if (scope.kind === "deleted") {
       return undefined;
     }
-    const selected = [...selection.store.getState().selected];
+    const picked = [...selection.store.getState().selected];
     const library: Extract<AgentViewContext, { surface: "library" }> = {
-      itemIds: selected.slice(0, LIBRARY_SELECTION_MAX),
+      itemIds: picked.slice(0, LIBRARY_SELECTION_MAX),
       scope,
-      selected: selected.length,
+      selected: picked.length,
       surface: "library",
     };
     if (kind !== null) {

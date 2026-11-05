@@ -123,8 +123,8 @@ which rotates at 5 MiB into one `server.log.1`
 (`apps/desktop/src-tauri/src/server_log.rs`); Show log reveals it. A server the
 shell adopted is not its child, so neither the switch nor the log reaches it.
 
-The prod path is `pnpm package:cli`, which bundles the server, the CLI and the
-staged workspace UI into `apps/cli/dist`; `inteligir serve` then runs plain
+The prod path is `pnpm package:cli`, which bundles the server and the CLI into
+`apps/cli/dist`; `inteligir serve` then runs plain
 `node` on port 4664. `pnpm package:desktop` stages that same package with its
 production dependencies as the .app's resource, beside the node it runs on and
 the git a Mac without the developer tools runs (both fetched and pinned at

@@ -604,7 +604,12 @@ export interface HistoryInput {
 }
 
 // the filter a listing narrows to: one item's sets, one conversation's, or the library's newest
-const historyFilter = (input: HistoryInput): { where: string; params: string[] } => {
+interface HistoryFilter {
+  readonly where: string;
+  readonly params: readonly string[];
+}
+
+const historyFilter = (input: HistoryInput): HistoryFilter => {
   if (input.itemId !== undefined) {
     return {
       params: [input.itemId],

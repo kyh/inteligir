@@ -224,16 +224,15 @@ session itself. Connectors are the default agent's own MCP config, read and
 edited through the same bundled binary and spawn policy
 (`src/server/connectors/vendor-mcp-config.ts`); the app keeps no registry.
 
-Four trees are staged as CONTENT rather than code: the committed SQL
-migrations, the dialect skills the agent reads with its own shell, the
-workspace UI — `@repo/workspace`'s app page — which `serve` answers over plain
-HTTP so `--open` lands a browser in the product, and `tools/licenses` as
-`dist/licenses`, because the repo-root path no `files` glob can name is where
-the vendored sources' notices live. The migrations resolve SOURCE-FIRST — the
-staged copy answers only where `@repo/db` cannot be resolved, because `dist/`
-is the ordinary state of a worked-in checkout and a frozen snapshot would
-migrate a dev database past what the running code carries. The UI stays
-staged-first, which is why the two resolvers read differently.
+Three trees are staged as CONTENT rather than code: the committed SQL
+migrations, the dialect skills the agent reads with its own shell, and
+`tools/licenses` as `dist/licenses`, because the repo-root path no `files` glob
+can name is where the vendored sources' notices live. The migrations resolve
+SOURCE-FIRST — the staged copy answers only where `@repo/db` cannot be
+resolved, because `dist/` is the ordinary state of a worked-in checkout and a
+frozen snapshot would migrate a dev database past what the running code
+carries. The library's page is the Worker's now (`apps/web`), so `serve`
+answers no page of its own.
 
 `pnpm smoke:cli` proves all of it against a real `npm install` of the packed
 tarball: the layout (every file the build emitted, chunks included), the
@@ -265,12 +264,9 @@ any procedure runs (`json-flag-enforcement.test.ts`). There is no second
 implementation of `/local` to drift from it. The server's own suites sit beside
 the modules they test under `src/server/`; the cloud ones run against a fake
 cloud that answers the device and account routes as the Worker does
-(`src/server/cloud/test-support/fake-cloud.ts`). The workspace UI's suites
-that boot this server in-process sit under `src/workspace/`, in the package that
-holds the harness they use (`src/server/test-support/boot-app.ts`), so the page
-never depends on this package: the `.booted.test.tsx` ones render the page under
-jsdom, the rest drive its modules with nothing rendered and fail a test that
-logs a `console.error`, as the page's own suites do (`vitest.config.ts`, a
-project each), and `src/workspace/tsconfig.json` compiles them with the DOM.
+(`src/server/cloud/test-support/fake-cloud.ts`). The suites that hold the
+editor's serializer to this server's seed and its highlight placement sit under
+`src/workspace/`, a project of their own (`vitest.config.ts`) that
+`src/workspace/tsconfig.json` compiles with the DOM.
 The binary as a process of its own lives in `e2e` (`cli-drive`): it drives a
 served instance under the scripted agent.

@@ -17,7 +17,7 @@ with `JsonFileStore` the per-use store over the two; the app reads
 `config.json` at boot and writes only its `vaultDir`, the selector a switch
 rewrites (`apps/cli/src/server/vault-switch.ts`). The build inlines every
 workspace package (they export TS source) and stages the migrations, the
-dialect skills, the licence texts and `@repo/workspace`'s page as `dist/ui`.
+dialect skills and the licence texts.
 
 ## Vault: writes, git and containment
 

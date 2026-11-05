@@ -132,7 +132,7 @@ const WorkBlock = ({
   live: boolean;
 }) => (
   <Thinking
-    label={block.notes.at(-1) ?? "Working"}
+    label={block.notes.at(-1)?.text ?? "Working"}
     doneLabel={
       block.uses.length === 0
         ? "Thought it through"
@@ -141,9 +141,8 @@ const WorkBlock = ({
     working={live}
     data-agent-work
   >
-    {block.notes.map((note, index) => (
-      // oxlint-disable-next-line react/no-array-index-key -- a run's notes are appended, never reordered
-      <ThinkingReasoning key={index}>{note}</ThinkingReasoning>
+    {block.notes.map((note) => (
+      <ThinkingReasoning key={note.eventId}>{note.text}</ThinkingReasoning>
     ))}
     {block.uses.length === 0 ? null : (
       <ToolChipList summary={plural(block.uses.length, "library call")}>
@@ -224,7 +223,7 @@ const Conversation = ({
   threadId: string;
   flushOpen: () => Promise<void>;
 }) => {
-  const { orpc } = useWire();
+  const { client, orpc } = useWire();
   const queryClient = useQueryClient();
   const queries = useReplicaQueries();
   const rows = useQuery(queries.threadEvents(threadId)).data ?? [];
@@ -233,13 +232,13 @@ const Conversation = ({
   const blocks = threadBlocks(entries);
   const waiting = waitingApprovals(entries);
   const preview = useLivePreview(threadId);
-  // a turn's change set seals in the push that ends it, so the list is asked again as each ends
-  const ended = rows.filter((row) => row.event.type === "turn.ended").length;
-  const listed = orpc.library.history.list.queryOptions({ input: { threadId } });
+  // a turn's change set seals in the push that ends it, so the count of ended turns is part of the
+  // list's key, and it is asked again as each turn ends, the last answer shown meanwhile
+  const ended = entries.filter((entry) => entry.event.type === "turn.ended").length;
   const sets = useQuery({
-    ...listed,
     placeholderData: keepPreviousData,
-    queryKey: [...listed.queryKey, ended],
+    queryFn: async ({ signal }) => await client.library.history.list({ threadId }, { signal }),
+    queryKey: [...orpc.library.history.list.queryKey({ input: { threadId } }), ended],
   });
   const respond = useMutation(orpc.library.agent.respond.mutationOptions({ onError: onRefused }));
   const cancel = useMutation(orpc.library.agent.cancel.mutationOptions({ onError: onRefused }));

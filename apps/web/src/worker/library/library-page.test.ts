@@ -44,7 +44,8 @@ describe("the library's page", () => {
   });
 
   it("carries the page's own policy: its scripts and SQLite's wasm, calls to this origin alone", async () => {
-    const policy = (await ask("/library")).headers.get("content-security-policy") ?? "";
+    const answered = await ask("/library");
+    const policy = answered.headers.get("content-security-policy") ?? "";
     expect(policy).toContain("script-src 'self' 'wasm-unsafe-eval'");
     expect(policy).toContain("connect-src 'self' wss://inteligir.com");
     expect(policy).toContain("frame-ancestors 'none'");
@@ -54,7 +55,8 @@ describe("the library's page", () => {
   });
 
   it("refuses a write, and says when the deploy carries no page", async () => {
-    expect((await ask("/library", "POST")).status).toBe(405);
+    const posted = await ask("/library", "POST");
+    expect(posted.status).toBe(405);
     const unbuilt = await handleLibraryPage(new Request("https://inteligir.com/library"), {
       fetch: async () => await Promise.resolve(new Response("missing", { status: 404 })),
     });

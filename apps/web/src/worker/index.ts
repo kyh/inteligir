@@ -64,27 +64,34 @@ const speaksCloudEnvelope = (pathname: string): boolean =>
   !isBlobPath(pathname) &&
   !isExportPath(pathname);
 
-// the doors a whole path names: the connector's consent page
-const PATH_ROUTES = new Map([[CONSENT_PATH, handleConsent]]);
+interface FrontDoor {
+  readonly owns: (pathname: string) => boolean;
+  readonly answer: (request: Request, env: Env, ctx: ExecutionContext) => Promise<Response>;
+}
+
+// the doors answered whole before any floor: an assistant's, which names no build and takes no
+// device credential (the token its OAuth endpoints minted, asked for on its consent page), and the
+// library's page, its document from the assets for every path under its prefix
+const FRONT_DOORS: readonly FrontDoor[] = [
+  { answer: handleConnector, owns: isConnectorPath },
+  {
+    answer: async (request, env, ctx) =>
+      await connectorAuth(env).authorizationServer.fetch(request, env, ctx),
+    owns: isAuthorizationServerPath,
+  },
+  { answer: handleConsent, owns: (pathname) => pathname === CONSENT_PATH },
+  {
+    answer: async (request, env) => await handleLibraryPage(request, env.ASSETS),
+    owns: isLibraryPagePath,
+  },
+];
 
 const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {
   const url = new URL(request.url);
 
-  // an assistant's door, which names no build and takes no device credential: the token its
-  // OAuth endpoints minted, asked for on its consent page
-  if (isConnectorPath(url.pathname)) {
-    return await handleConnector(request, env, ctx);
-  }
-  if (isAuthorizationServerPath(url.pathname)) {
-    return await connectorAuth(env).authorizationServer.fetch(request, env, ctx);
-  }
-  // the library's page, its document from the assets for every path under its prefix
-  if (isLibraryPagePath(url.pathname)) {
-    return await handleLibraryPage(request, env.ASSETS);
-  }
-  const byPath = PATH_ROUTES.get(url.pathname);
-  if (byPath !== undefined) {
-    return await byPath(request, env, ctx);
+  const door = FRONT_DOORS.find(({ owns }) => owns(url.pathname));
+  if (door !== undefined) {
+    return await door.answer(request, env, ctx);
   }
 
   // a browser's socket cannot name its build, and its ticket came from a call that met the floor

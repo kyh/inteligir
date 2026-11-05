@@ -99,7 +99,9 @@ describe("a conversation's blocks", () => {
     );
     expect(blocks.map((block) => block.kind)).toEqual(["entry", "work", "entry"]);
     const [, work] = blocks;
-    expect(work?.kind === "work" ? work.notes : null).toEqual(["Looking first."]);
+    expect(work?.kind === "work" ? work.notes : null).toEqual([
+      { eventId: `${THREAD}:1:1`, text: "Looking first." },
+    ]);
     expect(work?.kind === "work" ? work.uses.map((use) => [use.name, use.failure]) : null).toEqual([
       ["search_library", null],
       ["organize_items", "Not found."],

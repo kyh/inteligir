@@ -118,16 +118,20 @@ scratch dir and tears everything down afterwards:
   no `tauri-driver` or `WebKitWebDriver`, or no built shell.
 - `browser(label)` — an agent-browser session registered for teardown like an
   instance, so a failed or abandoned scenario still closes it. It is callable
-  with any agent-browser command, and `openWorkspace(app, { path? })`
-  signs it in through a fresh handoff and returns once the rail and the editor
-  mounted. It skips the scenario when no headless browser can launch (see CI).
+  with any agent-browser command, and `openLibrary(worker, { path?, ready? })`
+  signs it in to a booted Worker through the site's own sign-in, which comes
+  back to `/library`, and returns once the rail and `ready` mounted. It skips
+  the scenario when no headless browser can launch (see CI).
 
 Beside the context, `src/harness/` carries what the scenarios would otherwise
 each re-spell: `pollUntil` (`poll.ts`), which returns the value it waited for
 and fails with what the last read held; `untilThreadIdle`, `runTurn` and the
 scripted driver's `agentNote` (`threads.ts`); `modChord` for the platform's
-modifier key, `clickButtonIn` and `untilBodyHolds` (`agent-browser.ts`); the
-workspace and Settings selectors (`selectors.ts`); `gitIn` and `readOrNull`
+modifier key, `clickButtonIn`, `press`, `caretToEndOf` and `untilBodyHolds`
+(`agent-browser.ts`); the library page's selectors (`selectors.ts`); the
+library's tab over a booted Worker, with a device of the account to seed and
+read the cell through `/v1` (`openLibraryTab` and `untilItemText`,
+`library-tab.ts`); `gitIn` and `readOrNull`
 (`exec.ts`); the bare `inteligir` on an agent shell's PATH
 (`agent-shell-cli.ts`); the account's sign-up and device routes against a dev
 Worker (`cloud-account.ts`); `NO_AUTO_SYNC` and the one strict sync pass,
@@ -220,12 +224,10 @@ the fixture's start with "no usable LAN address". It is the one way such a
 scenario skips, and the guard is never widened for it: a CI runner's private
 address runs them all.
 
-The runner's suite-start build is what stages `apps/cli/dist/ui`; the harness
-still refuses to boot without it, because a server with no workspace UI
-answers the API and serves a 404 to the browser — a green API run beside a
-page that never loads. The Worker is built through turbo by the first scenario
-that boots one, once per run, rather than at suite start, because only the
-scenarios that boot a Worker need it.
+The Worker is built through turbo by the first scenario that boots one, once
+per run, rather than at suite start, because only the scenarios that boot a
+Worker need it; its build carries the library's page, so a browser scenario
+drives the page the Worker deploys.
 
 CI runs the suite in two lanes (`--lanes 2`), half its four-core runner, the
 same count a four-core machine's default gives, so a local default run is the
