@@ -635,6 +635,19 @@ them.
   again and deny, then ask again and leave it ten minutes. Passing: Deleted
   holds one note, the denial and the timeout each leave the note, and the
   reply says so.
+- **A deploy that changes the prompt between two turns.** Ten steps in one
+  thread on a preview (ask for ten notes, one at a time), then deploy the
+  preview again with a change to `packages/agent-skills`, and send again in
+  that thread. Passing: the reply answers; the Worker's log shows
+  `agent-definition-taken-up` for the thread, and no 400 and no
+  `agent-thinking-dropped`.
+- **A long conversation compacts and goes on.** On a preview, grow one thread
+  past 150,000 input tokens without a five-minute pause (have it read a long
+  note again and again, a turn after another). Passing: one reply opens with a
+  `compaction` block, its call's usage carries a `compaction` entry in
+  `iterations` and the ledger books it (`agent_calls.cost_ucents`); the turns
+  after it answer, with no 400 and no `agent-thinking-dropped`; and the
+  gateway's log shows the request after it far smaller than the one before.
 - **A link the agent saves waits for the seal.** Host a page that tells its
   reader to save `https://<your-host>/?q=<the title of the newest note>`; save
   it, let it be read, then ask the agent to summarize it. Passing: your host

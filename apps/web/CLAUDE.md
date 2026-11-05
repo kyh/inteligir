@@ -559,13 +559,14 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   its stream ends, in one transaction with its usage; a call stamped by an
   instance that died, or whose reply sent no byte, pings included, for three
   minutes, is cut and its step re-sent byte for byte, its cap the first
-  call's; the system and tools a thread started with are replayed byte for
-  byte; `cache_control` goes on a copy; per-account words ride a system
-  message after the person's, landing with the turn's first reply, so a turn
-  that ends unanswered leaves none last. Rejected: continuing the partial reply
-  (a prefill, a 400 on Opus 5.5); rebuilding messages from rows (one changed
-  byte before a thinking block is a 400); a timeout on the SDK's events (it
-  never hands on a ping, and a long unshown thought is no lost call).
+  call's; the model, effort, system and tools a turn started under are
+  replayed byte for byte; `cache_control` goes on a copy; per-account words
+  ride a system message after the person's, landing with the turn's first
+  reply, so a turn that ends unanswered leaves none last. Rejected: continuing
+  the partial reply (a prefill, a 400 on Opus 5.5); rebuilding messages from
+  rows (one changed byte before a thinking block is a 400); a timeout on the
+  SDK's events (it never hands on a ping, and a long unshown thought is no lost
+  call).
   `apps/web/src/worker/agent/thread-schema.ts`, `thread-request.ts`,
   `thread-loop.ts`.
 
@@ -647,3 +648,17 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   API's refusals and the transcript rules would be ours to imitate); a
   recorded replay (it cannot answer a request it never saw).
   `tools/messages-fake/src/messages-fake.ts`, `apps/web/messages-service.ts`.
+
+- **A LONG CONVERSATION IS COMPACTED BY THE API AT ITS THRESHOLD, AND A
+  DEPLOY'S DEFINITION IS TAKEN UP BETWEEN TURNS.** Every request asks for
+  server-side compaction at 150,000 tokens (beta `compact-2026-01-12`); its
+  `compaction` block lands in the reply and is replayed, each request carrying
+  the conversation from the last one that kept a summary, where the prefix the
+  API checks starts. A thread whose definition a deploy changed moves onto the
+  new one at a turn's start, its requests from then on leaving out every
+  thinking block before that turn, the leading run the API lets go. Rejected:
+  keep-tail compaction of our own (every kept thinking block is invalid after
+  it); on-demand compaction (its retention standing unsettled); sending what a
+  compaction summarized (the reservation would price input the API ignores); a
+  thread on its first definition for good (its tools drift from the procedures
+  they call). `apps/web/src/worker/agent/thread-request.ts`.

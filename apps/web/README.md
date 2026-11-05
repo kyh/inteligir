@@ -109,8 +109,10 @@ minutes. Its definition is code, the same bytes for every account: the model
 and effort (`src/worker/agent/library-agent.ts`), the system prompt
 (`src/worker/agent/agent-prompt.ts`, which `pnpm --filter @repo/web
 agent-prompt` writes from `@repo/agent-skills`; edit the skills and run it,
-never the module) and the tools (`agent-tools.ts`), which a thread freezes at
-its first turn and replays byte for byte.
+never the module) and the tools (`agent-tools.ts`). A thread freezes them at
+its first turn and replays them byte for byte; a deploy that changes them is
+taken up at the start of the thread's next turn, never mid-turn, its requests
+from then on carrying no thinking from before that turn.
 
 A person's send (`library.agent.send`) is admitted in one transaction of the
 account's cell: refused `AGENT_UNAVAILABLE` while the agent is off or the
@@ -120,11 +122,15 @@ the account runs two, and otherwise opened and handed to its thread's object,
 again every 30 seconds until it lands. The object reserves each model call
 with the cell before it sends it, streams it with previews to the account's
 sockets, and lands only the whole reply, as returned, beside its usage; a call
-an instance died reading is sent again whole. Every tool call runs in the cell
+an instance died reading is sent again whole. A conversation past 150,000
+input tokens is compacted by the API inside the request that reaches them, its
+summary landing with the reply, and every request after carries the
+conversation from that summary on. Every tool call runs in the cell
 through the library's own procedures as that turn's, its write's op id derived
 from the call's, so one run again lands once; a deletion waits for the
 person. What the turn did reaches the cell as pushes, each once by its
-sequence, stored as the account's synced thread events; the push that ends a
+sequence, stored as the account's synced thread events, a short progress note
+before each tool call among them; the push that ends a
 turn seals its one change set, books what it cost at list price
 (`AGENT_PRICES`), gives back a turn that cost nothing, and lets the links it
 saved be read.

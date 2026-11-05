@@ -479,10 +479,14 @@ and email delivery). Specifically:
   not yours. What you ask it, what you were looking at, and everything it
   reads of your library to answer you (items, their text, highlights, folders,
   tags and history) go to Anthropic as each request it makes, through
-  Cloudflare's AI Gateway, under Anthropic's terms with us. Anthropic's API
-  keeps none of those requests or their answers once it has answered, past
-  the parts it caches for at most an hour to answer the next request of the
-  same conversation sooner. The conversation itself is kept by our cloud
+  Cloudflare's AI Gateway, under Anthropic's terms with us. When a
+  conversation grows long, Anthropic's API also writes a summary of its
+  earlier part inside the request that reaches that length, and hands it back
+  with the answer; our cloud keeps it with the rest of the conversation and
+  sends it in place of what it summarizes. Anthropic's API keeps none of those
+  requests, summaries or answers once it has answered, past the parts it
+  caches for at most an hour to answer the next request of the same
+  conversation sooner. The conversation itself is kept by our cloud
   alone: deleting it deletes it, and deleting the account deletes every
   conversation before your online library goes, with nothing to delete at
   Anthropic.
