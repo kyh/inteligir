@@ -167,7 +167,7 @@ export const threadEventRowFrom = (raw: SqlRow): ThreadEventRow => {
   };
 };
 
-const threadEventRowOf = (sql: SqlStatements, id: string): ThreadEventRow | null => {
+export const threadEventRowOf = (sql: SqlStatements, id: string): ThreadEventRow | null => {
   const [raw] = sql.all(`SELECT ${THREAD_EVENT_COLUMNS} FROM thread_events WHERE event_id = ?`, [
     id,
   ]);

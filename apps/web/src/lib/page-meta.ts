@@ -40,8 +40,9 @@ export const PAGES = {
   },
   home: {
     description:
-      "A notes app for the Mac where an AI agent, running on your own Claude or ChatGPT plan, edits your markdown notes with you. Every change is kept and can be undone.",
+      "A Mac app that keeps the links, articles, images, PDFs and files you save beside the notes you write, in one library, with an AI agent that files, tags and edits it with you.",
     image: {
+      // what og.jpg shows, the tagline written into it included
       alt: "Inteligir: the workspace for knowledge work",
       height: 1080,
       path: "/og.jpg",
@@ -49,7 +50,7 @@ export const PAGES = {
     },
     kind: "home",
     path: "/",
-    title: "the workspace for knowledge work",
+    title: "one library for everything you save",
   },
   privacy: {
     description:

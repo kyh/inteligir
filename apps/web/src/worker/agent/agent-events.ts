@@ -11,7 +11,7 @@ import { runPlan } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
 import type { LandingScope } from "../library/cell-landing";
-import { THREAD_EVENT_COLUMNS, threadEventRowFrom } from "../library/cell-sync";
+import { threadEventRowOf } from "../library/cell-sync";
 
 export type ThreadEventRow = z.infer<typeof threadEventRowSchema>;
 
@@ -53,9 +53,5 @@ export const storeEvent = (
     ],
   );
   runPlan(storage, recordChanges([{ gone: false, id: eventId, kind: "thread_event", seq }]));
-  const [row] = storage.all(
-    `SELECT ${THREAD_EVENT_COLUMNS} FROM thread_events WHERE event_id = ?`,
-    [eventId],
-  );
-  return row === undefined ? null : threadEventRowFrom(row);
+  return threadEventRowOf(storage, eventId);
 };

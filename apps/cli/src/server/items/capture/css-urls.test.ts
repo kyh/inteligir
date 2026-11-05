@@ -128,8 +128,10 @@ const imported = (url: string): string | null => (url.includes("a.png") ? "h1{}"
 const MiB = 1024 * 1024;
 const sized = (unit: string): string => unit.repeat(Math.ceil(MiB / unit.length));
 
-// a quadratic reading takes minutes on a megabyte; a linear one a few milliseconds
-const LINEAR_BUDGET_MS = 1500;
+// a quadratic reading takes minutes on a megabyte; a linear one takes up to half a second here,
+// several times that on a CI runner sharing its cores with three other suites, so ten seconds tells
+// the two apart with room on both sides
+const LINEAR_BUDGET_MS = 10_000;
 
 const timed = (run: () => void): number => {
   const started = performance.now();
@@ -177,7 +179,7 @@ describe("css urls", () => {
     ['@import " repeated', sized('@import "')],
     ["@import before a megabyte of spaces", `@import${sized(" ")}`],
     ["font blocks among urls", `${sized("@font-face{}").slice(0, MiB / 2)}${sized("url(a)")}`],
-  ])("reads a hostile megabyte (%s) in one pass", (_name, css) => {
+  ])("reads a hostile megabyte (%s) in one pass", { timeout: 30_000 }, (_name, css) => {
     const took = timed(() => {
       cssReferences(css, BASE);
       cssImports(css, BASE);
