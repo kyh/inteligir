@@ -10,13 +10,14 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   device credential** (owner decision, the Obsidian model). The login mints the
   credential, deletes its session and names the account, so a device holds one
   secret and the cross-account fence and account label hold at once; each
-  device keeps the account's name beside its bearer. The route is throttled per caller address, else it is
-  a password oracle. No social providers: an in-app login can only be a
-  password. Rejected: a second call to learn the account (a pending state
-  readers must fail closed on); a browser approve page with one-time code, PKCE
-  and loopback callback (a ceremony to keep the password out of the app).
-  Residual: the password crosses the app once, over HTTPS.
-  `apps/web/src/worker/device/login.ts`, `apps/web/src/worker/wire/account-router.ts`.
+  device keeps the account's name beside its bearer. The route is throttled
+  per caller address, else it is a password oracle. No social providers: an
+  in-app login can only be a password. Rejected: a second call to learn the
+  account (a pending state readers must fail closed on); a browser approve
+  page with one-time code, PKCE and loopback callback (a ceremony to keep the
+  password out of the app). Residual: the password crosses the app once, over
+  HTTPS. `apps/web/src/worker/device/login.ts`,
+  `apps/web/src/worker/wire/account-router.ts`.
 
 - **A DEVICE CAN ALSO CREATE THE ACCOUNT** (owner decision: sign up in the app,
   with the invite code). The sign-up answers the same credential and deletes the
@@ -33,12 +34,15 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `apps/workspace/src/app/settings/account-section.tsx`.
 
 - **A CREDENTIAL THIS DEVICE DROPS IS REVOKED BY THIS DEVICE, best-effort and
-  never waited on.** A sign-out and the phone's credential drop each revoke on
-  a client of their own, since closing the session aborts its client's
-  requests, and clear local state at once, since an unreachable cloud must not
-  hold a sign-out open. Rejected: forgetting the credential alone (the row
-  stays active against the twenty-device cap, so repeated sign-ins lock the
-  account out). `apps/mobile/src/lib/compose-runtime.ts`.
+  never waited on.** The phone's sign-out takes its copy away first and only
+  then revokes, unawaited, so an unreachable cloud holds no sign-out open and a
+  phone whose copy would not go opens it again, still the account's; a sign-in
+  it could not keep or open lets that device go the same way. Rejected:
+  forgetting the credential alone (the row stays active against the
+  twenty-device cap, so repeated sign-ins lock the account out); revoking
+  before the wipe (a failed wipe left a library on a dead credential, whose
+  edits nothing could send). `apps/mobile/src/lib/compose-runtime.ts`,
+  `apps/mobile/src/login/login-store.ts`.
 
 - **AN ACCOUNT IS DELETED FROM THE APP, THE PASSWORD ASKED AGAIN, THROUGH BETTER
   AUTH'S `deleteUser`** (owner decision: whoever lost their Mac deletes from any

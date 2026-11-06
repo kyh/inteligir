@@ -9,7 +9,9 @@
 // since it may hold another account's library; a relaunch opens what it holds, and a database
 // emptied meanwhile (the app reinstalled while the Keychain kept its credential) simply pulls the
 // library again. A sign-out, a revoked credential and a deleted account wipe the replica and the
-// files; a build the cloud no longer takes keeps everything until it is updated.
+// files; a build the cloud no longer takes keeps everything until it is updated. A sign-out lets
+// the device go at the cloud only once its copy is gone, so one whose wipe failed opens again what
+// the phone still holds, still the account's.
 
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import type { ClientBuild } from "@repo/contract/cloud/client-build";
@@ -94,7 +96,7 @@ export type LogoutOutcome =
   | { readonly kind: "signed-out" }
   | { readonly kind: "unsent"; readonly edits: number }
   // the phone could not take its copy away (a full disk, a database that would not wipe), so it
-  // stays signed in, and the screen says why
+  // opens again what it still holds and stays signed in, and the screen says why
   | { readonly kind: "failed"; readonly message: string };
 
 export interface AppRuntime {
@@ -135,8 +137,14 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       throw error;
     }
   };
-  // what the signed-in library stops when it goes: its status watch and its previews
-  let release: (() => void) | null = null;
+  // the signed-in library's own: the sign-in it was opened under, which a sign-out that could not
+  // finish opens again, and what it stops when it goes (its status watch and its previews)
+  let opened: { readonly kept: KeptCredential; readonly release: () => void } | null = null;
+
+  const stop = (): void => {
+    opened?.release();
+    opened = null;
+  };
 
   const transportFor = (credential: string | null) =>
     phoneTransport({ build: args.build, credential, fetch: args.fetch, origin: args.cloudUrl });
@@ -171,10 +179,11 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     return opening.replica;
   };
 
-  // this phone leaves its account: every row, every unsent change and every file go
+  // this phone leaves its account: every row, every unsent change and every file go. The wipe
+  // closes the replica before anything else, so the library is stopped first: whether or not the
+  // wipe ends, it hears nothing more
   const leave = async (library: PhoneLibrary, notice: string | null): Promise<void> => {
-    release?.();
-    release = null;
+    stop();
     await library.replica.wipe();
     await library.files.clear();
     let said = notice;
@@ -184,6 +193,20 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       said = `Signed out, but the saved sign-in could not be removed and may return on the next launch: ${messageOf(error)}`;
     }
     session.set({ kind: "signed-out", notice: said });
+  };
+
+  // the cloud ended this sign-in (a revocation, a deleted account): the phone leaves it, and is
+  // signed out all the same when its copy would not go, since nothing it holds reaches the library
+  // any more; the credential stays kept, so the next launch meets the same refusal and wipes again
+  const ended = async (library: PhoneLibrary, notice: string): Promise<void> => {
+    try {
+      await leave(library, notice);
+    } catch (error) {
+      session.set({
+        kind: "signed-out",
+        notice: `${notice} It couldn't remove its copy yet, and tries again the next time Inteligir opens: ${messageOf(error)}`,
+      });
+    }
   };
 
   const open = async (kept: KeptCredential, source: "restored" | "signed-in"): Promise<void> => {
@@ -213,16 +236,18 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
         return;
       }
       if (failure.end === "outdated") {
-        release?.();
-        release = null;
+        stop();
         session.set({ kind: "outdated" });
         return;
       }
-      void leave(library, failure.end === "gone" ? ACCOUNT_DELETED : SIGNED_OUT_ELSEWHERE);
+      void ended(library, failure.end === "gone" ? ACCOUNT_DELETED : SIGNED_OUT_ELSEWHERE);
     });
-    release = () => {
-      unwatch();
-      library.previews.stop();
+    opened = {
+      kept,
+      release: () => {
+        unwatch();
+        library.previews.stop();
+      },
     };
     session.set({ kind: "signed-in", library });
     replica.start();
@@ -233,6 +258,15 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
         // a sweep is tidying; the next launch sweeps again
       }
     })();
+  };
+
+  // the kept sign-in's library opened over what the phone holds, or why it could not be
+  const restore = async (kept: KeptCredential): Promise<void> => {
+    try {
+      await open(kept, "restored");
+    } catch (error) {
+      session.set({ kind: "failed", message: messageOf(error) });
+    }
   };
 
   const login = createLoginStore({
@@ -254,20 +288,25 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   return {
     async logout(options = {}) {
       const library = signedIn();
-      if (library === null) {
+      const held = opened;
+      // nothing signed in, or a sign-out already under way
+      if (library === null || held === null) {
         return { kind: "signed-out" };
       }
       const { unsent } = library.replica.status();
       if (unsent > 0 && options.discardUnsent !== true) {
         return { edits: unsent, kind: "unsent" };
       }
-      // never waited on, so an unreachable cloud holds no sign-out open
-      void revokeQuietly(library);
       try {
         await leave(library, null);
       } catch (error) {
+        // the wipe closed the replica before it failed, so the phone opens again what it still
+        // holds, under the sign-in it never let go
+        await restore(held.kept);
         return { kind: "failed", message: messageOf(error) };
       }
+      // once the copy is gone, and never waited on, so an unreachable cloud holds no sign-out open
+      void revokeQuietly(library);
       return { kind: "signed-out" };
     },
     login,
@@ -290,11 +329,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
         session.set({ kind: "signed-out", notice: null });
         return;
       }
-      try {
-        await open(kept, "restored");
-      } catch (error) {
-        session.set({ kind: "failed", message: messageOf(error) });
-      }
+      await restore(kept);
     },
     suspend() {
       signedIn()?.replica.suspend();

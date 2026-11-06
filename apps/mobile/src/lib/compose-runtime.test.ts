@@ -5,6 +5,7 @@
 import { createHash } from "node:crypto";
 import { createFakeCell } from "@repo/library-replica/test-support/fake-cell";
 import type { FakeCell } from "@repo/library-replica/test-support/fake-cell";
+import type { ReplicaSql } from "@repo/library-replica/replica-ports";
 import { idSource, keepBoth, openDevice } from "@repo/library-replica/test-support/replica-harness";
 import { describe, expect, it } from "vitest";
 import type { KeptCredential } from "../credential/credential-codec";
@@ -12,7 +13,6 @@ import { memoryFolders } from "../test-support/memory-folders";
 import { composeRuntime, SIGNED_OUT_ELSEWHERE } from "./compose-runtime";
 import type { AppRuntime, CredentialStore, PhoneLibrary } from "./compose-runtime";
 import { openNodeReplicaSql } from "./node-replica-sql";
-import type { NodeReplicaSql } from "./node-replica-sql";
 
 const SIGN_IN = {
   deviceName: "Ada's iPhone",
@@ -47,6 +47,28 @@ const keychain = (kept: KeptCredential | null = null) => {
   };
 };
 
+// a database that refuses the next transaction once told to, as a full disk refuses a wipe's
+const refusingOnce = (sql: ReplicaSql) => {
+  let armed = false;
+  const port: ReplicaSql = {
+    all: sql.all,
+    exclusive: async (work) => {
+      if (armed) {
+        armed = false;
+        throw new Error("database or disk is full");
+      }
+      return await sql.exclusive(work);
+    },
+    run: sql.run,
+  };
+  return {
+    port,
+    refuseNext: () => {
+      armed = true;
+    },
+  };
+};
+
 // a clock whose timers never fire: the suite runs every pass itself
 const stillClock = {
   after: () => () => {
@@ -57,7 +79,7 @@ const stillClock = {
 
 const runtimeOver = (
   cell: FakeCell,
-  options: { readonly sql: NodeReplicaSql; readonly keys: ReturnType<typeof keychain> },
+  options: { readonly sql: ReplicaSql; readonly keys: ReturnType<typeof keychain> },
 ) => {
   const network = cell.device("phone");
   const runtime = composeRuntime({
@@ -248,17 +270,69 @@ describe("the phone's runtime", () => {
     expect(cell.calls).toContain("phone account/signOut");
   });
 
-  it("stays signed in and says why when the phone cannot take its copy away", async () => {
+  it("stays signed in, working and the account's, when the phone cannot take its copy away", async () => {
     const cell = createFakeCell();
     const keys = keychain(KEPT);
-    const sql = openNodeReplicaSql(":memory:");
-    const { runtime } = runtimeOver(cell, { keys, sql });
+    const db = refusingOnce(openNodeReplicaSql(":memory:"));
+    const { network, runtime } = runtimeOver(cell, { keys, sql: db.port });
     await runtime.start();
-    // the database the wipe runs on is gone, as a disk that refuses the write leaves it
-    sql.close();
-    const outcome = await runtime.logout();
-    expect(outcome.kind).toBe("failed");
-    expect(runtime.session.get().kind).toBe("signed-in");
+    network.setOffline(true);
+    const before = signedIn(runtime);
+    await before.replica.createNote({ blocks: [], folderId: null, tags: [], title: "Unsent" });
+    await before.replica.sync();
+    network.setOffline(false);
+
+    db.refuseNext();
+    await expect(runtime.logout({ discardUnsent: true })).resolves.toStrictEqual({
+      kind: "failed",
+      message: "database or disk is full",
+    });
+    // the device is still the account's, and its library opened again over what the phone holds
+    expect(cell.calls).not.toContain("phone account/signOut");
     expect(keys.held()).toStrictEqual(KEPT);
+    const after = signedIn(runtime);
+    expect(after).not.toBe(before);
+    expect(after.replica.status().unsent).toBe(1);
+    await after.replica.sync();
+    expect(after.replica.status().unsent).toBe(0);
+
+    // and a refusal it hears later still ends the sign-in
+    cell.signOut();
+    await after.replica.sync();
+    await expect
+      .poll(() => runtime.session.get())
+      .toStrictEqual({ kind: "signed-out", notice: SIGNED_OUT_ELSEWHERE });
+    expect(keys.held()).toBeNull();
+  });
+
+  it("is signed out of a sign-in the cloud ended though its copy would not go, and wipes it at the next launch", async () => {
+    const cell = createFakeCell();
+    await noteOnTheMac(cell, "Plans");
+    const keys = keychain(KEPT);
+    const sql = openNodeReplicaSql(":memory:");
+    const db = refusingOnce(sql);
+    const first = runtimeOver(cell, { keys, sql: db.port });
+    await first.runtime.start();
+    await signedIn(first.runtime).replica.sync();
+
+    cell.signOut();
+    db.refuseNext();
+    await signedIn(first.runtime).replica.sync();
+    await expect
+      .poll(() => first.runtime.session.get())
+      .toStrictEqual({
+        kind: "signed-out",
+        notice: `${SIGNED_OUT_ELSEWHERE} It couldn't remove its copy yet, and tries again the next time Inteligir opens: database or disk is full`,
+      });
+    expect(keys.held()).toStrictEqual(KEPT);
+
+    const again = runtimeOver(cell, { keys, sql });
+    await again.runtime.start();
+    await signedIn(again.runtime).replica.sync();
+    await expect
+      .poll(() => again.runtime.session.get())
+      .toStrictEqual({ kind: "signed-out", notice: SIGNED_OUT_ELSEWHERE });
+    expect(keys.held()).toBeNull();
+    await expect(sql.all("SELECT id FROM items", [])).resolves.toStrictEqual([]);
   });
 });
