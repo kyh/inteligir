@@ -1,12 +1,34 @@
 interface ErrorFields {
   message: string;
   stack: string | undefined;
+  // what each wrapper wrapped, outermost first: a Drizzle "Failed query" names the SQL, and only
+  // its cause says what D1 answered
+  causes: string[];
 }
 
-export const errorFields = (cause: unknown): ErrorFields => ({
-  message: cause instanceof Error ? cause.message : String(cause),
-  stack: cause instanceof Error ? cause.stack : undefined,
-});
+// a cycle of causes is cut at this depth, which no real chain reaches
+const CAUSE_DEPTH = 8;
+
+// the log keeps a week of what it is given, and a message may quote its input (JSON.parse names the
+// text it failed on, a failed query its parameters), so each message keeps only its opening
+const MESSAGE_MAX = 300;
+
+const clipped = (text: string): string =>
+  text.length > MESSAGE_MAX ? `${text.slice(0, MESSAGE_MAX)}…` : text;
+
+export const errorFields = (cause: unknown): ErrorFields => {
+  const causes: string[] = [];
+  let next = cause instanceof Error ? cause.cause : undefined;
+  while (next !== undefined && causes.length < CAUSE_DEPTH) {
+    causes.push(clipped(next instanceof Error ? `${next.name}: ${next.message}` : String(next)));
+    next = next instanceof Error ? next.cause : undefined;
+  }
+  return {
+    message: clipped(cause instanceof Error ? cause.message : String(cause)),
+    stack: cause instanceof Error ? cause.stack : undefined,
+    causes,
+  };
+};
 
 // Every expected failure is already a response, so a throw is a bug or an outage; without this
 // line workerd's own 500 leaves nothing in `wrangler tail`. Workers Logs indexes the fields of a
