@@ -18,6 +18,7 @@ export const isLibraryPagePath = (pathname: string): boolean =>
 const socketOrigin = (url: URL): string =>
   `${url.protocol === "https:" ? "wss:" : "ws:"}//${url.host}`;
 
+/** @internal */
 export const libraryPagePolicy = (url: URL): string =>
   [
     "default-src 'self'",

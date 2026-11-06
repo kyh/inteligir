@@ -1,7 +1,10 @@
 // Reject, never sanitize: the filename is the title, so silently stripping a
 // character would show a title that was never saved.
 
-export type NoteNameReason =
+import { utf8ByteLength } from "../library/canonical-json";
+
+/** @internal */
+type NoteNameReason =
   | "empty"
   | "separator"
   | "illegal-char"
@@ -22,24 +25,6 @@ const RESERVED_RE = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/iu;
 
 // the per-component cap on ext4, apfs and ntfs alike
 const MAX_BASENAME_BYTES = 255;
-
-// not TextEncoder: hermes (react native) only recently grew it
-const utf8ByteLength = (text: string): number => {
-  let bytes = 0;
-  for (const ch of text) {
-    const cp = ch.codePointAt(0) ?? 0;
-    if (cp <= 0x7f) {
-      bytes += 1;
-    } else if (cp <= 0x7_ff) {
-      bytes += 2;
-    } else if (cp <= 0xff_ff) {
-      bytes += 3;
-    } else {
-      bytes += 4;
-    }
-  }
-  return bytes;
-};
 
 export const checkNoteName = (raw: string): NoteNameVerdict => {
   const name = raw.normalize("NFC").trim();
@@ -71,31 +56,4 @@ export const checkNoteName = (raw: string): NoteNameVerdict => {
     return { ok: false, reason: "too-long" };
   }
   return { name, ok: true };
-};
-
-export const noteNameErrorMessage = (reason: NoteNameReason): string => {
-  switch (reason) {
-    case "empty": {
-      return "Names can't be empty.";
-    }
-    case "separator": {
-      return "Names can't contain / or \\.";
-    }
-    case "illegal-char": {
-      return "Names can't contain : * ? \" < > | or control characters.";
-    }
-    case "bracket": {
-      return "Names can't contain [ or ], which would end a link to them.";
-    }
-    case "reserved": {
-      return "That name is reserved on Windows (CON, PRN, AUX, NUL, COM1–9, LPT1–9).";
-    }
-    case "dot-edge": {
-      return "Names can't start with a dot or end with a dot.";
-    }
-    case "too-long": {
-      return "That name is too long (255 bytes max).";
-    }
-    // no default
-  }
 };

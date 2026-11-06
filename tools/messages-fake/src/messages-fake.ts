@@ -27,6 +27,7 @@ const FAKE_STATS_PATH = "/__fake/stats";
 // the Messages endpoint, and AI Gateway's provider-native route to it
 const MESSAGES_PATH = /^(?:\/v1\/[^/]+\/[^/]+\/anthropic)?\/v1\/messages$/u;
 
+/** @internal */
 export interface FakeStats {
   // the Messages requests answered, refusals and failures included
   readonly requests: number;

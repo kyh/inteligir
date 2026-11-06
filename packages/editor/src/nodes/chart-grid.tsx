@@ -16,6 +16,7 @@ export interface ChartGridView {
 }
 
 // misaligned multi-series payloads stay raw-only rather than being quietly realigned.
+/** @internal */
 export const chartGridView = (chart: ChartPayload): ChartGridView | null => {
   if ("data" in chart) {
     return {
@@ -58,6 +59,7 @@ const mapPoints = (
   };
 };
 
+/** @internal */
 export const chartWithCellValue = (
   chart: ChartPayload,
   column: number,
@@ -70,6 +72,7 @@ export const chartWithCellValue = (
       : points,
   );
 
+/** @internal */
 export const chartWithRowLabel = (chart: ChartPayload, row: number, label: string): ChartPayload =>
   mapPoints(chart, (points) => points.map((point, i) => (i === row ? { ...point, label } : point)));
 
@@ -83,12 +86,14 @@ const chartWithSeriesName = (chart: ChartPayload, column: number, name: string):
   };
 };
 
+/** @internal */
 export const chartWithRowAdded = (chart: ChartPayload): ChartPayload => {
   const count = "data" in chart ? chart.data.length : (chart.series[0]?.data.length ?? 0);
   const label = `Label ${String(count + 1)}`;
   return mapPoints(chart, (points) => [...points, { label, value: 0 }]);
 };
 
+/** @internal */
 export const chartWithRowRemoved = (chart: ChartPayload, row: number): ChartPayload | null => {
   const count = "data" in chart ? chart.data.length : (chart.series[0]?.data.length ?? 0);
   if (count <= 1) {
@@ -97,6 +102,7 @@ export const chartWithRowRemoved = (chart: ChartPayload, row: number): ChartPayl
   return mapPoints(chart, (points) => points.filter((_, i) => i !== row));
 };
 
+/** @internal */
 export const chartWithSeriesAdded = (chart: ChartPayload): ChartPayload | null => {
   if ("data" in chart) {
     return null;
@@ -114,6 +120,7 @@ export const chartWithSeriesAdded = (chart: ChartPayload): ChartPayload | null =
   };
 };
 
+/** @internal */
 export const chartWithSeriesRemoved = (
   chart: ChartPayload,
   column: number,

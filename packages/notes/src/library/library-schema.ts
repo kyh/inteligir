@@ -465,6 +465,7 @@ const REPLICA_DDL = [
 
 export type LibraryRole = "cell" | "replica";
 
+/** @internal */
 export const libraryDdl = (role: LibraryRole): readonly string[] =>
   role === "cell" ? [...SYNCED_DDL, ...CELL_DDL] : [...SYNCED_DDL, ...REPLICA_DDL];
 
@@ -479,6 +480,7 @@ export type SchemaVerdict =
 const versionParts = (version: string): number[] =>
   version.split(".").map((part) => Math.trunc(Number(part)) || 0);
 
+/** @internal */
 export const sqliteVersionAtLeast = (version: string, floor: string): boolean => {
   const have = versionParts(version);
   const need = versionParts(floor);

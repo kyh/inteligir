@@ -15,8 +15,10 @@ import type { V1Client } from "@repo/contract/cloud/v1";
 import type { Connection } from "./connection";
 
 type Items = V1Client["library"]["items"];
+/** @internal */
 export type PageSave = Parameters<Items["save"]>[0];
 export type LinkSave = Parameters<Items["saveLink"]>[0];
+/** @internal */
 export type FileCreate = Parameters<Items["createFile"]>[0];
 // what the extension reads of a save's answer: the item's name as it landed, and whether it
 // folded onto one that held the address
@@ -45,6 +47,7 @@ const hexOf = (digest: ArrayBuffer): string =>
   Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 
 // a PUT the cloud answered with something other than a stored file, as a refusal reads
+/** @internal */
 export class FileRefusedError extends Error {
   readonly status: number;
   constructor(status: number) {

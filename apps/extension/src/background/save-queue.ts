@@ -53,6 +53,7 @@ export const dropSave = async (save: Pick<QueuedSave, "opId">): Promise<void> =>
 };
 
 // every save waiting, oldest first; a record that does not parse is dropped, never sent
+/** @internal */
 export const queuedSaves = async (): Promise<QueuedSave[]> => {
   const stored = await browser.storage.local.get(null);
   const saves: QueuedSave[] = [];

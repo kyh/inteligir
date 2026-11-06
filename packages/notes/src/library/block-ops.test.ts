@@ -1,21 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { blockHash } from "./block-hash";
-import { applyOps, libraryOpSchema, mergeListField, orderedBlocks, rebaseOps } from "./block-ops";
+import { applyOps, libraryOpSchema, mergeListField, orderedBlocks } from "./block-ops";
 import type { ItemState, LibraryOp } from "./block-ops";
 import { ordBetween } from "./block-order";
 import { ITEM_FIELD_CAPS } from "./library-item";
 import { BLOCK_MAX_BYTES, BLOCK_MAX_DEPTH } from "./library-nodes";
 import type { LibraryNode } from "./library-nodes";
-import {
-  itemOf,
-  landed,
-  noteFields,
-  paragraph,
-  randomBlockOps,
-  randomItem,
-} from "../test-support/library-items";
-import { mulberry32 } from "../test-support/seeded-random";
+import { itemOf, landed, noteFields, paragraph } from "../test-support/library-items";
 
 const three = (): ItemState =>
   itemOf([paragraph("one", "first"), paragraph("two", "second"), paragraph("three", "third")]);
@@ -224,58 +216,6 @@ describe("the item's caps over a landed batch", () => {
         { key: "more", op: "property", value: "y".repeat(100 * 1024) },
       ]),
     ).toEqual({ fields: ["properties"], kind: "invalid" });
-  });
-});
-
-describe("rebaseOps", () => {
-  it("drops what already landed, keeps what still applies, and hands back what met a change", () => {
-    const item = three();
-    const queued: LibraryOp[] = [
-      { baseHash: heldOf(item, "one").hash, block: paragraph("one", "mine"), op: "put" },
-      { baseHash: heldOf(item, "two").hash, block: paragraph("two", "mine too"), op: "put" },
-      { base: [], op: "tags", value: ["queued"] },
-    ];
-    const theirs = landed(item, [
-      { baseHash: heldOf(item, "two").hash, block: paragraph("two", "theirs"), op: "put" },
-      { base: [], op: "tags", value: ["remote"] },
-    ]);
-    const rebase = rebaseOps(theirs, queued);
-    expect(rebase.ops).toEqual([
-      queued[0],
-      { base: ["remote"], op: "tags", value: ["remote", "queued"] },
-    ]);
-    expect(rebase.conflicts).toEqual([
-      {
-        conflict: { blockId: "two", current: heldOf(theirs, "two"), kind: "block" },
-        op: queued[1],
-      },
-    ]);
-  });
-
-  it("commutes for two writers over disjoint blocks, whichever lands first (seeded)", () => {
-    const rand = mulberry32(0x0b_10_c5);
-    for (let trial = 0; trial < 300; trial += 1) {
-      const base = randomItem(rand, "x", 1 + Math.floor(rand() * 8));
-      const ids = [...base.blocks.keys()];
-      const split = Math.floor(rand() * (ids.length + 1));
-      const left = randomBlockOps(rand, base, ids.slice(0, split), "a", 1 + Math.floor(rand() * 4));
-      const right = randomBlockOps(rand, base, ids.slice(split), "b", 1 + Math.floor(rand() * 4));
-      const leftOps: LibraryOp[] = [
-        ...left.ops,
-        { base: "A note", field: "title", op: "set", value: "L" },
-      ];
-      const rightOps: LibraryOp[] = [
-        ...right.ops,
-        { base: null, field: "pinnedAt", op: "set", value: 5 },
-      ];
-      const afterLeft = landed(base, leftOps);
-      const afterRight = landed(base, rightOps);
-      const rightOverLeft = rebaseOps(afterLeft, rightOps);
-      const leftOverRight = rebaseOps(afterRight, leftOps);
-      expect(rightOverLeft.conflicts).toEqual([]);
-      expect(leftOverRight.conflicts).toEqual([]);
-      expect(landed(afterLeft, rightOverLeft.ops)).toEqual(landed(afterRight, leftOverRight.ops));
-    }
   });
 });
 

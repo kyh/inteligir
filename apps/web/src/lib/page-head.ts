@@ -5,6 +5,7 @@ import { pageGraph } from "@/lib/structured-data";
 
 const absolute = (path: string): string => `${siteConfig.url}${path === "/" ? "" : path}`;
 
+/** @internal */
 export const pageTitle = (page: PageMeta): string =>
   page.kind === "home" ? `${siteConfig.name}: ${page.title}` : `${page.title} · ${siteConfig.name}`;
 

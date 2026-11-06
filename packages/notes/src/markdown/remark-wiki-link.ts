@@ -178,6 +178,7 @@ export interface WikiBody {
 
 // `targetRange` is the raw slice a rename rewrites; when the title carries `\#`/`\\` escapes it
 // covers the escaped bytes while `target` is unescaped, so a rename writes its target escaped.
+/** @internal */
 export type WikiBodyRange = WikiBody & { targetRange?: { start: number; end: number } };
 
 // the resolved-link form puts the target note's uuid after the pipe.
@@ -214,6 +215,7 @@ const anchorIndex = (head: string): number => {
   return -1;
 };
 
+/** @internal */
 export const parseWikiBodyRange = (body: string): WikiBodyRange => {
   // the last pipe starts the alias: a title containing `|` is legal when paired with a
   // resolved-uuid suffix.

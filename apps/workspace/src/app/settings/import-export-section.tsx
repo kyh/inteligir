@@ -30,6 +30,7 @@ type ImportSource = ImportJob["source"];
 const JOB_POLL_MS = 1500;
 
 // what an import says once it ran, or as it runs
+/** @internal */
 export const importSentence = (job: ImportJob): string => {
   switch (job.state) {
     case "running": {

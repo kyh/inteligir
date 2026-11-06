@@ -14,6 +14,7 @@ import type { FakeClock } from "./fake-clock";
 import type { FakeCell, FakeDevice } from "./fake-cell";
 
 // UUIDv7s in order, each device's under a prefix of its own so two devices never mint one id
+/** @internal */
 export const idSource = (prefix: number): NewId => {
   let count = 0;
   const head = prefix.toString(16).padStart(4, "0");
@@ -23,16 +24,19 @@ export const idSource = (prefix: number): NewId => {
   };
 };
 
+/** @internal */
 export const paragraph = (id: string, text: string): LibraryBlock => ({
   children: [{ text }],
   id,
   type: "p",
 });
 
+/** @internal */
 export const textOf = (block: LibraryBlock): string =>
   block.children.map((child) => ("text" in child ? child.text : "")).join("");
 
 // a paragraph both sides changed holds theirs, then mine, as a diff3 that kept both would
+/** @internal */
 export const keepBoth: BlockMerge = async ({ base, mine, theirs }) => {
   const ours = textOf(mine);
   const others = textOf(theirs);
@@ -45,10 +49,12 @@ export const keepBoth: BlockMerge = async ({ base, mine, theirs }) => {
   return { block: paragraph(theirs.id, `${others} / ${ours}`), overlapped: false };
 };
 
+/** @internal */
 export interface MemoryBlobs extends StagedBlobs {
   readonly held: () => readonly string[];
 }
 
+/** @internal */
 export const memoryBlobs = (): MemoryBlobs => {
   const files = new Map<string, Uint8Array<ArrayBuffer>>();
   return {
@@ -69,6 +75,7 @@ export const memoryBlobs = (): MemoryBlobs => {
   };
 };
 
+/** @internal */
 export interface TestDevice {
   readonly replica: LibraryReplica;
   readonly network: FakeDevice;
@@ -88,6 +95,7 @@ interface DeviceOptions {
   readonly merge?: BlockMerge;
 }
 
+/** @internal */
 export const openDevice = async (
   cell: FakeCell,
   name: string,
@@ -114,6 +122,7 @@ export const openDevice = async (
 };
 
 // the same device after a relaunch: its database and its staged files, a fresh engine
+/** @internal */
 export const relaunch = async (
   cell: FakeCell,
   name: string,

@@ -44,6 +44,7 @@ export const insertVaultImage = (editor: SlateEditor, path: string): boolean => 
 };
 
 // Never rejects: the handlers have already eaten the event, so a rejection reaches nobody — toast instead.
+/** @internal */
 export const ingestImageFiles = async (editor: SlateEditor, files: File[]): Promise<void> => {
   for (const file of files) {
     const name = file.name === "" ? `pasted-image${extFromMime(file.type)}` : file.name;

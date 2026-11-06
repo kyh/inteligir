@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { TagChipKit } from "@repo/editor/kits/tag-chip-kit";
-import { MD_STRINGIFY, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
+import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
+import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 import { inlineTagSpans } from "@repo/notes/knowledge/tag-grammar";
 

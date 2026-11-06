@@ -10,6 +10,7 @@ export const DEVICE_CREDENTIAL_PATTERN = /^igd_[0-9a-f]{64}$/u;
 
 // exported: a sign-in screen bounds its field with it, so a name the screen takes is never refused
 // here as a shape error
+/** @internal */
 export const DEVICE_NAME_MAX_LENGTH = 64;
 
 // a raw hostname can be empty or over the cloud's ceiling, refused steps later as a shape error
@@ -30,7 +31,6 @@ export const deviceLoginRequestSchema = z.strictObject({
   email: z.string().trim().toLowerCase().pipe(z.email()),
   password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
 });
-export type DeviceLoginRequest = z.infer<typeof deviceLoginRequestSchema>;
 
 // the credential at rest is parsed on every read: a malformed record must read as
 // "signed out", never as a credential the cloud refuses on every request forever

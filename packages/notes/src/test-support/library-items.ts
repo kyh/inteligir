@@ -9,6 +9,7 @@ import type { LibraryItemFields } from "../library/library-item";
 import type { LibraryBlock, LibrarySection } from "../library/library-nodes";
 import { pick } from "./seeded-random";
 
+/** @internal */
 export const noteFields = (overrides: Partial<LibraryItemFields> = {}): LibraryItemFields => ({
   aliases: [],
   author: null,
@@ -35,6 +36,7 @@ export const noteFields = (overrides: Partial<LibraryItemFields> = {}): LibraryI
   ...overrides,
 });
 
+/** @internal */
 export const paragraph = (id: string, text: string): LibraryBlock => ({
   children: [{ text }],
   id,
@@ -48,6 +50,7 @@ const stored = (
 ): StoredBlock => ({ block, hash: blockHash(block), ord, section });
 
 // an item whose blocks sit in the order given, keyed as the library mints keys
+/** @internal */
 export const itemOf = (
   blocks: readonly LibraryBlock[],
   fields: LibraryItemFields = noteFields(),
@@ -64,6 +67,7 @@ export const itemOf = (
 
 // the item's blocks as `id:text` lines in reading order: one line per block, as revert-edit reads
 // a file
+/** @internal */
 export const renderLines = (state: ItemState): string =>
   orderedBlocks(state.blocks)
     .map(({ block }) => {
@@ -72,6 +76,7 @@ export const renderLines = (state: ItemState): string =>
     })
     .join("\n");
 
+/** @internal */
 export const landed = (state: ItemState, ops: readonly LibraryOp[]): ItemState => {
   const outcome = applyOps(state, ops);
   if (outcome.kind !== "applied") {
@@ -85,6 +90,7 @@ const WORDS = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "the
 const randomText = (rand: () => number): string =>
   Array.from({ length: 1 + Math.floor(rand() * 4) }, () => pick(rand, WORDS)).join(" ");
 
+/** @internal */
 export const randomItem = (rand: () => number, prefix: string, count: number): ItemState =>
   itemOf(
     Array.from({ length: count }, (_, index) =>
@@ -99,6 +105,7 @@ const keyAfter = (state: ItemState, after: string | null, skip: string | null): 
   return ordBetween(order[at]?.ord ?? null, order[at + 1]?.ord ?? null);
 };
 
+/** @internal */
 export interface BatchOptions {
   // whether the writer moves blocks as well as writing them
   readonly moves: boolean;
@@ -150,6 +157,7 @@ const randomBlockOp = (
   };
 };
 
+/** @internal */
 export interface WriterBatch {
   readonly ops: LibraryOp[];
   // the item once the batch lands
@@ -158,6 +166,7 @@ export interface WriterBatch {
 
 // a writer's batch: each op drawn against the item as the ones before it left it, every block op
 // on a block of `owned` or one it inserts
+/** @internal */
 export const randomBlockOps = (
   rand: () => number,
   state: ItemState,

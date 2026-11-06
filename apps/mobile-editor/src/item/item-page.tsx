@@ -67,6 +67,7 @@ export interface MountedPage {
   readonly unmount: () => void;
 }
 
+/** @internal */
 export const ItemPage = ({
   bridge,
   init,

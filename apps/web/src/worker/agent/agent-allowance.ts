@@ -20,9 +20,11 @@ const FIVE_MINUTES_MS = 5 * 60_000;
 const HOUR_MS = 60 * 60_000;
 
 // micro-cents a cent
+/** @internal */
 export const UCENTS_PER_CENT = 1_000_000;
 
 // below this an answer has no room to be one, and the call is not made
+/** @internal */
 export const MIN_MAX_TOKENS = 2048;
 
 const allowanceSchema = z.object({
@@ -54,6 +56,7 @@ const modelPricesSchema = z.strictObject({
   output: priceSchema,
 });
 
+/** @internal */
 export const agentPricesSchema = z.record(z.string(), modelPricesSchema);
 
 // one model's prices in micro-cents a token
@@ -69,6 +72,7 @@ export type PriceTable = ReadonlyMap<string, TokenPrices>;
 
 const ucents = (dollarsPerMillion: number): number => Math.round(dollarsPerMillion * 100);
 
+/** @internal */
 export const priceTableOf = (prices: z.infer<typeof agentPricesSchema>): PriceTable =>
   new Map(
     Object.entries(prices).map(([model, row]) => [
@@ -132,6 +136,7 @@ export type ReservationAnswer =
 // the input as the cache will most likely bill it: within five minutes of the previous call its
 // prompt is read and the rest written for five minutes; within the hour the frozen system and
 // tools are read; past it they are written for the hour
+/** @internal */
 export const inputUcentsOf = (estimate: CallEstimate, prices: TokenPrices, now: number): number => {
   const { frozenTokens, previous, promptTokens } = estimate;
   const age = previous === null ? Number.POSITIVE_INFINITY : now - previous.endedAt;

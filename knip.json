@@ -8,8 +8,14 @@
   // tests, routes and scripts, so an entry here is a file none of them can see. `pnpm knip` runs
   // twice, the second time `--production` (knip.dev/features/production-mode): what ships is a
   // pattern ending `!`, and a workspace's `test-support/`, which only suites import, is taken out
-  // of it by `!…!`; a tool's workspace ships nothing, so it has no `!` pattern at all.
+  // of it by `!…!`; a tool's workspace ships nothing, so it has no `!` pattern at all. An export
+  // only a suite imports, a test-support one included, is tagged `@internal`, the tag knip reads
+  // as "not reported in production mode" (knip.dev/reference/jsdoc-tsdoc-tags).
   "workspaces": {
+    ".": {
+      // the workflows' own scripts, which ship nothing
+      "project": [".github/scripts/*.mjs"]
+    },
     "apps/desktop": {
       // the isolation app's hook, which Tauri inlines into the frame every message to the shell
       // passes through (src-tauri/tauri.conf.json's `pattern`); scripts/ packages and releases it

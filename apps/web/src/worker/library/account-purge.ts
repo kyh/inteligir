@@ -43,6 +43,7 @@ const markDeleted = async (ctx: DurableObjectState, env: Env): Promise<void> => 
   openCellLibrary(ctx, env).tombstone();
 };
 
+/** @internal */
 export const ACCOUNT_PURGE_STEPS: readonly PurgeStep[] = [
   {
     name: "tombstone",

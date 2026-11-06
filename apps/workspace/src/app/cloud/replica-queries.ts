@@ -81,11 +81,13 @@ export const replicaQueries = (replica: LibraryReplica) => ({
 const THREAD_KINDS = new Set(["thread", "thread_event"]);
 
 // what a change moves: the library's reads, the threads', or both; a reset moves every one
+/** @internal */
 export interface FamiliesMoved {
   readonly library: boolean;
   readonly threads: boolean;
 }
 
+/** @internal */
 export const familiesMoved = (change: ReplicaChange): FamiliesMoved => {
   if (change.reset) {
     return { library: true, threads: true };

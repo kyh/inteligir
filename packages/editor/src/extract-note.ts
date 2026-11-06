@@ -31,6 +31,7 @@ const CREATE_ATTEMPTS = 5;
 
 // the first heading among the blocks, else the first line of the first one; a name the vault
 // would refuse falls back rather than being sanitized, since the filename is the title
+/** @internal */
 export const extractionStem = (blocks: readonly TElement[]): string => {
   const source = blocks.find((block) => HEADING_TYPES.has(block.type)) ?? blocks[0];
   const line = source === undefined ? "" : (NodeApi.string(source).split("\n")[0] ?? "");
@@ -59,6 +60,7 @@ const serializeBlocks = (editor: SlateEditor, blocks: TElement[]): string => {
   return markdown.endsWith("\n") ? markdown : `${markdown}\n`;
 };
 
+/** @internal */
 export const extractBlocksMarkdown = (editor: SlateEditor, paths: readonly Path[]): string =>
   serializeBlocks(editor, blocksAt(editor, paths));
 

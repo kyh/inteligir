@@ -18,6 +18,7 @@ interface HostCall {
   readonly args: readonly unknown[];
 }
 
+/** @internal */
 export interface FakeEditorHostOptions {
   readonly resolveWikiTarget?: (target: string) => string | null;
   readonly resolveMdTarget?: (target: string, fromPath: string) => string | null;
@@ -48,6 +49,7 @@ const ignore = (): void => {
 
 // Installs the singleton the hooks read; the io half answers as an empty, read-only vault, and the
 // shell refuses every annotation and hears every other ask as nothing.
+/** @internal */
 export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   const calls: HostCall[] = [];
   const record =

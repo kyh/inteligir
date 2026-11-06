@@ -59,6 +59,7 @@ export type ImportEntry =
   | { readonly kind: "store"; readonly path: string; readonly text: string }
   | { readonly kind: "file"; readonly path: string; readonly sha: string };
 
+/** @internal */
 export interface PlannedFolder {
   readonly id: string;
   readonly parentId: string | null;

@@ -129,4 +129,6 @@ const StreamingAction = ({
   </button>
 );
 
-export { StreamingText, StreamingAction };
+export { StreamingText };
+/** @public held beside its drawn component, a reasoned row of ui-orphan-exports.test.ts */
+export { StreamingAction };

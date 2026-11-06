@@ -42,6 +42,7 @@ export const annotationSourceLabel = (source: AnnotationSource | undefined): str
 // Every key must be legal inside a body marker, so the marker grammar is built from this one
 // spelling of the alphabet rather than restating it.
 export const ANNOTATION_ID_PATTERN = "[A-Za-z0-9_-]+";
+/** @internal */
 export const ANNOTATION_ID_RE = new RegExp(`^${ANNOTATION_ID_PATTERN}$`, "u");
 export const annotationIdSchema = z.string().regex(ANNOTATION_ID_RE);
 

@@ -1,12 +1,7 @@
 import { createSlateEditor } from "platejs";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  getLiveEditor,
-  registerLiveEditor,
-  subscribeLiveEditors,
-  whenLiveEditor,
-} from "@repo/editor/live-editor";
+import { getLiveEditor, isLiveEditor, registerLiveEditor } from "@repo/editor/live-editor";
 
 const cleanups: (() => void)[] = [];
 
@@ -14,49 +9,26 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) {
     cleanup();
   }
-  vi.useRealTimers();
 });
 
-const listen = () => {
-  const listener = vi.fn<() => void>();
-  cleanups.push(subscribeLiveEditors(listener));
-  return listener;
-};
-
-describe("the live-editor channel", () => {
-  it("tells a reader when an editor registers and leaves", () => {
-    const listener = listen();
-    const off = registerLiveEditor("a.md", createSlateEditor());
-    expect(listener).toHaveBeenCalledTimes(1);
+describe("the live editors, by the path each serves", () => {
+  it("answers for a path while its editor is registered, and not once it leaves", () => {
+    const editor = createSlateEditor();
+    const off = registerLiveEditor("a.md", editor);
+    expect(getLiveEditor("a.md")).toBe(editor);
+    expect(isLiveEditor(editor)).toBe(true);
     off();
-    expect(listener).toHaveBeenCalledTimes(2);
+    expect(getLiveEditor("a.md")).toBeNull();
+    expect(isLiveEditor(editor)).toBe(false);
   });
 
-  it("stays quiet when a replaced editor's disposer runs, since the path still answers", () => {
+  it("keeps the incoming editor when the replaced one's disposer runs", () => {
     const outgoing = createSlateEditor();
     const incoming = createSlateEditor();
     const offOutgoing = registerLiveEditor("a.md", outgoing);
     cleanups.push(registerLiveEditor("a.md", incoming));
-    const listener = listen();
     offOutgoing();
-    expect(listener).not.toHaveBeenCalled();
     expect(getLiveEditor("a.md")).toBe(incoming);
-  });
-});
-
-describe("whenLiveEditor", () => {
-  it("answers with the editor that mounts for the path, not another path's", async () => {
-    const waiting = whenLiveEditor("a.md", 1000);
-    cleanups.push(registerLiveEditor("b.md", createSlateEditor()));
-    const editor = createSlateEditor();
-    cleanups.push(registerLiveEditor("a.md", editor));
-    await expect(waiting).resolves.toBe(editor);
-  });
-
-  it("answers null once its bound passes with nothing mounted", async () => {
-    vi.useFakeTimers();
-    const waiting = whenLiveEditor("a.md", 50);
-    vi.advanceTimersByTime(50);
-    await expect(waiting).resolves.toBeNull();
+    expect(isLiveEditor(outgoing)).toBe(false);
   });
 });

@@ -6,13 +6,13 @@ import { serializeMd } from "@platejs/markdown";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { stringProp } from "@repo/editor/node-props";
 import {
-  MD_STRINGIFY,
   RoundTripError,
   analyzeMarkdown,
   parseMarkdown,
   roundTrip,
   serializeNote,
 } from "@repo/editor/markdown/markdown-doc";
+import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { parseMdast } from "@repo/notes/markdown/parse";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 

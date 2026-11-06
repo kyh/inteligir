@@ -8,6 +8,7 @@ import { parseExpression } from "../formulas/expression";
 import { parseFormulaMeta } from "../formulas/formula-meta";
 import { parseMdast } from "../markdown/parse";
 
+/** @internal */
 export const formulasIn = (markdown: string): CollectedFormula[] => {
   const collected: CollectedFormula[] = [];
   visit(parseMdast(markdown).root, "formulaPill", (node) => {

@@ -6,9 +6,9 @@ import {
   libraryDdl,
   sqliteVersionAtLeast,
 } from "./library-schema";
-import { runPlan, transactPlan } from "./library-sql";
+import { runPlan } from "./library-sql";
 import type { SqlPort } from "./library-sql";
-import { openWasmSqlPort } from "../test-support/wasm-sql-port";
+import { openWasmSqlPort, transactPlan } from "../test-support/wasm-sql-port";
 
 const tables = (port: SqlPort): string[] =>
   port

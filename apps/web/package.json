@@ -14,7 +14,6 @@
     "dev": "cf dev",
     "generate": "cf workers types",
     "og:cards": "node scripts/og-cards.ts",
-    "start": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker && tsc --noEmit -p scripts"
   },

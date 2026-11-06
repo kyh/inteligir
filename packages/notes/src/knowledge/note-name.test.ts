@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { checkNoteName, noteNameErrorMessage } from "./note-name";
+import { checkNoteName } from "./note-name";
 
 type Row =
   | { input: string; ok: true; name?: string }
@@ -110,18 +110,4 @@ describe("checkNoteName — golden corpus", () => {
       }
     });
   }
-
-  it("every reason maps to user-facing copy", () => {
-    for (const reason of [
-      "empty",
-      "separator",
-      "illegal-char",
-      "bracket",
-      "reserved",
-      "dot-edge",
-      "too-long",
-    ] as const) {
-      expect(noteNameErrorMessage(reason)).toMatch(/\S/u);
-    }
-  });
 });

@@ -308,4 +308,6 @@ const ApprovalActions = ({
   );
 };
 
-export { ApprovalCard, ApprovalQuestion, ApprovalOption, ApprovalActions };
+export { ApprovalCard, ApprovalQuestion, ApprovalOption };
+/** @public held beside its drawn component, a reasoned row of ui-orphan-exports.test.ts */
+export { ApprovalActions };

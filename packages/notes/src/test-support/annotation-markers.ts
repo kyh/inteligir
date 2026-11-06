@@ -10,6 +10,7 @@ import { projectPassages } from "../annotations/passage-text";
 import { parseMdast } from "../markdown/parse";
 import { splitMarkerIds } from "../markdown/remark-inline-constructs";
 
+/** @internal */
 export const markerRootIds = (source: string): Set<string> => {
   const ids = new Set<string>();
   visit(parseMdast(source).root, "annotationMarker", (node) => {
@@ -21,6 +22,7 @@ export const markerRootIds = (source: string): Set<string> => {
 };
 
 // the markers naming any of `ids` spliced out: a pair the ids share with others keeps the others
+/** @internal */
 export const stripAnnotationMarkers = (content: string, ids: readonly string[]): string => {
   const removing = new Set(ids);
   let out = "";

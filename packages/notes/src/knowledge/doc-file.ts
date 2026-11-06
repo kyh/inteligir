@@ -2,21 +2,19 @@ import { basenamePath, extnamePath, joinPath, vaultCollisionKey } from "./vault-
 
 const DOC_EXTENSIONS = new Set([".md", ".markdown", ".mdx", ".txt"]);
 
-export const DEFAULT_DOC_EXTENSION = ".md";
+// the extension a new note is made with
+const DEFAULT_DOC_EXTENSION = ".md";
 
 export const isDocPath = (path: string): boolean =>
   DOC_EXTENSIONS.has(extnamePath(path).toLowerCase());
 
+/** @internal */
 export const docExtension = (path: string): string => (isDocPath(path) ? extnamePath(path) : "");
 
 export const docStem = (path: string): string => {
   const name = basenamePath(path);
   return name.slice(0, name.length - docExtension(path).length);
 };
-
-// a name typed without a doc extension is a title, whatever dots it holds: `Node.js` is a note
-export const withDocExtension = (name: string): string =>
-  isDocPath(name) ? name : `${name}${DEFAULT_DOC_EXTENSION}`;
 
 // The one extension a link may leave off, and it is not the doc extensions: `[[todo]]` never
 // reaches `todo.txt`, as in Obsidian. A second spelling of this rule is a writer minting a link
@@ -42,6 +40,7 @@ export const isVaultMetadataPath = (path: string): boolean =>
 
 // Keyed on both sides because the disk may fold case and normalization; the server's `absent`
 // guard stays the real one.
+/** @internal */
 export const takenIgnoringCase = (takenPaths: Iterable<string>): ((path: string) => boolean) => {
   const taken = new Set(Array.from(takenPaths, vaultCollisionKey));
   return (path) => taken.has(vaultCollisionKey(path));

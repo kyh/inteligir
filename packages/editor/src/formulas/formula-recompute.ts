@@ -59,6 +59,7 @@ const readForeignFormulas = async (noteId: string): Promise<CollectedFormula[] |
   return answer?.formulas ?? null;
 };
 
+/** @internal */
 export const recomputeFormulas = async (editor: SlateEditor): Promise<void> => {
   const before = editor.children;
   const entries = formulaEntries(editor);

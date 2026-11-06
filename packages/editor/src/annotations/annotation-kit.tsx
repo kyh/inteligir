@@ -40,6 +40,7 @@ export const HIGHLIGHT_SHORTCUT: EditorShortcut<"highlight"> = {
   label: "Highlight",
 };
 
+/** @internal */
 export const ANNOTATION_SHORTCUTS: readonly EditorShortcut<"highlight">[] = [HIGHLIGHT_SHORTCUT];
 
 const rangeClassName = (state: { orphan: boolean; unknown: boolean }): string =>
@@ -120,6 +121,7 @@ const markersOf = (editor: SlateEditor, id: string): number =>
 // The new highlight's id, its markers around the selection; null when there is nothing to anchor.
 // The touch kit's lock refuses a marker inside a locked block, so a pair missing one is taken back
 // rather than left as an orphan; the one that landed sits outside any locked block.
+/** @internal */
 export const anchorNewAnnotation = (editor: SlateEditor): string | null => {
   const id = mintAnnotationId((length) => crypto.getRandomValues(new Uint8Array(length)));
   if (!insertAnnotationMarkers(editor, id)) {

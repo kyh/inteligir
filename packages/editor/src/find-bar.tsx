@@ -35,6 +35,7 @@ import { editorShortcutFor } from "@repo/editor/editor-shortcuts";
 import type { EditorShortcut } from "@repo/editor/editor-shortcuts";
 import { revealCentered } from "@repo/editor/scroll-reveal";
 
+/** @internal */
 export type FindBarShortcutAction = "find-next" | "find-previous" | "open-replace" | "replace-all";
 
 // the replace field's chord alone: in the note, ⌘Enter is not the bar's to take
@@ -45,6 +46,7 @@ const REPLACE_ALL_SHORTCUT: EditorShortcut<FindBarShortcutAction> = {
 };
 
 // ⌘F itself is the shell's row: global-shortcuts.ts opens the bar from the window listener
+/** @internal */
 export const FIND_BAR_SHORTCUTS: readonly EditorShortcut<FindBarShortcutAction>[] = [
   { action: "find-next", hotkey: "mod+g", label: "Next match" },
   { action: "find-previous", hotkey: "mod+shift+g", label: "Previous match" },
@@ -101,6 +103,7 @@ export const setFindBarAnchor = (element: HTMLElement | null): void => {
   anchorStore.setState(element, true);
 };
 
+/** @internal */
 export const getFindBarState = (editor: SlateEditor): FindBarOptions =>
   editor.getOptions(FindBarPlugin);
 
@@ -144,6 +147,7 @@ const searchMatches = (editor: SlateEditor, search: FindSearch): TRange[] => {
   return matches;
 };
 
+/** @internal */
 export const collectFindMatches = (editor: SlateEditor, query: string): TRange[] =>
   searchMatches(editor, { options: FIELD_MATCHING, query });
 
@@ -180,6 +184,7 @@ const activate = (editor: SlateEditor, match: TRange | undefined): void => {
   }
 };
 
+/** @internal */
 export const openFindBar = (editor: SlateEditor, options?: { replace?: boolean }): void => {
   const state = getFindBarState(editor);
   const [first] = searchMatches(editor, state.search);
@@ -203,6 +208,7 @@ const closeFindBar = (editor: SlateEditor): void => {
 
 const wrap = (index: number, length: number): number => (index + length) % length;
 
+/** @internal */
 export const cycleFindMatch = (editor: SlateEditor, direction: 1 | -1): void => {
   const { active, search } = getFindBarState(editor);
   const matches = searchMatches(editor, search);
@@ -220,6 +226,7 @@ export const cycleFindMatch = (editor: SlateEditor, direction: 1 | -1): void => 
   activate(editor, matches[next]);
 };
 
+/** @internal */
 export const setFindQuery = (editor: SlateEditor, query: string): void => {
   const search: FindSearch = { options: FIELD_MATCHING, query };
   const [first] = searchMatches(editor, search);
@@ -242,6 +249,7 @@ export const jumpToFindMatch = (
   }
 };
 
+/** @internal */
 export const setReplaceText = (editor: SlateEditor, replace: string): void => {
   setFindBar(editor, { replace });
 };
@@ -249,6 +257,7 @@ export const setReplaceText = (editor: SlateEditor, replace: string): void => {
 // The active match, then the next one after what was written, so Enter walks the doc and never
 // rewrites its own replacement. An active match an edit took is not replaced: the press lands on
 // the next match, and the next press replaces what the user can now see.
+/** @internal */
 export const replaceActiveMatch = (editor: SlateEditor): void => {
   const { active, replace, search } = getFindBarState(editor);
   const matches = searchMatches(editor, search);
@@ -266,6 +275,7 @@ export const replaceActiveMatch = (editor: SlateEditor): void => {
 };
 
 // last to first, so no rewrite moves an offset still to be rewritten
+/** @internal */
 export const replaceAllMatches = (editor: SlateEditor): number => {
   const { replace, search } = getFindBarState(editor);
   const matches = searchMatches(editor, search);

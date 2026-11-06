@@ -53,6 +53,7 @@ const MAX_ROUNDS_PER_ROW = 3;
 // bounds one pass, so the pull after it is never starved and a close waits out few calls
 const MAX_ROWS_PER_PASS = 100;
 
+/** @internal */
 export const STAGED_FILE_GONE = "This file is no longer on this device.";
 const FILE_NOT_STAGED = "A file this names was never on this device.";
 const KEPT_CHANGING = "Your library kept changing while this device saved. It will try again.";

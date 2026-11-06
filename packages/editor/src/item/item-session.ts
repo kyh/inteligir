@@ -25,6 +25,7 @@ import type { BlockSides, MergedBlock } from "@repo/editor/stale-write";
 import { diffValue, readElement } from "./item-diff";
 import type { ElementReads } from "./item-diff";
 
+/** @internal */
 export interface HeldItem {
   readonly fields: LibraryItemFields;
   // in reading order: the note, then the article
@@ -55,6 +56,7 @@ type ItemWriteOutcome =
 
 // what moved in the store: these items or all of them, and the items a queued write of this
 // device was merged into keeping its lines over another device's change to the same ones
+/** @internal */
 export interface ItemStoreChange {
   readonly ids: ReadonlySet<string>;
   readonly reset: boolean;
@@ -114,12 +116,15 @@ export interface ItemSession {
 }
 
 // the pause after the last keystroke that writes it
+/** @internal */
 export const ITEM_IDLE_MS = 800;
 // a write refused on a moved base is settled and sent again, this many times in one go
 const SETTLE_TRIES = 3;
+/** @internal */
 export const KEPT_CHANGING = "This item kept changing elsewhere while it saved. It will try again.";
 
 // a stored block as the element the editor holds
+/** @internal */
 export const elementOf = (block: LibraryBlock): TElement => ({ ...block });
 
 const stateOf = (item: HeldItem): ItemState => ({

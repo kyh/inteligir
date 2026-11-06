@@ -377,6 +377,7 @@ const groupsOf = <T, K>(items: readonly T[], keyOf: (item: T) => K): Map<K, T[]>
 
 // a batch computed op by op, each against the item as the ones before it left it, as one batch
 // that lands the same: the fewest ops on the first bases
+/** @internal */
 export const compactOps = (ops: readonly LibraryOp[]): LibraryOp[] => {
   const blocks = groupsOf(ops.filter(isBlockOp), blockIdOf);
   const fields = groupsOf(
@@ -440,6 +441,7 @@ const compactAnnotation = (ops: readonly AnnotationOp[]): readonly AnnotationOp[
   return text === null || text === firstBase ? [] : [{ base: firstBase, id, op: "note", text }];
 };
 
+/** @internal */
 export const compactAnnotations = (ops: readonly AnnotationOp[]): AnnotationOp[] =>
   [...groupsOf(ops, (op) => op.id).values()].flatMap((group) => compactAnnotation(group) ?? group);
 

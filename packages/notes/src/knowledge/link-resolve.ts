@@ -3,7 +3,7 @@
 // so the answer is independent of insertion order. Md urls are literal paths:
 // file-relative, then root-relative, no alias tiers.
 
-import { isUuidWikiAlias, serializeWikiBody } from "../markdown/remark-wiki-link";
+import { isUuidWikiAlias } from "../markdown/remark-wiki-link";
 import { IMPLIED_LINK_EXTENSION, wikiLinkName, wikiLinkPath } from "./doc-file";
 import { basenamePath, dirnamePath, extnamePath, joinPath, normalizePath } from "./vault-path";
 
@@ -36,6 +36,7 @@ const pickBest = (candidates: Iterable<string>): string | null => {
 // the keys the name tier files a path under: its basename, and that without the extension a link
 // may leave off. a bare name (no `/`) answers to exactly the paths filed under it, case aside: the
 // exact tiers reach only root files, which are filed there too
+/** @internal */
 export const wikiNameKeys = (path: string): readonly string[] => {
   const base = basenamePath(path);
   const name = wikiLinkName(path);
@@ -259,13 +260,3 @@ export const wikiTargetKeys = (path: string): string[] =>
       return [base, `${base}${IMPLIED_LINK_EXTENSION}`, clean];
     }),
   );
-
-// the whole `[[…]]` for `path`, spelled as the `[[` picker writes it; null for a name no link can
-// carry, so a caller writes nothing rather than a link that lands elsewhere
-export const wikiLinkFor = (
-  path: string,
-  resolveWiki: (target: string) => string | null,
-): string | null => {
-  const body = serializeWikiBody({ target: wikiTargetForPath(path, resolveWiki) });
-  return body === null ? null : `[[${body}]]`;
-};

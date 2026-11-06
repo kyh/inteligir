@@ -31,6 +31,7 @@ const CREATE_VALUE = "__create__";
 
 // Ranked and cut before any row mounts, never filtered per row: a row per vault entry is a mount
 // per note, each one re-filtering on every keystroke.
+/** @internal */
 export const WIKI_PICKER_MAX_ROWS = 50;
 
 const WikiInputElement = (props: PlateElementProps) => {

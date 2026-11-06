@@ -7,6 +7,7 @@
 import { createStore } from "zustand/vanilla";
 import type { StoreApi } from "zustand/vanilla";
 
+/** @internal */
 export interface LibrarySelection {
   selected: ReadonlySet<string>;
   anchor: string | null;
@@ -15,6 +16,7 @@ export interface LibrarySelection {
 
 export type MoveDelta = "left" | "right" | "up" | "down" | "first" | "last";
 
+/** @internal */
 export type SelectionGesture =
   | { kind: "click"; id: string }
   | { kind: "toggle"; id: string }
@@ -73,6 +75,7 @@ const stepped = (
   return next < 0 || next >= order.length ? (order[at] ?? null) : (order[next] ?? null);
 };
 
+/** @internal */
 export const selectionAfter = (s: LibrarySelection, g: SelectionGesture): LibrarySelection => {
   switch (g.kind) {
     case "click": {

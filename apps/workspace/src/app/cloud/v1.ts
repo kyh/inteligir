@@ -23,6 +23,7 @@ export interface CloudWire {
 
 // a call met a session that ended (signed out elsewhere, the account deleted): the page has no
 // library to show, so it goes to the sign-in that brings it back here
+/** @internal */
 export const sessionEnded = (cause: unknown): boolean =>
   cause instanceof ORPCError &&
   cause.defined &&
@@ -52,6 +53,7 @@ export const createCloudWire = (
 // a refusal the procedure declared answers the same however often it is asked, so only a call that
 // met no answer goes again
 const QUERY_RETRIES = 3;
+/** @internal */
 export const retryUnlessRefused = (failures: number, cause: unknown): boolean =>
   !isDefinedError(cause) && failures < QUERY_RETRIES;
 

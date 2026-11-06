@@ -93,6 +93,7 @@ export const renamedBlock = (block: LibraryBlock, id: string, ref?: string): Lib
   ref,
 });
 
+/** @internal */
 export const blockMarkdown = (block: LibraryBlock): string =>
   serializeNote(headlessEditor(), writeBlocks([renamedBlock(block, block.id)], WRITE_PORTS));
 

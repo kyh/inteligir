@@ -22,6 +22,7 @@ export const DEV_CLOUD_ORIGIN = "http://localhost:5174";
 // the site page that may hand the extension its credential, as a match pattern: the production
 // site's connect page, or the dev build's on a local Worker at any port (a pattern with no port
 // matches every one), since the e2e boots each Worker on a port of its own
+/** @internal */
 export const connectPagePattern = (flavor: ExtensionFlavor): string =>
   flavor === "dev"
     ? `http://localhost${CONNECT_EXTENSION_PATH}`
@@ -49,6 +50,7 @@ interface ExtensionManifest {
   version: string;
 }
 
+/** @internal */
 export const extensionManifest = (flavor: ExtensionFlavor, version: string): ExtensionManifest => {
   const manifest: ExtensionManifest = {
     action: {

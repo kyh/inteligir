@@ -6,6 +6,7 @@ type SaveError =
   | { readonly kind: "vanished" }
   | { readonly kind: "refused"; readonly message: string };
 
+/** @internal */
 export interface OpenEditorState {
   readonly kind: "open";
   readonly path: string;

@@ -23,6 +23,7 @@ import { AGENT_TOOL_POLICIES, isAgentToolName } from "./library-agent";
 import type { AgentToolName } from "./library-agent";
 
 // what one result may carry: its JSON as the tool_result's text
+/** @internal */
 export const AGENT_RESULT_MAX_CHARS = 40_000;
 
 // the property a write's input carries its op id in, which the agent never writes
@@ -177,6 +178,7 @@ const HEX = /^[0-9a-f]{64}$/u;
 
 // the op id a call's write keeps, a UUID read off the hash of `agent:<threadId>:<toolUseId>`, so
 // the same call lands once however often it is run
+/** @internal */
 export const agentOpId = async (threadId: string, toolUseId: string): Promise<string> => {
   const digest = await crypto.subtle.digest(
     "SHA-256",

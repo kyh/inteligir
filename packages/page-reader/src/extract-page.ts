@@ -20,6 +20,7 @@ import { pageFactsOf, readHead } from "./page-meta";
 import type { ExtractedMeta } from "./page-meta";
 import { resolveWebUrl } from "./web-url";
 
+/** @internal */
 export const KEPT_MIN = 0.97;
 const RUNGS: readonly Rung[] = ["rich", "plain", "text"];
 
@@ -207,6 +208,7 @@ const readableContent = (document: Document, url: string): Readable => {
   }
 };
 
+/** @internal */
 export const extractPage = (args: PageArgs, parsePage: ParsePage): ExtractedPage => {
   const document = parsePage(args.html);
   // the head first: defuddle strips the scripts JSON-LD rides in

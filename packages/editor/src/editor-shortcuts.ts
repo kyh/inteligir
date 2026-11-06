@@ -44,6 +44,7 @@ export const CODE_MARK_SHORTCUT: EditorShortcut<"toggle-code-mark"> = {
   label: "Inline code",
 };
 
+/** @internal */
 export const EDITOR_SHORTCUTS: readonly EditorShortcut[] = [
   CODE_MARK_SHORTCUT,
   { action: "toggle-todo-list", hotkey: "mod+shift+c", label: "To-do list" },
@@ -100,6 +101,7 @@ export const runEditorShortcut = (editor: PlateEditor, action: EditorShortcutAct
   }
 };
 
+/** @internal */
 export const handleEditorShortcut = (editor: PlateEditor, event: ShortcutKeyEvent): void => {
   const row = editorShortcutFor(EDITOR_SHORTCUTS, event);
   if (row !== null && runEditorShortcut(editor, row.action)) {

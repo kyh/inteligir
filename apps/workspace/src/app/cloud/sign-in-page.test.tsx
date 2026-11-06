@@ -3,7 +3,7 @@
 import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { DEVICE_NAME_MAX_LENGTH } from "@repo/contract/cloud/device/device-schema";
-import type { DeviceLoginRequest } from "@repo/contract/cloud/device/device-schema";
+import type { deviceLoginRequestSchema } from "@repo/contract/cloud/device/device-schema";
 import { V1_RPC_PATH, v1Contract } from "@repo/contract/cloud/v1";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,6 +13,9 @@ import type { KeptCredential, ShellConfig } from "../../shell/shell-config";
 import { clearShell, mockShell, reply } from "../../shell/test-support/mock-shell";
 import { SignInPage } from "./sign-in-page";
 import { createPageQueryClient } from "./v1";
+import type { z } from "zod";
+
+type DeviceLoginRequest = z.infer<typeof deviceLoginRequestSchema>;
 
 // a Mac whose host name is longer than the cloud keeps
 const LONG_NAME = "m".repeat(100);

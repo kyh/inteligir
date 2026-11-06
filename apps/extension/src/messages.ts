@@ -16,6 +16,7 @@ export const extensionRequestSchema = z.discriminatedUnion("type", [
 export type ExtensionRequest = z.infer<typeof extensionRequestSchema>;
 
 // why a save did not land, each said in outcome-copy.ts
+/** @internal */
 export const OUTCOME_REASONS = [
   // no account connected in this browser yet
   "not-connected",

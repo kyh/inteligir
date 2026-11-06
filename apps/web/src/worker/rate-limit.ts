@@ -7,6 +7,7 @@ import { rateLimit } from "./db/schema";
 // Unauthenticated callers are keyed on their address, verified devices on the device and an
 // assistant on its grant; the kill switch is read here, not per caller.
 
+/** @internal */
 export interface RateWindow {
   readonly max: number;
   readonly windowMs: number;
@@ -55,6 +56,7 @@ const DEVICE_RATE_KEY_PREFIXES = {
 
 type DeviceRateFamily = keyof typeof DEVICE_RATE_KEY_PREFIXES;
 
+/** @internal */
 export const deviceRateKey = (family: DeviceRateFamily, deviceId: string): string =>
   `${DEVICE_RATE_KEY_PREFIXES[family]}${deviceId}`;
 
@@ -85,10 +87,12 @@ type CallerRateFamily = keyof typeof CALLER_RATE_KEY_PREFIXES;
 // keyed on a caller names the same caller.
 export const CALLER_IP_HEADER = "cf-connecting-ip";
 
+/** @internal */
 export const callerRateKey = (family: CallerRateFamily, request: Request): string =>
   `${CALLER_RATE_KEY_PREFIXES[family]}${request.headers.get(CALLER_IP_HEADER) ?? "unknown"}`;
 
 // every window the Worker spends, in one table so the guard reads each against AUTH_RATE_WINDOW_SECONDS
+/** @internal */
 export const RATE_WINDOWS = {
   // a password check behind a device credential, so a stolen one guesses here rather than at
   // login's per-address window; a person mistypes a few times, never dozens

@@ -83,6 +83,7 @@ const CUT_OFF = "Not run: the reply was cut off.";
 const TURN_CLOSED = "This turn has ended, so this did not run.";
 
 // what the thread's cell answers it, by Durable Object RPC (`../library/library-do`)
+/** @internal */
 export interface ThreadCell {
   readonly agentReserve: (request: ReserveRequest) => Promise<CellAnswer<Reservation>>;
   readonly agentTool: (request: ToolRequest) => Promise<CellAnswer<ToolAnswer>>;

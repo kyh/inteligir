@@ -226,4 +226,6 @@ const ThinkingTool = (props: ThinkingPartProps & RefAttributes<HTMLElement>) => 
   <ThinkingRow kind="tool" {...props} />
 );
 
-export { Thinking, ThinkingStep, ThinkingReasoning, ThinkingTool };
+export { Thinking, ThinkingReasoning };
+/** @public held beside its drawn component, a reasoned row of ui-orphan-exports.test.ts */
+export { ThinkingStep, ThinkingTool };

@@ -93,9 +93,11 @@ const foldsFor = (
   return stored;
 };
 
+/** @internal */
 export const headingCollapseKeys = (path: string): ReadonlySet<string> =>
   foldsFor(foldsStore.getState(), path);
 
+/** @internal */
 export const toggleHeadingCollapse = (path: string, key: string): void => {
   const keys = new Set(headingCollapseKeys(path));
   if (keys.has(key)) {

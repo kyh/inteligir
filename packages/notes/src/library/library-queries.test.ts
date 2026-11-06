@@ -11,7 +11,6 @@ import {
   dropBlocks,
   linksTo,
   linksToUrl,
-  danglingLinksTo,
   literalMatches,
   nextHead,
   readAnnotations,
@@ -36,10 +35,10 @@ import {
 import { storableBlockSchema } from "./library-nodes";
 import type { LibraryBlock } from "./library-nodes";
 import { ensureLibrarySchema } from "./library-schema";
-import { runPlan, transactPlan } from "./library-sql";
+import { runPlan } from "./library-sql";
 import type { SqlPlan } from "./library-sql";
 import { itemOf, noteFields, paragraph } from "../test-support/library-items";
-import { openWasmSqlPort } from "../test-support/wasm-sql-port";
+import { openWasmSqlPort, transactPlan } from "../test-support/wasm-sql-port";
 import type { WasmSqlPort } from "../test-support/wasm-sql-port";
 
 const leaf: [{ text: "" }] = [{ text: "" }];
@@ -439,9 +438,6 @@ describe("links", () => {
     expect(exec(port, linksTo("target")).map((link) => link.sourceId)).toEqual(["source"]);
     expect(exec(port, linksToUrl("example.com/t"))).toEqual([
       expect.objectContaining({ blockId: "u", kind: "url", sourceId: "source" }),
-    ]);
-    expect(exec(port, danglingLinksTo("some future"))).toEqual([
-      expect.objectContaining({ blockId: "to-Some-Future", kind: "wiki" }),
     ]);
   });
 });

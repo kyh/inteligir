@@ -1,36 +1,18 @@
 // Keyed by path so a consumer never grabs a stale editor serving another note: a note switch
 // mounts a new editor, and the outgoing one must stop answering for the incoming path.
 
-import { deferred } from "@repo/editor/deferred";
 import type { SlateEditor } from "platejs";
 
 const editors = new Map<string, SlateEditor>();
 // weak: a strong reverse map would pin every editor a session built.
 const paths = new WeakMap<SlateEditor, string>();
-// told of each registration and each unregistration
-const listeners = new Set<() => void>();
-
-const notify = (): void => {
-  for (const listener of listeners) {
-    listener();
-  }
-};
-
-export const subscribeLiveEditors = (listener: () => void): (() => void) => {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-};
 
 export const registerLiveEditor = (path: string, editor: SlateEditor): (() => void) => {
   editors.set(path, editor);
   paths.set(editor, path);
-  notify();
   return () => {
     if (editors.get(path) === editor) {
       editors.delete(path);
-      notify();
     }
   };
 };
@@ -44,32 +26,4 @@ export const liveEditorPath = (editor: SlateEditor): string | null => paths.get(
 export const isLiveEditor = (editor: SlateEditor): boolean => {
   const path = paths.get(editor);
   return path !== undefined && editors.get(path) === editor;
-};
-
-// the editor serving `path` once it mounts; bounded, because a refused navigation mounts
-// nothing and the caller would otherwise wait forever
-export const whenLiveEditor = async (
-  path: string,
-  timeoutMs: number,
-): Promise<SlateEditor | null> => {
-  const live = editors.get(path);
-  if (live !== undefined) {
-    return live;
-  }
-  const settled = deferred<SlateEditor | null>();
-  const unsubscribe = subscribeLiveEditors(() => {
-    const mounted = editors.get(path);
-    if (mounted !== undefined) {
-      settled.resolve(mounted);
-    }
-  });
-  const timer = setTimeout(() => {
-    settled.resolve(null);
-  }, timeoutMs);
-  try {
-    return await settled.promise;
-  } finally {
-    clearTimeout(timer);
-    unsubscribe();
-  }
 };

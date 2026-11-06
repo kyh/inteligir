@@ -56,6 +56,7 @@ type AuthSubmit = (form: FormData) => Promise<string | null>;
 
 // a throw is a request that never reached the Worker; escaping the transition, it would land on
 // the route's error boundary and take the typed form with it
+/** @internal */
 export const settleAuthSubmit = async (
   submit: AuthSubmit,
   form: FormData,

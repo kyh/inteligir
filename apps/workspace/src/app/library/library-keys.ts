@@ -37,6 +37,7 @@ export interface LibraryShortcut {
   readonly label: string;
 }
 
+/** @internal */
 export const LIBRARY_SHORTCUTS: readonly LibraryShortcut[] = [
   { action: "move-left", key: "left", label: "Previous item", where: "grid" },
   { action: "move-right", key: "right", label: "Next item", where: "grid" },
@@ -76,6 +77,7 @@ export const LIBRARY_SHORTCUTS: readonly LibraryShortcut[] = [
 ];
 
 // is-hotkey's spelling, so a library row and a global or editor row compare as one chord
+/** @internal */
 export const libraryShortcutHotkey = (row: LibraryShortcut): string =>
   `${row.mod === true ? "mod+" : ""}${row.shift === true ? "shift+" : ""}${row.key}`;
 

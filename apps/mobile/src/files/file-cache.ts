@@ -67,6 +67,7 @@ export interface FileCache {
 }
 
 // a cover up to this size is drawn as it is; past it, from its thumbnail
+/** @internal */
 export const THUMB_OVER_BYTES = 512 * 1024;
 
 const rowsSchema = z.array(

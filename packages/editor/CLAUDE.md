@@ -133,11 +133,7 @@ alone, and no walk narrows structurally.
   (`pinItems` in `apps/workspace/src/app/library/library-verbs.ts`). Rejected: a
   Pinned heading (more height than it explains).
 
-- **GO TO HEADING IS THE PALETTE OVER THE TOC'S WALK, AND AN EXTRACT IS ONE
-  HISTORY BATCH.** ⌘⇧O opens the palette on the outline and lands through the
-  TOC's jump (`packages/editor/src/toc.tsx`); the outline is walked once, by
-  whatever opens the palette page, never in render: the workspace sits outside
-  the Plate provider, so nothing would refresh a render-time read. An extract
+- **AN EXTRACT IS ONE HISTORY BATCH.** An extract
   creates its note exclusively before touching the buffer, refuses blocks
   anchoring an annotation (its entry would stay behind), and lands the removal
   and the `[[link]]` in one flush, so one undo restores both; the created file

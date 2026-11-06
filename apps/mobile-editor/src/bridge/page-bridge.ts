@@ -28,6 +28,7 @@ declare global {
 type PageEvent = Unstamped<Exclude<PageFrame, { type: "request" | "ready" }>>;
 
 // what the native end tells a connected page on its own
+/** @internal */
 export type NativeEvent = Extract<
   NativeFrame,
   { type: "itemChanged" | "flush" | "fillJob" | "mergeJob" }
@@ -54,6 +55,7 @@ export interface ConnectedPage {
   readonly init: PageInit;
 }
 
+/** @internal */
 export const REQUEST_TIMEOUT_MS = 10_000;
 
 // The native end answers every request, and a highlight timed out here still lands there, so these

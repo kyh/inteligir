@@ -47,6 +47,7 @@ export interface ItemNow {
   readonly annotations: AnnotationStore;
 }
 
+/** @internal */
 export const snapshotOf = (now: ItemNow): ItemSnapshot => ({
   annotations: now.annotations,
   fields: now.state.fields,
@@ -60,6 +61,7 @@ export const snapshotOf = (now: ItemNow): ItemSnapshot => ({
 
 type ItemRevertKeepReason = "edited-since" | "purged";
 
+/** @internal */
 export type ItemRevert =
   | { readonly kind: "unchanged" }
   | {
@@ -74,6 +76,7 @@ export type ItemRevert =
     }
   | { readonly kind: "keep"; readonly reason: ItemRevertKeepReason };
 
+/** @internal */
 export interface ItemRevertInput {
   readonly change: ItemChange;
   readonly now: ItemNow | null;
@@ -400,6 +403,7 @@ const revertExisting = (input: ItemRevertInput, before: ItemSnapshot, now: ItemN
   };
 };
 
+/** @internal */
 export const revertItemChange = (input: ItemRevertInput): ItemRevert => {
   const { before } = input.change;
   if (before === null) {

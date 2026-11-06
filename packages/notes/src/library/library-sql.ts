@@ -36,11 +36,6 @@ export interface AsyncSqlStatements {
   readonly all: (sql: string, params: readonly SqlValue[]) => Promise<readonly SqlRow[]>;
 }
 
-// a replica's: `transaction` holds the database exclusively for `work`
-export interface AsyncSqlPort extends AsyncSqlStatements {
-  readonly transaction: <T>(work: (tx: AsyncSqlStatements) => Promise<T>) => Promise<T>;
-}
-
 const NO_ROWS: readonly SqlRow[] = [];
 
 export const all = (sql: string, params: readonly SqlValue[] = []): SqlStep => ({
@@ -97,17 +92,12 @@ export const runPlanAsync = async <T>(port: AsyncSqlStatements, plan: SqlPlan<T>
   return step.value;
 };
 
-// a plan as one transaction: every statement lands, or none does
-export const transactPlan = <T>(port: SqlPort, plan: SqlPlan<T>): T =>
-  port.transaction(() => runPlan(port, plan));
-
-export const transactPlanAsync = async <T>(port: AsyncSqlPort, plan: SqlPlan<T>): Promise<T> =>
-  await port.transaction(async (tx) => await runPlanAsync(tx, plan));
-
 // A SQLite Durable Object binds at most 100 parameters to one statement and reads at most 100 KB
 // of statement text (https://developers.cloudflare.com/durable-objects/platform/limits/); every
 // many-row statement is cut under whichever binds first.
+/** @internal */
 export const SQL_MAX_PARAMS = 100;
+/** @internal */
 export const SQL_MAX_STATEMENT_BYTES = 100_000;
 
 export interface RepeatedStatement {

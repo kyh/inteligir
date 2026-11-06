@@ -28,6 +28,7 @@ export const BLOCK_MAX_BYTES = 512 * 1024;
 
 // how deep a block nests: a table in a column in a tab panel is under ten, and a parse of
 // untrusted JSON must not recurse until the stack runs out
+/** @internal */
 export const BLOCK_MAX_DEPTH = 32;
 
 const mark = z.literal(true).optional();

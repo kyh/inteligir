@@ -15,7 +15,7 @@
     "format": "oxfmt --check",
     "format:fix": "oxfmt --write && turbo run format:fix",
     "hotfix:mobile": "pnpm --filter @repo/mobile hotfix",
-    "knip": "knip",
+    "knip": "knip && knip --production",
     "lint": "oxlint --report-unused-disable-directives",
     "lint:fix": "oxlint --fix",
     "package:desktop": "turbo run package --filter=@repo/desktop",

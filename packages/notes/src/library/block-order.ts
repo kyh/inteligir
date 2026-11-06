@@ -33,6 +33,7 @@ const integerLength = (head: string): number | null => {
 // what generateKeyBetween accepts as a bound: a head, as many integer digits as it announces, and
 // a fraction that never ends in the zero digit. The library checks the head and the zero alone,
 // so the digits are held to the alphabet here.
+/** @internal */
 export const isOrdKey = (key: string): boolean => {
   if (key.length === 0 || key.length > ORD_MAX_LENGTH || key === SMALLEST_KEY) {
     return false;

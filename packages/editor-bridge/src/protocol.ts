@@ -226,6 +226,7 @@ export const pageFrameSchema = z.discriminatedUnion("type", [
 
 export type PageFrame = z.infer<typeof pageFrameSchema>;
 
+/** @internal */
 export const nativeFrameSchema = z.discriminatedUnion("type", [
   z.discriminatedUnion("mode", [
     // an item's editor over its blocks, by its id

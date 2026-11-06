@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_DOC_EXTENSION,
   docExtension,
   docStem,
   freeDocPath,
@@ -9,7 +8,6 @@ import {
   takenIgnoringCase,
   wikiLinkName,
   wikiLinkPath,
-  withDocExtension,
 } from "./doc-file";
 import { vaultCollisionKey } from "./vault-path";
 
@@ -21,10 +19,6 @@ describe("what counts as a doc", () => {
     for (const path of ["a.png", "a", "assets/logo.svg", ".gitignore"]) {
       expect(isDocPath(path)).toBe(false);
     }
-  });
-
-  it("mints new docs with the default extension", () => {
-    expect(isDocPath(`Untitled${DEFAULT_DOC_EXTENSION}`)).toBe(true);
   });
 });
 
@@ -75,19 +69,6 @@ describe("the stem a title surface edits", () => {
     expect(`${docStem("notes/spec.markdown")}${docExtension("notes/spec.markdown")}`).toBe(
       "spec.markdown",
     );
-  });
-});
-
-describe("the name a new note is given", () => {
-  it("appends the default extension to a title, whatever dots it holds", () => {
-    expect(withDocExtension("Next.js")).toBe("Next.js.md");
-    expect(withDocExtension("Release 1.2")).toBe("Release 1.2.md");
-    expect(withDocExtension("notes/Plan")).toBe("notes/Plan.md");
-  });
-
-  it("keeps a doc extension the name already carries", () => {
-    expect(withDocExtension("todo.txt")).toBe("todo.txt");
-    expect(withDocExtension("a.md")).toBe("a.md");
   });
 });
 

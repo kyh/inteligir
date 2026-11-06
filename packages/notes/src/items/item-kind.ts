@@ -31,6 +31,7 @@ export type ItemKey = (typeof ITEM_KEYS)[number];
 export type FileKind = "image" | "pdf" | "video" | "audio" | "file";
 
 // wider than the servable media table: `.heic` is an image item the asset route does not serve
+/** @internal */
 export const FILE_KIND_EXTENSIONS = {
   audio: [".aac", ".flac", ".m4a", ".mp3", ".oga", ".ogg", ".opus", ".wav"],
   image: [

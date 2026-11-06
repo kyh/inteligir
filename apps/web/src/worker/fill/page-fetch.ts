@@ -18,6 +18,7 @@ import { isLoopbackName, isPrivateUseName } from "@repo/notes/items/host-names";
 import { addressSpace } from "./address-space";
 import type { AddressSpace } from "./address-space";
 
+/** @internal */
 export interface PageRequest {
   readonly url: string;
   readonly accept: string;
@@ -201,6 +202,7 @@ const answered = async (
 };
 
 // the guarded fetch, its whole read held to `deadlineMs`
+/** @internal */
 export const pageFetch =
   (options: { readonly deadlineMs: number }): PageFetch =>
   async (request) => {

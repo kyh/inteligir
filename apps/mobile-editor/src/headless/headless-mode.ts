@@ -28,6 +28,7 @@ const browserBlockId = (): string =>
   ).join("");
 
 // a page that breaks the reader answers `failed`, never an exception the phone waits out
+/** @internal */
 export const readPage = (
   job: FillJob,
   parsePage: ParsePage = browserParse,
@@ -60,6 +61,7 @@ export const readPage = (
 };
 
 // the editor's merge of a block two devices changed; null for a merge that broke on the way
+/** @internal */
 export const mergeSides = (sides: MergeSides): MergeAnswer => {
   try {
     return mergeBlocks(sides);

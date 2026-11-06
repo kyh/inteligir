@@ -53,6 +53,7 @@ const frameJsonSchema = z.string().transform((text, context) => {
 });
 
 // the socket's address on the cloud's origin, its scheme the origin's own made a socket's
+/** @internal */
 export const socketUrl = (origin: string, ticket: string): string => {
   const scheme = origin.startsWith("https:") ? "wss:" : "ws:";
   const rest = origin.replace(/^https?:/u, "");

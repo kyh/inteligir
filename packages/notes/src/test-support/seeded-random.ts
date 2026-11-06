@@ -4,6 +4,7 @@
 /* oxlint-disable no-bitwise -- mulberry32 is 32-bit integer math; the shifts and xors ARE the
    algorithm, and the seeded sequence every property test replays depends on their exact
    wrap-around semantics. */
+/** @internal */
 export const mulberry32 = (seed: number): (() => number) => {
   let a = seed >>> 0;
   return () => {

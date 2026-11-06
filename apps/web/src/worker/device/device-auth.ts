@@ -8,6 +8,7 @@ import { device } from "../db/schema";
 // window a revoked credential keeps working through.
 
 // last seen is written at most this often per device: every call verifies, and a D1 write on each kept current a devices page nobody reads to the second
+/** @internal */
 export const LAST_SEEN_RESOLUTION_MS = 5 * 60_000;
 
 interface VerifiedDevice {

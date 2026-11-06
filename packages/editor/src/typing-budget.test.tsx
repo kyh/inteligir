@@ -11,7 +11,8 @@ import type { Point, SlateEditor, TElement } from "platejs";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
-import { MD_STRINGIFY, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
+import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
+import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { blockId } from "@repo/editor/node-props";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 import { mountItem } from "./test-support/memory-item";

@@ -18,12 +18,14 @@ const OP_ANSWER_MS = 30 * DAY_MS;
 // the items one run sweeps, well inside an alarm's 30 s of CPU
 const ITEMS_PER_RUN = 100;
 
+/** @internal */
 export interface RevisionAt {
   readonly rev: number;
   readonly at: number;
 }
 
 // the revs to drop, of one item's revisions
+/** @internal */
 export const revisionsToDrop = (revisions: readonly RevisionAt[], now: number): number[] => {
   const older = revisions.toSorted((a, b) => b.rev - a.rev).slice(KEEP_NEWEST);
   const lastOfDay = new Map<number, number>();

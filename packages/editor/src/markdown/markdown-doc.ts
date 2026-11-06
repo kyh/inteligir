@@ -15,8 +15,6 @@ import { pruneForMarkdown } from "@repo/editor/markdown/md-rules";
 import { mdToSlate } from "@repo/editor/markdown/md-to-slate";
 import type { ConvertFailure } from "@repo/editor/markdown/md-to-slate";
 
-export { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
-
 // Why a value cannot stand for its markdown: never the bytes, which always parse, but the
 // editor's limits or its bugs.
 export type RoundTripFailure =
@@ -29,6 +27,7 @@ export type RoundTripFailure =
   | { kind: "pipeline-error" };
 
 // `normalizes`: the first save restyles markup and keeps every letter and line.
+/** @internal */
 export type DocAnalysis = { kind: "canonical" } | { kind: "normalizes" } | RoundTripFailure;
 
 const describeFailure = (reason: RoundTripFailure): string => {
@@ -52,6 +51,7 @@ const describeFailure = (reason: RoundTripFailure): string => {
   }
 };
 
+/** @internal */
 export class RoundTripError extends Error {
   readonly reason: RoundTripFailure;
 
@@ -174,6 +174,7 @@ const findFixpoint = (out: string): Fixpoint => {
   return { reason: { kind: "unstable" }, stable: false };
 };
 
+/** @internal */
 export const analyzeMarkdown = (md: string): DocAnalysis => {
   if (md.trim() === "") {
     return { kind: "canonical" };
@@ -209,6 +210,7 @@ export const parseMarkdown = (
   return { ok: true, value: converted.value };
 };
 
+/** @internal */
 export const roundTrip = (md: string): string => {
   const serialized = roundTripResult(md);
   if (!serialized.ok) {
@@ -221,6 +223,7 @@ export const roundTrip = (md: string): string => {
   return fixpoint.at;
 };
 
+/** @internal */
 export const toCanonical = (md: string): string => `${roundTrip(md).trimEnd()}\n`;
 
 // an imported page (the fill's article) written as the editor's own fixpoint: the bytes a rich

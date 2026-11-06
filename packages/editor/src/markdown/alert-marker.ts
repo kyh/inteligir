@@ -2,6 +2,7 @@
 // quote through it, because any two that disagree on `> [!note]` render an alert the save
 // escapes to `\[!note]`. The variant matches in any case; the bytes keep the case written.
 
+/** @internal */
 export const ALERT_VARIANTS = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"] as const;
 
 export type AlertVariant = (typeof ALERT_VARIANTS)[number];

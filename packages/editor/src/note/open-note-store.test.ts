@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createOpenNoteStore, historyStep } from "@repo/editor/note/open-note-store";
+import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import type { OpenNoteState } from "@repo/editor/note/open-note-store";
 import type { OpenEditorState } from "@repo/editor/vault-editor";
 
@@ -57,23 +57,12 @@ describe("the open note's store", () => {
     expect(store.state().openDoc).toBe(before);
   });
 
-  it("closes the editor when the library is shown, a step Forward undoes", () => {
+  it("closes the editor when the library is shown", () => {
     const store = createOpenNoteStore();
     store.publishOpenPath("a.md");
     store.publishEditor(opened("a.md", "A\n"));
     store.publishOpenPath(null);
     expect(store.state().editor).toEqual({ kind: "closed" });
     expect(store.state().openDoc).toEqual({ kind: "none" });
-    expect(historyStep(store.state(), "back")).toBeNull();
-    expect(historyStep(store.state(), "forward")).toEqual({ to: "a.md" });
-  });
-
-  it("carries a renamed note's history entries to its new path", () => {
-    const store = createOpenNoteStore();
-    for (const path of ["a.md", "b.md", "c.md", "a.md"]) {
-      store.publishOpenPath(path);
-    }
-    store.publishOpenPath("d.md", "carry");
-    expect(store.state().back).toEqual([null, "d.md", "b.md", "c.md"]);
   });
 });

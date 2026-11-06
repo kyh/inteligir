@@ -8,7 +8,8 @@
     "e2e": "tsx src/run.ts",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
+  "devDependencies": {
+    "@kyh/tsconfig": "catalog:",
     "@modelcontextprotocol/client": "catalog:",
     "@orpc/client": "catalog:",
     "@repo/contract": "workspace:*",
@@ -17,10 +18,7 @@
     "@repo/mobile": "workspace:*",
     "@repo/mobile-editor": "workspace:*",
     "@repo/notes": "workspace:*",
-    "@repo/page-reader": "workspace:*"
-  },
-  "devDependencies": {
-    "@kyh/tsconfig": "catalog:",
+    "@repo/page-reader": "workspace:*",
     "@types/node": "catalog:",
     "miniflare": "catalog:",
     "tsx": "catalog:",

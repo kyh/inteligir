@@ -70,6 +70,7 @@ import { refuse } from "./cell-refusal";
 import { readItemNow } from "./change-sets";
 
 // how long an export waits to be downloaded
+/** @internal */
 export const EXPORT_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
 
 // the zip of one export, under the account's prefix
@@ -92,6 +93,7 @@ export interface ExportLimits {
   readonly zipBytes: number;
 }
 
+/** @internal */
 export const EXPORT_LIMITS: ExportLimits = {
   partBytes: 8 * MiB,
   planItems: 1000,

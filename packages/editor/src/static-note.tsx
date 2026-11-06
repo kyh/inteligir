@@ -241,6 +241,7 @@ const TableRowStatic = (props: SlateElementProps) => <SlateElement {...props} as
 // PlateStatic runs no decorations, so the `> [!TIP]` marker the live editor hides behind the
 // badge would render literally; stripAlertMarkers removes it from this throwaway render copy
 // instead. never reuse it on an editable path: it deletes bytes.
+/** @internal */
 export const ALERT_VARIANT_KEY = "transclusionAlertVariant";
 
 const alertLeaf = (quote: TElement): TText | null => {
@@ -286,6 +287,7 @@ const BlockquoteStatic = (props: SlateElementProps) => {
 
 // Every void needs a row: the default static element is a <div> or the plugin's own tag, which
 // draws the void empty, or throws for <hr>. transclusion-static.test.ts pins it.
+/** @internal */
 export const STATIC_COMPONENTS: ReadonlyMap<string, (props: SlateElementProps) => ReactNode> =
   new Map([
     ["a", LinkStatic],
@@ -318,6 +320,7 @@ const STATIC_KIT = BASE_KIT.map((plugin) => {
   return component ? plugin.withComponent(component) : plugin;
 });
 
+/** @internal */
 export const stripAlertMarkers = (value: Value): Value =>
   value.map((node) => {
     if (!ElementApi.isElement(node) || node.type !== KEYS.blockquote) {

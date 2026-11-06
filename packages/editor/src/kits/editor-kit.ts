@@ -63,6 +63,7 @@ export const CONTENT_KIT = [
 
 // A later plugin's aboveNodes wraps an earlier one's, so the gutter stays inside the fold that
 // hides its block, and both inside the drag handle.
+/** @internal */
 export const DESKTOP_CHROME_KIT = [
   ...AnnotationGutterKit,
   ...HeadingCollapseKit,

@@ -208,6 +208,7 @@ const currentOf = (itemId: string, conflict: OpConflict): ConflictCurrent => {
   }
 };
 
+/** @internal */
 export const createFakeCell = (): FakeCell => {
   let generation = 1;
   let epoch = "epoch-1";

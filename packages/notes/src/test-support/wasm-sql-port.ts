@@ -9,8 +9,15 @@ import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import { z } from "zod";
 
 import { utf8ByteLength } from "../library/canonical-json";
-import { SQL_MAX_PARAMS, SQL_MAX_STATEMENT_BYTES } from "../library/library-sql";
-import type { AsyncSqlPort, SqlPort, SqlRow, SqlStatement, SqlValue } from "../library/library-sql";
+import { runPlan, SQL_MAX_PARAMS, SQL_MAX_STATEMENT_BYTES } from "../library/library-sql";
+import type {
+  AsyncSqlStatements,
+  SqlPlan,
+  SqlPort,
+  SqlRow,
+  SqlStatement,
+  SqlValue,
+} from "../library/library-sql";
 
 const sqlite3 = await sqlite3InitModule();
 
@@ -74,29 +81,15 @@ export const openWasmSqlPort = (): WasmSqlPort => {
   };
 };
 
-// the same database behind an asynchronous port, as a replica's driver presents it, holding its
-// transaction open across awaits with a savepoint
-export const asyncPortOf = (port: WasmSqlPort): AsyncSqlPort => {
-  const statements = {
-    all: async (sql: string, params: readonly SqlValue[]) =>
-      await Promise.resolve(port.all(sql, params)),
-    run: async (sql: string, params: readonly SqlValue[]) => {
-      await Promise.resolve(port.run(sql, params));
-    },
-  };
-  return {
-    ...statements,
-    transaction: async (work) => {
-      port.raw("SAVEPOINT replica");
-      try {
-        const value = await work(statements);
-        port.raw("RELEASE replica");
-        return value;
-      } catch (error) {
-        port.raw("ROLLBACK TO replica");
-        port.raw("RELEASE replica");
-        throw error;
-      }
-    },
-  };
-};
+// the same database behind an asynchronous port, as a replica's driver presents its statements
+export const asyncPortOf = (port: WasmSqlPort): AsyncSqlStatements => ({
+  all: async (sql: string, params: readonly SqlValue[]) =>
+    await Promise.resolve(port.all(sql, params)),
+  run: async (sql: string, params: readonly SqlValue[]) => {
+    await Promise.resolve(port.run(sql, params));
+  },
+});
+
+// a plan as one transaction: every statement lands, or none does
+export const transactPlan = <T>(port: SqlPort, plan: SqlPlan<T>): T =>
+  port.transaction(() => runPlan(port, plan));

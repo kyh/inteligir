@@ -2,7 +2,7 @@
 // email and password answered with a device credential, the account's cap on devices, and a
 // credential that stops reaching anything the moment it is revoked.
 
-import type { DeviceLoginRequest } from "@repo/contract/cloud/device/device-schema";
+import type { deviceLoginRequestSchema } from "@repo/contract/cloud/device/device-schema";
 import { V1_SOCKET_PATH } from "@repo/contract/cloud/library/library-socket";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import { and, eq, isNull } from "drizzle-orm";
@@ -24,6 +24,9 @@ import {
 import { createDb } from "./db/client";
 import { account, device, session, user } from "./db/schema";
 import { LAST_SEEN_RESOLUTION_MS } from "./device/device-auth";
+import type { z } from "zod";
+
+type DeviceLoginRequest = z.infer<typeof deviceLoginRequestSchema>;
 
 // whether a credential still reaches the account: a call any live credential may make
 const reaches = async (credential: string): Promise<boolean> => {

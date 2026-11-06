@@ -30,6 +30,7 @@ interface ShownRevision {
 }
 
 // what an undo's answer says: what it took back, and what a later change kept as it is
+/** @internal */
 export const undoSentence = (answer: { reverted: readonly string[]; kept: readonly string[] }) =>
   answer.kept.length === 0
     ? "Undone."

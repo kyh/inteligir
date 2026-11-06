@@ -30,6 +30,7 @@ import type { ItemSession, ItemSessionPorts } from "./item-session";
 // and a run off screen skips its layout and paint (EditorChunk, in editor-chrome.tsx)
 const CHUNK_BLOCKS = 100;
 
+/** @internal */
 export const MISSING_ITEM =
   "This item isn't on this device. It was deleted, or hasn't reached it yet.";
 

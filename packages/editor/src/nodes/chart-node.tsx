@@ -89,6 +89,7 @@ export type ChartPayload = z.infer<typeof chartSchema>;
 
 export type ChartParse = { ok: true; chart: ChartPayload } | { ok: false; reason: string };
 
+/** @internal */
 export const parseChartPayload = (value: string): ChartParse => {
   let json: unknown;
   try {
