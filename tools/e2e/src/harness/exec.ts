@@ -1,5 +1,4 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
 
 export interface ExecResult {
   stdout: string;
@@ -108,11 +107,3 @@ export const appLaunchEnv = (): NodeJS.ProcessEnv =>
     hermeticProcessEnv(),
     (key) => key.startsWith("INTELIGIR_") || key === "NODE_ENV" || HOST_AGENT_ENV.has(key),
   );
-
-export const gitIn = async (dir: string, args: readonly string[]): Promise<string> => {
-  const { stdout } = await exec("git", ["-C", dir, ...args], { env: hermeticProcessEnv() });
-  return stdout.trim();
-};
-
-export const readOrNull = async (file: string): Promise<string | null> =>
-  await readFile(file, "utf-8").catch(() => null);

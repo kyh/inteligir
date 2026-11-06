@@ -2,19 +2,18 @@
 
 THE runbook. One product version ships as three artifacts, and every step here
 is the owner's: each needs a credential no agent and no CI run holds (the
-Developer ID and the notary key, npm's one-time code, the Apple team behind
+Developer ID and the notary key, the Apple team behind
 EAS, Cloudflare), and the agent environment refuses release operations
 outright.
 
-| Artifact           | Who gets it                                                     | How it ships                                                           |
-| ------------------ | --------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `inteligir` on npm | `npx inteligir serve --open`                                    | `pnpm --filter inteligir publish`                                      |
-| The Mac app        | the site's Download button, and every installed app's updater   | a GitHub release carrying the dmg, the signed update and `latest.json` |
-| The iPhone app     | TestFlight: the internal `Owner` group, then the `Cohort` group | `pnpm testflight:mobile` (EAS Build, submitted to App Store Connect)   |
-| The extension      | the Chrome Web Store, for Chrome, Arc, Brave, Edge and Vivaldi  | `pnpm package:extension`, uploaded to the store item                   |
+| Artifact       | Who gets it                                                     | How it ships                                                           |
+| -------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| The Mac app    | the site's Download button, and every installed app's updater   | a GitHub release carrying the dmg, the signed update and `latest.json` |
+| The iPhone app | TestFlight: the internal `Owner` group, then the `Cohort` group | `pnpm testflight:mobile` (EAS Build, submitted to App Store Connect)   |
+| The extension  | the Chrome Web Store, for Chrome, Arc, Brave, Edge and Vivaldi  | `pnpm package:extension`, uploaded to the store item                   |
 
-The four manifests carry one version (`apps/cli`, `apps/desktop`,
-`apps/extension`, `apps/mobile`; `tools/repo-guards/src/release-versions.test.ts`
+The three manifests carry one version (`apps/desktop`, `apps/extension`,
+`apps/mobile`; `tools/repo-guards/src/release-versions.test.ts`
 refuses a split), since the extension calls `/v1` as the apps do and one client
 build floor holds them all, and a release's notes are `CHANGELOG.md`'s top
 section (`tools/repo-guards/src/changelog.test.ts`).
@@ -52,8 +51,7 @@ The owner publishes once, when every step and every check below has passed.
   refuses one missing any: a file written for the earlier pack renames
   `APPLE_API_KEY` to `APPLE_API_KEY_PATH`, then `APPLE_API_KEY_ID` to
   `APPLE_API_KEY`.
-- **GitHub and npm**: `gh auth status` has push rights on the repo, and
-  `npm whoami` names the account that owns `inteligir`.
+- **GitHub**: `gh auth status` has push rights on the repo.
 - **Cloudflare**: `pnpm --filter @repo/web exec cf auth whoami` is signed in,
   and the root `.env.production.local` holds the three D1 credentials
   `.env.example` names.
@@ -88,11 +86,10 @@ connect page hands a credential to must be that item's. Once:
 
 On main, clean, at the commit to ship:
 
-1. Set `version` in `apps/cli/package.json`, `apps/desktop/package.json`,
-   `apps/extension/package.json` and `apps/mobile/package.json` to the
-   release's `<version>`. The shell reports its own version and ships the CLI's
-   tree, each refuses a server of another version, the phone's marketing
-   version is its package's, and the extension names it in every call.
+1. Set `version` in `apps/desktop/package.json`, `apps/extension/package.json`
+   and `apps/mobile/package.json` to the release's `<version>`. The shell
+   reports its own version, the phone's marketing version is its package's,
+   and each app names it in every call.
 2. Retitle `CHANGELOG.md`'s `## Unreleased` as `## <version> — <YYYY-MM-DD>`,
    and read the section once as a user would: it is the GitHub release's body,
    word for word.
@@ -109,7 +106,7 @@ On main, clean, at the commit to ship:
 ## 2. Gates
 
 ```sh
-pnpm format:fix && pnpm verify && pnpm e2e && pnpm smoke:cli && pnpm smoke:desktop && pnpm package:extension
+pnpm format:fix && pnpm verify && pnpm e2e && pnpm smoke:desktop && pnpm package:extension
 ```
 
 `smoke:desktop` packages the app, signs it, notarizes it with `.release/` and
@@ -473,10 +470,7 @@ account whose library holds about 2,000 items gives the timing check its load.
   in `apps/web/cloudflare.config.ts`), and the link sets a new password.
 - **The pitch.** Passing: `apps/web/public/og.jpg` and the Web Store listing's
   copy read with the library's pitch (one library for everything you save),
-  and an inteligir.com link pasted into a chat app previews with it. A new
-  `og.jpg` also replaces the starter library's cover: downscale it to 640 px
-  wide and rename it by its bytes' sha-256 prefix, as
-  `apps/cli/seed/assets/covers/` and its item name it.
+  and an inteligir.com link pasted into a chat app previews with it.
 - **The library cell on a preview and in production.** On the PR's Worker
   preview, sign a device in against the preview's D1 (`apps/web/README.md`
   § Previews), then open `<preview>/v1/sync/ws` with its bearer and its build
@@ -666,8 +660,7 @@ them.
 
 ## 6. Publish
 
-Only once every check has passed, and the three close together: the npm CLI
-refuses a server of another version, so npm and the Mac app ship as one.
+Only once every check has passed, and the three close together.
 
 1. **The Mac app.** Tag and publish. The site's Download button links
    `releases/latest/download/Inteligir-arm64.dmg`, so the release must carry
@@ -692,18 +685,9 @@ refuses a server of another version, so npm and the Mac app ship as one.
    update to, and one missing `Inteligir-arm64.dmg` leaves the Download button
    a 404.
 
-2. **npm.** `pnpm --filter inteligir publish --otp <code>`, from the tagged
-   commit on a clean main (pnpm refuses another branch or a dirty tree); it
-   packs the `apps/cli/dist` step 2 built. The code rides the flag because a
-   shell without a terminal cannot prompt for it, and an `E401` means the
-   stored token expired: `npm login`, then again. pnpm rewrites the manifest
-   on the way out (`publishConfig.exports`). A version can reach the registry
-   many minutes after pnpm says Published (0.6.0 took fourteen): poll
-   `npm view inteligir@<version> version`, and never publish again, since a
-   second publish of that version is refused.
-3. **The phone's cohort.** `apps/mobile/README.md` § Per release, steps 4 to
+2. **The phone's cohort.** `apps/mobile/README.md` § Per release, steps 4 to
    6: What to Test, Beta App Review, then the invites.
-4. **The extension.** Upload
+3. **The extension.** Upload
    `apps/extension/.output/inteligir-extension-<version>.zip` to the store
    item, and keep the listing true to what it does: the description, the
    screenshots, the single-purpose statement ("saves the page you are on to
@@ -730,8 +714,6 @@ refuses a server of another version, so npm and the Mac app ship as one.
   build loaded. Passing: chrome://extensions shows `EXTENSION_ID`, it connects
   from inteligir.com/connect/extension, and the toolbar button saves the page
   into the library.
-- **npm.** Passing: `npm view inteligir version` and
-  `npx -y inteligir@<version> --version` both print `<version>`.
 - **The cohort.** Passing: the phone build is approved in the `Cohort` group,
   and one tester installs it from the invite and signs in.
 - **This file.** Whatever the release needed that is not written here goes in

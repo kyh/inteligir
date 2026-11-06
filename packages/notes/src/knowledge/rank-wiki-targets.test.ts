@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { WikiTarget } from "./link-graph-index";
+import type { WikiTarget } from "./wiki-target";
 import { rankWikiTargets } from "./rank-wiki-targets";
 
 const doc = (path: string, title: string, aliases?: string[]): WikiTarget => {

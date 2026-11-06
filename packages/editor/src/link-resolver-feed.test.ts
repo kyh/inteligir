@@ -1,6 +1,6 @@
 import type { VaultEntry } from "@repo/editor/host-io";
 import { createLinkResolverFeed } from "@repo/editor/link-resolver-feed";
-import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
+import type { WikiTarget } from "@repo/notes/knowledge/wiki-target";
 import { describe, expect, it } from "vitest";
 
 const LISTING: readonly VaultEntry[] = [

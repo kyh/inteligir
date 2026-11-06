@@ -17,8 +17,7 @@
     "@repo/mobile": "workspace:*",
     "@repo/mobile-editor": "workspace:*",
     "@repo/notes": "workspace:*",
-    "@repo/page-reader": "workspace:*",
-    "inteligir": "workspace:*"
+    "@repo/page-reader": "workspace:*"
   },
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",

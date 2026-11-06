@@ -2,10 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { frontmatterYaml, parseProperties } from "../markdown/frontmatter";
 import { splitLines } from "../text/source-lines";
-import { bodyOf, composeLinkBody, embedMarkdown, withBody } from "./item-body";
 import {
   composeItemFile,
-  isItemStub,
   itemFactsOf,
   NOTE_FACTS,
   readItemFacts,
@@ -14,7 +12,6 @@ import {
 import type { ItemFieldPatch } from "./item-frontmatter";
 import { FILL_OWNED_KEYS, ITEM_KEYS } from "./item-kind";
 import type { ItemKey } from "./item-kind";
-import { linkStubText } from "./item-stub";
 import { mulberry32, pick } from "../test-support/seeded-random";
 
 const SAVED = Date.UTC(2026, 9, 17, 9, 12, 30);
@@ -26,140 +23,6 @@ const written = (content: string, patch: ItemFieldPatch): string => {
   }
   return verdict.content;
 };
-
-describe("the exact bytes of §1.4", () => {
-  it("a note made in the app", () => {
-    expect(composeItemFile({ saved: "2026-10-17T09:12:30Z" }, "")).toBe(
-      "---\nsaved: 2026-10-17T09:12:30Z\n---\n",
-    );
-  });
-
-  it("a link stub from a paste", () => {
-    expect(
-      linkStubText({
-        id: "0e5b3c1a-9a51-4f0e-8a0c-0b7f9d3a2c11",
-        note: "",
-        saved: SAVED,
-        url: "https://stephango.com/file-over-app",
-      }),
-    ).toBe(
-      "---\nid: 0e5b3c1a-9a51-4f0e-8a0c-0b7f9d3a2c11\nkind: link\nurl: https://stephango.com/file-over-app\nsaved: 2026-10-17T09:12:30Z\n---\n",
-    );
-  });
-
-  const phoneStub = linkStubText({
-    id: "7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17",
-    note: "For Tuesday.",
-    saved: SAVED,
-    url: "https://stephango.com/file-over-app?utm_source=share",
-  });
-
-  it("a phone stub with a note, its tracking parameters dropped", () => {
-    expect(phoneStub).toBe(
-      "---\nid: 7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17\nkind: link\nurl: https://stephango.com/file-over-app\nsaved: 2026-10-17T09:12:30Z\n---\n\nFor Tuesday.\n",
-    );
-  });
-
-  it("trims a stub's note whole, its first line's indent included", () => {
-    const padded = linkStubText({
-      id: "7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17",
-      note: "  For Tuesday.  \n",
-      saved: SAVED,
-      url: "https://stephango.com/file-over-app",
-    });
-    expect(padded).toBe(phoneStub);
-    expect(linkStubText({ id: "i", note: " \n\t\n", saved: SAVED, url: "https://a.com/" })).toBe(
-      "---\nid: i\nkind: link\nurl: https://a.com/\nsaved: 2026-10-17T09:12:30Z\n---\n",
-    );
-  });
-
-  it("the same stub after a fill, every key in compose order", () => {
-    const fields = written(phoneStub, {
-      author: "Steph Ango",
-      description:
-        "If you want to create digital artifacts that last, they must be files you can control, in formats that are easy to retrieve and read.",
-      fetched: "2026-10-17T09:12:33Z",
-      published: "2023-07-01",
-      site: "Steph Ango",
-    });
-    const filled = withBody(
-      fields,
-      composeLinkBody({
-        article: "File over app is a philosophy: …",
-        copy: null,
-        cover: "assets/covers/3f9a0c2b1d4e5f60.jpg",
-        note: bodyOf(fields),
-      }),
-    );
-    expect(filled).toBe(
-      [
-        "---",
-        "id: 7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17",
-        "kind: link",
-        "url: https://stephango.com/file-over-app",
-        "site: Steph Ango",
-        "author: Steph Ango",
-        "published: 2023-07-01",
-        "saved: 2026-10-17T09:12:30Z",
-        "fetched: 2026-10-17T09:12:33Z",
-        "description: If you want to create digital artifacts that last, they must be files you can control, in formats that are easy to retrieve and read.",
-        "---",
-        "",
-        "![](assets/covers/3f9a0c2b1d4e5f60.jpg)",
-        "",
-        "For Tuesday.",
-        "",
-        "File over app is a philosophy: …",
-        "",
-      ].join("\n"),
-    );
-    expect(isItemStub(itemFactsOf(filled))).toBe(false);
-  });
-
-  it("a failed fill", () => {
-    const stub = linkStubText({ id: "i", note: "", saved: SAVED, url: "http://localhost:3000/" });
-    expect(
-      written(stub, {
-        "fetch-error": "This address is on this Mac, so its page isn't read.",
-        fetched: "2026-10-17T09:12:30Z",
-      }),
-    ).toBe(
-      "---\nid: i\nkind: link\nurl: http://localhost:3000/\nsaved: 2026-10-17T09:12:30Z\nfetched: 2026-10-17T09:12:30Z\nfetch-error: This address is on this Mac, so its page isn't read.\n---\n",
-    );
-  });
-
-  it("a YouTube save takes its kind from the address", () => {
-    expect(
-      linkStubText({
-        id: "i",
-        note: "",
-        saved: SAVED,
-        url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ&si=abc",
-      }),
-    ).toBe(
-      "---\nid: i\nkind: video\nurl: https://www.youtube.com/watch?v=dQw4w9WgXcQ\nsaved: 2026-10-17T09:12:30Z\n---\n",
-    );
-  });
-
-  it("an image item and a pdf item embed their original", () => {
-    expect(
-      composeItemFile(
-        { id: "i", kind: "image", saved: "2026-10-17T09:12:30Z" },
-        `${embedMarkdown("assets/IMG_2041.png")}\n`,
-      ),
-    ).toBe(
-      "---\nid: i\nkind: image\nsaved: 2026-10-17T09:12:30Z\n---\n\n![](assets/IMG_2041.png)\n",
-    );
-    expect(
-      composeItemFile(
-        { id: "i", kind: "pdf", saved: "2026-10-17T09:12:30Z" },
-        `${embedMarkdown("assets/Lecture notes.pdf")}\n`,
-      ),
-    ).toBe(
-      "---\nid: i\nkind: pdf\nsaved: 2026-10-17T09:12:30Z\n---\n\n![](<assets/Lecture notes.pdf>)\n",
-    );
-  });
-});
 
 describe("composeItemFile", () => {
   it("writes id, the item keys in order, tags as a block list, then pinned", () => {
@@ -269,25 +132,6 @@ describe("readItemFacts", () => {
     expect(facts.site).toBe("s".repeat(80));
     expect(facts.savedMs).toBe(Date.UTC(2026, 9, 17));
     expect(facts.fetchedMs).toBeNull();
-  });
-});
-
-describe("isItemStub", () => {
-  const stub = linkStubText({ id: "i", note: "", saved: SAVED, url: "https://a.com/" });
-
-  it("is an app-made url item whose page is unread", () => {
-    expect(isItemStub(itemFactsOf(stub))).toBe(true);
-  });
-
-  it.each([
-    ["no id", "---\nkind: link\nurl: https://a.com/\nsaved: 2026-10-17T09:12:30Z\n---\n"],
-    ["no saved", "---\nid: i\nkind: link\nurl: https://a.com/\n---\n"],
-    ["fetched", written(stub, { fetched: "2026-10-17T09:12:31Z" })],
-    ["a note with a url", "---\nid: i\nurl: https://a.com/\nsaved: 2026-10-17T09:12:30Z\n---\n"],
-    ["an image", "---\nid: i\nkind: image\nurl: https://a.com/\nsaved: 2026-10-17\n---\n"],
-    ["no web url", "---\nid: i\nkind: link\nurl: nope\nsaved: 2026-10-17T09:12:30Z\n---\n"],
-  ])("is not one with %s", (_, content) => {
-    expect(isItemStub(itemFactsOf(content))).toBe(false);
   });
 });
 
@@ -413,7 +257,10 @@ describe("the seeded fuzz", () => {
       const others = OTHER_LINES.filter(() => rand() < 0.5).filter(
         (line, index, all) => !line.startsWith("  ") || all[index - 1]?.endsWith(":") === true,
       );
-      const start = linkStubText({ id: "i", note: "", saved: SAVED, url: "https://a.com/" });
+      const start = composeItemFile(
+        { id: "i", kind: "link", saved: "2026-10-17T09:12:30Z", url: "https://a.com/" },
+        "",
+      );
       const startLines = splitLines(frontmatterYaml(start) ?? "");
       const block = [...startLines, ...others];
       const content = `${bom}---${eol}${block.join(eol)}${eol}---${eol}body${eol}`;

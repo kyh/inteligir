@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import { WIKI_PICKER_MAX_ROWS } from "@repo/editor/wiki/wiki-autocomplete";
 import { WIKI_INPUT_KEY } from "@repo/editor/wiki/wiki-input-key";
-import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
+import type { WikiTarget } from "@repo/notes/knowledge/wiki-target";
 
 import { EditorHarness } from "./test-support/editor-harness";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";

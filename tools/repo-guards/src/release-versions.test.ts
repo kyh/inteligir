@@ -12,7 +12,6 @@ import { readJsonFile, REPO_ROOT, WORKSPACE_MANIFEST } from "./repo";
 const ROOT_MANIFEST = "package.json";
 const EAS_CONFIG = "apps/mobile/eas.json";
 const RELEASED_MANIFESTS = [
-  "apps/cli/package.json",
   "apps/desktop/package.json",
   // the extension calls /v1 too, so the one client build floor holds it by the product's version
   "apps/extension/package.json",

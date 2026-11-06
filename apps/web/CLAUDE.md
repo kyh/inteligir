@@ -6,16 +6,6 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Cloud, sync and accounts
 
-- **THE DEVICE CREDENTIAL IS THE SYNC SWITCH AND THE ENTITLEMENT, and it lives
-  in the data dir**, not in `inteligir.db` or the pushed vault. Signed out, the
-  app sends this project's cloud nothing; signed in, the credential alone
-  entitles the account's socket and the hosted vault (capped, below), which a
-  folder with its own origin, or one another service syncs, never takes (AN
-  OPENED FOLDER'S OWN ORIGIN, in `apps/cli/src/server/vault/CLAUDE.md`).
-  Rejected: a separate "sync enabled" flag (two values that must agree can
-  disagree). Cost accepted: "pause sync" is signing out.
-  `apps/cli/src/server/cloud/credential-store.ts`, `sync-runtime.ts`.
-
 - **A DEVICE SIGNS IN, OR SIGNS UP, WITH EMAIL + PASSWORD, and gets the same
   device credential** (owner decision, the Obsidian model). The login mints the
   credential, deletes its session and names the account, so a device holds one
@@ -26,14 +16,12 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   readers must fail closed on); a browser approve page with one-time code, PKCE
   and loopback callback (a ceremony to keep the password out of the app).
   Residual: the password crosses the app once, over HTTPS.
-  `@repo/contract/cloud/device/login-flow.ts`,
-  `apps/web/src/worker/device/login.ts`.
+  `apps/web/src/worker/device/login.ts`, `apps/web/src/worker/wire/account-router.ts`.
 
 - **A DEVICE CAN ALSO CREATE THE ACCOUNT** (owner decision: sign up in the app,
   with the invite code). The sign-up answers the same credential and deletes the
   session it created, so a person never signs in twice in a row. The site's
-  sign-up page stays, the phone stays sign-in only, and the CLI has no sign-up
-  verb, since creating an account is a person's act.
+  sign-up page stays, and the phone stays sign-in only.
   `apps/web/src/worker/device/sign-up.ts`.
 
 - **A DEVICE CREDENTIAL, OR THE SITE'S SESSION, LISTS AND REVOKES ITS
@@ -45,15 +33,12 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   `apps/workspace/src/app/settings/account-section.tsx`.
 
 - **A CREDENTIAL THIS DEVICE DROPS IS REVOKED BY THIS DEVICE, best-effort and
-  never waited on.** A sign-out (the CLI has no logout verb), a login replacing
-  a live credential and the phone's credential drop each revoke on a client of
-  their own, since closing the session aborts its client's requests, and clear
-  local state at once, since an unreachable cloud must not hold a sign-out open;
-  a revoke the cloud did not take shows on the signed-out status until the next
-  login or restart. Rejected: forgetting the file alone (the row stays active
-  against the twenty-device cap, so repeated sign-ins lock the account out).
-  `apps/cli/src/server/cloud/sync-runtime.ts`,
-  `apps/mobile/src/lib/compose-runtime.ts`.
+  never waited on.** A sign-out and the phone's credential drop each revoke on
+  a client of their own, since closing the session aborts its client's
+  requests, and clear local state at once, since an unreachable cloud must not
+  hold a sign-out open. Rejected: forgetting the credential alone (the row
+  stays active against the twenty-device cap, so repeated sign-ins lock the
+  account out). `apps/mobile/src/lib/compose-runtime.ts`.
 
 - **AN ACCOUNT IS DELETED FROM THE APP, THE PASSWORD ASKED AGAIN, THROUGH BETTER
   AUTH'S `deleteUser`** (owner decision: whoever lost their Mac deletes from any
@@ -61,12 +46,10 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   its `beforeDelete` order and tombstone the ONE purge path; Better Auth's
   delete routes, which settle for a fresh session, are shut, and with no bearer
   plugin a browser's session is its cookie. Success forgets the sign-in, not
-  the vault; after an unanswered deletion, a retry meeting only the kept
-  credential's refusal means the account is gone. No CLI verb: a person types
-  the password. Rejected: a second purge path (it drifts); deleting by
-  credential alone (a stolen one ends the account).
-  `apps/web/src/worker/device/account.ts`,
-  `apps/cli/src/server/cloud/account-calls.ts`.
+  the library on this device; after an unanswered deletion, a retry meeting
+  only the kept credential's refusal means the account is gone. Rejected: a
+  second purge path (it drifts); deleting by credential alone (a stolen one
+  ends the account). `apps/web/src/worker/device/account.ts`.
 
 - **THE ACCOUNT'S SOCKETS ARE ITS LIBRARY CELL'S, EACH TAGGED WITH THE HOLDER
   THE WORKER VERIFIED.** The cell accepts each hibernating socket under the
@@ -108,16 +91,6 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   cascades through every `ON DELETE CASCADE` child (D1 ignores `PRAGMA
   foreign_keys=OFF`), and `push` applies it without asking.
 
-- **`@repo/contract/cloud` IS THE CLIENT RUNTIME CORE, not only the wire**: the
-  login flow, the sync session, the sign-in check and the socket's keepalive and
-  reconnect are code a client runs, injecting only stores, timers and a socket
-  dial, so a security discipline has one spelling to audit; what only the CLI
-  runs sits beside its consumer, and a replica's (the Mac's, the phone's) is
-  `@repo/library-replica`'s. Vault paths parse by `parseVaultPath`, required to
-  be the identity, in one schema (`@repo/notes/knowledge/vault-path-schema`),
-  and a `[[Title|uuid]]` link resolves by the frontmatter id
-  (`buildResolver`).
-
 - **A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, the Worker is held to exactly
   what it declares, and the wire breaks only behind the client build floor**
   (owner decision; the floor is EVERY INSTALL'S REQUEST NAMES ITS BUILD).
@@ -142,24 +115,6 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   `packages/contract/src/cloud/client-build.ts`,
   `apps/web/src/worker/client-floor.ts`.
 
-- **A SIGN-IN IS FENCED BY SESSION IDENTITY, not by "is a session live?".**
-  Every request under a sign-in re-checks the id after every await, because
-  the dangerous case is a different sign-in: an old answer retires outbox rows
-  a later sign-in queued, or a late refusal ends the next sign-in. `dispose`
-  aborts too. The fence is `@repo/contract/cloud/sync/sync-session.ts`.
-
-- **A REVOCATION IS HEARD BY A CHECK OF THE SIGN-IN, AND THE SOCKET ONLY HURRIES
-  IT.** Only an http refusal ends a sign-in, so the CLI runs `checkSignIn`
-  (`@repo/contract/cloud/sync/sync-session.ts`), the device list, the cheapest
-  call a credential makes, as the sign-in starts, as the socket opens, when the
-  cloud closes a revoked device's socket, and on a minute's timer; any other
-  request that hears a refusal ends the sign-in too, and a replica's (the
-  Mac's, the phone's) is its next pull, which the closed socket asks for. The
-  socket drops itself after two silent keepalives, since a half-open connection
-  neither answers nor closes. Rejected: a log polled only to carry the verdict.
-  `apps/cli/src/server/cloud/sync-runtime.ts`,
-  `packages/contract/src/cloud/sync/cloud-socket.ts`.
-
 - **THE HOSTED VAULT'S GIT REMOTE IS BUDGETED PER DEVICE, and the budget buys
   time, not prevention.** Its requests consume a window keyed on the device,
   never the address, since a stolen credential moves between addresses and the
@@ -180,16 +135,6 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   Worker-side meter (bytes offered, not kept); the head tree's size (ignores
   growing history). `apps/web/cloudflare.config.ts`,
   `apps/web/src/worker/vault/receive-pack.ts`.
-
-- **A FULL HOSTED VAULT IS `full`, NOT OFFLINE, AND AN OVERSIZED HISTORY PUSHES
-  IN STEPS.** The engine measures a push to the account remote first, so even
-  the first refusal uploads nothing, and skips pushing while the refused tips
-  stand rather than re-upload the cap; commits land and pulls go on. A commit holds at most 32 MiB of new bytes, a
-  vault's first included, and no file over 10 MiB, so each push is the newest
-  prefix of unpushed commits under the cap; only a single commit over it is
-  refused as too-large. Rejected: one push of the whole history (a large first
-  commit or an import never sends). `apps/cli/src/server/vault/git-engine.ts`,
-  `git-stage.ts`.
 
 - **A PR PREVIEW IS A WORKER PREVIEW DRIVEN BY ACTIONS, not Workers Builds**,
   and it binds preview-only resources. Previews ride `workflow_run` after CI, as

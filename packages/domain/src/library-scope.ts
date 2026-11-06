@@ -20,8 +20,6 @@ const ITEM_SCOPES = [
 // a scope that lists items in the library: every one but Deleted, which lists what is gone, so
 // a library view context names one of these and nothing there is an item an agent acts on
 export const itemScopeSchema = z.discriminatedUnion("kind", ITEM_SCOPES);
-export type ItemScope = z.infer<typeof itemScopeSchema>;
-
 export const libraryScopeSchema = z.discriminatedUnion("kind", [
   ...ITEM_SCOPES,
   z.object({ kind: z.literal("deleted") }),

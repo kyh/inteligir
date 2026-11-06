@@ -11,11 +11,9 @@
 
 import { splitMarkerIds } from "../markdown/remark-inline-constructs";
 
-import { markerRootIds } from "./marker-ids";
 import { annotationPassages, projectPassages } from "./passage-text";
 import type { PassageProjection } from "./passage-text";
 import { escapePhrasingText } from "./phrasing-escape";
-import type { AnnotationStore } from "./store-schema";
 
 export interface PendingQuote {
   id: string;
@@ -260,17 +258,4 @@ export const stripAnnotationMarkers = (content: string, ids: readonly string[]):
     cursor = marker.end;
   }
   return out + content.slice(cursor);
-};
-
-// the roots still waiting for their passage: a quote, and no markers in the text yet, oldest first
-// so every device places one item's highlights in one order
-export const waitingQuotes = (store: AnnotationStore, content: string): PendingQuote[] => {
-  const anchored = markerRootIds(content);
-  return Object.entries(store)
-    .filter(
-      ([id, entry]) =>
-        entry.parentId === undefined && entry.quote !== undefined && !anchored.has(id),
-    )
-    .toSorted(([a, left], [b, right]) => left.createdAt - right.createdAt || a.localeCompare(b))
-    .map(([id, entry]) => ({ id, quote: entry.quote ?? "" }));
 };

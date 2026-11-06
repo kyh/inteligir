@@ -24,8 +24,6 @@ const rootScripts = (): Record<string, string> => {
 
 describe("root script naming", () => {
   it("a script suffixed with a workspace directory drives that workspace", () => {
-    // both spellings count: apps/cli publishes as `inteligir`, so `package:cli` names the folder
-    // and filters the package.
     const byDir = new Map(workspaces().map((w) => [path.basename(w.dir), w]));
 
     const violations: string[] = [];

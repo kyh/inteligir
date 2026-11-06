@@ -13,8 +13,6 @@ export const docViewContextSchema = z.object({
   revision: z.string().min(1),
   surface: z.literal("doc"),
 });
-export type DocViewContext = z.infer<typeof docViewContextSchema>;
-
 // the most selected paths a message names; `selected` says how many there were
 export const LIBRARY_SELECTION_MAX = 200;
 
@@ -33,11 +31,8 @@ export const libraryViewContextSchema = z.object({
   selected: z.number().int().min(0),
   surface: z.literal("library"),
 });
-export type LibraryViewContext = z.infer<typeof libraryViewContextSchema>;
-
 // a discriminated union so a further surface makes every non-exhaustive consumer a compile error.
 export const viewContextSchema = z.discriminatedUnion("surface", [
   docViewContextSchema,
   libraryViewContextSchema,
 ]);
-export type ViewContext = z.infer<typeof viewContextSchema>;

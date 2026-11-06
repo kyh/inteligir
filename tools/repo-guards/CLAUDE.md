@@ -7,13 +7,12 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 
 - **No coverage tooling, on purpose, and a structural guard states its own
   rule.** Targeted structural invariants instead: the dependency DAG and where
-  each package may reach, ws change-kind reachability (`tools/repo-guards`),
-  each package's node and react rule and the MCP and OpenAPI imports only the
-  Worker makes (`oxlint.config.ts`), route-table
-  completeness (`apps/cli/src/server/http-surface.test.ts`), migration↔schema
-  agreement (`packages/db/src/schema-agreement.test.ts`), `@repo/ui`'s
-  per-export orphans and type roles, the CLI guide and its `--json` flags, the
-  editor's buffer invariant, and the words on every surface a person reads,
+  each package may reach (`tools/repo-guards`), each package's node and react
+  rule and the MCP and OpenAPI imports only the Worker makes
+  (`oxlint.config.ts`), every `/v1` refusal mapped to a status
+  (`packages/contract/src/cloud/v1-contract.test.ts`), `@repo/ui`'s per-export
+  orphans and type roles, the editor's buffer invariant, and the words on
+  every surface a person reads,
   where neither "vault" nor an engine's word appears
   (`tools/repo-guards/src/product-words.test.ts`, a textual lower bound over
   quoted literals and JSX text, like `one-spelling.test.ts`). Coverage, if ever
@@ -64,8 +63,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   `engines.node`; `compatibilityDate` is the lockfile's oldest workerd, and no
   earlier than 2026-10-01 (`tools/repo-guards/src/workerd-compat-date.test.ts`);
   `pnpm e2e` boots the built Worker
-  (`tools/e2e/src/scenarios/built-worker-boot.ts`), CLI
-  (`tools/e2e/src/scenarios/built-cli-boot.ts`) and desktop shell
+  (`tools/e2e/src/scenarios/built-worker-boot.ts`) and desktop shell
   (`tools/e2e/src/scenarios/desktop-shell.ts`); agent-browser and tauri-driver
   are pinned by hand in `.github/workflows/ci.yml`, a global install riding no
   lockfile, and the Rust toolchain by `apps/desktop/rust-toolchain.toml`, beside
@@ -92,8 +90,8 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   no task names another workspace's: the Worker's build reaches
   `@repo/workspace#build` through its own dependency, and the shell's tasks
   reach the page's through theirs (`apps/desktop/turbo.json`). A
-  file in no workspace is a named input (`apps/cli/turbo.json`), and a followed
-  file a named output (`apps/web/turbo.json`); `tools/repo-guards/src/turbo-cache-keys.test.ts`
+  file in no workspace is a named input, and a followed file a named output
+  (`apps/web/turbo.json`); `tools/repo-guards/src/turbo-cache-keys.test.ts`
   holds the `^` edges and a bundled import's input (`/privacy` renders
   `docs/privacy.md`). `NODE_ENV` is hashed, not passed through: vite emits
   React's dev build under `development`.
@@ -110,8 +108,8 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   dropped. `patches/micromark@4.0.3.patch` is upstream's own open fix
   (micromark/micromark#233): one splice per line, with GFM's email autolink
   splitting at every word, parses a long paragraph in time quadratic in its
-  lines; `packages/notes/src/knowledge/projection-cost.test.ts` compares a
-  20k-line paragraph's projection with an eighth of it. Rejected: a workaround
+  lines; `packages/notes/src/markdown/parse-cost.test.ts` compares a 20k-line
+  paragraph's parse with an eighth of it. Rejected: a workaround
   in `@repo/notes` (splitting the paragraph changes what it parses to).
   Residual: a paragraph dense with emphasis or inline nodes is still
   superlinear upstream, and not patched.
@@ -139,8 +137,8 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   documenting that escape. `oxlint.config.ts`.
 
 - **A RELEASE SCRIPT IS TYPESCRIPT NODE RUNS AS IT STANDS, CHECKED AS NODE
-  RESOLVES IT.** `apps/desktop/scripts` and `apps/cli/scripts` are `.ts` files
-  node 24 strips of their types, each workspace's `typecheck` checking them as a
+  RESOLVES IT.** `apps/desktop/scripts` are `.ts` files node 24 strips of their
+  types, the workspace's `typecheck` checking them as a
   `scripts/tsconfig.json` program under `nodenext`, `erasableSyntaxOnly` and
   `verbatimModuleSyntax`, so an extensionless import, an enum or a type
   imported as a value fails the typecheck rather than the release. A relative
@@ -149,10 +147,10 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   type-assertion rule cannot see); `tsx` (a loader for what node already runs).
 
 - **A SCRIPT LOADS NO EXTENSIONLESS MODULE, AND ONE SCRIPT STAYS JS.** A module
-  whose imports name no extension (the server's, most of the contract's)
-  cannot load in a script, so a smoke parses only the fields it reads
-  (`apps/cli/scripts/smoke-lib.ts`). `.github/scripts/worker-preview.mjs` stays
-  JS: its first step runs before the job sets up the repo's node.
+  whose imports name no extension (most of the contract's) cannot load in a
+  script, so a script parses only the fields it reads
+  (`apps/desktop/scripts/smoke-packaged.ts`). `.github/scripts/worker-preview.mjs`
+  stays JS: its first step runs before the job sets up the repo's node.
 
 - **A TEST SITS BESIDE THE MODULE IT TESTS, AND A PACKAGE'S SHARED TEST CODE IS
   ITS `test-support/`.** A suite is `<name>.test.ts` beside its `<name>.ts`, and
@@ -175,9 +173,8 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   each workspace's catalog dependency, the base's version is in every
   typecheck key with no global turbo row. With no `noImplicitReturns`, an
   exhaustive `switch` with no `default` declares a return type excluding
-  undefined, so a new member fails it. The base's `allowJs` and `checkJs` stay:
-  a `.mjs` test fake is typed by its JSDoc
-  (`packages/agent-runtime/src/test-support/fake-acp-agent.mjs`). Rejected: a
+  undefined, so a new member fails it. The base's `allowJs` and `checkJs` are left as
+  the base sets them, since no program's `include` holds a `.js` file. Rejected: a
   stricter local base (`exactOptionalPropertyTypes`, `verbatimModuleSyntax`,
   `noImplicitOverride`, `noImplicitReturns`, `noFallthroughCasesInSwitch`
   everywhere), a second base beside the template's.

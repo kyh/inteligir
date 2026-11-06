@@ -1,7 +1,7 @@
 import type { LinkResolver, LinkResolverStore, VaultEntry } from "@repo/editor/host-io";
 import { docStem } from "@repo/notes/knowledge/doc-file";
-import { resolverEntriesOf } from "@repo/notes/knowledge/link-graph-index";
-import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
+import { resolverEntriesOf } from "@repo/notes/knowledge/wiki-target";
+import type { WikiTarget } from "@repo/notes/knowledge/wiki-target";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { createStore } from "zustand/vanilla";
 

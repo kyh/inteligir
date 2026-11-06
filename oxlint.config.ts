@@ -9,7 +9,6 @@ const tests = ["**/test-support/**", "**/*.test.ts", "**/*.test.tsx"];
 // A regex, not a group: a group matches gitignore-style, so "react" would also refuse
 // "@platejs/react", and a bare name or one `/*` misses a package's deeper subpaths.
 const NODE = "^node:";
-const REACT = "^react(?:-dom)?(?:/|$)";
 const NODE_OR_REACT = "^(?:node:|react(?:-dom)?(?:/|$))";
 // the replica engine and the agent's panel run in the Mac's page, the browser tab, the phone's
 // Hermes and node's tests: no platform, no UI, and no editor, whose diff3 the engine's host hands
@@ -154,23 +153,6 @@ export default defineConfig({
         "promise/prefer-await-to-then": "off",
       },
     },
-    {
-      // The server posts to worker threads, never to a window, which is the only target that
-      // takes an origin.
-      files: ["apps/cli/src/server/**"],
-      rules: { "unicorn/require-post-message-target-origin": "off" },
-    },
-    {
-      // Hono's middleware awaits next() to run the rest of the chain, then reads or stamps the
-      // response it left; the rule assumes Express's call-and-return callback.
-      files: ["apps/cli/src/server/app.ts"],
-      rules: { "node/callback-return": "off" },
-    },
-    platformPurity(
-      "packages/agent-runtime",
-      REACT,
-      "@repo/agent-runtime spawns provider processes, so nothing it exports may pull a process tree into a page; the grammars a client reads live in @repo/domain",
-    ),
     platformPurity(
       "packages/contract",
       NODE_OR_REACT,
@@ -184,12 +166,12 @@ export default defineConfig({
     platformPurity(
       "packages/editor",
       NODE,
-      "@repo/editor imports no node module: it runs in the page, and its headless kits in the fill worker's DOM-shimmed thread (apps/cli/src/server/items/capture/fill/)",
+      "@repo/editor imports no node module: it runs in the page, in the phone's WebView, and headless in the Worker, whose cell reads and writes markdown through its codec",
     ),
     platformPurity(
       "packages/page-reader",
       NODE_OR_REACT,
-      "@repo/page-reader reads a page over the DOM its host hands it, in the Mac's network-less fill worker and in the phone's WebView, so it imports no node module (no socket a page could reach) and no React",
+      "@repo/page-reader reads a page over the DOM its host hands it, in the Worker's fill, the extension's worker and the phone's WebView, so it imports no node module (no socket a page could reach) and no React",
     ),
     platformPurity(
       "packages/library-replica",

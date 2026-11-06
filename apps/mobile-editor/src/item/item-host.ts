@@ -11,7 +11,7 @@ import { installEditorHost } from "@repo/editor/host-io";
 import type { EditorHostIo, VaultActions } from "@repo/editor/host-io";
 import type { ItemSession, ItemStore } from "@repo/editor/item/item-session";
 import { createLinkResolverFeed } from "@repo/editor/link-resolver-feed";
-import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
+import type { WikiTarget } from "@repo/notes/knowledge/wiki-target";
 import { toast } from "@repo/ui/components/sonner";
 
 import type { PageBridge } from "../bridge/page-bridge";

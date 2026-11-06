@@ -16,7 +16,7 @@ import {
   yamlScalarText,
 } from "../markdown/frontmatter";
 import type { ParsedProperties, TypedProperty } from "../markdown/frontmatter";
-import { isItemKind, ITEM_KEYS, URL_ITEM_KINDS } from "./item-kind";
+import { isItemKind, ITEM_KEYS } from "./item-kind";
 import type { ItemKey, ItemKind } from "./item-kind";
 import { formatItemTime, parseItemTime } from "./item-time";
 import { cleanUrl, isWebUrl, urlHost, urlKey } from "./item-url";
@@ -139,16 +139,6 @@ export const itemFactsOf = (content: string): ItemFacts => {
   const yaml = frontmatterYaml(content);
   return readItemFacts(yaml === null ? null : parseProperties(yaml));
 };
-
-// An app-made url item whose page has not been read. It needs the `id` and the `saved` every
-// writer stamps (the Mac's save, the phone's share, the import), so a link note an opened folder
-// already held, with a `kind: link` and a `url:` of its own, is never filled unasked.
-export const isItemStub = (facts: ItemFacts): boolean =>
-  URL_ITEM_KINDS.some((kind) => kind === facts.kind) &&
-  facts.url !== null &&
-  facts.fetchedMs === null &&
-  facts.savedMs !== null &&
-  facts.hasId;
 
 export type ItemFieldPatch = { readonly [K in ItemKey]?: string | null };
 

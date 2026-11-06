@@ -24,7 +24,6 @@ import type { PlateDeclaredType } from "../markdown/remark-opaque";
 import { parseWikiBodyRange } from "../markdown/remark-wiki-link";
 import type { LinkKind } from "./link-kinds";
 import { inlineTagSpans, isTagName } from "./tag-grammar";
-import type { InlineTagSpan } from "./tag-grammar";
 
 export interface Span {
   start: number;
@@ -690,10 +689,4 @@ export const scanDoc = (source: string): DocScan => {
 export const documentLinkSpans = (source: string): RewritableLink[] =>
   scanBody(source, parseBare(source), "rewrite").links.flatMap((link) =>
     link.targetSpan === undefined ? [] : [{ ...link, targetSpan: link.targetSpan }],
-  );
-
-// the inline tags a rename may splice, on the same terms
-export const documentTagSpans = (source: string): InlineTagSpan[] =>
-  scanBody(source, parseBare(source), "rewrite").tags.flatMap(({ span, tag }) =>
-    span === undefined ? [] : [{ end: span.end, start: span.start, tag }],
   );

@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { REPO_ROOT, trackedFiles } from "./repo";
+import { REPO_ROOT } from "./repo";
 
 const SKILLS_DIR = "packages/agent-skills/skills";
 const HUB = "inteligir-notes";
@@ -22,9 +22,6 @@ const HUB_ROW = /^- .*`(?<skill>inteligir-[a-z-]+)`/gmu;
 const FENCE_LANGS = "packages/notes/src/markdown/fence-langs.ts";
 const EXPORTED_LANG = /^export const \w+_LANG = "(?<lang>[^"]+)";$/gmu;
 const FENCE_OPENING = /^\s*(?:`{3,}|~{3,})\s*(?<lang>inteligir-[a-z-]+)(?=\s|$)/u;
-
-// the starter vault a first run copies: the notes a new user reads first and imitates after.
-const SEED_DIR = "apps/cli/seed/";
 
 const AGENT_PROMPT_SCRIPT = "apps/web/scripts/agent-prompt.ts";
 
@@ -56,14 +53,6 @@ const fenceOpenings = (file: string, text: string): FenceSite[] =>
 const taughtFenceLangs = (): FenceSite[] =>
   skillDirs().flatMap((dir) =>
     fenceOpenings(`${SKILLS_DIR}/${dir}/SKILL.md`, skillText(dir) ?? ""),
-  );
-
-const seedNotes = (): string[] =>
-  trackedFiles().filter((file) => file.startsWith(SEED_DIR) && file.endsWith(".md"));
-
-const seededFenceLangs = (): FenceSite[] =>
-  seedNotes().flatMap((file) =>
-    fenceOpenings(file, fs.readFileSync(path.join(REPO_ROOT, file), "utf-8")),
   );
 
 const unknownOpenings = (exported: readonly string[], sites: readonly FenceSite[]): string[] =>
@@ -139,13 +128,12 @@ describe("the agent skills", () => {
       (match) => match.groups?.lang ?? "",
     );
 
-    it("finds both sides and the seed notes at all", () => {
+    it("finds both sides at all", () => {
       expect(
         exported.length,
         `${FENCE_LANGS} exports no *_LANG literal a skill teaches`,
       ).toBeGreaterThan(1);
       expect(taughtFenceLangs().length).toBeGreaterThan(1);
-      expect(seedNotes().length, `no tracked .md under ${SEED_DIR}`).toBeGreaterThan(1);
     });
 
     it("are taught exactly as the parser spells them", () => {
@@ -156,17 +144,6 @@ describe("the agent skills", () => {
           ? ""
           : `SKILLS AND THE PARSER SPELL THE FENCES DIFFERENTLY\n${drift.map((line) => `  ${line}`).join("\n")}\n` +
               `  rule: ${UNKNOWN_RULE}, and a skill that teaches one has the agent write blocks nobody sees; a fence no skill teaches is a construct the agent never writes`,
-      ).toEqual([]);
-    });
-
-    it("are seeded only as the parser spells them", () => {
-      const seeded = unknownOpenings(exported, seededFenceLangs());
-      expect(
-        seeded,
-        seeded.length === 0
-          ? ""
-          : `A SEED NOTE OPENS A FENCE THE PARSER DOES NOT KNOW\n${seeded.map((line) => `  ${line}`).join("\n")}\n` +
-              `  rule: ${UNKNOWN_RULE}; the seed is what a new user reads first and copies`,
       ).toEqual([]);
     });
 

@@ -9,7 +9,6 @@ import {
 import type { BuildVersion, ClientBuild } from "./client-build";
 import { createCloudClient, postDeviceLogin, postDeviceSignUp } from "./cloud-client";
 import type { CloudClient, CloudFetch } from "./cloud-client";
-import { createCloudSocketOpener } from "./sync/cloud-socket";
 
 const BUILD: ClientBuild = { platform: "mobile", version: "0.7.0" };
 const SENT = "0.7.0+mobile";
@@ -108,24 +107,5 @@ describe("every request an install sends names its build", () => {
     await postDeviceLogin(endpoint, device);
     await postDeviceSignUp(endpoint, { ...device, inviteCode: "INVITE-1", name: "Owner" });
     expect(seen.map((request) => request.build)).toStrictEqual([SENT, SENT]);
-  });
-
-  it("on the socket's upgrade, beside the bearer", () => {
-    const dialled: Record<string, string>[] = [];
-    const open = createCloudSocketOpener((_url, headers) => {
-      dialled.push(headers);
-      return { addEventListener: () => {}, close: () => {}, send: () => {} };
-    });
-    open({
-      baseUrl: "https://cloud.test",
-      build: BUILD,
-      credential: "igd_test",
-      onClose: () => {},
-      onOpen: () => {},
-      onPing: () => {},
-    }).close();
-    expect(dialled).toStrictEqual([
-      { authorization: "Bearer igd_test", [CLIENT_BUILD_HEADER]: SENT },
-    ]);
   });
 });

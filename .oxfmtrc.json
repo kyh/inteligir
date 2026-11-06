@@ -10,7 +10,6 @@
     ".tanstack",
     "routeTree.gen.ts",
     "packages/editor/src/test-support/fixtures",
-    "apps/cli/seed",
     "__snapshots__"
   ]
 }

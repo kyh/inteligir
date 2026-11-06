@@ -42,9 +42,6 @@ src/
                       # workspaceTurboConfig)
   ui-package.ts       # @repo/ui's swept roots, read from its exports map, and
                       # the gallery dir that never counts as a consumer
-  content-security-policy.ts
-                      # a policy read as a map of directives, so the first
-                      # run's and the phone page's compare to the server's
   *.test.ts           # one guard per file — the list below
 ```
 
@@ -58,14 +55,10 @@ One per file; its header and its failure message state the rule in full.
 
 - `dep-dag.test.ts`: imports match `DECLARED_EDGES` from both sides, and each package reaches only what its platform allows.
 - `dangling-references.test.ts`: every `@repo/*` name and group-anchored path in a tracked file resolves (what it reads: below).
-- `ws-change-kinds.test.ts`: every declared change kind is fired, and every fired kind declared.
-- `domain-dispatch.test.ts`: a file quoting every member of a vocabulary is its declaration or a `dispatchedIn` row.
-- `one-spelling.test.ts`: path containment and porcelain parsing are spelled once, or in an `elsewhere` row.
+- `one-spelling.test.ts`: where annotation markers sit in raw bytes is spelled once, or in an `elsewhere` row.
 - `route-paths.test.ts`: a non-procedure route path is spelled only at its contract home.
-- `turbo-passthrough.test.ts`: a workspace that reads `resolveAppConfig` passes exactly `ENV_VAR_NAMES` through turbo.
 - `turbo-cache-keys.test.ts`: a cached task over workspace deps has a `^` edge, and an import outside every workspace is a build input.
-- `desktop-shell-wire.test.ts`: the words the Rust shell shares with the page and the CLI match on both sides.
-- `phone-page-csp.test.ts`: the phone page's CSP is the server's, apart from a `PAGE_DEPARTURES` row.
+- `desktop-shell-wire.test.ts`: the words the Rust shell shares with the page match on both sides.
 - `ui-orphan-exports.test.ts`: every `@repo/ui` export has a consumer outside the gallery, or a reasoned row.
 - `gallery-coverage.test.ts`: every component under the demoed roots is in the gallery, or a `NOT_DEMOED` row.
 - `type-roles.test.ts`: chrome draws text only in the five type roles, or a `PROSE_SIZES` row.
@@ -109,8 +102,8 @@ both.
 
 Two limits, stated. A reference is checked only if it is a `@repo/<name>` (the
 subpath after the name is not resolved) or a path anchored on a workspace group
-(`packages/notes/src/knowledge/projection.ts` is checked; a relative
-`src/projection.ts` in a Layout block is not). And a path git ignores (`dist/`,
+(`packages/notes/src/library/block-ops.ts` is checked; a relative
+`src/block-ops.ts` in a Layout block is not). And a path git ignores (`dist/`,
 `.wrangler/`) is excused by asking `git check-ignore`, so the rule stays in
 `.gitignore` and this guard cannot disagree with it.
 
@@ -123,7 +116,7 @@ subpath after the name is not resolved) or a path anchored on a workspace group
   contract from `config.ts`. A hand-written table is a pin or a reasoned
   exception, never a copy of something the tree already says.
 - **A self-check per sweep.** Each guard asserts it found the thing it is held
-  against (the `inteligir` workspace, `apps/cli/scripts/smoke.ts`, a `dial()`
+  against (a workspace, `apps/desktop/scripts/smoke-packaged.ts`, a `dial()`
   row), so an empty population fails as "the sweep is broken, not the tree"
   rather than passing over nothing.
 - **Shipped and test are split.** `workspaceFiles` classes

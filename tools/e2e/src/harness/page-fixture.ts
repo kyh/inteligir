@@ -10,7 +10,7 @@ import { z } from "zod";
 
 // a name in `.test`, which no resolver answers (RFC 6761), so no fetch of it reaches past the
 // Worker host
-export const PAGE_HOST = "pages.inteligir.test";
+const PAGE_HOST = "pages.inteligir.test";
 
 export interface PageRoute {
   status?: number;

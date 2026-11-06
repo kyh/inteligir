@@ -68,8 +68,7 @@ alone, and no walk narrows structurally.
   web url embeds (`![](path)` is a vault image; alt text or a
   title keeps a web image an image). Every spelling lives in
   `@repo/notes/markdown/fence-langs`, which
-  `tools/repo-guards/src/agent-skills.test.ts` holds the skills and
-  `apps/cli/seed/` to. Plain nested `.md`: no bundles, no meta.json.
+  `tools/repo-guards/src/agent-skills.test.ts` holds the skills to. Plain nested `.md`: no bundles, no meta.json.
 
 - **A DIALECT CONSTRUCT IS READ FROM FINISHED TEXT, SO A BACKSLASH KEEPS ONE
   TEXT.** Pills, dates, annotation markers and `:::` lines are read from
@@ -247,7 +246,8 @@ alone, and no walk narrows structurally.
 
 - **A DIAGRAM LOADS NOTHING, AND ITS MARKUP BECOMES NODES ONLY THROUGH THE
   INERT-SVG PARSE.** A diagram draws no link and no image and is handed no icon
-  set (NOTHING REMOTE LOADS IN A NOTE, in `apps/cli/CLAUDE.md`).
+  set, as nothing remote draws in an item (THE LIBRARY'S PAGE IS THE WORKER'S,
+  in `apps/web/CLAUDE.md`).
   `packages/editor/src/lib/inert-svg.ts` parses Pele's markup as XML and keeps
   only the svg namespace's elements, less every script, handler and reference
   that leaves the drawing.

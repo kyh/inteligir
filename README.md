@@ -58,20 +58,6 @@ a folder you already have, before it starts anything. The browser extension is
 [`apps/extension`](./apps/extension/README.md), and the app writes the door it
 talks through at each launch.
 
-Without installing the app:
-
-```bash
-npx inteligir serve --open
-```
-
-Same server, same workspace, in a browser tab instead of a window. The vault is
-created at `~/Inteligir` the first time it serves; the database and settings live in
-`~/.inteligir`. `--port`, `--data-dir` and `--vault` override that; `^C` stops
-it cleanly (the pending vault commit is flushed and the database closed before
-it exits). Every other verb of that same binary but `vault open`, which picks
-the vault the next server opens, is a client against a running server — see
-[`apps/cli`](./apps/cli/README.md).
-
 The agents ship inside the app: sign in with Claude or ChatGPT in
 Settings › Agent; a Mac already signed in to Claude Code or Codex stays signed
 in. Signed in to neither, the app is a library and a notes editor, and says so.

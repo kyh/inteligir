@@ -4,12 +4,6 @@
 
 import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
-import {
-  HEALTH_PATH,
-  HTML_FRAME_PATH,
-  RPC_PREFIX,
-  VAULT_ASSET_PATH,
-} from "@repo/contract/local/routes";
 import { describe, expect, it } from "vitest";
 import { isTestFile, sourceOf, workspaceSourceFiles, workspaces } from "./repo";
 
@@ -25,11 +19,6 @@ interface Namespace {
 
 const NAMESPACES: readonly Namespace[] = [
   {
-    home: "packages/contract/src/local/local-routes.ts",
-    paths: [VAULT_ASSET_PATH, HTML_FRAME_PATH, HEALTH_PATH, RPC_PREFIX],
-    use: "the constants in @repo/contract/local/routes",
-  },
-  {
     home: "packages/contract/src/cloud/v1-contract.ts",
     paths: [V1_RPC_PATH],
     use: "V1_RPC_PATH from @repo/contract/cloud/v1",
@@ -42,7 +31,7 @@ const NAMESPACES: readonly Namespace[] = [
   },
 ];
 
-// longest first, so the cloud's `/v1/rpc` is tried before the local `/rpc` it contains.
+// longest first, so a path is matched before any shorter one it contains
 const GUARDED = NAMESPACES.flatMap((namespace) =>
   namespace.paths.map((path) => ({
     home: namespace.home,
@@ -98,7 +87,7 @@ describe("one spelling per non-procedure route path", () => {
     expect(
       files,
       "the sweep does not reach scripts/, which is where the smokes that spell paths live",
-    ).toContain("apps/cli/scripts/smoke.ts");
+    ).toContain("apps/desktop/scripts/smoke-packaged.ts");
     for (const namespace of NAMESPACES) {
       expect(files, `the sweep found no ${namespace.home} — it is broken, not the tree`).toContain(
         namespace.home,

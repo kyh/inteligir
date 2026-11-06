@@ -14,14 +14,6 @@ const foldDiacritics = (text: string): string => text.normalize("NFD").replaceAl
 export const tokenize = (text: string): string[] =>
   foldDiacritics(text.toLowerCase()).match(/[\p{L}\p{N}_]+/gu) ?? [];
 
-// what either engine answers a search with, whichever store it came from
-export interface SearchResult {
-  path: string;
-  title: string;
-  snippet: string;
-  score: number;
-}
-
 // the fields both engines rank a doc by; the formulas around them differ by design (bm25 has an
 // idf, the pure index a capped tf), the weights do not
 export const SEARCH_FIELD_WEIGHTS = { body: 1, headings: 4, meta: 2, title: 10 } as const;

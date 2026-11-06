@@ -28,11 +28,6 @@ catalog:
   # every other subpath), the job queue and the one alarm each conversation's object runs on; a
   # bump runs the thread suites first
   agents: 0.31.0
-  # exact: the adapters are spawned as child processes and the sdk speaks to them, so the wire is
-  # only verified against one set; a bump re-records packages/agent-runtime's adapter transcripts
-  "@agentclientprotocol/claude-agent-acp": 0.81.0
-  "@agentclientprotocol/codex-acp": 1.13.0
-  "@agentclientprotocol/sdk": 1.5.0
   # the React Compiler, react.dev's Vite path: @vitejs/plugin-react's `reactCompilerPreset` run by
   # @rolldown/plugin-babel over Babel's core. The plugin's caret stays under 0.3, since
   # @vitejs/plugin-react 6.1 peers ^0.1.7 || ^0.2.0; the core stays on 7, the major the compiler's
@@ -51,15 +46,11 @@ catalog:
   "@cloudflare/workers-oauth-provider": 1.2.4
   "@expo/metro-runtime": ~57.0.16
   "@expo/plist": ~0.8.1
-  # node-server held on 1.x: @hono/node-ws has no 2.x-compatible release; lift both together
-  "@hono/node-server": ~1.19.17
-  "@hono/node-ws": ^1.3.1
   # every workspace's tsconfig extends its base.json, as kyh/init's do
   "@kyh/tsconfig": ^1.3.0
   # sha256 for a block's hash: pure and synchronous, so the cell's transaction, the page and the
   # phone compute one hash with no platform crypto
   "@noble/hashes": ^2.4.0
-  "@parcel/watcher": ^2.6.0
   # exact: the version is SQLite's own release with a build suffix, not semver; it is the engine
   # the library's shared SQL is tested on in @repo/notes and the browser tab's replica runs on
   # (@repo/library-replica's memory-sql), so a bump moves the SQLite under test and in the tab
@@ -74,7 +65,6 @@ catalog:
   "@tanstack/react-router": 1.170.46
   "@tanstack/react-start": 1.169.4
   "@tanstack/router-plugin": 1.168.48
-  "@types/better-sqlite3": ^9.6.0
   "@types/mdast": ^4.0.4
   # tracks engines.node; newer types let a 25+-only API typecheck and throw at runtime
   "@types/node": ^24.19.2
@@ -85,10 +75,7 @@ catalog:
   # a pair one patch apart resolves a second core
   "@better-auth/drizzle-adapter": 1.7.14
   better-auth: 1.7.14
-  better-sqlite3: ^13.0.3
-  citty: ^0.2.2
   cn: ^0.4.0
-  consola: ^3.4.2
   # exact: 0.x output moves between patches; the fill corpus pins it
   defuddle: 0.19.5
   drizzle-kit: 1.0.0-rc.4
@@ -96,7 +83,6 @@ catalog:
   # exact: `pnpm testflight:mobile` uploads the build through it, and apps/mobile/eas.json floors
   # cli.version at this release; a bump moves both
   eas-cli: 24.12.1
-  esbuild: ^0.28.2
   # a block's order key, between two neighbours, with no renumbering
   fractional-indexing: ^4.0.0
   expo: ~57.0.27
@@ -117,12 +103,10 @@ catalog:
   expo-sqlite: ~57.0.4
   expo-status-bar: ~57.0.1
   expo-updates: ~57.0.25
-  hono: ^4.13.13
   jsdom: ^30.1.3
   lucide-react: ^1.61.0
   # the popups' and controls' motion, imported from `motion/react` (motion.dev/docs/react-upgrade-guide)
   motion: ^14.9.1
-  nanoid: ^6.0.2
   # exact: nativewind's one Tailwind 4 line is a release candidate, which moves between
   # candidates, and peers this react-native-css exactly; lift both when nativewind 5 ships stable
   nativewind: 5.0.0-rc.0
@@ -191,9 +175,8 @@ catalogPrune: true
 blockExoticSubdeps: true
 
 allowBuilds:
-  "@parcel/watcher": true
   "@tailwindcss/oxide": true
-  better-sqlite3: true
+  better-sqlite3: set this to true or false
   # agents' mimetext's @babel/runtime-corejs3: a postinstall that only prints a funding notice; an
   # install refuses a build left undecided (ERR_PNPM_IGNORED_BUILDS)
   core-js-pure: false
@@ -235,10 +218,6 @@ overrides:
   expo: "catalog:"
 
 patchedDependencies:
-  # the adapter marks every session root trusted, which has codex load the vault's own .codex
-  # config, hooks and exec policies, and no per-session option reaches it; the vault is synced
-  # content, so the patch marks it untrusted, dropped once upstream lets the client decide
-  "@agentclientprotocol/codex-acp@1.13.0": patches/@agentclientprotocol__codex-acp@1.13.0.patch
   # getPluginType resolves a throwaway plugin (two deep merges) for a key no plugin registers, and
   # the markdown serializer asks that of every mark rule on every text node: four fifths of a long
   # note's save. The patch answers from `editor.plugins`, dropped once a release does

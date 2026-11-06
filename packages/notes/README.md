@@ -168,10 +168,6 @@ src/
   call and `transaction(work)`; the cell binds `ctx.storage.sql` and
   `transactionSync`, a replica its driver. A plan (`library-queries.ts`) runs
   on either through `runPlan` or `runPlanAsync`.
-- `SqlDriver` (`knowledge/sql-knowledge-store.ts`): the host binds it —
-  better-sqlite3 in `apps/cli/src/server/knowledge/sqlite-driver.ts` — and
-  throws `KnowledgeStoreError` for every database failure, the one failure the
-  host rebuilds on.
 
 ## Testing
 

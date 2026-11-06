@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { AnnotationStore } from "../annotations/store-schema";
-import { revertEdit } from "../text/revert-edit";
+import { revertEdit } from "../test-support/revert-edit";
 import { orderedBlocks } from "./block-ops";
 import type { ItemState, LibraryOp } from "./block-ops";
 import { ITEM_FIELD_CAPS } from "./library-item";

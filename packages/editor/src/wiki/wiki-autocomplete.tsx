@@ -22,7 +22,7 @@ import {
 import { insertWikiChipFromPicker } from "@repo/editor/wiki/wiki-insert";
 import { WIKI_INPUT_KEY } from "@repo/editor/wiki/wiki-input-key";
 import { useLinkResolver, useVaultActions, useWikiTargets } from "@repo/editor/host";
-import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
+import type { WikiTarget } from "@repo/notes/knowledge/wiki-target";
 import { wikiTargetForPath } from "@repo/notes/knowledge/link-resolve";
 import { rankWikiTargets } from "@repo/notes/knowledge/rank-wiki-targets";
 import { parseWikiBody, serializeWikiBody } from "@repo/notes/markdown/remark-wiki-link";

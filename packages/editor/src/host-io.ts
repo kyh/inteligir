@@ -1,5 +1,5 @@
 import type { CollectedFormula } from "@repo/notes/formulas/collect-formulas";
-import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
+import type { WikiTarget } from "@repo/notes/knowledge/wiki-target";
 import type { StoreApi } from "zustand/vanilla";
 
 // The host as a module singleton rather than context: kit factories, paste handlers and a deep

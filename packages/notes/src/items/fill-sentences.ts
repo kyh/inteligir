@@ -93,7 +93,6 @@ export interface FillFailure {
 }
 
 export const TEXT_NOT_SAVED = "The page's text couldn't be saved.";
-export const COPY_TOO_BIG = "The page is too big to keep a copy of; its text is saved.";
 const MB = 1024 * 1024;
 
 const LIMIT_MB = 10;

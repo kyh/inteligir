@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { KnowledgeIndex } from "./knowledge-index";
 import { scanDoc } from "./link-extract";
-import { TagIndex } from "./tag-index";
 
 const tagsOf = (source: string): string[] => scanDoc(source).tags;
 
@@ -85,85 +83,5 @@ describe("scanDoc — frontmatter tags", () => {
     expect(tagsOf("---\ntags: [2026, reading list, ok]\n---\n")).toEqual(["ok"]);
     expect(tagsOf('---\ntags: ["2026", ok]\n---\n')).toEqual(["ok"]);
     expect(tagsOf("---\ntags: 2026\n---\n")).toEqual([]);
-  });
-});
-
-describe("TagIndex", () => {
-  it("unifies case-insensitively, keeping the first-seen display case", () => {
-    const index = new TagIndex();
-    index.set("a.md", ["Meta"]);
-    index.set("b.md", ["meta"]);
-    expect(index.all()).toEqual([{ count: 2, tag: "Meta" }]);
-    expect(index.notesWithTag("META")).toEqual(["a.md", "b.md"]);
-  });
-
-  it("dedupes per-doc duplicates (frontmatter + inline of the same tag)", () => {
-    const index = new TagIndex();
-    index.set("a.md", ["meta", "Meta", "meta"]);
-    expect(index.all()).toEqual([{ count: 1, tag: "meta" }]);
-  });
-
-  it("orders by count desc, then alphabetically", () => {
-    const index = new TagIndex();
-    index.set("a.md", ["zebra", "alpha"]);
-    index.set("b.md", ["alpha"]);
-    expect(index.all()).toEqual([
-      { count: 2, tag: "alpha" },
-      { count: 1, tag: "zebra" },
-    ]);
-  });
-
-  it("removes a doc's contribution and drops now-empty tags", () => {
-    const index = new TagIndex();
-    index.set("a.md", ["shared", "onlya"]);
-    index.set("b.md", ["shared"]);
-    index.remove("a.md");
-    expect(index.all()).toEqual([{ count: 1, tag: "shared" }]);
-    expect(index.notesWithTag("onlya")).toEqual([]);
-  });
-
-  it("re-index replaces the prior tag set for a path", () => {
-    const index = new TagIndex();
-    index.set("a.md", ["old"]);
-    index.set("a.md", ["new"]);
-    expect(index.notesWithTag("old")).toEqual([]);
-    expect(index.notesWithTag("new")).toEqual(["a.md"]);
-  });
-});
-
-describe("KnowledgeIndex — tags", () => {
-  it("unions inline and frontmatter tags across docs", () => {
-    const index = new KnowledgeIndex();
-    index.setDoc("a.md", "---\ntags: [meta, demo]\n---\n\n# A\n");
-    index.setDoc("b.md", "# B\n\nInline #meta and #project.\n");
-    expect(index.tags()).toEqual([
-      { count: 2, tag: "meta" },
-      { count: 1, tag: "demo" },
-      { count: 1, tag: "project" },
-    ]);
-    expect(index.notesWithTag("meta")).toEqual(["a.md", "b.md"]);
-    expect(index.notesWithTag("project")).toEqual(["b.md"]);
-  });
-
-  it("drops tags when a doc is removed or becomes a non-doc", () => {
-    const index = new KnowledgeIndex();
-    index.setDoc("a.md", "#gone\n");
-    expect(index.notesWithTag("gone")).toEqual(["a.md"]);
-    index.remove("a.md");
-    expect(index.notesWithTag("gone")).toEqual([]);
-
-    index.setDoc("b.md", "#toother\n");
-    index.setOther("b.md");
-    expect(index.notesWithTag("toother")).toEqual([]);
-  });
-
-  it("lists a tag's family by path, each note once, in any case", () => {
-    const index = new KnowledgeIndex();
-    index.setDoc("b.md", "# B\n\nBoth #Work and #work/deep here.\n");
-    index.setDoc("a.md", "# A\n\nOnly #work/deep.\n");
-    index.setDoc("c.md", "# C\n\nA #workshop is not the family.\n");
-    expect(index.notesInTagFamily("work")).toEqual(["a.md", "b.md"]);
-    expect(index.notesInTagFamily("work/deep")).toEqual(["a.md", "b.md"]);
-    expect(index.notesInTagFamily("nothing")).toEqual([]);
   });
 });

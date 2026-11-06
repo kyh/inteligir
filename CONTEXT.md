@@ -175,17 +175,17 @@ item's frontmatter `id`, `.inteligir/annotations/<id>.json`
 `@repo/notes/annotations/annotation-threads`). A root whose `text` is `""` is a
 bare highlight. Not an html or code comment, which the dialect keeps as the
 note's own bytes, and not a task: it has no resolved state, and stays until it
-is removed. An unanchored root is **waiting** on a stub, whose fill places it,
-and **missing** on any other item; the state is derived per answer, never
-stored (`@repo/contract/local/annotations/annotations-schema`).
+is removed. A root whose quote the item's text does not hold is listed
+**unplaced** under its item, and a fill that brings the page's text places it
+again; the state is derived per answer, never stored
+(`highlightSchema` in `@repo/contract/cloud/library/library-wire`).
 
 **quote vs passage** — two texts of one highlight. The **quote** is what the
 root recorded when it was made, the plain text clipped by `clipQuote`
 (`@repo/notes/annotations/store-schema`), and it never changes: a card shows
 it, the phone shows it, and a waiting highlight is placed by it. The
 **passage** is the text between its markers in the item as it reads now
-(`apps/cli/src/server/annotations/annotations-service.ts`), `null` while
-unanchored; an edit inside the highlight changes the passage and leaves the
+(`@repo/notes/annotations/passage-text`), `null` while unplaced; an edit inside the highlight changes the passage and leaves the
 quote.
 
 ## Items
@@ -220,25 +220,14 @@ library keeps none, which every turn of the built-in agent carries after the
 person's message. Tidy my library files and tags by them. Not the repo's
 `AGENTS.md`.
 
-**stub** — an app-made url item whose page is not read yet: a url kind, a web
-`url`, no `fetched`, and the `id` and `saved` every app writer stamps
-(`isItemStub` in `@repo/notes/items/item-frontmatter`). A link note an opened
-folder already held is not a stub, so no Mac fills it unasked. Built by
-`@repo/notes/items/item-stub`.
-
-**fill** — what the device that saved a stub adds to it once it reads the
-page, the Mac's server: the fill-owned keys (`site`, `author`, `published`,
-`description`, `fetched`, or `fetched` with `fetch-error` when the page could
-not be read), the cover embed, and the article text after the stub's own body.
-It reads the page with `@repo/page-reader` and writes by the rules of
-`@repo/notes/items/link-fill`; it calls no model and never writes `url` or
-`saved` (`apps/cli/src/server/items/capture/`). A save's
-answer says the fill's state: `pending`, `filled` or `failed`
-(`itemFillSchema` in `@repo/contract/local/items/items-schema`). A link the
-account's library holds unread (a `saveLink`, a refresh, an import's) is
-filled by the cloud: the cell asks the fill queue, and the Worker's consumer
-reads the page and lands only its `article` blocks and the fill-owned fields
-(`apps/web/src/worker/fill/`). A page the phone's share sheet hands over is
+**fill** — the cloud's reading of a link the library holds unread (a
+`saveLink`, a refresh, an import's): the cell asks the fill queue, and the
+Worker's consumer reads the page with `@repo/page-reader` and lands only its
+`article` blocks and the fill-owned fields (`site`, `author`, `published`,
+`description`, the cover, `fetchedAt`, or `fetchError` when the page could not
+be read); it calls no model and never writes `url` or `savedAt`
+(`apps/web/src/worker/fill/`). An item's `fetchState` says where it stands:
+`pending`, `filled` or `failed`. A page the phone's share sheet hands over is
 read on the phone and saved read, never a fill (`apps/mobile/src/items/share-save.ts`).
 
 **cover** — an item's picture: the first image its body embeds, computed at
@@ -259,82 +248,10 @@ dedupes by it and `item find` matches by it. Not what `url:` holds: that is
 `cleanUrl`, which drops only the userinfo and the tracking parameters, and
 the key is never stored.
 
-**page copy** — a single-file, script-free HTML snapshot of a saved page,
-stored by its hash under `assets/pages/` (`PAGES_DIR` in
-`@repo/notes/items/item-kind`) and linked from the item's body; in the library,
-an item's `copySha`, which only an import brings. It is served by its own sandboxed route
-(`PAGE_COPY_PATH` in `@repo/contract/local/routes`), never the asset route.
+**page copy** — a single-file, script-free HTML snapshot of a saved page: an
+item's `copySha`, which only an import brings. Its bytes are served under a
+script-less sandbox of their own (`apps/web/src/worker/library/blob-routes.ts`).
 Not the article text, which every fill writes into the item itself.
-
-## The agent
-
-The four words below are one chain and are constantly swapped for each other.
-Read them together.
-
-**thread** — the durable conversation, a row in this app's own SQLite (`threads`
-in `@repo/db/schema`). It survives process restarts and owns its title, its
-status, the turn that status describes and — for a doc-attached action — its
-origin note (see **view context vs thread origin**). Everything the user can
-reopen lives here.
-
-**turn** — one request-to-settle exchange inside a thread. It names no table: a
-turn exists only as the SCOPE its events share (`@repo/db/ids`), and the
-thread's active turn is the one its status describes. The id is the host's
-alone, since ACP names no turns
-(`apps/cli/src/server/agents/runtime-manager.ts`).
-
-**session** — the PROVIDER's own conversation, cached on the thread row so a
-later turn resumes into it (`@repo/db/threads`). A session is disposable: it is
-reaped when idle, closed when the host abandons a turn on it, and dies with the
-provider process, while the thread and its events do not. Not to be confused
-with the auth **session** in `apps/web` — a signed-in user's row in D1 — which
-shares only the word.
-
-**scope** — how far up an event's meaning reaches: the thread, or one turn
-(`@repo/domain/thread-event-scope`). Turn scope is the default reading, and each
-exception states its reason beside it in the event grammar, so an event that
-escapes turn chronology has to justify it in writing. The rule is enforced at
-parse and by a CHECK on the `events` table, because a turn-scoped row with no
-turn id is a row no query can place.
-
-**view context vs thread origin** — two answers to "which doc is this about",
-and they are not interchangeable. A **view context**
-(`@repo/domain/view-context`) rides ONE message: the path and the revision its
-bytes hashed to at submit, consumed by that turn's prompt. It is EPHEMERAL and a
-statement about the PAST — the screen the message left from, which is what
-"this" and "here" in it refer to — so nothing has to reconcile it when the user
-navigates away. A **thread origin** is the DURABLE binding an action makes: the
-note it was composed over, found by the note's frontmatter id so a move anywhere
-keeps it (`apps/cli/src/server/threads/thread-origins.ts`). A message can carry
-a view context into a thread with no origin. Neither is a **context path**: a
-note the user @-mentioned, which rides beside the message's text and, being part
-of what was asked rather than a statement about the screen, survives the queue.
-
-**dispatch** — a runtime handing a turn to its provider
-(`apps/cli/src/server/agents/runtime-manager.ts`).
-
-## "event" means three things
-
-Three different layers all say "event", and only the first is durable product
-state.
-
-- **thread event** — the PERSISTED log entry (`@repo/domain/provider-event`,
-  despite the file's name), one row in the `events` table, sequenced per thread.
-  This is what a client replays; it never leaves the Mac that recorded it.
-- **provider event** — the runtime's EMITTED grammar
-  (`@repo/agent-runtime/vocabulary/provider-event`). The two grammars are
-  near-twins with the same file name and are not the same set: the runtime
-  constructs its events and never parses them, and
-  `apps/cli/src/server/agents/runtime-manager.ts` is the one place that narrows
-  onto the persisted grammar.
-- **filesystem event** — what the vault watcher reports
-  (`apps/cli/src/server/vault/watcher`). Not `fileChange`, a thread event ITEM
-  type: the agent's own report of what it wrote, which an agent commit stages.
-
-The local realtime bus is deliberately NOT in this list. It carries **change
-kinds** (`@repo/domain/change-kinds`) — invalidation pings naming a
-subscription target, never payloads. A client told "events-appended" refetches;
-it is never handed the event.
 
 ## The words the user sees
 

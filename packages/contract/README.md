@@ -71,8 +71,6 @@ src/
 - **apps/web** SERVES every `/cloud` row and reaches nothing under `/local`;
   `dep-dag.test.ts` pins that per import. It also decorates the library's rows
   as the connector's tools, the one place MCP and OpenAPI meta are written.
-- **apps/cli** implements `/local` and, in `src/server/cloud/`, consumes the
-  device routes, the account socket and the hosted vault's git remote.
 - **apps/mobile** reaches `/v1` alone, the library through its replica
   (`@repo/library-replica`) and the account through `cloud/v1`, as the Mac's
   window does, and never speaks git. It reaches nothing under `/local`
@@ -127,10 +125,6 @@ src/
   takes the asset media-type allowlist and the hash helpers;
   `local/cloud/cloud-schema.ts` the device name bound) — a number copied by hand
   passes locally and is refused at the far end as a shape error. The other direction never: `/cloud` reaches no `/local` file.
-- **Every local row declares only the error classes it can raise.** A base
-  carrying every class hands each client switch unreachable branches; the
-  vault rows' declared set is held against the handlers by
-  `apps/cli/src/server/vault/vault-contract-errors.test.ts`.
 - **One session fence, one login flow, one socket.** Each lives here rather
   than in each client: a security discipline with two spellings is two to
   audit.
@@ -178,6 +172,3 @@ src/
 `pnpm --filter @repo/contract test` — vitest, no platform. `/v1`'s rows and
 refusals are exercised in process, over a real `RPCHandler` and `RPCLink`
 (`cloud/v1-contract.test.ts`).
-`knowledge/engine-mirror.test.ts` is type-level and fails under
-`tsc`, not `vitest`. The delta algebra is pinned over the projections it
-diffs, beside the server's fold in `apps/cli/src/server/threads/`.

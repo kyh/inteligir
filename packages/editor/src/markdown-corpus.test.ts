@@ -1,5 +1,4 @@
-import path from "node:path";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -101,23 +100,4 @@ describe("legacy corpus classification", () => {
       expect(letters(once), `${name} must preserve content`).toBe(letters(md));
     }
   });
-});
-
-// the items a first run copies into a new library, which a new person opens before saving their own
-const SEED_DIR = `${REPO_ROOT}/apps/cli/seed/`;
-
-describe("the starter library", () => {
-  const notes = readdirSync(SEED_DIR, { recursive: true, withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-    .map((entry) => path.relative(SEED_DIR, path.join(entry.parentPath, entry.name)));
-
-  it("is found at all", () => {
-    expect(notes.length).toBeGreaterThan(0);
-  });
-
-  for (const name of notes.toSorted()) {
-    it(`${name} opens rich and saves byte-exact`, () => {
-      expect(classify(readFileSync(`${SEED_DIR}${name}`, "utf-8"))).toBe("canonical");
-    });
-  }
 });

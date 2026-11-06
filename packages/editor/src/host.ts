@@ -3,7 +3,7 @@ import { useStore } from "zustand";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import type { LinkResolver, VaultActions } from "@repo/editor/host-io";
 import { mdLinkTarget } from "@repo/notes/knowledge/link-extract";
-import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
+import type { WikiTarget } from "@repo/notes/knowledge/wiki-target";
 
 // React's door to the host singleton; anything outside a component reads getEditorHostIo() itself.
 

@@ -1,6 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { ACTION_PRESET_LABELS, actionPresetSchema } from "./action-preset";
-import type { ActionPreset } from "./action-preset";
 import { libraryScopeSchema } from "./library-scope";
 import type { LibraryScope } from "./library-scope";
 import { LIBRARY_SELECTION_MAX, viewContextSchema } from "./view-context";
@@ -52,15 +50,5 @@ describe("a view context", () => {
     expect(viewContextSchema.safeParse({ ...LIBRARY, scope: { kind: "unsorted" } }).success).toBe(
       true,
     );
-  });
-});
-
-describe("an action preset", () => {
-  it("has a label for every preset, which is what an empty send stores", () => {
-    const presets: readonly ActionPreset[] = actionPresetSchema.options;
-    for (const preset of presets) {
-      expect(ACTION_PRESET_LABELS[preset].trim()).not.toBe("");
-    }
-    expect(ACTION_PRESET_LABELS["tidy-library"]).toBe("Tidy my library");
   });
 });

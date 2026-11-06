@@ -97,12 +97,12 @@ export const workspaces = (): Workspace[] => {
   return cachedWorkspaces;
 };
 
-// `apps/cli` → `apps`; workspace-coverage.test.ts holds every workspace one level under its group.
+// `apps/web` → `apps`; workspace-coverage.test.ts holds every workspace one level under its group.
 export const workspaceGroups = (): string[] =>
   [...new Set(workspaces().map((workspace) => path.dirname(workspace.dir)))].toSorted();
 
-// membership by workspaces(), never by name prefix: `inteligir` breaks the @repo/ convention and is
-// exactly the dependency a shipping surface installs.
+// membership by workspaces(), never by name prefix: a workspace is whatever pnpm-workspace.yaml
+// lists, whatever its name
 export const manifestWorkspaceDeps = (manifest: Manifest): Set<string> => {
   const all = {
     ...manifest.dependencies,

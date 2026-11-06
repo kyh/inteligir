@@ -12,26 +12,18 @@ import type { TrackedProcess } from "./harness/tracked-child";
 import { createScenarioContext } from "./harness/scenario";
 import type { ExclusiveResource, Scenario, ScenarioContext } from "./harness/scenario";
 import { accountHosted } from "./scenarios/account-hosted";
-import { actionScripted } from "./scenarios/action-scripted";
 import { agentCell } from "./scenarios/agent-cell";
 import { agentPanelBrowser } from "./scenarios/agent-panel-browser";
 import { annotationsBrowser } from "./scenarios/annotations-browser";
-import { annotationsCli } from "./scenarios/annotations-cli";
 import { browserExtension } from "./scenarios/browser-extension";
 import { browserSmoke } from "./scenarios/browser-smoke";
-import { builtCliBoot } from "./scenarios/built-cli-boot";
 import { builtWorkerBoot } from "./scenarios/built-worker-boot";
 import { connectorTools } from "./scenarios/connector-tools";
-import { cliDrive } from "./scenarios/cli-drive";
-import { debugLogTrace } from "./scenarios/debug-log";
 import { desktopOnboarding } from "./scenarios/desktop-onboarding";
 import { desktopShell } from "./scenarios/desktop-shell";
 import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
 import { extensionIntegrated } from "./scenarios/extension-integrated";
 import { fileItems } from "./scenarios/file-items";
-import { hostedVaultFull } from "./scenarios/hosted-vault-full";
-import { hostedVaultSecondMac } from "./scenarios/hosted-vault-second-mac";
-import { hostedVaultSync } from "./scenarios/hosted-vault-sync";
 import { importIntegrated } from "./scenarios/import-integrated";
 import { libraryBrowser } from "./scenarios/library-browser";
 import { librarySearchBrowser } from "./scenarios/library-search-browser";
@@ -43,30 +35,14 @@ import { phoneOfflineEdit } from "./scenarios/phone-offline-edit";
 import { phoneSaveHosted } from "./scenarios/phone-save-hosted";
 import { raindropImport } from "./scenarios/raindrop-import";
 import { settingsBrowser } from "./scenarios/settings-browser";
-import { sizeGate } from "./scenarios/size-gate";
 import { slashMenuBrowser } from "./scenarios/slash-menu-browser";
-import { slowStorage } from "./scenarios/slow-storage";
 import { syncConflictBrowser } from "./scenarios/sync-conflict-browser";
-import { threadsScripted } from "./scenarios/threads-scripted";
 import { tidyLibraryBrowser } from "./scenarios/tidy-library-browser";
-import { tidyLibraryScripted } from "./scenarios/tidy-library-scripted";
 import { undoBrowser } from "./scenarios/undo-browser";
-import { undoScripted } from "./scenarios/undo-scripted";
-import { vaultCrud } from "./scenarios/vault-crud";
-import { vaultRemoteSetting } from "./scenarios/vault-remote-setting";
-import { vaultSync } from "./scenarios/vault-sync";
 import { viewContextBrowser } from "./scenarios/view-context-browser";
 
 const SCENARIOS: readonly Scenario[] = [
-  vaultCrud,
-  slowStorage,
-  vaultSync,
-  vaultRemoteSetting,
   fileItems,
-  sizeGate,
-  hostedVaultSync,
-  hostedVaultSecondMac,
-  hostedVaultFull,
   phoneOfflineEdit,
   phoneFileOpsHosted,
   phoneAnnotationsHosted,
@@ -79,18 +55,10 @@ const SCENARIOS: readonly Scenario[] = [
   viewContextBrowser,
   tidyLibraryBrowser,
   builtWorkerBoot,
-  builtCliBoot,
   desktopShell,
   desktopOnboarding,
-  threadsScripted,
-  actionScripted,
-  undoScripted,
-  cliDrive,
   linkCapture,
   raindropImport,
-  tidyLibraryScripted,
-  annotationsCli,
-  debugLogTrace,
   browserSmoke,
   editorConstructsBrowser,
   slashMenuBrowser,
@@ -122,8 +90,8 @@ const USAGE = `Usage: pnpm e2e [--only <names>] [--lanes <n>] [--keep] [--list] 
 
 // a hang backstop, far above any scenario's green run: they pass in seconds.
 const DEFAULT_SCENARIO_TIMEOUT_MS = 180_000;
-// a cold build runs the workspace's vite build before the CLI bundles it.
-const CLI_BUILD_TIMEOUT_MS = 300_000;
+// a cold build of the browser extension, its reader and its codec bundled
+const EXTENSION_BUILD_TIMEOUT_MS = 300_000;
 // a cold build compiles the shell and every crate under it
 const SHELL_BUILD_TIMEOUT_MS = 1_200_000;
 
@@ -472,24 +440,16 @@ const installSignalCleanup = (): void => {
   }
 };
 
-// built through turbo, not looked for on disk: a present dist/ may be last week's server.
-// the extension's dev build rides the same run: the browser-extension scenarios load its
-// .output/chrome-mv3
-const buildCli = async (repoRoot: string): Promise<void> => {
+// the extension's dev build, which the browser-extension scenarios load from its .output/chrome-mv3:
+// built through turbo, not looked for on disk, since a present output may be last week's
+const buildExtension = async (repoRoot: string): Promise<void> => {
   const startedAt = Date.now();
-  console.log(`${timestamp()} building the CLI bundle and the browser extension`);
+  console.log(`${timestamp()} building the browser extension`);
   try {
     await exec(
       "pnpm",
-      [
-        "turbo",
-        "run",
-        "build",
-        "--filter=inteligir",
-        "--filter=@repo/extension",
-        "--output-logs=errors-only",
-      ],
-      { cwd: repoRoot, env: buildProcessEnv(), timeoutMs: CLI_BUILD_TIMEOUT_MS },
+      ["turbo", "run", "build", "--filter=@repo/extension", "--output-logs=errors-only"],
+      { cwd: repoRoot, env: buildProcessEnv(), timeoutMs: EXTENSION_BUILD_TIMEOUT_MS },
     );
   } catch (error) {
     throw new Error(`the suite-start build failed:\n${describeExecError(error)}`, { cause: error });
@@ -532,7 +492,7 @@ const main = async (): Promise<number> => {
   installSignalCleanup();
   const selected = selectScenarios(options);
   const repoRoot = path.resolve(import.meta.dirname, "..", "..", "..");
-  await buildCli(repoRoot);
+  await buildExtension(repoRoot);
   if (selected.some((scenario) => scenario.exclusive?.includes("desktop-shell") === true)) {
     await buildShell(repoRoot);
   }

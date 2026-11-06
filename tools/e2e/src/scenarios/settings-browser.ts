@@ -17,7 +17,7 @@ import {
   untilBodyHolds,
 } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
-import { loginDevice, OWNER } from "../harness/cloud-account";
+import { OWNER } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { openLibraryTab } from "../harness/library-tab";
 import { pollUntil } from "../harness/poll";
@@ -49,7 +49,7 @@ export const settingsBrowser: Scenario = {
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
     const { browser, library, worker } = await openLibraryTab(ctx, "settings");
-    const phone = await loginDevice(worker.origin, PHONE);
+    const phone = await v1Client(worker, null).account.signIn({ ...OWNER, deviceName: PHONE });
 
     ctx.log("Settings opened offline: each row the cloud answers waits, and says so");
     await browser(["set", "offline", "on"]);

@@ -9,7 +9,7 @@ import { installEditorHost } from "@repo/editor/host-io";
 import type { EditorHostIo, VaultActions } from "@repo/editor/host-io";
 import { createLinkResolverFeed } from "@repo/editor/link-resolver-feed";
 import type { LibraryReplica } from "@repo/library-replica/library-replica";
-import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
+import type { WikiTarget } from "@repo/notes/knowledge/wiki-target";
 
 export interface PageEditorHost {
   // the item the editor shows now, whose highlights the chord writes; null over the library

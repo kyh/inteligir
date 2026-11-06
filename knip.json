@@ -6,22 +6,6 @@
   // packages/* export every file as a subpath, so knip reads each as an entry and trusts its
   // exports; includeEntryExports turns reporting back on where the exports are not the API
   "workspaces": {
-    "apps/cli": {
-      "entry": [
-        "src/index.ts",
-        "src/server/vault/watcher/parcel-child-entry.ts",
-        "src/server/knowledge/projection-worker.ts",
-        "src/server/items/capture/item-fill-worker.ts"
-      ],
-      // the vault service's suite makes a named pipe with the system's own mkfifo, which no
-      // package provides
-      "ignoreBinaries": ["mkfifo"],
-      // the ACP adapters are resolved with require from the running bundle, never imported
-      "ignoreDependencies": [
-        "@agentclientprotocol/claude-agent-acp",
-        "@agentclientprotocol/codex-acp"
-      ]
-    },
     "apps/desktop": {
       // the isolation app's hook, which Tauri inlines into the frame every message to the shell
       // passes through (src-tauri/tauri.conf.json's `pattern`)
@@ -85,13 +69,9 @@
       "includeEntryExports": true,
       "ignoreExportsUsedInFile": true
     },
-    "packages/agent-runtime": {
-      // the fake vendors are spawned by path, never imported
-      "entry": ["src/test-support/*.mjs"]
-    },
     "tools/e2e": {
-      // spawned by path: the Worker host from cloud-worker.ts, the fake vendor from its scenario
-      "entry": ["src/harness/worker-host.ts", "src/fixtures/*.mjs"]
+      // spawned by path from cloud-worker.ts
+      "entry": ["src/harness/worker-host.ts"]
     },
     "tools/ui-gallery": {
       // the entry is index.html's script, which knip's vite plugin reads

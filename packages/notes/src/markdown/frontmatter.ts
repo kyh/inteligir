@@ -33,13 +33,6 @@ export const frontmatterYaml = (text: string): string | null => {
 export const frontmatterEnd = (text: string): number | null =>
   FRONTMATTER_RE.exec(text)?.[0].length ?? null;
 
-// where frontmatterYaml's text starts in the note, one past the opener's line break: a splice
-// inside the yaml lands at this plus its own offset, and every other byte stays put.
-export const frontmatterYamlStart = (text: string): number | null => {
-  const match = FRONTMATTER_RE.exec(text);
-  return match === null ? null : match[0].indexOf("\n") + 1;
-};
-
 export const splitFrontmatter = (text: string): SplitDoc => ({
   body: text.slice(frontmatterEnd(text) ?? 0),
 });

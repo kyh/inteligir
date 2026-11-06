@@ -105,23 +105,6 @@ node is rather than discriminating structurally at each visit.
   url item whose page is unread, which needs the `id` and `saved` every writer
   stamps (`isItemStub`). Rejected: a `title:` key (two names that drift).
 
-- **EVERY ITEM WRITE IS A LINE CUT, AND EVERY ITEM A WRITER MAKES IS THE
-  EDITOR'S FIXPOINT.** A write of an item's keys (`withItemFields` in
-  `@repo/notes/items/item-frontmatter`, over `replaceTopLevelKey`) leaves every
-  other byte of the block alone and puts an added key in its compose position,
-  so two devices filling one stub write the same bytes. A body sits one blank
-  line under the block, the editor's own spelling (`composeItemFile`, and
-  `withBody` in `@repo/notes/items/item-body`), so the item opens rich
-  (`packages/editor/src/item-embed-spelling.test.ts`).
-
-- **AN ITEM'S COVER, ORIGINAL AND PAGE COPY ARE READ FROM ITS EMBEDS, NEVER
-  STORED.** They are computed from its first embeds and its links on every read
-  (`@repo/notes/items/item-files`). A media file no doc embeds is a card of its
-  own (a bare file); the library rules file, the dot-folders and the covers and
-  page copies folders are never cards. Rejected: a frontmatter cover path
-  (rename's link rewrite and the phone never see it), and wrapping every file a
-  doc mentions (a pasted image and a cover would each become a card).
-
 - **A URL HAS ONE KEY, COMPUTED WITHOUT THE PLATFORM'S URL.**
   `@repo/notes/items/item-url` parses by the RFC 3986 appendix-B regex. The key
   drops the scheme, userinfo, `www.`, a default port, the tracking parameters
@@ -133,18 +116,6 @@ node is rather than discriminating structurally at each visit.
   Rejected: `new URL()` (React Native's is not WHATWG, so the phone and Mac
   would disagree) and storing the key in frontmatter (a rule change strands
   every file on the old one).
-
-- **THE LIBRARY LISTING IS AN IN-MEMORY INDEX BESIDE THE TAGS.**
-  `@repo/notes/items/library-index` lives inside `LinkGraphIndex`, fed every
-  file, its live resolver and tag index. Its members are every doc and bare
-  media file, less the hidden paths; pinned items lead every sort; it filters by
-  kind, folder, tag family, untagged, site and saved date, and counts the scope
-  per kind, ignoring the asked kinds. It keeps one sorted order per sort,
-  dropped only when membership or that sort's key moves, so a page costs its own
-  rows, and a new path files its own resolver keys (`createPathResolver` in
-  `@repo/notes/knowledge/link-resolve`). Rejected: SQLite columns (tag families,
-  bareness and mtime live in memory) and re-resolving per new path (550–630 ms
-  at 50k). `packages/notes/src/items/library-cost.test.ts`.
 
 ## Annotations
 
@@ -160,28 +131,6 @@ node is rather than discriminating structurally at each visit.
   breaks whichever of text and store is written first). Rejected: resolve (a
   reading mark is not a task) and the comments name (two spellings forever).
   `@repo/notes/annotations/store-schema`.
-
-## Sync
-
-- **TWO VERSIONS OF ONE SAVED LINK SETTLE ON ONE TEXT, WHICHEVER DEVICE ASKS.**
-  A side's fill mark is its `fetched` as written. If both changed it
-  differently, a total order picks the winner (fetched, then read over
-  `fetch-error`, earlier fetch, earlier save, smaller text) and the loser's
-  edits since base ride onto it (tags, aliases, its own keys, the earlier
-  `saved`, a missing `id`, an unfetched loser's note). If one did, the filler's
-  text takes the editor's edits, its body by diff3, or against a first fill the
-  editor's note for the stub's. Only a text-replacing refresh against a body
-  edit answers null and falls to the copy.
-  `packages/notes/src/sync/url-item-verdict.test.ts`.
-
-- **ONE URL-ITEM VERDICT RUNS IN THE SYNC'S MERGE, AND BOTH ASKERS LAND THE
-  SAME BYTES.** It takes a pair only when both read as a url item (or the image
-  or PDF a fill made of one) with one url key, over a base with that key or
-  none. Every rule is phrased by role and every diff3 runs in one orientation,
-  so no copy is made. It runs in reconcile-file (the local server's sync
-  merge). Rejected: a Worker lease so one device fills (a new /cloud protocol
-  for what a pure verdict settles), and renaming on fill (git cannot pair the
-  rename with a concurrent edit). `@repo/notes/sync/url-item-verdict`.
 
 ## Knowledge: index, search and links
 
@@ -220,34 +169,6 @@ node is rather than discriminating structurally at each visit.
   `@repo/notes/markdown/remark-opaque`, walked by
   `@repo/notes/knowledge/link-extract`); the index path emits no spans.
 
-- **A TAG IS A SCOPE ON THE LIBRARY GRID, NOT A VIEW; ITS ITEMS ARE A LISTING,
-  NOT A SEARCH; AND A TAG RENAME IS THE LINK RENAME'S SURGERY.** No tag browser
-  (owner decision): a `#tag` chip's `showTag` (`packages/editor/src/host-io.ts`)
-  scopes the grid, as a rail Tags row does
-  (`apps/workspace/src/app/sidebar/rail.tsx`,
-  `apps/workspace/src/app/library/library-view.tsx`). `knowledge.items({tag})`
-  pages the family (`notesInTagFamily` in `@repo/notes/knowledge/tag-notes`)
-  with its whole count from the index, since search stops at its ceiling unsaid.
-  A non-note item's tags are its frontmatter's (page hashtags are the page's).
-  `knowledge.renameTag` splices each entry over its yaml scalar under
-  `writeIfUnchanged`, reporting a note changed mid-rename. Rejected:
-  re-serializing (it restyles a flow list and rewrites a CRLF one). `isTagName`
-  (`@repo/notes/knowledge/tag-grammar`, import-free for the contract) is its
-  grammar. `@repo/notes/knowledge/rename-tags.ts`,
-  `apps/cli/src/server/knowledge/rename-tag.ts`.
-
-- **VAULT SEARCH IS A LITERAL SCAN BESIDE THE RANKED INDEX, AND BOTH READ THE
-  BODY WITHOUT ITS YAML.** FTS5 cannot place a hit inside a line, so
-  `knowledge.matches` (behind the palette and `inteligir matches`) scans bodies
-  with ONE matcher, `@repo/notes/knowledge/text-matches`, which the find bar's
-  jump runs too; the store only pre-narrows by ascii substrings (`docTexts`),
-  since LIKE folds ascii case alone. Both engines blank the frontmatter's lines
-  (`searchBodyOf` in `@repo/notes/knowledge/search-columns`), so a match's line
-  stays the file's; an item's url, site, author, description and tags are ranked
-  as `meta`. The scan never rewrites: a many-note change is the agent's, under
-  History and Undo. The jump lands by match ordinal, since a markdown column is
-  not a Slate offset.
-
 - **AN MD URL HAS ONE READING, AND THE EDITOR RESOLVES IT WITH THE INDEX'S
   RESOLVER.** The scan and the editor read a link's or an image's url through
   `mdLinkTarget` (`@repo/notes/knowledge/link-extract`), and the editor resolves
@@ -267,11 +188,8 @@ node is rather than discriminating structurally at each visit.
   (`wikiLinkName` in `@repo/notes/knowledge/doc-file`), and the resolver keys
   that name, so a `.txt` note links as `[[todo.txt]]`. Rejected: dropping every
   doc extension (it loses Obsidian's reading and the pinned resolver). The `[[`
-  picker, extract and a rename target `wikiTargetForPath`
+  picker and extract target `wikiTargetForPath`
   (`@repo/notes/knowledge/link-resolve`: the name when it resolves back, else
-  the path), but a rename refuses the bare name unless no other file answers to
-  it (`answersOnly` in `packages/notes/src/knowledge/rename-links.ts`), since
-  rewriting links the user never typed must not lean on the resolver's
-  tie-break. Every writer's bytes come from `serializeWikiBody`
+  the path). Every writer's bytes come from `serializeWikiBody`
   (`@repo/notes/markdown/remark-wiki-link`), and its null writes nothing.
   `packages/notes/src/knowledge/link-resolve.test.ts`.

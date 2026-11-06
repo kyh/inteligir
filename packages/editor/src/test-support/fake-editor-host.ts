@@ -1,6 +1,6 @@
 import { createStore } from "zustand/vanilla";
 
-import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
+import type { WikiTarget } from "@repo/notes/knowledge/wiki-target";
 
 import { installEditorHost } from "@repo/editor/host-io";
 import type {
