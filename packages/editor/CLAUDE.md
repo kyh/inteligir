@@ -11,11 +11,11 @@ table, the fixpoint serializer and its fixtures, and an item's editor
 session's ports and the `EditorHost` singleton
 (`packages/editor/src/host-io.ts`, opened to React by `host.ts`), installed by
 one `installEditorHost` call per host. Its
-`EditorHostIo` carries the link resolver store and note formulas, so no host
-writes its own; its `EditorHostActions` (Ask agent, `showTag`, a highlight's
-create, note and open, all required) are how a deep node asks the shell; its
-`VaultActions` are the verbs a node asks by a file's path, which a host whose
-items have no path answers with nothing. `static-note.tsx`
+`EditorHostIo` carries the link resolver store, so no host writes its own; its
+`EditorHostActions` (Ask agent, `showTag`, a highlight's create, note and
+open, and a new note, all required) are how a deep node asks the shell; its
+`VaultActions` open what a link or a file card names, by the path the
+resolver answers it at. `static-note.tsx`
 draws a note read-only, for an embed and for Quick Look. `node-props.ts` is the
 SLATE DECODE BOUNDARY: a node's dialect fields ride `TElement`'s open index
 signature, so each read arrives as `unknown` and becomes a domain value there
@@ -136,14 +136,16 @@ alone, and no walk narrows structurally.
   (`pinItems` in `apps/workspace/src/app/library/library-verbs.ts`). Rejected: a
   Pinned heading (more height than it explains).
 
-- **AN EXTRACT IS ONE HISTORY BATCH.** An extract
-  creates its note exclusively before touching the buffer, refuses blocks
-  anchoring an annotation (its entry would stay behind), and lands the removal
-  and the `[[link]]` in one flush, so one undo restores both; the created note
-  stays, since the host's create and the buffer's flush are two writes.
-  Rejected: create-or-reuse (an existing note counts as success and the blocks
-  are lost).
-  `packages/editor/src/extract-note.ts`.
+- **AN EXTRACT IS ONE HISTORY BATCH, AND ITS NOTE IS AN ITEM OF ITS OWN.** An
+  extract asks the host for a note of the very blocks it moves, as the item
+  stores them, in the open item's folder (`items.createNote`, which a link's
+  Create asks too), before touching the item; it refuses blocks anchoring a
+  highlight (the entry is this item's row) and lands the removal and a link to
+  the note by its id in one change, so one undo restores both and the next
+  pause writes them. The note stays: its create and the item's write are two
+  writes. Rejected: create-or-reuse by title (an item of that name counts as
+  success and the blocks are lost); the blocks sent as markdown (their ids and
+  marks would turn over). `packages/editor/src/extract-note.ts`.
 
 - **A FORMULA RECOMPUTE IS NOT AN EDIT, AND A BOUND REF'S ITEM IS FOUND BY ID.**
   A bound ref names an item by its id, so a pass reads only the items its

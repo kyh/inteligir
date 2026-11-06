@@ -14,6 +14,7 @@ import { getEditorHostIo } from "@repo/editor/host-io";
 import { notePreviewHead } from "@repo/editor/note-preview";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 
+import { createLinkedNote } from "@repo/editor/wiki/wiki-insert";
 import { wikiLabelOf } from "@repo/editor/wiki/wiki-node";
 import type { WikiNodeFields } from "@repo/editor/wiki/wiki-node";
 
@@ -37,7 +38,7 @@ const PreviewBody = ({ text }: { text: string | null }) => {
 // a link with no title points at the open note (`[[#sec]]`): nothing to resolve or create
 const WikiChip = ({ link }: { link: WikiNodeFields }) => {
   const { resolveWikiTarget, titleOf } = useLinkResolver();
-  const { openFile, createFile } = useVaultActions();
+  const { openFile } = useVaultActions();
   const [createOpen, setCreateOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewText, setPreviewText] = useState<string | null>(null);
@@ -148,13 +149,13 @@ const WikiChip = ({ link }: { link: WikiNodeFields }) => {
               type="button"
               onClick={() => {
                 setCreateOpen(false);
-                void createFile(link.title);
+                void createLinkedNote(link.title);
               }}
               className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-body hover:bg-accent hover:text-accent-foreground"
             >
               <FilePlusIcon className="size-4 text-muted-foreground" />
               <span>
-                Create <span className="font-medium">{link.title}.md</span>
+                Create <span className="font-medium">{link.title}</span>
               </span>
             </button>
           </PopoverContent>

@@ -83,4 +83,31 @@ describe("an item page's questions, answered from the phone's replica", () => {
     await phone.replica.sync();
     expect(cell.annotation("h1")).toMatchObject({ quote: "first", text: "why?" });
   });
+
+  it("makes a note of the page's blocks in the folder of the item it was made from", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const folderId = phone.newId();
+    await phone.replica.writeFolders([
+      { id: folderId, name: "Reading", op: "create", parentId: null, sort: "a0" },
+    ]);
+    const source = await phone.replica.createNote({
+      blocks: [{ block: paragraph("p1", "first"), ord: "a0", section: "note" }],
+      folderId,
+      tags: [],
+      title: "Plans",
+    });
+    const ports = createItemPorts({ now: () => NOW, replica: phone.replica });
+
+    const { id } = await ports.createNote({
+      besideId: source.id,
+      blocks: [{ block: paragraph("p2", "moved"), ord: "a0" }],
+      title: "moved",
+    });
+
+    expect(phone.replica.row(id)?.fields).toMatchObject({ folderId, title: "moved" });
+    await phone.replica.sync();
+    expect(cell.item(id)?.fields.folderId).toBe(folderId);
+    expect(cell.item(id)?.blocks.get("p2")).toMatchObject({ section: "note" });
+  });
 });

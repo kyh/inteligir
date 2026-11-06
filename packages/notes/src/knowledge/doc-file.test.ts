@@ -2,10 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   docExtension,
   docStem,
-  freeDocPath,
   isDocPath,
   isVaultMetadataPath,
-  takenIgnoringCase,
   wikiLinkName,
   wikiLinkPath,
 } from "./doc-file";
@@ -95,12 +93,5 @@ describe("a name the disk already holds", () => {
   it("is one key in either case and either normalization", () => {
     expect(vaultCollisionKey(decomposed)).toBe(vaultCollisionKey(composed.toUpperCase()));
     expect(vaultCollisionKey("Cafe.md")).not.toBe(vaultCollisionKey(composed));
-  });
-
-  it("is taken however it is spelled, so a new note steps past it", () => {
-    const isTaken = takenIgnoringCase([decomposed]);
-    expect(isTaken(composed)).toBe(true);
-    expect(isTaken("Cafe.md")).toBe(false);
-    expect(freeDocPath("", "Café", [decomposed])).toBe("Café 2.md");
   });
 });

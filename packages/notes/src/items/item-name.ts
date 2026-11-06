@@ -1,6 +1,6 @@
-// What a saved item is called. The filename is its title, so a page's title becomes a legal note
-// name here, once, for every writer: the Mac's save and fill, the phone's share and the import.
-// Unlike a name the person types (checkNoteName refuses), a page's title is repaired.
+// What an item is called as a name: the file an export writes its title to, and the title a saved
+// address goes by until its page is read. A title becomes a legal file name here, once, for every
+// writer, repaired rather than refused, so each name is one every disk takes and a link can name.
 
 import { urlHost, urlLastSegment } from "./item-url";
 

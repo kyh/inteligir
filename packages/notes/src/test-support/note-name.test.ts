@@ -1,4 +1,4 @@
-// A verdict change here changes which names the product accepts: a breaking change, not a refactor casualty.
+// The oracle's own corpus: a verdict change here changes which names the suites call legal.
 
 import { describe, expect, it } from "vitest";
 

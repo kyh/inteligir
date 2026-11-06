@@ -4,8 +4,9 @@
 // what it holds and asks the native stack to push that item. A highlight the editor marks is
 // written to the item as its bare entry beside the markers the item's next write carries, its note
 // the same way, and a tap on a marked passage opens the phone's sheet of its highlights, as the
-// library's page does. What the page has no door to (a file by its path, a picked image, an html
-// block's frame) answers that nothing is there.
+// library's page does; a note the editor makes (an extract, a link's Create) the phone makes in
+// the item's folder. What the page has no door to (a file inside a note, an html block's frame)
+// answers that nothing is there.
 
 import { installEditorHost } from "@repo/editor/host-io";
 import type { EditorHostIo, VaultActions } from "@repo/editor/host-io";
@@ -71,17 +72,32 @@ export const installItemPageHost = (bridge: PageBridge, itemId: string): ItemPag
   let session: ItemSession | null = null;
   let targets: readonly WikiTarget[] = [];
 
-  // the items a link can name, by id and by title, and the names they go by now; a link shows the
-  // title it was written with until the phone answers
-  void (async () => {
+  // the items a link can name, by id and by title, and the names they go by now, read again as
+  // the library moves; a link shows the title it was written with until the phone answers, and one
+  // read at a time runs, the last move it missed asked once it ends
+  let reading = false;
+  let readAgain = false;
+  const readTargets = async (): Promise<void> => {
+    if (reading) {
+      readAgain = true;
+      return;
+    }
+    reading = true;
     try {
       const { targets: read } = await bridge.request("wikiTargets", {});
       targets = read;
       feed.setTargets(read);
     } catch {
-      // the next load asks again
+      // the next move asks again
+    } finally {
+      reading = false;
     }
-  })();
+    if (readAgain) {
+      readAgain = false;
+      await readTargets();
+    }
+  };
+  void readTargets();
 
   // the resolver answers the path the phone lists an item under; the stack opens it by its id
   const open = (path: string): void => {
@@ -106,20 +122,7 @@ export const installItemPageHost = (bridge: PageBridge, itemId: string): ItemPag
     return status?.kind !== "open" || !status.unsaved;
   };
 
-  const vault: VaultActions = {
-    closeFile: nothingToDo,
-    createFile: async () => {
-      await Promise.resolve();
-    },
-    createFileAt: async () => await Promise.resolve(null),
-    createNewFileAt: async () => await Promise.resolve({ kind: "refused" as const }),
-    deleteEntry: async () => await Promise.resolve(false),
-    editNote: nothingToDo,
-    flush,
-    openFile: open,
-    registerNoteSerializeFlush: nothingToDo,
-    renameEntry: async () => await Promise.resolve(false),
-  };
+  const vault: VaultActions = { openFile: open };
 
   const io: EditorHostIo = {
     linkResolver: feed.store,
@@ -151,11 +154,28 @@ export const installItemPageHost = (bridge: PageBridge, itemId: string): ItemPag
           }
         },
       },
+      items: {
+        createNote: async (note) => {
+          const { id } = await bridge.request("createNote", {
+            besideId: itemId,
+            blocks: [...note.blocks],
+            title: note.title,
+          });
+          return id;
+        },
+      },
     },
     io,
   });
 
   const unsubscribe = bridge.onNative((event) => {
+    if (event.type === "itemChanged") {
+      // another item moved, or every one: a link's target may be among them
+      if (event.reset || event.ids.some((id) => id !== itemId)) {
+        void readTargets();
+      }
+      return;
+    }
     if (event.type !== "flush") {
       return;
     }

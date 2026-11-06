@@ -1,9 +1,6 @@
-import { basenamePath, extnamePath, joinPath, vaultCollisionKey } from "./vault-path";
+import { basenamePath, extnamePath, joinPath } from "./vault-path";
 
 const DOC_EXTENSIONS = new Set([".md", ".markdown", ".mdx", ".txt"]);
-
-// the extension a new note is made with
-const DEFAULT_DOC_EXTENSION = ".md";
 
 export const isDocPath = (path: string): boolean =>
   DOC_EXTENSIONS.has(extnamePath(path).toLowerCase());
@@ -37,13 +34,6 @@ export const wikiLinkName = (path: string): string => wikiLinkPath(basenamePath(
 export const isVaultMetadataPath = (path: string): boolean =>
   path.split("/").some((segment) => segment.startsWith("."));
 
-// Keyed on both sides because a file system may fold case and normalization.
-/** @internal */
-export const takenIgnoringCase = (takenPaths: Iterable<string>): ((path: string) => boolean) => {
-  const taken = new Set(Array.from(takenPaths, vaultCollisionKey));
-  return (path) => taken.has(vaultCollisionKey(path));
-};
-
 // a free spelling of a name, and which of its spellings it is (1 for the name itself)
 export interface FreePath {
   readonly path: string;
@@ -74,6 +64,3 @@ export const freePath = (
   extension: string,
   isTaken: (path: string) => boolean,
 ): string => freePathFrom(dir, stem, extension, isTaken, 1).path;
-
-export const freeDocPath = (dir: string, stem: string, takenPaths: Iterable<string>): string =>
-  freePath(dir, stem, DEFAULT_DOC_EXTENSION, takenIgnoringCase(takenPaths));

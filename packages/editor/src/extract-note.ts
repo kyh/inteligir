@@ -1,43 +1,36 @@
-// The note's bytes are the editor's own serialization of the blocks, so what leaves is what
-// the file would have held; their removal and the link that replaces them land in one flush,
-// which is one undo step. The created note is not undone: the host's create and this flush are
-// two writes, and a note that exists is truer than an edit that never happened. So the buffer is touched only
-// once the create made a new file and the blocks are still the bytes that file holds.
+// The new note holds the very blocks that leave, as the item stores them, under the title their
+// first heading or first line gives; their removal and the link that replaces them land in one
+// change, which is one undo step and the session's next write. The note is not undone with them:
+// the host's create and this item's write are two writes, and a note that exists is truer than an
+// edit that never happened. So the item is touched only once the note is made and the blocks are
+// still the ones it holds.
 
 import { KEYS, NodeApi, PathApi } from "platejs";
 import type { Path, SlateEditor, TElement } from "platejs";
 
+import { ordsBetween } from "@repo/notes/library/block-order";
+import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { toast } from "@repo/ui/components/sonner";
-import { docStem, freeDocPath } from "@repo/notes/knowledge/doc-file";
-import { buildResolver, wikiTargetForPath } from "@repo/notes/knowledge/link-resolve";
-import { checkNoteName } from "@repo/notes/knowledge/note-name";
-import { dirnamePath } from "@repo/notes/knowledge/vault-path";
-import { serializeWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 import { isAnnotationMarker } from "@repo/editor/annotations/annotation-ranges";
 import { WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
-import { wikiFieldsOfBody, wikiNode } from "@repo/editor/wiki/wiki-node";
-import { getEditorHostIo } from "@repo/editor/host-io";
+import { getEditorHostActions } from "@repo/editor/host-io";
 import { getLiveEditor, liveEditorPath } from "@repo/editor/live-editor";
-import { serializeNote } from "@repo/editor/markdown/markdown-doc";
-import { isFrontmatterElement } from "@repo/editor/properties/properties-node";
+import { wikiNode } from "@repo/editor/wiki/wiki-node";
+
+import { readElement } from "./item/item-diff";
 
 const HEADING_TYPES = new Set<string>([KEYS.h1, KEYS.h2, KEYS.h3, KEYS.h4, KEYS.h5, KEYS.h6]);
-const NAME_MAX_CHARS = 80;
-const FALLBACK_STEM = "Untitled";
-// the listing is a snapshot, so a name it lacks can be taken on disk; past this many names a
-// vault is racing the extract, and it stops rather than chase it
-const CREATE_ATTEMPTS = 5;
+const TITLE_MAX_CHARS = 80;
+const FALLBACK_TITLE = "Untitled";
 
-// the first heading among the blocks, else the first line of the first one; a name the vault
-// would refuse falls back rather than being sanitized, since the filename is the title
+// the first heading among the blocks, else the first line of the first one
 /** @internal */
-export const extractionStem = (blocks: readonly TElement[]): string => {
+export const extractionTitle = (blocks: readonly TElement[]): string => {
   const source = blocks.find((block) => HEADING_TYPES.has(block.type)) ?? blocks[0];
   const line = source === undefined ? "" : (NodeApi.string(source).split("\n")[0] ?? "");
-  const candidate = line.slice(0, NAME_MAX_CHARS).trim().replace(/\.+$/u, "").trim();
-  const verdict = checkNoteName(candidate);
-  return verdict.ok ? verdict.name : FALLBACK_STEM;
+  const title = line.slice(0, TITLE_MAX_CHARS).trim();
+  return title === "" ? FALLBACK_TITLE : title;
 };
 
 // the top-level blocks the selection touches: a partly selected list leaves as a whole
@@ -55,121 +48,116 @@ const blocksAt = (editor: SlateEditor, paths: readonly Path[]): TElement[] =>
     return entry === undefined ? [] : [entry[0]];
   });
 
-const serializeBlocks = (editor: SlateEditor, blocks: TElement[]): string => {
-  const markdown = serializeNote(editor, blocks);
-  return markdown.endsWith("\n") ? markdown : `${markdown}\n`;
+// each element as the block the item stores, or null when one of them stores none
+const storedBlocks = (elements: readonly TElement[]): LibraryBlock[] | null => {
+  const blocks: LibraryBlock[] = [];
+  for (const element of elements) {
+    const read = readElement(element);
+    if (read.kind === "refused") {
+      return null;
+    }
+    blocks.push(read.block);
+  }
+  return blocks;
 };
 
-/** @internal */
-export const extractBlocksMarkdown = (editor: SlateEditor, paths: readonly Path[]): string =>
-  serializeBlocks(editor, blocksAt(editor, paths));
+// what the blocks are, by their stored hashes, so a change while the note is made is seen
+const signatureOf = (elements: readonly TElement[]): string =>
+  elements
+    .map((element) => {
+      const read = readElement(element);
+      return read.kind === "block" ? read.hash : "";
+    })
+    .join(" ");
 
-// a marker's thread lives in the annotation store keyed by this note's id, so the marker would
-// leave for a note whose store never heard of it
+// a highlight's entry is this item's row, so its markers would leave for an item that holds no
+// such entry
 const carriesAnnotationMarker = (block: TElement): boolean =>
   [...NodeApi.elements(block)].some(([element]) => isAnnotationMarker(element));
 
-const linkParagraph = (editor: SlateEditor, body: string): TElement => ({
-  children: [{ text: "" }, wikiNode(WIKI_LINK_KEY, wikiFieldsOfBody(body)), { text: "" }],
+const linkParagraph = (editor: SlateEditor, itemId: string, title: string): TElement => ({
+  children: [
+    { text: "" },
+    wikiNode(WIKI_LINK_KEY, {
+      alias: undefined,
+      blockRef: undefined,
+      heading: undefined,
+      itemId,
+      title,
+    }),
+    { text: "" },
+  ],
   type: editor.getType(KEYS.p),
 });
 
-// the new note's name may already be another note's elsewhere in the vault, so the link is
-// resolved against the listing it joins; paths alone decide it, since a path beats any alias
-const linkBodyFor = (path: string, existing: readonly string[]): string | null =>
-  serializeWikiBody({
-    target: wikiTargetForPath(path, buildResolver([...existing, path]).resolveWiki),
-  });
-
-const createExtractedNote = async (
-  dir: string,
-  stem: string,
-  markdown: string,
-  listed: readonly string[],
-): Promise<{ readonly path: string; readonly body: string } | null> => {
-  const taken = [...listed];
-  for (let attempt = 0; attempt < CREATE_ATTEMPTS; attempt += 1) {
-    const planned = freeDocPath(dir, stem, taken);
-    const body = linkBodyFor(planned, taken);
-    if (body === null) {
-      toast.error("No link can name a note in this folder, so nothing was extracted.");
-      return null;
-    }
-    const result = await getEditorHostIo().vault.createNewFileAt(planned, markdown);
-    // the session already said why
-    if (result.kind === "refused") {
-      return null;
-    }
-    if (result.kind === "created") {
-      return { body, path: result.path };
-    }
-    taken.push(result.path);
-  }
-  toast.error(`Every name tried for ${stem} was taken meanwhile, so nothing was extracted.`);
-  return null;
-};
-
-// the path of the note the blocks moved to, or null when they stayed where they were
+// the id of the note the blocks moved to, or null when they stayed where they were
 export const extractBlocksToNote = async (
   editor: SlateEditor,
   paths: readonly Path[],
 ): Promise<string | null> => {
-  const sorted = [...paths]
-    .toSorted(PathApi.compare)
-    .filter((path) => !isFrontmatterElement(editor.api.node(path)?.[0]));
-  const blocks = blocksAt(editor, sorted);
-  if (blocks.length === 0) {
+  const sorted = [...paths].toSorted(PathApi.compare);
+  const elements = blocksAt(editor, sorted);
+  const itemId = liveEditorPath(editor);
+  if (elements.length === 0 || itemId === null) {
     return null;
   }
-  if (blocks.some(carriesAnnotationMarker)) {
+  if (elements.some(carriesAnnotationMarker)) {
     toast.error("A highlight can't move to a new note, so nothing was extracted.");
     return null;
   }
-  const markdown = serializeBlocks(editor, blocks);
-  const notePath = liveEditorPath(editor);
-  const listed = getEditorHostIo()
-    .linkResolver.getState()
-    .targets.map((target) => target.path);
-  // typing, a reload or a note switch can move the blocks while the create is in flight
+  const blocks = storedBlocks(elements);
+  if (blocks === null) {
+    toast.error("Part of the selection can't be saved yet, so nothing was extracted.");
+    return null;
+  }
+  const title = extractionTitle(elements);
+  const signature = signatureOf(elements);
+  const ords = ordsBetween(null, null, blocks.length);
+  // typing, a change from elsewhere or leaving the item can move the blocks while the note is made
   const refs = sorted.map((path) => editor.api.pathRef(path));
-  const created = await createExtractedNote(
-    notePath === null ? "" : dirnamePath(notePath),
-    extractionStem(blocks),
-    markdown,
-    listed,
-  );
+  let created: string;
+  try {
+    created = await getEditorHostActions().items.createNote({
+      blocks: blocks.flatMap((block, index) => {
+        const ord = ords[index];
+        return ord === undefined ? [] : [{ block, ord }];
+      }),
+      title,
+    });
+  } catch {
+    for (const ref of refs) {
+      ref.unref();
+    }
+    toast.error("Couldn't make the new note, so nothing was extracted.");
+    return null;
+  }
   const current = refs
     .flatMap((ref) => {
       const path = ref.unref();
       return path === null ? [] : [path];
     })
     .toSorted(PathApi.compare);
-  if (created === null) {
-    return null;
-  }
   const [at] = current;
   const unchanged =
     at !== undefined &&
     current.length === refs.length &&
-    (notePath === null || getLiveEditor(notePath) === editor) &&
-    extractBlocksMarkdown(editor, current) === markdown;
+    getLiveEditor(itemId) === editor &&
+    signatureOf(blocksAt(editor, current)) === signature;
   if (!unchanged) {
-    toast.warning(
-      `Created ${docStem(created.path)}, but this item changed meanwhile, so the blocks stayed.`,
-    );
+    toast.warning(`Made ${title}, but this item changed meanwhile, so the blocks stayed.`);
     return null;
   }
   editor.tf.withoutNormalizing(() => {
     for (const path of current.toReversed()) {
       editor.tf.removeNodes({ at: path });
     }
-    editor.tf.insertNodes(linkParagraph(editor, created.body), { at });
+    editor.tf.insertNodes(linkParagraph(editor, created, title), { at });
   });
   const end = editor.api.end(at);
   if (end !== undefined) {
     editor.tf.select(end);
   }
   editor.tf.focus();
-  toast.success(`Extracted to ${docStem(created.path)}`);
-  return created.path;
+  toast.success(`Extracted to ${title}`);
+  return created;
 };

@@ -1,9 +1,10 @@
 // What an item's page asks the phone, answered from its replica: the item as it reads now, with
 // this phone's unsent writes laid over; a pause's ops, queued in the outbox under the bases the page
 // computed them from (a base that moved answers the item as it is, for the page's own merge); the
-// items a link can name; and a highlight's bare entry and its note, beside the markers the item's
-// next write carries, as the library's page writes them. Pure: the screen binds it to the open
-// item's replica, and the suite drives it over a real one.
+// items a link can name; a highlight's bare entry and its note, beside the markers the item's next
+// write carries; and a note the editor makes, in the folder of the item it was made from, as the
+// library's page writes them all. Pure: the screen binds it to the open item's replica, and the
+// suite drives it over a real one.
 
 import type { RequestPayload, RequestResult } from "@repo/editor-bridge/protocol";
 import type { LibraryReplica, ReplicaItem } from "@repo/library-replica/library-replica";
@@ -77,6 +78,15 @@ export const createItemPorts = (args: {
         ops: [],
       });
       return { queued: queued(outcome.kind) };
+    },
+    createNote: async ({ besideId, blocks, title }) => {
+      const made = await replica.createNote({
+        blocks: blocks.map(({ block, ord }) => ({ block, ord, section: "note" })),
+        folderId: replica.row(besideId)?.fields.folderId ?? null,
+        tags: [],
+        title,
+      });
+      return { id: made.id };
     },
     item: async ({ itemId }) => {
       const item = await replica.item(itemId);

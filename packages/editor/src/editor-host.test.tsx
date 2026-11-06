@@ -24,14 +24,16 @@ describe("a wiki chip over a controlled host", () => {
     expect(calls).toStrictEqual([{ action: "openFile", args: ["notes/roadmap.md"] }]);
   });
 
-  it("offers to create a target the listing does not resolve, and creates nothing until asked", () => {
+  it("offers to make a note the listing does not resolve, and makes nothing until asked", () => {
     const calls = mountChip("Someday");
 
     fireEvent.click(screen.getByRole("button", { name: "Someday" }));
     expect(calls).toStrictEqual([]);
 
-    fireEvent.click(screen.getByRole("button", { name: /Create/u }));
-    expect(calls).toStrictEqual([{ action: "createFile", args: ["Someday"] }]);
+    fireEvent.click(screen.getByRole("button", { name: "Create Someday" }));
+    expect(calls).toStrictEqual([
+      { action: "createNote", args: [{ blocks: [], title: "Someday" }] },
+    ]);
   });
 
   it("does nothing at all for a pure-anchor link, which points at the open note", () => {

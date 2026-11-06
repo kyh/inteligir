@@ -1,4 +1,5 @@
 import type { WikiTarget } from "@repo/notes/knowledge/wiki-target";
+import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import type { StoreApi } from "zustand/vanilla";
 
 // The host as a module singleton rather than context: kit factories, paste handlers and a deep
@@ -12,32 +13,9 @@ export interface VaultEntry {
   kind: "doc" | "other";
 }
 
-// `exists` names a taken path without a notice, so a caller can step past it; `refused` is final,
-// and the session has said whatever there was to say.
-export type CreateNewFileResult =
-  | { readonly kind: "created"; readonly path: string }
-  | { readonly kind: "exists"; readonly path: string }
-  | { readonly kind: "refused" };
-
 export interface VaultActions {
-  /** A failed flush of the current note refuses to navigate. */
+  /** Opens what a link or a file card names, by the path the resolver answers it at. */
   openFile: (path: string) => void;
-  /** Leaves the open item for the library, written first as a switch to another item would be. */
-  closeFile: () => void;
-  /** Keyed by path: a teardown or surface switch can emit after the open note changed, and those bytes must no-op. */
-  editNote: (path: string, content: string) => void;
-  /** Drains the serialize debounce before a save/rename/delete; keyed by path for the same reason as editNote. */
-  registerNoteSerializeFlush: (path: string, flush: () => void) => void;
-  /** Open-or-create: an existing file opens untouched, so naming a note that exists opens it. */
-  createFile: (path: string) => Promise<void>;
-  /** Creates without opening; an existing file counts as success. */
-  createFileAt: (path: string, seedContent?: string) => Promise<string | null>;
-  /** Creates without opening, exclusively: a caller moving bytes into the file would drop them if an existing one counted as success. */
-  createNewFileAt: (path: string, seedContent: string) => Promise<CreateNewFileResult>;
-  renameEntry: (from: string, to: string) => Promise<boolean>;
-  // answers whether the entry went
-  deleteEntry: (path: string) => Promise<boolean>;
-  flush: () => Promise<boolean>;
 }
 
 // The knowledge index's resolver over the listing, so a link the editor draws lands where the
@@ -109,11 +87,24 @@ export interface AgentRequestActions {
   showTag: (tag: string) => void;
 }
 
+// a note a host makes of blocks the editor moves out of an item: its title, and its blocks in
+// reading order, each at the order key it is placed by
+interface NewNote {
+  readonly title: string;
+  readonly blocks: readonly { readonly block: LibraryBlock; readonly ord: string }[];
+}
+
+export interface ItemActions {
+  /** Makes `note` in the folder of the item the editor shows, through the replica's outbox, and answers its id; rejects when the note was not made. */
+  readonly createNote: (note: NewNote) => Promise<string>;
+}
+
 // What the editor asks the shell for beyond the vault. Every field is required, so a host that
 // leaves one out fails to typecheck rather than drawing a button that does nothing.
 export interface EditorHostActions {
   readonly agent: AgentRequestActions;
   readonly annotations: AnnotationActions;
+  readonly items: ItemActions;
 }
 
 export interface EditorHost {

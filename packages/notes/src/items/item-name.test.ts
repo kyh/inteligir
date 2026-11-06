@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { checkNoteName } from "../knowledge/note-name";
+import { checkNoteName } from "../test-support/note-name";
 import { itemNameFromTitle, itemNameFromUrl, itemStem } from "./item-name";
 import { mulberry32, pick } from "../test-support/seeded-random";
 

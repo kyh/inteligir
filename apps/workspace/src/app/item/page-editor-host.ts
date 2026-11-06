@@ -1,9 +1,9 @@
 // The editor's host on this page: what the editor's kits ask of the page, answered from the
 // replica. A link names its item by id, which the resolver maps to the item the replica holds, and
 // opening it opens that item; a highlight the chord makes is written to the open item as its own
-// entry, beside the markers the editor put around the passage, which the item's next write carries.
-// What the page has no door to (a file by its path, a picked image) answers that nothing is
-// there.
+// entry, beside the markers the editor put around the passage, which the item's next write
+// carries; a note the editor makes (an extract, a link's Create) is made in that item's folder.
+// What the page has no door to (a file inside a note) answers that nothing is there.
 
 import { installEditorHost } from "@repo/editor/host-io";
 import type { EditorHostIo, VaultActions } from "@repo/editor/host-io";
@@ -64,24 +64,12 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
   };
 
   const vault: VaultActions = {
-    closeFile: nothingToDo,
-    createFile: async () => {
-      await Promise.resolve();
-    },
-    createFileAt: async () => await Promise.resolve(null),
-    createNewFileAt: async () => await Promise.resolve({ kind: "refused" as const }),
-    deleteEntry: async () => await Promise.resolve(false),
-    editNote: nothingToDo,
-    // the item session writes on its own pause; nothing of a note's path is left to flush
-    flush: async () => await Promise.resolve(true),
     openFile: (path) => {
       const itemId = targets.find((target) => target.path === path)?.id;
       if (itemId !== undefined) {
         ports.openItem(itemId);
       }
     },
-    registerNoteSerializeFlush: nothingToDo,
-    renameEntry: async () => await Promise.resolve(false),
   };
 
   const io: EditorHostIo = {
@@ -135,6 +123,17 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
           return outcome.kind === "queued" || outcome.kind === "unchanged";
         },
         open: ports.openAnnotations,
+      },
+      items: {
+        createNote: async (note) => {
+          const made = await replica.createNote({
+            blocks: note.blocks.map(({ block, ord }) => ({ block, ord, section: "note" })),
+            folderId: showing === null ? null : (replica.row(showing)?.fields.folderId ?? null),
+            tags: [],
+            title: note.title,
+          });
+          return made.id;
+        },
       },
     },
     io,

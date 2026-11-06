@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { mulberry32, pick } from "../test-support/seeded-random";
 import { isDocPath } from "./doc-file";
 import { buildResolver, wikiFilingKeys, wikiTargetForPath, wikiTargetKeys } from "./link-resolve";
-import { checkNoteName } from "./note-name";
+import { checkNoteName } from "../test-support/note-name";
 import { parseWikiBody, serializeWikiBody } from "../markdown/remark-wiki-link";
 
 describe("resolveWiki — precedence", () => {

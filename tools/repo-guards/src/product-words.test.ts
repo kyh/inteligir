@@ -27,7 +27,6 @@ const RUST_UI_DIR = "apps/desktop/src-tauri/src";
 // name's refusal, a file's refusal), and the consent route's, the refusals the consent page shows a
 // person
 const SENTENCE_MODULES = [
-  "packages/notes/src/knowledge/note-name.ts",
   "packages/notes/src/items/item-kind.ts",
   "apps/web/src/worker/connector/consent-route.ts",
 ] as const;

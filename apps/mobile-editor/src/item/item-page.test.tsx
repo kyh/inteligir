@@ -1,6 +1,7 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, test } from "vitest";
 
+import { getEditorHostActions } from "@repo/editor/host-io";
 import { createItemSession, ITEM_IDLE_MS } from "@repo/editor/item/item-session";
 import { headlessEditor } from "@repo/editor/markdown/markdown-doc";
 import { blockHash } from "@repo/notes/library/block-hash";
@@ -171,6 +172,47 @@ describe("an item page over the phone's replica", () => {
     });
     await session.flush();
     expect(editor.children[0]).toMatchObject({ children: [{ text: "from the Mac" }] });
+  });
+
+  it("makes a note through the phone beside its item, and reads the links' targets again as the library moves", async () => {
+    const phone = createFakePhone({ [ITEM]: itemOf(paragraph("p1", "first")) });
+    const { bridge, init } = await connectItem(phone);
+    const container = document.createElement("div");
+    document.body.append(container);
+    act(() => {
+      mounted = mountItemPage({ bridge, container, init });
+    });
+    await waitFor(() => {
+      expect(phone.requests("wikiTargets")).toHaveLength(1);
+    });
+
+    const id = await getEditorHostActions().items.createNote({
+      blocks: [{ block: paragraph("n1", "moved"), ord: "a0" }],
+      title: "Moved",
+    });
+    expect(phone.requests("createNote").map(({ payload }) => payload)).toStrictEqual([
+      { besideId: ITEM, blocks: [{ block: paragraph("n1", "moved"), ord: "a0" }], title: "Moved" },
+    ]);
+    expect(phone.items.get(id)?.fields.title).toBe("Moved");
+
+    // this item's own write names nothing a link reaches; another item's does
+    phone.deliver({
+      ids: [ITEM],
+      nonce: PHONE_NONCE,
+      overlapped: [],
+      reset: false,
+      type: "itemChanged",
+    });
+    phone.deliver({
+      ids: [id],
+      nonce: PHONE_NONCE,
+      overlapped: [],
+      reset: false,
+      type: "itemChanged",
+    });
+    await waitFor(() => {
+      expect(phone.requests("wikiTargets")).toHaveLength(2);
+    });
   });
 
   it("draws the item it was opened on, and answers a flush once it is written", async () => {

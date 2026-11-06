@@ -19,9 +19,9 @@ import {
   InlineComboboxItem,
   InlineComboboxInput,
 } from "@repo/editor/inline-combobox";
-import { insertWikiChipFromPicker } from "@repo/editor/wiki/wiki-insert";
+import { createLinkedNote, insertWikiChipFromPicker } from "@repo/editor/wiki/wiki-insert";
 import { WIKI_INPUT_KEY } from "@repo/editor/wiki/wiki-input-key";
-import { useLinkResolver, useVaultActions, useWikiTargets } from "@repo/editor/host";
+import { useLinkResolver, useWikiTargets } from "@repo/editor/host";
 import type { WikiTarget } from "@repo/notes/knowledge/wiki-target";
 import { wikiTargetForPath } from "@repo/notes/knowledge/link-resolve";
 import { rankWikiTargets } from "@repo/notes/knowledge/rank-wiki-targets";
@@ -37,7 +37,6 @@ export const WIKI_PICKER_MAX_ROWS = 50;
 const WikiInputElement = (props: PlateElementProps) => {
   const { editor, element } = props;
   const { resolveWikiTarget } = useLinkResolver();
-  const { createFileAt } = useVaultActions();
   const targets = useWikiTargets();
   const [value, setValue] = useState("");
 
@@ -118,7 +117,7 @@ const WikiInputElement = (props: PlateElementProps) => {
               <InlineComboboxItem
                 value={CREATE_VALUE}
                 onClick={() => {
-                  void createFileAt(typed.target);
+                  void createLinkedNote(typed.target);
                   complete(createBody);
                 }}
               >

@@ -5,6 +5,8 @@
 
 import { applyOps, orderedBlocks } from "@repo/notes/library/block-ops";
 import type { ItemState } from "@repo/notes/library/block-ops";
+import { blockHash } from "@repo/notes/library/block-hash";
+import { noteFields } from "@repo/notes/test-support/library-items";
 
 import type { BridgeTransport } from "../bridge/page-bridge";
 import { pageFrameSchema } from "@repo/editor-bridge/protocol";
@@ -58,6 +60,24 @@ const writeItemAnswer = (
   return ok({ kind: "queued" });
 };
 
+// a note the page makes joins the library under the next free id, its blocks the note's
+const createNoteAnswer = (
+  items: Map<string, ItemState>,
+  { blocks, title }: Extract<PageRequest, { kind: "createNote" }>["payload"],
+): PhoneAnswer => {
+  const id = `0190a000-0000-7000-8000-${String(items.size + 1).padStart(12, "0")}`;
+  items.set(id, {
+    blocks: new Map(
+      blocks.map(({ block, ord }) => [
+        block.id,
+        { block, hash: blockHash(block), ord, section: "note" as const },
+      ]),
+    ),
+    fields: noteFields({ title }),
+  });
+  return ok({ id });
+};
+
 // every item is a link target under its title, and a highlight is queued for the phone's store,
 // which a case reads off the request
 const answerFromLibrary =
@@ -70,6 +90,9 @@ const answerFromLibrary =
       }
       case "writeItem": {
         return writeItemAnswer(items, request.payload);
+      }
+      case "createNote": {
+        return createNoteAnswer(items, request.payload);
       }
       case "wikiTargets": {
         return ok({

@@ -6,15 +6,15 @@ import { installEditorHost } from "@repo/editor/host-io";
 import type {
   AgentRequestActions,
   AnnotationActions,
-  CreateNewFileResult,
   EditorHostIo,
+  ItemActions,
   LinkResolver,
   ReadVaultAssetResult,
   VaultActions,
 } from "@repo/editor/host-io";
 
 interface HostCall {
-  readonly action: keyof VaultActions;
+  readonly action: keyof VaultActions | keyof ItemActions;
   readonly args: readonly unknown[];
 }
 
@@ -26,16 +26,9 @@ export interface FakeEditorHostOptions {
   // a note's bytes by path; a path it answers null for reads as missing
   readonly readVaultFile?: (path: string) => string | null;
   readonly wikiTargets?: readonly WikiTarget[];
-  // a create the session refuses answers null or `refused`, as the real one does after it has said why
-  readonly refuseCreates?: boolean;
-  // answers the rename in place of the immediate success, so a case can hold it in flight
-  readonly renameEntry?: VaultActions["renameEntry"];
-  // answers the exclusive create in place of `created`, still recorded, so a case can hold it in
-  // flight or find a name taken that the listing lacks
-  readonly createNewFileAt?: VaultActions["createNewFileAt"];
-  // answers the flush in place of the immediate success, still recorded, so a case can refuse it,
-  // reject it or hold it past the flush's timeout
-  readonly flush?: VaultActions["flush"];
+  // answers a new note in place of a fresh id, still recorded, so a case can hold it in flight or
+  // refuse it
+  readonly createNote?: ItemActions["createNote"];
   readonly pickImage?: EditorHostIo["pickImage"];
   readonly opensFiles?: boolean;
   readonly annotations?: AnnotationActions;
@@ -46,48 +39,29 @@ const ignore = (): void => {
   // the fake shell has no panel, rail or composer to answer with
 };
 
-// Installs the singleton the hooks read; the io half answers as an empty, read-only vault, and the
-// shell refuses every annotation and hears every other ask as nothing.
+// Installs the singleton the hooks read; the io half answers as an empty, read-only library, a new
+// note is made under a fresh id, the shell refuses every annotation and hears every other ask as
+// nothing, and an open or a new note is recorded in `calls`.
 /** @internal */
 export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   const calls: HostCall[] = [];
-  const record =
-    <T>(action: keyof VaultActions, answer: T) =>
-    (...args: readonly unknown[]): T => {
-      calls.push({ action, args });
-      return answer;
-    };
-  const recordVoid =
-    (action: keyof VaultActions) =>
-    (...args: readonly unknown[]): void => {
-      calls.push({ action, args });
-    };
+  let made = 0;
 
   const vault: VaultActions = {
-    closeFile: recordVoid("closeFile"),
-    createFile: record("createFile", Promise.resolve()),
-    createFileAt: async (path, seedContent) => {
-      calls.push({ action: "createFileAt", args: [path, seedContent] });
-      return await Promise.resolve(options.refuseCreates === true ? null : path);
+    openFile: (path) => {
+      calls.push({ action: "openFile", args: [path] });
     },
-    createNewFileAt: async (path, seedContent) => {
-      calls.push({ action: "createNewFileAt", args: [path, seedContent] });
-      if (options.createNewFileAt !== undefined) {
-        return await options.createNewFileAt(path, seedContent);
+  };
+
+  const items: ItemActions = {
+    createNote: async (note) => {
+      calls.push({ action: "createNote", args: [note] });
+      if (options.createNote !== undefined) {
+        return await options.createNote(note);
       }
-      const result: CreateNewFileResult =
-        options.refuseCreates === true ? { kind: "refused" } : { kind: "created", path };
-      return await Promise.resolve(result);
+      made += 1;
+      return await Promise.resolve(`note-${String(made)}`);
     },
-    deleteEntry: record("deleteEntry", Promise.resolve(true)),
-    editNote: recordVoid("editNote"),
-    flush: async () => {
-      calls.push({ action: "flush", args: [] });
-      return await (options.flush === undefined ? Promise.resolve(true) : options.flush());
-    },
-    openFile: recordVoid("openFile"),
-    registerNoteSerializeFlush: recordVoid("registerNoteSerializeFlush"),
-    renameEntry: options.renameEntry ?? record("renameEntry", Promise.resolve(true)),
   };
 
   const linkResolver = createStore<LinkResolver>()(() => ({
@@ -125,6 +99,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
         edit: async () => await Promise.resolve(false),
         open: ignore,
       },
+      items,
     },
     io,
   });

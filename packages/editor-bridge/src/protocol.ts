@@ -102,6 +102,16 @@ const REQUEST_SCHEMAS = {
     }),
     result: queuedSchema,
   },
+  // a note of blocks the editor moved out of the item it shows, or a link's new note, made in the
+  // folder that item is in and queued for the cell
+  createNote: {
+    payload: z.strictObject({
+      besideId: itemIdSchema,
+      blocks: z.array(z.strictObject({ block: storableBlockSchema, ord: ordSchema })),
+      title: z.string(),
+    }),
+    result: z.strictObject({ id: itemIdSchema }),
+  },
   // the note on a highlight the item holds
   noteHighlight: {
     payload: z.strictObject({ id: annotationIdSchema, itemId: itemIdSchema, text: z.string() }),
@@ -184,6 +194,7 @@ export type MergeAnswer = z.infer<typeof mergedSchema>;
 export const pageFrameSchema = z.discriminatedUnion("type", [
   z.discriminatedUnion("kind", [
     requestFrame("addHighlight", REQUEST_SCHEMAS.addHighlight.payload),
+    requestFrame("createNote", REQUEST_SCHEMAS.createNote.payload),
     requestFrame("item", REQUEST_SCHEMAS.item.payload),
     requestFrame("noteHighlight", REQUEST_SCHEMAS.noteHighlight.payload),
     requestFrame("wikiTargets", REQUEST_SCHEMAS.wikiTargets.payload),

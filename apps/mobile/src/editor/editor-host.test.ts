@@ -38,6 +38,7 @@ const OTHER = "0190a000-0000-7000-8000-000000000002";
 // one answer per kind, each distinct, so a frame routed to the wrong port shows
 const PORT_ANSWERS = {
   addHighlight: { queued: true },
+  createNote: { id: ITEM },
   item: { item: null },
   noteHighlight: { queued: false },
   wikiTargets: { targets: [{ id: ITEM, path: "Plans.md", title: "Plans", type: "doc" }] },
@@ -46,6 +47,7 @@ const PORT_ANSWERS = {
 
 const PAYLOADS = {
   addHighlight: { id: "c1", itemId: ITEM, quote: "a passage" },
+  createNote: { besideId: ITEM, blocks: [], title: "Moved" },
   item: { itemId: ITEM },
   noteHighlight: { id: "c1", itemId: ITEM, text: "why?" },
   wikiTargets: {},
@@ -58,6 +60,7 @@ const KINDS: readonly RequestKind[] = [
   "wikiTargets",
   "addHighlight",
   "noteHighlight",
+  "createNote",
 ];
 
 // one request of each kind, in KINDS' order, each carrying its id's position
@@ -67,6 +70,7 @@ const requestFrames = (nonce: string): PageFrame[] => [
   { id: 2, kind: "wikiTargets", nonce, payload: PAYLOADS.wikiTargets, type: "request" },
   { id: 3, kind: "addHighlight", nonce, payload: PAYLOADS.addHighlight, type: "request" },
   { id: 4, kind: "noteHighlight", nonce, payload: PAYLOADS.noteHighlight, type: "request" },
+  { id: 5, kind: "createNote", nonce, payload: PAYLOADS.createNote, type: "request" },
 ];
 
 interface PortCall {
@@ -80,6 +84,10 @@ const recordingPorts = () => {
     addHighlight: async (payload) => {
       calls.push({ kind: "addHighlight", payload });
       return PORT_ANSWERS.addHighlight;
+    },
+    createNote: async (payload) => {
+      calls.push({ kind: "createNote", payload });
+      return PORT_ANSWERS.createNote;
     },
     item: async (payload) => {
       calls.push({ kind: "item", payload });

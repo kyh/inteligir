@@ -1,9 +1,8 @@
-// Reject, never sanitize: the filename is the title, so silently stripping a
-// character would show a title that was never saved.
+// A name every disk takes and a `[[link]]` can name, the oracle the suites hold the names an
+// export writes to: it rejects, never sanitizes, so a name it accepts is the name as written.
 
 import { utf8ByteLength } from "../library/canonical-json";
 
-/** @internal */
 type NoteNameReason =
   | "empty"
   | "separator"

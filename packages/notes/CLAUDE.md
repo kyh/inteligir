@@ -185,7 +185,7 @@ node is rather than discriminating structurally at each visit.
   (`wikiLinkName` in `@repo/notes/knowledge/doc-file`), and the resolver keys
   that name, so a `.txt` note links as `[[todo.txt]]`. Rejected: dropping every
   doc extension (it loses Obsidian's reading and the pinned resolver). The `[[`
-  picker and extract target `wikiTargetForPath`
+  picker targets `wikiTargetForPath`
   (`@repo/notes/knowledge/link-resolve`: the name when it resolves back, else
   the path). Every writer's bytes come from `serializeWikiBody`
   (`@repo/notes/markdown/remark-wiki-link`), and its null writes nothing.

@@ -34,7 +34,6 @@
     "./knowledge/fts-match": "./src/knowledge/fts-match.ts",
     "./knowledge/link-extract": "./src/knowledge/link-extract.ts",
     "./knowledge/link-resolve": "./src/knowledge/link-resolve.ts",
-    "./knowledge/note-name": "./src/knowledge/note-name.ts",
     "./knowledge/rank-wiki-targets": "./src/knowledge/rank-wiki-targets.ts",
     "./knowledge/search-query": "./src/knowledge/search-query.ts",
     "./knowledge/tag-grammar": "./src/knowledge/tag-grammar.ts",

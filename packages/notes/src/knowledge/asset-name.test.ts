@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { freeAssetPathWhere } from "@repo/notes/knowledge/asset-name";
-import { takenIgnoringCase } from "@repo/notes/knowledge/doc-file";
+import { vaultCollisionKey } from "@repo/notes/knowledge/vault-path";
 
 // past every path held, compared as a case-insensitive disk compares them
-const freeAssetPath = (dir: string, baseName: string, takenPaths: readonly string[]): string =>
-  freeAssetPathWhere(dir, baseName, takenIgnoringCase(takenPaths));
+const freeAssetPath = (dir: string, baseName: string, takenPaths: readonly string[]): string => {
+  const taken = new Set(takenPaths.map(vaultCollisionKey));
+  return freeAssetPathWhere(dir, baseName, (path) => taken.has(vaultCollisionKey(path)));
+};
 
 describe(freeAssetPathWhere, () => {
   it("keeps a free name as written, its extension lowercased", () => {
