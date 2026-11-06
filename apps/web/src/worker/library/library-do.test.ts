@@ -2,7 +2,7 @@ import { CONNECTOR_PATH } from "@repo/contract/cloud/connector";
 import { evictDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createDb } from "../db/client";
 import { device, inviteCode } from "../db/schema";
@@ -198,11 +198,14 @@ describe("the library cell", () => {
       return landedValue(library.pull({ cursor: 0, epoch: null }));
     });
     await evictDurableObject(stub);
+    const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
     const after = await inCell(stub, (state) =>
       landedValue(engineIn(state, clockAt()).pull({ cursor: 0, epoch: before.epoch })),
     );
     expect(after.kind).toBe("reset");
     expect(after.epoch).not.toBe(before.epoch);
+    expect(warned).toHaveBeenCalledWith({ event: "cell-schema-reset", found: "1" });
+    warned.mockRestore();
   });
 
   it("holds room for an upload, lands its row once R2 has it, and answers a resend as held", async () => {

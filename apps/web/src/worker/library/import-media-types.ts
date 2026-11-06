@@ -22,6 +22,9 @@ const MEDIA_TYPES: ReadonlyMap<string, string> = new Map([
   [".flac", "audio/flac"],
   [".m4a", "audio/mp4"],
   [".mp3", "audio/mpeg"],
+  [".oga", "audio/ogg"],
+  [".ogg", "audio/ogg"],
+  [".opus", "audio/ogg"],
   [".wav", "audio/wav"],
 ]);
 

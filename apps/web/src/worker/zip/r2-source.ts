@@ -20,7 +20,12 @@ export const r2Source = async (bucket: R2Bucket, key: string): Promise<ByteSourc
       if (object === null) {
         throw new ZipError("corrupt", "the zip went while it was read");
       }
-      return new Uint8Array(await object.arrayBuffer());
+      const bytes = new Uint8Array(await object.arrayBuffer());
+      // a range R2 answers short runs past the object's end, which the zip named
+      if (bytes.byteLength < length) {
+        throw new ZipError("corrupt", "the zip names bytes past its end");
+      }
+      return bytes;
     },
     size: head.size,
   };

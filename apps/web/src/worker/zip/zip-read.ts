@@ -56,6 +56,7 @@ const U32_MAX = 0xff_ff_ff_ff;
 const END_LENGTH = 22;
 const LOCATOR_LENGTH = 20;
 const ZIP64_END_LENGTH = 56;
+const LOCAL_HEADER_LENGTH = 30;
 // the end record's comment runs up to 65,535 bytes, so the record lies within this many of the end
 const TAIL_MAX = END_LENGTH + U16_MAX;
 
@@ -121,7 +122,11 @@ const directoryOf = async (source: ByteSource): Promise<Directory> => {
     }
     return { count, offset, size };
   }
-  const record = view(await source.read(u64(tail, locatorAt + 8), ZIP64_END_LENGTH));
+  const recordAt = u64(tail, locatorAt + 8);
+  if (recordAt + ZIP64_END_LENGTH > source.size) {
+    throw corrupt("the ZIP64 locator points past the end of the file");
+  }
+  const record = view(await source.read(recordAt, ZIP64_END_LENGTH));
   if (u32(record, 0) !== ZIP64_END_OF_DIRECTORY) {
     throw corrupt("the ZIP64 locator points at no ZIP64 end record");
   }
@@ -214,11 +219,14 @@ export const readZipEntries = async (source: ByteSource): Promise<ZipEntry[]> =>
 // where the entry's bytes begin, past its local header, whose name and extra may differ in length
 // from the directory's
 const dataOffset = async (source: ByteSource, entry: ZipEntry): Promise<number> => {
-  const header = view(await source.read(entry.headerOffset, 30));
+  if (entry.headerOffset + LOCAL_HEADER_LENGTH > source.size) {
+    throw corrupt(`${entry.path}'s local header runs past the end of the file`);
+  }
+  const header = view(await source.read(entry.headerOffset, LOCAL_HEADER_LENGTH));
   if (u32(header, 0) !== LOCAL_HEADER) {
     throw corrupt(`${entry.path}'s local header is not where the directory says`);
   }
-  return entry.headerOffset + 30 + u16(header, 26) + u16(header, 28);
+  return entry.headerOffset + LOCAL_HEADER_LENGTH + u16(header, 26) + u16(header, 28);
 };
 
 // the entry's stored bytes, a step at a time

@@ -25,6 +25,8 @@ const openOnce = (storage: DurableObjectStorage): SchemaVerdict => {
 export const openCellSchema = async (storage: DurableObjectStorage): Promise<void> => {
   let verdict = openOnce(storage);
   if (verdict.kind === "mismatch") {
+    // the most a cell ever deletes, so the log says what it found
+    console.warn({ event: "cell-schema-reset", found: verdict.found });
     await storage.deleteAll();
     verdict = openOnce(storage);
   }

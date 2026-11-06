@@ -118,6 +118,32 @@ describe("a zip another writer made", () => {
     await expect(readZipEntries(sourceOf(fromBase64(CLIMBING_ZIP)))).resolves.toStrictEqual([]);
   });
 
+  it("refuses an entry whose local header the directory places past the end", async () => {
+    const bytes = await zipFiles([textFile("note.md", "the bytes as written", false)]);
+    // the directory's one entry's local header offset, 42 bytes into its 46-byte record, set two
+    // bytes short of the end, too few to hold even the header's signature
+    const field = bytes.length - 22 - (46 + "note.md".length) + 42;
+    new DataView(bytes.buffer).setUint32(field, bytes.length - 2, true);
+    const source = sourceOf(bytes);
+    const entry = await onlyEntry(source);
+    await expect(readZipEntry(source, entry, 1024)).rejects.toMatchObject({ fault: "corrupt" });
+  });
+
+  it("refuses a ZIP64 locator that points past the end", async () => {
+    // a ZIP64 locator naming a record far past the file, then the directory's end saying ZIP64
+    const bytes = new Uint8Array(20 + 22);
+    const data = new DataView(bytes.buffer);
+    data.setUint32(0, 0x07_06_4b_50, true);
+    data.setBigUint64(8, 1000n, true);
+    data.setUint32(16, 1, true);
+    data.setUint32(20, 0x06_05_4b_50, true);
+    data.setUint16(30, 0xff_ff, true);
+    data.setUint16(28, 0xff_ff, true);
+    data.setUint32(32, 0xff_ff_ff_ff, true);
+    data.setUint32(36, 0xff_ff_ff_ff, true);
+    await expect(readZipEntries(sourceOf(bytes))).rejects.toMatchObject({ fault: "corrupt" });
+  });
+
   it("is refused when it is no zip at all", async () => {
     await expect(
       readZipEntries(sourceOf(encoder.encode("a CSV, not a zip"))),
