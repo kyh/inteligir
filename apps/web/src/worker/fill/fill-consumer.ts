@@ -16,7 +16,7 @@ import type { LibraryDO } from "../library/library-do";
 import { errorFields } from "../log";
 import { fillJobSchema } from "./fill-job";
 import type { FillJob } from "./fill-job";
-import { fillLandingSchema } from "./fill-landing";
+import { checkedLanding } from "./fill-landing";
 import type { FillLanding } from "./fill-landing";
 import { fetchPage } from "./page-fetch";
 import { readPage } from "./read-page";
@@ -41,18 +41,13 @@ const UNREACHED = failureOf({ kind: "unreachable", transient: false }).sentence;
 
 type Cell = DurableObjectStub<LibraryDO>;
 
-// the reading landed; one naming a file the library let go before it landed is read again, as an
-// outbox uploads a file the cell says is missing, and one the cell could not keep (the library full,
-// the article past what an item holds) is said as a page whose text couldn't be saved, as is one
-// the cell's door would refuse, which would otherwise leave its item waiting for good
-const land = async (cell: Cell, job: FillJob, landing: FillLanding): Promise<void> => {
-  const parsed = fillLandingSchema.safeParse(landing);
-  if (!parsed.success) {
-    console.warn({ event: "fill-landing-malformed", issues: parsed.error.issues.length });
-    await cell.landFill(failedLanding(job, TEXT_NOT_SAVED));
-    return;
-  }
-  const landed = await cell.landFill(parsed.data);
+// the reading landed, as the cell's door takes it (`checkedLanding`); one naming a file the library
+// let go before it landed is read again, as an outbox uploads a file the cell says is missing, and
+// one the cell could not keep (the library full, the article past what an item holds) is said as a
+// page whose text couldn't be saved
+const land = async (cell: Cell, job: FillJob, reading: FillLanding): Promise<void> => {
+  const landing = checkedLanding(job, reading);
+  const landed = await cell.landFill(landing);
   if (landed.ok || landed.refusal.kind === "gone" || landing.kind === "failed") {
     return;
   }

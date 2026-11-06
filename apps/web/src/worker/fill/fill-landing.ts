@@ -1,12 +1,16 @@
 // What the cloud read of a page, as its consumer hands it to the account's cell in one call
 // (`LibraryDO.landFill`): the page's article and facts with the files it kept, a file the address
 // answered with, or why nothing could be read. The cell parses it at its door, so a consumer of an
-// older deploy that sends another shape is refused there rather than half landed.
+// older deploy that sends another shape is refused there rather than half landed, and the consumer
+// checks its own reading by the same schema first, so one the door would refuse is said in its item.
 
+import { TEXT_NOT_SAVED } from "@repo/notes/items/fill-sentences";
 import { ordSchema } from "@repo/notes/library/block-order";
 import { libraryItemFieldsSchema, SHA256_HEX_RE } from "@repo/notes/library/library-item";
 import { storableBlockSchema } from "@repo/notes/library/library-nodes";
 import { z } from "zod";
+
+import type { FillJob } from "./fill-job";
 
 const FIELDS = libraryItemFieldsSchema.shape;
 const sha = z.string().regex(SHA256_HEX_RE);
@@ -49,6 +53,17 @@ export const fillLandingSchema = z.discriminatedUnion("kind", [
   z.strictObject({ ...asked, kind: z.literal("failed"), sentence: FIELDS.fetchError.unwrap() }),
 ]);
 export type FillLanding = z.infer<typeof fillLandingSchema>;
+
+// a reading as the door takes it: one it would refuse lands nothing there, which would leave the
+// item waiting for good, so it is said instead as a page whose text couldn't be saved
+export const checkedLanding = (job: FillJob, landing: FillLanding): FillLanding => {
+  const parsed = fillLandingSchema.safeParse(landing);
+  if (parsed.success) {
+    return parsed.data;
+  }
+  console.warn({ event: "fill-landing-malformed", issues: parsed.error.issues.length });
+  return { itemId: job.itemId, kind: "failed", sentence: TEXT_NOT_SAVED, url: job.url };
+};
 
 // what the cell made of it: read into the item, said as failed, folded onto the item that holds the
 // page's final address, or nothing, since the item no longer waits for that reading
