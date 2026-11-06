@@ -59,8 +59,7 @@ To add a shadcn component, run its CLI from this package with a temporary
 ## Third-party source
 
 Vendored files keep short attribution headers. License texts live under
-`tools/licenses` and ship with the published artifact. `confirm-dialog.tsx` is
-local.
+`tools/licenses`. `confirm-dialog.tsx` is local.
 
 ## Theme seam
 
