@@ -428,9 +428,9 @@ account whose library holds about 2,000 items gives the timing check its load.
 - **A Mac's edit arrives at once.** With the phone's app in the foreground on
   an item, edit that item on the Mac. Passing: the change shows on the phone
   within seconds (the account's socket dialed from the device by its ticket).
-- **Sign out.** With an edit still unsent (airplane mode), Sign out. Passing: it
-  asks first and names the count; confirmed, the sign-in screen shows at once,
-  even offline.
+- **Sign out.** With one edit still unsent (airplane mode), Sign out. Passing: it
+  asks first, "Sign out and discard unsent changes?" over a line naming the one
+  change; confirmed, the sign-in screen shows at once, even offline.
 - **Revoke.** Sign the phone in again, then Revoke it in Settings › Account on
   the Mac. Passing: the phone's next request ends its sign-in, and the sign-in
   screen says this device was signed out.
@@ -448,11 +448,16 @@ account whose library holds about 2,000 items gives the timing check its load.
   Mail: the link is saved and read the same way. Shared offline: it saves as
   its link at once, "Waiting to be read", and is read once it reaches the
   cloud. Shared signed out: it waits for the sign-in. A photo does not offer
-  Inteligir.
+  Inteligir. Share a second page while the first is still being read: both
+  are saved, and each opens in turn.
 - **A plain-http page and a redirect.** Share `http://neverssl.com` and a
   shortened https link (a `bit.ly` one). Passing: the http page is saved as
   its link for the cloud to read, never fetched by the phone; the short link
   is read at the address it redirects to.
+- **The item in view loads first.** Sign in afresh to the 2,000-item account,
+  open an item, follow a `[[link]]` in it, then go back before the pull ends.
+  Passing: the item you went back to shows its text while the rest of the
+  library is still arriving.
 - **The library.** Passing: a 2,000-item library scrolls with covers; an
   offline launch shows placeholders for covers not yet seen; the picture and
   PDF viewers open; and a bare highlight made on the phone shows on the Mac.
