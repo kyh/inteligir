@@ -36,7 +36,6 @@ export interface FakeEditorHostOptions {
   // answers the flush in place of the immediate success, still recorded, so a case can refuse it,
   // reject it or hold it past the flush's timeout
   readonly flush?: VaultActions["flush"];
-  readonly readNoteFormulas?: EditorHostIo["readNoteFormulas"];
   readonly pickImage?: EditorHostIo["pickImage"];
   readonly opensFiles?: boolean;
   readonly annotations?: AnnotationActions;
@@ -106,7 +105,6 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     },
     opensFiles: options.opensFiles ?? false,
     pickImage: options.pickImage ?? null,
-    readNoteFormulas: options.readNoteFormulas ?? (async () => await Promise.resolve(null)),
     readVaultAsset: async ({ path }) =>
       await Promise.resolve(options.readVaultAsset?.(path) ?? { error: "no assets", ok: false }),
     readVaultFile: async ({ path }) => {

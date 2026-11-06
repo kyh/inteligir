@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { formulasIn } from "../test-support/formulas-in";
-import { formulasById } from "./collect-formulas";
+import type { LibraryNode } from "../library/library-nodes";
+import { formulasById, formulasInBlocks } from "./collect-formulas";
 import type { CollectedFormula } from "./collect-formulas";
 import { evaluateExpression, parseExpression } from "./expression";
 import { formatResult } from "./format-result";
@@ -107,6 +108,56 @@ describe("formulas by id", () => {
   it("first instance wins for linked ids", () => {
     const formulas = formulasIn("{{1|1|id=a;name=x}} and {{2|2|id=a;name=x}}\n");
     expect(formulasById(formulas).get("a")?.source).toBe("1");
+  });
+});
+
+const pill = (source: string, display: string, meta?: string): LibraryNode => {
+  const node: LibraryNode = { children: [{ text: "" }], display, source, type: "formulaPill" };
+  if (meta !== undefined) {
+    node.meta = meta;
+  }
+  return node;
+};
+
+describe("an item's pills", () => {
+  it("are every pill under its blocks in reading order, nested ones included", () => {
+    const blocks: LibraryNode[] = [
+      { children: [{ text: "a " }, pill("1", "1", "id=f1;name=one"), { text: "" }], type: "p" },
+      {
+        children: [
+          {
+            children: [
+              {
+                children: [{ children: [{ text: "" }, pill("2*3", "6"), { text: "" }], type: "p" }],
+                type: "td",
+              },
+            ],
+            type: "tr",
+          },
+        ],
+        type: "table",
+      },
+      { children: [{ text: "" }, pill("note", "note"), { text: "" }], type: "p" },
+    ];
+
+    const formulas = formulasInBlocks(blocks);
+
+    expect(formulas.map(({ display, source }) => ({ display, source }))).toStrictEqual([
+      { display: "1", source: "1" },
+      { display: "6", source: "2*3" },
+      { display: "note", source: "note" },
+    ]);
+    expect(formulas[0]?.meta.id).toBe("f1");
+    expect(formulas[1]?.expression).not.toBeNull();
+    expect(formulas[2]?.expression).toBeNull();
+  });
+
+  it("leave a code block's text alone", () => {
+    const code: LibraryNode = {
+      children: [{ children: [{ text: "{{1|1}}" }], type: "code_line" }],
+      type: "code_block",
+    };
+    expect(formulasInBlocks([code])).toStrictEqual([]);
   });
 });
 

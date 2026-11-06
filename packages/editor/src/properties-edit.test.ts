@@ -8,7 +8,6 @@ import { parseProperties } from "@repo/notes/markdown/frontmatter";
 
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
-import { readFrontmatterRaw } from "@repo/editor/properties/properties-node";
 
 const seed = (md: string) => {
   const parsed = parseMarkdown(md);
@@ -24,9 +23,10 @@ const DOC =
 describe("the frontmatter node", () => {
   it("reads the frontmatter node's raw yaml", () => {
     const editor = seed(DOC);
-    expect(readFrontmatterRaw(editor)).toBe(
-      "title: Note\ndone: false\ntags:\n  - a\n  - b\nnested:\n  x: 1\n  y: 2",
-    );
+    expect(editor.children[0]).toMatchObject({
+      type: "frontmatter",
+      value: "title: Note\ndone: false\ntags:\n  - a\n  - b\nnested:\n  x: 1\n  y: 2",
+    });
   });
 });
 

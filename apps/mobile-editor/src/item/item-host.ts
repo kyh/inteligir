@@ -126,7 +126,6 @@ export const installItemPageHost = (bridge: PageBridge, itemId: string): ItemPag
     onVaultChanged: () => nothingToDo,
     opensFiles: false,
     pickImage: null,
-    readNoteFormulas: async () => await Promise.resolve(null),
     readVaultAsset: async () => await Promise.resolve({ error: "no file here", ok: false }),
     readVaultFile: nothingThere,
     vault,

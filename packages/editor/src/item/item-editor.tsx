@@ -14,17 +14,16 @@ import { cn } from "@repo/ui/lib/cn";
 import { Editor, EditorContainer, editorColumnPx } from "@repo/editor/editor-chrome";
 import { useEditorProfile } from "@repo/editor/editor-profile";
 import {
-  cancelFormulaRecompute,
+  followItemFormulas,
   scheduleFormulaRecompute,
 } from "@repo/editor/formulas/formula-recompute";
-import { getEditorHostIo } from "@repo/editor/host-io";
 import { WRITE_PLACEHOLDER } from "@repo/editor/kits/block-placeholder-kit";
 import { PROFILE_KITS } from "@repo/editor/kits/profile-kits";
 import { registerLiveEditor } from "@repo/editor/live-editor";
 import { TableOfContents } from "@repo/editor/toc";
 
 import { createItemSession } from "./item-session";
-import type { ItemSession, ItemSessionPorts } from "./item-session";
+import type { ItemSession, ItemSessionPorts, ItemStore } from "./item-session";
 
 // a long item's top level renders in runs of this many blocks, so a keystroke re-renders one run
 // and a run off screen skips its layout and paint (EditorChunk, in editor-chrome.tsx)
@@ -43,20 +42,11 @@ export interface ItemEditorProps {
   readonly onSession: (session: ItemSession | null) => void;
 }
 
-// the item's pills recomputed once it opens, after each change (behind the recompute's own pause)
-// and when another item changes, since a pill may name one
-const FormulaRecompute = () => {
+// the item's pills recomputed once it opens, after each change and when another item changes,
+// since a pill may name one (`followItemFormulas`)
+const FormulaRecompute = ({ itemId, store }: { itemId: string; store: ItemStore }) => {
   const editor = useEditorRef();
-  useEffect(() => {
-    scheduleFormulaRecompute(editor);
-    const unsubscribe = getEditorHostIo().onVaultChanged(() => {
-      scheduleFormulaRecompute(editor);
-    });
-    return () => {
-      unsubscribe();
-      cancelFormulaRecompute(editor);
-    };
-  }, [editor]);
+  useEffect(() => followItemFormulas(editor, itemId, store), [editor, itemId, store]);
   return null;
 };
 
@@ -107,7 +97,7 @@ const ItemSurface = ({ itemId, ports, onSession }: ItemEditorProps) => {
       <EditorContainer>
         <Editor placeholder={WRITE_PLACEHOLDER} spellCheck={false} />
       </EditorContainer>
-      <FormulaRecompute />
+      <FormulaRecompute itemId={itemId} store={ports.store} />
       {profile === "desktop" ? <TableOfContents /> : null}
     </Plate>
   );

@@ -1,4 +1,3 @@
-import type { CollectedFormula } from "@repo/notes/formulas/collect-formulas";
 import type { WikiTarget } from "@repo/notes/knowledge/wiki-target";
 import type { StoreApi } from "zustand/vanilla";
 
@@ -89,10 +88,6 @@ export interface EditorHostIo {
   readVaultAsset: (payload: { path: string }) => Promise<ReadVaultAssetResult>;
   /** Picks a collision-free name from `baseName`; the host decides the folder from the vault's attachments choice and the open note. */
   writeVaultAsset: (payload: { baseName: string; file: Blob }) => Promise<{ path: string }>;
-  readNoteFormulas: (payload: { noteId: string }) => Promise<{
-    path: string;
-    formulas: CollectedFormula[];
-  } | null>;
   onVaultChanged: (listener: (event: VaultChangedEvent) => void) => () => void;
   /** A native photo picker that writes what it picks; null where paste and drop are the only way in. */
   pickImage: (() => Promise<PickImageResult>) | null;

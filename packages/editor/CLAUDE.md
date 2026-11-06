@@ -145,13 +145,15 @@ alone, and no walk narrows structurally.
   are lost).
   `packages/editor/src/extract-note.ts`.
 
-- **A FORMULA RECOMPUTE IS NOT AN EDIT, AND A BOUND REF'S NOTE IS FOUND BY ID.**
-  A bound ref names its note by id, and the host's `readNoteFormulas` reads
-  only that note. Rejected: reading every item to find one id (a recompute
-  runs after each typing pause). The display a
-  recompute rewrites lands outside the undo history, since the user never typed
-  it and one undo must reach their own last edit. The id has one reader, in
-  `@repo/notes/markdown/frontmatter`.
+- **A FORMULA RECOMPUTE IS NOT AN EDIT, AND A BOUND REF'S ITEM IS FOUND BY ID.**
+  A bound ref names an item by its id, so a pass reads only the items its
+  pills name, each one's note through the store the open item's session reads,
+  this item's own pills from the live value, and runs again when another item
+  changes (`followItemFormulas`). The display a recompute rewrites lands
+  outside the undo history, since the user never typed it and one undo must
+  reach their own last edit. Rejected: reading every item to find one id (a
+  recompute runs after each typing pause); a host read of its own (the
+  session's store already answers every item the device holds).
   `packages/editor/src/formulas/formula-recompute.ts`.
 
 - **A BLOCK OVERLAY NAMES ITS BLOCK BY NODE ID AND SUBSCRIBES TO THE DOCUMENT.**
