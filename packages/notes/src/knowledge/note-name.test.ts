@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import { checkNoteName } from "./note-name";
+import type { NoteNameVerdict } from "./note-name";
 
 type Row =
   | { input: string; ok: true; name?: string }
@@ -96,18 +97,24 @@ const CORPUS: Row[] = [
   { input: `${"語".repeat(85)}.md`, ok: false, reason: reject("too-long") },
 ];
 
-describe("checkNoteName — golden corpus", () => {
-  for (const row of CORPUS) {
-    it(`${JSON.stringify(row.input.length > 40 ? `${row.input.slice(0, 40)}…` : row.input)} → ${row.ok ? "ok" : row.reason}`, () => {
-      const verdict = checkNoteName(row.input);
-      if (row.ok) {
-        expect(verdict.ok).toBe(true);
-        if (verdict.ok && row.name !== undefined) {
-          expect(verdict.name).toBe(row.name);
-        }
-      } else {
-        expect(verdict).toEqual({ ok: false, reason: row.reason });
-      }
-    });
+// a row's name in the report: its input, cut at forty characters, and its verdict
+const titleOf = (row: Row): string =>
+  `${JSON.stringify(row.input.length > 40 ? `${row.input.slice(0, 40)}…` : row.input)} → ${row.ok ? "ok" : row.reason}`;
+
+// the verdict a row holds the check to; an accepted row that names no result holds only that the
+// name is accepted
+const verdictOf = (row: Row): Partial<NoteNameVerdict> => {
+  if (!row.ok) {
+    return { ok: false, reason: row.reason };
   }
+  if (row.name === undefined) {
+    return { ok: true };
+  }
+  return { name: row.name, ok: true };
+};
+
+describe("checkNoteName — golden corpus", () => {
+  it.each(CORPUS.map((row) => ({ row, title: titleOf(row) })))("$title", ({ row }) => {
+    expect(checkNoteName(row.input)).toMatchObject(verdictOf(row));
+  });
 });

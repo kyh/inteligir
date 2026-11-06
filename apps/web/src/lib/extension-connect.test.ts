@@ -38,24 +38,24 @@ const portsWith = (answer: (request: ExtensionConnectRequest) => string | null) 
 describe("connecting the browser extension", () => {
   it("hands the extension the credential minted for the account, and says whose library it saves to", async () => {
     const run = portsWith((request) => (request.type === "connect" ? MINTED.email : null));
-    expect(await connectExtension(run.ports)).toEqual({
+    await expect(connectExtension(run.ports)).resolves.toStrictEqual({
       email: MINTED.email,
       kind: "connected",
     });
-    expect(run.asked).toEqual([{ type: "hello" }, { connection: MINTED, type: "connect" }]);
-    expect(run.revoked).toEqual([]);
+    expect(run.asked).toStrictEqual([{ type: "hello" }, { connection: MINTED, type: "connect" }]);
+    expect(run.revoked).toStrictEqual([]);
   });
 
   it("mints nothing when no extension is in this browser", async () => {
     const run = portsWith(() => "absent");
-    expect(await connectExtension(run.ports)).toEqual({ kind: "no-extension" });
+    await expect(connectExtension(run.ports)).resolves.toStrictEqual({ kind: "no-extension" });
     expect(run.minted()).toBe(0);
   });
 
   it("revokes the credential an extension did not take, so no device is left that nothing holds", async () => {
     const run = portsWith((request) => (request.type === "hello" ? null : "absent"));
-    expect(await connectExtension(run.ports)).toEqual({ kind: "not-taken" });
-    expect(run.revoked).toEqual([MINTED.credential]);
+    await expect(connectExtension(run.ports)).resolves.toStrictEqual({ kind: "not-taken" });
+    expect(run.revoked).toStrictEqual([MINTED.credential]);
   });
 });
 
@@ -71,13 +71,13 @@ describe("a message to the extension", () => {
       },
       { type: "hello" },
     );
-    expect(answer).toEqual({ email: MINTED.email });
-    expect(sent).toEqual([[EXTENSION_ID, { type: "hello" }]]);
-    expect(
-      await askExtension({ sendMessage: async () => "nonsense" }, { type: "hello" }),
-    ).toBeNull();
-    expect(
-      await askExtension(
+    expect(answer).toStrictEqual({ email: MINTED.email });
+    expect(sent).toStrictEqual([[EXTENSION_ID, { type: "hello" }]]);
+    await expect(
+      askExtension({ sendMessage: async () => "nonsense" }, { type: "hello" }),
+    ).resolves.toBeNull();
+    await expect(
+      askExtension(
         {
           sendMessage: async () => {
             throw new Error("Could not establish connection. Receiving end does not exist.");
@@ -85,9 +85,9 @@ describe("a message to the extension", () => {
         },
         { type: "hello" },
       ),
-    ).toBeNull();
+    ).resolves.toBeNull();
     // a browser holding no extension that names this page has no runtime to ask
     const noExtension: Window["chrome"] = {};
-    expect(await askExtension(noExtension.runtime, { type: "hello" })).toBeNull();
+    await expect(askExtension(noExtension.runtime, { type: "hello" })).resolves.toBeNull();
   });
 });

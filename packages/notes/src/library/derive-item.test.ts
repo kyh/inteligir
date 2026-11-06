@@ -23,10 +23,10 @@ const linked: LibraryBlock = {
   type: "p",
 };
 
-describe("deriveItem", () => {
+describe(deriveItem, () => {
   it("reads links by id, title key and url key, with the block and section they sit in", () => {
     const derived = deriveItem(noteFields(), itemOf([linked]).blocks);
-    expect(derived.links).toEqual([
+    expect(derived.links).toStrictEqual([
       {
         blockId: "p2",
         blockRef: null,
@@ -62,7 +62,7 @@ describe("deriveItem", () => {
       noteFields({ tags: ["work/plans", "Read"] }),
       itemOf([linked, { ...linked, id: "p3" }]).blocks,
     );
-    expect(derived.tags).toEqual([
+    expect(derived.tags).toStrictEqual([
       { origin: "field", tag: "work/plans" },
       { origin: "field", tag: "Read" },
       { origin: "inline", tag: "Work/plans" },
@@ -88,8 +88,10 @@ describe("deriveItem", () => {
     const article = new Map(
       [...page.blocks].map(([id, stored]) => [id, { ...stored, section: "article" as const }]),
     );
-    expect(deriveItem(noteFields(), page.blocks).tags).toEqual([{ origin: "inline", tag: "kept" }]);
-    expect(deriveItem(noteFields(), article).tags).toEqual([]);
+    expect(deriveItem(noteFields(), page.blocks).tags).toStrictEqual([
+      { origin: "inline", tag: "kept" },
+    ]);
+    expect(deriveItem(noteFields(), article).tags).toStrictEqual([]);
   });
 
   it("files an embed under its title, so one with no item yet waits for it", () => {
@@ -98,7 +100,7 @@ describe("deriveItem", () => {
       id: "e1",
       type: "p",
     };
-    expect(deriveItem(noteFields(), itemOf([embed]).blocks).links).toEqual([
+    expect(deriveItem(noteFields(), itemOf([embed]).blocks).links).toStrictEqual([
       {
         blockId: "e1",
         blockRef: null,
@@ -113,7 +115,7 @@ describe("deriveItem", () => {
 
   it("gives each block its text and the highlights it anchors", () => {
     const derived = deriveItem(noteFields(), itemOf([linked]).blocks);
-    expect(derived.blocks.get("p2")).toEqual({
+    expect(derived.blocks.get("p2")).toStrictEqual({
       annotationIds: ["h1", "h2"],
       text: "See Other and Not Yet, the site #Work/plans marked",
     });
@@ -140,7 +142,7 @@ describe("deriveItem", () => {
       { children: [{ text: "a list item" }], id: "l", listStyleType: "disc", type: "p" },
       paragraph("p", "The first paragraph."),
     ]);
-    expect(deriveItem(noteFields(), blocks).card).toEqual({
+    expect(deriveItem(noteFields(), blocks).card).toStrictEqual({
       outline: [{ blockId: "h", level: 1, text: "Intro" }],
       preview: "The first paragraph.",
       title: "A note",
@@ -155,7 +157,7 @@ describe("deriveItem", () => {
       { children: [{ text: "Six" }], id: "h6", type: "h6" },
     ]);
     const derived = deriveItem(noteFields({ aliases: ["Alt"], title: "" }), blocks);
-    expect(derived.card.outline).toEqual([{ blockId: "h2", level: 2, text: "Two" }]);
+    expect(derived.card.outline).toStrictEqual([{ blockId: "h2", level: 2, text: "Two" }]);
     expect(derived.search.headings).toBe("Four\nTwo\nSix\nAlt");
     expect(derived.card.title).toBe("Four");
   });
@@ -176,7 +178,7 @@ describe("deriveItem", () => {
     ];
     const { outline } = deriveItem(noteFields(), itemOf(headings).blocks).card;
     expect(outline.length).toBeLessThan(headings.length);
-    expect(outline.map((entry) => entry.blockId)).toEqual(
+    expect(outline.map((entry) => entry.blockId)).toStrictEqual(
       headings.slice(0, outline.length).map((block) => block.id),
     );
     expect(Math.max(...outline.map((entry) => entry.text.length))).toBeLessThanOrEqual(100);

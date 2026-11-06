@@ -24,12 +24,12 @@ const revert = (input: Partial<AnnotationEntriesRevertInput>) =>
     ...input,
   });
 
-describe("revertAnnotationEntries", () => {
+describe(revertAnnotationEntries, () => {
   const mine = entry("Why Friday?");
   const agents = entry("Consider Thursday", { source: "agent" });
 
   it("removes an entry the change added, and a store left empty goes", () => {
-    expect(revert({ after: { a1: agents }, current: { a1: agents } })).toEqual({
+    expect(revert({ after: { a1: agents }, current: { a1: agents } })).toStrictEqual({
       kept: false,
       kind: "reverted",
       store: null,
@@ -45,12 +45,12 @@ describe("revertAnnotationEntries", () => {
         before: { c1: mine },
         current: { a1: agents, a2: reply, c1: mine, u1: later },
       }),
-    ).toEqual({ kept: false, kind: "reverted", store: { c1: mine, u1: later } });
+    ).toStrictEqual({ kept: false, kind: "reverted", store: { c1: mine, u1: later } });
   });
 
   it("keeps an entry the change added once someone answered it, with the answer", () => {
     const answer = entry("No, Friday", { parentId: "a1" });
-    expect(revert({ after: { a1: agents }, current: { a1: agents, u1: answer } })).toEqual({
+    expect(revert({ after: { a1: agents }, current: { a1: agents, u1: answer } })).toStrictEqual({
       kept: true,
       kind: "unchanged",
     });
@@ -64,14 +64,16 @@ describe("revertAnnotationEntries", () => {
         after: { a1: agents, a2: other },
         current: { a1: agents, a2: other, u1: answer },
       }),
-    ).toEqual({ kept: true, kind: "reverted", store: { a1: agents, u1: answer } });
+    ).toStrictEqual({ kept: true, kind: "reverted", store: { a1: agents, u1: answer } });
   });
 
   it("keeps an entry the change added while a marker still anchors it, or none can be read", () => {
     expect(
       revert({ after: { a1: agents }, current: { a1: agents }, markerIds: new Set(["a1"]) }),
-    ).toEqual({ kept: true, kind: "unchanged" });
-    expect(revert({ after: { a1: agents }, current: { a1: agents }, markerIds: null })).toEqual({
+    ).toStrictEqual({ kept: true, kind: "unchanged" });
+    expect(
+      revert({ after: { a1: agents }, current: { a1: agents }, markerIds: null }),
+    ).toStrictEqual({
       kept: true,
       kind: "unchanged",
     });
@@ -82,14 +84,14 @@ describe("revertAnnotationEntries", () => {
       source: "user",
       updatedAt: AT + 5,
     });
-    expect(revert({ after: { a1: agents }, current: { a1: edited } })).toEqual({
+    expect(revert({ after: { a1: agents }, current: { a1: edited } })).toStrictEqual({
       kept: true,
       kind: "unchanged",
     });
   });
 
   it("leaves an entry the change added and someone deleted since gone", () => {
-    expect(revert({ after: { a1: agents }, current: {} })).toEqual({
+    expect(revert({ after: { a1: agents }, current: {} })).toStrictEqual({
       kept: false,
       kind: "unchanged",
     });
@@ -104,7 +106,7 @@ describe("revertAnnotationEntries", () => {
     };
     expect(
       revert({ after: rewritten, before: { c1: mine, r1: reply }, current: rewritten }),
-    ).toEqual({ kept: false, kind: "reverted", store: { c1: mine, r1: reply } });
+    ).toStrictEqual({ kept: false, kind: "reverted", store: { c1: mine, r1: reply } });
   });
 
   it("keeps a rewrite someone edited again since", () => {
@@ -112,20 +114,24 @@ describe("revertAnnotationEntries", () => {
     const editedAgain = entry("Friday, unless the demo moves.", { updatedAt: AT + 40 });
     expect(
       revert({ after: { c1: rewritten }, before: { c1: mine }, current: { c1: editedAgain } }),
-    ).toEqual({ kept: true, kind: "unchanged" });
+    ).toStrictEqual({ kept: true, kind: "unchanged" });
   });
 
   it("brings back a thread the change deleted, after what is there now", () => {
     const reply = entry("Because of the demo", { parentId: "c1" });
     const later = entry("Mine, since");
     const back = revert({ after: {}, before: { c1: mine, r1: reply }, current: { u1: later } });
-    expect(back).toEqual({
+    expect(back).toStrictEqual({
       kept: false,
       kind: "reverted",
       store: { c1: mine, r1: reply, u1: later },
     });
-    expect(back.kind === "reverted" && Object.keys(back.store ?? {})).toEqual(["u1", "c1", "r1"]);
-    expect(revert({ after: null, before: { c1: mine }, current: null })).toEqual({
+    expect(back.kind === "reverted" && Object.keys(back.store ?? {})).toStrictEqual([
+      "u1",
+      "c1",
+      "r1",
+    ]);
+    expect(revert({ after: null, before: { c1: mine }, current: null })).toStrictEqual({
       kept: false,
       kind: "reverted",
       store: { c1: mine },
@@ -134,7 +140,9 @@ describe("revertAnnotationEntries", () => {
 
   it("leaves a reply the change deleted gone once its thread is", () => {
     const reply = entry("Because of the demo", { parentId: "c1" });
-    expect(revert({ after: { c1: mine }, before: { c1: mine, r1: reply }, current: {} })).toEqual({
+    expect(
+      revert({ after: { c1: mine }, before: { c1: mine, r1: reply }, current: {} }),
+    ).toStrictEqual({
       kept: true,
       kind: "unchanged",
     });

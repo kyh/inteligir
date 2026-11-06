@@ -288,13 +288,13 @@ describe("the native end of the editor page's bridge", () => {
     load();
     const unanswered = host.flush();
     await vi.advanceTimersByTimeAsync(50);
-    expect(await unanswered).toBe(false);
+    await expect(unanswered).resolves.toBe(false);
 
     const gone = host.flush();
     host.attach(null);
-    expect(await gone).toBe(false);
+    await expect(gone).resolves.toBe(false);
     // no page is loaded now, so nothing unsaved lives in one
-    expect(await host.flush()).toBe(true);
+    await expect(host.flush()).resolves.toBe(true);
   });
 
   it("loads the page again when its content process dies, and answers only the new load", async () => {
@@ -303,7 +303,7 @@ describe("the native end of the editor page's bridge", () => {
     const pending = host.flush();
     host.reload();
     expect(reloads).toHaveLength(1);
-    expect(await pending).toBe(false);
+    await expect(pending).resolves.toBe(false);
 
     fromPage({ id: 1, kind: "wikiTargets", nonce: before, payload: {}, type: "request" });
     const after = load();

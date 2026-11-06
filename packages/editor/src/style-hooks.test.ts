@@ -153,7 +153,7 @@ describe("editor style hooks", () => {
       `packages/editor/src/styles.css and packages/editor/src/style-hooks.ts disagree.\n` +
         `  rule: a hook a kit emits with no rule over it is inert markup (a toggle that never collapses); a rule over a hook nothing emits is dead CSS wearing a working name\n` +
         `  fix: add the missing rule to styles.css, or drop the stale spelling from style-hooks.ts — never re-spell either side by hand\n`,
-    ).toEqual(DECLARED_HOOKS);
+    ).toStrictEqual(DECLARED_HOOKS);
   });
 
   it("no module re-spells a hook as a raw literal", () => {
@@ -177,7 +177,7 @@ describe("editor style hooks", () => {
       `These spell a style hook as a literal instead of importing it.\n` +
         `  rule: the hooks live in @repo/editor/style-hooks so the stylesheet has ONE spelling to be pinned against — a literal copy is exactly the drift the lockstep exists to refuse\n` +
         `${violations.join("\n")}\n`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("the highlight theme names exactly the scopes the shipped grammars emit", () => {
@@ -194,7 +194,7 @@ describe("editor style hooks", () => {
       selectorHooks().themeScopes,
       `The .hljs-* theme in packages/editor/src/styles.css disagrees with what the kit's grammars emit over the corpus in this file.\n` +
         `  rule: a scope the theme leaves unnamed renders colourless by accident — name it, with \`color: inherit\` when riding the foreground is the choice; a scope the corpus never emits is a rule nothing reaches — drop it, or add a snippet that emits it\n`,
-    ).toEqual([...emitted].toSorted());
+    ).toStrictEqual([...emitted].toSorted());
   });
 
   it("the foreground group leads the theme, so a scope nested in it keeps its colour", () => {
@@ -207,23 +207,19 @@ describe("editor style hooks", () => {
       return colour !== undefined && colour !== "inherit";
     });
     expect(
-      lastInherit < firstColoured,
+      lastInherit,
       `packages/editor/src/styles.css puts a \`color: inherit\` theme rule after a coloured one.\n` +
         `  rule: Plate flattens ancestor scopes onto each leaf, so a leaf carries its container's class too — at equal specificity the later rule wins, and an inherit rule placed after the palette uncolours every token inside a function, params or subst scope\n` +
         `  inherit rule at ${lastInherit}: ${theme[lastInherit]?.selector.replaceAll(/\s+/gu, " ")}\n` +
         `  coloured rule at ${firstColoured}: ${theme[firstColoured]?.selector.replaceAll(/\s+/gu, " ")}\n`,
-    ).toBe(true);
+    ).toBeLessThan(firstColoured);
   });
 
   it.each(["apps/workspace/src/styles/globals.css", "apps/mobile-editor/src/styles/globals.css"])(
     "the host stylesheet %s imports the sheet, so the rules actually ship",
     (host) => {
       const globals = fs.readFileSync(path.join(REPO_ROOT, host), "utf-8");
-      expect(
-        globals.includes(`@import "@repo/editor/styles.css";`),
-        `${host} does not import @repo/editor/styles.css.\n` +
-          `  rule: every rule this suite pins is inert until the host's stylesheet pulls the sheet in — the lockstep proves the selectors agree, this proves anyone loads them\n`,
-      ).toBe(true);
+      expect(globals).toContain(`@import "@repo/editor/styles.css";`);
     },
   );
 });

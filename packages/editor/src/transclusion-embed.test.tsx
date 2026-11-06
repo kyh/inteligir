@@ -63,15 +63,15 @@ describe("an embedded note's voids", () => {
 
     const pill = await screen.findByText("4");
     expect(pill.getAttribute("title")).toBe("2+2");
-    expect(await screen.findByText("Missing image: ../assets/shot.png")).toBeTruthy();
+    await expect(screen.findByText("Missing image: ../assets/shot.png")).resolves.toBeTruthy();
     expect(document.querySelector("hr")).not.toBeNull();
-    expect(await screen.findByText("Open it to see this block.")).toBeTruthy();
+    await expect(screen.findByText("Open it to see this block.")).resolves.toBeTruthy();
   });
 
   it("resolve an image's url from the embedded note, not the open one", async () => {
     const { fetched } = mountEmbed();
     await waitFor(() => {
-      expect(fetched).toEqual(["notes/assets/shot.png"]);
+      expect(fetched).toStrictEqual(["notes/assets/shot.png"]);
     });
   });
 });

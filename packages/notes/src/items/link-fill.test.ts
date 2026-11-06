@@ -16,7 +16,7 @@ const pngOf = (width: number, height: number): Uint8Array => {
 
 describe("a cover candidate", () => {
   it("is a cover when its bytes are a picture of a cover's size, by the type they are", () => {
-    expect(coverPicture(pngOf(1200, 630))).toEqual({ mime: "image/png" });
+    expect(coverPicture(pngOf(1200, 630))).toStrictEqual({ mime: "image/png" });
     expect(coverPicture(pngOf(FILL_LIMITS.coverMinEdge - 1, 64))).toBeNull();
     expect(coverPicture(new TextEncoder().encode("<html>not a picture</html>"))).toBeNull();
   });

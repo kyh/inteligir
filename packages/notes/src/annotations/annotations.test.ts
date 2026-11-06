@@ -67,7 +67,7 @@ describe("annotation store schema", () => {
   });
 
   it("names an entry's author the same on every surface, and claims none for an unsigned one", () => {
-    expect(ANNOTATION_SOURCES.map((source) => annotationSourceLabel(source))).toEqual([
+    expect(ANNOTATION_SOURCES.map((source) => annotationSourceLabel(source))).toStrictEqual([
       "You",
       "Agent",
       "External",
@@ -77,16 +77,16 @@ describe("annotation store schema", () => {
   });
 });
 
-describe("foldAnnotations", () => {
+describe(foldAnnotations, () => {
   it("builds threads with replies in parent-chain order and flags both orphan directions", () => {
     const folded = foldAnnotations(STORE, new Set(["c1", "ghost"]));
-    expect(folded.annotations.map((annotation) => annotation.id)).toEqual(["c1", "b9"]);
+    expect(folded.annotations.map((annotation) => annotation.id)).toStrictEqual(["c1", "b9"]);
     const [c1] = folded.annotations;
-    expect(c1?.replies.map((reply) => reply.id)).toEqual(["c1-r1", "c1-r2"]);
+    expect(c1?.replies.map((reply) => reply.id)).toStrictEqual(["c1-r1", "c1-r2"]);
     expect(c1?.anchored).toBe(true);
     expect(folded.annotations[1]?.anchored).toBe(false);
-    expect(folded.orphanMarkers).toEqual(["ghost"]);
-    expect(folded.strayIds).toEqual([]);
+    expect(folded.orphanMarkers).toStrictEqual(["ghost"]);
+    expect(folded.strayIds).toStrictEqual([]);
   });
 
   it("lists anchored roots in the order their markers open, then the unanchored by creation", () => {
@@ -99,7 +99,7 @@ describe("foldAnnotations", () => {
     const source = "%%i:top:start%%a%%i:top:end%% then %%i:bottom:start%%b%%i:bottom:end%%\n";
     expect(
       foldAnnotations(store, markerRootIds(source)).annotations.map((annotation) => annotation.id),
-    ).toEqual(["top", "bottom", "early", "late"]);
+    ).toStrictEqual(["top", "bottom", "early", "late"]);
   });
 
   it("surfaces dangling and cyclic chains as strays", () => {
@@ -110,12 +110,12 @@ describe("foldAnnotations", () => {
       loopB: { createdAt: AT, parentId: "loopA", text: "x", updatedAt: AT },
     };
     const folded = foldAnnotations(broken, new Set(["c1"]));
-    expect(folded.strayIds.toSorted()).toEqual(["dangling", "loopA", "loopB"]);
+    expect(folded.strayIds.toSorted()).toStrictEqual(["dangling", "loopA", "loopB"]);
   });
 
   it("claims nothing about markers when the doc was unparseable", () => {
     const folded = foldAnnotations(STORE, null);
-    expect(folded.orphanMarkers).toEqual([]);
+    expect(folded.orphanMarkers).toStrictEqual([]);
     expect(folded.annotations.every((annotation) => annotation.anchored)).toBe(true);
   });
 });
@@ -123,7 +123,7 @@ describe("foldAnnotations", () => {
 const webRandomBytes = (length: number): Uint8Array =>
   globalThis.crypto.getRandomValues(new Uint8Array(length));
 
-describe("mintAnnotationId", () => {
+describe(mintAnnotationId, () => {
   it("mints ids the marker grammar accepts, from the lowercase alphabet", () => {
     const minted = Array.from({ length: 50 }, () => mintAnnotationId(webRandomBytes));
     for (const id of minted) {
@@ -139,7 +139,7 @@ describe("mintAnnotationId", () => {
 
   it("mints an id that round-trips through the body marker grammar", () => {
     const id = mintAnnotationId(webRandomBytes);
-    expect(markerRootIds(`The %%i:${id}:start%%plan%%i:${id}:end%% holds.\n`)).toEqual(
+    expect(markerRootIds(`The %%i:${id}:start%%plan%%i:${id}:end%% holds.\n`)).toStrictEqual(
       new Set([id]),
     );
   });
@@ -147,6 +147,8 @@ describe("mintAnnotationId", () => {
   it("parses a marker for every character the id alphabet admits", () => {
     const id = "Az09_-";
     expect(id).toMatch(ANNOTATION_ID_RE);
-    expect(markerRootIds(`%%i:${id},b:start%%x%%i:${id},b:end%%\n`)).toEqual(new Set([id, "b"]));
+    expect(markerRootIds(`%%i:${id},b:start%%x%%i:${id},b:end%%\n`)).toStrictEqual(
+      new Set([id, "b"]),
+    );
   });
 });

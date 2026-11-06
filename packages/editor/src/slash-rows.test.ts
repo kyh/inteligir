@@ -43,36 +43,33 @@ const writtenBy = (item: SlashItem, text: string): string => {
   return serializeNote(editor);
 };
 
-describe("every slash row inserts a modeled construct", () => {
-  for (const [where, text] of START_LINES) {
-    for (const { group, items } of GROUPS) {
-      for (const item of items) {
-        it(`${group} › ${item.label}, ${where}`, () => {
-          const md = writtenBy(item, text);
+// every row of every group, named as the menu shows it
+const ROWS = GROUPS.flatMap(({ group, items }) =>
+  items.map((item) => ({ item, row: `${group} › ${item.label}` })),
+);
 
-          const parsed = parseMarkdown(md);
-          expect(parsed.ok, md).toBe(true);
-          expect(parsed.ok ? opaqueTypesIn(parsed.value) : [], md).toEqual([]);
-          expect(roundTrip(md), md).toBe(md);
-        });
-      }
-    }
-  }
+describe("every slash row inserts a modeled construct", () => {
+  it.each(
+    [...START_LINES].flatMap(([where, text]) => ROWS.map((row) => ({ ...row, text, where }))),
+  )("$row, $where", ({ item, text }) => {
+    const md = writtenBy(item, text);
+
+    const parsed = parseMarkdown(md);
+    expect(parsed.ok, md).toBe(true);
+    expect(parsed.ok ? opaqueTypesIn(parsed.value) : [], md).toStrictEqual([]);
+    expect(roundTrip(md), md).toBe(md);
+  });
 });
 
 // the flag hides a row from a locked editor, which would insert a block it then refuses every edit
 // inside; a row that inserts one without the flag, or carries it without inserting one, is wrong
 describe("a row is a rich block exactly when it inserts a block the lock holds", () => {
-  for (const { group, items } of GROUPS) {
-    for (const item of items) {
-      it(`${group} › ${item.label}`, () => {
-        const editor = editorAt("");
-        item.onSelect(editor);
-        const locked = typesIn(editor.children, lockedBlockTypes(editor));
-        expect(item.richBlock === true, item.label).toBe(locked.length > 0);
-      });
-    }
-  }
+  it.each(ROWS)("$row", ({ item }) => {
+    const editor = editorAt("");
+    item.onSelect(editor);
+    const locked = typesIn(editor.children, lockedBlockTypes(editor));
+    expect(item.richBlock === true, item.label).toBe(locked.length > 0);
+  });
 });
 
 // two rows writing the same bytes are one construct under two names: the second name belongs in
@@ -86,23 +83,21 @@ describe("no two slash rows write the same bytes", () => {
     vi.useRealTimers();
   });
 
-  for (const [where, text] of START_LINES) {
-    it(where, () => {
-      const untouched = serializeNote(editorAt(text));
-      const rowsByBytes = new Map<string, string[]>();
-      for (const { group, items } of GROUPS) {
-        for (const item of items) {
-          const md = writtenBy(item, text);
-          // wrote nothing, so shares nothing: Text on a paragraph, Embed's url dialog, an inline
-          // equation before it holds TeX
-          if (md === untouched) {
-            continue;
-          }
-          rowsByBytes.set(md, [...(rowsByBytes.get(md) ?? []), `${group} › ${item.label}`]);
+  it.each([...START_LINES])("%s", (where, text) => {
+    const untouched = serializeNote(editorAt(text));
+    const rowsByBytes = new Map<string, string[]>();
+    for (const { group, items } of GROUPS) {
+      for (const item of items) {
+        const md = writtenBy(item, text);
+        // wrote nothing, so shares nothing: Text on a paragraph, Embed's url dialog, an inline
+        // equation before it holds TeX
+        if (md === untouched) {
+          continue;
         }
+        rowsByBytes.set(md, [...(rowsByBytes.get(md) ?? []), `${group} › ${item.label}`]);
       }
-      const shared = [...rowsByBytes.values()].filter((rows) => rows.length > 1);
-      expect(shared, `rows that write identical markdown ${where}`).toEqual([]);
-    });
-  }
+    }
+    const shared = [...rowsByBytes.values()].filter((rows) => rows.length > 1);
+    expect(shared, `rows that write identical markdown ${where}`).toStrictEqual([]);
+  });
 });

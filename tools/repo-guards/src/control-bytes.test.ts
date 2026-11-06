@@ -51,6 +51,6 @@ describe("control bytes", () => {
         `  rule: git diffs a file holding a NUL as binary and ripgrep skips it, so a review shows no change and a search finds nothing; the other controls are invisible in a diff\n` +
         `  fix: write the escape the line names — a string literal's \\u0000 is the same runtime value\n` +
         `${found.join("\n")}\n`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });

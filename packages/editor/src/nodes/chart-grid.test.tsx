@@ -38,7 +38,7 @@ describe("the chart grid's cells", () => {
     fireEvent.change(first, { target: { value: "42" } });
     fireEvent.blur(first);
     const committed = onCommit.mock.calls[0]?.[0];
-    expect(committed).toEqual({
+    expect(committed).toStrictEqual({
       ...CHART,
       data: [{ label: "a", value: 42 }, ...CHART.data.slice(1)],
     });

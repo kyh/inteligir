@@ -21,7 +21,8 @@ describe("signing in from a page that needs a session", () => {
   it("sends a signed-out visit to /app/devices to sign-in, carrying the way back", async () => {
     const { location } = await land("/app/devices");
     expect(location.pathname).toBe("/app/sign-in");
-    expect(location.search).toEqual({ next: "/app/devices" });
+    // the router's search is an object of its own making; what the page reads is its entries
+    expect({ ...location.search }).toStrictEqual({ next: "/app/devices" });
     expect(internalNextPath(location.search.next)).toBe("/app/devices");
   });
 
@@ -35,7 +36,7 @@ describe("signing in from a page that needs a session", () => {
   it("sends bare /app to the signed-in home, which asks for a session the same way", async () => {
     const { location } = await land("/app");
     expect(location.pathname).toBe("/app/sign-in");
-    expect(location.search).toEqual({ next: SIGNED_IN_HOME });
+    expect({ ...location.search }).toStrictEqual({ next: SIGNED_IN_HOME });
   });
 
   it("drops a next that is not a path rather than failing the sign-in page", async () => {
@@ -43,6 +44,6 @@ describe("signing in from a page that needs a session", () => {
     const signIn = matches.at(-1);
     expect(signIn?.routeId).toBe("/app/sign-in");
     expect(signIn?.status).toBe("success");
-    expect(signIn?.search).toEqual({});
+    expect({ ...signIn?.search }).toStrictEqual({ next: undefined });
   });
 });

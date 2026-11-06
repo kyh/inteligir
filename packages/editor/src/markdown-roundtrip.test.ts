@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 
 import {
   RoundTripError,
@@ -22,15 +22,13 @@ const read = (dir: "canonical" | "churn", name: string): string =>
 const list = (dir: "canonical" | "churn"): string[] => readdirSync(`${FIXTURES}${dir}`).toSorted();
 
 describe("canonical fixtures (byte-stable)", () => {
-  for (const name of list("canonical")) {
-    it(name, () => {
-      const src = read("canonical", name);
-      const out = roundTrip(src);
-      expect(out.trimEnd()).toBe(src.trimEnd());
-      expect(roundTrip(out)).toBe(out);
-      expect(analyzeMarkdown(src)).toEqual({ kind: "canonical" });
-    });
-  }
+  it.each(list("canonical"))("%s", (name) => {
+    const src = read("canonical", name);
+    const out = roundTrip(src);
+    expect(out.trimEnd()).toBe(src.trimEnd());
+    expect(roundTrip(out)).toBe(out);
+    expect(analyzeMarkdown(src)).toStrictEqual({ kind: "canonical" });
+  });
 });
 
 // their round-trip drops letters (a `$$latex` meta line, entity decoding, the
@@ -41,42 +39,39 @@ describe("churn fixtures (idempotent normalization)", () => {
   const stems = list("churn")
     .filter((n) => n.endsWith(".in.md"))
     .map((n) => n.slice(0, -".in.md".length));
-  for (const stem of stems) {
-    it(stem, () => {
-      const input = read("churn", `${stem}.in.md`);
-      const expected = read("churn", `${stem}.out.md`);
-      const out = roundTrip(input);
-      expect(out.trimEnd()).toBe(expected.trimEnd());
-      expect(roundTrip(out)).toBe(out);
-      expect(analyzeMarkdown(input).kind).toBe(
-        CHURN_NOT_RICH_SAFE.has(stem) ? "roundtrip-loss" : "normalizes",
-      );
-      expect(analyzeMarkdown(toCanonical(input)).kind).toBe("canonical");
-    });
-  }
+
+  it.each(stems)("%s", (stem) => {
+    const input = read("churn", `${stem}.in.md`);
+    const expected = read("churn", `${stem}.out.md`);
+    const out = roundTrip(input);
+    expect(out.trimEnd()).toBe(expected.trimEnd());
+    expect(roundTrip(out)).toBe(out);
+    expect(analyzeMarkdown(input).kind).toBe(
+      CHURN_NOT_RICH_SAFE.has(stem) ? "roundtrip-loss" : "normalizes",
+    );
+    expect(analyzeMarkdown(toCanonical(input)).kind).toBe("canonical");
+  });
 });
 
 describe("a callout in an older spelling", () => {
   it("opens as the code block or the tag it is written as", () => {
     const parsed = parseMarkdown(read("canonical", "legacy-callout.md"));
-    expect(parsed.ok).toBe(true);
-    if (parsed.ok) {
-      expect(parsed.value.map((node) => node.type)).toEqual(["code_block", "p"]);
-      expect(JSON.stringify(parsed.value[1])).toContain('"type":"opaque"');
-    }
+    assert(parsed.ok, "the callout parses");
+    expect(parsed.value.map((node) => node.type)).toStrictEqual(["code_block", "p"]);
+    expect(JSON.stringify(parsed.value[1])).toContain('"type":"opaque"');
   });
 });
 
-describe("analyzeMarkdown", () => {
+describe(analyzeMarkdown, () => {
   it("treats empty / whitespace-only docs as canonical and rich-safe", () => {
     for (const doc of ["", "\n\n", "   "]) {
-      expect(analyzeMarkdown(doc)).toEqual({ kind: "canonical" });
+      expect(analyzeMarkdown(doc)).toStrictEqual({ kind: "canonical" });
     }
   });
 
   it("accepts formatting-only differences as rich-safe but not canonical", () => {
     const md = "* one\n* two\n\n***\n\nbody\n";
-    expect(analyzeMarkdown(md)).toEqual({ kind: "normalizes" });
+    expect(analyzeMarkdown(md)).toStrictEqual({ kind: "normalizes" });
   });
 
   it("does not invent content for an empty document", () => {
@@ -84,7 +79,7 @@ describe("analyzeMarkdown", () => {
   });
 });
 
-describe("toCanonical", () => {
+describe(toCanonical, () => {
   it("is idempotent and ends with a single trailing newline", () => {
     const once = toCanonical("# Hi\n\n- a\n- b");
     expect(once.endsWith("\n")).toBe(true);

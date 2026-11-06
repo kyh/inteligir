@@ -68,7 +68,7 @@ describe("device sign-up", () => {
     await mintCode("APP-INVITE-OK");
     const app = appFrom();
     const signedUp = await app.account.signUp(request("  App-OK@Example.TEST ", "APP-INVITE-OK"));
-    expect(app.setCookies).toEqual([[]]);
+    expect(app.setCookies).toStrictEqual([[]]);
     expect(signedUp.email).toBe("app-ok@example.test");
     const account = await userByEmail("app-ok@example.test");
     expect(account?.id).toBe(signedUp.userId);
@@ -79,7 +79,7 @@ describe("device sign-up", () => {
       .from(session)
       .where(eq(session.userId, signedUp.userId))
       .all();
-    expect(sessions).toEqual([]);
+    expect(sessions).toStrictEqual([]);
     const row = await db.select().from(device).where(eq(device.id, signedUp.deviceId)).get();
     expect(row?.name).toBe("Test Laptop");
     expect(row?.userId).toBe(signedUp.userId);
@@ -90,37 +90,37 @@ describe("device sign-up", () => {
   });
 
   it("refuses an unknown code and creates no account", async () => {
-    expect(
-      await refusalOfSignUp(request("app-unknown@example.test", "NO-SUCH-CODE")),
-    ).toMatchObject(INVITE_REFUSED);
-    expect(await userByEmail("app-unknown@example.test")).toBeUndefined();
+    await expect(
+      refusalOfSignUp(request("app-unknown@example.test", "NO-SUCH-CODE")),
+    ).resolves.toMatchObject(INVITE_REFUSED);
+    await expect(userByEmail("app-unknown@example.test")).resolves.toBeUndefined();
   });
 
   it("spends a code once, whichever door redeemed it", async () => {
     await mintCode("APP-INVITE-ONCE");
     await appFrom().account.signUp(request("app-first@example.test", "APP-INVITE-ONCE"));
-    expect(
-      await refusalOfSignUp(request("app-again@example.test", "APP-INVITE-ONCE")),
-    ).toMatchObject(INVITE_REFUSED);
-    expect(await userByEmail("app-again@example.test")).toBeUndefined();
+    await expect(
+      refusalOfSignUp(request("app-again@example.test", "APP-INVITE-ONCE")),
+    ).resolves.toMatchObject(INVITE_REFUSED);
+    await expect(userByEmail("app-again@example.test")).resolves.toBeUndefined();
     const site = await drained(postSiteSignUp("site-after-app@example.test", "APP-INVITE-ONCE"));
     expect(site.status).toBe(403);
 
     await mintCode("SITE-INVITE-ONCE");
     const onSite = await drained(postSiteSignUp("site-first@example.test", "SITE-INVITE-ONCE"));
     expect(onSite.status).toBe(200);
-    expect(
-      await refusalOfSignUp(request("app-after-site@example.test", "SITE-INVITE-ONCE")),
-    ).toMatchObject(INVITE_REFUSED);
-    expect(await userByEmail("app-after-site@example.test")).toBeUndefined();
+    await expect(
+      refusalOfSignUp(request("app-after-site@example.test", "SITE-INVITE-ONCE")),
+    ).resolves.toMatchObject(INVITE_REFUSED);
+    await expect(userByEmail("app-after-site@example.test")).resolves.toBeUndefined();
   });
 
   it("refuses an address that already has an account, and gives the code back", async () => {
     await signUpUser("app-taken@example.test");
     await mintCode("APP-INVITE-TAKEN");
-    expect(
-      await refusalOfSignUp(request("App-Taken@example.test", "APP-INVITE-TAKEN")),
-    ).toMatchObject({ code: "ACCOUNT_EXISTS", defined: true, status: 409 });
+    await expect(
+      refusalOfSignUp(request("App-Taken@example.test", "APP-INVITE-TAKEN")),
+    ).resolves.toMatchObject({ code: "ACCOUNT_EXISTS", defined: true, status: 409 });
 
     const released = await readCode("APP-INVITE-TAKEN");
     expect(released?.redeemedAt).toBeNull();
@@ -137,17 +137,16 @@ describe("device sign-up", () => {
       "x".repeat(PASSWORD_MIN_LENGTH - 1),
       "x".repeat(PASSWORD_MAX_LENGTH + 1),
     ]) {
-      expect(
-        await refusalOfSignUp({
+      await expect(
+        refusalOfSignUp({
           ...request("app-bounds@example.test", "APP-INVITE-BOUNDS"),
           password,
         }),
-        String(password.length),
-      ).toMatchObject({ code: "BAD_REQUEST", status: 400 });
+      ).resolves.toMatchObject({ code: "BAD_REQUEST", status: 400 });
     }
     const untouched = await readCode("APP-INVITE-BOUNDS");
     expect(untouched?.redeemedAt).toBeNull();
-    expect(await userByEmail("app-bounds@example.test")).toBeUndefined();
+    await expect(userByEmail("app-bounds@example.test")).resolves.toBeUndefined();
   });
 
   it("refuses a body with no device name before touching the invite", async () => {
@@ -189,14 +188,14 @@ describe("the invite gate's window", () => {
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const site = await drained(postSiteSignUp("window@example.test", "NOT-A-CODE", caller));
       expect(site.status).toBe(403);
-      expect(
-        await refusalOfSignUp(request("window@example.test", "NOT-A-CODE"), caller),
-      ).toMatchObject(INVITE_REFUSED);
+      await expect(
+        refusalOfSignUp(request("window@example.test", "NOT-A-CODE"), caller),
+      ).resolves.toMatchObject(INVITE_REFUSED);
     }
     await mintCode("APP-INVITE-WINDOW");
-    expect(
-      await refusalOfSignUp(request("window@example.test", "APP-INVITE-WINDOW"), caller),
-    ).toMatchObject({ code: "TOO_MANY_REQUESTS", defined: true, status: 429 });
+    await expect(
+      refusalOfSignUp(request("window@example.test", "APP-INVITE-WINDOW"), caller),
+    ).resolves.toMatchObject({ code: "TOO_MANY_REQUESTS", defined: true, status: 429 });
     const untouched = await readCode("APP-INVITE-WINDOW");
     expect(untouched?.redeemedAt).toBeNull();
   });

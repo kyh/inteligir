@@ -211,7 +211,7 @@ describe("resolveMd", () => {
   });
 });
 
-describe("wikiTargetForPath", () => {
+describe(wikiTargetForPath, () => {
   const r = buildResolver([
     "wiki/target note.md",
     "wiki/hub.md",

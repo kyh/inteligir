@@ -149,7 +149,7 @@ describe("invite-gated sign-up", () => {
         password,
       });
       expect(response.status, String(password.length)).toBe(400);
-      expect(await response.json()).toStrictEqual({
+      await expect(response.json()).resolves.toStrictEqual({
         message: `Use a password of ${PASSWORD_MIN_LENGTH} to ${PASSWORD_MAX_LENGTH} characters.`,
       });
     }
@@ -176,7 +176,9 @@ describe("invite-gated sign-up", () => {
       method: "POST",
     });
     expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({ code: "EMAIL_PASSWORD_SIGN_UP_DISABLED" });
+    await expect(response.json()).resolves.toMatchObject({
+      code: "EMAIL_PASSWORD_SIGN_UP_DISABLED",
+    });
 
     const signIn = await drained(
       exports.default.fetch(`${ORIGIN}/api/auth/sign-in/email`, {
@@ -237,7 +239,7 @@ describe("invite-gated sign-up", () => {
     const asBearer = await exports.default.fetch(`${ORIGIN}/api/auth/get-session`, {
       headers: { authorization: `Bearer ${token}` },
     });
-    expect(await asBearer.json()).toBeNull();
+    await expect(asBearer.json()).resolves.toBeNull();
     const asCookie = await exports.default.fetch(`${ORIGIN}/api/auth/get-session`, {
       headers: { cookie: cookieHeaderOf(signIn) },
     });

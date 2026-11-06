@@ -8,16 +8,24 @@ import { registerLiveEditor } from "@repo/editor/live-editor";
 import { stringProp } from "@repo/editor/node-props";
 
 const helpers = vi.hoisted(() => ({
-  writeVaultAsset: vi.fn(async () => await Promise.resolve({ path: "assets/landed.png" })),
+  writeVaultAsset: vi.fn<() => Promise<{ path: string }>>(
+    async () => await Promise.resolve({ path: "assets/landed.png" }),
+  ),
 }));
 
+// oxlint-disable-next-line vitest/prefer-import-in-mock -- the stub stands in for one host-io getter alone, which the typed import() form refuses unless the whole module is stubbed
 vi.mock("@repo/editor/host-io", async (importOriginal) => ({
   ...(await importOriginal<typeof HostIo>()),
   getEditorHostIo: () => ({ writeVaultAsset: helpers.writeVaultAsset }),
 }));
 
+// oxlint-disable-next-line vitest/prefer-import-in-mock -- the stub stands in for sonner's toast alone, which the typed import() form refuses unless the whole module is stubbed
 vi.mock("@repo/ui/components/sonner", () => ({
-  toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), warning: vi.fn() }),
+  toast: Object.assign(vi.fn<() => void>(), {
+    error: vi.fn<() => void>(),
+    success: vi.fn<() => void>(),
+    warning: vi.fn<() => void>(),
+  }),
 }));
 
 const { toast } = await import("@repo/ui/components/sonner");
@@ -68,7 +76,7 @@ describe("image ingestion", () => {
     await ingestImageFiles(editor, [shot]);
 
     expect(helpers.writeVaultAsset).toHaveBeenCalledWith({ baseName: "shot.png", file: shot });
-    expect(imageUrls(editor)).toEqual(["assets/landed.png"]);
+    expect(imageUrls(editor)).toStrictEqual(["assets/landed.png"]);
   });
 
   // a host's photo picker writes the image itself and lands it through insertVaultImage
@@ -92,7 +100,7 @@ describe("image ingestion", () => {
     expect(toast.error).toHaveBeenCalledWith(
       "Couldn't add huge.png — it is larger than this host accepts",
     );
-    expect(imageUrls(editor)).toEqual([]);
+    expect(imageUrls(editor)).toStrictEqual([]);
   });
 
   it("lands nothing in a note that closed while its image uploaded, and says where it went", async () => {
@@ -108,7 +116,7 @@ describe("image ingestion", () => {
     upload.resolve({ path: "assets/late.png" });
     await ingest;
 
-    expect(imageUrls(editor)).toEqual([]);
+    expect(imageUrls(editor)).toStrictEqual([]);
     expect(helpers.writeVaultAsset).toHaveBeenCalledOnce();
     expect(toast.warning).toHaveBeenCalledWith(
       "Added assets/late.png to the library, but its item closed before the image landed",

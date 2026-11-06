@@ -51,7 +51,7 @@ describe("the one wire's door", () => {
       async () => await stale.library.items.list({}),
       async () => await stale.account.devices.list(),
     ]) {
-      expect(await stale.refusalOf(call())).toMatchObject({
+      await expect(stale.refusalOf(call())).resolves.toMatchObject({
         code: "CLIENT_OUTDATED",
         defined: true,
         status: 426,
@@ -79,7 +79,7 @@ describe("the one wire's door", () => {
       async () => await forged.library.items.list({}),
       async () => await forged.account.devices.list(),
     ]) {
-      expect(await forged.refusalOf(call())).toMatchObject({
+      await expect(forged.refusalOf(call())).resolves.toMatchObject({
         code: "UNAUTHORIZED",
         defined: true,
         status: 401,
@@ -97,7 +97,7 @@ describe("the one wire's door", () => {
     // another site's page riding the same cookie: a build header gets it past the floor, and the
     // cookie still counts for nothing
     const elsewhere = v1Link({ ...buildHeaders(), cookie, "sec-fetch-site": "cross-site" });
-    expect(await elsewhere.refusalOf(elsewhere.library.items.list({}))).toMatchObject({
+    await expect(elsewhere.refusalOf(elsewhere.library.items.list({}))).resolves.toMatchObject({
       code: "UNAUTHORIZED",
       status: 401,
     });
@@ -115,15 +115,15 @@ describe("the one wire's door", () => {
     const { item } = await stamped.library.items.createNote({ markdown: "Whose is this?" });
 
     const listed = await mine.laptop.library.items.list({});
-    expect(listed.items.map((summary) => summary.id)).toEqual([item.id]);
+    expect(listed.items.map((summary) => summary.id)).toStrictEqual([item.id]);
     const history = await mine.laptop.library.history.list({ itemId: item.id });
     expect(history.changeSets[0]?.label).toBe("You on Laptop");
     const elsewhere = await theirs.laptop.library.items.list({});
-    expect(elsewhere.items).toEqual([]);
+    expect(elsewhere.items).toStrictEqual([]);
 
     // the claim alone, with no credential, reaches nobody's cell
     const bare = v1Link({ ...buildHeaders(), [PRINCIPAL_HEADER]: claim });
-    expect(await bare.refusalOf(bare.library.items.list({}))).toMatchObject({
+    await expect(bare.refusalOf(bare.library.items.list({}))).resolves.toMatchObject({
       code: "UNAUTHORIZED",
       status: 401,
     });
@@ -133,12 +133,17 @@ describe("the one wire's door", () => {
     const a = await signedUp("rpc-isolate-a@example.test");
     const b = await signedUp("rpc-isolate-b@example.test");
     const { item } = await a.laptop.library.items.createNote({ markdown: "Only mine." });
-    expect(await b.laptop.refusalOf(b.laptop.library.items.read({ id: item.id }))).toMatchObject({
+    await expect(
+      b.laptop.refusalOf(b.laptop.library.items.read({ id: item.id })),
+    ).resolves.toMatchObject({
       code: "NOT_FOUND",
       status: 404,
     });
-    expect(await b.laptop.library.search({ query: "mine" })).toEqual({ cursor: null, hits: [] });
-    expect(await b.laptop.library.items.delete({ ids: [item.id] })).toEqual({
+    await expect(b.laptop.library.search({ query: "mine" })).resolves.toStrictEqual({
+      cursor: null,
+      hits: [],
+    });
+    await expect(b.laptop.library.items.delete({ ids: [item.id] })).resolves.toStrictEqual({
       deleted: [],
       missing: [item.id],
     });
@@ -213,7 +218,7 @@ describe("every refusal's status", () => {
       [async () => await laptop.library.search({ query: " " }), "BAD_REQUEST", 400],
     ] as const;
     for (const [call, code, status] of refusals) {
-      expect(await laptop.refusalOf(call()), code).toMatchObject({ code, status });
+      await expect(laptop.refusalOf(call()), code).resolves.toMatchObject({ code, status });
     }
   });
 
@@ -255,7 +260,7 @@ describe("every refusal's status", () => {
       ],
     ] as const;
     for (const [call, code, status] of unsigned) {
-      expect(await anonymous.refusalOf(call()), code).toMatchObject({ code, status });
+      await expect(anonymous.refusalOf(call()), code).resolves.toMatchObject({ code, status });
     }
     const signed = [
       [async () => await laptop.account.delete({ password: wrong }), "INVALID_CREDENTIALS", 401],
@@ -267,7 +272,7 @@ describe("every refusal's status", () => {
       [async () => await laptop.account.assistants.revoke({ grantId: "grant" }), "NOT_FOUND", 404],
     ] as const;
     for (const [call, code, status] of signed) {
-      expect(await laptop.refusalOf(call()), code).toMatchObject({ code, status });
+      await expect(laptop.refusalOf(call()), code).resolves.toMatchObject({ code, status });
     }
   });
 
@@ -286,11 +291,11 @@ describe("every refusal's status", () => {
       });
     }
     const anonymous = v1Link(buildHeaders());
-    expect(
-      await anonymous.refusalOf(
+    await expect(
+      anonymous.refusalOf(
         anonymous.account.signIn({ deviceName: "One Too Many", email, password: PASSWORD }),
       ),
-    ).toMatchObject({ code: "DEVICE_LIMIT", defined: true, status: 409 });
+    ).resolves.toMatchObject({ code: "DEVICE_LIMIT", defined: true, status: 409 });
   });
 
   it("answers a library whose account was deleted meanwhile as gone", async () => {
@@ -298,9 +303,9 @@ describe("every refusal's status", () => {
     await inCell(cellOf(accountId), (state) => {
       engineIn(state, clockAt()).tombstone();
     });
-    expect(
-      await laptop.refusalOf(laptop.library.items.createNote({ markdown: "Late." })),
-    ).toMatchObject({
+    await expect(
+      laptop.refusalOf(laptop.library.items.createNote({ markdown: "Late." })),
+    ).resolves.toMatchObject({
       code: "GONE",
       defined: true,
       status: 410,
@@ -337,7 +342,7 @@ describe("every refusal's status", () => {
         async () => await laptop.library.items.list({}),
         async () => await laptop.account.devices.list(),
       ]) {
-        expect(await laptop.refusalOf(call())).toMatchObject({
+        await expect(laptop.refusalOf(call())).resolves.toMatchObject({
           code: "TOO_MANY_REQUESTS",
           defined: true,
           status: 429,
@@ -359,13 +364,13 @@ describe("the account's rows", () => {
     });
     const onPhone = v1Link(deviceHeaders(phone.credential));
     const { devices } = await onPhone.account.devices.list();
-    expect(devices.map((row) => row.name).toSorted()).toEqual(["Laptop", "Phone"]);
+    expect(devices.map((row) => row.name).toSorted()).toStrictEqual(["Laptop", "Phone"]);
     const ticket = await onPhone.account.socketTicket();
     expect(ticket.ticket).not.toBe("");
-    expect(await laptop.account.assistants.list()).toEqual({ assistants: [] });
+    await expect(laptop.account.assistants.list()).resolves.toStrictEqual({ assistants: [] });
 
-    expect(await onPhone.account.signOut()).toEqual({ revoked: true });
-    expect(await onPhone.refusalOf(onPhone.library.items.list({}))).toMatchObject({
+    await expect(onPhone.account.signOut()).resolves.toStrictEqual({ revoked: true });
+    await expect(onPhone.refusalOf(onPhone.library.items.list({}))).resolves.toMatchObject({
       code: "UNAUTHORIZED",
       status: 401,
     });
@@ -381,7 +386,7 @@ describe("the account's rows", () => {
       password: PASSWORD,
     });
     const fresh = v1Link(deviceHeaders(signedIn.credential));
-    expect(await fresh.library.items.list({})).toEqual({ cursor: null, items: [] });
+    await expect(fresh.library.items.list({})).resolves.toStrictEqual({ cursor: null, items: [] });
   });
 
   it("mints the browser extension its own credential for the site's session alone", async () => {
@@ -391,22 +396,28 @@ describe("the account's rows", () => {
     const extension = await tab.account.connectExtension({ deviceName: "Browser extension" });
     expect(extension).toMatchObject({ email, userId: accountId });
     const { devices } = await laptop.account.devices.list();
-    expect(devices.map((row) => row.name).toSorted()).toEqual(["Browser extension", "Laptop"]);
+    expect(devices.map((row) => row.name).toSorted()).toStrictEqual([
+      "Browser extension",
+      "Laptop",
+    ]);
     // the extension's credential reaches the library, and the tab's session stays
     const fromExtension = v1Link(deviceHeaders(extension.credential));
-    expect(await fromExtension.library.items.list({})).toEqual({ cursor: null, items: [] });
-    expect(await tab.library.items.list({})).toEqual({ cursor: null, items: [] });
+    await expect(fromExtension.library.items.list({})).resolves.toStrictEqual({
+      cursor: null,
+      items: [],
+    });
+    await expect(tab.library.items.list({})).resolves.toStrictEqual({ cursor: null, items: [] });
     // a device's credential mints none: one stolen would mint credentials outliving its revocation
-    expect(
-      await laptop.refusalOf(laptop.account.connectExtension({ deviceName: "Another" })),
-    ).toMatchObject({ code: "UNAUTHORIZED", status: 401 });
+    await expect(
+      laptop.refusalOf(laptop.account.connectExtension({ deviceName: "Another" })),
+    ).resolves.toMatchObject({ code: "UNAUTHORIZED", status: 401 });
   });
 
   it("ends a browser tab's own session when it signs out", async () => {
     const { cookie } = await signedUp("rpc-tab-sign-out@example.test");
     const tab = v1Link(sessionHeaders(cookie));
-    expect(await tab.account.signOut()).toEqual({ revoked: true });
-    expect(await tab.refusalOf(tab.library.items.list({}))).toMatchObject({
+    await expect(tab.account.signOut()).resolves.toStrictEqual({ revoked: true });
+    await expect(tab.refusalOf(tab.library.items.list({}))).resolves.toMatchObject({
       code: "UNAUTHORIZED",
       status: 401,
     });
@@ -418,21 +429,29 @@ describe("the account's rows", () => {
     await laptop.library.items.createNote({ markdown: "Soon gone." });
     await env.BLOBS.put(blobKey(accountId, "c".repeat(64)), "bytes");
 
-    expect(await laptop.account.delete({ password: PASSWORD })).toEqual({ deleted: true });
+    await expect(laptop.account.delete({ password: PASSWORD })).resolves.toStrictEqual({
+      deleted: true,
+    });
 
     const db = createDb(env.DB);
-    expect(await db.select().from(user).where(eq(user.id, accountId)).all()).toEqual([]);
-    expect(await db.select().from(device).where(eq(device.userId, accountId)).all()).toEqual([]);
-    expect(await db.select().from(session).where(eq(session.userId, accountId)).all()).toEqual([]);
+    await expect(db.select().from(user).where(eq(user.id, accountId)).all()).resolves.toStrictEqual(
+      [],
+    );
+    await expect(
+      db.select().from(device).where(eq(device.userId, accountId)).all(),
+    ).resolves.toStrictEqual([]);
+    await expect(
+      db.select().from(session).where(eq(session.userId, accountId)).all(),
+    ).resolves.toStrictEqual([]);
     const files = await env.BLOBS.list({ prefix: accountBlobPrefix(accountId) });
-    expect(files.objects).toEqual([]);
+    expect(files.objects).toStrictEqual([]);
     await inCell(cellOf(accountId), (state) => {
       const library = engineIn(state, clockAt());
       expect(library.deletedAt()).not.toBeNull();
       expect(library.head()).toBe(0);
     });
     const after = v1Link(deviceHeaders(credential));
-    expect(await after.refusalOf(after.library.items.list({}))).toMatchObject({
+    await expect(after.refusalOf(after.library.items.list({}))).resolves.toMatchObject({
       code: "UNAUTHORIZED",
       status: 401,
     });

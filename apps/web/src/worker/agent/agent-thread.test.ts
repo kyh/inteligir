@@ -125,7 +125,7 @@ const abortThread = async (accountId: string, threadId: string): Promise<void> =
     runInDurableObject(threadOf(accountId, threadId), (_thread: AgentThreadDO, state) => {
       state.abort("the object was reset");
     }),
-  ).rejects.toThrow();
+  ).rejects.toThrow("the object was reset");
 };
 
 const hex = (bytes: ArrayBuffer): string =>
@@ -192,7 +192,9 @@ const expectRepliesAskedAsKept = async (account: AgentAccount, threadId: string)
       requestMessages(messages.slice(0, at), inForce.since_seq),
       call.max_tokens,
     );
-    expect(await sha256(JSON.stringify(body)), `reply ${String(index)}`).toBe(call.request_sha);
+    await expect(sha256(JSON.stringify(body)), `reply ${String(index)}`).resolves.toBe(
+      call.request_sha,
+    );
   }
 };
 
@@ -234,7 +236,7 @@ describe("a conversation's object", () => {
       const sent = await send(account, script('call create_note {"markdown":"Paris."}'));
       expect(sent.status).toBe("running");
       await settled(account, sent.threadId);
-      expect(await storedTypes(account, sent.threadId)).toEqual([
+      await expect(storedTypes(account, sent.threadId)).resolves.toStrictEqual([
         "user.message",
         "agent.progress",
         "agent.tool_use",
@@ -245,14 +247,14 @@ describe("a conversation's object", () => {
       const listed = await asLaptop(account, async (client) => await client.items.list({}));
       expect(listed.items).toHaveLength(1);
       const transcript = await transcriptOf(account, sent.threadId);
-      expect(transcript.map((message) => message.role)).toEqual([
+      expect(transcript.map((message) => message.role)).toStrictEqual([
         "user",
         "assistant",
         "user",
         "assistant",
       ]);
       const calls = await callsOf(account, sent.threadId);
-      expect(calls.map((call) => [call.step, call.status])).toEqual([
+      expect(calls.map((call) => [call.step, call.status])).toStrictEqual([
         [0, "done"],
         [1, "done"],
       ]);
@@ -270,7 +272,7 @@ describe("a conversation's object", () => {
         script('call create_note {"markdown":"Noted."}', 'call search_library {"query":"Noted"}'),
       );
       await settled(account, sent.threadId);
-      expect(await storedTypes(account, sent.threadId)).toEqual([
+      await expect(storedTypes(account, sent.threadId)).resolves.toStrictEqual([
         "user.message",
         "agent.progress",
         "agent.tool_use",
@@ -282,7 +284,7 @@ describe("a conversation's object", () => {
         "turn.ended",
       ]);
       const notes = await eventsOf(account, sent.threadId, "agent.progress");
-      expect(notes.map(({ event }) => event)).toEqual([
+      expect(notes.map(({ event }) => event)).toStrictEqual([
         { text: "Calling create_note now.", type: "agent.progress" },
         { text: "Calling search_library now.", type: "agent.progress" },
       ]);
@@ -320,7 +322,7 @@ describe("a conversation's object", () => {
         ROOMY,
       );
       await settled(account, threadId);
-      expect(await endingsOf(account, threadId)).toEqual([{ reason: "done" }]);
+      await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "done" }]);
       const transcript = await transcriptOf(account, threadId);
       const blocksSchema = z.array(z.looseObject({ type: z.string() }));
       const opening = transcript.flatMap((row) =>
@@ -328,7 +330,7 @@ describe("a conversation's object", () => {
           ? [blocksSchema.parse(JSON.parse(row.content)).map((block) => block.type)]
           : [],
       );
-      expect(opening.map((types) => types[0])).toEqual([
+      expect(opening.map((types) => types[0])).toStrictEqual([
         "thinking",
         "compaction",
         "thinking",
@@ -350,7 +352,7 @@ describe("a conversation's object", () => {
       const usage = usageReportSchema.parse(
         JSON.parse(z.object({ usage: z.string() }).parse(kept).usage),
       );
-      expect(usage.iterations?.map((entry) => entry.type)).toEqual(["compaction", "message"]);
+      expect(usage.iterations?.map((entry) => entry.type)).toStrictEqual(["compaction", "message"]);
       const [booked] = await cellRows(
         account,
         "SELECT cost_ucents FROM agent_calls WHERE call_id = ?",
@@ -368,9 +370,12 @@ describe("a conversation's object", () => {
       // the next turn answers, sending the filing rules again: the compaction summarized them
       await send(account, script("And now?"), threadId, ROOMY);
       await settled(account, threadId);
-      expect(await endingsOf(account, threadId)).toEqual([{ reason: "done" }, { reason: "done" }]);
+      await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
+        { reason: "done" },
+        { reason: "done" },
+      ]);
       const next = await transcriptOf(account, threadId);
-      expect(next.filter((row) => row.turn === 2).map((row) => row.role)).toEqual([
+      expect(next.filter((row) => row.turn === 2).map((row) => row.role)).toStrictEqual([
         "user",
         "system",
         "assistant",
@@ -416,7 +421,7 @@ describe("a conversation's object", () => {
             ? [row.turn, row.role, z.json().parse(JSON.parse(row.content))]
             : [row.turn, row.role],
         ),
-      ).toEqual([
+      ).toStrictEqual([
         [1, "user"],
         [1, "system", rulesMessage("File trips under Travel.")],
         [1, "assistant"],
@@ -432,7 +437,7 @@ describe("a conversation's object", () => {
         [5, "system", rulesMessage("File trips by year.")],
         [5, "assistant"],
       ]);
-      expect(await endingsOf(account, threadId)).toEqual([
+      await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
         { reason: "done" },
         { reason: "done" },
         { reason: "done" },
@@ -444,50 +449,53 @@ describe("a conversation's object", () => {
     },
   );
 
-  for (const [where, lines] of [
-    ["thinking", ["stall thinking", 'call create_note {"markdown":"Cut in thought."}']],
-    ["tool_use", ["stall", 'call create_note {"markdown":"Cut in a call."}']],
-    ["text", ['call create_note {"markdown":"Cut in words."}', "stall"]],
-  ] as const) {
-    it(
-      `sends a call cut mid-${where} again whole, the same bytes, and lands one reply`,
-      { timeout: TURN_MS },
-      async () => {
-        const account = agentAccount();
-        const before = await heldSoFar();
-        const sent = await send(account, script(...lines));
-        await heldMidReply(account, [sent.threadId], before);
-        await abortThread(account.accountId, sent.threadId);
-        // no event at all: the alarm the watchdog left wakes a fresh instance, which finds the cut
-        expect(await runDurableObjectAlarm(threadOf(account.accountId, sent.threadId))).toBe(true);
-        await settled(account, sent.threadId);
-        const calls = await callsOf(account, sent.threadId);
-        const cut = calls.filter((call) => call.status === "cut");
-        expect(cut).toHaveLength(1);
-        const [cutCall] = cut;
-        const again = calls.filter((call) => call.step === cutCall?.step && call.status === "done");
-        expect(again).toHaveLength(1);
-        expect(again[0]?.request_sha).toBe(cutCall?.request_sha);
-        expect(again[0]?.max_tokens).toBe(cutCall?.max_tokens);
-        expect(await endingsOf(account, sent.threadId)).toEqual([{ reason: "done" }]);
-        const replies = await threadRows(
-          account.accountId,
-          sent.threadId,
-          "SELECT seq FROM transcript WHERE role = 'assistant'",
-        );
-        expect(replies).toHaveLength(calls.filter((call) => call.status === "done").length);
-        // the cut call is booked at what it reserved, which bounds what it cost
-        const [booked] = await cellRows(
-          account,
-          "SELECT reserved_ucents, cost_ucents FROM agent_calls WHERE call_id = ?",
-          cutCall?.call_id ?? "",
-        );
-        expect(booked?.cost_ucents).toBe(booked?.reserved_ucents);
-        const listed = await asLaptop(account, async (client) => await client.items.list({}));
-        expect(listed.items).toHaveLength(1);
-      },
-    );
-  }
+  it.for([
+    {
+      lines: ["stall thinking", 'call create_note {"markdown":"Cut in thought."}'],
+      where: "thinking",
+    },
+    { lines: ["stall", 'call create_note {"markdown":"Cut in a call."}'], where: "tool_use" },
+    { lines: ['call create_note {"markdown":"Cut in words."}', "stall"], where: "text" },
+  ] as const)(
+    "sends a call cut mid-$where again whole, the same bytes, and lands one reply",
+    { timeout: TURN_MS },
+    async ({ lines }) => {
+      const account = agentAccount();
+      const before = await heldSoFar();
+      const sent = await send(account, script(...lines));
+      await heldMidReply(account, [sent.threadId], before);
+      await abortThread(account.accountId, sent.threadId);
+      // no event at all: the alarm the watchdog left wakes a fresh instance, which finds the cut
+      await expect(runDurableObjectAlarm(threadOf(account.accountId, sent.threadId))).resolves.toBe(
+        true,
+      );
+      await settled(account, sent.threadId);
+      const calls = await callsOf(account, sent.threadId);
+      const cut = calls.filter((call) => call.status === "cut");
+      expect(cut).toHaveLength(1);
+      const [cutCall] = cut;
+      const again = calls.filter((call) => call.step === cutCall?.step && call.status === "done");
+      expect(again).toHaveLength(1);
+      expect(again[0]?.request_sha).toBe(cutCall?.request_sha);
+      expect(again[0]?.max_tokens).toBe(cutCall?.max_tokens);
+      await expect(endingsOf(account, sent.threadId)).resolves.toStrictEqual([{ reason: "done" }]);
+      const replies = await threadRows(
+        account.accountId,
+        sent.threadId,
+        "SELECT seq FROM transcript WHERE role = 'assistant'",
+      );
+      expect(replies).toHaveLength(calls.filter((call) => call.status === "done").length);
+      // the cut call is booked at what it reserved, which bounds what it cost
+      const [booked] = await cellRows(
+        account,
+        "SELECT reserved_ucents, cost_ucents FROM agent_calls WHERE call_id = ?",
+        cutCall?.call_id ?? "",
+      );
+      expect(booked?.cost_ucents).toBe(booked?.reserved_ucents);
+      const listed = await asLaptop(account, async (client) => await client.items.list({}));
+      expect(listed.items).toHaveLength(1);
+    },
+  );
 
   it(
     "keeps an approval through a reset, and runs the delete once when the person allows it",
@@ -498,7 +506,7 @@ describe("a conversation's object", () => {
       const sent = await send(account, script(`call delete_items {"ids":["${itemId}"]}`));
       await vi.waitFor(
         async () => {
-          expect(await threadStatus(account, sent.threadId)).toBe("awaiting_approval");
+          await expect(threadStatus(account, sent.threadId)).resolves.toBe("awaiting_approval");
         },
         { interval: 50, timeout: 10_000 },
       );
@@ -514,9 +522,9 @@ describe("a conversation's object", () => {
           }),
       );
       await settled(account, sent.threadId);
-      expect(await isDeleted(account, itemId)).toBe(true);
+      await expect(isDeleted(account, itemId)).resolves.toBe(true);
       const answered = await eventsOf(account, sent.threadId, "approval.answered");
-      expect(answered.map(({ event }) => event)).toEqual([
+      expect(answered.map(({ event }) => event)).toStrictEqual([
         expect.objectContaining({ by: "person", result: "allow" }),
       ]);
       const [tool] = await threadRows(
@@ -524,14 +532,14 @@ describe("a conversation's object", () => {
         sent.threadId,
         "SELECT attempts, is_error FROM tool_calls",
       );
-      expect(tool).toEqual({ attempts: 1, is_error: 0 });
+      expect(tool).toStrictEqual({ attempts: 1, is_error: 0 });
       // a second answer decides nothing
       const decided = await threadOf(account.accountId, sent.threadId).respond({
         approved: false,
         reason: null,
         toolUseId: z.object({ toolUseId: z.string() }).parse(asked?.event).toolUseId,
       });
-      expect(decided).toEqual({ decided: false });
+      expect(decided).toStrictEqual({ decided: false });
     },
   );
 
@@ -541,7 +549,7 @@ describe("a conversation's object", () => {
     const sent = await send(account, script(`call delete_items {"ids":["${itemId}"]}`));
     await vi.waitFor(
       async () => {
-        expect(await eventsOf(account, sent.threadId, "approval.asked")).toHaveLength(1);
+        await expect(eventsOf(account, sent.threadId, "approval.asked")).resolves.toHaveLength(1);
       },
       { interval: 50, timeout: 10_000 },
     );
@@ -557,7 +565,7 @@ describe("a conversation's object", () => {
         }),
     );
     await settled(account, sent.threadId);
-    expect(await isDeleted(account, itemId)).toBe(false);
+    await expect(isDeleted(account, itemId)).resolves.toBe(false);
     const [result] = await eventsOf(account, sent.threadId, "agent.tool_result");
     expect(result?.event).toMatchObject({
       isError: true,
@@ -574,7 +582,7 @@ describe("a conversation's object", () => {
       const sent = await send(account, script(`call delete_items {"ids":["${itemId}"]}`));
       await vi.waitFor(
         async () => {
-          expect(await eventsOf(account, sent.threadId, "approval.asked")).toHaveLength(1);
+          await expect(eventsOf(account, sent.threadId, "approval.asked")).resolves.toHaveLength(1);
         },
         { interval: 50, timeout: 10_000 },
       );
@@ -583,15 +591,15 @@ describe("a conversation's object", () => {
       const thread = threadOf(account.accountId, sent.threadId);
       // the ten minutes, passed: the job due now, and the alarm run
       await runInDurableObject(thread, async (object: AgentThreadDO) => {
-        expect(await object.lifecycle.jobs.reschedule(`approval:${toolUseId}`, Date.now())).toBe(
-          true,
-        );
+        await expect(
+          object.lifecycle.jobs.reschedule(`approval:${toolUseId}`, Date.now()),
+        ).resolves.toBe(true);
       });
       await runDurableObjectAlarm(thread);
       await settled(account, sent.threadId);
-      expect(await isDeleted(account, itemId)).toBe(false);
+      await expect(isDeleted(account, itemId)).resolves.toBe(false);
       const answered = await eventsOf(account, sent.threadId, "approval.answered");
-      expect(answered.map(({ event }) => event)).toEqual([
+      expect(answered.map(({ event }) => event)).toStrictEqual([
         expect.objectContaining({ by: "timeout", result: "deny" }),
       ]);
     },
@@ -611,9 +619,9 @@ describe("a conversation's object", () => {
       );
       await settled(account, sent.threadId);
       const next = await send(account, script("And now?"), sent.threadId);
-      expect(next).toEqual({ status: "running", threadId: sent.threadId });
+      expect(next).toStrictEqual({ status: "running", threadId: sent.threadId });
       await settled(account, sent.threadId);
-      expect(await endingsOf(account, sent.threadId)).toEqual([
+      await expect(endingsOf(account, sent.threadId)).resolves.toStrictEqual([
         { reason: "cancelled" },
         { reason: "done" },
       ]);
@@ -629,7 +637,7 @@ describe("a conversation's object", () => {
       const sent = await send(account, script(`call delete_items {"ids":["${itemId}"]}`));
       await vi.waitFor(
         async () => {
-          expect(await threadStatus(account, sent.threadId)).toBe("awaiting_approval");
+          await expect(threadStatus(account, sent.threadId)).resolves.toBe("awaiting_approval");
         },
         { interval: 50, timeout: 10_000 },
       );
@@ -639,16 +647,16 @@ describe("a conversation's object", () => {
       );
       await settled(account, sent.threadId);
       const answered = await eventsOf(account, sent.threadId, "approval.answered");
-      expect(answered.map(({ event }) => event)).toEqual([
+      expect(answered.map(({ event }) => event)).toStrictEqual([
         expect.objectContaining({ by: "cancel", result: "deny" }),
       ]);
       await send(account, script("Never mind."), sent.threadId);
       await settled(account, sent.threadId);
-      expect(await endingsOf(account, sent.threadId)).toEqual([
+      await expect(endingsOf(account, sent.threadId)).resolves.toStrictEqual([
         { reason: "cancelled" },
         { reason: "done" },
       ]);
-      expect(await isDeleted(account, itemId)).toBe(false);
+      await expect(isDeleted(account, itemId)).resolves.toBe(false);
     },
   );
 
@@ -669,14 +677,14 @@ describe("a conversation's object", () => {
         const inspection = await threadOf(account.accountId, threadId).inspect();
         expect(inspection).toMatchObject({ driving: true, status: "running", turn: 1 });
       }
-      expect(await sendAs(script("Wait for me."), first.threadId)).toEqual({
+      await expect(sendAs(script("Wait for me."), first.threadId)).resolves.toStrictEqual({
         status: "queued",
         threadId: first.threadId,
       });
       // the account runs two at once: a third conversation waits for either
       const third = await sendAs(script("And me."));
       expect(third.status).toBe("queued");
-      expect(await threadStatus(account, third.threadId)).toBe("queued");
+      await expect(threadStatus(account, third.threadId)).resolves.toBe("queued");
       await asLaptop(account, async (client) => {
         await client.agent.cancel({ threadId: first.threadId });
         await client.agent.cancel({ threadId: second.threadId });
@@ -686,8 +694,12 @@ describe("a conversation's object", () => {
       }
       // the stopped thread's waiting send went with its turn; the third opened once a turn sealed,
       // and found the day's cost held by the two stopped calls, each booked at what it reserved
-      expect(await endingsOf(account, first.threadId)).toEqual([{ reason: "cancelled" }]);
-      expect(await endingsOf(account, third.threadId)).toEqual([{ reason: "budget" }]);
+      await expect(endingsOf(account, first.threadId)).resolves.toStrictEqual([
+        { reason: "cancelled" },
+      ]);
+      await expect(endingsOf(account, third.threadId)).resolves.toStrictEqual([
+        { reason: "budget" },
+      ]);
       const [stopped] = await cellRows(
         account,
         "SELECT sum(reserved_ucents) AS reserved, sum(cost_ucents) AS cost FROM agent_calls WHERE cut = 1",
@@ -695,7 +707,7 @@ describe("a conversation's object", () => {
       expect(stopped?.cost).toBe(stopped?.reserved);
       // the third turn cost nothing, so it was given back
       const [usage] = await cellRows(account, "SELECT turns FROM agent_usage");
-      expect(usage).toEqual({ turns: 2 });
+      expect(usage).toStrictEqual({ turns: 2 });
     },
   );
 
@@ -703,7 +715,7 @@ describe("a conversation's object", () => {
     const account = agentAccount();
     const sent = await send(account, script("refuse cyber"));
     await settled(account, sent.threadId);
-    expect(await endingsOf(account, sent.threadId)).toEqual([
+    await expect(endingsOf(account, sent.threadId)).resolves.toStrictEqual([
       { detail: "cyber", reason: "refusal" },
     ]);
     // nothing of the declined reply is kept, and the conversation goes on
@@ -712,10 +724,10 @@ describe("a conversation's object", () => {
       sent.threadId,
       "SELECT seq FROM transcript WHERE role = 'assistant'",
     );
-    expect(replies).toEqual([]);
+    expect(replies).toStrictEqual([]);
     await send(account, script("Something else."), sent.threadId);
     await settled(account, sent.threadId);
-    expect(await endingsOf(account, sent.threadId)).toEqual([
+    await expect(endingsOf(account, sent.threadId)).resolves.toStrictEqual([
       { detail: "cyber", reason: "refusal" },
       { reason: "done" },
     ]);
@@ -728,16 +740,16 @@ describe("a conversation's object", () => {
       const account = agentAccount();
       const sent = await send(account, script("fallback"));
       await settled(account, sent.threadId);
-      expect(await endingsOf(account, sent.threadId)).toEqual([{ reason: "done" }]);
+      await expect(endingsOf(account, sent.threadId)).resolves.toStrictEqual([{ reason: "done" }]);
       const messages = await eventsOf(account, sent.threadId, "agent.message");
-      expect(messages.map(({ event }) => event)).toEqual([
+      expect(messages.map(({ event }) => event)).toStrictEqual([
         { text: "Answered by the fallback model.", type: "agent.message" },
       ]);
       const [usage] = await cellRows(account, "SELECT output_tokens, cost_ucents FROM agent_usage");
       expect(usage?.cost_ucents).toBeGreaterThan(0);
       await send(account, script("Thanks."), sent.threadId);
       await settled(account, sent.threadId);
-      expect(await endingsOf(account, sent.threadId)).toEqual([
+      await expect(endingsOf(account, sent.threadId)).resolves.toStrictEqual([
         { reason: "done" },
         { reason: "done" },
       ]);
@@ -753,17 +765,17 @@ describe("a conversation's loop, stepped", () => {
       const account = agentAccount();
       const threadId = crypto.randomUUID();
       await inSteppedThread(account, threadId, script("fail 529 2"), async ({ asked, run }) => {
-        expect(await run()).toEqual(["continue", "later"]);
-        expect(await run()).toEqual(["later"]);
+        await expect(run()).resolves.toStrictEqual(["continue", "later"]);
+        await expect(run()).resolves.toStrictEqual(["later"]);
         // after 2 s, then 10 s, each a retry the drive job was timed for
         const [first = 0, second = 0] = asked.drives;
         expect(second - first).toBeGreaterThanOrEqual(8000);
-        expect(await restsAt(run)).toBe("idle");
+        await expect(restsAt(run)).resolves.toBe("idle");
       });
       const calls = await callsOf(account, threadId);
-      expect(calls.map((call) => call.status)).toEqual(["failed", "failed", "done"]);
+      expect(calls.map((call) => call.status)).toStrictEqual(["failed", "failed", "done"]);
       expect(new Set(calls.map((call) => call.request_sha)).size).toBe(1);
-      expect(await endingsOf(account, threadId)).toEqual([{ reason: "done" }]);
+      await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "done" }]);
     },
   );
 
@@ -775,16 +787,16 @@ describe("a conversation's loop, stepped", () => {
       const threadId = crypto.randomUUID();
       await inSteppedThread(account, threadId, script("fail 529 9"), async ({ asked, run }) => {
         for (let attempt = 0; attempt < 3; attempt += 1) {
-          expect(await restsAt(run)).toBe("later");
+          await expect(restsAt(run)).resolves.toBe("later");
         }
-        expect(await restsAt(run)).toBe("idle");
+        await expect(restsAt(run)).resolves.toBe("idle");
         expect(asked.drives).toHaveLength(3);
       });
-      expect(await endingsOf(account, threadId)).toEqual([
+      await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
         { detail: "status 529", reason: "unavailable" },
       ]);
       const [usage] = await cellRows(account, "SELECT turns, cost_ucents FROM agent_usage");
-      expect(usage).toEqual({ cost_ucents: 0, turns: 0 });
+      expect(usage).toStrictEqual({ cost_ucents: 0, turns: 0 });
     },
   );
 
@@ -795,13 +807,14 @@ describe("a conversation's loop, stepped", () => {
       const account = agentAccount();
       const threadId = crypto.randomUUID();
       let stepped: ThreadHost | null = null;
+      const cancels: boolean[] = [];
       await inSteppedThread(
         account,
         threadId,
         script("Never sent."),
         async ({ host, run }) => {
           stepped = host;
-          expect(await restsAt(run)).toBe("idle");
+          await expect(restsAt(run)).resolves.toBe("idle");
         },
         {
           cell: (real) => ({
@@ -812,7 +825,7 @@ describe("a conversation's loop, stepped", () => {
             agentReserve: async (request) => {
               const answer = await real.agentReserve(request);
               if (stepped !== null) {
-                expect(requestCancel(stepped, request.turn)).toBe(true);
+                cancels.push(requestCancel(stepped, request.turn));
               }
               return answer;
             },
@@ -820,20 +833,21 @@ describe("a conversation's loop, stepped", () => {
           }),
         },
       );
+      expect(cancels).toStrictEqual([true]);
       const calls = await callsOf(account, threadId);
-      expect(calls.map((call) => [call.status, call.max_tokens])).toEqual([["cancelled", 0]]);
-      expect(await endingsOf(account, threadId)).toEqual([{ reason: "cancelled" }]);
+      expect(calls.map((call) => [call.status, call.max_tokens])).toStrictEqual([["cancelled", 0]]);
+      await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "cancelled" }]);
       const roles = await threadRows(account.accountId, threadId, "SELECT role FROM transcript");
-      expect(roles).toEqual([{ role: "user" }]);
+      expect(roles).toStrictEqual([{ role: "user" }]);
       // the reservation let go at nothing, and the turn, which cost nothing, given back
       const [booked] = await cellRows(
         account,
         "SELECT cost_ucents, cut FROM agent_calls WHERE call_id = ?",
         calls[0]?.call_id ?? "",
       );
-      expect(booked).toEqual({ cost_ucents: 0, cut: 0 });
+      expect(booked).toStrictEqual({ cost_ucents: 0, cut: 0 });
       const [usage] = await cellRows(account, "SELECT turns, cost_ucents FROM agent_usage");
-      expect(usage).toEqual({ cost_ucents: 0, turns: 0 });
+      expect(usage).toStrictEqual({ cost_ucents: 0, turns: 0 });
     },
   );
 
@@ -859,14 +873,14 @@ describe("a conversation's loop, stepped", () => {
         expect(host.calls.get(1)?.abort.signal.aborted).toBe(false);
         cutSilentCalls(host.calls, heardAt + 3 * MINUTE_MS);
         // a lost connection: sent again after the first retry's wait, not a stop
-        expect(await resting).toEqual(["continue", "later"]);
-        expect(await restsAt(run)).toBe("idle");
+        await expect(resting).resolves.toStrictEqual(["continue", "later"]);
+        await expect(restsAt(run)).resolves.toBe("idle");
       });
       const calls = await callsOf(account, threadId);
-      expect(calls.map((call) => call.status)).toEqual(["failed", "done"]);
+      expect(calls.map((call) => call.status)).toStrictEqual(["failed", "done"]);
       expect(new Set(calls.map((call) => call.request_sha)).size).toBe(1);
       expect(new Set(calls.map((call) => call.max_tokens)).size).toBe(1);
-      expect(await endingsOf(account, threadId)).toEqual([{ reason: "done" }]);
+      await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "done" }]);
       // the silent call may have cost what it reserved, and is booked at that
       const [booked] = await cellRows(
         account,
@@ -896,10 +910,10 @@ describe("a conversation's loop, stepped", () => {
           },
           { interval: 25, timeout: 10_000 },
         );
-        expect(await resting).toEqual(["continue", "continue", "idle"]);
+        await expect(resting).resolves.toStrictEqual(["continue", "continue", "idle"]);
       });
       const calls = await callsOf(account, threadId);
-      expect(calls.map((call) => call.status)).toEqual(["done"]);
+      expect(calls.map((call) => call.status)).toStrictEqual(["done"]);
     },
   );
 
@@ -931,15 +945,15 @@ describe("a conversation's loop, stepped", () => {
         threadId,
         script('call create_note {"markdown":"One."}', 'call search_library {"query":"One"}'),
         async ({ deliver, run, sent }) => {
-          expect(await restsAt(run)).toBe("idle");
+          await expect(restsAt(run)).resolves.toBe("idle");
           const firstTurn = sent.length;
           // deployed between two turns: the next turn is sent under it from its first call
           deployed = second;
           await deliver(script('call search_library {"query":"Two"}'));
-          expect(await restsAt(run)).toBe("idle");
+          await expect(restsAt(run)).resolves.toBe("idle");
           const secondTurn = sent.slice(firstTurn);
           for (const body of secondTurn) {
-            expect(definitionSent(body)).toEqual(sentAs(second));
+            expect(definitionSent(body)).toStrictEqual(sentAs(second));
           }
           // no thinking block of the turns before it, every reply of theirs still there, and the
           // filing rules sent again last, since what the turn's requests leave out may have taken
@@ -947,7 +961,7 @@ describe("a conversation's loop, stepped", () => {
           const [opening = ""] = secondTurn;
           const openingTypes = blockTypesOf(unmarkedOf(opening));
           expect(openingTypes.flat()).not.toContain("thinking");
-          expect(openingTypes).toEqual([
+          expect(openingTypes).toStrictEqual([
             ["text"],
             ["text"],
             ["tool_use"],
@@ -958,7 +972,7 @@ describe("a conversation's loop, stepped", () => {
             ["text"],
             ["text"],
           ]);
-          expect(unmarkedOf(opening).messages.at(-1)).toEqual({
+          expect(unmarkedOf(opening).messages.at(-1)).toStrictEqual({
             content: rulesMessage(rules),
             role: "system",
           });
@@ -968,20 +982,20 @@ describe("a conversation's loop, stepped", () => {
             script('call create_note {"markdown":"Three."}', 'call search_library {"query":"3"}'),
           );
           const beforeThird = sent.length;
-          expect(await run(2)).toEqual(["continue", "continue"]);
+          await expect(run(2)).resolves.toStrictEqual(["continue", "continue"]);
           deployed = third;
-          expect(await restsAt(run)).toBe("idle");
+          await expect(restsAt(run)).resolves.toBe("idle");
           const thirdTurn = sent.slice(beforeThird);
           expect(thirdTurn).toHaveLength(3);
           for (const body of thirdTurn) {
-            expect(definitionSent(body)).toEqual(sentAs(second));
+            expect(definitionSent(body)).toStrictEqual(sentAs(second));
           }
           expectSharedPrefixes(sent.slice(firstTurn));
           const beforeFourth = sent.length;
           await deliver(script("Thanks."));
-          expect(await restsAt(run)).toBe("idle");
+          await expect(restsAt(run)).resolves.toBe("idle");
           for (const body of sent.slice(beforeFourth)) {
-            expect(definitionSent(body)).toEqual(sentAs(third));
+            expect(definitionSent(body)).toStrictEqual(sentAs(third));
             expect(blockTypesOf(unmarkedOf(body)).flat()).not.toContain("thinking");
           }
         },
@@ -1000,9 +1014,9 @@ describe("a conversation's loop, stepped", () => {
       );
       // a turn that took up a definition finds no cache its prefix shares; one under the
       // definition before it does
-      expect(warmed).toEqual([false, true, true, false, true, true, true, true, false]);
+      expect(warmed).toStrictEqual([false, true, true, false, true, true, true, true, false]);
       // nothing refused, nothing dropped (afterEach), every turn done
-      expect(await endingsOf(account, threadId)).toEqual([
+      await expect(endingsOf(account, threadId)).resolves.toStrictEqual([
         { reason: "done" },
         { reason: "done" },
         { reason: "done" },
@@ -1016,7 +1030,7 @@ describe("a conversation's loop, stepped", () => {
       );
       const starts = firstRows.map((row) => z.object({ seq: z.number() }).parse(row).seq);
       const definitions = await definitionsOf(account, threadId);
-      expect(definitions.map((definition) => definition.since_seq)).toEqual([
+      expect(definitions.map((definition) => definition.since_seq)).toStrictEqual([
         starts[0],
         starts[1],
         starts[3],
@@ -1025,10 +1039,10 @@ describe("a conversation's loop, stepped", () => {
       const transcript = await transcriptOf(account, threadId);
       const rolesOf = (turn: number) =>
         transcript.filter((row) => row.turn === turn).map((row) => row.role);
-      expect(rolesOf(1).slice(0, 3)).toEqual(["user", "system", "assistant"]);
-      expect(rolesOf(2).slice(0, 3)).toEqual(["user", "system", "assistant"]);
+      expect(rolesOf(1).slice(0, 3)).toStrictEqual(["user", "system", "assistant"]);
+      expect(rolesOf(2).slice(0, 3)).toStrictEqual(["user", "system", "assistant"]);
       expect(rolesOf(3)).not.toContain("system");
-      expect(rolesOf(4)).toEqual(["user", "system", "assistant"]);
+      expect(rolesOf(4)).toStrictEqual(["user", "system", "assistant"]);
       await expectRepliesAskedAsKept(account, threadId);
     },
   );
@@ -1043,8 +1057,8 @@ describe("a conversation's loop, stepped", () => {
       script('call create_note {"markdown":"Landed once."}'),
       async ({ run }) => {
         // the tool ran in the cell, then the instance died before it heard the answer
-        expect(await restsAt(run)).toBe("later");
-        expect(await restsAt(run)).toBe("idle");
+        await expect(restsAt(run)).resolves.toBe("later");
+        await expect(restsAt(run)).resolves.toBe("idle");
       },
       {
         cell: (real) => ({
@@ -1068,9 +1082,9 @@ describe("a conversation's loop, stepped", () => {
       threadId,
       "SELECT attempts, status, is_error FROM tool_calls",
     );
-    expect(tool).toEqual({ attempts: 2, is_error: 0, status: "done" });
+    expect(tool).toStrictEqual({ attempts: 2, is_error: 0, status: "done" });
     const listed = await asLaptop(account, async (client) => await client.items.list({}));
     expect(listed.items).toHaveLength(1);
-    expect(await endingsOf(account, threadId)).toEqual([{ reason: "done" }]);
+    await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "done" }]);
   });
 });

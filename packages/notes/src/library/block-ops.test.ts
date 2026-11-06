@@ -25,11 +25,11 @@ describe("the per-block guard", () => {
     const item = three();
     const base = heldOf(item, "two").hash;
     const edited = landed(item, [{ baseHash: base, block: paragraph("two", "edited"), op: "put" }]);
-    expect(heldOf(edited, "two").block).toEqual(paragraph("two", "edited"));
+    expect(heldOf(edited, "two").block).toStrictEqual(paragraph("two", "edited"));
     const stale = applyOps(edited, [
       { baseHash: base, block: paragraph("two", "mine"), op: "put" },
     ]);
-    expect(stale).toEqual({
+    expect(stale).toStrictEqual({
       conflicts: [{ blockId: "two", current: heldOf(edited, "two"), kind: "block" }],
       kind: "conflict",
     });
@@ -85,7 +85,7 @@ describe("the per-block guard", () => {
     const moved = landed(contentChanged, [
       { baseOrd: one.ord, blockId: "one", op: "move", ord: last },
     ]);
-    expect(orderedBlocks(moved.blocks).map(({ block }) => block.id)).toEqual([
+    expect(orderedBlocks(moved.blocks).map(({ block }) => block.id)).toStrictEqual([
       "two",
       "three",
       "one",
@@ -98,7 +98,7 @@ describe("the per-block guard", () => {
         ord: ordBetween(null, heldOf(item, "two").ord),
       },
     ]);
-    expect(second).toEqual({
+    expect(second).toStrictEqual({
       conflicts: [{ blockId: "one", currentOrd: last, kind: "order" }],
       kind: "conflict",
     });
@@ -114,7 +114,7 @@ describe("the per-block guard", () => {
     expect(outcome.kind).toBe("conflict");
     expect(
       outcome.kind === "conflict" && outcome.conflicts.map((conflict) => conflict.kind),
-    ).toEqual(["block", "field"]);
+    ).toStrictEqual(["block", "field"]);
   });
 
   it("names the blocks and fields a batch changed", () => {
@@ -129,7 +129,7 @@ describe("the per-block guard", () => {
         section: "article",
       },
     ]);
-    expect(outcome.kind === "applied" && outcome.touched).toEqual({
+    expect(outcome.kind === "applied" && outcome.touched).toStrictEqual({
       blocks: new Set(["four"]),
       dropped: new Set(["one"]),
       fields: true,
@@ -145,34 +145,38 @@ describe("field patches", () => {
     expect(
       applyOps(renamed, [{ base: "A note", field: "title", op: "set", value: "B" }]).kind,
     ).toBe("applied");
-    expect(applyOps(renamed, [{ base: "A note", field: "title", op: "set", value: "C" }])).toEqual({
+    expect(
+      applyOps(renamed, [{ base: "A note", field: "title", op: "set", value: "C" }]),
+    ).toStrictEqual({
       conflicts: [{ current: "B", field: "title", kind: "field" }],
       kind: "conflict",
     });
   });
 
   it("merges two writers' tags as a set, case folded, so both land", () => {
-    expect(mergeListField("tags", ["work", "Read"], ["work"], ["work", "idea"])).toEqual([
+    expect(mergeListField("tags", ["work", "Read"], ["work"], ["work", "idea"])).toStrictEqual([
       "work",
       "Read",
       "idea",
     ]);
-    expect(mergeListField("tags", ["work", "read"], ["work", "read"], ["read"])).toEqual(["read"]);
-    expect(mergeListField("tags", ["Idea"], [], ["idea"])).toEqual(["Idea"]);
+    expect(mergeListField("tags", ["work", "read"], ["work", "read"], ["read"])).toStrictEqual([
+      "read",
+    ]);
+    expect(mergeListField("tags", ["Idea"], [], ["idea"])).toStrictEqual(["Idea"]);
     const item = itemOf([], noteFields({ tags: ["later"] }));
     const tagged = landed(item, [{ base: [], op: "tags", value: ["mine"] }]);
-    expect(tagged.fields.tags).toEqual(["later", "mine"]);
+    expect(tagged.fields.tags).toStrictEqual(["later", "mine"]);
   });
 
   it("patches one property by its key, absent standing for no property", () => {
     const item = itemOf([], noteFields({ properties: { rating: 3 } }));
     const rated = landed(item, [{ base: 3, key: "rating", op: "property", value: 4 }]);
-    expect(rated.fields.properties).toEqual({ rating: 4 });
+    expect(rated.fields.properties).toStrictEqual({ rating: 4 });
     const added = landed(rated, [{ key: "due", op: "property", value: "2026-11-01" }]);
-    expect(added.fields.properties).toEqual({ due: "2026-11-01", rating: 4 });
+    expect(added.fields.properties).toStrictEqual({ due: "2026-11-01", rating: 4 });
     const removed = landed(added, [{ base: 4, key: "rating", op: "property" }]);
-    expect(removed.fields.properties).toEqual({ due: "2026-11-01" });
-    expect(applyOps(removed, [{ base: 9, key: "due", op: "property", value: 1 }])).toEqual({
+    expect(removed.fields.properties).toStrictEqual({ due: "2026-11-01" });
+    expect(applyOps(removed, [{ base: 9, key: "due", op: "property", value: 1 }])).toStrictEqual({
       conflicts: [{ current: "2026-11-01", key: "due", kind: "property" }],
       kind: "conflict",
     });
@@ -189,7 +193,7 @@ describe("the item's caps over a landed batch", () => {
       (_, index) => `t${String(index)}`,
     );
     const item = itemOf([], noteFields({ tags: full }));
-    expect(applyOps(item, [{ base: [], op: "tags", value: ["one-more"] }])).toEqual({
+    expect(applyOps(item, [{ base: [], op: "tags", value: ["one-more"] }])).toStrictEqual({
       fields: ["tags"],
       kind: "invalid",
     });
@@ -205,7 +209,7 @@ describe("the item's caps over a landed batch", () => {
     );
     const more = Array.from({ length: 60 }, (_, index) => alias(100 + index));
     expect(libraryOpSchema.validate({ base: [], op: "aliases", value: more })).toBe(true);
-    expect(applyOps(aliased, [{ base: [], op: "aliases", value: more }])).toEqual({
+    expect(applyOps(aliased, [{ base: [], op: "aliases", value: more }])).toStrictEqual({
       fields: ["aliases"],
       kind: "invalid",
     });
@@ -215,7 +219,7 @@ describe("the item's caps over a landed batch", () => {
         { base: "A note", field: "title", op: "set", value: "Renamed" },
         { key: "more", op: "property", value: "y".repeat(100 * 1024) },
       ]),
-    ).toEqual({ fields: ["properties"], kind: "invalid" });
+    ).toStrictEqual({ fields: ["properties"], kind: "invalid" });
   });
 });
 

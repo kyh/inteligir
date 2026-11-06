@@ -23,12 +23,12 @@ const renderCard = (onSubmit: Submit): void => {
 
 const option = (name: string): HTMLElement => screen.getByRole("button", { name });
 
-describe("ApprovalCard", () => {
+describe(ApprovalCard, () => {
   it("reads sent once a synchronous submit returns", async () => {
     const onSubmit = vi.fn<Submit>();
     renderCard(onSubmit);
     fireEvent.click(option("Allow"));
-    expect(await screen.findByText("Answered")).toBeTruthy();
+    await expect(screen.findByText("Answered")).resolves.toBeTruthy();
     expect(onSubmit).toHaveBeenCalledWith([{ optionIds: ["allow"], questionId: "q1" }]);
   });
 
@@ -48,7 +48,7 @@ describe("ApprovalCard", () => {
     expect(screen.queryByText("Answered")).toBeNull();
 
     fireEvent.click(option("Deny"));
-    expect(await screen.findByText("Answered")).toBeTruthy();
+    await expect(screen.findByText("Answered")).resolves.toBeTruthy();
     expect(onSubmit).toHaveBeenCalledTimes(2);
   });
 });

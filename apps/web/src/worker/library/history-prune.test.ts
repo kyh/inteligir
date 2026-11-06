@@ -25,7 +25,7 @@ describe("which revisions history keeps", () => {
       at: NOW - 400 * DAY + index,
       rev: index + 1,
     }));
-    expect(revisionsToDrop(revisions, NOW)).toEqual([]);
+    expect(revisionsToDrop(revisions, NOW)).toStrictEqual([]);
   });
 
   it("keeps everything of the last 30 days past the newest 100", () => {
@@ -33,7 +33,7 @@ describe("which revisions history keeps", () => {
       at: NOW - DAY + index,
       rev: index + 1,
     }));
-    expect(revisionsToDrop(revisions, NOW)).toEqual([]);
+    expect(revisionsToDrop(revisions, NOW)).toStrictEqual([]);
   });
 
   it("keeps a day's last revision past the newest 100 and 30 days", () => {
@@ -48,7 +48,7 @@ describe("which revisions history keeps", () => {
     }));
     const dropped = revisionsToDrop([...old, ...recent], NOW);
     expect(dropped).toHaveLength(45);
-    expect(dropped).not.toEqual(expect.arrayContaining([10, 20, 30, 40, 50]));
+    expect(dropped).not.toStrictEqual(expect.arrayContaining([10, 20, 30, 40, 50]));
   });
 });
 
@@ -95,7 +95,7 @@ describe("the prune job", () => {
         .one().n;
       expect(kept).toBe(131);
       const revision = landedValue(library.revision(itemId, 131));
-      expect(revision?.blocks.map((stored) => stored.block)).toEqual([block]);
+      expect(revision?.blocks.map((stored) => stored.block)).toStrictEqual([block]);
       const firstKept = state.storage.sql
         .exec("SELECT min(rev) AS n FROM revisions WHERE item_id = ?", itemId)
         .one().n;
@@ -155,7 +155,7 @@ describe("the prune job", () => {
         .toArray();
       // the person's set keeps its entry by its later revision; the library's two sets of that
       // day lost theirs with their only revisions
-      expect(entries).toEqual([{ actor: "person", revisions: 1 }]);
+      expect(entries).toStrictEqual([{ actor: "person", revisions: 1 }]);
     });
   });
 });

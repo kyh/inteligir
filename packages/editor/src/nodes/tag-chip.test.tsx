@@ -38,7 +38,7 @@ const chips = (container: HTMLElement): string[] =>
 
 describe("inlineTagSpans (the scanner the chip decorates with)", () => {
   it("finds letter-first tags, including nested and dashed names", () => {
-    expect(inlineTagSpans("see #alpha and #a/b/c plus #kebab-case.")).toEqual([
+    expect(inlineTagSpans("see #alpha and #a/b/c plus #kebab-case.")).toStrictEqual([
       { end: 10, start: 4, tag: "alpha" },
       { end: 21, start: 15, tag: "a/b/c" },
       { end: 38, start: 27, tag: "kebab-case" },
@@ -46,12 +46,12 @@ describe("inlineTagSpans (the scanner the chip decorates with)", () => {
   });
 
   it("stops short of a trailing dash (the index trims it too)", () => {
-    expect(inlineTagSpans("#bar-")).toEqual([{ end: 4, start: 0, tag: "bar" }]);
+    expect(inlineTagSpans("#bar-")).toStrictEqual([{ end: 4, start: 0, tag: "bar" }]);
   });
 
   it("rejects the non-tag `#` shapes", () => {
     for (const text of ["C# rocks", "##heading", "#123", "#0d6efd", "see http://x/#frag", "# "]) {
-      expect(inlineTagSpans(text), text).toEqual([]);
+      expect(inlineTagSpans(text), text).toStrictEqual([]);
     }
   });
 });
@@ -59,7 +59,7 @@ describe("inlineTagSpans (the scanner the chip decorates with)", () => {
 describe("tag chip rendering", () => {
   it("chips every inline tag in a paragraph", () => {
     const { container } = renderValue([paragraph([{ text: "todo #alpha and #beta" }])]);
-    expect(chips(container)).toEqual(["#alpha", "#beta"]);
+    expect(chips(container)).toStrictEqual(["#alpha", "#beta"]);
     expect(container.textContent).toBe("todo #alpha and #beta");
   });
 
@@ -85,7 +85,7 @@ describe("tag chip rendering", () => {
     ];
     for (const [label, value] of cases) {
       const { container, unmount } = renderValue(value);
-      expect(chips(container), label).toEqual([]);
+      expect(chips(container), label).toStrictEqual([]);
       unmount();
     }
   });
@@ -113,6 +113,6 @@ describe("byte stability (the decoration never reaches the value)", () => {
     const editor = createSlateEditor({ plugins: EDITOR_KIT, value: parsed.value });
     const out = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
     expect(out).toBe(src);
-    expect(JSON.stringify(parsed.value).includes("tagChip")).toBe(false);
+    expect(JSON.stringify(parsed.value)).not.toContain("tagChip");
   });
 });

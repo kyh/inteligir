@@ -9,14 +9,14 @@ const factsOf = (content: string) => {
   return readItemFacts(yaml === null ? null : parseProperties(yaml));
 };
 
-describe("readItemFacts", () => {
+describe(readItemFacts, () => {
   it("is a plain note for no block, an invalid one, or one with no item keys", () => {
     const note = readItemFacts(null);
     expect(note.kind).toBe("note");
     expect(note.url).toBeNull();
-    expect(factsOf("---\nkey: [unclosed\n---\n")).toEqual(note);
-    expect(factsOf("hello")).toEqual(note);
-    expect(factsOf("---\ntitle: x\n---\n")).toEqual(note);
+    expect(factsOf("---\nkey: [unclosed\n---\n")).toStrictEqual(note);
+    expect(factsOf("hello")).toStrictEqual(note);
+    expect(factsOf("---\ntitle: x\n---\n")).toStrictEqual(note);
   });
 
   it("folds the kind, and an unknown one is a note", () => {

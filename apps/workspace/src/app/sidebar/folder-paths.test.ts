@@ -17,7 +17,7 @@ describe("the folder rows", () => {
       folder("r", "Reading", null, "a0"),
       folder("b", "Books", "r", "Zz"),
     ]);
-    expect(rows.map((row) => [row.label, row.depth])).toEqual([
+    expect(rows.map((row) => [row.label, row.depth])).toStrictEqual([
       ["Reading", 0],
       ["Reading / Books", 1],
       ["Reading / Papers", 1],
@@ -26,6 +26,8 @@ describe("the folder rows", () => {
   });
 
   it("shows a folder whose parent is not listed at the top", () => {
-    expect(folderPaths([folder("x", "Lost", "gone")]).map((row) => row.label)).toEqual(["Lost"]);
+    expect(folderPaths([folder("x", "Lost", "gone")]).map((row) => row.label)).toStrictEqual([
+      "Lost",
+    ]);
   });
 });

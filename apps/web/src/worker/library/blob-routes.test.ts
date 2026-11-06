@@ -67,15 +67,15 @@ describe("a file's bytes", () => {
   it("lands at the sha its bytes hash to, once, and reads back whole", async () => {
     const { accountId, auth } = await signedIn("blob-upload@example.test");
     const { bytes, sha } = await fileOf(TEN);
-    expect(await put(auth, sha, bytes)).toBe(201);
+    await expect(put(auth, sha, bytes)).resolves.toBe(201);
     // the library holds it already: nothing is read, nothing stored twice
-    expect(await put(auth, sha, bytes)).toBe(204);
+    await expect(put(auth, sha, bytes)).resolves.toBe(204);
     const object = await env.BLOBS.head(blobKey(accountId, sha));
     expect(object?.size).toBe(10);
 
     const read = await exports.default.fetch(urlOf(sha), { headers: auth });
     expect(read.status).toBe(200);
-    expect(await read.text()).toBe(TEN);
+    await expect(read.text()).resolves.toBe(TEN);
     expect(read.headers.get("content-type")).toBe("image/png");
     expect(read.headers.get("content-length")).toBe("10");
     expect(read.headers.get("accept-ranges")).toBe("bytes");
@@ -93,11 +93,11 @@ describe("a file's bytes", () => {
     const { accountId, auth } = await signedIn("blob-mismatch@example.test");
     const { sha } = await fileOf("the bytes the address names");
     const sent = new TextEncoder().encode("other bytes entirely");
-    expect(await put(auth, sha, sent)).toBe(400);
-    expect(await env.BLOBS.head(blobKey(accountId, sha))).toBeNull();
+    await expect(put(auth, sha, sent)).resolves.toBe(400);
+    await expect(env.BLOBS.head(blobKey(accountId, sha))).resolves.toBeNull();
     // the room it held is let go: the right bytes land after
     const { bytes, sha: actual } = await fileOf("the bytes the address names");
-    expect(await put(auth, actual, bytes)).toBe(201);
+    await expect(put(auth, actual, bytes)).resolves.toBe(201);
   });
 
   it("refuses an upload with no length, one past the cap, and one past the library's room", async () => {
@@ -129,7 +129,7 @@ describe("a file's bytes", () => {
     await inCell(cellOf(accountId), (state) => {
       addFileBytes(cellStorageOf(state.storage), Number(env.LIBRARY_STORAGE_CAP_BYTES));
     });
-    expect(await put(auth, sha, bytes)).toBe(507);
+    await expect(put(auth, sha, bytes)).resolves.toBe(507);
   });
 
   it("answers a single range, a suffix, a range past the end and a multi-part ask", async () => {
@@ -143,23 +143,23 @@ describe("a file's bytes", () => {
     expect(first.status).toBe(206);
     expect(first.headers.get("content-range")).toBe("bytes 2-5/10");
     expect(first.headers.get("content-length")).toBe("4");
-    expect(await first.text()).toBe("2345");
+    await expect(first.text()).resolves.toBe("2345");
 
     const suffix = await ranged("bytes=-3");
     expect(suffix.status).toBe(206);
     expect(suffix.headers.get("content-range")).toBe("bytes 7-9/10");
-    expect(await suffix.text()).toBe("789");
+    await expect(suffix.text()).resolves.toBe("789");
 
     const open = await ranged("bytes=8-");
     expect(open.status).toBe(206);
-    expect(await open.text()).toBe("89");
+    await expect(open.text()).resolves.toBe("89");
 
     // a range that spans the file is still the range asked for, as a media loader's probe needs
     for (const whole of ["bytes=0-", "bytes=0-9", "bytes=0-99"]) {
       const answer = await ranged(whole);
       expect(answer.status, whole).toBe(206);
       expect(answer.headers.get("content-range"), whole).toBe("bytes 0-9/10");
-      expect(await answer.text()).toBe(TEN);
+      await expect(answer.text()).resolves.toBe(TEN);
     }
 
     const past = await drained(ranged("bytes=20-30"));
@@ -170,7 +170,7 @@ describe("a file's bytes", () => {
     const parts = await ranged("bytes=0-1,4-5");
     expect(parts.status).toBe(200);
     expect(parts.headers.get("content-range")).toBeNull();
-    expect(await parts.text()).toBe(TEN);
+    await expect(parts.text()).resolves.toBe(TEN);
   });
 
   it("answers a copy the device holds as not modified, and a precondition that fails as 412", async () => {
@@ -190,7 +190,7 @@ describe("a file's bytes", () => {
       headers: { ...auth, "if-none-match": etag, range: "bytes=0-1" },
     });
     expect(rangedHeld.status).toBe(206);
-    expect(await rangedHeld.text()).toBe("01");
+    await expect(rangedHeld.text()).resolves.toBe("01");
 
     const mismatch = await drained(
       exports.default.fetch(urlOf(sha), { headers: { ...auth, "if-match": '"not-it"' } }),
@@ -222,7 +222,7 @@ describe("a file's bytes", () => {
 
     const tab = await exports.default.fetch(urlOf(sha), { headers: sessionHeaders(mine.cookie) });
     expect(tab.status).toBe(200);
-    expect(await tab.text()).toBe("only mine");
+    await expect(tab.text()).resolves.toBe("only mine");
     const stranger = await drained(exports.default.fetch(urlOf(sha), { headers: theirs.auth }));
     expect(stranger.status).toBe(404);
   });
@@ -230,11 +230,11 @@ describe("a file's bytes", () => {
   it("refuses an old build, no credential, a name that is no sha and any other method", async () => {
     const { auth } = await signedIn("blob-refusals@example.test");
     const { sha } = await fileOf(TEN);
-    expect(
-      await statusOf(urlOf(sha), { headers: { authorization: auth.authorization ?? "" } }),
-    ).toBe(426);
-    expect(await statusOf(urlOf(sha), { headers: buildHeaders() })).toBe(401);
-    expect(await statusOf(urlOf("not-a-sha"), { headers: auth })).toBe(404);
+    await expect(
+      statusOf(urlOf(sha), { headers: { authorization: auth.authorization ?? "" } }),
+    ).resolves.toBe(426);
+    await expect(statusOf(urlOf(sha), { headers: buildHeaders() })).resolves.toBe(401);
+    await expect(statusOf(urlOf("not-a-sha"), { headers: auth })).resolves.toBe(404);
     const post = await drained(
       exports.default.fetch(urlOf(sha), { headers: auth, method: "POST" }),
     );

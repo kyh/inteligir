@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { markdownResponse, prefersMarkdown } from "./content-negotiation";
 
-describe("prefersMarkdown", () => {
+describe(prefersMarkdown, () => {
   it.each([
     "text/markdown",
     "text/markdown, text/html;q=0.9",
@@ -27,13 +27,13 @@ describe("prefersMarkdown", () => {
   });
 });
 
-describe("markdownResponse", () => {
+describe(markdownResponse, () => {
   it("answers markdown that varies on Accept", async () => {
     const response = markdownResponse("# Hi");
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
     expect(response.headers.get("vary")).toContain("Accept");
-    expect(await response.text()).toBe("# Hi");
+    await expect(response.text()).resolves.toBe("# Hi");
   });
 
   it("keeps a caller's status and headers", () => {

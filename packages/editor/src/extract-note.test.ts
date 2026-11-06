@@ -48,7 +48,7 @@ describe("what leaves", () => {
     const editor = editorOver([h2("Plan"), p("one"), p("two"), p("three")]);
     editor.tf.select({ anchor: { offset: 1, path: [1, 0] }, focus: { offset: 1, path: [2, 0] } });
     const paths = selectedTopLevelPaths(editor);
-    expect(paths).toEqual([[1], [2]]);
+    expect(paths).toStrictEqual([[1], [2]]);
     expect(extractBlocksMarkdown(editor, paths)).toBe("one\n\ntwo\n");
   });
 
@@ -76,7 +76,7 @@ describe("the extract", () => {
     const created = await extractBlocksToNote(editor, selectedTopLevelPaths(editor));
 
     expect(created).toBe("notes/one 2.md");
-    expect(calls).toEqual([
+    expect(calls).toStrictEqual([
       { action: "createNewFileAt", args: ["notes/one 2.md", "one\n\ntwo\n"] },
     ]);
     expect(editor.children).toHaveLength(2);
@@ -96,7 +96,9 @@ describe("the extract", () => {
     const editor = editorOver([h2("Plan"), p("one")], "notes/Source.md");
     editor.tf.select({ anchor: { offset: 0, path: [0, 0] }, focus: { offset: 3, path: [1, 0] } });
 
-    expect(await extractBlocksToNote(editor, selectedTopLevelPaths(editor))).toBe("notes/Plan.md");
+    await expect(extractBlocksToNote(editor, selectedTopLevelPaths(editor))).resolves.toBe(
+      "notes/Plan.md",
+    );
     expect(
       editor.api.nodes({ at: [0], match: { type: "wikiLink" } }).next().value?.[0],
     ).toMatchObject({ title: "notes/Plan" });
@@ -109,7 +111,7 @@ describe("the extract", () => {
     await extractBlocksToNote(editor, selectedTopLevelPaths(editor));
     expect(editor.children).toHaveLength(2);
     editor.undo();
-    expect(editor.children.map((block) => editor.api.string(block))).toEqual([
+    expect(editor.children.map((block) => editor.api.string(block))).toStrictEqual([
       "Plan",
       "one",
       "two",
@@ -126,10 +128,10 @@ describe("the extract", () => {
     const editor = editorOver([h2("Plan"), p("one")], "notes/Source.md");
     selectAll(editor);
 
-    expect(await extractBlocksToNote(editor, selectedTopLevelPaths(editor))).toBe(
+    await expect(extractBlocksToNote(editor, selectedTopLevelPaths(editor))).resolves.toBe(
       "notes/Plan 2.md",
     );
-    expect(calls.map(({ args }) => args[0])).toEqual(["notes/Plan.md", "notes/Plan 2.md"]);
+    expect(calls.map(({ args }) => args[0])).toStrictEqual(["notes/Plan.md", "notes/Plan 2.md"]);
     expect(linkTitleAt(editor, [0])).toBe("Plan 2");
   });
 
@@ -140,13 +142,15 @@ describe("the extract", () => {
       "notes/Source.md",
     );
     selectAll(editor);
-    expect(selectedTopLevelPaths(editor)).toEqual([[0], [1], [2]]);
+    expect(selectedTopLevelPaths(editor)).toStrictEqual([[0], [1], [2]]);
 
-    expect(await extractBlocksToNote(editor, selectedTopLevelPaths(editor))).toBe("notes/Plan.md");
-    expect(calls).toEqual([
+    await expect(extractBlocksToNote(editor, selectedTopLevelPaths(editor))).resolves.toBe(
+      "notes/Plan.md",
+    );
+    expect(calls).toStrictEqual([
       { action: "createNewFileAt", args: ["notes/Plan.md", "## Plan\n\none\n"] },
     ]);
-    expect(editor.children.map((block) => block.type)).toEqual(["frontmatter", "p"]);
+    expect(editor.children.map((block) => block.type)).toStrictEqual(["frontmatter", "p"]);
     expect(editor.children[0]).toMatchObject({ value: "id: abc\npinned: true" });
     expect(linkTitleAt(editor, [1])).toBe("Plan");
   });
@@ -154,8 +158,8 @@ describe("the extract", () => {
   it("extracts nothing when the frontmatter is all that was chosen", async () => {
     const { calls } = installFakeEditorHost();
     const editor = editorOver(parsed("---\nid: abc\n---\n\none\n"), "Source.md");
-    expect(await extractBlocksToNote(editor, [[0]])).toBeNull();
-    expect(calls).toEqual([]);
+    await expect(extractBlocksToNote(editor, [[0]])).resolves.toBeNull();
+    expect(calls).toStrictEqual([]);
   });
 
   it("refuses blocks that anchor an annotation, whose entry would stay behind", async () => {
@@ -166,8 +170,8 @@ describe("the extract", () => {
     const before = JSON.stringify(editor.children);
     selectAll(editor);
 
-    expect(await extractBlocksToNote(editor, selectedTopLevelPaths(editor))).toBeNull();
-    expect(calls).toEqual([]);
+    await expect(extractBlocksToNote(editor, selectedTopLevelPaths(editor))).resolves.toBeNull();
+    expect(calls).toStrictEqual([]);
     expect(JSON.stringify(editor.children)).toBe(before);
   });
 
@@ -181,8 +185,8 @@ describe("the extract", () => {
     editor.tf.insertNodes(p("typed above"), { at: [0] });
     create.resolve({ kind: "created", path: "one.md" });
 
-    expect(await extracting).toBe("one.md");
-    expect(editor.children.map((block) => editor.api.string(block))).toEqual([
+    await expect(extracting).resolves.toBe("one.md");
+    expect(editor.children.map((block) => editor.api.string(block))).toStrictEqual([
       "typed above",
       "Plan",
       "",
@@ -210,7 +214,7 @@ describe("the extract", () => {
       const after = JSON.stringify(editor.children);
       create.resolve({ kind: "created", path: "one.md" });
 
-      expect(await extracting).toBeNull();
+      await expect(extracting).resolves.toBeNull();
       expect(JSON.stringify(editor.children)).toBe(after);
     }
   });
@@ -220,8 +224,8 @@ describe("the extract", () => {
     const editor = editorOver([p("only")], "Source.md");
     editor.tf.select({ anchor: { offset: 0, path: [0, 0] }, focus: { offset: 2, path: [0, 0] } });
     const before = JSON.stringify(editor.children);
-    expect(await extractBlocksToNote(editor, selectedTopLevelPaths(editor))).toBeNull();
-    expect(await extractBlocksToNote(editor, [])).toBeNull();
+    await expect(extractBlocksToNote(editor, selectedTopLevelPaths(editor))).resolves.toBeNull();
+    await expect(extractBlocksToNote(editor, [])).resolves.toBeNull();
     expect(JSON.stringify(editor.children)).toBe(before);
   });
 });

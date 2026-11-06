@@ -61,7 +61,7 @@ describe("the touch kit", () => {
   it("registers every plugin BASE_KIT does, so nothing it opens is lost on save", () => {
     const touchKeys = new Set(Object.keys(touch.plugins));
     const missing = Object.keys(base.plugins).filter((key) => !touchKeys.has(key));
-    expect(missing, "BASE_KIT plugins missing from TOUCH_EDITOR_KIT").toEqual([]);
+    expect(missing, "BASE_KIT plugins missing from TOUCH_EDITOR_KIT").toStrictEqual([]);
   });
 
   it("serializes the canonical corpus to its canonical bytes", () => {
@@ -93,9 +93,9 @@ describe("the touch kit", () => {
 
 describe("EDITOR_KIT after the content/chrome split", () => {
   it("is CONTENT_KIT then DESKTOP_CHROME_KIT, and no plugin sits in both halves", () => {
-    expect(kitKeys.desktop).toEqual([...kitKeys.content, ...kitKeys.desktopChrome]);
+    expect(kitKeys.desktop).toStrictEqual([...kitKeys.content, ...kitKeys.desktopChrome]);
     const content = new Set(kitKeys.content);
-    expect(kitKeys.desktopChrome.filter((key) => content.has(key))).toEqual([]);
+    expect(kitKeys.desktopChrome.filter((key) => content.has(key))).toStrictEqual([]);
   });
 
   // the two kits are composed apart, so this is what says neither dropped a plugin the other kept
@@ -105,10 +105,10 @@ describe("EDITOR_KIT after the content/chrome split", () => {
     expect(
       kitKeys.desktop.filter((key) => !touch.has(key)).toSorted(),
       "desktop-only plugins",
-    ).toEqual(kitKeys.pointerChrome.toSorted());
+    ).toStrictEqual(kitKeys.pointerChrome.toSorted());
     expect(
       kitKeys.touch.filter((key) => !desktop.has(key)).toSorted(),
       "touch-only plugins",
-    ).toEqual(kitKeys.touchChrome.toSorted());
+    ).toStrictEqual(kitKeys.touchChrome.toSorted());
   });
 });

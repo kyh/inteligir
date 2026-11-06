@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 
 import { analyzeMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
 import { SAMPLE_NOTES } from "./test-support/sample-notes";
@@ -76,19 +76,14 @@ const letters = (s: string) => s.replaceAll(/[^\p{L}\p{N}]+/gu, "").toLowerCase(
 
 describe("legacy corpus classification", () => {
   it("covers every corpus file with an expectation", () => {
-    expect([...CORPUS.keys()].toSorted()).toEqual(Object.keys(EXPECTED).toSorted());
+    expect([...CORPUS.keys()].toSorted()).toStrictEqual(Object.keys(EXPECTED).toSorted());
   });
 
-  for (const [name, expected] of Object.entries(EXPECTED)) {
-    it(`${name} → ${expected}`, () => {
-      const md = CORPUS.get(name);
-      expect(md).toBeDefined();
-      if (md === undefined) {
-        return;
-      }
-      expect(classify(md)).toBe(expected);
-    });
-  }
+  it.for(Object.entries(EXPECTED))("%s → %s", ([name, expected]) => {
+    const md = CORPUS.get(name);
+    assert(md !== undefined, `${name} is in the corpus`);
+    expect(classify(md)).toBe(expected);
+  });
 
   it("round-trips the corpus files a save keeps idempotently and letters-preserving", () => {
     for (const [name, md] of CORPUS) {

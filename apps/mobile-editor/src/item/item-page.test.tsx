@@ -1,5 +1,5 @@
 import { act, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, test } from "vitest";
 
 import { createItemSession, ITEM_IDLE_MS } from "@repo/editor/item/item-session";
 import { headlessEditor } from "@repo/editor/markdown/markdown-doc";
@@ -104,7 +104,7 @@ describe("an item page over the phone's replica", () => {
     timers.fire();
     await session.flush();
     const [write] = phone.requests("writeItem");
-    expect(write?.payload.ops).toEqual([
+    expect(write?.payload.ops).toStrictEqual([
       {
         baseHash: blockHash(paragraph("p1", "first")),
         block: paragraph("p1", "first words"),
@@ -137,7 +137,7 @@ describe("an item page over the phone's replica", () => {
       { children: [{ text: "first!" }], id: "p1" },
       { children: [{ text: "from the Mac" }], id: "p2" },
     ]);
-    expect(overlaps).toEqual(["Plans"]);
+    expect(overlaps).toStrictEqual(["Plans"]);
   });
 
   it("says a merge the phone made kept this page's lines over the other device's", async () => {
@@ -151,7 +151,7 @@ describe("an item page over the phone's replica", () => {
       type: "itemChanged",
     });
     await waitFor(() => {
-      expect(overlaps).toEqual(["Plans"]);
+      expect(overlaps).toStrictEqual(["Plans"]);
     });
   });
 
@@ -181,7 +181,7 @@ describe("an item page over the phone's replica", () => {
     act(() => {
       mounted = mountItemPage({ bridge, container, init });
     });
-    expect(await screen.findByText("Hello from the item.")).toBeDefined();
+    await expect(screen.findByText("Hello from the item.")).resolves.toBeDefined();
     phone.deliver({ id: 4, nonce: PHONE_NONCE, type: "flush" });
     await waitFor(() => {
       expect(phone.events("flushed")).toMatchObject([{ id: 4, ok: true }]);
@@ -190,7 +190,7 @@ describe("an item page over the phone's replica", () => {
 });
 
 // a component the compiler memoizes wrongly passes every other test and fails only on the phone
-it("holds the React Compiler's output for the page's components", () => {
+test("holds the React Compiler's output for the page's components", () => {
   expect(
     ItemPage.toString(),
     "the mobile-editor vitest project must run the React Compiler's Babel preset (reactCompilerPreset) over src/",

@@ -62,14 +62,20 @@ describe("the connect page's messages", () => {
   });
 
   it("answers whose library it saves to, and keeps a credential handed over with the page's origin as its cloud", async () => {
-    expect(await answerConnectPage({ type: "hello" }, SITE, deps)).toEqual({ email: null });
-    expect(await answerConnectPage({ connection: MINTED, type: "connect" }, SITE, deps)).toEqual({
+    await expect(answerConnectPage({ type: "hello" }, SITE, deps)).resolves.toStrictEqual({
+      email: null,
+    });
+    await expect(
+      answerConnectPage({ connection: MINTED, type: "connect" }, SITE, deps),
+    ).resolves.toStrictEqual({
       email: MINTED.email,
     });
     const held = await readConnection();
-    expect(held).toEqual({ ...MINTED, origin: SITE });
-    expect(await answerConnectPage({ type: "hello" }, SITE, deps)).toEqual({ email: MINTED.email });
-    expect(revoked).toEqual([]);
+    expect(held).toStrictEqual({ ...MINTED, origin: SITE });
+    await expect(answerConnectPage({ type: "hello" }, SITE, deps)).resolves.toStrictEqual({
+      email: MINTED.email,
+    });
+    expect(revoked).toStrictEqual([]);
   });
 
   it("revokes the credential a new connection replaces", async () => {
@@ -78,6 +84,6 @@ describe("the connect page's messages", () => {
     await answerConnectPage({ connection: next, type: "connect" }, SITE, deps);
     const held = await readConnection();
     expect(held?.deviceId).toBe("next");
-    expect(revoked.map((connection) => connection.deviceId)).toEqual([MINTED.deviceId]);
+    expect(revoked.map((connection) => connection.deviceId)).toStrictEqual([MINTED.deviceId]);
   });
 });

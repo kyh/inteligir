@@ -37,7 +37,7 @@ const folderOfNotes = (folder: string): WikiTarget[] =>
 describe("the [[ picker over a large vault", () => {
   it("mounts no more rows than the cap", async () => {
     openPicker(folderOfNotes("notes"));
-    expect(await screen.findAllByRole("option")).toHaveLength(WIKI_PICKER_MAX_ROWS);
+    await expect(screen.findAllByRole("option")).resolves.toHaveLength(WIKI_PICKER_MAX_ROWS);
   });
 
   it("ranks a stem prefix above every path hit before cutting", async () => {

@@ -13,7 +13,7 @@ describe("a library scope", () => {
       { kind: "deleted" },
     ];
     for (const scope of scopes) {
-      expect(libraryScopeSchema.parse(scope)).toEqual(scope);
+      expect(libraryScopeSchema.parse(scope)).toStrictEqual(scope);
     }
     expect(libraryScopeSchema.validate({ folderId: "", kind: "folder" })).toBe(false);
     expect(libraryScopeSchema.validate({ kind: "folder", path: "Reading" })).toBe(false);

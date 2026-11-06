@@ -17,8 +17,11 @@ describe("the socket's ticket", () => {
   it("names the account and the credential that asked, for a minute", async () => {
     const { expiresAt, ticket } = await mintSocketTicket(SECRET, CLAIM, NOW);
     expect(expiresAt).toBe(NOW + SOCKET_TICKET_TTL_MS);
-    expect(await readSocketTicket(SECRET, ticket, NOW + 59_999)).toEqual({ ...CLAIM, expiresAt });
-    expect(await readSocketTicket(SECRET, ticket, expiresAt)).toBeNull();
+    await expect(readSocketTicket(SECRET, ticket, NOW + 59_999)).resolves.toStrictEqual({
+      ...CLAIM,
+      expiresAt,
+    });
+    await expect(readSocketTicket(SECRET, ticket, expiresAt)).resolves.toBeNull();
   });
 
   it("is refused once anything in it changed, or under another secret", async () => {
@@ -27,10 +30,10 @@ describe("the socket's ticket", () => {
     const forged = base64Url(
       JSON.stringify({ ...CLAIM, accountId: "account-2", expiresAt: NOW + SOCKET_TICKET_TTL_MS }),
     );
-    expect(await readSocketTicket(SECRET, `${forged}.${signature ?? ""}`, NOW)).toBeNull();
-    expect(await readSocketTicket("another secret", ticket, NOW)).toBeNull();
+    await expect(readSocketTicket(SECRET, `${forged}.${signature ?? ""}`, NOW)).resolves.toBeNull();
+    await expect(readSocketTicket("another secret", ticket, NOW)).resolves.toBeNull();
     for (const mangled of ["", "nodot", `${ticket}.extra`, `${ticket}x`, "a.b", "!!.??"]) {
-      expect(await readSocketTicket(SECRET, mangled, NOW)).toBeNull();
+      await expect(readSocketTicket(SECRET, mangled, NOW)).resolves.toBeNull();
     }
   });
 });

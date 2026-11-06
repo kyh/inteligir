@@ -75,10 +75,10 @@ describe("the phone's copy of the library's files", () => {
     const { asked, cache, folders, served } = cacheOver(sql);
     served.set(SHA_A, bytesOf(10));
 
-    expect(await cache.fileUri(SHA_A)).toBe(`memory://cache/${SHA_A}`);
-    expect(await cache.fileUri(SHA_A)).toBe(`memory://cache/${SHA_A}`);
-    expect(asked).toEqual([SHA_A]);
-    expect(folders.held("cache")).toEqual([SHA_A]);
+    await expect(cache.fileUri(SHA_A)).resolves.toBe(`memory://cache/${SHA_A}`);
+    await expect(cache.fileUri(SHA_A)).resolves.toBe(`memory://cache/${SHA_A}`);
+    expect(asked).toStrictEqual([SHA_A]);
+    expect(folders.held("cache")).toStrictEqual([SHA_A]);
   });
 
   it("answers nothing for a file the cloud holds none of, or cannot be reached for", async () => {
@@ -91,8 +91,8 @@ describe("the phone's copy of the library's files", () => {
         return await Promise.resolve(null);
       },
     });
-    expect(await cache.fileUri(SHA_A)).toBeNull();
-    expect(await cache.fileUri(SHA_B)).toBeNull();
+    await expect(cache.fileUri(SHA_A)).resolves.toBeNull();
+    await expect(cache.fileUri(SHA_B)).resolves.toBeNull();
   });
 
   it("lets the least recently drawn copies go past the cap", async () => {
@@ -108,7 +108,7 @@ describe("the phone's copy of the library's files", () => {
     await cache.fileUri(SHA_A);
     await cache.fileUri(SHA_C);
 
-    expect(folders.held("cache").toSorted()).toEqual([SHA_A, SHA_C]);
+    expect(folders.held("cache").toSorted()).toStrictEqual([SHA_A, SHA_C]);
   });
 
   it("pins what the person's own notes embed, out of the cache's reach, until no note does", async () => {
@@ -118,13 +118,13 @@ describe("the phone's copy of the library's files", () => {
     served.set(SHA_A, bytesOf(90));
     served.set(SHA_B, bytesOf(90));
 
-    expect(await cache.fileUri(SHA_A)).toBe(`memory://pinned/${SHA_A}`);
+    await expect(cache.fileUri(SHA_A)).resolves.toBe(`memory://pinned/${SHA_A}`);
     await cache.fileUri(SHA_B);
-    expect(folders.held("pinned")).toEqual([SHA_A]);
+    expect(folders.held("pinned")).toStrictEqual([SHA_A]);
 
     await sql.run("UPDATE items SET deleted_at = 5 WHERE id = 'n1'", []);
     await cache.sweep();
-    expect(folders.held("pinned")).toEqual([]);
+    expect(folders.held("pinned")).toStrictEqual([]);
     expect(folders.held("cache")).toContain(SHA_A);
   });
 
@@ -132,8 +132,8 @@ describe("the phone's copy of the library's files", () => {
     const sql = await phoneSql();
     const { asked, cache } = cacheOver(sql);
     await cache.staged.put(SHA_A, bytesOf(4), "image/jpeg");
-    expect(await cache.fileUri(SHA_A)).toBe(`memory://staged/${SHA_A}`);
-    expect(asked).toEqual([]);
+    await expect(cache.fileUri(SHA_A)).resolves.toBe(`memory://staged/${SHA_A}`);
+    expect(asked).toStrictEqual([]);
   });
 
   it("sweeps a file no row names, and a row whose file the OS purged", async () => {
@@ -145,8 +145,8 @@ describe("the phone's copy of the library's files", () => {
     await folders.remove("cache", SHA_A);
 
     await cache.sweep();
-    expect(folders.held("cache")).toEqual([]);
-    expect(await sql.all("SELECT name FROM phone_files", [])).toEqual([]);
+    expect(folders.held("cache")).toStrictEqual([]);
+    await expect(sql.all("SELECT name FROM phone_files", [])).resolves.toStrictEqual([]);
   });
 
   it("lands nothing fetched for an account the phone left while it came", async () => {
@@ -158,8 +158,8 @@ describe("the phone's copy of the library's files", () => {
     await cache.clear();
     answer.resolve(bytesOf(4));
 
-    expect(await drawing).toBeNull();
-    expect(folders.held("cache")).toEqual([]);
+    await expect(drawing).resolves.toBeNull();
+    expect(folders.held("cache")).toStrictEqual([]);
   });
 
   it("draws a large cover from a thumbnail made once, and tries an undecodable one once a session", async () => {
@@ -178,15 +178,15 @@ describe("the phone's copy of the library's files", () => {
     served.set(SHA_B, bytesOf(THUMB_OVER_BYTES + 1, PNG));
     served.set(SHA_C, bytesOf(100, PNG));
 
-    expect(await cache.thumbUri(SHA_A)).toBe(`memory://cache/${SHA_A}.thumb`);
-    expect(await cache.thumbUri(SHA_A)).toBe(`memory://cache/${SHA_A}.thumb`);
-    expect(await cache.thumbUri(SHA_B)).toBe(`memory://cache/${SHA_B}`);
-    expect(await cache.thumbUri(SHA_B)).toBe(`memory://cache/${SHA_B}`);
-    expect(await cache.thumbUri(SHA_C)).toBe(`memory://cache/${SHA_C}`);
-    expect(shrunk).toEqual(["image/png", "image/png"]);
+    await expect(cache.thumbUri(SHA_A)).resolves.toBe(`memory://cache/${SHA_A}.thumb`);
+    await expect(cache.thumbUri(SHA_A)).resolves.toBe(`memory://cache/${SHA_A}.thumb`);
+    await expect(cache.thumbUri(SHA_B)).resolves.toBe(`memory://cache/${SHA_B}`);
+    await expect(cache.thumbUri(SHA_B)).resolves.toBe(`memory://cache/${SHA_B}`);
+    await expect(cache.thumbUri(SHA_C)).resolves.toBe(`memory://cache/${SHA_C}`);
+    expect(shrunk).toStrictEqual(["image/png", "image/png"]);
     expect(folders.held("cache")).toContain(`${SHA_A}.thumb`);
     // each cover crossed once: the bytes a thumbnail was tried from are the ones kept
-    expect(asked).toEqual([SHA_A, SHA_B, SHA_C]);
+    expect(asked).toStrictEqual([SHA_A, SHA_B, SHA_C]);
   });
 
   it("fetches a file once however many screens ask for it at once", async () => {
@@ -202,12 +202,12 @@ describe("the phone's copy of the library's files", () => {
     const drawing = [cache.fileUri(SHA_A), cache.fileUri(SHA_A), cache.thumbUri(SHA_A)];
     answer.resolve(bytesOf(10, PNG));
 
-    expect(await Promise.all(drawing)).toEqual([
+    await expect(Promise.all(drawing)).resolves.toStrictEqual([
       `memory://cache/${SHA_A}`,
       `memory://cache/${SHA_A}`,
       `memory://cache/${SHA_A}`,
     ]);
-    expect(asked).toEqual([SHA_A]);
+    expect(asked).toStrictEqual([SHA_A]);
   });
 
   it("keeps a file this phone sent once its write lands, pinned when a note embeds it", async () => {
@@ -220,10 +220,10 @@ describe("the phone's copy of the library's files", () => {
     await cache.staged.remove(SHA_A);
     await cache.staged.remove(SHA_B);
 
-    expect(folders.held("staged")).toEqual([]);
-    expect(await cache.fileUri(SHA_A)).toBe(`memory://cache/${SHA_A}`);
-    expect(await cache.fileUri(SHA_B)).toBe(`memory://pinned/${SHA_B}`);
-    expect(asked).toEqual([]);
+    expect(folders.held("staged")).toStrictEqual([]);
+    await expect(cache.fileUri(SHA_A)).resolves.toBe(`memory://cache/${SHA_A}`);
+    await expect(cache.fileUri(SHA_B)).resolves.toBe(`memory://pinned/${SHA_B}`);
+    expect(asked).toStrictEqual([]);
   });
 
   it("keeps a thumbnail's transparency for every source that can carry it", () => {

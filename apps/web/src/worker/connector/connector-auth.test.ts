@@ -76,7 +76,7 @@ describe("the connector's sign-in", () => {
     expect(refused.headers.get("www-authenticate")).toContain('scope="library:read"');
 
     const resource = await workerFetch(`${ORIGIN}/.well-known/oauth-protected-resource/connector`);
-    expect(await resource.json()).toEqual({
+    await expect(resource.json()).resolves.toStrictEqual({
       authorization_servers: [ORIGIN],
       bearer_methods_supported: ["header"],
       resource: CONNECTOR_URL,
@@ -85,7 +85,7 @@ describe("the connector's sign-in", () => {
     });
 
     const server = await workerFetch(`${ORIGIN}/.well-known/oauth-authorization-server`);
-    expect(await server.json()).toMatchObject({
+    await expect(server.json()).resolves.toMatchObject({
       authorization_endpoint: `${ORIGIN}/connect/authorize`,
       authorization_response_iss_parameter_supported: true,
       client_id_metadata_document_supported: true,
@@ -169,7 +169,7 @@ describe("the connector's sign-in", () => {
       }),
       method: "POST",
     });
-    expect(await wrong.json()).toMatchObject({ error: "invalid_grant" });
+    await expect(wrong.json()).resolves.toMatchObject({ error: "invalid_grant" });
 
     const minted = await workerFetch(`${ORIGIN}/oauth/token`, {
       body: new URLSearchParams({
@@ -183,7 +183,7 @@ describe("the connector's sign-in", () => {
       method: "POST",
     });
     // the person allowed reading and changing, more than the client first asked for
-    expect(await minted.json()).toMatchObject({
+    await expect(minted.json()).resolves.toMatchObject({
       resource: CONNECTOR_URL,
       scope: "library",
       token_type: "bearer",
@@ -218,7 +218,7 @@ describe("the connector's sign-in", () => {
       method: "POST",
     });
     expect(again.status).toBe(400);
-    expect(await again.text()).toContain("This link expired or was already used.");
+    await expect(again.text()).resolves.toContain("This link expired or was already used.");
   });
 
   it("keeps a grant the person kept to reading to the read scope", async () => {
@@ -262,14 +262,16 @@ describe("the account's assistants", () => {
     const revoked = await connectAssistant(cookie);
 
     const { assistants } = await account.assistants.list();
-    expect(assistants).toEqual(
+    expect(assistants).toStrictEqual(
       expect.arrayContaining([
         expect.objectContaining({ clientName: "Claude", scopes: ["library"] }),
         expect.objectContaining({ clientName: "ChatGPT", scopes: ["library:read"] }),
       ]),
     );
     const claude = assistants.find((assistant) => assistant.clientName === "Claude");
-    expect(await account.assistants.revoke({ grantId: claude?.grantId ?? "" })).toEqual({
+    await expect(
+      account.assistants.revoke({ grantId: claude?.grantId ?? "" }),
+    ).resolves.toStrictEqual({
       revoked: true,
     });
     await expect(account.assistants.revoke({ grantId: claude?.grantId ?? "" })).rejects.toThrow(
@@ -354,7 +356,7 @@ describe("the connector's budgets", () => {
       "too_many_requests",
     );
     const after = await env.OAUTH_KV.list();
-    expect(after.keys).toEqual(before.keys);
+    expect(after.keys).toStrictEqual(before.keys);
 
     const other = await drained(registration("Claude", { [CALLER_IP_HEADER]: "203.0.113.41" }));
     expect(other.status).toBe(201);

@@ -151,7 +151,7 @@ describe("dangling references", () => {
         `  rule: a package this repo writes down must be a package this repo has — a comment, README or config naming a deleted workspace is a sentence a reader will act on\n` +
         `  fix: correct the name, delete the sentence, or add it to DELIBERATE_NON_REFERENCES in tools/repo-guards/src/dangling-references.test.ts with its reason\n` +
         `${dangling.join("\n")}\n`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("every repo-relative path written anywhere is a file or directory that exists", () => {
@@ -169,7 +169,7 @@ describe("dangling references", () => {
         `  rule: a path this repo writes down must resolve — an exclusion pointing at a renamed directory excludes nothing, and the guard around it passes for the wrong reason\n` +
         `  fix: repoint it, delete the sentence, or add it to DELIBERATE_NON_REFERENCES in tools/repo-guards/src/dangling-references.test.ts with its reason\n` +
         `${dangling.join("\n")}\n`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("no DATA_FILES or DELIBERATE_NON_REFERENCES entry outlives what it excuses", () => {
@@ -179,7 +179,7 @@ describe("dangling references", () => {
     expect(
       missing,
       `DATA_FILES names files that no longer exist:\n${missing.map((file) => `  ${file}`).join("\n")}`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
 
     const excused = new Set([...sweepWorkspaceNames().excused, ...sweepRepoPaths().excused]);
     const spent = [...DELIBERATE_NON_REFERENCES.keys()].filter((key) => !excused.has(key));
@@ -188,6 +188,6 @@ describe("dangling references", () => {
       `DELIBERATE_NON_REFERENCES rows that excuse nothing — no swept file outside this guard writes the name, or it now resolves:\n` +
         `${spent.map((key) => `  ${key}`).join("\n")}\n` +
         `  fix: delete the row from tools/repo-guards/src/dangling-references.test.ts`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });

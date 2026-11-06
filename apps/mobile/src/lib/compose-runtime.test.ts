@@ -129,7 +129,7 @@ describe("the phone's runtime", () => {
     const library = signedIn(runtime);
     expect(library.email).toBe("ada@example.com");
     await library.replica.sync();
-    expect(titles(library)).toEqual(["Plans"]);
+    expect(titles(library)).toStrictEqual(["Plans"]);
   });
 
   it("fails a sign-in whose credential the Keychain would not keep, and lets that device go", async () => {
@@ -169,7 +169,7 @@ describe("the phone's runtime", () => {
     await runtime.login.login(SIGN_IN);
     const library = signedIn(runtime);
     expect(library.replica.status().unsent).toBe(0);
-    expect(titles(library)).toEqual([]);
+    expect(titles(library)).toStrictEqual([]);
   });
 
   it("opens what the phone holds at a relaunch, offline", async () => {
@@ -184,7 +184,7 @@ describe("the phone's runtime", () => {
     const again = runtimeOver(cell, { keys: keychain(KEPT), sql });
     again.network.setOffline(true);
     await again.runtime.start();
-    expect(titles(signedIn(again.runtime))).toEqual(["Plans"]);
+    expect(titles(signedIn(again.runtime))).toStrictEqual(["Plans"]);
   });
 
   it("pulls the library again for a credential whose database is empty", async () => {
@@ -196,9 +196,9 @@ describe("the phone's runtime", () => {
     });
     await runtime.start();
     const library = signedIn(runtime);
-    expect(titles(library)).toEqual([]);
+    expect(titles(library)).toStrictEqual([]);
     await library.replica.sync();
-    expect(titles(library)).toEqual(["Plans"]);
+    expect(titles(library)).toStrictEqual(["Plans"]);
   });
 
   it("leaves the account when the cloud no longer takes its credential, and says why", async () => {
@@ -220,7 +220,7 @@ describe("the phone's runtime", () => {
         notice: SIGNED_OUT_ELSEWHERE,
       });
     expect(keys.held()).toBeNull();
-    expect(await sql.all("SELECT id FROM items", [])).toEqual([]);
+    await expect(sql.all("SELECT id FROM items", [])).resolves.toStrictEqual([]);
   });
 
   it("asks before a sign-out discards unsent changes, and lets the device go when told", async () => {
@@ -236,11 +236,13 @@ describe("the phone's runtime", () => {
       title: "Unsent",
     });
 
-    expect(await runtime.logout()).toStrictEqual({ edits: 1, kind: "unsent" });
+    await expect(runtime.logout()).resolves.toStrictEqual({ edits: 1, kind: "unsent" });
     expect(runtime.session.get().kind).toBe("signed-in");
 
     network.setOffline(false);
-    expect(await runtime.logout({ discardUnsent: true })).toStrictEqual({ kind: "signed-out" });
+    await expect(runtime.logout({ discardUnsent: true })).resolves.toStrictEqual({
+      kind: "signed-out",
+    });
     expect(runtime.session.get()).toStrictEqual({ kind: "signed-out", notice: null });
     expect(keys.held()).toBeNull();
     expect(cell.calls).toContain("phone account/signOut");

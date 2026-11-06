@@ -70,19 +70,17 @@ const content = (item: ImportedItem) => ({
 });
 
 describe("import(export(v)) is v, ids aside", () => {
-  for (const fixture of fixtures()) {
-    it(fixture.name, () => {
-      const first = imported(fixture.text);
-      expect(content(reimported(first))).toEqual(content(first));
-      expect(first.refused).toEqual([]);
-    });
-  }
+  it.each(fixtures())("$name", (fixture) => {
+    const first = imported(fixture.text);
+    expect(content(reimported(first))).toStrictEqual(content(first));
+    expect(first.refused).toStrictEqual([]);
+  });
 
   // the editor's own seeded documents: all seeds in one test, as its round-trip property runs them
   it("holds over the editor's generated documents", { timeout: 60_000 }, () => {
     for (let seed = 20_261_027; seed < 20_261_027 + 24; seed += 1) {
       const first = imported(generateDoc(seed));
-      expect(content(reimported(first)), `seed ${String(seed)}`).toEqual(content(first));
+      expect(content(reimported(first)), `seed ${String(seed)}`).toStrictEqual(content(first));
     }
   });
 });
@@ -124,12 +122,10 @@ const SETTLED_ON_IMPORT = new Map<string, (text: string) => string>([
 ]);
 
 describe("today's vault format imports losslessly", () => {
-  for (const fixture of fixtures().filter((one) => one.name.startsWith("canonical/"))) {
-    it(fixture.name, () => {
-      const settle = SETTLED_ON_IMPORT.get(fixture.name) ?? bodyOf;
-      expect(bodyOf(exported(imported(fixture.text)).text)).toBe(settle(fixture.text));
-    });
-  }
+  it.each(fixtures().filter((one) => one.name.startsWith("canonical/")))("$name", (fixture) => {
+    const settle = SETTLED_ON_IMPORT.get(fixture.name) ?? bodyOf;
+    expect(bodyOf(exported(imported(fixture.text)).text)).toBe(settle(fixture.text));
+  });
 
   it("names only fixtures an import changes", () => {
     for (const [name, settle] of SETTLED_ON_IMPORT) {
@@ -211,17 +207,17 @@ describe("one file as its item", () => {
     const written = exported(item).text;
     expect(written.match(/^tags:/gmu)).toHaveLength(1);
     expect(written).toContain("tags:\n  - work\n  - reading list\n  - 2026\n");
-    expect(content(reimported(item))).toEqual(content(item));
+    expect(content(reimported(item))).toStrictEqual(content(item));
     // a field the person set later wins its key over a property of the same name
     const pinned = exported({ ...item, fields: { ...item.fields, pinnedAt: CODEC_NOW } }).text;
-    expect(pinned.match(/^pinned:/gmu)).toEqual(["pinned:"]);
+    expect(pinned.match(/^pinned:/gmu)).toStrictEqual(["pinned:"]);
     expect(pinned).toContain("pinned: true");
   });
 
   it("keeps a block that is not YAML as the note's first code block", () => {
     const item = imported("---\nkey: [unclosed\n---\n\nBody.\n");
     expect(item.fields.kind).toBe("note");
-    expect(item.blocks.map(({ block }) => block.type)).toEqual(["code_block", "p"]);
+    expect(item.blocks.map(({ block }) => block.type)).toStrictEqual(["code_block", "p"]);
     expect(JSON.stringify(item.blocks[0]?.block)).toContain("key: [unclosed");
   });
 
@@ -237,14 +233,16 @@ describe("one file as its item", () => {
         () => line,
       );
       const item = imported(`\`\`\`\n${lines.join("\n")}\n\`\`\`\n`);
-      expect(item.refused).toEqual([]);
+      expect(item.refused).toStrictEqual([]);
       expect(item.blocks.length).toBeGreaterThan(1);
-      expect(new Set(item.blocks.map(({ block }) => block.type))).toEqual(new Set(["code_block"]));
+      expect(new Set(item.blocks.map(({ block }) => block.type))).toStrictEqual(
+        new Set(["code_block"]),
+      );
       const text = item.blocks
         .flatMap(({ block }) => block.children)
         .map((child) => /"text":"(?<text>[^"]*)"/u.exec(JSON.stringify(child))?.groups?.text ?? "")
         .filter((piece) => piece !== "");
-      expect(text).toEqual(lines);
+      expect(text).toStrictEqual(lines);
     },
   );
 
@@ -258,7 +256,7 @@ describe("one file as its item", () => {
       .flatMap((child) => ("text" in child ? [child.text] : []));
     expect(pieces.join("")).toBe(run);
     // a lone surrogate, which UTF-8 cannot hold
-    expect(pieces.filter((piece) => /\p{Cs}/u.test(piece))).toEqual([]);
+    expect(pieces.filter((piece) => /\p{Cs}/u.test(piece))).toStrictEqual([]);
   });
 
   it("reads the highlights' markers and their store, and says why a store could not be read", () => {
@@ -267,10 +265,10 @@ describe("one file as its item", () => {
       h1: { createdAt: 1, quote: "marked words", source: "user", text: "why", updatedAt: 1 },
     });
     const item = imported(text, store);
-    expect(Object.keys(item.annotations)).toEqual(["h1"]);
+    expect(Object.keys(item.annotations)).toStrictEqual(["h1"]);
     expect(JSON.stringify(item.blocks)).toContain('"type":"annotationMarker"');
     const broken = imported(text, "{ not json");
-    expect(broken.annotations).toEqual({});
+    expect(broken.annotations).toStrictEqual({});
     expect(broken.annotationsError).not.toBeNull();
   });
 });

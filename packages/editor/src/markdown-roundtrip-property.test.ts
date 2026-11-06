@@ -60,7 +60,7 @@ describe("seeded property-based round-trip fuzzing", () => {
           failures.push(failure);
         }
       }
-      expect(failures).toEqual([]);
+      expect(failures).toStrictEqual([]);
     },
   );
 });

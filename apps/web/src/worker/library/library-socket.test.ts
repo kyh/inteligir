@@ -134,8 +134,8 @@ describe("the account's socket", () => {
     const second = await openWithTicket(ticket);
     const head = await writeInCell(accountId);
     await until(() => first.frames.length > 0 && second.frames.length > 0);
-    expect(first.frames).toEqual([{ head, type: "library" }]);
-    expect(second.frames).toEqual([{ head, type: "library" }]);
+    expect(first.frames).toStrictEqual([{ head, type: "library" }]);
+    expect(second.frames).toStrictEqual([{ head, type: "library" }]);
     first.socket.send(SOCKET_KEEPALIVE_PING);
     await until(() => first.texts.includes(SOCKET_KEEPALIVE_PONG));
   });
@@ -179,7 +179,7 @@ describe("the account's socket", () => {
     expect(notAnUpgrade.status).toBe(400);
 
     // signing out revokes the credential, and a ticket it minted before no longer opens
-    expect(await v1Link(deviceHeaders(login.credential)).account.signOut()).toEqual({
+    await expect(v1Link(deviceHeaders(login.credential)).account.signOut()).resolves.toStrictEqual({
       revoked: true,
     });
     const revoked = await drained(upgrade(`${V1_SOCKET_PATH}?ticket=${ticket}`));
@@ -210,9 +210,9 @@ describe("the account's socket", () => {
     const opened = listen(socket);
     // the phone's revocation leaves the socket the laptop opened, whatever it claimed
     await cellOf(accountId).severDevice(phone.deviceId);
-    expect(await closedWithin(opened, 300)).toBe("open");
+    await expect(closedWithin(opened, 300)).resolves.toBe("open");
     await cellOf(accountId).severDevice(laptop.deviceId);
-    expect(await opened.closed).toBe(SOCKET_REVOKED_CLOSE_CODE);
+    await expect(opened.closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
   });
 
   it("closes its sockets at a deletion's tombstone, and refuses another while a credential still verifies", async () => {
@@ -222,7 +222,7 @@ describe("the account's socket", () => {
       const tombstone = ACCOUNT_PURGE_STEPS.find((step) => step.name === "tombstone");
       await tombstone?.run({ accountId, ctx: state, email: "socket-deleted@example.test", env });
     });
-    expect(await opened.closed).toBe(1001);
+    await expect(opened.closed).resolves.toBe(1001);
     const refused = await drained(
       upgrade(`${V1_SOCKET_PATH}?ticket=${encodeURIComponent(ticket)}`),
     );
@@ -235,6 +235,6 @@ describe("the account's socket", () => {
     await evictDurableObject(cellOf(accountId), { webSockets: "hibernate" });
     const head = await writeInCell(accountId);
     await until(() => opened.frames.length > 0);
-    expect(opened.frames).toEqual([{ head, type: "library" }]);
+    expect(opened.frames).toStrictEqual([{ head, type: "library" }]);
   });
 });

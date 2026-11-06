@@ -110,7 +110,7 @@ describe("the rich-block lock refuses every edit inside a locked block", () => {
     editor.tf.setNodes({ value: "{}" }, { at });
     editor.tf.insertText("typed", { at: { offset: 0, path: [...at, 0] }, voids: true });
 
-    expect(snapshot(editor)).toEqual(before);
+    expect(snapshot(editor)).toStrictEqual(before);
   });
 
   it.each([
@@ -127,7 +127,7 @@ describe("the rich-block lock refuses every edit inside a locked block", () => {
     editor.tf.insertBreak();
     editor.tf.setNodes({ type: "h1" }, { at: at.slice(0, -1) });
 
-    expect(snapshot(editor)).toEqual(before);
+    expect(snapshot(editor)).toStrictEqual(before);
   });
 
   it("a tab keeps its label and a column its width", () => {
@@ -141,7 +141,7 @@ describe("the rich-block lock refuses every edit inside a locked block", () => {
       { at: [...topLevelPath(editor, "tab_group"), 2] },
     );
 
-    expect(snapshot(editor)).toEqual(before);
+    expect(snapshot(editor)).toStrictEqual(before);
   });
 
   // Slate merges the paragraph into the group's last block, a move and a merge inside the lock
@@ -158,7 +158,7 @@ describe("the rich-block lock refuses every edit inside a locked block", () => {
 
     editor.tf.deleteBackward("character");
 
-    expect(snapshot(editor)).toEqual(before);
+    expect(snapshot(editor)).toStrictEqual(before);
   });
 
   it("typing beside a locked block changes only that paragraph", () => {
@@ -257,7 +257,7 @@ describe("a locked block's controls", () => {
     });
 
     expect(second.closest("[data-tab-panel]")?.className).not.toContain("hidden");
-    expect(applied).toEqual([]);
+    expect(applied).toStrictEqual([]);
 
     act(() => {
       editor.tf.insertText("!", { at: { offset: 0, path: textPath(editor, "before") } });

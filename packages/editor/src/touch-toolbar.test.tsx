@@ -18,8 +18,13 @@ import { TOUCH_ACTIONS } from "@repo/editor/touch-toolbar";
 
 import { EditorHarness } from "./test-support/editor-harness";
 
+// oxlint-disable-next-line vitest/prefer-import-in-mock -- the stub stands in for sonner's toast alone, which the typed import() form refuses unless the whole module is stubbed
 vi.mock("@repo/ui/components/sonner", () => ({
-  toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), warning: vi.fn() }),
+  toast: Object.assign(vi.fn<() => void>(), {
+    error: vi.fn<() => void>(),
+    success: vi.fn<() => void>(),
+    warning: vi.fn<() => void>(),
+  }),
 }));
 
 const { toast } = await import("@repo/ui/components/sonner");
@@ -183,7 +188,11 @@ describe("the touch toolbar", () => {
 const hostAnswering = (answer: boolean) => {
   const create = vi.fn<AnnotationActions["create"]>(async () => await Promise.resolve(answer));
   const edit = vi.fn<AnnotationActions["edit"]>(async () => await Promise.resolve(true));
-  return { create, edit, host: { annotations: { create, edit, open: vi.fn() } } };
+  return {
+    create,
+    edit,
+    host: { annotations: { create, edit, open: vi.fn<AnnotationActions["open"]>() } },
+  };
 };
 
 // slate tells its listeners on a microtask, so the toolbar redraws for a selection a turn later
@@ -249,7 +258,7 @@ describe("a highlight from the touch toolbar", () => {
 
     await writeNote("  why this?  ", "Highlight");
 
-    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledOnce();
     const [id, quote] = create.mock.calls[0] ?? [];
     expect(quote).toBe("one");
     await vi.waitFor(() => {
@@ -265,7 +274,7 @@ describe("a highlight from the touch toolbar", () => {
     press(HIGHLIGHT_SHORTCUT.label);
     await writeNote("why?", "Highlight");
 
-    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledOnce();
     expect(serializeNote(editor)).toBe("one two\n");
     expect(edit).not.toHaveBeenCalled();
   });
@@ -308,7 +317,7 @@ describe("a highlight from the touch toolbar", () => {
     press(HIGHLIGHT_SHORTCUT.label);
     await writeNote("   ", "Highlight");
 
-    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledOnce();
     const [id] = create.mock.calls[0] ?? [];
     expect(serializeNote(editor)).toBe(`%%i:${String(id)}:start%%one%%i:${String(id)}:end%% two\n`);
     await Promise.resolve();

@@ -23,7 +23,7 @@ import { generateLongNote } from "./test-support/markdown-doc-generator";
 // insertion, so a renderer that builds through `document.createElement` pays the whole DOM per
 // node: minutes at this size. It renders a block once as it mounts, never on a keystroke
 // elsewhere, so here it would measure jsdom.
-vi.mock("katex", () => ({ render: () => {} }));
+vi.mock(import("katex"), () => ({ render: () => {} }));
 
 const SEED = 704;
 const LONG_LINES = 10_000;
@@ -225,11 +225,11 @@ const expectBudget = (
   expect(
     over,
     `${moment} walked the whole note through ${over.join(", ")}; its budget is ${String(allowed.length)} passes, ${allowed.join(", ")}. Take the pass off this path (a cache keyed by the top-level block, as toc.tsx keeps, walks only the block that changed), or add a row with the reason it must run.`,
-  ).toEqual([]);
+  ).toStrictEqual([]);
   expect(
     stale,
     `${stale.join(", ")} no longer walk the whole note on ${moment}; drop the rows so the budget tightens.`,
-  ).toEqual([]);
+  ).toStrictEqual([]);
 };
 
 interface OpenNote {
@@ -472,6 +472,6 @@ describe("the save behind a settle", () => {
     expect(
       unregistered,
       `serializing resolved a plugin for ${unregistered.join(", ")}, keys no plugin registers; each is two deep merges per text node (patches/@platejs__core@53.3.15.patch)`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });

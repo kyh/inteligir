@@ -48,12 +48,12 @@ describe(`${ROOT_GUIDE} § Decisions`, () => {
       { gone: indexed.filter((file) => !tracked.includes(file)) },
       `${ROOT_GUIDE} § Decisions indexes a file that is not tracked.\n` +
         `  fix: repoint the entry at the file's path, or delete it with the file`,
-    ).toEqual({ gone: [] });
+    ).toStrictEqual({ gone: [] });
     expect(
       { unindexed: tracked.filter((file) => !indexed.includes(file)) },
       `a CLAUDE.md below the root has no line in ${ROOT_GUIDE} § Decisions, so an agent that never opened its directory cannot find it.\n` +
         '  fix: add "- [`<dir>/CLAUDE.md`](<dir>/CLAUDE.md) — <what it governs>" to the index',
-    ).toEqual({ unindexed: [] });
+    ).toStrictEqual({ unindexed: [] });
   });
 
   it("leaves no decision in the root", () => {
@@ -66,6 +66,6 @@ describe(`${ROOT_GUIDE} § Decisions`, () => {
       decisionsSection().filter((line) => DECISION_GROUP.test(line)),
       `${ROOT_GUIDE} § Decisions holds a group or a bullet of its own.\n` +
         `  fix: move it to the CLAUDE.md beside the code it governs`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });

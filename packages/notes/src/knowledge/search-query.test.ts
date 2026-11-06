@@ -12,13 +12,13 @@ const plans = (query: string): string[] =>
 
 const plan = (query: string): string | undefined => plans(query)[0];
 
-describe("tokenize", () => {
+describe(tokenize, () => {
   it("lowercases, folds diacritics, and splits on non-word runs", () => {
-    expect(tokenize("Hello, Wörld-42!")).toEqual(["hello", "world", "42"]);
-    expect(tokenize("Acción Łódź İstanbul")).toEqual(["accion", "łodz", "istanbul"]);
+    expect(tokenize("Hello, Wörld-42!")).toStrictEqual(["hello", "world", "42"]);
+    expect(tokenize("Acción Łódź İstanbul")).toStrictEqual(["accion", "łodz", "istanbul"]);
     // unicode61 does not fold these either
-    expect(tokenize("Straße søster 东京")).toEqual(["straße", "søster", "东京"]);
-    expect(tokenize("")).toEqual([]);
+    expect(tokenize("Straße søster 东京")).toStrictEqual(["straße", "søster", "东京"]);
+    expect(tokenize("")).toStrictEqual([]);
   });
 });
 
@@ -35,25 +35,25 @@ describe("stemming", () => {
   });
 
   it("gives every term the stem a whole-word match asks for", () => {
-    expect(planSearchQuery("interviewing candidates")[0]?.terms).toEqual([
+    expect(planSearchQuery("interviewing candidates")[0]?.terms).toStrictEqual([
       { prefix: false, stem: "interview", token: "interviewing" },
       { prefix: true, stem: "candid", token: "candidates" },
     ]);
   });
 
   it("keeps the typed term's literal token, which is what prefix-matches", () => {
-    expect(planSearchQuery("runn")[0]?.terms).toEqual([
+    expect(planSearchQuery("runn")[0]?.terms).toStrictEqual([
       { prefix: true, stem: "runn", token: "runn" },
     ]);
   });
 });
 
-describe("planSearchQuery", () => {
+describe(planSearchQuery, () => {
   it("has no plan at all for a query with no tokens", () => {
-    expect(plans("")).toEqual([]);
-    expect(plans("   ")).toEqual([]);
+    expect(plans("")).toStrictEqual([]);
+    expect(plans("   ")).toStrictEqual([]);
     // every FTS5 metacharacter
-    expect(plans('*^:-()"')).toEqual([]);
+    expect(plans('*^:-()"')).toStrictEqual([]);
   });
 
   it("requires every term of a short lookup", () => {
@@ -72,14 +72,14 @@ describe("planSearchQuery", () => {
   });
 
   it("keeps a query that is nothing but stopwords, as a conjunction", () => {
-    expect(plans("how do I")).toEqual(["how AND do AND i*"]);
-    expect(plans("the")).toEqual(["the*"]);
+    expect(plans("how do I")).toStrictEqual(["how AND do AND i*"]);
+    expect(plans("the")).toStrictEqual(["the*"]);
   });
 
   it("puts a relaxed plan behind a lookup, and nothing behind a sentence", () => {
-    expect(plans("deploy runbook")).toEqual(["deploy AND runbook*", "deploy OR runbook*"]);
+    expect(plans("deploy runbook")).toStrictEqual(["deploy AND runbook*", "deploy OR runbook*"]);
     expect(plans("how do I stop feeling burnt out at work")).toHaveLength(1);
-    expect(plans("sourdough")).toEqual(["sourdough*"]);
+    expect(plans("sourdough")).toStrictEqual(["sourdough*"]);
   });
 
   it("prefix-matches the token still being typed, and only that one", () => {

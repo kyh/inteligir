@@ -258,8 +258,8 @@ describe("an Obsidian vault read into the library", () => {
   const project = byTitle(library, "Project X");
 
   it("skips Obsidian's settings and reads the highlights' store as no item", () => {
-    expect(library.skipped).toEqual([".obsidian/app.json"]);
-    expect(library.items.map((item) => item.fields.title).toSorted()).toEqual([
+    expect(library.skipped).toStrictEqual([".obsidian/app.json"]);
+    expect(library.items.map((item) => item.fields.title).toSorted()).toStrictEqual([
       "Daily",
       "Project X",
       "Q3 report",
@@ -300,7 +300,7 @@ describe("an Obsidian vault read into the library", () => {
     );
     expect(
       links.map(({ alias, blockRef, itemId, title }) => ({ alias, blockRef, itemId, title })),
-    ).toEqual([
+    ).toStrictEqual([
       { alias: undefined, blockRef: "goal", itemId: PROJECT_ID, title: "Project X" },
       { alias: "the project", blockRef: undefined, itemId: PROJECT_ID, title: "Project X" },
       { alias: undefined, blockRef: undefined, itemId: PROJECT_ID, title: "Project X" },
@@ -310,7 +310,7 @@ describe("an Obsidian vault read into the library", () => {
   });
 
   it("names a block by its `^ref`, on its own line or at its end", () => {
-    expect(project.blocks.map(({ block }) => [block.type, block.ref])).toEqual([
+    expect(project.blocks.map(({ block }) => [block.type, block.ref])).toStrictEqual([
       ["p", "goal"],
       ["table", "tbl"],
     ]);
@@ -321,7 +321,7 @@ describe("an Obsidian vault read into the library", () => {
     const nodes = nodesOf(daily);
     const marker = nodes.find((node) => "type" in node && node.type === "annotationMarker");
     expect(marker).toMatchObject({ edge: "start" });
-    expect(Object.values(daily.annotations)).toEqual([
+    expect(Object.values(daily.annotations)).toStrictEqual([
       {
         createdAt: CODEC_NOW / 1000,
         quote: "important",
@@ -330,7 +330,7 @@ describe("an Obsidian vault read into the library", () => {
         updatedAt: CODEC_NOW / 1000,
       },
     ]);
-    expect(nodes.filter((node) => "type" in node && node.type === "opaque")).toEqual([
+    expect(nodes.filter((node) => "type" in node && node.type === "opaque")).toStrictEqual([
       { children: [{ text: "" }], source: "%%not shown%%", type: "opaque" },
     ]);
     expect(textOf(daily)).toContain(" under #log and #log/today.");
@@ -371,10 +371,10 @@ describe("an Obsidian vault read into the library", () => {
       coverSha: shaOf("assets/covers/0123456789abcdef.jpg"),
       fetchState: "filled",
     });
-    expect(page.blocks.map(({ section }) => section)).toEqual(["article"]);
+    expect(page.blocks.map(({ section }) => section)).toStrictEqual(["article"]);
     // the page's hashtags are the page's text, and its highlight kept from the store
     expect(textOf(page)).toContain("with #hashtag text.");
-    expect(Object.keys(page.annotations)).toEqual(["h1"]);
+    expect(Object.keys(page.annotations)).toStrictEqual(["h1"]);
   });
 });
 
@@ -483,7 +483,7 @@ describe("export, then import, gives the library back", () => {
     );
     // every file under the name it was saved under, so a canvas still opens as one; a cover, a
     // page copy and an image a note embeds by its bytes alone, under their bytes' own names
-    expect([...bytes.keys()].toSorted()).toEqual(
+    expect([...bytes.keys()].toSorted()).toStrictEqual(
       [
         "assets/Q3 report.docx",
         "assets/Untitled.base",
@@ -496,7 +496,7 @@ describe("export, then import, gives the library back", () => {
       ].toSorted(),
     );
     const second = readFolder(texts, bytes);
-    expect(contentOf(second)).toEqual(contentOf(first));
+    expect(contentOf(second)).toStrictEqual(contentOf(first));
     expect(second.rules).toBe(first.rules);
   });
 });

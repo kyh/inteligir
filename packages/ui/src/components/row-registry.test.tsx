@@ -308,6 +308,6 @@ describe("the hover pill", () => {
     hoverRow(3);
     rendered.length = 0;
     hoverRow(4);
-    expect(new Set(rendered)).toEqual(new Set(["row3", "row4"]));
+    expect(new Set(rendered)).toStrictEqual(new Set(["row3", "row4"]));
   });
 });

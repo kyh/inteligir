@@ -42,20 +42,26 @@ describe("placing a quote over the canonical corpus", () => {
     "finds every placed id in the text, and its passage holds the quote",
     { timeout: 30_000 },
     () => {
-      let placedCount = 0;
-      for (const { content, id, quote, name } of cases) {
-        const placed = placeQuotes(content, [{ id, quote }], { final: false });
-        if (!placed.placed.includes(id)) {
-          expect(placed.missing, `${name}: ${quote}`).toEqual([id]);
-          continue;
-        }
-        placedCount += 1;
+      const placements = cases.map((entry) => ({
+        ...entry,
+        placed: placeQuotes(entry.content, [{ id: entry.id, quote: entry.quote }], {
+          final: false,
+        }),
+      }));
+      const landed = placements.filter(({ id, placed }) => placed.placed.includes(id));
+      // a quote not placed is named missing, and nothing else is
+      for (const { id, name, placed, quote } of placements.filter(
+        (placement) => !landed.includes(placement),
+      )) {
+        expect(placed.missing, `${name}: ${quote}`).toStrictEqual([id]);
+      }
+      for (const { id, name, placed, quote } of landed) {
         expect(markerRootIds(placed.content).has(id), `${name}: ${quote}`).toBe(true);
         expect(annotationPassages(placed.content).get(id), `${name}: ${quote}`).toContain(
           fold(quote),
         );
       }
-      expect(placedCount).toBeGreaterThan(cases.length * 0.9);
+      expect(landed.length).toBeGreaterThan(cases.length * 0.9);
     },
   );
 
@@ -63,7 +69,7 @@ describe("placing a quote over the canonical corpus", () => {
   it("is deterministic: the same input places the same bytes", { timeout: 30_000 }, () => {
     for (const { content, id, quote } of cases.slice(0, 120)) {
       const first = placeQuotes(content, [{ id, quote }], { final: false });
-      expect(placeQuotes(content, [{ id, quote }], { final: false })).toEqual(first);
+      expect(placeQuotes(content, [{ id, quote }], { final: false })).toStrictEqual(first);
     }
   });
 });
@@ -71,7 +77,7 @@ describe("placing a quote over the canonical corpus", () => {
 describe("the text a person reads, over the canonical corpus", () => {
   it("finds the markers the dialect's own parse finds", () => {
     for (const { content, name } of canonicalCorpus()) {
-      expect(new Set(projectPassages(content).markers.keys()), name).toEqual(
+      expect(new Set(projectPassages(content).markers.keys()), name).toStrictEqual(
         markerRootIds(content),
       );
     }

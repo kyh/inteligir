@@ -18,7 +18,7 @@ describe("the transclusion kit's static renderers", () => {
       missing,
       `void plugin(s) ${missing.join(", ")} have no row in STATIC_COMPONENTS ` +
         "(packages/editor/src/transclusion.tsx); an embed would draw them empty",
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("keys every row on a plugin BASE_KIT still carries", () => {
@@ -26,6 +26,6 @@ describe("the transclusion kit's static renderers", () => {
     expect(
       stale,
       `STATIC_COMPONENTS row(s) ${stale.join(", ")} name no BASE_KIT plugin, so they never render`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });

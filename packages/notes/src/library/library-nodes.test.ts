@@ -162,6 +162,6 @@ describe("the persisted node set", () => {
 
   it("stores what it parses as written", () => {
     const [first] = EVERY_BLOCK;
-    expect(storableBlockSchema.parse(first)).toEqual(first);
+    expect(storableBlockSchema.parse(first)).toStrictEqual(first);
   });
 });

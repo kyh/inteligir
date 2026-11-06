@@ -36,11 +36,11 @@ describe("what the cloud never asks", () => {
     ["not an address"],
   ])("refuses %s, off the web or off its ports", async (url) => {
     const web = serveWeb({});
-    expect(await fetchPage(asking(url))).toEqual({
+    await expect(fetchPage(asking(url))).resolves.toStrictEqual({
       failure: { kind: "refused", refusal: "reserved" },
       ok: false,
     });
-    expect(web.asked).toEqual([]);
+    expect(web.asked).toStrictEqual([]);
   });
 
   it.each([
@@ -63,22 +63,22 @@ describe("what the cloud never asks", () => {
     ["http://[::ffff:192.168.0.1]/"],
   ])("refuses %s, a name for private space, as the saved address's own place", async (url) => {
     const web = serveWeb({});
-    expect(await fetchPage(asking(url))).toEqual({
+    await expect(fetchPage(asking(url))).resolves.toStrictEqual({
       failure: { kind: "refused", refusal: "private-network" },
       ok: false,
     });
-    expect(web.asked).toEqual([]);
+    expect(web.asked).toStrictEqual([]);
   });
 
   it.each([["http://192.0.2.10/post"], ["http://203.0.113.1/"], ["http://[2001:db8::1]/"]])(
     "refuses %s, an address no host holds, as no address a page is read from",
     async (url) => {
       const web = serveWeb({});
-      expect(await fetchPage(asking(url))).toEqual({
+      await expect(fetchPage(asking(url))).resolves.toStrictEqual({
         failure: { kind: "refused", refusal: "reserved" },
         ok: false,
       });
-      expect(web.asked).toEqual([]);
+      expect(web.asked).toStrictEqual([]);
     },
   );
 
@@ -87,9 +87,13 @@ describe("what the cloud never asks", () => {
       "http://93.184.216.34/post": htmlPage("<p>an address</p>"),
       "http://[2606:4700:4700::1111]/": htmlPage("<p>a v6 address</p>"),
     });
-    expect(await fetchPage(asking("http://93.184.216.34/post"))).toMatchObject({ ok: true });
-    expect(await fetchPage(asking("http://[2606:4700:4700::1111]/"))).toMatchObject({ ok: true });
-    expect(web.asked.map((hop) => hop.url)).toEqual([
+    await expect(fetchPage(asking("http://93.184.216.34/post"))).resolves.toMatchObject({
+      ok: true,
+    });
+    await expect(fetchPage(asking("http://[2606:4700:4700::1111]/"))).resolves.toMatchObject({
+      ok: true,
+    });
+    expect(web.asked.map((hop) => hop.url)).toStrictEqual([
       "http://93.184.216.34/post",
       "http://[2606:4700:4700::1111]/",
     ]);
@@ -99,7 +103,7 @@ describe("what the cloud never asks", () => {
     const web = serveWeb({ "https://pages.example/post": htmlPage("<p>hi</p>") });
     const fetched = await fetchPage(asking("https://someone:secret@pages.example/post"));
     expect(fetched.ok).toBe(true);
-    expect(web.asked.map((hop) => hop.url)).toEqual(["https://pages.example/post"]);
+    expect(web.asked.map((hop) => hop.url)).toStrictEqual(["https://pages.example/post"]);
     const [hop] = web.asked;
     expect(hop?.headers.get("authorization")).toBeNull();
     expect(hop?.headers.get("cookie")).toBeNull();
@@ -116,7 +120,7 @@ describe("a redirect", () => {
     });
     const fetched = await fetchPage(asking("https://a.example/start"));
     expect(fetched).toMatchObject({ ok: true, page: { url: "https://b.example/end" } });
-    expect(web.asked.map((hop) => hop.url)).toEqual([
+    expect(web.asked.map((hop) => hop.url)).toStrictEqual([
       "https://a.example/start",
       "https://a.example/next",
       "https://b.example/end",
@@ -132,18 +136,18 @@ describe("a redirect", () => {
       "http://[::ffff:a00:5]/",
     ]) {
       const web = serveWeb({ "https://a.example/start": redirect(location) });
-      expect(await fetchPage(asking("https://a.example/start"))).toEqual({
+      await expect(fetchPage(asking("https://a.example/start"))).resolves.toStrictEqual({
         failure: { kind: "refused", refusal: "private-from-public" },
         ok: false,
       });
-      expect(web.asked.map((hop) => hop.url)).toEqual(["https://a.example/start"]);
+      expect(web.asked.map((hop) => hop.url)).toStrictEqual(["https://a.example/start"]);
       vi.restoreAllMocks();
     }
   });
 
   it("off the web is refused too", async () => {
     serveWeb({ "https://a.example/start": redirect("ftp://a.example/file") });
-    expect(await fetchPage(asking("https://a.example/start"))).toEqual({
+    await expect(fetchPage(asking("https://a.example/start"))).resolves.toStrictEqual({
       failure: { kind: "refused", refusal: "reserved" },
       ok: false,
     });
@@ -157,7 +161,7 @@ describe("a redirect", () => {
       ]),
     );
     const web = serveWeb(routes);
-    expect(await fetchPage(asking("https://loop.example/0"))).toEqual({
+    await expect(fetchPage(asking("https://loop.example/0"))).resolves.toStrictEqual({
       failure: { kind: "redirects" },
       ok: false,
     });
@@ -189,11 +193,11 @@ describe("the caps", () => {
         new Response("x".repeat(10), { headers: { "content-length": "999999" } }),
     });
     const refuse = { maxBytes: 1000, overflow: "refuse" } as const;
-    expect(await fetchPage(asking("https://big.example/declared", refuse))).toEqual({
+    await expect(fetchPage(asking("https://big.example/declared", refuse))).resolves.toStrictEqual({
       failure: { bytes: 999_999, kind: "too-large" },
       ok: false,
     });
-    expect(await fetchPage(asking("https://big.example/counted", refuse))).toEqual({
+    await expect(fetchPage(asking("https://big.example/counted", refuse))).resolves.toStrictEqual({
       failure: { bytes: 1400, kind: "too-large" },
       ok: false,
     });
@@ -206,7 +210,7 @@ describe("the caps", () => {
           headers: { "content-type": 'Text/HTML; charset="ISO-8859-1"' },
         }),
     });
-    expect(await fetchPage(asking("https://pages.example/"))).toMatchObject({
+    await expect(fetchPage(asking("https://pages.example/"))).resolves.toMatchObject({
       ok: true,
       page: { charset: "ISO-8859-1", mediaType: "text/html", truncated: false },
     });
@@ -219,11 +223,11 @@ describe("a page that did not answer", () => {
       "https://busy.example/": htmlPage("", 429),
       "https://gone.example/": htmlPage("", 410),
     });
-    expect(await fetchPage(asking("https://gone.example/"))).toEqual({
+    await expect(fetchPage(asking("https://gone.example/"))).resolves.toStrictEqual({
       failure: { kind: "status", reason: "gone", status: 410, transient: false },
       ok: false,
     });
-    expect(await fetchPage(asking("https://busy.example/"))).toEqual({
+    await expect(fetchPage(asking("https://busy.example/"))).resolves.toStrictEqual({
       failure: { kind: "status", reason: "too many requests", status: 429, transient: true },
       ok: false,
     });
@@ -238,7 +242,7 @@ describe("a page that did not answer", () => {
       return new Response("<p>too late</p>", { headers: { "content-type": "text/html" } });
     });
     const patient = pageFetch({ deadlineMs: 20 });
-    expect(await patient(asking("https://slow.example/"))).toEqual({
+    await expect(patient(asking("https://slow.example/"))).resolves.toStrictEqual({
       failure: { kind: "timeout" },
       ok: false,
     });
@@ -246,12 +250,12 @@ describe("a page that did not answer", () => {
       { fetch: patient, keep: async () => await Promise.resolve(null) },
       { accountId: "a", coverHint: null, itemId: "i", url: "https://slow.example/" },
     );
-    expect(read).toEqual({ kind: "retry", sentence: "The page took too long to answer." });
+    expect(read).toStrictEqual({ kind: "retry", sentence: "The page took too long to answer." });
   });
 
   it("says a connection that failed as worth a later try", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Network connection lost."));
-    expect(await fetchPage(asking("https://down.example/"))).toEqual({
+    await expect(fetchPage(asking("https://down.example/"))).resolves.toStrictEqual({
       failure: { kind: "unreachable", transient: true },
       ok: false,
     });

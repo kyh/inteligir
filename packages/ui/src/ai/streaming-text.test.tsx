@@ -12,7 +12,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("StreamingText", () => {
+describe(StreamingText, () => {
   it("commits a text change once when the caller grows the text itself", () => {
     const onRender = vi.fn<ProfilerOnRenderCallback>();
     const view = (text: string) => (
@@ -24,7 +24,7 @@ describe("StreamingText", () => {
     onRender.mockClear();
 
     rerender(view("Reading the note"));
-    expect(onRender).toHaveBeenCalledTimes(1);
+    expect(onRender).toHaveBeenCalledOnce();
     expect(screen.getByText("Reading the note")).toBeTruthy();
   });
 

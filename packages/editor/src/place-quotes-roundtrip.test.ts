@@ -34,15 +34,17 @@ describe("the editor keeps a placed highlight's bytes", () => {
   it.each(cases)("$name: “$quote”", ({ content, id, quote }) => {
     const placed = placeQuotes(content, [{ id, quote }], { final: false });
     const canonical = toCanonical(placed.content);
-    expect(markerRootIds(canonical)).toEqual(markerRootIds(placed.content));
+    expect(markerRootIds(canonical)).toStrictEqual(markerRootIds(placed.content));
     const rewritten = rewrittenLines(placed.content, canonical);
     expect(
       rewritten.every((line) => TABLE_ROW.test(line)),
       rewritten.join("\n"),
     ).toBe(true);
-    if (rewritten.length === 0) {
-      expect(analyzeMarkdown(placed.content).kind).toBe("canonical");
-    }
+    // a placement the editor rewrote no line of is canonical as it stands
+    expect(
+      rewritten.length > 0 || analyzeMarkdown(placed.content).kind === "canonical",
+      placed.content,
+    ).toBe(true);
   });
 });
 
@@ -96,8 +98,8 @@ const fold = (quote: string): string => quote.replaceAll(/\s+/gu, " ").trim();
 
 const highlighted = (quote: string): string => {
   const placed = placeQuotes("", [{ id: "h1", quote }], { final: true });
-  expect(placed.appended).toEqual(["h1"]);
-  expect(markerRootIds(placed.content)).toEqual(new Set(["h1"]));
+  expect(placed.appended).toStrictEqual(["h1"]);
+  expect(markerRootIds(placed.content)).toStrictEqual(new Set(["h1"]));
   expect(annotationPassages(placed.content).get("h1")).toBe(fold(quote));
   return placed.content;
 };
@@ -128,15 +130,15 @@ describe("a quote under Highlights reads back as itself, in the editor's own spe
 // highlight and its markers survive
 describe("a quote packed with bare urls keeps its highlight through the editor", () => {
   const random = mulberry32(99);
-  const quotes = Array.from({ length: 200 }, () =>
-    hostileQuote(random, [...WORDS, ...URLS]),
-  ).filter((quote) => quote !== "");
+  // a note the editor cannot settle is left alone, so the quotes asked are those whose note saves
+  const saved = Array.from({ length: 200 }, () => hostileQuote(random, [...WORDS, ...URLS])).filter(
+    (quote) => {
+      const { kind } = analyzeMarkdown(highlighted(quote));
+      return quote !== "" && (kind === "canonical" || kind === "normalizes");
+    },
+  );
 
-  it.each(quotes)("%s", (quote) => {
-    const content = highlighted(quote);
-    const { kind } = analyzeMarkdown(content);
-    if (kind === "canonical" || kind === "normalizes") {
-      expect(markerRootIds(toCanonical(content))).toEqual(new Set(["h1"]));
-    }
+  it.each(saved)("%s", (quote) => {
+    expect(markerRootIds(toCanonical(highlighted(quote)))).toStrictEqual(new Set(["h1"]));
   });
 });

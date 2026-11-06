@@ -36,38 +36,38 @@ describe("an image's src, read and resolved as the knowledge index does", () => 
   it("fetches a moved note's re-based, percent-encoded url from beside the note", async () => {
     const { fetched } = mountImage("b/c/doc.md", "../../a/x%20y.png");
     await waitFor(() => {
-      expect(fetched).toEqual(["a/x y.png"]);
+      expect(fetched).toStrictEqual(["a/x y.png"]);
     });
   });
 
   it("falls back to the decoded url as a root path while the listing lacks the file", async () => {
     const { fetched } = mountImage("b/c/doc.md", "assets/new%20shot.png");
     await waitFor(() => {
-      expect(fetched).toEqual(["assets/new shot.png"]);
+      expect(fetched).toStrictEqual(["assets/new shot.png"]);
     });
   });
 
   it("loads no http(s) src, which the page's CSP refuses, and asks the host for nothing", async () => {
     const url = "HTTPS://example.com/shot.png";
     const { fetched } = mountImage("b/c/doc.md", url);
-    expect(await screen.findByText("Web content, not loaded")).toBeTruthy();
+    await expect(screen.findByText("Web content, not loaded")).resolves.toBeTruthy();
     expect(screen.getByText(url)).toBeTruthy();
     expect(screen.queryByRole("img")).toBeNull();
-    expect(fetched).toEqual([]);
+    expect(fetched).toStrictEqual([]);
   });
 
   it("asks the host for nothing when no vault path answers the url", async () => {
     const { fetched } = mountImage("b/c/doc.md", "mailto:a@b.c");
-    expect(await screen.findByText("Missing image: mailto:a@b.c")).toBeTruthy();
-    expect(fetched).toEqual([]);
+    await expect(screen.findByText("Missing image: mailto:a@b.c")).resolves.toBeTruthy();
+    expect(fetched).toStrictEqual([]);
   });
 
   it("draws an embed of a file that is not a picture as a card naming it, fetching nothing", async () => {
     const { fetched } = mountImage("b/c/doc.md", "../../assets/Lecture%20notes.pdf");
-    expect(await screen.findByText("Lecture notes.pdf")).toBeTruthy();
+    await expect(screen.findByText("Lecture notes.pdf")).resolves.toBeTruthy();
     expect(screen.getByRole("button", { name: "Open" })).toBeTruthy();
     expect(screen.queryByText(/Missing image/u)).toBeNull();
-    expect(fetched).toEqual([]);
+    expect(fetched).toStrictEqual([]);
   });
 
   it("opens the file in the host's own viewer where the host has one, reading no bytes", async () => {
@@ -76,13 +76,13 @@ describe("an image's src, read and resolved as the knowledge index does", () => 
     });
     fireEvent.click(await screen.findByRole("button", { name: "Open" }));
     expect(calls).toContainEqual({ action: "openFile", args: ["assets/Lecture notes.pdf"] });
-    expect(fetched).toEqual([]);
+    expect(fetched).toStrictEqual([]);
   });
 
   it("says a file the library does not hold is missing, and offers no Open", async () => {
     const { fetched } = mountImage("b/c/doc.md", "assets/gone.pdf");
-    expect(await screen.findByText("Not in your library")).toBeTruthy();
+    await expect(screen.findByText("Not in your library")).resolves.toBeTruthy();
     expect(screen.queryByRole("button", { name: "Open" })).toBeNull();
-    expect(fetched).toEqual([]);
+    expect(fetched).toStrictEqual([]);
   });
 });

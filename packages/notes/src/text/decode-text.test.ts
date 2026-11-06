@@ -12,7 +12,7 @@ const utf16le = (text: string): number[] =>
     return [unit % 256, Math.floor(unit / 256)];
   });
 
-describe("decodeText", () => {
+describe(decodeText, () => {
   it("reads UTF-8 when nothing names a charset", () => {
     expect(decodeText(utf8("<p>café — ok</p>"), null)).toBe("<p>café — ok</p>");
   });

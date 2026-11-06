@@ -7,7 +7,7 @@
 import { V1_EXPORTS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { evictDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 
 import { libraryIn, pngOf } from "../fill/test-support/fill-cell";
 import {
@@ -220,9 +220,10 @@ describe("an export", () => {
       expect(written).toMatchObject({ message: null, state: "ready" });
       expect(written.expiresAt).toBe((written.finishedAt ?? 0) + EXPORT_KEEP_MS);
       const zip = await zipIn(from, written.id);
-      expect(zip.length).toBe(written.bytes);
+      assert(written.bytes !== null, "a ready export names its size");
+      expect(zip).toHaveLength(written.bytes);
       const entries = await entriesOf(zip);
-      expect([...entries.keys()]).toEqual(
+      expect([...entries.keys()]).toStrictEqual(
         expect.arrayContaining([
           "AGENTS.md",
           "Beta.md",
@@ -234,7 +235,7 @@ describe("an export", () => {
       const into = newAccountId();
       const started = await startImport(into, { bytes: zip, mime: "application/zip" }, "markdown");
       await runImportToEnd(into, started.jobId);
-      expect(await importJobOf(into, started.jobId)).toMatchObject({
+      await expect(importJobOf(into, started.jobId)).resolves.toMatchObject({
         state: "done",
         unreadable: 0,
       });
@@ -242,9 +243,9 @@ describe("an export", () => {
       // the fixture holds what a faithful round trip must carry
       const link = before.items.find((item) => item.title === "A page worth reading");
       expect(link?.article).toHaveLength(2);
-      expect(link?.files.map(([role]) => role)).toEqual(["cover"]);
+      expect(link?.files.map(([role]) => role)).toStrictEqual(["cover"]);
       expect(before.highlights).toHaveLength(2);
-      expect(await summaryOf(into)).toEqual(before);
+      await expect(summaryOf(into)).resolves.toStrictEqual(before);
     },
   );
 
@@ -266,8 +267,9 @@ describe("an export", () => {
     expect(whole.runs).toBe(4);
     expect(piecemeal.runs).toBeGreaterThan(wholeEntries.size);
     const zip = await zipIn(accountId, piecemeal.export.id);
-    expect(zip.length).toBe(piecemeal.export.bytes);
-    expect(await entriesOf(zip)).toEqual(wholeEntries);
+    assert(piecemeal.export.bytes !== null, "a ready export names its size");
+    expect(zip).toHaveLength(piecemeal.export.bytes);
+    await expect(entriesOf(zip)).resolves.toStrictEqual(wholeEntries);
     // what the runs kept between them is let go with the export
     await inCell(cell, (state) => {
       expect(state.storage.sql.exec("SELECT count(*) AS n FROM export_rows").one().n).toBe(0);
@@ -333,11 +335,15 @@ describe("an export", () => {
       expect(whole.headers.get("content-disposition")).toMatch(
         /^attachment; filename="Library \d{4}-\d{2}-\d{2}\.zip"$/u,
       );
-      expect(new Uint8Array(await whole.arrayBuffer())).toEqual(await zipIn(accountId, written.id));
+      expect(new Uint8Array(await whole.arrayBuffer())).toStrictEqual(
+        await zipIn(accountId, written.id),
+      );
 
       const part = await exports.default.fetch(url, { headers: { ...auth, range: "bytes=0-3" } });
       expect(part.status).toBe(206);
-      expect(new Uint8Array(await part.arrayBuffer())).toEqual(new Uint8Array([0x50, 0x4b, 3, 4]));
+      expect(new Uint8Array(await part.arrayBuffer())).toStrictEqual(
+        new Uint8Array([0x50, 0x4b, 3, 4]),
+      );
 
       const signedOut = await drained(exports.default.fetch(url, { headers: buildHeaders() }));
       expect(signedOut.status).toBe(401);
@@ -356,7 +362,7 @@ describe("an export", () => {
         const { export: gone } = await libraryIn(state, accountId).exports.get({ id: written.id });
         expect(gone.state).toBe("expired");
       });
-      expect(await env.BLOBS.head(exportKey(accountId, written.id))).toBeNull();
+      await expect(env.BLOBS.head(exportKey(accountId, written.id))).resolves.toBeNull();
       const after = await drained(exports.default.fetch(url, { headers: auth }));
       expect(after.status).toBe(404);
     },

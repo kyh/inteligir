@@ -221,7 +221,7 @@ describe("no orphan @repo/ui exports", () => {
         `ALLOWED_EXPORTS with its reason (tools/repo-guards/src/ui-orphan-exports.test.ts):\n${orphans.join(
           "\n",
         )}`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("no ALLOWED_EXPORTS row outlives its export", () => {
@@ -240,6 +240,6 @@ describe("no orphan @repo/ui exports", () => {
     expect(
       stale,
       `ALLOWED_EXPORTS rows whose export is gone, is outside ${sweptDirs}, or now has a consumer — delete these:\n${stale.map((key) => `  ${key}`).join("\n")}`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });

@@ -60,7 +60,7 @@ describe("the headless page's reader", () => {
     const article = answer.kind === "read" ? answer.article : [];
     expect(article.length).toBeGreaterThan(0);
     const ords = article.map(({ ord }) => ord);
-    expect(ords).toEqual(ords.toSorted());
+    expect(ords).toStrictEqual(ords.toSorted());
     expect(new Set(article.map(({ block }) => block.id)).size).toBe(article.length);
   });
 

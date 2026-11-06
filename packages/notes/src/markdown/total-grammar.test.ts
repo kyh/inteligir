@@ -53,13 +53,17 @@ describe("a tag that cannot pair is kept as its own bytes", () => {
       ],
     ],
   ])("%s", (_name, md, expected) => {
-    expect(inline(parseBare(md))).toEqual(expected);
+    expect(inline(parseBare(md))).toStrictEqual(expected);
   });
 
   it("pairs nothing across a blank line: each paragraph keeps its own tag", () => {
     const root = parseBare("<Foo>\n\nnever closed\n\n</Foo>\n");
-    expect(root.children.map((node) => node.type)).toEqual(["paragraph", "paragraph", "paragraph"]);
-    expect(inline(root)).toEqual([["html", "<Foo>"]]);
+    expect(root.children.map((node) => node.type)).toStrictEqual([
+      "paragraph",
+      "paragraph",
+      "paragraph",
+    ]);
+    expect(inline(root)).toStrictEqual([["html", "<Foo>"]]);
   });
 
   it.each([
@@ -93,14 +97,13 @@ describe("a tag and its closer fold into one node", () => {
     const children = block?.type === "paragraph" ? block.children : [];
     const [outer, , underline] = children;
     expect(outer?.type).toBe("htmlElement");
-    expect(outer?.type === "htmlElement" ? outer.children.map((child) => child.type) : []).toEqual([
-      "html",
-      "text",
-    ]);
+    expect(
+      outer?.type === "htmlElement" ? outer.children.map((child) => child.type) : [],
+    ).toStrictEqual(["html", "text"]);
     expect(underline?.type).toBe("underline");
     expect(
       underline?.type === "underline" ? underline.children.map((child) => child.type) : [],
-    ).toEqual(["htmlElement"]);
+    ).toStrictEqual(["htmlElement"]);
   });
 
   it("spans an element from its opener to its closer", () => {
@@ -126,7 +129,7 @@ describe("`<` that opens no tag reads as what else reads it", () => {
   });
 
   it("reads `{` as prose: there are no expressions", () => {
-    expect(inline(parseBare("the JSON opens with {\n"))).toEqual([
+    expect(inline(parseBare("the JSON opens with {\n"))).toStrictEqual([
       ["text", "the JSON opens with {"],
     ]);
   });

@@ -10,7 +10,7 @@ import {
 
 describe("parseWikiBodyRange — escapes and tight-# anchors", () => {
   it("splits a tight # into the anchor", () => {
-    expect(parseWikiBodyRange("Note#Heading")).toEqual({
+    expect(parseWikiBodyRange("Note#Heading")).toStrictEqual({
       anchor: "Heading",
       target: "Note",
       targetRange: { end: 4, start: 0 },
@@ -18,21 +18,21 @@ describe("parseWikiBodyRange — escapes and tight-# anchors", () => {
   });
 
   it("a space-surrounded # is title text", () => {
-    expect(parseWikiBodyRange("A # B")).toEqual({
+    expect(parseWikiBodyRange("A # B")).toStrictEqual({
       target: "A # B",
       targetRange: { end: 5, start: 0 },
     });
   });
 
   it("a one-sided # is title text (C# Notes)", () => {
-    expect(parseWikiBodyRange("C# Notes")).toEqual({
+    expect(parseWikiBodyRange("C# Notes")).toStrictEqual({
       target: "C# Notes",
       targetRange: { end: 8, start: 0 },
     });
   });
 
   it("position 0 is an anchor regardless (pure-anchor link)", () => {
-    expect(parseWikiBodyRange("#sec")).toEqual({ anchor: "sec", target: "" });
+    expect(parseWikiBodyRange("#sec")).toStrictEqual({ anchor: "sec", target: "" });
   });
 
   it("an escaped # stays in the title, unescaped for resolution", () => {
@@ -40,7 +40,7 @@ describe("parseWikiBodyRange — escapes and tight-# anchors", () => {
     expect(parsed.target).toBe("My #1 Note");
     expect(parsed.anchor).toBeUndefined();
     // the range maps the raw slice, escapes included, which is what a rename rewrites
-    expect(parsed.targetRange).toEqual({ end: 11, start: 0 });
+    expect(parsed.targetRange).toStrictEqual({ end: 11, start: 0 });
   });
 
   it("an escaped backslash unescapes", () => {
@@ -57,7 +57,7 @@ describe("parseWikiBodyRange — escapes and tight-# anchors", () => {
   });
 });
 
-describe("serializeWikiBody", () => {
+describe(serializeWikiBody, () => {
   it("writes the plain spelling when it parses back", () => {
     expect(serializeWikiBody({ target: "note" })).toBe("note");
     expect(serializeWikiBody({ anchor: "sec", target: "note" })).toBe("note#sec");
@@ -102,7 +102,7 @@ describe("serializeWikiBody", () => {
           const label = JSON.stringify({ alias, anchor, target });
           expect(body, label).not.toBeNull();
           const parsed = parseWikiBody(body ?? "");
-          expect([parsed.target, parsed.anchor, parsed.alias], label).toEqual([
+          expect([parsed.target, parsed.anchor, parsed.alias], label).toStrictEqual([
             target,
             anchor,
             alias,
@@ -113,7 +113,7 @@ describe("serializeWikiBody", () => {
   });
 });
 
-describe("isUuidWikiAlias", () => {
+describe(isUuidWikiAlias, () => {
   it("matches the resolved-link uuid, either case", () => {
     expect(isUuidWikiAlias("9e64c3df-c1e2-4a4d-8c07-91528f422413")).toBe(true);
     expect(isUuidWikiAlias("9E64C3DF-C1E2-4A4D-8C07-91528F422413")).toBe(true);
@@ -126,7 +126,7 @@ describe("isUuidWikiAlias", () => {
   });
 });
 
-describe("wikiLinkLabel", () => {
+describe(wikiLinkLabel, () => {
   const uuid = "9e64c3df-c1e2-4a4d-8c07-91528f422413";
 
   it("shows the alias, else the target with its anchor", () => {

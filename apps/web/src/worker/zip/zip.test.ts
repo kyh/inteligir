@@ -63,7 +63,7 @@ describe("a zip this writer streams", () => {
       textFile("assets/raw.bin", "stored as it is", false),
       textFile("empty.md", ""),
     ]);
-    expect(await contents(bytes)).toEqual({
+    await expect(contents(bytes)).resolves.toStrictEqual({
       "Notes/Café.md": "# Café\n\nDeflated, and read back.\n".repeat(50),
       "assets/raw.bin": "stored as it is",
       "empty.md": "",
@@ -108,14 +108,14 @@ describe("a zip this writer streams", () => {
 
 describe("a zip another writer made", () => {
   it("reads as Python's zipfile wrote it, its folder entry left out", async () => {
-    expect(await contents(fromBase64(PYTHON_ZIP))).toEqual({
+    await expect(contents(fromBase64(PYTHON_ZIP))).resolves.toStrictEqual({
       "Notes/Café.md": "# Café\n\nA note written by another app.\n".repeat(3),
       "stored.txt": "stored as it is",
     });
   });
 
   it("leaves out a name that climbs out of the zip", async () => {
-    expect(await readZipEntries(sourceOf(fromBase64(CLIMBING_ZIP)))).toEqual([]);
+    await expect(readZipEntries(sourceOf(fromBase64(CLIMBING_ZIP)))).resolves.toStrictEqual([]);
   });
 
   it("is refused when it is no zip at all", async () => {

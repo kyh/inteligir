@@ -49,8 +49,8 @@ describe("what a paste or a drop holds", () => {
     const payload = payloadFrom(
       transfer({ data: { "text/uri-list": "https://example.com/photo.png" }, files: [image] }),
     );
-    expect(payload.files).toEqual([image]);
-    expect(payload.urls).toEqual([]);
+    expect(payload.files).toStrictEqual([image]);
+    expect(payload.urls).toStrictEqual([]);
   });
 
   it("refuses a folder and a file over the cap in the words the user reads", () => {
@@ -60,7 +60,7 @@ describe("what a paste or a drop holds", () => {
         folders: ["Trip"],
       }),
     );
-    expect(payload.files.map((file) => file.name)).toEqual(["notes.pdf"]);
+    expect(payload.files.map((file) => file.name)).toStrictEqual(["notes.pdf"]);
     expect(payload.refused).toHaveLength(2);
     expect(payload.refused[0]).toBe(FOLDER_REFUSAL);
     expect(payload.refused[1]).toContain("“Lecture.mp4”");
@@ -81,7 +81,7 @@ describe("what a paste or a drop holds", () => {
         },
       }),
     );
-    expect(payload.urls).toEqual([
+    expect(payload.urls).toStrictEqual([
       { title: null, url: "https://a.example/one" },
       { title: null, url: "https://b.example/two" },
     ]);
@@ -98,7 +98,7 @@ describe("what a paste or a drop holds", () => {
         },
       }),
     );
-    expect(payload.urls).toEqual([
+    expect(payload.urls).toStrictEqual([
       { title: "Anchor one", url: "https://a.example/one" },
       { title: "Firefox two", url: "https://b.example/two" },
     ]);
@@ -113,7 +113,7 @@ describe("what a paste or a drop holds", () => {
         },
       }),
     );
-    expect(payload.urls).toEqual([{ title: "A", url: "https://a.example" }]);
+    expect(payload.urls).toStrictEqual([{ title: "A", url: "https://a.example" }]);
     expect("ran" in window).toBe(false);
   });
 
@@ -121,13 +121,13 @@ describe("what a paste or a drop holds", () => {
     expect(
       payloadFrom(transfer({ data: { "text/plain": "https://a.example\n\nhttps://b.example" } }))
         .urls,
-    ).toEqual([
+    ).toStrictEqual([
       { title: null, url: "https://a.example" },
       { title: null, url: "https://b.example" },
     ]);
     expect(
       payloadFrom(transfer({ data: { "text/plain": "read https://a.example later" } })).urls,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("keeps at most the paste's cap of links", () => {
@@ -145,8 +145,8 @@ describe("what the file picker handed over", () => {
   it("holds a picked file to the same cap as a drop", () => {
     const kept = fileOf("a.pdf");
     const payload = filesPayload([kept, oversized("b.mov")]);
-    expect(payload.files).toEqual([kept]);
+    expect(payload.files).toStrictEqual([kept]);
     expect(payload.refused).toHaveLength(1);
-    expect(payload.urls).toEqual([]);
+    expect(payload.urls).toStrictEqual([]);
   });
 });

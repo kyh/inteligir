@@ -3,7 +3,7 @@ import { createRef } from "react";
 
 import { composeRefs } from "./compose-refs";
 
-describe("composeRefs", () => {
+describe(composeRefs, () => {
   it("writes the node into every shape a Ref can take", () => {
     const box = createRef<string>();
     const seen: (string | null)[] = [];
@@ -13,11 +13,11 @@ describe("composeRefs", () => {
 
     composed("node");
     expect(box.current).toBe("node");
-    expect(seen).toEqual(["node"]);
+    expect(seen).toStrictEqual(["node"]);
 
     composed(null);
     expect(box.current).toBeNull();
-    expect(seen).toEqual(["node", null]);
+    expect(seen).toStrictEqual(["node", null]);
   });
 
   it("writes a lone box through, so a forwarded ref can reach an element it does not name", () => {

@@ -21,6 +21,6 @@ describe("tests beside source", () => {
         `  rule: a test is <name>.test.ts beside the <name>.ts it tests, and a package's shared test code (harnesses, fakes, fixtures) is its test-support/ folder, so a module's tests are found in one place\n` +
         `  fix: git mv a suite to sit beside its module, a helper or fixture to the nearest test-support/, a snapshot to the __snapshots__/ beside its suite\n` +
         `${found.join("\n")}\n`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });

@@ -108,7 +108,7 @@ describe("the phone's EAS build", () => {
     expect(
       violations,
       `\n${violations.join("\n")}\n  rule: a lockfile is only frozen for the pnpm that wrote it\n  fix: set the profile's "pnpm" to ${pnpm}\n`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("runs on the node major the repo's engines name", () => {
@@ -122,7 +122,7 @@ describe("the phone's EAS build", () => {
     expect(
       violations,
       `\n${violations.join("\n")}\n  rule: EAS takes an exact version, and it must be one the repo is checked on\n  fix: an exact ${major}.<minor>.<patch>\n`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("floors the eas-cli version at the one the catalog pins", () => {

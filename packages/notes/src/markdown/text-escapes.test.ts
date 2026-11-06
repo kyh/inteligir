@@ -36,13 +36,13 @@ describe("a construct whose first character an escape wrote", () => {
     ["a formula pill", "Sum \\{{a|b}} here\n", "text Sum {{a|b}} here"],
     ["an annotation marker", "See \\%%i:c1:start%% here\n", "text See %%i:c1:start%% here"],
   ])("is text: %s", (_name, md, text) => {
-    expect(outlineOf(md)).toEqual(["  paragraph", `    ${text}`]);
+    expect(outlineOf(md)).toStrictEqual(["  paragraph", `    ${text}`]);
     expect(stringify(parseMdast(md).root)).toBe(md);
   });
 
   it("is text past a bare url GFM found in the same text, which splits it", () => {
     const md = "www\\.y.org2026-01-02) \\@2026-01-02-$\n";
-    expect(outlineOf(md)).toEqual([
+    expect(outlineOf(md)).toStrictEqual([
       "  paragraph",
       "    link",
       "      text www.y.org2026-01-02",
@@ -52,7 +52,7 @@ describe("a construct whose first character an escape wrote", () => {
 
   it("is text: a `:::` line inside a toggle, which would close it", () => {
     const md = ":::toggle\nsummary\n\n\\:::\n\nafter\n:::\n";
-    expect(outlineOf(md)).toEqual([
+    expect(outlineOf(md)).toStrictEqual([
       "  toggle",
       "    paragraph",
       "      text summary",
@@ -66,7 +66,7 @@ describe("a construct whose first character an escape wrote", () => {
 
   it("is text: a `=== Label` line inside tabs, which would open a panel", () => {
     const md = ":::tabs\n=== One\n\\=== Two\n:::\n";
-    expect(outlineOf(md)).toEqual([
+    expect(outlineOf(md)).toStrictEqual([
       "  tabGroup",
       "    tabPanel",
       "      paragraph",
@@ -80,7 +80,7 @@ describe("a construct whose first character an escape wrote", () => {
   });
 
   it("is text after a construct read earlier from the same text", () => {
-    expect(outlineOf(":::toggle\n{{a}} and\n\\:::\n:::\n")).toEqual([
+    expect(outlineOf(":::toggle\n{{a}} and\n\\:::\n:::\n")).toStrictEqual([
       "  toggle",
       "    paragraph",
       "      formulaPill",
@@ -107,7 +107,7 @@ describe("a text the next parse would read as a construct", () => {
       };
       const md = stringify(root);
       expect(md).toBe(`:::toggle\nsummary\n\n\\${line}\n:::\n`);
-      expect(outlineOf(md)).toEqual([
+      expect(outlineOf(md)).toStrictEqual([
         "  toggle",
         "    paragraph",
         "      text summary",

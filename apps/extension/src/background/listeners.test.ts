@@ -43,7 +43,7 @@ describe("the extension's own pages", () => {
     await vi.waitFor(() => {
       expect(answers).toMatchObject([{ connection: null, kind: "status" }]);
     });
-    expect(asked).toEqual([{ type: "status" }]);
+    expect(asked).toStrictEqual([{ type: "status" }]);
   });
 
   it("are the only senders it answers, and only with a message it parses", () => {
@@ -70,8 +70,8 @@ describe("the extension's own pages", () => {
     for (const [sender, message] of refused) {
       expect(listener(message, sender, respond), JSON.stringify([sender, message])).toBe(false);
     }
-    expect(answers).toEqual([]);
-    expect(asked).toEqual([]);
+    expect(answers).toStrictEqual([]);
+    expect(asked).toStrictEqual([]);
   });
 });
 
@@ -100,8 +100,8 @@ describe("the connect page", () => {
     await vi.waitFor(() => {
       expect(followed).toBe(1);
     });
-    expect(answers).toEqual([{ email: MINTED.email }]);
-    expect(await browser.storage.local.get(null)).toEqual({
+    expect(answers).toStrictEqual([{ email: MINTED.email }]);
+    await expect(browser.storage.local.get(null)).resolves.toStrictEqual({
       connection: { ...MINTED, origin: PAGE.origin },
     });
   });
@@ -128,9 +128,9 @@ describe("the connect page", () => {
     for (const [sender, message] of refused) {
       expect(listener(message, sender, respond), JSON.stringify([sender, message])).toBe(false);
     }
-    expect(answers).toEqual([]);
-    expect(await browser.storage.local.get(null)).toEqual({});
+    expect(answers).toStrictEqual([]);
+    await expect(browser.storage.local.get(null)).resolves.toStrictEqual({});
     expect(followed).toBe(0);
-    expect(revoked).toEqual([]);
+    expect(revoked).toStrictEqual([]);
   });
 });

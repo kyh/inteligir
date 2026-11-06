@@ -74,13 +74,11 @@ describe("the skills' markdown examples", () => {
     expect(EXAMPLES.length).toBeGreaterThan(5);
   });
 
-  for (const example of EXAMPLES) {
-    it(`${example.site} keeps what it says and settles after one save`, () => {
-      expect(["canonical", "normalizes"], `${example.site} loses what it says on a save`).toContain(
-        analyzeMarkdown(example.body).kind,
-      );
-      const saved = saveOnce(example.body);
-      expect(saveOnce(saved), `${example.site} still moves on its second save`).toBe(saved);
-    });
-  }
+  it.each(EXAMPLES)("$site keeps what it says and settles after one save", (example) => {
+    expect(["canonical", "normalizes"], `${example.site} loses what it says on a save`).toContain(
+      analyzeMarkdown(example.body).kind,
+    );
+    const saved = saveOnce(example.body);
+    expect(saveOnce(saved), `${example.site} still moves on its second save`).toBe(saved);
+  });
 });

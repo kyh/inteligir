@@ -175,7 +175,7 @@ describe("a call's reservation", () => {
         { dayUcents: Number.MAX_SAFE_INTEGER, turnUcents: 0 },
         NOW,
       );
-      expect(again).toEqual(answer);
+      expect(again).toStrictEqual(answer);
     }
     expect(granted).toBeGreaterThan(1000);
   });
@@ -188,14 +188,14 @@ describe("a call's reservation", () => {
     };
     const room = { dayUcents: Number.MAX_SAFE_INTEGER, turnUcents: Number.MAX_SAFE_INTEGER };
     const input = inputUcentsOf(estimate, prices(), NOW);
-    expect(reservationOf(estimate, prices(), room, NOW)).toEqual({
+    expect(reservationOf(estimate, prices(), room, NOW)).toStrictEqual({
       kind: "granted",
       maxTokens: 64_000,
       reservedUcents: input + 64_000 * prices().output,
     });
     // one token more, and the summary's pass is priced beside the answer
     const reaching = { ...estimate, promptTokens: COMPACTION_TRIGGER_TOKENS };
-    expect(reservationOf(reaching, prices(), room, NOW)).toEqual({
+    expect(reservationOf(reaching, prices(), room, NOW)).toStrictEqual({
       kind: "granted",
       maxTokens: 64_000,
       reservedUcents:
@@ -262,9 +262,9 @@ describe("a call's reservation", () => {
     const room = { dayUcents: Number.MAX_SAFE_INTEGER, turnUcents: Number.MAX_SAFE_INTEGER };
     expect(reservationOf(estimate, prices(), room, NOW)).toMatchObject({ maxTokens: 64_000 });
     const short = input + (MIN_MAX_TOKENS - 1) * prices().output;
-    expect(reservationOf(estimate, prices(), { dayUcents: short, turnUcents: short }, NOW)).toEqual(
-      { kind: "refused" },
-    );
+    expect(
+      reservationOf(estimate, prices(), { dayUcents: short, turnUcents: short }, NOW),
+    ).toStrictEqual({ kind: "refused" });
     // a step sent again keeps its first cap, whatever the turn has left, while the day holds it
     const again = resendReservationOf(
       estimate,
@@ -276,7 +276,7 @@ describe("a call's reservation", () => {
     expect(again).toMatchObject({ kind: "granted", maxTokens: 3000 });
     expect(
       resendReservationOf(estimate, prices(), 3000, { dayUcents: input, turnUcents: 0 }, NOW),
-    ).toEqual({ kind: "refused" });
+    ).toStrictEqual({ kind: "refused" });
   });
 
   it("grants a conversation resumed after a pause at the compaction trigger, its summary's pass priced, and would refuse one at the API's default", () => {
@@ -303,7 +303,9 @@ describe("a call's reservation", () => {
       // three characters a token, the estimate the real count: the input alone outgrows the turn
       const atDefault = resumed(150_000, 3, idleMs);
       expect(inputUcentsOf(atDefault, prices(), NOW), label).toBeGreaterThan(turn);
-      expect(reservationOf(atDefault, prices(), fresh, NOW), label).toEqual({ kind: "refused" });
+      expect(reservationOf(atDefault, prices(), fresh, NOW), label).toStrictEqual({
+        kind: "refused",
+      });
     }
   });
 
@@ -411,7 +413,7 @@ describe("the prices", () => {
     };
     // claude-opus-5-5 in micro-cents a token: 400, 2000, 20, 500, 800
     const whole = 400 * 400 + 500 * 2000 + 300 * 20 + 200 * 500 + 100 * 800;
-    expect(priceUsage(tokens, "claude-opus-5-5", table)).toEqual({
+    expect(priceUsage(tokens, "claude-opus-5-5", table)).toStrictEqual({
       costUcents: whole,
       tokens: { cacheRead: 300, cacheWrite1h: 100, cacheWrite5m: 200, input: 400, output: 500 },
     });
@@ -437,7 +439,7 @@ describe("the prices", () => {
   it("price a model the table does not hold at its dearest row, and say so", () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     const table = pricesOf(env);
-    expect(pricesFor(table, "claude-unknown-9")).toEqual(pricesFor(table, "claude-opus-5"));
+    expect(pricesFor(table, "claude-unknown-9")).toStrictEqual(pricesFor(table, "claude-opus-5"));
     expect(logged).toHaveBeenCalledWith({
       event: "agent-unpriced-model",
       model: "claude-unknown-9",

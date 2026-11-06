@@ -11,7 +11,7 @@ import {
 } from "./item-url";
 import { mulberry32, pick } from "../test-support/seeded-random";
 
-describe("isWebUrl", () => {
+describe(isWebUrl, () => {
   it.each([
     ["https://example.com", true],
     ["http://example.com/a?b#c", true],
@@ -33,7 +33,7 @@ describe("isWebUrl", () => {
   });
 });
 
-describe("urlKey", () => {
+describe(urlKey, () => {
   it.each([
     [
       "https://www.Example.com:443/a/./b/../c/?utm_source=x&b=2&a=1#frag",
@@ -75,7 +75,7 @@ describe("urlKey", () => {
   });
 });
 
-describe("cleanUrl", () => {
+describe(cleanUrl, () => {
   it.each([
     [
       "https://user:pw@www.Example.com/a?utm_source=x&b=2&a=1#frag",
@@ -97,7 +97,7 @@ describe("cleanUrl", () => {
   });
 });
 
-describe("kindForUrl", () => {
+describe(kindForUrl, () => {
   it.each([
     ["https://www.youtube.com/watch?v=x", "video"],
     ["https://youtu.be/x", "video"],

@@ -117,7 +117,7 @@ describe("a card whose page went unread", () => {
       fireEvent.click(badge(), { detail: 1 });
     });
     expect(reason()).toBeDefined();
-    expect(onPress).toHaveBeenCalledTimes(1);
+    expect(onPress).toHaveBeenCalledOnce();
     expect(onOpen).not.toHaveBeenCalled();
   });
 

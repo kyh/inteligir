@@ -69,7 +69,7 @@ describe("one spelling per cross-cutting predicate", () => {
         );
       }
     }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 
   it("nothing outside the home answers the same question", () => {
@@ -91,7 +91,7 @@ describe("one spelling per cross-cutting predicate", () => {
         );
       }
     }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 
   it("no `elsewhere` row is stale", () => {
@@ -110,6 +110,6 @@ describe("one spelling per cross-cutting predicate", () => {
         );
       }
     }
-    expect(stale, `\n${stale.join("\n\n")}\n`).toEqual([]);
+    expect(stale, `\n${stale.join("\n\n")}\n`).toStrictEqual([]);
   });
 });

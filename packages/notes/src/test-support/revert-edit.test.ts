@@ -6,10 +6,10 @@ const doc = (...lines: string[]): string => `${lines.join("\n")}\n`;
 const BEFORE = doc("# Plans", "", "first draft", "", "## Later", "", "someday");
 const AFTER = doc("# Plans", "", "second draft", "", "## Later", "", "someday");
 
-describe("revertEdit", () => {
+describe(revertEdit, () => {
   describe("an edited file", () => {
     it("writes the bytes from before when nothing changed since", () => {
-      expect(revertEdit({ after: AFTER, before: BEFORE, current: AFTER })).toEqual({
+      expect(revertEdit({ after: AFTER, before: BEFORE, current: AFTER })).toStrictEqual({
         content: BEFORE,
         expected: AFTER,
         kind: "write",
@@ -18,7 +18,7 @@ describe("revertEdit", () => {
 
     it("keeps a line added since when an unchanged line separates it from the change", () => {
       const current = doc("# Plans", "", "second draft", "", "## Later", "", "someday", "and more");
-      expect(revertEdit({ after: AFTER, before: BEFORE, current })).toEqual({
+      expect(revertEdit({ after: AFTER, before: BEFORE, current })).toStrictEqual({
         content: doc("# Plans", "", "first draft", "", "## Later", "", "someday", "and more"),
         expected: current,
         kind: "write",
@@ -27,7 +27,7 @@ describe("revertEdit", () => {
 
     it("keeps the file whole when a later edit overlaps the change", () => {
       const current = doc("# Plans", "", "second draft, revised", "", "## Later", "", "someday");
-      expect(revertEdit({ after: AFTER, before: BEFORE, current })).toEqual({
+      expect(revertEdit({ after: AFTER, before: BEFORE, current })).toStrictEqual({
         kind: "keep",
         reason: "edited-since",
       });
@@ -44,20 +44,20 @@ describe("revertEdit", () => {
         "",
         "someday",
       );
-      expect(revertEdit({ after: AFTER, before: BEFORE, current })).toEqual({
+      expect(revertEdit({ after: AFTER, before: BEFORE, current })).toStrictEqual({
         kind: "keep",
         reason: "edited-since",
       });
     });
 
     it("leaves a file that already holds the bytes from before", () => {
-      expect(revertEdit({ after: AFTER, before: BEFORE, current: BEFORE })).toEqual({
+      expect(revertEdit({ after: AFTER, before: BEFORE, current: BEFORE })).toStrictEqual({
         kind: "unchanged",
       });
     });
 
     it("keeps a file deleted since, deleted", () => {
-      expect(revertEdit({ after: AFTER, before: BEFORE, current: null })).toEqual({
+      expect(revertEdit({ after: AFTER, before: BEFORE, current: null })).toStrictEqual({
         kind: "keep",
         reason: "deleted-since",
       });
@@ -66,21 +66,21 @@ describe("revertEdit", () => {
 
   describe("a created file", () => {
     it("removes it while it holds exactly what the change wrote", () => {
-      expect(revertEdit({ after: AFTER, before: null, current: AFTER })).toEqual({
+      expect(revertEdit({ after: AFTER, before: null, current: AFTER })).toStrictEqual({
         expected: AFTER,
         kind: "remove",
       });
     });
 
     it("keeps it once it was edited since", () => {
-      expect(revertEdit({ after: AFTER, before: null, current: `${AFTER}more\n` })).toEqual({
+      expect(revertEdit({ after: AFTER, before: null, current: `${AFTER}more\n` })).toStrictEqual({
         kind: "keep",
         reason: "edited-since",
       });
     });
 
     it("leaves it gone when it is gone", () => {
-      expect(revertEdit({ after: AFTER, before: null, current: null })).toEqual({
+      expect(revertEdit({ after: AFTER, before: null, current: null })).toStrictEqual({
         kind: "unchanged",
       });
     });
@@ -88,32 +88,32 @@ describe("revertEdit", () => {
 
   describe("a deleted file", () => {
     it("recreates it while the path is still empty", () => {
-      expect(revertEdit({ after: null, before: BEFORE, current: null })).toEqual({
+      expect(revertEdit({ after: null, before: BEFORE, current: null })).toStrictEqual({
         content: BEFORE,
         kind: "recreate",
       });
     });
 
     it("keeps whatever was put back at the path since", () => {
-      expect(revertEdit({ after: null, before: BEFORE, current: AFTER })).toEqual({
+      expect(revertEdit({ after: null, before: BEFORE, current: AFTER })).toStrictEqual({
         kind: "keep",
         reason: "recreated-since",
       });
     });
 
     it("leaves a file put back exactly as it was", () => {
-      expect(revertEdit({ after: null, before: BEFORE, current: BEFORE })).toEqual({
+      expect(revertEdit({ after: null, before: BEFORE, current: BEFORE })).toStrictEqual({
         kind: "unchanged",
       });
     });
   });
 });
 
-describe("turnEditOf", () => {
+describe(turnEditOf, () => {
   it("reads an edit, a create and a delete, and nothing from two absent sides", () => {
-    expect(turnEditOf("a\n", "b\n")).toEqual({ after: "b\n", before: "a\n" });
-    expect(turnEditOf(null, "b\n")).toEqual({ after: "b\n", before: null });
-    expect(turnEditOf("a\n", null)).toEqual({ after: null, before: "a\n" });
+    expect(turnEditOf("a\n", "b\n")).toStrictEqual({ after: "b\n", before: "a\n" });
+    expect(turnEditOf(null, "b\n")).toStrictEqual({ after: "b\n", before: null });
+    expect(turnEditOf("a\n", null)).toStrictEqual({ after: null, before: "a\n" });
     expect(turnEditOf(null, null)).toBeNull();
   });
 });

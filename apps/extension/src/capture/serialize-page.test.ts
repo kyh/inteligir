@@ -46,7 +46,7 @@ describe("the captured page", () => {
     );
     const out = parsed(serializePage(doc, null, OPTIONS).html);
     const scripts = [...out.querySelectorAll("script")];
-    expect(scripts.map((script) => script.textContent)).toEqual(['{"@type":"Article"}']);
+    expect(scripts.map((script) => script.textContent)).toStrictEqual(['{"@type":"Article"}']);
     expect(doc.querySelectorAll("script")).toHaveLength(3);
   });
 
@@ -68,9 +68,12 @@ describe("the captured page", () => {
     expect(out.querySelector('input[type="checkbox"]')?.hasAttribute("checked")).toBe(false);
     expect(
       [...out.querySelectorAll("option")].map((option) => option.hasAttribute("selected")),
-    ).toEqual([false, false]);
+    ).toStrictEqual([false, false]);
     // the page's list of choices stays: it is the page's, never the person's
-    expect([...out.querySelectorAll("option")].map((option) => option.value)).toEqual(["fr", "nz"]);
+    expect([...out.querySelectorAll("option")].map((option) => option.value)).toStrictEqual([
+      "fr",
+      "nz",
+    ]);
   });
 
   it("empties every box a person types rich text into, keeping the page's own text", () => {
@@ -103,7 +106,7 @@ describe("the captured page", () => {
     }
     const out = parsed(serializePage(doc, null, OPTIONS).html);
     const images = [...out.querySelectorAll("img")];
-    expect(images.map((image) => image.getAttribute("src"))).toEqual([
+    expect(images.map((image) => image.getAttribute("src"))).toStrictEqual([
       "https://example.test/large.jpg",
       "https://example.test/wide.jpg",
       null,
@@ -118,7 +121,7 @@ describe("the captured page", () => {
     const doc = pageOf('<a href="next">next</a>', '<base href="https://old.test/">');
     const out = parsed(serializePage(doc, null, OPTIONS).html);
     const bases = [...out.querySelectorAll("base")];
-    expect(bases.map((base) => base.getAttribute("href"))).toEqual([doc.baseURI]);
+    expect(bases.map((base) => base.getAttribute("href"))).toStrictEqual([doc.baseURI]);
     expect(out.head.firstElementChild?.tagName).toBe("BASE");
   });
 

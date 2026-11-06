@@ -55,8 +55,10 @@ describe("the library cell", () => {
     const accountId = newAccountId();
     const name = await inCell(cellOf(accountId), (state) => state.id.name);
     expect(cellAccountId(name)).toBe(accountId);
-    expect(() => cellAccountId("user:someone")).toThrow();
-    expect(() => cellAccountId("library:")).toThrow();
+    expect(() => cellAccountId("user:someone")).toThrow(
+      "a library cell is named library:<accountId>",
+    );
+    expect(() => cellAccountId("library:")).toThrow("a library cell is named library:<accountId>");
   });
 
   it("keeps each account's library to its own cell", async () => {
@@ -89,16 +91,16 @@ describe("the library cell", () => {
       await answer.arrayBuffer();
       return answer.status;
     };
-    expect(
-      await call({ [PRINCIPAL_HEADER]: principalHeaderValue(principal(newAccountId())) }),
-    ).toBe(403);
-    expect(await call({})).toBe(403);
-    expect(await inCell(stub, itemCount)).toBe(0);
+    await expect(
+      call({ [PRINCIPAL_HEADER]: principalHeaderValue(principal(newAccountId())) }),
+    ).resolves.toBe(403);
+    await expect(call({})).resolves.toBe(403);
+    await expect(inCell(stub, itemCount)).resolves.toBe(0);
     // the same call, under its own account's principal, lands
-    expect(await call({ [PRINCIPAL_HEADER]: principalHeaderValue(principal(accountId)) })).toBe(
-      200,
-    );
-    expect(await inCell(stub, itemCount)).toBe(1);
+    await expect(
+      call({ [PRINCIPAL_HEADER]: principalHeaderValue(principal(accountId)) }),
+    ).resolves.toBe(200);
+    await expect(inCell(stub, itemCount)).resolves.toBe(1);
   });
 
   it("takes an app's call only on the wire, and an assistant's only on the connector", async () => {
@@ -122,9 +124,9 @@ describe("the library cell", () => {
       await answer.arrayBuffer();
       return answer.status;
     };
-    expect(await status(`${V1_LIBRARY_RPC_PATH}/items/createNote`, assistant)).toBe(403);
-    expect(await status(CONNECTOR_PATH, principal(accountId))).toBe(403);
-    expect(await inCell(stub, itemCount)).toBe(0);
+    await expect(status(`${V1_LIBRARY_RPC_PATH}/items/createNote`, assistant)).resolves.toBe(403);
+    await expect(status(CONNECTOR_PATH, principal(accountId))).resolves.toBe(403);
+    await expect(inCell(stub, itemCount)).resolves.toBe(0);
   });
 
   it("seals a quiet set when its alarm runs, and sets the next one for the prune", async () => {
@@ -142,12 +144,12 @@ describe("the library cell", () => {
       // the job is due; the alarm is held a minute out so the test runs it, not the clock
       await state.storage.setAlarm(Date.now() + 60_000);
     });
-    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
     const after = await inCell(stub, async (state) => ({
       alarm: await state.storage.getAlarm(),
       sealed: state.storage.sql.exec("SELECT sealed_at FROM change_sets").one().sealed_at,
     }));
-    expect(after.sealed).toEqual(expect.any(Number));
+    expect(after.sealed).toStrictEqual(expect.any(Number));
     // the prune job, a day after the seal
     expect(after.alarm).toBeGreaterThan(Date.now() + 23 * 60 * 60_000);
   });
@@ -165,7 +167,7 @@ describe("the library cell", () => {
       await settleCommit(state, env, library, result);
       return await state.storage.getAlarm();
     });
-    expect(alarm).toEqual(expect.any(Number));
+    expect(alarm).toStrictEqual(expect.any(Number));
     await evictDurableObject(stub);
     const after = await inCell(stub, async (state) => {
       const library = openCellLibrary(state, env);
@@ -178,7 +180,7 @@ describe("the library cell", () => {
           .one().n,
       };
     });
-    expect(after).toEqual({ alarm, body: 1, open: 1 });
+    expect(after).toStrictEqual({ alarm, body: 1, open: 1 });
   });
 
   it("starts over under a new epoch when its schema is of another version", async () => {
@@ -207,23 +209,32 @@ describe("the library cell", () => {
     const accountId = newAccountId();
     const stub = cellOf(accountId);
     const request = { bytes: 5, mime: "image/png", sha: SHA };
-    expect(await stub.reserveBlob(request)).toEqual({
+    await expect(stub.reserveBlob(request)).resolves.toStrictEqual({
       head: null,
       ok: true,
       value: { held: false },
     });
-    expect(await stub.settleBlob(SHA)).toEqual({ head: null, ok: true, value: { settled: false } });
+    await expect(stub.settleBlob(SHA)).resolves.toStrictEqual({
+      head: null,
+      ok: true,
+      value: { settled: false },
+    });
     await stub.reserveBlob(request);
     await env.BLOBS.put(blobKey(accountId, SHA), "bytes", {
       httpMetadata: { contentType: "image/png" },
     });
-    expect(await stub.settleBlob(SHA)).toEqual({ head: 1, ok: true, value: { settled: true } });
-    expect(await stub.reserveBlob(request)).toEqual({
+    await expect(stub.settleBlob(SHA)).resolves.toStrictEqual({
+      head: 1,
+      ok: true,
+      value: { settled: true },
+    });
+    await expect(stub.reserveBlob(request)).resolves.toStrictEqual({
       head: null,
       ok: true,
       value: { held: true },
     });
   });
+
   it("takes an upload it refused out of R2 when its alarm runs", async () => {
     const accountId = newAccountId();
     const stub = cellOf(accountId);
@@ -239,19 +250,19 @@ describe("the library cell", () => {
       // the removal is due; the alarm is held a minute out so the test runs it, not the clock
       await state.storage.setAlarm(Date.now() + 60_000);
     });
-    expect(await env.BLOBS.head(key)).not.toBeNull();
-    expect(await runDurableObjectAlarm(stub)).toBe(true);
-    expect(await env.BLOBS.head(key)).toBeNull();
+    await expect(env.BLOBS.head(key)).resolves.not.toBeNull();
+    await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
+    await expect(env.BLOBS.head(key)).resolves.toBeNull();
     const strays = await inCell(stub, (state) =>
       state.storage.sql.exec("SELECT id FROM jobs WHERE kind = 'stray'").toArray(),
     );
-    expect(strays).toEqual([]);
+    expect(strays).toStrictEqual([]);
   });
 });
 
 describe("deleting the account from its cell", () => {
   it("runs its steps in order: the tombstone, the agent's conversations, the cell's storage, its files, its grants, its credentials", async () => {
-    expect(ACCOUNT_PURGE_STEPS.map((step) => step.name)).toEqual([
+    expect(ACCOUNT_PURGE_STEPS.map((step) => step.name)).toStrictEqual([
       "tombstone",
       "agent",
       "storage",
@@ -333,7 +344,7 @@ describe("deleting the account from its cell", () => {
     });
     const gone = { kind: "gone" };
     const before = { alarm: expect.any(Number), devices: 1, files: 1, grants: 1, items: 1 };
-    expect(Object.fromEntries(seen)).toEqual({
+    expect(Object.fromEntries(seen)).toStrictEqual({
       agent: { ...before, read: gone, threads: 0 },
       credentials: {
         alarm: null,
@@ -350,7 +361,7 @@ describe("deleting the account from its cell", () => {
       tombstone: { ...before, read: gone, threads: 2 },
     });
     // another account's files stay, and the invite's redeemer is forgotten
-    expect(await files(accountBlobPrefix(stranger))).toBe(1);
+    await expect(files(accountBlobPrefix(stranger))).resolves.toBe(1);
     const invites = await db.select().from(inviteCode).all();
     expect(invites.some((invite) => invite.redeemedBy === email)).toBe(false);
   });
@@ -371,7 +382,7 @@ describe("deleting the account from its cell", () => {
       await inCell(cellOf(accountId), async (state) => {
         await filesStep?.run({ accountId, ctx: state, email: "files-paged@example.test", env });
       });
-      expect(await files(prefix)).toBe(0);
+      await expect(files(prefix)).resolves.toBe(0);
     },
   );
 
@@ -394,8 +405,10 @@ describe("deleting the account from its cell", () => {
       items: itemCount(state),
       read: refusalOf(engineIn(state, clockAt()).pull({ cursor: 0, epoch: null })),
     }));
-    expect(after).toEqual({ items: 0, read: { kind: "gone" } });
-    expect(await stub.reserveBlob({ bytes: 5, mime: "image/png", sha: SHA })).toEqual({
+    expect(after).toStrictEqual({ items: 0, read: { kind: "gone" } });
+    await expect(
+      stub.reserveBlob({ bytes: 5, mime: "image/png", sha: SHA }),
+    ).resolves.toStrictEqual({
       ok: false,
       refusal: { kind: "gone" },
     });

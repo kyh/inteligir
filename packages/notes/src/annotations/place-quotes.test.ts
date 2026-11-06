@@ -13,7 +13,7 @@ describe("where the markers land", () => {
     expect(placeOne(content, "the", 2).content).toBe(
       "the cat and %%i:h1:start%%the%%i:h1:end%% dog and the bird\n",
     );
-    expect(placeOne(content, "the", 4).missing).toEqual(["h1"]);
+    expect(placeOne(content, "the", 4).missing).toStrictEqual(["h1"]);
   });
 
   it("matches across whitespace and across blocks", () => {
@@ -77,7 +77,7 @@ describe("where the markers land", () => {
       { final: false },
     );
     expect(placed.content).toBe("Some %%i:a1,b2:start%%shared words%%i:a1,b2:end%% here.\n");
-    expect(placed.placed).toEqual(["a1", "b2"]);
+    expect(placed.placed).toStrictEqual(["a1", "b2"]);
   });
 
   it("nests a range inside another at a shared edge", () => {
@@ -96,7 +96,7 @@ describe("where the markers land", () => {
 
   it("leaves a root that already has markers where it is", () => {
     const content = "a %%i:h1:start%%b%%i:h1:end%% c b\n";
-    expect(placeOne(content, "b")).toEqual({
+    expect(placeOne(content, "b")).toStrictEqual({
       appended: [],
       content,
       missing: [],
@@ -106,7 +106,7 @@ describe("where the markers land", () => {
 
   it("matches nothing in code, math or frontmatter", () => {
     const content = "---\ntitle: secret\n---\n\n```\nsecret\n```\n\n$$\nsecret\n$$\n";
-    expect(placeOne(content, "secret").missing).toEqual(["h1"]);
+    expect(placeOne(content, "secret").missing).toStrictEqual(["h1"]);
   });
 });
 
@@ -138,7 +138,7 @@ describe("a final placement", () => {
       ].join("\n"),
     );
     expect(annotationPassages(placed.content).get("h2")).toBe(hostile);
-    expect(markerRootIds(placed.content)).toEqual(new Set(["h1", "h2"]));
+    expect(markerRootIds(placed.content)).toStrictEqual(new Set(["h1", "h2"]));
   });
 
   it("adds a later quote to the Highlights section the text already ends in", () => {
@@ -171,13 +171,13 @@ describe("a final placement", () => {
   it("reads an escaped date after a bare url back with its @", () => {
     const quote = "www.y.org' a www.y.org2026-01-02) @2026-01-02-$";
     const placed = placeQuotes("", [{ id: "h1", quote }], { final: true });
-    expect(placed.appended).toEqual(["h1"]);
+    expect(placed.appended).toStrictEqual(["h1"]);
     expect(placed.content).toContain("\\@2026-01-02-$%%i:h1:end%%");
     expect(annotationPassages(placed.content).get("h1")).toBe(quote);
   });
 
   it("appends nothing without final", () => {
     const placed = placeQuotes("Body.\n", [{ id: "h1", quote: "gone" }], { final: false });
-    expect(placed).toEqual({ appended: [], content: "Body.\n", missing: ["h1"], placed: [] });
+    expect(placed).toStrictEqual({ appended: [], content: "Body.\n", missing: ["h1"], placed: [] });
   });
 });

@@ -25,7 +25,7 @@ const firstText = (value: Value): string => {
   return leaf && TextApi.isText(leaf) ? leaf.text : "";
 };
 
-describe("stripAlertMarkers", () => {
+describe(stripAlertMarkers, () => {
   it("removes a marker-only first line and records the variant", () => {
     const input = quote("[!TIP]", "Use the palette.");
     const out = stripAlertMarkers(input);
@@ -59,15 +59,15 @@ describe("stripAlertMarkers", () => {
 
   it("leaves ordinary blockquotes and non-blockquotes untouched", () => {
     const plain = quote("Just a quotation.");
-    expect(stripAlertMarkers(plain)).toEqual(plain);
+    expect(stripAlertMarkers(plain)).toStrictEqual(plain);
 
     const paragraph: Value = [{ children: [{ text: "[!TIP]" }], type: KEYS.p }];
-    expect(stripAlertMarkers(paragraph)).toEqual(paragraph);
+    expect(stripAlertMarkers(paragraph)).toStrictEqual(paragraph);
   });
 
   it("ignores an unknown variant", () => {
     const input = quote("[!BOGUS]", "body");
-    expect(stripAlertMarkers(input)).toEqual(input);
+    expect(stripAlertMarkers(input)).toStrictEqual(input);
   });
 
   it("keeps sibling blocks and later paragraphs of the quote", () => {
@@ -86,6 +86,6 @@ describe("stripAlertMarkers", () => {
     expect(out).toHaveLength(2);
     expect(out[0]?.children).toHaveLength(2);
     expect(firstText(out)).toBe("");
-    expect(out[1]).toEqual({ children: [{ text: "after" }], type: KEYS.p });
+    expect(out[1]).toStrictEqual({ children: [{ text: "after" }], type: KEYS.p });
   });
 });

@@ -65,7 +65,7 @@ describe("page meta", () => {
     expect(facts.title).toBe("Keep your notes in files");
     expect(facts.site).toBe("Field Notes");
     expect(facts.description).toBe("Plain files outlive the apps that made them.");
-    expect(facts.images).toEqual([
+    expect(facts.images).toStrictEqual([
       "https://cdn.fieldnotes.example/cover@2x.jpg",
       "https://pages.example/images/cover.jpg",
     ]);
@@ -82,7 +82,7 @@ describe("page meta", () => {
     expect(facts.site).toBe("The Coastal Herald");
     expect(facts.author).toBe("Maya Okafor, Tom Reyes");
     expect(facts.published).toBe("2025-11-02");
-    expect(facts.images).toEqual([
+    expect(facts.images).toStrictEqual([
       "https://img.coastalherald.example/bridge.png",
       "https://img.coastalherald.example/bridge-wide.jpg",
     ]);
@@ -113,7 +113,9 @@ describe("page meta", () => {
   });
 
   it("drops a script url among the images", () => {
-    expect(extracted("script-heavy").facts.images).toEqual(["https://cdn.app.example/v4.png"]);
+    expect(extracted("script-heavy").facts.images).toStrictEqual([
+      "https://cdn.app.example/v4.png",
+    ]);
   });
 });
 
@@ -153,9 +155,9 @@ describe("the article", () => {
     expect(article).toContain('```\n{"type": "bar"}\n```');
     expect(article.toLowerCase()).not.toContain("```inteligir-");
     const types = new Set(nodesOf(article).map((node) => node.type ?? "text"));
-    expect([...types].filter((type) => type.endsWith("_block") && type !== "code_block")).toEqual(
-      [],
-    );
+    expect(
+      [...types].filter((type) => type.endsWith("_block") && type !== "code_block"),
+    ).toStrictEqual([]);
   });
 
   it("keeps nothing a script, a frame, an object or a form put there", () => {
@@ -252,7 +254,7 @@ describe("the dialect escapes", () => {
   });
 
   it("reads as nothing but paragraphs of text", () => {
-    expect([...types].toSorted()).toEqual(["p", "text"]);
+    expect([...types].toSorted()).toStrictEqual(["p", "text"]);
   });
 });
 
@@ -299,6 +301,7 @@ describe("the article as blocks", () => {
   const names = readdirSync(CORPUS)
     .filter((file) => file.endsWith(".html"))
     .map((file) => file.slice(0, -".html".length));
+
   it.each(names)("%s reads as its item's article section, every block stored", (name) => {
     const html = page(name);
     const read = extractPageBlocks(
@@ -307,9 +310,9 @@ describe("the article as blocks", () => {
       counter(),
     );
     const { article } = extractPage({ html, prefer: "article", url: PAGE_URL }, parsePage);
-    expect(read.article.refused).toEqual([]);
+    expect(read.article.refused).toStrictEqual([]);
     expect(read.article.blocks.every((placed) => placed.section === "article")).toBe(true);
-    expect(read.article.blocks.map((placed) => placed.block.id)).toEqual(
+    expect(read.article.blocks.map((placed) => placed.block.id)).toStrictEqual(
       read.article.blocks.map((_, index) => `page${String(index + 1)}`),
     );
     // the blocks hold the article's words: each text the markdown read as, found in the blocks
@@ -317,7 +320,7 @@ describe("the article as blocks", () => {
     const words = nodesOf(article).flatMap((node) =>
       (node.text ?? "").split(/\W+/u).filter((word) => word !== ""),
     );
-    expect(words.filter((word) => !stored.includes(word))).toEqual([]);
+    expect(words.filter((word) => !stored.includes(word))).toStrictEqual([]);
   });
 
   it("keeps a page's hashtag and highlight spelling as the page's text", () => {

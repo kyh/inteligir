@@ -85,7 +85,7 @@ describe("a tab saved", () => {
   it("is read here and saved read: its article, its facts, its cover and the passage selected", async () => {
     const cloud = fakeCloud({});
     const run = depsWith(cloud);
-    expect(await saveTab(run.deps, { tab: TAB })).toEqual({
+    await expect(saveTab(run.deps, { tab: TAB })).resolves.toStrictEqual({
       created: true,
       kind: "saved",
       title: "File over app",
@@ -101,23 +101,25 @@ describe("a tab saved", () => {
       url: URL_SAVED,
     });
     expect(JSON.stringify(save?.article)).toContain(PASSAGE);
-    expect(cloud.uploads).toEqual([{ bytes: PNG, mime: "image/png" }]);
+    expect(cloud.uploads).toStrictEqual([{ bytes: PNG, mime: "image/png" }]);
     // a public page never sends this browser into the person's own network
-    expect(run.covers).toEqual(["https://cdn.example.test/cover.png"]);
-    expect(await queuedSaves()).toEqual([]);
+    expect(run.covers).toStrictEqual(["https://cdn.example.test/cover.png"]);
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
 
   it("says a page the library holds is already in it", async () => {
     const cloud = fakeCloud({ save: async () => savedAs("File over app", true) });
-    expect(await saveTab(depsWith(cloud).deps, { tab: TAB })).toMatchObject({ created: false });
+    await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toMatchObject({
+      created: false,
+    });
   });
 
   it("is saved as its link, with the browser's own reading of the selection, when it cannot be scripted", async () => {
     const cloud = fakeCloud({});
     const run = depsWith(cloud, { captured: null });
     await saveTab(run.deps, { selectionText: `  ${PASSAGE} `, tab: TAB });
-    expect(cloud.saves).toEqual([]);
-    expect(cloud.links).toEqual([
+    expect(cloud.saves).toStrictEqual([]);
+    expect(cloud.links).toStrictEqual([
       expect.objectContaining({ selection: PASSAGE, title: TAB.title, url: URL_SAVED }),
     ]);
   });
@@ -125,7 +127,9 @@ describe("a tab saved", () => {
   it("is saved as its link, for the cloud to read, when its page is past the capture's cap", async () => {
     const cloud = fakeCloud({});
     await saveTab(depsWith(cloud, { captured: page({ html: null }) }).deps, { tab: TAB });
-    expect(cloud.links).toEqual([expect.objectContaining({ selection: PASSAGE, url: URL_SAVED })]);
+    expect(cloud.links).toStrictEqual([
+      expect.objectContaining({ selection: PASSAGE, url: URL_SAVED }),
+    ]);
   });
 
   it("waits, as its address, title and passage alone, when the cloud does not answer", async () => {
@@ -134,7 +138,9 @@ describe("a tab saved", () => {
         throw new TypeError("Failed to fetch");
       },
     });
-    expect(await saveTab(depsWith(cloud).deps, { tab: TAB })).toEqual({ kind: "queued" });
+    await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
+      kind: "queued",
+    });
     const [queued] = await queuedSaves();
     expect(queued).toMatchObject({
       deviceId: CONNECTION.deviceId,
@@ -142,7 +148,7 @@ describe("a tab saved", () => {
       title: "File over app",
       url: URL_SAVED,
     });
-    expect(Object.keys(queued ?? {}).toSorted()).toEqual([
+    expect(Object.keys(queued ?? {}).toSorted()).toStrictEqual([
       "deviceId",
       "id",
       "opId",
@@ -152,7 +158,7 @@ describe("a tab saved", () => {
       "url",
       "waitingSince",
     ]);
-    expect(await browser.alarms.get(SEND_ALARM)).toBeDefined();
+    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
   });
 
   it("is kept in the queue before its first call goes", async () => {
@@ -170,15 +176,17 @@ describe("a tab saved", () => {
 
   it("asks for a connection first, and saves nothing off the web", async () => {
     const cloud = fakeCloud({});
-    expect(await saveTab(depsWith(cloud, { connection: null }).deps, { tab: TAB })).toEqual({
+    await expect(
+      saveTab(depsWith(cloud, { connection: null }).deps, { tab: TAB }),
+    ).resolves.toStrictEqual({
       kind: "refused",
       reason: "not-connected",
     });
-    expect(
-      await saveTab(depsWith(cloud).deps, { tab: { ...TAB, url: "chrome://settings" } }),
-    ).toEqual({ kind: "refused", reason: "unsupported-page" });
-    expect(cloud.saves).toEqual([]);
-    expect(await queuedSaves()).toEqual([]);
+    await expect(
+      saveTab(depsWith(cloud).deps, { tab: { ...TAB, url: "chrome://settings" } }),
+    ).resolves.toStrictEqual({ kind: "refused", reason: "unsupported-page" });
+    expect(cloud.saves).toStrictEqual([]);
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
 });
 
@@ -186,21 +194,21 @@ describe("a right-click's address or picture", () => {
   it("saves a link or a web picture by its address, for the cloud to read", async () => {
     const cloud = fakeCloud({});
     await saveAddress(depsWith(cloud).deps, "https://example.test/a-picture.png");
-    expect(cloud.links).toEqual([
+    expect(cloud.links).toStrictEqual([
       expect.objectContaining({ url: "https://example.test/a-picture.png" }),
     ]);
   });
 
   it("saves a picture a page drew from its bytes as a file, named after the page", async () => {
     const cloud = fakeCloud({});
-    expect(
-      await savePicture(depsWith(cloud).deps, { bytes: PNG, pageUrl: URL_SAVED }),
-    ).toMatchObject({
+    await expect(
+      savePicture(depsWith(cloud).deps, { bytes: PNG, pageUrl: URL_SAVED }),
+    ).resolves.toMatchObject({
       created: true,
       kind: "saved",
     });
-    expect(cloud.uploads).toEqual([{ bytes: PNG, mime: "image/png" }]);
-    expect(cloud.files).toEqual([
+    expect(cloud.uploads).toStrictEqual([{ bytes: PNG, mime: "image/png" }]);
+    expect(cloud.files).toStrictEqual([
       expect.objectContaining({ name: "file-over-app.png", sha: "c".repeat(64) }),
     ]);
   });
@@ -211,15 +219,17 @@ describe("a right-click's address or picture", () => {
         throw new TypeError("Failed to fetch");
       },
     });
-    expect(await savePicture(depsWith(cloud).deps, { bytes: PNG, pageUrl: URL_SAVED })).toEqual({
+    await expect(
+      savePicture(depsWith(cloud).deps, { bytes: PNG, pageUrl: URL_SAVED }),
+    ).resolves.toStrictEqual({
       kind: "refused",
       reason: "needs-connection",
     });
-    expect(
-      await savePicture(depsWith(fakeCloud({})).deps, {
+    await expect(
+      savePicture(depsWith(fakeCloud({})).deps, {
         bytes: new TextEncoder().encode("not a picture"),
         pageUrl: URL_SAVED,
       }),
-    ).toEqual({ kind: "refused", reason: "unsupported-page" });
+    ).resolves.toStrictEqual({ kind: "refused", reason: "unsupported-page" });
   });
 });

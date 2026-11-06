@@ -99,7 +99,7 @@ describe("the phone's page fetch", () => {
       HEADERS,
     );
 
-    expect(await fetchPage({ ...PAGE, url: "file:///etc/hosts" })).toStrictEqual({
+    await expect(fetchPage({ ...PAGE, url: "file:///etc/hosts" })).resolves.toStrictEqual({
       failure: { kind: "unreachable", transient: false },
       ok: false,
     });
@@ -116,11 +116,11 @@ describe("the phone's page fetch", () => {
       HEADERS,
     );
 
-    expect(await gone(PAGE)).toStrictEqual({
+    await expect(gone(PAGE)).resolves.toStrictEqual({
       failure: { kind: "status", reason: "not found", status: 404, transient: false },
       ok: false,
     });
-    expect(await busy(PAGE)).toMatchObject({ failure: { status: 503, transient: true } });
+    await expect(busy(PAGE)).resolves.toMatchObject({ failure: { status: 503, transient: true } });
   });
 
   it("keeps a page's first bytes up to the cap and reads no further", async () => {
@@ -144,7 +144,7 @@ describe("the phone's page fetch", () => {
       answering(() => new Response(declared.body, { headers: { "content-length": "10" } })),
       HEADERS,
     );
-    expect(await big(COVER)).toStrictEqual({
+    await expect(big(COVER)).resolves.toStrictEqual({
       failure: { bytes: 10, kind: "too-large" },
       ok: false,
     });
@@ -155,7 +155,7 @@ describe("the phone's page fetch", () => {
       answering(() => new Response(undeclared.body)),
       HEADERS,
     );
-    expect(await runs(COVER)).toStrictEqual({
+    await expect(runs(COVER)).resolves.toStrictEqual({
       failure: { bytes: 10, kind: "too-large" },
       ok: false,
     });
@@ -175,17 +175,18 @@ describe("the phone's page fetch", () => {
     );
     const reading = hanging(PAGE);
     await vi.advanceTimersByTimeAsync(20_000);
-    expect(await reading).toStrictEqual({ failure: { kind: "timeout" }, ok: false });
+    await expect(reading).resolves.toStrictEqual({ failure: { kind: "timeout" }, ok: false });
 
     const offline = createPageFetch(
       async () => await Promise.reject(new TypeError("Network request failed")),
       HEADERS,
     );
-    expect(await offline(PAGE)).toStrictEqual({
+    await expect(offline(PAGE)).resolves.toStrictEqual({
       failure: { kind: "unreachable", transient: true },
       ok: false,
     });
   });
+
   it("follows a redirect itself, resolved against the hop it came from, and reads where it ended", async () => {
     const seen: { url: string; init: RequestInit }[] = [];
     const answers = new Map<string, () => Response>([
@@ -226,7 +227,7 @@ describe("the phone's page fetch", () => {
         return await Promise.resolve(new Response(null, { headers: { location }, status: 302 }));
       }, HEADERS);
 
-      expect(await fetchPage(PAGE), location).toStrictEqual({
+      await expect(fetchPage(PAGE), location).resolves.toStrictEqual({
         failure: { kind: "refused", refusal: "private-from-public" },
         ok: false,
       });
@@ -260,7 +261,10 @@ describe("the phone's page fetch", () => {
       );
     }, HEADERS);
 
-    expect(await fetchPage(PAGE)).toStrictEqual({ failure: { kind: "redirects" }, ok: false });
+    await expect(fetchPage(PAGE)).resolves.toStrictEqual({
+      failure: { kind: "redirects" },
+      ok: false,
+    });
     expect(hops).toBe(6);
   });
 
@@ -273,11 +277,14 @@ describe("the phone's page fetch", () => {
       );
     }, HEADERS);
 
-    expect(await fetchPage({ ...PAGE, url: "http://example.com/a" })).toStrictEqual({
+    await expect(fetchPage({ ...PAGE, url: "http://example.com/a" })).resolves.toStrictEqual({
       failure: { kind: "plain-http" },
       ok: false,
     });
-    expect(await fetchPage(PAGE)).toStrictEqual({ failure: { kind: "plain-http" }, ok: false });
+    await expect(fetchPage(PAGE)).resolves.toStrictEqual({
+      failure: { kind: "plain-http" },
+      ok: false,
+    });
     expect(seen).toStrictEqual([PAGE.url]);
   });
 });

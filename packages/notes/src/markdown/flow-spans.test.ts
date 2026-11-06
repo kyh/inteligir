@@ -38,12 +38,12 @@ describe("a root written with its children's spans", () => {
     const { spans, text } = write(md, true);
     const { root } = parseMdast(md);
     expect(spans).toHaveLength(root.children.length);
-    for (const [index, span] of spans.entries()) {
-      const next = spans[index + 1];
+    for (const span of spans) {
       expect(text.slice(span.start, span.end).trim()).not.toBe("");
-      if (next !== undefined) {
-        expect(text.slice(span.end, next.start)).toMatch(/^\n+(?:<!---->\n+)?$/u);
-      }
+    }
+    const gaps = spans.slice(1).map((next, index) => text.slice(spans[index]?.end, next.start));
+    for (const gap of gaps) {
+      expect(gap).toMatch(/^\n+(?:<!---->\n+)?$/u);
     }
   });
 });

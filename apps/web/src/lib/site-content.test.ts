@@ -71,7 +71,7 @@ describe("the JSON-LD graph", () => {
   const graph = siteGraph()["@graph"];
 
   it("names the organization, the website and the app", () => {
-    expect(graph.map((node) => node["@type"])).toEqual([
+    expect(graph.map((node) => node["@type"])).toStrictEqual([
       "Organization",
       "WebSite",
       "SoftwareApplication",
@@ -89,6 +89,6 @@ describe("the JSON-LD graph", () => {
   it("serializes to JSON that parses back to the graph with no raw `<`", () => {
     const serialized = serializeJsonLd(siteGraph());
     expect(serialized).not.toContain("<");
-    expect(JSON.parse(serialized)).toEqual(siteGraph());
+    expect(JSON.parse(serialized)).toStrictEqual(siteGraph());
   });
 });

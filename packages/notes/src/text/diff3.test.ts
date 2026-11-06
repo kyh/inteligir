@@ -9,33 +9,36 @@ const numbered = (count: number, label: string): string[] =>
 const edit = (from: readonly string[], at: readonly number[], label: string): string[] =>
   from.map((line, index) => (at.includes(index) ? `${line} ${label}` : line));
 
-describe("diff3", () => {
+describe(diff3, () => {
   describe("trivial cases", () => {
     it("returns the text when nothing changed", () => {
       const base = doc("a", "b", "c");
-      expect(diff3(base, base, base)).toEqual({ conflicted: false, merged: base });
+      expect(diff3(base, base, base)).toStrictEqual({ conflicted: false, merged: base });
     });
 
     it("returns mine when theirs equals base", () => {
       const base = doc("a", "b", "c");
       const mine = doc("a", "B", "c");
-      expect(diff3(base, mine, base)).toEqual({ conflicted: false, merged: mine });
+      expect(diff3(base, mine, base)).toStrictEqual({ conflicted: false, merged: mine });
     });
 
     it("returns theirs when mine equals base", () => {
       const base = doc("a", "b", "c");
       const theirs = doc("a", "B", "c");
-      expect(diff3(base, base, theirs)).toEqual({ conflicted: false, merged: theirs });
+      expect(diff3(base, base, theirs)).toStrictEqual({ conflicted: false, merged: theirs });
     });
 
     it("returns the shared text when both made the identical change", () => {
       const base = doc("a", "b", "c");
       const both = doc("a", "B", "c");
-      expect(diff3(base, both, both)).toEqual({ conflicted: false, merged: both });
+      expect(diff3(base, both, both)).toStrictEqual({ conflicted: false, merged: both });
     });
 
     it("handles empty base with both sides adding the same text", () => {
-      expect(diff3("", "hello\n", "hello\n")).toEqual({ conflicted: false, merged: "hello\n" });
+      expect(diff3("", "hello\n", "hello\n")).toStrictEqual({
+        conflicted: false,
+        merged: "hello\n",
+      });
     });
   });
 
@@ -44,7 +47,7 @@ describe("diff3", () => {
       const base = doc("one", "two", "three", "four", "five");
       const mine = doc("ONE", "two", "three", "four", "five");
       const theirs = doc("one", "two", "three", "four", "FIVE");
-      expect(diff3(base, mine, theirs)).toEqual({
+      expect(diff3(base, mine, theirs)).toStrictEqual({
         conflicted: false,
         merged: doc("ONE", "two", "three", "four", "FIVE"),
       });
@@ -54,7 +57,7 @@ describe("diff3", () => {
       const base = doc("alpha", "beta", "gamma");
       const mine = doc("alpha", "inserted", "beta", "gamma");
       const theirs = doc("alpha", "beta", "GAMMA");
-      expect(diff3(base, mine, theirs)).toEqual({
+      expect(diff3(base, mine, theirs)).toStrictEqual({
         conflicted: false,
         merged: doc("alpha", "inserted", "beta", "GAMMA"),
       });
@@ -64,7 +67,7 @@ describe("diff3", () => {
       const base = doc("keep", "drop me", "middle", "edit me");
       const mine = doc("keep", "drop me", "middle", "edited");
       const theirs = doc("keep", "middle", "edit me");
-      expect(diff3(base, mine, theirs)).toEqual({
+      expect(diff3(base, mine, theirs)).toStrictEqual({
         conflicted: false,
         merged: doc("keep", "middle", "edited"),
       });
@@ -74,7 +77,7 @@ describe("diff3", () => {
       const base = doc("# Title", "body");
       const mine = doc("# Title", "body edited");
       const theirs = doc("# Title", "body", "", "appended by agent");
-      expect(diff3(base, mine, theirs)).toEqual({
+      expect(diff3(base, mine, theirs)).toStrictEqual({
         conflicted: false,
         merged: doc("# Title", "body edited", "", "appended by agent"),
       });
@@ -84,14 +87,14 @@ describe("diff3", () => {
       const base = "a\nb";
       const mine = "a\nb";
       const theirs = "a\nB";
-      expect(diff3(base, mine, theirs)).toEqual({ conflicted: false, merged: "a\nB" });
+      expect(diff3(base, mine, theirs)).toStrictEqual({ conflicted: false, merged: "a\nB" });
     });
 
     it("merges when theirs rewrites the trailing-newline tail", () => {
       const base = "a\nb\n";
       const mine = "A\nb\n";
       const theirs = "a\nb\nc\n";
-      expect(diff3(base, mine, theirs)).toEqual({ conflicted: false, merged: "A\nb\nc\n" });
+      expect(diff3(base, mine, theirs)).toStrictEqual({ conflicted: false, merged: "A\nb\nc\n" });
     });
   });
 
@@ -100,7 +103,7 @@ describe("diff3", () => {
       const base = doc("a", "shared", "z");
       const mine = doc("a", "mine version", "z");
       const theirs = doc("a", "theirs version", "z");
-      expect(diff3(base, mine, theirs)).toEqual({
+      expect(diff3(base, mine, theirs)).toStrictEqual({
         conflicted: true,
         merged: doc("a", "mine version", "z"),
       });
@@ -110,7 +113,7 @@ describe("diff3", () => {
       const base = doc("head", "conflict line", "mid", "tail");
       const mine = doc("head", "conflict mine", "mid", "tail");
       const theirs = doc("head", "conflict theirs", "mid", "TAIL");
-      expect(diff3(base, mine, theirs)).toEqual({
+      expect(diff3(base, mine, theirs)).toStrictEqual({
         conflicted: true,
         merged: doc("head", "conflict mine", "mid", "TAIL"),
       });
@@ -120,7 +123,7 @@ describe("diff3", () => {
       const base = doc("a", "b");
       const mine = doc("a", "mine insert", "b");
       const theirs = doc("a", "theirs insert", "b");
-      expect(diff3(base, mine, theirs)).toEqual({
+      expect(diff3(base, mine, theirs)).toStrictEqual({
         conflicted: true,
         merged: doc("a", "mine insert", "b"),
       });
@@ -130,7 +133,7 @@ describe("diff3", () => {
       const base = doc("a", "victim", "z");
       const mine = doc("a", "victim edited", "z");
       const theirs = doc("a", "z");
-      expect(diff3(base, mine, theirs)).toEqual({
+      expect(diff3(base, mine, theirs)).toStrictEqual({
         conflicted: true,
         merged: doc("a", "victim edited", "z"),
       });
@@ -149,7 +152,7 @@ describe("diff3", () => {
       const base = doc("original");
       const mine = doc("completely mine");
       const theirs = doc("completely theirs");
-      expect(diff3(base, mine, theirs)).toEqual({
+      expect(diff3(base, mine, theirs)).toStrictEqual({
         conflicted: true,
         merged: doc("completely mine"),
       });
@@ -160,14 +163,14 @@ describe("diff3", () => {
     it("merges both sides filling the same blank line identically", () => {
       const base = doc("a", "", "z");
       const both = doc("a", "filled", "z");
-      expect(diff3(base, both, both)).toEqual({ conflicted: false, merged: both });
+      expect(diff3(base, both, both)).toStrictEqual({ conflicted: false, merged: both });
     });
 
     it("conflicts when the sides fill a blank line differently", () => {
       const base = doc("a", "", "z");
       const mine = doc("a", "mine fill", "z");
       const theirs = doc("a", "theirs fill", "z");
-      expect(diff3(base, mine, theirs)).toEqual({
+      expect(diff3(base, mine, theirs)).toStrictEqual({
         conflicted: true,
         merged: doc("a", "mine fill", "z"),
       });
@@ -177,7 +180,7 @@ describe("diff3", () => {
       const base = doc("a", "x y", "z");
       const mine = doc("a", "x", "y", "z");
       const theirs = doc("a", "x", "y", "z");
-      expect(diff3(base, mine, theirs)).toEqual({
+      expect(diff3(base, mine, theirs)).toStrictEqual({
         conflicted: false,
         merged: doc("a", "x", "y", "z"),
       });
@@ -186,7 +189,7 @@ describe("diff3", () => {
     it("handles both sides appending at a trailing-newline boundary identically", () => {
       const base = "a\n";
       const both = "a\nb\n";
-      expect(diff3(base, both, both)).toEqual({ conflicted: false, merged: both });
+      expect(diff3(base, both, both)).toStrictEqual({ conflicted: false, merged: both });
     });
 
     it("conflicts on different appends at the trailing-newline boundary", () => {
@@ -200,7 +203,10 @@ describe("diff3", () => {
       const base = "head\nmid\ntail\n";
       const mine = "HEAD\nmid\ntail\n";
       const theirs = "head\nmid\ntail";
-      expect(diff3(base, mine, theirs)).toEqual({ conflicted: false, merged: "HEAD\nmid\ntail" });
+      expect(diff3(base, mine, theirs)).toStrictEqual({
+        conflicted: false,
+        merged: "HEAD\nmid\ntail",
+      });
     });
   });
 
@@ -216,7 +222,7 @@ describe("diff3", () => {
       expected[5] = "line 5 (mine)";
       expected[20] = "line 20 (theirs)";
       expected[40] = "line 40 (mine)";
-      expect(diff3(base, doc(...mineLines), doc(...theirsLines))).toEqual({
+      expect(diff3(base, doc(...mineLines), doc(...theirsLines))).toStrictEqual({
         conflicted: false,
         merged: doc(...expected),
       });
@@ -226,7 +232,7 @@ describe("diff3", () => {
       const base = doc("intro", "a", "b", "c", "outro", "footer");
       const mine = doc("intro", "x", "y", "outro", "footer");
       const theirs = doc("intro", "a", "b", "c", "outro", "FOOTER");
-      expect(diff3(base, mine, theirs)).toEqual({
+      expect(diff3(base, mine, theirs)).toStrictEqual({
         conflicted: false,
         merged: doc("intro", "x", "y", "outro", "FOOTER"),
       });
@@ -236,7 +242,7 @@ describe("diff3", () => {
       const base = doc("-", "item", "-", "item", "-");
       const mine = doc("-", "item edited", "-", "item", "-");
       const theirs = doc("-", "item", "-", "item", "-", "appended");
-      expect(diff3(base, mine, theirs)).toEqual({
+      expect(diff3(base, mine, theirs)).toStrictEqual({
         conflicted: false,
         merged: doc("-", "item edited", "-", "item", "-", "appended"),
       });
@@ -252,7 +258,7 @@ describe("diff3", () => {
 
     it("still merges the other side's edits outside its span", () => {
       const theirsLines = edit(baseLines, [10, 2500], "theirs");
-      expect(diff3(doc(...baseLines), doc(...mineLines), doc(...theirsLines))).toEqual({
+      expect(diff3(doc(...baseLines), doc(...mineLines), doc(...theirsLines))).toStrictEqual({
         conflicted: false,
         merged: doc(...edit(mineLines, [10, 2500], "theirs")),
       });
@@ -260,7 +266,7 @@ describe("diff3", () => {
 
     it("reports an edit inside its span as a conflict, even on a line it kept", () => {
       const theirsLines = edit(baseLines, [10, 1500], "theirs");
-      expect(diff3(doc(...baseLines), doc(...mineLines), doc(...theirsLines))).toEqual({
+      expect(diff3(doc(...baseLines), doc(...mineLines), doc(...theirsLines))).toStrictEqual({
         conflicted: true,
         merged: doc(...edit(mineLines, [10], "theirs")),
       });
@@ -269,7 +275,7 @@ describe("diff3", () => {
     it("keeps mine over two whole rewrites of a long note without walking either", () => {
       const base = doc(...numbered(10_000, "line"));
       const mine = doc(...numbered(10_000, "mine"));
-      expect(diff3(base, mine, doc(...numbered(10_000, "theirs")))).toEqual({
+      expect(diff3(base, mine, doc(...numbered(10_000, "theirs")))).toStrictEqual({
         conflicted: true,
         merged: mine,
       });

@@ -13,20 +13,20 @@ const records = (text: string): string[][] => {
 
 const quoted = (value: string): string => `"${value.replaceAll('"', '""')}"`;
 
-describe("parseCsv", () => {
+describe(parseCsv, () => {
   it("reads fields and records, with or without a final line break", () => {
-    expect(records("a,b,c\n1,2,3\n")).toEqual([
+    expect(records("a,b,c\n1,2,3\n")).toStrictEqual([
       ["a", "b", "c"],
       ["1", "2", "3"],
     ]);
-    expect(records("a,b\n1,2")).toEqual([
+    expect(records("a,b\n1,2")).toStrictEqual([
       ["a", "b"],
       ["1", "2"],
     ]);
   });
 
   it("ends a record at CRLF, LF or CR, and skips a byte-order mark", () => {
-    expect(records("﻿a,b\r\n1,2\r3,4\n5,6")).toEqual([
+    expect(records("﻿a,b\r\n1,2\r3,4\n5,6")).toStrictEqual([
       ["a", "b"],
       ["1", "2"],
       ["3", "4"],
@@ -35,29 +35,29 @@ describe("parseCsv", () => {
   });
 
   it("reads a quoted field's commas, line breaks and doubled quotes", () => {
-    expect(records('title,note\n"Hello, world","line one\r\nline ""two"""\n')).toEqual([
+    expect(records('title,note\n"Hello, world","line one\r\nline ""two"""\n')).toStrictEqual([
       ["title", "note"],
       ["Hello, world", 'line one\r\nline "two"'],
     ]);
   });
 
   it("keeps empty fields, and a quoted empty field", () => {
-    expect(records('a,,c\n,"",\n')).toEqual([
+    expect(records('a,,c\n,"",\n')).toStrictEqual([
       ["a", "", "c"],
       ["", "", ""],
     ]);
   });
 
   it("skips a blank line", () => {
-    expect(records("a\n\n\nb\n")).toEqual([["a"], ["b"]]);
+    expect(records("a\n\n\nb\n")).toStrictEqual([["a"], ["b"]]);
   });
 
   it("reads a quote inside an unquoted field as a character", () => {
-    expect(records('say "hi",x\n')).toEqual([['say "hi"', "x"]]);
+    expect(records('say "hi",x\n')).toStrictEqual([['say "hi"', "x"]]);
   });
 
   it("refuses a quote that never closes, naming its record", () => {
-    expect(parseCsv('a,b\n1,"open\n2,3\n')).toEqual({
+    expect(parseCsv('a,b\n1,"open\n2,3\n')).toStrictEqual({
       ok: false,
       reason: "unterminated-quote",
       record: 2,
@@ -86,7 +86,7 @@ describe("parseCsv", () => {
             .join(","),
         )
         .join(random() < 0.5 ? "\n" : "\r\n");
-      expect(records(text)).toEqual(matrix);
+      expect(records(text)).toStrictEqual(matrix);
     }
   });
 });

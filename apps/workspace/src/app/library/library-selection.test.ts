@@ -26,7 +26,7 @@ const names = (s: LibrarySelection): string[] => [...s.selected].toSorted();
 describe("a click and its modifiers, as Finder reads them", () => {
   it("selects one item with a click, replacing what was selected", () => {
     const s = run({ kind: "click", id: "a" }, { kind: "click", id: "c" });
-    expect(names(s)).toEqual(["c"]);
+    expect(names(s)).toStrictEqual(["c"]);
     expect(s.anchor).toBe("c");
     expect(s.focus).toBe("c");
   });
@@ -38,33 +38,33 @@ describe("a click and its modifiers, as Finder reads them", () => {
       { kind: "toggle", id: "e" },
       { kind: "toggle", id: "a" },
     );
-    expect(names(s)).toEqual(["c", "e"]);
+    expect(names(s)).toStrictEqual(["c", "e"]);
     expect(s.anchor).toBe("a");
   });
 
   it("extends from the anchor to the item with ⇧-click, in either direction", () => {
     expect(
       names(run({ kind: "click", id: "b" }, { kind: "range", order: ORDER, id: "e" })),
-    ).toEqual(["b", "c", "d", "e"]);
+    ).toStrictEqual(["b", "c", "d", "e"]);
     const back = run(
       { kind: "click", id: "e" },
       { kind: "range", order: ORDER, id: "e" },
       { kind: "range", order: ORDER, id: "c" },
     );
-    expect(names(back)).toEqual(["c", "d", "e"]);
+    expect(names(back)).toStrictEqual(["c", "d", "e"]);
     expect(back.anchor).toBe("e");
     expect(back.focus).toBe("c");
   });
 
   it("anchors a ⇧-click with nothing selected at the item itself", () => {
-    expect(names(run({ kind: "range", order: ORDER, id: "d" }))).toEqual(["d"]);
+    expect(names(run({ kind: "range", order: ORDER, id: "d" }))).toStrictEqual(["d"]);
   });
 });
 
 describe("the arrows over the grid's order", () => {
   it("moves the focus and the selection with it, a row at a time up and down", () => {
     const s = run({ kind: "click", id: "b" }, move("down"));
-    expect(names(s)).toEqual(["e"]);
+    expect(names(s)).toStrictEqual(["e"]);
     expect(run({ kind: "click", id: "e" }, move("up")).focus).toBe("b");
     expect(run({ kind: "click", id: "e" }, move("left")).focus).toBe("d");
     expect(run({ kind: "click", id: "e" }, move("right")).focus).toBe("f");
@@ -83,7 +83,7 @@ describe("the arrows over the grid's order", () => {
 
   it("extends from the anchor with ⇧", () => {
     const s = run({ kind: "click", id: "b" }, move("right", true), move("down", true));
-    expect(names(s)).toEqual(["b", "c", "d", "e", "f"]);
+    expect(names(s)).toStrictEqual(["b", "c", "d", "e", "f"]);
     expect(s.anchor).toBe("b");
     expect(s.focus).toBe("f");
   });
@@ -94,9 +94,9 @@ describe("the arrows over the grid's order", () => {
   });
 
   it("does nothing over an empty grid", () => {
-    expect(run({ columns: 3, delta: "down", extend: false, kind: "move", order: [] })).toEqual(
-      NONE,
-    );
+    expect(
+      run({ columns: 3, delta: "down", extend: false, kind: "move", order: [] }),
+    ).toStrictEqual(NONE);
   });
 });
 
@@ -107,13 +107,13 @@ describe("select all, clear and prune", () => {
       { kind: "all", order: ORDER },
       { id: "c", kind: "toggle" },
     );
-    expect(names(s)).toEqual(["a", "b", "d", "e", "f", "g", "h"]);
+    expect(names(s)).toStrictEqual(["a", "b", "d", "e", "f", "g", "h"]);
   });
 
   it("clears everything", () => {
     expect(
       run({ id: "a", kind: "click" }, { kind: "all", order: ORDER }, { kind: "clear" }),
-    ).toEqual(NONE);
+    ).toStrictEqual(NONE);
   });
 
   it("takes items that left the library out, and the focus with them", () => {
@@ -122,7 +122,7 @@ describe("select all, clear and prune", () => {
       { kind: "toggle", id: "b" },
       { gone: new Set(["b", "z"]), kind: "prune" },
     );
-    expect(names(s)).toEqual(["a"]);
+    expect(names(s)).toStrictEqual(["a"]);
     expect(s.focus).toBeNull();
     expect(s.anchor).toBeNull();
   });
@@ -143,6 +143,6 @@ describe("the store", () => {
     selection.apply({ kind: "click", id: "a" });
     selection.apply({ gone: new Set(["z"]), kind: "prune" });
     expect(seen).toHaveLength(1);
-    expect(names(selection.store.getState())).toEqual(["a"]);
+    expect(names(selection.store.getState())).toStrictEqual(["a"]);
   });
 });

@@ -95,7 +95,7 @@ describe("docs/privacy.md names every /v1 route the cloud contract declares", ()
 
   it("holds a row for every declared route, and no row for any other", () => {
     const drift = privacyRouteDrift(contractSources(), readPrivacy());
-    expect(drift, `\n${drift.join("\n\n")}\n`).toEqual([]);
+    expect(drift, `\n${drift.join("\n\n")}\n`).toStrictEqual([]);
   });
 
   it("refuses an undocumented route and a stale row, naming each", () => {

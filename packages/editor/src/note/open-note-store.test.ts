@@ -25,12 +25,12 @@ describe("the open note's store", () => {
   it("names the doc the open path loaded, and loading while it reads", () => {
     const store = createOpenNoteStore();
     store.publishOpenPath("notes/a.md");
-    expect(store.state().openDoc).toEqual({ kind: "loading", path: "notes/a.md" });
+    expect(store.state().openDoc).toStrictEqual({ kind: "loading", path: "notes/a.md" });
     store.publishEditor(opened("notes/a.md", "# A\n"));
-    expect(store.state().openDoc).toEqual({ kind: "markdown", path: "notes/a.md" });
+    expect(store.state().openDoc).toStrictEqual({ kind: "markdown", path: "notes/a.md" });
     store.publishOpenPath("notes/readme.txt");
     store.publishEditor(opened("notes/readme.txt", "plain"));
-    expect(store.state().openDoc).toEqual({ kind: "non-markdown", path: "notes/readme.txt" });
+    expect(store.state().openDoc).toStrictEqual({ kind: "non-markdown", path: "notes/readme.txt" });
   });
 
   it("never shows a new path's bytes under the old path's doc", () => {
@@ -41,10 +41,11 @@ describe("the open note's store", () => {
     store.publishOpenPath("b.md");
     store.publishEditor(opened("b.md", "B\n"));
     stop();
-    for (const state of seen) {
-      if (state.editor.kind === "open" && state.editor.content === "B\n") {
-        expect(state.openDoc).toEqual({ kind: "markdown", path: "b.md" });
-      }
+    const showingB = seen.filter(
+      (state) => state.editor.kind === "open" && state.editor.content === "B\n",
+    );
+    for (const state of showingB) {
+      expect(state.openDoc).toStrictEqual({ kind: "markdown", path: "b.md" });
     }
   });
 
@@ -62,7 +63,7 @@ describe("the open note's store", () => {
     store.publishOpenPath("a.md");
     store.publishEditor(opened("a.md", "A\n"));
     store.publishOpenPath(null);
-    expect(store.state().editor).toEqual({ kind: "closed" });
-    expect(store.state().openDoc).toEqual({ kind: "none" });
+    expect(store.state().editor).toStrictEqual({ kind: "closed" });
+    expect(store.state().openDoc).toStrictEqual({ kind: "none" });
   });
 });

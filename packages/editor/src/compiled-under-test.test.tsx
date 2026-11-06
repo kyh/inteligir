@@ -2,11 +2,11 @@
 // built app. a .tsx suite on purpose: only the editor-dom project runs the compiler, which skips
 // the node project's server transform.
 
-import { expect, it } from "vitest";
+import { expect, test } from "vitest";
 
 import { HrElement } from "./nodes/hr-node";
 
-it("holds the React Compiler's output for the editor's components", () => {
+test("holds the React Compiler's output for the editor's components", () => {
   expect(
     HrElement.toString(),
     "the editor-dom vitest project must run the React Compiler's Babel preset (reactCompilerPreset) over src/",

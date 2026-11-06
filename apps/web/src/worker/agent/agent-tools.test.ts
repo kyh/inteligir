@@ -53,9 +53,9 @@ describe("the built-in agent's tools", () => {
   it("are the connector's tools but undo_change, each by its name, deleting on the person's word", async () => {
     const listed = await registered();
     const names = AGENT_TOOL_DEFINITIONS.map((tool) => tool.name);
-    expect(names).toEqual(listed.filter((name) => name !== "undo_change").toSorted());
-    expect(Object.keys(AGENT_TOOL_POLICIES).toSorted()).toEqual(names);
-    expect(names.filter(asksFirst)).toEqual(["delete_items"]);
+    expect(names).toStrictEqual(listed.filter((name) => name !== "undo_change").toSorted());
+    expect(Object.keys(AGENT_TOOL_POLICIES).toSorted()).toStrictEqual(names);
+    expect(names.filter(asksFirst)).toStrictEqual(["delete_items"]);
   });
 
   it("are defined as the committed snapshot holds them, with no op id the agent could write", async () => {
@@ -71,9 +71,9 @@ describe("the built-in agent's tools", () => {
   it("mints one op id a call, the same however often it runs", async () => {
     const once = await agentOpId("thread-1", "toolu_1");
     expect(once).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u);
-    expect(await agentOpId("thread-1", "toolu_1")).toBe(once);
-    expect(await agentOpId("thread-1", "toolu_2")).not.toBe(once);
-    expect(await agentOpId("thread-2", "toolu_1")).not.toBe(once);
+    await expect(agentOpId("thread-1", "toolu_1")).resolves.toBe(once);
+    await expect(agentOpId("thread-1", "toolu_2")).resolves.not.toBe(once);
+    await expect(agentOpId("thread-2", "toolu_1")).resolves.not.toBe(once);
   });
 
   // sixty items of long titles and a note of four hundred long paragraphs, past one page's budget
@@ -157,12 +157,12 @@ describe("the built-in agent's tools", () => {
       const agent = agentCellIn(state, library);
       const context = { actor: () => person(), agent, library, settle: agent.settle };
       const call = { threadId: "thread-1", toolUseId: "toolu_1" };
-      expect(
-        await runAgentTool(libraryRouter, context, { ...call, input: {}, name: "undo_change" }),
-      ).toEqual({ content: "There is no tool named undo_change.", isError: true });
-      expect(
-        await runAgentTool(libraryRouter, context, { ...call, input: [], name: "list_items" }),
-      ).toEqual({ content: "A tool's input is a JSON object.", isError: true });
+      await expect(
+        runAgentTool(libraryRouter, context, { ...call, input: {}, name: "undo_change" }),
+      ).resolves.toStrictEqual({ content: "There is no tool named undo_change.", isError: true });
+      await expect(
+        runAgentTool(libraryRouter, context, { ...call, input: [], name: "list_items" }),
+      ).resolves.toStrictEqual({ content: "A tool's input is a JSON object.", isError: true });
       const unread = await runAgentTool(libraryRouter, context, {
         ...call,
         input: { id: 7 },
@@ -186,6 +186,8 @@ describe("the built-in agent's principal", () => {
       ...claimed,
       actor: { clientId: "client-1", clientName: "Claude", grantId: "grant-1", kind: "assistant" },
     };
-    expect(principalFromHeader(encodeURIComponent(JSON.stringify(assistant)))).toEqual(assistant);
+    expect(principalFromHeader(encodeURIComponent(JSON.stringify(assistant)))).toStrictEqual(
+      assistant,
+    );
   });
 });

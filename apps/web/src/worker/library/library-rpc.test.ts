@@ -74,7 +74,7 @@ describe("the cell's RPC handler", () => {
       const errors = vi.spyOn(console, "error").mockImplementation(() => {});
       const warnings = vi.spyOn(console, "warn").mockImplementation(() => {});
       const { library, refusalOf } = linkIn(state, 64 * 1024);
-      expect(await refusalOf(library.search({ query: " " }))).toMatchObject({
+      await expect(refusalOf(library.search({ query: " " }))).resolves.toMatchObject({
         code: "BAD_REQUEST",
         status: 400,
       });
@@ -85,10 +85,10 @@ describe("the cell's RPC handler", () => {
           path: "search",
         }),
       );
-      expect(
-        await refusalOf(library.items.createNote({ markdown: "x".repeat(200_000) })),
-      ).toMatchObject({ code: "QUOTA" });
-      expect(warnings).toHaveBeenCalledTimes(1);
+      await expect(
+        refusalOf(library.items.createNote({ markdown: "x".repeat(200_000) })),
+      ).resolves.toMatchObject({ code: "QUOTA" });
+      expect(warnings).toHaveBeenCalledOnce();
       expect(errors).not.toHaveBeenCalled();
     });
   });
@@ -96,7 +96,9 @@ describe("the cell's RPC handler", () => {
   it("answers a write past the library's cap as full, with what it holds", async () => {
     await inCell(cellOf(), async (state) => {
       const { library, refusalOf } = linkIn(state, 64 * 1024);
-      expect(await refusalOf(library.items.createNote({ markdown: "x".repeat(200_000) }))).toEqual({
+      await expect(
+        refusalOf(library.items.createNote({ markdown: "x".repeat(200_000) })),
+      ).resolves.toStrictEqual({
         code: "QUOTA",
         data: { bytesCap: 64 * 1024, bytesUsed: expect.any(Number) },
         status: 507,
@@ -109,20 +111,20 @@ describe("the cell's RPC handler", () => {
       const { library, refusalOf } = linkIn(state, 1024 * 1024 * 1024);
       const { item } = await library.items.createNote({ markdown: "Tagged." });
       await library.items.organize({ addTags: tags(0), ids: [item.id] });
-      expect(
-        await refusalOf(library.items.organize({ addTags: tags(300), ids: [item.id] })),
-      ).toMatchObject({ code: "PAYLOAD_TOO_LARGE", status: 413 });
+      await expect(
+        refusalOf(library.items.organize({ addTags: tags(300), ids: [item.id] })),
+      ).resolves.toMatchObject({ code: "PAYLOAD_TOO_LARGE", status: 413 });
     });
   });
 
   it("refuses a body past its cap before it reads it", async () => {
     await inCell(cellOf(), async (state) => {
       const { library, refusalOf } = linkIn(state, 1024 * 1024 * 1024);
-      expect(
-        await refusalOf(
+      await expect(
+        refusalOf(
           library.items.createNote({ markdown: "x".repeat(LIBRARY_RPC_MAX_BODY_BYTES + 1) }),
         ),
-      ).toMatchObject({ code: "PAYLOAD_TOO_LARGE", status: 413 });
+      ).resolves.toMatchObject({ code: "PAYLOAD_TOO_LARGE", status: 413 });
     });
   });
 

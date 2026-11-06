@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import type { LibraryReplica } from "@repo/library-replica/library-replica";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -41,7 +42,7 @@ const Opened = ({ actions, onClose }: { actions: PaletteActions; onClose: () => 
 };
 
 const drawPalette = () => {
-  const search = vi.fn(
+  const search = vi.fn<LibraryReplica["search"]>(
     async (query: string) =>
       await Promise.resolve(
         query === "spring"
@@ -77,7 +78,7 @@ describe("the palette", () => {
       within(list)
         .getAllByRole("option")
         .map((option) => option.textContent),
-    ).toEqual([
+    ).toStrictEqual([
       "New note",
       "Save a link…",
       expect.stringContaining("Ask the agent"),

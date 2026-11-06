@@ -29,7 +29,7 @@ const formulasIn = (md: string): { raw: string }[] => {
 
 const RAW_PILL_TABLE = "| a | b |\n| - | - |\n| {{5|5}} | x |\n";
 
-describe("escapePillPipesInTables", () => {
+describe(escapePillPipesInTables, () => {
   it("escapes a raw pill pipe on a table-shaped line", () => {
     expect(escapePillPipesInTables(RAW_PILL_TABLE)).toBe(
       "| a | b |\n| - | - |\n| {{5\\|5}} | x |\n",
@@ -48,7 +48,7 @@ describe("escapePillPipesInTables", () => {
     expect(escapePillPipesInTables("| a \\| b | c |\n")).toBe("| a \\| b | c |\n");
     // A prose line IS table-shaped by the pipe heuristic, so the pill escapes —
     // and micromark's text unescape makes that byte-invisible after parse.
-    expect(formulasIn(prose)).toEqual([{ raw: "sum|10" }]);
+    expect(formulasIn(prose)).toStrictEqual([{ raw: "sum|10" }]);
   });
 
   it("leaves a pill on a pipe-free line untouched", () => {
@@ -114,10 +114,10 @@ describe("escapePillPipesInTables", () => {
   });
 
   it("raw pill in a table cell parses as ONE pill", () => {
-    expect(formulasIn(RAW_PILL_TABLE)).toEqual([{ raw: "5|5" }]);
+    expect(formulasIn(RAW_PILL_TABLE)).toStrictEqual([{ raw: "5|5" }]);
   });
 
   it("our escaped form parses identically", () => {
-    expect(formulasIn("| a | b |\n| - | - |\n| {{5\\|5}} | x |\n")).toEqual([{ raw: "5|5" }]);
+    expect(formulasIn("| a | b |\n| - | - |\n| {{5\\|5}} | x |\n")).toStrictEqual([{ raw: "5|5" }]);
   });
 });

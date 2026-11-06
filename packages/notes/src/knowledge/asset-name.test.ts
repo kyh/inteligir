@@ -6,7 +6,7 @@ import { takenIgnoringCase } from "@repo/notes/knowledge/doc-file";
 const freeAssetPath = (dir: string, baseName: string, takenPaths: readonly string[]): string =>
   freeAssetPathWhere(dir, baseName, takenIgnoringCase(takenPaths));
 
-describe("freeAssetPathWhere", () => {
+describe(freeAssetPathWhere, () => {
   it("keeps a free name as written, its extension lowercased", () => {
     expect(freeAssetPath("assets", "Shot.PNG", [])).toBe("assets/Shot.png");
     expect(freeAssetPath("", "Photo 2026-09-26 14.30.05.jpg", [])).toBe(

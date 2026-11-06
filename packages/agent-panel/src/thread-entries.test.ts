@@ -42,19 +42,19 @@ describe("a thread's entries", () => {
       row(0, { text: "File these.", type: "user.message" }),
       row(1, { kind: "from a newer cell", type: "agent.future" }),
     ]);
-    expect(entries.map(({ event }) => event.type)).toEqual(["user.message", "agent.message"]);
+    expect(entries.map(({ event }) => event.type)).toStrictEqual(["user.message", "agent.message"]);
   });
 
   it("names the approval still waiting by the event that asked, until it is answered", () => {
     const waiting = threadEntries([row(0, asked)]);
-    expect(waitingApprovals(waiting)).toEqual([
+    expect(waitingApprovals(waiting)).toStrictEqual([
       { eventId: `${THREAD}:1:0`, name: "delete_items", until: 9 },
     ]);
     const answered = threadEntries([
       row(0, asked),
       row(1, { by: "person", result: "allow", toolUseId: "t1", type: "approval.answered" }),
     ]);
-    expect(waitingApprovals(answered)).toEqual([]);
+    expect(waitingApprovals(answered)).toStrictEqual([]);
   });
 
   it("says a tool and an ending in the person's words", () => {
@@ -99,12 +99,14 @@ describe("a conversation's blocks", () => {
         row(7, { text: "Done.", type: "agent.message" }),
       ]),
     );
-    expect(blocks.map((block) => block.kind)).toEqual(["entry", "work", "entry"]);
+    expect(blocks.map((block) => block.kind)).toStrictEqual(["entry", "work", "entry"]);
     const [, work] = blocks;
-    expect(work?.kind === "work" ? work.notes : null).toEqual([
+    expect(work?.kind === "work" ? work.notes : null).toStrictEqual([
       { eventId: `${THREAD}:1:1`, text: "Looking first." },
     ]);
-    expect(work?.kind === "work" ? work.uses.map((use) => [use.name, use.failure]) : null).toEqual([
+    expect(
+      work?.kind === "work" ? work.uses.map((use) => [use.name, use.failure]) : null,
+    ).toStrictEqual([
       ["search_library", null],
       ["organize_items", "Not found."],
     ]);

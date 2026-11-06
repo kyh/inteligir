@@ -78,7 +78,7 @@ describe("catalog spelling", () => {
               "\n",
             )}\n  rule: a package two workspaces name is one version the repo has to agree on — move the range to pnpm-workspace.yaml's catalog and spell every manifest "catalog:"\n` +
             `  (a deliberate version split is a DECLARED_SPLITS row in this file, with its reason)`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("no DECLARED_SPLITS row outlives its split", () => {
@@ -91,6 +91,6 @@ describe("catalog spelling", () => {
       `DECLARED_SPLITS rows that excuse nothing — the package is named by fewer than two manifests, or no manifest spells it inline any more:\n` +
         `${stale.map((name) => `  ${name}`).join("\n")}\n` +
         `  fix: delete the row from tools/repo-guards/src/catalog-spelling.test.ts`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });

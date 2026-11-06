@@ -12,6 +12,6 @@ describe("Tidy my library", () => {
   });
 
   it("is asked from Unsorted, a screen the cell takes", () => {
-    expect(agentViewContextSchema.parse(TIDY_VIEW_CONTEXT)).toEqual(TIDY_VIEW_CONTEXT);
+    expect(agentViewContextSchema.parse(TIDY_VIEW_CONTEXT)).toStrictEqual(TIDY_VIEW_CONTEXT);
   });
 });

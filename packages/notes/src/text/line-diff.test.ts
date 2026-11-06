@@ -22,7 +22,7 @@ const expectTrueDiff = (
   side: readonly string[],
   hunks: readonly DiffHunk[],
 ): void => {
-  expect(apply(base, side, hunks)).toEqual(side);
+  expect(apply(base, side, hunks)).toStrictEqual(side);
   for (let i = 1; i < hunks.length; i += 1) {
     const prev = hunks[i - 1];
     const next = hunks[i];
@@ -32,7 +32,7 @@ const expectTrueDiff = (
   }
 };
 
-const roundTrips = (baseText: string, sideText: string): void => {
+const expectRoundTrip = (baseText: string, sideText: string): void => {
   const base = splitLinesLf(baseText);
   const side = splitLinesLf(sideText);
   expectTrueDiff(base, side, diffLines(base, side).hunks);
@@ -75,29 +75,29 @@ const distinctLines = (count: number, label: string): string[] =>
 
 const within = (maxEditDistance: number): DiffLinesOptions => ({ maxEditDistance });
 
-describe("diffLines", () => {
+describe(diffLines, () => {
   it("answers no hunks for identical input", () => {
-    expect(diffLines(["a", "b"], ["a", "b"])).toEqual({ hunks: [], kind: "minimal" });
+    expect(diffLines(["a", "b"], ["a", "b"])).toStrictEqual({ hunks: [], kind: "minimal" });
   });
 
   it("round-trips edits, inserts, deletes and rewrites", () => {
-    roundTrips("a\nb\nc\n", "a\nB\nc\n");
-    roundTrips("a\nb\nc\n", "a\nb\nx\nc\n");
-    roundTrips("a\nb\nc\n", "a\nc\n");
-    roundTrips("a\nb\nc\n", "x\ny\n");
-    roundTrips("", "whole\nnew\n");
-    roundTrips("gone\n", "");
-    roundTrips("a\nb", "a\nb\n");
-    roundTrips("a\nb\n", "a\nb");
+    expectRoundTrip("a\nb\nc\n", "a\nB\nc\n");
+    expectRoundTrip("a\nb\nc\n", "a\nb\nx\nc\n");
+    expectRoundTrip("a\nb\nc\n", "a\nc\n");
+    expectRoundTrip("a\nb\nc\n", "x\ny\n");
+    expectRoundTrip("", "whole\nnew\n");
+    expectRoundTrip("gone\n", "");
+    expectRoundTrip("a\nb", "a\nb\n");
+    expectRoundTrip("a\nb\n", "a\nb");
   });
 
   it("keeps repeated lines aligned", () => {
-    roundTrips("-\nitem\n-\nitem\n-\n", "-\nitem edited\n-\nitem\n-\nmore\n");
+    expectRoundTrip("-\nitem\n-\nitem\n-\n", "-\nitem edited\n-\nitem\n-\nmore\n");
   });
 
   it("reports the minimal hunk for a single-line edit", () => {
     const { hunks } = diffLines(["a", "b", "c"], ["a", "B", "c"]);
-    expect(hunks).toEqual([{ baseEnd: 2, baseStart: 1, sideEnd: 2, sideStart: 1 }]);
+    expect(hunks).toStrictEqual([{ baseEnd: 2, baseStart: 1, sideEnd: 2, sideStart: 1 }]);
   });
 
   // equal-cost inputs: the walk's tie-break is pinned so a merge's hunks stay stable
@@ -138,7 +138,7 @@ describe("diffLines", () => {
       ],
     ],
   ])("pins the tie-break between equal-cost diffs: %j against %j", (base, side, expected) => {
-    expect(diffLines(base, side)).toEqual({ hunks: expected, kind: "minimal" });
+    expect(diffLines(base, side)).toStrictEqual({ hunks: expected, kind: "minimal" });
   });
 
   it("answers a shortest true diff for every small input", () => {
@@ -164,7 +164,7 @@ describe("the edit budget", () => {
     const base = ["head", "a", "keep", "b", "tail"];
     const side = ["head", "A", "keep", "B", "tail"];
     const diff = diffLines(base, side, within(3));
-    expect(diff).toEqual({
+    expect(diff).toStrictEqual({
       hunks: [{ baseEnd: 4, baseStart: 1, sideEnd: 4, sideStart: 1 }],
       kind: "overBudget",
     });
@@ -175,7 +175,7 @@ describe("the edit budget", () => {
     const base = distinctLines(5000, "old");
     const side = distinctLines(5000, "new");
     const diff = diffLines(base, side);
-    expect(diff).toEqual({
+    expect(diff).toStrictEqual({
       hunks: [{ baseEnd: 5000, baseStart: 0, sideEnd: 5000, sideStart: 0 }],
       kind: "overBudget",
     });

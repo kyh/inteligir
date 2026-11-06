@@ -35,7 +35,7 @@ describe("the shell's door", () => {
   it("asks the row's command, and hands back the parsed answer", async () => {
     const asked = vi.fn<() => UpdateState>(() => IDLE);
     mockShell(reply(APP_COMMANDS.updates.getState)(asked));
-    expect(await shellUpdates.getState()).toEqual(IDLE);
+    await expect(shellUpdates.getState()).resolves.toStrictEqual(IDLE);
     expect(asked).toHaveBeenCalledOnce();
   });
 
@@ -52,7 +52,7 @@ describe("the shell's door", () => {
       answer: async () => await shellRefuses("keychain", "The Keychain refused: locked"),
       command: APP_COMMANDS.config.command,
     });
-    await expect(shellConfig()).rejects.toEqual(
+    await expect(shellConfig()).rejects.toStrictEqual(
       new ShellError("keychain", "The Keychain refused: locked"),
     );
   });
@@ -74,7 +74,7 @@ describe("the shell's door", () => {
     await emit(UPDATE_STATE_EVENT.event, { ...IDLE, status: "rebooting" });
     await emit(UPDATE_STATE_EVENT.event, IDLE);
     stop();
-    expect(heard).toEqual([IDLE]);
+    expect(heard).toStrictEqual([IDLE]);
   });
 });
 
@@ -131,9 +131,9 @@ describe("the Mac's replica over the door", () => {
       await tx.run("INSERT INTO notes VALUES (?)", ["one"]);
       return await tx.all("SELECT body FROM notes", []);
     });
-    expect(seen).toEqual([{ body: "one" }]);
-    expect(committed).toEqual(["one"]);
-    expect(sent).toEqual(["begin", "tx 2", "commit 2"]);
+    expect(seen).toStrictEqual([{ body: "one" }]);
+    expect(committed).toStrictEqual(["one"]);
+    expect(sent).toStrictEqual(["begin", "tx 2", "commit 2"]);
   });
 
   it("rolls back what a failed exclusive run wrote, and hands on its failure", async () => {
@@ -144,8 +144,8 @@ describe("the Mac's replica over the door", () => {
       throw new Error("the plan stopped");
     });
     await expect(failed).rejects.toThrow("the plan stopped");
-    expect(committed).toEqual([]);
-    expect(sent).toEqual(["begin", "tx 2", "rollback 2"]);
+    expect(committed).toStrictEqual([]);
+    expect(sent).toStrictEqual(["begin", "tx 2", "rollback 2"]);
   });
 
   it("holds a statement asked during a transaction until the transaction ends", async () => {
@@ -164,7 +164,7 @@ describe("the Mac's replica over the door", () => {
     inside.resolve(null);
     await running;
     await outside;
-    expect(sent).toEqual(["begin", "tx 2", "commit 2", "run INSERT INTO notes VALUES (?)"]);
+    expect(sent).toStrictEqual(["begin", "tx 2", "commit 2", "run INSERT INTO notes VALUES (?)"]);
   });
 });
 
@@ -185,7 +185,7 @@ describe("the outbox's staged files over the door", () => {
     );
     const blobs = shellStagedBlobs();
     await blobs.put(SHA, new Uint8Array([1, 2, 3]), "application/pdf");
-    expect(await blobs.read(SHA)).toEqual(new Uint8Array([1, 2, 3]));
-    expect(await blobs.read("b".repeat(64))).toBeNull();
+    await expect(blobs.read(SHA)).resolves.toStrictEqual(new Uint8Array([1, 2, 3]));
+    await expect(blobs.read("b".repeat(64))).resolves.toBeNull();
   });
 });

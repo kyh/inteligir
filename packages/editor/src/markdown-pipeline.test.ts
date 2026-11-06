@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 import { createSlateEditor, ElementApi } from "platejs";
 import type { Descendant } from "platejs";
 import { serializeMd } from "@platejs/markdown";
@@ -75,7 +75,7 @@ const opaqueValues = (md: string): string[] => {
 };
 
 const expectOpaque = (md: string, values: string[]): void => {
-  expect(opaqueValues(md), md).toEqual(values);
+  expect(opaqueValues(md), md).toStrictEqual(values);
   expect(roundTrip(md), md).toBe(md);
   expect(analyzeMarkdown(md).kind, md).toBe("canonical");
 };
@@ -96,7 +96,7 @@ describe("opaque nodes (constructs with no editor node)", () => {
   });
 
   it("reads a fragment as text: `<>` opens no tag", () => {
-    expect(opaqueValues("<>fragment</>\n")).toEqual([]);
+    expect(opaqueValues("<>fragment</>\n")).toStrictEqual([]);
   });
 
   it("carries HTML comments, both flow and inline", () => {
@@ -121,7 +121,7 @@ describe("opaque nodes (constructs with no editor node)", () => {
 
   it("reads a date no calendar has as text", () => {
     const md = "Meet @2026-02-30 ok\n";
-    expect(opaqueValues(md)).toEqual([]);
+    expect(opaqueValues(md)).toStrictEqual([]);
     expect(JSON.stringify(parseMarkdown(md))).not.toContain('"type":"date"');
     expect(roundTrip(md)).toBe(md);
   });
@@ -153,11 +153,11 @@ describe("opaque nodes (constructs with no editor node)", () => {
       "Meet on @2026-07-01 at noon, <u>underlined</u>.",
       "",
     ].join("\n");
-    expect(opaqueValues(md)).toEqual([]);
+    expect(opaqueValues(md)).toStrictEqual([]);
     expect(analyzeMarkdown(md).kind).toBe("canonical");
     const parsed = parseMarkdown(md);
     const types = parsed.ok ? parsed.value.map((node) => node.type) : [];
-    expect(types).toEqual([
+    expect(types).toStrictEqual([
       "toggle",
       "column_group",
       "video",
@@ -178,7 +178,7 @@ describe("opaque nodes (constructs with no editor node)", () => {
 
   it("keeps html-ish bytes out of fenced code (opaque never runs inside a fence)", () => {
     const md = "```\n<!-- not a comment -->\n<div>x</div>\n```\n";
-    expect(opaqueValues(md)).toEqual([]);
+    expect(opaqueValues(md)).toStrictEqual([]);
     expect(roundTrip(md)).toBe(md);
   });
 });
@@ -240,22 +240,22 @@ describe("wiki links (probe4 translations)", () => {
 
 describe("parseWikiBody (display-time helper)", () => {
   it("splits target / anchor / alias", () => {
-    expect(parseWikiBody("a#b|c")).toEqual({ alias: "c", anchor: "b", target: "a" });
-    expect(parseWikiBody("Note")).toEqual({ target: "Note" });
-    expect(parseWikiBody(" padded ")).toEqual({ target: "padded" });
-    expect(parseWikiBody("Other|friendly")).toEqual({ alias: "friendly", target: "Other" });
-    expect(parseWikiBody("a#sec")).toEqual({ anchor: "sec", target: "a" });
+    expect(parseWikiBody("a#b|c")).toStrictEqual({ alias: "c", anchor: "b", target: "a" });
+    expect(parseWikiBody("Note")).toStrictEqual({ target: "Note" });
+    expect(parseWikiBody(" padded ")).toStrictEqual({ target: "padded" });
+    expect(parseWikiBody("Other|friendly")).toStrictEqual({ alias: "friendly", target: "Other" });
+    expect(parseWikiBody("a#sec")).toStrictEqual({ anchor: "sec", target: "a" });
   });
 
   it("drops an empty alias; a trailing # is title text (tight-# rule)", () => {
-    expect(parseWikiBody("a|")).toEqual({ target: "a" });
-    expect(parseWikiBody("a#")).toEqual({ target: "a#" });
-    expect(parseWikiBody("a#|x")).toEqual({ alias: "x", target: "a#" });
+    expect(parseWikiBody("a|")).toStrictEqual({ target: "a" });
+    expect(parseWikiBody("a#")).toStrictEqual({ target: "a#" });
+    expect(parseWikiBody("a#|x")).toStrictEqual({ alias: "x", target: "a#" });
   });
 
   it("the LAST pipe splits the alias (a piped title keeps its pipes)", () => {
-    expect(parseWikiBody("a|b|c")).toEqual({ alias: "c", target: "a|b" });
-    expect(parseWikiBody("Status | Draft|9e64c3df-c1e2-4a4d-8c07-91528f422413")).toEqual({
+    expect(parseWikiBody("a|b|c")).toStrictEqual({ alias: "c", target: "a|b" });
+    expect(parseWikiBody("Status | Draft|9e64c3df-c1e2-4a4d-8c07-91528f422413")).toStrictEqual({
       alias: "9e64c3df-c1e2-4a4d-8c07-91528f422413",
       target: "Status | Draft",
     });
@@ -412,26 +412,30 @@ describe("the round trip's API", () => {
   });
 
   it("roundTrip throws typed errors carrying the reason", () => {
-    try {
-      roundTrip(`${"> ".repeat(3000)}x\n`);
-      expect.unreachable("roundTrip must throw where the editor cannot hold the note");
-    } catch (error) {
-      expect(error).toBeInstanceOf(RoundTripError);
-      if (error instanceof RoundTripError) {
-        expect(error.reason.kind).toBe("too-deep");
-        expect(error.message).toMatch(/nests deeper/u);
+    const thrown = ((): RoundTripError | null => {
+      try {
+        roundTrip(`${"> ".repeat(3000)}x\n`);
+        return null;
+      } catch (error) {
+        if (error instanceof RoundTripError) {
+          return error;
+        }
+        throw error;
       }
-    }
+    })();
+    assert(thrown !== null, "roundTrip must throw where the editor cannot hold the note");
+    expect(thrown.reason.kind).toBe("too-deep");
+    expect(thrown.message).toMatch(/nests deeper/u);
   });
 
   it("names a file holding the codec's article section a loss: the live editor holds no section", () => {
     const md = "# Note\n\nmine\n\n:::article\n\nThe page.\n\n:::\n";
-    expect(analyzeMarkdown(md)).toEqual({ kind: "roundtrip-loss" });
+    expect(analyzeMarkdown(md)).toStrictEqual({ kind: "roundtrip-loss" });
   });
 
   it("classifies conversion stack overflow as too deep instead of throwing (V1)", () => {
     const deep = `${"> ".repeat(3000)}x\n`;
-    expect(analyzeMarkdown(deep)).toEqual({ kind: "too-deep" });
+    expect(analyzeMarkdown(deep)).toStrictEqual({ kind: "too-deep" });
     expect(() => roundTrip(deep)).toThrow(RoundTripError);
   });
 });

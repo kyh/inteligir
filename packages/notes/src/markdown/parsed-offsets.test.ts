@@ -29,9 +29,9 @@ describe("a parse's offsets index the string it was handed, past a leading BOM",
   ])("%s: the bare parse", (_, bom) => {
     const src = `${bom}[[old]] then [x](y.md)\r\n\r\n# Head\r\n`;
     const root = parseBare(src);
-    expect(nodeText(src, root, "wikiLink")).toEqual(["[[old]]"]);
-    expect(nodeText(src, root, "link")).toEqual(["[x](y.md)"]);
-    expect(nodeText(src, root, "heading")).toEqual(["# Head"]);
+    expect(nodeText(src, root, "wikiLink")).toStrictEqual(["[[old]]"]);
+    expect(nodeText(src, root, "link")).toStrictEqual(["[x](y.md)"]);
+    expect(nodeText(src, root, "heading")).toStrictEqual(["# Head"]);
   });
 
   it.each([
@@ -40,8 +40,8 @@ describe("a parse's offsets index the string it was handed, past a leading BOM",
   ])("%s: the bare parse's math and an element of tags, its tags included", (_, bom) => {
     const src = `${bom}$$[[old]]$$ and <Card title="[[old]]">x</Card>\n`;
     const root = parseBare(src);
-    expect(nodeText(src, root, "inlineMath")).toEqual(["$$[[old]]$$"]);
-    expect(nodeText(src, root, "htmlElement")).toEqual(['<Card title="[[old]]">x</Card>']);
+    expect(nodeText(src, root, "inlineMath")).toStrictEqual(["$$[[old]]$$"]);
+    expect(nodeText(src, root, "htmlElement")).toStrictEqual(['<Card title="[[old]]">x</Card>']);
     const [paragraph] = root.children;
     const card = paragraph?.type === "paragraph" ? paragraph.children.at(-1) : undefined;
     const open = card?.type === "htmlElement" ? card.open : undefined;
@@ -55,6 +55,6 @@ describe("a parse's offsets index the string it was handed, past a leading BOM",
     ["a BOM", "\uFEFF"],
   ])("%s: the editor's parse", (_, bom) => {
     const parsed = parseMdast(`${bom}$$\nx\n$$\n`);
-    expect(nodeText(parsed.text, parsed.root, "math")).toEqual(["$$\nx\n$$"]);
+    expect(nodeText(parsed.text, parsed.root, "math")).toStrictEqual(["$$\nx\n$$"]);
   });
 });

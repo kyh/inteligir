@@ -3,7 +3,7 @@ import type { LibraryOp } from "@repo/notes/library/block-ops";
 import { ensureLibrarySchema } from "@repo/notes/library/library-schema";
 import { runPlanAsync } from "@repo/notes/library/library-sql";
 import { mulberry32, pick } from "@repo/notes/test-support/seeded-random";
-import { describe, expect, it, vi } from "vitest";
+import { assert, describe, expect, it, vi } from "vitest";
 
 import { fileSha } from "./library-replica";
 import { openMemorySql } from "./memory-sql";
@@ -173,7 +173,7 @@ describe("the replica's outbox", () => {
     const again = await relaunch(cell, "phone", phone);
     expect(again.replica.status().unsent).toBe(2);
     expect(again.replica.row(id)?.unsent).toBe(true);
-    expect(await replicaText(again.replica, id, "p1")).toBe("draft, edited");
+    await expect(replicaText(again.replica, id, "p1")).resolves.toBe("draft, edited");
 
     again.network.setOffline(false);
     await again.replica.sync();
@@ -209,10 +209,11 @@ describe("the replica's outbox", () => {
       op: "put",
     };
     const outcome = await phone.replica.write(id, { ops: [stale] });
-    expect(outcome.kind).toBe("changed");
-    if (outcome.kind === "changed") {
-      expect(outcome.item.blocks.map((held) => textOf(held.block))).toEqual(["first", "second"]);
-    }
+    assert(outcome.kind === "changed", `the write answered ${outcome.kind}`);
+    expect(outcome.item.blocks.map((held) => textOf(held.block))).toStrictEqual([
+      "first",
+      "second",
+    ]);
     expect(phone.replica.status().unsent).toBe(0);
   });
 
@@ -229,7 +230,7 @@ describe("the replica's outbox", () => {
     expect(writes(cell, "phone")).toBe(1);
     expect(cellText(cell, id, "p1")).toBe("the Mac's");
     expect(cellText(cell, id, "p2")).toBe("the phone's");
-    expect(await replicaText(phone.replica, id, "p1")).toBe("the Mac's");
+    await expect(replicaText(phone.replica, id, "p1")).resolves.toBe("the Mac's");
   });
 
   it("merges two devices' edits to the same block through the merge port and sends it again", async () => {
@@ -244,7 +245,7 @@ describe("the replica's outbox", () => {
     await phone.replica.sync();
     expect(writes(cell, "phone")).toBe(2);
     expect(cellText(cell, id, "p1")).toBe("the Mac's / the phone's");
-    expect(await replicaText(phone.replica, id, "p1")).toBe("the Mac's / the phone's");
+    await expect(replicaText(phone.replica, id, "p1")).resolves.toBe("the Mac's / the phone's");
   });
 
   it("says which item a merge kept this device's lines in over another device's", async () => {
@@ -261,12 +262,12 @@ describe("the replica's outbox", () => {
     });
     await write(phone.replica, id, [await putText(phone.replica, id, "p2", "the phone's")]);
     await phone.replica.sync();
-    expect(overlapped).toEqual([]);
+    expect(overlapped).toStrictEqual([]);
     await write(mac.replica, id, [await putText(mac.replica, id, "p1", "the Mac's again")]);
     await mac.replica.sync();
     await write(phone.replica, id, [await putText(phone.replica, id, "p1", "the phone's")]);
     await phone.replica.sync();
-    expect(overlapped).toEqual([id]);
+    expect(overlapped).toStrictEqual([id]);
     expect(cellText(cell, id, "p1")).toBe("the phone's");
   });
 
@@ -299,7 +300,7 @@ describe("the replica's outbox", () => {
     await phone.replica.sync();
     expect(cellText(cell, id, "p2")).toBe("edited on the Mac");
     expect(phone.replica.status().unsent).toBe(0);
-    expect(await replicaText(phone.replica, id, "p2")).toBe("edited on the Mac");
+    await expect(replicaText(phone.replica, id, "p2")).resolves.toBe("edited on the Mac");
   });
 
   it("lands a write whose answer was lost once: no second item", async () => {
@@ -371,7 +372,7 @@ describe("the replica's outbox", () => {
     await phone.replica.sync();
     expect(cellText(cell, big, "p2")).toBe("second");
     expect(phone.replica.status().unsent).toBe(2);
-    expect(await replicaText(phone.replica, big, "p1")).toBe("far too much");
+    await expect(replicaText(phone.replica, big, "p1")).resolves.toBe("far too much");
     expect(phone.replica.row(big)?.parked).toBe(true);
 
     cell.tooLarge.delete(big);
@@ -392,7 +393,7 @@ describe("the replica's outbox", () => {
     const [parked] = phone.replica.status().parked;
     await phone.replica.discard(parked?.seq ?? 0);
     expect(phone.replica.status().unsent).toBe(0);
-    expect(await replicaText(phone.replica, id, "p1")).toBe("first");
+    await expect(replicaText(phone.replica, id, "p1")).resolves.toBe("first");
   });
 
   it("lists a make, a delete and a folder before the cell holds them", async () => {
@@ -412,18 +413,18 @@ describe("the replica's outbox", () => {
       { id: folderId, name: "Reading", op: "create", parentId: null, sort: "a0" },
     ]);
     const live = phone.replica.listing({ deleted: false, limit: 10, offset: 0, sort: "saved" });
-    expect(live.items.map((row) => [row.id, row.unsent, row.tags])).toEqual([
+    expect(live.items.map((row) => [row.id, row.unsent, row.tags])).toStrictEqual([
       [id, true, ["drafts"]],
     ]);
     const deleted = phone.replica.listing({ deleted: true, limit: 10, offset: 0, sort: "saved" });
-    expect(deleted.items.map((row) => row.id)).toEqual([landed]);
-    expect(phone.replica.folders().map((folder) => folder.name)).toEqual(["Reading"]);
+    expect(deleted.items.map((row) => row.id)).toStrictEqual([landed]);
+    expect(phone.replica.folders().map((folder) => folder.name)).toStrictEqual(["Reading"]);
 
     phone.network.setOffline(false);
     await phone.replica.sync();
     expect(cell.item(landed)?.fields.deletedAt).not.toBeNull();
     expect(cell.folder(folderId)?.name).toBe("Reading");
-    expect(phone.replica.folders().map((folder) => folder.name)).toEqual(["Reading"]);
+    expect(phone.replica.folders().map((folder) => folder.name)).toStrictEqual(["Reading"]);
     expect(phone.replica.row(id)?.unsent).toBe(false);
   });
 
@@ -438,9 +439,9 @@ describe("the replica's outbox", () => {
     });
     expect(phone.replica.row(file.id)?.kind).toBe("image");
     await phone.replica.sync();
-    expect(cell.uploads).toEqual([file.sha]);
+    expect(cell.uploads).toStrictEqual([file.sha]);
     expect(cell.item(file.id)?.fields.originalSha).toBe(file.sha);
-    expect(phone.blobs.held()).toEqual([]);
+    expect(phone.blobs.held()).toStrictEqual([]);
 
     const id = await landedNote(cell, phone);
     const image = (blockId: string, ord: string): LibraryOp => ({
@@ -460,7 +461,7 @@ describe("the replica's outbox", () => {
       ops: [image("i2", "a3")],
     });
     await phone.replica.sync();
-    expect(cell.uploads).toEqual([file.sha, fileSha(OTHER_PNG), fileSha(OTHER_PNG)]);
+    expect(cell.uploads).toStrictEqual([file.sha, fileSha(OTHER_PNG), fileSha(OTHER_PNG)]);
     expect(cell.item(id)?.blocks.has("i2")).toBe(true);
     expect(phone.replica.status().unsent).toBe(0);
   });
@@ -495,7 +496,7 @@ describe("the replica's pull", () => {
     const titles = phone.replica
       .listing({ deleted: false, limit: 10, offset: 0, sort: "title" })
       .items.map((row) => row.title);
-    expect(titles).toEqual(["a", "b", "c", "d", "e"]);
+    expect(titles).toStrictEqual(["a", "b", "c", "d", "e"]);
     expect(phone.replica.status()).toMatchObject({ cursor: cell.head(), head: cell.head() });
   });
 
@@ -521,10 +522,10 @@ describe("the replica's pull", () => {
     await phone.replica.sync();
     const asked = cell.calls.filter((call) => call === "phone library/sync/bodies");
     expect(asked).toHaveLength(3);
-    expect(await phone.replica.item(oldest ?? "")).toMatchObject({ bodyHeld: true });
-    expect(await phone.replica.item(middle ?? "")).toMatchObject({ bodyHeld: true });
-    expect(await phone.replica.item(newest ?? "")).toMatchObject({ bodyHeld: true });
-    expect(phone.replica.status().bodies).toEqual({ fetched: 3, total: 3 });
+    await expect(phone.replica.item(oldest ?? "")).resolves.toMatchObject({ bodyHeld: true });
+    await expect(phone.replica.item(middle ?? "")).resolves.toMatchObject({ bodyHeld: true });
+    await expect(phone.replica.item(newest ?? "")).resolves.toMatchObject({ bodyHeld: true });
+    expect(phone.replica.status().bodies).toStrictEqual({ fetched: 3, total: 3 });
   });
 
   it("lists a pulled row before its body arrives, under the card the cell sent", async () => {
@@ -536,10 +537,10 @@ describe("the replica's pull", () => {
     await phone.replica.sync();
     expect(phone.replica.row(id)?.title).toBe("Plans");
     expect(phone.replica.row(id)?.card.preview).toBe("first");
-    expect(await phone.replica.item(id)).toMatchObject({ blocks: [], bodyHeld: false });
+    await expect(phone.replica.item(id)).resolves.toMatchObject({ blocks: [], bodyHeld: false });
     cell.setBodiesPerAnswer(1000);
     await phone.replica.sync();
-    expect(await replicaText(phone.replica, id, "p2")).toBe("second");
+    await expect(replicaText(phone.replica, id, "p2")).resolves.toBe("second");
   });
 
   it("starts over in another library's epoch, keeping the unsent writes", async () => {
@@ -558,8 +559,8 @@ describe("the replica's pull", () => {
     await phone.replica.sync();
     expect(changes).toContain(true);
     expect(phone.replica.status()).toMatchObject({ cursor: cell.head(), unsent: 1 });
-    expect(await replicaText(phone.replica, id, "p1")).toBe("still mine");
-    expect(await replicaText(phone.replica, id, "p2")).toBe("second");
+    await expect(replicaText(phone.replica, id, "p1")).resolves.toBe("still mine");
+    await expect(replicaText(phone.replica, id, "p2")).resolves.toBe("second");
   });
 
   it("starts over from nothing when the database holds a schema of another version", async () => {
@@ -585,7 +586,7 @@ describe("the replica's pull", () => {
     await landedNote(cell, phone);
     cell.signOut();
     await phone.replica.sync();
-    expect(phone.replica.status().failure).toEqual({ end: "signed-out", kind: "session" });
+    expect(phone.replica.status().failure).toStrictEqual({ end: "signed-out", kind: "session" });
     const calls = cell.calls.length;
     await phone.replica.sync();
     expect(cell.calls).toHaveLength(calls);
@@ -598,10 +599,10 @@ describe("what the screens read", () => {
     const phone = await openDevice(cell, "phone");
     const id = await landedNote(cell, phone);
     const hits = await phone.replica.search("second", 10);
-    expect(hits.map((hit) => hit.itemId)).toEqual([id]);
+    expect(hits.map((hit) => hit.itemId)).toStrictEqual([id]);
     phone.network.setOffline(true);
     await phone.replica.deleteItems([id]);
-    expect(await phone.replica.search("second", 10)).toEqual([]);
+    await expect(phone.replica.search("second", 10)).resolves.toStrictEqual([]);
   });
 
   it("answers a saved address the library holds with that item, and lists no second card", async () => {
@@ -619,12 +620,12 @@ describe("what the screens read", () => {
       tags: ["later"],
       url: "https://www.example.com/post?utm_source=feed",
     });
-    expect(again).toEqual({ folded: true, id: first.id });
+    expect(again).toStrictEqual({ folded: true, id: first.id });
     expect(phone.replica.scopes().total).toBe(1);
     phone.network.setOffline(false);
     await phone.replica.sync();
     expect(cell.items().size).toBe(1);
-    expect(phone.replica.row(first.id)?.tags).toEqual(["later"]);
+    expect(phone.replica.row(first.id)?.tags).toStrictEqual(["later"]);
     expect(phone.replica.scopes().total).toBe(1);
   });
 
@@ -647,13 +648,15 @@ describe("what the screens read", () => {
       ],
       ops: [],
     });
-    expect(await phone.replica.annotations(id)).toMatchObject({
+    await expect(phone.replica.annotations(id)).resolves.toMatchObject({
       h1: { quote: "first", source: "user", text: "worth keeping" },
     });
     phone.network.setOffline(false);
     await phone.replica.sync();
     expect(cell.annotation("h1")?.text).toBe("worth keeping");
-    expect(await phone.replica.annotations(id)).toMatchObject({ h1: { text: "worth keeping" } });
+    await expect(phone.replica.annotations(id)).resolves.toMatchObject({
+      h1: { text: "worth keeping" },
+    });
   });
 
   it("forgets every row and unsent write on a wipe", async () => {
@@ -670,7 +673,7 @@ describe("what the screens read", () => {
     await phone.replica.wipe();
     expect(phone.replica.scopes().total).toBe(0);
     expect(phone.replica.status()).toMatchObject({ cursor: 0, unsent: 0 });
-    expect(phone.blobs.held()).toEqual([]);
+    expect(phone.blobs.held()).toStrictEqual([]);
   });
 });
 
@@ -734,10 +737,12 @@ describe("the outbox's replay", () => {
         expect(phone.replica.status().unsent, label).toBe(0);
         for (const [blockId, text] of phoneWrote) {
           expect(cellText(cell, id, blockId), label).toBe(text);
-          expect(await replicaText(phone.replica, id, blockId), label).toBe(text);
+          await expect(replicaText(phone.replica, id, blockId), label).resolves.toBe(text);
         }
         expect(cellText(cell, id, "p3"), label).toBe(macWrote ?? "start");
-        expect(await replicaText(phone.replica, id, "p3"), label).toBe(macWrote ?? "start");
+        await expect(replicaText(phone.replica, id, "p3"), label).resolves.toBe(
+          macWrote ?? "start",
+        );
       }
     },
   );
@@ -788,7 +793,7 @@ describe("the outbox's changes, one at a time", () => {
     await syncing;
     await phone.replica.sync();
     expect(cellText(cell, id, "p1")).toBe("two");
-    expect(await replicaText(phone.replica, id, "p1")).toBe("two");
+    await expect(replicaText(phone.replica, id, "p1")).resolves.toBe("two");
     expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
   });
 
@@ -837,7 +842,7 @@ describe("the outbox's changes, one at a time", () => {
     await phone.replica.sync();
     expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
     expect(cell.item(id)?.blocks.has("i1")).toBe(true);
-    expect(phone.blobs.held()).toEqual([]);
+    expect(phone.blobs.held()).toStrictEqual([]);
   });
 });
 

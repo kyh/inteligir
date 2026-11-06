@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, test } from "vitest";
 
 import { OUTCOME_REASONS } from "../../messages";
 import type { ExtensionRequest, Outcome, OutcomeReason } from "../../messages";
@@ -39,12 +39,12 @@ describe("the popup", () => {
   it("saves the tab it opened over, says it landed in Unsorted with its title, and links the library", async () => {
     const { ask, asked } = worker(connected, saved(true));
     render(<Popup activeTabId={tabSeven} ask={ask} />);
-    expect(await screen.findByText("Saved to Unsorted")).toBeTruthy();
+    await expect(screen.findByText("Saved to Unsorted")).resolves.toBeTruthy();
     expect(screen.getByText("File over app")).toBeTruthy();
     expect(screen.getByText("Open your library").closest("a")?.getAttribute("href")).toBe(
       LIBRARY_URL,
     );
-    expect(asked).toEqual([{ tabId: 7, type: "save" }, { type: "status" }]);
+    expect(asked).toStrictEqual([{ tabId: 7, type: "save" }, { type: "status" }]);
   });
 
   // the page mounts under StrictMode, which runs an effect twice in a development build: a second
@@ -56,18 +56,18 @@ describe("the popup", () => {
         <Popup activeTabId={tabSeven} ask={ask} />
       </StrictMode>,
     );
-    expect(await screen.findByText("Saved to Unsorted")).toBeTruthy();
-    expect(asked.filter((request) => request.type === "save")).toEqual([
+    await expect(screen.findByText("Saved to Unsorted")).resolves.toBeTruthy();
+    expect(asked.filter((request) => request.type === "save")).toStrictEqual([
       { tabId: 7, type: "save" },
     ]);
   });
 
   it("says a page already saved is already in the library, and one that waits when it goes", async () => {
     render(<Popup activeTabId={tabSeven} ask={worker(connected, saved(false)).ask} />);
-    expect(await screen.findByText("Already in your library")).toBeTruthy();
+    await expect(screen.findByText("Already in your library")).resolves.toBeTruthy();
     cleanup();
     render(<Popup activeTabId={tabSeven} ask={worker(connected, { kind: "queued" }).ask} />);
-    expect(await screen.findByText("Saved when you're back online")).toBeTruthy();
+    await expect(screen.findByText("Saved when you're back online")).resolves.toBeTruthy();
   });
 
   it("says every refusal in its own sentence, and links the connect page where connecting helps", async () => {
@@ -75,11 +75,11 @@ describe("the popup", () => {
       render(<Popup activeTabId={tabSeven} ask={worker(notConnected, refused(reason)).ask} />);
       const line = outcomeLine(refused(reason));
       const shown = await screen.findByText(line.text);
-      if (line.connect) {
-        expect(shown.closest("a")?.getAttribute("href"), reason).toBe(CONNECT_URL);
-      } else {
-        expect(shown.getAttribute("role"), reason).toBe("alert");
-      }
+      // a line that links the connect page is that link; any other is an alert
+      expect(
+        line.connect ? shown.closest("a")?.getAttribute("href") : shown.getAttribute("role"),
+        reason,
+      ).toBe(line.connect ? CONNECT_URL : "alert");
       expect(screen.queryByText("Open your library")).toBeNull();
       cleanup();
     }
@@ -88,8 +88,10 @@ describe("the popup", () => {
   it("says a tab it cannot save is not one it saves", async () => {
     const { ask, asked } = worker(connected);
     render(<Popup activeTabId={async () => null} ask={ask} />);
-    expect(await screen.findByText(outcomeLine(refused("unsupported-page")).text)).toBeTruthy();
-    expect(asked).toEqual([{ type: "status" }]);
+    await expect(
+      screen.findByText(outcomeLine(refused("unsupported-page")).text),
+    ).resolves.toBeTruthy();
+    expect(asked).toStrictEqual([{ type: "status" }]);
   });
 });
 
@@ -103,10 +105,12 @@ describe("the welcome page", () => {
   it("says whose library it saves to, and lets the connection go", async () => {
     const { ask, asked } = worker(connected);
     render(<Welcome ask={ask} />);
-    expect(await screen.findByText("Saving to reader@example.test's library")).toBeTruthy();
+    await expect(
+      screen.findByText("Saving to reader@example.test's library"),
+    ).resolves.toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
     await waitFor(() => {
-      expect(asked.at(-1)).toEqual({ type: "disconnect" });
+      expect(asked.at(-1)).toStrictEqual({ type: "disconnect" });
     });
   });
 
@@ -120,7 +124,7 @@ describe("the welcome page", () => {
 // a component the compiler memoizes wrongly passes every other test and fails only in the browser.
 // Welcome draws static parts, which the compiler caches behind its sentinel; the popup's mark is
 // the memo cache it opens
-it("holds the React Compiler's output for the extension's pages", () => {
+test("holds the React Compiler's output for the extension's pages", () => {
   const plugin =
     "the extension vitest project must run the React Compiler's Babel preset (reactCompilerPreset) over src/";
   expect(Welcome.toString(), plugin).toContain("react.memo_cache_sentinel");

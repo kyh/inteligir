@@ -17,7 +17,7 @@ import { asyncPortOf, openWasmSqlPort, transactPlan } from "../test-support/wasm
 const placeholders = (width: number): string =>
   `(${Array.from({ length: width }, () => "?").join(", ")})`;
 
-describe("chunkStatement", () => {
+describe(chunkStatement, () => {
   // 200 seeded statements, each up to 200 rows of wide text measured against both caps
   it(
     "never passes either cap, keeps every row in order and closes a statement only when full (seeded)",
@@ -41,22 +41,20 @@ describe("chunkStatement", () => {
         };
         const chunks = chunkStatement(statement);
         const carried = chunks.flatMap((chunk) => chunk.params.slice(headParams.length));
-        expect(carried).toEqual(statement.rows.flat());
+        expect(carried).toStrictEqual(statement.rows.flat());
         for (const [index, chunk] of chunks.entries()) {
           expect(chunk.params.length).toBeLessThanOrEqual(SQL_MAX_PARAMS);
           expect(utf8ByteLength(chunk.sql)).toBeLessThanOrEqual(SQL_MAX_STATEMENT_BYTES);
-          expect(chunk.params.slice(0, headParams.length)).toEqual(headParams);
+          expect(chunk.params.slice(0, headParams.length)).toStrictEqual(headParams);
           const rowsIn = (chunk.params.length - headParams.length) / width;
-          const next = index < chunks.length - 1;
-          if (next) {
-            const oneMore =
-              chunk.params.length + width > SQL_MAX_PARAMS ||
-              utf8ByteLength(chunk.sql) +
-                utf8ByteLength(statement.separator) +
-                utf8ByteLength(statement.each) >
-                SQL_MAX_STATEMENT_BYTES;
-            expect(oneMore).toBe(true);
-          }
+          const oneMore =
+            chunk.params.length + width > SQL_MAX_PARAMS ||
+            utf8ByteLength(chunk.sql) +
+              utf8ByteLength(statement.separator) +
+              utf8ByteLength(statement.each) >
+              SQL_MAX_STATEMENT_BYTES;
+          // every chunk but the last is full: one more row would break a cap
+          expect(oneMore || index === chunks.length - 1).toBe(true);
           expect(rowsIn).toBeGreaterThan(0);
         }
       }
@@ -66,7 +64,7 @@ describe("chunkStatement", () => {
   it("writes nothing for no rows, and refuses a row that cannot fit any statement", () => {
     expect(
       chunkStatement({ each: "(?)", head: "INSERT INTO t VALUES ", rows: [], separator: ", " }),
-    ).toEqual([]);
+    ).toStrictEqual([]);
     expect(() =>
       chunkStatement({ each: placeholders(101), head: "X ", rows: [[]], separator: ", " }),
     ).toThrow(/limits/u);
@@ -101,12 +99,12 @@ const broken = function* broken(): SqlPlan<void> {
 describe("the plan runners", () => {
   it("drive one plan over the synchronous port and the asynchronous one alike", async () => {
     expect(runPlan(openWasmSqlPort(), counting())).toBe(3);
-    expect(await runPlanAsync(asyncPortOf(openWasmSqlPort()), counting())).toBe(3);
+    await expect(runPlanAsync(asyncPortOf(openWasmSqlPort()), counting())).resolves.toBe(3);
   });
 
   it("throw an engine's refusal into the plan at its yield", async () => {
     expect(runPlan(openWasmSqlPort(), failing())).toBe("refused");
-    expect(await runPlanAsync(asyncPortOf(openWasmSqlPort()), failing())).toBe("refused");
+    await expect(runPlanAsync(asyncPortOf(openWasmSqlPort()), failing())).resolves.toBe("refused");
   });
 
   it("land nothing of a transaction that throws", () => {
@@ -115,6 +113,6 @@ describe("the plan runners", () => {
     expect(() => {
       transactPlan(port, broken());
     }).toThrow("stop");
-    expect(port.all("SELECT count(*) AS rows FROM n", [])).toEqual([{ rows: 2 }]);
+    expect(port.all("SELECT count(*) AS rows FROM n", [])).toStrictEqual([{ rows: 2 }]);
   });
 });

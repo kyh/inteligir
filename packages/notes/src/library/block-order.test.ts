@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { compareBlockPlaces, isOrdKey, ordBetween, ordsBetween, placeInOrder } from "./block-order";
 import { mulberry32 } from "../test-support/seeded-random";
 
-describe("isOrdKey", () => {
+describe(isOrdKey, () => {
   it("accepts every key the library mints, splitting gaps at random (seeded)", () => {
     const rand = mulberry32(0x0e_d0);
     const keys = [ordBetween(null, null)];
@@ -13,7 +13,7 @@ describe("isOrdKey", () => {
       keys.splice(at, 0, key);
       expect(isOrdKey(key)).toBe(true);
     }
-    expect(keys.toSorted()).toEqual(keys);
+    expect(keys.toSorted()).toStrictEqual(keys);
   });
 
   it.each([
@@ -30,7 +30,7 @@ describe("isOrdKey", () => {
   });
 });
 
-describe("compareBlockPlaces", () => {
+describe(compareBlockPlaces, () => {
   it("reads the note before the article, then by key, then by id between equal keys", () => {
     const places = [
       { blockId: "b", ord: "a0", section: "article" },
@@ -38,7 +38,7 @@ describe("compareBlockPlaces", () => {
       { blockId: "y", ord: "a1", section: "note" },
       { blockId: "a", ord: "Zz", section: "note" },
     ] as const;
-    expect(places.toSorted(compareBlockPlaces).map((place) => place.blockId)).toEqual([
+    expect(places.toSorted(compareBlockPlaces).map((place) => place.blockId)).toStrictEqual([
       "a",
       "y",
       "z",
@@ -50,14 +50,14 @@ describe("compareBlockPlaces", () => {
 const keyed = (ids: readonly string[], keys: readonly string[]) =>
   new Map(ids.map((id, index) => [id, keys[index] ?? ""]));
 
-describe("placeInOrder", () => {
+describe(placeInOrder, () => {
   it("restores the keys every block had when they still put it in order", () => {
     const before = keyed(["a", "b", "c"], ordsBetween(null, null, 3));
     const current = keyed(
       ["a", "c"],
       [before.get("a") ?? "", ordBetween(null, before.get("a") ?? null)],
     );
-    expect(placeInOrder(["a", "b", "c"], current, before)).toEqual(before);
+    expect(placeInOrder(["a", "b", "c"], current, before)).toStrictEqual(before);
   });
 
   it("moves no block the merged order keeps in place, and finds room for the rest", () => {
@@ -84,6 +84,7 @@ describe("placeInOrder", () => {
       const placed = placeInOrder(order, current, restore);
       const keys = order.map((id) => placed.get(id) ?? "");
       for (let index = 1; index < keys.length; index += 1) {
+        // oxlint-disable-next-line vitest/prefer-comparison-matcher -- toBeLessThan and its kin take numbers alone, and these are strings compared in code-unit order
         expect((keys[index - 1] ?? "") < (keys[index] ?? "")).toBe(true);
       }
       expect(keys.every(isOrdKey)).toBe(true);

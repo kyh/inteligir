@@ -76,7 +76,14 @@ describe("the card grid", () => {
 
   it("ends the last row at the count", () => {
     mount({ count: 6 });
-    expect(drawnCells()).toEqual(["card 0", "card 1", "card 2", "card 3", "card 4", "card 5"]);
+    expect(drawnCells()).toStrictEqual([
+      "card 0",
+      "card 1",
+      "card 2",
+      "card 3",
+      "card 4",
+      "card 5",
+    ]);
     expect(screen.getAllByRole("row")).toHaveLength(2);
   });
 
@@ -119,6 +126,6 @@ describe("the card grid", () => {
     });
     expect(onKeyDown).not.toHaveBeenCalled();
     fireEvent.keyDown(screen.getByRole("gridcell", { name: "card 0" }), { key: "Delete" });
-    expect(onKeyDown).toHaveBeenCalledTimes(1);
+    expect(onKeyDown).toHaveBeenCalledOnce();
   });
 });

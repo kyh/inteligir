@@ -61,7 +61,7 @@ describe("the rail's resize", () => {
     fireEvent.pointerMove(rail, { clientX: 300, pointerId: 1 });
     expect(onWidthCommitted).not.toHaveBeenCalled();
     fireEvent.pointerUp(rail, { clientX: 300, pointerId: 1 });
-    expect(onWidthCommitted.mock.calls).toEqual([[300]]);
+    expect(onWidthCommitted.mock.calls).toStrictEqual([[300]]);
   });
 
   it("reports the narrowest width when the drag collapses the sidebar", () => {
@@ -70,7 +70,7 @@ describe("the rail's resize", () => {
     const rail = mountSidebar({ onOpenChange, onWidthCommitted });
     fireEvent.pointerDown(rail, { clientX: 0, pointerId: 1 });
     fireEvent.pointerMove(rail, { clientX: 50, pointerId: 1 });
-    expect(onWidthCommitted.mock.calls).toEqual([[192]]);
+    expect(onWidthCommitted.mock.calls).toStrictEqual([[192]]);
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -81,7 +81,7 @@ describe("the rail's resize", () => {
     fireEvent.pointerMove(rail, { clientX: 250, pointerId: 1 });
     fireEvent.pointerCancel(rail, { clientX: 250, pointerId: 1 });
     fireEvent.lostPointerCapture(rail, { pointerId: 1 });
-    expect(onWidthCommitted.mock.calls).toEqual([[250]]);
+    expect(onWidthCommitted.mock.calls).toStrictEqual([[250]]);
   });
 
   it("reports nothing for a click, which toggles instead", () => {

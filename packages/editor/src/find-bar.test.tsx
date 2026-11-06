@@ -110,7 +110,7 @@ describe("find bar", () => {
     });
     expect(view.getByText("1/2")).toBeDefined();
     expect(view.queryByText("Match case")).toBeNull();
-    expect(getFindBarState(editor).search).toEqual({
+    expect(getFindBarState(editor).search).toStrictEqual({
       options: { caseSensitive: false, wholeWord: false },
       query: "alpha",
     });

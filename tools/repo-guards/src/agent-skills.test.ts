@@ -98,7 +98,7 @@ describe("the agent skills", () => {
         ? ""
         : `SKILL FILES OUT OF SHAPE\n${violations.map((line) => `  ${line}`).join("\n")}\n` +
             `  rule: a skill is one directory with one SKILL.md whose frontmatter name is the directory — the agent reads these by that name`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("the hub names every focused skill and nothing that is not one", () => {
@@ -120,7 +120,7 @@ describe("the agent skills", () => {
       [...missing.map((dir) => `unlisted: ${dir}`), ...phantom.map((name) => `phantom: ${name}`)],
       `THE HUB'S INDEX DISAGREES WITH THE SKILL SET\n` +
         `  rule: the first turn points the agent at ${HUB} and the hub is where it learns the rest exist — a skill it does not list is never read, a name it lists that has no directory is a dead end`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   describe("the dialect's fence languages", () => {
@@ -144,7 +144,7 @@ describe("the agent skills", () => {
           ? ""
           : `SKILLS AND THE PARSER SPELL THE FENCES DIFFERENTLY\n${drift.map((line) => `  ${line}`).join("\n")}\n` +
               `  rule: ${UNKNOWN_RULE}, and a skill that teaches one has the agent write blocks nobody sees; a fence no skill teaches is a construct the agent never writes`,
-      ).toEqual([]);
+      ).toStrictEqual([]);
     });
 
     it("catches a renamed spelling from both sides", () => {
@@ -167,7 +167,7 @@ describe("the agent skills", () => {
         `  ~~~~${lang} x`,
         "  ~~~~",
       ];
-      expect(unknownOpenings(exported, fenceOpenings("note.md", note.join("\n")))).toEqual([
+      expect(unknownOpenings(exported, fenceOpenings("note.md", note.join("\n")))).toStrictEqual([
         `note.md:1 — opens \`${lang}\`, which ${FENCE_LANGS} does not export`,
         `note.md:7 — opens \`${lang}\`, which ${FENCE_LANGS} does not export`,
       ]);

@@ -36,7 +36,11 @@ describe("two writers' edits to one block", () => {
     });
     expect(merged.overlapped).toBe(false);
     expect(merged.block.id).toBe("b1");
-    expect(linesOf(merged.block)).toEqual(["one, from the phone", "two", "three, from the Mac"]);
+    expect(linesOf(merged.block)).toStrictEqual([
+      "one, from the phone",
+      "two",
+      "three, from the Mac",
+    ]);
   });
 
   it("keeps mine where both sides changed the same line, and says so", () => {
@@ -46,7 +50,7 @@ describe("two writers' edits to one block", () => {
       theirs: code("b1", ["theirs", "two"]),
     });
     expect(merged.overlapped).toBe(true);
-    expect(linesOf(merged.block)).toEqual(["mine", "two"]);
+    expect(linesOf(merged.block)).toStrictEqual(["mine", "two"]);
   });
 
   it("keeps a link's item through a merge that reads the block again", () => {
@@ -69,7 +73,11 @@ describe("two writers' edits to one block", () => {
       mine: quote("first, mine", " soon"),
       theirs: quote("first", " soon, theirs"),
     });
-    expect(merged).toEqual({ block: quote("first, mine", " soon, theirs"), overlapped: false });
+    // the merged block names its ref whichever side moved it, here neither
+    expect(merged).toStrictEqual({
+      block: { ...quote("first, mine", " soon, theirs"), ref: undefined },
+      overlapped: false,
+    });
   });
 
   it("takes the ref the side that moved it gave, whichever side that was", () => {

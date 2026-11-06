@@ -15,7 +15,7 @@ const CAUGHT_UP: ReplicaStatus = {
 
 describe("what the rail says of the library", () => {
   it("says it is up to date once nothing is left to send or fetch", () => {
-    expect(syncWords(CAUGHT_UP, true)).toEqual({ text: "Up to date", tone: "quiet" });
+    expect(syncWords(CAUGHT_UP, true)).toStrictEqual({ text: "Up to date", tone: "quiet" });
   });
 
   it("counts what it is still sending, and says it is updating while it pulls", () => {
@@ -24,7 +24,7 @@ describe("what the rail says of the library", () => {
   });
 
   it("waits for a connection when the browser has none or the library can't be reached", () => {
-    expect(syncWords({ ...CAUGHT_UP, unsent: 1 }, false)).toEqual({
+    expect(syncWords({ ...CAUGHT_UP, unsent: 1 }, false)).toStrictEqual({
       text: "Waiting for a connection to send 1 change",
       tone: "waiting",
     });
@@ -34,7 +34,7 @@ describe("what the rail says of the library", () => {
 
   it("puts a refused change ahead of everything else", () => {
     const parked = [{ itemIds: ["a"], reason: "Too large.", seq: 3 }];
-    expect(syncWords({ ...CAUGHT_UP, parked, unsent: 1 }, false)).toEqual({
+    expect(syncWords({ ...CAUGHT_UP, parked, unsent: 1 }, false)).toStrictEqual({
       text: "1 change not saved",
       tone: "attention",
     });

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { canonicalJson, sameJson, utf8ByteLength } from "./canonical-json";
 import { mulberry32 } from "../test-support/seeded-random";
 
-describe("canonicalJson", () => {
+describe(canonicalJson, () => {
   it("sorts keys at every depth and leaves undefined members out", () => {
     expect(canonicalJson({ b: [{ z: 1, a: null }], a: "x", c: undefined })).toBe(
       '{"a":"x","b":[{"a":null,"z":1}]}',
@@ -13,7 +13,7 @@ describe("canonicalJson", () => {
   });
 });
 
-describe("utf8ByteLength", () => {
+describe(utf8ByteLength, () => {
   it("counts the bytes the platform encoder writes, lone surrogates included (seeded)", () => {
     const rand = mulberry32(0x07_f8);
     const encoder = new TextEncoder();

@@ -45,7 +45,7 @@ describe("a mermaid fence's preview", () => {
     const { container } = render(<MermaidPreview code={FLOW} />);
     const frame = host(container);
     expect(frame.querySelectorAll(":scope > svg")).toHaveLength(1);
-    expect(labels(frame)).toEqual(expect.arrayContaining(["Draft", "Review"]));
+    expect(labels(frame)).toStrictEqual(expect.arrayContaining(["Draft", "Review"]));
     expect(screen.queryByText(/column/u)).toBeNull();
   });
 
@@ -111,12 +111,12 @@ describe("a mermaid fence's preview", () => {
     const refresh = vi.spyOn(drawing, "refresh");
     document.documentElement.style.setProperty("--editor-font", "monospace");
     await vi.waitFor(() => {
-      expect(refresh).toHaveBeenCalledTimes(1);
+      expect(refresh).toHaveBeenCalledOnce();
     });
     view.unmount();
     document.documentElement.style.removeProperty("--editor-font");
     await Promise.resolve();
-    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it("says a source that is no diagram is one, with no place to point at", () => {
@@ -165,7 +165,7 @@ describe("the markup a drawing becomes nodes through", () => {
     );
     expect(drawn?.querySelectorAll("script, foreignObject, style, set, animate")).toHaveLength(0);
     expect(drawn?.getAttributeNames()).not.toContain("onload");
-    expect(drawn?.querySelector("rect")?.getAttributeNames()).toEqual([]);
+    expect(drawn?.querySelector("rect")?.getAttributeNames()).toStrictEqual([]);
   });
 
   it("takes out every reference that leaves the drawing", () => {
@@ -175,8 +175,8 @@ describe("the markup a drawing becomes nodes through", () => {
       ),
     );
     expect(drawn?.querySelector("a")?.hasAttribute("href")).toBe(false);
-    expect(drawn?.querySelector("image")?.getAttributeNames()).toEqual([]);
-    expect(drawn?.querySelector("rect")?.getAttributeNames()).toEqual([]);
+    expect(drawn?.querySelector("image")?.getAttributeNames()).toStrictEqual([]);
+    expect(drawn?.querySelector("rect")?.getAttributeNames()).toStrictEqual([]);
   });
 
   it("takes out every element outside the svg namespace, whatever its name", () => {

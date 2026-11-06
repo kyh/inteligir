@@ -111,7 +111,7 @@ describe("password reset", () => {
 
     const response = await requestReset("known@example.com", envWith(EMAIL));
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ status: true });
+    await expect(response.json()).resolves.toMatchObject({ status: true });
 
     expect(sent).toHaveLength(1);
     const [message] = sent;
@@ -119,7 +119,7 @@ describe("password reset", () => {
       throw new Error("unreachable");
     }
     expect(message.to).toBe("known@example.com");
-    expect(message.from).toEqual({ email: SENDER, name: "inteligir" });
+    expect(message.from).toStrictEqual({ email: SENDER, name: "inteligir" });
     expect(message.subject).toBe("Reset your inteligir password");
     const link = extractResetLink(message);
     expect(link).toContain(`${ORIGIN}/api/auth/reset-password/`);
@@ -138,7 +138,7 @@ describe("password reset", () => {
 
     const unknown = await requestReset("nobody-ever-signed-up@example.com", testEnv);
     expect(unknown.status).toBe(known.status);
-    expect(await unknown.text()).toBe(knownBody);
+    await expect(unknown.text()).resolves.toBe(knownBody);
     expect(sent).toHaveLength(1);
   });
 
@@ -183,7 +183,7 @@ describe("password reset", () => {
       method: "POST",
     });
     expect(reset.status).toBe(200);
-    expect(await reset.json()).toMatchObject({ status: true });
+    await expect(reset.json()).resolves.toMatchObject({ status: true });
 
     const withOld = await drained(signIn("happy-path@example.com", password));
     expect(withOld.status).toBe(401);
@@ -253,7 +253,7 @@ describe("password reset", () => {
     ).resolves.toBeUndefined();
     const unsent = recordingEmail();
     await sendResetEmail({ EMAIL: unsent.EMAIL }, "user@example.com", "https://x/reset");
-    expect(unsent.sent).toEqual([]);
+    expect(unsent.sent).toStrictEqual([]);
 
     const { EMAIL, sent } = recordingEmail();
     await sendResetEmail(
@@ -261,6 +261,9 @@ describe("password reset", () => {
       "user@example.com",
       "https://x/reset",
     );
-    expect(firstEmail(sent).from).toEqual({ email: "hello@custom-domain.app", name: "inteligir" });
+    expect(firstEmail(sent).from).toStrictEqual({
+      email: "hello@custom-domain.app",
+      name: "inteligir",
+    });
   });
 });

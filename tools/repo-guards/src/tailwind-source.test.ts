@@ -62,6 +62,6 @@ describe("tailwind @source bases", () => {
             .join(
               "\n",
             )}\n  rule: Tailwind treats a missing @source base as an empty scan — no error, no utilities — so the base directory must exist relative to the stylesheet`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });

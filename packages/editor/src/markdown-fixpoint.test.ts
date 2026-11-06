@@ -10,7 +10,7 @@ import {
 
 // Every real input is a pass-1 fixpoint, so the degrade paths are exercised by
 // faking serializer drift on magic tokens.
-vi.mock("@platejs/markdown", async (importOriginal) => {
+vi.mock(import("@platejs/markdown"), async (importOriginal) => {
   const original = await importOriginal<typeof PlatejsMarkdown>();
   const serializeMd: typeof original.serializeMd = (editor, options) => {
     const text = JSON.stringify(options?.value ?? "");
@@ -50,7 +50,7 @@ vi.mock("@platejs/markdown", async (importOriginal) => {
 
 describe("bounded fixpoint check (≤3 passes)", () => {
   it("names a never-stabilizing round-trip unstable, the analysis and Format agreeing", () => {
-    expect(analyzeMarkdown("driftforever\n")).toEqual({ kind: "unstable" });
+    expect(analyzeMarkdown("driftforever\n")).toStrictEqual({ kind: "unstable" });
     expect(() => roundTrip("driftforever\n")).toThrow(RoundTripError);
     expect(() => toCanonical("driftforever\n")).toThrow(RoundTripError);
   });
@@ -58,24 +58,24 @@ describe("bounded fixpoint check (≤3 passes)", () => {
   it("returns the settled form for a pass-2 stabilization (Format stays idempotent)", () => {
     expect(roundTrip("driftslow\n")).toBe("drift  slow\n");
     expect(toCanonical(toCanonical("driftslow\n"))).toBe("drift  slow\n");
-    expect(analyzeMarkdown("driftslow\n")).toEqual({ kind: "normalizes" });
+    expect(analyzeMarkdown("driftslow\n")).toStrictEqual({ kind: "normalizes" });
   });
 
   it("names a loss when the stabilization chain loses letters", () => {
-    expect(analyzeMarkdown("driftlossy\n")).toEqual({ kind: "roundtrip-loss" });
+    expect(analyzeMarkdown("driftlossy\n")).toStrictEqual({ kind: "roundtrip-loss" });
   });
 
   it("names a loss when a save joins two lines without losing a letter", () => {
-    expect(analyzeMarkdown("joined\nlines\n")).toEqual({ kind: "roundtrip-loss" });
+    expect(analyzeMarkdown("joined\nlines\n")).toStrictEqual({ kind: "roundtrip-loss" });
   });
 
   it("calls a save that splits a line a normalization", () => {
-    expect(analyzeMarkdown("splitme lines\n")).toEqual({ kind: "normalizes" });
+    expect(analyzeMarkdown("splitme lines\n")).toStrictEqual({ kind: "normalizes" });
   });
 
   it("keeps byte-identical output on the single-pass fast path", () => {
     const md = "# Hi\n\n- a\n- b\n";
-    expect(analyzeMarkdown(md)).toEqual({ kind: "canonical" });
+    expect(analyzeMarkdown(md)).toStrictEqual({ kind: "canonical" });
     expect(roundTrip(md)).toBe(md);
   });
 });

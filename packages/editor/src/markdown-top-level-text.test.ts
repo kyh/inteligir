@@ -13,10 +13,10 @@ const REFUSED = { kind: "pipeline-error" };
 
 describe("a conversion that yields text outside any block", () => {
   it("is refused by the parse the editor loads", () => {
-    expect(parseMarkdown("stray\n")).toEqual({ ok: false, reason: REFUSED });
+    expect(parseMarkdown("stray\n")).toStrictEqual({ ok: false, reason: REFUSED });
   });
 
   it("opens the note raw", () => {
-    expect(analyzeMarkdown("stray\n")).toEqual(REFUSED);
+    expect(analyzeMarkdown("stray\n")).toStrictEqual(REFUSED);
   });
 });

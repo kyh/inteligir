@@ -103,8 +103,8 @@ describe("the note a bound ref names", () => {
 
     await recomputeFormulas(editor);
 
-    expect(lastPill(editor)).toEqual({ display: "10", meta: "id=F2;name=b" });
-    expect(asked).toEqual([]);
+    expect(lastPill(editor)).toStrictEqual({ display: "10", meta: "id=F2;name=b" });
+    expect(asked).toStrictEqual([]);
   });
 
   it("resolves through a chain of notes this one never names", async () => {
@@ -117,7 +117,7 @@ describe("the note a bound ref names", () => {
     await recomputeFormulas(editor);
 
     expect(lastPill(editor)?.display).toBe("82");
-    expect(asked).toEqual(["B", "C"]);
+    expect(asked).toStrictEqual(["B", "C"]);
   });
 
   it("goes stale when its note cannot be found, keeping the last display", async () => {
@@ -126,7 +126,7 @@ describe("the note a bound ref names", () => {
 
     await recomputeFormulas(editor);
 
-    expect(lastPill(editor)).toEqual({ display: "7", meta: "id=f1;stale=1" });
+    expect(lastPill(editor)).toStrictEqual({ display: "7", meta: "id=f1;stale=1" });
   });
 
   it("writes nothing when an edit lands during the read", async () => {
@@ -146,6 +146,6 @@ describe("the note a bound ref names", () => {
     read.resolve("{{21|21|id=fb;name=b}}\n");
     await pass;
 
-    expect(lastPill(editor)).toEqual({ display: "0", meta: "id=fa;name=a" });
+    expect(lastPill(editor)).toStrictEqual({ display: "0", meta: "id=fa;name=a" });
   });
 });

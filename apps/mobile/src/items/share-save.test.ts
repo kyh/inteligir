@@ -108,7 +108,7 @@ describe("a share, saved", () => {
     const id = thought?.kind === "saved" ? thought.made.id : "";
     const item = await device.replica.item(id);
     expect(item?.fields.title).toBe("Call the printer");
-    expect(item?.blocks.map(({ block }) => block.id)).toEqual(["b1", "b2"]);
-    expect(await saveShared(args, { kind: "nothing" })).toBeNull();
+    expect(item?.blocks.map(({ block }) => block.id)).toStrictEqual(["b1", "b2"]);
+    await expect(saveShared(args, { kind: "nothing" })).resolves.toBeNull();
   });
 });

@@ -3,7 +3,7 @@ import { sameDocument } from "./same-document";
 
 const HELD = "file:///var/mobile/Containers/Data/Application/A1/Library/Caches/attachments";
 
-describe("sameDocument", () => {
+describe(sameDocument, () => {
   it("is the document it was handed, however WebKit escapes it", () => {
     const raw = `${HELD}/Lecture notes.pdf`;
     const escaped = `${HELD}/Lecture%20notes.pdf`;

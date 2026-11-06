@@ -29,6 +29,7 @@ interface MadeEditors {
 }
 const made = vi.hoisted((): MadeEditors => ({ editors: [] }));
 
+// oxlint-disable-next-line vitest/prefer-import-in-mock -- the stub stands in for a few of platejs/react's exports alone, which the typed import() form refuses unless the whole module is stubbed
 vi.mock("platejs/react", async (importOriginal) => {
   const actual = await importOriginal<typeof PlateReact>();
   return {
@@ -151,13 +152,13 @@ beforeAll(() => {
   installFakeEditorHost();
 });
 
-afterAll(() => {
-  vi.unstubAllGlobals();
-});
-
 afterEach(() => {
   sessions.length = 0;
   made.editors.length = 0;
+});
+
+afterAll(() => {
+  vi.unstubAllGlobals();
 });
 
 describe("an item's surface", () => {
@@ -169,7 +170,7 @@ describe("an item's surface", () => {
     const { held, store } = memoryStore(items);
     const ports = portsOver(store);
     const view = render(<Host itemId={A} ports={ports} />);
-    expect(await screen.findByText("A one")).toBeDefined();
+    await expect(screen.findByText("A one")).resolves.toBeDefined();
     const editorA = made.editors.at(-1);
     const sessionA = lastSession();
     const write = deferred<null>();
@@ -179,21 +180,21 @@ describe("an item's surface", () => {
     });
     const writing = sessionA.flush();
     view.rerender(<Host itemId={B} ports={ports} />);
-    expect(await screen.findByText("B one")).toBeDefined();
+    await expect(screen.findByText("B one")).resolves.toBeDefined();
     expect(made.editors.at(-1)).not.toBe(editorA);
     write.resolve(null);
     await writing;
     await waitFor(() => {
-      expect(textsOf(items.get(A))).toEqual(["A one!", "A two"]);
+      expect(textsOf(items.get(A))).toStrictEqual(["A one!", "A two"]);
     });
-    expect(textsOf(items.get(B))).toEqual(["B one", "B two"]);
+    expect(textsOf(items.get(B))).toStrictEqual(["B one", "B two"]);
   });
 
   it("keeps its session when the host hands it the same ports anew", async () => {
     const items = new Map([[A, itemOf("A", paragraph("a1", "A one"))]]);
     const { store } = memoryStore(items);
     const view = render(<Host itemId={A} ports={portsOver(store)} />);
-    expect(await screen.findByText("A one")).toBeDefined();
+    await expect(screen.findByText("A one")).resolves.toBeDefined();
     const announced = sessions.length;
     view.rerender(<Host itemId={A} ports={portsOver(store)} />);
     expect(sessions).toHaveLength(announced);
@@ -210,14 +211,14 @@ describe("an item's surface", () => {
     });
     expect(editable()).toBeNull();
     read.resolve(null);
-    expect(await screen.findByText("the item's text")).toBeDefined();
+    await expect(screen.findByText("the item's text")).resolves.toBeDefined();
     expect(editable()).not.toBeNull();
   });
 
   it("says an item this device does not hold is not here, with no editor to type into", async () => {
     const { store } = memoryStore(new Map());
     render(<Host itemId={A} ports={portsOver(store)} />);
-    expect(await screen.findByText(MISSING_ITEM)).toBeDefined();
+    await expect(screen.findByText(MISSING_ITEM)).resolves.toBeDefined();
     expect(editable()).toBeNull();
   });
 });

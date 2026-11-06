@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { ANNOTATION_QUOTE_MAX, clipQuote } from "./store-schema";
 
-describe("clipQuote", () => {
+describe(clipQuote, () => {
   it("folds whitespace and keeps a short quote whole", () => {
     expect(clipQuote("  a\n\tb   c ")).toBe("a b c");
   });

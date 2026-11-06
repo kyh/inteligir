@@ -104,12 +104,12 @@ describe("the desktop shell's wire", () => {
       manifest,
       `${BUILD_SCRIPT}'s app manifest and ${CONTRACT}'s rows disagree.\n` +
         `  rule: a command the page asks must be one the manifest names (else no capability can grant it), and one the manifest names must be one the page asks\n`,
-    ).toEqual(appCommands);
+    ).toStrictEqual(appCommands);
     expect(
       handlers,
       `${LIB}'s generate_handler! and ${CONTRACT}'s rows disagree.\n` +
         `  rule: every command the page asks has a handler, and no handler goes unasked\n`,
-    ).toEqual(appCommands);
+    ).toStrictEqual(appCommands);
   });
 
   it("grants the window's own page its commands, and no remote page any", () => {
@@ -118,12 +118,14 @@ describe("the desktop shell's wire", () => {
       const name = PERMISSION.exec(permission)?.groups?.name;
       return name === undefined ? [] : [name.replaceAll("-", "_")];
     });
-    expect(sorted(granted), `${CAPABILITY} must grant exactly APP_COMMANDS\n`).toEqual(appCommands);
+    expect(sorted(granted), `${CAPABILITY} must grant exactly APP_COMMANDS\n`).toStrictEqual(
+      appCommands,
+    );
     expect(
       { local: capability.local, remote: capability.remote, windows: capability.windows },
       `${CAPABILITY} is the window's, for the bundle's own page alone.\n` +
         `  rule: a static capability with the local origin only, no remote URL and no grant added at runtime\n`,
-    ).toEqual({ local: true, remote: undefined, windows: [rustConstant(WINDOW, "MAIN")] });
+    ).toStrictEqual({ local: true, remote: undefined, windows: [rustConstant(WINDOW, "MAIN")] });
   });
 
   it.each([
@@ -145,7 +147,7 @@ describe("the desktop shell's wire", () => {
     expect(
       { sha: named?.sha, type: named?.type },
       `${CONTRACT}'s files_stage headers and ${COMMANDS}'s disagree\n`,
-    ).toEqual({
+    ).toStrictEqual({
       sha: rustConstant(COMMANDS, "FILE_SHA_HEADER"),
       type: rustConstant(COMMANDS, "FILE_TYPE_HEADER"),
     });
@@ -158,7 +160,7 @@ describe("the desktop shell's wire", () => {
     const read = sorted(
       allMatches(block(SHELL_ERROR, "kind: z.enum([", "])"), /"(?<name>[a-z-]+)"/gu),
     );
-    expect(read, `${ERROR}'s kinds and ${SHELL_ERROR}'s disagree\n`).toEqual(thrown);
+    expect(read, `${ERROR}'s kinds and ${SHELL_ERROR}'s disagree\n`).toStrictEqual(thrown);
   });
 
   it("runs the page on the origin the cloud lets read its answers", () => {
@@ -176,25 +178,27 @@ describe("the desktop shell's wire", () => {
       sorted(sources(csp, "connect-src")),
       `${TAURI_CONFIG}'s connect-src names more or less than the page's own origin, Tauri's IPC, the shell's files and the cloud.\n` +
         `  rule: the page's calls and its socket reach the cloud's exact origin, its saves the shell's files, and nothing else\n`,
-    ).toEqual(
+    ).toStrictEqual(
       sorted(["'self'", ...TAURI_IPC_ORIGINS, filesSource(), PRODUCTION_CLOUD_ORIGIN, socket]),
     );
-    expect(sources(csp, "script-src"), `${TAURI_CONFIG} lets a script in from elsewhere`).toEqual([
-      "'self'",
-    ]);
+    expect(
+      sources(csp, "script-src"),
+      `${TAURI_CONFIG} lets a script in from elsewhere`,
+    ).toStrictEqual(["'self'"]);
   });
 
   it("lets a local build reach this machine alone", () => {
     const local = localConfig().app.security.csp;
-    expect(Object.keys(local), `${LOCAL_CONFIG} changes more than where the page may call`).toEqual(
-      ["connect-src"],
-    );
+    expect(
+      Object.keys(local),
+      `${LOCAL_CONFIG} changes more than where the page may call`,
+    ).toStrictEqual(["connect-src"]);
     const remote = sources(local, "connect-src").filter(
       (source) =>
         !["'self'", ...TAURI_IPC_ORIGINS, filesSource()].includes(source) &&
         !/^(?:http|ws):\/\/(?:localhost|127\.0\.0\.1):\*$/u.test(source),
     );
-    expect(remote, `${LOCAL_CONFIG} lets the page call off this machine`).toEqual([]);
+    expect(remote, `${LOCAL_CONFIG} lets the page call off this machine`).toStrictEqual([]);
   });
 
   it("makes a local build an app of its own, the one bundle id its shell runs under", () => {
@@ -230,6 +234,6 @@ describe("the desktop shell's wire", () => {
     expect(
       [csp["frame-src"], csp["child-src"]],
       `${TAURI_CONFIG} names a frame policy, which would refuse the isolation frame`,
-    ).toEqual([undefined, undefined]);
+    ).toStrictEqual([undefined, undefined]);
   });
 });

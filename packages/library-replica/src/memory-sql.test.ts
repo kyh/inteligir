@@ -16,7 +16,9 @@ describe("the replica's database in memory", () => {
         throw new Error("the work failed");
       }),
     ).rejects.toThrow("the work failed");
-    expect(await sql.all("SELECT id FROM notes ORDER BY id", [])).toEqual([{ id: "kept" }]);
+    await expect(sql.all("SELECT id FROM notes ORDER BY id", [])).resolves.toStrictEqual([
+      { id: "kept" },
+    ]);
     sql.close();
   });
 
@@ -32,7 +34,7 @@ describe("the replica's database in memory", () => {
     const read = sql.all("SELECT count(*) AS n FROM notes", []);
     gate.resolve();
     await running;
-    expect(await read).toEqual([{ n: 2 }]);
+    await expect(read).resolves.toStrictEqual([{ n: 2 }]);
     sql.close();
   });
 
@@ -40,9 +42,9 @@ describe("the replica's database in memory", () => {
     const sql = await openMemorySql();
     await sql.run("CREATE VIRTUAL TABLE search USING fts5(body)", []);
     await sql.run("INSERT INTO search (body) VALUES (?)", ["a library of everything you save"]);
-    expect(await sql.all("SELECT body FROM search WHERE search MATCH ?", ["library"])).toHaveLength(
-      1,
-    );
+    await expect(
+      sql.all("SELECT body FROM search WHERE search MATCH ?", ["library"]),
+    ).resolves.toHaveLength(1);
     sql.close();
   });
 });

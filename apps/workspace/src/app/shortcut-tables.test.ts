@@ -25,12 +25,12 @@ describe("the shortcut tables", () => {
     expect(
       shared,
       "A chord in both GLOBAL_SHORTCUTS (global-shortcuts.ts) and the editor's tables (mark-shortcuts.ts, editor-shortcuts.ts, find-bar.tsx, annotation-kit.tsx) fires twice. Give it one owner:",
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("claim each chord once within a table", () => {
-    expect(duplicates(globalChords)).toEqual([]);
-    expect(duplicates(editorChords)).toEqual([]);
+    expect(duplicates(globalChords)).toStrictEqual([]);
+    expect(duplicates(editorChords)).toStrictEqual([]);
   });
 
   it("give the library no chord the window's table claims, which would run both", () => {
@@ -40,7 +40,7 @@ describe("the shortcut tables", () => {
     expect(
       shared,
       "A chord in both LIBRARY_SHORTCUTS (library/library-keys.ts) and GLOBAL_SHORTCUTS (global-shortcuts.ts) fires twice. Give it one owner:",
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("claim each library chord once where its listener reads it", () => {
@@ -49,7 +49,7 @@ describe("the shortcut tables", () => {
         duplicates(
           LIBRARY_SHORTCUTS.filter((row) => row.where === where).map(libraryShortcutHotkey),
         ),
-      ).toEqual([]);
+      ).toStrictEqual([]);
     }
   });
 });

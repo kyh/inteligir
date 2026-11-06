@@ -30,7 +30,7 @@ describe("the library's page", () => {
     for (const path of ["/library", "/library/", "/library/settings", "/library/?item=x"]) {
       const response = await ask(path);
       expect(response.status, path).toBe(200);
-      expect(await response.text()).toBe(DOCUMENT);
+      await expect(response.text()).resolves.toBe(DOCUMENT);
       expect(response.headers.get("cache-control")).toBe("no-cache");
     }
   });
@@ -40,7 +40,7 @@ describe("the library's page", () => {
       new Request("https://inteligir.com/library/favicon.svg"),
       assets({ "/library/favicon.svg": "<svg/>" }),
     );
-    expect(await response.text()).toBe("<svg/>");
+    await expect(response.text()).resolves.toBe("<svg/>");
   });
 
   it("carries the page's own policy: its scripts and SQLite's wasm, calls to this origin alone", async () => {

@@ -59,6 +59,7 @@ describe("workerd compatibilityDate", () => {
       `${COMPATIBILITY}: compatibilityDate is before ${EVICTION_FLOOR}.\n` +
         `  rule: from ${EVICTION_FLOOR} pending I/O keeps a Durable Object from eviction (durable_object_io_tasks_prevent_eviction)\n` +
         `  fix: upgrade the tools that pull workerd until the oldest is on or after ${EVICTION_FLOOR}, never hold the date back`,
+      // oxlint-disable-next-line vitest/prefer-comparison-matcher -- toBeLessThan and its kin take numbers alone, and these are strings compared in code-unit order
     ).toBe(true);
   });
 });

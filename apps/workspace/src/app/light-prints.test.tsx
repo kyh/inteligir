@@ -11,7 +11,7 @@ afterEach(() => {
 
 // a browser's print: the dialog runs inside the call, between the two events
 const printLikeABrowser = (during: () => void) =>
-  vi.fn(() => {
+  vi.fn<() => void>(() => {
     window.dispatchEvent(new Event("beforeprint"));
     during();
     window.dispatchEvent(new Event("afterprint"));

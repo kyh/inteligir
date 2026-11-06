@@ -23,7 +23,7 @@ describe("the manifest", () => {
 
   it("asks for activeTab, never every site, and runs on the Chrome that has `browser`", () => {
     const store = extensionManifest("store", "0.6.0");
-    expect(store.permissions).toEqual([
+    expect(store.permissions).toStrictEqual([
       "activeTab",
       "alarms",
       "contextMenus",
@@ -34,12 +34,12 @@ describe("the manifest", () => {
   });
 
   it("lets only the site's connect page message it, the production site's in a store build", () => {
-    expect(extensionManifest("store", "0.6.0").externally_connectable).toEqual({
+    expect(extensionManifest("store", "0.6.0").externally_connectable).toStrictEqual({
       matches: ["https://inteligir.com/connect/extension"],
     });
     expect(connectPagePattern("store-unpacked")).toBe("https://inteligir.com/connect/extension");
     // a pattern with no port matches every port, as a local Worker's may be
-    expect(extensionManifest("dev", "0.6.0").externally_connectable).toEqual({
+    expect(extensionManifest("dev", "0.6.0").externally_connectable).toStrictEqual({
       matches: ["http://localhost/connect/extension"],
     });
   });

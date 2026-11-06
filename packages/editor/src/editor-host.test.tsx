@@ -21,24 +21,24 @@ describe("a wiki chip over a controlled host", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Roadmap" }));
-    expect(calls).toEqual([{ action: "openFile", args: ["notes/roadmap.md"] }]);
+    expect(calls).toStrictEqual([{ action: "openFile", args: ["notes/roadmap.md"] }]);
   });
 
   it("offers to create a target the listing does not resolve, and creates nothing until asked", () => {
     const calls = mountChip("Someday");
 
     fireEvent.click(screen.getByRole("button", { name: "Someday" }));
-    expect(calls).toEqual([]);
+    expect(calls).toStrictEqual([]);
 
     fireEvent.click(screen.getByRole("button", { name: /Create/u }));
-    expect(calls).toEqual([{ action: "createFile", args: ["Someday"] }]);
+    expect(calls).toStrictEqual([{ action: "createFile", args: ["Someday"] }]);
   });
 
   it("does nothing at all for a pure-anchor link, which points at the open note", () => {
     const calls = mountChip("#section");
 
     fireEvent.click(screen.getByRole("button", { name: "#section" }));
-    expect(calls).toEqual([]);
+    expect(calls).toStrictEqual([]);
     expect(screen.queryByRole("button", { name: /Create/u })).toBeNull();
   });
 });

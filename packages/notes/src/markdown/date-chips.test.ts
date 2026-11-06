@@ -21,15 +21,13 @@ const dates = (md: string): string[] => {
 
 describe("a date chip is `@` and a calendar date", () => {
   it("reads at a line's edges, beside punctuation and in a list", () => {
-    expect(dates("@2026-07-01 kickoff, ends @2026-12-31.\n\n- meet (@2026-07-02)\n")).toEqual([
-      "2026-07-01",
-      "2026-12-31",
-      "2026-07-02",
-    ]);
+    expect(dates("@2026-07-01 kickoff, ends @2026-12-31.\n\n- meet (@2026-07-02)\n")).toStrictEqual(
+      ["2026-07-01", "2026-12-31", "2026-07-02"],
+    );
   });
 
   it("reads glued to a word on either side, where the editor can put one", () => {
-    expect(dates("x@2026-07-01y and @2026-07-02@2026-07-03\n")).toEqual([
+    expect(dates("x@2026-07-01y and @2026-07-02@2026-07-03\n")).toStrictEqual([
       "2026-07-01",
       "2026-07-02",
       "2026-07-03",
@@ -46,6 +44,6 @@ describe("a date chip is `@` and a calendar date", () => {
     ],
     ["an email's domain", "mail x@2026-07-01.example.com\n"],
   ])("is not %s", (_name, md) => {
-    expect(dates(md)).toEqual([]);
+    expect(dates(md)).toStrictEqual([]);
   });
 });

@@ -81,26 +81,29 @@ describe("a Raindrop import", () => {
       expect(file?.url).toBe("https://stephango.com/file-over-app");
       const library = libraryIn(state, accountId);
       const outline = await library.organize.outline();
-      expect(outline.folders.map((folder) => folder.name).toSorted()).toEqual(
+      expect(outline.folders.map((folder) => folder.name).toSorted()).toStrictEqual(
         expect.arrayContaining(["Cooking", "Reading", "Weeknight"]),
       );
       const sets = state.storage.sql
         .exec("SELECT id, label, sealed_at FROM change_sets WHERE actor = 'import'")
         .toArray();
-      expect(sets).toEqual([
+      expect(sets).toStrictEqual([
         { id: job.changeSetId, label: "Imported from Raindrop", sealed_at: expect.any(Number) },
       ]);
       expect(readBlobRow(cellStorageOf(state.storage), started.sha)).toBeNull();
       // every reading the links wait for was sent to the fill queue
-      expect(state.storage.sql.exec("SELECT id FROM jobs WHERE kind = 'fill'").toArray()).toEqual(
-        [],
-      );
+      expect(
+        state.storage.sql.exec("SELECT id FROM jobs WHERE kind = 'fill'").toArray(),
+      ).toStrictEqual([]);
       expect(state.storage.sql.exec("SELECT count(*) AS n FROM import_rows").one().n).toBe(0);
     });
     // the same file again: every address is the library's already
     const again = await startImport(accountId, csv(RAINDROP_EXPORT), "raindrop");
     await runToEnd(accountId, again.jobId);
-    expect(await jobOf(accountId, again.jobId)).toMatchObject({ added: 0, alreadySaved: 7 });
+    await expect(jobOf(accountId, again.jobId)).resolves.toMatchObject({
+      added: 0,
+      alreadySaved: 7,
+    });
   });
 
   it("resumes where it stood after the cell was evicted mid-import, landing none twice", async () => {
@@ -123,8 +126,8 @@ describe("a Raindrop import", () => {
     expect(part).toMatchObject({ added: 100, state: "running" });
     await evictDurableObject(stub);
     // the rest: two more pages, the last ending the job
-    expect(await runToEnd(accountId, started.jobId)).toBe(2);
-    expect(await jobOf(accountId, started.jobId)).toMatchObject({
+    await expect(runToEnd(accountId, started.jobId)).resolves.toBe(2);
+    await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
       added: 230,
       state: "done",
       total: 230,
@@ -134,7 +137,7 @@ describe("a Raindrop import", () => {
         .exec("SELECT count(*) AS n, count(DISTINCT url_key) AS keys FROM items")
         .one(),
     );
-    expect(count).toEqual({ keys: 230, n: 230 });
+    expect(count).toStrictEqual({ keys: 230, n: 230 });
   });
 
   it("stops on a file that is no Raindrop export, saying how", async () => {
@@ -165,7 +168,7 @@ describe("a zip of notes", () => {
       "markdown",
     );
     await runToEnd(accountId, started.jobId);
-    expect(await jobOf(accountId, started.jobId)).toMatchObject({
+    await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
       added: 3,
       skipped: 1,
       state: "done",
@@ -174,7 +177,7 @@ describe("a zip of notes", () => {
     });
     await inCell(cellOf(accountId), async (state) => {
       const landed = items(state);
-      expect(landed.map((row) => [row.title, row.kind])).toEqual([
+      expect(landed.map((row) => [row.title, row.kind])).toStrictEqual([
         ["Alpha", "note"],
         ["Beta", "note"],
         ["lone", "pdf"],
@@ -184,7 +187,7 @@ describe("a zip of notes", () => {
         id: z.string().parse(landed.find((row) => row.title === "Alpha")?.id),
       });
       expect(JSON.stringify(alpha)).toContain(z.string().parse(beta?.id));
-      expect(alpha.fields.tags).toEqual(["project"]);
+      expect(alpha.fields.tags).toStrictEqual(["project"]);
       expect(readLibraryRules(cellStorageOf(state.storage))).toBe("File recipes under Cooking.\n");
     });
   });
@@ -193,7 +196,7 @@ describe("a zip of notes", () => {
     const accountId = newAccountId();
     const started = await startImport(accountId, csv("not a zip"), "markdown");
     await runToEnd(accountId, started.jobId);
-    expect(await jobOf(accountId, started.jobId)).toMatchObject({
+    await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
       message: expect.stringContaining("isn't a zip of notes"),
       state: "failed",
     });
@@ -222,9 +225,12 @@ describe("the files an import kept", () => {
       expect(filesIn(state).shas).toHaveLength(2);
       await libraryIn(state, accountId).imports.cancel({ id: started.jobId });
       await runImports(host);
-      expect(filesIn(state)).toEqual({ bytes: 0, shas: [] });
+      expect(filesIn(state)).toStrictEqual({ bytes: 0, shas: [] });
     });
-    expect(await jobOf(accountId, started.jobId)).toMatchObject({ added: 0, state: "cancelled" });
+    await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
+      added: 0,
+      state: "cancelled",
+    });
   });
 
   it("go when the library fills, and the import says why it stopped", async () => {
@@ -235,9 +241,9 @@ describe("the files an import kept", () => {
       // room for the first file and not the second
       const cap = bytes + state.storage.sql.databaseSize + 450 * 1024;
       await runImports(jobHostIn(state, accountId, engineIn(state, clockAt(Date.now()), cap)));
-      expect(filesIn(state)).toEqual({ bytes: 0, shas: [] });
+      expect(filesIn(state)).toStrictEqual({ bytes: 0, shas: [] });
     });
-    expect(await jobOf(accountId, started.jobId)).toMatchObject({
+    await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
       message: LIBRARY_FULL,
       state: "failed",
     });
@@ -249,7 +255,10 @@ describe("the files an import kept", () => {
     await runOnce(accountId);
     await evictDurableObject(cellOf(accountId));
     await runToEnd(accountId, started.jobId);
-    expect(await jobOf(accountId, started.jobId)).toMatchObject({ added: 3, state: "done" });
+    await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
+      added: 3,
+      state: "done",
+    });
     await inCell(cellOf(accountId), (state) => {
       const held = filesIn(state);
       // the picture Alpha embeds and the PDF no note embeds, each named by its item
@@ -278,12 +287,15 @@ describe("an import's runs", () => {
         await expect(runImports(cutOff)).rejects.toThrow("the platform ended the run");
       });
     }
-    expect(await jobOf(accountId, started.jobId)).toMatchObject({ added: 0, state: "running" });
+    await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
+      added: 0,
+      state: "running",
+    });
     await inCell(cellOf(accountId), async (state) => {
       await runImports(jobHostIn(state, accountId, undefined, () => Date.now() + 6 * DAY_MS));
       expect(readBlobRow(cellStorageOf(state.storage), started.sha)).toBeNull();
     });
-    expect(await jobOf(accountId, started.jobId)).toMatchObject({
+    await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
       added: 0,
       message: expect.stringContaining("something went wrong"),
       state: "failed",
@@ -305,9 +317,12 @@ describe("an import's runs", () => {
     // the paths and the plan, then the first notes until their bytes pass a run's page
     await runOnce(accountId);
     await runOnce(accountId);
-    expect(await jobOf(accountId, started.jobId)).toMatchObject({ added: 2, state: "running" });
+    await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
+      added: 2,
+      state: "running",
+    });
     await runToEnd(accountId, started.jobId);
-    expect(await jobOf(accountId, started.jobId)).toMatchObject({
+    await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
       added: 3,
       state: "done",
       total: 4,

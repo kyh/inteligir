@@ -76,7 +76,7 @@ describe("items", () => {
       noteFields({ aliases: ["Alt"], properties: { rating: 4 }, tags: ["work"] }),
     );
     const derived = put(port, "item-1", state);
-    expect(exec(port, readItem("item-1"))).toEqual({
+    expect(exec(port, readItem("item-1"))).toStrictEqual({
       card: derived.card,
       fields: state.fields,
       id: "item-1",
@@ -85,7 +85,7 @@ describe("items", () => {
       updatedAt: 1_700_000_000_001,
       urlKey: null,
     });
-    expect(exec(port, readItemState("item-1"))).toEqual(state);
+    expect(exec(port, readItemState("item-1"))).toStrictEqual(state);
   });
 
   it("keeps the newer item whole when an older one arrives: row, body, links, tags and index", () => {
@@ -114,13 +114,15 @@ describe("items", () => {
         }),
       ),
     ).toBe(false);
-    expect(exec(port, readItemState("item-1"))).toEqual(newer);
-    expect(exec(port, searchLibrary("older", 10))).toEqual([]);
-    expect(exec(port, searchLibrary("newer", 10)).map((hit) => hit.itemId)).toEqual(["item-1"]);
-    expect(port.all("SELECT tag, origin FROM item_tags WHERE item_id = ?", ["item-1"])).toEqual([
-      { origin: "field", tag: "fresh" },
+    expect(exec(port, readItemState("item-1"))).toStrictEqual(newer);
+    expect(exec(port, searchLibrary("older", 10))).toStrictEqual([]);
+    expect(exec(port, searchLibrary("newer", 10)).map((hit) => hit.itemId)).toStrictEqual([
+      "item-1",
     ]);
-    expect(exec(port, linksTo("target")).map((link) => link.sourceId)).toEqual(["item-1"]);
+    expect(
+      port.all("SELECT tag, origin FROM item_tags WHERE item_id = ?", ["item-1"]),
+    ).toStrictEqual([{ origin: "field", tag: "fresh" }]);
+    expect(exec(port, linksTo("target")).map((link) => link.sourceId)).toStrictEqual(["item-1"]);
   });
 
   it("lays a row before its body, and the body only under the row at the body's own sequence", () => {
@@ -134,10 +136,12 @@ describe("items", () => {
     expect(exec(port, storeItemBody({ blocks, id: "item-1", seq: 2 }))).toBe(false);
     expect(exec(port, storeItemBody({ blocks, id: "item-1", seq: 4 }))).toBe(false);
     expect(exec(port, storeItemBody({ blocks, id: "missing", seq: 3 }))).toBe(false);
-    expect(exec(port, searchLibrary("body", 10))).toEqual([]);
+    expect(exec(port, searchLibrary("body", 10))).toStrictEqual([]);
     expect(exec(port, storeItemBody({ blocks, id: "item-1", seq: 3 }))).toBe(true);
-    expect(exec(port, readItemState("item-1"))).toEqual(state);
-    expect(exec(port, searchLibrary("body", 10)).map((hit) => hit.itemId)).toEqual(["item-1"]);
+    expect(exec(port, readItemState("item-1"))).toStrictEqual(state);
+    expect(exec(port, searchLibrary("body", 10)).map((hit) => hit.itemId)).toStrictEqual([
+      "item-1",
+    ]);
   });
 
   it("reads every item that is not purged, by id", () => {
@@ -146,7 +150,7 @@ describe("items", () => {
     put(port, "a", itemOf([], noteFields({ title: "A" })));
     put(port, "c", itemOf([], noteFields({ title: "C" })));
     exec(port, storeTombstone({ deletedAt: 7, id: "c", seq: 9, updatedAt: 8 }));
-    expect(exec(port, readLiveItems()).map((item) => item.id)).toEqual(["a", "b"]);
+    expect(exec(port, readLiveItems()).map((item) => item.id)).toStrictEqual(["a", "b"]);
   });
 
   it("holds one live item per address", () => {
@@ -164,16 +168,16 @@ describe("items", () => {
     const port = library();
     put(port, "gone", itemOf([paragraph("a", "findable words")], noteFields({ tags: ["work"] })));
     exec(port, storeTombstone({ deletedAt: 7, id: "gone", seq: 2, updatedAt: 8 }));
-    expect(exec(port, readItem("gone"))).toEqual({
+    expect(exec(port, readItem("gone"))).toStrictEqual({
       deletedAt: 7,
       id: "gone",
       kind: "purged",
       seq: 2,
       updatedAt: 8,
     });
-    expect(exec(port, readBlocks("gone"))).toEqual([]);
-    expect(exec(port, searchLibrary("findable", 10))).toEqual([]);
-    expect(port.all("SELECT count(*) AS n FROM item_tags", [])).toEqual([{ n: 0 }]);
+    expect(exec(port, readBlocks("gone"))).toStrictEqual([]);
+    expect(exec(port, searchLibrary("findable", 10))).toStrictEqual([]);
+    expect(port.all("SELECT count(*) AS n FROM item_tags", [])).toStrictEqual([{ n: 0 }]);
   });
 
   it("lays no tombstone over a newer row, which keeps everything it holds", () => {
@@ -183,8 +187,10 @@ describe("items", () => {
     expect(exec(port, storeTombstone({ deletedAt: 7, id: "kept", seq: 4, updatedAt: 8 }))).toBe(
       false,
     );
-    expect(exec(port, readItemState("kept"))).toEqual(state);
-    expect(exec(port, searchLibrary("findable", 10)).map((hit) => hit.itemId)).toEqual(["kept"]);
+    expect(exec(port, readItemState("kept"))).toStrictEqual(state);
+    expect(exec(port, searchLibrary("findable", 10)).map((hit) => hit.itemId)).toStrictEqual([
+      "kept",
+    ]);
     expect(exec(port, storeTombstone({ deletedAt: 7, id: "kept", seq: 6, updatedAt: 8 }))).toBe(
       true,
     );
@@ -278,7 +284,7 @@ describe("blocks", () => {
       statement.sql.startsWith("INSERT INTO blocks"),
     );
     expect(inserts.length).toBeGreaterThan(1);
-    expect(exec(port, readBlocks("long"))).toEqual(orderedBlocks(state.blocks));
+    expect(exec(port, readBlocks("long"))).toStrictEqual(orderedBlocks(state.blocks));
     exec(
       port,
       dropBlocks(
@@ -286,7 +292,7 @@ describe("blocks", () => {
         blocks.slice(0, 40).map((block) => block.id),
       ),
     );
-    expect(exec(port, readBlocks("long")).map(({ block }) => block.id)).toEqual(
+    expect(exec(port, readBlocks("long")).map(({ block }) => block.id)).toStrictEqual(
       blocks.slice(40).map((block) => block.id),
     );
   });
@@ -309,7 +315,7 @@ describe("blocks", () => {
     exec(port, storeBlocks("item", blockWritesOf(orderedBlocks(next.blocks), derived), 2));
     expect(
       port.all("SELECT text, annotation_ids, seq FROM blocks WHERE item_id = ?", ["item"]),
-    ).toEqual([{ annotation_ids: '["h1"]', seq: 2, text: "marked" }]);
+    ).toStrictEqual([{ annotation_ids: '["h1"]', seq: 2, text: "marked" }]);
     const older = itemOf([paragraph("a", "older")]);
     exec(
       port,
@@ -319,7 +325,7 @@ describe("blocks", () => {
         1,
       ),
     );
-    expect(port.all("SELECT text, seq FROM blocks WHERE item_id = ?", ["item"])).toEqual([
+    expect(port.all("SELECT text, seq FROM blocks WHERE item_id = ?", ["item"])).toStrictEqual([
       { seq: 2, text: "marked" },
     ]);
   });
@@ -343,15 +349,15 @@ describe("search", () => {
       "gone",
       itemOf([paragraph("a", "gardening")], noteFields({ deletedAt: 1, title: "Old" })),
     );
-    expect(exec(port, searchLibrary("gardening", 10)).map((hit) => hit.itemId)).toEqual([
+    expect(exec(port, searchLibrary("gardening", 10)).map((hit) => hit.itemId)).toStrictEqual([
       "titled",
       "body",
     ]);
-    expect(exec(port, searchLibrary("garden", 10)).map((hit) => hit.itemId)).toEqual([
+    expect(exec(port, searchLibrary("garden", 10)).map((hit) => hit.itemId)).toStrictEqual([
       "titled",
       "body",
     ]);
-    expect(exec(port, searchLibrary("tool", 10, { typing: false }))).toEqual([
+    expect(exec(port, searchLibrary("tool", 10, { typing: false }))).toStrictEqual([
       expect.objectContaining({ itemId: "body", snippet: expect.stringContaining("tools") }),
     ]);
   });
@@ -371,11 +377,11 @@ describe("search", () => {
         ),
       ),
     );
-    expect(exec(port, searchLibrary("word", 1)).map((hit) => hit.itemId)).toEqual(["huge"]);
+    expect(exec(port, searchLibrary("word", 1)).map((hit) => hit.itemId)).toStrictEqual(["huge"]);
   });
 });
 
-describe("literalMatches", () => {
+describe(literalMatches, () => {
   it("names each live item whose blocks hold the text, ascii case folded, with its first such block", () => {
     const port = library();
     put(
@@ -388,7 +394,7 @@ describe("literalMatches", () => {
     );
     put(port, "two", itemOf([paragraph("a", "slow")], noteFields({ title: "Two" })));
     put(port, "gone", itemOf([paragraph("a", "quick")], noteFields({ deletedAt: 1 })));
-    expect(exec(port, literalMatches("QUICK", { after: null, limit: 10 }))).toEqual([
+    expect(exec(port, literalMatches("QUICK", { after: null, limit: 10 }))).toStrictEqual([
       { itemId: "one", text: "The Quick fox" },
     ]);
     expect(
@@ -403,12 +409,12 @@ describe("literalMatches", () => {
     }
     const before = port.statements.length;
     const first = exec(port, literalMatches("xyzzy", { after: null, limit: 3 }));
-    expect(first.map((match) => match.itemId)).toEqual(["a", "b", "c"]);
+    expect(first.map((match) => match.itemId)).toStrictEqual(["a", "b", "c"]);
     const reads = port.statements
       .slice(before)
       .filter((statement) => statement.sql.startsWith("SELECT text FROM blocks"));
     expect(reads).toHaveLength(3);
-    expect(exec(port, literalMatches("xyzzy", { after: "c", limit: 3 }))).toEqual([
+    expect(exec(port, literalMatches("xyzzy", { after: "c", limit: 3 }))).toStrictEqual([
       { itemId: "d", text: "item d holds xyzzy" },
     ]);
   });
@@ -435,8 +441,8 @@ describe("links", () => {
         },
       ]),
     );
-    expect(exec(port, linksTo("target")).map((link) => link.sourceId)).toEqual(["source"]);
-    expect(exec(port, linksToUrl("example.com/t"))).toEqual([
+    expect(exec(port, linksTo("target")).map((link) => link.sourceId)).toStrictEqual(["source"]);
+    expect(exec(port, linksToUrl("example.com/t"))).toStrictEqual([
       expect.objectContaining({ blockId: "u", kind: "url", sourceId: "source" }),
     ]);
   });
@@ -452,9 +458,23 @@ describe("highlights", () => {
               ('h3', 'item', NULL, 'gone', NULL, NULL, 4, 4, 9, 1)`,
       [],
     );
-    expect(exec(port, readAnnotations("item"))).toEqual({
-      h1: { createdAt: 1, quote: "a passage", source: "user", text: "", updatedAt: 2 },
-      h2: { createdAt: 3, parentId: "h1", text: "a reply", updatedAt: 3 },
+    expect(exec(port, readAnnotations("item"))).toStrictEqual({
+      h1: {
+        createdAt: 1,
+        parentId: undefined,
+        quote: "a passage",
+        source: "user",
+        text: "",
+        updatedAt: 2,
+      },
+      h2: {
+        createdAt: 3,
+        parentId: "h1",
+        quote: undefined,
+        source: undefined,
+        text: "a reply",
+        updatedAt: 3,
+      },
     });
   });
 });
@@ -470,11 +490,15 @@ describe("the change log", () => {
     }));
     exec(port, recordChanges(entries));
     const first = exec(port, readChanges(0, 2));
-    expect(first).toEqual({ changes: entries.slice(0, 3), more: true, upto: 1 });
+    expect(first).toStrictEqual({ changes: entries.slice(0, 3), more: true, upto: 1 });
     const second = exec(port, readChanges(first.upto, 2));
-    expect(second.changes.map((entry) => entry.id)).toEqual(["i3", "i4", "i5"]);
+    expect(second.changes.map((entry) => entry.id)).toStrictEqual(["i3", "i4", "i5"]);
     expect(second.more).toBe(false);
-    expect(exec(port, readChanges(second.upto, 2))).toEqual({ changes: [], more: false, upto: 3 });
+    expect(exec(port, readChanges(second.upto, 2))).toStrictEqual({
+      changes: [],
+      more: false,
+      upto: 3,
+    });
   });
 
   it("counts the head up one write at a time and keeps meta values", () => {

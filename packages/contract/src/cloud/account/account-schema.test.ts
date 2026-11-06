@@ -77,7 +77,7 @@ describe("device login", () => {
       email: "owner@example.test",
       userId: "user_1",
     };
-    expect(deviceLoginResponseSchema.parse(answer)).toEqual(answer);
+    expect(deviceLoginResponseSchema.parse(answer)).toStrictEqual(answer);
     expect(deviceLoginResponseSchema.parse({ ...answer, token: "x" })).toStrictEqual(answer);
     const accountless = { credential: answer.credential, deviceId: answer.deviceId };
     expect(deviceLoginResponseSchema.validate(accountless)).toBe(false);

@@ -79,7 +79,7 @@ describe("a page's reading, landed", () => {
         read({ itemId: id, url: "https://pages.example/a" }, [paragraph("p1", "The article.")]),
       );
       expect(landed).toMatchObject({ ok: true, value: { kind: "filled" } });
-      expect(sectionOf(state, id, "note")).toEqual(note);
+      expect(sectionOf(state, id, "note")).toStrictEqual(note);
       expect(sectionOf(state, id, "article")).toHaveLength(1);
       expect(stateOf(state, id)?.fields).toMatchObject({
         author: "A. Writer",
@@ -92,7 +92,7 @@ describe("a page's reading, landed", () => {
       const sets = state.storage.sql
         .exec("SELECT label, sealed_at FROM change_sets WHERE actor = 'fill'")
         .toArray();
-      expect(sets).toEqual([{ label: "Read from the web", sealed_at: expect.any(Number) }]);
+      expect(sets).toStrictEqual([{ label: "Read from the web", sealed_at: expect.any(Number) }]);
     });
   });
 
@@ -108,7 +108,7 @@ describe("a page's reading, landed", () => {
         ]),
       );
       const { highlights } = await library.annotations.list({ itemId: saved.item.id });
-      expect(highlights).toEqual([
+      expect(highlights).toStrictEqual([
         expect.objectContaining({ placed: true, quote: "the passage itself" }),
       ]);
     });
@@ -169,7 +169,7 @@ describe("a page's reading, landed", () => {
       const article = [...(stateOf(state, id)?.blocks.values() ?? [])].filter(
         (b) => b.section === "article",
       );
-      expect(article.map((stored) => stored.block.id)).toEqual(["new"]);
+      expect(article.map((stored) => stored.block.id)).toStrictEqual(["new"]);
       expect(JSON.stringify(article)).toContain(added.highlight.id);
     });
   });
@@ -202,7 +202,7 @@ describe("a page's reading, landed", () => {
       expect(landed).toMatchObject({ ok: true, value: { intoId: holder.item.id, kind: "folded" } });
       expect(stateOf(state, stub.item.id)?.fields.deletedAt).not.toBeNull();
       const held = stateOf(state, holder.item.id);
-      expect(held?.fields.tags).toEqual(["later"]);
+      expect(held?.fields.tags).toStrictEqual(["later"]);
       expect(JSON.stringify([...(held?.blocks.values() ?? [])])).toContain(
         "Saved from a short link.",
       );
@@ -308,14 +308,14 @@ describe("a page's reading, landed", () => {
       cellOf(accountId),
       async (state) => await libraryIn(state, accountId).items.saveLink({ url }),
     );
-    expect(
-      await cellOf(accountId).landFill({
+    await expect(
+      cellOf(accountId).landFill({
         itemId: saved.item.id,
         kind: "failed",
         sentence: "x".repeat(20_000),
         url,
       }),
-    ).toEqual({ head: null, ok: true, value: { kind: "stale" } });
+    ).resolves.toStrictEqual({ head: null, ok: true, value: { kind: "stale" } });
     const fields = await inCell(
       cellOf(accountId),
       (state) => stateOf(state, saved.item.id)?.fields,
@@ -332,20 +332,20 @@ describe("a reading's ask", () => {
       const engine = engineIn(state, clock);
       const library = libraryIn(state, accountId, engine);
       const saved = await library.items.saveLink({ url: "https://pages.example/h" });
-      expect(fillJobs(state)).toEqual([
+      expect(fillJobs(state)).toStrictEqual([
         { id: `fill:${saved.item.id}`, payload: expect.any(String) },
       ]);
       const claimed = engine.claimDueFills();
-      expect(claimed.map((fill) => fill.request)).toEqual([
+      expect(claimed.map((fill) => fill.request)).toStrictEqual([
         { coverHint: null, itemId: saved.item.id, url: "https://pages.example/h" },
       ]);
       // claimed, so neither a second commit nor the alarm sends it again at once
-      expect(engine.claimDueFills()).toEqual([]);
+      expect(engine.claimDueFills()).toStrictEqual([]);
       clock.now += 60_000;
       const again = engine.claimDueFills();
       expect(again).toHaveLength(1);
       engine.fillsSent(again);
-      expect(fillJobs(state)).toEqual([]);
+      expect(fillJobs(state)).toStrictEqual([]);
       // a refresh asks again; a folded save of a held address asks nothing
       await library.items.refresh({ id: saved.item.id });
       await library.items.saveLink({ url: "https://pages.example/h" });
@@ -378,8 +378,8 @@ describe("a reading's ask", () => {
       // the failed send's claim holds the row a minute; the alarm then sends it again
       state.storage.sql.exec("UPDATE jobs SET next_at = 0 WHERE kind = 'fill'");
       await sendFills(state, { ...env, FILLS: taking }, library);
-      expect(fillJobs(state)).toEqual([]);
-      expect(sent).toEqual([
+      expect(fillJobs(state)).toStrictEqual([]);
+      expect(sent).toStrictEqual([
         { accountId, coverHint: null, itemId: expect.any(String), url: "https://pages.example/i" },
       ]);
     });

@@ -23,7 +23,7 @@ describe("a block as its markdown", () => {
       type: "p",
     };
     expect(blockMarkdown(block)).toBe(`see [[Target|${TARGET}]] and [[notes/Plan]]\n`);
-    expect(roundTrip(block)).toEqual(block);
+    expect(roundTrip(block)).toStrictEqual(block);
   });
 
   it("writes a file the library holds at its sha, and reads it back as those bytes", () => {
@@ -35,8 +35,8 @@ describe("a block as its markdown", () => {
       sha: SHA,
       type: "file",
     };
-    expect(roundTrip(image)).toEqual(image);
-    expect(roundTrip(file)).toEqual(file);
+    expect(roundTrip(image)).toStrictEqual(image);
+    expect(roundTrip(file)).toStrictEqual(file);
   });
 
   it("leaves a block's ref beside its text", () => {

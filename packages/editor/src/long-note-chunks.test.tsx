@@ -43,7 +43,7 @@ describe("a long item's top level", () => {
   it("renders in runs of a hundred blocks, every block mounted", async () => {
     const editable = await mount("long", paragraphs(250));
     const boxes = runs(editable);
-    expect(boxes.map((box) => box.children.length)).toEqual([100, 100, 50]);
+    expect(boxes.map((box) => box.children.length)).toStrictEqual([100, 100, 50]);
     for (const box of boxes) {
       expect(box.classList.contains(EDITOR_CHUNK)).toBe(true);
     }
@@ -52,7 +52,7 @@ describe("a long item's top level", () => {
 
   it("draws a short item's blocks with no box around them", async () => {
     const editable = await mount("short", paragraphs(40));
-    expect(runs(editable)).toEqual([]);
+    expect(runs(editable)).toStrictEqual([]);
     expect(editable.querySelectorAll(`.${EDITOR_CHUNK}`)).toHaveLength(0);
   });
 });

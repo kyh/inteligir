@@ -12,11 +12,11 @@ const doc = (path: string, title: string, aliases?: string[]): WikiTarget => {
 
 const paths = (targets: readonly WikiTarget[]): string[] => targets.map((target) => target.path);
 
-describe("rankWikiTargets", () => {
+describe(rankWikiTargets, () => {
   it("answers every target in listing order for a blank query", () => {
     const targets = [doc("b.md", "B"), doc("a.md", "A")];
-    expect(paths(rankWikiTargets(targets, ""))).toEqual(["b.md", "a.md"]);
-    expect(paths(rankWikiTargets(targets, "   "))).toEqual(["b.md", "a.md"]);
+    expect(paths(rankWikiTargets(targets, ""))).toStrictEqual(["b.md", "a.md"]);
+    expect(paths(rankWikiTargets(targets, "   "))).toStrictEqual(["b.md", "a.md"]);
   });
 
   it("ranks a stem prefix, then a title prefix, then an alias prefix, then a word start, then a substring", () => {
@@ -29,7 +29,7 @@ describe("rankWikiTargets", () => {
       doc("notes/roadmap.md", "Roadmap"),
       doc("notes/other.md", "Other"),
     ];
-    expect(paths(rankWikiTargets(targets, "road"))).toEqual([
+    expect(paths(rankWikiTargets(targets, "road"))).toStrictEqual([
       "notes/roadmap.md",
       "notes/plan.md",
       "notes/q3.md",
@@ -41,12 +41,12 @@ describe("rankWikiTargets", () => {
 
   it("keeps the listing's order within a rank", () => {
     const targets = [doc("z/road b.md", "Road B"), doc("a/road a.md", "Road A")];
-    expect(paths(rankWikiTargets(targets, "road"))).toEqual(["z/road b.md", "a/road a.md"]);
+    expect(paths(rankWikiTargets(targets, "road"))).toStrictEqual(["z/road b.md", "a/road a.md"]);
   });
 
   it("matches case- and accent-blind", () => {
     const targets = [doc("notes/Café.md", "Café"), doc("notes/cafeteria.md", "Cafeteria")];
-    expect(paths(rankWikiTargets(targets, "CAFE"))).toEqual([
+    expect(paths(rankWikiTargets(targets, "CAFE"))).toStrictEqual([
       "notes/Café.md",
       "notes/cafeteria.md",
     ]);
@@ -54,7 +54,7 @@ describe("rankWikiTargets", () => {
 
   it("matches typed words in any order at word starts", () => {
     const targets = [doc("notes/weekly review.md", "Weekly review"), doc("notes/w.md", "W")];
-    expect(paths(rankWikiTargets(targets, "rev week"))).toEqual(["notes/weekly review.md"]);
+    expect(paths(rankWikiTargets(targets, "rev week"))).toStrictEqual(["notes/weekly review.md"]);
   });
 
   it("ranks an attachment by its file name like a note by its stem", () => {
@@ -62,7 +62,7 @@ describe("rankWikiTargets", () => {
       doc("notes/diagrams.md", "Diagrams"),
       { path: "assets/diagram.png", title: "diagram.png", type: "asset" },
     ];
-    expect(paths(rankWikiTargets(targets, "diagram.p"))).toEqual(["assets/diagram.png"]);
+    expect(paths(rankWikiTargets(targets, "diagram.p"))).toStrictEqual(["assets/diagram.png"]);
   });
 
   it("ranks a non-md note by the name its link spells, extension included", () => {
@@ -71,12 +71,15 @@ describe("rankWikiTargets", () => {
       doc("a/todo.txt.backup.md", "todo.txt.backup"),
       doc("todo.txt-notes.md", "todo.txt-notes"),
     ];
-    expect(paths(rankWikiTargets(targets, "todo.txt"))).toEqual([
+    expect(paths(rankWikiTargets(targets, "todo.txt"))).toStrictEqual([
       "archive/todo.txt",
       "a/todo.txt.backup.md",
       "todo.txt-notes.md",
     ]);
     const typing = [doc("notes/tips.md", "Todo.txt tips"), doc("archive/todo.txt", "todo")];
-    expect(paths(rankWikiTargets(typing, "todo.t"))).toEqual(["archive/todo.txt", "notes/tips.md"]);
+    expect(paths(rankWikiTargets(typing, "todo.t"))).toStrictEqual([
+      "archive/todo.txt",
+      "notes/tips.md",
+    ]);
   });
 });

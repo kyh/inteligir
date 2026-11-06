@@ -227,7 +227,7 @@ describe("the phone's store config", () => {
       defaults,
       "rule: a purpose string is what the permission prompt shows, and an Expo plugin's default names no reason the user could weigh\n" +
         "fix: pass the plugin the app's own sentence, or false where the app never asks",
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("signs the app into the App Group its share extension hands a share over through", () => {
@@ -287,6 +287,6 @@ describe("the phone's store config", () => {
       [...new Set(missing)],
       "rule: Apple does not reliably read a static pod's own privacy manifest, so the app's must declare every reason a linked module does, or the upload is refused (ITMS-91053)\n" +
         "fix: add the reason under ios.privacyManifests.NSPrivacyAccessedAPITypes in app.config.js",
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });

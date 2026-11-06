@@ -66,7 +66,7 @@ describe("a write to the library cell", () => {
           { baseHash: hashOf(A), block: paragraph("a", "a lost edit"), op: "put" },
         ],
       });
-      expect(refusalOf(stale)).toEqual({
+      expect(refusalOf(stale)).toStrictEqual({
         current: [
           {
             blockId: "a",
@@ -85,7 +85,7 @@ describe("a write to the library cell", () => {
       // the whole write landed nothing: the head did not move, and the second block is as it was
       expect(library.head()).toBe(2);
       const pulled = landedValue(library.bodies([itemId]));
-      expect(pulled.bodies[0]?.blocks.map((stored) => stored.block)).toEqual([edited, B]);
+      expect(pulled.bodies[0]?.blocks.map((stored) => stored.block)).toStrictEqual([edited, B]);
     });
   });
 
@@ -111,7 +111,7 @@ describe("a write to the library cell", () => {
         }),
       );
       const [body] = landedValue(library.bodies([itemId])).bodies;
-      expect(body?.blocks.map((stored) => stored.block)).toEqual([first, second]);
+      expect(body?.blocks.map((stored) => stored.block)).toStrictEqual([first, second]);
     });
   });
 
@@ -133,7 +133,7 @@ describe("a write to the library cell", () => {
         opId,
       });
       expect(first.ok && first.head).toBe(1);
-      expect(again).toEqual({ head: null, ok: true, value: landedValue(first) });
+      expect(again).toStrictEqual({ head: null, ok: true, value: landedValue(first) });
       expect(library.head()).toBe(1);
     });
   });
@@ -146,8 +146,10 @@ describe("a write to the library cell", () => {
           `SELECT ${Array.from({ length: 101 }, () => "?").join(", ")}`,
           ...Array.from({ length: 101 }, (_, index) => index),
         ),
-      ).toThrow();
-      expect(() => state.storage.sql.exec(`SELECT '${"x".repeat(100_001)}'`)).toThrow();
+      ).toThrow("too many SQL variables");
+      expect(() => state.storage.sql.exec(`SELECT '${"x".repeat(100_001)}'`)).toThrow(
+        "statement too long",
+      );
 
       const library = engineIn(state, clockAt());
       const itemId = newItemId();
@@ -173,7 +175,7 @@ describe("a write to the library cell", () => {
         fields: noteFields(),
         id: newItemId(),
       });
-      expect(refusalOf(refused)).toEqual({ kind: "too-large" });
+      expect(refusalOf(refused)).toStrictEqual({ kind: "too-large" });
       expect(library.head()).toBe(0);
     });
   });
@@ -190,7 +192,7 @@ describe("a write to the library cell", () => {
         itemId,
         ops: [{ block: big, op: "insert", ord: "a5", section: "note" }],
       });
-      expect(refusalOf(refused)).toEqual({
+      expect(refusalOf(refused)).toStrictEqual({
         bytesCap,
         bytesUsed: state.storage.sql.databaseSize,
         kind: "quota",
@@ -221,17 +223,17 @@ describe("a write to the library cell", () => {
         ord: "a5",
         section: "note",
       } satisfies LibraryOp;
-      expect(refusalOf(library.write(SYSTEM, { itemId, ops: [insert] }))).toEqual({
+      expect(refusalOf(library.write(SYSTEM, { itemId, ops: [insert] }))).toStrictEqual({
         kind: "blob-missing",
         shas: [sha],
       });
-      expect(landedValue(library.reserve({ bytes: 10, mime: "image/png", sha }))).toEqual({
+      expect(landedValue(library.reserve({ bytes: 10, mime: "image/png", sha }))).toStrictEqual({
         held: false,
       });
       const settled = library.settle(sha, { bytes: 10, mime: "image/png" }, library.blobRemovals());
       expect(settled.ok && settled.head).toBe(2);
       landedValue(library.write(SYSTEM, { itemId, ops: [insert] }));
-      expect(landedValue(library.reserve({ bytes: 10, mime: "image/png", sha }))).toEqual({
+      expect(landedValue(library.reserve({ bytes: 10, mime: "image/png", sha }))).toStrictEqual({
         held: true,
       });
       const refs = state.storage.sql.exec("SELECT refs FROM blobs WHERE sha256 = ?", sha).one();
@@ -254,7 +256,7 @@ describe("a write to the library cell", () => {
       ).toMatchObject({
         kind: "quota",
       });
-      expect(landedValue(library.settle(sha, null, library.blobRemovals()))).toEqual({
+      expect(landedValue(library.settle(sha, null, library.blobRemovals()))).toStrictEqual({
         settled: false,
       });
       landedValue(library.reserve({ bytes: 600, mime: "image/png", sha: "c".repeat(64) }));
@@ -270,20 +272,20 @@ describe("a write to the library cell", () => {
       expect(refusalOf(library.settle(sha, png(200_000), library.blobRemovals()))).toMatchObject({
         kind: "quota",
       });
-      expect(state.storage.sql.exec("SELECT * FROM blob_uploads").toArray()).toEqual([]);
+      expect(state.storage.sql.exec("SELECT * FROM blob_uploads").toArray()).toStrictEqual([]);
       // what R2 showed may be the refused bytes, or gone under the removal: nothing lands
-      expect(landedValue(library.settle(sha, png(500), library.blobRemovals()))).toEqual({
+      expect(landedValue(library.settle(sha, png(500), library.blobRemovals()))).toStrictEqual({
         settled: false,
       });
       const before = library.blobRemovals();
       const removals = library.beginStrayRemovals();
-      expect(removals.map((removal) => removal.sha)).toEqual([sha]);
+      expect(removals.map((removal) => removal.sha)).toStrictEqual([sha]);
       library.endStrayRemovals(removals, true);
-      expect(library.beginStrayRemovals()).toEqual([]);
+      expect(library.beginStrayRemovals()).toStrictEqual([]);
       // a settle that looked in R2 before the removal ended lands nothing; one after it lands
-      expect(landedValue(library.settle(sha, png(500), before))).toEqual({ settled: false });
+      expect(landedValue(library.settle(sha, png(500), before))).toStrictEqual({ settled: false });
       const settled = library.settle(sha, png(500), library.blobRemovals());
-      expect(settled).toEqual({ head: 1, ok: true, value: { settled: true } });
+      expect(settled).toStrictEqual({ head: 1, ok: true, value: { settled: true } });
     });
   });
 
@@ -301,20 +303,20 @@ describe("a write to the library cell", () => {
         state.storage.sql
           .exec("SELECT id, attempts FROM jobs WHERE kind = 'stray' ORDER BY id")
           .toArray();
-      expect(strays()).toEqual([
+      expect(strays()).toStrictEqual([
         { attempts: 0, id: `stray:${retried}` },
         { attempts: 0, id: `stray:${kept}` },
       ]);
       // a device asks for room again for one: its removal is called off
       landedValue(library.reserve({ bytes: 10, mime: "image/png", sha: kept }));
       const removals = library.beginStrayRemovals();
-      expect(removals.map((removal) => removal.sha)).toEqual([retried]);
+      expect(removals.map((removal) => removal.sha)).toStrictEqual([retried]);
       // R2 failed the other: it waits its turn again, and the count of removals stays
       const count = library.blobRemovals();
       library.endStrayRemovals(removals, false);
-      expect(strays()).toEqual([{ attempts: 1, id: `stray:${retried}` }]);
+      expect(strays()).toStrictEqual([{ attempts: 1, id: `stray:${retried}` }]);
       expect(library.blobRemovals()).toBe(count);
-      expect(library.beginStrayRemovals()).toEqual([]);
+      expect(library.beginStrayRemovals()).toStrictEqual([]);
     });
   });
 
@@ -391,7 +393,7 @@ describe("a write to the library cell", () => {
       expect(library.head()).toBe(head);
       expect(
         state.storage.sql.exec("SELECT item_id, text FROM annotations WHERE id = 'hl1'").toArray(),
-      ).toEqual([{ item_id: first, text: "on the first" }]);
+      ).toStrictEqual([{ item_id: first, text: "on the first" }]);
     });
   });
 });
@@ -410,7 +412,7 @@ describe("pulling the library", () => {
       }
       expect(first.head).toBe(30);
       expect(first.more).toBe(false);
-      expect(first.changes.map((change) => change.id).toSorted()).toEqual(ids.toSorted());
+      expect(first.changes.map((change) => change.id).toSorted()).toStrictEqual(ids.toSorted());
       for (const change of first.changes) {
         expect(libraryChangeSchema.parse(change)).toStrictEqual(change);
       }
@@ -426,11 +428,11 @@ describe("pulling the library", () => {
         library.create(SYSTEM, { blocks: placed([A]), fields: noteFields(), id: newItemId() }),
       );
       const fresh = landedValue(library.pull({ cursor: 0, epoch: null }));
-      expect(landedValue(library.pull({ cursor: 1, epoch: "another-library" }))).toEqual({
+      expect(landedValue(library.pull({ cursor: 1, epoch: "another-library" }))).toStrictEqual({
         epoch: fresh.epoch,
         kind: "reset",
       });
-      expect(landedValue(library.pull({ cursor: 3, epoch: null }))).toEqual({
+      expect(landedValue(library.pull({ cursor: 3, epoch: null }))).toStrictEqual({
         epoch: fresh.epoch,
         kind: "reset",
       });
@@ -451,7 +453,7 @@ describe("pulling the library", () => {
       // past about 4 MB the rest waits for the next ask, the first body whatever its size
       const answer = landedValue(library.bodies([missing, one, two, one]));
       expect(answer).toMatchObject({ deferred: [one], gone: [missing] });
-      expect(answer.bodies.map((body) => body.id)).toEqual([one, two]);
+      expect(answer.bodies.map((body) => body.id)).toStrictEqual([one, two]);
     });
   });
 });
@@ -485,7 +487,7 @@ describe("change sets and undo", () => {
       const revisions = state.storage.sql
         .exec("SELECT rev FROM revisions WHERE item_id = ?", itemId)
         .toArray();
-      expect(revisions).toEqual([{ rev: 1 }]);
+      expect(revisions).toStrictEqual([{ rev: 1 }]);
     });
   });
 
@@ -523,7 +525,7 @@ describe("change sets and undo", () => {
       const sets = state.storage.sql
         .exec("SELECT opened_at, sealed_at FROM change_sets ORDER BY opened_at")
         .toArray();
-      expect(sets).toEqual([
+      expect(sets).toStrictEqual([
         { opened_at: start, sealed_at: start + 60_000 },
         { opened_at: start + 61_000, sealed_at: null },
       ]);
@@ -562,16 +564,18 @@ describe("change sets and undo", () => {
         }),
       );
       const answer = landedValue(library.undo(person("laptop"), { changeSetIds: [setId] }));
-      expect(answer.kept).toEqual([kept]);
-      expect(answer.reverted).toEqual([undone]);
+      expect(answer.kept).toStrictEqual([kept]);
+      expect(answer.reverted).toStrictEqual([undone]);
       const [body] = landedValue(library.bodies([undone])).bodies;
-      expect(body?.blocks.map((stored) => stored.block)).toEqual([A]);
-      expect(refusalOf(library.undo(person("laptop"), { changeSetIds: [setId] }))).toEqual({
+      expect(body?.blocks.map((stored) => stored.block)).toStrictEqual([A]);
+      expect(refusalOf(library.undo(person("laptop"), { changeSetIds: [setId] }))).toStrictEqual({
         changeSetId: setId,
         kind: "already-undone",
         undoneBy: answer.changeSetId,
       });
-      expect(refusalOf(library.undo(person(), { changeSetIds: [crypto.randomUUID()] }))).toEqual({
+      expect(
+        refusalOf(library.undo(person(), { changeSetIds: [crypto.randomUUID()] })),
+      ).toStrictEqual({
         kind: "not-found",
       });
     });
@@ -607,7 +611,7 @@ describe("change sets and undo", () => {
       const revisions = state.storage.sql
         .exec("SELECT rev, at FROM revisions WHERE item_id = ? ORDER BY rev", itemId)
         .toArray();
-      expect(revisions).toEqual([
+      expect(revisions).toStrictEqual([
         { at: start, rev: 1 },
         { at: start + 2000, rev: 2 },
         { at: start + 2000, rev: 3 },
@@ -615,9 +619,9 @@ describe("change sets and undo", () => {
       ]);
       const blocksOf = (rev: number) =>
         landedValue(library.revision(itemId, rev))?.blocks.map((stored) => stored.block);
-      expect([1, 2, 3, 4].map(blocksOf)).toEqual([[A], [typed], [later], [again]]);
+      expect([1, 2, 3, 4].map(blocksOf)).toStrictEqual([[A], [typed], [later], [again]]);
       const [body] = landedValue(library.bodies([itemId])).bodies;
-      expect(body?.blocks.map((stored) => stored.block)).toEqual(blocksOf(4));
+      expect(body?.blocks.map((stored) => stored.block)).toStrictEqual(blocksOf(4));
     });
   });
 
@@ -663,7 +667,7 @@ describe("change sets and undo", () => {
           ops: [{ base: null, field: "deletedAt", op: "set", value: clock.now }],
         }),
       );
-      expect(landedValue(library.purgeItems({ ids: [itemId, newItemId()] })).purged).toEqual([
+      expect(landedValue(library.purgeItems({ ids: [itemId, newItemId()] })).purged).toStrictEqual([
         itemId,
       ]);
       const pulled = landedValue(library.pull({ cursor: 0, epoch: null }));

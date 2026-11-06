@@ -17,7 +17,7 @@ describe("a page's facts as an item keeps them", () => {
         published: null,
         site: "Pages",
       }),
-    ).toEqual({
+    ).toStrictEqual({
       author: "A. Writer",
       description: "d".repeat(ITEM_FIELD_CAPS.description),
       lang: null,

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { isLoopbackName, isPrivateUseName, namesPrivateSpace } from "./host-names";
 
-describe("isLoopbackName", () => {
+describe(isLoopbackName, () => {
   it("names localhost and every name under it, in any case and with a trailing dot", () => {
     for (const name of ["localhost", "LOCALHOST", "localhost.", "a.localhost", "x.y.Localhost"]) {
       expect(isLoopbackName(name), name).toBe(true);
@@ -13,7 +13,7 @@ describe("isLoopbackName", () => {
   });
 });
 
-describe("isPrivateUseName", () => {
+describe(isPrivateUseName, () => {
   it("names one label and the suffixes a home or an office keeps", () => {
     for (const name of ["nas", "wiki.", "printer.local", "box.home.arpa", "git.corp", "a.lan"]) {
       expect(isPrivateUseName(name), name).toBe(true);
@@ -24,7 +24,7 @@ describe("isPrivateUseName", () => {
   });
 });
 
-describe("namesPrivateSpace", () => {
+describe(namesPrivateSpace, () => {
   it("reads a private place from the address's spelling alone", () => {
     for (const url of [
       "http://localhost:8080/a",

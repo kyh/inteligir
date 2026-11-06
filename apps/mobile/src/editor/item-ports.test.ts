@@ -26,8 +26,10 @@ describe("an item page's questions, answered from the phone's replica", () => {
     const { id, ports } = await phoneWithNote();
     const { item } = await ports.item({ itemId: id });
     expect(item).toMatchObject({ bodyHeld: true, fields: { title: "Plans" } });
-    expect(item?.blocks.map(({ block }) => block.id)).toEqual(["p1"]);
-    expect(await ports.item({ itemId: "0190a000-0000-7000-8000-00000000dead" })).toStrictEqual({
+    expect(item?.blocks.map(({ block }) => block.id)).toStrictEqual(["p1"]);
+    await expect(
+      ports.item({ itemId: "0190a000-0000-7000-8000-00000000dead" }),
+    ).resolves.toStrictEqual({
       item: null,
     });
   });
@@ -35,13 +37,13 @@ describe("an item page's questions, answered from the phone's replica", () => {
   it("queues a pause's ops under their bases, and answers a moved base with the item as it is", async () => {
     const { cell, id, phone, ports } = await phoneWithNote();
     const base = blockHash(paragraph("p1", "first"));
-    expect(
-      await ports.writeItem({
+    await expect(
+      ports.writeItem({
         files: [],
         itemId: id,
         ops: [{ baseHash: base, block: paragraph("p1", "first, edited"), op: "put" }],
       }),
-    ).toStrictEqual({ kind: "queued" });
+    ).resolves.toStrictEqual({ kind: "queued" });
     const stale = await ports.writeItem({
       files: [],
       itemId: id,
@@ -56,20 +58,26 @@ describe("an item page's questions, answered from the phone's replica", () => {
 
   it("names every item a link can open, by id and by title", async () => {
     const { id, ports } = await phoneWithNote();
-    expect(await ports.wikiTargets({})).toStrictEqual({
+    await expect(ports.wikiTargets({})).resolves.toStrictEqual({
       targets: [{ id, path: "Plans.md", title: "Plans", type: "doc" }],
     });
   });
 
   it("writes a highlight's bare entry and then its note, as the library's page does", async () => {
     const { cell, id, phone, ports } = await phoneWithNote();
-    expect(await ports.addHighlight({ id: "h1", itemId: id, quote: "first" })).toStrictEqual({
+    await expect(
+      ports.addHighlight({ id: "h1", itemId: id, quote: "first" }),
+    ).resolves.toStrictEqual({
       queued: true,
     });
-    expect(await ports.noteHighlight({ id: "h1", itemId: id, text: "why?" })).toStrictEqual({
+    await expect(
+      ports.noteHighlight({ id: "h1", itemId: id, text: "why?" }),
+    ).resolves.toStrictEqual({
       queued: true,
     });
-    expect(await ports.noteHighlight({ id: "h2", itemId: id, text: "none" })).toStrictEqual({
+    await expect(
+      ports.noteHighlight({ id: "h2", itemId: id, text: "none" }),
+    ).resolves.toStrictEqual({
       queued: false,
     });
     await phone.replica.sync();

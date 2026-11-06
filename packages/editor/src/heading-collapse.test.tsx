@@ -34,8 +34,8 @@ describe("heading collapse", () => {
     stubStorage();
     toggleHeadingCollapse("notes/a.md", "1:Intro:0");
 
-    expect([...headingCollapseKeys("notes/a.md")]).toEqual(["1:Intro:0"]);
-    expect([...headingCollapseKeys("notes/b.md")]).toEqual([]);
+    expect([...headingCollapseKeys("notes/a.md")]).toStrictEqual(["1:Intro:0"]);
+    expect([...headingCollapseKeys("notes/b.md")]).toStrictEqual([]);
   });
 
   it("persists every note's folds in one record, keyed by path", () => {
@@ -45,7 +45,7 @@ describe("heading collapse", () => {
 
     expect(written.size).toBe(1);
     const stored: unknown = JSON.parse([...written.values()][0] ?? "{}");
-    expect(stored).toEqual({ "notes/c.md": ["1:Intro:0"], "notes/d.md": ["2:Details:0"] });
+    expect(stored).toStrictEqual({ "notes/c.md": ["1:Intro:0"], "notes/d.md": ["2:Details:0"] });
   });
 });
 
@@ -100,43 +100,43 @@ describe("folds over a live document", () => {
     const editor = mountNote("notes/fold-live.md", [h2("A"), p("a body"), h2("B"), p("b body")]);
 
     fireEvent.click(chevronOf("A"));
-    expect(hiddenBlocks()).toEqual(["a body"]);
+    expect(hiddenBlocks()).toStrictEqual(["a body"]);
 
     await act(async () => {
       editor.tf.insertNodes(p("top"), { at: [0] });
     });
-    expect(hiddenBlocks()).toEqual(["a body"]);
+    expect(hiddenBlocks()).toStrictEqual(["a body"]);
     expect(chevronOf("A").getAttribute("aria-expanded")).toBe("false");
     expect(chevronCount()).toBe(2);
 
     await act(async () => {
       editor.tf.insertText(" line", { at: { offset: 3, path: [0, 0] } });
     });
-    expect(hiddenBlocks()).toEqual(["a body"]);
+    expect(hiddenBlocks()).toStrictEqual(["a body"]);
 
     await act(async () => {
       editor.tf.insertNodes(h2("C"), { at: [3] });
     });
-    expect(hiddenBlocks()).toEqual(["a body"]);
+    expect(hiddenBlocks()).toStrictEqual(["a body"]);
     expect(chevronCount()).toBe(3);
     expect(chevronOf("C").getAttribute("aria-expanded")).toBe("true");
 
     await act(async () => {
       editor.tf.insertNodes(p("inside"), { at: [2] });
     });
-    expect(hiddenBlocks()).toEqual(["inside", "a body"]);
+    expect(hiddenBlocks()).toStrictEqual(["inside", "a body"]);
   });
 
   it("drops the fold when the heading's text changes, since the text is its key", async () => {
     const editor = mountNote("notes/fold-rename.md", [h2("A"), p("a body")]);
 
     fireEvent.click(chevronOf("A"));
-    expect(hiddenBlocks()).toEqual(["a body"]);
+    expect(hiddenBlocks()).toStrictEqual(["a body"]);
 
     await act(async () => {
       editor.tf.insertText("!", { at: { offset: 1, path: [0, 0] } });
     });
-    expect(hiddenBlocks()).toEqual([]);
+    expect(hiddenBlocks()).toStrictEqual([]);
     expect(chevronOf("A!").getAttribute("aria-expanded")).toBe("true");
   });
 });

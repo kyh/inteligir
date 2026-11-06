@@ -10,17 +10,17 @@ const settled = (md: string) => {
   return imported;
 };
 
-describe("canonicalizeImported", () => {
+describe(canonicalizeImported, () => {
   it("answers a canonical page as it is, every letter kept", () => {
     const md = "# Title\n\nA paragraph with **bold** text.\n\n- one\n- two\n";
-    expect(settled(md)).toEqual({ kept: 1, markdown: md });
+    expect(settled(md)).toStrictEqual({ kept: 1, markdown: md });
   });
 
   it("writes a page in the editor's own spelling, a fixpoint the gate calls canonical", () => {
     const imported = settled("Title\n=====\n\n* one\n* two\n\n\n");
     expect(imported.markdown).toBe("# Title\n\n- one\n- two\n");
     expect(imported.kept).toBe(1);
-    expect(analyzeMarkdown(imported.markdown)).toEqual({ kind: "canonical" });
+    expect(analyzeMarkdown(imported.markdown)).toStrictEqual({ kind: "canonical" });
     expect(settled(imported.markdown).markdown).toBe(imported.markdown);
   });
 
@@ -32,7 +32,7 @@ describe("canonicalizeImported", () => {
   });
 
   it("answers an empty page as empty", () => {
-    expect(canonicalizeImported("  \n\n")).toEqual({ kept: 1, markdown: "" });
+    expect(canonicalizeImported("  \n\n")).toStrictEqual({ kept: 1, markdown: "" });
   });
 
   it("answers null where the editor cannot hold the page", () => {

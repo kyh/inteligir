@@ -107,13 +107,14 @@ describe("a conversation's request", () => {
     const bodies = sent.map((text) => bodySchema.parse(JSON.parse(text)));
     for (const [index, body] of bodies.entries()) {
       // the hour's breakpoints on the tools and the system, then the rolling one, never on thinking
-      expect(breakpointsOf(body), `body ${String(index)}`).toEqual(["1h", "1h", "5m"]);
+      expect(breakpointsOf(body), `body ${String(index)}`).toStrictEqual(["1h", "1h", "5m"]);
       // a message is its role and content alone (the strict parse), and never the assistant's last
       expect(body.messages.at(-1)?.role).not.toBe("assistant");
-      for (const block of body.messages.flatMap((message) => message.content)) {
-        if (block.type === "thinking" || block.type === "redacted_thinking") {
-          expect(block).not.toHaveProperty("cache_control");
-        }
+      const thinking = body.messages
+        .flatMap((message) => message.content)
+        .filter((block) => block.type === "thinking" || block.type === "redacted_thinking");
+      for (const block of thinking) {
+        expect(block).not.toHaveProperty("cache_control");
       }
     }
     expectSharedPrefixes(sent);
@@ -151,7 +152,7 @@ describe("a conversation's request", () => {
       expect(body, field).not.toHaveProperty(field);
     }
     const names = deployedDefinition().tools.map((tool) => tool.name);
-    expect(names).toEqual(names.toSorted());
+    expect(names).toStrictEqual(names.toSorted());
     expect(JSON.stringify(body.tools)).not.toContain("eager_input_streaming");
   });
 
@@ -160,7 +161,7 @@ describe("a conversation's request", () => {
     const message = await client.beta.messages
       .stream(agentRequest(deployedDefinition(), [person(script("Hello."))], 2048))
       .finalMessage();
-    expect(message.input_transformations).toEqual([]);
+    expect(message.input_transformations).toStrictEqual([]);
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     const dropped: BetaMessage = {
       ...message,
@@ -184,7 +185,7 @@ describe("a conversation's request", () => {
       reason: "prefix_binding_mismatch",
       threadId: "thread-1",
     });
-    expect(logged).toHaveBeenCalledTimes(1);
+    expect(logged).toHaveBeenCalledOnce();
     logged.mockRestore();
   });
 });
@@ -226,7 +227,7 @@ describe("what a request carries of the transcript", () => {
       results("t1"),
       reply(thought("b"), words("Found.")),
     ]);
-    expect(requestMessages(transcript, 1)).toEqual(transcript);
+    expect(requestMessages(transcript, 1)).toStrictEqual(transcript);
   });
 
   it("leaves out every thinking block before the turn a definition was taken up at, and nothing after", () => {
@@ -239,7 +240,7 @@ describe("what a request carries of the transcript", () => {
       reply(thought("c"), call("t2")),
       results("t2"),
     ]);
-    expect(typesOf(requestMessages(transcript, 5))).toEqual([
+    expect(typesOf(requestMessages(transcript, 5))).toStrictEqual([
       ["user", "text"],
       ["assistant", "tool_use"],
       ["user", "tool_result"],
@@ -249,7 +250,7 @@ describe("what a request carries of the transcript", () => {
       ["user", "tool_result"],
     ]);
     // the stored rows are left as they were
-    expect(transcript[1]?.content.map((block) => block.type)).toEqual([
+    expect(transcript[1]?.content.map((block) => block.type)).toStrictEqual([
       "thinking",
       "thinking",
       "tool_use",
@@ -266,7 +267,7 @@ describe("what a request carries of the transcript", () => {
       reply({ data: "opaque", type: "redacted_thinking" }, words("Done.")),
       person("Once more."),
     ]);
-    expect(typesOf(requestMessages(transcript, 6))).toEqual([
+    expect(typesOf(requestMessages(transcript, 6))).toStrictEqual([
       ["user", "text"],
       ["user", "text"],
       ["assistant", "text"],
@@ -287,9 +288,9 @@ describe("what a request carries of the transcript", () => {
       person("And Lyon?"),
     ]);
     const sent = requestMessages(transcript, 1);
-    expect(sent).toEqual(transcript.slice(3));
+    expect(sent).toStrictEqual(transcript.slice(3));
     // a definition taken up after the compaction leaves out the thinking from it on
-    expect(typesOf(requestMessages(transcript, 7))).toEqual([
+    expect(typesOf(requestMessages(transcript, 7))).toStrictEqual([
       ["assistant", "compaction", "tool_use"],
       ["user", "tool_result"],
       ["assistant", "compaction", "text"],

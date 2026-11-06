@@ -190,3 +190,17 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   per run, a build's wait behind another lane's not counted against its
   scenario's deadline. Rejected: one serial run (835 s against about 490 s on
   four cores). `tools/e2e/src/run.ts`.
+
+- **LINT READS TYPES, AND EVERY SUITE IS HELD TO ULTRACITE'S VITEST PRESET.**
+  oxlint runs type-aware (`oxlint-tsgolint`, every type-aware rule at error)
+  after the `generate` tasks whose types the Worker's and the extension's
+  programs extend, and its own config makes an unused disable directive an
+  error. Every suite is held to `ultracite/oxlint/vitest`: an `if` around a
+  claim becomes vitest's `assert` narrowing the value, a loop of tests an
+  `it.each`, an equality `toStrictEqual`. A rule stays off only with its reason
+  beside it. Rejected: a fix taken unread (prefer-expect-resolves dropped
+  `expect`'s message, prefer-called-with claimed a call with no arguments,
+  prefer-comparison-matcher handed strings to number matchers, and
+  prefer-optional-chain read `x === null || x.y === null` as `x?.y === null`);
+  `vi.mock(import(…))` for a partial stub (it types the factory against the
+  whole module). `oxlint.config.ts`.

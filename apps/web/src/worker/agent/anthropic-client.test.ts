@@ -44,9 +44,15 @@ describe("the built-in agent's client", () => {
   });
 
   it("refuses a scripted API anywhere but this machine", () => {
-    for (const url of ["http://example.com:5177", "http://10.0.0.7:5177", "https://127.0.0.1"]) {
-      expect(() => anthropicClient({ ...bare, ANTHROPIC_FAKE_URL: url }), url).toThrow();
+    for (const url of ["http://example.com:5177", "http://10.0.0.7:5177"]) {
+      expect(() => anthropicClient({ ...bare, ANTHROPIC_FAKE_URL: url }), url).toThrow(
+        "ANTHROPIC_FAKE_URL names this machine alone",
+      );
     }
+    // the scripted API speaks plain http, so an https address names no fake
+    expect(() => anthropicClient({ ...bare, ANTHROPIC_FAKE_URL: "https://127.0.0.1" })).toThrow(
+      "Invalid URL",
+    );
     expect(agentConfigured({ ...bare, ANTHROPIC_FAKE_URL: "http://localhost:5177" })).toBe(true);
   });
 
@@ -68,7 +74,7 @@ describe("the built-in agent's client", () => {
       messages: [{ content: "Hello.", role: "user" }],
       model: "claude-opus-5-5",
     });
-    expect(message.content).toEqual(reply.content);
+    expect(message.content).toStrictEqual(reply.content);
     const [request] = sent;
     expect(request?.url).toBe(`${GATEWAY}/v1/messages`);
     expect(request?.headers.get("cf-aig-authorization")).toBe("Bearer gateway-token");

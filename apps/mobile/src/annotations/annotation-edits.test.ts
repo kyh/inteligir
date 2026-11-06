@@ -37,19 +37,19 @@ describe("the annotations sheet's writes", () => {
       replica: phone.replica,
     });
 
-    expect(await edits.note("h1", "why?")).toBe(true);
-    expect(await edits.reply("h1", "because")).toBe(true);
+    await expect(edits.note("h1", "why?")).resolves.toBe(true);
+    await expect(edits.reply("h1", "because")).resolves.toBe(true);
     const item = await phone.replica.item(made.id);
     const store = await phone.replica.annotations(made.id);
     const [thread] = item === null ? [] : threadsOf(store, item);
     expect(thread?.root).toMatchObject({ quote: "a passage", text: "why?" });
-    expect(thread?.replies.map((reply) => reply.entry.text)).toEqual(["because"]);
+    expect(thread?.replies.map((reply) => reply.entry.text)).toStrictEqual(["because"]);
     // the passage holds no markers, so the sheet says it is not placed
     expect(thread?.anchored).toBe(false);
 
-    expect(await edits.remove("h1")).toBe(true);
+    await expect(edits.remove("h1")).resolves.toBe(true);
     await phone.replica.sync();
     expect(cell.annotation("h1")?.deletedAt).not.toBeNull();
-    expect(await edits.note("h9", "nothing there")).toBe(false);
+    await expect(edits.note("h9", "nothing there")).resolves.toBe(false);
   });
 });

@@ -104,11 +104,11 @@ describe("the Mac's sign-in", () => {
     await vi.waitFor(() => {
       expect(signedIn).toHaveBeenCalledOnce();
     });
-    expect(kept).toEqual([ANSWER]);
-    expect(asked.signIn.map((request) => request.deviceName)).toEqual([
+    expect(kept).toStrictEqual([ANSWER]);
+    expect(asked.signIn.map((request) => request.deviceName)).toStrictEqual([
       LONG_NAME.slice(0, DEVICE_NAME_MAX_LENGTH),
     ]);
-    expect(asked.signOut).toEqual([]);
+    expect(asked.signOut).toStrictEqual([]);
   });
 
   it("gives the device's slot back when the Keychain will not keep its credential", async () => {
@@ -122,9 +122,9 @@ describe("the Mac's sign-in", () => {
     const signedIn = drawn();
     typeSignIn();
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(await screen.findByText(KEYCHAIN_SENTENCE)).toBeDefined();
+    await expect(screen.findByText(KEYCHAIN_SENTENCE)).resolves.toBeDefined();
     // the new credential signs itself out, so no device is left holding a slot of the cap
-    expect(asked.signOut).toEqual([`Bearer ${ANSWER.credential}`]);
+    expect(asked.signOut).toStrictEqual([`Bearer ${ANSWER.credential}`]);
     expect(signedIn).not.toHaveBeenCalled();
   });
 

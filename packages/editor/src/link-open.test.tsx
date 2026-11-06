@@ -36,7 +36,7 @@ describe("a link's Open", () => {
   it("opens a vault url in the app, at the path the knowledge index resolves", async () => {
     const calls = openPopover("../notes/Plan%20B.md#goals");
     fireEvent.click(await screen.findByRole("button", { name: "Open link" }));
-    expect(calls).toEqual([{ action: "openFile", args: ["notes/Plan B.md"] }]);
+    expect(calls).toStrictEqual([{ action: "openFile", args: ["notes/Plan B.md"] }]);
   });
 
   it("offers no Open for a vault url the listing does not hold", async () => {
@@ -54,7 +54,7 @@ describe("a link's Open", () => {
       "_blank",
       "noopener,noreferrer",
     );
-    expect(calls).toEqual([]);
+    expect(calls).toStrictEqual([]);
     opened.mockRestore();
   });
 

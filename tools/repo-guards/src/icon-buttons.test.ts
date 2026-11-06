@@ -52,14 +52,14 @@ describe("icon-only buttons", () => {
     expect(
       offenders(unlabelledLines),
       "An icon-size <Button> with no aria-label (or title) has no accessible name and no tooltip — the Button renders its label as both. Add an aria-label to:",
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("draw their own tooltip, so no Tooltip wraps one", () => {
     expect(
       offenders(wrappedLines),
       "An icon-size <Button> shows its aria-label as its tooltip; a <Tooltip> around it shows a second. Drop the wrapper at:",
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("reads the shapes it refuses and the ones it allows", () => {
@@ -67,27 +67,29 @@ describe("icon-only buttons", () => {
       wrappedLines(
         '<Tooltip content="Search">\n  <Button size="icon-compact" aria-label="Search">',
       ),
-    ).toEqual([1]);
-    expect(wrappedLines('<Tooltip content="New folder">\n  <SidebarGroupAction>')).toEqual([]);
-    expect(unlabelledLines('<Button onClick={() => x()} size="icon-compact">')).toEqual([1]);
-    expect(unlabelledLines('<Button onClick={() => x()} size="icon" aria-label="Close">')).toEqual(
+    ).toStrictEqual([1]);
+    expect(wrappedLines('<Tooltip content="New folder">\n  <SidebarGroupAction>')).toStrictEqual(
       [],
     );
+    expect(unlabelledLines('<Button onClick={() => x()} size="icon-compact">')).toStrictEqual([1]);
+    expect(
+      unlabelledLines('<Button onClick={() => x()} size="icon" aria-label="Close">'),
+    ).toStrictEqual([]);
     expect(
       unlabelledLines(
         '<Button size="icon-compact">\n  <XIcon />\n  <span className="sr-only">Close</span>\n</Button>',
       ),
-    ).toEqual([]);
+    ).toStrictEqual([]);
     expect(
       unlabelledLines(
         '<Button size="icon">\n  <XIcon />\n</Button>\n<Button>\n  <span className="sr-only">x</span>\n</Button>',
       ),
-    ).toEqual([1]);
+    ).toStrictEqual([1]);
     expect(
       unlabelledLines(
         '<Button size="icon" />\n<Button>\n  <span className="sr-only">x</span>\n</Button>',
       ),
-    ).toEqual([1]);
+    ).toStrictEqual([1]);
   });
 
   it("finds the buttons in every bundle that draws one, the gallery included", () => {

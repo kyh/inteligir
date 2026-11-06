@@ -153,13 +153,17 @@ describe("the scripted Messages API", () => {
     const opening = person(CALL);
     const first = await send(fake, bodyOf([opening]));
     expect(first.stop_reason).toBe("tool_use");
-    expect(first.content.map((block) => block.type)).toEqual(["thinking", "thinking", "tool_use"]);
-    expect(first.input_transformations).toEqual([]);
+    expect(first.content.map((block) => block.type)).toStrictEqual([
+      "thinking",
+      "thinking",
+      "tool_use",
+    ]);
+    expect(first.input_transformations).toStrictEqual([]);
     const second = await send(fake, bodyOf([opening, replayed(first), resultsOf(first)]));
     expect(second.stop_reason).toBe("end_turn");
     expect(second.content.at(-1)).toMatchObject({ text: "Done: create_note.", type: "text" });
-    expect(second.input_transformations).toEqual([]);
-    expect(fake.stats()).toEqual({ drops: 0, held: 0, requests: 2 });
+    expect(second.input_transformations).toStrictEqual([]);
+    expect(fake.stats()).toStrictEqual({ drops: 0, held: 0, requests: 2 });
   });
 
   it("reports every usage field, reading what comes before the last breakpoint and writing the block that carries it", async () => {
@@ -200,7 +204,7 @@ describe("the scripted Messages API", () => {
     const rescued = await send(fake, bodyOf([person("fallback")], { fallbacks: "default" }));
     expect(rescued.stop_reason).toBe("end_turn");
     expect(rescued.content[0]).toMatchObject({ to: { model: "claude-opus-5" }, type: "fallback" });
-    expect(rescued.usage.iterations?.map((entry) => entry.type)).toEqual([
+    expect(rescued.usage.iterations?.map((entry) => entry.type)).toStrictEqual([
       "message",
       "fallback_message",
     ]);
@@ -209,8 +213,8 @@ describe("the scripted Messages API", () => {
   it("fails a body the times its script names, then answers it", async () => {
     const fake = messagesFake();
     const body = bodyOf([person("fail 529 2\nHello.")]);
-    expect(await refusalOf(fake, body)).toMatchObject({ status: 529 });
-    expect(await refusalOf(fake, body)).toMatchObject({ status: 529 });
+    await expect(refusalOf(fake, body)).resolves.toMatchObject({ status: 529 });
+    await expect(refusalOf(fake, body)).resolves.toMatchObject({ status: 529 });
     const answered = await send(fake, body);
     expect(answered.stop_reason).toBe("end_turn");
   });
@@ -229,7 +233,7 @@ describe("the scripted Messages API", () => {
         }
       }
     })();
-    await expect(reading).rejects.toThrow();
+    await expect(reading).rejects.toThrow("Request was aborted.");
     expect(seen).toContain("content_block_start");
     expect(seen).not.toContain("message_stop");
     expect(fake.stats().held).toBe(1);
@@ -332,13 +336,12 @@ describe("the scripted Messages API", () => {
         /trigger\.value: must be at least 50000/u,
       ],
     ];
-    for (const [refused, body, message] of cases) {
-      it(refused, async () => {
-        const refusal = await refusalOf(fake, body);
-        expect(refusal.status).toBe(400);
-        expect(refusal.message).toMatch(message);
-      });
-    }
+
+    it.for(cases)("%s", async ([, body, message]) => {
+      const refusal = await refusalOf(fake, body);
+      expect(refusal.status).toBe(400);
+      expect(refusal.message).toMatch(message);
+    });
 
     it("a sampling parameter", async () => {
       const response = await fake.fetch("http://fake.test/v1/messages", {
@@ -347,7 +350,9 @@ describe("the scripted Messages API", () => {
         method: "POST",
       });
       expect(response.status).toBe(400);
-      expect(await response.text()).toMatch(/temperature: Extra inputs are not permitted/u);
+      await expect(response.text()).resolves.toMatch(
+        /temperature: Extra inputs are not permitted/u,
+      );
     });
 
     it("a message field but its role and content", async () => {
@@ -364,7 +369,9 @@ describe("the scripted Messages API", () => {
         }),
       );
       expect(response.status).toBe(400);
-      expect(await response.text()).toMatch(/messages\.0\.id: Extra inputs are not permitted/u);
+      await expect(response.text()).resolves.toMatch(
+        /messages\.0\.id: Extra inputs are not permitted/u,
+      );
     });
   });
 
@@ -382,7 +389,7 @@ describe("the scripted Messages API", () => {
       expect(strict).toMatchObject({ status: 400 });
       expect(strict.message).toMatch(/bound to a different conversation/u);
       const dropped = await send(fake, bodyOf(edited));
-      expect(dropped.input_transformations).toEqual(
+      expect(dropped.input_transformations).toStrictEqual(
         [0, 1].map((at) => ({
           path: `messages.1.content.${String(at)}`,
           reason: "prefix_binding_mismatch",
@@ -415,7 +422,7 @@ describe("the scripted Messages API", () => {
           },
         ]),
       );
-      expect(third.input_transformations).toEqual([]);
+      expect(third.input_transformations).toStrictEqual([]);
       expect(fake.stats().drops).toBe(0);
     });
   });
@@ -432,15 +439,15 @@ describe("the scripted Messages API", () => {
         },
       });
       const first = await send(fake, updates);
-      expect(thinkingOf(first)).toEqual(["", "Calling create_note now."]);
+      expect(thinkingOf(first)).toStrictEqual(["", "Calling create_note now."]);
       expect(first.content.at(-1)?.type).toBe("tool_use");
       // replayed as returned, the notes verify like any thinking block
       const second = await send(fake, {
         ...updates,
         messages: [person(CALL), replayed(first), resultsOf(first)],
       });
-      expect(thinkingOf(second)).toEqual([""]);
-      expect(second.input_transformations).toEqual([]);
+      expect(thinkingOf(second)).toStrictEqual([""]);
+      expect(second.input_transformations).toStrictEqual([]);
       expect(fake.stats().drops).toBe(0);
     });
 
@@ -452,12 +459,12 @@ describe("the scripted Messages API", () => {
           thinking: { display: "summarized", type: "adaptive" },
         }),
       );
-      expect(thinkingOf(summarized)).toEqual([
+      expect(thinkingOf(summarized)).toStrictEqual([
         "Call create_note as the person asked.",
         "Calling create_note now.",
       ]);
       const omitted = await send(fake, bodyOf([person(CALL)]));
-      expect(thinkingOf(omitted)).toEqual(["", ""]);
+      expect(thinkingOf(omitted)).toStrictEqual(["", ""]);
     });
 
     it("refuses updates without their beta", async () => {
@@ -476,7 +483,7 @@ describe("the scripted Messages API", () => {
     it("opens the reply with a compaction block, its sampling an iteration of its own", async () => {
       const fake = messagesFake();
       const first = await send(fake, bodyOf([opening], COMPACTING));
-      expect(first.content.map((block) => block.type)).toEqual([
+      expect(first.content.map((block) => block.type)).toStrictEqual([
         "compaction",
         "thinking",
         "thinking",
@@ -484,7 +491,7 @@ describe("the scripted Messages API", () => {
       ]);
       expect(first.content[0]).toMatchObject({ content: expect.any(String), type: "compaction" });
       const iterations = first.usage.iterations ?? [];
-      expect(iterations.map((entry) => entry.type)).toEqual(["compaction", "message"]);
+      expect(iterations.map((entry) => entry.type)).toStrictEqual(["compaction", "message"]);
       // the top level is every iteration's but the compaction's
       const [compaction, answered] = iterations;
       expect(first.usage.input_tokens).toBe(answered?.input_tokens);
@@ -492,7 +499,7 @@ describe("the scripted Messages API", () => {
       expect(compaction?.input_tokens).toBeGreaterThan(0);
       // a request that does not ask compacts nothing, and reports no iterations
       const plain = await send(fake, bodyOf([opening]));
-      expect(plain.content.map((block) => block.type)).toEqual([
+      expect(plain.content.map((block) => block.type)).toStrictEqual([
         "thinking",
         "thinking",
         "tool_use",
@@ -507,14 +514,14 @@ describe("the scripted Messages API", () => {
       const fromBlock = [replayed(first), resultsOf(first)];
       const second = await send(fake, bodyOf(fromBlock, COMPACTING));
       expect(second.content.at(-1)).toMatchObject({ name: "search_library", type: "tool_use" });
-      expect(second.usage.iterations?.map((entry) => entry.type)).toEqual(["message"]);
+      expect(second.usage.iterations?.map((entry) => entry.type)).toStrictEqual(["message"]);
       // sent whole, an edit before the block changes nothing: the API ignores what it summarized
       const whole = await send(
         fake,
         bodyOf([person(`compact\n${CALL}\n${SEARCH}\nAn edit.`), ...fromBlock], COMPACTING),
       );
       expect(whole.content.at(-1)).toMatchObject({ name: "search_library", type: "tool_use" });
-      expect(whole.input_transformations).toEqual([]);
+      expect(whole.input_transformations).toStrictEqual([]);
       const third = await send(
         fake,
         bodyOf([...fromBlock, replayed(second), resultsOf(second)], COMPACTING),
@@ -523,7 +530,7 @@ describe("the scripted Messages API", () => {
         text: "Done: create_note, search_library.",
         type: "text",
       });
-      expect(third.input_transformations).toEqual([]);
+      expect(third.input_transformations).toStrictEqual([]);
       expect(fake.stats().drops).toBe(0);
     });
 
@@ -537,7 +544,7 @@ describe("the scripted Messages API", () => {
         fake,
         bodyOf([without(first, [1, 2]), resultsOf(first), ...after], COMPACTING),
       );
-      expect(leading.input_transformations).toEqual([]);
+      expect(leading.input_transformations).toStrictEqual([]);
       expect(fake.stats().drops).toBe(0);
       // the progress note alone, with the reasoning before it kept: the next reply's chain breaks
       const middle = [without(first, [2]), resultsOf(first), ...after];
@@ -553,7 +560,7 @@ describe("the scripted Messages API", () => {
         /messages\.2\.content\.0: .*bound to a different conversation/u,
       );
       const dropped = await send(fake, bodyOf(middle, COMPACTING));
-      expect(dropped.input_transformations?.map((entry) => entry.path)).toEqual([
+      expect(dropped.input_transformations?.map((entry) => entry.path)).toStrictEqual([
         "messages.2.content.0",
         "messages.2.content.1",
       ]);
@@ -573,11 +580,11 @@ describe("the scripted Messages API", () => {
       };
       const kept = [replayed(first), resultsOf(first), unsummarized, person("And now?")];
       const answered = await send(fake, bodyOf([person(CALL), ...kept], COMPACTING));
-      expect(answered.input_transformations).toEqual([]);
+      expect(answered.input_transformations).toStrictEqual([]);
       // the thinking before the block is still bound from the conversation's start, so an edit
       // there fails it
       const edited = await send(fake, bodyOf([person(`${CALL}\nAn edit.`), ...kept], COMPACTING));
-      expect(edited.input_transformations?.map((entry) => entry.path)).toEqual([
+      expect(edited.input_transformations?.map((entry) => entry.path)).toStrictEqual([
         "messages.1.content.0",
         "messages.1.content.1",
       ]);
@@ -598,7 +605,7 @@ describe("the scripted Messages API", () => {
     const fake = messagesFake();
     await send(fake, bodyOf([person("Hello.")]));
     const stats = await fake.fetch(new Request("http://fake.test/__fake/stats"));
-    expect(await stats.json()).toEqual({ drops: 0, held: 0, requests: 1 });
+    await expect(stats.json()).resolves.toStrictEqual({ drops: 0, held: 0, requests: 1 });
     const unserved = await fake.fetch(new Request("http://fake.test/v1/models"));
     expect(unserved.status).toBe(404);
     const gateway = await send(fake, bodyOf([person("Hello.")]));

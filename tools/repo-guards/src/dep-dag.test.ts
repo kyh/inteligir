@@ -219,7 +219,7 @@ const declaredFor = (name: string): readonly string[] => {
 describe("the package dependency DAG", () => {
   it("every workspace has a row in the declared table", () => {
     for (const workspace of workspaces()) {
-      declaredFor(workspace.name);
+      expect(() => declaredFor(workspace.name)).not.toThrow();
     }
   });
 
@@ -250,7 +250,7 @@ describe("the package dependency DAG", () => {
         );
       }
     }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 
   // knip owns the reverse, a listed workspace nothing imports, but not this: outside --strict, which
@@ -273,7 +273,7 @@ describe("the package dependency DAG", () => {
         }
       }
     }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 
   // every other rule in this file reads a package name, so a relative path into another workspace
@@ -295,7 +295,7 @@ describe("the package dependency DAG", () => {
         }
       }
     }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 
   it("sees a relative path into the gallery, so a clean sweep is a real one", () => {
@@ -333,7 +333,7 @@ describe("the package dependency DAG", () => {
     for (const workspace of workspaces()) {
       visit(workspace.name, []);
     }
-    expect(cycles, `\n${cycles.join("\n\n")}\n`).toEqual([]);
+    expect(cycles, `\n${cycles.join("\n\n")}\n`).toStrictEqual([]);
   });
 });
 
@@ -356,7 +356,7 @@ describe("platform purity", () => {
         }
       }
     }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 
   it("the zod-only leaves declare only zod", () => {
@@ -375,7 +375,7 @@ describe("platform purity", () => {
         );
       }
     }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 
   it("no package imports an app", () => {
@@ -403,7 +403,7 @@ describe("platform purity", () => {
         }
       }
     }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 
   it("no editor page client imports the page, only its wire", () => {
@@ -430,7 +430,7 @@ describe("platform purity", () => {
         }
       }
     }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 
   it("the Cloudflare Worker imports no Node package", () => {
@@ -477,7 +477,7 @@ describe("platform purity", () => {
             .join("\n")}`,
       );
     }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 });
 
@@ -587,7 +587,7 @@ describe("the contract's @repo/notes edge", () => {
         }
       }
     }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 
   it("sees the parser behind the dialect's parse, so a clean walk is a real one", () => {

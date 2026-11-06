@@ -186,10 +186,10 @@ describe("the replica engine against the account's cell", () => {
     const phone = await deviceOn(cookie, "Phone");
     const id = await sharedNote(laptop, phone);
     expect(phone.replica.row(id)).toMatchObject({ title: "Plans", unsent: false });
-    expect(await phone.replica.item(id)).toMatchObject({ bodyHeld: true });
-    expect(await textIn(phone.replica, id, "p2")).toBe("second");
+    await expect(phone.replica.item(id)).resolves.toMatchObject({ bodyHeld: true });
+    await expect(textIn(phone.replica, id, "p2")).resolves.toBe("second");
     const hits = await phone.replica.search("second", 10);
-    expect(hits.map((hit) => hit.itemId)).toEqual([id]);
+    expect(hits.map((hit) => hit.itemId)).toStrictEqual([id]);
     expect(phone.replica.status()).toMatchObject({ failure: null, unsent: 0 });
     expect(phone.replica.status().cursor).toBe(laptop.replica.status().cursor);
   });
@@ -225,7 +225,7 @@ describe("the replica engine against the account's cell", () => {
       expect(resets).toContain(true);
       expect(phone.replica.status()).toMatchObject({ unsent: 1 });
       expect(phone.replica.row(file.id)?.unsent).toBe(true);
-      expect(await textIn(phone.replica, id, "p1")).toBe("first");
+      await expect(textIn(phone.replica, id, "p1")).resolves.toBe("first");
 
       await phone.blobs.put(file.sha, bytes, "image/png");
       const [parked] = phone.replica.status().parked;
@@ -248,7 +248,7 @@ describe("the replica engine against the account's cell", () => {
     expect(phone.replica.status().failure?.kind).toBe("unreachable");
     // the write landed though its answer never came
     await laptop.replica.sync();
-    expect(await textIn(laptop.replica, id, "p1")).toBe("once");
+    await expect(textIn(laptop.replica, id, "p1")).resolves.toBe("once");
     const { cursor } = laptop.replica.status();
     await phone.replica.sync();
     expect(phone.replica.status()).toMatchObject({ cursor, failure: null, unsent: 0 });
@@ -271,9 +271,9 @@ describe("the replica engine against the account's cell", () => {
       await write(phone.replica, id, [await putText(phone.replica, id, "p2", "the phone's")]);
       await phone.replica.sync();
       expect(writesBy(phone)).toBe(1);
-      expect(await textIn(phone.replica, id, "p1")).toBe("the laptop's");
+      await expect(textIn(phone.replica, id, "p1")).resolves.toBe("the laptop's");
       await laptop.replica.sync();
-      expect(await textIn(laptop.replica, id, "p2")).toBe("the phone's");
+      await expect(textIn(laptop.replica, id, "p2")).resolves.toBe("the phone's");
     },
   );
 
@@ -292,8 +292,8 @@ describe("the replica engine against the account's cell", () => {
       expect(writesBy(phone)).toBe(2);
       expect(phone.replica.status().unsent).toBe(0);
       await laptop.replica.sync();
-      expect(await textIn(laptop.replica, id, "p1")).toBe("the laptop's / the phone's");
-      expect(await textIn(phone.replica, id, "p1")).toBe("the laptop's / the phone's");
+      await expect(textIn(laptop.replica, id, "p1")).resolves.toBe("the laptop's / the phone's");
+      await expect(textIn(phone.replica, id, "p1")).resolves.toBe("the laptop's / the phone's");
     },
   );
 });

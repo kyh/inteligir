@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { ISO_DATE_PATTERN, formatIsoDate, parseIsoDate } from "./iso-date";
 
-describe("formatIsoDate", () => {
+describe(formatIsoDate, () => {
   it("zero-pads iso date components (local time)", () => {
     // Local-time constructor: month index 0 = January, day 5.
     expect(formatIsoDate(new Date(2026, 0, 5))).toBe("2026-01-05");
@@ -14,7 +14,7 @@ describe("formatIsoDate", () => {
   });
 });
 
-describe("parseIsoDate", () => {
+describe(parseIsoDate, () => {
   it("reads a real date as local midnight and round-trips it", () => {
     const date = parseIsoDate("2026-02-28");
     expect(date?.getFullYear()).toBe(2026);
@@ -41,7 +41,7 @@ describe("parseIsoDate", () => {
 
 const pad = (n: number, width: number): string => String(n).padStart(width, "0");
 
-describe("ISO_DATE_PATTERN", () => {
+describe(ISO_DATE_PATTERN, () => {
   const pattern = new RegExp(`^${ISO_DATE_PATTERN}$`, "u");
 
   it("matches exactly what parseIsoDate reads, across the years that bend the calendar", () => {
@@ -57,6 +57,6 @@ describe("ISO_DATE_PATTERN", () => {
         }
       }
     }
-    expect(mismatches).toEqual([]);
+    expect(mismatches).toStrictEqual([]);
   });
 });

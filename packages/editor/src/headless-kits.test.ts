@@ -96,7 +96,7 @@ const closureOf = (entry: string): Closure => {
 };
 
 describe("the headless kits", () => {
-  for (const entry of [
+  it.each([
     "kits/base-kit.ts",
     "markdown/markdown-doc.ts",
     // the codec runs where the library does, the Worker's cell included
@@ -105,20 +105,18 @@ describe("the headless kits", () => {
     "codec/export-plan.ts",
     "codec/item-view.ts",
     "codec/item-edit.ts",
-  ]) {
-    it(`${entry} reaches no React half, stylesheet or node built-in`, () => {
-      const { bare, files } = closureOf(entry);
-      const tsx = [...files].filter((file) => file.endsWith(".tsx"));
-      expect(
-        tsx.map((file) => path.relative(EDITOR, file)),
-        "a .tsx file in the closure",
-      ).toEqual([]);
-      const refused = [...bare].filter(([specifier]) =>
-        REFUSED.some((pattern) => pattern.test(specifier)),
-      );
-      expect(refused, "a refused module in the closure (specifier, importer)").toEqual([]);
-    });
-  }
+  ])("%s reaches no React half, stylesheet or node built-in", (entry) => {
+    const { bare, files } = closureOf(entry);
+    const tsx = [...files].filter((file) => file.endsWith(".tsx"));
+    expect(
+      tsx.map((file) => path.relative(EDITOR, file)),
+      "a .tsx file in the closure",
+    ).toStrictEqual([]);
+    const refused = [...bare].filter(([specifier]) =>
+      REFUSED.some((pattern) => pattern.test(specifier)),
+    );
+    expect(refused, "a refused module in the closure (specifier, importer)").toStrictEqual([]);
+  });
 
   it("keeps every base kit in kits/headless/", () => {
     const { files } = closureOf("kits/base-kit.ts");
@@ -127,6 +125,6 @@ describe("the headless kits", () => {
       .filter((file) => file.startsWith("kits/") && file !== "kits/base-kit.ts");
     expect(
       kits.filter((file) => !file.startsWith("kits/headless/") && file !== "kits/markdown-kit.ts"),
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });

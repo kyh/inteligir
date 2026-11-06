@@ -26,7 +26,7 @@ const out = (editor: Editor): string => serializeNote(editor);
 
 describe("TURN_INTO menu (decision #8)", () => {
   it("offers exactly the locked target set, in menu order — no columns", () => {
-    expect(TURN_INTO.map((o) => o.id)).toEqual([
+    expect(TURN_INTO.map((o) => o.id)).toStrictEqual([
       "text",
       "heading-1",
       "heading-2",
@@ -199,7 +199,7 @@ describe("turn into over a code block", () => {
   });
 });
 
-describe("moveBlocks", () => {
+describe(moveBlocks, () => {
   it("moves a block up and down; no-ops at the edges", () => {
     const editor = makeEditor("one\n\ntwo\n\nthree\n");
     moveBlocks(editor, [[1]], "up");

@@ -83,9 +83,9 @@ describe("a file item's Download", () => {
     expect(button.closest("a")).toBeNull();
     fireEvent.click(button);
     await vi.waitFor(() => {
-      expect(saved).toEqual([{ download: "minutes.txt", href: BLOB_ADDRESS }]);
+      expect(saved).toStrictEqual([{ download: "minutes.txt", href: BLOB_ADDRESS }]);
     });
-    expect(asked).toEqual([library.fileUrl(SHA)]);
+    expect(asked).toStrictEqual([library.fileUrl(SHA)]);
   });
 
   it("saves nothing, and says so, when the file is not there to read", async () => {
@@ -99,6 +99,6 @@ describe("a file item's Download", () => {
         "The file couldn't be saved. Check your connection and try again.",
       );
     });
-    expect(saved).toEqual([]);
+    expect(saved).toStrictEqual([]);
   });
 });

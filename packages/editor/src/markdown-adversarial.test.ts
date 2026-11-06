@@ -515,11 +515,11 @@ const fuzzDocs = (count: number): [string, string][] => {
 
 describe("adversarial round-trip hunt", () => {
   it("handcrafted corpus upholds the gate invariants", { timeout: 90_000 }, () => {
-    expect(report(Object.entries(CORPUS))).toEqual([]);
+    expect(report(Object.entries(CORPUS))).toStrictEqual([]);
   });
 
   it("seeded fuzz corpus upholds the gate invariants", { timeout: 120_000 }, () => {
-    expect(report(fuzzDocs(140))).toEqual([]);
+    expect(report(fuzzDocs(140))).toStrictEqual([]);
   });
 
   it("pathological nesting never escapes analyzeMarkdown", { timeout: 120_000 }, () => {
@@ -538,6 +538,6 @@ describe("adversarial round-trip hunt", () => {
       ["bracket-run-2000", `${"[".repeat(2000)}x\n`],
       ["long-line-200kb", `${"word ".repeat(40_000)}\n`],
     ];
-    expect(report(deep)).toEqual([]);
+    expect(report(deep)).toStrictEqual([]);
   });
 });

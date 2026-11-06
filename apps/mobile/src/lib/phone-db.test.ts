@@ -27,9 +27,11 @@ describe("the phone's database", () => {
         [],
       ),
     );
-    expect(tables.map((row) => row.name)).toEqual(["phone_files"]);
-    expect(await sql.all("SELECT v FROM meta WHERE k = 'phone_schema'", [])).toEqual([{ v: 1 }]);
-    expect(await sql.all("PRAGMA user_version", [])).toEqual([{ user_version: 0 }]);
+    expect(tables.map((row) => row.name)).toStrictEqual(["phone_files"]);
+    await expect(sql.all("SELECT v FROM meta WHERE k = 'phone_schema'", [])).resolves.toStrictEqual(
+      [{ v: 1 }],
+    );
+    await expect(sql.all("PRAGMA user_version", [])).resolves.toStrictEqual([{ user_version: 0 }]);
   });
 
   it("refuses a file a newer build saved", async () => {
@@ -48,9 +50,11 @@ describe("the phone's database", () => {
         throw new Error("the work failed");
       }),
     ).rejects.toThrow("the work failed");
-    expect(await sql.all("SELECT v FROM meta WHERE k = ?", ["kept?"])).toEqual([]);
+    await expect(sql.all("SELECT v FROM meta WHERE k = ?", ["kept?"])).resolves.toStrictEqual([]);
 
     await sql.run("INSERT INTO meta (k, v) VALUES (?, ?)", ["kept", quote]);
-    expect(await sql.all("SELECT v FROM meta WHERE k = ?", ["kept"])).toEqual([{ v: quote }]);
+    await expect(sql.all("SELECT v FROM meta WHERE k = ?", ["kept"])).resolves.toStrictEqual([
+      { v: quote },
+    ]);
   });
 });

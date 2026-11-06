@@ -21,7 +21,7 @@ const resolvedToggle = (mark: string) => {
 describe("the mark chords", () => {
   it("are what Plate runs, row for row", () => {
     for (const row of MARK_SHORTCUTS) {
-      expect(resolvedToggle(row.mark)).toEqual({ keys: row.hotkey });
+      expect(resolvedToggle(row.mark)).toStrictEqual({ keys: row.hotkey });
     }
   });
 

@@ -80,7 +80,7 @@ describe("an outbox row's compaction", () => {
       ops.push(op);
       state = landed(state, [op]);
     }
-    expect(compactOps(ops)).toEqual([
+    expect(compactOps(ops)).toStrictEqual([
       { baseHash: first, block: paragraph("p1", "abcd"), op: "put" },
     ]);
   });
@@ -95,27 +95,29 @@ describe("an outbox row's compaction", () => {
     };
     const afterInsert = landed(empty, [insert]);
     const edit = put(afterInsert, "n1", "newer");
-    expect(compactOps([insert, edit])).toEqual([{ ...insert, block: paragraph("n1", "newer") }]);
+    expect(compactOps([insert, edit])).toStrictEqual([
+      { ...insert, block: paragraph("n1", "newer") },
+    ]);
     const drop: LibraryOp = {
       baseHash: blockHash(paragraph("n1", "newer")),
       blockId: "n1",
       op: "drop",
     };
-    expect(compactOps([insert, edit, drop])).toEqual([]);
+    expect(compactOps([insert, edit, drop])).toStrictEqual([]);
   });
 
   it("keeps a run whose bases do not follow each other as it was written", () => {
     const state = itemOf(held("p1", "a", "a0"));
     const twice = [put(state, "p1", "b"), put(state, "p1", "c")];
-    expect(compactOps(twice)).toEqual(twice);
+    expect(compactOps(twice)).toStrictEqual(twice);
   });
 
   it("drops a field run that ends where it began, and spans one that does not", () => {
     const there: LibraryOp = { base: "Plans", field: "title", op: "set", value: "Ideas" };
     const back: LibraryOp = { base: "Ideas", field: "title", op: "set", value: "Plans" };
     const on: LibraryOp = { base: "Ideas", field: "title", op: "set", value: "Notes" };
-    expect(compactOps([there, back])).toEqual([]);
-    expect(compactOps([there, on])).toEqual([
+    expect(compactOps([there, back])).toStrictEqual([]);
+    expect(compactOps([there, on])).toStrictEqual([
       { base: "Plans", field: "title", op: "set", value: "Notes" },
     ]);
   });
@@ -175,7 +177,7 @@ describe("an outbox row's compaction", () => {
         ops.push(op);
         ({ state } = outcome);
       }
-      expect(readingOf(landed(start, compactOps(ops))), `seed ${String(seed)}`).toEqual(
+      expect(readingOf(landed(start, compactOps(ops))), `seed ${String(seed)}`).toStrictEqual(
         readingOf(state),
       );
     }
@@ -192,10 +194,10 @@ describe("an outbox row's compaction", () => {
       text: "",
     };
     const note = { base: "", id: "h1", op: "note" as const, text: "why it matters" };
-    expect(compactAnnotations([add, note])).toEqual([{ ...add, text: "why it matters" }]);
+    expect(compactAnnotations([add, note])).toStrictEqual([{ ...add, text: "why it matters" }]);
     expect(
       compactAnnotations([add, note, { base: "why it matters", id: "h1", op: "remove" }]),
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("joins a later write to the queued one on the first bases, staging each file once", () => {
@@ -218,10 +220,10 @@ describe("an outbox row's compaction", () => {
       ],
     };
     const joined = coalesceWrites(first, second);
-    expect(joined.bases).toEqual(first.bases);
-    expect(joined.ops).toEqual([
+    expect(joined.bases).toStrictEqual(first.bases);
+    expect(joined.ops).toStrictEqual([
       { baseHash: blockHash(paragraph("p1", "a")), block: paragraph("p1", "c"), op: "put" },
     ]);
-    expect(joined.staged.map((file) => file.sha)).toEqual(["a".repeat(64), "b".repeat(64)]);
+    expect(joined.staged.map((file) => file.sha)).toStrictEqual(["a".repeat(64), "b".repeat(64)]);
   });
 });

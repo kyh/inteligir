@@ -52,30 +52,30 @@ const filled = (): LibraryIndex<ListingRow> => {
   return index;
 };
 
-describe("LibraryIndex", () => {
+describe(LibraryIndex, () => {
   it("leads every order with pinned items and keeps Deleted apart", () => {
     const index = filled();
-    expect(ids(index)).toEqual(["pinned", "new", "link", "old"]);
-    expect(ids(index, { sort: "modified" })).toEqual(["pinned", "old", "link", "new"]);
-    expect(ids(index, { sort: "title" })).toEqual(["pinned", "new", "old", "link"]);
-    expect(ids(index, { deleted: true })).toEqual(["binned"]);
+    expect(ids(index)).toStrictEqual(["pinned", "new", "link", "old"]);
+    expect(ids(index, { sort: "modified" })).toStrictEqual(["pinned", "old", "link", "new"]);
+    expect(ids(index, { sort: "title" })).toStrictEqual(["pinned", "new", "old", "link"]);
+    expect(ids(index, { deleted: true })).toStrictEqual(["binned"]);
   });
 
   it("filters by kind, tag family, untagged, folder, site and saved dates, counting kinds apart", () => {
     const index = filled();
     const links = index.items(query({ kinds: ["link"] }));
-    expect(links.items.map((item) => item.id)).toEqual(["link"]);
+    expect(links.items.map((item) => item.id)).toStrictEqual(["link"]);
     expect(links.total).toBe(1);
-    expect(links.kindCounts).toEqual(expect.objectContaining({ link: 1, note: 3 }));
-    expect(ids(index, { tag: "read" })).toEqual(["new", "link"]);
-    expect(ids(index, { untagged: true })).toEqual(["pinned", "old"]);
-    expect(ids(index, { folderId: "work" })).toEqual(["new"]);
-    expect(ids(index, { folderId: "work", subfolders: true })).toEqual(["new", "link"]);
-    expect(ids(index, { folderId: null })).toEqual(["pinned", "old"]);
-    expect(ids(index, { site: "example.com" })).toEqual(["link"]);
-    expect(ids(index, { sinceMs: 3 })).toEqual(["new", "link"]);
-    expect(ids(index, { beforeMs: 3 })).toEqual(["pinned", "old"]);
-    expect(ids(index, { beforeMs: 5, sinceMs: 3 })).toEqual(["link"]);
+    expect(links.kindCounts).toStrictEqual(expect.objectContaining({ link: 1, note: 3 }));
+    expect(ids(index, { tag: "read" })).toStrictEqual(["new", "link"]);
+    expect(ids(index, { untagged: true })).toStrictEqual(["pinned", "old"]);
+    expect(ids(index, { folderId: "work" })).toStrictEqual(["new"]);
+    expect(ids(index, { folderId: "work", subfolders: true })).toStrictEqual(["new", "link"]);
+    expect(ids(index, { folderId: null })).toStrictEqual(["pinned", "old"]);
+    expect(ids(index, { site: "example.com" })).toStrictEqual(["link"]);
+    expect(ids(index, { sinceMs: 3 })).toStrictEqual(["new", "link"]);
+    expect(ids(index, { beforeMs: 3 })).toStrictEqual(["pinned", "old"]);
+    expect(ids(index, { beforeMs: 5, sinceMs: 3 })).toStrictEqual(["link"]);
   });
 
   it("orders a search's hits by rank, pinned first, and answers only them", () => {
@@ -89,30 +89,30 @@ describe("LibraryIndex", () => {
           ["pinned", 5],
         ]),
       }),
-    ).toEqual(["pinned", "link", "old"]);
+    ).toStrictEqual(["pinned", "link", "old"]);
   });
 
   it("pages a listing without losing its total", () => {
     const page = filled().items(query({ limit: 2, offset: 1 }));
-    expect(page.items.map((item) => item.id)).toEqual(["new", "link"]);
+    expect(page.items.map((item) => item.id)).toStrictEqual(["new", "link"]);
     expect(page.total).toBe(4);
   });
 
   it("re-sorts only what a change moved", () => {
     const index = filled();
-    expect(ids(index)).toEqual(["pinned", "new", "link", "old"]);
+    expect(ids(index)).toStrictEqual(["pinned", "new", "link", "old"]);
     index.upsert(row("old", { savedAt: 10, title: "beta", updatedAt: 9 }));
-    expect(ids(index)).toEqual(["pinned", "old", "new", "link"]);
+    expect(ids(index)).toStrictEqual(["pinned", "old", "new", "link"]);
     index.upsert(row("new", { deletedAt: 11, folderId: "work", savedAt: 5, title: "Alpha" }));
-    expect(ids(index)).toEqual(["pinned", "old", "link"]);
+    expect(ids(index)).toStrictEqual(["pinned", "old", "link"]);
     index.remove("pinned");
-    expect(ids(index)).toEqual(["old", "link"]);
+    expect(ids(index)).toStrictEqual(["old", "link"]);
   });
 
   it("counts the library's scopes, a folder holding what its children hold", () => {
     const index = filled();
     index.upsert(row("orphan", { folderId: "no-such-folder" }));
-    expect(index.scopes()).toEqual({
+    expect(index.scopes()).toStrictEqual({
       folders: [
         { id: "home", items: 0 },
         { id: "work", items: 2 },

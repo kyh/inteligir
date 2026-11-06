@@ -151,7 +151,7 @@ describe("when the replica syncs", () => {
       expect(network.fetches()).toBe(fetched);
     }
     // the check-in, then each try's wait, the check-in's minute and the capped try at once
-    expect(recording.asked).toEqual([
+    expect(recording.asked).toStrictEqual([
       60_000, 1000, 2000, 4000, 8000, 16_000, 32_000, 60_000, 60_000, 60_000, 60_000,
     ]);
 
@@ -161,7 +161,7 @@ describe("when the replica syncs", () => {
     recording.asked.splice(0);
     network.device.setOffline(true);
     await phone.replica.sync();
-    expect(recording.asked).toEqual([1000]);
+    expect(recording.asked).toStrictEqual([1000]);
     await phone.replica.close();
   });
 
@@ -236,7 +236,7 @@ describe("when the replica syncs", () => {
     });
     cell.signOut();
     await after(phone, 60_000);
-    expect(phone.replica.status().failure).toEqual({ end: "signed-out", kind: "session" });
+    expect(phone.replica.status().failure).toStrictEqual({ end: "signed-out", kind: "session" });
     expect(sockets[0]?.closed).toBe(true);
 
     const pulled = pulls(cell, "phone");

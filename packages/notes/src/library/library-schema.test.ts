@@ -15,15 +15,21 @@ const tables = (port: SqlPort): string[] =>
     .all("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name", [])
     .map((row) => String(row.name));
 
-describe("ensureLibrarySchema", () => {
+describe(ensureLibrarySchema, () => {
   it("creates the synced tables on a replica and the cell's beside them on a cell", () => {
     const replica = openWasmSqlPort();
-    expect(transactPlan(replica, ensureLibrarySchema("replica"))).toEqual({ kind: "created" });
+    expect(transactPlan(replica, ensureLibrarySchema("replica"))).toStrictEqual({
+      kind: "created",
+    });
     const cell = openWasmSqlPort();
-    expect(transactPlan(cell, ensureLibrarySchema("cell"))).toEqual({ kind: "created" });
-    expect(tables(replica)).toEqual(expect.arrayContaining(["items", "outbox", "body_wants"]));
+    expect(transactPlan(cell, ensureLibrarySchema("cell"))).toStrictEqual({ kind: "created" });
+    expect(tables(replica)).toStrictEqual(
+      expect.arrayContaining(["items", "outbox", "body_wants"]),
+    );
     expect(tables(replica)).not.toContain("change_sets");
-    expect(tables(cell)).toEqual(expect.arrayContaining(["change_sets", "revisions", "jobs"]));
+    expect(tables(cell)).toStrictEqual(
+      expect.arrayContaining(["change_sets", "revisions", "jobs"]),
+    );
     expect(tables(cell)).not.toContain("outbox");
     expect(libraryDdl("cell").length).toBeGreaterThan(libraryDdl("replica").length);
   });
@@ -32,9 +38,9 @@ describe("ensureLibrarySchema", () => {
     const port = openWasmSqlPort();
     transactPlan(port, ensureLibrarySchema("cell"));
     port.statements.length = 0;
-    expect(transactPlan(port, ensureLibrarySchema("cell"))).toEqual({ kind: "current" });
+    expect(transactPlan(port, ensureLibrarySchema("cell"))).toStrictEqual({ kind: "current" });
     expect(port.statements.map((statement) => statement.sql).join("\n")).not.toMatch(/PRAGMA/iu);
-    expect(port.all("SELECT v FROM meta WHERE k = 'schema'", [])).toEqual([
+    expect(port.all("SELECT v FROM meta WHERE k = 'schema'", [])).toStrictEqual([
       { v: LIBRARY_SCHEMA_VERSION },
     ]);
   });
@@ -43,19 +49,19 @@ describe("ensureLibrarySchema", () => {
     const older = openWasmSqlPort();
     transactPlan(older, ensureLibrarySchema("replica"));
     older.run("UPDATE meta SET v = ? WHERE k = 'schema'", [LIBRARY_SCHEMA_VERSION - 1]);
-    expect(runPlan(older, ensureLibrarySchema("replica"))).toEqual({
+    expect(runPlan(older, ensureLibrarySchema("replica"))).toStrictEqual({
       found: String(LIBRARY_SCHEMA_VERSION - 1),
       kind: "mismatch",
     });
     const foreign = openWasmSqlPort();
     foreign.run("CREATE TABLE items (path TEXT)", []);
-    expect(runPlan(foreign, ensureLibrarySchema("replica"))).toEqual({
+    expect(runPlan(foreign, ensureLibrarySchema("replica"))).toStrictEqual({
       found: "none",
       kind: "mismatch",
     });
     const odd = openWasmSqlPort();
     odd.run("CREATE TABLE meta (key TEXT, value TEXT)", []);
-    expect(runPlan(odd, ensureLibrarySchema("replica"))).toEqual({
+    expect(runPlan(odd, ensureLibrarySchema("replica"))).toStrictEqual({
       found: "unreadable",
       kind: "mismatch",
     });
@@ -68,7 +74,7 @@ describe("ensureLibrarySchema", () => {
       all: (sql, params) =>
         sql.includes("sqlite_version") ? [{ version: "3.31.1" }] : port.all(sql, params),
     };
-    expect(runPlan(old, ensureLibrarySchema("replica"))).toEqual({
+    expect(runPlan(old, ensureLibrarySchema("replica"))).toStrictEqual({
       kind: "unsupported",
       sqliteVersion: "3.31.1",
     });
@@ -76,14 +82,14 @@ describe("ensureLibrarySchema", () => {
 
   it("asks the cell's engine nothing, since a Durable Object refuses sqlite_version()", () => {
     const port = openWasmSqlPort();
-    expect(transactPlan(port, ensureLibrarySchema("cell"))).toEqual({ kind: "created" });
+    expect(transactPlan(port, ensureLibrarySchema("cell"))).toStrictEqual({ kind: "created" });
     expect(port.statements.map((statement) => statement.sql).join("\n")).not.toMatch(
       /sqlite_version/iu,
     );
   });
 });
 
-describe("sqliteVersionAtLeast", () => {
+describe(sqliteVersionAtLeast, () => {
   it.each([
     ["3.37.0", "3.37.0", true],
     ["3.45.1", "3.37.0", true],

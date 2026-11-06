@@ -34,11 +34,11 @@ describe("a bridge store", () => {
     mockShell();
     const { answerRead, store } = fakeStore();
     const { result } = renderHook(store.use);
-    expect(result.current).toEqual({ kind: "loading" });
+    expect(result.current).toStrictEqual({ kind: "loading" });
     await act(async () => {
       answerRead(1);
     });
-    expect(result.current).toEqual({ kind: "state", state: 1 });
+    expect(result.current).toStrictEqual({ kind: "state", state: 1 });
   });
 
   it("keeps a pushed state over a first read that answers after it", async () => {
@@ -51,13 +51,13 @@ describe("a bridge store", () => {
     await act(async () => {
       answerRead(1);
     });
-    expect(result.current).toEqual({ kind: "state", state: 2 });
+    expect(result.current).toStrictEqual({ kind: "state", state: 2 });
   });
 
   it("says there is no shell outside it, and asks nothing", () => {
     const { read, store } = fakeStore();
     const { result } = renderHook(store.use);
-    expect(result.current).toEqual({ kind: "no-bridge" });
+    expect(result.current).toStrictEqual({ kind: "no-bridge" });
     expect(read).not.toHaveBeenCalled();
   });
 });

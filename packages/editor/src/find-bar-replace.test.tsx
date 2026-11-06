@@ -67,7 +67,7 @@ describe("replace in the find bar", () => {
       replaceActiveMatch(editor);
     });
     expect(editor.api.string([0])).toBe("omega beta ALPHA gamma");
-    expect(activeMatch(editor)).toEqual(span([0, 0], 11, 16));
+    expect(activeMatch(editor)).toStrictEqual(span([0, 0], 11, 16));
   });
 
   it("replaces every match, last to first, and leaves none behind", () => {
@@ -102,7 +102,7 @@ describe("replace in the find bar", () => {
     act(() => {
       editor.tf.insertText("big ", { at: { offset: 0, path: [0, 0] } });
     });
-    expect(activeMatch(editor)).toEqual(span([0, 0], 15, 20));
+    expect(activeMatch(editor)).toStrictEqual(span([0, 0], 15, 20));
     act(() => {
       replaceActiveMatch(editor);
     });
@@ -123,7 +123,7 @@ describe("replace in the find bar", () => {
     });
     expect(editor.api.string([0])).toBe("alpha beta ALPHx gamma");
     expect(editor.api.string([1])).toBe("alpha again");
-    expect(activeMatch(editor)).toEqual(span([1, 0], 0, 5));
+    expect(activeMatch(editor)).toStrictEqual(span([1, 0], 0, 5));
     act(() => {
       replaceActiveMatch(editor);
     });
@@ -205,7 +205,7 @@ describe("jumping to a match", () => {
       jumpToFindMatch(editor, "alpha", 2);
     });
     expect(getFindBarState(editor)).toMatchObject({ open: true, search: { query: "alpha" } });
-    expect(activeMatch(editor)).toEqual(span([1, 0], 0, 5));
+    expect(activeMatch(editor)).toStrictEqual(span([1, 0], 0, 5));
   });
 
   it("lands on the last match when the doc has fewer than asked", () => {
@@ -213,7 +213,7 @@ describe("jumping to a match", () => {
     act(() => {
       jumpToFindMatch(editor, "gamma", 7);
     });
-    expect(activeMatch(editor)).toEqual(span([0, 0], 17, 22));
+    expect(activeMatch(editor)).toStrictEqual(span([0, 0], 17, 22));
   });
 
   it("counts the ordinal among the matches the search's own options find", () => {
@@ -221,6 +221,6 @@ describe("jumping to a match", () => {
     act(() => {
       jumpToFindMatch(editor, "Cat", 0, { caseSensitive: true, wholeWord: false });
     });
-    expect(activeMatch(editor)).toEqual(span([0, 0], 4, 7));
+    expect(activeMatch(editor)).toStrictEqual(span([0, 0], 4, 7));
   });
 });

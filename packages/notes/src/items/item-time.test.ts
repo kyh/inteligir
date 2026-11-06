@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { formatItemTime, parseItemTime } from "./item-time";
 
-describe("parseItemTime", () => {
+describe(parseItemTime, () => {
   it.each([
     ["2026-10-17", Date.UTC(2026, 9, 17)],
     ["  2026-10-17  ", Date.UTC(2026, 9, 17)],
@@ -46,7 +46,7 @@ describe("parseItemTime", () => {
   });
 });
 
-describe("formatItemTime", () => {
+describe(formatItemTime, () => {
   it("writes seconds and Z, dropping milliseconds", () => {
     expect(formatItemTime(Date.UTC(2026, 9, 17, 9, 12, 30, 999))).toBe("2026-10-17T09:12:30Z");
   });

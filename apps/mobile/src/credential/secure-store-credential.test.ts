@@ -46,7 +46,7 @@ describe("the phone's stored credential", () => {
     await credentials.write(CREDENTIAL);
 
     expect(items.get("device-credential")?.accessible).toBe(AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY);
-    expect(await credentials.read()).toStrictEqual(CREDENTIAL);
+    await expect(credentials.read()).resolves.toStrictEqual(CREDENTIAL);
   });
 
   it("replaces a revoked credential still stored, rather than keeping its accessibility", async () => {
@@ -63,8 +63,8 @@ describe("the phone's stored credential", () => {
     await credentials.write(CREDENTIAL);
 
     expect(items.get("device-credential")?.accessible).toBe(AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY);
-    expect(await credentials.read()).toStrictEqual(CREDENTIAL);
+    await expect(credentials.read()).resolves.toStrictEqual(CREDENTIAL);
     await credentials.clear();
-    expect(await credentials.read()).toBeNull();
+    await expect(credentials.read()).resolves.toBeNull();
   });
 });

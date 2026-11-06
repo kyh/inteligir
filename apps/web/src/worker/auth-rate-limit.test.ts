@@ -80,7 +80,7 @@ describe("Better Auth's limiter", () => {
 
     await vi.waitFor(async () => {
       const rows = await db.select().from(rateLimit).where(eq(rateLimit.key, workerKey)).all();
-      expect(rows).toEqual([]);
+      expect(rows).toStrictEqual([]);
     });
   });
 

@@ -41,7 +41,7 @@ describe("the guards' tree walk", () => {
           `  rule: every package in this repo is matched by a glob in ${WORKSPACE_MANIFEST}; this one is matched by none, so pnpm does not link it and no guard in tools/repo-guards walks it\n` +
           `  fix: move it under one of the "packages" globs in ${WORKSPACE_MANIFEST}, or add its glob there`,
       );
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 
   it("every workspace sits one level under its group directory", () => {
@@ -56,6 +56,6 @@ describe("the guards' tree walk", () => {
           `  rule: workspaceGroups() in tools/repo-guards/src/repo.ts is each workspace's parent directory, and dangling-references.test.ts anchors every path it checks on one, so a workspace at another depth names no group\n` +
           `  fix: move it one level under a group directory, or teach workspaceGroups() its shape`,
       );
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 });

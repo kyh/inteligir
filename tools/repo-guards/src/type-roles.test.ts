@@ -61,7 +61,7 @@ describe("the chrome's type roles", () => {
         : `RAW TYPE SIZES IN THE CHROME\n${offenders.map((line) => `  ${line}`).join("\n")}\n` +
             `  rule: chrome speaks text-caption | body | subtitle | title | display (${ROLES_DECLARED}); a raw size beside them is a second scale\n` +
             `  fix: name the role the line is; inside the note's prose, size in em so the size dial reaches it, or add a PROSE_SIZES row with its reason`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("keeps no prose row its file no longer needs", () => {
@@ -72,6 +72,6 @@ describe("the chrome's type roles", () => {
     expect(
       stale,
       `a PROSE_SIZES row permits a size its file no longer draws: drop it, or a raw size can return there unasked`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });

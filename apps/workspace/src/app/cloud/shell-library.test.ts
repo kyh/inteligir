@@ -59,7 +59,7 @@ describe("the Mac's leave guard", () => {
     released();
     await emit(LEAVING_EVENT.event, null);
     await vi.waitFor(() => {
-      expect(order).toEqual(["written", "ready"]);
+      expect(order).toStrictEqual(["written", "ready"]);
     });
   });
 
@@ -92,11 +92,11 @@ describe("the Mac's calls to the cloud", () => {
     expect(signedIn.origin).toBe(CONFIG.cloudOrigin);
     await signedIn.fetch(new Request(`${CONFIG.cloudOrigin}/v1/rpc/library/check`));
     await macTransport(CONFIG, null).fetch(new Request(`${CONFIG.cloudOrigin}/v1/rpc/account`));
-    expect(sent.map((headers) => headers.get(CLIENT_BUILD_HEADER))).toEqual([
+    expect(sent.map((headers) => headers.get(CLIENT_BUILD_HEADER))).toStrictEqual([
       "0.6.0+desktop",
       "0.6.0+desktop",
     ]);
-    expect(sent.map((headers) => headers.get("authorization"))).toEqual([
+    expect(sent.map((headers) => headers.get("authorization"))).toStrictEqual([
       `Bearer ${KEPT.credential}`,
       null,
     ]);
@@ -109,7 +109,7 @@ describe("opening the Mac's library", () => {
       configReply,
       reply(APP_COMMANDS.credential.restore)(() => null),
     );
-    expect(await openShellLibrary(createShellLeaveGuard())).toEqual({
+    await expect(openShellLibrary(createShellLeaveGuard())).resolves.toStrictEqual({
       config: CONFIG,
       kind: "signed-out",
     });
@@ -137,7 +137,7 @@ describe("opening the Mac's library", () => {
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'items'",
       [],
     );
-    expect(tables).toEqual([{ name: "items" }]);
+    expect(tables).toStrictEqual([{ name: "items" }]);
     void library.replica.close();
     memory.close();
   });

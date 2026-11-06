@@ -4,7 +4,7 @@ import { checkNoteName } from "../knowledge/note-name";
 import { itemNameFromTitle, itemNameFromUrl, itemStem } from "./item-name";
 import { mulberry32, pick } from "../test-support/seeded-random";
 
-describe("itemNameFromTitle", () => {
+describe(itemNameFromTitle, () => {
   it.each([
     ["File over app", "File over app"],
     ["Why: a story | Part 1", "Why - a story - Part 1"],
@@ -109,7 +109,7 @@ describe("the seeded property", () => {
           continue;
         }
         const verdict = checkNoteName(name);
-        expect(verdict, JSON.stringify(title)).toEqual({ name, ok: true });
+        expect(verdict, JSON.stringify(title)).toStrictEqual({ name, ok: true });
         expect([...name].length, JSON.stringify(title)).toBeLessThanOrEqual(120);
       }
     }

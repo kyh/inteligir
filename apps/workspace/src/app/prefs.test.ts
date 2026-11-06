@@ -24,14 +24,14 @@ describe("the table", () => {
 
   it("reads an absent key as the row's fallback", () => {
     for (const row of ROWS) {
-      expect(readPref(row), row.key).toEqual(row.fallback);
+      expect(readPref(row), row.key).toStrictEqual(row.fallback);
     }
   });
 
   it("reads back every fallback it writes", () => {
     for (const row of ROWS.filter((candidate) => candidate.fallback !== null)) {
       writePref(row, row.fallback);
-      expect(readPref(row), row.key).toEqual(row.fallback);
+      expect(readPref(row), row.key).toStrictEqual(row.fallback);
     }
   });
 });
@@ -84,7 +84,7 @@ describe("bytes already in storage", () => {
   it.each(cases)("%s = %s reads as its value", (key, raw, row, read) => {
     expect(row.key).toBe(key);
     window.localStorage.setItem(key, raw);
-    expect(readPref(row)).toEqual(read);
+    expect(readPref(row)).toStrictEqual(read);
   });
 });
 
@@ -106,7 +106,7 @@ describe("a write", () => {
     expect(stored("inteligir.rail-tags-open")).toBe("false");
     expect(stored("inteligir.theme")).toBe("light");
     expect(stored("inteligir.spellcheck")).toBe("false");
-    expect(JSON.parse(stored("inteligir.appearance") ?? "null")).toEqual({
+    expect(JSON.parse(stored("inteligir.appearance") ?? "null")).toStrictEqual({
       ...APPEARANCE_DEFAULTS,
       size: "small",
     });

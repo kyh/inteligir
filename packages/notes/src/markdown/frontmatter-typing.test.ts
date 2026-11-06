@@ -33,14 +33,14 @@ describe("parseProperties — kinds", () => {
 
 describe("parseProperties — typing rules", () => {
   it("true/false → checkbox", () => {
-    expect(props("a: true\nb: false\n")).toEqual([
+    expect(props("a: true\nb: false\n")).toStrictEqual([
       { key: "a", type: "checkbox", value: true },
       { key: "b", type: "checkbox", value: false },
     ]);
   });
 
   it("yes/no/on/off STAY text (no coercion)", () => {
-    expect(props("a: yes\nb: no\nc: on\nd: off\n")).toEqual([
+    expect(props("a: yes\nb: no\nc: on\nd: off\n")).toStrictEqual([
       { key: "a", type: "text", value: "yes" },
       { key: "b", type: "text", value: "no" },
       { key: "c", type: "text", value: "on" },
@@ -49,15 +49,19 @@ describe("parseProperties — typing rules", () => {
   });
 
   it("explicit YYYY-MM-DD strings → date; other date-ish strings stay text", () => {
-    expect(props("a: 2026-07-01\n")).toEqual([{ key: "a", type: "date", value: "2026-07-01" }]);
-    expect(props("a: 2026-07-01T10:00\n")).toEqual([
+    expect(props("a: 2026-07-01\n")).toStrictEqual([
+      { key: "a", type: "date", value: "2026-07-01" },
+    ]);
+    expect(props("a: 2026-07-01T10:00\n")).toStrictEqual([
       { key: "a", type: "text", value: "2026-07-01T10:00" },
     ]);
-    expect(props('a: "2026-07-01"\n')).toEqual([{ key: "a", type: "date", value: "2026-07-01" }]);
+    expect(props('a: "2026-07-01"\n')).toStrictEqual([
+      { key: "a", type: "date", value: "2026-07-01" },
+    ]);
   });
 
   it("numbers → number", () => {
-    expect(props("a: 42\nb: 3.14\nc: -7\n")).toEqual([
+    expect(props("a: 42\nb: 3.14\nc: -7\n")).toStrictEqual([
       { key: "a", type: "number", value: 42 },
       { key: "b", type: "number", value: 3.14 },
       { key: "c", type: "number", value: -7 },
@@ -65,22 +69,24 @@ describe("parseProperties — typing rules", () => {
   });
 
   it("plain strings → text", () => {
-    expect(props("title: Hello World\n")).toEqual([
+    expect(props("title: Hello World\n")).toStrictEqual([
       { key: "title", type: "text", value: "Hello World" },
     ]);
   });
 
   it("string arrays → tags (block or flow)", () => {
-    expect(props("tags:\n  - a\n  - b\n")).toEqual([
+    expect(props("tags:\n  - a\n  - b\n")).toStrictEqual([
       { key: "tags", type: "tags", value: ["a", "b"] },
     ]);
-    expect(props("tags: [a, b]\n")).toEqual([{ key: "tags", type: "tags", value: ["a", "b"] }]);
-    expect(props("tags: []\n")).toEqual([{ key: "tags", type: "tags", value: [] }]);
+    expect(props("tags: [a, b]\n")).toStrictEqual([
+      { key: "tags", type: "tags", value: ["a", "b"] },
+    ]);
+    expect(props("tags: []\n")).toStrictEqual([{ key: "tags", type: "tags", value: [] }]);
   });
 
   it("nested maps, mixed / non-string arrays and nulls → unsupported", () => {
     const parsed = props("nested:\n  a: 1\n  b: 2\nmixed: [1, two]\nnums: [1, 2]\nempty:\n");
-    expect(parsed.map((p) => [p.key, p.type])).toEqual([
+    expect(parsed.map((p) => [p.key, p.type])).toStrictEqual([
       ["nested", "unsupported"],
       ["mixed", "unsupported"],
       ["nums", "unsupported"],
@@ -94,13 +100,13 @@ describe("parseProperties — typing rules", () => {
   });
 
   it("preserves key order", () => {
-    expect(props("z: 1\na: 2\nm: 3\n").map((p) => p.key)).toEqual(["z", "a", "m"]);
+    expect(props("z: 1\na: 2\nm: 3\n").map((p) => p.key)).toStrictEqual(["z", "a", "m"]);
   });
 });
 
 const idOf = (yaml: string): string | null => noteIdOfProperties(parseProperties(yaml));
 
-describe("noteIdOfProperties", () => {
+describe(noteIdOfProperties, () => {
   it("reads a text id and nothing else", () => {
     expect(idOf("id: abc\n")).toBe("abc");
     expect(idOf("id: 42\n")).toBeNull();

@@ -24,7 +24,7 @@ describe("a device managing its account's devices", () => {
     await loginDevice(stranger.cookie, "Stranger's Mac");
 
     const { devices } = await as(mac.credential).account.devices.list();
-    expect(devices.map((row) => row.name)).toEqual(["Mac", "Phone"]);
+    expect(devices.map((row) => row.name)).toStrictEqual(["Mac", "Phone"]);
     expect(devices.every((row) => row.revokedAt === null)).toBe(true);
   });
 
@@ -55,13 +55,15 @@ describe("a device managing its account's devices", () => {
       });
     });
 
-    expect(await as(mac.credential).account.devices.revoke({ deviceId: phone.deviceId })).toEqual({
+    await expect(
+      as(mac.credential).account.devices.revoke({ deviceId: phone.deviceId }),
+    ).resolves.toStrictEqual({
       revoked: true,
     });
 
-    expect(await closed).toBe(SOCKET_REVOKED_CLOSE_CODE);
+    await expect(closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
     const lost = as(phone.credential);
-    expect(await lost.refusalOf(lost.account.devices.list())).toMatchObject(UNAUTHORIZED);
+    await expect(lost.refusalOf(lost.account.devices.list())).resolves.toMatchObject(UNAUTHORIZED);
     const { devices } = await as(mac.credential).account.devices.list();
     expect(devices.find((row) => row.id === phone.deviceId)?.revokedAt).not.toBeNull();
   });
@@ -73,10 +75,10 @@ describe("a device managing its account's devices", () => {
     const mallorysMac = await loginDevice(mallory.cookie, "Mallory's Mac");
 
     const link = as(mallorysMac.credential);
-    expect(
-      await link.refusalOf(link.account.devices.revoke({ deviceId: alicesMac.deviceId })),
-    ).toMatchObject({ code: "NOT_FOUND", defined: true, status: 404 });
-    expect(await as(alicesMac.credential).account.devices.list()).toMatchObject({
+    await expect(
+      link.refusalOf(link.account.devices.revoke({ deviceId: alicesMac.deviceId })),
+    ).resolves.toMatchObject({ code: "NOT_FOUND", defined: true, status: 404 });
+    await expect(as(alicesMac.credential).account.devices.list()).resolves.toMatchObject({
       devices: [{ name: "Alice's Mac", revokedAt: null }],
     });
   });
@@ -88,19 +90,21 @@ describe("a device managing its account's devices", () => {
     await as(mac.credential).account.devices.revoke({ deviceId: phone.deviceId });
 
     const revoked = as(phone.credential);
-    expect(await revoked.refusalOf(revoked.account.devices.list())).toMatchObject({
+    await expect(revoked.refusalOf(revoked.account.devices.list())).resolves.toMatchObject({
       ...UNAUTHORIZED,
       message: "You're signed out. Sign in again.",
     });
-    expect(
-      await revoked.refusalOf(revoked.account.devices.revoke({ deviceId: mac.deviceId })),
-    ).toMatchObject(UNAUTHORIZED);
+    await expect(
+      revoked.refusalOf(revoked.account.devices.revoke({ deviceId: mac.deviceId })),
+    ).resolves.toMatchObject(UNAUTHORIZED);
     const { devices } = await as(mac.credential).account.devices.list();
     expect(devices).toHaveLength(2);
   });
 
   it("refuses a credential no device was ever given", async () => {
     const forged = as(`igd_${"0".repeat(64)}`);
-    expect(await forged.refusalOf(forged.account.devices.list())).toMatchObject(UNAUTHORIZED);
+    await expect(forged.refusalOf(forged.account.devices.list())).resolves.toMatchObject(
+      UNAUTHORIZED,
+    );
   });
 });

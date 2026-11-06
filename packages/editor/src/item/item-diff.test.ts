@@ -71,13 +71,13 @@ const editOnce = (rand: () => number, value: TElement[], fresh: string): TElemen
 describe("an item's value as the ops it writes", () => {
   it("writes nothing for a value that holds the item's blocks", () => {
     const item = itemOf(3, 2);
-    expect(diffValue(item.blocks, valueOf(item)).ops).toEqual([]);
+    expect(diffValue(item.blocks, valueOf(item)).ops).toStrictEqual([]);
   });
 
   it("decides a block by its hash, so another object holding the same block writes nothing", () => {
     const item = itemOf(2, 0);
     const value = valueOf(item).map((element) => ({ ...element }));
-    expect(diffValue(item.blocks, value).ops).toEqual([]);
+    expect(diffValue(item.blocks, value).ops).toStrictEqual([]);
   });
 
   it("reads a block in its one spelling, so the empty texts Slate keeps around a link write nothing", () => {
@@ -99,7 +99,7 @@ describe("an item's value as the ops it writes", () => {
       id: "p1",
       type: "p",
     };
-    expect(diffValue(item.blocks, [slate]).ops).toEqual([]);
+    expect(diffValue(item.blocks, [slate]).ops).toStrictEqual([]);
   });
 
   it("writes an id Plate minted again as a drop and an insert where the block stood", () => {
@@ -109,15 +109,15 @@ describe("an item's value as the ops it writes", () => {
       diffValue(item.blocks, value)
         .ops.map((op) => op.op)
         .toSorted(),
-    ).toEqual(["drop", "insert"]);
-    expect(idsOf(writtenAs(item, value))).toEqual(["n0", "fresh", "n2"]);
+    ).toStrictEqual(["drop", "insert"]);
+    expect(idsOf(writtenAs(item, value))).toStrictEqual(["n0", "fresh", "n2"]);
   });
 
   it("holds back an element no block stores, and leaves its block as it was", () => {
     const item = itemOf(2, 0);
     const value = valueOf(item).with(0, { children: [{ text: "x" }], id: "n0", type: "nope" });
     const diff = diffValue(item.blocks, value);
-    expect(diff.ops).toEqual([]);
+    expect(diff.ops).toStrictEqual([]);
     expect(diff.heldBack).toMatchObject([{ index: 0 }]);
   });
 
@@ -145,8 +145,10 @@ describe("an item's value as the ops it writes", () => {
       value = editOnce(rand, value, `new${String(step)}`);
     }
     const after = writtenAs(item, value);
-    expect(orderedBlocks(after.blocks).map((stored) => stored.block)).toEqual(blocksOf(value));
-    expect(diffValue(after.blocks, value).ops).toEqual([]);
+    expect(orderedBlocks(after.blocks).map((stored) => stored.block)).toStrictEqual(
+      blocksOf(value),
+    );
+    expect(diffValue(after.blocks, value).ops).toStrictEqual([]);
   });
 
   it.each(SEEDS)(
@@ -195,7 +197,7 @@ describe("an item's value as the ops it writes", () => {
       const texts = new Map(
         orderedBlocks(second.state.blocks).map((stored) => [stored.block.id, textOf(stored.block)]),
       );
-      expect(texts).toEqual(expected);
+      expect(texts).toStrictEqual(expected);
     },
   );
 });

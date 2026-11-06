@@ -56,6 +56,6 @@ describe("the phone's sign-in", () => {
       kind: "failed",
       message: "That didn't work. Check your connection and try again.",
     });
-    expect(opened).toEqual([]);
+    expect(opened).toStrictEqual([]);
   });
 });

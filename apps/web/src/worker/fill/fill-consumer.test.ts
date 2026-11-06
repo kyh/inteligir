@@ -63,7 +63,7 @@ describe("a saved link's reading", () => {
         "https://cdn.fieldnotes.example/cover@2x.jpg": filePage(cover, "image/png"),
         [url]: htmlPage(blogPost),
       });
-      expect(await deliver(job)).toMatchObject({ acked: true, retried: false });
+      await expect(deliver(job)).resolves.toMatchObject({ acked: true, retried: false });
       const item = await itemIn(accountId, itemId);
       expect(item?.fields).toMatchObject({
         author: "A. Lindqvist (JSON-LD)",
@@ -78,13 +78,15 @@ describe("a saved link's reading", () => {
       expect(textOfSection(item, "article")).toContain("contract with the future");
       expect(textOfSection(item, "note")).toBe("[]");
       // the page first, then its first cover candidate, asked as a browser would
-      expect(web.asked.map((hop) => hop.url)).toEqual([
+      expect(web.asked.map((hop) => hop.url)).toStrictEqual([
         url,
         "https://cdn.fieldnotes.example/cover@2x.jpg",
       ]);
       expect(web.asked[0]?.headers.get("user-agent")).toContain("inteligir");
       const kept = await env.BLOBS.get(blobKey(accountId, item?.fields.coverSha ?? ""));
-      expect(new Uint8Array((await kept?.arrayBuffer()) ?? new ArrayBuffer(0))).toEqual(cover);
+      expect(new Uint8Array((await kept?.arrayBuffer()) ?? new ArrayBuffer(0))).toStrictEqual(
+        cover,
+      );
     },
   );
 
@@ -97,7 +99,7 @@ describe("a saved link's reading", () => {
       const url = `https://pages.example/corpus/${name}`;
       const { accountId, itemId, job } = await savedLink(url);
       serveWeb({ [url]: htmlPage(html) });
-      expect(await deliver(job)).toMatchObject({ acked: true });
+      await expect(deliver(job)).resolves.toMatchObject({ acked: true });
       const item = await itemIn(accountId, itemId);
       expect(item?.fields).toMatchObject({ fetchError: null, fetchState: "filled" });
       // every page gives an article or, a video's, the words it says of itself
@@ -160,7 +162,7 @@ describe("a saved link's reading", () => {
     const web = serveWeb({ [url]: htmlPage(blogPost) });
     await deliver(job);
     expect(web.asked[0]?.url).toBe(url);
-    expect(await fieldsIn(accountId, itemId)).toMatchObject({ fetchState: "filled" });
+    await expect(fieldsIn(accountId, itemId)).resolves.toMatchObject({ fetchState: "filled" });
   });
 });
 
@@ -175,10 +177,13 @@ describe("a reading that did not land a page", () => {
       expect(delivered).toMatchObject({ acked: false, retried: true });
       delays.push(delivered.delaySeconds);
     }
-    expect(delays).toEqual([30, 60, 120]);
-    expect(await fieldsIn(accountId, itemId)).toMatchObject({ fetchState: "pending" });
-    expect(await deliver(job, { attempts: 4 })).toMatchObject({ acked: true, retried: false });
-    expect(await fieldsIn(accountId, itemId)).toMatchObject({
+    expect(delays).toStrictEqual([30, 60, 120]);
+    await expect(fieldsIn(accountId, itemId)).resolves.toMatchObject({ fetchState: "pending" });
+    await expect(deliver(job, { attempts: 4 })).resolves.toMatchObject({
+      acked: true,
+      retried: false,
+    });
+    await expect(fieldsIn(accountId, itemId)).resolves.toMatchObject({
       fetchError: "The site answered 503 (service unavailable).",
       fetchState: "failed",
     });
@@ -188,8 +193,8 @@ describe("a reading that did not land a page", () => {
     const url = "https://gone.example/post";
     const { accountId, itemId, job } = await savedLink(url);
     serveWeb({});
-    expect(await deliver(job)).toMatchObject({ acked: true, retried: false });
-    expect(await fieldsIn(accountId, itemId)).toMatchObject({
+    await expect(deliver(job)).resolves.toMatchObject({ acked: true, retried: false });
+    await expect(fieldsIn(accountId, itemId)).resolves.toMatchObject({
       fetchError: "The site answered 404 (not found).",
       fetchState: "failed",
     });
@@ -198,9 +203,9 @@ describe("a reading that did not land a page", () => {
   it("asks nothing of an address on a private network", async () => {
     const { accountId, itemId, job } = await savedLink("http://192.168.1.20/admin");
     const web = serveWeb({});
-    expect(await deliver(job)).toMatchObject({ acked: true });
-    expect(web.asked).toEqual([]);
-    expect(await fieldsIn(accountId, itemId)).toMatchObject({
+    await expect(deliver(job)).resolves.toMatchObject({ acked: true });
+    expect(web.asked).toStrictEqual([]);
+    await expect(fieldsIn(accountId, itemId)).resolves.toMatchObject({
       fetchError:
         "This address is on a private network, which the cloud can't reach, so its page isn't read.",
     });
@@ -213,8 +218,8 @@ describe("a reading that did not land a page", () => {
       [url]: () => new Response(null, { headers: { location: "http://10.0.0.5/" }, status: 302 }),
     });
     await deliver(job);
-    expect(web.asked.map((hop) => hop.url)).toEqual([url]);
-    expect(await fieldsIn(accountId, itemId)).toMatchObject({
+    expect(web.asked.map((hop) => hop.url)).toStrictEqual([url]);
+    await expect(fieldsIn(accountId, itemId)).resolves.toMatchObject({
       fetchError: "The page pointed at an address on your own network, so it isn't read.",
     });
   });
@@ -222,9 +227,11 @@ describe("a reading that did not land a page", () => {
   it("says in the item what the queue's retries could not read", async () => {
     const { accountId, itemId, job } = await savedLink("https://never.example/post");
     const web = serveWeb({});
-    expect(await deliver(job, { queue: FILL_FAILED_QUEUE })).toMatchObject({ acked: true });
-    expect(web.asked).toEqual([]);
-    expect(await fieldsIn(accountId, itemId)).toMatchObject({
+    await expect(deliver(job, { queue: FILL_FAILED_QUEUE })).resolves.toMatchObject({
+      acked: true,
+    });
+    expect(web.asked).toStrictEqual([]);
+    await expect(fieldsIn(accountId, itemId)).resolves.toMatchObject({
       fetchError: "The page couldn't be reached.",
       fetchState: "failed",
     });
@@ -234,8 +241,10 @@ describe("a reading that did not land a page", () => {
 describe("a message the consumer meets", () => {
   it("drops one no deploy sends, and reads nothing for it", async () => {
     const web = serveWeb({});
-    expect(await deliver({ itemId: "x", url: "ftp://nowhere" })).toMatchObject({ acked: true });
-    expect(web.asked).toEqual([]);
+    await expect(deliver({ itemId: "x", url: "ftp://nowhere" })).resolves.toMatchObject({
+      acked: true,
+    });
+    expect(web.asked).toStrictEqual([]);
   });
 
   it("reads nothing for an item that no longer waits, and lands a message met twice once", async () => {
@@ -245,15 +254,15 @@ describe("a message the consumer meets", () => {
     await deliver(job);
     const first = await itemIn(accountId, itemId);
     const asked = web.asked.length;
-    expect(await deliver(job)).toMatchObject({ acked: true });
-    expect(web.asked.length).toBe(asked);
-    expect(await itemIn(accountId, itemId)).toEqual(first);
+    await expect(deliver(job)).resolves.toMatchObject({ acked: true });
+    expect(web.asked).toHaveLength(asked);
+    await expect(itemIn(accountId, itemId)).resolves.toStrictEqual(first);
 
     const deleted = await savedLink("https://pages.example/deleted");
     await inCell(cellOf(deleted.accountId), async (state) => {
       await libraryIn(state, deleted.accountId).items.delete({ ids: [deleted.itemId] });
     });
-    expect(await deliver(deleted.job)).toMatchObject({ acked: true });
-    expect(web.asked.length).toBe(asked);
+    await expect(deliver(deleted.job)).resolves.toMatchObject({ acked: true });
+    expect(web.asked).toHaveLength(asked);
   });
 });

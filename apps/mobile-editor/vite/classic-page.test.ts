@@ -15,11 +15,11 @@ describe("the page the phone loads from file://", () => {
     const page = toClassicPage(VITE_HEAD);
     expect(page).toContain('<script defer src="./assets/index-abc.js"></script>');
     expect(page).toContain('<link rel="stylesheet" href="./assets/style-abc.css">');
-    expect(classicPageProblems(page)).toEqual([]);
+    expect(classicPageProblems(page)).toStrictEqual([]);
   });
 
   it("fails the build on a module script", () => {
-    expect(classicPageProblems('<script type="module" src="./a.js"></script>')).toEqual([
+    expect(classicPageProblems('<script type="module" src="./a.js"></script>')).toStrictEqual([
       'a script is type="module", which a file:// page cannot load',
     ]);
   });
@@ -27,8 +27,8 @@ describe("the page the phone loads from file://", () => {
   it("fails the build on more than one script, or none", () => {
     expect(
       classicPageProblems('<script defer src="./a.js"></script><script src="./b.js"></script>'),
-    ).toEqual(["the page references 2 scripts, and it must load exactly one"]);
-    expect(classicPageProblems("<head></head>")).toEqual([
+    ).toStrictEqual(["the page references 2 scripts, and it must load exactly one"]);
+    expect(classicPageProblems("<head></head>")).toStrictEqual([
       "the page references 0 scripts, and it must load exactly one",
     ]);
   });
@@ -38,7 +38,7 @@ describe("the page the phone loads from file://", () => {
       classicPageProblems(
         '<script defer src="./a.js"></script><link rel="modulepreload" crossorigin href="./b.js">',
       ),
-    ).toEqual([
+    ).toStrictEqual([
       "a tag is marked crossorigin, so its fetch is a CORS request file:// cannot answer",
       "a modulepreload link names a second chunk",
     ]);

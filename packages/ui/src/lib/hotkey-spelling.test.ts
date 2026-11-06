@@ -22,22 +22,22 @@ describe("the spelling of a chord", () => {
 
 describe("the caps of a chord", () => {
   it("draws one cap per key, in the same order the spelling runs", () => {
-    expect(hotkeyCaps("mod+p", "meta")).toEqual(["⌘", "P"]);
-    expect(hotkeyCaps("ctrl+alt+shift+mod+k", "meta")).toEqual(["⌃", "⌥", "⇧", "⌘", "K"]);
-    expect(hotkeyCaps("mod+shift+f", "ctrl")).toEqual(["Ctrl", "Shift", "F"]);
-    expect(hotkeyCaps("mod+enter", "meta")).toEqual(["⌘", "↩"]);
+    expect(hotkeyCaps("mod+p", "meta")).toStrictEqual(["⌘", "P"]);
+    expect(hotkeyCaps("ctrl+alt+shift+mod+k", "meta")).toStrictEqual(["⌃", "⌥", "⇧", "⌘", "K"]);
+    expect(hotkeyCaps("mod+shift+f", "ctrl")).toStrictEqual(["Ctrl", "Shift", "F"]);
+    expect(hotkeyCaps("mod+enter", "meta")).toStrictEqual(["⌘", "↩"]);
   });
 
   it("draws a named key as its glyph on every keyboard", () => {
-    expect(hotkeyCaps("shift+down", "meta")).toEqual(["⇧", "↓"]);
-    expect(hotkeyCaps("left", "ctrl")).toEqual(["←"]);
-    expect(hotkeyCaps("mod+backspace", "meta")).toEqual(["⌘", "⌫"]);
-    expect(hotkeyCaps("escape", "ctrl")).toEqual(["Esc"]);
+    expect(hotkeyCaps("shift+down", "meta")).toStrictEqual(["⇧", "↓"]);
+    expect(hotkeyCaps("left", "ctrl")).toStrictEqual(["←"]);
+    expect(hotkeyCaps("mod+backspace", "meta")).toStrictEqual(["⌘", "⌫"]);
+    expect(hotkeyCaps("escape", "ctrl")).toStrictEqual(["Esc"]);
     expect(spellHotkey("space", "meta")).toBe("Space");
     expect(spellHotkey("mod+shift+h", "meta")).toBe("⇧⌘H");
   });
 
   it("folds mod into Ctrl off a mac, where they are one key", () => {
-    expect(hotkeyCaps("ctrl+mod+k", "ctrl")).toEqual(["Ctrl", "K"]);
+    expect(hotkeyCaps("ctrl+mod+k", "ctrl")).toStrictEqual(["Ctrl", "K"]);
   });
 });

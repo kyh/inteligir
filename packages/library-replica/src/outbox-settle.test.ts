@@ -1,7 +1,7 @@
 import { blockHash } from "@repo/notes/library/block-hash";
 import type { StoredBlock } from "@repo/notes/library/block-ops";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 
 import type { WriteOp } from "./outbox-ops";
 import { settleFolders, settleWrite } from "./outbox-settle";
@@ -40,7 +40,7 @@ describe("a write the cell answered CONFLICT", () => {
       [{ blockId: "p1", current: theirs, itemId: ITEM, kind: "block" }],
       ports,
     );
-    expect(settled).toEqual({
+    expect(settled).toStrictEqual({
       kind: "resend",
       op: {
         ...putWrite(theirs, "their draft / my draft"),
@@ -66,7 +66,7 @@ describe("a write the cell answered CONFLICT", () => {
       [{ blockId: "p1", current: held("mine"), itemId: ITEM, kind: "block" }],
       ports,
     );
-    expect(settled).toEqual({ kind: "satisfied" });
+    expect(settled).toStrictEqual({ kind: "satisfied" });
   });
 
   it("stands a put whose block another device dropped again where its base stood", async () => {
@@ -76,7 +76,7 @@ describe("a write the cell answered CONFLICT", () => {
       [{ blockId: "p1", current: null, itemId: ITEM, kind: "block" }],
       ports,
     );
-    expect(settled.kind === "resend" ? settled.op.ops : []).toEqual([
+    expect(settled.kind === "resend" ? settled.op.ops : []).toStrictEqual([
       { block: paragraph("p1", "kept"), op: "insert", ord: "a5", section: "note" },
     ]);
   });
@@ -95,7 +95,7 @@ describe("a write the cell answered CONFLICT", () => {
       [{ blockId: "p1", current: held("their draft", "a1"), itemId: ITEM, kind: "block" }],
       ports,
     );
-    expect(moved.kind === "resend" ? moved.op.ops : []).toEqual([
+    expect(moved.kind === "resend" ? moved.op.ops : []).toStrictEqual([
       {
         baseHash: held("their draft", "a1").hash,
         block: paragraph("p1", "their draft / my draft"),
@@ -108,13 +108,13 @@ describe("a write the cell answered CONFLICT", () => {
       [{ blockId: "p1", current: held("their draft", "a2"), itemId: ITEM, kind: "block" }],
       ports,
     );
-    expect(placed.kind === "resend" ? placed.op.ops.map((op) => op.op) : []).toEqual(["put"]);
+    expect(placed.kind === "resend" ? placed.op.ops.map((op) => op.op) : []).toStrictEqual(["put"]);
     const dropped = await settleWrite(
       write,
       [{ blockId: "p1", current: null, itemId: ITEM, kind: "block" }],
       ports,
     );
-    expect(dropped.kind === "resend" ? dropped.op.ops : []).toEqual([
+    expect(dropped.kind === "resend" ? dropped.op.ops : []).toStrictEqual([
       { block: paragraph("p1", "my draft"), op: "insert", ord: "a2", section: "note" },
     ]);
   });
@@ -130,7 +130,7 @@ describe("a write the cell answered CONFLICT", () => {
       [{ blockId: "p1", current: held("theirs"), itemId: ITEM, kind: "block" }],
       ports,
     );
-    expect(settled).toEqual({ kind: "satisfied" });
+    expect(settled).toStrictEqual({ kind: "satisfied" });
   });
 
   it("adds a highlight whose id another item holds under an id of its own, its markers renamed", async () => {
@@ -185,12 +185,10 @@ describe("a write the cell answered CONFLICT", () => {
       ],
       { merge: keepBoth, newId: () => "h2" },
     );
-    expect(settled.kind).toBe("resend");
-    if (settled.kind === "resend") {
-      expect(settled.op.annotations.map((op) => op.id)).toEqual(["h2"]);
-      expect(JSON.stringify(settled.op.ops)).toContain('"ids":"h2"');
-      expect(JSON.stringify(settled.op.ops)).not.toContain('"ids":"h1"');
-    }
+    assert(settled.kind === "resend", `the settle answered ${settled.kind}`);
+    expect(settled.op.annotations.map((op) => op.id)).toStrictEqual(["h2"]);
+    expect(JSON.stringify(settled.op.ops)).toContain('"ids":"h2"');
+    expect(JSON.stringify(settled.op.ops)).not.toContain('"ids":"h1"');
   });
 });
 
@@ -209,9 +207,9 @@ describe("a folder write the cell answered CONFLICT", () => {
     const rename = { base: "Reading", id: FOLDER, name: "To read", op: "rename" as const };
     expect(
       settleFolders([rename], [{ current: folder("Later"), id: FOLDER, kind: "folder" }]),
-    ).toEqual({ kind: "resend", op: [{ ...rename, base: "Later" }] });
+    ).toStrictEqual({ kind: "resend", op: [{ ...rename, base: "Later" }] });
     expect(
       settleFolders([rename], [{ current: folder("To read"), id: FOLDER, kind: "folder" }]),
-    ).toEqual({ kind: "satisfied" });
+    ).toStrictEqual({ kind: "satisfied" });
   });
 });

@@ -25,7 +25,7 @@ const set = (id: string, label: string) => ({
 
 describe("an item's History", () => {
   it("reads older sets a page at a time, and undoes one after writing the open item", async () => {
-    const flushOpen = vi.fn(async () => {
+    const flushOpen = vi.fn<() => Promise<void>>(async () => {
       await Promise.resolve();
     });
     const { calls, library } = fakePageLibrary({
@@ -50,7 +50,7 @@ describe("an item's History", () => {
     const older = screen.getByText("Typed in Plans").closest("li");
     fireEvent.click(within(older ?? document.body).getByRole("button", { name: "Undo" }));
     await waitFor(() => {
-      expect(calls.filter((call) => call.path === "library.history.undo")).toEqual([
+      expect(calls.filter((call) => call.path === "library.history.undo")).toStrictEqual([
         { input: { changeSetIds: ["s1"] }, path: "library.history.undo" },
       ]);
     });

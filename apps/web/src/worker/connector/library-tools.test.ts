@@ -120,7 +120,7 @@ describe("the library's tools", () => {
     const tools = await registered();
     expect(
       Object.entries(tools).map(([name, tool]) => [name, tool.title, tool.annotations]),
-    ).toEqual(TOOLS);
+    ).toStrictEqual(TOOLS);
   });
 
   it("each carry a short name, a title, a description and an explicit read-only or destructive hint", async () => {
@@ -135,7 +135,7 @@ describe("the library's tools", () => {
 
   it("lets a long item's read stay whole in Claude Code", async () => {
     const tools = await registered();
-    expect(tools.read_item?._meta).toEqual({ "anthropic/maxResultSizeChars": 100_000 });
+    expect(tools.read_item?._meta).toStrictEqual({ "anthropic/maxResultSizeChars": 100_000 });
   });
 
   it("advertises each tool's input and output as JSON Schema objects", async () => {

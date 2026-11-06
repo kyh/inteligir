@@ -26,19 +26,19 @@ const chartOf = (payload: string) => {
   return parsed.chart;
 };
 
-describe("chartGridView", () => {
+describe(chartGridView, () => {
   it("projects single-series and multi-series shapes", () => {
     const single = chartGridView(
       chartOf('{"type":"bar","data":[{"label":"Mon","value":12},{"label":"Tue","value":18}]}'),
     );
-    expect(single).toEqual({ labels: ["Mon", "Tue"], seriesNames: null, values: [[12, 18]] });
+    expect(single).toStrictEqual({ labels: ["Mon", "Tue"], seriesNames: null, values: [[12, 18]] });
 
     const multi = chartGridView(
       chartOf(
         '{"type":"line","series":[{"name":"A","data":[{"label":"Mon","value":1}]},{"name":"B","data":[{"label":"Mon","value":2}]}]}',
       ),
     );
-    expect(multi).toEqual({ labels: ["Mon"], seriesNames: ["A", "B"], values: [[1], [2]] });
+    expect(multi).toStrictEqual({ labels: ["Mon"], seriesNames: ["A", "B"], values: [[1], [2]] });
   });
 
   it("refuses misaligned series (raw-editor-only, never realigned)", () => {
@@ -86,14 +86,14 @@ describe("chart transforms preserve what the grid does not show", () => {
   it("label edits, row add and row remove keep the rest", () => {
     const chart = chartOf(payload);
     const relabeled = chartWithRowLabel(chart, 1, "c");
-    expect("data" in relabeled ? relabeled.data[1] : null).toEqual({ label: "c", value: 2 });
+    expect("data" in relabeled ? relabeled.data[1] : null).toStrictEqual({ label: "c", value: 2 });
 
     const grown = chartWithRowAdded(chart);
     expect("data" in grown ? grown.data.length : 0).toBe(3);
-    expect("data" in grown ? grown.data[2] : null).toEqual({ label: "Label 3", value: 0 });
+    expect("data" in grown ? grown.data[2] : null).toStrictEqual({ label: "Label 3", value: 0 });
 
     const shrunk = chartWithRowRemoved(chart, 0);
-    expect(shrunk !== null && "data" in shrunk ? shrunk.data : null).toEqual([
+    expect(shrunk !== null && "data" in shrunk ? shrunk.data : null).toStrictEqual([
       { label: "b", value: 2 },
     ]);
   });
@@ -113,7 +113,7 @@ describe("chart transforms preserve what the grid does not show", () => {
     );
     const grown = chartWithSeriesAdded(multi);
     expect(grown !== null && "series" in grown ? grown.series.length : 0).toBe(2);
-    expect(grown !== null && "series" in grown ? grown.series[1] : null).toEqual({
+    expect(grown !== null && "series" in grown ? grown.series[1] : null).toStrictEqual({
       data: [{ label: "x", value: 0 }],
       name: "Series 2",
     });
@@ -133,7 +133,7 @@ describe("chart transforms preserve what the grid does not show", () => {
   });
 });
 
-describe("paintCanvasCells", () => {
+describe(paintCanvasCells, () => {
   const base =
     '[inteligir:grid:v2]\n[inteligir:labels:[{"id":"l","text":"L","col":2,"row":0}]]\nab.\n.x.';
 
@@ -166,7 +166,7 @@ describe("paintCanvasCells", () => {
   });
 });
 
-describe("clearCanvasGrid", () => {
+describe(clearCanvasGrid, () => {
   it("drops rows, keeps header and labels verbatim", () => {
     expect(clearCanvasGrid("[inteligir:grid:v2]\n[inteligir:labels:[]]\n##\n##")).toBe(
       "[inteligir:grid:v2]\n[inteligir:labels:[]]",
@@ -175,16 +175,16 @@ describe("clearCanvasGrid", () => {
   });
 });
 
-describe("strokeSegmentCells", () => {
+describe(strokeSegmentCells, () => {
   it("interpolates a fast diagonal with no gaps and no duplicates", () => {
     const cells = strokeSegmentCells({ col: 0, row: 0 }, { col: 3, row: 3 });
-    expect(cells).toEqual([
+    expect(cells).toStrictEqual([
       { col: 0, row: 0 },
       { col: 1, row: 1 },
       { col: 2, row: 2 },
       { col: 3, row: 3 },
     ]);
-    expect(strokeSegmentCells({ col: 5, row: 5 }, { col: 5, row: 5 })).toEqual([
+    expect(strokeSegmentCells({ col: 5, row: 5 }, { col: 5, row: 5 })).toStrictEqual([
       { col: 5, row: 5 },
     ]);
   });

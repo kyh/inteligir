@@ -41,8 +41,8 @@ const socket = () => {
 
 describe("the reply being written", () => {
   it("reads a preview's text, and lets it go at the thread's next stored event", () => {
-    expect(previewOf(preview(THREAD, "Fil"))).toEqual({ text: "Fil", threadId: THREAD });
-    expect(previewOf(stored(THREAD))).toEqual({ text: null, threadId: THREAD });
+    expect(previewOf(preview(THREAD, "Fil"))).toStrictEqual({ text: "Fil", threadId: THREAD });
+    expect(previewOf(stored(THREAD))).toStrictEqual({ text: null, threadId: THREAD });
   });
 
   it("changes nothing for a preview this build cannot read", () => {

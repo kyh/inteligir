@@ -71,7 +71,7 @@ describe("the live passage between an annotation's markers", () => {
       "second%%i:b2:end%% block.",
       "",
     ].join("\n");
-    expect(annotationPassages(content)).toEqual(
+    expect(annotationPassages(content)).toStrictEqual(
       new Map([
         ["a1", "first bold line"],
         ["b2", "a second"],

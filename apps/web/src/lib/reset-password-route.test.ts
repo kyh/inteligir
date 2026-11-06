@@ -53,7 +53,7 @@ describe("the page the emailed reset link lands on", () => {
     await router.load();
     const page = router.state.matches.at(-1);
     expect(page?.routeId).toBe("/app/reset-password");
-    expect(page?.headers).toEqual({ "Cache-Control": "no-store" });
+    expect(page?.headers).toStrictEqual({ "Cache-Control": "no-store" });
     expect(page?.meta).toContainEqual({ name: "referrer", content: "no-referrer" });
   });
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnnotationStore } from "../annotations/store-schema";
 import { revertEdit } from "../test-support/revert-edit";
+import type { RevertVerdict } from "../test-support/revert-edit";
 import { orderedBlocks } from "./block-ops";
 import type { ItemState, LibraryOp } from "./block-ops";
 import { ITEM_FIELD_CAPS } from "./library-item";
@@ -69,7 +70,7 @@ const heldHash = (state: ItemState, id: string): string => {
   return held.hash;
 };
 
-describe("revertItemChange", () => {
+describe(revertItemChange, () => {
   it("takes a block edit back and keeps a later edit to another block", () => {
     const x = itemOf([paragraph("a", "one"), paragraph("b", "two")]);
     const y = landed(x, [{ baseHash: heldHash(x, "a"), block: paragraph("a", "ONE"), op: "put" }]);
@@ -86,7 +87,7 @@ describe("revertItemChange", () => {
     const now = landed(y, [
       { baseHash: heldHash(y, "a"), block: paragraph("a", "uno"), op: "put" },
     ]);
-    expect(revert(changeOf(x, y), now, versionsOf(x, y))).toEqual({
+    expect(revert(changeOf(x, y), now, versionsOf(x, y))).toStrictEqual({
       kind: "keep",
       reason: "edited-since",
     });
@@ -96,7 +97,7 @@ describe("revertItemChange", () => {
     const x = itemOf([paragraph("a", "one"), paragraph("b", "two"), paragraph("c", "three")]);
     const y = landed(x, [{ baseHash: heldHash(x, "b"), blockId: "b", op: "drop" }]);
     const reverted = stateOf(revert(changeOf(x, y), y, versionsOf(x, y)));
-    expect(reverted).toEqual(x);
+    expect(reverted).toStrictEqual(x);
   });
 
   it("drops a block the set inserted, and keeps one someone edited since", () => {
@@ -104,7 +105,7 @@ describe("revertItemChange", () => {
     const y = landed(x, [
       { block: paragraph("n", "new"), op: "insert", ord: "a5", section: "note" },
     ]);
-    expect(stateOf(revert(changeOf(x, y), y, versionsOf(x, y)))).toEqual(x);
+    expect(stateOf(revert(changeOf(x, y), y, versionsOf(x, y)))).toStrictEqual(x);
     const edited = landed(y, [
       { baseHash: heldHash(y, "n"), block: paragraph("n", "newer"), op: "put" },
     ]);
@@ -123,8 +124,8 @@ describe("revertItemChange", () => {
     ]);
     const reverted = stateOf(revert(changeOf(x, y), now, versionsOf(x, y)));
     expect(reverted.fields.title).toBe("Old");
-    expect(reverted.fields.tags).toEqual(["keep", "later"]);
-    expect(reverted.fields.properties).toEqual({});
+    expect(reverted.fields.tags).toStrictEqual(["keep", "later"]);
+    expect(reverted.fields.properties).toStrictEqual({});
     const retitled = landed(y, [{ base: "New", field: "title", op: "set", value: "Newer" }]);
     expect(revert(changeOf(x, y), retitled, versionsOf(x, y)).kind).toBe("keep");
   });
@@ -138,7 +139,7 @@ describe("revertItemChange", () => {
     );
     const now = landed(y, [{ base: ["keep"], op: "tags", value: ["keep", ...refilled] }]);
     expect(now.fields.tags).toHaveLength(ITEM_FIELD_CAPS.listEntries);
-    expect(revert(changeOf(x, y), now, versionsOf(x, y))).toEqual({
+    expect(revert(changeOf(x, y), now, versionsOf(x, y))).toStrictEqual({
       kind: "keep",
       reason: "edited-since",
     });
@@ -159,18 +160,21 @@ describe("revertItemChange", () => {
     ]);
     expect(stateOf(revert(change, filled, versionsOf(made, filled))).fields.deletedAt).toBe(AT);
     const retitled = landed(made, [{ base: "A note", field: "title", op: "set", value: "Mine" }]);
-    expect(revert(change, retitled, versionsOf(made))).toEqual({
+    expect(revert(change, retitled, versionsOf(made))).toStrictEqual({
       kind: "keep",
       reason: "edited-since",
     });
-    expect(revert(change, null, versionsOf(made))).toEqual({ kind: "unchanged" });
+    expect(revert(change, null, versionsOf(made))).toStrictEqual({ kind: "unchanged" });
   });
 
   it("brings back an item the set deleted, and cannot bring back one purged since", () => {
     const x = itemOf([paragraph("a", "one")]);
     const y = landed(x, [{ base: null, field: "deletedAt", op: "set", value: 5 }]);
     expect(stateOf(revert(changeOf(x, y), y, versionsOf(x))).fields.deletedAt).toBeNull();
-    expect(revert(changeOf(x, y), null, versionsOf(x))).toEqual({ kind: "keep", reason: "purged" });
+    expect(revert(changeOf(x, y), null, versionsOf(x))).toStrictEqual({
+      kind: "keep",
+      reason: "purged",
+    });
   });
 
   it("takes a highlight back entry by entry, keeping one a marker anchors", () => {
@@ -186,7 +190,7 @@ describe("revertItemChange", () => {
     };
     const entry = { createdAt: 1, text: "", updatedAt: 1 };
     const loose = revert(changeOf(x, x, { after: { h2: entry } }), x, versionsOf(x), { h2: entry });
-    expect(loose).toEqual({
+    expect(loose).toStrictEqual({
       annotations: {},
       keptAnnotations: false,
       kind: "revert",
@@ -200,7 +204,7 @@ describe("revertItemChange", () => {
       versionsOf(anchoredItem),
       { h1: entry },
     );
-    expect(anchored).toEqual({ kind: "unchanged" });
+    expect(anchored).toStrictEqual({ kind: "unchanged" });
   });
 });
 
@@ -231,11 +235,7 @@ describe("undoing a change set", () => {
       const fields = fieldOps(rand, blocks.state);
       const y = landed(blocks.state, fields);
       const verdict = revert(changeOf(x, y), y, versionsOf(x, y));
-      if (verdict.kind === "unchanged") {
-        expect(y).toEqual(x);
-      } else {
-        expect(stateOf(verdict)).toEqual(x);
-      }
+      expect(verdict.kind === "unchanged" ? y : stateOf(verdict)).toStrictEqual(x);
     }
   });
 
@@ -260,23 +260,34 @@ describe("undoing a change set", () => {
         current: renderLines(now),
       });
       const item = revert(changeOf(x, y), now, versionsOf(x, y, now));
-      if (item.kind === "keep") {
-        expect(lines.kind).toBe("keep");
-      }
-      if (lines.kind === "write") {
-        writes += 1;
-        expect(renderLines(stateOf(item))).toBe(lines.content);
-      }
-      if (lines.kind === "unchanged") {
-        const final = item.kind === "revert" ? item.state : now;
-        expect(renderLines(final)).toBe(renderLines(now));
-      }
+      // the item's verdict against the lines', kind by kind: a keep is a keep, a write writes the
+      // lines' content, and lines left unchanged leave the item as it is now
+      expect(item.kind !== "keep" || lines.kind === "keep", `${item.kind} vs ${lines.kind}`).toBe(
+        true,
+      );
+      writes += lines.kind === "write" ? 1 : 0;
+      const final = item.kind === "revert" ? item.state : now;
+      const reached: Record<RevertVerdict["kind"], string | null> = {
+        keep: null,
+        recreate: null,
+        remove: null,
+        unchanged: renderLines(final),
+        write: lines.kind === "write" ? renderLines(stateOf(item)) : null,
+      };
+      const wanted: Record<RevertVerdict["kind"], string | null> = {
+        keep: null,
+        recreate: null,
+        remove: null,
+        unchanged: renderLines(now),
+        write: lines.kind === "write" ? lines.content : null,
+      };
+      expect(reached[lines.kind], lines.kind).toBe(wanted[lines.kind]);
     }
     expect(writes).toBeGreaterThan(100);
   });
 });
 
-describe("revertChangeSets", () => {
+describe(revertChangeSets, () => {
   it("undoes a conversation newest first, so a set that edited a block an older one made lands", () => {
     const x = itemOf([paragraph("a", "one")]);
     const older = landed(x, [
@@ -292,19 +303,21 @@ describe("revertChangeSets", () => {
     ];
     const now = new Map([["item", { annotations: {}, state: newer }]]);
     const undone = revertChangeSets({ at: AT, blockAt: versions, now, sets });
-    expect(undone.kept).toEqual([]);
+    expect(undone.kept).toStrictEqual([]);
     const item = undone.items.get("item");
-    expect(item?.now.state).toEqual(x);
-    expect(item === undefined ? null : landed(newer, item.ops)).toEqual(x);
+    expect(item?.now.state).toStrictEqual(x);
+    expect(item === undefined ? null : landed(newer, item.ops)).toStrictEqual(x);
     const olderAlone = revertChangeSets({ at: AT, blockAt: versions, now, sets: sets.slice(1) });
-    expect(olderAlone.kept).toEqual([{ itemId: "item", reason: "edited-since", setId: "older" }]);
+    expect(olderAlone.kept).toStrictEqual([
+      { itemId: "item", reason: "edited-since", setId: "older" },
+    ]);
   });
 });
 
-describe("snapshotOf", () => {
+describe(snapshotOf, () => {
   it("records each block's id, hash, key and section in reading order", () => {
     const x = itemOf([paragraph("a", "one"), paragraph("b", "two")]);
-    expect(snapshotOf({ annotations: {}, state: x }).manifest).toEqual(
+    expect(snapshotOf({ annotations: {}, state: x }).manifest).toStrictEqual(
       orderedBlocks(x.blocks).map((held) => ({
         blockId: held.block.id,
         hash: held.hash,

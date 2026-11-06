@@ -35,7 +35,7 @@ describe("date chip inserts", () => {
     insertDate(editor);
     const now = new Date();
     const iso = `${String(now.getFullYear())}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
-    expect(chipDates(editor.children)).toEqual([iso]);
+    expect(chipDates(editor.children)).toStrictEqual([iso]);
   });
 
   it("/month inserts the month's first day through the same node", () => {
@@ -44,11 +44,11 @@ describe("date chip inserts", () => {
     insertMonthDate(editor);
     const now = new Date();
     const iso = `${String(now.getFullYear())}-${pad2(now.getMonth() + 1)}-01`;
-    expect(chipDates(editor.children)).toEqual([iso]);
+    expect(chipDates(editor.children)).toStrictEqual([iso]);
   });
 });
 
-describe("notePreviewHead", () => {
+describe(notePreviewHead, () => {
   it("drops frontmatter and dialect plumbing, strips formatting", () => {
     const md = [
       "---",

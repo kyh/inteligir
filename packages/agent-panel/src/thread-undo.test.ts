@@ -26,7 +26,7 @@ const set = (
 describe("an agent conversation's undo", () => {
   it("takes back one turn's set, and nothing for a turn that changed nothing", () => {
     const sets = [set("b", 2), set("a", 1)];
-    expect(turnUndo(sets, 1)).toEqual(["a"]);
+    expect(turnUndo(sets, 1)).toStrictEqual(["a"]);
     expect(turnUndo(sets, 3)).toBeNull();
   });
 
@@ -37,7 +37,7 @@ describe("an agent conversation's undo", () => {
       set("b", 2, { undoneBy: "x" }),
       set("a", 1),
     ];
-    expect(conversationUndo(sets)).toEqual(["c", "a"]);
+    expect(conversationUndo(sets)).toStrictEqual(["c", "a"]);
     expect(conversationUndo([set("b", 2, { undoneBy: "x" })])).toBeNull();
   });
 });
@@ -54,12 +54,12 @@ describe("a conversation longer than one page of History", () => {
       { changeSets: sets.slice(100) },
     ];
     const listed = changeSetsOf(pages);
-    expect(listed.map((one) => one.id)).toEqual(sets.map((one) => one.id));
-    expect(turnUndo(listed, 1)).toEqual(["s1"]);
+    expect(listed.map((one) => one.id)).toStrictEqual(sets.map((one) => one.id));
+    expect(turnUndo(listed, 1)).toStrictEqual(["s1"]);
     const whole = conversationUndo(listed) ?? [];
     const batches = undoBatches(whole);
-    expect(batches.map((batch) => batch.length)).toEqual([BULK_ITEMS_MAX, 20]);
-    expect(batches.flat()).toEqual(whole);
+    expect(batches.map((batch) => batch.length)).toStrictEqual([BULK_ITEMS_MAX, 20]);
+    expect(batches.flat()).toStrictEqual(whole);
     expect(batches[0]?.[0]).toBe(`s${String(BULK_ITEMS_MAX + 20)}`);
   });
 });

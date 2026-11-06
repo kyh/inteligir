@@ -92,10 +92,7 @@ describe("one spelling per non-procedure route path", () => {
       expect(files, `the sweep found no ${namespace.home} — it is broken, not the tree`).toContain(
         namespace.home,
       );
-      expect(
-        spellings(sourceOf(namespace.home)).length,
-        `${namespace.home} no longer spells a route path`,
-      ).toBe(1);
+      expect(spellings(sourceOf(namespace.home))).toHaveLength(1);
     }
   });
 
@@ -115,7 +112,7 @@ describe("one spelling per non-procedure route path", () => {
           `  fix: use ${hit.use} — or add a row to ELSEWHERE in tools/repo-guards/src/route-paths.test.ts saying why this caller cannot import the contract`,
       );
     }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 
   it("no ELSEWHERE row is stale", () => {
@@ -129,6 +126,6 @@ describe("one spelling per non-procedure route path", () => {
           `  the reason was: ${why}\n` +
           `  fix: delete the row from ELSEWHERE in tools/repo-guards/src/route-paths.test.ts`,
       );
-    expect(stale, `\n${stale.join("\n\n")}\n`).toEqual([]);
+    expect(stale, `\n${stale.join("\n\n")}\n`).toStrictEqual([]);
   });
 });

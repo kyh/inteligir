@@ -45,7 +45,7 @@ describe("item kinds", () => {
   });
 
   it("spells the library's own places", () => {
-    expect([UNSORTED_FOLDER, COVERS_DIR, PAGES_DIR, LIBRARY_RULES_PATH]).toEqual([
+    expect([UNSORTED_FOLDER, COVERS_DIR, PAGES_DIR, LIBRARY_RULES_PATH]).toStrictEqual([
       "Unsorted",
       "assets/covers",
       "assets/pages",

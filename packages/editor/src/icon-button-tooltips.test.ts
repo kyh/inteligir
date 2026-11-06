@@ -75,7 +75,7 @@ describe("raw buttons in the editor", () => {
         `(packages/editor/src/icon-button-tooltips.test.ts) with its reason:\n${offenders.join(
           "\n",
         )}`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("every allowance still names a file that carries a native title", () => {
@@ -91,6 +91,6 @@ describe("raw buttons in the editor", () => {
       `NATIVE_TITLE_ALLOWED names files with no native title left — delete these rows:\n${stale
         .map((name) => `  ${name}`)
         .join("\n")}`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });

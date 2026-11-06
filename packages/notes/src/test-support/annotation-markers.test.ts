@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { markerRootIds, stripAnnotationMarkers } from "./annotation-markers";
 
-describe("markerRootIds", () => {
+describe(markerRootIds, () => {
   it("collects comma-shared ids and ignores fences", () => {
     const source = [
       "A %%i:c1:start%%range%%i:c1:end%% and %%i:a,b:start%%shared%%i:a,b:end%%.",
@@ -12,11 +12,11 @@ describe("markerRootIds", () => {
       "```",
       "",
     ].join("\n");
-    expect(markerRootIds(source)).toEqual(new Set(["c1", "a", "b"]));
+    expect(markerRootIds(source)).toStrictEqual(new Set(["c1", "a", "b"]));
   });
 
   it("reads the markers of a doc holding a tag that cannot pair", () => {
-    expect(markerRootIds("%%i:c1:start%%x%%i:c1:end%% <Foo>broken</Bar>\n")).toEqual(
+    expect(markerRootIds("%%i:c1:start%%x%%i:c1:end%% <Foo>broken</Bar>\n")).toStrictEqual(
       new Set(["c1"]),
     );
   });

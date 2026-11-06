@@ -102,7 +102,7 @@ describe("the library's procedures", () => {
       expect(item.card.title).toBe("Three lines");
 
       const whole = await library.items.read({ id: item.id });
-      expect(whole.view).toEqual({
+      expect(whole.view).toStrictEqual({
         from: 0,
         markdown: "First line.\n\nSecond line.\n\nThird line.\n",
         to: 3,
@@ -114,8 +114,8 @@ describe("the library's procedures", () => {
       expect(page.view).toMatchObject({ from: 1, markdown: "Second line.\n", to: 2, total: 3 });
 
       const detailed = await library.items.read({ id: item.id, responseFormat: "detailed" });
-      expect(detailed.fields.aliases).toEqual([]);
-      expect(await refusalOf(library.items.read({ id: newId() }))).toMatchObject({
+      expect(detailed.fields.aliases).toStrictEqual([]);
+      await expect(refusalOf(library.items.read({ id: newId() }))).resolves.toMatchObject({
         code: "NOT_FOUND",
         defined: true,
       });
@@ -130,7 +130,7 @@ describe("the library's procedures", () => {
       );
       expect(first.folded).toBe(false);
       const { highlights } = await library.annotations.list({ itemId: first.item.id });
-      expect(highlights).toEqual([
+      expect(highlights).toStrictEqual([
         expect.objectContaining({ placed: true, quote: "quick brown fox", text: "" }),
       ]);
 
@@ -140,7 +140,7 @@ describe("the library's procedures", () => {
       );
       expect(again).toMatchObject({ folded: true, item: { id: first.item.id } });
       const read = await library.items.read({ id: first.item.id });
-      expect(read.fields.tags).toEqual(["animals", "dogs"]);
+      expect(read.fields.tags).toStrictEqual(["animals", "dogs"]);
       expect(read.fields.fetchState).toBe("filled");
       expect(read.view.markdown).toContain(":::article");
     });
@@ -155,7 +155,7 @@ describe("the library's procedures", () => {
       const [highlight] = listed.highlights;
       const placedAgain = async (markdown: string) => {
         const { highlights } = await library.annotations.list({ itemId: first.item.id });
-        expect(highlights).toEqual([
+        expect(highlights).toStrictEqual([
           expect.objectContaining({ id: highlight?.id, placed: true, quote: "quick brown fox" }),
         ]);
         const read = await library.items.read({ id: first.item.id });
@@ -195,7 +195,7 @@ describe("the library's procedures", () => {
       });
       expect(stub.folded).toBe(false);
       const waiting = await library.annotations.list({ itemId: stub.item.id });
-      expect(waiting.highlights).toEqual([
+      expect(waiting.highlights).toStrictEqual([
         expect.objectContaining({ placed: false, quote: "a passage the page holds", text: "" }),
       ]);
 
@@ -204,7 +204,7 @@ describe("the library's procedures", () => {
       const folded = await library.items.saveLink({ selection: "brown fox jumps", url });
       expect(folded).toMatchObject({ folded: true, item: { id: page.item.id } });
       const { highlights } = await library.annotations.list({ itemId: page.item.id });
-      expect(highlights).toEqual([
+      expect(highlights).toStrictEqual([
         expect.objectContaining({ placed: true, quote: "brown fox jumps" }),
       ]);
       const read = await library.items.read({ id: page.item.id });
@@ -261,7 +261,7 @@ describe("the library's procedures", () => {
       const reread = await library.items.refresh({ id: page.item.id });
       expect(reread.item.fields).toMatchObject({ fetchError: null, fetchState: "pending" });
       const note = await library.items.createNote({ markdown: "No page here." });
-      expect(await refusalOf(library.items.refresh({ id: note.item.id }))).toMatchObject({
+      await expect(refusalOf(library.items.refresh({ id: note.item.id }))).resolves.toMatchObject({
         code: "NOT_FOUND",
       });
     });
@@ -283,44 +283,47 @@ describe("the library's procedures", () => {
       });
 
       // a second edit read before the first: the item as it is now
-      expect(
-        await refusalOf(
+      await expect(
+        refusalOf(
           library.items.edit({
             baseSeq: seq,
             edits: [{ newText: "Uno.", oldText: "One." }],
             id: item.id,
           }),
         ),
-      ).toEqual({
+      ).resolves.toStrictEqual({
         code: "CONFLICT",
         data: { current: [{ itemId: item.id, kind: "item", seq: edited.seq }] },
         defined: true,
       });
 
-      expect(
-        await refusalOf(
+      await expect(
+        refusalOf(
           library.items.edit({
             baseSeq: edited.seq,
             edits: [{ newText: "x", oldText: "Not in the item." }],
             id: item.id,
           }),
         ),
-      ).toEqual({
+      ).resolves.toStrictEqual({
         code: "UNPROCESSABLE_CONTENT",
         data: { edit: 0, reason: "missing" },
         defined: true,
       });
       // past the parse's own reach: a stack overflow nearer the conversion's reach surfaces in this
       // suite's module runner as a TypeError, where the bundle the Worker ships throws RangeError
-      expect(
-        await refusalOf(
+      await expect(
+        refusalOf(
           library.items.edit({
             baseSeq: edited.seq,
             edits: [{ newText: `${"> ".repeat(12_000)}x`, oldText: "One." }],
             id: item.id,
           }),
         ),
-      ).toMatchObject({ code: "UNPROCESSABLE_CONTENT", data: { edit: 0, reason: "too-deep" } });
+      ).resolves.toMatchObject({
+        code: "UNPROCESSABLE_CONTENT",
+        data: { edit: 0, reason: "too-deep" },
+      });
     });
   });
 
@@ -341,15 +344,18 @@ describe("the library's procedures", () => {
       });
       const read = await library.items.read({ id: item.id });
       expect(read.view.markdown).toBe("Note.\n\n:::article\n\nPage.\n\n:::\n");
-      expect(
-        await refusalOf(
+      await expect(
+        refusalOf(
           library.items.edit({
             baseSeq: read.seq,
             edits: [{ newText: "Note. Page.", oldText: "Note.\n\n:::article\n\nPage." }],
             id: item.id,
           }),
         ),
-      ).toMatchObject({ code: "UNPROCESSABLE_CONTENT", data: { edit: 0, reason: "section" } });
+      ).resolves.toMatchObject({
+        code: "UNPROCESSABLE_CONTENT",
+        data: { edit: 0, reason: "section" },
+      });
     });
   });
 
@@ -369,7 +375,7 @@ describe("the library's procedures", () => {
       const projects = outline.folders.find((folder) => folder.name === "Projects");
       const garden = outline.folders.find((folder) => folder.name === "Garden");
       expect(garden).toMatchObject({ items: 2, parentId: projects?.id });
-      expect(outline.tags).toEqual([{ items: 2, tag: "work" }]);
+      expect(outline.tags).toStrictEqual([{ items: 2, tag: "work" }]);
 
       // the same path again finds the folders it made
       await library.items.organize({ folder: { path: "Projects/Garden" }, ids: [one.item.id] });
@@ -389,9 +395,9 @@ describe("the library's procedures", () => {
         tags: [],
         title: "One, renamed",
       });
-      expect(
-        await refusalOf(library.items.organize({ folder: { id: newId() }, ids: [one.item.id] })),
-      ).toMatchObject({ code: "NOT_FOUND" });
+      await expect(
+        refusalOf(library.items.organize({ folder: { id: newId() }, ids: [one.item.id] })),
+      ).resolves.toMatchObject({ code: "NOT_FOUND" });
     });
   });
 
@@ -400,23 +406,23 @@ describe("the library's procedures", () => {
       const library = clientIn(state, clockAt());
       const { item } = await library.items.createNote({ markdown: "Soon gone." });
       const nobody = newId();
-      expect(await library.items.delete({ ids: [item.id, nobody] })).toEqual({
+      await expect(library.items.delete({ ids: [item.id, nobody] })).resolves.toStrictEqual({
         deleted: [item.id],
         missing: [nobody],
       });
       await expect(library.items.read({ id: item.id })).resolves.toMatchObject({
         fields: { deletedAt: expect.any(String) },
       });
-      expect(await library.items.restore({ ids: [item.id] })).toEqual({
+      await expect(library.items.restore({ ids: [item.id] })).resolves.toStrictEqual({
         missing: [],
         restored: [item.id],
       });
       await library.items.delete({ ids: [item.id] });
-      expect(await library.items.purge({ ids: [item.id] })).toEqual({
+      await expect(library.items.purge({ ids: [item.id] })).resolves.toStrictEqual({
         missing: [],
         purged: [item.id],
       });
-      expect(await refusalOf(library.items.read({ id: item.id }))).toMatchObject({
+      await expect(refusalOf(library.items.read({ id: item.id }))).resolves.toMatchObject({
         code: "NOT_FOUND",
       });
     });
@@ -447,11 +453,11 @@ describe("the library's procedures", () => {
         listed.highlights
           .map((highlight) => highlight.placed)
           .toSorted((a, b) => Number(a) - Number(b)),
-      ).toEqual([false, true]);
+      ).toStrictEqual([false, true]);
       await expect(library.items.read({ id: item.id })).resolves.toMatchObject({ highlights: 2 });
-      expect(
-        await refusalOf(library.annotations.add({ itemId: newId(), quote: "anything" })),
-      ).toMatchObject({ code: "NOT_FOUND" });
+      await expect(
+        refusalOf(library.annotations.add({ itemId: newId(), quote: "anything" })),
+      ).resolves.toMatchObject({ code: "NOT_FOUND" });
     });
   });
 
@@ -468,20 +474,20 @@ describe("the library's procedures", () => {
         ],
       });
       // a sibling already holds the name
-      expect(
-        await refusalOf(
+      await expect(
+        refusalOf(
           library.folders.write({
             ops: [{ base: "Travel", id: b, name: "recipes", op: "rename" }],
           }),
         ),
-      ).toMatchObject({ code: "CONFLICT", defined: true });
-      expect(
-        await refusalOf(
+      ).resolves.toMatchObject({ code: "CONFLICT", defined: true });
+      await expect(
+        refusalOf(
           library.folders.write({
             ops: [{ id: newId(), name: "Lost", op: "create", parentId: newId(), sort: "a0" }],
           }),
         ),
-      ).toMatchObject({ code: "NOT_FOUND" });
+      ).resolves.toMatchObject({ code: "NOT_FOUND" });
       await library.folders.write({ ops: [{ id: b, op: "delete" }] });
       await expect(library.organize.outline()).resolves.toMatchObject({
         folders: [{ name: "Recipes" }],
@@ -492,16 +498,20 @@ describe("the library's procedures", () => {
   it("keeps the person's filing rules, which an import of a vault's own never replaces", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
-      expect(await library.agent.rules()).toEqual({ rules: null });
-      expect(await library.agent.setRules({ rules: "File recipes under Cooking." })).toEqual({
+      await expect(library.agent.rules()).resolves.toStrictEqual({ rules: null });
+      await expect(
+        library.agent.setRules({ rules: "File recipes under Cooking." }),
+      ).resolves.toStrictEqual({
         rules: "File recipes under Cooking.",
       });
       adoptImportedRules(cellStorageOf(state.storage), "File everything under Inbox.");
-      expect(await library.agent.rules()).toEqual({ rules: "File recipes under Cooking." });
+      await expect(library.agent.rules()).resolves.toStrictEqual({
+        rules: "File recipes under Cooking.",
+      });
       // cleared, they stay the person's: an empty page is rules none of an import replaces
       await library.agent.setRules({ rules: "" });
       adoptImportedRules(cellStorageOf(state.storage), "File everything under Inbox.");
-      expect(await library.agent.rules()).toEqual({ rules: "" });
+      await expect(library.agent.rules()).resolves.toStrictEqual({ rules: "" });
     });
   });
 
@@ -511,7 +521,7 @@ describe("the library's procedures", () => {
       const library = clientIn(state, clock);
       const { item } = await library.items.createNote({ markdown: "Before." });
       const { changeSets } = await library.history.list({ itemId: item.id });
-      expect(changeSets).toEqual([
+      expect(changeSets).toStrictEqual([
         expect.objectContaining({
           actor: "person",
           itemCount: 1,
@@ -524,8 +534,10 @@ describe("the library's procedures", () => {
         throw new Error("no change set");
       }
       const undone = await library.history.undo({ changeSetIds: [made.id] });
-      expect(undone.reverted).toEqual([item.id]);
-      expect(await refusalOf(library.history.undo({ changeSetIds: [made.id] }))).toEqual({
+      expect(undone.reverted).toStrictEqual([item.id]);
+      await expect(
+        refusalOf(library.history.undo({ changeSetIds: [made.id] })),
+      ).resolves.toStrictEqual({
         code: "ALREADY_UNDONE",
         data: { changeSetId: made.id, undoneBy: undone.changeSetId },
         defined: true,
@@ -536,12 +548,12 @@ describe("the library's procedures", () => {
         throw new Error("the sealed set names no revision");
       }
       const revision = await library.history.revision({ itemId: item.id, rev });
-      expect(revision.blocks.map((stored) => stored.block)).toEqual([
+      expect(revision.blocks.map((stored) => stored.block)).toStrictEqual([
         expect.objectContaining({ children: [{ text: "Before." }] }),
       ]);
-      expect(
-        await refusalOf(library.history.revision({ itemId: item.id, rev: rev + 100 })),
-      ).toMatchObject({ code: "NOT_FOUND" });
+      await expect(
+        refusalOf(library.history.revision({ itemId: item.id, rev: rev + 100 })),
+      ).resolves.toMatchObject({ code: "NOT_FOUND" });
     });
   });
 
@@ -553,11 +565,11 @@ describe("the library's procedures", () => {
       await library.items.createNote({ markdown: "Nothing to see." });
 
       const words = await library.search({ query: "brown fox" });
-      expect(words.hits.map((hit) => hit.id)).toEqual([fox.item.id]);
+      expect(words.hits.map((hit) => hit.id)).toStrictEqual([fox.item.id]);
       const literal = await library.search({ query: "parse_v2(" });
-      expect(literal.hits.map((hit) => hit.id)).toEqual([code.item.id]);
+      expect(literal.hits.map((hit) => hit.id)).toStrictEqual([code.item.id]);
       expect(literal.hits[0]?.snippet).toContain("parse_v2(");
-      await expect(library.search({ kinds: ["link"], query: "fox" })).resolves.toEqual({
+      await expect(library.search({ kinds: ["link"], query: "fox" })).resolves.toStrictEqual({
         cursor: null,
         hits: [],
       });
@@ -597,41 +609,41 @@ describe("the library's procedures", () => {
   it("answers a folder name too long, a link under a held id and an edit past the library's room as their rows declare", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
-      expect(
-        await refusalOf(
+      await expect(
+        refusalOf(
           library.items.createNote({ folder: { path: `Work/${"x".repeat(256)}` }, markdown: "x" }),
         ),
-      ).toMatchObject({ code: "BAD_REQUEST" });
-      expect(
-        await refusalOf(library.items.createNote({ folder: { path: " / " }, markdown: "x" })),
-      ).toMatchObject({ code: "BAD_REQUEST" });
+      ).resolves.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(
+        refusalOf(library.items.createNote({ folder: { path: " / " }, markdown: "x" })),
+      ).resolves.toMatchObject({ code: "BAD_REQUEST" });
       const { item } = await library.items.createNote({
         folder: { path: " Work / Reading " },
         markdown: "Short.",
       });
       const { folders } = await library.organize.outline();
-      expect(folders.map((folder) => folder.name).toSorted()).toEqual(["Reading", "Work"]);
+      expect(folders.map((folder) => folder.name).toSorted()).toStrictEqual(["Reading", "Work"]);
       expect(folders.find((folder) => folder.name === "Reading")?.id).toBe(item.fields.folderId);
 
       const { seq } = await library.items.read({ id: item.id });
-      expect(
-        await refusalOf(library.items.saveLink({ id: item.id, url: "https://example.com/else" })),
-      ).toEqual({
+      await expect(
+        refusalOf(library.items.saveLink({ id: item.id, url: "https://example.com/else" })),
+      ).resolves.toStrictEqual({
         code: "CONFLICT",
         data: { current: [{ itemId: item.id, kind: "item", seq }] },
         defined: true,
       });
 
       addFileBytes(cellStorageOf(state.storage), GiB);
-      expect(
-        await refusalOf(
+      await expect(
+        refusalOf(
           library.items.edit({
             baseSeq: seq,
             edits: [{ newText: `Long. ${"word ".repeat(2000)}`, oldText: "Short." }],
             id: item.id,
           }),
         ),
-      ).toMatchObject({ code: "QUOTA", defined: true });
+      ).resolves.toMatchObject({ code: "QUOTA", defined: true });
     });
   });
 
@@ -668,12 +680,12 @@ describe("the library's procedures", () => {
       const olderEvents = [0, 1, 2].map((idx) => `${older}:1:${String(idx)}`);
 
       const first = await library.agent.list({ limit: 1 });
-      expect(first.threads.map((thread) => thread.id)).toEqual([newer]);
+      expect(first.threads.map((thread) => thread.id)).toStrictEqual([newer]);
       const rest = await library.agent.list({ cursor: first.cursor ?? "", limit: 1 });
       expect(rest).toMatchObject({ cursor: null, threads: [{ id: older, status: "idle" }] });
 
       const opening = await library.agent.events({ limit: 2, threadId: older });
-      expect(opening.events.map((event) => event.eventId)).toEqual(olderEvents.slice(0, 2));
+      expect(opening.events.map((event) => event.eventId)).toStrictEqual(olderEvents.slice(0, 2));
       expect(opening.more).toBe(true);
       const closing = await library.agent.events({ after: 1, limit: 2, threadId: older });
       expect(closing).toMatchObject({ events: [{ eventId: olderEvents[2], idx: 2 }], more: false });
@@ -682,13 +694,15 @@ describe("the library's procedures", () => {
       if (before.kind !== "changes") {
         throw new Error("a fresh pull started over");
       }
-      await expect(library.agent.delete({ threadId: older })).resolves.toEqual({ deleted: true });
-      expect(sql.exec("SELECT id FROM threads").toArray()).toEqual([{ id: newer }]);
+      await expect(library.agent.delete({ threadId: older })).resolves.toStrictEqual({
+        deleted: true,
+      });
+      expect(sql.exec("SELECT id FROM threads").toArray()).toStrictEqual([{ id: newer }]);
       expect(
         sql.exec("SELECT event_id FROM thread_events WHERE thread_id = ?", older).toArray(),
-      ).toEqual([]);
+      ).toStrictEqual([]);
       const after = await library.sync.pull({ cursor: before.head, epoch: before.epoch });
-      expect(after.kind === "changes" ? after.changes : []).toEqual(
+      expect(after.kind === "changes" ? after.changes : []).toStrictEqual(
         expect.arrayContaining([
           expect.objectContaining({ id: older, kind: "thread", row: null }),
           ...olderEvents.map((id) =>
@@ -696,7 +710,7 @@ describe("the library's procedures", () => {
           ),
         ]),
       );
-      expect(await refusalOf(library.agent.events({ threadId: older }))).toMatchObject({
+      await expect(refusalOf(library.agent.events({ threadId: older }))).resolves.toMatchObject({
         code: "NOT_FOUND",
         defined: true,
       });
@@ -716,7 +730,9 @@ describe("the library's procedures", () => {
       expect(first.cursor).not.toBeNull();
       const rest = await library.items.list({ cursor: first.cursor ?? "", limit: 2 });
       expect(rest).toMatchObject({ cursor: null, items: [expect.any(Object)] });
-      expect(await refusalOf(library.items.list({ cursor: "not-a-cursor" }))).toMatchObject({
+      await expect(
+        refusalOf(library.items.list({ cursor: "not-a-cursor" })),
+      ).resolves.toMatchObject({
         code: "BAD_REQUEST",
       });
       const tagged = await library.items.list({ tag: "n" });
@@ -727,8 +743,8 @@ describe("the library's procedures", () => {
   it("refuses a file whose bytes were never uploaded", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
-      expect(
-        await refusalOf(
+      await expect(
+        refusalOf(
           library.items.createFile({
             folderId: null,
             id: newId(),
@@ -738,7 +754,7 @@ describe("the library's procedures", () => {
             tags: [],
           }),
         ),
-      ).toEqual({ code: "BLOB_MISSING", data: { shas: [SHA] }, defined: true });
+      ).resolves.toStrictEqual({ code: "BLOB_MISSING", data: { shas: [SHA] }, defined: true });
     });
   });
 
@@ -748,7 +764,7 @@ describe("the library's procedures", () => {
       const opId = crypto.randomUUID();
       const first = await library.items.createNote({ markdown: "Once.", opId });
       const again = await library.items.createNote({ markdown: "Once.", opId });
-      expect(again).toEqual(first);
+      expect(again).toStrictEqual(first);
       const listed = await library.items.list({});
       expect(listed.items).toHaveLength(1);
     });
@@ -769,7 +785,7 @@ describe("the library's procedures", () => {
         },
       });
       const threadId = crypto.randomUUID();
-      expect(await refusalOf(agent.send({ text: "Tidy my library." }))).toMatchObject({
+      await expect(refusalOf(agent.send({ text: "Tidy my library." }))).resolves.toMatchObject({
         code: "SERVICE_UNAVAILABLE",
         defined: true,
       });
@@ -779,11 +795,14 @@ describe("the library's procedures", () => {
         async () => await agent.events({ threadId }),
         async () => await agent.delete({ threadId }),
       ]) {
-        expect(await refusalOf(call())).toMatchObject({ code: "NOT_FOUND", defined: true });
+        await expect(refusalOf(call())).resolves.toMatchObject({
+          code: "NOT_FOUND",
+          defined: true,
+        });
       }
       // on by default, with nothing to make, and the day's allowance untouched
-      expect(await agent.status()).toMatchObject({ enabled: true, turnsLeft: 2 });
-      expect(await agent.list({})).toEqual({ cursor: null, threads: [] });
+      await expect(agent.status()).resolves.toMatchObject({ enabled: true, turnsLeft: 2 });
+      await expect(agent.list({})).resolves.toStrictEqual({ cursor: null, threads: [] });
     });
   });
 
@@ -797,7 +816,7 @@ describe("the library's procedures", () => {
       }
       expect(pulled.changes.map((change) => change.kind)).toContain("item");
       const { bodies } = await library.sync.bodies({ ids: [item.id] });
-      expect(bodies[0]?.blocks.map((stored) => stored.block)).toEqual([
+      expect(bodies[0]?.blocks.map((stored) => stored.block)).toStrictEqual([
         expect.objectContaining({ children: [{ text: "Synced." }] }),
       ]);
     });

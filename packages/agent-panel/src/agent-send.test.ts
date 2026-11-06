@@ -18,7 +18,7 @@ describe("the screen a message leaves from", () => {
   it("is the open item whatever the library shows", () => {
     expect(
       viewContextOf({ kind: "link", openItem: ITEM, scope: { kind: "all" }, selected: ids(2) }),
-    ).toEqual({ itemId: ITEM, surface: "item" });
+    ).toStrictEqual({ itemId: ITEM, surface: "item" });
   });
 
   it("is the scope, its kind and the first of the selection, counted whole", () => {
@@ -28,20 +28,20 @@ describe("the screen a message leaves from", () => {
       scope: { kind: "unsorted" },
       selected: ids(LIBRARY_SELECTION_MAX + 3),
     });
-    expect(context).toEqual({
+    expect(context).toStrictEqual({
       itemIds: ids(LIBRARY_SELECTION_MAX),
       kinds: ["link"],
       scope: { kind: "unsorted" },
       selected: LIBRARY_SELECTION_MAX + 3,
       surface: "library",
     });
-    expect(agentViewContextSchema.parse(context)).toEqual(context);
+    expect(agentViewContextSchema.parse(context)).toStrictEqual(context);
   });
 
   it("names no kind when the library is not narrowed to one, and nothing from Deleted", () => {
     expect(
       viewContextOf({ kind: null, openItem: null, scope: { kind: "all" }, selected: [] }),
-    ).toEqual({ itemIds: [], scope: { kind: "all" }, selected: 0, surface: "library" });
+    ).toStrictEqual({ itemIds: [], scope: { kind: "all" }, selected: 0, surface: "library" });
     expect(
       viewContextOf({ kind: null, openItem: null, scope: { kind: "deleted" }, selected: ids(1) }),
     ).toBeUndefined();
@@ -53,10 +53,10 @@ describe("what the composer sends", () => {
     const viewContext = { itemId: ITEM, surface: "item" } as const;
     expect(
       sendInput({ text: "  File this. ", threadId: THREAD, tidying: false, viewContext }),
-    ).toEqual({ text: "File this.", threadId: THREAD, viewContext });
+    ).toStrictEqual({ text: "File this.", threadId: THREAD, viewContext });
     expect(
       sendInput({ text: "Hi", threadId: null, tidying: false, viewContext: undefined }),
-    ).toEqual({
+    ).toStrictEqual({
       text: "Hi",
     });
   });
@@ -69,16 +69,16 @@ describe("what the composer sends", () => {
 
   it("sends Tidy's request as a new conversation from Unsorted, empty field or not", () => {
     const viewContext = { itemId: ITEM, surface: "item" } as const;
-    expect(sendInput({ text: "", threadId: THREAD, tidying: true, viewContext })).toEqual({
+    expect(sendInput({ text: "", threadId: THREAD, tidying: true, viewContext })).toStrictEqual({
       text: tidyMessage(""),
       viewContext: TIDY_VIEW_CONTEXT,
     });
-    expect(sendInput({ text: "Skip recipes", threadId: null, tidying: true, viewContext })).toEqual(
-      {
-        text: tidyMessage("Skip recipes"),
-        viewContext: TIDY_VIEW_CONTEXT,
-      },
-    );
+    expect(
+      sendInput({ text: "Skip recipes", threadId: null, tidying: true, viewContext }),
+    ).toStrictEqual({
+      text: tidyMessage("Skip recipes"),
+      viewContext: TIDY_VIEW_CONTEXT,
+    });
   });
 
   it("says what the field asks for", () => {

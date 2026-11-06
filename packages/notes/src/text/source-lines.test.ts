@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { splitLinesKeepingTerminators } from "./source-lines";
 
-describe("splitLinesKeepingTerminators", () => {
+describe(splitLinesKeepingTerminators, () => {
   it("keeps every terminator flavor between the lines, mixed endings included", () => {
-    expect(splitLinesKeepingTerminators("a\r\nb\rc\nd")).toEqual([
+    expect(splitLinesKeepingTerminators("a\r\nb\rc\nd")).toStrictEqual([
       "a",
       "\r\n",
       "b",

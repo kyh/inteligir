@@ -86,7 +86,7 @@ describe("the phone's stylesheet", () => {
     expect(
       TOKENS.map((token) => ({ token, ...schemesOf(cssName(token)) })),
       "src/styles.css and src/lib/palette.ts spell one palette twice: change a color in both",
-    ).toEqual(
+    ).toStrictEqual(
       TOKENS.map((token) => ({
         dark: [paletteFor(true)[token]],
         light: [paletteFor(false)[token]],
@@ -99,11 +99,13 @@ describe("the phone's stylesheet", () => {
     const darkOnly = (sheet.vr ?? [])
       .filter(([, values]) => values.some((value) => isDark(value[1])))
       .map(([name]) => name);
-    expect(darkOnly.toSorted()).toEqual(TOKENS.map(cssName).toSorted());
+    expect(darkOnly.toSorted()).toStrictEqual(TOKENS.map(cssName).toSorted());
   });
 
   it("draws each token's class from the token's own variable", () => {
-    expect(TOKENS.map((token) => JSON.stringify(declarationsOf(`bg-${cssName(token)}`)))).toEqual(
+    expect(
+      TOKENS.map((token) => JSON.stringify(declarationsOf(`bg-${cssName(token)}`))),
+    ).toStrictEqual(
       TOKENS.map((token) =>
         JSON.stringify([[[{}, "var", cssName(token), 1], "backgroundColor", 1]]),
       ),
@@ -114,18 +116,18 @@ describe("the phone's stylesheet", () => {
     expect(
       [declarationsOf("p-4"), declarationsOf("rounded-lg")],
       "react-native-css reads a rem at src/styles.css's `:root` font size, else at 14",
-    ).toEqual([[{ padding: 16 }], [{ borderRadius: 8 }]]);
+    ).toStrictEqual([[{ padding: 16 }], [{ borderRadius: 8 }]]);
   });
 
   it("sets a size alone, with no line height beside it", () => {
     expect(
       SIZES.map((size) => declarationsOf(`text-${String(size)}`)),
       "a size class sets the font size alone, as a StyleSheet `fontSize` did",
-    ).toEqual(SIZES.map((size) => [{ fontSize: size }]));
+    ).toStrictEqual(SIZES.map((size) => [{ fontSize: size }]));
   });
 
   it("draws a line height from its class", () => {
-    expect(declarationsOf("leading-[22px]")).toEqual([{ lineHeight: 22 }]);
+    expect(declarationsOf("leading-[22px]")).toStrictEqual([{ lineHeight: 22 }]);
   });
 
   it("draws a placeholder's colour from the token's own variable", () => {
@@ -149,6 +151,6 @@ describe("the phone's stylesheet", () => {
     expect(
       padded,
       "py-* compiles to paddingBlock, and a multiline TextInput with no paddingTop takes iOS's 5: write pt-* and pb-*",
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });

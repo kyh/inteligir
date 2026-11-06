@@ -121,11 +121,13 @@ describe("/v1's error statuses", () => {
   const custom = [...declared].filter((code) => !Object.hasOwn(COMMON_ERROR_STATUS_MAP, code));
 
   it("maps every code a row declares", () => {
-    expect([...declared].filter((code) => !Object.hasOwn(V1_ERROR_STATUS_MAP, code))).toEqual([]);
+    expect([...declared].filter((code) => !Object.hasOwn(V1_ERROR_STATUS_MAP, code))).toStrictEqual(
+      [],
+    );
   });
 
   it("maps exactly the custom codes the rows declare, none of oRPC's own", () => {
-    expect(Object.keys(V1_CUSTOM_ERROR_STATUS).toSorted()).toEqual(custom.toSorted());
+    expect(Object.keys(V1_CUSTOM_ERROR_STATUS).toSorted()).toStrictEqual(custom.toSorted());
   });
 
   it("answers an outage 5xx and every refusal at least 4xx", () => {
@@ -264,15 +266,18 @@ describe("/v1's error statuses", () => {
   ];
 
   it("is exercised for every custom code", () => {
-    expect(cases.map((sample) => sample.code).toSorted()).toEqual(
+    expect(cases.map((sample) => sample.code).toSorted()).toStrictEqual(
       Object.keys(V1_CUSTOM_ERROR_STATUS).toSorted(),
     );
   });
 
   it.each(cases)("answers $code with its status and its typed data", async (sample) => {
     const { client, statuses } = served(sample.router);
-    expect(await sample.refusal(client)).toEqual({ code: sample.code, data: sample.data });
-    expect(statuses).toEqual([V1_CUSTOM_ERROR_STATUS[sample.code]]);
+    await expect(sample.refusal(client)).resolves.toStrictEqual({
+      code: sample.code,
+      data: sample.data,
+    });
+    expect(statuses).toStrictEqual([V1_CUSTOM_ERROR_STATUS[sample.code]]);
   });
 
   it("carries a conflict's current state back to the writer, typed", async () => {
@@ -290,10 +295,10 @@ describe("/v1's error statuses", () => {
         ops: [{ base: "Mine before", field: "title", op: "set", value: "Mine" }],
       }),
     );
-    expect(isDefinedError(error) && error.code === "CONFLICT" ? error.data.current : null).toEqual([
-      { ...current, current: "Theirs" },
-    ]);
-    expect(statuses).toEqual([409]);
+    expect(
+      isDefinedError(error) && error.code === "CONFLICT" ? error.data.current : null,
+    ).toStrictEqual([{ ...current, current: "Theirs" }]);
+    expect(statuses).toStrictEqual([409]);
   });
 });
 
@@ -306,7 +311,7 @@ describe("/v1's rows", () => {
       const json = jsonObjectSchema.parse(
         input === undefined ? {} : z.toJSONSchema(input, { io: "input" }),
       );
-      expect({ opId: Object.hasOwn(json.properties ?? {}, "opId"), row: row.path }).toEqual({
+      expect({ opId: Object.hasOwn(json.properties ?? {}, "opId"), row: row.path }).toStrictEqual({
         opId: true,
         row: row.path,
       });
@@ -318,12 +323,12 @@ describe("/v1's rows", () => {
     const reserved = new Set(Object.getOwnPropertyNames(Function.prototype));
     expect(
       ROWS.filter((row) => row.path.split(".").some((segment) => reserved.has(segment))),
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("names every read it exempts", () => {
     const paths = new Set(rowsOf(v1Contract.library).map((row) => row.path));
-    expect([...LIBRARY_READS].filter((path) => !paths.has(path))).toEqual([]);
+    expect([...LIBRARY_READS].filter((path) => !paths.has(path))).toStrictEqual([]);
   });
 
   it("converts every input and output to JSON Schema, as the connector and its tools need", () => {
@@ -341,9 +346,9 @@ describe("/v1's rows", () => {
 
 describe("the library's wire", () => {
   it("names every kind of row the change log holds", () => {
-    expect(libraryChangeSchema.options.map((option) => option.shape.kind.value).toSorted()).toEqual(
-      [...LIBRARY_CHANGE_KINDS].toSorted(),
-    );
+    expect(
+      libraryChangeSchema.options.map((option) => option.shape.kind.value).toSorted(),
+    ).toStrictEqual([...LIBRARY_CHANGE_KINDS].toSorted());
   });
 
   it("drops a field a newer cell adds to a row, rather than refusing the row", () => {
@@ -383,7 +388,7 @@ describe("the library's wire", () => {
       fields: { ...row.fields, rating: 5 },
       later: true,
     });
-    expect(parsed).toEqual(row);
+    expect(parsed).toStrictEqual(row);
   });
 
   it("holds an item a device creates to a uuid v7, so an offline id sorts by when it was made", () => {

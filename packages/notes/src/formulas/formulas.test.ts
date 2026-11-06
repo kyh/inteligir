@@ -70,7 +70,7 @@ describe("the executable grammar (the skill's own examples)", () => {
     if (tree === null) {
       return;
     }
-    expect(evaluateExpression(tree, noRefs)).toEqual({ ok: false, reason: "not-finite" });
+    expect(evaluateExpression(tree, noRefs)).toStrictEqual({ ok: false, reason: "not-finite" });
   });
 });
 
@@ -87,7 +87,7 @@ describe("result formatting", () => {
 describe("metadata", () => {
   it("round-trips id/name/stale in one spelling", () => {
     const meta = parseFormulaMeta("id=abc;name=budget;stale=1");
-    expect(meta).toEqual({ id: "abc", name: "budget", stale: true, unknown: [] });
+    expect(meta).toStrictEqual({ id: "abc", name: "budget", stale: true, unknown: [] });
     expect(serializeFormulaMeta(meta)).toBe("id=abc;name=budget;stale=1");
     // Both spellings parse; `1` is the one we emit.
     expect(parseFormulaMeta("stale=true").stale).toBe(true);
@@ -130,7 +130,7 @@ describe("the graph (the skill's own type-scale example)", () => {
       NOTE,
       formulas,
     );
-    expect(outcome).toEqual({ ok: true, value: 22 });
+    expect(outcome).toStrictEqual({ ok: true, value: 22 });
   });
 
   it("answers cyclic for a reference loop", () => {
@@ -149,7 +149,7 @@ describe("the graph (the skill's own type-scale example)", () => {
       NOTE,
       cyclic,
     );
-    expect(outcome).toEqual({ ok: false, reason: "cyclic" });
+    expect(outcome).toStrictEqual({ ok: false, reason: "cyclic" });
   });
 
   it("answers missing-ref for an absent note or id", () => {
@@ -159,7 +159,7 @@ describe("the graph (the skill's own type-scale example)", () => {
       throw new Error("expected an executable pill");
     }
     const outcome = resolveExpression(first.expression, { notes: new Map() }, NOTE, formulas);
-    expect(outcome).toEqual({ ok: false, reason: "missing-ref" });
+    expect(outcome).toStrictEqual({ ok: false, reason: "missing-ref" });
   });
 
   it("resolves across notes", () => {
@@ -175,7 +175,7 @@ describe("the graph (the skill's own type-scale example)", () => {
       NOTE,
       local,
     );
-    expect(outcome).toEqual({ ok: true, value: 200 });
+    expect(outcome).toStrictEqual({ ok: true, value: 200 });
   });
 });
 
@@ -211,8 +211,8 @@ describe("loading the graph", () => {
     });
     const local = formulasIn("{{@(b#b#fb)*2|0|id=fa;name=a}}\n");
 
-    expect(await resolveFirst(local, read)).toEqual({ ok: true, value: 82 });
-    expect(reads).toEqual(["b", "c"]);
+    await expect(resolveFirst(local, read)).resolves.toStrictEqual({ ok: true, value: 82 });
+    expect(reads).toStrictEqual(["b", "c"]);
   });
 
   it("answers cyclic for a loop across notes, reading each note once and never itself", async () => {
@@ -221,8 +221,8 @@ describe("loading the graph", () => {
     });
     const local = formulasIn("{{@(b#b#fb)+1|0|id=fa;name=a}}\n");
 
-    expect(await resolveFirst(local, read)).toEqual({ ok: false, reason: "cyclic" });
-    expect(reads).toEqual(["b"]);
+    await expect(resolveFirst(local, read)).resolves.toStrictEqual({ ok: false, reason: "cyclic" });
+    expect(reads).toStrictEqual(["b"]);
   });
 
   it("stops reading at the cap, and a note past it answers missing-ref", async () => {
@@ -232,7 +232,10 @@ describe("loading the graph", () => {
     });
     const local = formulasIn("{{@(b#b#fb)*2|0|id=fa;name=a}}\n");
 
-    expect(await resolveFirst(local, read, 1)).toEqual({ ok: false, reason: "missing-ref" });
-    expect(reads).toEqual(["b"]);
+    await expect(resolveFirst(local, read, 1)).resolves.toStrictEqual({
+      ok: false,
+      reason: "missing-ref",
+    });
+    expect(reads).toStrictEqual(["b"]);
   });
 });

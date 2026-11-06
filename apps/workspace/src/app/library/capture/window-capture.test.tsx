@@ -75,7 +75,7 @@ describe("a paste no field claimed", () => {
     const onCapture = mount();
     const event = paste(card(), "https://a.example");
     expect(onCapture).toHaveBeenCalledOnce();
-    expect(onCapture.mock.calls[0]).toEqual([
+    expect(onCapture.mock.calls[0]).toStrictEqual([
       { files: [], refused: [], urls: [{ title: null, url: "https://a.example" }] },
     ]);
     expect(event.defaultPrevented).toBe(true);

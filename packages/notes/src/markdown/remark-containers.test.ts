@@ -50,43 +50,47 @@ const stringified = (md: string): string => {
 describe("the :::tabs markers", () => {
   it("read the same under CRLF as under LF, and the `\\r` stays with the terminator", () => {
     const lf = ":::tabs\n=== A\nhello\nthere\n=== B\nworld\n:::\n";
-    expect(readings(lf)).toEqual([
+    expect(readings(lf)).toStrictEqual([
       { tabGroup: [{ "panel A": ["hello\nthere"] }, { "panel B": ["world"] }] },
     ]);
-    expect(readings(lf.replaceAll("\n", "\r\n"))).toEqual([
+    expect(readings(lf.replaceAll("\n", "\r\n"))).toStrictEqual([
       { tabGroup: [{ "panel A": ["hello\r\nthere"] }, { "panel B": ["world"] }] },
     ]);
   });
 
   it("refuse content before the first panel, keeping the whole block as prose", () => {
-    expect(readings(":::tabs\nloose\n=== A\nx\n:::\n")).toEqual([":::tabs\nloose\n=== A\nx\n:::"]);
+    expect(readings(":::tabs\nloose\n=== A\nx\n:::\n")).toStrictEqual([
+      ":::tabs\nloose\n=== A\nx\n:::",
+    ]);
   });
 });
 
 describe("a toggle and columns", () => {
   it("fold the blocks between an opener and its `:::`, nesting innermost-first", () => {
     const md = ":::toggle\nouter\n\n- item\n\n:::toggle\ninner\n:::\n:::\n\n:::toggle\n:::\n";
-    expect(readings(md)).toEqual([
+    expect(readings(md)).toStrictEqual([
       { toggle: ["outer", { list: [{ listItem: ["item"] }] }, { toggle: ["inner"] }] },
       { toggle: [] },
     ]);
   });
 
   it("read a column's width, and a bare column as none", () => {
-    expect(readings(":::columns\n:::column 50%\nleft\n:::\n:::column\nright\n:::\n:::\n")).toEqual([
-      { columnGroup: [{ "column 50%": ["left"] }, { "column bare": ["right"] }] },
-    ]);
+    expect(
+      readings(":::columns\n:::column 50%\nleft\n:::\n:::column\nright\n:::\n:::\n"),
+    ).toStrictEqual([{ columnGroup: [{ "column 50%": ["left"] }, { "column bare": ["right"] }] }]);
   });
 
   it("read inside a quote and a list item", () => {
-    expect(readings("> :::toggle\n> quoted\n> :::\n\n- :::toggle\n  listed\n  :::\n")).toEqual([
+    expect(
+      readings("> :::toggle\n> quoted\n> :::\n\n- :::toggle\n  listed\n  :::\n"),
+    ).toStrictEqual([
       { blockquote: [{ toggle: ["quoted"] }] },
       { list: [{ listItem: [{ toggle: ["listed"] }] }] },
     ]);
   });
 
   it("read a panel marker outside tabs as text", () => {
-    expect(readings(":::toggle\n=== not a panel\n:::\n")).toEqual([
+    expect(readings(":::toggle\n=== not a panel\n:::\n")).toStrictEqual([
       { toggle: ["=== not a panel"] },
     ]);
   });
@@ -99,15 +103,15 @@ describe("an opener whose container cannot be read whole stays prose", () => {
     ["content between columns", ":::columns\nloose\n:::column\nx\n:::\n:::\n"],
     ["columns with no column", ":::columns\n:::\n"],
   ])("%s", (_name, md) => {
-    expect(readings(md)).toEqual([md.trimEnd()]);
+    expect(readings(md)).toStrictEqual([md.trimEnd()]);
   });
 
   it("and the scan resumes after it", () => {
-    expect(readings(":::toggle\nstray\n\n:::toggle\nkept\n:::\n")).toEqual([
+    expect(readings(":::toggle\nstray\n\n:::toggle\nkept\n:::\n")).toStrictEqual([
       ":::toggle\nstray",
       { toggle: ["kept"] },
     ]);
-    expect(readings(":::columns\n:::toggle\nx\n:::\n:::\n")).toEqual([
+    expect(readings(":::columns\n:::toggle\nx\n:::\n:::\n")).toStrictEqual([
       ":::columns",
       { toggle: ["x"] },
       ":::",
@@ -166,7 +170,7 @@ describe("a container's markdown", () => {
   ])(
     "leaves a blank line after the marker before a rule opening %s, which would underline the marker as a heading",
     (_name, md, reading) => {
-      expect(readings(md)).toEqual([reading]);
+      expect(readings(md)).toStrictEqual([reading]);
       expect(stringified(md)).toBe(md);
     },
   );
@@ -179,17 +183,16 @@ describe("a container's markdown", () => {
 
 describe("the article section", () => {
   it("opens at the root and holds every other container", () => {
-    expect(readings("A note.\n\n:::article\nThe page.\n\n:::toggle\nfolded\n:::\n:::\n")).toEqual([
-      "A note.",
-      { articleSection: ["The page.", { toggle: ["folded"] }] },
-    ]);
+    expect(
+      readings("A note.\n\n:::article\nThe page.\n\n:::toggle\nfolded\n:::\n:::\n"),
+    ).toStrictEqual(["A note.", { articleSection: ["The page.", { toggle: ["folded"] }] }]);
   });
 
   it("is a line of text inside a container, and an unclosed one is prose", () => {
-    expect(readings(":::toggle\n:::article\ninside\n:::\n")).toEqual([
+    expect(readings(":::toggle\n:::article\ninside\n:::\n")).toStrictEqual([
       { toggle: [":::article\ninside"] },
     ]);
-    expect(readings(":::article\nnever closed\n")).toEqual([":::article\nnever closed"]);
+    expect(readings(":::article\nnever closed\n")).toStrictEqual([":::article\nnever closed"]);
   });
 
   it("writes its two lines, and escapes a line of text that would read as one", () => {

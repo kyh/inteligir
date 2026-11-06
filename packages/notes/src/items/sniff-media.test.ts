@@ -17,7 +17,7 @@ const pngOf = (width: number, height: number): Uint8Array => {
 };
 const ascii = (text: string): Uint8Array => new TextEncoder().encode(text);
 
-describe("sniffMedia", () => {
+describe(sniffMedia, () => {
   it.each([
     [bytes(0xff, 0xd8, 0xff, 0xe0), "image/jpeg"],
     [pngOf(1, 1), "image/png"],
@@ -40,13 +40,13 @@ describe("sniffMedia", () => {
   });
 });
 
-describe("pixelSize", () => {
+describe(pixelSize, () => {
   it("reads a picture's size from its header", () => {
-    expect(pixelSize(pngOf(640, 400), "image/png")).toEqual({ height: 400, width: 640 });
+    expect(pixelSize(pngOf(640, 400), "image/png")).toStrictEqual({ height: 400, width: 640 });
     const gif = new Uint8Array([...ascii("GIF89a"), 0x40, 0x01, 0xc8, 0x00]);
-    expect(pixelSize(gif, "image/gif")).toEqual({ height: 200, width: 320 });
+    expect(pixelSize(gif, "image/gif")).toStrictEqual({ height: 200, width: 320 });
     const jpeg = bytes(0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 0x08, 0x01, 0x90, 0x02, 0x58, 0x03);
-    expect(pixelSize(jpeg, "image/jpeg")).toEqual({ height: 400, width: 600 });
+    expect(pixelSize(jpeg, "image/jpeg")).toStrictEqual({ height: 400, width: 600 });
   });
 
   it("answers null for a vector picture or a header it cannot read", () => {
@@ -65,11 +65,11 @@ describe("the fill's sentences", () => {
     );
     expect(
       failureOf({ kind: "status", reason: "not found", status: 404, transient: false }),
-    ).toEqual({
+    ).toStrictEqual({
       sentence: "The site answered 404 (not found).",
       transient: false,
     });
-    expect(failureOf({ kind: "timeout" })).toEqual({
+    expect(failureOf({ kind: "timeout" })).toStrictEqual({
       sentence: "The page took too long to answer.",
       transient: true,
     });
@@ -84,13 +84,13 @@ describe("the fill's sentences", () => {
   });
 });
 
-describe("youTubeStills", () => {
+describe(youTubeStills, () => {
   it("names a video's own still frames, best first", () => {
-    expect(youTubeStills("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toEqual([
+    expect(youTubeStills("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toStrictEqual([
       "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
       "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
     ]);
     expect(youTubeStills("https://youtu.be/dQw4w9WgXcQ")).toHaveLength(2);
-    expect(youTubeStills("https://example.com/watch?v=dQw4w9WgXcQ")).toEqual([]);
+    expect(youTubeStills("https://example.com/watch?v=dQw4w9WgXcQ")).toStrictEqual([]);
   });
 });

@@ -152,7 +152,7 @@ describe("an item open in the editor", () => {
     const { cell, mac, phone } = await devices();
     const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), code("c1", ["one"])]);
     const { editor, session } = await openOn(phone, id);
-    expect(editor.children.map((node) => node.id)).toEqual(["p1", "c1"]);
+    expect(editor.children.map((node) => node.id)).toStrictEqual(["p1", "c1"]);
     expect(session.status()).toMatchObject({ fields: { title: "Plans" }, kind: "open" });
   });
 
@@ -166,10 +166,10 @@ describe("an item open in the editor", () => {
     });
     await mac.replica.sync();
     const { editor, session } = await openOn(phone, id);
-    expect(session.status()).toEqual({ kind: "missing" });
+    expect(session.status()).toStrictEqual({ kind: "missing" });
     await phone.replica.sync();
     await session.flush();
-    expect(editor.children.map((node) => node.id)).toEqual(["p1"]);
+    expect(editor.children.map((node) => node.id)).toStrictEqual(["p1"]);
     expect(session.status()).toMatchObject({ fields: { title: "Plans" }, kind: "open" });
   });
 
@@ -184,10 +184,10 @@ describe("an item open in the editor", () => {
     await pause(phone, session);
     expect(phone.replica.status().unsent).toBe(1);
     expect(session.status()).toMatchObject({ unsaved: false });
-    expect(cell.item(id)?.blocks.get("p1")?.block).toEqual(paragraph("p1", "first"));
+    expect(cell.item(id)?.blocks.get("p1")?.block).toStrictEqual(paragraph("p1", "first"));
     await phone.replica.sync();
-    expect(cellBlock(cell, id, "p1")).toEqual(paragraph("p1", "first words"));
-    expect(cellBlock(cell, id, "p2")).toEqual(paragraph("p2", "x"));
+    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first words"));
+    expect(cellBlock(cell, id, "p2")).toStrictEqual(paragraph("p2", "x"));
   });
 
   it("writes only the block typed in, though Plate names every element inside the others", async () => {
@@ -204,10 +204,10 @@ describe("an item open in the editor", () => {
     editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
     session.edited();
     await pause(phone, session);
-    expect(writes).toEqual(["put:p1"]);
+    expect(writes).toStrictEqual(["put:p1"]);
     await phone.replica.sync();
-    expect(cellBlock(cell, id, "c1")).toEqual(code("c1", ["one", "two"]));
-    expect(cellBlock(cell, id, "t1")).toEqual(table("t1", [["a", "b"]]));
+    expect(cellBlock(cell, id, "c1")).toStrictEqual(code("c1", ["one", "two"]));
+    expect(cellBlock(cell, id, "t1")).toStrictEqual(table("t1", [["a", "b"]]));
   });
 
   it("writes back no block laid in from another device", async () => {
@@ -236,7 +236,7 @@ describe("an item open in the editor", () => {
     editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
     session.edited();
     await pause(phone, session);
-    expect(writes).toEqual(["put:p1"]);
+    expect(writes).toStrictEqual(["put:p1"]);
   });
 
   it("settles a CONFLICT through the merge, keeping both devices' edits to one block", async () => {
@@ -265,7 +265,7 @@ describe("an item open in the editor", () => {
     expect(textOf(cellBlock(cell, id, "c1") ?? paragraph("c1", ""))).toBe(merged.join("\n"));
     expect(editorText(editor, 0)).toBe(merged.join("\n"));
     expect(phone.replica.status().unsent).toBe(0);
-    expect(overlaps).toEqual([]);
+    expect(overlaps).toStrictEqual([]);
   });
 
   it("says a CONFLICT whose merge kept this device's line over the other's change to it", async () => {
@@ -285,7 +285,7 @@ describe("an item open in the editor", () => {
     await pause(phone, session);
     await phone.replica.sync();
     await session.flush();
-    expect(overlaps).toEqual(["Plans"]);
+    expect(overlaps).toStrictEqual(["Plans"]);
     expect(textOf(cellBlock(cell, id, "c1") ?? paragraph("c1", ""))).toBe("one, the phone's\ntwo");
   });
 
@@ -305,7 +305,7 @@ describe("an item open in the editor", () => {
     await mac.replica.sync();
     await phone.replica.sync();
     await session.flush();
-    expect(overlaps).toEqual(["Plans"]);
+    expect(overlaps).toStrictEqual(["Plans"]);
     expect(editorText(editor, 0)).toBe("one, the phone's\ntwo");
   });
 
@@ -326,10 +326,10 @@ describe("an item open in the editor", () => {
     await session.flush();
     expect(editorText(editor, 0)).toBe("first!");
     expect(editorText(editor, 1)).toBe("from the Mac");
-    expect(editor.history.undos.length).toBe(undos);
+    expect(editor.history.undos).toHaveLength(undos);
     await phone.replica.sync();
-    expect(cellBlock(cell, id, "p1")).toEqual(paragraph("p1", "first!"));
-    expect(cellBlock(cell, id, "p2")).toEqual(paragraph("p2", "from the Mac"));
+    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
+    expect(cellBlock(cell, id, "p2")).toStrictEqual(paragraph("p2", "from the Mac"));
   });
 
   it("keeps its blocks while a replica that started over holds the row ahead of the body", async () => {
@@ -359,7 +359,7 @@ describe("an item open in the editor", () => {
       listener({ ids: new Set(), overlapped: new Set(), reset: true });
     }
     await session.flush();
-    expect(editor.children.map((node) => node.id)).toEqual(["p1", "p2"]);
+    expect(editor.children.map((node) => node.id)).toStrictEqual(["p1", "p2"]);
     expect(session.status()).toMatchObject({ kind: "open", unsaved: false });
     // the body lands again, carrying another device's edit, and the editor follows it
     startedOver = false;
@@ -431,7 +431,7 @@ describe("an item open in the editor", () => {
     const { session } = await openOn(phone, id);
     await session.flush();
     const source = itemProperties(session);
-    expect(source.read(source.snapshot())).toEqual({
+    expect(source.read(source.snapshot())).toStrictEqual({
       kind: "valid",
       properties: [{ key: "status", type: "text", value: "draft" }],
     });
@@ -439,11 +439,11 @@ describe("an item open in the editor", () => {
     source.commit({ kind: "add", prop: { key: "rating", type: "number", value: 4 } });
     await session.flush();
     await phone.replica.sync();
-    expect(cell.item(id)?.fields.properties).toEqual({ rating: 4, status: "done" });
+    expect(cell.item(id)?.fields.properties).toStrictEqual({ rating: 4, status: "done" });
     source.commit({ key: "status", kind: "remove" });
     await session.flush();
     await phone.replica.sync();
-    expect(cell.item(id)?.fields.properties).toEqual({ rating: 4 });
+    expect(cell.item(id)?.fields.properties).toStrictEqual({ rating: 4 });
   });
 
   it("follows the item again when it starts before its close has written", async () => {
@@ -464,7 +464,7 @@ describe("an item open in the editor", () => {
     await mac.replica.sync();
     await phone.replica.sync();
     await session.flush();
-    expect([editorText(editor, 0), editorText(editor, 1)]).toEqual(["first!", "the Mac's"]);
+    expect([editorText(editor, 0), editorText(editor, 1)]).toStrictEqual(["first!", "the Mac's"]);
   });
 
   it("keeps an edit unsaved and goes again after a pause when the item keeps changing", async () => {
@@ -495,7 +495,7 @@ describe("an item open in the editor", () => {
     await pause(phone, session);
     expect(session.status()).toMatchObject({ failure: null, unsaved: false });
     await phone.replica.sync();
-    expect(cellBlock(cell, id, "p1")).toEqual(paragraph("p1", "first!"));
+    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
   });
 
   it("opens with no undo reaching what the editor held before the item", async () => {

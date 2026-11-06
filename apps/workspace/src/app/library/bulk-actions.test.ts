@@ -22,7 +22,7 @@ describe("a bulk verb", () => {
       run: async ([path]) => await Promise.resolve(path === "taken.md" ? 0 : 1),
       verb: "Moving",
     });
-    expect(outcome).toEqual({ count: 2, kind: "done" });
+    expect(outcome).toStrictEqual({ count: 2, kind: "done" });
     expect(success).toHaveBeenCalledWith("Moved 2 to Reading", expect.anything());
   });
 
@@ -36,8 +36,8 @@ describe("a bulk verb", () => {
       run: async () => await Promise.resolve(0),
       verb: "Moving",
     });
-    expect(outcome).toEqual({ count: 0, kind: "done" });
+    expect(outcome).toStrictEqual({ count: 0, kind: "done" });
     expect(success).not.toHaveBeenCalled();
-    expect(dismiss).toHaveBeenCalled();
+    expect(dismiss).toHaveBeenCalledWith(expect.anything());
   });
 });

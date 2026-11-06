@@ -70,34 +70,38 @@ const spansOf = (md: string) => {
 describe("annotation range pairing", () => {
   it("pairs a range and reads its ids", () => {
     const { editor, spans } = spansOf("x %%i:c1:start%%mid%%i:c1:end%% y\n");
-    expect(spans).toEqual([{ block: 0, extent: "mid", ids: ["c1"], orphan: false }]);
+    expect(spans).toStrictEqual([{ block: 0, extent: "mid", ids: ["c1"], orphan: false }]);
     const [block] = editor.children;
     expect(block !== undefined && blockHoldsAnnotationMarkers(block)).toBe(true);
   });
 
   it("pairs a multi-root marker once", () => {
     const { spans } = spansOf("x %%i:a,b:start%%mid%%i:a,b:end%% y\n");
-    expect(spans).toEqual([{ block: 0, extent: "mid", ids: ["a", "b"], orphan: false }]);
+    expect(spans).toStrictEqual([{ block: 0, extent: "mid", ids: ["a", "b"], orphan: false }]);
   });
 
   it("surfaces a lone edge as an orphan over the block holding it", () => {
     const { spans } = spansOf("x %%i:c1:start%%never closed\n");
-    expect(spans).toEqual([{ block: 0, extent: "x never closed", ids: ["c1"], orphan: true }]);
+    expect(spans).toStrictEqual([
+      { block: 0, extent: "x never closed", ids: ["c1"], orphan: true },
+    ]);
   });
 
   it("pairs a range across two paragraphs and holds it at the block it starts in", () => {
     const { spans } = spansOf("first %%i:y:start%%para\n\nsecond para%%i:y:end%% tail\n");
-    expect(spans).toEqual([{ block: 0, extent: "parasecond para", ids: ["y"], orphan: false }]);
+    expect(spans).toStrictEqual([
+      { block: 0, extent: "parasecond para", ids: ["y"], orphan: false },
+    ]);
   });
 
   it("pairs markers on their own lines around a fence, the dialect's block annotation", () => {
     const { spans } = spansOf("%%i:x:start%%\n```js\ncode\n```\n%%i:x:end%%\n");
-    expect(spans).toEqual([{ block: 0, extent: "code", ids: ["x"], orphan: false }]);
+    expect(spans).toStrictEqual([{ block: 0, extent: "code", ids: ["x"], orphan: false }]);
   });
 
   it("orphans a start that a second start with the same ids replaced", () => {
     const { spans } = spansOf("%%i:c1:start%%a\n\n%%i:c1:start%%b%%i:c1:end%%\n");
-    expect(spans).toEqual([
+    expect(spans).toStrictEqual([
       { block: 0, extent: "a", ids: ["c1"], orphan: true },
       { block: 1, extent: "b", ids: ["c1"], orphan: false },
     ]);
@@ -105,7 +109,7 @@ describe("annotation range pairing", () => {
 
   it("orphans an end with no start before it, even when a start follows", () => {
     const { spans } = spansOf("a%%i:c1:end%%\n\n%%i:c1:start%%b\n");
-    expect(spans).toEqual([
+    expect(spans).toStrictEqual([
       { block: 0, extent: "a", ids: ["c1"], orphan: true },
       { block: 1, extent: "b", ids: ["c1"], orphan: true },
     ]);

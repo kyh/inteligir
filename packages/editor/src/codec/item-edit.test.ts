@@ -135,7 +135,7 @@ describe("the agent's view of an item", () => {
           [{ newText: view.markdown, oldText: view.markdown }],
           portsWith(),
         );
-        expect(whole.kind === "changed" ? whole.ops : whole, `${dir}/${file}`).toEqual([]);
+        expect(whole.kind === "changed" ? whole.ops : whole, `${dir}/${file}`).toStrictEqual([]);
       }
     }
   });
@@ -190,9 +190,11 @@ describe("an edit made on the view", () => {
     const last = [...blocks.values()].find((stored) =>
       JSON.stringify(stored.block).includes("Last line"),
     );
-    expect(outcome.ops).toEqual([expect.objectContaining({ baseHash: last?.hash, op: "put" })]);
+    expect(outcome.ops).toStrictEqual([
+      expect.objectContaining({ baseHash: last?.hash, op: "put" }),
+    ]);
     const after = landed(blocks, outcome.ops);
-    expect([...after.keys()]).toEqual([...blocks.keys()]);
+    expect([...after.keys()]).toStrictEqual([...blocks.keys()]);
     expect(textOf(after)).toContain("Last line, edited.");
   });
 
@@ -206,7 +208,7 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(outcome.ops.map((op) => op.op)).toEqual(["insert"]);
+    expect(outcome.ops.map((op) => op.op)).toStrictEqual(["insert"]);
     const after = landed(blocks, outcome.ops);
     const order = [...after.values()]
       .toSorted((a, b) =>
@@ -223,7 +225,9 @@ describe("an edit made on the view", () => {
   it("drops a block it deleted", () => {
     const blocks = storedOf(NOTE);
     const outcome = editItemView(blocks, [{ newText: "", oldText: "\n\nLast line." }], portsWith());
-    expect(outcome.kind === "changed" ? outcome.ops.map((op) => op.op) : outcome).toEqual(["drop"]);
+    expect(outcome.kind === "changed" ? outcome.ops.map((op) => op.op) : outcome).toStrictEqual([
+      "drop",
+    ]);
   });
 
   it("reads a list again whole, and puts only the item it changed", () => {
@@ -285,7 +289,7 @@ describe("an edit made on the view", () => {
           portsWith(),
         ),
         String(depth),
-      ).toEqual({ kind: "refused", refusal: { edit: 0, kind: "too-deep" } });
+      ).toStrictEqual({ kind: "refused", refusal: { edit: 0, kind: "too-deep" } });
     }
   });
 
@@ -305,7 +309,7 @@ describe("an edit made on the view", () => {
 
   it("refuses an old text it cannot place once", () => {
     const blocks = storedOf(NOTE);
-    expect(editItemView(blocks, [{ newText: "x", oldText: "" }], portsWith())).toEqual({
+    expect(editItemView(blocks, [{ newText: "x", oldText: "" }], portsWith())).toStrictEqual({
       kind: "refused",
       refusal: { edit: 0, kind: "empty" },
     });
@@ -327,7 +331,7 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(outcome.ops.map((op) => op.op)).toEqual(["put"]);
+    expect(outcome.ops.map((op) => op.op)).toStrictEqual(["put"]);
     expect(textOf(landed(blocks, outcome.ops))).toBe(
       textOf(blocks).replace("Last line.", "Last line, edited."),
     );
@@ -357,7 +361,7 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(outcome.ops).toEqual([expect.objectContaining({ op: "insert", section: "note" })]);
+    expect(outcome.ops).toStrictEqual([expect.objectContaining({ op: "insert", section: "note" })]);
     expect(textOf(landed(blocks, outcome.ops))).toBe("My summary.\n\n:::article\n\nPage.\n\n:::\n");
   });
 
@@ -376,7 +380,7 @@ describe("an edit made on the view", () => {
     if (outcome.kind !== "changed") {
       throw new Error(outcome.refusal.kind);
     }
-    expect(outcome.ops.map((op) => op.op)).toEqual(["put", "put"]);
+    expect(outcome.ops.map((op) => op.op)).toStrictEqual(["put", "put"]);
     expect(textOf(landed(blocks, outcome.ops))).toBe(
       "Note, edited.\n\n:::article\n\nPage, edited.\n\n:::\n",
     );

@@ -4,8 +4,11 @@ import antiSlop from "ultracite/oxlint/anti-slop";
 import core from "ultracite/oxlint/core";
 import react from "ultracite/oxlint/react";
 import tanstack from "ultracite/oxlint/tanstack";
+import vitest from "ultracite/oxlint/vitest";
 
 const tests = ["**/test-support/**", "**/*.test.ts", "**/*.test.tsx"];
+// the suites ultracite's vitest preset lints, as its override names them for this repo's TypeScript
+const suites = ["**/*.{test,test-d}.{ts,tsx}"];
 
 // A regex, not a group: a group matches gitignore-style, so "react" would also refuse
 // "@platejs/react", and a bare name or one `/*` misses a package's deeper subpaths.
@@ -120,7 +123,7 @@ const platformPurity = (dir: string, regex: string, message: string) => ({
 });
 
 export default defineConfig({
-  extends: [core, react, tanstack, antiSlop],
+  extends: [core, react, tanstack, antiSlop, vitest],
   options: { reportUnusedDisableDirectives: "error", typeAware: true },
   // TanStack Query's own rules, as its docs load them into oxlint; no-void-query-fn reads types a
   // JS plugin is not handed, so the type-aware pass's own rules stand in for it
@@ -169,6 +172,34 @@ export default defineConfig({
         "typescript/no-unsafe-argument": "off",
         "typescript/no-unsafe-assignment": "off",
         "typescript/no-unsafe-return": "off",
+      },
+    },
+    {
+      // ultracite's vitest preset, held to how a suite here is written; a rule's options only
+      // reach a file whose override names the plugin
+      files: suites,
+      plugins: ["vitest"],
+      rules: {
+        // a helper spelled `expect…` (expectOpaque, expectBudget) asserts, so a test calling it does
+        "vitest/expect-expect": [
+          "error",
+          { assertFunctionNames: ["assert", "assertType", "expect", "expect*", "expectTypeOf"] },
+        ],
+        // a test walks one flow and claims each step it takes (an account signed up, a turn run,
+        // its rows read); cut at five claims, each test would replay the steps before it
+        "vitest/max-expects": "off",
+        // an afterEach holds every test of its file to one claim, as the agent's suites hold each
+        // to the scripted Claude having dropped no thinking block
+        "vitest/no-standalone-expect": ["error", { additionalTestBlockFunctions: ["afterEach"] }],
+        // `toBe(true)` holds a value to the boolean, where toBeTruthy passes a 1 or a string
+        "vitest/prefer-to-be-falsy": "off",
+        "vitest/prefer-to-be-truthy": "off",
+        // a file of one subject names it in its own name, and a describe around its every test
+        // would say it twice
+        "vitest/require-top-level-describe": "off",
+        // vitest's expect takes the message a failure prints second, which a looped claim names
+        // its case with
+        "vitest/valid-expect": ["error", { maxArgs: 2 }],
       },
     },
     {
@@ -338,7 +369,7 @@ export default defineConfig({
   rules: {
     ...pluginQuery.configs.recommended.rules,
     "no-restricted-imports": restrictedImports([]),
-    // Its message asks for a `// SAFETY:` comment, which admits nothing now that
+    // Its message asks for a `// SAFETY:` comment, which admits nothing:
     // `typescript/consistent-type-assertions` refuses every assertion.
     "anti-slop/require-safety-comment-for-type-assertion": "off",
     // Sequential awaits in loops are deliberate here: the outbox sends its rows oldest first, an
@@ -369,8 +400,8 @@ export default defineConfig({
     // No type assertion and no escape comment: parse at the boundary or narrow with a
     // type guard. `as const` asserts no other type and stays legal.
     "typescript/consistent-type-assertions": ["error", { assertionStyle: "never" }],
-    // `instanceof Function` discriminates a `string | (() => T)` union now that
-    // anti-slop owns the `typeof` spelling; every site checks a value this realm built.
+    // `instanceof Function` discriminates a `string | (() => T)` union, since anti-slop
+    // owns the `typeof` spelling; every site checks a value this realm built.
     "unicorn/no-instanceof-builtins": ["error", { exclude: ["Function"] }],
   },
 });

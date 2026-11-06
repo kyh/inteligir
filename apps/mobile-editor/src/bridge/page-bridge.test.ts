@@ -55,7 +55,7 @@ describe("connecting", () => {
   it("says it is ready before it knows a nonce, and connects on the first init", async () => {
     const phone = createFakePhone();
     const connecting = connectPageBridge(phone.transport);
-    expect(phone.sent).toEqual([{ type: "ready" }]);
+    expect(phone.sent).toStrictEqual([{ type: "ready" }]);
 
     phone.init({ itemId: OTHER });
     const { init } = await connecting;
@@ -67,7 +67,7 @@ describe("connecting", () => {
     phone.init({ itemId: OTHER, nonce: "another-load-nonce-000" });
 
     bridge.emit({ itemId: OTHER, type: "openItem" });
-    expect(phone.events("openItem")).toEqual([
+    expect(phone.events("openItem")).toStrictEqual([
       { itemId: OTHER, nonce: PHONE_NONCE, type: "openItem" },
     ]);
   });
@@ -84,8 +84,8 @@ describe("a request", () => {
     phone.deliver(answered(b?.id, "b"));
     phone.deliver(answered(a?.id, "a"));
 
-    await expect(first).resolves.toEqual(targetsTitled("a"));
-    await expect(second).resolves.toEqual(targetsTitled("b"));
+    await expect(first).resolves.toStrictEqual(targetsTitled("a"));
+    await expect(second).resolves.toStrictEqual(targetsTitled("b"));
   });
 
   it("rejects with the phone's own words when it refuses", async () => {
@@ -97,7 +97,9 @@ describe("a request", () => {
   it("rejects an answer that is not the shape its kind promises", async () => {
     const { bridge, phone } = await connected();
     phone.answer = () => ({ ok: true, result: { kind: "queued" } });
-    await expect(bridge.request("item", { itemId: ITEM })).rejects.toThrow();
+    await expect(bridge.request("item", { itemId: ITEM })).rejects.toThrow(
+      "expected object, received undefined",
+    );
   });
 
   it("gives up after its timeout, and a late answer changes nothing", async () => {
@@ -105,10 +107,11 @@ describe("a request", () => {
     const { bridge, phone } = await connected();
     phone.answer = () => null;
 
-    const asked = bridge.request("wikiTargets", {});
-    const settled = expect(asked).rejects.toThrow(/did not answer wikiTargets/u);
-    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
-    await settled;
+    // the refusal is asked for before the clock moves, so the rejection always has its handler
+    await Promise.all([
+      expect(bridge.request("wikiTargets", {})).rejects.toThrow(/did not answer wikiTargets/u),
+      vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS),
+    ]);
 
     const [frame] = phone.requests("wikiTargets");
     expect(() => {
@@ -138,13 +141,15 @@ describe("a request", () => {
       result: { queued: true },
       type: "response",
     });
-    await expect(marking).resolves.toEqual({ queued: true });
+    await expect(marking).resolves.toStrictEqual({ queued: true });
   });
 
   it("refuses a malformed ask before it reaches the phone", async () => {
     const { bridge, phone } = await connected();
-    await expect(bridge.request("item", { itemId: "" })).rejects.toThrow();
-    expect(phone.requests("item")).toEqual([]);
+    await expect(bridge.request("item", { itemId: "" })).rejects.toThrow(
+      "expected string to have >=1 characters",
+    );
+    expect(phone.requests("item")).toStrictEqual([]);
   });
 });
 
@@ -155,10 +160,10 @@ describe("what the page drops", () => {
       JSON.stringify({ ids: [ITEM], overlapped: [], reset: false, type: "itemChanged" }),
     );
     phone.deliver({ ...changed, nonce: "another-load-nonce-000" });
-    expect(heard).toEqual([]);
+    expect(heard).toStrictEqual([]);
 
     phone.deliver(changed);
-    expect(heard).toEqual([changed]);
+    expect(heard).toStrictEqual([changed]);
   });
 
   it("a response with no nonce, which settles nothing", async () => {
@@ -177,7 +182,7 @@ describe("what the page drops", () => {
     );
     phone.deliver(answered(frame?.id, "real"));
 
-    await expect(asked).resolves.toEqual(targetsTitled("real"));
+    await expect(asked).resolves.toStrictEqual(targetsTitled("real"));
   });
 
   it("anything that is not a frame", async () => {
@@ -194,7 +199,7 @@ describe("what the page drops", () => {
     ]) {
       phone.deliverText(garbage);
     }
-    expect(heard).toEqual([]);
+    expect(heard).toStrictEqual([]);
   });
 });
 
@@ -207,7 +212,7 @@ describe("the window transport", () => {
       },
     };
     const connecting = connectPageBridge(windowTransport(window));
-    expect(posted.map((text) => JSON.parse(text))).toEqual([{ type: "ready" }]);
+    expect(posted.map((text) => JSON.parse(text))).toStrictEqual([{ type: "ready" }]);
 
     const door = window[PAGE_RECEIVER];
     expect(() => {
@@ -230,7 +235,7 @@ describe("the window transport", () => {
     expect(init).toMatchObject({ focus: "body", itemId: ITEM, mode: "item" });
 
     bridge.emit({ itemId: OTHER, type: "openItem" });
-    expect(JSON.parse(posted.at(-1) ?? "null")).toEqual({
+    expect(JSON.parse(posted.at(-1) ?? "null")).toStrictEqual({
       itemId: OTHER,
       nonce: PHONE_NONCE,
       type: "openItem",

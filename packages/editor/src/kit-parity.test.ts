@@ -53,7 +53,7 @@ describe("kit parity (Base half)", () => {
     expect(optionsB.rules).toBe(MD_RULES);
     expect(optionsA.remarkPlugins).toBe(MD_REMARK_PLUGINS);
     expect(optionsB.remarkPlugins).toBe(MD_REMARK_PLUGINS);
-    expect(optionsA.disallowedNodes).toEqual(["slash_input", "wiki_input", "formula_input"]);
+    expect(optionsA.disallowedNodes).toStrictEqual(["slash_input", "wiki_input", "formula_input"]);
   });
 
   it("serializes the canonical corpus identically across editor instances", () => {
@@ -88,14 +88,14 @@ describe("kit parity (live editor mirror)", () => {
   it("EDITOR_KIT is a plugin superset of BASE_KIT", () => {
     const liveKeys = new Set(Object.keys(live.plugins));
     const missing = Object.keys(base.plugins).filter((key) => !liveKeys.has(key));
-    expect(missing, "BASE_KIT plugins missing from the live editor").toEqual([]);
+    expect(missing, "BASE_KIT plugins missing from the live editor").toStrictEqual([]);
   });
 
   it("the live editor shares the MarkdownPlugin config by reference", () => {
     const options = live.getOptions(MarkdownPlugin);
     expect(options.rules).toBe(MD_RULES);
     expect(options.remarkPlugins).toBe(MD_REMARK_PLUGINS);
-    expect(options.disallowedNodes).toEqual(["slash_input", "wiki_input", "formula_input"]);
+    expect(options.disallowedNodes).toStrictEqual(["slash_input", "wiki_input", "formula_input"]);
   });
 
   it("both editors agree on inline/void metadata for every corpus element", () => {
@@ -151,7 +151,7 @@ describe("kit parity (live editor mirror)", () => {
         jsx.push(key);
       }
     }
-    expect(jsx).toEqual([]);
+    expect(jsx).toStrictEqual([]);
   });
 
   it("the live editor serializes the canonical corpus to BASE_KIT's bytes", () => {

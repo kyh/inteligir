@@ -45,7 +45,7 @@ describe("the client build floor", () => {
   it("refuses a call that names no build, or one it cannot read", async () => {
     const { credential } = await signedIn("floor-missing@example.test");
     for (const build of [null, "", "0.7.0", "latest+desktop"]) {
-      expect(await refusalOfList(asBuild(credential, build)), String(build)).toMatchObject(
+      await expect(refusalOfList(asBuild(credential, build)), String(build)).resolves.toMatchObject(
         OUTDATED,
       );
     }
@@ -54,11 +54,13 @@ describe("the client build floor", () => {
   it("refuses a build below the floor, and its prerelease, before it judges the credential", async () => {
     const { credential } = await signedIn("floor-below@example.test");
     for (const build of [`${below()}+desktop`, `${env.MIN_CLIENT_BUILD}-beta.1+mobile`]) {
-      expect(await refusalOfList(asBuild(credential, build)), build).toMatchObject(OUTDATED);
+      await expect(refusalOfList(asBuild(credential, build)), build).resolves.toMatchObject(
+        OUTDATED,
+      );
     }
-    expect(await refusalOfList({ [CLIENT_BUILD_HEADER]: `${below()}+desktop` })).toMatchObject(
-      OUTDATED,
-    );
+    await expect(
+      refusalOfList({ [CLIENT_BUILD_HEADER]: `${below()}+desktop` }),
+    ).resolves.toMatchObject(OUTDATED);
   });
 
   it("answers a build at or above the floor, whatever platform it names", async () => {
@@ -68,21 +70,21 @@ describe("the client build floor", () => {
       asBuild(credential, `${versionAround(1, 0)}+android`),
     ]) {
       const { devices } = await v1Link(headers).account.devices.list();
-      expect(devices.map((row) => row.name)).toEqual(["Laptop"]);
+      expect(devices.map((row) => row.name)).toStrictEqual(["Laptop"]);
     }
   });
 
   it("refuses the sign-in before it checks the password", async () => {
     const stale = v1Link({});
-    expect(
-      await stale.refusalOf(
+    await expect(
+      stale.refusalOf(
         stale.account.signIn({
           deviceName: "Laptop",
           email: "nobody@example.test",
           password: "not-the-password",
         }),
       ),
-    ).toMatchObject(OUTDATED);
+    ).resolves.toMatchObject(OUTDATED);
   });
 
   it("refuses a file and an export as it refuses a call", async () => {
@@ -102,9 +104,9 @@ describe("the client build floor", () => {
     const { cookie } = await signedIn("floor-page@example.test");
     const { devices } = await v1Link(sessionHeaders(cookie)).account.devices.list();
     expect(devices).toHaveLength(1);
-    expect(
-      await refusalOfList({ ...sessionHeaders(cookie), "sec-fetch-site": "cross-site" }),
-    ).toMatchObject(OUTDATED);
+    await expect(
+      refusalOfList({ ...sessionHeaders(cookie), "sec-fetch-site": "cross-site" }),
+    ).resolves.toMatchObject(OUTDATED);
   });
 
   it("leaves what is outside /v1 alone", async () => {

@@ -46,7 +46,7 @@ const set = (id: string, turn: number) => ({
 });
 
 const panel = (
-  flushOpen = vi.fn(async () => {
+  flushOpen = vi.fn<() => Promise<void>>(async () => {
     await Promise.resolve();
   }),
 ) => (
@@ -85,14 +85,14 @@ describe("the agent panel's conversation", () => {
     renderOnLibrary(panel(), library);
     fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
     await waitFor(() => {
-      expect(callsTo(calls, "library.agent.respond")).toEqual([
+      expect(callsTo(calls, "library.agent.respond")).toStrictEqual([
         { eventId: "e1", result: "allow", threadId: THREAD },
       ]);
     });
   });
 
   it("undoes a turn's set once the open item is written, and the conversation from every page", async () => {
-    const flushOpen = vi.fn(async () => {
+    const flushOpen = vi.fn<() => Promise<void>>(async () => {
       await Promise.resolve();
     });
     const { calls, library } = fakePageLibrary({
@@ -120,12 +120,12 @@ describe("the agent panel's conversation", () => {
     });
     fireEvent.click(screen.getAllByRole("button", { name: "Undo this turn" })[0] ?? document.body);
     await waitFor(() => {
-      expect(callsTo(calls, "library.history.undo")).toEqual([{ changeSetIds: ["s1"] }]);
+      expect(callsTo(calls, "library.history.undo")).toStrictEqual([{ changeSetIds: ["s1"] }]);
     });
     expect(flushOpen).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole("button", { name: "Undo this conversation" }));
     await waitFor(() => {
-      expect(callsTo(calls, "library.history.undo")).toEqual([
+      expect(callsTo(calls, "library.history.undo")).toStrictEqual([
         { changeSetIds: ["s1"] },
         { changeSetIds: ["s2", "s1"] },
       ]);
@@ -143,7 +143,7 @@ describe("the agent panel's conversation", () => {
         threadId={null}
         onThread={onThread}
         viewContext={() => ({ itemId: THREAD, surface: "item" })}
-        flushOpen={vi.fn(async () => {
+        flushOpen={vi.fn<() => Promise<void>>(async () => {
           await Promise.resolve();
         })}
         tidying
@@ -156,7 +156,7 @@ describe("the agent panel's conversation", () => {
     await waitFor(() => {
       expect(onThread).toHaveBeenCalledWith(THREAD);
     });
-    expect(callsTo(calls, "library.agent.send")).toEqual([
+    expect(callsTo(calls, "library.agent.send")).toStrictEqual([
       { text: tidyMessage(""), viewContext: TIDY_VIEW_CONTEXT },
     ]);
     expect(onTidyEnd).toHaveBeenCalledOnce();

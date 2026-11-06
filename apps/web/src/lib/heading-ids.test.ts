@@ -41,12 +41,22 @@ describe("heading ids", () => {
 
   it("numbers a repeated heading as GitHub does, afresh for each document", () => {
     const markdown = "# Notes\n\n## Retention\n\nOne.\n\n### Retention\n\nTwo.\n\n## Retention\n";
-    expect(idsIn(render(markdown))).toEqual(["notes", "retention", "retention-1", "retention-2"]);
-    expect(idsIn(render(markdown))).toEqual(["notes", "retention", "retention-1", "retention-2"]);
+    expect(idsIn(render(markdown))).toStrictEqual([
+      "notes",
+      "retention",
+      "retention-1",
+      "retention-2",
+    ]);
+    expect(idsIn(render(markdown))).toStrictEqual([
+      "notes",
+      "retention",
+      "retention-1",
+      "retention-2",
+    ]);
   });
 
   it("reads a heading's text through its inline markup", () => {
-    expect(idsIn(render("## The **bold** `code` part\n"))).toEqual(["the-bold-code-part"]);
+    expect(idsIn(render("## The **bold** `code` part\n"))).toStrictEqual(["the-bold-code-part"]);
   });
 });
 
@@ -66,7 +76,7 @@ describe("the legal docs", () => {
       "every-address-the-app-talks-to",
     );
     const ids = new Set(idsIn(render(privacy)));
-    expect(anchors.filter((anchor) => !ids.has(anchor))).toEqual([]);
+    expect(anchors.filter((anchor) => !ids.has(anchor))).toStrictEqual([]);
   });
 
   it("links the terms to the privacy policy", () => {

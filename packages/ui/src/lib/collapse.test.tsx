@@ -7,7 +7,7 @@ import { Collapse } from "./collapse";
 
 afterEach(cleanup);
 
-describe("Collapse", () => {
+describe(Collapse, () => {
   it("makes a closed fold inert, so the controls it clips leave the tab order with the accessibility tree", () => {
     const { rerender } = render(
       <Collapse open={false}>

@@ -45,7 +45,7 @@ describe("the account's socket, a hint", () => {
     socket?.message("{not json");
     socket?.message(JSON.stringify({ type: "from a newer cell" }));
     expect(opened).toBe(1);
-    expect(frames).toEqual([{ head: 7, type: "library" }]);
+    expect(frames).toStrictEqual([{ head: 7, type: "library" }]);
     hint.close();
   });
 
@@ -65,7 +65,7 @@ describe("the account's socket, a hint", () => {
     const [socket] = sockets;
     socket?.open();
     clock.advance(45_000);
-    expect(socket?.sent).toEqual(["ping"]);
+    expect(socket?.sent).toStrictEqual(["ping"]);
     socket?.message("pong");
     clock.advance(45_000);
     expect(socket?.closed).toBe(false);

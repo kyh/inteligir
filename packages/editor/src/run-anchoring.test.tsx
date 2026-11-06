@@ -166,7 +166,7 @@ describe("the anchor a long note's runs keep where the engine keeps none", () =>
   it("does nothing where the engine keeps its own anchor", () => {
     supports = true;
     const { cleanups } = mount();
-    expect(cleanups).toEqual([undefined, undefined]);
+    expect(cleanups).toStrictEqual([undefined, undefined]);
     expect(observers).toHaveLength(0);
   });
 });

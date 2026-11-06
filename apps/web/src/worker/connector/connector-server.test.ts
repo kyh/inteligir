@@ -65,7 +65,7 @@ describe("the connector's tools", () => {
   it("lists every tool to a grant that may change the library, and says what saved pages are", async () => {
     const client = await assistantFor("tools-full@example.test");
     const { tools } = await client.listTools();
-    expect(tools.map((tool) => tool.name)).toEqual(ALL_TOOLS);
+    expect(tools.map((tool) => tool.name)).toStrictEqual(ALL_TOOLS);
     for (const tool of tools) {
       expect(tool.title?.length ?? 0, tool.name).toBeGreaterThan(0);
     }
@@ -82,7 +82,7 @@ describe("the connector's tools", () => {
   it("lists only the six reading tools to a grant kept to reading, and refuses it a write", async () => {
     const client = await assistantFor("tools-read@example.test", true);
     const { tools } = await client.listTools();
-    expect(tools.map((tool) => tool.name)).toEqual(READ_TOOLS);
+    expect(tools.map((tool) => tool.name)).toStrictEqual(READ_TOOLS);
     expect(tools.every((tool) => tool.annotations?.readOnlyHint === true)).toBe(true);
     // a tool the grant does not hold is one the server never registered
     await expect(
@@ -102,7 +102,7 @@ describe("the connector's tools", () => {
       z.object({ hits: z.array(z.object({ id: z.string() })) }),
       { arguments: { query: "quick fox" }, name: "search_library" },
     );
-    expect(found.hits.map((hit) => hit.id)).toEqual([item.id]);
+    expect(found.hits.map((hit) => hit.id)).toStrictEqual([item.id]);
 
     const read = await structured(client, readSchema, {
       arguments: { id: item.id },
@@ -132,7 +132,7 @@ describe("the connector's tools", () => {
       }),
       { arguments: { itemId: item.id }, name: "item_history" },
     );
-    expect(history.changeSets).toEqual([
+    expect(history.changeSets).toStrictEqual([
       expect.objectContaining({ actor: "assistant", itemCount: 1, label: "Claude" }),
     ]);
     await client.close();
@@ -197,8 +197,8 @@ describe("the connector's tools", () => {
     // a grant's tools never change, so a client that would listen for a change is told not to
     expect(client.getServerCapabilities()?.tools?.listChanged).toBe(false);
     const { tools } = await client.listTools();
-    expect(tools.map((tool) => tool.name)).toEqual(READ_TOOLS);
-    expect(methods).toEqual(["server/discover", "tools/list"]);
+    expect(tools.map((tool) => tool.name)).toStrictEqual(READ_TOOLS);
+    expect(methods).toStrictEqual(["server/discover", "tools/list"]);
     // the list depends on the grant's scope, so no cache but this client's may keep it
     expect(listed).toMatchObject({ result: { cacheScope: "private" } });
     await client.close();

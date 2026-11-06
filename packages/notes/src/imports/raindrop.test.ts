@@ -19,14 +19,14 @@ const rowsOf = (text: string): RaindropRow[] => {
   return parsed.rows;
 };
 
-describe("parseRaindropCsv", () => {
+describe(parseRaindropCsv, () => {
   it("reads the export's rows and says why the others were left out", () => {
     const parsed = parseRaindropCsv(FIXTURE);
     if (!parsed.ok) {
       throw new Error(parsed.reason);
     }
-    expect(parsed.rows.map((row) => row.record)).toEqual([1, 2, 3, 7, 8, 9, 10]);
-    expect(parsed.skipped).toEqual([
+    expect(parsed.rows.map((row) => row.record)).toStrictEqual([1, 2, 3, 7, 8, 9, 10]);
+    expect(parsed.skipped).toStrictEqual([
       { reason: "in-trash", record: 4 },
       { reason: "no-url", record: 5 },
       { reason: "not-web-url", record: 6 },
@@ -58,41 +58,41 @@ describe("parseRaindropCsv", () => {
 
   it("puts every row of a per-collection export, which has no folder column, in Unsorted", () => {
     const plan = planRaindropImport(rowsOf("title,url\nA,https://a.example/\n"), NOW);
-    expect(plan.items.map((item) => item.folder)).toEqual(["Unsorted"]);
+    expect(plan.items.map((item) => item.folder)).toStrictEqual(["Unsorted"]);
   });
 
   it("refuses a file that is no Raindrop export, saying how", () => {
-    expect(parseRaindropCsv('a,"b\n')).toEqual({ ok: false, reason: "not-csv" });
-    expect(parseRaindropCsv("title,link\nA,https://a.example/\n")).toEqual({
+    expect(parseRaindropCsv('a,"b\n')).toStrictEqual({ ok: false, reason: "not-csv" });
+    expect(parseRaindropCsv("title,link\nA,https://a.example/\n")).toStrictEqual({
       ok: false,
       reason: "no-url-column",
     });
-    expect(parseRaindropCsv("title,url\n")).toEqual({ ok: false, reason: "empty" });
-    expect(parseRaindropCsv("")).toEqual({ ok: false, reason: "empty" });
+    expect(parseRaindropCsv("title,url\n")).toStrictEqual({ ok: false, reason: "empty" });
+    expect(parseRaindropCsv("")).toStrictEqual({ ok: false, reason: "empty" });
   });
 });
 
-describe("parseRaindropHighlights", () => {
+describe(parseRaindropHighlights, () => {
   it("opens a block at each Highlight line and its note at a Note line", () => {
     expect(
       parseRaindropHighlights(
         "Highlight: Files last.\nNote: The point.\n\nhighlight : Apps are ephemeral,\nbut files are not.",
       ),
-    ).toEqual([
+    ).toStrictEqual([
       { note: "The point.", quote: "Files last." },
       { note: "", quote: "Apps are ephemeral,\nbut files are not." },
     ]);
   });
 
   it("reads a cell with no Highlight line as one quote", () => {
-    expect(parseRaindropHighlights("  Use the zest.  ")).toEqual([
+    expect(parseRaindropHighlights("  Use the zest.  ")).toStrictEqual([
       { note: "", quote: "Use the zest." },
     ]);
-    expect(parseRaindropHighlights("")).toEqual([]);
+    expect(parseRaindropHighlights("")).toStrictEqual([]);
   });
 });
 
-describe("toTagName", () => {
+describe(toTagName, () => {
   it.each([
     ["philosophy", "philosophy"],
     ["#Quick Meals", "Quick-Meals"],
@@ -109,7 +109,7 @@ describe("toTagName", () => {
   });
 });
 
-describe("planRaindropImport", () => {
+describe(planRaindropImport, () => {
   const plan = planRaindropImport(rowsOf(FIXTURE), NOW);
   const byUrl = new Map(plan.items.map((item) => [item.url, item]));
 
@@ -129,12 +129,12 @@ describe("planRaindropImport", () => {
       tags: ["philosophy", "files", "ideas", "c"],
       title: "File over app",
     });
-    expect(item?.highlights).toEqual([
+    expect(item?.highlights).toStrictEqual([
       { quote: "Files last.", text: "The point." },
       { quote: "Apps are ephemeral, but files are not.", text: "" },
       { quote: "A third one.", text: "" },
     ]);
-    expect(plan.droppedTags).toEqual(["2024"]);
+    expect(plan.droppedTags).toStrictEqual(["2024"]);
   });
 
   it("nests folders, names each segment, and sends empty and Unsorted to Unsorted", () => {
@@ -159,7 +159,7 @@ describe("planRaindropImport", () => {
     expect(byUrl.get("https://example.com/deep")?.cover).toBeNull();
     expect(byUrl.get("https://example.com/untitled")?.stem).toBe("example.com - untitled");
     expect(byUrl.get("https://example.com/untitled")?.title).toBeNull();
-    expect(byUrl.get("https://cooking.example.com/pasta-al-limone")?.tags).toEqual([
+    expect(byUrl.get("https://cooking.example.com/pasta-al-limone")?.tags).toStrictEqual([
       "recipes",
       "Quick-Meals",
     ]);

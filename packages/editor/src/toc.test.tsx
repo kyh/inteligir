@@ -35,7 +35,7 @@ describe("outline targets", () => {
     const editor = mountValue([h("h1", ""), h("h2", "Real"), p("body")]);
 
     const headings = collectHeadings(editor);
-    expect(headings.map((row) => row.title)).toEqual(["Real"]);
+    expect(headings.map((row) => row.title)).toStrictEqual(["Real"]);
 
     const [first] = headings;
     if (first === undefined) {
@@ -71,13 +71,13 @@ describe("outline targets", () => {
       h("h2", "Tail"),
     ]);
     const rows = () => collectHeadings(editor).map(({ id, title }) => `${id} ${title}`);
-    expect(rows()).toEqual(["0 Top", "1.0 Quoted", "2 Tail"]);
+    expect(rows()).toStrictEqual(["0 Top", "1.0 Quoted", "2 Tail"]);
 
     editor.tf.insertText("s", { at: { offset: 4, path: [2, 0] } });
-    expect(rows()).toEqual(["0 Top", "1.0 Quoted", "2 Tails"]);
+    expect(rows()).toStrictEqual(["0 Top", "1.0 Quoted", "2 Tails"]);
 
     editor.tf.insertNodes(p("lead"), { at: [0] });
-    expect(rows()).toEqual(["1 Top", "2.0 Quoted", "3 Tails"]);
+    expect(rows()).toStrictEqual(["1 Top", "2.0 Quoted", "3 Tails"]);
   });
 
   it("answers null for a path the document no longer holds", () => {
@@ -175,14 +175,14 @@ describe("the scroll spy over a long note's runs", () => {
 
 describe("the rail window", () => {
   it("keeps the active row inside the capped rail", () => {
-    expect(railWindow(25, 0)).toEqual({ end: TOC_RAIL_CAP, start: 0 });
-    expect(railWindow(25, TOC_RAIL_CAP - 1)).toEqual({ end: TOC_RAIL_CAP, start: 0 });
-    expect(railWindow(25, TOC_RAIL_CAP)).toEqual({ end: TOC_RAIL_CAP + 1, start: 1 });
-    expect(railWindow(25, 24)).toEqual({ end: 25, start: 5 });
+    expect(railWindow(25, 0)).toStrictEqual({ end: TOC_RAIL_CAP, start: 0 });
+    expect(railWindow(25, TOC_RAIL_CAP - 1)).toStrictEqual({ end: TOC_RAIL_CAP, start: 0 });
+    expect(railWindow(25, TOC_RAIL_CAP)).toStrictEqual({ end: TOC_RAIL_CAP + 1, start: 1 });
+    expect(railWindow(25, 24)).toStrictEqual({ end: 25, start: 5 });
   });
 
   it("is inert for a short outline and clamps a stale index", () => {
-    expect(railWindow(5, 3)).toEqual({ end: TOC_RAIL_CAP, start: 0 });
-    expect(railWindow(5, 99)).toEqual({ end: TOC_RAIL_CAP, start: 0 });
+    expect(railWindow(5, 3)).toStrictEqual({ end: TOC_RAIL_CAP, start: 0 });
+    expect(railWindow(5, 99)).toStrictEqual({ end: TOC_RAIL_CAP, start: 0 });
   });
 });

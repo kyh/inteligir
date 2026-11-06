@@ -67,7 +67,7 @@ describe("the page's preferences", () => {
           `  rule: ${RULE}; a key read anywhere else carries its own parse and fallback\n` +
           `  fix: add a row to PREFS, or an ELSEWHERE row in tools/repo-guards/src/page-prefs.test.ts saying why this storage is not the shell's`,
       );
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 
   it("spells each row's key only in the table", () => {
@@ -82,7 +82,7 @@ describe("the page's preferences", () => {
             `  fix: go through the row (PREFS.<name>.key where a key itself is needed)`,
         ),
       );
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 
   it("has no stale ELSEWHERE row", () => {
@@ -98,6 +98,6 @@ describe("the page's preferences", () => {
           `  the reason was: ${why}\n` +
           `  fix: delete the row from ELSEWHERE in tools/repo-guards/src/page-prefs.test.ts`,
       );
-    expect(stale, `\n${stale.join("\n\n")}\n`).toEqual([]);
+    expect(stale, `\n${stale.join("\n\n")}\n`).toStrictEqual([]);
   });
 });

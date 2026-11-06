@@ -41,7 +41,9 @@ describe("the grid's listing query", () => {
 
 describe("a scope", () => {
   it("reads a folder the library no longer lists as every item", () => {
-    expect(listedScope({ folderId: "gone", kind: "folder" }, [READING])).toEqual({ kind: "all" });
+    expect(listedScope({ folderId: "gone", kind: "folder" }, [READING])).toStrictEqual({
+      kind: "all",
+    });
     const held = { folderId: READING.id, kind: "folder" as const };
     expect(listedScope(held, [READING])).toBe(held);
   });
@@ -51,6 +53,6 @@ describe("a scope", () => {
     expect(scopeTitle({ kind: "tag", tag: "papers" }, [])).toBe("#papers");
     expect(saveFolderOf({ folderId: READING.id, kind: "folder" })).toBe(READING.id);
     expect(saveFolderOf({ kind: "unsorted" })).toBeNull();
-    expect(saveTagsOf({ kind: "tag", tag: "papers" })).toEqual(["papers"]);
+    expect(saveTagsOf({ kind: "tag", tag: "papers" })).toStrictEqual(["papers"]);
   });
 });

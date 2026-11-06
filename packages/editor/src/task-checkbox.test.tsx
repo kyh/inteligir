@@ -30,6 +30,6 @@ describe("a task's checkbox", () => {
       />,
     );
     const boxes = view.getAllByRole("checkbox", { name: "Done" });
-    expect(boxes.map((box) => box.getAttribute("aria-checked"))).toEqual(["false", "true"]);
+    expect(boxes.map((box) => box.getAttribute("aria-checked"))).toStrictEqual(["false", "true"]);
   });
 });

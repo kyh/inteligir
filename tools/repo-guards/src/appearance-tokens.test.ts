@@ -92,7 +92,7 @@ describe("the appearance funnel's tokens", () => {
     expect(
       [...written].filter((token) => !readTokens.has(token)).toSorted(),
       `${DIALS} publishes a token nothing reads — the dial that sets it changes nothing on screen`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("reads only tokens the stylesheet declares", () => {
@@ -102,14 +102,14 @@ describe("the appearance funnel's tokens", () => {
         .map((entry) => `${entry.file}: ${entry.token}`)
         .toSorted(),
       `${DEFAULTS} declares no such token, so the read resolves to nothing and the dial behind it is invisible`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("declares only tokens the document reads", () => {
     expect(
       [...declared.keys()].filter((token) => !readTokens.has(token)).toSorted(),
       `${DEFAULTS} declares a token nothing reads`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("leaves the measure without a fallback anywhere", () => {
@@ -119,7 +119,7 @@ describe("the appearance funnel's tokens", () => {
         .map((entry) => entry.file)
         .toSorted(),
       `${MEASURE} carries a fallback: columns that must line up would be reading two values under one name`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("spells every fallback exactly as the stylesheet's default", () => {
@@ -132,7 +132,7 @@ describe("the appearance funnel's tokens", () => {
         )
         .toSorted(),
       `a fallback is a second spelling of a default: match ${DEFAULTS} exactly, or carry no fallback`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });
 
@@ -150,14 +150,14 @@ describe("the phone page's own dials", () => {
     expect(
       [...sheetReads].filter((token) => !phoneWrites.has(token)).toSorted(),
       `${PHONE_PAGE} imports ${EDITOR_SHEET} but not ${DEFAULTS}, so a token it does not write reads as nothing on the phone`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("writes only tokens the document reads", () => {
     expect(
       [...phoneWrites.keys()].filter((token) => !readTokens.has(token)).toSorted(),
       `${PHONE_PAGE} writes a token nothing reads`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it(`keeps the note's text at ${String(PHONE_MIN_SIZE_PX)}px or more`, () => {

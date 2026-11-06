@@ -26,7 +26,7 @@ describe("the Mac page's cross-origin calls", () => {
     expect(answered.headers.get("access-control-allow-origin")).toBe(MAC_APP_ORIGIN);
     expect(answered.headers.get("access-control-allow-credentials")).toBeNull();
     const allowed = (answered.headers.get("access-control-allow-headers") ?? "").split(", ");
-    expect(allowed).toEqual(
+    expect(allowed).toStrictEqual(
       expect.arrayContaining(["authorization", "content-type", "x-inteligir-build"]),
     );
     expect(answered.headers.get("access-control-allow-methods")).toContain("PUT");

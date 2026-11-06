@@ -12,6 +12,6 @@ describe("ThinkingRow", () => {
     const onSelect = vi.fn<() => void>();
     render(<ThinkingStep onSelect={onSelect}>Read file</ThinkingStep>);
     fireEvent.click(screen.getByRole("button", { name: "Read file" }));
-    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledOnce();
   });
 });

@@ -46,7 +46,7 @@ describe("root script naming", () => {
           `  fix: point the script at ${workspace.name}, or rename it after the workspace it really drives`,
       );
     }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 
   it("every workspace a root script claims to drive exists", () => {
@@ -67,6 +67,6 @@ describe("root script naming", () => {
         );
       }
     }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 });

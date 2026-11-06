@@ -263,7 +263,7 @@ describe("product surfaces speak the person's words", () => {
     const noisy = quiet.flatMap(([line, jsx]) =>
       scanLines("planted", [line], jsx).length > 0 ? [`FALSE HIT  ${line}`] : [],
     );
-    expect([...blind, ...noisy], `\n${[...blind, ...noisy].join("\n")}\n`).toEqual([]);
+    expect([...blind, ...noisy], `\n${[...blind, ...noisy].join("\n")}\n`).toStrictEqual([]);
   });
 
   it("no surface says vault, or an engine word", () => {
@@ -275,7 +275,7 @@ describe("product surfaces speak the person's words", () => {
           `  rule: a product surface calls the folder the library and what is in it items, and names no engine; vault stays code's and the CLI's word (AGENTS.md § Rules that matter)\n` +
           `  fix: say library or item, or the person's own words for the engine; a file that must say it is a row of ALLOWED with its reason`,
       );
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 
   it("no ALLOWED row is stale", () => {
@@ -285,6 +285,6 @@ describe("product surfaces speak the person's words", () => {
         ? []
         : [`STALE ROW  ${file}\n  it says none of the words now, so its reason is spent: ${why}`],
     );
-    expect(stale, `\n${stale.join("\n\n")}\n`).toEqual([]);
+    expect(stale, `\n${stale.join("\n\n")}\n`).toStrictEqual([]);
   });
 });

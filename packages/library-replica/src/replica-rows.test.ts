@@ -142,7 +142,7 @@ describe("a pulled row", () => {
           expect(
             held === null ? null : { kind: held.kind, seq: held.seq },
             `seed ${String(seed)}, ${id}`,
-          ).toEqual(want === null ? null : { kind: want.kind, seq: want.seq });
+          ).toStrictEqual(want === null ? null : { kind: want.kind, seq: want.seq });
         }
         const wants = await runPlanAsync(sql, readWants());
         const live = [...newest.values()].flatMap((row) =>
@@ -151,7 +151,7 @@ describe("a pulled row", () => {
         expect(
           wants.toSorted((a, b) => (a.itemId < b.itemId ? -1 : 1)),
           `seed ${String(seed)}`,
-        ).toEqual(live.toSorted((a, b) => (a.itemId < b.itemId ? -1 : 1)));
+        ).toStrictEqual(live.toSorted((a, b) => (a.itemId < b.itemId ? -1 : 1)));
         sql.close();
       }
     },

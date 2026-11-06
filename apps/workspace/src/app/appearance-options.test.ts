@@ -4,13 +4,13 @@ import { APPEARANCE_DEFAULTS, EDITOR_FONTS, appearanceTokens } from "./appearanc
 describe("the appearance dials", () => {
   it("leave every token to the stylesheet at their defaults", () => {
     const tokens = appearanceTokens(APPEARANCE_DEFAULTS);
-    expect(tokens.map((entry) => entry.token).toSorted()).toEqual([
+    expect(tokens.map((entry) => entry.token).toSorted()).toStrictEqual([
       "--editor-font",
       "--editor-line-height",
       "--editor-size",
       "--editor-width",
     ]);
-    expect(tokens.filter((entry) => entry.css !== null)).toEqual([]);
+    expect(tokens.filter((entry) => entry.css !== null)).toStrictEqual([]);
   });
 
   it("set a chosen option's css on its own dial's token alone", () => {

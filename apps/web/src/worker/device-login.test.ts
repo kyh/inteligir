@@ -78,7 +78,7 @@ describe("device sign-in", () => {
     expect(logged.credential.startsWith("igd_")).toBe(true);
     expect(logged.userId).toBe(userId);
     expect(logged.email).toBe(email);
-    expect(await reaches(logged.credential)).toBe(true);
+    await expect(reaches(logged.credential)).resolves.toBe(true);
 
     const row = await createDb(env.DB)
       .select()
@@ -90,7 +90,7 @@ describe("device sign-in", () => {
     expect(row?.credentialHash).not.toContain(logged.credential.slice(4));
 
     // the device holds the igd_ credential and nothing else
-    expect(await sessionCount(userId)).toBe(sessionsBefore);
+    await expect(sessionCount(userId)).resolves.toBe(sessionsBefore);
   });
 
   it("finds the account however the address is cased or padded", async () => {
@@ -101,7 +101,7 @@ describe("device sign-in", () => {
       password: PASSWORD,
     });
     const { devices } = await v1Link(sessionHeaders(cookie)).account.devices.list();
-    expect(devices.map((row) => row.name)).toEqual(["Laptop"]);
+    expect(devices.map((row) => row.name)).toStrictEqual(["Laptop"]);
   });
 
   it("refuses a wrong password without a device row", async () => {
@@ -109,20 +109,20 @@ describe("device sign-in", () => {
     const { cookie } = await signUpUser(email);
     const userId = await userIdOf(cookie);
 
-    expect(
-      await refusalOfSignIn({ deviceName: "Laptop", email, password: "not-the-password" }),
-    ).toMatchObject(INVALID_CREDENTIALS);
-    expect(await activeDevices(userId)).toEqual([]);
+    await expect(
+      refusalOfSignIn({ deviceName: "Laptop", email, password: "not-the-password" }),
+    ).resolves.toMatchObject(INVALID_CREDENTIALS);
+    await expect(activeDevices(userId)).resolves.toStrictEqual([]);
   });
 
   it("refuses an address no account has, indistinguishably", async () => {
-    expect(
-      await refusalOfSignIn({
+    await expect(
+      refusalOfSignIn({
         deviceName: "Laptop",
         email: "nobody@example.test",
         password: PASSWORD,
       }),
-    ).toMatchObject(INVALID_CREDENTIALS);
+    ).resolves.toMatchObject(INVALID_CREDENTIALS);
   });
 
   it("refuses a user with no credential account the same way — there is no password to check", async () => {
@@ -144,14 +144,14 @@ describe("device sign-in", () => {
       userId: "passwordless-user",
     });
 
-    expect(
-      await refusalOfSignIn({
+    await expect(
+      refusalOfSignIn({
         deviceName: "L",
         email: "passwordless@example.test",
         password: PASSWORD,
       }),
-    ).toMatchObject(INVALID_CREDENTIALS);
-    expect(await activeDevices("passwordless-user")).toEqual([]);
+    ).resolves.toMatchObject(INVALID_CREDENTIALS);
+    await expect(activeDevices("passwordless-user")).resolves.toStrictEqual([]);
   });
 
   it("refuses a body it cannot read as a sign-in", async () => {
@@ -181,10 +181,10 @@ describe("device sign-in", () => {
       });
     }
 
-    expect(
-      await refusalOfSignIn({ deviceName: "One Too Many", email, password: PASSWORD }),
-    ).toMatchObject({ code: "DEVICE_LIMIT", defined: true, status: 409 });
-    expect(await activeDevices(userId)).toHaveLength(20);
+    await expect(
+      refusalOfSignIn({ deviceName: "One Too Many", email, password: PASSWORD }),
+    ).resolves.toMatchObject({ code: "DEVICE_LIMIT", defined: true, status: 409 });
+    await expect(activeDevices(userId)).resolves.toHaveLength(20);
 
     await v1Link(sessionHeaders(cookie)).account.devices.revoke({ deviceId: "cap-device-0" });
     const reopened = await anonymous().account.signIn({
@@ -192,7 +192,7 @@ describe("device sign-in", () => {
       email,
       password: PASSWORD,
     });
-    expect(await reaches(reopened.credential)).toBe(true);
+    await expect(reaches(reopened.credential)).resolves.toBe(true);
   });
 
   // which sign-in wins is not asserted: this runtime may serialize the pair, while a deployment
@@ -216,20 +216,25 @@ describe("device sign-in", () => {
       anonymous().account.signIn({ deviceName: "Racer A", email, password: PASSWORD }),
       anonymous().account.signIn({ deviceName: "Racer B", email, password: PASSWORD }),
     ]);
-    expect(raced.map((settled) => settled.status).toSorted()).toEqual(["fulfilled", "rejected"]);
-    expect(await activeDevices(userId)).toHaveLength(20);
+    expect(raced.map((settled) => settled.status).toSorted()).toStrictEqual([
+      "fulfilled",
+      "rejected",
+    ]);
+    await expect(activeDevices(userId)).resolves.toHaveLength(20);
   });
 
   it("revocation bites on the very next call", async () => {
     const { cookie } = await signUpUser("login-revoke@example.test");
     const { deviceId, credential } = await loginDevice(cookie, "Doomed Laptop");
-    expect(await reaches(credential)).toBe(true);
+    await expect(reaches(credential)).resolves.toBe(true);
 
-    expect(await v1Link(sessionHeaders(cookie)).account.devices.revoke({ deviceId })).toEqual({
+    await expect(
+      v1Link(sessionHeaders(cookie)).account.devices.revoke({ deviceId }),
+    ).resolves.toStrictEqual({
       revoked: true,
     });
 
-    expect(await reaches(credential)).toBe(false);
+    await expect(reaches(credential)).resolves.toBe(false);
   });
 
   it("writes last seen once per resolution window, and still refuses a revoked credential", async () => {
@@ -251,21 +256,21 @@ describe("device sign-in", () => {
         .where(eq(device.id, deviceId));
     };
 
-    expect(await lastSeen()).toBeNull();
-    expect(await reaches(credential)).toBe(true);
-    expect(await lastSeen()).not.toBeNull();
+    await expect(lastSeen()).resolves.toBeNull();
+    await expect(reaches(credential)).resolves.toBe(true);
+    await expect(lastSeen()).resolves.not.toBeNull();
 
     await setLastSeen(LAST_SEEN_RESOLUTION_MS / 2);
     const recent = await lastSeen();
-    expect(await reaches(credential)).toBe(true);
-    expect(await lastSeen()).toBe(recent);
+    await expect(reaches(credential)).resolves.toBe(true);
+    await expect(lastSeen()).resolves.toBe(recent);
 
     await setLastSeen(2 * LAST_SEEN_RESOLUTION_MS);
-    expect(await reaches(credential)).toBe(true);
-    expect(await lastSeen()).toBeGreaterThan(Date.now() - LAST_SEEN_RESOLUTION_MS);
+    await expect(reaches(credential)).resolves.toBe(true);
+    await expect(lastSeen()).resolves.toBeGreaterThan(Date.now() - LAST_SEEN_RESOLUTION_MS);
 
     await v1Link(sessionHeaders(cookie)).account.devices.revoke({ deviceId });
-    expect(await reaches(credential)).toBe(false);
+    await expect(reaches(credential)).resolves.toBe(false);
   });
 
   it("lists the account's devices, revoked ones included", async () => {
@@ -276,7 +281,7 @@ describe("device sign-in", () => {
     await site.account.devices.revoke({ deviceId: first.deviceId });
 
     const { devices } = await site.account.devices.list();
-    expect(devices.map((row) => row.name)).toEqual(["Laptop", "Desktop"]);
+    expect(devices.map((row) => row.name)).toStrictEqual(["Laptop", "Desktop"]);
     expect(devices[0]?.revokedAt).not.toBeNull();
     expect(devices[1]?.revokedAt).toBeNull();
   });
@@ -287,10 +292,10 @@ describe("device sign-in", () => {
     const { deviceId, credential } = await loginDevice(alice.cookie, "Alice's Laptop");
 
     const malloryLink = v1Link(sessionHeaders(mallory.cookie));
-    expect(
-      await malloryLink.refusalOf(malloryLink.account.devices.revoke({ deviceId })),
-    ).toMatchObject({ code: "NOT_FOUND", status: 404 });
-    expect(await reaches(credential)).toBe(true);
+    await expect(
+      malloryLink.refusalOf(malloryLink.account.devices.revoke({ deviceId })),
+    ).resolves.toMatchObject({ code: "NOT_FOUND", status: 404 });
+    await expect(reaches(credential)).resolves.toBe(true);
   });
 
   it("opens the account's socket on a ticket alone, never on a session or a bearer", async () => {
@@ -314,17 +319,17 @@ describe("device sign-out", () => {
     const other = await loginDevice(cookie, "Staying Laptop");
 
     const leaving = v1Link(deviceHeaders(credential));
-    expect(await leaving.account.signOut()).toEqual({ revoked: true });
+    await expect(leaving.account.signOut()).resolves.toStrictEqual({ revoked: true });
 
-    expect(await reaches(credential)).toBe(false);
-    expect(await leaving.refusalOf(leaving.account.signOut())).toMatchObject({
+    await expect(reaches(credential)).resolves.toBe(false);
+    await expect(leaving.refusalOf(leaving.account.signOut())).resolves.toMatchObject({
       code: "UNAUTHORIZED",
       status: 401,
     });
 
     const active = await activeDevices(await userIdOf(cookie));
-    expect(active.map((row) => row.id)).toEqual([other.deviceId]);
-    expect(await reaches(other.credential)).toBe(true);
+    expect(active.map((row) => row.id)).toStrictEqual([other.deviceId]);
+    await expect(reaches(other.credential)).resolves.toBe(true);
   });
 
   // each cycle is a password verify, which is slow on purpose
@@ -335,11 +340,11 @@ describe("device sign-out", () => {
       const { cookie } = await signUpUser("signout-cycles@example.test");
       for (let cycle = 0; cycle < 21; cycle += 1) {
         const { credential } = await loginDevice(cookie, `Laptop ${cycle}`);
-        expect(await v1Link(deviceHeaders(credential)).account.signOut()).toEqual({
+        await expect(v1Link(deviceHeaders(credential)).account.signOut()).resolves.toStrictEqual({
           revoked: true,
         });
       }
-      expect(await activeDevices(await userIdOf(cookie))).toEqual([]);
+      await expect(activeDevices(await userIdOf(cookie))).resolves.toStrictEqual([]);
     },
   );
 
@@ -348,12 +353,12 @@ describe("device sign-out", () => {
     const { credential } = await loginDevice(cookie, "Laptop");
 
     const tab = v1Link(sessionHeaders(cookie));
-    expect(await tab.account.signOut()).toEqual({ revoked: true });
-    expect(await tab.refusalOf(tab.account.devices.list())).toMatchObject({
+    await expect(tab.account.signOut()).resolves.toStrictEqual({ revoked: true });
+    await expect(tab.refusalOf(tab.account.devices.list())).resolves.toMatchObject({
       code: "UNAUTHORIZED",
       status: 401,
     });
-    expect(await reaches(credential)).toBe(true);
+    await expect(reaches(credential)).resolves.toBe(true);
   });
 });
 
@@ -377,9 +382,9 @@ describe("the sign-in window", () => {
       await signUpUser(email);
       const guess = { deviceName: "Guesser", email, password: "not-the-password" };
       for (let attempt = 0; attempt < 10; attempt += 1) {
-        expect(await refusalOfSignIn(guess)).toMatchObject(INVALID_CREDENTIALS);
+        await expect(refusalOfSignIn(guess)).resolves.toMatchObject(INVALID_CREDENTIALS);
       }
-      expect(await refusalOfSignIn({ ...guess, password: PASSWORD })).toMatchObject({
+      await expect(refusalOfSignIn({ ...guess, password: PASSWORD })).resolves.toMatchObject({
         code: "TOO_MANY_REQUESTS",
         defined: true,
         status: 429,

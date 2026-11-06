@@ -60,7 +60,7 @@ describe("column normalizer (suppressed width writer)", () => {
   });
 });
 
-describe("insertColumnGroup", () => {
+describe(insertColumnGroup, () => {
   it("inserts bare columns whose empty form is their two markers", () => {
     const editor = makeEditor("seed\n");
     editor.tf.select(editor.api.end([0]));
@@ -84,7 +84,7 @@ describe("insertColumnGroup", () => {
     const editor = makeEditor("seed\n");
     editor.tf.select(editor.api.end([0]));
     insertColumnGroup(editor, 3);
-    expect((out(editor).match(/:::column\n:::/gu) ?? []).length).toBe(3);
+    expect(out(editor).match(/:::column\n:::/gu) ?? []).toHaveLength(3);
   });
 });
 
@@ -115,7 +115,7 @@ describe("wiki `]]` completion rule", () => {
     const editor = makeEditor("x\n");
     editor.tf.select(editor.api.end([0]));
     type(editor, " [[");
-    expect(JSON.stringify(editor.children).includes("wiki_input")).toBe(true);
+    expect(JSON.stringify(editor.children)).toContain("wiki_input");
   });
 
   it("completes ![[img.png]] into a wikiEmbed chip", () => {
@@ -144,7 +144,7 @@ describe("wiki `]]` completion rule", () => {
     editor.tf.select(editor.api.end([0, 0]));
     type(editor, " [[not a link]]");
     expect(out(editor)).toContain("[[not a link]]");
-    expect(JSON.stringify(el(editor.children[0])).includes("wikiLink")).toBe(false);
+    expect(JSON.stringify(el(editor.children[0]))).not.toContain("wikiLink");
   });
 
   it("leaves a lone ] alone", () => {
@@ -177,7 +177,7 @@ describe("wiki `]]` completion rule", () => {
   });
 });
 
-describe("insertToggle", () => {
+describe(insertToggle, () => {
   it("wraps the current block as the toggle summary (nested model)", () => {
     const editor = makeEditor("Summary line\n");
     editor.tf.select(editor.api.end([0]));

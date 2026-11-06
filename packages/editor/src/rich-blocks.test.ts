@@ -1,12 +1,12 @@
 // The rich-block payload parsers: the boundary where a fence's bytes become a
 // render or a stated refusal. Shapes from the vendored skills' own examples.
 
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 
 import { parseCanvasPayload } from "@repo/editor/nodes/canvas-node";
 import { parseChartPayload } from "@repo/editor/nodes/chart-node";
 
-describe("parseChartPayload", () => {
+describe(parseChartPayload, () => {
   it("accepts the skill's single-series example", () => {
     const verdict = parseChartPayload(
       '{"type":"bar","title":"Requests","data":[{"label":"Mon","value":12},{"label":"Tue","value":18}]}',
@@ -30,7 +30,7 @@ describe("parseChartPayload", () => {
 
   it("refuses invalid JSON with a stated reason", () => {
     const verdict = parseChartPayload('{"type":"pie","data":not json');
-    expect(verdict).toEqual({ ok: false, reason: "The payload is not valid JSON." });
+    expect(verdict).toStrictEqual({ ok: false, reason: "The payload is not valid JSON." });
   });
 
   it("refuses an unknown color name", () => {
@@ -41,17 +41,15 @@ describe("parseChartPayload", () => {
   });
 });
 
-describe("parseCanvasPayload", () => {
+describe(parseCanvasPayload, () => {
   it("accepts the skill's complete example", () => {
     const verdict = parseCanvasPayload(
       '[inteligir:grid:v2]\n[inteligir:labels:[{"id":"research","text":"Research","col":8,"row":4}]]\n....####\n....#..#\n....####',
     );
-    expect(verdict.ok).toBe(true);
-    if (verdict.ok) {
-      expect(verdict.labels[0]?.text).toBe("Research");
-      expect(verdict.grid[0]?.[4]).toBe(true);
-      expect(verdict.grid[0]?.[0]).toBe(false);
-    }
+    assert(verdict.ok, "the skill's example parses");
+    expect(verdict.labels[0]?.text).toBe("Research");
+    expect(verdict.grid[0]?.[4]).toBe(true);
+    expect(verdict.grid[0]?.[0]).toBe(false);
   });
 
   it("accepts a labels-free grid", () => {

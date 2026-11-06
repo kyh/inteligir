@@ -24,15 +24,15 @@ describe("the frontmatter block is the one the scan reads", () => {
   });
 });
 
-describe("splitFrontmatter", () => {
+describe(splitFrontmatter, () => {
   it("returns the whole text as the body when there is no frontmatter", () => {
     const text = "# Hello\n\nbody text\n";
-    expect(splitFrontmatter(text)).toEqual({ body: text });
+    expect(splitFrontmatter(text)).toStrictEqual({ body: text });
   });
 
   it("cuts a leading yaml block and keeps the body verbatim", () => {
     const text = "---\ntitle: Note\ntags:\n  - a\n  - b\n---\n# Body\n\ntext\n";
-    expect(splitFrontmatter(text)).toEqual({ body: "# Body\n\ntext\n" });
+    expect(splitFrontmatter(text)).toStrictEqual({ body: "# Body\n\ntext\n" });
   });
 
   it("does not treat a mid-document --- as frontmatter", () => {
@@ -49,7 +49,7 @@ describe("splitFrontmatter", () => {
   });
 });
 
-describe("yamlScalarText", () => {
+describe(yamlScalarText, () => {
   it("keeps a comma plain in a block value and quotes it in a flow list", () => {
     expect(yamlScalarText("a, b", "plain", "block")).toBe("a, b");
     expect(yamlScalarText("a, b", "plain")).toBe('"a, b"');

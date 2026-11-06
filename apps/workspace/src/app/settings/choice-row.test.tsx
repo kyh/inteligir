@@ -56,7 +56,7 @@ describe("the choice row", () => {
       .getAllByRole("radio")
       .filter((radio) => radio.getAttribute("tabindex") === "0")
       .map((radio) => radio.textContent);
-    expect(tabbable).toEqual(["System"]);
+    expect(tabbable).toStrictEqual(["System"]);
   });
 
   it("takes a click", () => {

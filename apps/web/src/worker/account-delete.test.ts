@@ -70,13 +70,15 @@ describe("deleting the account", () => {
       });
     });
 
-    expect(await deleteAs(deviceHeaders(laptop.credential), PASSWORD).deletion).toEqual({
+    await expect(
+      deleteAs(deviceHeaders(laptop.credential), PASSWORD).deletion,
+    ).resolves.toStrictEqual({
       deleted: true,
     });
 
-    expect(await userExists(userId)).toBe(false);
+    await expect(userExists(userId)).resolves.toBe(false);
     for (const credential of [laptop.credential, phone.credential]) {
-      expect(await reaches(credential)).toBe(false);
+      await expect(reaches(credential)).resolves.toBe(false);
     }
     // the sign-in that checked the password minted a session; none outlives the account
     const sessions = await createDb(env.DB)
@@ -84,10 +86,10 @@ describe("deleting the account", () => {
       .from(session)
       .where(eq(session.userId, userId))
       .all();
-    expect(sessions).toEqual([]);
+    expect(sessions).toStrictEqual([]);
 
     // the account's sockets close with it, the phone's still-open one included
-    expect(await phoneClosed).toBe(1001);
+    await expect(phoneClosed).resolves.toBe(1001);
 
     const spent = await createDb(env.DB)
       .select()
@@ -103,14 +105,16 @@ describe("deleting the account", () => {
     const { credential } = await loginDevice(cookie, "Laptop");
     const userId = await userIdOf(cookie);
 
-    expect(await refusalOfDelete(deviceHeaders(credential), "not-the-password")).toMatchObject({
+    await expect(
+      refusalOfDelete(deviceHeaders(credential), "not-the-password"),
+    ).resolves.toMatchObject({
       code: "INVALID_CREDENTIALS",
       defined: true,
       status: 401,
     });
 
-    expect(await userExists(userId)).toBe(true);
-    expect(await reaches(credential)).toBe(true);
+    await expect(userExists(userId)).resolves.toBe(true);
+    await expect(reaches(credential)).resolves.toBe(true);
     const sessions = await createDb(env.DB)
       .select()
       .from(session)
@@ -137,21 +141,23 @@ describe("deleting the account", () => {
       { caller: "no credential", headers: buildHeaders() },
     ];
     for (const { caller, headers } of callers) {
-      expect(await refusalOfDelete(headers, PASSWORD), caller).toMatchObject({
+      await expect(refusalOfDelete(headers, PASSWORD), caller).resolves.toMatchObject({
         code: "UNAUTHORIZED",
         status: 401,
       });
     }
 
-    expect(await userExists(userId)).toBe(true);
-    expect(await reaches(credential)).toBe(true);
+    await expect(userExists(userId)).resolves.toBe(true);
+    await expect(reaches(credential)).resolves.toBe(true);
   });
 
   it("deletes from the library's own tab on its session, the password asked again", async () => {
     const { cookie } = await signUpUser("delete-from-tab@example.test");
     const userId = await userIdOf(cookie);
-    expect(await deleteAs(sessionHeaders(cookie), PASSWORD).deletion).toEqual({ deleted: true });
-    expect(await userExists(userId)).toBe(false);
+    await expect(deleteAs(sessionHeaders(cookie), PASSWORD).deletion).resolves.toStrictEqual({
+      deleted: true,
+    });
+    await expect(userExists(userId)).resolves.toBe(false);
   });
 });
 
@@ -175,8 +181,8 @@ describe("Better Auth's own deletion routes", () => {
     );
     expect(callback.status).toBe(404);
 
-    expect(await userExists(userId)).toBe(true);
-    expect(await userIdOf(cookie)).toBe(userId);
+    await expect(userExists(userId)).resolves.toBe(true);
+    await expect(userIdOf(cookie)).resolves.toBe(userId);
   });
 });
 
@@ -201,11 +207,11 @@ describe("the deletion's per-device budget", () => {
       .values({ id: crypto.randomUUID(), key: deviceRateKey("accountDelete", deviceId), ...spent })
       .onConflictDoUpdate({ set: spent, target: rateLimit.key });
 
-    expect(await refusalOfDelete(deviceHeaders(credential), PASSWORD)).toMatchObject({
+    await expect(refusalOfDelete(deviceHeaders(credential), PASSWORD)).resolves.toMatchObject({
       code: "TOO_MANY_REQUESTS",
       defined: true,
       status: 429,
     });
-    expect(await userExists(userId)).toBe(true);
+    await expect(userExists(userId)).resolves.toBe(true);
   });
 });

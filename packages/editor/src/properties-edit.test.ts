@@ -45,7 +45,7 @@ describe("round-trip fixtures ↔ typing", () => {
     if (parsed.kind !== "valid") {
       throw new Error("expected valid");
     }
-    expect(parsed.properties.map((p) => [p.key, p.type])).toEqual([
+    expect(parsed.properties.map((p) => [p.key, p.type])).toStrictEqual([
       ["title", "text"],
       ["published", "checkbox"],
       ["draft", "checkbox"],

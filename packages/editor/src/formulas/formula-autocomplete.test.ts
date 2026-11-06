@@ -90,7 +90,7 @@ describe("formula picker completion", () => {
   });
 });
 
-describe("consumeTriggerLead", () => {
+describe(consumeTriggerLead, () => {
   it("leaves the text alone when the character before the caret is not the lead", () => {
     const editor = makeEditor("before");
     editor.tf.select({ offset: 6, path: [0, 0] });

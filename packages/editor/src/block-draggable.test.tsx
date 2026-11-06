@@ -87,7 +87,7 @@ describe("dragging a block", () => {
     await act(async () => {
       fireEvent.keyDown(document, { code: "Space" });
     });
-    expect(editor.children.map((node) => NodeApi.string(node))).toEqual([
+    expect(editor.children.map((node) => NodeApi.string(node))).toStrictEqual([
       "two more",
       "one",
       "three",
@@ -113,6 +113,10 @@ describe("dragging a block", () => {
     await act(async () => {
       fireEvent.keyDown(document, { code: "Space" });
     });
-    expect(editor.children.map((node) => NodeApi.string(node))).toEqual(["one", "three", "two"]);
+    expect(editor.children.map((node) => NodeApi.string(node))).toStrictEqual([
+      "one",
+      "three",
+      "two",
+    ]);
   });
 });

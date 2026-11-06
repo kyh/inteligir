@@ -55,7 +55,7 @@ describe("a device's budgets", () => {
 
     await v1(sessionHeaders(cookie)).account.devices.revoke({ deviceId: device.deviceId });
 
-    expect(await rowsOf(keys)).toEqual([]);
+    await expect(rowsOf(keys)).resolves.toStrictEqual([]);
   });
 
   it("go with it when it signs itself out", async () => {
@@ -68,6 +68,6 @@ describe("a device's budgets", () => {
 
     await v1(deviceHeaders(device.credential)).account.signOut();
 
-    expect(await rowsOf(keys)).toEqual([]);
+    await expect(rowsOf(keys)).resolves.toStrictEqual([]);
   });
 });
