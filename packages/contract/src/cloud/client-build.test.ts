@@ -7,8 +7,6 @@ import {
   parseReleaseVersion,
 } from "./client-build";
 import type { BuildVersion, ClientBuild } from "./client-build";
-import { createCloudClient, postDeviceLogin, postDeviceSignUp } from "./cloud-client";
-import type { CloudClient, CloudFetch } from "./cloud-client";
 
 const BUILD: ClientBuild = { platform: "mobile", version: "0.7.0" };
 const SENT = "0.7.0+mobile";
@@ -61,51 +59,5 @@ describe("the build header", () => {
     expect(meets("0.6.9+desktop", "0.7.0")).toBe(false);
     expect(meets("0.7.0-beta.1+desktop", "0.7.0")).toBe(false);
     expect(meets("0.7.1-beta.1+desktop", "0.7.0")).toBe(true);
-  });
-});
-
-const recorder = () => {
-  const seen: { path: string; build: string | null }[] = [];
-  const fetch: CloudFetch = async (input, init) => {
-    seen.push({
-      build: new Headers(init?.headers).get(CLIENT_BUILD_HEADER),
-      path: new URL(input).pathname,
-    });
-    return await Promise.resolve(Response.json({}));
-  };
-  return { fetch, seen };
-};
-
-describe("every request an install sends names its build", () => {
-  // keyed by the client's own methods, so a call it grows fails to compile until it is listed here
-  const CALLS: Record<keyof CloudClient, (client: CloudClient) => Promise<{ ok: boolean }>> = {
-    deleteAccount: async (client) => await client.deleteAccount("a password"),
-    listDevices: async (client) => await client.listDevices(),
-    revokeDevice: async (client) => await client.revokeDevice("dev_2"),
-    signOut: async (client) => await client.signOut(),
-  };
-
-  it("on every call a device credential makes", async () => {
-    const { fetch, seen } = recorder();
-    const client = createCloudClient({
-      baseUrl: "https://cloud.test",
-      build: BUILD,
-      credential: `igd_${"a".repeat(64)}`,
-      fetch,
-    });
-    for (const call of Object.values(CALLS)) {
-      await call(client);
-    }
-    expect(seen).toHaveLength(Object.keys(CALLS).length);
-    expect(seen.filter((request) => request.build !== SENT)).toStrictEqual([]);
-  });
-
-  it("on the two calls that ask for a credential", async () => {
-    const { fetch, seen } = recorder();
-    const endpoint = { baseUrl: "https://cloud.test", build: BUILD, fetch };
-    const device = { deviceName: "Phone", email: "owner@example.test", password: "a password" };
-    await postDeviceLogin(endpoint, device);
-    await postDeviceSignUp(endpoint, { ...device, inviteCode: "INVITE-1", name: "Owner" });
-    expect(seen.map((request) => request.build)).toStrictEqual([SENT, SENT]);
   });
 });

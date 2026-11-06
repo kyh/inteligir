@@ -1,107 +1,85 @@
 # @repo/contract
 
-ONE contract package, TWO entry points. `@repo/contract/local` is the oRPC contract
-the workspace UI and the CLI compile against and `inteligir serve`
-implements; a client of it, the page's, the CLI's or the e2e harness's, is typed as
-its `LocalClient`, never a `RouterContractClient` spelled again.
-`@repo/contract/cloud` is the wire between an install and the Cloudflare
-Worker — and the client runtime core the CLI runs over it.
-Its `cloud/v1` is that wire as one oRPC contract on `/v1/rpc`, `account.*`
-answered by the Worker and `library.*` by the account's library cell, typed by
-every app as `V1Client`; the REST rows beside it go as their last client moves
-onto it. Its `cloud/extension` is the browser extension's identity and the
-messages the site's connect page hands it a credential with.
+ONE contract: `/v1`, the wire between every client and the Cloudflare Worker.
+`cloud/v1` is that wire as one oRPC contract on `/v1/rpc`, `account.*` answered
+by the Worker and `library.*` by the account's library cell, typed by every
+client as `V1Client`. Beside it are the plain-HTTP routes it names (a file's
+bytes, an export's zip, the account's socket), the build every request names,
+and `cloud/extension`, the browser extension's identity and the messages the
+site's connect page hands it a credential with.
 
 ## Why it exists
 
-Two entries rather than one router because their compatibility obligations
-differ. `/local`'s two ends ship in one bundle, so it may break freely on any
-commit; a CLI installed apart from the app is refused by the release the
-server's `server.json` names, not kept compatible. `/cloud` is a deployed
-Worker answering installs that may be months stale, so it breaks only behind
-the client build floor: the Worker may grow an answer, a client ignores what it
-does not know (the first invariant below), and a shape retires once the floor
-is past every build that reads it, which costs nothing while nobody but the
-owner holds an install (`AGENTS.md` § Project Overview). `/v1` is one oRPC
-wire rather than REST routes beside an RPC path, because two wires are two
-serializers, two error vocabularies and two clients; every `@orpc/*` package is
-pinned to one exact beta so the serializer and the error shape it owns move
-only with a deliberate bump. The library's rows are plain contract rows: which
-of them an agent sees as a tool, and how, is decorated in the Worker
-(`apps/web/src/worker/connector/library-tools.ts`), so no client bundle carries
-MCP or OpenAPI (`oxlint.config.ts` refuses either import anywhere else).
-The browser extension is a `/cloud` client like the phone, its version the
-product's, so the one build floor holds it.
+`/v1` is a deployed Worker answering installs that may be months stale, so it
+breaks only behind the client build floor: the Worker may grow an answer, a
+client ignores what it does not know (the first invariant below), and a shape
+retires once the floor is past every build that reads it, which costs nothing
+while nobody but the owner holds an install (`AGENTS.md` § Project Overview).
+It is one oRPC wire rather than REST routes beside an RPC path, because two
+wires are two serializers, two error vocabularies and two clients; every
+`@orpc/*` package is pinned to one exact beta so the serializer and the error
+shape it owns move only with a deliberate bump. The library's rows are plain
+contract rows: which of them an agent sees as a tool, and how, is decorated in
+the Worker (`apps/web/src/worker/connector/library-tools.ts`), so no client
+bundle carries MCP or OpenAPI (`oxlint.config.ts` refuses either import
+anywhere else).
 
 The package is platform-neutral by construction (`lib: ["ES2023",
-"WebWorker"]`, `types: []`): it loads in the desktop page, on node, on workerd
-and in React Native, and `oxlint.config.ts` refuses a node or react import
-here, `tools/repo-guards` a `@tauri-apps` one.
+"WebWorker"]`, `types: []`): it loads in the Mac's and the browser's page, on
+node, on workerd and in React Native, and `oxlint.config.ts` refuses a node or
+react import here, `tools/repo-guards` a `@tauri-apps` one.
 
 ## Layout
 
 ```
 src/
-  local/               the oRPC contract, one folder per domain
-    local-contract.ts  # the router every domain's rows hang from, and the client and shapes over it
-    <domain>/          # a `<domain>-contract.ts` of rows beside a `<domain>-schema.ts`
-    local-errors.ts    # each error code's status, which oRPC does not carry
-    local-routes.ts    # the paths that are not procedures
-    notifications.ts   # the /ws frame grammar
-    thread-timeline.ts # the timeline rows and the delta that moves them
-  cloud/               the wire that breaks behind a floor, plus the client runtime core
+  cloud/
     v1-contract.ts     # /v1's one oRPC wire: account.* and library.*, and the client type over it
     v1-errors.ts       # every refusal /v1 answers, declared once, and the status map every handler uses
     refusal-text.ts    # what a screen says of a failed call: a declared refusal's own sentence, else its fallback
-    library/           # the library's rows (library-contract.ts) and the shapes they carry (library-wire.ts)
+    account/           # the account's rows (account-contract.ts), its deletion and the sign-up doors (account-schema.ts)
+    device/            # the device credential, its sign-in and the account's devices
+    library/           # the library's rows (library-contract.ts), the shapes they carry (library-wire.ts),
+                       #   the agent's events, a file's and an export's routes, and the socket's frames
     client-build.ts    # the build every request names, and the floor it is held to
-    cloud-errors.ts    # the REST /cloud wire's code→status map, until its last client moves onto /v1
-    cloud-client.ts    # the one client both installs call the Worker through
-    cloud-origin.ts    # the production origin both clients fall back to
+    cloud-origin.ts    # the production origin a client falls back to, and the Mac page's own
+    library-page.ts    # where the Worker serves the library's page
+    connector.ts       # the connector's path, which an assistant is pointed at
     bytes.ts           # the byte primitives, on globals every target has
-    device/            # the device credential and the one login flow
-    sync/              # the session fence and the account socket that says the vault moved
-    account/           # the account's rows (account-contract.ts), its deletion and the sign-up doors
     extension/         # the extension's key, id, origin and store link, and the connect page's messages
 ```
 
-## Who consumes which entry
+## Who consumes it
 
-- **apps/web** SERVES every `/cloud` row and reaches nothing under `/local`;
-  `dep-dag.test.ts` pins that per import. It also decorates the library's rows
-  as the connector's tools, the one place MCP and OpenAPI meta are written.
-- **apps/mobile** reaches `/v1` alone, the library through its replica
-  (`@repo/library-replica`) and the account through `cloud/v1`, as the Mac's
-  window does, and never speaks git. It reaches nothing under `/local`
-  either, pinned by
-  the same `dep-dag.test.ts` table (`CLOUD_ONLY_CLIENTS`) as apps/web: a phone
-  install may be months stale against the deployed Worker.
-- **apps/workspace** reaches `/v1` through its replica and `cloud/v1`, as the
-  phone does.
-- **apps/extension** reaches `/v1` alone, the library's saves and the
-  account's sign-out through `cloud/v1` and its connect page's messages
-  through `cloud/extension`, pinned by `CLOUD_ONLY_CLIENTS` in
-  `dep-dag.test.ts`: a browser install updates on the Web Store's cadence.
+- **apps/web** SERVES every row, the account's on its own handler and the
+  library's in each account's cell, and decorates the library's rows as the
+  connector's tools, the one place MCP and OpenAPI meta are written.
+- **apps/workspace** (the Mac's window and the browser tab) and
+  **apps/mobile** reach the library through their replica
+  (`@repo/library-replica`) and the account through `cloud/v1`.
+- **apps/extension** reaches the library's saves and the account's sign-out
+  through `cloud/v1`, and its connect page's messages through
+  `cloud/extension`: a browser install updates on the Web Store's cadence, so
+  the one build floor holds it as it holds the others (`CLOUD_ONLY_CLIENTS` in
+  `tools/repo-guards/src/dep-dag.test.ts`).
 
 ## Invariants
 
-- **`/cloud` reads leniently and is written strictly.** Every response schema
-  strips a field it does not declare, so a newer Worker may add one and this
-  build reads on; a refusal code it does not know reads as `internal`, a fault
-  to retry in the Worker's own words, never a verdict on the credential.
-  Requests stay `z.strictObject`: only the always-newest Worker parses them. The
-  Worker's tests hold every answer to exactly the declared shape (`emitted` in
-  `apps/web/src/worker/test-support/cloud-helpers.ts`), since a stripping client
-  would let a leaked column through. A field that changes what a row MEANS
-  still reaches only a client whose request declares it, because stripped,
-  the row reads as something else.
+- **`/v1` reads leniently and is written strictly.** The Worker parses every
+  answer through its row's output schema, which strips what the row did not
+  declare, and a client reads only the fields it names, so a newer Worker may
+  add one and an older build reads on. Requests stay `z.strictObject`: only the
+  always-newest Worker parses them. A field that changes what a row MEANS still
+  reaches only a client whose request declares it, because ignored, the row
+  reads as something else.
 - **`/v1`'s refusals are declared once and mapped once.** Each is an `error()`
   factory in `cloud/v1-errors.ts`, registered on the rows that can raise it and
   oRPC's own code wherever it means the same thing (`PAYLOAD_TOO_LARGE`,
   `TOO_MANY_REQUESTS`, `SERVICE_UNAVAILABLE`); `V1_ERROR_STATUS_MAP` is every
   `/v1` handler's status map, since an unmapped code answers 400.
   `cloud/v1-contract.test.ts` holds it to exactly the custom codes the rows
-  declare and answers each through a real handler and link.
+  declare and answers each through a real handler and link. An error no row
+  declares is a fault a client retries, never a verdict on its credential.
 - **Every library write takes an optional `opId`**, which the cell keeps, so
   an outbox resending after a lost answer lands once; the test names each read
   it exempts. A write names the base it was computed from (a block's hash, a
@@ -111,62 +89,23 @@ src/
   `client.library.apply` would be `Function.prototype.apply` (hence
   `library.write`).
 - **Every request names its build, and the Worker refuses one below its
-  floor.** `x-inteligir-build` rides the REST calls, the two that ask for a
-  credential and the socket's upgrade (`client-build.ts`; `client-build.test.ts` walks every
-  `CloudClient` method). `client-outdated` ends a session as `outdated`, not
-  `unauthorized`: the credential stands, and only an update moves past it
-  (`sync/sync-session.ts`).
-- **`src/` holds exactly two buckets.** The cloud-never-reaches-local guard
-  populates itself from `src/cloud`, so a file outside the two is one no guard
-  reads; `dep-dag.test.ts` refuses a third. The sanctioned crossing is
-  `local` importing a `cloud` constant (`local/vault/vault-schema.ts`
-  takes the asset media-type allowlist and the hash helpers;
-  `local/cloud/cloud-schema.ts` the device name bound) — a number copied by hand
-  passes locally and is refused at the far end as a shape error. The other direction never: `/cloud` reaches no `/local` file.
-- **One session fence, one login flow, one socket.** Each lives here rather
-  than in each client: a security discipline with two spellings is two to
-  audit.
-- **The cloud client never throws a refusal.** `CloudResult` carries
-  `refused` (a code this build names, `internal` for one it does not),
-  `unreachable` (no verdict on the credential) or `malformed` (a body this
-  build cannot read); an `Error("HTTP 409")` would retry a request the server
-  refuses forever.
-- **One spelling per route path.** `route-paths.test.ts` sweeps the repo for
-  the literal strings behind `@repo/contract/local/routes`, `V1_RPC_PATH` and
+  floor.** `x-inteligir-build` rides every call, a file's and an export's too
+  (`client-build.ts`); `CLIENT_OUTDATED` ends a sign-in as outdated, not signed
+  out: the credential stands, and only an update moves past it. A page the
+  Worker served names none, and the socket opens on a ticket a call minted.
+- **One spelling per route path.** `tools/repo-guards/src/route-paths.test.ts`
+  sweeps the repo for the literal strings behind `V1_RPC_PATH` and
   `LIBRARY_PAGE_PATH` and refuses a second spelling outside the file that owns
-  it.
-- **The `/ws` frame grammar is strict outbound, lenient inbound.** The
-  `z.strictObject` schemas type what the server broadcasts and are what its tests
-  parse the frames with; no broadcast is parsed at runtime. A client parses
-  with the lenient twin, or a long-lived tab against a newer server drops whole
-  messages over an additive change. Client→server frames stay strict: an
-  unknown field is an unknown client, closed 1008.
-- **A turn row's `sourceSeqEnd` names its own contributors**, not every
-  turn-scoped event: a streaming assistant message is turn-scoped but lands
-  top-level, and counting it moved the turn row and resent the subtree per
-  token.
-- **A held turn moves as a patch, and a command row carries a head.** A turn
-  holds its whole turn's work, so the delta sends its own fields and only the
-  children past the base; a command row carries its first lines and the count
-  of the rest, never the output. Both bound what one streamed token costs on
-  the wire.
-
-## Seams
-
-- `CloudFetch` / `CloudEndpoint` (`cloud-client.ts`): the client takes a
-  fetch and a signal, composed with its own 30s per-request timeout, so a
-  shutdown never waits out a hung request and vice versa.
-- `SocketDial` (`sync/cloud-socket.ts`): the one platform line of the
-  socket. The bearer rides the upgrade, node's `WebSocket` takes headers as
-  `{ headers }`, React Native's as a third argument, and the DOM's takes none,
-  so each client hands `createCloudSocketOpener` its own dial and the frame
-  parse and keepalive stay one spelling. A runtime takes the resulting
-  `CloudSocketOpener`, so a test hands it a fake that never dials.
-- `DeviceCredentialStore` (`device/login-flow.ts`): where the credential lands
-  is the only thing the CLI supplies to the login flow.
+  it, and `privacy-routes.test.ts` holds every `/v1` route here to a row in
+  `docs/privacy.md`.
+- **A socket frame is a hint, never state.** The socket says the library moved
+  and the agent's thread did, each frame JSON and one of a type a build does not
+  know no frame at all, so a newer cell can add types
+  (`cloud/library/library-socket.ts`).
 
 ## Testing
 
 `pnpm --filter @repo/contract test` — vitest, no platform. `/v1`'s rows and
 refusals are exercised in process, over a real `RPCHandler` and `RPCLink`
-(`cloud/v1-contract.test.ts`).
+(`cloud/v1-contract.test.ts`), and the account's request shapes by their
+schemas (`cloud/account/account-schema.test.ts`).

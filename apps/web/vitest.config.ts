@@ -23,7 +23,6 @@ const SOCKET_SUITES = [
   "src/worker/account-delete.test.ts",
   "src/worker/device-manage.test.ts",
   "src/worker/library/library-socket.test.ts",
-  "src/worker/vault-git.test.ts",
 ];
 
 // BETTER_AUTH_SECRET has a value only at runtime (.dev.vars / a Worker secret), so the test env
@@ -68,7 +67,8 @@ export default defineConfig({
           // not the deployed floor, so a test that passes reads the binding: every test client sends
           // this version (buildHeaders in cloud-helpers.ts), and client-floor.test.ts goes under it
           MIN_CLIENT_BUILD: "1.2.0",
-          // every test shares one ip; vault-rate-limit.test.ts flips this per test.
+          // every test shares one ip; a suite that tests a window turns it on around those tests
+          // (auth-rate-limit.test.ts, device-login.test.ts and device-sign-up.test.ts among them)
           RATE_LIMIT_DISABLED: "true",
           FILL_DELIVERY: { deadLetterQueue: FILL_FAILED_QUEUE, retries: FILL_RETRIES },
           // the deployed allowance and prices; a suite that spends otherwise hands its cell its own

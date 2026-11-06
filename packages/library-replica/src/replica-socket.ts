@@ -7,11 +7,12 @@
 
 import {
   librarySocketFrameSchema,
+  SOCKET_KEEPALIVE_PING,
+  SOCKET_KEEPALIVE_PONG,
   SOCKET_TICKET_PARAM,
   V1_SOCKET_PATH,
 } from "@repo/contract/cloud/library/library-socket";
 import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
-import { SYNC_WS_KEEPALIVE_PING, SYNC_WS_KEEPALIVE_PONG } from "@repo/contract/cloud/sync/sync-ws";
 import { z } from "zod";
 
 import type { ReplicaClock, ReplicaSocket, SocketDial } from "./replica-ports";
@@ -85,7 +86,7 @@ export const createSocketHint = (args: SocketHintArgs): SocketHint => {
         live.close();
         return;
       }
-      live.send(SYNC_WS_KEEPALIVE_PING);
+      live.send(SOCKET_KEEPALIVE_PING);
       keepAlive(owner, live);
     });
   };
@@ -119,7 +120,7 @@ export const createSocketHint = (args: SocketHintArgs): SocketHint => {
         return;
       }
       heardAt = clock.now();
-      if (event.data === SYNC_WS_KEEPALIVE_PONG) {
+      if (event.data === SOCKET_KEEPALIVE_PONG) {
         return;
       }
       const frame = frameJsonSchema.safeParse(event.data);

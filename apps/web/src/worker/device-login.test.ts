@@ -1,37 +1,46 @@
-import { cloudErrorSchema } from "@repo/contract/cloud/errors";
-import {
-  DEVICE_API_PATHS,
-  deviceLoginResponseSchema,
-  listDevicesResponseSchema,
-  revokeDeviceResponseSchema,
-} from "@repo/contract/cloud/device/device-schema";
-import { SYNC_WS_PATH } from "@repo/contract/cloud/sync/sync-ws";
+// `account.signIn` and `account.signOut` as an app calls them over `/v1/rpc`: the account's own
+// email and password answered with a device credential, the account's cap on devices, and a
+// credential that stops reaching anything the moment it is revoked.
+
+import type { DeviceLoginRequest } from "@repo/contract/cloud/device/device-schema";
+import { V1_SOCKET_PATH } from "@repo/contract/cloud/library/library-socket";
+import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import { and, eq, isNull } from "drizzle-orm";
 import { env, exports } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  anonymous,
   buildHeaders,
   deviceHeaders,
   drained,
-  emitted,
   loginDevice,
   ORIGIN,
   PASSWORD,
-  postLogin,
-  postSignOut,
   sessionHeaders,
   signUpUser,
   userIdOf,
+  v1Link,
 } from "./test-support/cloud-helpers";
 import { createDb } from "./db/client";
 import { account, device, session, user } from "./db/schema";
 import { LAST_SEEN_RESOLUTION_MS } from "./device/device-auth";
 
-// any route a device credential reaches
-const reach = async (credential: string): Promise<Response> =>
-  await exports.default.fetch(`${ORIGIN}${DEVICE_API_PATHS.list}`, {
-    headers: deviceHeaders(credential),
-  });
+// whether a credential still reaches the account: a call any live credential may make
+const reaches = async (credential: string): Promise<boolean> => {
+  const link = v1Link(deviceHeaders(credential));
+  try {
+    await link.account.devices.list();
+    return true;
+  } catch {
+    expect(link.statuses.at(-1)).toBe(401);
+    return false;
+  }
+};
+
+const refusalOfSignIn = async (request: DeviceLoginRequest) => {
+  const link = anonymous();
+  return await link.refusalOf(link.account.signIn(request));
+};
 
 const sessionCount = async (userId: string): Promise<number> => {
   const rows = await createDb(env.DB)
@@ -49,30 +58,24 @@ const activeDevices = async (userId: string) =>
     .where(and(eq(device.userId, userId), isNull(device.revokedAt)))
     .all();
 
-const expectInvalidCredentials = async (response: Response): Promise<void> => {
-  expect(response.status).toBe(401);
-  const body = emitted(cloudErrorSchema, await response.text());
-  expect(body.error.code).toBe("invalid-credentials");
-  expect(body.error.message).toBe("Wrong email or password.");
-};
+const INVALID_CREDENTIALS = { code: "INVALID_CREDENTIALS", defined: true, status: 401 };
 
-describe("device login", () => {
-  it("mints a credential that reaches the sync surface, and leaves no session behind", async () => {
+describe("device sign-in", () => {
+  it("mints a credential that reaches the account, and leaves no session behind", async () => {
     const email = "login-ok@example.test";
     const { cookie } = await signUpUser(email);
     const userId = await userIdOf(cookie);
     const sessionsBefore = await sessionCount(userId);
 
-    const response = await postLogin({ deviceName: "Test Laptop", email, password: PASSWORD });
-    expect(response.status).toBe(200);
-    expect(response.headers.get("cache-control")).toBe("no-store");
-    const logged = emitted(deviceLoginResponseSchema, await response.text());
+    const logged = await anonymous().account.signIn({
+      deviceName: "Test Laptop",
+      email,
+      password: PASSWORD,
+    });
     expect(logged.credential.startsWith("igd_")).toBe(true);
     expect(logged.userId).toBe(userId);
     expect(logged.email).toBe(email);
-
-    const reached = await drained(reach(logged.credential));
-    expect(reached.status).toBe(200);
+    expect(await reaches(logged.credential)).toBe(true);
 
     const row = await createDb(env.DB)
       .select()
@@ -89,18 +92,12 @@ describe("device login", () => {
 
   it("finds the account however the address is cased or padded", async () => {
     const { cookie } = await signUpUser("login-case@example.test");
-    const response = await drained(
-      postLogin({
-        deviceName: "Laptop",
-        email: "  Login-Case@Example.TEST ",
-        password: PASSWORD,
-      }),
-    );
-    expect(response.status).toBe(200);
-    const listed = await exports.default.fetch(`${ORIGIN}/v1/device/list`, {
-      headers: sessionHeaders(cookie),
+    await anonymous().account.signIn({
+      deviceName: "Laptop",
+      email: "  Login-Case@Example.TEST ",
+      password: PASSWORD,
     });
-    const { devices } = emitted(listDevicesResponseSchema, await listed.text());
+    const { devices } = await v1Link(sessionHeaders(cookie)).account.devices.list();
     expect(devices.map((row) => row.name)).toEqual(["Laptop"]);
   });
 
@@ -109,16 +106,20 @@ describe("device login", () => {
     const { cookie } = await signUpUser(email);
     const userId = await userIdOf(cookie);
 
-    await expectInvalidCredentials(
-      await postLogin({ deviceName: "Laptop", email, password: "not-the-password" }),
-    );
+    expect(
+      await refusalOfSignIn({ deviceName: "Laptop", email, password: "not-the-password" }),
+    ).toMatchObject(INVALID_CREDENTIALS);
     expect(await activeDevices(userId)).toEqual([]);
   });
 
   it("refuses an address no account has, indistinguishably", async () => {
-    await expectInvalidCredentials(
-      await postLogin({ deviceName: "Laptop", email: "nobody@example.test", password: PASSWORD }),
-    );
+    expect(
+      await refusalOfSignIn({
+        deviceName: "Laptop",
+        email: "nobody@example.test",
+        password: PASSWORD,
+      }),
+    ).toMatchObject(INVALID_CREDENTIALS);
   });
 
   it("refuses a user with no credential account the same way — there is no password to check", async () => {
@@ -140,20 +141,26 @@ describe("device login", () => {
       userId: "passwordless-user",
     });
 
-    await expectInvalidCredentials(
-      await postLogin({ deviceName: "L", email: "passwordless@example.test", password: PASSWORD }),
-    );
+    expect(
+      await refusalOfSignIn({
+        deviceName: "L",
+        email: "passwordless@example.test",
+        password: PASSWORD,
+      }),
+    ).toMatchObject(INVALID_CREDENTIALS);
     expect(await activeDevices("passwordless-user")).toEqual([]);
   });
 
-  it("refuses a body it cannot read as a login", async () => {
-    const response = await exports.default.fetch(`${ORIGIN}/v1/device/login`, {
-      body: JSON.stringify({ deviceName: "Laptop", email: "login-shape@example.test" }),
-      headers: { ...buildHeaders(), "content-type": "application/json" },
-      method: "POST",
-    });
+  it("refuses a body it cannot read as a sign-in", async () => {
+    // the RPC protocol's own body, with the one field a sign-in cannot do without left out
+    const response = await drained(
+      exports.default.fetch(`${ORIGIN}${V1_RPC_PATH}/account/signIn`, {
+        body: JSON.stringify({ json: { deviceName: "Laptop", email: "login-shape@example.test" } }),
+        headers: { ...buildHeaders(), "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
     expect(response.status).toBe(400);
-    expect(emitted(cloudErrorSchema, await response.text()).error.code).toBe("bad-request");
   });
 
   it("refuses to create a twenty-first active device", async () => {
@@ -171,26 +178,23 @@ describe("device login", () => {
       });
     }
 
-    const response = await postLogin({ deviceName: "One Too Many", email, password: PASSWORD });
-    expect(response.status).toBe(409);
-    expect(emitted(cloudErrorSchema, await response.text()).error.code).toBe("device-limit");
+    expect(
+      await refusalOfSignIn({ deviceName: "One Too Many", email, password: PASSWORD }),
+    ).toMatchObject({ code: "DEVICE_LIMIT", defined: true, status: 409 });
     expect(await activeDevices(userId)).toHaveLength(20);
 
-    await drained(
-      exports.default.fetch(`${ORIGIN}/v1/device/revoke`, {
-        body: JSON.stringify({ deviceId: "cap-device-0" }),
-        headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
-        method: "POST",
-      }),
-    );
-    const reopened = await drained(
-      postLogin({ deviceName: "Now There's Room", email, password: PASSWORD }),
-    );
-    expect(reopened.status).toBe(200);
+    await v1Link(sessionHeaders(cookie)).account.devices.revoke({ deviceId: "cap-device-0" });
+    const reopened = await anonymous().account.signIn({
+      deviceName: "Now There's Room",
+      email,
+      password: PASSWORD,
+    });
+    expect(await reaches(reopened.credential)).toBe(true);
   });
 
-  // which login wins is not asserted: this runtime may serialize the pair, while a deployment lands them on different isolates
-  it("cannot be raced past the cap by two logins landing together", async () => {
+  // which sign-in wins is not asserted: this runtime may serialize the pair, while a deployment
+  // lands them on different isolates
+  it("cannot be raced past the cap by two sign-ins landing together", async () => {
     const email = "login-cap-race@example.test";
     const { cookie } = await signUpUser(email);
     const userId = await userIdOf(cookie);
@@ -205,32 +209,24 @@ describe("device login", () => {
       });
     }
 
-    const raced = await Promise.all([
-      drained(postLogin({ deviceName: "Racer A", email, password: PASSWORD })),
-      drained(postLogin({ deviceName: "Racer B", email, password: PASSWORD })),
+    const raced = await Promise.allSettled([
+      anonymous().account.signIn({ deviceName: "Racer A", email, password: PASSWORD }),
+      anonymous().account.signIn({ deviceName: "Racer B", email, password: PASSWORD }),
     ]);
-    const statuses = raced.map((response) => response.status).toSorted((a, b) => a - b);
-    expect(statuses).toEqual([200, 409]);
+    expect(raced.map((settled) => settled.status).toSorted()).toEqual(["fulfilled", "rejected"]);
     expect(await activeDevices(userId)).toHaveLength(20);
   });
 
-  it("revocation bites on the very next request", async () => {
+  it("revocation bites on the very next call", async () => {
     const { cookie } = await signUpUser("login-revoke@example.test");
     const { deviceId, credential } = await loginDevice(cookie, "Doomed Laptop");
-    const reached = await drained(reach(credential));
-    expect(reached.status).toBe(200);
+    expect(await reaches(credential)).toBe(true);
 
-    const revoke = await drained(
-      exports.default.fetch(`${ORIGIN}/v1/device/revoke`, {
-        body: JSON.stringify({ deviceId }),
-        headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
-        method: "POST",
-      }),
-    );
-    expect(revoke.status).toBe(200);
+    expect(await v1Link(sessionHeaders(cookie)).account.devices.revoke({ deviceId })).toEqual({
+      revoked: true,
+    });
 
-    const after = await drained(reach(credential));
-    expect(after.status).toBe(401);
+    expect(await reaches(credential)).toBe(false);
   });
 
   it("writes last seen once per resolution window, and still refuses a revoked credential", async () => {
@@ -251,51 +247,33 @@ describe("device login", () => {
         .set({ lastSeenAt: new Date(Date.now() - msAgo) })
         .where(eq(device.id, deviceId));
     };
-    const pullStatus = async (): Promise<number> => {
-      const response = await drained(reach(credential));
-      return response.status;
-    };
 
     expect(await lastSeen()).toBeNull();
-    expect(await pullStatus()).toBe(200);
+    expect(await reaches(credential)).toBe(true);
     expect(await lastSeen()).not.toBeNull();
 
     await setLastSeen(LAST_SEEN_RESOLUTION_MS / 2);
     const recent = await lastSeen();
-    expect(await pullStatus()).toBe(200);
+    expect(await reaches(credential)).toBe(true);
     expect(await lastSeen()).toBe(recent);
 
     await setLastSeen(2 * LAST_SEEN_RESOLUTION_MS);
-    expect(await pullStatus()).toBe(200);
+    expect(await reaches(credential)).toBe(true);
     expect(await lastSeen()).toBeGreaterThan(Date.now() - LAST_SEEN_RESOLUTION_MS);
 
-    await drained(
-      exports.default.fetch(`${ORIGIN}/v1/device/revoke`, {
-        body: JSON.stringify({ deviceId }),
-        headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
-        method: "POST",
-      }),
-    );
-    expect(await pullStatus()).toBe(401);
+    await v1Link(sessionHeaders(cookie)).account.devices.revoke({ deviceId });
+    expect(await reaches(credential)).toBe(false);
   });
 
   it("lists the account's devices, revoked ones included", async () => {
     const { cookie } = await signUpUser("login-list@example.test");
     const first = await loginDevice(cookie, "Laptop");
     await loginDevice(cookie, "Desktop");
-    await drained(
-      exports.default.fetch(`${ORIGIN}/v1/device/revoke`, {
-        body: JSON.stringify({ deviceId: first.deviceId }),
-        headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
-        method: "POST",
-      }),
-    );
+    const site = v1Link(sessionHeaders(cookie));
+    await site.account.devices.revoke({ deviceId: first.deviceId });
 
-    const response = await exports.default.fetch(`${ORIGIN}/v1/device/list`, {
-      headers: sessionHeaders(cookie),
-    });
-    const { devices } = emitted(listDevicesResponseSchema, await response.text());
-    expect(devices.map((d) => d.name)).toEqual(["Laptop", "Desktop"]);
+    const { devices } = await site.account.devices.list();
+    expect(devices.map((row) => row.name)).toEqual(["Laptop", "Desktop"]);
     expect(devices[0]?.revokedAt).not.toBeNull();
     expect(devices[1]?.revokedAt).toBeNull();
   });
@@ -305,49 +283,45 @@ describe("device login", () => {
     const mallory = await signUpUser("login-mallory@example.test");
     const { deviceId, credential } = await loginDevice(alice.cookie, "Alice's Laptop");
 
-    const response = await drained(
-      exports.default.fetch(`${ORIGIN}/v1/device/revoke`, {
-        body: JSON.stringify({ deviceId }),
-        headers: { ...sessionHeaders(mallory.cookie), "content-type": "application/json" },
-        method: "POST",
-      }),
-    );
-    expect(response.status).toBe(404);
-    const reached = await drained(reach(credential));
-    expect(reached.status).toBe(200);
+    const malloryLink = v1Link(sessionHeaders(mallory.cookie));
+    expect(
+      await malloryLink.refusalOf(malloryLink.account.devices.revoke({ deviceId })),
+    ).toMatchObject({ code: "NOT_FOUND", status: 404 });
+    expect(await reaches(credential)).toBe(true);
   });
 
-  it("refuses the account socket without a device credential", async () => {
+  it("opens the account's socket on a ticket alone, never on a session or a bearer", async () => {
     const { cookie } = await signUpUser("login-nodevice@example.test");
-    const response = await drained(
-      exports.default.fetch(`${ORIGIN}${SYNC_WS_PATH}`, {
-        headers: { ...sessionHeaders(cookie), upgrade: "websocket" },
-      }),
-    );
-    expect(response.status).toBe(401);
+    const { credential } = await loginDevice(cookie, "Laptop");
+    for (const headers of [sessionHeaders(cookie), deviceHeaders(credential)]) {
+      const response = await drained(
+        exports.default.fetch(`${ORIGIN}${V1_SOCKET_PATH}`, {
+          headers: { ...headers, upgrade: "websocket" },
+        }),
+      );
+      expect(response.status).toBe(401);
+    }
   });
 });
 
 describe("device sign-out", () => {
-  it("revokes the credential it was asked with: its next request is refused, a second sign-out too", async () => {
+  it("revokes the credential it was asked with: its next call is refused, a second sign-out too", async () => {
     const { cookie } = await signUpUser("signout-revoke@example.test");
     const { credential } = await loginDevice(cookie, "Leaving Laptop");
     const other = await loginDevice(cookie, "Staying Laptop");
 
-    const signedOut = await postSignOut(deviceHeaders(credential));
-    expect(signedOut.status).toBe(200);
-    expect(emitted(revokeDeviceResponseSchema, await signedOut.text())).toEqual({ revoked: true });
+    const leaving = v1Link(deviceHeaders(credential));
+    expect(await leaving.account.signOut()).toEqual({ revoked: true });
 
-    const after = await drained(reach(credential));
-    expect(after.status).toBe(401);
-    const again = await postSignOut(deviceHeaders(credential));
-    expect(again.status).toBe(401);
-    expect(emitted(cloudErrorSchema, await again.text()).error.code).toBe("unauthorized");
+    expect(await reaches(credential)).toBe(false);
+    expect(await leaving.refusalOf(leaving.account.signOut())).toMatchObject({
+      code: "UNAUTHORIZED",
+      status: 401,
+    });
 
     const active = await activeDevices(await userIdOf(cookie));
     expect(active.map((row) => row.id)).toEqual([other.deviceId]);
-    const staying = await drained(reach(other.credential));
-    expect(staying.status).toBe(200);
+    expect(await reaches(other.credential)).toBe(true);
   });
 
   // each cycle is a password verify, which is slow on purpose
@@ -358,25 +332,29 @@ describe("device sign-out", () => {
       const { cookie } = await signUpUser("signout-cycles@example.test");
       for (let cycle = 0; cycle < 21; cycle += 1) {
         const { credential } = await loginDevice(cookie, `Laptop ${cycle}`);
-        const signedOut = await drained(postSignOut(deviceHeaders(credential)));
-        expect(signedOut.status).toBe(200);
+        expect(await v1Link(deviceHeaders(credential)).account.signOut()).toEqual({
+          revoked: true,
+        });
       }
       expect(await activeDevices(await userIdOf(cookie))).toEqual([]);
     },
   );
 
-  it("answers only a device credential — a session cannot sign a device out", async () => {
+  it("ends a browser tab's own session alone, and leaves every device signed in", async () => {
     const { cookie } = await signUpUser("signout-session@example.test");
     const { credential } = await loginDevice(cookie, "Laptop");
 
-    const refused = await drained(postSignOut(sessionHeaders(cookie)));
-    expect(refused.status).toBe(401);
-    const reached = await drained(reach(credential));
-    expect(reached.status).toBe(200);
+    const tab = v1Link(sessionHeaders(cookie));
+    expect(await tab.account.signOut()).toEqual({ revoked: true });
+    expect(await tab.refusalOf(tab.account.devices.list())).toMatchObject({
+      code: "UNAUTHORIZED",
+      status: 401,
+    });
+    expect(await reaches(credential)).toBe(true);
   });
 });
 
-describe("the login window", () => {
+describe("the sign-in window", () => {
   // the suite config keeps the limiter off so suites do not 429 on one another
   let wasDisabled: Env["RATE_LIMIT_DISABLED"] = "true";
   beforeEach(() => {
@@ -396,12 +374,13 @@ describe("the login window", () => {
       await signUpUser(email);
       const guess = { deviceName: "Guesser", email, password: "not-the-password" };
       for (let attempt = 0; attempt < 10; attempt += 1) {
-        const refused = await drained(postLogin(guess));
-        expect(refused.status).toBe(401);
+        expect(await refusalOfSignIn(guess)).toMatchObject(INVALID_CREDENTIALS);
       }
-      const shut = await postLogin({ ...guess, password: PASSWORD });
-      expect(shut.status).toBe(429);
-      expect(emitted(cloudErrorSchema, await shut.text()).error.code).toBe("rate-limited");
+      expect(await refusalOfSignIn({ ...guess, password: PASSWORD })).toMatchObject({
+        code: "TOO_MANY_REQUESTS",
+        defined: true,
+        status: 429,
+      });
     },
   );
 });

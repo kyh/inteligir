@@ -9,9 +9,10 @@ import { z } from "zod";
 
 import { isBelowFloor } from "../client-floor";
 import { createDb } from "../db/client";
+import { plainText } from "../plain-http";
 import { spendDeviceBudget } from "../rate-limit";
 import { holderIdOf, lazyPrincipal } from "../wire/v1-principal";
-import { readObject, text } from "./blob-routes";
+import { readObject } from "./blob-routes";
 import { exportKey } from "./cell-exports";
 
 const EXPORT_PATH = /^\/v1\/exports\/(?<id>[^/]+)$/u;
@@ -38,21 +39,21 @@ export const handleExportRoute = async (
   url: URL,
 ): Promise<Response> => {
   if (isBelowFloor(request, env)) {
-    return text(426, "This version of the app is too old. Update it to keep going.");
+    return plainText(426, "This version of the app is too old. Update it to keep going.");
   }
   const id = exportIdSchema.safeParse(EXPORT_PATH.exec(url.pathname)?.groups?.["id"]);
   if (!id.success) {
-    return text(404, "An export is named by the id its start answered.");
+    return plainText(404, "An export is named by the id its start answered.");
   }
   if (request.method !== "GET" && request.method !== "HEAD") {
-    return text(405, "An export is read.", { allow: "GET, HEAD" });
+    return plainText(405, "An export is read.", { allow: "GET, HEAD" });
   }
   const principal = await lazyPrincipal(request, env, ctx)();
   if (principal === null) {
-    return text(401, "You're signed out. Sign in again.");
+    return plainText(401, "You're signed out. Sign in again.");
   }
   if (!(await spendDeviceBudget(env, createDb(env.DB), "blobs", holderIdOf(principal)))) {
-    return text(429, "Too many requests. Try again in a minute.");
+    return plainText(429, "Too many requests. Try again in a minute.");
   }
   const response = await readObject(
     request,

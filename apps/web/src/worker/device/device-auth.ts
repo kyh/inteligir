@@ -10,7 +10,7 @@ import { device } from "../db/schema";
 // last seen is written at most this often per device: every call verifies, and a D1 write on each kept current a devices page nobody reads to the second
 export const LAST_SEEN_RESOLUTION_MS = 5 * 60_000;
 
-export interface VerifiedDevice {
+interface VerifiedDevice {
   readonly deviceId: string;
   readonly deviceName: string;
   readonly userId: string;
@@ -76,6 +76,3 @@ export const verifyDeviceCredential = async (
   const credential = bearerCredential(authorization);
   return credential === null ? null : await verifyDeviceCredentialValue(db, credential);
 };
-
-export const carriesDeviceCredential = (authorization: string | null): boolean =>
-  bearerCredential(authorization)?.startsWith(DEVICE_CREDENTIAL_PREFIX) ?? false;

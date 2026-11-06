@@ -141,7 +141,7 @@ rather than queue, since a turn runs in the cloud.
 ## The sign-in seam
 
 A phone joins an account the way the desktop does: the account's own email
-and password, posted once to `POST /v1/device/login`, answered with this
+and password, sent once as `account.signIn`, answered with this
 phone's own `igd_…` device credential. The login store (`src/login/login-store.ts`) posts the row and keeps the
 answer in the Keychain adapter; the password is held nowhere on the phone: it
 crosses the wire once and only the device credential remains, revocable from

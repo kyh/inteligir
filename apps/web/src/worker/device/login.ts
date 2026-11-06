@@ -23,7 +23,7 @@ const generateDeviceCredential = (): string => {
   return DEVICE_CREDENTIAL_PREFIX + hexFromBytes(buf);
 };
 
-export type LoginFailure = "invalid-credentials" | "device-limit";
+type LoginFailure = "invalid-credentials" | "device-limit";
 
 export type LoginResult =
   | { readonly loggedIn: true; readonly response: DeviceLoginResponse }

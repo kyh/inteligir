@@ -5,7 +5,7 @@
 // `getWebSockets()` lists that are still open. Nothing the cell needs later lives in memory, so a
 // hibernated or evicted cell finds every socket again.
 
-import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/contract/cloud/sync/sync-ws";
+import { SOCKET_REVOKED_CLOSE_CODE } from "@repo/contract/cloud/library/library-socket";
 import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
 import { z } from "zod";
 
@@ -90,7 +90,7 @@ export const pingLibraryMoved = (ctx: DurableObjectState, head: number): void =>
 
 // a credential check on the next request does not reach a socket that already has one
 export const severHolder = (ctx: DurableObjectState, holder: SocketHolder): void => {
-  closeEach(ctx.getWebSockets(holderTag(holder)), SYNC_WS_REVOKED_CLOSE_CODE, "signed out");
+  closeEach(ctx.getWebSockets(holderTag(holder)), SOCKET_REVOKED_CLOSE_CODE, "signed out");
 };
 
 export const closeEverySocket = (ctx: DurableObjectState): void => {

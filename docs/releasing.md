@@ -151,8 +151,8 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
    git fetch origin --tags --force
    gh run list --workflow Deploy --limit 3                  # the run after step 2's CI succeeded
    pnpm turbo query affected --packages @repo/web --base deployed/web --head HEAD   # names no package
-   curl -s -H 'x-inteligir-build: <version>+desktop' \
-     https://inteligir.com/v1/device/list                   # an "unauthorized" error, never "not-found"
+   curl -s -X POST -H 'content-type: application/json' -H 'x-inteligir-build: <version>+desktop' \
+     --data '{}' https://inteligir.com/v1/rpc/account/devices/list   # a 401 UNAUTHORIZED, never a 404
    ```
 
    The query is the one Deploy asks. A package named means the Worker at this
@@ -473,14 +473,17 @@ account whose library holds about 2,000 items gives the timing check its load.
   and an inteligir.com link pasted into a chat app previews with it.
 - **The library cell on a preview and in production.** On the PR's Worker
   preview, sign a device in against the preview's D1 (`apps/web/README.md`
-  § Previews), then open `<preview>/v1/sync/ws` with its bearer and its build
-  header (`websocat -H 'authorization: Bearer igd_…' -H 'x-inteligir-build:
-  <version>+macos' wss://<preview>/v1/sync/ws`) and send `ping`. Passing: the
-  upload took the `exports` map in `apps/web/cloudflare.config.ts` (`LibraryDO`
-  new, `ThreadSyncDO` deleted), the upgrade answers 101 and `ping` answers
-  `pong`, from the account's `LibraryDO` that only `ctx.exports` reaches. On
-  the production deploy, passing is the same, and its output says whether the
-  `ThreadSyncDO` tombstone may leave the map.
+  § Previews), mint its socket's ticket (`curl -s -X POST -H 'authorization:
+  Bearer igd_…' -H 'x-inteligir-build: <version>+desktop' -H 'content-type:
+  application/json' --data '{}' <preview>/v1/rpc/account/socketTicket`), then
+  open `wss://<preview>/v1/socket?ticket=<the ticket>` within the minute
+  (`websocat`) and send `ping`. Passing: the upload took the `exports` map in
+  `apps/web/cloudflare.config.ts` (`LibraryDO` and `AgentThreadDO` live,
+  `ThreadSyncDO`, `RepoCell` and `Registry` each `state: "deleted"`), the
+  upgrade answers 101 and `ping` answers `pong`, from the account's `LibraryDO`
+  that only `ctx.exports` reaches. On the production deploy, passing is the
+  same, and its output says, for each of the three tombstones, whether it may
+  leave the map; one it clears is deleted from the map in the next change.
 
 - **A link the cloud reads.** On the production deploy, have a connected
   assistant save a long public article's link (`save_link`), and another's to a

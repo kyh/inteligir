@@ -12,9 +12,9 @@ import { SHA256_HEX_RE } from "@repo/notes/library/library-item";
 import { z } from "zod";
 
 import { isBelowFloor } from "../client-floor";
-import { declaredLength } from "../cloud-http";
 import { createDb } from "../db/client";
 import { errorFields } from "../log";
+import { declaredLength, plainText } from "../plain-http";
 import { spendDeviceBudget } from "../rate-limit";
 import { holderIdOf, lazyPrincipal } from "../wire/v1-principal";
 import { blobKey } from "./cell-blobs";
@@ -24,12 +24,6 @@ import { libraryCell } from "./library-cell";
 const BLOB_PATH = /^\/v1\/blobs\/(?<sha>[^/]+)$/u;
 
 export const isBlobPath = (pathname: string): boolean => pathname.startsWith(`${V1_BLOBS_PATH}/`);
-
-export const text = (status: number, message: string, headers: HeadersInit = {}): Response =>
-  new Response(message, {
-    headers: { "content-type": "text/plain; charset=utf-8", ...headers },
-    status,
-  });
 
 // ---- what a file is served under ----
 
@@ -138,7 +132,7 @@ export const readObject = async (
 ): Promise<Response> => {
   const object = await bucket.get(key, { onlyIf: conditionsOf(request), range: request.headers });
   if (object === null) {
-    return text(404, missing);
+    return plainText(404, missing);
   }
   const headers = new Headers(READ_HEADERS);
   object.writeHttpMetadata(headers);
@@ -184,10 +178,10 @@ const mediaTypeOf = (header: string | null): string => {
 const refusalAnswer = (refusal: Pick<CellRefusal, "kind">): Response => {
   switch (refusal.kind) {
     case "gone": {
-      return text(410, "This account was deleted.");
+      return plainText(410, "This account was deleted.");
     }
     case "quota": {
-      return text(507, "Your library is full.");
+      return plainText(507, "Your library is full.");
     }
     case "not-found":
     case "conflict":
@@ -213,10 +207,10 @@ const writeBlob = async (
 ): Promise<Response> => {
   const bytes = declaredLength(request.headers);
   if (Number.isNaN(bytes) || request.body === null) {
-    return text(411, "Send the file with its Content-Length.");
+    return plainText(411, "Send the file with its Content-Length.");
   }
   if (bytes > BLOB_MAX_BYTES) {
-    return text(413, "This file is larger than the library keeps.");
+    return plainText(413, "This file is larger than the library keeps.");
   }
   const { accountId, sha } = upload;
   const cell = libraryCell(ctx.exports, accountId);
@@ -241,7 +235,7 @@ const writeBlob = async (
     // R2 kept nothing: the settle finds nothing under the key and lets the room go
     console.warn({ event: "blob-upload-refused", ...errorFields(error) });
     await cell.settleBlob(sha);
-    return text(400, "The file's bytes don't match the address they were sent to.");
+    return plainText(400, "The file's bytes don't match the address they were sent to.");
   }
   const settled = await cell.settleBlob(sha);
   if (!settled.ok) {
@@ -250,7 +244,7 @@ const writeBlob = async (
   // a removal of these bytes raced the upload: the room still stands, so the device sends again
   return settled.value.settled
     ? new Response(null, { status: 201 })
-    : text(503, "Send the file again.", { "retry-after": "1" });
+    : plainText(503, "Send the file again.", { "retry-after": "1" });
 };
 
 export const handleBlobRoute = async (
@@ -260,21 +254,21 @@ export const handleBlobRoute = async (
   url: URL,
 ): Promise<Response> => {
   if (isBelowFloor(request, env)) {
-    return text(426, "This version of the app is too old. Update it to keep going.");
+    return plainText(426, "This version of the app is too old. Update it to keep going.");
   }
   const sha = BLOB_PATH.exec(url.pathname)?.groups?.["sha"] ?? "";
   if (!SHA256_HEX_RE.test(sha)) {
-    return text(404, "A file is named by its SHA-256.");
+    return plainText(404, "A file is named by its SHA-256.");
   }
   if (!["GET", "HEAD", "PUT"].includes(request.method)) {
-    return text(405, "A file is read or written.", { allow: "GET, HEAD, PUT" });
+    return plainText(405, "A file is read or written.", { allow: "GET, HEAD, PUT" });
   }
   const principal = await lazyPrincipal(request, env, ctx)();
   if (principal === null) {
-    return text(401, "You're signed out. Sign in again.");
+    return plainText(401, "You're signed out. Sign in again.");
   }
   if (!(await spendDeviceBudget(env, createDb(env.DB), "blobs", holderIdOf(principal)))) {
-    return text(429, "Too many requests. Try again in a minute.");
+    return plainText(429, "Too many requests. Try again in a minute.");
   }
   return request.method === "PUT"
     ? await writeBlob(request, env, ctx, { accountId: principal.accountId, sha })

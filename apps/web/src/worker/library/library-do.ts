@@ -6,7 +6,10 @@
 // and the socket upgrade, and every other call is RPC. Nothing a later event needs is kept in
 // memory, and the cell sets no timer: its one alarm runs the `jobs` table.
 
-import { SYNC_WS_KEEPALIVE_PING, SYNC_WS_KEEPALIVE_PONG } from "@repo/contract/cloud/sync/sync-ws";
+import {
+  SOCKET_KEEPALIVE_PING,
+  SOCKET_KEEPALIVE_PONG,
+} from "@repo/contract/cloud/library/library-socket";
 import { CONNECTOR_PATH } from "@repo/contract/cloud/connector";
 import type { McpHttpHandler } from "@modelcontextprotocol/server";
 import { DurableObject } from "cloudflare:workers";
@@ -30,7 +33,7 @@ import type {
   ToolAnswer,
   ToolRequest,
 } from "../agent/thread-wire";
-import { refuse } from "../cloud-http";
+import { plainText } from "../plain-http";
 import { authInfoOf, createConnectorHandler } from "../connector/connector-server";
 import { fillLandingSchema } from "../fill/fill-landing";
 import type { FillLanded, FillLanding } from "../fill/fill-landing";
@@ -84,7 +87,7 @@ export class LibraryDO extends DurableObject<Env> {
     super(ctx, env);
     // answered by the runtime without waking a hibernated cell
     ctx.setWebSocketAutoResponse(
-      new WebSocketRequestResponsePair(SYNC_WS_KEEPALIVE_PING, SYNC_WS_KEEPALIVE_PONG),
+      new WebSocketRequestResponsePair(SOCKET_KEEPALIVE_PING, SOCKET_KEEPALIVE_PONG),
     );
     // the runtime holds every event until this settles; a throw resets the cell, and the next
     // event opens it again
@@ -192,10 +195,10 @@ export class LibraryDO extends DurableObject<Env> {
   #acceptSocket(request: Request): Response {
     const holder = holderFromHeader(request.headers.get(SOCKET_HOLDER_HEADER));
     if (holder === null || request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
-      return refuse("bad-request", "The cell takes only a verified socket upgrade.");
+      return plainText(400, "The cell takes only a verified socket upgrade.");
     }
     if (openCellLibrary(this.ctx, this.env).deletedAt() !== null) {
-      return refuse("account-deleted", "This account was deleted.");
+      return plainText(410, "This account was deleted.");
     }
     return acceptSocket(this.ctx, holder);
   }

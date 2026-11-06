@@ -1,38 +1,25 @@
+// What `account.*` reads to make and end an account, and the site's own sign-up form, the invite
+// gate in front of Better Auth's sign-up.
+
 import { z } from "zod";
-import type { CloudErrorCode } from "../cloud-errors";
 import {
   deviceLoginRequestSchema,
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
 } from "../device/device-schema";
 
-export const ACCOUNT_API_PATHS = {
-  delete: "/v1/account/delete",
-} as const;
-
-// asked with a device credential, which alone would let whoever holds a stolen one end the
-// account: the password is asked again
+// asked with a credential, which alone would let whoever holds a stolen one end the account: the
+// password is asked again
 export const deleteAccountRequestSchema = z.strictObject({
   password: deviceLoginRequestSchema.shape.password,
 });
-export type DeleteAccountRequest = z.infer<typeof deleteAccountRequestSchema>;
 
 export const deleteAccountResponseSchema = z.object({ deleted: z.literal(true) });
-export type DeleteAccountResponse = z.infer<typeof deleteAccountResponseSchema>;
 
-// what the delete route answers besides bad-request and the credential's own refusals
-export const DELETE_ACCOUNT_REFUSALS = [
-  "invalid-credentials",
-  "rate-limited",
-] as const satisfies readonly CloudErrorCode[];
-export type DeleteAccountRefusal = (typeof DELETE_ACCOUNT_REFUSALS)[number];
-
-export const isDeleteAccountRefusal = (code: CloudErrorCode): code is DeleteAccountRefusal =>
-  DELETE_ACCOUNT_REFUSALS.some((refusal) => refusal === code);
-
-// sign-up is the invite gate, not Better Auth's own route
+// the site's sign-up form posts to the invite gate, beside Better Auth's own routes, never to
+// Better Auth's sign-up itself
 export const AUTH_API_PATHS = {
-  signUp: "/v1/auth/sign-up",
+  signUp: "/api/sign-up",
 } as const;
 
 // the invite code is the gate's to refuse, so an empty one reads as a code that will not work

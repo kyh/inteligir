@@ -1,18 +1,17 @@
-import { ACCOUNT_API_PATHS, AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
+import { createORPCClient, ORPCError } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
+import { AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
 import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
 import type { ClientBuild } from "@repo/contract/cloud/client-build";
+import type { DeviceLoginResponse } from "@repo/contract/cloud/device/device-schema";
 import {
-  DEVICE_API_PATHS,
-  deviceLoginResponseSchema,
-} from "@repo/contract/cloud/device/device-schema";
-import type {
-  DeviceLoginRequest,
-  DeviceLoginResponse,
-} from "@repo/contract/cloud/device/device-schema";
-import { cloudErrorSchema } from "@repo/contract/cloud/errors";
-import { librarySocketFrameSchema } from "@repo/contract/cloud/library/library-socket";
+  librarySocketFrameSchema,
+  SOCKET_TICKET_PARAM,
+  V1_SOCKET_PATH,
+} from "@repo/contract/cloud/library/library-socket";
 import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
-import { SYNC_WS_PATH } from "@repo/contract/cloud/sync/sync-ws";
+import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
+import type { V1Client } from "@repo/contract/cloud/v1";
 import { applySetCookies } from "better-auth/cookies";
 import { env, exports } from "cloudflare:workers";
 import { expect } from "vitest";
@@ -70,18 +69,12 @@ export const signUpUser = async (email: string): Promise<{ cookie: string; passw
 
 // clients strip a field they do not declare, so a plain parse here would pass a column the
 // worker leaks: what the worker emits is held to exactly the declared shape
-export const emitted = <TSchema extends z.ZodType>(
-  schema: TSchema,
-  json: string,
-): z.infer<TSchema> => {
+const emitted = <TSchema extends z.ZodType>(schema: TSchema, json: string): z.infer<TSchema> => {
   const body: unknown = JSON.parse(json);
   const parsed = schema.parse(body);
   expect(parsed).toStrictEqual(body);
   return parsed;
 };
-
-export const refusalCodeOf = async (response: Response): Promise<string> =>
-  emitted(cloudErrorSchema, await response.text()).error.code;
 
 export const sessionHeaders = (cookie: string) => ({ ...OWN_PAGE_HEADERS, cookie });
 
@@ -109,22 +102,44 @@ export const userIdOf = async (cookie: string): Promise<string> => {
   return user.id;
 };
 
-export const postLogin = async (body: DeviceLoginRequest): Promise<Response> =>
-  await exports.default.fetch(`${ORIGIN}/v1/device/login`, {
-    body: JSON.stringify(body),
-    headers: { ...buildHeaders(), "content-type": "application/json" },
-    method: "POST",
-  });
-
-// the cookie only names the account: the device credential comes from the account's own password
-export const loginDevice = async (
-  cookie: string,
-  deviceName: string,
-): Promise<DeviceLoginResponse> => {
-  const { email } = await sessionUser(cookie);
-  const response = await postLogin({ deviceName, email, password: PASSWORD });
-  expect(response.status).toBe(200);
-  return emitted(deviceLoginResponseSchema, await response.text());
+// a `/v1/rpc` link as an app holds one, its headers fixed, and the status each answer came under
+// with the cookies it set
+export const v1Link = (headers: Record<string, string>) => {
+  const statuses: number[] = [];
+  const setCookies: string[][] = [];
+  const client = createORPCClient<V1Client>(
+    new RPCLink({
+      fetch: async (url, init) => {
+        const response = await exports.default.fetch(url, init);
+        statuses.push(response.status);
+        setCookies.push(response.headers.getSetCookie());
+        return response;
+      },
+      headers,
+      origin: ORIGIN,
+      url: V1_RPC_PATH,
+    }),
+  );
+  // the refusal a call met, with the status it was answered under
+  const refusalOf = async (call: Promise<unknown>) => {
+    try {
+      await call;
+    } catch (error) {
+      if (error instanceof ORPCError) {
+        return {
+          code: error.code,
+          data: error.data,
+          defined: error.defined,
+          message: error.message,
+          status: statuses.at(-1),
+        };
+      }
+      throw error;
+    }
+    throw new Error("the call landed what the test expected it to refuse");
+  };
+  // the client is a proxy, so its two routers are read off it rather than spread
+  return { account: client.account, library: client.library, refusalOf, setCookies, statuses };
 };
 
 export const deviceHeaders = (credential: string) => ({
@@ -132,30 +147,27 @@ export const deviceHeaders = (credential: string) => ({
   authorization: `Bearer ${credential}`,
 });
 
-// the one door deletion has: a device credential, and the password asked again
-export const postAccountDelete = async (
-  authorization: Record<string, string>,
-  password: string,
-): Promise<Response> =>
-  await exports.default.fetch(`${ORIGIN}${ACCOUNT_API_PATHS.delete}`, {
-    body: JSON.stringify({ password }),
-    headers: { ...authorization, "content-type": "application/json" },
-    method: "POST",
-  });
+// a caller at the floor that holds no credential yet: a sign-in or a sign-up
+export const anonymous = () => v1Link(buildHeaders());
 
-export const postSignOut = async (authorization: Record<string, string>): Promise<Response> =>
-  await exports.default.fetch(`${ORIGIN}${DEVICE_API_PATHS.signOut}`, {
-    body: "{}",
-    headers: { ...authorization, "content-type": "application/json" },
-    method: "POST",
-  });
+// the cookie only names the account: the device credential comes from the account's own password
+export const loginDevice = async (
+  cookie: string,
+  deviceName: string,
+): Promise<DeviceLoginResponse> => {
+  const { email } = await sessionUser(cookie);
+  return await anonymous().account.signIn({ deviceName, email, password: PASSWORD });
+};
 
+// a device's socket, opened as every client opens it: a ticket its credential minted
 export const openSocket = async (
   credential: string,
 ): Promise<{ frames: LibrarySocketFrame[]; socket: WebSocket }> => {
-  const response = await exports.default.fetch(`${ORIGIN}${SYNC_WS_PATH}`, {
-    headers: { ...deviceHeaders(credential), upgrade: "websocket" },
-  });
+  const { ticket } = await v1Link(deviceHeaders(credential)).account.socketTicket();
+  const response = await exports.default.fetch(
+    `${ORIGIN}${V1_SOCKET_PATH}?${SOCKET_TICKET_PARAM}=${encodeURIComponent(ticket)}`,
+    { headers: { upgrade: "websocket" } },
+  );
   expect(response.status).toBe(101);
   const socket = response.webSocket;
   if (socket === null) {

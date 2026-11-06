@@ -1,45 +1,20 @@
-import { cloudErrorSchema } from "@repo/contract/cloud/errors";
-import {
-  DEVICE_API_PATHS,
-  listDevicesResponseSchema,
-  revokeDeviceResponseSchema,
-} from "@repo/contract/cloud/device/device-schema";
-import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/contract/cloud/sync/sync-ws";
-import { exports } from "cloudflare:workers";
+// `account.devices` asked with a device's own credential: the app holds no session, so its
+// Settings › Account lists and revokes the account's devices with that.
+
+import { SOCKET_REVOKED_CLOSE_CODE } from "@repo/contract/cloud/library/library-socket";
 import { describe, expect, it } from "vitest";
 import {
   deviceHeaders,
-  drained,
-  emitted,
   loginDevice,
   openSocket,
-  ORIGIN,
   signUpUser,
+  v1Link,
 } from "./test-support/cloud-helpers";
 
-const listAs = async (credential: string): Promise<Response> =>
-  await exports.default.fetch(`${ORIGIN}${DEVICE_API_PATHS.list}`, {
-    headers: deviceHeaders(credential),
-  });
+const as = (credential: string) => v1Link(deviceHeaders(credential));
 
-const revokeAs = async (credential: string, deviceId: string): Promise<Response> =>
-  await exports.default.fetch(`${ORIGIN}${DEVICE_API_PATHS.revoke}`, {
-    body: JSON.stringify({ deviceId }),
-    headers: { ...deviceHeaders(credential), "content-type": "application/json" },
-    method: "POST",
-  });
+const UNAUTHORIZED = { code: "UNAUTHORIZED", defined: true, status: 401 };
 
-const listStatus = async (credential: string): Promise<number> => {
-  const response = await drained(listAs(credential));
-  return response.status;
-};
-
-const expectUnauthorized = async (response: Response): Promise<void> => {
-  expect(response.status).toBe(401);
-  expect(emitted(cloudErrorSchema, await response.text()).error.code).toBe("unauthorized");
-};
-
-// the app holds its own credential and no session, so its Settings list and revoke with that
 describe("a device managing its account's devices", () => {
   it("lists its own account's devices and no one else's", async () => {
     const { cookie } = await signUpUser("manage-list@example.test");
@@ -48,28 +23,27 @@ describe("a device managing its account's devices", () => {
     const stranger = await signUpUser("manage-list-stranger@example.test");
     await loginDevice(stranger.cookie, "Stranger's Mac");
 
-    const response = await listAs(mac.credential);
-    expect(response.status).toBe(200);
-    const { devices } = emitted(listDevicesResponseSchema, await response.text());
+    const { devices } = await as(mac.credential).account.devices.list();
     expect(devices.map((row) => row.name)).toEqual(["Mac", "Phone"]);
     expect(devices.every((row) => row.revokedAt === null)).toBe(true);
   });
 
   // the sign-in's row is a raw insert beside drizzle's writes, so both must spell the same unit
-  it("dates a sign-in and its first request in the instant each happened", async () => {
+  it("dates a sign-in and its first call in the instant each happened", async () => {
     const before = Date.now();
     const { cookie } = await signUpUser("manage-dates@example.test");
     const mac = await loginDevice(cookie, "Mac");
-    const response = await listAs(mac.credential);
+    const {
+      devices: [row],
+    } = await as(mac.credential).account.devices.list();
     const after = Date.now();
-    const [row] = emitted(listDevicesResponseSchema, await response.text()).devices;
     for (const at of [row?.createdAt, row?.lastSeenAt]) {
       expect(at).toBeGreaterThanOrEqual(before);
       expect(at).toBeLessThanOrEqual(after);
     }
   });
 
-  it("revokes a sibling: its next request is refused and its live socket is closed", async () => {
+  it("revokes a sibling: its next call is refused and its live socket is closed", async () => {
     const { cookie } = await signUpUser("manage-revoke@example.test");
     const mac = await loginDevice(cookie, "Mac");
     const phone = await loginDevice(cookie, "Lost Phone");
@@ -81,15 +55,14 @@ describe("a device managing its account's devices", () => {
       });
     });
 
-    const revoked = await revokeAs(mac.credential, phone.deviceId);
-    expect(revoked.status).toBe(200);
-    expect(emitted(revokeDeviceResponseSchema, await revoked.text())).toEqual({ revoked: true });
+    expect(await as(mac.credential).account.devices.revoke({ deviceId: phone.deviceId })).toEqual({
+      revoked: true,
+    });
 
-    expect(await closed).toBe(SYNC_WS_REVOKED_CLOSE_CODE);
-    expect(await listStatus(phone.credential)).toBe(401);
-    expect(await listStatus(mac.credential)).toBe(200);
-    const listed = await listAs(mac.credential);
-    const { devices } = emitted(listDevicesResponseSchema, await listed.text());
+    expect(await closed).toBe(SOCKET_REVOKED_CLOSE_CODE);
+    const lost = as(phone.credential);
+    expect(await lost.refusalOf(lost.account.devices.list())).toMatchObject(UNAUTHORIZED);
+    const { devices } = await as(mac.credential).account.devices.list();
     expect(devices.find((row) => row.id === phone.deviceId)?.revokedAt).not.toBeNull();
   });
 
@@ -99,29 +72,35 @@ describe("a device managing its account's devices", () => {
     const alicesMac = await loginDevice(alice.cookie, "Alice's Mac");
     const mallorysMac = await loginDevice(mallory.cookie, "Mallory's Mac");
 
-    const response = await revokeAs(mallorysMac.credential, alicesMac.deviceId);
-    expect(response.status).toBe(404);
-    expect(emitted(cloudErrorSchema, await response.text()).error.code).toBe("not-found");
-    expect(await listStatus(alicesMac.credential)).toBe(200);
+    const link = as(mallorysMac.credential);
+    expect(
+      await link.refusalOf(link.account.devices.revoke({ deviceId: alicesMac.deviceId })),
+    ).toMatchObject({ code: "NOT_FOUND", defined: true, status: 404 });
+    expect(await as(alicesMac.credential).account.devices.list()).toMatchObject({
+      devices: [{ name: "Alice's Mac", revokedAt: null }],
+    });
   });
 
-  it("refuses a revoked credential both routes, in the words every device route uses", async () => {
+  it("refuses a revoked credential both rows, in the words every signed row uses", async () => {
     const { cookie } = await signUpUser("manage-revoked@example.test");
     const mac = await loginDevice(cookie, "Mac");
     const phone = await loginDevice(cookie, "Phone");
-    const revoked = await drained(revokeAs(mac.credential, phone.deviceId));
-    expect(revoked.status).toBe(200);
+    await as(mac.credential).account.devices.revoke({ deviceId: phone.deviceId });
 
-    const listed = await listAs(phone.credential);
-    expect(listed.status).toBe(401);
-    expect(emitted(cloudErrorSchema, await listed.text()).error.message).toBe(
-      "No valid device credential.",
-    );
-    await expectUnauthorized(await revokeAs(phone.credential, mac.deviceId));
-    expect(await listStatus(mac.credential)).toBe(200);
+    const revoked = as(phone.credential);
+    expect(await revoked.refusalOf(revoked.account.devices.list())).toMatchObject({
+      ...UNAUTHORIZED,
+      message: "You're signed out. Sign in again.",
+    });
+    expect(
+      await revoked.refusalOf(revoked.account.devices.revoke({ deviceId: mac.deviceId })),
+    ).toMatchObject(UNAUTHORIZED);
+    const { devices } = await as(mac.credential).account.devices.list();
+    expect(devices).toHaveLength(2);
   });
 
   it("refuses a credential no device was ever given", async () => {
-    await expectUnauthorized(await listAs(`igd_${"0".repeat(64)}`));
+    const forged = as(`igd_${"0".repeat(64)}`);
+    expect(await forged.refusalOf(forged.account.devices.list())).toMatchObject(UNAUTHORIZED);
   });
 });

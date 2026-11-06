@@ -1,7 +1,7 @@
 # Decisions: @repo/web and the cloud
 
-Accounts, the device credential, the /cloud wire and `/v1`'s, the connector with
-its OAuth and its tools, the account's library cell and its sockets, and each
+Accounts, the device credential, `/v1`'s one wire, the connector with its OAuth
+and its tools, the account's library cell and its sockets, and each
 conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Cloud, sync and accounts
@@ -29,7 +29,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   browser tab, removes a lost phone with no password asked, as a sign-out asks
   none; the web's devices page stays as the fallback. A Mac's own row offers no
   Revoke: this device leaves through a sign-out.
-  `apps/web/src/worker/device/routes.ts`,
+  `apps/web/src/worker/wire/account-router.ts`, `apps/web/src/worker/device/devices.ts`,
   `apps/workspace/src/app/settings/account-section.tsx`.
 
 - **A CREDENTIAL THIS DEVICE DROPS IS REVOKED BY THIS DEVICE, best-effort and
@@ -55,10 +55,12 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   THE WORKER VERIFIED.** The cell accepts each hibernating socket under the
   device or browser session the Worker stamps on the upgrade, the one call
   fetch carries; a committed write sends every socket the head, and a revoke
-  closes that holder's sockets. A browser socket sends no header, so
-  `/v1/socket` opens on a minute's HMAC ticket a `/v1` call minted, its holder
-  checked in D1 again. Rejected: a socket object beside the cell (every ping
-  crossing to it); the bearer in the URL (it outlives a minute in any log).
+  closes that holder's sockets. Every client's socket opens on `/v1/socket`
+  with a minute's HMAC ticket a `/v1` call minted, since a browser's sends no
+  header, its holder checked in D1 again. Rejected: a socket object beside the
+  cell (every ping crossing to it); the bearer in the URL (it outlives a minute
+  in any log); a bearer on the upgrade for the clients that can send one (a
+  second door to keep).
   `apps/web/src/worker/library/cell-sockets.ts`, `socket-ticket.ts`,
   `socket-routes.ts`.
 
@@ -91,19 +93,19 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   cascades through every `ON DELETE CASCADE` child (D1 ignores `PRAGMA
   foreign_keys=OFF`), and `push` applies it without asking.
 
-- **A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, the Worker is held to exactly
+- **A /V1 CLIENT IGNORES WHAT IT DOES NOT KNOW, the Worker is held to exactly
   what it declares, and the wire breaks only behind the client build floor**
-  (owner decision; the floor is EVERY INSTALL'S REQUEST NAMES ITS BUILD).
-  Responses under `@repo/contract/cloud` strip undeclared fields and read an
-  unknown refusal code as a fault to retry, not a credential verdict; requests
-  stay `z.strictObject` (only the newest Worker reads them), and the Worker's
-  tests parse every answer through its declared schema, lest stripping hide a
-  leaked column. A shape retires only once the floor passes every build reading
-  it, and a field that changes what a row MEANS reaches only clients declaring
-  it. Rejected: a wire final at birth behind strict readers (every addition a
-  new route; a revoked device read `unauthorized` as `malformed` and kept
-  retrying); per-route versions (every old shape kept).
-  `packages/contract/src/cloud/cloud-errors.ts`.
+  (owner decision; the floor is EVERY INSTALL'S REQUEST NAMES ITS BUILD). The
+  Worker parses every answer through its row's output schema, which strips
+  what the row did not declare, and a client reads only the fields it names; a
+  refusal is narrowed by its code, one a build does not know is no verdict on
+  its credential, and an error no row declares is a fault to retry. Requests
+  stay `z.strictObject`, since only the newest Worker reads them. A shape
+  retires only once the floor passes every build reading it, and a field that
+  changes what a row MEANS reaches only clients declaring it. Rejected: a wire
+  final at birth behind strict readers (every addition a new row); per-row
+  versions (every old shape kept). `packages/contract/src/cloud/v1-errors.ts`,
+  `packages/library-replica/src/call-outcome.ts`.
 
 - **EVERY INSTALL'S REQUEST NAMES ITS BUILD, AND THE WORKER REFUSES ONE BELOW
   THE FLOOR** (owner decision). The tolerant reader is forward negotiation only,
@@ -134,11 +136,12 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   refusal is an `error()` factory, oRPC's own code where it means the same, and
   the floor, credential and budget the Worker meets before any procedure are
   answered in the same protocol. Every library write takes an `opId` the cell
-  keeps; only the bytes and the socket stay plain HTTP.
-  The REST rows go as each client moves. Rejected: REST beside RPC (two
-  serializers, two error vocabularies) and oRPC's default statuses (an unmapped
-  code answers 400). `packages/contract/src/cloud/v1-errors.ts`,
-  `apps/web/src/worker/wire/rpc-refusal.ts`.
+  keeps; only a file's bytes, an export's zip and the socket stay plain HTTP
+  under `/v1`, and the site's sign-up form posts beside Better Auth, under
+  `/api`. Rejected: REST beside RPC (two serializers, two error vocabularies)
+  and oRPC's default statuses (an unmapped code answers 400).
+  `packages/contract/src/cloud/v1-errors.ts`,
+  `apps/web/src/worker/wire/rpc-refusal.ts`, `apps/web/src/worker/index.ts`.
 
 - **THE LIBRARY'S ROWS BECOME THE CONNECTOR'S TOOLS IN THE WORKER, BY META
   CHAINED ON THE CONTRACT'S OWN ROWS.** A tool row gets `.meta(openapi(…),
@@ -188,8 +191,9 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   Worker produces to, and a conversation's `agent-thread:<accountId>:<threadId>`
   from its cell alone, for a thread its rows hold; `cloudflare.config.ts`
   declares `LibraryDO` and `AgentThreadDO` in `exports` with SQLite storage and
-  binds no namespace, and the retired `ThreadSyncDO`
-  stays a tombstone until a deploy lets it go. The schema opens under
+  binds no namespace, and the retired `ThreadSyncDO`, `RepoCell` and `Registry`
+  each stay a `state: "deleted"` tombstone until a deploy's answer lets it go
+  (`docs/releasing.md` § 5). The schema opens under
   `blockConcurrencyWhile`; one of another version wipes the cell under a new
   epoch. Rejected: a namespace binding (anything holding `env` could name any
   cell); keeping `ThreadSyncDO`'s name (nothing documents a preview refusing a

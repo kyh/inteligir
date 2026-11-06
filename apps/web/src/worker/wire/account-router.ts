@@ -2,8 +2,8 @@
 // sign-in and sign-up, signing out, the browser extension's credential, the account's devices, its
 // deletion with the password asked again, the socket's ticket, and the assistants let in through
 // the connector. A signed row meets its credential in one middleware, verified lazily from the
-// request's context (`./v1-principal`); a sign-in or sign-up spends its caller's window. Each row
-// shares its core with the REST door today's apps still call (`../device/*`).
+// request's context (`./v1-principal`); a sign-in or sign-up spends its caller's window. The
+// devices' cores, which mint, verify and revoke credentials, are `../device/*`.
 
 import {
   TooManyRequestsError,

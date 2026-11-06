@@ -5,7 +5,6 @@ import {
   parseReleaseVersion,
 } from "@repo/contract/cloud/client-build";
 import type { BuildVersion } from "@repo/contract/cloud/client-build";
-import { refuse } from "./cloud-http";
 
 // the oldest build /v1 answers. a wire shape retires by raising it past every build that reads the
 // shape, so what may change under an install is held to the builds above it
@@ -22,8 +21,6 @@ const buildFloor = (env: Env): BuildVersion => {
 const fromOwnPage = (request: Request): boolean =>
   request.headers.get("sec-fetch-site") === "same-origin";
 
-const OUTDATED_MESSAGE = "This version of Inteligir can't sync anymore. Update it to keep syncing.";
-
 // an absent or unreadable header is refused like a stale build: every build that sends none is
 // older than the floor
 export const isBelowFloor = (request: Request, env: Env): boolean => {
@@ -34,7 +31,3 @@ export const isBelowFloor = (request: Request, env: Env): boolean => {
   const build = parseClientBuildHeader(request.headers.get(CLIENT_BUILD_HEADER));
   return build === null || !meetsBuildFloor(build, floor);
 };
-
-// null when the request may go on: the REST rows' refusal, in their envelope
-export const refuseBelowFloor = (request: Request, env: Env): Response | null =>
-  isBelowFloor(request, env) ? refuse("client-outdated", OUTDATED_MESSAGE) : null;

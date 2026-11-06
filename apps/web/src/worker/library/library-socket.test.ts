@@ -1,13 +1,11 @@
 import {
   librarySocketFrameSchema,
+  SOCKET_KEEPALIVE_PING,
+  SOCKET_KEEPALIVE_PONG,
+  SOCKET_REVOKED_CLOSE_CODE,
   V1_SOCKET_PATH,
 } from "@repo/contract/cloud/library/library-socket";
 import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
-import {
-  SYNC_WS_KEEPALIVE_PING,
-  SYNC_WS_KEEPALIVE_PONG,
-  SYNC_WS_PATH,
-} from "@repo/contract/cloud/sync/sync-ws";
 import { evictDurableObject, listDurableObjectIds } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
@@ -18,9 +16,9 @@ import {
   drained,
   loginDevice,
   ORIGIN,
-  refusalCodeOf,
   signUpUser,
   userIdOf,
+  v1Link,
 } from "../test-support/cloud-helpers";
 import {
   cellOf,
@@ -138,8 +136,8 @@ describe("the account's socket", () => {
     await until(() => first.frames.length > 0 && second.frames.length > 0);
     expect(first.frames).toEqual([{ head, type: "library" }]);
     expect(second.frames).toEqual([{ head, type: "library" }]);
-    first.socket.send(SYNC_WS_KEEPALIVE_PING);
-    await until(() => first.texts.includes(SYNC_WS_KEEPALIVE_PONG));
+    first.socket.send(SOCKET_KEEPALIVE_PING);
+    await until(() => first.texts.includes(SOCKET_KEEPALIVE_PONG));
   });
 
   it("keeps an account's frames to its own sockets", async () => {
@@ -181,14 +179,9 @@ describe("the account's socket", () => {
     expect(notAnUpgrade.status).toBe(400);
 
     // signing out revokes the credential, and a ticket it minted before no longer opens
-    const signedOut = await drained(
-      exports.default.fetch(`${ORIGIN}/v1/device/sign-out`, {
-        body: "{}",
-        headers: { ...deviceHeaders(login.credential), "content-type": "application/json" },
-        method: "POST",
-      }),
-    );
-    expect(signedOut.status).toBe(200);
+    expect(await v1Link(deviceHeaders(login.credential)).account.signOut()).toEqual({
+      revoked: true,
+    });
     const revoked = await drained(upgrade(`${V1_SOCKET_PATH}?ticket=${ticket}`));
     expect(revoked.status).toBe(401);
 
@@ -199,14 +192,14 @@ describe("the account's socket", () => {
     expect(ids.some((id) => id.equals(victimCell))).toBe(false);
   });
 
-  it("stamps the holder the credential verified over one the request names", async () => {
+  it("stamps the holder the ticket verified over one the request names", async () => {
     const { cookie } = await signUpUser("socket-stamped@example.test");
     const laptop = await loginDevice(cookie, "Laptop");
     const phone = await loginDevice(cookie, "Phone");
     const accountId = await userIdOf(cookie);
-    // the laptop's bearer, claiming to be the phone's socket
-    const response = await upgrade(SYNC_WS_PATH, {
-      ...deviceHeaders(laptop.credential),
+    const { ticket } = await v1Link(deviceHeaders(laptop.credential)).account.socketTicket();
+    // the laptop's ticket, claiming to be the phone's socket
+    const response = await upgrade(`${V1_SOCKET_PATH}?ticket=${encodeURIComponent(ticket)}`, {
       [SOCKET_HOLDER_HEADER]: `device:${phone.deviceId}`,
     });
     expect(response.status).toBe(101);
@@ -219,7 +212,7 @@ describe("the account's socket", () => {
     await cellOf(accountId).severDevice(phone.deviceId);
     expect(await closedWithin(opened, 300)).toBe("open");
     await cellOf(accountId).severDevice(laptop.deviceId);
-    expect(await opened.closed).toBe(1008);
+    expect(await opened.closed).toBe(SOCKET_REVOKED_CLOSE_CODE);
   });
 
   it("closes its sockets at a deletion's tombstone, and refuses another while a credential still verifies", async () => {
@@ -230,9 +223,10 @@ describe("the account's socket", () => {
       await tombstone?.run({ accountId, ctx: state, email: "socket-deleted@example.test", env });
     });
     expect(await opened.closed).toBe(1001);
-    const refused = await upgrade(`${V1_SOCKET_PATH}?ticket=${encodeURIComponent(ticket)}`);
+    const refused = await drained(
+      upgrade(`${V1_SOCKET_PATH}?ticket=${encodeURIComponent(ticket)}`),
+    );
     expect(refused.status).toBe(410);
-    expect(await refusalCodeOf(refused)).toBe("account-deleted");
   });
 
   it("keeps its sockets through an eviction, hibernated, and still sends them each write", async () => {

@@ -90,7 +90,7 @@ describe("release versions", () => {
     expect(
       spelled.size,
       `\nSPLIT PRODUCT VERSION\n${versions.map((row) => `  ${row.manifest}  ${row.version}`).join("\n")}\n` +
-        `  rule: the CLI, the desktop app and the phone are one release, and the phone's marketing version is its package's\n` +
+        `  rule: the Mac app, the browser extension and the phone are one release, and the phone's marketing version is its package's\n` +
         `  fix: give all three the version being released\n`,
     ).toBe(1);
   });

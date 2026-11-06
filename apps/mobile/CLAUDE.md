@@ -189,14 +189,14 @@ how it ships.
   never in the repo, and build numbers are EAS's (`appVersionSource: remote` in
   `apps/mobile/eas.json`), so no commit bumps one.
   `PRODUCTION_CLOUD_ORIGIN` (`@repo/contract/cloud/origin`) is the one fallback
-  of the CLI's config and the phone's `getCloudUrl`; the phone reads
+  of the phone's `getCloudUrl` and the extension's connection; the phone reads
   `EXPO_PUBLIC_CLOUD_URL` at bundle time and refuses a malformed one. Rejected:
   per-profile env in `eas.json` (a second spelling of the origin); a fallback to
   a dead host (a misconfigured build that can only fail).
 
 - **THE PHONE'S VERSION IS THE PRODUCT'S, AND ITS SHARE EXTENSION A SIGNED
   TARGET OF ITS OWN.** The marketing version is `apps/mobile/package.json`'s,
-  one with the CLI and the desktop, and EAS builds with the repo's node and
+  one with the Mac's and the extension's, and EAS builds with the repo's node and
   pnpm (`tools/repo-guards/src/release-versions.test.ts`). A JS-only fix is an
   EAS Update to builds of the same native fingerprint, a native change a new
   build (owner decision). The share extension is a target of its own in the App

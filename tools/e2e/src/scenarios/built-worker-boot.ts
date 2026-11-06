@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
-import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
+import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import { expect, expectEq } from "../harness/assert";
 import { PHONE_BUILD } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
@@ -91,14 +91,21 @@ export const builtWorkerBoot: Scenario = {
       headers: { origin: worker.origin },
     });
     expectEq(session.status, 200, "get-session against the built bundle");
-    const devices = `${worker.origin}${DEVICE_API_PATHS.list}`;
-    const outdated = await fetch(devices);
-    expectEq(outdated.status, 426, "a device route asked by no build against the built bundle");
-    const unauthenticated = await fetch(devices, { headers: clientBuildHeaders(PHONE_BUILD) });
+    // the account's devices, a call the RPC protocol makes as a POST of its own empty body
+    const devices = async (headers: Record<string, string>): Promise<number> => {
+      const response = await fetch(`${worker.origin}${V1_RPC_PATH}/account/devices/list`, {
+        body: "{}",
+        headers: { ...headers, "content-type": "application/json" },
+        method: "POST",
+      });
+      await response.arrayBuffer();
+      return response.status;
+    };
+    expectEq(await devices({}), 426, "an account call naming no build against the built bundle");
     expectEq(
-      unauthenticated.status,
+      await devices(clientBuildHeaders(PHONE_BUILD)),
       401,
-      "an unauthenticated device route against the built bundle",
+      "an unauthenticated account call against the built bundle",
     );
 
     for (const page of DOC_PAGES) {

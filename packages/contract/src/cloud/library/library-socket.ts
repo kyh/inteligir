@@ -10,6 +10,15 @@ import { idSchema, seqSchema } from "./library-wire";
 export const V1_SOCKET_PATH = "/v1/socket";
 export const SOCKET_TICKET_PARAM = "ticket";
 
+// the cell answers the literal ping by auto-response, without waking from hibernation
+export const SOCKET_KEEPALIVE_PING = "ping";
+export const SOCKET_KEEPALIVE_PONG = "pong";
+
+// RFC 6455's policy violation: the cell closes a revoked credential's sockets with it. A hint,
+// never the verdict: the client answers it with a call under its credential, and that call's
+// refusal is what ends it
+export const SOCKET_REVOKED_CLOSE_CODE = 1008;
+
 // the library committed a write: a replica behind `head` pulls
 const libraryMovedFrameSchema = z.object({ head: seqSchema, type: z.literal("library") });
 

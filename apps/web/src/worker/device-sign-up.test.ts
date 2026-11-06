@@ -1,31 +1,28 @@
+// `account.signUp`, the app's door to the invite gate: one call creates the account and answers
+// this device's credential, as a sign-in answers it.
+
 import { AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
 import type { DeviceSignUpRequest } from "@repo/contract/cloud/account/account-schema";
-import { cloudErrorSchema } from "@repo/contract/cloud/errors";
 import {
-  DEVICE_API_PATHS,
-  deviceLoginResponseSchema,
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
 } from "@repo/contract/cloud/device/device-schema";
+import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import { eq } from "drizzle-orm";
 import { env, exports } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   buildHeaders,
   drained,
-  emitted,
   ORIGIN,
   OWN_PAGE_HEADERS,
   PASSWORD,
-  refusalCodeOf,
   signUpUser,
+  v1Link,
 } from "./test-support/cloud-helpers";
 import { createDb } from "./db/client";
 import { device, inviteCode, session, user } from "./db/schema";
 import { CALLER_IP_HEADER } from "./rate-limit";
-
-// `POST /v1/device/sign-up` — the app's door to the invite gate: one request creates the account
-// and answers this device's credential, the login's answer.
 
 const mintCode = async (code: string): Promise<void> => {
   await createDb(env.DB).insert(inviteCode).values({ code });
@@ -37,15 +34,13 @@ const readCode = async (code: string) =>
 const userByEmail = async (email: string) =>
   await createDb(env.DB).select().from(user).where(eq(user.email, email)).get();
 
-const postSignUp = async (
-  body: Partial<DeviceSignUpRequest>,
-  headers: Record<string, string> = {},
-): Promise<Response> =>
-  await exports.default.fetch(`${ORIGIN}${DEVICE_API_PATHS.signUp}`, {
-    body: JSON.stringify(body),
-    headers: { ...buildHeaders(), ...headers, "content-type": "application/json" },
-    method: "POST",
-  });
+// an app with no credential yet, from the caller address the gate's window counts
+const appFrom = (headers: Record<string, string> = {}) => v1Link({ ...buildHeaders(), ...headers });
+
+const refusalOfSignUp = async (body: DeviceSignUpRequest, headers: Record<string, string> = {}) => {
+  const app = appFrom(headers);
+  return await app.refusalOf(app.account.signUp(body));
+};
 
 const postSiteSignUp = async (
   email: string,
@@ -66,14 +61,14 @@ const request = (email: string, code: string): DeviceSignUpRequest => ({
   password: PASSWORD,
 });
 
+const INVITE_REFUSED = { code: "FORBIDDEN", defined: true, status: 403 };
+
 describe("device sign-up", () => {
   it("creates the account and answers a credential that names it, with no session left behind", async () => {
     await mintCode("APP-INVITE-OK");
-    const response = await postSignUp(request("  App-OK@Example.TEST ", "APP-INVITE-OK"));
-    expect(response.status).toBe(200);
-    expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(response.headers.getSetCookie()).toEqual([]);
-    const signedUp = emitted(deviceLoginResponseSchema, await response.text());
+    const app = appFrom();
+    const signedUp = await app.account.signUp(request("  App-OK@Example.TEST ", "APP-INVITE-OK"));
+    expect(app.setCookies).toEqual([[]]);
     expect(signedUp.email).toBe("app-ok@example.test");
     const account = await userByEmail("app-ok@example.test");
     expect(account?.id).toBe(signedUp.userId);
@@ -94,20 +89,19 @@ describe("device sign-up", () => {
     expect(code?.redeemedBy).toBe("app-ok@example.test");
   });
 
-  it("refuses an unknown code as invite-refused and creates no account", async () => {
-    const response = await postSignUp(request("app-unknown@example.test", "NO-SUCH-CODE"));
-    expect(response.status).toBe(403);
-    expect(await refusalCodeOf(response)).toBe("invite-refused");
+  it("refuses an unknown code and creates no account", async () => {
+    expect(
+      await refusalOfSignUp(request("app-unknown@example.test", "NO-SUCH-CODE")),
+    ).toMatchObject(INVITE_REFUSED);
     expect(await userByEmail("app-unknown@example.test")).toBeUndefined();
   });
 
   it("spends a code once, whichever door redeemed it", async () => {
     await mintCode("APP-INVITE-ONCE");
-    const first = await drained(postSignUp(request("app-first@example.test", "APP-INVITE-ONCE")));
-    expect(first.status).toBe(200);
-    const again = await postSignUp(request("app-again@example.test", "APP-INVITE-ONCE"));
-    expect(again.status).toBe(403);
-    expect(await refusalCodeOf(again)).toBe("invite-refused");
+    await appFrom().account.signUp(request("app-first@example.test", "APP-INVITE-ONCE"));
+    expect(
+      await refusalOfSignUp(request("app-again@example.test", "APP-INVITE-ONCE")),
+    ).toMatchObject(INVITE_REFUSED);
     expect(await userByEmail("app-again@example.test")).toBeUndefined();
     const site = await drained(postSiteSignUp("site-after-app@example.test", "APP-INVITE-ONCE"));
     expect(site.status).toBe(403);
@@ -115,24 +109,26 @@ describe("device sign-up", () => {
     await mintCode("SITE-INVITE-ONCE");
     const onSite = await drained(postSiteSignUp("site-first@example.test", "SITE-INVITE-ONCE"));
     expect(onSite.status).toBe(200);
-    const inApp = await postSignUp(request("app-after-site@example.test", "SITE-INVITE-ONCE"));
-    expect(inApp.status).toBe(403);
-    expect(await refusalCodeOf(inApp)).toBe("invite-refused");
+    expect(
+      await refusalOfSignUp(request("app-after-site@example.test", "SITE-INVITE-ONCE")),
+    ).toMatchObject(INVITE_REFUSED);
     expect(await userByEmail("app-after-site@example.test")).toBeUndefined();
   });
 
   it("refuses an address that already has an account, and gives the code back", async () => {
     await signUpUser("app-taken@example.test");
     await mintCode("APP-INVITE-TAKEN");
-    const response = await postSignUp(request("App-Taken@example.test", "APP-INVITE-TAKEN"));
-    expect(response.status).toBe(409);
-    expect(await refusalCodeOf(response)).toBe("account-exists");
+    expect(
+      await refusalOfSignUp(request("App-Taken@example.test", "APP-INVITE-TAKEN")),
+    ).toMatchObject({ code: "ACCOUNT_EXISTS", defined: true, status: 409 });
 
     const released = await readCode("APP-INVITE-TAKEN");
     expect(released?.redeemedAt).toBeNull();
     expect(released?.redeemedBy).toBeNull();
-    const reused = await drained(postSignUp(request("app-fresh@example.test", "APP-INVITE-TAKEN")));
-    expect(reused.status).toBe(200);
+    const reused = await appFrom().account.signUp(
+      request("app-fresh@example.test", "APP-INVITE-TAKEN"),
+    );
+    expect(reused.email).toBe("app-fresh@example.test");
   });
 
   it("refuses a password outside the contract's bounds before touching the invite", async () => {
@@ -141,16 +137,13 @@ describe("device sign-up", () => {
       "x".repeat(PASSWORD_MIN_LENGTH - 1),
       "x".repeat(PASSWORD_MAX_LENGTH + 1),
     ]) {
-      const response = await postSignUp({
-        ...request("app-bounds@example.test", "APP-INVITE-BOUNDS"),
-        password,
-      });
-      expect(response.status, String(password.length)).toBe(400);
-      const refusal = emitted(cloudErrorSchema, await response.text()).error;
-      expect(refusal.code).toBe("bad-request");
-      expect(refusal.message).toBe(
-        `Use a password of ${PASSWORD_MIN_LENGTH} to ${PASSWORD_MAX_LENGTH} characters.`,
-      );
+      expect(
+        await refusalOfSignUp({
+          ...request("app-bounds@example.test", "APP-INVITE-BOUNDS"),
+          password,
+        }),
+        String(password.length),
+      ).toMatchObject({ code: "BAD_REQUEST", status: 400 });
     }
     const untouched = await readCode("APP-INVITE-BOUNDS");
     expect(untouched?.redeemedAt).toBeNull();
@@ -159,14 +152,22 @@ describe("device sign-up", () => {
 
   it("refuses a body with no device name before touching the invite", async () => {
     await mintCode("APP-INVITE-SHAPE");
-    const response = await postSignUp({
-      email: "app-shape@example.test",
-      inviteCode: "APP-INVITE-SHAPE",
-      name: "Unnamed Device",
-      password: PASSWORD,
-    });
+    // the RPC protocol's own body, the device's name left out
+    const response = await drained(
+      exports.default.fetch(`${ORIGIN}${V1_RPC_PATH}/account/signUp`, {
+        body: JSON.stringify({
+          json: {
+            email: "app-shape@example.test",
+            inviteCode: "APP-INVITE-SHAPE",
+            name: "Unnamed Device",
+            password: PASSWORD,
+          },
+        }),
+        headers: { ...buildHeaders(), "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
     expect(response.status).toBe(400);
-    expect(await refusalCodeOf(response)).toBe("bad-request");
     const untouched = await readCode("APP-INVITE-SHAPE");
     expect(untouched?.redeemedAt).toBeNull();
   });
@@ -188,13 +189,14 @@ describe("the invite gate's window", () => {
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const site = await drained(postSiteSignUp("window@example.test", "NOT-A-CODE", caller));
       expect(site.status).toBe(403);
-      const app = await drained(postSignUp(request("window@example.test", "NOT-A-CODE"), caller));
-      expect(app.status).toBe(403);
+      expect(
+        await refusalOfSignUp(request("window@example.test", "NOT-A-CODE"), caller),
+      ).toMatchObject(INVITE_REFUSED);
     }
     await mintCode("APP-INVITE-WINDOW");
-    const shut = await postSignUp(request("window@example.test", "APP-INVITE-WINDOW"), caller);
-    expect(shut.status).toBe(429);
-    expect(await refusalCodeOf(shut)).toBe("rate-limited");
+    expect(
+      await refusalOfSignUp(request("window@example.test", "APP-INVITE-WINDOW"), caller),
+    ).toMatchObject({ code: "TOO_MANY_REQUESTS", defined: true, status: 429 });
     const untouched = await readCode("APP-INVITE-WINDOW");
     expect(untouched?.redeemedAt).toBeNull();
   });

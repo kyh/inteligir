@@ -2,11 +2,7 @@
 // it stamps on what it forwards, one account's cell out of another's reach, and the status every
 // refusal answers under.
 
-import { createORPCClient, ORPCError } from "@orpc/client";
-import { RPCLink } from "@orpc/client/fetch";
-import type { V1Client } from "@repo/contract/cloud/v1";
-import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
-import { env, exports } from "cloudflare:workers";
+import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -19,49 +15,13 @@ import {
   buildHeaders,
   deviceHeaders,
   loginDevice,
-  ORIGIN,
   PASSWORD,
   sessionHeaders,
   signUpUser,
   userIdOf,
+  v1Link,
 } from "../test-support/cloud-helpers";
 import { cellOf, clockAt, engineIn, inCell } from "../test-support/library-cell";
-
-// a link as an app holds one, its headers fixed, and the status each answer came under
-const linkWith = (headers: Record<string, string>) => {
-  const statuses: number[] = [];
-  const client = createORPCClient<V1Client>(
-    new RPCLink({
-      fetch: async (url, init) => {
-        const response = await exports.default.fetch(url, init);
-        statuses.push(response.status);
-        return response;
-      },
-      headers,
-      origin: ORIGIN,
-      url: V1_RPC_PATH,
-    }),
-  );
-  // the refusal a call met, with the status it was answered under
-  const refusalOf = async (call: Promise<unknown>) => {
-    try {
-      await call;
-    } catch (error) {
-      if (error instanceof ORPCError) {
-        return {
-          code: error.code,
-          data: error.data,
-          defined: error.defined,
-          status: statuses.at(-1),
-        };
-      }
-      throw error;
-    }
-    throw new Error("the call landed what the test expected it to refuse");
-  };
-  // the client is a proxy, so its two routers are read off it rather than spread
-  return { account: client.account, library: client.library, refusalOf, statuses };
-};
 
 // an account signed in on a laptop: its credential's link, its session cookie and its id
 const signedUp = async (email: string) => {
@@ -72,7 +32,7 @@ const signedUp = async (email: string) => {
     accountId,
     cookie,
     credential: laptop.credential,
-    laptop: linkWith(deviceHeaders(laptop.credential)),
+    laptop: v1Link(deviceHeaders(laptop.credential)),
   };
 };
 
@@ -85,7 +45,7 @@ const freshInvite = async (): Promise<string> => {
 describe("the one wire's door", () => {
   it("refuses a build below the floor before it reads anything else", async () => {
     const { credential } = await signedUp("rpc-floor@example.test");
-    const stale = linkWith({ authorization: `Bearer ${credential}` });
+    const stale = v1Link({ authorization: `Bearer ${credential}` });
     // each call made in its turn, so no refusal waits unheard behind another
     for (const call of [() => stale.library.items.list({}), () => stale.account.devices.list()]) {
       expect(await stale.refusalOf(call())).toMatchObject({
@@ -107,7 +67,7 @@ describe("the one wire's door", () => {
 
   it("refuses a bearer that does not verify, and never reads the cookie beside it", async () => {
     const { cookie } = await signedUp("rpc-bad-bearer@example.test");
-    const forged = linkWith({
+    const forged = v1Link({
       ...sessionHeaders(cookie),
       authorization: "Bearer igd_not-a-device",
     });
@@ -123,14 +83,14 @@ describe("the one wire's door", () => {
 
   it("reaches the library from the site's own tab on its session, and from no other page", async () => {
     const { cookie } = await signedUp("rpc-cookie@example.test");
-    const tab = linkWith(sessionHeaders(cookie));
+    const tab = v1Link(sessionHeaders(cookie));
     const { item } = await tab.library.items.createNote({ markdown: "From the tab." });
     const history = await tab.library.history.list({ itemId: item.id });
     expect(history.changeSets[0]?.label).toBe("You in the browser");
 
     // another site's page riding the same cookie: a build header gets it past the floor, and the
     // cookie still counts for nothing
-    const elsewhere = linkWith({ ...buildHeaders(), cookie, "sec-fetch-site": "cross-site" });
+    const elsewhere = v1Link({ ...buildHeaders(), cookie, "sec-fetch-site": "cross-site" });
     expect(await elsewhere.refusalOf(elsewhere.library.items.list({}))).toMatchObject({
       code: "UNAUTHORIZED",
       status: 401,
@@ -145,7 +105,7 @@ describe("the one wire's door", () => {
       actor: { deviceId: "stolen", deviceName: "Stolen", kind: "device" },
       scopes: ["library"],
     });
-    const stamped = linkWith({ ...deviceHeaders(mine.credential), [PRINCIPAL_HEADER]: claim });
+    const stamped = v1Link({ ...deviceHeaders(mine.credential), [PRINCIPAL_HEADER]: claim });
     const { item } = await stamped.library.items.createNote({ markdown: "Whose is this?" });
 
     const listed = await mine.laptop.library.items.list({});
@@ -156,7 +116,7 @@ describe("the one wire's door", () => {
     expect(elsewhere.items).toEqual([]);
 
     // the claim alone, with no credential, reaches nobody's cell
-    const bare = linkWith({ ...buildHeaders(), [PRINCIPAL_HEADER]: claim });
+    const bare = v1Link({ ...buildHeaders(), [PRINCIPAL_HEADER]: claim });
     expect(await bare.refusalOf(bare.library.items.list({}))).toMatchObject({
       code: "UNAUTHORIZED",
       status: 401,
@@ -250,7 +210,7 @@ describe("every refusal's status", () => {
   it("answers the account's refusals under the statuses the wire declares", async () => {
     const email = "rpc-account-statuses@example.test";
     const { laptop } = await signedUp(email);
-    const anonymous = linkWith(buildHeaders());
+    const anonymous = v1Link(buildHeaders());
     const wrong = "not-the-password-0000";
     const invite = await freshInvite();
     const unsigned = [
@@ -311,7 +271,7 @@ describe("every refusal's status", () => {
         userId: accountId,
       });
     }
-    const anonymous = linkWith(buildHeaders());
+    const anonymous = v1Link(buildHeaders());
     expect(
       await anonymous.refusalOf(
         anonymous.account.signIn({ deviceName: "One Too Many", email, password: PASSWORD }),
@@ -377,13 +337,13 @@ describe("the account's rows", () => {
   it("signs a device in and out, and lists the account's devices", async () => {
     const email = "rpc-sign-in@example.test";
     const { laptop } = await signedUp(email);
-    const anonymous = linkWith(buildHeaders());
+    const anonymous = v1Link(buildHeaders());
     const phone = await anonymous.account.signIn({
       deviceName: "Phone",
       email,
       password: PASSWORD,
     });
-    const onPhone = linkWith(deviceHeaders(phone.credential));
+    const onPhone = v1Link(deviceHeaders(phone.credential));
     const { devices } = await onPhone.account.devices.list();
     expect(devices.map((row) => row.name).toSorted()).toEqual(["Laptop", "Phone"]);
     const ticket = await onPhone.account.socketTicket();
@@ -398,7 +358,7 @@ describe("the account's rows", () => {
   });
 
   it("signs up with an invite, answering the new device's credential", async () => {
-    const anonymous = linkWith(buildHeaders());
+    const anonymous = v1Link(buildHeaders());
     const signedIn = await anonymous.account.signUp({
       deviceName: "Laptop",
       email: "rpc-sign-up@example.test",
@@ -406,20 +366,20 @@ describe("the account's rows", () => {
       name: "New Person",
       password: PASSWORD,
     });
-    const fresh = linkWith(deviceHeaders(signedIn.credential));
+    const fresh = v1Link(deviceHeaders(signedIn.credential));
     expect(await fresh.library.items.list({})).toEqual({ cursor: null, items: [] });
   });
 
   it("mints the browser extension its own credential for the site's session alone", async () => {
     const email = "rpc-extension@example.test";
     const { accountId, cookie, laptop } = await signedUp(email);
-    const tab = linkWith(sessionHeaders(cookie));
+    const tab = v1Link(sessionHeaders(cookie));
     const extension = await tab.account.connectExtension({ deviceName: "Browser extension" });
     expect(extension).toMatchObject({ email, userId: accountId });
     const { devices } = await laptop.account.devices.list();
     expect(devices.map((row) => row.name).toSorted()).toEqual(["Browser extension", "Laptop"]);
     // the extension's credential reaches the library, and the tab's session stays
-    const fromExtension = linkWith(deviceHeaders(extension.credential));
+    const fromExtension = v1Link(deviceHeaders(extension.credential));
     expect(await fromExtension.library.items.list({})).toEqual({ cursor: null, items: [] });
     expect(await tab.library.items.list({})).toEqual({ cursor: null, items: [] });
     // a device's credential mints none: one stolen would mint credentials outliving its revocation
@@ -430,7 +390,7 @@ describe("the account's rows", () => {
 
   it("ends a browser tab's own session when it signs out", async () => {
     const { cookie } = await signedUp("rpc-tab-sign-out@example.test");
-    const tab = linkWith(sessionHeaders(cookie));
+    const tab = v1Link(sessionHeaders(cookie));
     expect(await tab.account.signOut()).toEqual({ revoked: true });
     expect(await tab.refusalOf(tab.library.items.list({}))).toMatchObject({
       code: "UNAUTHORIZED",
@@ -457,7 +417,7 @@ describe("the account's rows", () => {
       expect(library.deletedAt()).not.toBeNull();
       expect(library.head()).toBe(0);
     });
-    const after = linkWith(deviceHeaders(credential));
+    const after = v1Link(deviceHeaders(credential));
     expect(await after.refusalOf(after.library.items.list({}))).toMatchObject({
       code: "UNAUTHORIZED",
       status: 401,
