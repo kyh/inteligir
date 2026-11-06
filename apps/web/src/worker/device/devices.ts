@@ -1,13 +1,12 @@
-// An account's devices, as every door lists and revokes them: the REST rows today's apps call and
-// `/v1/rpc`'s `account.devices.*`.
+// An account's devices, as `/v1/rpc`'s `account.devices.*` lists and revokes them, and a device's
+// own sign-out revokes it.
 
 import type { ListDevicesResponse } from "@repo/contract/cloud/device/device-schema";
 import { and, eq, isNull, sql } from "drizzle-orm";
 
 import type { Db } from "../db/client";
 import { device } from "../db/schema";
-import { libraryCell } from "../library/library-cell";
-import { errorFields } from "../log";
+import { severSockets } from "../library/socket-routes";
 import { forgetDeviceBudgets } from "../rate-limit";
 
 export const listDevices = async (db: Db, userId: string): Promise<ListDevicesResponse> => {
@@ -51,12 +50,6 @@ export const revokeDevice = async (
     return false;
   }
   await forgetDeviceBudgets(db, [target.deviceId]);
-  // the credential is already dead in D1; this closes the sockets it still holds, which no
-  // per-request check reaches. Best-effort: a failure costs a stale socket, never a live credential
-  try {
-    await libraryCell(ctx.exports, target.userId).severDevice(target.deviceId);
-  } catch (error) {
-    console.warn({ event: "socket-sever-failed", ...errorFields(error) });
-  }
+  await severSockets(ctx.exports, target.userId, { id: target.deviceId, kind: "device" });
   return true;
 };

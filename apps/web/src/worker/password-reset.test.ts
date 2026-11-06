@@ -3,61 +3,27 @@ import {
   PASSWORD_MIN_LENGTH,
 } from "@repo/contract/cloud/device/device-schema";
 import { eq } from "drizzle-orm";
-import { createExecutionContext } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import worker, { ownsPath } from "./index";
+import { ownsPath } from "./index";
 import { sendResetEmail } from "./auth/reset-email";
 import { createDb } from "./db/client";
 import { verification } from "./db/schema";
 import { drained, ORIGIN, signUpUser } from "./test-support/cloud-helpers";
+import {
+  envWith,
+  extractResetLink,
+  firstEmail,
+  followGetLeg,
+  issueToken,
+  recordingEmail,
+  requestReset,
+  RESET_PAGE_PATH,
+  SENDER,
+} from "./test-support/password-reset";
 
-// email delivery cannot run here (it needs the owner's sending domain), so requests that
-// must observe the send go through `worker.fetch` with a recording EMAIL binding
+// the new password every reset here sets
 const NEW_PASSWORD = "new-password-5678";
-
-// the site's /app/reset-password route, which the forgot-password page names as its redirectTo;
-// the route tree is the site program's, which this one cannot import
-const RESET_PAGE_PATH = "/app/reset-password";
-
-type RecordedEmail = EmailMessageBuilder;
-
-interface EmailRecorder {
-  EMAIL: SendEmail;
-  sent: RecordedEmail[];
-}
-
-const recordingEmail = (): EmailRecorder => {
-  const sent: RecordedEmail[] = [];
-  const EMAIL: SendEmail = {
-    send: async (message: EmailMessage | EmailMessageBuilder): Promise<EmailSendResult> => {
-      if (!("subject" in message)) {
-        throw new Error("unexpected raw EmailMessage send");
-      }
-      sent.push(message);
-      return { messageId: `mock-${String(sent.length)}` };
-    },
-  };
-  return { EMAIL, sent };
-};
-
-// production's two reset bindings, which the suites' own config leaves out; the sender is typed by
-// what cloudflare.config.ts declares
-const SENDER: Env["RESET_FROM_ADDRESS"] = "no-reply@inteligir.app";
-const envWith = (EMAIL: SendEmail): Env => ({ ...env, EMAIL, RESET_FROM_ADDRESS: SENDER });
-
-// worker.fetch rather than exports.default.fetch: it is the only way to swap in the recording EMAIL
-// binding
-const requestReset = async (email: string, testEnv: Env): Promise<Response> =>
-  await worker.fetch(
-    new Request(`${ORIGIN}/api/auth/request-password-reset`, {
-      body: JSON.stringify({ email, redirectTo: RESET_PAGE_PATH }),
-      headers: { "content-type": "application/json", origin: ORIGIN },
-      method: "POST",
-    }),
-    testEnv,
-    createExecutionContext(),
-  );
 
 const signIn = async (email: string, password: string): Promise<Response> =>
   await exports.default.fetch(`${ORIGIN}/api/auth/sign-in/email`, {
@@ -65,44 +31,6 @@ const signIn = async (email: string, password: string): Promise<Response> =>
     headers: { "content-type": "application/json", origin: ORIGIN },
     method: "POST",
   });
-
-const firstEmail = (sent: RecordedEmail[]): RecordedEmail => {
-  const [first] = sent;
-  if (first === undefined) {
-    throw new Error("no email recorded");
-  }
-  return first;
-};
-
-const extractResetLink = (message: RecordedEmail): string => {
-  const match = /https:\/\/\S*\/api\/auth\/reset-password\/\S+/u.exec(message.text ?? "");
-  if (match === null) {
-    throw new Error("no reset link in the email text");
-  }
-  return match[0];
-};
-
-const followGetLeg = async (link: string): Promise<URL> => {
-  const response = await drained(exports.default.fetch(link, { redirect: "manual" }));
-  expect(response.status).toBe(302);
-  const location = response.headers.get("location");
-  if (location === null) {
-    throw new Error("GET leg did not redirect");
-  }
-  return new URL(location);
-};
-
-const issueToken = async (email: string): Promise<string> => {
-  const { EMAIL, sent } = recordingEmail();
-  const response = await drained(requestReset(email, envWith(EMAIL)));
-  expect(response.status).toBe(200);
-  const landing = await followGetLeg(extractResetLink(firstEmail(sent)));
-  const token = landing.searchParams.get("token");
-  if (token === null) {
-    throw new Error("GET leg redirected without a token");
-  }
-  return token;
-};
 
 describe("password reset", () => {
   it("a known email gets ONE reset email carrying the URL, from the configured sender", async () => {

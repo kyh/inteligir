@@ -16,10 +16,12 @@ import {
   drained,
   loginDevice,
   ORIGIN,
+  sessionHeaders,
   signUpUser,
   userIdOf,
   v1Link,
 } from "../test-support/cloud-helpers";
+import { issueToken } from "../test-support/password-reset";
 import {
   cellOf,
   inCell,
@@ -96,6 +98,13 @@ const signedInDevice = async (email: string) => {
     Date.now(),
   );
   return { accountId, login, ticket };
+};
+
+// a browser tab signed in to the site, and the socket it opened on its session's ticket
+const signedInTab = async (email: string) => {
+  const { cookie } = await signUpUser(email);
+  const { ticket } = await v1Link(sessionHeaders(cookie)).account.socketTicket();
+  return { cookie, opened: await openWithTicket(ticket) };
 };
 
 // a write through the cell's engine, followed by what follows every committed write
@@ -209,10 +218,54 @@ describe("the account's socket", () => {
     }
     const opened = listen(socket);
     // the phone's revocation leaves the socket the laptop opened, whatever it claimed
-    await cellOf(accountId).severDevice(phone.deviceId);
+    await cellOf(accountId).sever({ id: phone.deviceId, kind: "device" });
     await expect(closedWithin(opened, 300)).resolves.toBe("open");
-    await cellOf(accountId).severDevice(laptop.deviceId);
+    await cellOf(accountId).sever({ id: laptop.deviceId, kind: "device" });
     await expect(opened.closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
+  });
+
+  it("closes a tab's socket once the app signs its session out", async () => {
+    const tab = await signedInTab("socket-session-app@example.test");
+    await expect(v1Link(sessionHeaders(tab.cookie)).account.signOut()).resolves.toStrictEqual({
+      revoked: true,
+    });
+    await expect(tab.opened.closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
+  });
+
+  it("closes a tab's socket once the site signs its session out", async () => {
+    const tab = await signedInTab("socket-session-site@example.test");
+    const signedOut = await drained(
+      exports.default.fetch(`${ORIGIN}/api/auth/sign-out`, {
+        headers: sessionHeaders(tab.cookie),
+        method: "POST",
+      }),
+    );
+    expect(signedOut.status).toBe(200);
+    await expect(tab.opened.closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
+  });
+
+  it("closes every tab's socket at a password reset, and leaves a device's open", async () => {
+    const email = "socket-session-reset@example.test";
+    const tab = await signedInTab(email);
+    const accountId = await userIdOf(tab.cookie);
+    const login = await loginDevice(tab.cookie, "Laptop");
+    const { ticket } = await mintSocketTicket(
+      env.BETTER_AUTH_SECRET,
+      { accountId, holder: { id: login.deviceId, kind: "device" } },
+      Date.now(),
+    );
+    const laptop = await openWithTicket(ticket);
+    const reset = await drained(
+      exports.default.fetch(`${ORIGIN}/api/auth/reset-password`, {
+        body: JSON.stringify({ newPassword: "new-password-5678", token: await issueToken(email) }),
+        headers: { "content-type": "application/json", origin: ORIGIN },
+        method: "POST",
+      }),
+    );
+    expect(reset.status).toBe(200);
+    await expect(tab.opened.closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
+    // a reset revokes sessions only, never a device's credential (`../auth/auth.ts`)
+    await expect(closedWithin(laptop, 300)).resolves.toBe("open");
   });
 
   it("closes its sockets at a deletion's tombstone, and refuses another while a credential still verifies", async () => {

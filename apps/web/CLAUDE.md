@@ -54,13 +54,14 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 - **THE ACCOUNT'S SOCKETS ARE ITS LIBRARY CELL'S, EACH TAGGED WITH THE HOLDER
   THE WORKER VERIFIED.** The cell accepts each hibernating socket under the
   device or browser session the Worker stamps on the upgrade, the one call
-  fetch carries; a committed write sends every socket the head, and a revoke
-  closes that holder's sockets. Every client's socket opens on `/v1/socket`
-  with a minute's HMAC ticket a `/v1` call minted, since a browser's sends no
-  header, its holder checked in D1 again. Rejected: a socket object beside the
-  cell (every ping crossing to it); the bearer in the URL (it outlives a minute
-  in any log); a bearer on the upgrade for the clients that can send one (a
-  second door to keep).
+  fetch carries; a committed write sends every socket the head. Every client's
+  socket opens on `/v1/socket` with a minute's HMAC ticket a `/v1` call
+  minted, since a browser's sends no header, its holder checked in D1 again;
+  that check is the upgrade's alone, so a device's revocation and every
+  session's end (a sign-out, a password reset) close that holder's sockets.
+  Rejected: a socket object beside the cell (every ping crossing to it); the
+  bearer in the URL (it outlives a minute in any log); a bearer on the upgrade
+  for the clients that can send one (a second door to keep).
   `apps/web/src/worker/library/cell-sockets.ts`, `socket-ticket.ts`,
   `socket-routes.ts`.
 

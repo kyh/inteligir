@@ -62,6 +62,7 @@ import {
   socketHolder,
   tellSockets,
 } from "./cell-sockets";
+import type { SocketHolder } from "./cell-sockets";
 import type { CellActor } from "./cell-actor";
 import { cellAccountId } from "./library-cell";
 import {
@@ -250,9 +251,10 @@ export class LibraryDO extends DurableObject<Env> {
     }
   }
 
-  // a revoked device's sockets close; its next request meets the revocation itself
-  severDevice(deviceId: string): void {
-    severHolder(this.ctx, { id: deviceId, kind: "device" });
+  // the sockets of a holder whose standing ended after its upgrade, a revoked device or a session
+  // that ended; its next request meets the end itself (`./socket-routes`)
+  sever(holder: SocketHolder): void {
+    severHolder(this.ctx, holder);
   }
 
   // the account's deletion, every step in order (`./account-purge`)

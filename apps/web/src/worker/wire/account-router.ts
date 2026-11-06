@@ -26,6 +26,7 @@ import { listDevices, revokeDevice } from "../device/devices";
 import { loginDevice, mintDeviceCredential } from "../device/login";
 import { signUpDevice } from "../device/sign-up";
 import type { AppPrincipal } from "../library/library-principal";
+import { severSockets } from "../library/socket-routes";
 import { mintSocketTicket } from "../library/socket-ticket";
 import { spendCallerBudget, spendDeviceBudget } from "../rate-limit";
 import { logRpcFailure } from "./rpc-log";
@@ -160,12 +161,16 @@ const accountRouter = os.router({
     }
     return result.response;
   }),
-  // the credential that asks: a device's is revoked, and a browser tab's session ends
+  // the credential that asks: a device's is revoked, and a browser tab's session ends, its sockets
+  // with it
   signOut: os.signOut.use(signedIn).handler(async ({ context }) => {
     const { actor, accountId } = context.signedIn;
-    await (actor.kind === "device"
-      ? revokeDevice(context.ctx, context.db, { deviceId: actor.deviceId, userId: accountId })
-      : context.db.delete(session).where(eq(session.id, actor.sessionId)));
+    if (actor.kind === "device") {
+      await revokeDevice(context.ctx, context.db, { deviceId: actor.deviceId, userId: accountId });
+    } else {
+      await context.db.delete(session).where(eq(session.id, actor.sessionId));
+      await severSockets(context.ctx.exports, accountId, { id: actor.sessionId, kind: "session" });
+    }
     return { revoked: true as const };
   }),
   signUp: os.signUp.handler(async ({ context, errors, input }) => {

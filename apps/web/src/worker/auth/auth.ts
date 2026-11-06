@@ -9,6 +9,7 @@ import { createDb } from "../db/client";
 import { authTables } from "../db/schema";
 import { AUTH_RATE_WINDOW_SECONDS, CALLER_IP_HEADER } from "../rate-limit";
 import { libraryCell } from "../library/library-cell";
+import { severSockets } from "../library/socket-routes";
 import { sendResetEmail } from "./reset-email";
 
 // Built per request: D1 is a runtime binding, not a module singleton. No baseURL config —
@@ -56,6 +57,18 @@ const buildAuth = (
     },
     baseURL,
     database: drizzleAdapter(createDb(env.DB), { provider: "sqlite", schema: authTables }),
+    databaseHooks: {
+      // every session Better Auth ends, the site's sign-out and each one a password reset revokes,
+      // closes the sockets it opened, whose standing was checked only at their upgrade
+      // (../library/socket-routes.ts)
+      session: {
+        delete: {
+          after: async (ended) => {
+            await severSockets(exports, ended.userId, { id: ended.id, kind: "session" });
+          },
+        },
+      },
+    },
     disabledPaths: DISABLED_PATHS,
     emailAndPassword: {
       disableSignUp,

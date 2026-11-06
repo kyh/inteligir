@@ -2,6 +2,8 @@
 // cell, which keeps it. It opens with a ticket (`./socket-ticket`) on every client, since a
 // browser's socket carries no header; the Worker names the cell from the account the ticket
 // verified, and stamps its holder over any copy the request carried. The ticket goes no further.
+// The holder's standing is checked at the upgrade alone, so whatever ends it later, a device's
+// revocation or a session's end, closes its sockets here (`severSockets`).
 
 import { SOCKET_TICKET_PARAM } from "@repo/contract/cloud/library/library-socket";
 import { and, eq, gt, isNull } from "drizzle-orm";
@@ -12,6 +14,7 @@ import { device, session } from "../db/schema";
 import { plainText } from "../plain-http";
 import { holderHeaderValue, SOCKET_HOLDER_HEADER } from "./cell-sockets";
 import type { SocketHolder } from "./cell-sockets";
+import { errorFields } from "../log";
 import { libraryCell } from "./library-cell";
 import { readSocketTicket } from "./socket-ticket";
 
@@ -86,4 +89,19 @@ export const handleLibrarySocket = async (
     return plainText(401, "You're signed out. Sign in again.");
   }
   return await forwardToCell(request, ctx, claim.accountId, claim.holder);
+};
+
+// the sockets a holder opened while it stood, closed once it no longer does: the credential is
+// already dead in D1, and no per-request check reaches a socket that has its upgrade. Best-effort:
+// a failure costs a stale socket, never a live credential
+export const severSockets = async (
+  exports: Cloudflare.Exports,
+  accountId: string,
+  holder: SocketHolder,
+): Promise<void> => {
+  try {
+    await libraryCell(exports, accountId).sever(holder);
+  } catch (error) {
+    console.warn({ event: "socket-sever-failed", holder: holder.kind, ...errorFields(error) });
+  }
 };
