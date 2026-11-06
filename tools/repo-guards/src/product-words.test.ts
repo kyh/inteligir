@@ -272,7 +272,7 @@ describe("product surfaces speak the person's words", () => {
       .map(
         (hit) =>
           `${hit.file}:${String(hit.line)}  says ${hit.word}: "${hit.text.trim()}"\n` +
-          `  rule: a product surface calls the folder the library and what is in it items, and names no engine; vault stays code's and the CLI's word (AGENTS.md § Rules that matter)\n` +
+          `  rule: a product surface calls the folder the library and what is in it items, and names no engine; vault and the engine words stay code's (AGENTS.md § Rules that matter)\n` +
           `  fix: say library or item, or the person's own words for the engine; a file that must say it is a row of ALLOWED with its reason`,
       );
     expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
