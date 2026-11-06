@@ -59,8 +59,11 @@ end that receives it.
   reads it, each block with its hash and place), `writeItem` (ops under their
   bases, answered queued, unchanged, missing, changed with the item as it
   reads now, or invalid), `wikiTargets` (the items a link can name, by id and
-  the title each goes by now), `addHighlight` and `noteHighlight` (a highlight
-  the editor marked and its note, each answered as queued) — and events:
+  the title each goes by now, asked again whenever another item moves),
+  `addHighlight` and `noteHighlight` (a highlight the editor marked and its
+  note, each answered as queued), `createNote` (a note of blocks an extract
+  moved, or a link's new note, made in the open item's folder and answered
+  with its id) — and events:
   `editorState` (dirty and why a write failed, sent only when either changes,
   which the screen asks about before letting the item go), `showAnnotations`
   (the highlights a tap on a marked passage names), `openItem` (the page has
@@ -96,7 +99,8 @@ answers.
 `src/item/item-host.ts` builds the editor's host over the bridge: the item
 store the session reads and writes, its link-resolver store fed by the
 targets, and the `EditorHostIo` and `EditorHostActions` it installs as one
-host when the page starts. A highlight is the touch toolbar's: its markers go
+host when the page starts; a bound formula reads the items it names through
+the same store. A highlight is the touch toolbar's: its markers go
 in as it is submitted, and its entry and quote go to the phone as
 `addHighlight`, its note as `noteHighlight`.
 

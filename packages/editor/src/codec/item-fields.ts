@@ -272,7 +272,8 @@ const listLines = (key: string, values: readonly string[]): string[] =>
 const instant = (ms: number): string =>
   ms % 1000 === 0 ? formatItemTime(ms) : new Date(ms).toISOString();
 
-// the frontmatter's YAML for an item's fields, its id first, then the keys in one fixed order; `title` is written only when the file's name cannot carry it. Each key is written once: a
+// the frontmatter's YAML for an item's fields, its id first, then the keys in one fixed order;
+// `title` is written only when the file's name cannot carry it. Each key is written once: a
 // property under a key a field wrote is that field's, but for what `tags` or `aliases` could not
 // read, which joins their one list
 export const writeFrontmatter = (fields: FileFields, id: string, title: string | null): string => {

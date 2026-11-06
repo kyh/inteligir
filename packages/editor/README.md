@@ -31,7 +31,7 @@ selectors it reads, and `style-hooks.test.ts` pins the two together.
 src/
   markdown/            # the round trip: the Slate↔mdast rules, the one
                        # markdown→Slate conversion, the bounded fixpoint and
-                       # `serializeNote`, the one way any save reaches bytes
+                       # `serializeNote`, the one way the codec writes markdown
   codec/               # an item as markdown, headless: import and export of
                        # one file, a folder's or zip's import plan and the
                        # export's, and the agent's view of an item and its edits
@@ -39,9 +39,9 @@ src/
                        # compositions over it, the headless mirror the
                        # serializer runs, the markdown wiring, the rich-block lock
   nodes/               # every node type as a Base (headless) + React pair
-  note/                # the open note: its store and React's door to it, the
-                       # session's ordering, the autosave runtime and the flush
-                       # writers outside the note reach
+  note/                # the open note's store and React's door to it (the key
+                       # a kit reads view state by), and the line a merge that
+                       # kept this device's lines says
   annotations/         # annotation markers, ranges, gutter, store
   formulas/            # `{{…}}` pills: the `{{` picker, entry, editing, recompute
   wiki/                # `[[…]]` links: the `[[` picker, the chip, insertion, keys
@@ -49,9 +49,10 @@ src/
   lib/                 # debounce, the one door a diagram's markup becomes
                        # nodes through, embed and url helpers
   test-support/        # the fake editor host, for any suite that mounts the
-                       # editor (the desktop's included), and what this
-                       # package's suites share: the DOM cleanup, a mounted
-                       # editor, a fake vault, sample and generated notes
+                       # editor (the hosts' included), and what this package's
+                       # suites share: the DOM cleanup, a mounted editor, an
+                       # item held in memory, the codec's ports, the quote
+                       # corpus, sample and generated notes
   test-support/fixtures/  # THE BYTE-PINNED ROUND-TRIP MATRIX (see below)
   *.test.ts(x)         # each suite beside the module it names, in whichever
                        # folder that module sits; one that holds several
@@ -75,16 +76,17 @@ src/
   halves for the headless serializer; `kit-parity.test.ts` fails when the two
   compositions disagree, so a node that renders but does not serialize is
   impossible, and `touch-kit.test.ts` holds the touch kit to the same.
-- **Rich is the default surface.** The parse is total: no jsx and no
-  expressions, and every tag is html, folded with its closer
-  (`@repo/notes/markdown/remark-inline-html`), so every file opens Rich and
-  normalizes on the first real edit. Constructs with no editor node — a tag
-  that cannot pair, any pair but a bare `<u>`, raw HTML — are opaque inline
-  nodes (`@repo/notes/markdown/remark-opaque`): shown as inert literal text and
-  written back byte-for-byte, and `{` is prose. Only a nesting deeper than the
-  conversion holds opens no editor, and nothing is written over it; a round
-  trip that never settles or would lose a letter is a rule or serializer bug,
-  which the fixtures and `analyzeMarkdown` (`RoundTripFailure` in
+- **Every file reads rich.** The parse is total: no jsx and no expressions,
+  and every tag is html, folded with its closer
+  (`@repo/notes/markdown/remark-inline-html`), so every file the codec reads
+  becomes blocks, settled through the serializer as it comes in. Constructs
+  with no editor node — a tag that cannot pair, any pair but a bare `<u>`, raw
+  HTML — are opaque inline nodes (`@repo/notes/markdown/remark-opaque`): shown
+  as inert literal text and written back byte-for-byte, and `{` is prose. Only
+  a nesting deeper than the conversion holds is refused (an import leaves the
+  file out, an agent's edit is turned down), so nothing is written over it; a
+  round trip that never settles or would lose a letter is a rule or serializer
+  bug, which the fixtures and `analyzeMarkdown` (`RoundTripFailure` in
   `markdown/markdown-doc.ts`) name.
 - **Typing walks a long note only through its budget.**
   `typing-budget.test.tsx` types into a generated 10k-line note opened in the
@@ -93,36 +95,34 @@ src/
   after typing. A pass a keystroke cannot afford caches by top-level block (the
   outline, the gutter's ids), which an edit replaces while keeping every other
   by identity.
-- **View state keys by note path.** The workspace holds ONE open-note store
-  (an instance, `note/open-note-context.tsx`), and every module holding view
-  state — heading folds included — keys by the note's own path: a module
-  outlives the document it describes, so a late answer must not land on the
-  note that replaced it.
+- **View state keys by the open item.** The workspace holds ONE open-note
+  store (an instance, `note/open-note-context.tsx`), told the id of the item
+  it shows, and every module holding view state — heading folds included —
+  keys by that id: a module outlives the document it describes, so a late
+  answer must not land on the item that replaced it.
 
 ## Seams
 
 - `host-io.ts` — the injected host, `EditorHost`, as a MODULE SINGLETON
   because kit factories, paste handlers and a deep node's click run outside
-  React or with no route to the shell. Its `EditorHostIo` carries the vault
-  actions (`vault`), the link resolver store (the knowledge index's own `buildResolver` over
-  the listing, for wiki targets and md urls alike, and the wiki targets it was
+  React or with no route to the shell. Its `EditorHostIo` carries the link
+  resolver store (the knowledge index's own `buildResolver` over the items the
+  host feeds, for wiki targets and md urls alike, and the wiki targets it was
   built over, which the `[[` picker lists — subscribed to rather than read,
-  because it moves with every refresh while the
-  actions never do), vault reads, asset bytes in and out, the knowledge queries,
-  and the change events that invalidate them, plus what only some hosts have:
-  a native photo picker that writes what it picks (`pickImage`, null hides the
-  touch toolbar's image button; a picked path lands through `insertVaultImage`,
-  as a paste does). Its `EditorHostActions` are what the editor asks the shell
-  for (Ask agent and a `#tag` chip's `showTag`, an annotation's create, edit
-  and open),
-  every one required, so a host that leaves one out fails to typecheck rather
-  than drawing a button that does nothing. The editor never reaches the
-  server for any of it; each host installs it once, through
-  `installEditorHost`, ahead of the first render
-  (`apps/workspace/src/app/item/page-editor-host.ts`, and the phone's
-  over its WebView bridge, `apps/mobile-editor/src/item/item-host.ts`),
-  feeding the resolver store through `link-resolver-feed.ts`, and `host.ts` is
-  React's door (`useVaultActions`, `useLinkResolver`, `useWikiTargets`, and
+  because it moves with the library while the actions never do), `vault`'s one
+  verb, `openFile`, which opens what a link or a file card names, and the reads
+  by path an embed, a link's preview and a file inside a note ask for, which
+  both hosts answer with nothing there. Its `EditorHostActions` are what the
+  editor asks the shell for (Ask agent and a `#tag` chip's `showTag`, an
+  annotation's create, edit and open, and the note an extract or a link's
+  Create makes, `items.createNote`), every one required, so a host that leaves
+  one out fails to typecheck rather than drawing a button that does nothing.
+  Each host installs it once, through `installEditorHost`, ahead of the first
+  render (`apps/workspace/src/app/item/page-editor-host.ts`, over the tab's or
+  the Mac's replica, and the phone's over its WebView bridge,
+  `apps/mobile-editor/src/item/item-host.ts`), feeding the resolver store
+  through `link-resolver-feed.ts`, and `host.ts` is React's door
+  (`useVaultActions`, `useLinkResolver`, `useWikiTargets`, and
   `useVaultLinkTarget`, which reads an md url through `mdLinkTarget` and
   resolves it from the note it is written in — the open note, or the one an
   embed shows — so an image or a link lands where the index says it does).
@@ -147,10 +147,10 @@ src/
   the column. The desktop sets none; a touch host sets `touch` and gets the
   touch kit, no outline rail and a narrower inset.
 - `live-editor.ts` — the registry the shell reaches a mounted editor through
-  by the item's id (the pin, annotations, Info's properties). A render
-  SUBSCRIBES — `subscribeLiveEditors`, told of each registration — and never
-  reads: the editor registers after the render that asked for it, and the
-  compiler memoizes a render-time read on its inputs, so it never re-runs.
+  by the id of the item it holds (a find's jump, a highlight's quote in the
+  panel, an extract's check that its item is still the one open);
+  `liveEditorItemId` answers the id an editor holds, and `getLiveEditor`
+  whether it still answers for it.
 
 ## Testing
 

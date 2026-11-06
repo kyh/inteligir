@@ -23,19 +23,22 @@ alone, and no walk narrows structurally.
 
 ## Editor and dialect
 
-- **THE EDITOR IS A WYSIWYG OVER A BYTE-DISCIPLINED SERIALIZER, AND EVERY SAVE
-  GOES THROUGH `serializeNote`** (epic #579, owner decision). Plate.js over one
-  owned parse, one rule table and a bounded fixpoint. Byte stability is a tested
-  contract: a canonical file round-trips byte-exact, a churn-class construct may
-  canonicalize on its first save (said per fixture), and the fixtures are
-  formatter-exempt; every item opens rich, and only a nesting past the
-  conversion's depth opens no editor, so nothing is saved over it. The live
-  save, an extract and the codec all call `serializeNote`, since the rule table
-  expects its whole-value pre-pass. Rejected: a raw editor beside the rich one
-  (markdown is not at rest), a paragraph rule's prune (a heading or list
-  item saved `**a****b**`) and Plate's `serializeMd` (no pre-pass, a ZWSP
-  beside every chip). `packages/editor/src/markdown/markdown-doc.ts`,
-  `packages/editor/README.md` § Invariants.
+- **THE EDITOR IS A WYSIWYG OVER AN ITEM'S BLOCKS, AND EVERY MARKDOWN THE
+  CODEC WRITES GOES THROUGH `serializeNote`** (epic #579, owner decision).
+  Plate.js over one owned parse, one rule table and a bounded fixpoint. The
+  live editor writes block ops, never markdown (AN ITEM IS EDITED BY ITS ID);
+  the codec's import and export, the agent's view and edits, and the block
+  merge's markdown all call `serializeNote`, since the rule table expects its
+  whole-value pre-pass. Byte stability is the codec's tested contract: a
+  canonical file round-trips byte-exact, a churn-class construct may
+  canonicalize on its first read (said per fixture), the fixtures are
+  formatter-exempt, and a file nested past the conversion's depth is refused
+  (an import leaves it out, an agent's edit is turned down), so every item
+  opens rich. Rejected: a raw editor beside the rich one (markdown is not at
+  rest), a paragraph rule's prune (a heading or list item saved `**a****b**`)
+  and Plate's `serializeMd` (no pre-pass, a ZWSP beside every chip).
+  `packages/editor/src/markdown/markdown-doc.ts`, `packages/editor/README.md`
+  § Invariants.
 
 - **THE FIXPOINT RUNS HEADLESS, AND AN IMPORTED PAGE IS WRITTEN AS ITS OWN
   FIXPOINT.** The base kits are headless files

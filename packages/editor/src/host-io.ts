@@ -84,7 +84,10 @@ interface NewNote {
 }
 
 export interface ItemActions {
-  /** Makes `note` in the folder of the item the editor shows, through the replica's outbox, and answers its id; rejects when the note was not made. */
+  /**
+   * Makes `note` in the folder of the item the editor shows, through the replica's outbox, and
+   * answers its id; rejects when the note was not made.
+   */
   readonly createNote: (note: NewNote) => Promise<string>;
 }
 
