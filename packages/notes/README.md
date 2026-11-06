@@ -34,6 +34,8 @@ src/
                        # revert-edit's orientation, newest set first
     library-schema.ts  # the ONE DDL, versioned by `meta.schema`
     library-sql.ts     # the ports, plans as generators, statement chunking
+    sql-value.ts       # a SQL value and row as zod, a leaf node loads as it
+                       # stands
     library-queries.ts # every read and write over the schema, as plans
     library-index.ts   # the listing over a replica's rows, in memory
     uuid-v7.ts         # an id minted on a device that sorts by when

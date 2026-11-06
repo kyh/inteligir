@@ -13,8 +13,8 @@ export interface CellStorage extends SqlPort {
   readonly databaseSize: () => number;
 }
 
-// the schema stores no BLOB column, so a byte value is a row this build never wrote
-
+// a row as the cell's SQLite hands it back: the schema stores no BLOB column, so a byte value is a
+// row this build never wrote
 const rowOf = (raw: Record<string, SqlStorageValue>): SqlRow => {
   const row = sqlRowSchema.safeParse(raw);
   if (!row.success) {

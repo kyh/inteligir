@@ -124,7 +124,8 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   to the folder; nested folders indent under their parents, and a save from the
   folder's grid lands in it. A remembered folder no longer listed reads as All
   items, on the phone as here (`listedScope` in
-  `packages/domain/src/library-scope.ts`). `apps/workspace/src/app/library/listing.ts`,
+  `packages/domain/src/library-scope.ts`).
+  `apps/workspace/src/app/library/listing.ts`,
   `apps/workspace/src/app/sidebar/folder-paths.ts`.
 
 - **THERE IS ONE SEARCH SURFACE, AND IT IS ⌘P.** One field searches the
