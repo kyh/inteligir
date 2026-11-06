@@ -8,7 +8,7 @@ import { editorShortcutFor } from "@repo/editor/editor-shortcuts";
 import type { EditorShortcut } from "@repo/editor/editor-shortcuts";
 import { getEditorHostActions } from "@repo/editor/host-io";
 import { selectionEdgeLocked } from "@repo/editor/kits/rich-block-lock-kit";
-import { liveEditorPath } from "@repo/editor/live-editor";
+import { liveEditorItemId } from "@repo/editor/live-editor";
 import { stringProp } from "@repo/editor/node-props";
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { revealCentered } from "@repo/editor/scroll-reveal";
@@ -161,7 +161,7 @@ const askForEntry = async (editor: SlateEditor, id: string, quote: string): Prom
 // one, so a long selection is a highlight with a clipped quote, never a refusal. A refused entry
 // takes its markers back out, so no highlight is left that the store does not hold.
 export const highlightSelection = (editor: SlateEditor): HighlightStarted | null => {
-  const path = liveEditorPath(editor);
+  const path = liveEditorItemId(editor);
   if (path === null || !selectionTakesHighlight(editor)) {
     return null;
   }

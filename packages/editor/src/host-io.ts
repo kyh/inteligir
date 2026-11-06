@@ -52,23 +52,12 @@ export type VaultChangedEvent =
 export const vaultChangeTouches = (event: VaultChangedEvent, path: string): boolean =>
   event.kind === "files" ? event.paths === null || event.paths.includes(path) : event.path === path;
 
-// `picked` is an image the host has already written to the vault; `refused` is one it would not
-// take, and `message` says why in the user's words.
-export type PickImageResult =
-  | { readonly kind: "picked"; readonly path: string }
-  | { readonly kind: "cancelled" }
-  | { readonly kind: "refused"; readonly message: string };
-
 export interface EditorHostIo {
   vault: VaultActions;
   linkResolver: LinkResolverStore;
   readVaultFile: (payload: { path: string }) => Promise<string>;
   readVaultAsset: (payload: { path: string }) => Promise<ReadVaultAssetResult>;
-  /** Picks a collision-free name from `baseName`; the host decides the folder from the vault's attachments choice and the open note. */
-  writeVaultAsset: (payload: { baseName: string; file: Blob }) => Promise<{ path: string }>;
   onVaultChanged: (listener: (event: VaultChangedEvent) => void) => () => void;
-  /** A native photo picker that writes what it picks; null where paste and drop are the only way in. */
-  pickImage: (() => Promise<PickImageResult>) | null;
   /** True where `vault.openFile` shows a file that is no note in a viewer of the host's own (the phone), so a file card's Open goes there; false where the page hands the file's bytes to the system's viewer. */
   opensFiles: boolean;
 }

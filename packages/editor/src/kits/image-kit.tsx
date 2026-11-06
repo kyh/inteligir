@@ -1,65 +1,29 @@
+// An image in an item is a block the library holds (by its bytes' sha, or a web address). A
+// picture file pasted or dropped into the text is not added to it: the editor takes the event, so
+// the browser neither opens the file nor drops it as text, and says where a picture goes instead.
+
 import { KEYS } from "platejs";
-import type { SlateEditor } from "platejs";
 import { createPlatePlugin } from "platejs/react";
 
-import { getEditorHostIo } from "@repo/editor/host-io";
-import { insertVoidAndEscape } from "@repo/editor/insert-void";
-import { isLiveEditor } from "@repo/editor/live-editor";
 import { ImageElement } from "@repo/editor/nodes/image-node";
 import { toast } from "@repo/ui/components/sonner";
 
-const extFromMime = (mime: string): string => {
-  const subtype = mime.slice("image/".length).split("+")[0] ?? "";
-  if (subtype === "jpeg") {
-    return ".jpg";
-  }
-  if (subtype === "svg") {
-    return ".svg";
-  }
-  return subtype ? `.${subtype}` : ".png";
-};
-
-const imageFilesFrom = (files: FileList | null | undefined): File[] => {
-  if (!files) {
-    return [];
-  }
-  return [...files].filter((file) => file.type.startsWith("image/"));
-};
-
-const writeAsset = async (file: File, name: string): Promise<string> => {
-  const written = await getEditorHostIo().writeVaultAsset({ baseName: name, file });
-  return written.path;
-};
-
-// A paste, a drop and a host's photo picker all land their written image here, so the three agree
-// on the bytes. False when the note closed while the image was written: it is in the vault and in
-// no note, and the toast says where it went.
-export const insertVaultImage = (editor: SlateEditor, path: string): boolean => {
-  if (!isLiveEditor(editor)) {
-    toast.warning(`Added ${path} to the library, but its item closed before the image landed`);
-    return false;
-  }
-  insertVoidAndEscape(editor, { children: [{ text: "" }], type: KEYS.img, url: path });
-  return true;
-};
-
-// Never rejects: the handlers have already eaten the event, so a rejection reaches nobody — toast instead.
 /** @internal */
-export const ingestImageFiles = async (editor: SlateEditor, files: File[]): Promise<void> => {
-  for (const file of files) {
-    const name = file.name === "" ? `pasted-image${extFromMime(file.type)}` : file.name;
-    try {
-      const path = await writeAsset(file, name);
-      if (!insertVaultImage(editor, path)) {
-        return;
-      }
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      toast.error(`Couldn't add ${name} — ${detail}`);
-      return;
-    }
-  }
-};
+export const PICTURE_NOT_ADDED =
+  "A picture isn't added to a note's text. Save it to your library as an item of its own, and link to it from the note.";
+
+// what a paste's clipboard or a drop's drag hands over
+interface Transfer {
+  readonly files: Iterable<File>;
+  readonly types: readonly string[];
+}
+
+// whether the editor takes the paste or the drop as a picture of the person's: a picture file, but
+// not a browser's copy of a web picture, which also carries the page's own markup to paste
+/** @internal */
+export const takesPicture = (data: Transfer, from: "paste" | "drop"): boolean =>
+  [...data.files].some((file) => file.type.startsWith("image/")) &&
+  (from === "drop" || !data.types.includes("text/html"));
 
 // a separate plugin on the base half's key (headless/image-base.ts): DOM paste/drop handlers exist
 // only on React plugins.
@@ -71,29 +35,20 @@ export const ImageKit = [
     .withComponent(ImageElement)
     .extend(() => ({
       handlers: {
-        onDrop: ({ editor, event }) => {
-          const files = imageFilesFrom(event.dataTransfer.files);
-          if (files.length === 0) {
+        onDrop: ({ event }) => {
+          if (!takesPicture(event.dataTransfer, "drop")) {
             return false;
           }
           event.preventDefault();
-          // drop where the pointer landed, not at the stale caret.
-          const at = editor.api.findEventRange(event);
-          if (at) {
-            editor.tf.select(at);
-          }
-          void ingestImageFiles(editor, files);
+          toast.info(PICTURE_NOT_ADDED);
           return true;
         },
-        // a browser image-copy also ships an <img> in text/html; only a real file paste is intercepted.
-        onPaste: ({ editor, event }) => {
-          const clipboard = event.clipboardData;
-          const files = imageFilesFrom(clipboard.files);
-          if (files.length === 0 || clipboard.types.includes("text/html")) {
+        onPaste: ({ event }) => {
+          if (!takesPicture(event.clipboardData, "paste")) {
             return false;
           }
           event.preventDefault();
-          void ingestImageFiles(editor, files);
+          toast.info(PICTURE_NOT_ADDED);
           return true;
         },
       },

@@ -1,29 +1,24 @@
-// Keyed by path so a consumer never grabs a stale editor serving another note: a note switch
-// mounts a new editor, and the outgoing one must stop answering for the incoming path.
+// Keyed by the id of the item each editor holds, so a consumer never grabs a stale editor serving
+// another item: opening another item mounts a new editor, and the outgoing one must stop answering
+// for the incoming id.
 
 import type { SlateEditor } from "platejs";
 
 const editors = new Map<string, SlateEditor>();
 // weak: a strong reverse map would pin every editor a session built.
-const paths = new WeakMap<SlateEditor, string>();
+const itemIds = new WeakMap<SlateEditor, string>();
 
-export const registerLiveEditor = (path: string, editor: SlateEditor): (() => void) => {
-  editors.set(path, editor);
-  paths.set(editor, path);
+export const registerLiveEditor = (itemId: string, editor: SlateEditor): (() => void) => {
+  editors.set(itemId, editor);
+  itemIds.set(editor, itemId);
   return () => {
-    if (editors.get(path) === editor) {
-      editors.delete(path);
+    if (editors.get(itemId) === editor) {
+      editors.delete(itemId);
     }
   };
 };
 
-export const getLiveEditor = (path: string): SlateEditor | null => editors.get(path) ?? null;
+export const getLiveEditor = (itemId: string): SlateEditor | null => editors.get(itemId) ?? null;
 
-export const liveEditorPath = (editor: SlateEditor): string | null => paths.get(editor) ?? null;
-
-// whether `editor` still serves its note: an unmounted one keeps its last path but no longer
-// answers for it, so an insert that awaited must not land in it.
-export const isLiveEditor = (editor: SlateEditor): boolean => {
-  const path = paths.get(editor);
-  return path !== undefined && editors.get(path) === editor;
-};
+// the item an editor holds, kept after it unmounts: `getLiveEditor` says whether it still answers
+export const liveEditorItemId = (editor: SlateEditor): string | null => itemIds.get(editor) ?? null;

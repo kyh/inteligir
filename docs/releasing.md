@@ -316,7 +316,9 @@ the owner's account; a spare macOS user keeps your own Keychain out of it.
   - With a card selected and no field focused, ⌘V of a copied link saves it
     (the paste catcher), and the focus returns to the card; ⌘V of a screenshot
     saves a picture.
-  - ⌘V inside a note still pastes into the note.
+  - ⌘V inside a note still pastes into the note, but ⌘V of a screenshot there,
+    or a picture dropped on its text, adds nothing and says to save the picture
+    to the library as an item of its own.
   - A link dragged from Safari, Chrome and Arc onto the window saves, and so
     does a file dragged from Finder onto the grid and onto a folder row.
   - A card dragged onto a folder in the sidebar moves, never saves.

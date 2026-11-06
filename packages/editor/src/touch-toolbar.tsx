@@ -21,7 +21,6 @@ import type { PlateEditor } from "platejs/react";
 import {
   BoldIcon,
   CodeIcon,
-  ImageIcon,
   ItalicIcon,
   KeyboardOffIcon,
   Link2Icon,
@@ -45,9 +44,6 @@ import {
   selectionTakesHighlight,
 } from "@repo/editor/annotations/annotation-kit";
 import { CODE_MARK_SHORTCUT, runEditorShortcut } from "@repo/editor/editor-shortcuts";
-import { getEditorHostIo } from "@repo/editor/host-io";
-import type { PickImageResult } from "@repo/editor/host-io";
-import { insertVaultImage } from "@repo/editor/kits/image-kit";
 import { indentBlocks, outdentBlocks } from "@repo/editor/kits/list-kit";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import type { MarkShortcut, MarkShortcutAction } from "@repo/editor/mark-shortcuts";
@@ -57,7 +53,6 @@ import type { SlashItem } from "@repo/editor/slash-items";
 /** @internal */
 export const TOUCH_ACTIONS = {
   "hide-keyboard": { icon: KeyboardOffIcon, label: "Hide keyboard" },
-  image: { icon: ImageIcon, label: "Add image" },
   indent: { icon: ListIndentIncreaseIcon, label: "Indent" },
   link: { icon: Link2Icon, label: "Link" },
   outdent: { icon: ListIndentDecreaseIcon, label: "Outdent" },
@@ -210,26 +205,6 @@ const highlightOn = (editor: PlateEditor, at: TRange, text: string): void => {
   }
 };
 
-// Never rejects: the press has already happened, so a rejection would reach nobody.
-const pickImageInto = async (
-  editor: PlateEditor,
-  pickImage: () => Promise<PickImageResult>,
-): Promise<void> => {
-  let picked: PickImageResult;
-  try {
-    picked = await pickImage();
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    toast.error(`Couldn't add the image — ${detail}`);
-    return;
-  }
-  if (picked.kind === "picked") {
-    insertVaultImage(editor, picked.path);
-  } else if (picked.kind === "refused") {
-    toast.error(picked.message);
-  }
-};
-
 // a field that takes the row: a link's address, or a highlight's optional note
 type PromptKind = "link" | "highlight";
 
@@ -325,7 +300,6 @@ const TouchToolbar = () => {
   const [prompt, setPrompt] = useState<OpenPrompt | null>(null);
   // what a field held when its text went away under it, offered again when that field next opens
   const [draft, setDraft] = useState<{ kind: PromptKind; value: string } | null>(null);
-  const { pickImage } = getEditorHostIo();
 
   const openPrompt = (kind: PromptKind): void => {
     if (editor.selection !== null) {
@@ -403,14 +377,6 @@ const TouchToolbar = () => {
                 openPrompt("link");
               }}
             />
-            {pickImage === null ? null : (
-              <ActionButton
-                action="image"
-                onPress={() => {
-                  void pickImageInto(editor, pickImage);
-                }}
-              />
-            )}
             <Sep />
             <ActionButton
               action="undo"

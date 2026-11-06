@@ -128,11 +128,9 @@ export const installItemPageHost = (bridge: PageBridge, itemId: string): ItemPag
     linkResolver: feed.store,
     onVaultChanged: () => nothingToDo,
     opensFiles: false,
-    pickImage: null,
     readVaultAsset: async () => await Promise.resolve({ error: "no file here", ok: false }),
     readVaultFile: nothingThere,
     vault,
-    writeVaultAsset: nothingThere,
   };
 
   installEditorHost({

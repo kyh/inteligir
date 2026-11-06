@@ -6,7 +6,7 @@ import type { PlateEditor } from "platejs/react";
 
 import { ANNOTATION_SHORTCUTS, HIGHLIGHT_SHORTCUT } from "@repo/editor/annotations/annotation-kit";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
-import type { AnnotationActions, PickImageResult } from "@repo/editor/host-io";
+import type { AnnotationActions } from "@repo/editor/host-io";
 import { registerLiveEditor } from "@repo/editor/live-editor";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
@@ -111,22 +111,15 @@ describe("the touch toolbar", () => {
   });
 
   // the phone asks no agent, so the desktop's Ask agent has no row here
-  it("draws Highlight and no Ask agent on every host, and no image button without a picker", () => {
+  it("draws Highlight and no Ask agent on every host", () => {
     mount("body\n");
     const names = toolbarButtons().map((button) => button.getAttribute("aria-label"));
     expect(names).toContain(HIGHLIGHT_SHORTCUT.label);
     expect(names).not.toContain("Ask agent");
-    expect(names).not.toContain(TOUCH_ACTIONS.image.label);
-  });
-
-  it("draws the image button once the host has a picker", () => {
-    mount("body\n", { pickImage: async () => await Promise.resolve({ kind: "cancelled" }) });
-    const names = toolbarButtons().map((button) => button.getAttribute("aria-label"));
-    expect(names).toContain(TOUCH_ACTIONS.image.label);
   });
 
   it("keeps the editor's focus: every press cancels its pointerdown", () => {
-    mount("body\n", { pickImage: async () => await Promise.resolve({ kind: "cancelled" }) });
+    mount("body\n");
     for (const button of toolbarButtons()) {
       const dispatched = fireEvent.pointerDown(button);
       expect(dispatched, `${String(button.getAttribute("aria-label"))} let focus move`).toBe(false);
@@ -157,31 +150,6 @@ describe("the touch toolbar", () => {
 
     press(TOUCH_ACTIONS.outdent.label);
     expect(serializeNote(editor)).toBe("- one\n- two\n");
-  });
-
-  it("lands a picked image as a paste lands it, and says why a refused one did not", async () => {
-    const picks: PickImageResult[] = [
-      { kind: "picked", path: "assets/photo.jpg" },
-      { kind: "refused", message: "That photo is larger than the vault takes." },
-    ];
-    const editor = mount("body\n", {
-      pickImage: async () => await Promise.resolve(picks.shift() ?? { kind: "cancelled" }),
-    });
-    act(() => {
-      editor.tf.select({ offset: 4, path: [0, 0] });
-    });
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: TOUCH_ACTIONS.image.label }));
-      await Promise.resolve();
-    });
-    expect(serializeNote(editor)).toContain("![](assets/photo.jpg)");
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: TOUCH_ACTIONS.image.label }));
-      await Promise.resolve();
-    });
-    expect(toast.error).toHaveBeenCalledWith("That photo is larger than the vault takes.");
   });
 });
 

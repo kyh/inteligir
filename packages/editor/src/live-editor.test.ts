@@ -1,7 +1,7 @@
 import { createSlateEditor } from "platejs";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { getLiveEditor, isLiveEditor, registerLiveEditor } from "@repo/editor/live-editor";
+import { getLiveEditor, liveEditorItemId, registerLiveEditor } from "@repo/editor/live-editor";
 
 const cleanups: (() => void)[] = [];
 
@@ -11,24 +11,23 @@ afterEach(() => {
   }
 });
 
-describe("the live editors, by the path each serves", () => {
-  it("answers for a path while its editor is registered, and not once it leaves", () => {
+describe("the live editors, by the item each holds", () => {
+  it("answers for an item while its editor is registered, and not once it leaves", () => {
     const editor = createSlateEditor();
-    const off = registerLiveEditor("a.md", editor);
-    expect(getLiveEditor("a.md")).toBe(editor);
-    expect(isLiveEditor(editor)).toBe(true);
+    const off = registerLiveEditor("item-a", editor);
+    expect(getLiveEditor("item-a")).toBe(editor);
+    expect(liveEditorItemId(editor)).toBe("item-a");
     off();
-    expect(getLiveEditor("a.md")).toBeNull();
-    expect(isLiveEditor(editor)).toBe(false);
+    expect(getLiveEditor("item-a")).toBeNull();
+    expect(liveEditorItemId(editor)).toBe("item-a");
   });
 
   it("keeps the incoming editor when the replaced one's disposer runs", () => {
     const outgoing = createSlateEditor();
     const incoming = createSlateEditor();
-    const offOutgoing = registerLiveEditor("a.md", outgoing);
-    cleanups.push(registerLiveEditor("a.md", incoming));
+    const offOutgoing = registerLiveEditor("item-a", outgoing);
+    cleanups.push(registerLiveEditor("item-a", incoming));
     offOutgoing();
-    expect(getLiveEditor("a.md")).toBe(incoming);
-    expect(isLiveEditor(outgoing)).toBe(false);
+    expect(getLiveEditor("item-a")).toBe(incoming);
   });
 });

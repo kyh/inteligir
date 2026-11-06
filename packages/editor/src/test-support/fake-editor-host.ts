@@ -29,7 +29,6 @@ export interface FakeEditorHostOptions {
   // answers a new note in place of a fresh id, still recorded, so a case can hold it in flight or
   // refuse it
   readonly createNote?: ItemActions["createNote"];
-  readonly pickImage?: EditorHostIo["pickImage"];
   readonly opensFiles?: boolean;
   readonly annotations?: AnnotationActions;
   readonly agent?: AgentRequestActions;
@@ -78,7 +77,6 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
       // the fake vault announces no change, so there is no subscription to end
     },
     opensFiles: options.opensFiles ?? false,
-    pickImage: options.pickImage ?? null,
     readVaultAsset: async ({ path }) =>
       await Promise.resolve(options.readVaultAsset?.(path) ?? { error: "no assets", ok: false }),
     readVaultFile: async ({ path }) => {
@@ -88,7 +86,6 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
         : Promise.resolve(content));
     },
     vault,
-    writeVaultAsset: async () => await Promise.reject(new Error("read-only")),
   };
 
   installEditorHost({

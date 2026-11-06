@@ -15,7 +15,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { isAnnotationMarker } from "@repo/editor/annotations/annotation-ranges";
 import { WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
 import { getEditorHostActions } from "@repo/editor/host-io";
-import { getLiveEditor, liveEditorPath } from "@repo/editor/live-editor";
+import { getLiveEditor, liveEditorItemId } from "@repo/editor/live-editor";
 import { wikiNode } from "@repo/editor/wiki/wiki-node";
 
 import { readElement } from "./item/item-diff";
@@ -97,7 +97,7 @@ export const extractBlocksToNote = async (
 ): Promise<string | null> => {
   const sorted = [...paths].toSorted(PathApi.compare);
   const elements = blocksAt(editor, sorted);
-  const itemId = liveEditorPath(editor);
+  const itemId = liveEditorItemId(editor);
   if (elements.length === 0 || itemId === null) {
     return null;
   }
