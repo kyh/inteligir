@@ -10,8 +10,9 @@ import type {
   DeviceLoginResponse,
 } from "@repo/contract/cloud/device/device-schema";
 import { cloudErrorSchema } from "@repo/contract/cloud/errors";
-import { SYNC_WS_PATH, syncPingSchema } from "@repo/contract/cloud/sync/sync-ws";
-import type { SyncPing } from "@repo/contract/cloud/sync/sync-ws";
+import { librarySocketFrameSchema } from "@repo/contract/cloud/library/library-socket";
+import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
+import { SYNC_WS_PATH } from "@repo/contract/cloud/sync/sync-ws";
 import { applySetCookies } from "better-auth/cookies";
 import { env, exports } from "cloudflare:workers";
 import { expect } from "vitest";
@@ -151,7 +152,7 @@ export const postSignOut = async (authorization: Record<string, string>): Promis
 
 export const openSocket = async (
   credential: string,
-): Promise<{ frames: SyncPing[]; socket: WebSocket }> => {
+): Promise<{ frames: LibrarySocketFrame[]; socket: WebSocket }> => {
   const response = await exports.default.fetch(`${ORIGIN}${SYNC_WS_PATH}`, {
     headers: { ...deviceHeaders(credential), upgrade: "websocket" },
   });
@@ -161,13 +162,13 @@ export const openSocket = async (
     throw new Error("no websocket on the 101");
   }
   socket.accept();
-  const frames: SyncPing[] = [];
+  const frames: LibrarySocketFrame[] = [];
   socket.addEventListener("message", (message) => {
     const text = textFrameSchema.safeParse(message.data);
     if (!text.success) {
       return;
     }
-    frames.push(emitted(syncPingSchema, text.data));
+    frames.push(emitted(librarySocketFrameSchema, text.data));
   });
   return { frames, socket };
 };

@@ -29,8 +29,8 @@ const worker = defineWorker({
   // dev server cannot load a module the Worker loads too (tools/repo-guards/src/route-paths.test.ts)
   assets: { runWorkerFirst: ["/library", "/library/*", "!/library/assets/*"] },
   // the log and the traces keep every request's path for up to seven days, so no route carries a
-  // vault path in one (the vault reads post it), and drop the query string, which carries sign-in
-  // codes and tickets (docs/privacy.md)
+  // library's name for anything in one, and drop the query string, which carries sign-in codes and
+  // tickets (docs/privacy.md)
   observability: {
     enabled: true,
     redactQueryString: true,
@@ -44,11 +44,11 @@ const worker = defineWorker({
     // each conversation with the built-in agent, which only its account's cell names
     // (src/worker/agent/agent-thread.ts)
     AgentThreadDO: exports.durableObject({ storage: "sqlite" }),
-    // the account socket's old class, retired: its namespace stays a tombstone until a deploy's
-    // response names it safe to drop
+    // retired classes: each namespace stays a tombstone, its class gone from the entry, until a
+    // deploy's response names it safe to drop (the account socket's, then the hosted vault's two)
     ThreadSyncDO: exports.durableObject({ state: "deleted" }),
-    RepoCell: exports.durableObject({ storage: "sqlite" }),
-    Registry: exports.durableObject({ storage: "sqlite" }),
+    RepoCell: exports.durableObject({ state: "deleted" }),
+    Registry: exports.durableObject({ state: "deleted" }),
   },
 });
 
@@ -66,15 +66,10 @@ const MIN_CLIENT_BUILD = "0.6.0";
 const shared = {
   // the site's and the library page's built files (vite.config.ts copies the page's in)
   ASSETS: bindings.assets(),
-  // REPO and REGISTRY are durable-git's own classes, re-exported through the entry
-  REPO: bindings.durableObject({ worker, exportName: "RepoCell" }),
-  REGISTRY: bindings.durableObject({ worker, exportName: "Registry" }),
   // Better Auth's signing key: `cf workers secrets update` in production, a preview base-config
   // secret (.github/workflows/preview.yml), .dev.vars locally
   BETTER_AUTH_SECRET: bindings.secret(),
   MIN_CLIENT_BUILD: bindings.text(MIN_CLIENT_BUILD),
-  // what one account's hosted vault may store, history included: 1 GiB
-  VAULT_STORAGE_CAP_BYTES: bindings.text("1073741824"),
   // what one account's library may hold, its files and its history included: 1 GiB
   LIBRARY_STORAGE_CAP_BYTES: bindings.text("1073741824"),
   // the auth limiter's off switch, "true" only where one caller signs up many accounts: the
@@ -139,7 +134,7 @@ const previewDeploy = () =>
 
 // A Preview must not claim the production hostnames, and gets its own Durable Object namespaces
 // for free, and a preview-only D1, bucket, queue and KV namespace (.github/workflows/preview.yml
-// creates them): a PR never reaches the production accounts, vault packs, fills or connected
+// creates them): a PR never reaches the production accounts, files, fills or connected
 // assistants. A preview consumes no queue
 // (developers.cloudflare.com/workers/previews/resources/), so a link saved there stays unread. No
 // EMAIL or sender: a preview must not mail real inboxes from the production domain, and
@@ -154,7 +149,6 @@ const previewWorker = () => {
       // the preview gateway, which holds the preview Anthropic workspace's key, never production's
       AGENT_GATEWAY_URL: bindings.text<string>(gatewayUrl(GATEWAYS.preview)),
       DB: bindings.d1({ name: "inteligir-auth-preview" }),
-      PACK_CACHE: bindings.r2({ name: "inteligir-vault-preview" }),
       BLOBS: bindings.r2({ name: "inteligir-vault-preview" }),
       FILLS: bindings.queue<FillJob>({ name: FILL_PREVIEW_QUEUE }),
       OAUTH_KV: bindings.kv({ id: deploy.OAUTH_KV_PREVIEW_ID }),
@@ -192,11 +186,7 @@ const productionWorker = (mode: string | undefined) => ({
     ANTHROPIC_FAKE_URL: mode === "development" ? bindings.text<string>("") : undefined,
     // schema is src/worker/db/schema.ts, applied with drizzle-kit push (no migration files)
     DB: bindings.d1({ name: "inteligir-auth", id: "005d0e52-f102-4298-8da9-492b672ed00f" }),
-    // pack bytes only; without it durable-git stores packs in the cell's SQLite, which
-    // caps vault size
-    PACK_CACHE: bindings.r2({ name: "inteligir-vault" }),
-    // the library's files, under acct/<userId>/ in the same bucket; durable-git reads its own
-    // bucket by the PACK_CACHE name, so the two names share it until the hosted vault goes
+    // the library's files and exports, under acct/<userId>/
     BLOBS: bindings.r2({ name: "inteligir-vault" }),
     FILLS: bindings.queue<FillJob>({ name: FILL_QUEUE }),
     // password-reset transport; needs email sending enabled + DNS onboarding once

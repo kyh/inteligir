@@ -28,13 +28,6 @@ import {
 import { createCloudClient, readCloudCall } from "./cloud-client";
 import type { CloudFailure } from "./cloud-client";
 import { TEST_BUILD } from "./test-support/fake-cloud-client";
-import { syncPingSchema } from "./sync/sync-ws";
-import {
-  assetMediaType,
-  takesBytes,
-  VAULT_ASSET_MEDIA_TYPES,
-  vaultTreeResponseSchema,
-} from "./vault/vault-schema";
 
 describe("error envelope", () => {
   it("round-trips through its own schema", () => {
@@ -138,8 +131,6 @@ const grown = (value: Json): Json => {
   };
 };
 
-const COMMIT = "a".repeat(40);
-
 const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
   [
     "a login",
@@ -160,16 +151,6 @@ const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
   ],
   ["a sign-out", revokeDeviceResponseSchema, { revoked: true }],
   ["an account deletion", deleteAccountResponseSchema, { deleted: true }],
-  [
-    "a tree page",
-    vaultTreeResponseSchema,
-    {
-      commit: COMMIT,
-      entries: [{ oid: "b".repeat(40), path: "notes/a.md", size: 12 }],
-      next: null,
-    },
-  ],
-  ["a vault ping", syncPingSchema, { type: "vault" }],
   ["a refusal", cloudErrorSchema, { error: { code: "rate-limited", message: "" } }],
 ];
 
@@ -398,76 +379,5 @@ describe("invite sign-up request", () => {
       deviceSignUpRequestSchema.safeParse({ ...SIGN_UP, deviceName: "L", email: "not-an-address" })
         .success,
     ).toBe(false);
-  });
-});
-
-describe("ws ping frames", () => {
-  it("parses the one server frame, and reads a frame a newer worker grew", () => {
-    expect(syncPingSchema.parse({ type: "vault" })).toStrictEqual({ type: "vault" });
-    expect(syncPingSchema.parse({ extra: true, type: "vault" })).toStrictEqual({ type: "vault" });
-  });
-
-  it("reads a frame type it does not know as no frame", () => {
-    expect(syncPingSchema.safeParse({ type: "presence" }).success).toBe(false);
-    expect(syncPingSchema.safeParse({ seq: 1, type: "sync" }).success).toBe(false);
-  });
-});
-
-describe("the asset allowlist", () => {
-  it("the asset allowlist answers a type or nothing — never a fallback", () => {
-    expect(assetMediaType("media/diagram.png")).toBe("image/png");
-    expect(assetMediaType("media/PHOTO.JPG")).toBe("image/jpeg");
-    expect(assetMediaType("notes.md")).toBeNull();
-    expect(assetMediaType("script.html")).toBeNull();
-    expect(assetMediaType("no-extension")).toBeNull();
-  });
-
-  it("pins the asset allowlist WHOLE — growth is additive, removal waits on the build floor", () => {
-    // hand-listed on purpose: an entry is a type a file is served under, so a change is one here
-    expect(
-      Object.fromEntries(
-        [...VAULT_ASSET_MEDIA_TYPES].map(([extension, row]) => [
-          extension,
-          `${row.kind} ${row.mediaType}`,
-        ]),
-      ),
-    ).toEqual({
-      ".aac": "audio audio/aac",
-      ".apng": "image image/apng",
-      ".avif": "image image/avif",
-      ".bmp": "image image/bmp",
-      ".flac": "audio audio/flac",
-      ".gif": "image image/gif",
-      ".ico": "image image/x-icon",
-      ".jpeg": "image image/jpeg",
-      ".jpg": "image image/jpeg",
-      ".m4a": "audio audio/mp4",
-      ".m4v": "video video/x-m4v",
-      ".mov": "video video/quicktime",
-      ".mp3": "audio audio/mpeg",
-      ".mp4": "video video/mp4",
-      ".pdf": "pdf application/pdf",
-      ".png": "image image/png",
-      ".svg": "image image/svg+xml",
-      ".wav": "audio audio/wav",
-      ".webm": "video video/webm",
-      ".webp": "image image/webp",
-    });
-  });
-
-  it("stores bytes at any path but a doc's and the app's own, which is wider than it serves", () => {
-    for (const path of ["assets/archive.zip", "assets/IMG.HEIC", "media/a.png", "x.pdf"]) {
-      expect(takesBytes(path), path).toBe(true);
-    }
-    for (const path of [
-      "notes/a.md",
-      "notes/a.TXT",
-      ".inteligir/annotations/abc.json",
-      ".obsidian/workspace.json",
-      "notes/.DS_Store",
-    ]) {
-      expect(takesBytes(path), path).toBe(false);
-    }
-    expect(assetMediaType("assets/archive.zip")).toBeNull();
   });
 });

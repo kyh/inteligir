@@ -1,6 +1,5 @@
 // What an account's library may hold: 1 GiB of its files' bytes and its SQLite together, history
-// included (owner decision: revisions count toward it, as the hosted vault's history did). The
-// files' bytes, uploads still held open among them, are `meta.bytes_used`; the SQLite is what the
+// included (owner decision: revisions count toward it). The files' bytes, uploads still held open among them, are `meta.bytes_used`; the SQLite is what the
 // Durable Object reports. A write that adds bytes past the cap is refused, and one that frees or
 // keeps them never is, so a full library can still be tidied.
 

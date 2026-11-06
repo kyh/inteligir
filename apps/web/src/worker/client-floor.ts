@@ -24,10 +24,6 @@ const fromOwnPage = (request: Request): boolean =>
 
 const OUTDATED_MESSAGE = "This version of Inteligir can't sync anymore. Update it to keep syncing.";
 
-// git prints a text/plain refusal's body as `remote:` lines, and the status is what the engine reads
-const OUTDATED_GIT_TEXT =
-  "this version of inteligir is older than the hosted vault accepts; update it\n";
-
 // an absent or unreadable header is refused like a stale build: every build that sends none is
 // older than the floor
 export const isBelowFloor = (request: Request, env: Env): boolean => {
@@ -39,16 +35,6 @@ export const isBelowFloor = (request: Request, env: Env): boolean => {
   return build === null || !meetsBuildFloor(build, floor);
 };
 
-// null when the request may go on: the REST rows' refusal, in their envelope or git's text
-export const refuseBelowFloor = (
-  request: Request,
-  env: Env,
-  speaksEnvelope: boolean,
-): Response | null => {
-  if (!isBelowFloor(request, env)) {
-    return null;
-  }
-  return speaksEnvelope
-    ? refuse("client-outdated", OUTDATED_MESSAGE)
-    : new Response(OUTDATED_GIT_TEXT, { status: 426 });
-};
+// null when the request may go on: the REST rows' refusal, in their envelope
+export const refuseBelowFloor = (request: Request, env: Env): Response | null =>
+  isBelowFloor(request, env) ? refuse("client-outdated", OUTDATED_MESSAGE) : null;

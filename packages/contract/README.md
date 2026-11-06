@@ -62,7 +62,6 @@ src/
     device/            # the device credential and the one login flow
     sync/              # the session fence and the account socket that says the vault moved
     account/           # the account's rows (account-contract.ts), its deletion and the sign-up doors
-    vault/             # the hosted vault's git remote and the shapes the Mac's local server reads
     extension/         # the extension's key, id, origin and store link, and the connect page's messages
 ```
 
@@ -113,8 +112,7 @@ src/
   `library.write`).
 - **Every request names its build, and the Worker refuses one below its
   floor.** `x-inteligir-build` rides the REST calls, the two that ask for a
-  credential, the socket's upgrade and the hosted vault's git `extraHeader`
-  (`client-build.ts`; `client-build.test.ts` walks every
+  credential and the socket's upgrade (`client-build.ts`; `client-build.test.ts` walks every
   `CloudClient` method). `client-outdated` ends a session as `outdated`, not
   `unauthorized`: the credential stands, and only an update moves past it
   (`sync/sync-session.ts`).

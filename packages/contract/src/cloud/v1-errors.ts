@@ -121,7 +121,7 @@ export const V1_CUSTOM_ERROR_STATUS = {
   [ClientOutdatedError.code]: 426,
   [DeviceLimitError.code]: 409,
   [InvalidCredentialsError.code]: 401,
-  // 507 as the hosted vault's full answered: the library cannot store this, which no retry fixes
+  // 507: the library cannot store this, which no retry fixes
   [QuotaError.code]: 507,
 } as const;
 

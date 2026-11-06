@@ -25,9 +25,6 @@ export const annotationsStoreItemId = (path: string): string | null => {
   return isNoteIdKey(key) ? key : null;
 };
 
-export const isAnnotationsStorePath = (path: string): boolean =>
-  annotationsStoreItemId(path) !== null;
-
 export const ANNOTATION_SOURCES = ["user", "agent", "external"] as const;
 export const annotationSourceSchema = z.enum(ANNOTATION_SOURCES);
 export type AnnotationSource = z.infer<typeof annotationSourceSchema>;

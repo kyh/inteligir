@@ -51,7 +51,6 @@ const DEVICE_RATE_KEY_PREFIXES = {
   blobs: "blobs:",
   connector: "connector:",
   rpc: "rpc:",
-  vaultGit: "vault-git:",
 } as const;
 
 type DeviceRateFamily = keyof typeof DEVICE_RATE_KEY_PREFIXES;
@@ -101,7 +100,7 @@ export const RATE_WINDOWS = {
   inviteSignUp: { max: 10, windowMs: 60_000 },
   login: { max: 10, windowMs: 60_000 },
   // a library's files, read and written: a grid of covers and a video read range by range are the
-  // legitimate bursts, as a note's embeds were the vault's
+  // legitimate bursts
   blobs: { max: 3000, windowMs: 60_000 },
   // every call a connected assistant makes on the connector, keyed on its grant: a turn reads and
   // edits a few dozen times, and a client listing and calling its tools in a loop is no person's
@@ -110,9 +109,6 @@ export const RATE_WINDOWS = {
   // a week away pulls a thousand changes a page and its bodies four MB an answer while its outbox
   // drains a write a call, which a few hundred calls cover, so a ceiling past that is a loop
   rpc: { max: 1200, windowMs: 60_000 },
-  // set from the worst legitimate minute: 20 devices, every push pings the others, and a pinged
-  // device syncs at once, so one device can owe ~100 requests; a ceiling near that refuses real sync
-  vaultGit: { max: 600, windowMs: 60_000 },
 } as const satisfies Record<CallerRateFamily | DeviceRateFamily, RateWindow>;
 
 export const spendCallerBudget = async (

@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "./db/client";
 import { inviteCode, rateLimit, session, user } from "./db/schema";
 import { deviceRateKey } from "./rate-limit";
-import { vaultRepoName, vaultRegistry } from "./vault/vault-repo";
 import {
   buildHeaders,
   deviceHeaders,
@@ -23,7 +22,6 @@ import {
   signUpUser,
   userIdOf,
 } from "./test-support/cloud-helpers";
-import { pushVaultFiles, ZERO_OID } from "./test-support/git-pack";
 
 // any route a live credential reaches, to tell a live one from a dead one
 const DEVICES = `${ORIGIN}${DEVICE_API_PATHS.list}`;
@@ -48,15 +46,6 @@ describe("deleting the account from a device", () => {
     const invite = await inviteOf(email);
     expect(invite).toBeDefined();
 
-    const pushed = await pushVaultFiles(
-      laptop.credential,
-      "vault: initialize",
-      [{ content: "a note the deletion covers\n", path: "note.md" }],
-      ZERO_OID,
-      { length: "undeclared" },
-    );
-    expect(pushed.response.status).toBe(200);
-    await pushed.response.arrayBuffer();
     const phoneSocket = await openSocket(phone.credential);
     // oxlint-disable-next-line promise/avoid-new -- the close code arrives as a socket event, which only a promise can hand to an await
     const phoneClosed = new Promise<number>((resolve) => {
@@ -88,8 +77,6 @@ describe("deleting the account from a device", () => {
 
     // the account's sockets close with it, the phone's still-open one included
     expect(await phoneClosed).toBe(1001);
-
-    expect(await vaultRegistry(env).get(vaultRepoName(userId))).toBeNull();
 
     const spent = await createDb(env.DB)
       .select()

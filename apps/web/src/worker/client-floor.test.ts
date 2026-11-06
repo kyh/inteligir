@@ -1,7 +1,6 @@
 import { CLIENT_BUILD_HEADER } from "@repo/contract/cloud/client-build";
 import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
 import { SYNC_WS_PATH } from "@repo/contract/cloud/sync/sync-ws";
-import { VAULT_GIT_PATH } from "@repo/contract/cloud/vault/vault-git";
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import {
@@ -16,7 +15,6 @@ import {
 
 // any route a device credential reaches
 const LIST = `${ORIGIN}${DEVICE_API_PATHS.list}`;
-const GIT_REFS = `${ORIGIN}${VAULT_GIT_PATH}/info/refs?service=git-upload-pack`;
 
 // one minor under the floor vitest.config.ts sets, whatever the patch, and one major over it
 const versionAround = (majorStep: number, minorStep: number): string => {
@@ -92,18 +90,6 @@ describe("the client build floor", () => {
     );
     expect(response.status).toBe(426);
     expect(response.webSocket).toBeNull();
-  });
-
-  it("refuses the git remote in plain text git prints", async () => {
-    const { credential } = await signedIn("floor-git@example.test");
-    const response = await exports.default.fetch(GIT_REFS, { headers: asBuild(credential, null) });
-    expect(response.status).toBe(426);
-    expect(response.headers.get("content-type")).toMatch(/^text\/plain/u);
-    expect(await response.text()).toMatch(/update/u);
-    const current = await drained(
-      exports.default.fetch(GIT_REFS, { headers: deviceHeaders(credential) }),
-    );
-    expect(current.status).not.toBe(426);
   });
 
   it("answers this Worker's own pages, which ship in the same deploy", async () => {

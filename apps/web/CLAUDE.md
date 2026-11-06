@@ -1,8 +1,8 @@
 # Decisions: @repo/web and the cloud
 
 Accounts, the device credential, the /cloud wire and `/v1`'s, the connector with
-its OAuth and its tools, the account's library cell and its sockets, and the
-hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
+its OAuth and its tools, the account's library cell and its sockets, and each
+conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Cloud, sync and accounts
 
@@ -115,27 +115,6 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
   `packages/contract/src/cloud/client-build.ts`,
   `apps/web/src/worker/client-floor.ts`.
 
-- **THE HOSTED VAULT'S GIT REMOTE IS BUDGETED PER DEVICE, and the budget buys
-  time, not prevention.** Its requests consume a window keyed on the device,
-  never the address, since a stolen credential moves between addresses and the
-  device row is what revocation removes; the window is a family of its own, so
-  a drained one never takes `/v1` down, its ceiling set from the worst
-  legitimate minute, and revocation is the control
-  (`apps/web/src/worker/rate-limit.ts`). A read-scoped credential is the
-  deeper answer and is not built; the trigger is a second party holding a
-  credential for someone else's account.
-
-- **THE HOSTED VAULT IS CAPPED ON WHAT THE CELL STORES, AND TAKES A PUSH OF AT
-  MOST 90 MiB** (owner decision: free, about 1 GB an account counting every
-  stored version, so deleting frees nothing; no compaction in 0.6; a stated push
-  cap, large files later). Size is the cell's SQLite file plus its R2 packs
-  (`patches/durable-git@0.0.8.patch`); the push cap sits under the edge's
-  100 MB body, so the refusal is the Worker's own; ONE gate meets every pack
-  bound for a cell; reads are never refused for size. Rejected: the gc guard's sum (double-counts a SQLite-held pack); a
-  Worker-side meter (bytes offered, not kept); the head tree's size (ignores
-  growing history). `apps/web/cloudflare.config.ts`,
-  `apps/web/src/worker/vault/receive-pack.ts`.
-
 - **A PR PREVIEW IS A WORKER PREVIEW DRIVEN BY ACTIONS, not Workers Builds**,
   and it binds preview-only resources. Previews ride `workflow_run` after CI, as
   Deploy does, only for this repo's branches, since that trigger holds secrets.
@@ -242,8 +221,7 @@ hosted vault. `AGENTS.md` § Decisions says how a bullet is written and cited.
 - **AN ACCOUNT'S DELETION RUNS IN ITS CELL, THE TOMBSTONE FIRST AND THE
   CREDENTIALS LAST.** Better Auth's `beforeDelete` asks the cell to purge, step
   by step, each step idempotent, so a failure aborts the deletion and the retry
-  runs from the top on a credential still live; the hosted vault goes after,
-  once no credential can push to it. The tombstone outlives the deletion, so a
+  runs from the top on a credential still live. The tombstone outlives the deletion, so a
   call verified a moment before meets it rather than founding a library nobody
   reaches. Rejected: credentials first (a failed step leaves no device to retry
   from); a bare `deleteAll` (an in-flight write rebuilds the cell).

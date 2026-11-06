@@ -4,7 +4,7 @@ One Cloudflare Worker serving the marketing site and the whole cloud from
 one origin: the TanStack Start pages, Better Auth on D1, device login, each
 account's library cell (a SQLite Durable Object holding the library and its
 devices' sockets), the connector a person's own assistant reaches the library
-through, and the hosted vault git remote. The wire contract is `@repo/contract/cloud` — the Worker implements
+through. The wire contract is `@repo/contract/cloud` — the Worker implements
 it, the local app's and the phone's clients consume it.
 
 ## Layout
@@ -67,19 +67,10 @@ src/
                      link read through the guarded fetch (page-fetch.ts) and
                      the page reader, its files kept, landed in the cell
     zip/             The zip codec imports read and exports write
-    vault/           The hosted vault git remote (durable-git behind the
-                     wrapper) + the repo's one name and its purge
-                     (vault-repo.ts) + the git-less /v1/vault/* read
-                     routes + the Worker's own commits (commit-changes.ts,
-                     planned by plan-change-set.ts over a tree listing and
-                     pushed through the cell's receive-pack like any
-                     client's)
     db/              Drizzle schema + client for the D1 auth database
     rate-limit.ts    The D1 fixed window every throttled route spends
-    types/           The hand-authored durable-git .d.ts (it ships untyped TS
-                     source) — re-check on every version bump — and the
-                     highlight.js and page reader stubs that keep the DOM lib
-                     out (below)
+    types/           The highlight.js and page reader stubs that keep the DOM
+                     lib out (below)
     *.test.ts        suites run inside workerd (@cloudflare/vitest-plugin:
                      real D1 + DO)
     test-support/    Their shared harness: the schema setup, the client
@@ -171,7 +162,6 @@ own (`.dev.vars.example`).
 | `POST /v1/device/sign-out`  | device            | The same revoke, for the device the credential names                          |
 | `GET /v1/sync/ws`           | device            | Invalidation socket (Bearer on the upgrade; hibernatable)                     |
 | `GET /v1/socket`            | ticket            | The same socket for any client, on a minute's ticket in the query             |
-| `/v1/git/vault.git/*`       | device            | The hosted vault git remote — smart HTTP, 90 MiB push, 1 GiB stored           |
 | `POST /v1/account/delete`   | device + password | Delete the account through Better Auth's `deleteUser`                         |
 | `POST /v1/rpc/account/*`    | — or device/tab   | The account's oRPC rows: sign in or up, devices, delete, ticket, extension    |
 | `POST /v1/rpc/library/*`    | device or tab     | The library's oRPC rows, forwarded to the account's library cell              |
@@ -191,11 +181,10 @@ hash compare against D1 — never cached, so revocation is immediate; its
 VERIFIED credential's userId — never a path or a body — names the state it
 reaches: the socket upgrade to that user's own library cell, `LibraryDO`
 named `library:<userId>` (the one forwarded request, carrying the verified
-holder; a push, a revoke and a deletion call the cell by RPC), the git
-remote to that user's own durable-git `RepoCell`, and the account deletion
-reads D1 directly. Every REST `/v1` refusal, an unknown route and
-an unhandled fault included, is the JSON error envelope; the git mount answers
-git clients in plain text, `/v1/rpc` in its own protocol, and `/v1/blobs` and
+holder; a revoke and a deletion call the cell by RPC), and the account
+deletion reads D1 directly. Every REST `/v1` refusal, an unknown route and
+an unhandled fault included, is the JSON error envelope; `/v1/rpc` answers in
+its own protocol, and `/v1/blobs` and
 `/v1/exports` in HTTP's statuses alone.
 
 A link the library holds unread (a `saveLink`, a `refresh`, an import's) is
@@ -340,11 +329,10 @@ other method is refused `bad-request` (`src/worker/vault/read-routes.ts`).
   read that fails is unknown to the route guards, never signed out
   (`src/lib/auth-client.ts`), and `/app/devices` shows it, like a device list
   that failed to load, as its message and a retry
-  (`src/routes/app/devices.tsx`). The hosted
-  vault's git remote (`/v1/git/*`, 600/min) spends the same table keyed on the
-  DEVICE, never the address: a stolen credential moves between addresses, and
-  the device row is what `/app/devices` revokes. Its family is its own, so a
-  drained budget never takes `/v1` down. Revocation and account deletion drop the rows. Better Auth prunes the shared table on its own writes, every row past
+  (`src/routes/app/devices.tsx`). `/v1/rpc` and `/v1/blobs` spend the same
+  table keyed on the DEVICE, never the address: a stolen credential moves
+  between addresses, and the device row is what `/app/devices` revokes. Each
+  family is its own, so a drained budget never takes another down. Revocation and account deletion drop the rows. Better Auth prunes the shared table on its own writes, every row past
   its 60s window with it, so every Worker window is declared in `RATE_WINDOWS`
   and a guard holds each to 60s or less.
 - **No CORS**, deliberately: every browser client is served by this Worker from
@@ -359,8 +347,7 @@ other method is refused `bad-request` (`src/worker/vault/read-routes.ts`).
   sockets closed, then the cell's storage with the tombstone written back at
   once, then the account's files in R2, then its device rows and the deleted
   email off the invite it spent (`redeemed_at` stays set, so the code stays
-  burned), the credentials last so a failure leaves one to retry with — then
-  the hosted vault git repo, which no credential can push to any more. The
+  burned), the credentials last so a failure leaves one to retry with. The
   tombstone stays, so a request that verified a moment before the credentials
   went founds no library.
   The app asks it at `POST /v1/account/delete` (`src/worker/device/account.ts`),

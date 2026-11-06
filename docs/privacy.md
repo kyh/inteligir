@@ -1100,7 +1100,6 @@ to Better Auth under `/api/auth/`. Nothing else under `/v1/` exists.
 | `/v1/account/delete`  | Your password, once, to delete the account and everything this page says the cloud holds for it.                                                                                                                                                                                                                    | Your password and the device's credential; throttled per device.                                                                                |
 | `/v1/socket`          | A live connection that says only that your library changed, and how far it has come.                                                                                                                                                                                                                                | A one-minute pass your signed-in device or browser session asked for, its sign-in checked again.                                                |
 | `/v1/sync/ws`         | A live connection that says only that your online library changed.                                                                                                                                                                                                                                                  | The device's credential.                                                                                                                        |
-| `/v1/git/vault.git`   | Your library and its whole history, sent up from and down to your Macs.                                                                                                                                                                                                                                             | The device's credential, within a per-device budget.                                                                                            |
 
 Everything else the app reaches is someone else's:
 
@@ -1114,8 +1113,6 @@ Everything else the app reaches is someone else's:
   your Mac.
 - **The services you connect the agent to**, each at the address you gave it,
   and their own sign-in pages when they ask for one.
-- **Your own git server**, if a library syncs to one instead of your account's
-  online library.
 - **The sites you save**, from the Mac or the iPhone you saved on, when you
   save a link or refresh it on a Mac, with the cover files they name, the
   cover a Raindrop import recorded, and the oEmbed addresses above; from the

@@ -45,7 +45,7 @@ export default defineConfig({
         d1Databases: ["DB"],
         // the connector's OAuth store
         kvNamespaces: ["OAUTH_KV"],
-        r2Buckets: ["BLOBS", "PACK_CACHE"],
+        r2Buckets: ["BLOBS"],
         // the producer alone: a suite hands the consumer its batch itself (createMessageBatch), so
         // no message a test's save sends is read behind its back
         queueProducers: { FILLS: { queueName: FILL_QUEUE } },
@@ -62,8 +62,6 @@ export default defineConfig({
           LIBRARY_CELL: { className: "LibraryDO", useSQLite: true },
           // and ctx.exports.AgentThreadDO's, each conversation's object, which no suite reads by name
           AGENT_THREAD: { className: "AgentThreadDO", useSQLite: true },
-          REPO: { className: "RepoCell", useSQLite: true },
-          REGISTRY: { className: "Registry", useSQLite: true },
         },
         bindings: {
           BETTER_AUTH_SECRET: TEST_BETTER_AUTH_SECRET,
@@ -81,8 +79,6 @@ export default defineConfig({
           // the origin every suite addresses the Worker at, as the deployment's own
           SITE_ORIGIN: ORIGIN,
           TEST_SCHEMA,
-          // small enough that a test fills a vault with a few pushes
-          VAULT_STORAGE_CAP_BYTES: String(1024 * 1024),
           LIBRARY_STORAGE_CAP_BYTES: String(1024 * 1024 * 1024),
         },
       },

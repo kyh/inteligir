@@ -26,8 +26,8 @@ Worker (`apps/web/src/worker/library/library-do.ts`). It holds the items,
 their **blocks**, folders, tags, links, highlights, threads, the change log,
 History and the account's live sockets, and it is the library's only writer: every `/v1` library call and every **connector** call
 is forwarded to it. R2 holds the bytes it names by hash, and D1 only the
-accounts. Not the hosted git vault (`apps/web/src/worker/vault/`), and not a
-**replica**, which a device reads while it writes through the cell.
+accounts. Not a **replica**, which a device reads while it writes through the
+cell.
 
 **principal** — who a library call is by, as the Worker verified it: the
 account, the scopes its credential holds, and the actor whose **change set**

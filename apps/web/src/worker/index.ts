@@ -1,7 +1,6 @@
 import { ACCOUNT_API_PATHS, AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
 import { V1_SOCKET_PATH } from "@repo/contract/cloud/library/library-socket";
 import { SYNC_WS_PATH } from "@repo/contract/cloud/sync/sync-ws";
-import { VAULT_GIT_PATH } from "@repo/contract/cloud/vault/vault-git";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import { createAuth } from "./auth/auth";
 import { handleInviteSignUp } from "./auth/invite";
@@ -27,12 +26,10 @@ import { handleLibraryPage, isLibraryPagePath } from "./library/library-page";
 import { logUnhandled } from "./log";
 import { rpcFault } from "./wire/rpc-refusal";
 import { handleV1Rpc } from "./wire/v1-rpc";
-import { handleVaultGitRemote } from "./vault/git-remote";
 
 // Durable Object classes must be exported from the entry the runtime loads: this file for tests, ./server.ts for deploy
 export { AgentThreadDO } from "./agent/agent-thread";
 export { LibraryDO } from "./library/library-do";
-export { RepoCell, Registry } from "durable-git";
 
 // CORS for two origins alone, the Mac app's page, which its shell serves, and the browser
 // extension's (./cors.ts): every other page is this Worker's own, and a reflected allow-origin
@@ -53,12 +50,10 @@ export const ownsPath = (pathname: string): boolean =>
 const isRpc = (pathname: string): boolean => pathname.startsWith(`${V1_RPC_PATH}/`);
 
 // every REST client of /v1 parses the error envelope, and a bare-text 5xx reads to it as an
-// unreachable cloud; the git mount answers git clients, whose stderr would print JSON as noise,
-// the one wire answers in its own protocol, and a file's or an export's bytes in HTTP's statuses
-// alone
+// unreachable cloud; the one wire answers in its own protocol, and a file's or an export's bytes
+// in HTTP's statuses alone
 const speaksCloudEnvelope = (pathname: string): boolean =>
   pathname.startsWith("/v1/") &&
-  !pathname.startsWith(VAULT_GIT_PATH) &&
   !isRpc(pathname) &&
   !isBlobPath(pathname) &&
   !isExportPath(pathname);
@@ -114,9 +109,7 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
   }
 
   // before any route reads the request, so a shape retired behind the floor is never parsed
-  const outdated = url.pathname.startsWith("/v1/")
-    ? refuseBelowFloor(request, env, speaksCloudEnvelope(url.pathname))
-    : null;
+  const outdated = url.pathname.startsWith("/v1/") ? refuseBelowFloor(request, env) : null;
   if (outdated !== null) {
     return outdated;
   }
@@ -135,10 +128,6 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
 
   if (url.pathname === SYNC_WS_PATH) {
     return await handleSyncSocket(request, env, ctx);
-  }
-
-  if (url.pathname.startsWith(VAULT_GIT_PATH)) {
-    return await handleVaultGitRemote(request, env, ctx, url);
   }
 
   if (url.pathname === ACCOUNT_API_PATHS.delete) {

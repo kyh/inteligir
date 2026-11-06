@@ -5,7 +5,6 @@ import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
 } from "@repo/contract/cloud/device/device-schema";
-import { deleteVaultGitRepo } from "../vault/vault-repo";
 import { createDb } from "../db/client";
 import { authTables } from "../db/schema";
 import { AUTH_RATE_WINDOW_SECONDS, CALLER_IP_HEADER } from "../rate-limit";
@@ -90,11 +89,9 @@ const buildAuth = (
       deleteUser: {
         // beforeDelete, not afterDelete: a failure aborts the deletion and the account survives to
         // retry. The library cell runs the account's purge, in its order, its credentials last
-        // (../library/account-purge.ts); then the hosted vault, which no credential reaches any
-        // more, so no push can recreate it after the wipe (../vault/vault-repo.ts).
+        // (../library/account-purge.ts).
         beforeDelete: async (user) => {
           await libraryCell(exports, user.id).purge(user.email);
-          await deleteVaultGitRepo(env, user.id);
         },
         enabled: true,
       },

@@ -8,7 +8,7 @@
 // lies in R2, a range at a time.
 
 import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
-import { assetMediaType } from "@repo/contract/cloud/vault/vault-schema";
+import { importMediaType } from "./import-media-types";
 import {
   importPathKind,
   importPlannedDoc,
@@ -178,7 +178,7 @@ const keepEntryFile = async (
   if (entry.size > BLOB_MAX_BYTES) {
     return { kind: "unreadable" };
   }
-  const mime = assetMediaType(entry.path) ?? "application/octet-stream";
+  const mime = importMediaType(entry.path) ?? "application/octet-stream";
   let file: Parameters<typeof keepFile>[1];
   if (entry.size <= BUFFERED_MAX_BYTES) {
     const bytes = await readZipEntry(source, entry, BUFFERED_MAX_BYTES);

@@ -54,7 +54,6 @@ import {
   acceptSocket,
   holderFromHeader,
   pingLibraryMoved,
-  pingVaultMoved,
   severHolder,
   SOCKET_HOLDER_HEADER,
   socketHolder,
@@ -246,11 +245,6 @@ export class LibraryDO extends DurableObject<Env> {
       console.error({ event: "library-alarm-failed", ...errorFields(error) });
       await this.ctx.storage.setAlarm(Date.now() + ALARM_RETRY_MS);
     }
-  }
-
-  // the hosted vault moved: today's apps read this frame, the pushing device's own sockets aside
-  vaultMoved(pushingDeviceId: string): void {
-    pingVaultMoved(this.ctx, pushingDeviceId);
   }
 
   // a revoked device's sockets close; its next request meets the revocation itself

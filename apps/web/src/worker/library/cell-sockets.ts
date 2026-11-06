@@ -6,7 +6,6 @@
 // hibernated or evicted cell finds every socket again.
 
 import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/contract/cloud/sync/sync-ws";
-import type { SyncPing } from "@repo/contract/cloud/sync/sync-ws";
 import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
 import { z } from "zod";
 
@@ -55,7 +54,7 @@ export const socketHolder = (socket: WebSocket): SocketHolder | null => {
 
 // a closing socket still lists until it closes, and one torn down between the listing and the send
 // throws: neither keeps the frame from the rest
-const sendEach = (sockets: readonly WebSocket[], frame: SyncPing | LibrarySocketFrame): void => {
+const sendEach = (sockets: readonly WebSocket[], frame: LibrarySocketFrame): void => {
   const body = JSON.stringify(frame);
   for (const socket of sockets) {
     if (socket.readyState !== WebSocket.OPEN) {
@@ -87,15 +86,6 @@ export const tellSockets = (ctx: DurableObjectState, frame: LibrarySocketFrame):
 // the library committed a write
 export const pingLibraryMoved = (ctx: DurableObjectState, head: number): void => {
   tellSockets(ctx, { head, type: "library" });
-};
-
-// the hosted vault moved, which today's apps read; the device that pushed already holds it
-export const pingVaultMoved = (ctx: DurableObjectState, pushingDeviceId: string): void => {
-  const pusher = holderTag({ id: pushingDeviceId, kind: "device" });
-  sendEach(
-    ctx.getWebSockets().filter((socket) => !ctx.getTags(socket).includes(pusher)),
-    { type: "vault" },
-  );
 };
 
 // a credential check on the next request does not reach a socket that already has one
