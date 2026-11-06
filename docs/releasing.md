@@ -407,6 +407,12 @@ account whose library holds about 2,000 items gives the timing check its load.
   follows the system, with no light edge behind a pushed screen or the
   keyboard, even after switching it with the app open; typing and then
   backgrounding and killing the app keeps what was typed.
+- **A picture in a note.** Copy a photo in Photos, tap at the end of a line
+  of a note and paste. Passing: the picture lands under the line and draws;
+  the item at `/library` in a browser shows it once the banner under the
+  library has counted down. Then open, on the phone, a note the Mac pasted a
+  picture and a PDF into. Passing: the picture draws, and the PDF shows as a
+  card naming it, with no Download.
 - **Offline.** Turn on airplane mode, kill the app and open it. Passing: the
   library and any item open, a picture item opened once before opens in the
   viewer, and one never opened says it is not on this iPhone yet; a note whose
