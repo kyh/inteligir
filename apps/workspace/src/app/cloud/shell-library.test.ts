@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 
+import { implement } from "@orpc/server";
+import { RPCHandler } from "@orpc/server/fetch";
 import { CLIENT_BUILD_HEADER } from "@repo/contract/cloud/client-build";
+import { V1_RPC_PATH, v1Contract } from "@repo/contract/cloud/v1";
 import { openMemorySql } from "@repo/library-replica/memory-sql";
+import { toast } from "@repo/ui/components/sonner";
 import { emit } from "@tauri-apps/api/event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -13,6 +17,7 @@ import { createShellLeaveGuard, macTransport, openShellLibrary } from "./shell-l
 afterEach(() => {
   clearShell();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 const CONFIG: ShellConfig = {
@@ -109,7 +114,7 @@ describe("opening the Mac's library", () => {
       configReply,
       reply(APP_COMMANDS.credential.restore)(() => null),
     );
-    await expect(openShellLibrary(createShellLeaveGuard())).resolves.toStrictEqual({
+    await expect(openShellLibrary(createShellLeaveGuard(), () => {})).resolves.toStrictEqual({
       config: CONFIG,
       kind: "signed-out",
     });
@@ -123,7 +128,7 @@ describe("opening the Mac's library", () => {
       ...replicaReplies(memory),
     );
     const leave = createShellLeaveGuard();
-    const opening = await openShellLibrary(leave);
+    const opening = await openShellLibrary(leave, () => {});
     if (opening.kind !== "ready") {
       throw new Error(`the library did not open: ${opening.kind}`);
     }
@@ -138,6 +143,56 @@ describe("opening the Mac's library", () => {
       [],
     );
     expect(tables).toStrictEqual([{ name: "items" }]);
+    void library.replica.close();
+    memory.close();
+  });
+});
+
+describe("a credential the cloud no longer takes", () => {
+  // the cloud's account rows over a real RPCHandler, refusing the credential as revoked
+  const os = implement(v1Contract);
+  const revoked = new RPCHandler({
+    account: {
+      devices: {
+        list: os.account.devices.list.handler(({ errors }) => {
+          throw errors.UNAUTHORIZED();
+        }),
+      },
+    },
+  });
+
+  it("says why when the shell could not let it go, and stays rather than reload onto it", async () => {
+    vi.stubGlobal("fetch", async (request: Request) => {
+      const { response } = await revoked.handle(request, { prefix: V1_RPC_PATH });
+      return response ?? new Response(null, { status: 404 });
+    });
+    const failed = vi.spyOn(toast, "error");
+    const memory = await openMemorySql();
+    mockShell(
+      configReply,
+      reply(APP_COMMANDS.credential.restore)(() => KEPT),
+      reply(APP_COMMANDS.credential.forget)(
+        // oxlint-disable-next-line prefer-promise-reject-errors -- the shell rejects with its serialized error, a plain object, which is what this stands in for
+        async () => await Promise.reject({ kind: "keychain", message: "User interaction denied" }),
+      ),
+      ...replicaReplies(memory),
+    );
+    const reload = vi.fn<() => void>();
+    const opening = await openShellLibrary(createShellLeaveGuard(), reload);
+    if (opening.kind !== "ready") {
+      throw new Error(`the library did not open: ${opening.kind}`);
+    }
+    const { library } = opening;
+    await expect(library.wire.client.account.devices.list()).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    });
+    await vi.waitFor(() => {
+      expect(failed).toHaveBeenCalledWith(
+        "Your Mac's Keychain didn't let Inteligir in. Unlock it, or choose Allow when your Mac asks, then try again.",
+        { id: "leave-account" },
+      );
+    });
+    expect(reload).not.toHaveBeenCalled();
     void library.replica.close();
     memory.close();
   });

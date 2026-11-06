@@ -34,7 +34,7 @@ const KEYCHAIN_SENTENCE =
 // the shell's refusal the opening rejected with
 const openingRefused = async (): Promise<ShellError> => {
   try {
-    await openShellLibrary(createShellLeaveGuard());
+    await openShellLibrary(createShellLeaveGuard(), () => {});
   } catch (error) {
     if (error instanceof ShellError) {
       return error;
@@ -88,6 +88,20 @@ describe("a library the shell could not open", () => {
     await vi.waitFor(() => {
       expect(screen.getAllByText(KEYCHAIN_SENTENCE)).toHaveLength(2);
     });
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("says the sign-out failed, not the opening, when the shell could not clear this Mac's copy", async () => {
+    const reload = await openedOverARefusingKeychain(
+      async () => await shellRefuses("io", "Permission denied (os error 13)"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    await vi.waitFor(() => {
+      expect(screen.getByText("This Mac couldn't sign out. Try again.")).toBeDefined();
+    });
+    expect(
+      screen.queryByText("The copy of your library on this Mac couldn't be opened."),
+    ).toBeNull();
     expect(reload).not.toHaveBeenCalled();
   });
 });

@@ -9,7 +9,7 @@ import { QueryClientProvider, useMutation } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 
 import { shellCredential } from "../../shell/shell-commands";
-import { shellTroubleText } from "./shell-trouble";
+import { shellTroubleText, signOutTroubleText } from "./shell-trouble";
 
 const HEADING = "Your library didn't open";
 const OPEN_FAILED = "Something went wrong opening your library on this Mac.";
@@ -36,9 +36,7 @@ const OpenFailed = ({ cause, reload }: { cause: unknown; reload: () => void }) =
         </div>
         <p className="m-0 text-body text-muted-foreground">{SIGNING_OUT}</p>
         {signOut.isError ? (
-          <p className="m-0 text-body text-destructive">
-            {shellTroubleText(signOut.error, "This Mac couldn't sign out. Try again.")}
-          </p>
+          <p className="m-0 text-body text-destructive">{signOutTroubleText(signOut.error)}</p>
         ) : null}
         <div className="flex items-center gap-2">
           <Button type="button" onClick={reload}>

@@ -103,7 +103,7 @@ const openInShell = async (target: Root): Promise<void> => {
   const leave = createShellLeaveGuard();
   let opening: ShellOpening;
   try {
-    opening = await openShellLibrary(leave);
+    opening = await openShellLibrary(leave, reloadShellPage);
   } catch (error) {
     // nothing is drawn yet, so no boundary would catch it: the window says what failed instead
     target.render(

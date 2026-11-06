@@ -7,6 +7,7 @@ import { ShellError } from "../../shell/shell-error";
 const KEYCHAIN =
   "Your Mac's Keychain didn't let Inteligir in. Unlock it, or choose Allow when your Mac asks, then try again.";
 const REPLICA = "The copy of your library on this Mac couldn't be opened.";
+const SIGN_OUT_FAILED = "This Mac couldn't sign out. Try again.";
 
 export const shellTroubleText = (cause: unknown, fallback: string): string => {
   if (!(cause instanceof ShellError)) {
@@ -31,3 +32,8 @@ export const shellTroubleText = (cause: unknown, fallback: string): string => {
     // no default
   }
 };
+
+// a sign-out the shell could not finish: the Keychain's sentence when it refused, else that the
+// sign-out itself failed, since what else stopped it (the copy's folder, its files) is no opening
+export const signOutTroubleText = (cause: unknown): string =>
+  cause instanceof ShellError && cause.kind === "keychain" ? KEYCHAIN : SIGN_OUT_FAILED;

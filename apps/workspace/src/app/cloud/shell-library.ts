@@ -10,6 +10,7 @@
 // carrying the credential and the build, since the Worker meets every install at its build floor.
 
 import { clientBuildValue, CLIENT_BUILD_HEADER } from "@repo/contract/cloud/client-build";
+import { toast } from "@repo/ui/components/sonner";
 import { replicaMerge } from "@repo/editor/stale-write";
 import { openLibraryReplica } from "@repo/library-replica/library-replica";
 import type { ReplicaTransport } from "@repo/library-replica/replica-ports";
@@ -25,6 +26,7 @@ import {
 import type { Held, LeaveGuard } from "./leave-guard";
 import { newId, pageClock } from "./page-library";
 import type { PageLibrary } from "./page-library";
+import { signOutTroubleText } from "./shell-trouble";
 import { createCloudWire } from "./v1";
 
 export type ShellOpening =
@@ -79,12 +81,16 @@ export const createShellLeaveGuard = (): LeaveGuard => {
 
 // this Mac leaves its account: the shell lets go of the credential, the replica's file and every
 // file of the account, and the page opens again on the sign-in
-const leaveAccount = async (): Promise<void> => {
+const leaveAccount = (reload: () => void) => async (): Promise<void> => {
   await shellCredential.forget();
-  window.location.reload();
+  reload();
 };
 
-export const openShellLibrary = async (leave: LeaveGuard): Promise<ShellOpening> => {
+// `reload` opens the page again from the start: the library, or the sign-in once signed out
+export const openShellLibrary = async (
+  leave: LeaveGuard,
+  reload: () => void,
+): Promise<ShellOpening> => {
   const config = await shellConfig();
   const kept: KeptCredential | null = await shellCredential.restore();
   if (kept === null) {
@@ -110,12 +116,19 @@ export const openShellLibrary = async (leave: LeaveGuard): Promise<ShellOpening>
       cloud: transport,
       fileUrl: (sha) => `${config.filesOrigin}/${sha}`,
       leave,
-      left: leaveAccount,
+      left: leaveAccount(reload),
       replica: opening.replica,
       // a credential the cloud no longer takes (revoked elsewhere, the account deleted) can send
-      // nothing more, so the Mac lets it go and asks for a sign-in
+      // nothing more, so the Mac lets it go and asks for a sign-in; a shell that could not let it
+      // go says why and stays, since a reload would open on the credential it still keeps
       wire: createCloudWire(transport, () => {
-        void leaveAccount();
+        void (async () => {
+          try {
+            await leaveAccount(reload)();
+          } catch (error) {
+            toast.error(signOutTroubleText(error), { id: "leave-account" });
+          }
+        })();
       }),
     },
   };
