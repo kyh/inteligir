@@ -127,10 +127,9 @@ agent-browser, the Worker with curl, the library through the connector.
 [#611](https://github.com/kyh/inteligir/issues/611) and
 [#889](https://github.com/kyh/inteligir/issues/889)**: what was chosen, and
 what was rejected and why. Where two disagree the later wins. Where any of
-them, or a decision bullet, assumes a local server, a folder of markdown
-files, git, an agent on the user's own plan, a developer at the keyboard, or a
-notes app whose window is always one open note, this guide wins, and the
-change that touches that code rewrites the bullet in the same commit.
+them assumes a local server, a folder of markdown files, git, an agent on the
+user's own plan, a developer at the keyboard, or a notes app whose window is
+always one open note, this guide and the decision bullets win.
 
 ## Map
 
@@ -294,13 +293,14 @@ runs it bare.
 - **A change a user can notice updates `CHANGELOG.md` in the same task**, under
   `## Unreleased`, in the words of someone who takes notes, saying what to do
   about a behaviour that changed or went away; a release's notes are that
-  section. A command-line change goes under `### On the command line`.
+  section.
 - **Product surfaces speak the user's words.** The window, the browser tab, the
   phone, the browser extension, onboarding, the consent page, the starter
-  library, the site and the changelog (outside its `### On the command line`
-  heading) never say git, commit, remote, repo, terminal, CLI, PATH or MCP, and
-  call the whole of it the library and what is in it items; "note" stays the
-  name of what the person writes, and an MCP server is a connector. The
+  library, the site and the changelog (outside an earlier release's
+  `### On the command line` heading) never say git, commit, remote, repo,
+  terminal, CLI, PATH or MCP, and call the whole of it the library and what is
+  in it items; "note" stays the name of what the person writes, and an MCP
+  server is a connector. The
   built-in agent's instructions and code keep their words
   (`tools/repo-guards/src/product-words.test.ts`).
 - **No `any`, no non-null `!`, no type assertions** (lint-enforced, no escape
@@ -368,9 +368,9 @@ file nearest the code it governs; every path in these files is held to the
 tree by `tools/repo-guards/src/dangling-references.test.ts`, and this index to
 the files by `tools/repo-guards/src/decisions-index.test.ts`.
 
-- [`packages/editor/CLAUDE.md`](packages/editor/CLAUDE.md) — Editor and dialect, and the open note's saves and renames
+- [`packages/editor/CLAUDE.md`](packages/editor/CLAUDE.md) — Editor and dialect, an item edited by its id, and the open item's merge
 - [`packages/ui/CLAUDE.md`](packages/ui/CLAUDE.md) — floating surfaces, pickers, type roles, popup motion, row order, the orphan guard
-- [`packages/notes/CLAUDE.md`](packages/notes/CLAUDE.md) — the Library model (nodes, ops, order, undo, SQL, listing); Items, annotations, and Knowledge: the scan, search, links and tags
+- [`packages/notes/CLAUDE.md`](packages/notes/CLAUDE.md) — the Library model (nodes, ops, order, undo, SQL, listing); Items, annotations, and Knowledge: search, links and tags
 - [`packages/page-reader/CLAUDE.md`](packages/page-reader/CLAUDE.md) — reading a saved page into an item: the one reader, over its host's DOM
 - [`packages/library-replica/CLAUDE.md`](packages/library-replica/CLAUDE.md) — the replica engine: its ports, the pull, the overlay, the outbox, the socket and the in-memory SQLite
 - [`packages/agent-panel/CLAUDE.md`](packages/agent-panel/CLAUDE.md) — the built-in agent's panel, one package every device draws

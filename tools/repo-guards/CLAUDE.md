@@ -32,8 +32,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 - **VENDORED CODE IS THIS REPO'S CODE, except for the attribution.** Rename,
   restructure and delete freely; "the next re-pull becomes a conflict" is not a
   reason. Every vendored file keeps its `// Vendored from X, MIT.` header, and
-  the licence texts live under `tools/licenses`, staged into the artifact as
-  `dist/licenses`, the set `pnpm smoke:cli` derives from the directory. The .app
+  the licence texts live under `tools/licenses`. The .app
   ships its own notices, since only it carries what they cover: every Rust
   crate the shell links, written at package time from cargo's resolve
   (`apps/desktop/scripts/rust-notices.ts`) and checked by the smoke.

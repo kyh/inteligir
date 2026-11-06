@@ -28,8 +28,8 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   every screen reads the replica, every write goes through its outbox and is
   laid over what the screens read until the cell takes it, and a tab with no
   session goes to the site's sign-in, which brings it back. Its calls are the
-  apps' `/v1` over the session cookie, the Worker's own origin. Rejected: the
-  local server's page (a second writer beside the cell); the replica in OPFS
+  apps' `/v1` over the session cookie, the Worker's own origin. Rejected: a
+  server on the device (a second writer beside the cell); the replica in OPFS
   (one tab would hold it, and the Mac's replica is the shell's, in Rust).
   `apps/workspace/src/app/cloud/page-library.ts`, `apps/workspace/src/main.tsx`.
 
@@ -258,8 +258,8 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   unsaved edit is written: the sets are read from every page the cell answers,
   the whole conversation's Undo offered once all are in and sent in as few
   undos as the cell takes, and asked again as each turn ends, since a turn's
-  set seals with it. Rejected: the local server's ⌘K composer and agents (no
-  runtime on the device); a socket of the page's own to the conversation's
+  set seals with it. Rejected: an agent the device runs (a runtime and a
+  model credential on every device); a socket of the page's own to the conversation's
   object; one page of sets (a long conversation's oldest turns lost their
   Undo). `apps/workspace/src/app/agent/agent-panel.tsx`, over
   `packages/agent-panel/src/thread-entries.ts`, `thread-undo.ts`.

@@ -14,7 +14,8 @@ one `installEditorHost` call per host. Its
 `EditorHostIo` carries the link resolver store and note formulas, so no host
 writes its own; its `EditorHostActions` (Ask agent, `showTag`, a highlight's
 create, note and open, all required) are how a deep node asks the shell; its
-`VaultActions.closeFile` is the way back to the library. `static-note.tsx`
+`VaultActions` are the verbs a node asks by a file's path, which a host whose
+items have no path answers with nothing. `static-note.tsx`
 draws a note read-only, for an embed and for Quick Look. `node-props.ts` is the
 SLATE DECODE BOUNDARY: a node's dialect fields ride `TElement`'s open index
 signature, so each read arrives as `unknown` and becomes a domain value there
@@ -27,11 +28,11 @@ alone, and no walk narrows structurally.
   owned parse, one rule table and a bounded fixpoint. Byte stability is a tested
   contract: a canonical file round-trips byte-exact, a churn-class construct may
   canonicalize on its first save (said per fixture), and the fixtures are
-  formatter-exempt; every file opens rich, and only a nesting past the
+  formatter-exempt; every item opens rich, and only a nesting past the
   conversion's depth opens no editor, so nothing is saved over it. The live
   save, an extract and the codec all call `serializeNote`, since the rule table
   expects its whole-value pre-pass. Rejected: a raw editor beside the rich one
-  (markdown is no longer at rest), a paragraph rule's prune (a heading or list
+  (markdown is not at rest), a paragraph rule's prune (a heading or list
   item saved `**a****b**`) and Plate's `serializeMd` (no pre-pass, a ZWSP
   beside every chip). `packages/editor/src/markdown/markdown-doc.ts`,
   `packages/editor/README.md` § Invariants.
@@ -65,10 +66,11 @@ alone, and no walk narrows structurally.
   `:::columns` containers, the top-level `:::article` that holds the page a
   fill read, and `![](url)` embeds, all valid, round-tripping markdown, the
   article through the codec alone (the live editor holds no section). Only a
-  web url embeds (`![](path)` is a vault image; alt text or a
-  title keeps a web image an image). Every spelling lives in
+  web url embeds (`![](path)` is a file the import resolves to its bytes; alt
+  text or a title keeps a web image an image). Every spelling lives in
   `@repo/notes/markdown/fence-langs`, which
-  `tools/repo-guards/src/agent-skills.test.ts` holds the skills to. Plain nested `.md`: no bundles, no meta.json.
+  `tools/repo-guards/src/agent-skills.test.ts` holds the skills to. An export
+  is plain nested `.md`: no bundles, no meta.json.
 
 - **A DIALECT CONSTRUCT IS READ FROM FINISHED TEXT, SO A BACKSLASH KEEPS ONE
   TEXT.** Pills, dates, annotation markers and `:::` lines are read from
@@ -92,14 +94,15 @@ alone, and no walk narrows structurally.
   with its own node and index pass for kinds the five alerts cannot spell.
 
 - **AN ITEM'S PROPERTIES ARE ITS FIELDS, AND THE PANEL DRAWS ANY SOURCE OF
-  ROWS**: an item opened by id reads and patches its own fields, each row's
-  edit one property op over the value the item holds
-  (`packages/editor/src/item/item-properties.ts`); a vault note's are its
-  frontmatter, its UUID its `id:`, YAML the typing rules cannot represent kept
-  byte-exactly (`@repo/notes/markdown/frontmatter`), less an item's own keys
-  (`ITEM_KEYS`) and `id`, which Info shows and writes, so no key has two
-  editors (`packages/editor/src/properties/property-source.ts`). Rejected: a
-  frontmatter block in an item (its keys are columns).
+  ROWS**: an item opened by id reads and patches its own `properties` field,
+  each row's edit one property op over the value the item holds, a row typed
+  by the frontmatter reader's own rules and a value no row can edit (an
+  object, a list that is not all words) drawn as it is and never written
+  (`packages/editor/src/item/item-properties.ts`). The panel reads whatever
+  source it is handed (`packages/editor/src/properties/property-source.ts`),
+  and an item's own fields (its title, tags, folder and pin) are Info's, so no
+  key has two editors. Rejected: a frontmatter block in an item (its keys are
+  columns).
 
 - **THE PLATE SLASH MENU IS THE INSERTION SURFACE, AND THE TOUCH TOOLBAR IS ITS
   SOFT-KEYBOARD TWIN.** Slash rows are grouped data: each row's markdown
@@ -136,15 +139,16 @@ alone, and no walk narrows structurally.
 - **AN EXTRACT IS ONE HISTORY BATCH.** An extract
   creates its note exclusively before touching the buffer, refuses blocks
   anchoring an annotation (its entry would stay behind), and lands the removal
-  and the `[[link]]` in one flush, so one undo restores both; the created file
-  stays, since the vault has no transaction. Rejected:
-  create-or-reuse (an existing file counts as success and the blocks are lost).
+  and the `[[link]]` in one flush, so one undo restores both; the created note
+  stays, since the host's create and the buffer's flush are two writes.
+  Rejected: create-or-reuse (an existing note counts as success and the blocks
+  are lost).
   `packages/editor/src/extract-note.ts`.
 
 - **A FORMULA RECOMPUTE IS NOT AN EDIT, AND A BOUND REF'S NOTE IS FOUND BY ID.**
-  A bound ref names its note by frontmatter `id`, which the index's wiki-targets
-  rows carry, so a host reads only that note. Rejected: reading every doc to
-  find one id (a recompute runs after each typing pause). The display a
+  A bound ref names its note by id, and the host's `readNoteFormulas` reads
+  only that note. Rejected: reading every item to find one id (a recompute
+  runs after each typing pause). The display a
   recompute rewrites lands outside the undo history, since the user never typed
   it and one undo must reach their own last edit. The id has one reader, in
   `@repo/notes/markdown/frontmatter`.
@@ -276,8 +280,8 @@ alone, and no walk narrows structurally.
 - **MARKDOWN IS A CODEC BESIDE THE LIBRARY, AND IT RUNS HEADLESS.**
   `@repo/editor/codec/*` reaches no React, so it runs wherever the library
   does (`packages/editor/src/headless-kits.test.ts`). It reads a file into an
-  item's fields and blocks over the rule table and writes one back as the
-  vault's format, a file under the name it was saved under, so
+  item's fields and blocks over the rule table and writes one back as an
+  export's markdown, a file under the item's name, so
   `import(export(item))` is the item, ids aside, over every fixture, and a
   canonical file exports its own body but for the changes the test names
   (`packages/editor/src/codec/item-markdown.test.ts`); a value is settled

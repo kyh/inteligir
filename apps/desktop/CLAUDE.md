@@ -21,19 +21,20 @@ a bullet is written and cited.
 
 - **THE WINDOW IS THE PAGE THE BUNDLE CARRIES, OVER THE MAC'S OWN REPLICA.** The
   .app embeds `@repo/workspace`'s build and runs nothing beside the shell: no
-  node, no server child, no local origin. The window loads the page from
+  node, no process of its own, no local origin. The window loads the page from
   `tauri://localhost/library/`, and the page opens the replica engine
   (`@repo/library-replica`) over the shell's SQLite, so the Mac reads every item
   and queues every write offline, and its calls go to the cloud's `/v1` across
-  origins (THE MAC'S PAGE CALLS `/v1` ACROSS ORIGINS, in `apps/web/CLAUDE.md`).
+  origins (TWO PAGES THE WORKER NEVER SERVED CALL `/v1` ACROSS ORIGINS, in
+  `apps/web/CLAUDE.md`).
   The page's routes ride the hash there, since its document never changes. A
   release reaches the production cloud alone; a debug build reaches this
   machine's Worker, on the port `INTELIGIR_CLOUD_ORIGIN` names
   (`apps/desktop/src-tauri/src/cloud.rs`), as an app of its own:
   `tauri.local.conf.json` names it `com.inteligir.desktop.dev`, so its data,
   caches and Keychain item are never the release's, and under the release's
-  bundle id it refuses to start. Rejected: the server child and its page (a
-  second writer beside the cell, and node and git in the bundle); the Worker's
+  bundle id it refuses to start. Rejected: a server on the Mac and its page (a
+  second writer beside the cell, and node in the bundle); the Worker's
   tab in the window (online only, and a capability over a remote origin); one
   bundle id for both builds (a local sign-in overwrites the release's
   credential, and a local sign-out removes its library).
@@ -102,7 +103,7 @@ a bullet is written and cited.
   every command is in the app manifest (`apps/desktop/src-tauri/build.rs`), so
   one no capability names is dropped. Rejected: a refusal as a value in an
   envelope (every command here fails by a fault or a kind the page reads); a
-  capability granted at runtime (it was for a server's port).
+  capability granted at runtime (the window has one origin, known at build).
   `tools/repo-guards/src/desktop-shell-wire.test.ts` holds the names, the
   kinds, the event and the origins equal across the two languages.
   `apps/desktop/src-tauri/src/commands.rs`, `error.rs`.

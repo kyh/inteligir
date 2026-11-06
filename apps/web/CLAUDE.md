@@ -76,7 +76,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 
 - **The D1 auth schema ships via `drizzle-kit push`; there are no migration
   files.** One deployer and no users (`AGENTS.md` § Project Overview), so a
-  push may drop a column Better Auth no longer writes, and the schema follows
+  push may drop a column Better Auth does not write, and the schema follows
   what its generator prints for the plugin set (`apps/web/src/worker/db/schema.ts`
   says how). The suites and the e2e harness derive the DDL by `drizzle-kit
   export` and send it as one D1 batch. Rejected: migration files (a history for
@@ -191,13 +191,13 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   Worker produces to, and a conversation's `agent-thread:<accountId>:<threadId>`
   from its cell alone, for a thread its rows hold; `cloudflare.config.ts`
   declares `LibraryDO` and `AgentThreadDO` in `exports` with SQLite storage and
-  binds no namespace, and the retired `ThreadSyncDO`, `RepoCell` and `Registry`
-  each stay a `state: "deleted"` tombstone until a deploy's answer lets it go
+  binds no namespace; `ThreadSyncDO`, `RepoCell` and `Registry` are each a
+  `state: "deleted"` tombstone, kept until a deploy's answer lets it go
   (`docs/releasing.md` § 5). The schema opens under
   `blockConcurrencyWhile`; one of another version wipes the cell under a new
   epoch. Rejected: a namespace binding (anything holding `env` could name any
-  cell); keeping `ThreadSyncDO`'s name (nothing documents a preview refusing a
-  new class); signing the fill message (no other producer exists to forge one).
+  cell); the cell under a deleted class's export name (nothing documents a
+  preview refusing a new class); signing the fill message (no other producer exists to forge one).
   `apps/web/src/worker/library/library-do.ts`,
   `library-cell.ts`, `cell-schema.ts`, `apps/web/src/worker/fill/fill-job.ts`.
 
@@ -271,7 +271,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   the request's range and preconditions: 206 from `object.range` for any single
   range, one spanning the file included, 416 for one past the end, a
   multi-part ask whole, 304 and 412; every file but a PDF is served under a
-  script-less sandbox. Rejected: the CLI's byte-range parser (R2 parses the
+  script-less sandbox. Rejected: a byte-range parser of our own (R2 parses the
   header); a signed URL (a credential in a logged address).
   `apps/web/src/worker/library/blob-routes.ts`.
 
@@ -366,10 +366,10 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 - **THE CLOUD KEEPS A PAGE'S COVER AS THE SITE SERVED IT, AND EACH DEVICE DRAWS
   ITS OWN THUMBNAIL.** The consumer keeps the first candidate that is really a
   picture of a cover's size whole, within `FILL_LIMITS.coverBytes`, and decodes
-  nothing. That is the spec's fallback, taken over a wasm thumbnail without
-  measuring one: a decoded picture is four bytes a pixel (48 MB for 4000 by 3000) in an isolate whose heap the reading already uses. Rejected: the Images
-  binding (it bills every picture); a thumbnail made in the cell (its CPU holds
-  every write). `apps/web/src/worker/fill/read-page.ts`,
+  nothing. Rejected: a wasm thumbnail (a decoded picture is four bytes a
+  pixel, 48 MB for 4000 by 3000, in an isolate whose heap the reading already
+  uses; not measured); the Images binding (it bills every picture); a
+  thumbnail made in the cell (its CPU holds every write). `apps/web/src/worker/fill/read-page.ts`,
   `packages/notes/src/items/link-fill.ts`.
 
 - **A FILE NO ITEM HAS NAMED IS LET GO ONCE NOTHING WILL, AND ONE AN ITEM NAMED

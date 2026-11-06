@@ -66,8 +66,8 @@ how it ships.
   or a reconnect pulls and sends (`apps/mobile/src/lib/app-runtime.ts`). The
   phone's own tables are one step in `apps/mobile/src/lib/phone-db.ts`, edited
   in place until EAS's first build (`easProject` in
-  `apps/mobile/app.config.js`), then appended. Rejected: a mirror of the
-  hosted vault (a second model of the library).
+  `apps/mobile/app.config.js`), then appended. Rejected: a store of the
+  phone's own beside the engine (a second model of the library).
 
 - **THE PHONE'S DATABASE AND PINNED FILES ARE IN DOCUMENTS, OUT OF THE DEVICE
   BACKUP.** Both download again or are sent from here (owner decision), so

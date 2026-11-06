@@ -7,18 +7,14 @@ a choice was made**; this records **what a term names**, where it lives, and
 Rules for this file: every entry points at the module that OWNS the concept
 rather than restating its implementation, because the module's own header is the
 detail and this is the map. An entry that cannot be checked against code does
-not belong here. The one exception is **The library in the cloud**: its terms
-are the ones the cloud cut is building, so each names the workspace that will
-own it, and the change that lands a term's module repoints its entry at that
-module in the same commit.
+not belong here.
 
 ---
 
 ## The library in the cloud
 
 One library cell per account, a replica on every device, and the agents that
-reach it. Each entry names the workspace that owns it until its module lands
-(the rules above).
+reach it.
 
 **library cell** — one account's whole library: a SQLite Durable Object,
 `LibraryDO`, named `library:<userId>` only from a verified credential, in the
@@ -53,20 +49,23 @@ blocks never meet, and one whose base moved is answered `CONFLICT` with the
 block as it is. A list item is a block, since lists are flat indent lists. Not
 a Plate node at any depth: a block's children are inside its JSON. The model is
 `@repo/notes/library/block-ops`, its vocabulary
-`@repo/notes/library/library-nodes`, the ids the editor's (`@repo/editor`).
+`@repo/notes/library/library-nodes`, the ids the editor's
+(`packages/editor/src/item/item-session.ts`).
 
 **section** — which part of an item a **block** belongs to: `note`, what the
 person wrote, or `article`, the page's readable text a fill wrote. A fill and
 Refresh replace only `article` blocks, so reading a page again never touches
 the person's writing. An item reads its note before its article
 (`@repo/notes/library/block-order`), and its markdown writes the article as
-one top-level `:::article` container after the note (`@repo/editor/codec`).
+one top-level `:::article` container after the note
+(`@repo/editor/codec/item-markdown`).
 Not a heading's stretch of a note (its outline), and not a folder.
 
 **replica** — a device's copy of the synced tables, every item, block, folder,
 tag, link, highlight, thread and thread event, in SQLite on the device: in Rust
-on the Mac (`apps/desktop`), in expo-sqlite on the phone (`apps/mobile`), in
-memory in the browser tab. It pulls the cell's change log by cursor, every
+on the Mac (`apps/desktop/src-tauri/src/replica.rs`), in expo-sqlite on the
+phone (`apps/mobile/src/lib/expo-replica-sql.ts`), in memory in the browser tab
+(`apps/workspace/src/app/cloud/page-library.ts`). It pulls the cell's change log by cursor, every
 screen reads it, and search runs on its own full-text index, online too, so
 there is one ranking. The socket's ping only says to pull; nothing correct
 rests on it. The engine is `@repo/library-replica`
@@ -88,15 +87,15 @@ retry queue, which holds a save's url, title and selection and writes nothing
 until the save lands.
 
 **connector** — the library as a remote MCP server: `/connector` on the Worker
-(`apps/web`), the library's procedures tagged as tools
+(`apps/web/src/worker/connector/connector-route.ts`), the library's procedures
+tagged as tools
 (`apps/web/src/worker/connector/library-tools.ts`) and served in the account's
 cell (`connector-server.ts`), behind OAuth from
 `@cloudflare/workers-oauth-provider` (`connector-auth.ts`) with a
-read-and-change scope, `library`, and a read-only one, `library:read`. The
-**built-in agent** and every **connected assistant** call it, and each tool is
-the same procedure the apps call over `/v1`. Connector is Claude's word for it
-and the product's, which never says MCP. Not **Connectors** in Settings,
-below: the MCP servers the Mac's own agent was given.
+read-and-change scope, `library`, and a read-only one, `library:read`. Every
+**connected assistant** calls it, and each tool is the same procedure the apps
+call over `/v1` and the **built-in agent**'s cell runs for it. Connector is
+Claude's word for it and the product's, which never says MCP.
 
 **connected assistant** — the person's own Claude (claude.ai, Claude Desktop,
 Claude Code) or ChatGPT, signed in to the **connector** by OAuth on our
@@ -134,8 +133,9 @@ zip becomes a note. It is deliberately WIDER than what an export writes, every
 note as `.md`, and WIDER than what a link may leave off: `.md` alone, so a
 `.txt` note links as `[[todo.txt]]`.
 
-**note** — an item of kind `note`: a doc whose `kind:` is missing or unknown,
-the text a person writes. Its filename IS its title, there is no slug layer.
+**note** — an item of kind `note`, the text a person writes. An imported doc
+whose `kind:` is missing or unknown is one, its filename its title, with no
+slug layer.
 Every item's name follows one rule, `@repo/notes/knowledge/note-name`, whatever
 its kind: a name may not hold `[` or `]`, which would end a link to it.
 
@@ -290,7 +290,8 @@ for the signed-in account, and the account's devices list it as Browser
 extension (`apps/extension/src/background/connection.ts`).
 
 **Account**, **Devices** and **Connected assistants** — Settings › Account: an
-inteligir account (Better Auth, in `apps/web`), the apps signed in to it, each
+inteligir account (Better Auth, `apps/web/src/worker/auth/auth.ts`), the apps
+signed in to it, each
 holding a DEVICE CREDENTIAL, and the assistants a person let into the library
 through the **connector** (`apps/workspace/src/app/settings/account-section.tsx`).
 Each device and assistant can be signed out or disconnected from there; the

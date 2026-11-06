@@ -146,12 +146,13 @@ node is rather than discriminating structurally at each visit.
   title collision still beats a body exact match. `search-query.ts`,
   `knowledge/search-excerpt.ts`.
 
-- **THE CLIENT DOES NOT DECIDE WHAT A DOC IS.** `@repo/notes/knowledge/doc-file`
+- **NO READER DECIDES WHAT A DOC IS ON ITS OWN.** `@repo/notes/knowledge/doc-file`
   is the one answer: `isDocPath` (`.md`, `.markdown`, `.mdx`, `.txt`) and
-  `docStem`. Rejected: a private `.md` rule in a client (it hides every `.txt`
-  note and disagrees on display once a name is not lowercase). What any other
-  file is in the library is `fileKindOf` (`@repo/notes/items/item-kind`), and
-  what a doc is as an item is its `kind`: one answer each, for every client.
+  `docStem`, which an import asks of every file it is handed. Rejected: a
+  private `.md` rule in a reader (it leaves out every `.txt` note and disagrees
+  on a name once it is not lowercase). What any other file is in the library
+  is `fileKindOf` (`@repo/notes/items/item-kind`), and what a doc is as an item
+  is its `kind`: one answer each, for every reader.
 
 - **THE DIALECT'S GRAMMAR IS THE EDITOR'S OWN, AND IT IS TOTAL.** Every reader
   of markdown, the codec, an import and the editor alike, parses through one
@@ -169,11 +170,10 @@ node is rather than discriminating structurally at each visit.
 - **AN MD URL HAS ONE READING, AND THE EDITOR RESOLVES IT WITH THE LIBRARY'S
   RESOLVER.** The import and the editor read a link's or an image's url through
   `mdLinkTarget` (`@repo/notes/knowledge/link-extract`), and the editor resolves
-  it from its item with `buildResolver`
-  (`packages/editor/src/link-resolver-feed.ts`), so the image the resolver
-  cannot find is the one drawn missing, a library url opens in the app, and
-  only an http(s) url reaches the browser. A missed image falls back to a root path,
-  since a pasted asset lands before the listing. A non-image embed draws as a
+  it with `buildResolver` over the items its host feeds
+  (`packages/editor/src/link-resolver-feed.ts`), so a url naming an item the
+  library holds opens that item in the app, and only an http(s) url reaches
+  the browser. A non-image embed draws as a
   file card whose Open shows the original in the system's viewer
   (`packages/editor/src/nodes/file-card.tsx`), since an `<img>` over it is
   broken. `useVaultLinkTarget` in `packages/editor/src/host.ts`,
