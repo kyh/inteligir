@@ -15,6 +15,7 @@ import type { ReadHtml } from "@repo/page-reader/read-html";
 import { failureOf, fileOnlyLinked, TEXT_NOT_SAVED } from "@repo/notes/items/fill-sentences";
 import { originalFileName } from "@repo/notes/items/item-name";
 import { kindForUrl } from "@repo/notes/items/item-url";
+import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
 import { coverPicture, FILL_LIMITS, isPageType, playableKindOf } from "@repo/notes/items/link-fill";
 import {
   OEMBED_MAX_BYTES,
@@ -91,6 +92,11 @@ const keepCover = async (
   return null;
 };
 
+// where the page's redirects ended, or the address saved when that spelling is longer than an
+// item's address holds (percent-encoding a hop's path can lengthen even a saved address)
+const finalAddress = (job: FillJob, page: FetchedPage): string =>
+  page.url.length > ITEM_FIELD_CAPS.url ? job.url : page.url;
+
 // a link that answered with a picture or a PDF becomes that file's item; a video, a song or any
 // other file keeps its link and is read as such
 const fileRead = async (ports: ReadPorts, job: FillJob, page: FetchedPage): Promise<PageRead> => {
@@ -105,7 +111,7 @@ const fileRead = async (ports: ReadPorts, job: FillJob, page: FetchedPage): Prom
         article: [],
         coverSha: null,
         facts: { author: null, description: null, lang: null, published: null, site: null },
-        finalUrl: page.url,
+        finalUrl: finalAddress(job, page),
         itemId: job.itemId,
         kind: "read",
         playable: playableKindOf(page.mediaType),
@@ -183,7 +189,7 @@ const pageRead = async (ports: ReadPorts, job: FillJob, page: FetchedPage): Prom
       article: article.blocks.map(({ block, ord }) => ({ block, ord })),
       coverSha,
       facts: factsOf(read.facts, oembed),
-      finalUrl: page.url,
+      finalUrl: finalAddress(job, page),
       itemId: job.itemId,
       kind: "read",
       playable: null,

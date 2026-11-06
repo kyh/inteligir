@@ -1,12 +1,13 @@
 // The fill queue's consumer: each message one page the cloud reads for one account's item
-// (`./fill-job`), handled one at a time and settled on its own, so a slow page holds up no other
-// message's answer. A message is read only while its item still waits for it; the reading
-// (`./read-page`) keeps its files in the library as it goes and lands in one awaited call to the
-// account's cell, which lands it once however often the message comes. A page a later try may get
-// past (a timeout, a site saying it is busy) is asked again, later each time, until the queue's
-// retries are spent, and then said in the item; a message whose handling threw goes back to the
-// queue, and one the retries could not handle reaches the dead-letter queue, whose consumer says
-// the failure in the item, so no link waits unread for good.
+// (`./fill-job`), the batch's messages handled one after another to stay within the consumer's CPU
+// budget, and each acked or retried on its own, so one message's retry never retries another. A
+// message is read only while its item still waits for it; the reading (`./read-page`) keeps its
+// files in the library as it goes and lands in one awaited call to the account's cell, which lands
+// it once however often the message comes. A page a later try may get past (a timeout, a site
+// saying it is busy) is asked again, later each time, until the queue's retries are spent, and then
+// said in the item; a message whose handling threw goes back to the queue, and one the retries
+// could not handle reaches the dead-letter queue, whose consumer says the failure in the item, so
+// no link waits unread for good.
 
 import { failureOf, TEXT_NOT_SAVED } from "@repo/notes/items/fill-sentences";
 
@@ -15,6 +16,7 @@ import type { LibraryDO } from "../library/library-do";
 import { errorFields } from "../log";
 import { fillJobSchema } from "./fill-job";
 import type { FillJob } from "./fill-job";
+import { fillLandingSchema } from "./fill-landing";
 import type { FillLanding } from "./fill-landing";
 import { fetchPage } from "./page-fetch";
 import { readPage } from "./read-page";
@@ -41,9 +43,16 @@ type Cell = DurableObjectStub<LibraryDO>;
 
 // the reading landed; one naming a file the library let go before it landed is read again, as an
 // outbox uploads a file the cell says is missing, and one the cell could not keep (the library full,
-// the article past what an item holds) is said as a page whose text couldn't be saved
+// the article past what an item holds) is said as a page whose text couldn't be saved, as is one
+// the cell's door would refuse, which would otherwise leave its item waiting for good
 const land = async (cell: Cell, job: FillJob, landing: FillLanding): Promise<void> => {
-  const landed = await cell.landFill(landing);
+  const parsed = fillLandingSchema.safeParse(landing);
+  if (!parsed.success) {
+    console.warn({ event: "fill-landing-malformed", issues: parsed.error.issues.length });
+    await cell.landFill(failedLanding(job, TEXT_NOT_SAVED));
+    return;
+  }
+  const landed = await cell.landFill(parsed.data);
   if (landed.ok || landed.refusal.kind === "gone" || landing.kind === "failed") {
     return;
   }

@@ -110,6 +110,27 @@ describe("a saved link's reading", () => {
     },
   );
 
+  // the page reader's chunk loads with the first page a file reads, seconds on a busy runner
+  it(
+    "fills an item whose redirects end at an address longer than an item holds",
+    { timeout: 30_000 },
+    async () => {
+      const url = "https://pages.example/long-redirect";
+      const longer = `https://pages.example/${"a".repeat(9000)}`;
+      const { accountId, itemId, job } = await savedLink(url);
+      serveWeb({
+        [longer]: htmlPage(blogPost),
+        [url]: () => new Response(null, { headers: { location: longer }, status: 302 }),
+      });
+      await expect(deliver(job)).resolves.toMatchObject({ acked: true });
+      await expect(fieldsIn(accountId, itemId)).resolves.toMatchObject({
+        fetchError: null,
+        fetchState: "filled",
+        url,
+      });
+    },
+  );
+
   it("reads a video host's page as the video's, its description the article", async () => {
     const url = "https://www.youtube.com/watch?v=abc123";
     const { accountId, itemId, job } = await savedLink(url);
