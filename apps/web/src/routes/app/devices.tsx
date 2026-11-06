@@ -10,9 +10,9 @@ import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import type { V1Client } from "@repo/contract/cloud/v1";
 import { Button } from "@repo/ui/components/button";
 
-import { AuthError, CONNECTION_FAILED } from "@/components/auth-shell";
-import { currentSession } from "@/lib/session-guard";
-import { siteConfig } from "@/lib/site-config";
+import { AuthError, CONNECTION_FAILED } from "#components/auth-shell";
+import { currentSession } from "#lib/session-guard";
+import { siteConfig } from "#lib/site-config";
 import { isOrpcError } from "@repo/contract/cloud/v1/errors";
 
 // Nothing here adds a device: a device signs in from the app with the account's own password.

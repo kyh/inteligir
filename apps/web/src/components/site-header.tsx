@@ -4,7 +4,7 @@ import { useTheme } from "@repo/ui/lib/theme";
 
 import { Button } from "@repo/ui/components/button";
 
-import { siteConfig } from "@/lib/site-config";
+import { siteConfig } from "#lib/site-config";
 
 const GithubIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>

@@ -3,9 +3,6 @@
   "compilerOptions": {
     "lib": ["ES2023", "dom", "dom.iterable"],
     "jsx": "react-jsx",
-    "paths": {
-      "@/*": ["./src/*"]
-    },
     "types": ["vite/client"],
     // vitest.config.ts imports compatibility.ts by its `.ts` name, as cloudflare.config.ts does
     "allowImportingTsExtensions": true

@@ -1,7 +1,7 @@
-import type { PageMeta } from "@/lib/page-meta";
-import { statedDate } from "@/lib/page-meta";
-import { siteConfig } from "@/lib/site-config";
-import { pageGraph } from "@/lib/structured-data";
+import type { PageMeta } from "#lib/page-meta";
+import { statedDate } from "#lib/page-meta";
+import { siteConfig } from "#lib/site-config";
+import { pageGraph } from "#lib/structured-data";
 
 const absolute = (path: string): string => `${siteConfig.url}${path === "/" ? "" : path}`;
 

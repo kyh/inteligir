@@ -8,14 +8,8 @@ import {
 } from "@repo/contract/cloud/device/device-schema";
 import { Button } from "@repo/ui/components/button";
 
-import {
-  AuthError,
-  AuthField,
-  AuthShell,
-  fieldValue,
-  useAuthSubmit,
-} from "@/components/auth-shell";
-import { authClient, authErrorMessage } from "@/lib/auth-client";
+import { AuthError, AuthField, AuthShell, fieldValue, useAuthSubmit } from "#components/auth-shell";
+import { authClient, authErrorMessage } from "#lib/auth-client";
 
 // Better Auth's GET leg lands a live link here with ?token= and a spent or expired one with
 // ?error=. Each field catches on its own: a key the schema leaves out keeps its raw value in the

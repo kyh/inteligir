@@ -84,11 +84,6 @@ export default defineConfig({
       },
     }),
   ],
-  // the site's `@/` alias, which tsconfig.json declares: neither cloudflareTest nor vitest reads
-  // tsconfig paths, and the start plugin that does is not in this config
-  resolve: {
-    alias: { "@": `${HERE}/src` },
-  },
   test: {
     maxWorkers: 1,
     setupFiles: ["./src/worker/test-support/apply-schema.ts"],

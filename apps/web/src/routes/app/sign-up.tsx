@@ -9,16 +9,10 @@ import {
 } from "@repo/contract/cloud/device/device-schema";
 import { Button } from "@repo/ui/components/button";
 
-import {
-  AuthError,
-  AuthField,
-  AuthShell,
-  fieldValue,
-  useAuthSubmit,
-} from "@/components/auth-shell";
-import { AUTH_FALLBACK_ERROR } from "@/lib/auth-client";
-import { SIGNED_IN_HOME } from "@/lib/next-path";
-import { currentSession, ssrWhenSignedOut } from "@/lib/session-guard";
+import { AuthError, AuthField, AuthShell, fieldValue, useAuthSubmit } from "#components/auth-shell";
+import { AUTH_FALLBACK_ERROR } from "#lib/auth-client";
+import { SIGNED_IN_HOME } from "#lib/next-path";
+import { currentSession, ssrWhenSignedOut } from "#lib/session-guard";
 
 const refusalSchema = z.looseObject({ message: z.string().min(1) });
 

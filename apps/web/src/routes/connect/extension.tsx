@@ -9,10 +9,10 @@ import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import type { V1Client } from "@repo/contract/cloud/v1";
 import { Button } from "@repo/ui/components/button";
 
-import { AuthError, AuthShell, CONNECTION_FAILED } from "@/components/auth-shell";
-import { askExtension, connectExtension } from "@/lib/extension-connect";
-import type { ConnectOutcome } from "@/lib/extension-connect";
-import { currentSession } from "@/lib/session-guard";
+import { AuthError, AuthShell, CONNECTION_FAILED } from "#components/auth-shell";
+import { askExtension, connectExtension } from "#lib/extension-connect";
+import type { ConnectOutcome } from "#lib/extension-connect";
+import { currentSession } from "#lib/session-guard";
 
 // The browser extension's sign-in: the person signed in here clicks Connect, and the extension in
 // this browser is handed a credential of its own for their account (src/lib/extension-connect.ts).

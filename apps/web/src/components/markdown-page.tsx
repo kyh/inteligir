@@ -2,9 +2,9 @@ import { Link } from "@tanstack/react-router";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { SiteHeader } from "@/components/site-header";
-import { rehypeHeadingIds } from "@/lib/heading-ids";
-import { siteConfig } from "@/lib/site-config";
+import { SiteHeader } from "#components/site-header";
+import { rehypeHeadingIds } from "#lib/heading-ids";
+import { siteConfig } from "#lib/site-config";
 
 export const MarkdownPage = ({ markdown }: { markdown: string }) => (
   <>

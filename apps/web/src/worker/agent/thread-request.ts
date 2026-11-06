@@ -364,6 +364,7 @@ const utf8Bytes = (point: number): number => {
 // other chain (a number, a sha, an id, base64, a word past sixteen) at a token a character, and
 // each character beyond ASCII (CJK, accents, emoji) at a token a UTF-8 byte: the most a tokenizer
 // that reads text by the byte can spend, the same glossary's "or even bytes".
+/** @internal */
 export const tokensAtMost = (text: string): number => {
   let tenths = 0;
   let chain = 0;

@@ -1,6 +1,6 @@
 import { EXTENSION_STORE_URL } from "@repo/contract/cloud/extension/extension-identity";
-import { PAGES } from "@/lib/page-meta";
-import { siteConfig } from "@/lib/site-config";
+import { PAGES } from "#lib/page-meta";
+import { siteConfig } from "#lib/site-config";
 
 // each page's markdown is its one source: the route renders it as HTML and answers it as-is to an
 // agent that negotiates text/markdown, so the two representations cannot drift

@@ -3,14 +3,8 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 
 import { Button } from "@repo/ui/components/button";
 
-import {
-  AuthError,
-  AuthField,
-  AuthShell,
-  fieldValue,
-  useAuthSubmit,
-} from "@/components/auth-shell";
-import { authClient, authErrorMessage } from "@/lib/auth-client";
+import { AuthError, AuthField, AuthShell, fieldValue, useAuthSubmit } from "#components/auth-shell";
+import { authClient, authErrorMessage } from "#lib/auth-client";
 
 const ForgotPasswordPage = () => {
   const router = useRouter();

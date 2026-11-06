@@ -10,8 +10,6 @@ import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import type { Plugin } from "vite";
 
-const src = fileURLToPath(new URL("src", import.meta.url));
-
 // the library's page, `@repo/workspace`'s build, which turbo builds first (`^build`): it lays its
 // files under LIBRARY_PAGE_PATH already, so they go into the site's own assets as they are, where
 // the Worker answers the page's document for every path under it (src/worker/library/library-page.ts)
@@ -63,10 +61,6 @@ export default defineConfig({
     libraryPage(),
     libraryPageInDev(),
   ],
-  // the dev SSR runner does not read tsconfig paths, unlike vite build.
-  resolve: {
-    alias: { "@": src },
-  },
   // strictPort: every doc and script names :5174, so failing to bind beats moving. No CORS of the
   // dev server's own: its default answers every preflight itself, for loopback pages alone, so the
   // Mac's page and the extension would meet it in place of the Worker's (src/worker/cors.ts)

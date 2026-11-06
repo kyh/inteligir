@@ -9,12 +9,12 @@ import {
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { noFlashThemeScript } from "@repo/ui/lib/theme";
 
-import { varyHeaders } from "@/lib/markdown-route";
-import { PAGES } from "@/lib/page-meta";
-import { siteConfig } from "@/lib/site-config";
-import { serializeJsonLd, siteGraph } from "@/lib/structured-data";
-import { SiteProviders } from "@/components/site-providers";
-import { THEME_FALLBACK, THEME_STORAGE_KEY } from "@/components/theme-provider";
+import { varyHeaders } from "#lib/markdown-route";
+import { PAGES } from "#lib/page-meta";
+import { siteConfig } from "#lib/site-config";
+import { serializeJsonLd, siteGraph } from "#lib/structured-data";
+import { SiteProviders } from "#components/site-providers";
+import { THEME_FALLBACK, THEME_STORAGE_KEY } from "#components/theme-provider";
 
 import appCss from "../styles/globals.css?url";
 

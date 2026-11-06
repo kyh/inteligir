@@ -1,4 +1,4 @@
-import { markdownResponse, prefersMarkdown, VARY } from "@/lib/content-negotiation";
+import { markdownResponse, prefersMarkdown, VARY } from "#lib/content-negotiation";
 
 /** A page's server GET: its markdown when the client asks for it, otherwise the SSR HTML. */
 export const markdownHandler =

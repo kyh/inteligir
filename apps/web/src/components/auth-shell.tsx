@@ -4,7 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
 
-import { siteConfig } from "@/lib/site-config";
+import { siteConfig } from "#lib/site-config";
 
 export const AuthShell = ({
   title,

@@ -1,5 +1,5 @@
-import type { PageMeta } from "@/lib/page-meta";
-import { siteConfig } from "@/lib/site-config";
+import type { PageMeta } from "#lib/page-meta";
+import { siteConfig } from "#lib/site-config";
 
 const { contact, description, downloadUrl, github, name, twitterUrl, url } = siteConfig;
 

@@ -3,17 +3,11 @@ import { z } from "zod";
 
 import { Button } from "@repo/ui/components/button";
 
-import {
-  AuthError,
-  AuthField,
-  AuthShell,
-  fieldValue,
-  useAuthSubmit,
-} from "@/components/auth-shell";
-import { authClient, authErrorMessage } from "@/lib/auth-client";
-import { internalNextPath, SIGNED_IN_HOME } from "@/lib/next-path";
-import { currentSession, ssrWhenSignedOut } from "@/lib/session-guard";
-import { siteConfig } from "@/lib/site-config";
+import { AuthError, AuthField, AuthShell, fieldValue, useAuthSubmit } from "#components/auth-shell";
+import { authClient, authErrorMessage } from "#lib/auth-client";
+import { internalNextPath, SIGNED_IN_HOME } from "#lib/next-path";
+import { currentSession, ssrWhenSignedOut } from "#lib/session-guard";
+import { siteConfig } from "#lib/site-config";
 
 // a malformed `next` is dropped, not refused, so a bad link still reaches the form;
 // internalNextPath is what decides a well-formed one may be followed

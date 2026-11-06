@@ -1,8 +1,8 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
-import { markdownResponse, prefersMarkdown } from "@/lib/content-negotiation";
-import { varyHeaders } from "@/lib/markdown-route";
-import { notFoundMarkdown } from "@/lib/site-content";
+import { markdownResponse, prefersMarkdown } from "#lib/content-negotiation";
+import { varyHeaders } from "#lib/markdown-route";
+import { notFoundMarkdown } from "#lib/site-content";
 
 // the 404 status was already there; this route gives an agent that asks for markdown a body it
 // can recover from instead of Start's JSON refusal
