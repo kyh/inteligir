@@ -88,8 +88,11 @@ describe("a saved link's reading", () => {
     },
   );
 
+  // each corpus page is a whole site's markup read through linkedom and the codec on purpose,
+  // seconds of CPU on a runner busy with three other suites
   it.each(Object.entries(CORPUS))(
     "lands the corpus page %s as the reader reads it",
+    { timeout: 30_000 },
     async (name, html) => {
       const url = `https://pages.example/corpus/${name}`;
       const { accountId, itemId, job } = await savedLink(url);
