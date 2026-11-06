@@ -1,3 +1,4 @@
+import pluginQuery from "@tanstack/eslint-plugin-query";
 import { defineConfig } from "oxlint";
 import antiSlop from "ultracite/oxlint/anti-slop";
 import core from "ultracite/oxlint/core";
@@ -121,6 +122,9 @@ const platformPurity = (dir: string, regex: string, message: string) => ({
 export default defineConfig({
   extends: [core, react, tanstack, antiSlop],
   options: { reportUnusedDisableDirectives: "error", typeAware: true },
+  // TanStack Query's own rules, as its docs load them into oxlint; no-void-query-fn reads types a
+  // JS plugin is not handed, so the type-aware pass's own rules stand in for it
+  jsPlugins: ["@tanstack/eslint-plugin-query"],
   ignorePatterns: [
     ...(core.ignorePatterns ?? []),
     ".agents",
@@ -332,6 +336,7 @@ export default defineConfig({
     },
   ],
   rules: {
+    ...pluginQuery.configs.recommended.rules,
     "no-restricted-imports": restrictedImports([]),
     // Its message asks for a `// SAFETY:` comment, which admits nothing now that
     // `typescript/consistent-type-assertions` refuses every assertion.
