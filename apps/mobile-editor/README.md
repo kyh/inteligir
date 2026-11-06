@@ -61,7 +61,8 @@ end that receives it.
   reads now, or invalid), `linkTargets` (the items a link can name, by id and
   the title each goes by now, asked again whenever another item moves),
   `readFile` (a file a note names, by its sha, from the phone's file cache,
-  which fetches it the first time; none while the phone can reach no copy),
+  which fetches it the first time, as the type it was kept or served as; none
+  while the phone can reach no copy),
   `keepFile` (a file pasted into the text, kept by the phone's replica and
   answered with its sha),
   `addHighlight` and `noteHighlight` (a highlight the editor marked and its
