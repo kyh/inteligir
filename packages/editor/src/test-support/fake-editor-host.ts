@@ -36,8 +36,6 @@ export interface FakeEditorHostOptions {
   // reject it or hold it past the flush's timeout
   readonly flush?: VaultActions["flush"];
   readonly readNoteFormulas?: EditorHostIo["readNoteFormulas"];
-  // null is a host with no frame to run an html block in
-  readonly htmlFrameUrl?: string | null;
   readonly pickImage?: EditorHostIo["pickImage"];
   readonly opensFiles?: boolean;
   readonly annotations?: AnnotationActions;
@@ -47,8 +45,6 @@ export interface FakeEditorHostOptions {
 const ignore = (): void => {
   // the fake shell has no panel, rail or composer to answer with
 };
-
-export const FAKE_HTML_FRAME_URL = "/html-frame-under-test";
 
 // Installs the singleton the hooks read; the io half answers as an empty, read-only vault, and the
 // shell refuses every annotation and hears every other ask as nothing.
@@ -102,7 +98,6 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   }));
 
   const io: EditorHostIo = {
-    htmlFrameUrl: options.htmlFrameUrl === undefined ? FAKE_HTML_FRAME_URL : options.htmlFrameUrl,
     linkResolver,
     onVaultChanged: () => () => {
       // the fake vault announces no change, so there is no subscription to end

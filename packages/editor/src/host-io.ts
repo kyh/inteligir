@@ -94,8 +94,6 @@ export interface EditorHostIo {
     formulas: CollectedFormula[];
   } | null>;
   onVaultChanged: (listener: (event: VaultChangedEvent) => void) => () => void;
-  /** Where a note's html block runs: a same-origin document answered under its own sandbox policy, since a srcdoc frame inherits the page's and runs no inline script. Null where no server answers one, and the block offers no Run. */
-  htmlFrameUrl: string | null;
   /** A native photo picker that writes what it picks; null where paste and drop are the only way in. */
   pickImage: (() => Promise<PickImageResult>) | null;
   /** True where `vault.openFile` shows a file that is no note in a viewer of the host's own (the phone), so a file card's Open goes there; false where the page hands the file's bytes to the system's viewer. */

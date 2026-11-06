@@ -176,7 +176,6 @@ blockExoticSubdeps: true
 
 allowBuilds:
   "@tailwindcss/oxide": true
-  better-sqlite3: set this to true or false
   # agents' mimetext's @babel/runtime-corejs3: a postinstall that only prints a funding notice; an
   # install refuses a build left undecided (ERR_PNPM_IGNORED_BUILDS)
   core-js-pure: false

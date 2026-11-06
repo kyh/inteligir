@@ -2,8 +2,8 @@
 // replica. A link names its item by id, which the resolver maps to the item the replica holds, and
 // opening it opens that item; a highlight the chord makes is written to the open item as its own
 // entry, beside the markers the editor put around the passage, which the item's next write carries.
-// What the page has no door to (a file by its path, a picked image, an html block's frame)
-// answers that nothing is there.
+// What the page has no door to (a file by its path, a picked image) answers that nothing is
+// there.
 
 import { installEditorHost } from "@repo/editor/host-io";
 import type { EditorHostIo, VaultActions } from "@repo/editor/host-io";
@@ -85,7 +85,6 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
   };
 
   const io: EditorHostIo = {
-    htmlFrameUrl: null,
     linkResolver: feed.store,
     onVaultChanged: () => nothingToDo,
     opensFiles: false,

@@ -313,7 +313,9 @@ export default defineConfig({
     // Its message asks for a `// SAFETY:` comment, which admits nothing now that
     // `typescript/consistent-type-assertions` refuses every assertion.
     "anti-slop/require-safety-comment-for-type-assertion": "off",
-    // Sequential awaits in loops are deliberate here (ordered vault writes, rate-limited reads).
+    // Sequential awaits in loops are deliberate here: the outbox sends its rows oldest first, an
+    // export writes its zip's parts in order, an import reads R2 a page at a time, and a suite's or
+    // a scenario's steps each wait on the one before.
     "no-await-in-loop": "off",
     // Both shapes it flags are load-bearing idioms: an exhaustive `switch` over a
     // union with no `default` (in a function whose return type excludes

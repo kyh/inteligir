@@ -301,7 +301,7 @@ describe("a locked block's controls", () => {
         editing.some((drawn) => drawn === name),
       );
     }
-    for (const name of ["Source", "Preview", "Run", "One", "Two"]) {
+    for (const name of ["Source", "Preview", "One", "Two"]) {
       expect(screen.getAllByRole("button", { name }).length, name).toBeGreaterThan(0);
     }
   });

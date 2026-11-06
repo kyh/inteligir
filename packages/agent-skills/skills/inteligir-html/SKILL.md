@@ -1,13 +1,14 @@
 ---
 name: inteligir-html
-description: Self-contained HTML blocks in inteligir notes — when interaction earns one, the runtime limits, and the sandbox contract.
+description: Self-contained HTML blocks in inteligir notes — when a drawn document earns one, the frame's limits, and the sandbox contract.
 ---
 
 # inteligir HTML
 
-An `inteligir-html` fence holds a complete, self-contained document rendered in
-a sandboxed frame. Use it for behavior someone must click — a prototype, a state
-machine, a control worth trying before the team commits to it.
+An `inteligir-html` fence holds a complete, self-contained document drawn in a
+sandboxed frame, with script off. Use it for what only a page's own layout can
+show — a mock-up of a screen, a styled comparison, a layout worth seeing before
+the team commits to it.
 
 **Do not rebuild what the editor already has.** Tables, tabs, toggles,
 columns, callouts, checklists, charts, and annotations are real blocks: they are
@@ -51,21 +52,18 @@ Size belongs in the document's CSS, not on the fence line.
 The frame is isolated, and that is the point — a note should never be able to
 reach the app or the library. What that costs you:
 
-- Inline CSS and JavaScript work. Script runs only once the reader presses Run;
-  Preview draws the document with script off. Start behavior on
-  `DOMContentLoaded`.
-- `localStorage`, cookies, same-origin fetches, and any parent-window API are
-  unavailable. Do not design around state that outlives a reload.
-- Network requests are blocked: no fetch, and no remote script, stylesheet,
-  image or font. **The first frame must be useful with no network and no
-  script.**
+- Inline CSS works; script never runs. The reader sees the document as its
+  HTML and CSS draw it, so a `<script>` is dead weight.
+- Forms, `localStorage`, cookies and any parent-window API are unavailable.
+- Network requests are blocked: no remote stylesheet, image or font. **The
+  document must be complete with no network and no script.**
 - A library file's address, `assets/<sha>`, does not resolve inside the frame.
   A small required image must be an inline `data:` URI. Never use `file://` or
   an absolute local path.
 
-Every visible control must actually work and use native semantics — a button is
-a `<button>`. A control that looks live and does nothing is worse than no
-control.
+What a reader can do is what HTML and CSS do alone: open a `<details>`, hover,
+tick a checkbox a `:checked` rule answers. A control that looks live and does
+nothing is worse than no control, so draw none that would need script.
 
 ## One Fixed Palette
 
@@ -79,8 +77,8 @@ Keep the surface flush; do not draw a heavy outer frame around your own content.
 
 ## Editing And Splitting
 
-Preserve existing behavior when you edit — the whole document is one payload, so
-a careless rewrite loses working code with no diff worth reading.
+Preserve what is there when you edit — the whole document is one payload, so a
+careless rewrite loses work with no diff worth reading.
 
 If the document contains literal triple backticks, open the fence with four or
 more. Give separate jobs separate fences instead of one document that does
@@ -90,6 +88,6 @@ everything.
 
 - A real block could not have done this.
 - The document is complete and self-contained.
-- The first frame renders with no network and no JavaScript.
-- Every control works.
+- It renders with no network and no script.
+- Every control it draws works without script.
 - The palette is legible against both themes.

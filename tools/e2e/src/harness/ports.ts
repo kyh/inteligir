@@ -43,8 +43,9 @@ const closeServer = async (server: Server): Promise<void> => {
 const handedOut = new Set<number>();
 
 // held all at once before releasing: sequential reserve/release can hand the same port back twice.
-// concrete ports because the app refuses INTELIGIR_PORT=0; the release→spawn window is a race the
-// boot loop retries, against what another process binds meanwhile.
+// concrete ports because a child is told the port it binds and the harness the one it dials, before
+// either runs; the release→spawn window is a race the boot loop retries, against what another
+// process binds meanwhile.
 export const reserveFreePorts = async (count: number): Promise<number[]> => {
   const held: HeldPort[] = [];
   const fresh: number[] = [];

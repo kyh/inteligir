@@ -119,24 +119,20 @@ approval does not end it. The cell checks the allowance before it starts and
 reserves each model call before it is sent, and its writes are one **change
 set**, which "Undo this turn" reverts. A send while its thread's turn runs
 waits its turn (`apps/web/src/worker/agent/agent-turns.ts`). Not a connected
-assistant's call, which is no turn, and not the Mac runtime's turn under The
-agent, below.
+assistant's call, which is no turn.
 
 **thread** — a conversation with the **built-in agent**, the account's, so
 every device shows it: its transcript in its own object and its events synced
-as rows (`agent-turns.ts`). Not the Mac runtime's thread under The agent,
-below.
+as rows (`agent-turns.ts`).
 
-## The library (the vault, in code)
+## The library
 
 **doc** — a file whose extension is editable text: `.md`, `.markdown`, `.mdx`,
 `.txt` (`@repo/notes/knowledge/doc-file`, the single source of that answer).
-"Doc" is a CLASSIFICATION, not a shape: it decides what the index projects and
-what a rename rewrites links in. It is deliberately WIDER than what the client
-writes — every note the UI creates is `.md` unless the name typed for it already
-ends in a doc extension, so a `.txt` in the vault is indexed and linkable but
-minted only by name. It is also WIDER than what a link may leave off: `.md`
-alone, so a `.txt` note links as `[[todo.txt]]`.
+"Doc" is a CLASSIFICATION, not a shape: it decides which file of an imported
+zip becomes a note. It is deliberately WIDER than what an export writes, every
+note as `.md`, and WIDER than what a link may leave off: `.md` alone, so a
+`.txt` note links as `[[todo.txt]]`.
 
 **note** — an item of kind `note`: a doc whose `kind:` is missing or unknown,
 the text a person writes. Its filename IS its title, there is no slug layer.
@@ -147,32 +143,14 @@ its kind: a name may not hold `[` or `]`, which would end a link to it.
 `\r`, `\n`), stated once in `@repo/notes`' `text/source-lines`. A second reading
 of "what a line is" anywhere else is a file-corruption bug waiting to happen;
 the line diff's LF-only split (`text/line-diff`) is the one deliberate
-exception, because diff3 joins its segments back into the file's own bytes. Not
-a write unit: joining a split back rewrites every terminator, so writes go
-through the vault's whole-file CAS, never through a re-joined split.
-
-**projection** — what ONE parse of a doc yields: title, headings, links, tags,
-aliases, the pin and the note's `id` (`@repo/notes/knowledge/projection`). An
-index stores projections, not documents.
-
-**conflict copy** — the other device's whole version of a file both devices
-changed where their edits overlap, written beside it as `<name> (conflict,
-<device>)<ext>`, while the path keeps the line merge with this device's lines at
-the overlaps. A note's copy drops its `id:`, so the two never answer to one
-`[[Title|uuid]]` link. Which paths get one is `@repo/notes/sync/reconcile-file`,
-the one verdict the local server's sync runs; the
-name and the sentence every surface says about it are
-`@repo/notes/sync/conflict-copy`. Not an open item's own overlap: a block its
-write finds changed elsewhere merges, mine kept where both changed a line, and
-makes no copy (`packages/editor/src/stale-write.ts`), because the person is
-looking at the item and its History holds the rest.
+exception, because diff3 joins its segments back into the text's own bytes.
+Not a write unit: a block is, guarded by its hash.
 
 **annotation** — a highlighted passage of an item and an optional note on it,
 with replies under it: markers `%%i:<ids>:start%%…%%i:<ids>:end%%` around the
-passage in the item's bytes, and one entry per id in the store keyed by the
-item's frontmatter `id`, `.inteligir/annotations/<id>.json`
-(`@repo/notes/annotations/store-schema`; folded against the markers by
-`@repo/notes/annotations/annotation-threads`). A root whose `text` is `""` is a
+passage in the item's blocks, and one entry per id among the item's rows in its
+library's `annotations` table (`@repo/notes/annotations/store-schema`; folded
+against the markers by `@repo/notes/annotations/annotation-threads`). A root whose `text` is `""` is a
 bare highlight. Not an html or code comment, which the dialect keeps as the
 note's own bytes, and not a task: it has no resolved state, and stays until it
 is removed. A root whose quote the item's text does not hold is listed
@@ -190,24 +168,23 @@ quote.
 
 ## Items
 
-**library** — the vault folder, as the person sees it: everything they saved
-and wrote, one file per item. The product says library; code, the CLI's
-`vault` group, wire paths and env vars keep `vault`, the engine's word.
+**library** — everything a person saved and wrote, their account's: one
+library cell in the cloud (`LibraryDO`, `apps/web/src/worker/library/`), which
+every device they sign in on holds a replica of (`@repo/library-replica`).
 
-**item** — one card the library lists: every doc, and every bare file. A link,
-a video, an image's wrapper and a note the person wrote are all one markdown
-file whose facts are frontmatter keys, read by `readItemFacts` and written as
-line cuts by `withItemFields` (`@repo/notes/items/item-frontmatter`). Not a
-doc: a doc is a file classification (what the index projects), an item is what
-the grid draws, and a bare image is an item that is no doc. Listed by
-`@repo/notes/items/library-index`, which the knowledge runtime holds.
+**item** — one card the library lists: a row of fields and a body of Plate
+blocks (`@repo/notes/library/library-item`), whatever its kind; a link, a
+video, an image, a PDF and a note the person wrote are each one. A markdown
+file an import reads becomes one item, its frontmatter read into the item's
+fields by `readItemFacts` (`@repo/notes/items/item-frontmatter`). Listed in
+memory over a replica's rows by `@repo/notes/library/library-index`.
 
 **kind** — what an item is: `note`, `link`, `video`, `audio`, `image`, `pdf`
-or `file` (`ITEM_KINDS` in `@repo/notes/items/item-kind`). A doc's kind is its
-`kind:` key, and a missing or unknown one is a note; a bare file's is its
-extension's (`fileKindOf`); a saved url's is `kindForUrl`
-(`@repo/notes/items/item-url`). `link`, `video` and `audio` are the url kinds,
-the only ones a stub can be.
+or `file` (`ITEM_KINDS` in `@repo/notes/items/item-kind`), one of the item's
+fields. An imported markdown file's is its `kind:` key, and a missing or
+unknown one is a note; a saved file's is its extension's (`fileKindOf`); a
+saved url's is `kindForUrl` (`@repo/notes/items/item-url`). `link`, `video`
+and `audio` are the url kinds, the only ones a fill reads.
 
 **Unsorted** — where an item filed in no folder shows: its `folderId` is null
 (the `unsorted` scope of `@repo/domain/library-scope`). Not a folder: an item
@@ -230,23 +207,17 @@ be read); it calls no model and never writes `url` or `savedAt`
 `pending`, `filled` or `failed`. A page the phone's share sheet hands over is
 read on the phone and saved read, never a fill (`apps/mobile/src/items/share-save.ts`).
 
-**cover** — an item's picture: the first image its body embeds, computed at
-every read (`itemFilesOf` in `@repo/notes/items/item-files`), never a
-frontmatter path. A fill's cover is stored by its hash under `assets/covers/`
-(`COVERS_DIR`). Not an image item: a cover is part of the item that embeds it,
-and is never a card of its own.
-
-**bare file** — a media file no doc embeds, which the library lists as an item
-of its own (`bare` on the listing's row, `@repo/notes/items/library-index`). A
-saved file is not bare: it gets a small wrapper note that embeds it, and that
-note is the item.
+**cover** — an item's picture: its `coverSha` field, the hash of a file the
+library keeps in R2, which a fill sets from the page it read and an export
+writes under `assets/covers/` (`COVERS_DIR`). Not an image item: a cover is
+part of its item, and is never a card of its own.
 
 **url key** — the one key two spellings of one link share: the scheme, `www.`,
 a default port, tracking parameters and a non-route fragment dropped, the host
 folded, the query sorted (`urlKey` in `@repo/notes/items/item-url`). A save
-dedupes by it and `item find` matches by it. Not what `url:` holds: that is
+folds onto the item holding its key. Not what an item's url holds: that is
 `cleanUrl`, which drops only the userinfo and the tracking parameters, and
-the key is never stored.
+the key is a derived row, never a field.
 
 **page copy** — a single-file, script-free HTML snapshot of a saved page: an
 item's `copySha`, which only an import brings. Its bytes are served under a

@@ -229,8 +229,7 @@ alone, and no walk narrows structurally.
   (`packages/editor/src/kits/rich-block-lock-kit.ts`), and `beforeinput`
   refuses keystrokes inside, which slate-react defers to an input event never
   fired. Rejected: the desktop kit minus its pointer chrome, and
-  hiding only the edit buttons (a paste or key still gets in). A host with no
-  html frame draws no Run.
+  hiding only the edit buttons (a paste or key still gets in).
 
 - **A MERMAID FENCE IS DRAWN BY PELE, SYNCHRONOUSLY, AND ITS THEME IS CSS.**
   Pele (`pele`, MIT) reads Mermaid 12.1 into SVG with no runtime dependency,

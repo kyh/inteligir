@@ -57,7 +57,7 @@ replaces it. Write in the note, never in the article, and never move or remove e
 | Short blocks read side by side                    | Columns                             | A table holding paragraphs                   |
 | Source, logs, literal text, ASCII diagrams        | Fenced code                         | An image of text                             |
 | Rough spatial sketch with position and connectors | Canvas                              | Canvas for a generic diagram — use ASCII     |
-| Real interaction that must be clicked             | HTML block                          | Rebuilding tables, tabs, or callouts in HTML |
+| A styled layout no block can draw                 | HTML block                          | Rebuilding tables, tabs, or callouts in HTML |
 | A passage the person should look at               | Highlight with a note               | A `TODO:` line in the text                   |
 | A value reused or computed                        | Formula pill                        | Retyping the number                          |
 

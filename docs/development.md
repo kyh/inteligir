@@ -175,12 +175,14 @@ carries the reason `verify` cannot run it as a comment beside it in
 
 Every workspace answers `pnpm --filter <name> test`; each suite's own file
 header says what it pins, and `tools/repo-guards` holds the invariants that
-span workspaces (the dep DAG, ws change kinds, turbo's cache keys, dangling
-references, the per-export orphan guard over `@repo/ui`).
+span workspaces (the dep DAG, turbo's cache keys, dangling references, the
+per-export orphan guard over `@repo/ui`).
 
-End-to-end: `pnpm e2e` boots real app instances on scratch dirs (fixture
-vaults, scratch git remotes, a headless browser, and the desktop shell itself,
-driven over WebDriver on Linux) and is deliberately outside
+End-to-end: `pnpm e2e` boots the built Worker under Miniflare, each scenario's
+own with its state in a scratch dir, and drives it the way a person or an
+assistant does: the library's tab in a headless browser, the browser extension
+in Chromium, the phone's editor page and runtime, and the desktop shell itself,
+over WebDriver on Linux. It is deliberately outside
 `pnpm verify` — `tools/e2e/README.md` is the one-pager. It runs scenarios in
 lanes, half the machine's cores and at most four at once, each printed whole
 when it ends; `--lanes 1` runs them one at a time and streams every line, and

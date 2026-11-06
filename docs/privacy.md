@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Effective as of October 20, 2026.
+Effective as of November 6, 2026.
 
 To view previous versions of this Privacy Policy, see its [history on
 GitHub](https://github.com/kyh/inteligir/commits/main/docs/privacy.md).
@@ -10,14 +10,14 @@ privacy rights notice](#state-privacy-rights-notice) section below for important
 information about your rights under applicable state privacy laws.
 
 Kaiyu Hsu ("**Inteligir**," "**we**," "**us**" or "**our**") provides Inteligir,
-a local-first library for the Mac of everything you save and write, with an
-iPhone app and a browser extension, in which an AI agent running on your own
-Claude or ChatGPT plan files and edits it with you. This
-Privacy Policy describes how Inteligir processes personal information that we
-collect through our digital or online properties or services that link to this
-Privacy Policy (including, as applicable, our website at inteligir.com, our Mac
-app, our iPhone app, our browser extension and the `inteligir` command line) and the other activities
-described in this Privacy Policy (collectively, the "**Service**").
+a library of everything you save and write, kept in your account in our cloud
+and shown by a Mac app, an iPhone app, a browser tab and a browser extension,
+with a built-in AI agent that files and edits it with you. This Privacy Policy
+describes how Inteligir processes personal information that we collect through
+our digital or online properties or services that link to this Privacy Policy
+(including, as applicable, our website at inteligir.com, our Mac app, our iPhone
+app and our browser extension) and the other activities described in this
+Privacy Policy (collectively, the "**Service**").
 
 **Notice to European users**: Please see the [Notice to European
 users](#notice-to-european-users) section below for additional information for
@@ -45,27 +45,20 @@ refer to as "**Europe**", and "**European**" should be understood accordingly).
 
 ## Personal information we collect
 
-The Service is local-first: your library, the notes you write and the links,
-pages and files you save, is markdown files and the files they embed in a
-folder you choose on your Mac, with their history kept beside them. The app and its search run on
-that Mac, and so does the agent, which talks to its provider from there. An
-account is optional, and without one the apps send our cloud nothing. Our cloud
-is the part of the Service we run on Cloudflare, at inteligir.com. Signed in, it
-keeps an online copy of your library for your phone and your other Macs, and
-tells each of your devices when another has changed it. This Privacy Policy states exactly what that
-means: what leaves your machine, what never does, what your phone keeps, how
-long our cloud keeps it, and how it is deleted.
+Your library, the notes you write and the links, pages and files you save, is
+your account's, kept by our cloud: the part of the Service we run on
+Cloudflare, at inteligir.com. An account is required. Each device you sign in
+on keeps a copy of your library, reads it with no connection, and sends what
+you change to our cloud when it has one; our cloud tells each of your devices
+when another has changed it. This Privacy Policy states exactly what that
+means: what each device sends and where, what it keeps, how long our cloud
+keeps it, and how it is deleted.
 
-Your library itself (its items, attachments, their history and the search
-index) lives on your Mac, and our cloud holds none of it unless you sign in on a
-library nothing else syncs (see the online library, below). The exception is what the
-agent reads, which goes to its provider (see [Tracking & Other
-Technologies](#tracking--other-technologies)). Your conversations with the
-built-in agent are your account's: our cloud keeps each one with your online
-library, so every device you sign in on shows it, and only our cloud keeps it
-(see below). A conversation with an agent your Mac runs on your own
-Claude or ChatGPT plan never leaves that Mac: only the changes it made to your
-library reach your other devices, as part of the library.
+Your conversations with the built-in agent are your account's too: our cloud
+keeps each one with your library, so every device you sign in on shows it. What
+the agent reads to answer you goes to Anthropic, which runs the model for us
+(see [How we share your personal
+information](#how-we-share-your-personal-information)).
 
 **Information you provide to us.** Personal information you may provide to us
 through the Service or otherwise includes:
@@ -106,21 +99,16 @@ through the Service or otherwise includes:
   can add or can have added to their content, such as keywords, geographical or
   location information, and other similar data. Once you sign in, our cloud
   receives:
-  - **Your library, in your account's online library — only for a library
-    nothing else syncs.** Signed in, each Mac sends its library — items,
-    attachments, highlights and every earlier version, each change named for the device that saved it
-    and an agent's changes for the conversation that made them — to one hosted
-    copy per account, which your other Macs read from. A file over 10 MB is
-    never sent: it stays on the Mac it is on. The online library is reachable
-    only with a device credential from your own account, and holds about 1 GB,
-    history included: a full one still opens and downloads everywhere, but takes
-    no new changes, which wait on your Macs until it has room. It
-    is encrypted at rest by Cloudflare, but we can read it — there is no
-    end-to-end encryption. A library with a git server of its own (see
-    [How we share your personal
-    information](#how-we-share-your-personal-information)), or a folder iCloud
-    Drive, Dropbox, Google Drive, OneDrive or Obsidian Sync already syncs, never
-    goes to the online library.
+  - **Your library, in your account.** Every change a device of yours makes —
+    to items, files, highlights, folders and tags — goes to your account's
+    library in our cloud, which keeps it with every earlier version, each change
+    named for the device or the assistant that made it and the built-in agent's
+    for the conversation that made them. Your library is reachable only with a
+    credential from your own account, and holds about 1 GB, history included: a
+    full one still opens and downloads everywhere, but takes no new changes,
+    which wait on your devices until it has room. A file over 100 MB is never
+    kept. It is encrypted at rest by Cloudflare, but we can read it — there is no
+    end-to-end encryption.
 - **Other data** not specifically listed here, which we will use as described in
   this Privacy Policy or as otherwise disclosed at the time of collection.
 
@@ -149,11 +137,11 @@ as:
     holds the address beside the route it counts, a count and a timestamp.
     Before sign-in the address is all our cloud knows about a caller, and a
     login with no throttle is a password oracle. Once signed in, a device's
-    reads and writes of the online library, and its attempts to delete the
+    reads and writes of your library, and its attempts to delete the
     account, are counted the same way under the device's id, never an address.
-  - **The app's version, on every request to our cloud.** The Mac app and the
-    phone app say which version they are, and which of the two, on each request
-    they send our cloud, so it can stop answering a version too old to sync with
+  - **The app's version, on every request to our cloud.** The Mac app, the
+    phone app and the browser extension say which version they are, and which
+    of the three, on each request they send our cloud, so it can stop answering a version too old to sync with
     it rather than answer it wrongly. Our cloud reads it to decide whether to
     answer, and keeps no record of it.
   - **The update check — to GitHub.** The packaged desktop app asks GitHub's
@@ -161,8 +149,7 @@ as:
     every 4 minutes after that, downloads a newer one from GitHub in the
     background and installs it when you quit the app (or at once, with Restart
     to Update). GitHub sees your IP address, nothing about your library or your
-    account. `inteligir serve`, from a checkout or through `npx`, makes no such
-    check.
+    account.
   - **The phone's update check — to Expo.** Each time the phone app starts it
     asks Expo's update service whether a newer version of its app code exists,
     downloads one in the background and runs it from the next start. Expo sees
@@ -198,10 +185,9 @@ facilitated by cookies and other technologies. The Service uses only these:
   those pages for seven days, renewed as you use them. When an assistant you are
   connecting sends you to our consent page, the page sets one more, for at most
   ten minutes and cleared once you answer, that ties your answer to the browser
-  you were asked in. The Mac app and the iPhone app use no cookies. When you
-  open the Service in a browser with `inteligir serve`, the server on your own
-  Mac sets one cookie that lets that browser tab reach it; it is set and read on
-  your Mac, never leaves it, and stops working when that server stops.
+  you were asked in. Your library in a browser tab, at inteligir.com/library,
+  is signed in by that same session cookie. The Mac app and the iPhone app use
+  no cookies.
 - **Functionality / performance.** Our website keeps your choice of light or
   dark theme in your browser's web storage (local storage), first-party, and
   never sends it to us; the apps keep their own settings and layout on your
@@ -215,45 +201,27 @@ The apps also hold to these, plainly:
 - **Telemetry.** The apps and the extension send none, about your library or
   anything else.
 - **Anything an item points at on the web.** Opening an item loads nothing from
-  the web, on the Mac or the phone: an image or embed at a web address is not
-  fetched, so nobody learns you opened it. A link opens in your browser only
+  the web, on the Mac, the phone or in a browser tab: an image or embed at a
+  web address is not fetched, so nobody learns you opened it. A link opens in your browser only
   when you follow it.
-- **Saving a link — from the device you saved it on, to that site.** When you
-  save a link, the Mac app or the iPhone app fetches that page once, from that
-  device and never through our cloud, to fill in its title, site, description,
-  cover image and readable text. Refresh, on a Mac, fetches it again; a Mac
-  never fetches a link saved on another of your devices unless you ask it to,
-  with Refresh. It also fetches the cover image the page names. For YouTube, Vimeo, X, TikTok, Spotify and SoundCloud it asks that
-  site's own oEmbed address (with X's `dnt=true`), for any other page the oEmbed
-  address the page itself names, and the picture that answer names; for a
-  YouTube video it may also fetch the video's still picture from YouTube. The
-  request carries no cookies, sign-in or referrer; the site sees that device's
-  IP address, a Safari-compatible user agent naming inteligir and its version,
-  and your preferred language, as a browser visit would. On a Mac, addresses on
-  that Mac itself, its own address on the internet included, and link-local
-  addresses are never fetched, and an address on your own network is fetched
-  only when it is the link you saved: a page on the internet can never send
-  your Mac to one, by a redirect or by naming a picture there. Your iPhone
-  fetches a page you share to it as you share it, and only web addresses, a page on the internet only over https; from a page on
-  the internet it never asks a picture, an oEmbed address or a redirect's
-  next stop whose address names your own network by how it is spelled (it
-  cannot look an address up first, as a Mac does). For a link imported
-  from Raindrop, a Mac may also fetch the cover picture Raindrop recorded for
-  it. What is saved lands in your library and
-  travels wherever your library syncs.
-- **Saving a link to your online library — from our cloud, to that site.** A
-  link that reaches your account's online library without its page (one an
-  assistant you connected saved, one imported there, one refreshed there, one
-  the browser extension sent as its address) is
-  fetched once by our cloud, from Cloudflare's network, to fill in the same
-  title, site, description, cover image and readable text, with the same
-  oEmbed addresses and the cover picture a Raindrop import recorded. The
-  request carries no cookies, sign-in or referrer, and names inteligir in a
-  Safari-compatible user agent and English as its language. Our cloud reads only
-  web addresses on their own ports, and never one whose name or written-out
-  address points into a private network, or into space no site holds, whether
-  you saved it or a page redirected there. The page's text and its pictures land in your library; the
-  page itself is not kept.
+- **Saving a link — from our cloud, to that site.** A link that reaches your
+  library without its page (one you pasted or saved on the Mac, in a browser
+  tab or on the phone, one an assistant you connected or the built-in agent
+  saved, one imported, one refreshed, one the browser extension sent as its
+  address) is fetched once by our cloud, from Cloudflare's network, to fill in
+  its title, site, description, cover image and readable text. It also fetches
+  the cover image the page names. For YouTube, Vimeo, X, TikTok, Spotify and
+  SoundCloud it asks that site's own oEmbed address (with X's `dnt=true`), for
+  any other page the oEmbed address the page itself names, and the picture
+  that answer names; for a YouTube video it may also fetch the video's still
+  picture from YouTube; for a link imported from Raindrop, the cover picture
+  Raindrop recorded for it. The request carries no cookies, sign-in or
+  referrer, and names inteligir in a Safari-compatible user agent and English
+  as its language; the site sees Cloudflare's address, never yours. Our cloud
+  reads only web addresses on their own ports, and never one whose name or
+  written-out address points into a private network, or into space no site
+  holds, whether you saved it or a page redirected there. The page's text and
+  its pictures land in your library; the page itself is not kept.
 - **The browser extension.** The Inteligir extension for Chrome, Arc, Brave,
   Edge and Vivaldi reads the page you are on only when you click Save or choose Save from
   the right-click menu. It reads the page as it is shown (its address, its
@@ -267,7 +235,7 @@ The apps also hold to these, plainly:
   with it: form fields, the choices a page filled in for you and every box you
   type into, such as an email you are writing, are emptied first. Some saves
   send only an address, which our cloud then fetches and reads as it does any
-  link your online library holds unread (above): a link or a picture you save
+  link your library holds unread (above): a link or a picture you save
   from the right-click menu, and a page the extension cannot read in your
   browser (the browser's own pages, the Web Store, a PDF, a page too large to
   read there, or one it found no text in), which goes with its title and the
@@ -277,16 +245,20 @@ The apps also hold to these, plainly:
   address, title and the passage you selected, and is sent, for our cloud to
   read, once you are back online.
 - **Sharing from your iPhone.** Sharing a page to Inteligir has the phone fetch
-  the page as above and save what it read, its address, title, text and
-  cover, into your library, like any other edit on the phone; text you share
-  is saved as you shared it. A page it cannot read then, offline included, is
-  saved as its address, which our cloud reads once it arrives.
-- **Importing from Raindrop.** The CSV file you choose is read on your Mac and
-  kept in the app's data folder only until the import ends. Each imported link
-  is then filled in as above. Imported into your online library instead, the
-  file (a Raindrop CSV, or a zip of notes such as an Obsidian vault) is uploaded
-  to it, read there and deleted once the import ends.
-- **Exporting your library.** An export of your online library is a zip our
+  that page once, from the phone, and save what it read, its address, title,
+  text and cover, into your library, like any other edit on the phone; text you
+  share is saved as you shared it. The request carries no cookies, sign-in or
+  referrer; the site sees your phone's IP address, a Safari-compatible user
+  agent naming inteligir and its version, and your preferred language, as a
+  browser visit would. It asks only web addresses, a page on the internet only
+  over https, and from a page on the internet it never asks a picture, an
+  oEmbed address or a redirect's next stop whose address names your own
+  network by how it is spelled. A page it cannot read then, offline included,
+  is saved as its address, which our cloud reads once it arrives.
+- **Importing.** The file you choose to import (a Raindrop CSV, or a zip of
+  notes such as an Obsidian vault) is uploaded to your library, read there and
+  deleted once the import ends. Each imported link is then filled in as above.
+- **Exporting your library.** An export of your library is a zip our
   cloud writes in your account's own storage, which your devices download; it
   is deleted seven days after it was written, or with your account.
 - **Your voice.** Neither the Mac app nor the phone app ever opens the
@@ -300,39 +272,27 @@ The apps also hold to these, plainly:
   JPEG without its location or any other camera details and named for when you
   added it; only that copy reaches your library.
 - **The Mac's copy of your library, and its sign-in.** The Mac app keeps a
-  copy of your online library, and the files you open from it, in its own
+  copy of your library, and the files you open from it, in its own
   folders on that Mac, so it reads them with no connection; signing out deletes
   them. The device's sign-in is kept in the macOS Keychain and nowhere else on
   disk. The app keeps no log.
 
-**Chat and other artificial intelligence ("AI") technologies**, such as those
-provided by Anthropic (Claude) and OpenAI (ChatGPT), that the Mac app runs on
-your Mac to operate the agent features that you can use to ask an agent to read,
-file, draft and edit your library through the Service. Anthropic, OpenAI and
-other third parties may access and use what you ask the agent, the names of the
-items you were looking at, and the items and files the agent reads to facilitate the provision
-of the Service, under their own terms with you rather than ours. Specifically:
+**Chat and other artificial intelligence ("AI") technologies**, such as
+Anthropic's Claude, which our cloud runs to operate the built-in agent you can
+ask to read, file, draft and edit your library through the Service, and the
+assistant you connect yourself, such as Claude or ChatGPT. Specifically:
 
-- **What your agent reads — to that agent's provider.** The agent is Claude's or
-  ChatGPT's own agent program, shipped inside the app and run on your Mac on
-  your own Claude or ChatGPT plan. What you ask it, the names of the items you
-  were looking at or selected, and the items and files it reads to answer — in
-  your library or anywhere else on this Mac it is allowed to open — travel from
-  your Mac to that provider (Anthropic or OpenAI) under the provider's own
-  terms, as they would in the provider's own app. That program also reports to
-  its maker whatever it reports when you run it yourself.
-- **Signing the agent in — with the provider, directly.** Signing in from the
-  app runs the provider's own sign-in: your browser signs in with Anthropic or
-  OpenAI directly, and when it cannot hand the result back on its own, you paste
-  the code it shows into the app, which passes it straight to the provider's
-  program on this Mac. The credential lands in that program's own store.
-- **The agent's sign-in stays on your Mac.** The credential stays in the
-  provider's own store on this Mac — for Claude, a folder in your home folder
-  and the macOS Keychain; for ChatGPT, Codex's folder in your home folder — the
-  same store Claude Code or Codex uses, so signing in or out in the app does so
-  there too. The app asks the provider's program whether you are signed in, and
-  to which account and plan, to show you in Settings; it never reads, copies or
-  sends the credential, and our cloud never sees or carries a call to the model.
+- **What the built-in agent reads — to Anthropic, on our account.** The
+  built-in agent runs in our cloud, on our account with Anthropic, not yours:
+  no device of yours talks to Anthropic, and you sign nothing in. What you ask
+  it, the items you were looking at or selected, and what it reads of your
+  library to answer go to Anthropic through Cloudflare's AI Gateway, as
+  described in [How we share your personal
+  information](#how-we-share-your-personal-information).
+- **What an assistant you connect reads — to that assistant's provider.** An
+  assistant you connect on our consent page reads and changes your library
+  through our cloud, and what it reads goes to its provider under the
+  provider's own terms with you, as part of your conversation there.
 
 For information concerning your choices with respect to the use of tracking
 technologies, see the [Your choices](#your-choices) section below.
@@ -404,8 +364,9 @@ we may either delete it, anonymize it, or isolate it from further processing.
 
 Specifically, in our cloud:
 
-- The online library keeps every version of every file until the account is
-  deleted. Deleting an item removes it from the library, not from its history.
+- Your library keeps each item's newest 100 versions, every version from the
+  last 30 days, and before that the last version of each day, until the account
+  is deleted. Deleting an item moves it to Deleted, not out of its history.
 - Device rows (including revoked ones) persist as the dashboard's audit trail
   until account deletion. A device's throttling counters are deleted when it is
   revoked.
@@ -427,7 +388,7 @@ Specifically, in our cloud:
   last used it, and deleting the account leaves a registration to those 90
   days, since none is filed under an account.
 - A conversation with the built-in agent, the record of it in its own storage
-  and its messages in your online library alike, is kept until you delete it
+  and its messages in your library alike, is kept until you delete it
   or your account, and deleting it deletes both.
 - Cloudflare's request log keeps each entry for up to seven days.
 
@@ -435,10 +396,10 @@ Specifically, in our cloud:
 your library offline:
 
 - **Every item**, its text, highlights and folders, downloaded from your
-  online library, a small picture for each card, and a picture, PDF or other
+  library, a small picture for each card, and a picture, PDF or other
   file once you open it.
 - **Whatever it has not sent yet.** Edits, saves, new notes, deletions,
-  highlights and photos wait on the phone until the online library takes them.
+  highlights and photos wait on the phone until your library takes them.
   A change the library refuses stays on the phone and says so. A page you
   share to Inteligir waits in the share sheet's own storage on the phone until
   the app saves it.
@@ -476,7 +437,7 @@ and email delivery). Specifically:
   name and the addresses it gave), its grant, filed under your account with
   its name and what you let it do, and its tokens, kept only as hashes;
   storage it keeps for your account alone (your own Durable Objects, and storage
-  named for your library) holds your online library, your devices' live
+  named for your library) holds your library, your devices' live
   connections and each conversation with the built-in agent; its AI Gateway
   passes each request the built-in agent makes to Anthropic, and is asked to
   keep only its metadata (the model, how many tokens, its status and how long
@@ -495,7 +456,7 @@ and email delivery). Specifically:
   caches for at most an hour to answer the next request of the same
   conversation sooner. The conversation itself is kept by our cloud
   alone: deleting it deletes it, and deleting the account deletes every
-  conversation before your online library goes, with nothing to delete at
+  conversation before your library goes, with nothing to delete at
   Anthropic.
 - **GitHub** hosts the Mac app's releases and its update feed, and the issues
   you open there.
@@ -505,29 +466,11 @@ and email delivery). Specifically:
 
 **Third parties designated by you.** We may share your personal information with
 third parties where you have instructed us or provided your consent to do so.
-Each of these travels from your own Mac, never through our cloud:
-
-- **What your agent reads — to that agent's provider**, as described in
-  [Tracking & Other Technologies](#tracking--other-technologies). The phone
-  runs no agent and sends none a request.
-- **Connectors — to the services you connect.** A connector is added to the
-  default agent's own settings in your home folder: the same list Claude Code or
-  Codex reads everywhere on this Mac, so it reaches that agent outside the app
-  too. When a connector asks you to sign in, the agent's program runs that
-  sign-in in your browser and keeps it; the app keeps no connector's secret.
-  What the agent sends a connector and gets back travels between your Mac and
-  that service, and on to the agent's provider as part of the conversation.
-- **Your library, to a git server of your own — if it has one.** A folder you
-  open that already syncs to a server of its own keeps syncing there, and you
-  can choose one in Settings › Advanced › Sync with. Your items, attachments,
-  highlights and every earlier version, each change named for the device that
-  saved it, go to that server under its own terms and retention.
-
-One travels from our cloud instead:
+It travels from our cloud:
 
 - **Your library, to an assistant you connect.** When you allow Claude,
   ChatGPT or another assistant on our consent page, our cloud answers its
-  requests from your online library: what it searches for and reads (items,
+  requests from your library: what it searches for and reads (items,
   their text, highlights, folders, tags and history) goes to that assistant's
   provider under the provider's own terms, as part of your conversation there.
   What it writes lands in your library as a change named for it, which History
@@ -586,19 +529,16 @@ other websites.
 
 **Declining to provide information.** We need to collect personal information to
 provide certain services. If you do not provide the information we identify as
-required or mandatory, we may not be able to provide those services. An account
-is optional: without one, the Mac app is a library on your Mac that sends our
-cloud nothing, while syncing your devices and the iPhone app need one.
+required or mandatory, we may not be able to provide those services. The
+Service needs an account: your library is your account's.
 
 **Delete your content or close your account.** You can choose to delete certain
 content through your account: deleting an item removes it from your library, though
 not from its history (see [Security](#security)). Deleting a conversation with
-the built-in agent deletes it from our cloud and every device, and its events at
-Anthropic, the session it ran in stopped first. Your conversations with an agent
-your Mac runs stay on that Mac, where archiving one hides it without deleting
-it. To delete everything our cloud holds for you,
-delete your account in the app: Settings › Account › Delete account…, on any Mac
-signed in to it. It asks for your password again, and our cloud checks the
+the built-in agent deletes it from our cloud and every device, one still
+running stopped first. To delete everything our cloud holds for you, delete your
+account: Settings › Account › Delete account…, on any Mac or browser tab signed
+in to it. It asks for your password again, and our cloud checks the
 password before it deletes anything, so this Mac's sign-in alone cannot end the
 account. If you lost your Mac, sign in on any other and delete from there. The
 Mac you delete from is signed out; every other device is refused at its next
@@ -611,10 +551,9 @@ account row itself goes:
 1. **Your library's store in our cloud is closed**, and your devices' live
    connections to it with it: from this moment it refuses every request, so
    nothing that arrives during the deletion can write to it.
-2. **Your conversations with the built-in agent are deleted at Anthropic**,
-   one still running stopped first, and so is the vault holding the agent's
-   access, while the store still names them: our cloud keeps their ids
-   nowhere else.
+2. **Your conversations with the built-in agent are deleted**, one still
+   running stopped first, while the store still names them: our cloud keeps
+   their ids nowhere else.
 3. **Everything in that store is deleted**: every item, its text, highlights
    and history. What stays is a marker saying when it was deleted and nothing
    else, so a request already on its way still finds it closed.
@@ -626,22 +565,13 @@ account row itself goes:
    D1, and **your email is dropped from the invite you redeemed** (the code
    stays burned). This is late on purpose: until then your device can still ask
    again if a step failed.
-7. **Your online library** — every version of every file, created once a signed-in
-   Mac first sends it — with the listing of its file names, sizes and content
-   ids kept for your phone's reads and the cached copies of its history our
-   cloud serves downloads from. No device can send to it any more by now. An
-   account whose library was never sent wipes empty tables, so the step is
-   idempotent either way.
-
-Then Better Auth deletes your sessions, your password hash and the account row.
-All seven steps run BEFORE that, so a step that fails aborts the deletion and
-leaves the account able to ask again; every step is idempotent, so asking again
-resumes. What deletion does NOT touch is your Mac: the local library, its history
-and the local databases are yours. Your phone erases its copy the next time it
-is refused (see [Retention](#retention)). A git server you chose yourself is
-yours to delete from. The throttling rows keyed on an address and an unused
-reset link's row are not found by it (see [Retention](#retention)), and
-Cloudflare's request log lapses on its own.
+   Then Better Auth deletes your sessions, your password hash and the account row.
+   All six steps run BEFORE that, so a step that fails aborts the deletion and
+   leaves the account able to ask again; every step is idempotent, so asking again
+   resumes. Each of your devices erases its copy the next time our cloud refuses it
+   (see [Retention](#retention)). The throttling rows keyed on an address and an unused
+   reset link's row are not found by it (see [Retention](#retention)), and
+   Cloudflare's request log lapses on its own.
 
 ## Other sites and services
 
@@ -670,23 +600,15 @@ talk to our cloud over HTTPS.
 
 These are the edges of that protection, stated plainly:
 
-- **We can read what our cloud holds.** The online library is stored
-  unencrypted to us (Cloudflare encrypts its storage
-  at rest, but there is no end-to-end encryption). Don't sync a library you
-  wouldn't store in a hosted notes app.
-- **Our cloud writes your online library.** Your phone's changes become changes
-  in your library's history that our cloud made on the phone's behalf, and
-  every Mac takes them in.
+- **We can read what our cloud holds.** Your library is stored unencrypted to
+  us (Cloudflare encrypts its storage at rest, but there is no end-to-end
+  encryption). Don't keep in it what you wouldn't store in a hosted notes app.
 - **A lost phone holds a full copy of your library's text**, behind its
   passcode. Revoke it from Settings › Account on a Mac: it erases its
   copy the next time it goes online, but a phone that never does keeps it.
-- **A library in a folder iCloud Drive, Dropbox, Google Drive, OneDrive or
-  Obsidian Sync syncs is also held by that service**, under its own terms. The
-  app keeps such a library off the online library; it cannot keep the service
-  out of it.
-- **Deleting an item does not delete its history**: every earlier version stays
-  on your Mac, on the online library until the account is deleted, and on a git
-  server of your own under that server's retention. There is no purge.
+- **Deleting an item does not delete its history**: its versions stay in your
+  library's history, as [Retention](#retention) says, until the account is
+  deleted. There is no purge.
 - **An image or file you paste, drop or save on a Mac is kept as the file it
   was**, with any location or camera details it carries; only the phone saves a
   photo again without them.
@@ -1099,19 +1021,11 @@ Everything else the app reaches is someone else's:
 
 - **GitHub's release feed**, for the desktop's update check described above.
 - **Expo's update service**, for the phone's update check described above.
-- **The agent's provider** (Anthropic for Claude, OpenAI for ChatGPT). The agent
-  runs on your Mac and sends what it reads to that provider, under your own plan
-  with them.
-- **That provider's sign-in page**, opened in your browser when you sign the
-  agent in; the credential it gives back stays in the provider's own store on
-  your Mac.
-- **The services you connect the agent to**, each at the address you gave it,
-  and their own sign-in pages when they ask for one.
-- **The sites you save**, from the Mac or the iPhone you saved on, when you
-  save a link or refresh it on a Mac, with the cover files they name, the
-  cover a Raindrop import recorded, and the oEmbed addresses above; from the
-  browser the extension runs in, for the cover picture of a page it saves; and
-  from our cloud, for a link your online library holds unread.
+- **The sites you save**: from our cloud, for a link your library holds unread,
+  with the cover files they name, the cover a Raindrop import recorded, and
+  the oEmbed addresses above; from your iPhone, for a page you share to it; and
+  from the browser the extension runs in, for the cover picture of a page it
+  saves.
 
 ---
 

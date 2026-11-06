@@ -4,7 +4,7 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 
 ## Unreleased
 
-Inteligir is now a library of everything you save: links, articles, videos, images, PDFs and files, beside the notes you write, in one folder on your Mac. Save from your browser, by pasting or dropping onto the window, or from your iPhone's share sheet; the device you saved on, or our cloud, reads each page without asking a model. Organize with folders and tags, or ask the agent to file them for you. It does the work of a bookmark manager like Raindrop and a notes app like Obsidian at once, and your writing keeps every block the editor had.
+Inteligir is now a library of everything you save: links, articles, videos, images, PDFs and files, beside the notes you write, kept in your account, which your Mac, your iPhone and inteligir.com/library all show. Save from your browser, by pasting or dropping onto the window, or from your iPhone's share sheet; the device you saved on, or our cloud, reads each page without asking a model. Organize with folders and tags, or ask the agent to file them for you. It does the work of a bookmark manager like Raindrop and a notes app like Obsidian at once, and your writing keeps every block the editor had.
 
 ### Before you update
 
@@ -17,7 +17,6 @@ Inteligir is now a library of everything you save: links, articles, videos, imag
 - **Toggles, columns, dates and embeds are saved in a new, readable form.** A toggle is now written as `:::toggle` … `:::`, columns as `:::columns` with a `:::column` for each, a date as `@2026-08-22`, and a video, post, PDF or page as `![](its link)`, so each reads plainly in any other notes app. Ones saved by an earlier version open as the tags they were written with around their text, which no longer fold, sit side by side or open a calendar; to get the block back, insert it again from the `/` menu and move the text in.
 - **Your window settings start over once.** The theme, the text appearance, the sidebar and panel widths and the spell check switch go back to their defaults the first time this version opens; set them again in Settings. A message about an item two devices changed that you already saw can show once more. Your library, sign-ins and agents are untouched.
 - **Your actions on this Mac start over once.** The first time this version opens, it clears the actions this Mac kept, and they don't come back from your account, which no longer keeps actions. If an action's reply holds something you want to keep, copy it into a note before you update. Your library, your agents and your sign-in are untouched.
-- **The library in the Inteligir folder of your home starts fresh once.** Every library now keeps its own sign-in, default agent and actions, that one included, so the first time this version opens it, it is signed out, with no default agent chosen and no earlier actions. Its items and their history are untouched, and your other libraries are as they were. Sign in again in Settings › Account.
 
 ### New
 
@@ -47,6 +46,7 @@ Inteligir is now a library of everything you save: links, articles, videos, imag
 ### Changed
 
 - **Updates download by themselves and install when you quit.** When a new version of the Mac app is out, it downloads in the background and installs the next time you quit, so the app opens up to date and nothing restarts while you work. To install it now, choose Restart to Update in the Inteligir menu or in Settings › About.
+- **The privacy policy describes your library in your account.** inteligir.com/privacy now says what each of your devices sends our cloud and what it keeps, that the built-in agent runs in our cloud on our account with Anthropic, and what an assistant you connect reads; it no longer describes a library in a folder on your Mac, an agent on your own plan or a sync server of your own.
 - **Our cloud's request log keeps less of each address.** The log and the traces Cloudflare keeps for us no longer record anything after the `?` in an address, so a sign-in code or a link's own query never lands there; inteligir.com/privacy says so.
 - **A link shows the name its note goes by now.** A link that points at its note by the note's id, written `[[Name|id]]`, shows that note's name as it is today, the one on its card, so a note renamed on another device or in Finder reads right in every note that links to it. What the link saves is unchanged until you edit it.
 - **Your vault is now your library, and everything in it is an item.** A note you write is still a note.
@@ -89,6 +89,7 @@ Inteligir is now a library of everything you save: links, articles, videos, imag
 - **Linear and Context7 in one click.** Settings › Connectors now offers Notion and Exa in one click. A Linear or Context7 connector you already added keeps working; to add one again, enter its address under Add a connector.
 - **Connected folders.** Settings › Connected folders is gone, and the agent is no longer told about folders outside your library. To point it at one, name the folder when you ask, or write a standing line such as "also look in Documents/Reports" into your filing rules (Edit filing rules…, in Settings › Agent), which the agent reads on every action. Or add those files to your library.
 - **Adding a connector by command.** Settings › Connectors adds a connector by its web address, or in one click from its list, and Connect by with its Command and Arguments fields is gone. A connector that runs a program on your Mac, set up in Claude's or ChatGPT's own app, still shows there and can be removed.
+- **Run on an HTML block.** An HTML block now always shows its preview, drawn with its scripts off, and its Run button is gone. To see its script work, copy the block's source into an `.html` file and open that in your browser.
 
 ### Fixed
 
@@ -108,7 +109,7 @@ Inteligir is now a library of everything you save: links, articles, videos, imag
 - **A step the agent tried that failed says so.** When a command or tool the agent used fails, its line in the action now reads Command failed or Tool failed, in red, instead of looking the same as one that worked.
 - **An agent's separate replies within one action show as separate messages.** When the agent says what it is about to do, edits your library and then says what it did, each message now shows where it happened, before and after its edits, instead of being joined into one block above all of them. The same goes for its thinking. Conversations from before this update still show the way they did.
 - **Sync details say why sync paused, not an earlier hiccup.** When sync paused because this Mac's changes and another device's could not be combined, an attempt that then could not reach the server left Settings › Advanced showing that connection error, and an attempt cut short by the agent's edits could leave it saying offline after it had reached the server. Settings › Advanced now shows the reason that still holds, and a sync that only found another device saved first shows no error while it catches up.
-- **Saving never waits on items that are still downloading.** In a library kept in a folder that leaves files online until they're opened, like iCloud Drive with Optimize Mac Storage on, renaming a note that several such notes link to could hold every save until they had downloaded. Now the app opens only a few of those notes at a time, so what you type still saves and an item you open still opens.
+- **A highlight keeps a date that follows a web address.** Highlighting text such as `www.example.org 2026-01-02) @2026-01-02` left the highlight reading the date without its `@`; it now reads as you highlighted it.
 
 ### On the command line
 

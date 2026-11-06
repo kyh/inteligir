@@ -109,8 +109,7 @@ src/
   because it moves with every refresh while the
   actions never do), vault reads, asset bytes in and out, the knowledge queries,
   and the change events that invalidate them, plus what only some hosts have:
-  a frame to run an html block in (`htmlFrameUrl`, null hides Run) and a
-  native photo picker that writes what it picks (`pickImage`, null hides the
+  a native photo picker that writes what it picks (`pickImage`, null hides the
   touch toolbar's image button; a picked path lands through `insertVaultImage`,
   as a paste does). Its `EditorHostActions` are what the editor asks the shell
   for (Ask agent and a `#tag` chip's `showTag`, an annotation's create, edit

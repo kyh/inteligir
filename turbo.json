@@ -72,8 +72,8 @@
     }
   },
   // NODE_ENV is hashed, not only passed through: vite emits React's dev build under an ambient
-  // `development`, which the unpackaged shell hands every agent shell, so an agent's build would
-  // otherwise store a dev bundle under the production key in the cache every worktree shares
+  // `development`, so a build run from a shell that sets it would otherwise store a dev bundle
+  // under the production key in the cache every worktree shares
   "globalEnv": ["NODE_ENV"],
   "globalPassThroughEnv": ["CI", "npm_lifecycle_event"]
 }

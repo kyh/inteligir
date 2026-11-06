@@ -122,7 +122,6 @@ export const installItemPageHost = (bridge: PageBridge, itemId: string): ItemPag
   };
 
   const io: EditorHostIo = {
-    htmlFrameUrl: null,
     linkResolver: feed.store,
     onVaultChanged: () => nothingToDo,
     opensFiles: false,

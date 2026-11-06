@@ -135,11 +135,11 @@ Each feature issue lands with its scenario here.
 ## The env the harness drives
 
 Every process the harness starts runs with every host `GIT_*` variable
-stripped and `GIT_CONFIG_GLOBAL`/`GIT_CONFIG_SYSTEM` pinned to `/dev/null`, so
-nothing depends on the host's git configuration, and without the host's vendor
-credentials (`HOST_AGENT_ENV` in `src/harness/exec.ts`). The Worker's own
-settings ride as Miniflare bindings over its config's (`cloudWorker({ vars,
-json, pages })`), never as process env.
+stripped, since turbo hashes the checkout through git and a hook's `GIT_DIR`
+would point it elsewhere, and the desktop shell without an inherited
+`INTELIGIR_*` (`src/harness/exec.ts`). The Worker's own settings ride as
+Miniflare bindings over its config's (`cloudWorker({ vars, json, pages })`),
+never as process env.
 
 ## CI
 
