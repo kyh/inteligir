@@ -322,7 +322,7 @@ describe("the phone's runtime", () => {
       .poll(() => first.runtime.session.get())
       .toStrictEqual({
         kind: "signed-out",
-        notice: `${SIGNED_OUT_ELSEWHERE} It couldn't remove its copy yet, and tries again the next time Inteligir opens: database or disk is full`,
+        notice: `${SIGNED_OUT_ELSEWHERE} The copy on this iPhone couldn't be removed yet; Inteligir tries again the next time it opens: database or disk is full`,
       });
     expect(keys.held()).toStrictEqual(KEPT);
 

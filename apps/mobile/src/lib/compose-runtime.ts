@@ -181,7 +181,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
 
   // this phone leaves its account: every row, every unsent change and every file go. The wipe
   // closes the replica before anything else, so the library is stopped first: whether or not the
-  // wipe ends, it hears nothing more
+  // wipe finishes, it hears nothing more
   const leave = async (library: PhoneLibrary, notice: string | null): Promise<void> => {
     stop();
     await library.replica.wipe();
@@ -204,7 +204,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     } catch (error) {
       session.set({
         kind: "signed-out",
-        notice: `${notice} It couldn't remove its copy yet, and tries again the next time Inteligir opens: ${messageOf(error)}`,
+        notice: `${notice} The copy on this iPhone couldn't be removed yet; Inteligir tries again the next time it opens: ${messageOf(error)}`,
       });
     }
   };

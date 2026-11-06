@@ -430,7 +430,9 @@ account whose library holds about 2,000 items gives the timing check its load.
   within seconds (the account's socket dialed from the device by its ticket).
 - **Sign out.** With one edit still unsent (airplane mode), Sign out. Passing: it
   asks first, "Sign out and discard unsent changes?" over a line naming the one
-  change; confirmed, the sign-in screen shows at once, even offline.
+  change; confirmed, the sign-in screen shows at once, even offline. Signed
+  in again and signed out online, Settings › Account on the Mac no longer
+  lists the phone (it lets its device go once its copy is gone).
 - **Revoke.** Sign the phone in again, then Revoke it in Settings › Account on
   the Mac. Passing: the phone's next request ends its sign-in, and the sign-in
   screen says this device was signed out.
