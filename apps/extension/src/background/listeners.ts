@@ -3,9 +3,11 @@
 // popup, the welcome page), which ask for a save, a status or a disconnect, and the one connect
 // page the manifest names, which hands over a credential. A refused message is answered with
 // nothing (the listener returns false); an accepted one is answered once its work is done, so the
-// listener returns true to keep the channel open for it.
+// listener returns true to keep the channel open for it, and a work that failed (a storage fault)
+// is answered too, as a failure, so no page waits on an answer that never comes.
 
 import { extensionConnectRequestSchema } from "@repo/contract/cloud/extension/extension-connect";
+import type { ExtensionConnectAnswer } from "@repo/contract/cloud/extension/extension-connect";
 import { browser } from "wxt/browser";
 import type { Browser } from "wxt/browser";
 
@@ -34,7 +36,13 @@ export const ownPagesListener = (answer: (request: ExtensionRequest) => Promise<
       return false;
     }
     void (async () => {
-      sendResponse(await answer(parsed.data));
+      let outcome: Outcome;
+      try {
+        outcome = await answer(parsed.data);
+      } catch {
+        outcome = { kind: "refused", reason: "failed" };
+      }
+      sendResponse(outcome);
     })();
     return true;
   }) satisfies MessageListener;
@@ -53,7 +61,14 @@ export const connectPageListener = (flavor: ExtensionFlavor, deps: ConnectPageDe
       return false;
     }
     void (async () => {
-      sendResponse(await answerConnectPage(parsed.data, origin, deps));
+      let answer: ExtensionConnectAnswer;
+      try {
+        answer = await answerConnectPage(parsed.data, origin, deps);
+      } catch {
+        // the page reads this as not connected, and may ask again
+        answer = { email: null };
+      }
+      sendResponse(answer);
       await deps.answered();
     })();
     return true;

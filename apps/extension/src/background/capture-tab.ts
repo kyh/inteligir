@@ -16,6 +16,9 @@ const CAPTURE_SCRIPT = "/capture.js" satisfies PublicPath;
 // more): together the longest a save's search for its cover runs (./save-queue)
 export const COVER_DEADLINE_MS = 10_000;
 export const COVER_TRIES = 8;
+// the longest a save waits on the tab's own capture, which a page still loading or a main thread
+// stuck in a script never answers (./save-page)
+export const CAPTURE_DEADLINE_MS = 10_000;
 
 // null when the tab cannot be scripted, or answered something that is not a captured page
 export const captureTab = async (tabId: number): Promise<CapturedPage | null> => {

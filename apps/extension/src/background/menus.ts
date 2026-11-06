@@ -54,7 +54,11 @@ const bytesOfPercentEncoded = (data: string): Uint8Array<ArrayBuffer> | null => 
     } else if (text === undefined) {
       return null;
     } else {
-      bytes.push(...encoder.encode(text));
+      // a byte at a time: a spread passes each as an argument, past the stack's limit for a large
+      // run of plain text
+      for (const byte of encoder.encode(text)) {
+        bytes.push(byte);
+      }
     }
   }
   return Uint8Array.from(bytes);

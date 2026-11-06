@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { browser } from "wxt/browser";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 
@@ -10,6 +10,10 @@ import { CONNECTION } from "./test-support/fake-cloud";
 
 beforeEach(() => {
   fakeBrowser.reset();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 // what a listener answered, as the browser hands each answer to the page that asked
@@ -44,6 +48,18 @@ describe("the extension's own pages", () => {
       expect(answers).toMatchObject([{ connection: null, kind: "status" }]);
     });
     expect(asked).toStrictEqual([{ type: "status" }]);
+  });
+
+  it("are answered a failure when the work behind the answer failed", async () => {
+    const failing = ownPagesListener(async () => {
+      await Promise.reject(new Error("storage is full"));
+      return { connectUrl: "", connection: null, kind: "status" };
+    });
+    const { answers, respond } = answersOf<Outcome>();
+    expect(failing({ type: "status" }, POPUP, respond)).toBe(true);
+    await vi.waitFor(() => {
+      expect(answers).toStrictEqual([{ kind: "refused", reason: "failed" }]);
+    });
   });
 
   it("are the only senders it answers, and only with a message it parses", () => {
@@ -103,6 +119,15 @@ describe("the connect page", () => {
     expect(answers).toStrictEqual([{ email: MINTED.email }]);
     await expect(browser.storage.local.get(null)).resolves.toStrictEqual({
       connection: { ...MINTED, origin: PAGE.origin },
+    });
+  });
+
+  it("is answered as not connected when the credential could not be kept", async () => {
+    vi.spyOn(browser.storage.local, "set").mockRejectedValue(new Error("storage is full"));
+    const { answers, respond } = answersOf<ExtensionConnectAnswer>();
+    expect(listener({ connection: MINTED, type: "connect" }, PAGE, respond)).toBe(true);
+    await vi.waitFor(() => {
+      expect(answers).toStrictEqual([{ email: null }]);
     });
   });
 

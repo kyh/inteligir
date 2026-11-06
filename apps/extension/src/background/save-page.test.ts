@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { browser } from "wxt/browser";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 
 import type { CapturedPage } from "../capture/captured-page";
+import { CAPTURE_DEADLINE_MS } from "./capture-tab";
 import type { Connection } from "./connection";
 import { saveAddress, savePicture, saveTab } from "./save-page";
 import type { SaveDeps } from "./save-page";
@@ -12,6 +13,10 @@ import type { FakeCloud } from "./test-support/fake-cloud";
 
 beforeEach(() => {
   fakeBrowser.reset();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 const URL_SAVED = "https://example.test/essays/file-over-app";
@@ -121,6 +126,24 @@ describe("a tab saved", () => {
     expect(cloud.saves).toStrictEqual([]);
     expect(cloud.links).toStrictEqual([
       expect.objectContaining({ selection: PASSAGE, title: TAB.title, url: URL_SAVED }),
+    ]);
+  });
+
+  it("is saved as its link once a tab that never answers its capture is past the deadline", async () => {
+    vi.useFakeTimers();
+    const cloud = fakeCloud({});
+    const run = depsWith(cloud);
+    const stalled = {
+      ...run.deps,
+      // oxlint-disable-next-line promise/avoid-new -- a capture that never settles, as a page stuck loading answers
+      capture: async () => await new Promise<CapturedPage | null>(() => {}),
+    };
+    const saved = saveTab(stalled, { tab: TAB });
+    await vi.advanceTimersByTimeAsync(CAPTURE_DEADLINE_MS);
+    await expect(saved).resolves.toMatchObject({ kind: "saved" });
+    expect(cloud.saves).toStrictEqual([]);
+    expect(cloud.links).toStrictEqual([
+      expect.objectContaining({ title: TAB.title, url: URL_SAVED }),
     ]);
   });
 

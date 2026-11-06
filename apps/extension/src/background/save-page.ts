@@ -20,7 +20,7 @@ import type { ExtractedPageBlocks } from "@repo/page-reader/page-reading";
 
 import type { CapturedPage } from "../capture/captured-page";
 import type { Outcome } from "../messages";
-import { COVER_TRIES } from "./capture-tab";
+import { CAPTURE_DEADLINE_MS, COVER_TRIES } from "./capture-tab";
 import { failureOf } from "./cloud";
 import type { Cloud, Saved } from "./cloud";
 import type { Connection } from "./connection";
@@ -165,6 +165,23 @@ export interface TabSave {
   readonly selectionText?: string | undefined;
 }
 
+// the tab's page, or null once the capture is past its deadline, so a tab that never answers is
+// saved as its link for the cloud's fill to read rather than holding the save open
+const captureInTime = async (deps: SaveDeps, tabId: number): Promise<CapturedPage | null> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  // oxlint-disable-next-line promise/avoid-new -- a timer answers through a callback, which only a promise hands to the race
+  const late = new Promise<null>((resolve) => {
+    timer = setTimeout(() => {
+      resolve(null);
+    }, CAPTURE_DEADLINE_MS);
+  });
+  try {
+    return await Promise.race([deps.capture(tabId), late]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 export const saveTab = async (deps: SaveDeps, args: TabSave): Promise<Outcome> => {
   const connection = await deps.connection();
   if (connection === null) {
@@ -174,7 +191,7 @@ export const saveTab = async (deps: SaveDeps, args: TabSave): Promise<Outcome> =
   if (tab.url === undefined || !isWebUrl(tab.url)) {
     return refused("unsupported-page");
   }
-  const page = await deps.capture(tab.id);
+  const page = await captureInTime(deps, tab.id);
   const url = page !== null && isWebUrl(page.url) ? page.url : tab.url;
   // a selection of only whitespace is none
   const typed = args.selectionText?.trim().slice(0, ANNOTATION_QUOTE_MAX) ?? "";

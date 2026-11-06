@@ -85,6 +85,15 @@ describe("the popup", () => {
     }
   });
 
+  it("says what to do about a full library", async () => {
+    render(
+      <Popup activeTabId={tabSeven} ask={worker(notConnected, refused("library-full")).ask} />,
+    );
+    await expect(
+      screen.findByText("Your library is full. Free some room to save"),
+    ).resolves.toBeDefined();
+  });
+
   it("says a tab it cannot save is not one it saves", async () => {
     const { ask, asked } = worker(connected);
     render(<Popup activeTabId={async () => null} ask={ask} />);

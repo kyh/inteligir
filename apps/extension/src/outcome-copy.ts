@@ -14,7 +14,7 @@ const REFUSAL_COPY = {
   "signed-out": { connect: true, text: "Connect Inteligir to your library again to save" },
   "unsupported-page": { connect: false, text: "Inteligir can't save this kind of page" },
   "update-extension": { connect: false, text: "Update this extension to save" },
-  "library-full": { connect: false, text: "Your library is full" },
+  "library-full": { connect: false, text: "Your library is full. Free some room to save" },
   "too-large": { connect: false, text: "This is too large to save" },
   "needs-connection": { connect: false, text: "Saving this picture needs a connection" },
   failed: { connect: false, text: "Couldn't save this page" },

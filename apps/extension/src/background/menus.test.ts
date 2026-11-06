@@ -71,6 +71,13 @@ describe("a data: address's bytes", () => {
     );
   });
 
+  it("are a large run of plain text whole, past what a call's arguments hold", () => {
+    const run = "a".repeat(200_000);
+    expect(bytesOfDataUrl(`data:image/svg+xml;utf8,<svg>${run}</svg>`)).toStrictEqual(
+      Uint8Array.from(new TextEncoder().encode(`<svg>${run}</svg>`)),
+    );
+  });
+
   it("are none for a body that is not one", () => {
     expect(bytesOfDataUrl("data:image/png;base64,***")).toBeNull();
     expect(bytesOfDataUrl("data:image/png,100%")).toBeNull();
