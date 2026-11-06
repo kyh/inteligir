@@ -1,11 +1,11 @@
-// A folder of markdown, a vault from this app or one from Obsidian, read into the library in two
+// A folder of markdown, this app's export or an Obsidian vault, read into the library in two
 // passes, so a job can run the second a page at a time and resume. Pass one plans from every path
 // and every doc's frontmatter: each folder, each doc's item and id, every file's bytes, and every
 // highlights' store. Pass two reads one doc at a time against the whole plan, resolving its links
-// with the vault's own tiers (path, name, alias, then the `[[Title|uuid]]` id,
+// by the resolver's tiers (path, name, alias, then the `[[Title|uuid]]` id,
 // `@repo/notes/knowledge/link-resolve`). Last, every file no doc embedded becomes an item of its
-// own, as a bare file was a card of its own in the vault. Obsidian's settings (`.obsidian/`) and
-// every other dot-folder are skipped, the vault's filing rules (`AGENTS.md` at its root) are kept
+// own, so a bare file is a card of its own. Obsidian's settings (`.obsidian/`) and
+// every other dot-folder are skipped, the folder's filing rules (`AGENTS.md` at its root) are kept
 // apart from every item, and a `.canvas` or a `.base` is always an item, never an attachment.
 
 import { annotationsStoreItemId } from "@repo/notes/annotations/store-schema";
@@ -315,13 +315,13 @@ export interface FileItems {
 }
 
 // what pass two read of the files: those a doc embedded or linked, and those a doc held as its own
-// original (a wrapper of a file item, as the vault's writers saved one)
+// original (a wrapper of a file item, as an export writes one)
 export interface ReadFiles {
   readonly attached: ReadonlySet<string>;
   readonly originals: ReadonlySet<string>;
 }
 
-// a cover or a page copy, where the vault's writers put them
+// a cover or a page copy, where an export puts them
 const structural = (path: string): boolean =>
   path.startsWith(`${COVERS_DIR}/`) || path.startsWith(`${PAGES_DIR}/`);
 
@@ -354,7 +354,7 @@ const fileItemFields = (file: PlannedFile, now: number): ImportedFields => {
 
 // pass three: every file no doc embedded or linked, and every `.canvas` and `.base` no doc held as
 // its original, an item of its own in its folder; a cover or a page copy no item holds is no card,
-// as it was none in the vault
+// since it is part of an item
 export const planFileItems = (
   plan: ImportPlan,
   read: ReadFiles,

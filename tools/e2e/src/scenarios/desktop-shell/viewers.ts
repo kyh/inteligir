@@ -241,7 +241,7 @@ const cardNamed = async (page: WebDriverSession, words: string): Promise<string>
     { deadlineMs: PAGE_DEADLINE_MS, describe: () => `no card named "${words}" was drawn` },
   );
 
-// a file added on this Mac with the cloud cut: the outbox stages it in the shell, which serves it
+// a file added on this Mac while it is offline: the outbox stages it in the shell, which serves it
 // as the type it was added as before any upload, and its Download saves it where the window is
 // not: a PDF dropped draws in WebKit's viewer, and a text file's Download lands in Downloads with
 // its bytes while the window stays on the item

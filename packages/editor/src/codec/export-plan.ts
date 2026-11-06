@@ -1,8 +1,8 @@
-// The library as a folder in today's vault format, the files a zip is written from: each item one
+// The library as a folder of markdown, the files a zip is written from: each item one
 // markdown file named for its title in its folder, the filing rules as `AGENTS.md` at the root, its
 // highlights' store under `.inteligir/annotations/`, and every file it holds once under `assets/`
-// (a saved link's cover under `assets/covers/` and its page copy under `assets/pages/`, as the
-// vault's writers put them). A file is written under the name it was saved under, so a `.canvas`
+// (a saved link's cover under `assets/covers/` and its page copy under `assets/pages/`, where an
+// import looks for them). A file is written under the name it was saved under, so a `.canvas`
 // stays one; only bytes no name came with take an extension from their media type. A link is
 // written by the shortest target that resolves back to its item among the exported files
 // (`wikiTargetForPath`), so the folder reads back into the same library.
@@ -197,7 +197,7 @@ export interface ExportDocPorts {
 const contentAddressed = (dir: string, sha: string, extension: string): string =>
   joinPath(dir, contentAddressedName(sha, extension));
 
-// every file an item holds, given one place per sha and role, in the vault's own places
+// every file an item holds, given one place per sha and role, in the places an import reads
 const filePlaces = (ports: ExportDocPorts, title: string) => {
   const { mediaType, store } = ports;
   const assign = (key: string, sha: string, choose: () => string): string => {

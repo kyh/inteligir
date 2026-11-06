@@ -65,7 +65,7 @@ const OPTION_CHIPS: readonly { readonly option: keyof TextMatchOptions; readonly
     { label: "Whole word", option: "wholeWord" },
   ];
 
-// A jump from the vault search brings that search's options with its query, so the bar lights
+// A jump from the library's search brings that search's options with its query, so the bar lights
 // the matches the palette listed and the ordinal counts among them; typing a query drops them.
 interface FindSearch {
   query: string;

@@ -84,7 +84,7 @@ export const clipQuote = (text: string): string => {
 
 // looseObject: fields from an external writer this version never heard of must survive a rewrite.
 // zod emits parsed keys in declaration order, so this is the store's on-disk field order;
-// sorting it rewrites every vault's annotation files.
+// sorting it rewrites every exported annotation file.
 export const annotationEntrySchema = z.looseObject({
   // "" is a bare highlight
   text: z.string(),

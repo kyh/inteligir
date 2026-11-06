@@ -1,5 +1,5 @@
 // The one write path for a rich block's payload: an ordinary transaction, so the change rides
-// serialize → save → git like typing.
+// the item's next write like typing.
 
 import type { SlateEditor, TElement } from "platejs";
 

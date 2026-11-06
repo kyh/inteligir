@@ -233,7 +233,7 @@ export const wikiTargetForPath = (
 };
 
 // The keys, folded as the resolver's case-blind tiers fold them, that let a writer with no room for
-// the whole vault's resolver still spell `wikiTargetForPath` (the cloud's export, a page at a time):
+// the whole library's resolver still spell `wikiTargetForPath` (the cloud's export, a page at a time):
 // every path that can answer one of the targets `wikiTargetForPath(path)` tries, by the exact, the
 // name or the alias tier, is filed under one of `wikiTargetKeys(path)`, so a resolver over the
 // paths filed under them answers each of those targets as one over every path does.

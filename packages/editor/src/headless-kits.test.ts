@@ -1,7 +1,7 @@
-// BASE_KIT is the gate's editor and the fill worker's: the server's worker thread canonicalizes a
-// saved page with it, so nothing it reaches may be a React half, a stylesheet or a node built-in.
-// The fill program's tsconfig compiles no jsx, which catches a .tsx; this catches the rest (a
-// `platejs/react` import from a .ts file type-checks fine and drags React into the worker).
+// BASE_KIT is the codec's editor and the fill's: the Worker canonicalizes a saved page and reads
+// an import with it, so nothing it reaches may be a React half, a stylesheet or a node built-in.
+// The Worker's tsconfig compiles no jsx, which catches a .tsx; this catches the rest (a
+// `platejs/react` import from a .ts file type-checks fine and drags React into the Worker).
 
 import fs from "node:fs";
 import path from "node:path";

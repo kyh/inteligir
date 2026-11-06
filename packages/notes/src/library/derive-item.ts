@@ -281,7 +281,7 @@ const OUTLINE_LEVELS = new Map<string, OutlineEntry["level"]>([
   ["h3", 3],
 ]);
 
-// every heading ranks as one, as the vault's index ranks every depth
+// every heading ranks as one, at every depth
 const HEADING_TYPES = new Set<string>(["h1", "h2", "h3", "h4", "h5", "h6"]);
 
 export const deriveItem = (

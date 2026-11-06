@@ -43,7 +43,7 @@ export const checkNoteName = (raw: string): NoteNameVerdict => {
       return { ok: false, reason: "bracket" };
     }
   }
-  // a trailing dot survives trim() and is unrepresentable on windows; a leading dot mints a hidden file the vault crawl skips
+  // a trailing dot survives trim() and is unrepresentable on windows; a leading dot names a hidden file an import skips
   if (name.startsWith(".") || name.endsWith(".")) {
     return { ok: false, reason: "dot-edge" };
   }

@@ -32,14 +32,12 @@ export const wikiLinkPath = (path: string): string =>
 // the name a bare `[[name]]` answers to; `docStem` is the title, which hides every doc extension
 export const wikiLinkName = (path: string): string => wikiLinkPath(basenamePath(path));
 
-// A listing shows what the user wrote. A dot-entry (the annotation store's `.inteligir/`, another
-// app's `.obsidian/`, the OS's `.DS_Store`) is nobody's to open here; the server's listing stays
-// complete because the CLI and the agent read it.
+// What an import makes an item of is what the user wrote. A dot-entry (the annotation store's
+// `.inteligir/`, another app's `.obsidian/`, the OS's `.DS_Store`) is nobody's to open here.
 export const isVaultMetadataPath = (path: string): boolean =>
   path.split("/").some((segment) => segment.startsWith("."));
 
-// Keyed on both sides because the disk may fold case and normalization; the server's `absent`
-// guard stays the real one.
+// Keyed on both sides because a file system may fold case and normalization.
 /** @internal */
 export const takenIgnoringCase = (takenPaths: Iterable<string>): ((path: string) => boolean) => {
   const taken = new Set(Array.from(takenPaths, vaultCollisionKey));

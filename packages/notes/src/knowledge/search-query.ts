@@ -1,6 +1,6 @@
 // Both engines execute this one policy. Stopwords are dropped, not OR-ed in (a
 // note would match on `i` alone); a query left with nothing keeps its tokens as
-// a conjunction, since an empty match expression is every note in the vault.
+// a conjunction, since an empty match expression is every item in the library.
 // The prefix term is the last raw token, not the last surviving one: a term
 // followed by a stopword was already finished typing.
 

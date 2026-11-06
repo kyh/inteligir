@@ -1,7 +1,7 @@
 // The note's bytes are the editor's own serialization of the blocks, so what leaves is what
 // the file would have held; their removal and the link that replaces them land in one flush,
-// which is one undo step. The created file is not undone: the vault has no transaction, and a
-// note that exists is truer than an edit that never happened. So the buffer is touched only
+// which is one undo step. The created note is not undone: the host's create and this flush are
+// two writes, and a note that exists is truer than an edit that never happened. So the buffer is touched only
 // once the create made a new file and the blocks are still the bytes that file holds.
 
 import { KEYS, NodeApi, PathApi } from "platejs";

@@ -65,7 +65,7 @@ export type LinkResolverStore = Pick<
 // A Blob, not base64: the asset route already answers the media type, and re-deriving it from the extension is a second allowlist.
 export type ReadVaultAssetResult = { ok: true; bytes: Blob } | { ok: false; error: string };
 
-// `files` moved a listing row (a create, rename, delete or a change the watcher saw), and
+// `files` moved a listing row (a create, rename, delete or a change from elsewhere), and
 // `paths: null` is one nobody could attribute, so every reader re-checks; `content` rewrote one
 // file in place and moved no row.
 export type VaultChangedEvent =

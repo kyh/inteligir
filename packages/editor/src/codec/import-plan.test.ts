@@ -454,7 +454,7 @@ const exportOf = (library: ReadLibrary): ExportFile[] => {
   return exportInSteps(library, items);
 };
 
-// where an export writes bytes no name came with: under their sha, as the vault's writers did
+// where an export writes bytes no name came with: under their sha
 const byBytes = (dir: string, found: string, extension: string): string =>
   `${dir}/${shaOf(found).slice(0, 16)}.${extension}`;
 

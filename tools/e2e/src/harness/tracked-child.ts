@@ -92,8 +92,8 @@ export interface SpawnSupervisedArgs {
   env: NodeJS.ProcessEnv;
 }
 
-// its own process group, so stop() kills the tree: the server's watcher and Miniflare's workerd
-// would otherwise outlive it.
+// its own process group, so stop() kills the tree: Miniflare's workerd and a dev server's own
+// children would otherwise outlive it.
 export const spawnSupervised = (args: SpawnSupervisedArgs): SupervisedChild => {
   const child = spawn(args.file, [...args.argv], {
     cwd: args.cwd,

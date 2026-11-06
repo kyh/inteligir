@@ -1,4 +1,4 @@
-// An item's fields as the frontmatter of today's vault format: the keys the vault's items carry
+// An item's fields as the frontmatter of an exported file: the keys an item's file carries
 // (`@repo/notes/items/item-kind`'s ITEM_KEYS beside `id`, `tags`, `aliases` and `pinned`), the
 // cloud's own `title` (only where a file name cannot carry it) and `lang`, and every other key as a
 // typed property. What of a key's value no field reads stays a property under its own name, so a
@@ -268,12 +268,11 @@ const listLines = (key: string, values: readonly string[]): string[] =>
     ? []
     : [`${key}:`, ...values.map((value) => `  - ${yamlScalarText(value, "plain", "block")}`)];
 
-// an instant as the vault spells one, its milliseconds kept only when it has any
+// an instant as a file's frontmatter spells one, its milliseconds kept only when it has any
 const instant = (ms: number): string =>
   ms % 1000 === 0 ? formatItemTime(ms) : new Date(ms).toISOString();
 
-// the frontmatter's YAML for an item's fields, its id first, as the vault's writers order their
-// keys; `title` is written only when the file's name cannot carry it. Each key is written once: a
+// the frontmatter's YAML for an item's fields, its id first, then the keys in one fixed order; `title` is written only when the file's name cannot carry it. Each key is written once: a
 // property under a key a field wrote is that field's, but for what `tags` or `aliases` could not
 // read, which joins their one list
 export const writeFrontmatter = (fields: FileFields, id: string, title: string | null): string => {

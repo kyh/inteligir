@@ -1,11 +1,11 @@
-// One item as one markdown file in today's vault format, both ways. Its fields are the frontmatter
+// One item as one markdown file, both ways. Its fields are the frontmatter
 // (`item-fields.ts`), its body the dialect, the page a fill read inside `:::article` after the
 // person's note, and its highlights the markers in the body beside the item's
-// `.inteligir/annotations/<id>.json`. The files an item holds whole sit where the vault's
-// writers put them: a saved link's cover the body's first embed under `assets/covers/`, its page
+// `.inteligir/annotations/<id>.json`. The files an item holds whole sit where an export puts
+// them: a saved link's cover the body's first embed under `assets/covers/`, its page
 // copy the last line's `[Copy of the page]` link, a file item's original its first embed of its
-// kind. A file from before the article section was written reads a read link's whole body as the
-// page, which a Refresh replaces, as the vault's Refresh did.
+// kind. A read link's file with no `:::article` reads its whole body as the page, which Read the
+// page again replaces.
 
 import type { Root, RootContent } from "mdast";
 import { ElementApi } from "platejs";
@@ -153,7 +153,7 @@ interface HeldFiles {
   copy: string | null;
 }
 
-// the body's structural files taken out of it: what the vault's writers put there, read back
+// the body's structural files taken out of it: what an export puts there, read back
 const takeHeldFiles = (
   sections: { first: TElement[]; last: TElement[]; all: TElement[][] },
   kind: ItemKind,
