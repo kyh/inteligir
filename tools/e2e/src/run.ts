@@ -29,6 +29,7 @@ import { libraryBrowser } from "./scenarios/library-browser";
 import { librarySearchBrowser } from "./scenarios/library-search-browser";
 import { linkCapture } from "./scenarios/link-capture";
 import { noteLinksBrowser } from "./scenarios/note-links-browser";
+import { notePictureBrowser } from "./scenarios/note-picture-browser";
 import { phoneAnnotationsHosted } from "./scenarios/phone-annotations-hosted";
 import { phoneEditorPage } from "./scenarios/phone-editor-page";
 import { phoneFileOpsHosted } from "./scenarios/phone-file-ops-hosted";
@@ -70,6 +71,7 @@ const SCENARIOS: readonly Scenario[] = [
   libraryBrowser,
   annotationsBrowser,
   noteLinksBrowser,
+  notePictureBrowser,
   browserExtension,
   importIntegrated,
   extensionIntegrated,
