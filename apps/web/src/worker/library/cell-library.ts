@@ -99,7 +99,10 @@ export const settleCommit = async <T>(
 
 // a file's row once its upload is in R2, at the size R2 holds; the transaction reads the upload's
 // record after this await, so nothing read before it is trusted but the count of stray removals,
-// which tells it whether one ran meanwhile
+// which tells it whether one ran meanwhile. Every writer settles here, a device's upload, a page's
+// file the fill kept and an import's, so this is where bytes that took their room before the
+// account's tombstone and reached R2 after its files went are taken out again: nothing under a
+// deleted account's prefix stays (`./account-purge`)
 export const settleStored = async (
   env: Env,
   accountId: string,
@@ -107,7 +110,8 @@ export const settleStored = async (
   sha: string,
 ): Promise<CellResult<UploadSettlement>> => {
   const removalsSeen = library.blobRemovals();
-  const object = await env.BLOBS.head(blobKey(accountId, sha));
+  const key = blobKey(accountId, sha);
+  const object = await env.BLOBS.head(key);
   const stored =
     object === null
       ? null
@@ -115,7 +119,11 @@ export const settleStored = async (
           bytes: object.size,
           mime: object.httpMetadata?.contentType ?? "application/octet-stream",
         };
-  return library.settle(sha, stored, removalsSeen);
+  const settled = library.settle(sha, stored, removalsSeen);
+  if (!settled.ok && settled.refusal.kind === "gone") {
+    await env.BLOBS.delete(key);
+  }
+  return settled;
 };
 
 export const logJobFailure = (job: DueJob, cause: unknown): void => {

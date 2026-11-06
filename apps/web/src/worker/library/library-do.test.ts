@@ -386,6 +386,23 @@ describe("deleting the account from its cell", () => {
     },
   );
 
+  it("takes out of R2 an upload that took its room before the tombstone and landed after the files went", async () => {
+    const accountId = newAccountId();
+    const stub = cellOf(accountId);
+    const key = blobKey(accountId, SHA);
+    await expect(
+      stub.reserveBlob({ bytes: 5, mime: "image/png", sha: SHA }),
+    ).resolves.toStrictEqual({ head: null, ok: true, value: { held: false } });
+    await stub.purge("purge-race@example.test");
+    // the upload's bytes reach R2 after the files step listed the account's prefix
+    await env.BLOBS.put(key, "bytes", { httpMetadata: { contentType: "image/png" } });
+    await expect(stub.settleBlob(SHA)).resolves.toStrictEqual({
+      ok: false,
+      refusal: { kind: "gone" },
+    });
+    await expect(env.BLOBS.head(key)).resolves.toBeNull();
+  });
+
   it("runs again from the top after a step failed, as Better Auth retries the deletion", async () => {
     const accountId = newAccountId();
     const stub = cellOf(accountId);
