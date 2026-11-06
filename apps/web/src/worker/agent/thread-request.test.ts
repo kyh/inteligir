@@ -111,7 +111,7 @@ describe("a conversation's request", () => {
       // a message is its role and content alone (the strict parse), and never the assistant's last
       expect(body.messages.at(-1)?.role).not.toBe("assistant");
       for (const block of body.messages.flatMap((message) => message.content)) {
-        if (block["type"] === "thinking" || block["type"] === "redacted_thinking") {
+        if (block.type === "thinking" || block.type === "redacted_thinking") {
           expect(block).not.toHaveProperty("cache_control");
         }
       }

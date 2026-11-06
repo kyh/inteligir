@@ -198,12 +198,9 @@ const randomUrl = (rand: () => number): string => {
   const params = Array.from({ length: Math.floor(rand() * 4) }, () => pick(rand, PARAMS));
   const fragment = pick(rand, FRAGMENTS);
   const trailing = rand() < 0.3 ? "/" : "";
-  return (
-    `${pick(rand, SCHEMES)}://${pick(rand, USERINFO)}${pick(rand, HOSTS)}${pick(rand, PORTS)}` +
-    `${path === "" ? "" : `/${path}`}${trailing}` +
-    `${params.length === 0 && rand() < 0.5 ? "" : `?${params.join("&")}`}` +
-    `${fragment === "" ? "" : `#${fragment}`}`
-  );
+  return `${pick(rand, SCHEMES)}://${pick(rand, USERINFO)}${pick(rand, HOSTS)}${pick(rand, PORTS)}${path === "" ? "" : `/${path}`}${trailing}${
+    params.length === 0 && rand() < 0.5 ? "" : `?${params.join("&")}`
+  }${fragment === "" ? "" : `#${fragment}`}`;
 };
 
 describe("the seeded properties", () => {

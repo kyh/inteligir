@@ -104,7 +104,7 @@ describe("the card grid", () => {
   // React bubbles a portal's keys to its React parents, so a cell's popup under <body> would
   // otherwise move the light or delete the selection while the person reads it
   it("takes the keys pressed in its cells, never those of a popup a cell opened", () => {
-    const onKeyDown = vi.fn();
+    const onKeyDown = vi.fn<() => void>();
     mount({
       count: 1,
       onKeyDown,

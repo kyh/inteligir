@@ -63,7 +63,7 @@ const textOf = (prop: TypedProperty | undefined): string | null => {
 const WIKI_NAME = /^\[\[(?:[^|\]]*\|)?(?<name>[^\]]*)\]\]$/u;
 
 const withoutWikiBrackets = (text: string): string =>
-  (WIKI_NAME.exec(text.trim())?.groups?.["name"] ?? text).trim();
+  (WIKI_NAME.exec(text.trim())?.groups?.name ?? text).trim();
 
 const authorOf = (prop: TypedProperty | undefined): string | null => {
   if (prop?.type === "tags") {
@@ -99,7 +99,7 @@ const kindOf = (prop: TypedProperty | undefined): ItemKind => {
 
 // what an item's frontmatter says; a block that does not parse, or none, is a plain note
 export const readItemFacts = (parsed: ParsedProperties | null): ItemFacts => {
-  if (parsed === null || parsed.kind !== "valid") {
+  if (parsed?.kind !== "valid") {
     return NOTE_FACTS;
   }
   const { properties } = parsed;

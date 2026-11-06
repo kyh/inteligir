@@ -386,11 +386,17 @@ const exportInSteps = (library: ReadLibrary, items: readonly ExportItem[]): Expo
   const searched = new Map<string, number>();
   const placed = new Map<string, { readonly path: string; readonly sha: string }>();
   const store: ExportStore = {
-    place: (key, file) => placed.set(key, file),
+    place: (key, file) => {
+      placed.set(key, file);
+    },
     placed: (key) => placed.get(key)?.path ?? null,
-    search: (key, n) => searched.set(key, n),
+    search: (key, n) => {
+      searched.set(key, n);
+    },
     searched: (key) => searched.get(key) ?? null,
-    take: (key, path) => taken.set(key, path),
+    take: (key, path) => {
+      taken.set(key, path);
+    },
     taken: (key) => taken.has(key),
   };
   beginExport(store);

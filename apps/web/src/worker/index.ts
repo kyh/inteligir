@@ -24,9 +24,10 @@ import { handleV1Rpc } from "./wire/v1-rpc";
 
 // Durable Object classes must be exported from the entry the runtime loads: this file for tests
 // (vitest.config.ts's `main`), ./server.ts for deploy
-/** @public the suites' workerd instantiates it from this entry's exports */
+// the suites' workerd instantiates each from this entry's exports
+/** @public */
 export { AgentThreadDO } from "./agent/agent-thread";
-/** @public the suites' workerd instantiates it from this entry's exports */
+/** @public */
 export { LibraryDO } from "./library/library-do";
 
 // CORS for two origins alone, the Mac app's page, which its shell serves, and the browser

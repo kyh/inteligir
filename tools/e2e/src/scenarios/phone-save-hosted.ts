@@ -129,7 +129,7 @@ export const phoneSaveHosted: Scenario = {
         ) === true,
         "the article landed in the article section",
       );
-      const cover = item?.fields.coverSha ?? null;
+      const cover = item.fields.coverSha ?? null;
       expect(cover !== null, "the page's cover landed with it");
       const uri = await libraryOf(mac).files.fileUri(cover);
       expect(uri !== null, "the Mac draws the cover from the cloud");

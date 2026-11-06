@@ -23,7 +23,7 @@ const p = (text: string): TElement => ({ children: [{ text }], type: "p" });
 const parsed = (markdown: string): Value => {
   const result = parseMarkdown(markdown);
   if (!result.ok) {
-    throw new Error(`fixture does not parse: ${result.reason}`);
+    throw new Error(`fixture does not parse: ${JSON.stringify(result.reason)}`);
   }
   return result.value;
 };

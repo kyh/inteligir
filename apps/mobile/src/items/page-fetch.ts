@@ -59,7 +59,7 @@ const contentType = (header: string | null): ContentType => {
   const charset =
     parameters
       .map((parameter) => /^\s*charset\s*=\s*"?(?<value>[^";\s]+)"?/iu.exec(parameter))
-      .find((match) => match !== null)?.groups?.["value"] ?? null;
+      .find((match) => match !== null)?.groups?.value ?? null;
   const mediaType = type.trim().toLowerCase();
   return { charset, mediaType: mediaType === "" ? null : mediaType };
 };

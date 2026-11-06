@@ -165,7 +165,7 @@ const setItemSchema = z.object({ after_fields: z.string().nullable(), item_id: z
 export const sealChangeSet = (sql: SqlStatements, setId: string, now: number): boolean => {
   const [raw] = sql.all("SELECT actor, sealed_at FROM change_sets WHERE id = ?", [setId]);
   const set = raw === undefined ? null : sealRowSchema.parse(raw);
-  if (set === null || set.sealed_at !== null) {
+  if (set?.sealed_at !== null) {
     dropJob(sql, sealJobOf(setId).id);
     return false;
   }

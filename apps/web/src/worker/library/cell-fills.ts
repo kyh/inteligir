@@ -299,8 +299,7 @@ const foldOnto = (
 const waiting = (state: ItemState | null, url: string): state is ItemState => {
   const held = state?.fields.url ?? null;
   return (
-    state !== null &&
-    state.fields.deletedAt === null &&
+    state?.fields.deletedAt === null &&
     state.fields.fetchState === "pending" &&
     held !== null &&
     urlKey(held) === urlKey(url)

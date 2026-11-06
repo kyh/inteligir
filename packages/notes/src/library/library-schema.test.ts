@@ -13,7 +13,7 @@ import { openWasmSqlPort, transactPlan } from "../test-support/wasm-sql-port";
 const tables = (port: SqlPort): string[] =>
   port
     .all("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name", [])
-    .map((row) => String(row["name"]));
+    .map((row) => String(row.name));
 
 describe("ensureLibrarySchema", () => {
   it("creates the synced tables on a replica and the cell's beside them on a cell", () => {

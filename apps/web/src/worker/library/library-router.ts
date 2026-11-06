@@ -176,11 +176,13 @@ const os = implement(libraryTools).$context<CellContext>();
 
 export const libraryRouter = os.router({
   agent: {
-    cancel: os.agent.cancel.handler(async ({ context, input }) =>
-      committed(context, await cancelTurn(context.agent, input)),
+    cancel: os.agent.cancel.handler(
+      async ({ context, input }) =>
+        await committed(context, await cancelTurn(context.agent, input)),
     ),
-    delete: os.agent.delete.handler(async ({ context, input }) =>
-      committed(context, await deleteAgentThread(context.agent, input)),
+    delete: os.agent.delete.handler(
+      async ({ context, input }) =>
+        await committed(context, await deleteAgentThread(context.agent, input)),
     ),
     events: os.agent.events.handler(({ context, input }) =>
       answer(
@@ -196,27 +198,30 @@ export const libraryRouter = os.router({
         ),
       ),
     ),
-    respond: os.agent.respond.handler(async ({ context, input }) =>
-      committed(context, await respondToAgent(context.agent, input)),
+    respond: os.agent.respond.handler(
+      async ({ context, input }) =>
+        await committed(context, await respondToAgent(context.agent, input)),
     ),
-    send: os.agent.send.handler(async ({ context, input }) =>
-      committed(context, await sendToAgent(context.agent, input)),
+    send: os.agent.send.handler(
+      async ({ context, input }) =>
+        await committed(context, await sendToAgent(context.agent, input)),
     ),
     rules: os.agent.rules.handler(({ context }) =>
       answer(context.library.read((sql) => ({ rules: readLibraryRules(sql) }))),
     ),
-    setEnabled: os.agent.setEnabled.handler(({ context, input }) =>
-      committed(context, setAgentEnabled(context.agent, input)),
+    setEnabled: os.agent.setEnabled.handler(
+      async ({ context, input }) => await committed(context, setAgentEnabled(context.agent, input)),
     ),
     // a meta row of the library's, joining no change set: rules are no item's
-    setRules: os.agent.setRules.handler(({ context, input }) =>
-      committed(
-        context,
-        context.library.landApart({ answer: rulesAnswer, opId: input.opId }, (scope) => {
-          writeLibraryRules(scope.storage, input.rules);
-          return { rules: input.rules };
-        }),
-      ),
+    setRules: os.agent.setRules.handler(
+      async ({ context, input }) =>
+        await committed(
+          context,
+          context.library.landApart({ answer: rulesAnswer, opId: input.opId }, (scope) => {
+            writeLibraryRules(scope.storage, input.rules);
+            return { rules: input.rules };
+          }),
+        ),
     ),
     // whether it is on, and what is left of the day's allowance
     status: os.agent.status.handler(({ context }) => answer(agentStatus(context.agent))),
@@ -260,9 +265,9 @@ export const libraryRouter = os.router({
       }
       return { export: exportJobView(job) };
     }),
-    start: os.exports.start.handler(({ context, input }) => {
+    start: os.exports.start.handler(async ({ context, input }) => {
       const { library } = context;
-      return committed(
+      return await committed(
         context,
         library.landApart({ answer: exportAnswer, opId: input.opId }, (scope) => ({
           export: exportJobView(startExport(scope, library.ids)),
@@ -271,14 +276,15 @@ export const libraryRouter = os.router({
     }),
   },
   folders: {
-    write: os.folders.write.handler(({ context, input }) =>
-      committed(
-        context,
-        context.library.landApart({ answer: headSchema, opId: input.opId }, (scope) => {
-          writeFolders(scope, input.ops);
-          return { seq: libraryHead(scope.storage) };
-        }),
-      ),
+    write: os.folders.write.handler(
+      async ({ context, input }) =>
+        await committed(
+          context,
+          context.library.landApart({ answer: headSchema, opId: input.opId }, (scope) => {
+            writeFolders(scope, input.ops);
+            return { seq: libraryHead(scope.storage) };
+          }),
+        ),
     ),
   },
   history: {
@@ -296,18 +302,20 @@ export const libraryRouter = os.router({
       }
       return revision;
     }),
-    undo: os.history.undo.handler(({ context, input }) =>
-      committed(context, context.library.undo(context.actor(), input)),
+    undo: os.history.undo.handler(
+      async ({ context, input }) =>
+        await committed(context, context.library.undo(context.actor(), input)),
     ),
   },
   imports: {
-    cancel: os.imports.cancel.handler(({ context, input }) =>
-      committed(
-        context,
-        context.library.landApart({ answer: importAnswer, opId: input.opId }, (scope) => ({
-          job: importJobView(cancelImport(scope, input.id)),
-        })),
-      ),
+    cancel: os.imports.cancel.handler(
+      async ({ context, input }) =>
+        await committed(
+          context,
+          context.library.landApart({ answer: importAnswer, opId: input.opId }, (scope) => ({
+            job: importJobView(cancelImport(scope, input.id)),
+          })),
+        ),
     ),
     get: os.imports.get.handler(({ context, input }) => {
       const job = answer(context.library.read((sql) => readImportJob(sql, input.id)));
@@ -320,9 +328,9 @@ export const libraryRouter = os.router({
       const job = answer(context.library.read((sql) => latestImportJob(sql)));
       return { job: job === null ? null : importJobView(job) };
     }),
-    start: os.imports.start.handler(({ context, input }) => {
+    start: os.imports.start.handler(async ({ context, input }) => {
       const { library } = context;
-      return committed(
+      return await committed(
         context,
         library.landApart({ answer: importAnswer, opId: input.opId }, (scope) => ({
           job: importJobView(startImport(scope, library.ids, input)),
@@ -331,9 +339,9 @@ export const libraryRouter = os.router({
     }),
   },
   items: {
-    create: os.items.create.handler(({ context, input }) => {
+    create: os.items.create.handler(async ({ context, input }) => {
       const actor = context.actor();
-      return committed(
+      return await committed(
         context,
         context.library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
           item: landNew(scope, actor, {
@@ -350,19 +358,19 @@ export const libraryRouter = os.router({
         })),
       );
     }),
-    createFile: os.items.createFile.handler(({ context, input }) => {
+    createFile: os.items.createFile.handler(async ({ context, input }) => {
       const actor = context.actor();
-      return committed(
+      return await committed(
         context,
         context.library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
           item: createFile(scope, actor, input),
         })),
       );
     }),
-    createNote: os.items.createNote.handler(({ context, input }) => {
+    createNote: os.items.createNote.handler(async ({ context, input }) => {
       const actor = context.actor();
       const { library } = context;
-      return committed(
+      return await committed(
         context,
         library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
           item: createNote(scope, actor, cellCodec(scope.storage, library.ids), library.ids, input),
@@ -379,10 +387,10 @@ export const libraryRouter = os.router({
       );
       return { deleted: changed, missing };
     }),
-    edit: os.items.edit.handler(({ context, input }) => {
+    edit: os.items.edit.handler(async ({ context, input }) => {
       const actor = context.actor();
       const { library } = context;
-      return committed(
+      return await committed(
         context,
         library.land(actor, { answer: editedSchema, opId: input.opId }, (scope) =>
           editItem(scope, actor, cellCodec(scope.storage, library.ids), input),
@@ -411,8 +419,8 @@ export const libraryRouter = os.router({
       );
       return { items: items.map(summaryOfRow) };
     }),
-    purge: os.items.purge.handler(({ context, input }) =>
-      committed(context, context.library.purgeItems(input)),
+    purge: os.items.purge.handler(
+      async ({ context, input }) => await committed(context, context.library.purgeItems(input)),
     ),
     read: os.items.read.handler(({ context, input }) =>
       answer(
@@ -426,9 +434,9 @@ export const libraryRouter = os.router({
     ),
     // the page is read again by the cloud: the item waits, pending, as a stub saved to read later
     // does
-    refresh: os.items.refresh.handler(({ context, input }) => {
+    refresh: os.items.refresh.handler(async ({ context, input }) => {
       const actor = context.actor();
-      return committed(
+      return await committed(
         context,
         context.library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => {
           const item = refreshItem(scope, actor, input.id);
@@ -447,10 +455,10 @@ export const libraryRouter = os.router({
       );
       return { missing, restored: changed };
     }),
-    save: os.items.save.handler(({ context, input }) => {
+    save: os.items.save.handler(async ({ context, input }) => {
       const actor = context.actor();
       const { library } = context;
-      return committed(
+      return await committed(
         context,
         library.land(actor, { answer: savedSchema, opId: input.opId }, (scope) =>
           savePage(scope, actor, cellCodec(scope.storage, library.ids), library.ids, input),
@@ -458,10 +466,10 @@ export const libraryRouter = os.router({
       );
     }),
     // a stub saved to read later lands `pending`; the cloud's read of its page follows the commit
-    saveLink: os.items.saveLink.handler(({ context, input }) => {
+    saveLink: os.items.saveLink.handler(async ({ context, input }) => {
       const actor = context.actor();
       const { library } = context;
-      return committed(
+      return await committed(
         context,
         library.land(actor, { answer: savedSchema, opId: input.opId }, (scope) => {
           const saved = saveLink(
@@ -501,7 +509,8 @@ export const libraryRouter = os.router({
     ),
     pull: os.sync.pull.handler(({ context, input }) => answer(context.library.pull(input))),
   },
-  write: os.write.handler(({ context, input }) =>
-    committed(context, context.library.write(context.actor(), input)),
+  write: os.write.handler(
+    async ({ context, input }) =>
+      await committed(context, context.library.write(context.actor(), input)),
   ),
 });

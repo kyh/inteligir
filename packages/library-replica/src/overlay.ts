@@ -207,9 +207,9 @@ export const layRow = (
       return state ?? madeBy(op);
     }
     case "delete": {
-      return state === null || state.fields.deletedAt !== null
-        ? state
-        : { blocks: state.blocks, fields: { ...state.fields, deletedAt: createdAt } };
+      return state?.fields.deletedAt === null
+        ? { blocks: state.blocks, fields: { ...state.fields, deletedAt: createdAt } }
+        : state;
     }
     case "restore": {
       return state === null

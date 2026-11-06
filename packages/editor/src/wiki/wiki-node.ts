@@ -54,13 +54,13 @@ export const wikiNode = (
     type,
   };
   if (fields.heading !== undefined) {
-    node["heading"] = fields.heading;
+    node.heading = fields.heading;
   }
   if (fields.blockRef !== undefined) {
-    node["blockRef"] = fields.blockRef;
+    node.blockRef = fields.blockRef;
   }
   if (fields.alias !== undefined) {
-    node["alias"] = fields.alias;
+    node.alias = fields.alias;
   }
   return node;
 };
@@ -71,7 +71,7 @@ const BLOCK_REF_RE = /^\^(?<ref>[A-Za-z0-9-]+)$/u;
 // a body as the written node it spells: the target as written, its id from a uuid after the pipe
 export const wikiFieldsOfBody = (body: string): WikiNodeFields => {
   const { alias, anchor, target } = parseWikiBody(body);
-  const ref = anchor === undefined ? undefined : BLOCK_REF_RE.exec(anchor)?.groups?.["ref"];
+  const ref = anchor === undefined ? undefined : BLOCK_REF_RE.exec(anchor)?.groups?.ref;
   const blockRef = ref !== undefined && blockIdSchema.validate(ref) ? ref : undefined;
   const byId = alias !== undefined && isUuidWikiAlias(alias);
   return {

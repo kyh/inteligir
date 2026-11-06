@@ -298,13 +298,13 @@ export const libraryBrowser: Scenario = {
       (folder) => folder !== null,
       { deadlineMs: DEADLINE_MS, describe: () => `the cell holds no folder "${ARCHIVE}"` },
     );
-    await browser(["wait", folderRow(archive?.id ?? "")], DEADLINE_MS);
+    await browser(["wait", folderRow(archive.id ?? "")], DEADLINE_MS);
     await pickMenuItem(browser, ids.welcome, "Move to…");
     await clickButtonIn(browser, '[role="dialog"]', ARCHIVE);
     await untilFields(
       library,
       ids.welcome,
-      (fields) => fields.folderId === archive?.id,
+      (fields) => fields.folderId === archive.id,
       "the move never reached the cell",
     );
 

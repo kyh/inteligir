@@ -60,6 +60,7 @@ describe("the library's table", () => {
 
   it("leaves a key inside an IME composition to the composer", () => {
     expect(libraryShortcutFor(key({ isComposing: true, key: "Enter" }), "grid", "meta")).toBeNull();
+    // oxlint-disable-next-line typescript/no-deprecated -- Safari's composing Enter, as ime.ts reads it
     expect(libraryShortcutFor(key({ key: "Enter", keyCode: 229 }), "grid", "meta")).toBeNull();
     expect(libraryShortcutFor(key({ key: "Enter" }), "grid", "meta")?.action).toBe("open-item");
   });

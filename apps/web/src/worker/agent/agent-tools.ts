@@ -21,6 +21,7 @@ import { z } from "zod";
 import { isLibraryTool, libraryTools } from "../connector/library-tools";
 import { AGENT_TOOL_POLICIES, isAgentToolName } from "./library-agent";
 import type { AgentToolName } from "./library-agent";
+import { isOrpcError } from "@repo/contract/cloud/v1/errors";
 
 // what one result may carry: its JSON as the tool_result's text
 /** @internal */
@@ -46,8 +47,8 @@ const propertiesSchema = z.record(z.string(), z.json()).optional();
 // the row's input as the model writes it: its JSON Schema, the op id left out
 const toolInputSchema = (input: z.ZodType): BetaTool["input_schema"] => {
   const json = jsonObjectSchema.parse(z.toJSONSchema(input, { io: "input" }));
-  const properties = propertiesSchema.parse(json["properties"]) ?? {};
-  const required = requiredSchema.parse(json["required"]) ?? [];
+  const properties = propertiesSchema.parse(json.properties) ?? {};
+  const required = requiredSchema.parse(json.required) ?? [];
   const kept = Object.fromEntries(Object.entries(properties).filter(([key]) => key !== OP_ID));
   const rest = Object.fromEntries(
     Object.entries(json).filter(
@@ -128,7 +129,7 @@ const TOO_LONG_TO_SHOW =
 const fitAgentResult: ProcedureClientInterceptor<Context, AnySchema, ErrorMap> = async (
   options,
 ) => {
-  let output = await options.next();
+  let output: unknown = await options.next();
   const limited = limitedSchema.safeParse(options.input);
   if (isPaged(options.procedure) && limited.success) {
     const page = limited.data;
@@ -203,9 +204,9 @@ export interface AgentToolCall {
 }
 
 // one call run through the router as `context`'s actor, its answer as the agent reads it
-export const runAgentTool = async <C extends Context>(
+export const runAgentTool = async (
   router: AnyRouter,
-  context: C,
+  context: Context,
   request: AgentToolCall,
 ): Promise<AgentToolResult> => {
   const row = AGENT_TOOL_ROWS.find((candidate) => candidate.name === request.name);
@@ -229,7 +230,7 @@ export const runAgentTool = async <C extends Context>(
     return { content: JSON.stringify(output ?? null), isError: false };
   } catch (error) {
     return {
-      content: error instanceof ORPCError ? errorText(error) : "That could not be done right now.",
+      content: isOrpcError(error) ? errorText(error) : "That could not be done right now.",
       isError: true,
     };
   }

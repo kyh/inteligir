@@ -48,7 +48,7 @@ const principal = (accountId: string): NamedPrincipal => ({
 });
 
 const itemCount = (state: DurableObjectState): number =>
-  Number(state.storage.sql.exec("SELECT count(*) AS n FROM items").one()["n"]);
+  Number(state.storage.sql.exec("SELECT count(*) AS n FROM items").one().n);
 
 describe("the library cell", () => {
   it("reads its account back from its own name, and is named by nothing else", async () => {
@@ -145,7 +145,7 @@ describe("the library cell", () => {
     expect(await runDurableObjectAlarm(stub)).toBe(true);
     const after = await inCell(stub, async (state) => ({
       alarm: await state.storage.getAlarm(),
-      sealed: state.storage.sql.exec("SELECT sealed_at FROM change_sets").one()["sealed_at"],
+      sealed: state.storage.sql.exec("SELECT sealed_at FROM change_sets").one().sealed_at,
     }));
     expect(after.sealed).toEqual(expect.any(Number));
     // the prune job, a day after the seal
@@ -175,7 +175,7 @@ describe("the library cell", () => {
         body: body?.blocks.length,
         open: state.storage.sql
           .exec("SELECT count(*) AS n FROM change_sets WHERE sealed_at IS NULL")
-          .one()["n"],
+          .one().n,
       };
     });
     expect(after).toEqual({ alarm, body: 1, open: 1 });

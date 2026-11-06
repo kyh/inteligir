@@ -13,7 +13,8 @@ import { parseMarkdown, roundTrip, serializeNote } from "@repo/editor/markdown/m
 
 const makeEditor = (md = "") => {
   const parsed = md === "" ? null : parseMarkdown(md);
-  const value = parsed && parsed.ok ? parsed.value : [{ children: [{ text: "" }], type: "p" }];
+  const value =
+    parsed !== null && parsed.ok ? parsed.value : [{ children: [{ text: "" }], type: "p" }];
   return createSlateEditor({ plugins: EDITOR_KIT, value });
 };
 

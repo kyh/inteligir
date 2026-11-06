@@ -273,7 +273,7 @@ const paragraphRule: WideMdRule = {
     options: DeserializeMdOptions,
   ): TElement | TElement[] => {
     const converted: TElement | TElement[] = defaultParagraphDeserialize(node, deco, options);
-    if (!Array.isArray(converted)) {
+    if (!ElementApi.isElementList(converted)) {
       return embedFromImage(converted);
     }
     return converted.flatMap((block, i): TElement[] => {
@@ -503,7 +503,7 @@ export const MD_RULES: MdRules = {
         type: FORMULA_PILL_KEY,
       };
       if (node.meta !== undefined && node.meta !== "") {
-        pill["meta"] = node.meta;
+        pill.meta = node.meta;
       }
       return pill;
     },

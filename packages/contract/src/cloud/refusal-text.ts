@@ -3,9 +3,7 @@
 // in the words of the error it raised. One rule for every device, so the Mac, the tab and the phone
 // say one thing of one refusal.
 
-import { ORPCError } from "@orpc/client";
+import { isOrpcError } from "./v1-errors";
 
 export const refusalText = (cause: unknown, fallback: string): string =>
-  cause instanceof ORPCError && cause.defined && cause.message.length > 0
-    ? cause.message
-    : fallback;
+  isOrpcError(cause) && cause.defined && cause.message.length > 0 ? cause.message : fallback;

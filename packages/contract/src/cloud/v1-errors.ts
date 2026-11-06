@@ -4,11 +4,16 @@
 // error's message and data reach the client and, through the connector, the model, so neither
 // holds anything a caller may not see.
 
-import { COMMON_ERROR_STATUS_MAP } from "@orpc/client";
+import { COMMON_ERROR_STATUS_MAP, ORPCError } from "@orpc/client";
 import { error, oc } from "@orpc/contract";
 import { z } from "zod";
 
 import { conflictCurrentSchema, editRefusalSchema, shaSchema } from "./library/library-wire";
+
+// a refusal an oRPC client threw, its code and data typed as the wire carries them, where
+// `instanceof` alone types both `any`
+export const isOrpcError = (cause: unknown): cause is ORPCError<string, unknown> =>
+  cause instanceof ORPCError;
 
 // ---- what any request may meet before its procedure runs ----
 

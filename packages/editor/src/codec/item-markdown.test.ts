@@ -100,7 +100,7 @@ const SETTLED_ON_IMPORT = new Map<string, (text: string) => string>([
   [
     "canonical/frontmatter-invalid.md",
     (text) =>
-      `\`\`\`yaml\n${FRONTMATTER_RE.exec(text)?.groups?.["yaml"] ?? ""}\n\`\`\`\n\n${bodyOf(text)}`,
+      `\`\`\`yaml\n${FRONTMATTER_RE.exec(text)?.groups?.yaml ?? ""}\n\`\`\`\n\n${bodyOf(text)}`,
   ],
   // the library holds a file a note embeds as an image, and an image is a block, so an embed
   // inside a paragraph splits it where it stood
@@ -242,10 +242,7 @@ describe("one file as its item", () => {
       expect(new Set(item.blocks.map(({ block }) => block.type))).toEqual(new Set(["code_block"]));
       const text = item.blocks
         .flatMap(({ block }) => block.children)
-        .map(
-          (child) =>
-            JSON.stringify(child).match(/"text":"(?<text>[^"]*)"/u)?.groups?.["text"] ?? "",
-        )
+        .map((child) => /"text":"(?<text>[^"]*)"/u.exec(JSON.stringify(child))?.groups?.text ?? "")
         .filter((piece) => piece !== "");
       expect(text).toEqual(lines);
     },

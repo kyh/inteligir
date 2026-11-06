@@ -582,10 +582,12 @@ export interface ItemWrite {
   readonly seq: number;
 }
 
-// an item as a whole, with everything derived from it: what a replica lays down when an item's
-// row and body arrive, and what a write that made the item stores. Null when the row held is as
-// new or newer, and then nothing of the item is written.
-/** @internal */
+// an item as a whole, with everything derived from it, as the suites lay one down. Null when the
+// row held is as new or newer, and then nothing of the item is written.
+/**
+ * @internal
+ * @yields {SqlStep} the statements that write the item
+ */
 export const storeItem = function* storeItem(write: ItemWrite): SqlPlan<DerivedItem | null> {
   const derived = deriveItem(write.state.fields, write.state.blocks);
   const landed = yield* storeItemRow({

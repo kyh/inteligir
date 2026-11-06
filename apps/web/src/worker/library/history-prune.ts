@@ -80,8 +80,8 @@ const collectGarbage = (sql: SqlStatements, itemId: string): void => {
         named.add(hash);
       }
     }
-    if (row["manifest"] !== undefined && row["manifest"] !== null) {
-      manifests.add(row["manifest"]);
+    if (row.manifest !== undefined && row.manifest !== null) {
+      manifests.add(row.manifest);
     }
   }
   for (const raw of sql.all(

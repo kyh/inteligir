@@ -17,7 +17,7 @@ describe("installing the editor's host", () => {
 
   it("hands a deep node the actions it was installed with", () => {
     const showTag = vi.fn<(tag: string) => void>();
-    installFakeEditorHost({ agent: { askAboutSelection: vi.fn(), showTag } });
+    installFakeEditorHost({ agent: { askAboutSelection: vi.fn<() => void>(), showTag } });
 
     getEditorHostActions().agent.showTag("errands");
     expect(showTag).toHaveBeenCalledExactlyOnceWith("errands");

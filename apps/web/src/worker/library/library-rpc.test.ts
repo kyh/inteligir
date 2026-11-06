@@ -1,7 +1,7 @@
 // The cell's own RPC handler, reached as an app's link reaches it: the statuses the wire maps its
 // refusals to, the body cap, and no procedure answered on a GET.
 
-import { createORPCClient, ORPCError } from "@orpc/client";
+import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { V1Client } from "@repo/contract/cloud/v1";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
@@ -11,6 +11,7 @@ import { agentCellIn, cellOf, clockAt, engineIn, inCell } from "../test-support/
 import { cellActorOf } from "./library-principal";
 import type { NamedPrincipal } from "./library-principal";
 import { LIBRARY_RPC_MAX_BODY_BYTES, serveLibraryRpc, V1_LIBRARY_RPC_PATH } from "./library-rpc";
+import { isOrpcError } from "@repo/contract/cloud/v1/errors";
 
 const ORIGIN = "https://cell.test";
 
@@ -49,7 +50,7 @@ const linkIn = (state: DurableObjectState, bytesCap: number) => {
     try {
       await call;
     } catch (error) {
-      if (error instanceof ORPCError) {
+      if (isOrpcError(error)) {
         return { code: error.code, data: error.data, status: statuses.at(-1) };
       }
       throw error;

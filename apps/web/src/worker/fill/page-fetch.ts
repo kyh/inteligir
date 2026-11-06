@@ -114,7 +114,7 @@ const contentType = (header: string | null) => {
   const charset =
     parameters
       .map((parameter) => /^\s*charset\s*=\s*"?(?<value>[^";\s]+)"?/iu.exec(parameter))
-      .find((match) => match !== null)?.groups?.["value"] ?? null;
+      .find((match) => match !== null)?.groups?.value ?? null;
   const mediaType = type.trim().toLowerCase();
   return { charset, mediaType: mediaType === "" ? null : mediaType };
 };
@@ -157,8 +157,12 @@ const readCapped = async (response: Response, request: PageRequest): Promise<Bod
   const chunks: Uint8Array[] = [];
   let length = 0;
   for (let read = await reader.read(); !read.done; read = await reader.read()) {
-    chunks.push(read.value);
-    length += read.value.length;
+    const chunk: unknown = read.value;
+    if (!(chunk instanceof Uint8Array)) {
+      throw new TypeError("a response body read something other than bytes");
+    }
+    chunks.push(chunk);
+    length += chunk.length;
     if (length > request.maxBytes) {
       reader.releaseLock();
       await cancelled(body);

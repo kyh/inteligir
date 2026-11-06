@@ -53,6 +53,7 @@ export const EDITOR_SHORTCUTS: readonly EditorShortcut[] = [
 ];
 
 export const matchesHotkey = (hotkey: string, event: ShortcutKeyEvent): boolean =>
+  // oxlint-disable-next-line typescript/no-unsafe-call -- platejs re-exports is-hotkey, which ships no types, so the type-aware pass reads the call as an unresolved type
   Boolean(isHotkey(hotkey, event));
 
 export const editorShortcutFor = <Action extends string>(

@@ -86,7 +86,8 @@ export const asyncPortOf = (port: WasmSqlPort): AsyncSqlStatements => ({
   all: async (sql: string, params: readonly SqlValue[]) =>
     await Promise.resolve(port.all(sql, params)),
   run: async (sql: string, params: readonly SqlValue[]) => {
-    await Promise.resolve(port.run(sql, params));
+    port.run(sql, params);
+    await Promise.resolve();
   },
 });
 

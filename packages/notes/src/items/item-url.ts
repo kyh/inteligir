@@ -63,8 +63,8 @@ const parseWebUrl = (value: string): WebUrl | null => {
     return null;
   }
   const groups = URI_RE.exec(trimmed)?.groups;
-  const scheme = groups?.["scheme"];
-  const authority = groups?.["authority"];
+  const scheme = groups?.scheme;
+  const authority = groups?.authority;
   if (
     groups === undefined ||
     scheme === undefined ||
@@ -79,11 +79,11 @@ const parseWebUrl = (value: string): WebUrl | null => {
     return null;
   }
   return {
-    fragment: groups["fragment"] ?? null,
+    fragment: groups.fragment ?? null,
     host: split.host,
-    path: groups["path"] ?? "",
+    path: groups.path ?? "",
     port: split.port,
-    query: groups["query"] ?? null,
+    query: groups.query ?? null,
     scheme,
   };
 };
@@ -119,7 +119,7 @@ const aliasedHost = (url: WebUrl): string => {
   if (host === SHORT_YOUTUBE_HOST) {
     return "youtube.com";
   }
-  const lang = MOBILE_WIKIPEDIA.exec(host)?.groups?.["lang"];
+  const lang = MOBILE_WIKIPEDIA.exec(host)?.groups?.lang;
   if (lang !== undefined) {
     return `${lang}.wikipedia.org`;
   }
@@ -351,7 +351,7 @@ export const youTubeVideoId = (value: string): string | null => {
   if (host === SHORT_YOUTUBE_HOST) {
     id = decodedOrNull(firstSegment(url.path));
   } else if (host === "youtube.com" || host.endsWith(".youtube.com")) {
-    const fromPath = YOUTUBE_PATH_ID.exec(url.path)?.groups?.["id"];
+    const fromPath = YOUTUBE_PATH_ID.exec(url.path)?.groups?.id;
     id = queryValue(url.query, "v") ?? (fromPath === undefined ? null : decodedOrNull(fromPath));
   }
   return id !== null && YOUTUBE_ID.test(id) ? id : null;

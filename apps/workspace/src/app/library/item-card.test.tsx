@@ -66,9 +66,9 @@ const linkRow = (patch: Partial<LibraryItemFields>): ReplicaListingRow => {
 };
 
 const drawCard = (row: ReplicaListingRow) => {
-  const onPress = vi.fn();
-  const onOpen = vi.fn();
-  const onMenu = vi.fn();
+  const onPress = vi.fn<() => void>();
+  const onOpen = vi.fn<() => void>();
+  const onMenu = vi.fn<() => void>();
   render(
     <ItemCard
       row={row}

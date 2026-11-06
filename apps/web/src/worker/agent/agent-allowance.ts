@@ -436,7 +436,7 @@ export const settleCall = (
   settlement: PricedUsage | "reserved" | "free",
 ): void => {
   const held = heldReservation(sql, callId);
-  if (held === null || held.cost_ucents !== null) {
+  if (held?.cost_ucents !== null) {
     return;
   }
   let priced: PricedUsage = { costUcents: 0, tokens: NO_TOKENS };

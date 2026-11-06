@@ -150,7 +150,7 @@ const highlightsIn = (
     text,
     HIGHLIGHT_RE,
     (match) => {
-      const passage = match.groups?.["passage"] ?? "";
+      const passage = match.groups?.passage ?? "";
       const id = person.newAnnotationId();
       highlights.push({ id, quote: clipQuote(passage) });
       return [markerOf(id, "start", marks), leaf(passage, marks), markerOf(id, "end", marks)];
@@ -196,7 +196,7 @@ const writtenTitle = (target: string): string => {
 const WIDTH_RE = /\|(?<width>\d{1,5})(?:x\d{1,5})?$/u;
 
 const widthIn = (text: string): number | null => {
-  const width = Number(WIDTH_RE.exec(text)?.groups?.["width"] ?? Number.NaN);
+  const width = Number(WIDTH_RE.exec(text)?.groups?.width ?? Number.NaN);
   return Number.isInteger(width) && width > 0 ? width : null;
 };
 
@@ -210,13 +210,13 @@ interface ImageLook {
 const imageOf = (source: { sha: string } | { url: string }, look: ImageLook): TElement => {
   const image: TElement = { ...source, children: voidLeaf({}), type: "img" };
   if (look.caption.length > 0) {
-    image["caption"] = look.caption;
+    image.caption = look.caption;
   }
   if (look.title !== null) {
-    image["title"] = look.title;
+    image.title = look.title;
   }
   if (look.width !== null) {
-    image["width"] = look.width;
+    image.width = look.width;
   }
   return image;
 };
@@ -259,7 +259,9 @@ const readWiki = (node: TElement, embed: boolean, reading: Reading): TElement =>
 
 const captionOf = (node: TElement): TText[] => {
   const { caption } = node;
-  return Array.isArray(caption) ? caption.filter((part): part is TText => isText(part)) : [];
+  return Array.isArray(caption)
+    ? caption.filter((part: Descendant): part is TText => isText(part))
+    : [];
 };
 
 // an image's alt as its caption, an Obsidian `|width` at its end read off it
@@ -347,7 +349,7 @@ const trailingRef = (block: TElement): DraftBlock => {
     return { element: block, ref: null };
   }
   const match = TRAILING_REF_RE.exec(last.text);
-  const ref = match?.groups?.["ref"];
+  const ref = match?.groups?.ref;
   if (match === null || !isBlockRef(ref)) {
     return { element: block, ref: null };
   }
@@ -362,11 +364,11 @@ const trailingRef = (block: TElement): DraftBlock => {
 // a paragraph that is only `^ref`: Obsidian's name for the block above it
 const standaloneRef = (block: TElement): string | null => {
   const [only, ...rest] = block.children;
-  if (block.type !== "p" || block["listStyleType"] !== undefined || rest.length > 0) {
+  if (block.type !== "p" || block.listStyleType !== undefined || rest.length > 0) {
     return null;
   }
   const ref =
-    only !== undefined && isText(only) ? BLOCK_REF_RE.exec(only.text)?.groups?.["ref"] : undefined;
+    only !== undefined && isText(only) ? BLOCK_REF_RE.exec(only.text)?.groups?.ref : undefined;
   return isBlockRef(ref) ? ref : null;
 };
 
@@ -393,7 +395,7 @@ export const readBlocks = (
       const element = tidyBlock(read);
       const last = blocks.at(-1);
       const ref = person === null ? null : standaloneRef(element);
-      if (ref !== null && last !== undefined && last.ref === null) {
+      if (ref !== null && last?.ref === null) {
         blocks[blocks.length - 1] = { ...last, ref };
         continue;
       }
@@ -435,12 +437,12 @@ const elementJson = (node: TElement): JsonObject => {
   }
   const { caption } = node;
   if (allowed.has("caption") && Array.isArray(caption)) {
-    json["caption"] = caption.flatMap((part: Descendant) => (isText(part) ? [textJson(part)] : []));
+    json.caption = caption.flatMap((part: Descendant) => (isText(part) ? [textJson(part)] : []));
   }
-  json["children"] = node.children.map((child) =>
+  json.children = node.children.map((child) =>
     isText(child) ? textJson(child) : elementJson(child),
   );
-  json["type"] = node.type;
+  json.type = node.type;
   return json;
 };
 

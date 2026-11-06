@@ -313,7 +313,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
   const refused = async (
     row: OutboxRow,
     error: Error,
-    own: () => Promise<SendOutcome> | null,
+    own: () => Promise<SendOutcome | null>,
   ): Promise<SendOutcome> => {
     const shared = sharedFailure(error);
     if (shared !== null) {
@@ -398,14 +398,14 @@ export const createOutbox = (context: OutboxContext): Outbox => {
         touched,
       );
     }
-    return await refused(row, error, () => {
+    return await refused(row, error, async () => {
       if (!isDefinedError(error)) {
         return null;
       }
       switch (error.code) {
         case "CONFLICT": {
           const { current } = error.data;
-          return (async () => {
+          return await (async () => {
             const outcome = await settleWrite(op, current, {
               merge: context.merge,
               newId: context.newId,
@@ -415,7 +415,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
           })();
         }
         case "BLOB_MISSING": {
-          return missingFiles(row, error.data.shas);
+          return await missingFiles(row, error.data.shas);
         }
         default: {
           return null;
@@ -451,7 +451,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       return { kind: "closed" };
     }
     if (error === null) {
-      const folded = "folded" in answer && answer.folded;
+      const folded = "folded" in answer && answer.folded === true;
       return await landItem(row, answer.item, function* blocksOfMake() {
         yield* [];
         if (op.kind === "create") {
@@ -466,9 +466,9 @@ export const createOutbox = (context: OutboxContext): Outbox => {
         return { dropped: [], written: [] };
       });
     }
-    return await refused(row, error, () =>
+    return await refused(row, error, async () =>
       isDefinedError(error) && error.code === "BLOB_MISSING" && "shas" in error.data
-        ? missingFiles(row, error.data.shas)
+        ? await missingFiles(row, error.data.shas)
         : null,
     );
   };
@@ -485,7 +485,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       return { kind: "closed" };
     }
     if (error !== null) {
-      return await refused(row, error, () => null);
+      return await refused(row, error, async () => await Promise.resolve(null));
     }
     const changed = "deleted" in answer ? answer.deleted : answer.restored;
     return await land(
@@ -516,9 +516,9 @@ export const createOutbox = (context: OutboxContext): Outbox => {
         touched,
       );
     }
-    return await refused(row, error, () =>
+    return await refused(row, error, async () =>
       isDefinedError(error) && error.code === "CONFLICT"
-        ? settled(
+        ? await settled(
             row,
             settleFolders(op.ops, error.data.current),
             (ops) => ({ kind: "folders", ops }),
@@ -583,7 +583,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     discard: async (seq) => {
       const row = await hold(async () => {
         const held = rows.find((candidate) => candidate.seq === seq);
-        if (held === undefined || held.state !== "parked") {
+        if (held?.state !== "parked") {
           return null;
         }
         await sql.exclusive(async (tx) => {
@@ -668,7 +668,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     retry: async (seq) => {
       const row = await hold(async () => {
         const held = rows.find((candidate) => candidate.seq === seq);
-        if (held === undefined || held.state !== "parked") {
+        if (held?.state !== "parked") {
           return null;
         }
         // it may have gone before it parked, so it goes again as it went

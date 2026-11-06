@@ -88,7 +88,7 @@ export const showConsent = async (cookie: string, url: string): Promise<ConsentS
   const response = await workerFetch(url, { headers: { cookie } });
   const html = await response.text();
   expect(response.status, html).toBe(200);
-  const handle = /name="handle" value="(?<handle>[^"]+)"/u.exec(html)?.groups?.["handle"];
+  const handle = /name="handle" value="(?<handle>[^"]+)"/u.exec(html)?.groups?.handle;
   if (handle === undefined) {
     throw new Error("the consent page carries no form handle");
   }

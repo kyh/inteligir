@@ -1,4 +1,4 @@
-import { createORPCClient, ORPCError } from "@orpc/client";
+import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
 import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
@@ -19,6 +19,7 @@ import { z } from "zod";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 import { ORIGIN } from "./test-origin";
+import { isOrpcError } from "@repo/contract/cloud/v1/errors";
 
 export { ORIGIN } from "./test-origin";
 export const PASSWORD = "test-password-1234";
@@ -125,7 +126,7 @@ export const v1Link = (headers: Record<string, string>) => {
     try {
       await call;
     } catch (error) {
-      if (error instanceof ORPCError) {
+      if (isOrpcError(error)) {
         return {
           code: error.code,
           data: error.data,

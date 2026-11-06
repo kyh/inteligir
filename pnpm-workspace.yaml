@@ -111,6 +111,9 @@ catalog:
   # candidates, and peers this react-native-css exactly; lift both when nativewind 5 ships stable
   nativewind: 5.0.0-rc.0
   react-native-css: 3.1.0-rc.0
+  # oxlint's type-aware rules, run over typescript-go: oxlint peers it at >=7.0.2005, and its
+  # major tracks the TypeScript it embeds, the 7 every program here checks under
+  oxlint-tsgolint: ^7.0.2005
   # the PostCSS Expo runs the phone's sheet through, which the sheet's suite runs it through too
   postcss: ^8.5.29
   # held under 19.3: @react-three/fiber 9 peers react <19.3

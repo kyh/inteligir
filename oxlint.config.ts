@@ -120,6 +120,7 @@ const platformPurity = (dir: string, regex: string, message: string) => ({
 
 export default defineConfig({
   extends: [core, react, tanstack, antiSlop],
+  options: { reportUnusedDisableDirectives: "error", typeAware: true },
   ignorePatterns: [
     ...(core.ignorePatterns ?? []),
     ".agents",
@@ -131,6 +132,22 @@ export default defineConfig({
   ],
   overrides: [
     {
+      // A type-aware rule reads the program's types, and a .js file no tsconfig program includes
+      // has none: every value in it is `any`. The repo's JS is the few files a tool loads by name
+      // and runs as they stand (Expo's config and plugin, the isolation hook, the preview script
+      // the deploy job runs before it sets up the repo's node).
+      files: ["**/*.js", "**/*.mjs", "**/*.cjs"],
+      rules: {
+        "typescript/no-unsafe-argument": "off",
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-call": "off",
+        "typescript/no-unsafe-member-access": "off",
+        "typescript/no-unsafe-return": "off",
+        "typescript/prefer-nullish-coalescing": "off",
+        "typescript/strict-boolean-expressions": "off",
+      },
+    },
+    {
       // The Plate editor's tests stub platejs/react and the host-io singleton at
       // module scope: the module seam is the subject under test.
       files: ["packages/editor/src/**/*.test.ts", "packages/editor/src/**/*.test.tsx"],
@@ -138,10 +155,16 @@ export default defineConfig({
     },
     {
       // A stand-in for an async port is spelled `async` to match the contract
-      // it stands in for, with nothing inside to await.
+      // it stands in for, with nothing inside to await. vitest types its asymmetric matchers
+      // (`expect.any`, `expect.stringContaining`, `expect.objectContaining`) `any`, and a suite
+      // composes them into the values it compares, so the any-flow rules read every such object as
+      // unsafe.
       files: tests,
       rules: {
         "require-await": "off",
+        "typescript/no-unsafe-argument": "off",
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-return": "off",
       },
     },
     {
@@ -156,12 +179,12 @@ export default defineConfig({
     platformPurity(
       "packages/contract",
       NODE_OR_REACT,
-      "@repo/contract is what both ends compile against: it loads in the desktop page, on node, on workerd and in React Native, so a platform import is a package that stops loading somewhere",
+      "@repo/contract is what both ends compile against: it loads in the library's page, the extension, the phone's React Native, on workerd and in node's suites, so a platform import is a package that stops loading somewhere",
     ),
     platformPurity(
       "packages/domain",
       NODE_OR_REACT,
-      "@repo/domain is a zod-only leaf: the thread grammar is parsed on both sides of every wire",
+      "@repo/domain is a zod-only leaf: its vocabulary is parsed on both sides of every wire",
     ),
     platformPurity(
       "packages/editor",
@@ -196,12 +219,12 @@ export default defineConfig({
     platformPurity(
       "packages/ui",
       NODE,
-      "@repo/ui is browser-only, and the Worker's SSR half consumes it as well as the local app",
+      "@repo/ui is browser-only: the library's page, the extension's pages and the site's server-rendered pages draw it",
     ),
     platformPurity(
       "apps/workspace",
       NODE,
-      "@repo/workspace is the page: it runs in the shell's WebKit or a browser tab, never in the Node process",
+      "@repo/workspace is the library's page: it runs in the Mac app's WebKit or a browser tab, where no node module loads",
     ),
     {
       files: ["packages/notes/src/**"],
@@ -323,6 +346,21 @@ export default defineConfig({
     // is added) and `useEffect(() => { if (x) return; …; return cleanup; })`,
     // React's own contract for a conditional cleanup.
     "typescript/consistent-return": "off",
+    // A switch with a `default` handles the members it names and says what the rest do; one with
+    // none must name every member, which the rule then holds.
+    "typescript/switch-exhaustiveness-check": [
+      "error",
+      { considerDefaultExhaustiveForUnions: true },
+    ],
+    // a string spread is its code points, which every such spread here means (offsets, character
+    // classes, a cap on characters), and unicorn's prefer-spread asks for it over Array.from; a
+    // grapheme split would be Intl.Segmenter's, which none of them wants
+    "typescript/no-misused-spread": ["error", { allow: [{ from: "lib", name: "string" }] }],
+    // the type-aware rule the presets leave unset; two stay off with them: no-unnecessary-condition,
+    // since TypeScript narrows a `let` flag a closure resets (an effect's `live`, a child's
+    // `exited`) as though no await could change it, and prefer-optional-chain, which asks
+    // `x === null || x.y === null` to be `x?.y === null`, false where x is null
+    "typescript/no-unsafe-enum-assignment": "error",
     // No type assertion and no escape comment: parse at the boundary or narrow with a
     // type guard. `as const` asserts no other type and stays legal.
     "typescript/consistent-type-assertions": ["error", { assertionStyle: "never" }],

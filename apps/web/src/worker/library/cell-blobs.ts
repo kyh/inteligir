@@ -329,7 +329,7 @@ export const releaseUnnamed = (
     );
     dropJob(storage, unnamedJobId(sha));
     const row = raw === undefined ? null : releasableSchema.parse(raw);
-    if (row !== null && row.refs === 0) {
+    if (row?.refs === 0) {
       storage.run("DELETE FROM blobs WHERE sha256 = ?", [sha]);
       addFileBytes(storage, -row.bytes);
       runPlan(storage, recordChanges([{ gone: true, id: sha, kind: "blob", seq: at.seq() }]));

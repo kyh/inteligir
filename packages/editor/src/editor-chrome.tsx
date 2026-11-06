@@ -43,6 +43,7 @@ const EDITOR_CLASS = cn(
 
 // only a run of blocks draws a box: a chunk of chunks adds nothing to the dom
 const EditorChunk: RenderChunkFn = ({ attributes, children, lowest }) =>
+  // oxlint-disable-next-line typescript/no-unsafe-return -- Plate types a chunk's children `any`; a run of runs draws them as given
   lowest ? (
     <div {...attributes} ref={anchorRun} className={EDITOR_CHUNK}>
       {children}

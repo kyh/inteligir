@@ -19,6 +19,7 @@ import {
 } from "../test-support/library-cell";
 import type { CellActor } from "./cell-actor";
 import { ITEM_TEXT_MAX_BYTES } from "./cell-landing";
+import { z } from "zod";
 
 const A = paragraph("a", "the first line");
 const B = paragraph("b", "the second line");
@@ -234,7 +235,7 @@ describe("a write to the library cell", () => {
         held: true,
       });
       const refs = state.storage.sql.exec("SELECT refs FROM blobs WHERE sha256 = ?", sha).one();
-      expect(refs["refs"]).toBe(1);
+      expect(refs.refs).toBe(1);
     });
   });
 
@@ -476,11 +477,11 @@ describe("change sets and undo", () => {
       expect(sets()).toHaveLength(1);
       clock.now = start + 24_000;
       library.runDueJobs(() => {});
-      expect(sets()[0]?.["sealed_at"]).toBeNull();
+      expect(sets()[0]?.sealed_at).toBeNull();
       expect(library.nextJobAt()).toBe(start + 25_000);
       clock.now = start + 25_000;
       library.runDueJobs(() => {});
-      expect(sets()[0]?.["sealed_at"]).toBe(start + 25_000);
+      expect(sets()[0]?.sealed_at).toBe(start + 25_000);
       const revisions = state.storage.sql
         .exec("SELECT rev FROM revisions WHERE item_id = ?", itemId)
         .toArray();
@@ -551,7 +552,7 @@ describe("change sets and undo", () => {
       const [laptopSet] = state.storage.sql
         .exec("SELECT id FROM change_sets WHERE device_id = 'laptop'")
         .toArray();
-      const setId = String(laptopSet?.["id"]);
+      const setId = z.string().parse(laptopSet?.id);
       // the phone changes one of the two again since
       clock.now += 120_000;
       landedValue(
@@ -629,7 +630,7 @@ describe("change sets and undo", () => {
         library.create(person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
       const [set] = state.storage.sql.exec("SELECT id FROM change_sets").toArray();
-      landedValue(library.undo(person(), { changeSetIds: [String(set?.["id"])] }));
+      landedValue(library.undo(person(), { changeSetIds: [z.string().parse(set?.id)] }));
       const pulled = landedValue(library.pull({ cursor: 0, epoch: null }));
       const row =
         pulled.kind === "changes" ? pulled.changes.find((change) => change.id === itemId) : null;
@@ -673,7 +674,7 @@ describe("change sets and undo", () => {
         expect(
           state.storage.sql
             .exec(`SELECT count(*) AS n FROM ${table} WHERE item_id = ?`, itemId)
-            .one()["n"],
+            .one().n,
         ).toBe(0);
       }
     });

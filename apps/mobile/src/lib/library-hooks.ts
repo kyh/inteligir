@@ -89,7 +89,7 @@ const useReplicaRead = <T>(
       live = false;
     };
   }, [key, read, version]);
-  return answer !== null && answer.key === key ? answer.value : undefined;
+  return answer?.key === key ? answer.value : undefined;
 };
 
 export const useItem = (itemId: string): ReplicaItem | null | undefined => {
@@ -153,5 +153,5 @@ export const useFileUri = (sha: string | null, small = false): string | null | u
       live = false;
     };
   }, [files, sha, small]);
-  return held !== null && held.sha === sha ? held.uri : undefined;
+  return held?.sha === sha ? held.uri : undefined;
 };

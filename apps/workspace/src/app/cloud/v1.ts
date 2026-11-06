@@ -6,13 +6,14 @@
 // imports, exports, the account) goes through these utils, as TanStack queries and mutations the
 // page's one QueryClient holds.
 
-import { createORPCClient, isDefinedError, onError, ORPCError } from "@orpc/client";
+import { createORPCClient, isDefinedError, onError } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import type { V1Client } from "@repo/contract/cloud/v1";
 import type { ReplicaTransport } from "@repo/library-replica/replica-ports";
 import { QueryClient } from "@tanstack/react-query";
+import { isOrpcError } from "@repo/contract/cloud/v1/errors";
 
 type V1Queries = ReturnType<typeof createTanstackQueryUtils<V1Client>>;
 
@@ -25,9 +26,7 @@ export interface CloudWire {
 // library to show, so it goes to the sign-in that brings it back here
 /** @internal */
 export const sessionEnded = (cause: unknown): boolean =>
-  cause instanceof ORPCError &&
-  cause.defined &&
-  (cause.code === "UNAUTHORIZED" || cause.code === "GONE");
+  isOrpcError(cause) && cause.defined && (cause.code === "UNAUTHORIZED" || cause.code === "GONE");
 
 export const createCloudWire = (
   transport: ReplicaTransport,

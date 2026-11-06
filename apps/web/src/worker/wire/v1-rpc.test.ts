@@ -47,7 +47,10 @@ describe("the one wire's door", () => {
     const { credential } = await signedUp("rpc-floor@example.test");
     const stale = v1Link({ authorization: `Bearer ${credential}` });
     // each call made in its turn, so no refusal waits unheard behind another
-    for (const call of [() => stale.library.items.list({}), () => stale.account.devices.list()]) {
+    for (const call of [
+      async () => await stale.library.items.list({}),
+      async () => await stale.account.devices.list(),
+    ]) {
       expect(await stale.refusalOf(call())).toMatchObject({
         code: "CLIENT_OUTDATED",
         defined: true,
@@ -72,7 +75,10 @@ describe("the one wire's door", () => {
       authorization: "Bearer igd_not-a-device",
     });
     // each call made in its turn, so no refusal waits unheard behind another
-    for (const call of [() => forged.library.items.list({}), () => forged.account.devices.list()]) {
+    for (const call of [
+      async () => await forged.library.items.list({}),
+      async () => await forged.account.devices.list(),
+    ]) {
       expect(await forged.refusalOf(call())).toMatchObject({
         code: "UNAUTHORIZED",
         defined: true,
@@ -156,10 +162,10 @@ describe("every refusal's status", () => {
 
     // each call made only when its turn comes, so every status is its own call's
     const refusals = [
-      [() => laptop.library.items.read({ id: crypto.randomUUID() }), "NOT_FOUND", 404],
+      [async () => await laptop.library.items.read({ id: crypto.randomUUID() }), "NOT_FOUND", 404],
       [
-        () =>
-          laptop.library.items.edit({
+        async () =>
+          await laptop.library.items.edit({
             baseSeq: seq,
             edits: [{ newText: "Uno.", oldText: "One." }],
             id: item.id,
@@ -168,8 +174,8 @@ describe("every refusal's status", () => {
         409,
       ],
       [
-        () =>
-          laptop.library.items.edit({
+        async () =>
+          await laptop.library.items.edit({
             baseSeq: now,
             edits: [{ newText: "x", oldText: "Not in the item." }],
             id: item.id,
@@ -178,8 +184,8 @@ describe("every refusal's status", () => {
         422,
       ],
       [
-        () =>
-          laptop.library.items.createFile({
+        async () =>
+          await laptop.library.items.createFile({
             folderId: null,
             id: "01a0f4c2-c400-78d9-a955-7935ec13d6d5",
             name: "photo.png",
@@ -190,7 +196,11 @@ describe("every refusal's status", () => {
         "BLOB_MISSING",
         409,
       ],
-      [() => laptop.library.history.undo({ changeSetIds: setIds }), "ALREADY_UNDONE", 409],
+      [
+        async () => await laptop.library.history.undo({ changeSetIds: setIds }),
+        "ALREADY_UNDONE",
+        409,
+      ],
       [
         async () => {
           // the person turned the built-in agent off
@@ -200,7 +210,7 @@ describe("every refusal's status", () => {
         "SERVICE_UNAVAILABLE",
         503,
       ],
-      [() => laptop.library.search({ query: " " }), "BAD_REQUEST", 400],
+      [async () => await laptop.library.search({ query: " " }), "BAD_REQUEST", 400],
     ] as const;
     for (const [call, code, status] of refusals) {
       expect(await laptop.refusalOf(call()), code).toMatchObject({ code, status });
@@ -215,13 +225,13 @@ describe("every refusal's status", () => {
     const invite = await freshInvite();
     const unsigned = [
       [
-        () => anonymous.account.signIn({ deviceName: "Phone", email, password: wrong }),
+        async () => await anonymous.account.signIn({ deviceName: "Phone", email, password: wrong }),
         "INVALID_CREDENTIALS",
         401,
       ],
       [
-        () =>
-          anonymous.account.signUp({
+        async () =>
+          await anonymous.account.signUp({
             deviceName: "Phone",
             email: "rpc-nobody@example.test",
             inviteCode: "NOT-A-CODE",
@@ -232,8 +242,8 @@ describe("every refusal's status", () => {
         403,
       ],
       [
-        () =>
-          anonymous.account.signUp({
+        async () =>
+          await anonymous.account.signUp({
             deviceName: "Phone",
             email,
             inviteCode: invite,
@@ -248,9 +258,13 @@ describe("every refusal's status", () => {
       expect(await anonymous.refusalOf(call()), code).toMatchObject({ code, status });
     }
     const signed = [
-      [() => laptop.account.delete({ password: wrong }), "INVALID_CREDENTIALS", 401],
-      [() => laptop.account.devices.revoke({ deviceId: "not-a-device" }), "NOT_FOUND", 404],
-      [() => laptop.account.assistants.revoke({ grantId: "grant" }), "NOT_FOUND", 404],
+      [async () => await laptop.account.delete({ password: wrong }), "INVALID_CREDENTIALS", 401],
+      [
+        async () => await laptop.account.devices.revoke({ deviceId: "not-a-device" }),
+        "NOT_FOUND",
+        404,
+      ],
+      [async () => await laptop.account.assistants.revoke({ grantId: "grant" }), "NOT_FOUND", 404],
     ] as const;
     for (const [call, code, status] of signed) {
       expect(await laptop.refusalOf(call()), code).toMatchObject({ code, status });
@@ -320,8 +334,8 @@ describe("every refusal's status", () => {
       expect(spent).toHaveLength(1);
       // each call made in its turn, so no refusal waits unheard behind another
       for (const call of [
-        () => laptop.library.items.list({}),
-        () => laptop.account.devices.list(),
+        async () => await laptop.library.items.list({}),
+        async () => await laptop.account.devices.list(),
       ]) {
         expect(await laptop.refusalOf(call())).toMatchObject({
           code: "TOO_MANY_REQUESTS",

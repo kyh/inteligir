@@ -4,7 +4,7 @@
 
 import { ordsBetween } from "@repo/notes/library/block-order";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
-import { createRouterClient, ORPCError } from "@orpc/server";
+import { createRouterClient } from "@orpc/server";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
@@ -27,6 +27,7 @@ import { cellActorOf } from "./library-principal";
 import type { NamedPrincipal } from "./library-principal";
 import { libraryRouter } from "./library-router";
 import { adoptImportedRules } from "./library-rules";
+import { isOrpcError } from "@repo/contract/cloud/v1/errors";
 
 const SHA = "a".repeat(64);
 const GiB = 1024 * 1024 * 1024;
@@ -56,7 +57,7 @@ const refusalOf = async (call: Promise<unknown>) => {
   try {
     await call;
   } catch (error) {
-    if (error instanceof ORPCError) {
+    if (isOrpcError(error)) {
       return { code: error.code, data: error.data, defined: error.defined };
     }
     throw error;
@@ -442,10 +443,11 @@ describe("the library's procedures", () => {
       const unplaced = await library.annotations.add({ itemId: item.id, quote: "nowhere here" });
       expect(unplaced.highlight.placed).toBe(false);
       const listed = await library.annotations.list({ itemId: item.id });
-      expect(listed.highlights.map((highlight) => highlight.placed).toSorted()).toEqual([
-        false,
-        true,
-      ]);
+      expect(
+        listed.highlights
+          .map((highlight) => highlight.placed)
+          .toSorted((a, b) => Number(a) - Number(b)),
+      ).toEqual([false, true]);
       await expect(library.items.read({ id: item.id })).resolves.toMatchObject({ highlights: 2 });
       expect(
         await refusalOf(library.annotations.add({ itemId: newId(), quote: "anything" })),
@@ -772,10 +774,10 @@ describe("the library's procedures", () => {
         defined: true,
       });
       for (const call of [
-        () => agent.respond({ eventId: `${threadId}:1:0`, result: "allow", threadId }),
-        () => agent.cancel({ threadId }),
-        () => agent.events({ threadId }),
-        () => agent.delete({ threadId }),
+        async () => await agent.respond({ eventId: `${threadId}:1:0`, result: "allow", threadId }),
+        async () => await agent.cancel({ threadId }),
+        async () => await agent.events({ threadId }),
+        async () => await agent.delete({ threadId }),
       ]) {
         expect(await refusalOf(call())).toMatchObject({ code: "NOT_FOUND", defined: true });
       }

@@ -304,8 +304,9 @@ describe("a page's reading, landed", () => {
   it("lands nothing at its door of a reading of another shape", async () => {
     const accountId = newAccountId();
     const url = "https://pages.example/g";
-    const saved = await inCell(cellOf(accountId), async (state) =>
-      libraryIn(state, accountId).items.saveLink({ url }),
+    const saved = await inCell(
+      cellOf(accountId),
+      async (state) => await libraryIn(state, accountId).items.saveLink({ url }),
     );
     expect(
       await cellOf(accountId).landFill({
@@ -375,7 +376,7 @@ describe("a reading's ask", () => {
         },
       };
       // the failed send's claim holds the row a minute; the alarm then sends it again
-      await state.storage.sql.exec("UPDATE jobs SET next_at = 0 WHERE kind = 'fill'");
+      state.storage.sql.exec("UPDATE jobs SET next_at = 0 WHERE kind = 'fill'");
       await sendFills(state, { ...env, FILLS: taking }, library);
       expect(fillJobs(state)).toEqual([]);
       expect(sent).toEqual([

@@ -30,7 +30,7 @@ export const CellAnswer = <T,>({
   // what to say when the call failed with nothing of its own to say
   failed: string;
   children: (data: T) => React.ReactNode;
-}) => {
+}): React.ReactNode => {
   if (query.data !== undefined) {
     return children(query.data);
   }

@@ -162,7 +162,7 @@ const takeHeldFiles = (
   const held: HeldFiles = { copy: null, cover: null, original: null };
   const firstUrl = imageUrl(sections.first[0]);
   const cover = firstUrl === null ? null : ports.file(firstUrl);
-  if (cover !== null && cover.kind === "image" && under(COVERS_DIR, cover.place)) {
+  if (cover?.kind === "image" && under(COVERS_DIR, cover.place)) {
     held.cover = cover.sha;
     sections.first.shift();
   }

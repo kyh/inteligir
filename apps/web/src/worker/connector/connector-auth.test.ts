@@ -36,8 +36,8 @@ import {
 import { pkcePair } from "../test-support/pkce";
 
 // an MCP request any client opens with, here sent bare to see what answers it
-const initialize = (headers: Record<string, string> = {}) =>
-  workerFetch(CONNECTOR_URL, {
+const initialize = async (headers: Record<string, string> = {}) =>
+  await workerFetch(CONNECTOR_URL, {
     body: JSON.stringify({
       id: 1,
       jsonrpc: "2.0",

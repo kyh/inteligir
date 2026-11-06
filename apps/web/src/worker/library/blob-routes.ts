@@ -93,8 +93,8 @@ const singleRangeOf = (request: Request): SingleRange | null => {
   const groups = SINGLE_RANGE.exec(
     (request.headers.get("range") ?? "").replaceAll(" ", ""),
   )?.groups;
-  const first = groups?.["first"] ?? "";
-  const last = groups?.["last"] ?? "";
+  const first = groups?.first ?? "";
+  const last = groups?.last ?? "";
   return groups === undefined || (first === "" && last === "") ? null : { first, last };
 };
 
@@ -256,7 +256,7 @@ export const handleBlobRoute = async (
   if (isBelowFloor(request, env)) {
     return plainText(426, "This version of the app is too old. Update it to keep going.");
   }
-  const sha = BLOB_PATH.exec(url.pathname)?.groups?.["sha"] ?? "";
+  const sha = BLOB_PATH.exec(url.pathname)?.groups?.sha ?? "";
   if (!SHA256_HEX_RE.test(sha)) {
     return plainText(404, "A file is named by its SHA-256.");
   }

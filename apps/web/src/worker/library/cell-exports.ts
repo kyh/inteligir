@@ -439,7 +439,7 @@ const writeEntries = async (
       return;
     }
     const now = look((sql) => readItemNow(sql, row.key));
-    if (now === null || now.state.fields.deletedAt !== null) {
+    if (now?.state.fields.deletedAt !== null) {
       return;
     }
     const item = {

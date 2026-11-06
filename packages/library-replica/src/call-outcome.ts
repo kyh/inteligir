@@ -3,10 +3,10 @@
 // each procedure's own refusals, which its caller reads. A file's upload answers in statuses, the
 // same refusals by number.
 
-import { ORPCError } from "@orpc/client";
 import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 
 import type { ReplicaTransport } from "./replica-ports";
+import { isOrpcError } from "@repo/contract/cloud/v1/errors";
 
 // the sign-in is over until the host signs in again (`signed-out`, `gone`) or updates (`outdated`)
 type SessionEnd = "signed-out" | "gone" | "outdated";
@@ -28,7 +28,7 @@ const SESSION_ENDS: ReadonlyMap<string, SessionEnd> = new Map([
 
 // the failures every call shares; null for a refusal the procedure declares as its own
 export const sharedFailure = (error: Error): CallFailure | null => {
-  if (!(error instanceof ORPCError)) {
+  if (!isOrpcError(error)) {
     return { kind: "unreachable", message: UNREACHABLE };
   }
   if (error.defined) {

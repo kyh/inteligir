@@ -7,8 +7,10 @@
 // fetch reaches through Miniflare's outbound service: the fill's guard judges that name as it
 // judges any site's, and every other fetch leaves as it would.
 
+/* oxlint-disable typescript/no-unsafe-assignment, typescript/no-unsafe-call, typescript/no-unsafe-member-access, typescript/no-unsafe-return -- miniflare types its D1 binding with @cloudflare/workers-types, which this node program does not load, so the type-aware pass reads the database as an unresolved type */
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import { Miniflare, MiniflareWorkerConfigBaseSchema, fetch } from "miniflare";
 import type { MiniflareOptions, Request, Response } from "miniflare";
@@ -130,7 +132,7 @@ const applySchema = async (workers: MiniflareOptions["workers"]): Promise<void> 
 
 const workers = await workerOptions();
 // the Worker's own name, which addresses its Durable Objects
-const scriptName = z.object({ config: z.object({ name: z.string() }) }).parse(workers?.[0])
+const scriptName = z.object({ config: z.object({ name: z.string() }) }).parse(workers[0])
   .config.name;
 await applySchema(workers);
 const miniflare = new Miniflare({
@@ -159,7 +161,7 @@ const bucketSchema = z.object({
 
 const filesUnder = async (prefix: string): Promise<number> => {
   const bindings = await miniflare.getBindings();
-  const listing = await bucketSchema.parse(bindings["BLOBS"]).list({ prefix });
+  const listing = await bucketSchema.parse(bindings.BLOBS).list({ prefix });
   return listing.objects.length;
 };
 
@@ -197,7 +199,7 @@ const accountIdOf = async (email: string): Promise<string | null> => {
 
 // `/account?email=` answers the account's id, and `/account/<id>` what it holds
 const answerFor = async (url: URL): Promise<object | null> => {
-  const id = /^\/account\/(?<id>[^/]+)$/u.exec(url.pathname)?.groups?.["id"];
+  const id = /^\/account\/(?<id>[^/]+)$/u.exec(url.pathname)?.groups?.id;
   if (id !== undefined) {
     return await holdings(id);
   }
@@ -205,7 +207,7 @@ const answerFor = async (url: URL): Promise<object | null> => {
   return email === null ? null : { accountId: await accountIdOf(email) };
 };
 
-const inspection = createServer(async (request, response) => {
+const answer = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
   try {
     const body = await answerFor(new URL(request.url ?? "/", "http://127.0.0.1"));
     response.writeHead(body === null ? 404 : 200, { "content-type": "application/json" });
@@ -214,6 +216,10 @@ const inspection = createServer(async (request, response) => {
     response.writeHead(500, { "content-type": "text/plain" });
     response.end(error instanceof Error ? error.message : "the read failed");
   }
+};
+// node's request listener returns nothing, and `answer` settles every request itself
+const inspection = createServer((request, response) => {
+  void answer(request, response);
 });
 inspection.listen(args.inspectPort, "127.0.0.1");
 
@@ -222,5 +228,8 @@ const stop = async (): Promise<void> => {
   await miniflare.dispose();
   process.exit(0);
 };
-process.once("SIGTERM", stop);
-process.once("SIGINT", stop);
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.once(signal, () => {
+    void stop();
+  });
+}

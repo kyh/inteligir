@@ -7,12 +7,14 @@ if (typeof window !== "undefined") {
   if (typeof window.matchMedia !== "function") {
     window.matchMedia = (query: string) => ({
       addEventListener: () => {},
+      // oxlint-disable-next-line typescript/no-deprecated -- MediaQueryList still names it, so a stub that is one must define it
       addListener: () => {},
       dispatchEvent: () => false,
       matches: false,
       media: query,
       onchange: null,
       removeEventListener: () => {},
+      // oxlint-disable-next-line typescript/no-deprecated -- MediaQueryList still names it, so a stub that is one must define it
       removeListener: () => {},
     });
   }

@@ -79,7 +79,7 @@ export const parseRaindropHighlights = (cell: string): RaindropHighlight[] => {
     const open = blocks.at(-1);
     if (HIGHLIGHT_LINE.test(line)) {
       blocks.push({ note: null, quote: [line.replace(HIGHLIGHT_LINE, "")] });
-    } else if (open !== undefined && open.note === null && NOTE_LINE.test(line)) {
+    } else if (open?.note === null && NOTE_LINE.test(line)) {
       open.note = [line.replace(NOTE_LINE, "")];
     } else if (open !== undefined) {
       (open.note ?? open.quote).push(line);

@@ -55,8 +55,11 @@
       "cache": false,
       "dependsOn": ["@repo/extension#generate"]
     },
+    // the type-aware pass reads each workspace's program, and the Worker's and the extension's
+    // extend what their `generate` writes (the Env types, `.wxt/tsconfig.json`)
     "//#lint": {
-      "cache": false
+      "cache": false,
+      "dependsOn": ["@repo/web#generate", "@repo/extension#generate"]
     },
     "format:fix": {
       "cache": false

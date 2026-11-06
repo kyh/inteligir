@@ -7,7 +7,6 @@
 
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { ORPCError } from "@orpc/client";
 import { z } from "zod";
 import {
   clickButtonIn,
@@ -24,6 +23,7 @@ import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { TOAST_TEXT } from "../harness/selectors";
 import { v1Client } from "../harness/v1-wire";
+import { isOrpcError } from "@repo/contract/cloud/v1/errors";
 
 const PHONE = "E2E Phone";
 const DEADLINE_MS = 30_000;
@@ -78,7 +78,7 @@ export const settingsBrowser: Scenario = {
           await v1Client(worker, phone.credential).library.agent.status();
           return "answered";
         } catch (error) {
-          return error instanceof ORPCError ? error.code : "failed";
+          return isOrpcError(error) ? error.code : "failed";
         }
       },
       (outcome) => outcome === "UNAUTHORIZED",

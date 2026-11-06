@@ -61,7 +61,11 @@ const pickUp = (text: string) => {
 };
 
 // the keyboard sensor arms its key listener on a timer after the drag starts
-const settle = () => act(() => delay(0));
+const settle = async () => {
+  await act(async () => {
+    await delay(0);
+  });
+};
 
 describe("dragging a block", () => {
   it("draws the drop line on the far edge of a block edited since the note opened", async () => {

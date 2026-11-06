@@ -244,7 +244,7 @@ const AnnotationNoteHost = () => {
   const fieldRef = useRef<HTMLTextAreaElement | null>(null);
 
   // drawn only over the item that made the highlight, so the note lands on the entry it names
-  const pending = armed !== null && armed.path === notePath ? armed : null;
+  const pending = armed?.path === notePath ? armed : null;
   const pendingId = pending?.id ?? null;
 
   // arming happens outside React, so the draft is re-keyed during render rather than from an event

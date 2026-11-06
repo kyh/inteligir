@@ -1,9 +1,10 @@
-import { ORPCError, safe } from "@orpc/client";
+import { safe } from "@orpc/client";
 import { expect, expectEq } from "../harness/assert";
 import { OWNER } from "../harness/cloud-account";
 import { E2E_INVITE_CODE, WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import type { Scenario } from "../harness/scenario";
 import { accountIdOf, holdingsOf, newItemId, uploadFile, v1Client } from "../harness/v1-wire";
+import { isOrpcError } from "@repo/contract/cloud/v1/errors";
 
 // a one-pixel PNG, the file the phone keeps in the library
 const PIXEL = new Uint8Array(
@@ -15,7 +16,7 @@ const PIXEL = new Uint8Array(
 
 // the code a refusal answers, or what was answered instead
 const codeOf = (error: Error | null): string =>
-  error instanceof ORPCError ? error.code : `no refusal (${String(error)})`;
+  isOrpcError(error) ? error.code : `no refusal (${String(error)})`;
 
 export const accountHosted: Scenario = {
   description:

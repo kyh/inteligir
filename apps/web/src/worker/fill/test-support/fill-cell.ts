@@ -51,8 +51,9 @@ export interface SavedLink {
 // a link saved to read later in a fresh account, and the reading its save asked for
 export const savedLink = async (url: string): Promise<SavedLink> => {
   const accountId = newAccountId();
-  const saved = await inCell(cellOf(accountId), async (state) =>
-    libraryIn(state, accountId).items.saveLink({ url }),
+  const saved = await inCell(
+    cellOf(accountId),
+    async (state) => await libraryIn(state, accountId).items.saveLink({ url }),
   );
   return {
     accountId,

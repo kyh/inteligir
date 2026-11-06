@@ -117,7 +117,7 @@ const humanizeSegment = (segment: string): string => {
 };
 
 const lastPathSegment = (url: string): string => {
-  const path = /^[^:]+:\/\/[^/?#]*(?<path>[^?#]*)/u.exec(url.trim())?.groups?.["path"] ?? "";
+  const path = /^[^:]+:\/\/[^/?#]*(?<path>[^?#]*)/u.exec(url.trim())?.groups?.path ?? "";
   return path.split("/").findLast((segment) => segment !== "") ?? "";
 };
 

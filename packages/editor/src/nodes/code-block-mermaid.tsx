@@ -90,9 +90,7 @@ const MermaidPreview = ({ code }: { code: string }) => {
   const parses = parseFailure === null;
   // what the last draw of this source failed with; one for an older source no longer applies
   const [drawFailure, setDrawFailure] = useState<DrawFailure | null>(null);
-  const failure =
-    parseFailure ??
-    (drawFailure !== null && drawFailure.code === code ? drawFailure.failure : null);
+  const failure = parseFailure ?? (drawFailure?.code === code ? drawFailure.failure : null);
 
   // a layout effect, so the drawing lands in the frame the keystroke paints, and a failure the
   // draw finds is said in that frame too. A source that fails keeps the last drawing it had,

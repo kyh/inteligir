@@ -141,7 +141,7 @@ describe("kit parity (live editor mirror)", () => {
     const jsx: string[] = [];
     for (const [key, fallback] of Object.entries(defaultRules)) {
       const rule = MD_RULES[key] ?? fallback;
-      if (!(key in live.plugins) || rule?.serialize === undefined || rule.serialize === null) {
+      if (!(key in live.plugins) || rule.serialize === undefined || rule.serialize === null) {
         continue;
       }
       const node =

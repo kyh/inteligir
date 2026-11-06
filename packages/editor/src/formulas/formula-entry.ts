@@ -111,7 +111,7 @@ export const formulaNodeFrom = (props: FormulaNodeProps): TElement => {
     type: FORMULA_PILL_KEY,
   };
   if (props.meta !== "") {
-    pill["meta"] = props.meta;
+    pill.meta = props.meta;
   }
   return pill;
 };

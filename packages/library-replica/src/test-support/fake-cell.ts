@@ -145,7 +145,7 @@ const placed = (block: LibraryBlock, ord: string, section: LibrarySection): Stor
 // every sha the blocks a write carries name their bytes by
 const SHA_KEY_RE = /"sha":"(?<sha>[0-9a-f]{64})"/gu;
 const shasIn = (json: string): Set<string> =>
-  new Set([...json.matchAll(SHA_KEY_RE)].flatMap((match) => match.groups?.["sha"] ?? []));
+  new Set([...json.matchAll(SHA_KEY_RE)].flatMap((match) => match.groups?.sha ?? []));
 
 // a folder as one op leaves it, at the sequence its write lands under
 const folderAfter = (op: FolderOp, folder: FolderRow | null, seq: number): FolderRow | null => {
@@ -674,11 +674,11 @@ export const createFakeCell = (): FakeCell => {
   const handler = new RPCHandler(router, {
     // the Worker refuses a revoked credential before any procedure, in the procedure's protocol
     clientInterceptors: [
-      async ({ next }) => {
+      async (options) => {
         if (signedOut) {
           throw new UnauthorizedError();
         }
-        return await next();
+        return await options.next();
       },
     ],
     errorStatusMap: V1_ERROR_STATUS_MAP,

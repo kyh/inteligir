@@ -31,13 +31,14 @@ const listening = async (server: Server, port: number): Promise<number> =>
     });
   });
 
-const closed = async (server: Server): Promise<void> =>
+const closed = async (server: Server): Promise<void> => {
   // oxlint-disable-next-line promise/avoid-new -- node:net is event/callback only; close has no promise form.
-  await new Promise((resolve) => {
+  await new Promise<void>((resolve) => {
     server.close(() => {
       resolve();
     });
   });
+};
 
 export const openCloudLink = async (workerOrigin: string): Promise<CloudLink> => {
   const target = new URL(workerOrigin);

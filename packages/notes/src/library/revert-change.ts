@@ -320,7 +320,7 @@ const sameNoteBlocks = (
   return (
     left.length === held.length &&
     left.every(
-      (entry, index) => entry.blockId === held[index]?.blockId && entry.hash === held[index]?.hash,
+      (entry, index) => entry.blockId === held[index]?.blockId && entry.hash === held[index].hash,
     )
   );
 };
@@ -345,7 +345,7 @@ const personTouched = (after: ItemSnapshot, now: ItemNow): boolean =>
 // an item the set made goes to Deleted, unless a person has touched it since: a fill reading its
 // page since is not a reason to keep it
 const revertCreated = (input: ItemRevertInput, now: ItemNow | null): ItemRevert => {
-  if (now === null || now.state.fields.deletedAt !== null) {
+  if (now?.state.fields.deletedAt !== null) {
     return UNCHANGED;
   }
   if (personTouched(input.change.after, now)) {

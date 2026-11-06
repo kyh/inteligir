@@ -14,13 +14,13 @@ const PLANS = "0199a4c2-0000-7000-8000-0000000000c1";
 
 const spyActions = () =>
   ({
-    askAgent: vi.fn(),
-    askSaveLink: vi.fn(),
-    newNote: vi.fn(),
-    openHit: vi.fn(),
-    openSettings: vi.fn(),
-    saveLink: vi.fn(),
-    startTidy: vi.fn(),
+    askAgent: vi.fn<() => void>(),
+    askSaveLink: vi.fn<() => void>(),
+    newNote: vi.fn<() => void>(),
+    openHit: vi.fn<() => void>(),
+    openSettings: vi.fn<() => void>(),
+    saveLink: vi.fn<() => void>(),
+    startTidy: vi.fn<() => void>(),
   }) satisfies PaletteActions;
 
 // the palette as the workspace holds it: open until it asks to close
@@ -51,7 +51,7 @@ const drawPalette = () => {
   );
   const { library } = fakePageLibrary({ answer: () => ({}), search });
   const actions = spyActions();
-  const onClose = vi.fn();
+  const onClose = vi.fn<() => void>();
   renderOnLibrary(<Opened actions={actions} onClose={onClose} />, library);
   return { actions, onClose, search };
 };

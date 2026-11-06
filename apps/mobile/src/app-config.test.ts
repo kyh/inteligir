@@ -11,13 +11,13 @@ import { z } from "zod";
 
 const APP_ROOT = path.resolve(import.meta.dirname, "..");
 const EXPO_BIN_DIR = path.join(APP_ROOT, "node_modules", "expo", "bin");
-const PRIVACY_MANIFEST = /\.xcprivacy$/u;
 const USAGE_DESCRIPTION = /^NS\w*UsageDescription$/u;
 // what an Expo config plugin writes when the app states no purpose of its own.
 const EXPO_DEFAULT_PURPOSE = "Allow $(PRODUCT_NAME)";
 // three node processes on a loaded runner, the config one evaluating every plugin.
 const SPAWN_BUDGET_MS = 120_000;
 
+// oxlint-disable-next-line typescript/strict-void-return -- node documents promisify(execFile) as execFile's promise form; its callback form returns the child, which promisify drops
 const runFile = promisify(execFile);
 
 const accessedApiSchema = z.object({
@@ -135,7 +135,7 @@ const privacyManifestsUnder = async (dir: string): Promise<string[]> => {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory() && entry.name !== "node_modules") {
       found.push(...(await privacyManifestsUnder(full)));
-    } else if (entry.isFile() && PRIVACY_MANIFEST.test(entry.name)) {
+    } else if (entry.isFile() && entry.name.endsWith(".xcprivacy")) {
       found.push(full);
     }
   }

@@ -16,7 +16,7 @@
     "format:fix": "oxfmt --write && turbo run format:fix",
     "hotfix:mobile": "pnpm --filter @repo/mobile hotfix",
     "knip": "knip && knip --production",
-    "lint": "oxlint --report-unused-disable-directives",
+    "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "package:desktop": "turbo run package --filter=@repo/desktop",
     "package:extension": "turbo run zip --filter=@repo/extension",
@@ -33,6 +33,7 @@
     "knip": "^6.43.0",
     "oxfmt": "^0.72.0",
     "oxlint": "^1.88.0",
+    "oxlint-tsgolint": "catalog:",
     "turbo": "^2.11.10",
     "typescript": "catalog:",
     "ultracite": "^8.0.0"

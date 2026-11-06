@@ -101,6 +101,8 @@ interface JsonMap {
   readonly [key: string]: JsonValue | undefined;
 }
 
+const isJsonList = (value: JsonValue): value is readonly JsonValue[] => Array.isArray(value);
+
 const isJsonMap = (value: JsonValue): value is JsonMap =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
@@ -112,13 +114,13 @@ const renamedIds = (ids: string, renames: ReadonlyMap<string, string>): string =
 
 // a block's JSON with each highlight id its markers name renamed where a settle gave it a new one
 const renamedJson = (value: JsonValue, renames: ReadonlyMap<string, string>): JsonValue => {
-  if (Array.isArray(value)) {
+  if (isJsonList(value)) {
     return value.map((child) => renamedJson(child, renames));
   }
   if (!isJsonMap(value)) {
     return value;
   }
-  const isMarker = value["type"] === "annotationMarker";
+  const isMarker = value.type === "annotationMarker";
   const renamed: Record<string, JsonValue> = {};
   for (const [key, member] of Object.entries(value)) {
     if (member === undefined) {
@@ -309,7 +311,7 @@ const settleAnnotation = (
         return op;
       }
       const row = current.current;
-      if (row === null || row.deletedAt !== null || row.text === op.text) {
+      if (row?.deletedAt !== null || row.text === op.text) {
         return null;
       }
       return { ...op, base: row.text };
@@ -375,12 +377,10 @@ const settleFolderOp = (op: FolderOp, met: ReadonlyMap<string, FolderCurrent>): 
       return null;
     }
     case "rename": {
-      return row === null || row.deletedAt !== null || row.name === op.name
-        ? null
-        : { ...op, base: row.name };
+      return row?.deletedAt !== null || row.name === op.name ? null : { ...op, base: row.name };
     }
     case "move": {
-      if (row === null || row.deletedAt !== null) {
+      if (row?.deletedAt !== null) {
         return null;
       }
       return row.parentId === op.parentId && row.sort === op.sort
@@ -388,7 +388,7 @@ const settleFolderOp = (op: FolderOp, met: ReadonlyMap<string, FolderCurrent>): 
         : { ...op, baseParentId: row.parentId };
     }
     case "delete": {
-      return row === null || row.deletedAt !== null ? null : op;
+      return row?.deletedAt === null ? op : null;
     }
     // no default
   }

@@ -95,7 +95,7 @@ const noise = (length: number): Uint8Array => {
 };
 
 const writingOf = (state: DurableObjectState, id: string): boolean =>
-  state.storage.sql.exec("SELECT state FROM export_jobs WHERE id = ?", id).one()["state"] ===
+  state.storage.sql.exec("SELECT state FROM export_jobs WHERE id = ?", id).one().state ===
   "writing";
 
 // the export started and run by the alarm until it is written, a run each turn and `between` each
@@ -119,8 +119,9 @@ const exported = async (
       return writingOf(state, id);
     });
     if (!writing) {
-      const written = await inCell(cellOf(accountId), async (state) =>
-        libraryIn(state, accountId).exports.get({ id }),
+      const written = await inCell(
+        cellOf(accountId),
+        async (state) => await libraryIn(state, accountId).exports.get({ id }),
       );
       return { export: written.export, runs };
     }
@@ -171,13 +172,13 @@ const summaryOf = async (accountId: string) =>
       sql
         .exec("SELECT text FROM blocks WHERE item_id = ? AND section = ? ORDER BY ord", id, section)
         .toArray()
-        .map((row) => row["text"]);
+        .map((row) => row.text);
     const { highlights } = await client.annotations.list({});
     return {
-      folders: outline.folders.map((folder) => folder.name).toSorted(),
+      folders: outline.folders.map((folder) => folder.name).toSorted((a, b) => a.localeCompare(b)),
       highlights: highlights
-        .map((highlight) => [highlight.itemTitle, highlight.quote, highlight.text])
-        .toSorted(),
+        .map((highlight) => [highlight.itemTitle, highlight.quote, highlight.text].join("\u0000"))
+        .toSorted((a, b) => a.localeCompare(b)),
       items: read
         .map((item) => ({
           article: textOf(item.id, "article"),
@@ -194,7 +195,7 @@ const summaryOf = async (accountId: string) =>
               item.id,
             )
             .toArray()
-            .map((row) => [row["role"], row["sha256"]]),
+            .map((row) => [row.role, row.sha256]),
           // every item another links names by its title, whatever its id in this library
           links: [...titleById].flatMap(([id, title]) =>
             id !== item.id && JSON.stringify(item).includes(id) ? [title] : [],
@@ -269,8 +270,8 @@ describe("an export", () => {
     expect(await entriesOf(zip)).toEqual(wholeEntries);
     // what the runs kept between them is let go with the export
     await inCell(cell, (state) => {
-      expect(state.storage.sql.exec("SELECT count(*) AS n FROM export_rows").one()["n"]).toBe(0);
-      expect(state.storage.sql.exec("SELECT count(*) AS n FROM export_tail").one()["n"]).toBe(0);
+      expect(state.storage.sql.exec("SELECT count(*) AS n FROM export_rows").one().n).toBe(0);
+      expect(state.storage.sql.exec("SELECT count(*) AS n FROM export_tail").one().n).toBe(0);
     });
   }, 120_000);
 

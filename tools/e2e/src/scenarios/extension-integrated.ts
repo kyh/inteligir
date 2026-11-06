@@ -137,7 +137,7 @@ export const extensionIntegrated: Scenario = {
       expectEq(highlight?.text, "", "the highlight's note, which a selection leaves empty");
       const marked = MARKED.exec(markdown);
       expect(marked !== null, `the markers wrap the passage in the article:\n${markdown}`);
-      expectEq(marked.groups?.["id"], highlight?.id, "the markers' id against the highlight's");
+      expectEq(marked.groups?.id, highlight?.id, "the markers' id against the highlight's");
       expectEq(
         article.articleRequests(),
         1,

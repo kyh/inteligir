@@ -58,7 +58,7 @@ export const sharedSaveOf = (intent: ShareHandoff): SharedSave => {
   }
   // the link itself often rides along in the text, which says nothing more
   const rest = besideLink(text, url);
-  const metaTitle = filled(intent.meta?.["title"]) ?? filled(intent.meta?.["og:title"]);
+  const metaTitle = filled(intent.meta?.title) ?? filled(intent.meta?.["og:title"]);
   if (metaTitle !== null) {
     return { kind: "link", note: rest, title: metaTitle, url };
   }

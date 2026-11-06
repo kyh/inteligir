@@ -174,7 +174,7 @@ const useSearchHits = (query: string): ReadonlyMap<string, number> | null => {
   if (words === "") {
     return null;
   }
-  return hits !== null && hits.query === words ? hits.ranks : new Map();
+  return hits?.query === words ? hits.ranks : new Map();
 };
 
 const emptyLabel = (pulled: boolean, filtered: boolean): string => {

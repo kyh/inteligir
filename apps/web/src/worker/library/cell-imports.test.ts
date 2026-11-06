@@ -25,6 +25,7 @@ import { LIBRARY_FULL } from "./cell-import-host";
 import { readLibraryRules } from "./library-rules";
 import { runImports } from "./cell-imports";
 import { cellStorageOf } from "./cell-storage";
+import { z } from "zod";
 
 const encoder = new TextEncoder();
 
@@ -37,11 +38,11 @@ const zip = async (files: Readonly<Record<string, Uint8Array>>) => ({
 
 // what the library's files hold: every row, by its sha, and the bytes its quota counts
 const filesIn = (state: DurableObjectState) => ({
-  bytes: state.storage.sql.exec("SELECT v FROM meta WHERE k = 'bytes_used'").toArray()[0]?.["v"],
+  bytes: state.storage.sql.exec("SELECT v FROM meta WHERE k = 'bytes_used'").toArray()[0]?.v,
   shas: state.storage.sql
     .exec("SELECT sha256, refs FROM blobs ORDER BY sha256")
     .toArray()
-    .map((row) => [row["sha256"], row["refs"]]),
+    .map((row) => [row.sha256, row.refs]),
 });
 
 // a note of about `bytes` of plain paragraphs under its title
@@ -75,9 +76,9 @@ describe("a Raindrop import", () => {
     await inCell(cellOf(accountId), async (state) => {
       const landed = items(state);
       expect(landed).toHaveLength(6);
-      expect(landed.every((row) => row["fetch_state"] === "pending")).toBe(true);
-      const file = landed.find((row) => row["title"] === "File over app");
-      expect(file?.["url"]).toBe("https://stephango.com/file-over-app");
+      expect(landed.every((row) => row.fetch_state === "pending")).toBe(true);
+      const file = landed.find((row) => row.title === "File over app");
+      expect(file?.url).toBe("https://stephango.com/file-over-app");
       const library = libraryIn(state, accountId);
       const outline = await library.organize.outline();
       expect(outline.folders.map((folder) => folder.name).toSorted()).toEqual(
@@ -94,7 +95,7 @@ describe("a Raindrop import", () => {
       expect(state.storage.sql.exec("SELECT id FROM jobs WHERE kind = 'fill'").toArray()).toEqual(
         [],
       );
-      expect(state.storage.sql.exec("SELECT count(*) AS n FROM import_rows").one()["n"]).toBe(0);
+      expect(state.storage.sql.exec("SELECT count(*) AS n FROM import_rows").one().n).toBe(0);
     });
     // the same file again: every address is the library's already
     const again = await startImport(accountId, csv(RAINDROP_EXPORT), "raindrop");
@@ -173,16 +174,16 @@ describe("a zip of notes", () => {
     });
     await inCell(cellOf(accountId), async (state) => {
       const landed = items(state);
-      expect(landed.map((row) => [row["title"], row["kind"]])).toEqual([
+      expect(landed.map((row) => [row.title, row.kind])).toEqual([
         ["Alpha", "note"],
         ["Beta", "note"],
         ["lone", "pdf"],
       ]);
-      const beta = landed.find((row) => row["title"] === "Beta");
+      const beta = landed.find((row) => row.title === "Beta");
       const alpha = await libraryIn(state, accountId).items.read({
-        id: String(landed.find((row) => row["title"] === "Alpha")?.["id"]),
+        id: z.string().parse(landed.find((row) => row.title === "Alpha")?.id),
       });
-      expect(JSON.stringify(alpha)).toContain(String(beta?.["id"]));
+      expect(JSON.stringify(alpha)).toContain(z.string().parse(beta?.id));
       expect(alpha.fields.tags).toEqual(["project"]);
       expect(readLibraryRules(cellStorageOf(state.storage))).toBe("File recipes under Cooking.\n");
     });

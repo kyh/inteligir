@@ -172,7 +172,10 @@ const useMenuScope = (containerRef: RefObject<HTMLElement | null>): MenuScope =>
   };
 
   const onBlur = (e: React.FocusEvent) => {
-    if (e.relatedTarget instanceof Node && containerRef.current?.contains(e.relatedTarget)) {
+    if (
+      e.relatedTarget instanceof Node &&
+      containerRef.current?.contains(e.relatedTarget) === true
+    ) {
       return;
     }
     setFocusedRowEl(null);

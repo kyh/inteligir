@@ -4,10 +4,10 @@
 // under the 30 s a service worker waits on a fetch, so a cloud that never answers leaves a save
 // queued rather than a popup waiting.
 
-import { createORPCClient, ORPCError } from "@orpc/client";
+import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
-import { V1_ERROR_STATUS_MAP } from "@repo/contract/cloud/v1/errors";
+import { isOrpcError, V1_ERROR_STATUS_MAP } from "@repo/contract/cloud/v1/errors";
 import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import type { V1Client } from "@repo/contract/cloud/v1";
@@ -129,7 +129,7 @@ export const failureOf = (cause: unknown): CallFailure => {
     return FILE_REFUSALS.get(cause.status) ?? { kind: "unanswered" };
   }
   // a fetch that threw (no connection, the deadline) never reached the cloud
-  if (!(cause instanceof ORPCError)) {
+  if (!isOrpcError(cause)) {
     return { kind: "unanswered" };
   }
   if (cause.code === "UNAUTHORIZED" || cause.code === "GONE") {

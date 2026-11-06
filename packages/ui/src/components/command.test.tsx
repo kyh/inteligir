@@ -21,7 +21,7 @@ const Palette = ({ groups }: { groups: readonly CommandRowGroup[] }) => {
   return (
     <CommandDialog
       open
-      onOpenChange={vi.fn()}
+      onOpenChange={vi.fn<() => void>()}
       title="Palette"
       description="Rows"
       query={query}

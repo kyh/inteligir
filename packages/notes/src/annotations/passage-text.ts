@@ -676,7 +676,7 @@ export const projectPassages = (source: string): PassageProjection => {
     bareUrls: builder.bareUrls,
     block: builder.block,
     delimiters: builder.delimiters,
-    endsInHighlights: section !== undefined && section.depth === 2 && section.text === "Highlights",
+    endsInHighlights: section?.depth === 2 && section.text === "Highlights",
     from: builder.from,
     markerSpans: builder.markerSpans.toSorted((a, b) => a.start - b.start),
     markers: builder.markers,

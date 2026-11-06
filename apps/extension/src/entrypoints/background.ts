@@ -204,8 +204,10 @@ const starting = async (): Promise<void> => {
 // worker runs main() in its first turn, which is where MV3 wants its listeners
 export default defineBackground({
   main() {
+    // oxlint-disable-next-line typescript/strict-void-return -- a listener answers later by returning true (developer.chrome.com/docs/extensions/develop/concepts/messaging), which WXT's types declare void
     browser.runtime.onMessage.addListener(ownPagesListener(answer));
     browser.runtime.onMessageExternal.addListener(
+      // oxlint-disable-next-line typescript/strict-void-return -- as above: it returns true to answer later
       connectPageListener(flavorOfMode(import.meta.env.MODE), {
         answered: async () => {
           await sendQueued(sendDeps);

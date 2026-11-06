@@ -213,7 +213,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         };
         const value = request.answer.parse(work(scope));
         const joined = taken.set;
-        if (joined !== null && joined.policy.kind === "commit") {
+        if (joined?.policy.kind === "commit") {
           sealChangeSet(storage, joined.id, now);
         }
         if (request.opId !== undefined) {

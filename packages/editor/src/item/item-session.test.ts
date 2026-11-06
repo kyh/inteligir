@@ -152,7 +152,7 @@ describe("an item open in the editor", () => {
     const { cell, mac, phone } = await devices();
     const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), code("c1", ["one"])]);
     const { editor, session } = await openOn(phone, id);
-    expect(editor.children.map((node) => node["id"])).toEqual(["p1", "c1"]);
+    expect(editor.children.map((node) => node.id)).toEqual(["p1", "c1"]);
     expect(session.status()).toMatchObject({ fields: { title: "Plans" }, kind: "open" });
   });
 
@@ -169,7 +169,7 @@ describe("an item open in the editor", () => {
     expect(session.status()).toEqual({ kind: "missing" });
     await phone.replica.sync();
     await session.flush();
-    expect(editor.children.map((node) => node["id"])).toEqual(["p1"]);
+    expect(editor.children.map((node) => node.id)).toEqual(["p1"]);
     expect(session.status()).toMatchObject({ fields: { title: "Plans" }, kind: "open" });
   });
 
@@ -359,7 +359,7 @@ describe("an item open in the editor", () => {
       listener({ ids: new Set(), overlapped: new Set(), reset: true });
     }
     await session.flush();
-    expect(editor.children.map((node) => node["id"])).toEqual(["p1", "p2"]);
+    expect(editor.children.map((node) => node.id)).toEqual(["p1", "p2"]);
     expect(session.status()).toMatchObject({ kind: "open", unsaved: false });
     // the body lands again, carrying another device's edit, and the editor follows it
     startedOver = false;

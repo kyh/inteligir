@@ -329,7 +329,12 @@ const measure = async (note: OpenNote): Promise<Costs> => {
   let keystrokeMs = Number.POSITIVE_INFINITY;
   let settleMs = Number.POSITIVE_INFINITY;
   for (let round = 0; round < KEYSTROKES; round += 1) {
-    keystrokeMs = Math.min(keystrokeMs, await timed(async () => await keystroke(note.editor)));
+    keystrokeMs = Math.min(
+      keystrokeMs,
+      await timed(async () => {
+        await keystroke(note.editor);
+      }),
+    );
     settleMs = Math.min(settleMs, await timed(settle));
   }
   return { keystrokeMs, settleMs };
@@ -354,12 +359,20 @@ interface Observed {
 const observe = async (note: OpenNote): Promise<Observed> => {
   const keystrokes: ReadonlySet<string>[] = [];
   for (let index = 0; index < KEYSTROKES; index += 1) {
-    keystrokes.push(await passesDuring(KEYSTROKE_BUDGET, async () => await keystroke(note.editor)));
+    keystrokes.push(
+      await passesDuring(KEYSTROKE_BUDGET, async () => {
+        await keystroke(note.editor);
+      }),
+    );
   }
   const settled = await passesDuring(SETTLE_BUDGET, settle);
   const caretMoves = [
-    await passesDuring(CARET_BUDGET, async () => await moveCaret(note.editor, note.elsewhere)),
-    await passesDuring(CARET_BUDGET, async () => await moveCaret(note.editor, note.typeAt)),
+    await passesDuring(CARET_BUDGET, async () => {
+      await moveCaret(note.editor, note.elsewhere);
+    }),
+    await passesDuring(CARET_BUDGET, async () => {
+      await moveCaret(note.editor, note.typeAt);
+    }),
   ];
   return { caretMoves, keystrokes, settle: settled };
 };

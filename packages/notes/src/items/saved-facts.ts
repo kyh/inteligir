@@ -19,10 +19,16 @@ export const fieldLine = (value: string | null): string | null => {
   return trimmed === "" ? null : trimmed.slice(0, ITEM_FIELD_CAPS.line);
 };
 
+// a description cut to its cap, and none when it holds only whitespace
+const descriptionOf = (text: string | null | undefined): string | null => {
+  const cut = text?.trim().slice(0, ITEM_FIELD_CAPS.description) ?? "";
+  return cut === "" ? null : cut;
+};
+
 // the facts a fill owns, as a save carries them
 export const savedFacts = (facts: SavedFacts): SavedFacts => ({
   author: fieldLine(facts.author),
-  description: facts.description?.trim().slice(0, ITEM_FIELD_CAPS.description) || null,
+  description: descriptionOf(facts.description),
   lang: fieldLine(facts.lang),
   published: fieldLine(facts.published),
   site: fieldLine(facts.site),

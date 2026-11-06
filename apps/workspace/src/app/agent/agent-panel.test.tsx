@@ -45,7 +45,11 @@ const set = (id: string, turn: number) => ({
   undoneBy: null,
 });
 
-const panel = (flushOpen = vi.fn(async () => await Promise.resolve())) => (
+const panel = (
+  flushOpen = vi.fn(async () => {
+    await Promise.resolve();
+  }),
+) => (
   <AgentPanel
     threadId={THREAD}
     onThread={vi.fn<(threadId: string | null) => void>()}
@@ -88,7 +92,9 @@ describe("the agent panel's conversation", () => {
   });
 
   it("undoes a turn's set once the open item is written, and the conversation from every page", async () => {
-    const flushOpen = vi.fn(async () => await Promise.resolve());
+    const flushOpen = vi.fn(async () => {
+      await Promise.resolve();
+    });
     const { calls, library } = fakePageLibrary({
       // the conversation's sets come over two pages, the second asked once the first is in
       answer: ({ path, input }) => {
@@ -137,7 +143,9 @@ describe("the agent panel's conversation", () => {
         threadId={null}
         onThread={onThread}
         viewContext={() => ({ itemId: THREAD, surface: "item" })}
-        flushOpen={vi.fn(async () => await Promise.resolve())}
+        flushOpen={vi.fn(async () => {
+          await Promise.resolve();
+        })}
         tidying
         onTidyEnd={onTidyEnd}
       />,

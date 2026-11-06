@@ -27,7 +27,9 @@ describe("the account's socket, a hint", () => {
     const hint = createSocketHint({
       clock,
       dial,
-      onFrame: (frame) => frames.push(frame),
+      onFrame: (frame) => {
+        frames.push(frame);
+      },
       onOpen: () => {
         opened += 1;
       },

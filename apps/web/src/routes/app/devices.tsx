@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import type { ErrorComponentProps } from "@tanstack/react-router";
-import { createORPCClient, ORPCError } from "@orpc/client";
+import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 
 import type { Device } from "@repo/contract/cloud/device/device-schema";
@@ -13,6 +13,7 @@ import { Button } from "@repo/ui/components/button";
 import { AuthError, CONNECTION_FAILED } from "@/components/auth-shell";
 import { currentSession } from "@/lib/session-guard";
 import { siteConfig } from "@/lib/site-config";
+import { isOrpcError } from "@repo/contract/cloud/v1/errors";
 
 // Nothing here adds a device: a device signs in from the app with the account's own password.
 // ssr: false because everything here depends on the live session, and only the client can send
@@ -28,7 +29,7 @@ const account = (): V1Client["account"] =>
 
 // a session that ended since the guard read it answers the list and the revoke alike
 const isSignedOut = (cause: unknown): boolean =>
-  cause instanceof ORPCError && cause.defined && cause.code === "UNAUTHORIZED";
+  isOrpcError(cause) && cause.defined && cause.code === "UNAUTHORIZED";
 
 const DevicesShell = ({ children }: { children: React.ReactNode }) => (
   <main className="mx-auto w-full max-w-lg px-6 py-16">

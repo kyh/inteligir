@@ -176,7 +176,9 @@ export const saveTab = async (deps: SaveDeps, args: TabSave): Promise<Outcome> =
   }
   const page = await deps.capture(tab.id);
   const url = page !== null && isWebUrl(page.url) ? page.url : tab.url;
-  const given = args.selectionText?.trim().slice(0, ANNOTATION_QUOTE_MAX) || null;
+  // a selection of only whitespace is none
+  const typed = args.selectionText?.trim().slice(0, ANNOTATION_QUOTE_MAX) ?? "";
+  const given = typed === "" ? null : typed;
   const queued = queuedFor(deps, connection, {
     selection: page?.selection ?? given,
     title: fieldLine(page?.title ?? null) ?? fieldLine(tab.title ?? null) ?? "",

@@ -5,7 +5,6 @@
 // back, a cut call booked at what it reserved and a link the turn saved read only then; the
 // switch; and a thread's or the account's deletion taking each conversation's object with it.
 
-import { ORPCError } from "@orpc/server";
 import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -37,6 +36,7 @@ import type { AgentThreadDO } from "./agent-thread";
 import { landPush, reserveForCall, runAgentJobs, showPreview } from "./agent-turns";
 import { AGENT_MODEL } from "./library-agent";
 import type { PushRequest } from "./thread-wire";
+import { isOrpcError } from "@repo/contract/cloud/v1/errors";
 
 // a turn's end can take a few model calls, each a round trip through the fake
 const TURN_MS = 30_000;
@@ -45,7 +45,7 @@ const refusalOf = async (call: Promise<unknown>) => {
   try {
     await call;
   } catch (error) {
-    if (error instanceof ORPCError) {
+    if (isOrpcError(error)) {
       return { code: error.code, data: error.data };
     }
     throw error;
@@ -327,17 +327,17 @@ describe("what a conversation's object asks of its cell", () => {
       account,
       "SELECT thread_id, reserved_ucents, cost_ucents, cut FROM agent_calls",
     );
-    const cut = calls.find((call) => call["thread_id"] === cutThread);
-    expect(cut?.["cost_ucents"]).toBe(cut?.["reserved_ucents"]);
-    expect(cut?.["cut"]).toBe(1);
-    expect(calls.find((call) => call["thread_id"] === freeThread)).toMatchObject({
+    const cut = calls.find((call) => call.thread_id === cutThread);
+    expect(cut?.cost_ucents).toBe(cut?.reserved_ucents);
+    expect(cut?.cut).toBe(1);
+    expect(calls.find((call) => call.thread_id === freeThread)).toMatchObject({
       cost_ucents: 0,
       cut: 0,
     });
     // both turns sealed; the one that cost nothing was given back
     expect(await cellRows(account, "SELECT thread_id FROM agent_turns")).toEqual([]);
     const usage = await usageToday(account);
-    expect(usage).toEqual({ cost_ucents: cut?.["reserved_ucents"], turns: 1 });
+    expect(usage).toEqual({ cost_ucents: cut?.reserved_ucents, turns: 1 });
   });
 
   it(
@@ -429,9 +429,9 @@ describe("a turn's seal", () => {
     const [held] = await cellRows(account, "SELECT payload, next_at FROM jobs WHERE kind = 'fill'");
     const payload = z
       .object({ heldBy: z.string(), url: z.string() })
-      .parse(JSON.parse(z.string().parse(held?.["payload"])));
+      .parse(JSON.parse(z.string().parse(held?.payload)));
     expect(payload.url).toBe("https://example.com/held");
-    expect(z.number().parse(held?.["next_at"])).toBeGreaterThan(Date.now() + 60 * 60_000);
+    expect(z.number().parse(held?.next_at)).toBeGreaterThan(Date.now() + 60 * 60_000);
     const set = await cellRows(
       account,
       "SELECT sealed_at FROM change_sets WHERE id = ?",

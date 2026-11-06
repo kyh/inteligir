@@ -41,7 +41,7 @@ export const handleExportRoute = async (
   if (isBelowFloor(request, env)) {
     return plainText(426, "This version of the app is too old. Update it to keep going.");
   }
-  const id = exportIdSchema.safeParse(EXPORT_PATH.exec(url.pathname)?.groups?.["id"]);
+  const id = exportIdSchema.safeParse(EXPORT_PATH.exec(url.pathname)?.groups?.id);
   if (!id.success) {
     return plainText(404, "An export is named by the id its start answered.");
   }

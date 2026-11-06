@@ -9,7 +9,7 @@ afterEach(cleanup);
 
 describe("a dialog", () => {
   it("closes on the first Escape when its first focus is its close button", async () => {
-    const onOpenChange = vi.fn();
+    const onOpenChange = vi.fn<() => void>();
     render(
       <Dialog open onOpenChange={onOpenChange}>
         <DialogContent>

@@ -18,6 +18,10 @@ import { z } from "zod";
 
 import { errorFields } from "../log";
 
+// a failure the SDK answered, its status and headers typed as a response carries them, where
+// `instanceof` alone types them `any`
+export const isApiError = (cause: unknown): cause is APIError => cause instanceof APIError;
+
 // the SDK's own ceiling on the wait for a reply's headers, written out; the thread's watchdog cuts
 // a reply silent for three minutes first, headers or not (`./thread-loop`)
 const CALL_TIMEOUT_MS = 10 * 60_000;
@@ -86,6 +90,6 @@ export const anthropicClient = (env: Env, fetch?: ClientOptions["fetch"]): Anthr
 // support reads (platform.claude.com/docs/en/cli-sdks-libraries/sdks/typescript#handling-errors)
 export const callFailureFields = (cause: unknown) => ({
   ...errorFields(cause),
-  requestId: cause instanceof APIError ? (cause.requestID ?? null) : null,
-  status: cause instanceof APIError ? (cause.status ?? null) : null,
+  requestId: isApiError(cause) ? (cause.requestID ?? null) : null,
+  status: isApiError(cause) ? (cause.status ?? null) : null,
 });

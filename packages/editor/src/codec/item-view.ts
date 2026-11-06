@@ -53,12 +53,12 @@ const VIEW_FILE_RE = /^assets\/(?<sha>[0-9a-f]{64})(?:\/(?<name>[^/]+))?$/u;
 // the file an address the view wrote names: its sha, and the name a file block shows
 export const viewFileAt = (url: string): { sha: string; name: string | null } | null => {
   const groups = VIEW_FILE_RE.exec(url)?.groups;
-  const sha = groups?.["sha"];
-  return sha === undefined ? null : { name: groups?.["name"] ?? null, sha };
+  const sha = groups?.sha;
+  return sha === undefined ? null : { name: groups?.name ?? null, sha };
 };
 
 const isListItem = (element: TElement): boolean =>
-  element.type === "p" && element["listStyleType"] !== undefined;
+  element.type === "p" && element.listStyleType !== undefined;
 
 // the runs the rule table writes as one top-level node: each list run, as Plate's serializer
 // groups one (a run ends where the next item is no list item, or starts a list of another style
@@ -77,7 +77,7 @@ const runsOf = (elements: readonly TElement[]): number[][] => {
     const continues =
       next !== undefined &&
       isListItem(next) &&
-      !(next["listStyleType"] !== first?.["listStyleType"] && next["indent"] === first?.["indent"]);
+      !(next.listStyleType !== first?.listStyleType && next.indent === first?.indent);
     if (!continues) {
       runs.push(run);
       run = [];

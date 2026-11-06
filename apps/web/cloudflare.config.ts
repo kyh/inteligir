@@ -205,7 +205,8 @@ const productionWorker = (mode: string | undefined) => ({
   },
 });
 
-/** @public cf reads the default export of the file it is pointed at */
+// cf reads the default export of the file it is pointed at
+/** @public */
 export default defineConfig(({ isPreview, mode }) => ({
   worker: isPreview ? previewWorker() : productionWorker(mode),
 }));

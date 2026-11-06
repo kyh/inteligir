@@ -75,7 +75,7 @@ describe("the prune job", () => {
         );
         block = next;
       }
-      const count = (sql: string): number => Number(state.storage.sql.exec(sql, itemId).one()["n"]);
+      const count = (sql: string): number => Number(state.storage.sql.exec(sql, itemId).one().n);
       expect(count("SELECT count(*) AS n FROM revisions WHERE item_id = ?")).toBe(131);
       clock.now = NOW;
       // the job waits a day after the first sealed set
@@ -92,13 +92,13 @@ describe("the prune job", () => {
       expect(count("SELECT count(*) AS n FROM block_versions WHERE item_id = ?")).toBe(104);
       const kept = state.storage.sql
         .exec("SELECT max(rev) AS n FROM revisions WHERE item_id = ?", itemId)
-        .one()["n"];
+        .one().n;
       expect(kept).toBe(131);
       const revision = landedValue(library.revision(itemId, 131));
       expect(revision?.blocks.map((stored) => stored.block)).toEqual([block]);
       const firstKept = state.storage.sql
         .exec("SELECT min(rev) AS n FROM revisions WHERE item_id = ?", itemId)
-        .one()["n"];
+        .one().n;
       expect(landedValue(library.revision(itemId, Number(firstKept)))?.blocks).toHaveLength(1);
     });
   });

@@ -10,12 +10,14 @@ import type { SidebarActions } from "./sidebar-core";
 
 const mediaQueryList = (query: string, matches: boolean): MediaQueryList => ({
   addEventListener: () => {},
+  // oxlint-disable-next-line typescript/no-deprecated -- MediaQueryList still names it, so a stub that is one must define it
   addListener: () => {},
   dispatchEvent: () => false,
   matches,
   media: query,
   onchange: null,
   removeEventListener: () => {},
+  // oxlint-disable-next-line typescript/no-deprecated -- MediaQueryList still names it, so a stub that is one must define it
   removeListener: () => {},
 });
 

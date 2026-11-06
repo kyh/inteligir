@@ -245,7 +245,7 @@ describe("items", () => {
       { children: [{ text: escaped.repeat(caps.line) }], id: "p".repeat(64), type: "p" },
       ...Array.from({ length: 1000 }, (_, index): LibraryBlock => ({
         children: [{ text: escaped.repeat(caps.line) }],
-        id: `${String(index)}`.padStart(64, "h"),
+        id: String(index).padStart(64, "h"),
         type: "h1",
       })),
     ];

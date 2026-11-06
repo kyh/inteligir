@@ -98,8 +98,8 @@ const declaredPastTheCap = async (worker: CloudWorker, credential: string): Prom
     method: "PUT",
   });
   put.flushHeaders();
-  const [response] = await once(put, "response");
-  const { statusCode } = z.object({ statusCode: z.number().int() }).parse(response);
+  const answered: unknown[] = await once(put, "response");
+  const { statusCode } = z.object({ statusCode: z.number().int() }).parse(answered[0]);
   put.destroy();
   return statusCode;
 };

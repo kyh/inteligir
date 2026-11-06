@@ -217,19 +217,21 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
         return { folded: false, id };
       }),
 
-    deleteItems: async (ids) =>
+    deleteItems: async (ids) => {
       await serial(async () => {
         for (const part of chunks([...new Set(ids)], BULK_ITEMS_MAX)) {
           await enqueue({ ids: part, kind: "delete" });
         }
-      }),
+      });
+    },
 
-    restoreItems: async (ids) =>
+    restoreItems: async (ids) => {
       await serial(async () => {
         for (const part of chunks([...new Set(ids)], BULK_ITEMS_MAX)) {
           await enqueue({ ids: part, kind: "restore" });
         }
-      }),
+      });
+    },
 
     saveLink: async (input) =>
       await serial(async () => {
@@ -311,11 +313,12 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
         return { kind: "queued" };
       }),
 
-    writeFolders: async (ops) =>
+    writeFolders: async (ops) => {
       await serial(async () => {
         if (ops.length > 0) {
           await enqueue({ kind: "folders", ops: [...ops] });
         }
-      }),
+      });
+    },
   };
 };

@@ -11,6 +11,7 @@ export const Route = createFileRoute("/$")({
   // as terminal and next() throws instead of falling through to the SSR 404
   component: () => null,
   loader: () => {
+    // oxlint-disable-next-line typescript/only-throw-error -- TanStack Router's notFound() is thrown as it returns it (tanstack.com/router/latest/docs/framework/react/guide/not-found-errors)
     throw notFound();
   },
   headers: varyHeaders,

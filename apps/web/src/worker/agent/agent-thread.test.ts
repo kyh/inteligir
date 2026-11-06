@@ -363,7 +363,7 @@ describe("a conversation's object", () => {
         AGENT_MODEL.id,
         table,
       ).costUcents;
-      expect(booked?.["cost_ucents"]).toBe(priced);
+      expect(booked?.cost_ucents).toBe(priced);
       expect(priced).toBeGreaterThan(answering);
       // the next turn answers, sending the filing rules again: the compaction summarized them
       await send(account, script("And now?"), threadId, ROOMY);
@@ -482,7 +482,7 @@ describe("a conversation's object", () => {
           "SELECT reserved_ucents, cost_ucents FROM agent_calls WHERE call_id = ?",
           cutCall?.call_id ?? "",
         );
-        expect(booked?.["cost_ucents"]).toBe(booked?.["reserved_ucents"]);
+        expect(booked?.cost_ucents).toBe(booked?.reserved_ucents);
         const listed = await asLaptop(account, async (client) => await client.items.list({}));
         expect(listed.items).toHaveLength(1);
       },
@@ -692,7 +692,7 @@ describe("a conversation's object", () => {
         account,
         "SELECT sum(reserved_ucents) AS reserved, sum(cost_ucents) AS cost FROM agent_calls WHERE cut = 1",
       );
-      expect(stopped?.["cost"]).toBe(stopped?.["reserved"]);
+      expect(stopped?.cost).toBe(stopped?.reserved);
       // the third turn cost nothing, so it was given back
       const [usage] = await cellRows(account, "SELECT turns FROM agent_usage");
       expect(usage).toEqual({ turns: 2 });
@@ -734,7 +734,7 @@ describe("a conversation's object", () => {
         { text: "Answered by the fallback model.", type: "agent.message" },
       ]);
       const [usage] = await cellRows(account, "SELECT output_tokens, cost_ucents FROM agent_usage");
-      expect(usage?.["cost_ucents"]).toBeGreaterThan(0);
+      expect(usage?.cost_ucents).toBeGreaterThan(0);
       await send(account, script("Thanks."), sent.threadId);
       await settled(account, sent.threadId);
       expect(await endingsOf(account, sent.threadId)).toEqual([
@@ -873,8 +873,8 @@ describe("a conversation's loop, stepped", () => {
         "SELECT reserved_ucents, cost_ucents, cut FROM agent_calls WHERE call_id = ?",
         calls[0]?.call_id ?? "",
       );
-      expect(booked?.["cut"]).toBe(1);
-      expect(booked?.["cost_ucents"]).toBe(booked?.["reserved_ucents"]);
+      expect(booked?.cut).toBe(1);
+      expect(booked?.cost_ucents).toBe(booked?.reserved_ucents);
     },
   );
 

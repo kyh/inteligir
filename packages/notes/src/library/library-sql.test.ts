@@ -80,7 +80,7 @@ const counting = function* counting(): SqlPlan<number> {
   yield run("CREATE TABLE n (v INTEGER) STRICT");
   yield run("INSERT INTO n (v) VALUES (?), (?)", [1, 2]);
   const [row] = yield all("SELECT sum(v) AS total FROM n");
-  return Number(row?.["total"] ?? 0);
+  return Number(row?.total ?? 0);
 };
 
 const failing = function* failing(): SqlPlan<string> {
@@ -112,7 +112,9 @@ describe("the plan runners", () => {
   it("land nothing of a transaction that throws", () => {
     const port = openWasmSqlPort();
     runPlan(port, counting());
-    expect(() => transactPlan(port, broken())).toThrow("stop");
+    expect(() => {
+      transactPlan(port, broken());
+    }).toThrow("stop");
     expect(port.all("SELECT count(*) AS rows FROM n", [])).toEqual([{ rows: 2 }]);
   });
 });

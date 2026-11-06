@@ -135,7 +135,7 @@ describe("the library's tools", () => {
 
   it("lets a long item's read stay whole in Claude Code", async () => {
     const tools = await registered();
-    expect(tools["read_item"]?._meta).toEqual({ "anthropic/maxResultSizeChars": 100_000 });
+    expect(tools.read_item?._meta).toEqual({ "anthropic/maxResultSizeChars": 100_000 });
   });
 
   it("advertises each tool's input and output as JSON Schema objects", async () => {

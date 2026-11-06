@@ -11,8 +11,8 @@ import type {
   THREAD_STATUSES,
   threadEventRowSchema,
 } from "@repo/contract/cloud/library/library-wire";
-import { ORPCError } from "@orpc/client";
 import { z } from "zod";
+import { isOrpcError } from "@repo/contract/cloud/v1/errors";
 
 type ThreadEventRow = z.infer<typeof threadEventRowSchema>;
 export type ThreadStatus = (typeof THREAD_STATUSES)[number];
@@ -109,7 +109,7 @@ const budgetDataSchema = z.object({ resetsAt: z.number().int().nonnegative() });
 // what a send the cell refused says: the allowance and when it fills again, or the agent off or
 // out of reach; null for a refusal that is not the agent's own
 export const agentRefusalWords = (cause: unknown, nowMs: number): string | null => {
-  if (!(cause instanceof ORPCError) || !cause.defined) {
+  if (!isOrpcError(cause) || !cause.defined) {
     return null;
   }
   if (cause.code === "AGENT_BUDGET") {

@@ -14,6 +14,7 @@ import type {
   StyleDescriptor,
 } from "react-native-css/compiler";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { paletteFor } from "@/lib/palette";
 import type { Palette } from "@/lib/palette";
 
@@ -31,7 +32,7 @@ const cssName = (token: string): string =>
 
 // lightningcss writes #ffffff as #fff
 const hex = (value: StyleDescriptor): string => {
-  const text = String(value).toLowerCase();
+  const text = z.string().parse(value).toLowerCase();
   const short = /^#(?<r>[0-9a-f])(?<g>[0-9a-f])(?<b>[0-9a-f])$/u.exec(text)?.groups;
   return short === undefined
     ? text

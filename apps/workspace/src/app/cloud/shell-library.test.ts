@@ -138,7 +138,7 @@ describe("opening the Mac's library", () => {
       [],
     );
     expect(tables).toEqual([{ name: "items" }]);
-    library.replica.close();
+    void library.replica.close();
     memory.close();
   });
 });

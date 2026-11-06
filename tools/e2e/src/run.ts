@@ -418,12 +418,14 @@ const runInLanes = async (
     }
   };
   // with nothing running nothing is held, so the first waiting scenario always starts
-  for (startWhatFits(); running.size > 0; startWhatFits()) {
+  startWhatFits();
+  while (running.size > 0) {
     const done = await Promise.race(running.values());
     running.delete(done);
     for (const resource of done.exclusive ?? []) {
       held.delete(resource);
     }
+    startWhatFits();
   }
 };
 

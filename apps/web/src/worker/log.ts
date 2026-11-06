@@ -20,6 +20,7 @@ export const errorFields = (cause: unknown): ErrorFields => {
   const causes: string[] = [];
   let next = cause instanceof Error ? cause.cause : undefined;
   while (next !== undefined && causes.length < CAUSE_DEPTH) {
+    // oxlint-disable-next-line typescript/no-base-to-string -- a cause that is no Error is logged as whatever it spells; nothing narrower is known of it
     causes.push(clipped(next instanceof Error ? `${next.name}: ${next.message}` : String(next)));
     next = next instanceof Error ? next.cause : undefined;
   }

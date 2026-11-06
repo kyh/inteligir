@@ -205,7 +205,7 @@ const useLivePreview = (threadId: string | null): string | null => {
       }),
     [replica, threadId],
   );
-  return preview !== null && preview.threadId === threadId ? preview.text : null;
+  return preview?.threadId === threadId ? preview.text : null;
 };
 
 const onRefused = (cause: unknown): void => {

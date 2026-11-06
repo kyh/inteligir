@@ -25,7 +25,9 @@ const set = (id: string, label: string) => ({
 
 describe("an item's History", () => {
   it("reads older sets a page at a time, and undoes one after writing the open item", async () => {
-    const flushOpen = vi.fn(async () => await Promise.resolve());
+    const flushOpen = vi.fn(async () => {
+      await Promise.resolve();
+    });
     const { calls, library } = fakePageLibrary({
       answer: ({ path, input }) => {
         if (path === "library.history.list") {

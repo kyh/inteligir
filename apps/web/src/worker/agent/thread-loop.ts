@@ -20,7 +20,7 @@
 // turn after a compaction, which summarized the system messages before it, and at a turn that
 // takes up a new definition, whose requests may leave an earlier one out.
 
-import { APIError } from "@anthropic-ai/sdk";
+import type { APIError } from "@anthropic-ai/sdk";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import type { AgentEvent, TurnEndReason } from "@repo/contract/cloud/library/agent-events";
@@ -29,7 +29,7 @@ import type { SqlPort, SqlStatements } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
 import { asksFirst } from "./agent-tools";
-import { callFailureFields } from "./anthropic-client";
+import { callFailureFields, isApiError } from "./anthropic-client";
 import { AGENT_MAX_TOKENS } from "./library-agent";
 import {
   agentRequest,
@@ -721,7 +721,7 @@ const failedCall = async (
 ): Promise<StepResult> => {
   const now = host.now();
   const { error } = call;
-  const status = error instanceof APIError ? error.status : undefined;
+  const status = isApiError(error) ? error.status : undefined;
   const outcome = status === undefined ? "cut" : "free";
   const settle = (state: "cancelled" | "failed", ending: TurnEndReason | null): void => {
     host.sql.transaction(() => {
@@ -762,7 +762,7 @@ const failedCall = async (
     return "continue";
   }
   settle("failed", null);
-  const after = error instanceof APIError ? retryAfterMs(error) : 0;
+  const after = isApiError(error) ? retryAfterMs(error) : 0;
   await host.jobs.driveAt(now + Math.min(RETRY_AFTER_MAX_MS, Math.max(wait, after)));
   return "later";
 };
@@ -1132,7 +1132,7 @@ export const decideCall = async (
       [answer.toolUseId],
     );
     const row = raw === undefined ? null : decisionRowSchema.parse(raw);
-    if (row === null || row.status !== "awaiting_approval" || row.decision !== null) {
+    if (row?.status !== "awaiting_approval" || row.decision !== null) {
       return false;
     }
     host.sql.run(

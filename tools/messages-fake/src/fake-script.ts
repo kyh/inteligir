@@ -81,19 +81,19 @@ const categoryOf = (text: string): RefusalCategory | null =>
 
 const stepOf = (line: string): FakeStep | null => {
   const call = CALL.exec(line)?.groups;
-  if (call?.["tool"] !== undefined && call["input"] !== undefined) {
-    const input = parsedInput(call["input"]);
-    return input === null ? null : { input, kind: "call", tool: call["tool"] };
+  if (call?.tool !== undefined && call.input !== undefined) {
+    const input = parsedInput(call.input);
+    return input === null ? null : { input, kind: "call", tool: call.tool };
   }
-  const cents = SPEND.exec(line)?.groups?.["cents"];
+  const cents = SPEND.exec(line)?.groups?.cents;
   if (cents !== undefined) {
     return { cents: Number(cents), kind: "spend" };
   }
-  const chars = LONG.exec(line)?.groups?.["chars"];
+  const chars = LONG.exec(line)?.groups?.chars;
   if (chars !== undefined) {
     return { chars: Number(chars), kind: "long" };
   }
-  const category = categoryOf(REFUSE.exec(line)?.groups?.["category"] ?? "");
+  const category = categoryOf(REFUSE.exec(line)?.groups?.category ?? "");
   if (category !== null) {
     return { category, kind: "refuse" };
   }
@@ -114,12 +114,12 @@ export const scriptOf = (text: string): FakeScript => {
     }
     const stallMatch = STALL.exec(line);
     if (stallMatch !== null) {
-      stall = stallMatch.groups?.["at"] === "thinking" ? "thinking" : "last";
+      stall = stallMatch.groups?.at === "thinking" ? "thinking" : "last";
       continue;
     }
     const failed = FAIL.exec(line)?.groups;
-    if (failed?.["status"] !== undefined && failed["times"] !== undefined) {
-      fail = { status: Number(failed["status"]), times: Number(failed["times"]) };
+    if (failed?.status !== undefined && failed.times !== undefined) {
+      fail = { status: Number(failed.status), times: Number(failed.times) };
       continue;
     }
     const step = stepOf(line);

@@ -228,6 +228,7 @@ export const TableOfContents = () => {
       setActiveIndex(activeHeadingAt(editor, headings, scroller));
     };
     const onScroll = () => {
+      // oxlint-disable-next-line typescript/prefer-nullish-coalescing -- the React Compiler cannot compile `??=` yet (react/todo), so this component would go uncompiled
       if (frame === null) {
         frame = requestAnimationFrame(spy);
       }

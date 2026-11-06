@@ -23,7 +23,7 @@ const ipv4Value = (address: string): number | null => {
   if (groups === undefined) {
     return null;
   }
-  const octets = [groups["a"], groups["b"], groups["c"], groups["d"]].map(Number);
+  const octets = [groups.a, groups.b, groups.c, groups.d].map(Number);
   return octets.every((octet) => octet <= 255)
     ? octets.reduce((value, octet) => value * 256 + octet, 0)
     : null;

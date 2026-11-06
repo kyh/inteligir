@@ -4,5 +4,5 @@
 // into the cell's handlers and the grid's; a handler that answers only for its own box asks this.
 import type { SyntheticEvent } from "react";
 
-export const landedInside = (event: SyntheticEvent<Element>): boolean =>
+export const landedInside = (event: SyntheticEvent): boolean =>
   event.target instanceof Node && event.currentTarget.contains(event.target);

@@ -12,8 +12,9 @@ const MINTED = {
   userId: "user-1",
 };
 
-// an extension that answers as the case scripts, and what the page asked of the cloud
-const portsWith = (answer: (request: ExtensionConnectRequest) => string | null | "absent") => {
+// an extension that answers as the case scripts, and what the page asked of the cloud: the email
+// it is connected as, null for none, or "absent" for no extension at all
+const portsWith = (answer: (request: ExtensionConnectRequest) => string | null) => {
   const asked: ExtensionConnectRequest[] = [];
   const revoked: string[] = [];
   let minted = 0;

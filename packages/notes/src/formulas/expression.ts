@@ -106,7 +106,7 @@ export const parseExpression = (source: string): ExpressionNode | null => {
       // oxlint-disable-next-line no-use-before-define -- recursive descent: factor and sum are mutually recursive, so one is always named before it is defined
       const inner = parseSum();
       const close = peek();
-      if (inner === null || close === undefined || close.kind !== "op" || close.op !== ")") {
+      if (inner === null || close?.kind !== "op" || close.op !== ")") {
         return null;
       }
       position += 1;
@@ -122,7 +122,7 @@ export const parseExpression = (source: string): ExpressionNode | null => {
         return null;
       }
       const token = peek();
-      if (token === undefined || token.kind !== "op" || (token.op !== "*" && token.op !== "/")) {
+      if (token?.kind !== "op" || (token.op !== "*" && token.op !== "/")) {
         return left;
       }
       position += 1;
@@ -141,7 +141,7 @@ export const parseExpression = (source: string): ExpressionNode | null => {
         return null;
       }
       const token = peek();
-      if (token === undefined || token.kind !== "op" || (token.op !== "+" && token.op !== "-")) {
+      if (token?.kind !== "op" || (token.op !== "+" && token.op !== "-")) {
         return left;
       }
       position += 1;

@@ -117,11 +117,11 @@ export const parseProperties = (yamlText: string): ParsedProperties => {
 // the note's identity: frontmatter `id`, the value `[[Title|uuid]]` resolves and the annotation
 // store is keyed by. Text only: a number or a list is not a name.
 export const noteIdOfProperties = (parsed: ParsedProperties | null): string | null => {
-  if (parsed === null || parsed.kind !== "valid") {
+  if (parsed?.kind !== "valid") {
     return null;
   }
   const prop = parsed.properties.find((p) => p.key === "id");
-  if (prop === undefined || prop.type !== "text") {
+  if (prop?.type !== "text") {
     return null;
   }
   const id = prop.value.trim();

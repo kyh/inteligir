@@ -77,7 +77,7 @@ const writeImage = (node: Element<"img">, ports: WritePorts): TElement => {
     url,
   };
   if (node.title !== undefined) {
-    image["title"] = node.title;
+    image.title = node.title;
   }
   return image;
 };
