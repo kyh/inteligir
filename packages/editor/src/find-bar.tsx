@@ -147,10 +147,6 @@ const searchMatches = (editor: SlateEditor, search: FindSearch): TRange[] => {
   return matches;
 };
 
-/** @internal */
-export const collectFindMatches = (editor: SlateEditor, query: string): TRange[] =>
-  searchMatches(editor, { options: FIELD_MATCHING, query });
-
 const activeIndexIn = (matches: readonly TRange[], active: TRange | null): number =>
   active === null ? -1 : matches.findIndex((match) => RangeApi.equals(match, active));
 

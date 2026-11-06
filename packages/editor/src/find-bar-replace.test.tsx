@@ -7,7 +7,6 @@ import type { PlateEditor } from "platejs/react";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import {
-  collectFindMatches,
   cycleFindMatch,
   getFindBarState,
   jumpToFindMatch,
@@ -80,7 +79,8 @@ describe("replace in the find bar", () => {
     expect(replaced).toBe(3);
     expect(editor.api.string([0])).toBe("o beta o gamma");
     expect(editor.api.string([1])).toBe("o again");
-    expect(collectFindMatches(editor, "alpha")).toHaveLength(0);
+    // the bar's count of the matches
+    expect(screen.getByText("0/0")).toBeDefined();
     expect(activeMatch(editor)).toBeNull();
   });
 

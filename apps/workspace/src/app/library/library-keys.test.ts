@@ -2,7 +2,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { LIBRARY_SHORTCUTS, libraryShortcutFor, libraryShortcutHotkey } from "./library-keys";
+import { libraryShortcutHotkey } from "../test-support/library-chords";
+import { LIBRARY_SHORTCUTS, libraryShortcutFor } from "./library-keys";
 import type { LibraryKeyEvent } from "./library-keys";
 
 // a key as a React listener hands it over: its fields, and the native event under them

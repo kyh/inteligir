@@ -7,7 +7,6 @@ import type { PlateEditor } from "platejs/react";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import {
-  collectFindMatches,
   cycleFindMatch,
   getFindBarState,
   jumpToFindMatch,
@@ -42,7 +41,7 @@ describe("find bar", () => {
       setFindQuery(editor, "alpha");
     });
 
-    expect(collectFindMatches(editor, "alpha")).toHaveLength(2);
+    // the bar's count of the matches
     expect(view.getByText("1/2")).toBeDefined();
 
     const leaves = [...view.container.querySelectorAll('[data-slate-leaf="true"]')];

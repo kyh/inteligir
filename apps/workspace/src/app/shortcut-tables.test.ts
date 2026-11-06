@@ -4,7 +4,8 @@ import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import { describe, expect, it } from "vitest";
 import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "./global-shortcuts";
-import { LIBRARY_SHORTCUTS, libraryShortcutHotkey } from "./library/library-keys";
+import { LIBRARY_SHORTCUTS } from "./library/library-keys";
+import { libraryShortcutHotkey } from "./test-support/library-chords";
 
 const editorChords = [
   ...MARK_SHORTCUTS,

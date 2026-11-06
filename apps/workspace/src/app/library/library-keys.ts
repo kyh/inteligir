@@ -76,11 +76,6 @@ export const LIBRARY_SHORTCUTS: readonly LibraryShortcut[] = [
   { action: "save-clipboard", key: "v", label: "Save what was copied", mod: true, where: "window" },
 ];
 
-// is-hotkey's spelling, so a library row and a global or editor row compare as one chord
-/** @internal */
-export const libraryShortcutHotkey = (row: LibraryShortcut): string =>
-  `${row.mod === true ? "mod+" : ""}${row.shift === true ? "shift+" : ""}${row.key}`;
-
 // the DOM's name for each key the table spells
 const EVENT_KEYS = new Map([
   ["backspace", "Backspace"],
