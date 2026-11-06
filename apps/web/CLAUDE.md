@@ -45,9 +45,9 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   Mac). The password check mints the session `deleteUser` runs under, keeping
   its `beforeDelete` order and tombstone the ONE purge path; Better Auth's
   delete routes, which settle for a fresh session, are shut, and with no bearer
-  plugin a browser's session is its cookie. Success forgets the sign-in, not
-  the library on this device; after an unanswered deletion, a retry meeting
-  only the kept credential's refusal means the account is gone. Rejected: a
+  plugin a browser's session is its cookie. Success wipes this device's
+  replica and forgets the sign-in; after an unanswered deletion, a retry
+  meeting only the kept credential's refusal means the account is gone. Rejected: a
   second purge path (it drifts); deleting by credential alone (a stolen one
   ends the account). `apps/web/src/worker/device/account.ts`.
 

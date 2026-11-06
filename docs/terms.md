@@ -1,10 +1,12 @@
 # Terms of Use
 
-**Version 1.1 Last revised:** October 17, 2026
+**Version 1.2 Last revised:** November 6, 2026
 
-The website located at inteligir.com, together with the Inteligir app for Mac,
-the Inteligir app for iPhone, the Inteligir browser extension and the
-`inteligir` command line (collectively, the "**Site**"), is owned and operated by Kaiyu Hsu ("**Inteligir**," "**us**,"
+The website located at inteligir.com, together with your library in a
+browser tab at inteligir.com/library, the Inteligir app for Mac, the Inteligir
+app for iPhone, the Inteligir browser extension and the connector your own AI
+assistant can reach your library through (collectively, the "**Site**"), is
+owned and operated by Kaiyu Hsu ("**Inteligir**," "**us**,"
 "**our**," or "**we**"). Certain features of the Site may be subject to
 additional guidelines or rules posted on the Site, which are incorporated by
 reference into these Terms.
@@ -23,22 +25,21 @@ to opt out of the arbitration agreement, as further described in Section 11.
 
 ## 1. Accounts
 
-1.1 **Creating an Account.** Some features of the Site may require you to
-register for an account. An account is optional: without one, the Mac app is a
-library on your Mac that sends nothing to our cloud (the part of the Site we
-host, at inteligir.com, which syncs your devices), while syncing between your
-devices and the iPhone app need an account. Creating an account requires an
+1.1 **Creating an Account.** The Site requires an account: your library is
+kept in it, in our cloud (the part of the Site we host, at inteligir.com), and
+every device you sign in on keeps a copy of it. Creating an account requires an
 invite code from us, which we issue at our discretion. When you register, you
 agree to provide accurate and complete information and to keep that information
-current. You can delete your account at any time in the Mac app, from Settings ›
-Account › Delete account… on any Mac signed in to it, or by writing to us at
-kai@kyh.io. We may suspend or terminate your account as described in Section 8.
+current. You can delete your account at any time from Settings › Account ›
+Delete account… on any Mac signed in to it or in your library at
+inteligir.com/library, or by writing to us at kai@kyh.io. We may suspend or
+terminate your account as described in Section 8.
 
 1.2 **Account Security.** You are responsible for keeping your login credentials
 confidential and for all activity that occurs under your account. Each device
 you sign in to your account keeps a credential of its own; if a device is lost,
-revoke it from Settings › Account on a Mac or from the account pages on the
-Site. If you believe your account has been accessed without your authorization,
+revoke it from Settings › Account on a Mac or in your library at
+inteligir.com/library, or from the account pages on the Site. If you believe your account has been accessed without your authorization,
 please notify us immediately. We are not liable for any losses resulting from
 your failure to keep your credentials secure.
 
@@ -79,13 +80,15 @@ consider proprietary or confidential.
 2.7 **Your Content.** Your library (the notes you write, the links, pages,
 pictures, PDFs and other files you save into it, and your highlights and their
 notes) and your conversations with the agent ("**Your Content**") belong to you,
-as far as they are yours to begin with (Section 2.8). Your library is a folder
-of files on your Mac, and it stays there whatever happens to your account or to
-the Site. When you sync Your Content through our cloud, you grant
-us a limited, non-exclusive, worldwide, royalty-free license to host, store,
-copy and transmit it, and to apply to it the changes you make from your phone,
-solely to store it, sync it and serve it to your own devices, for as long as it
-is in our cloud. You are responsible for Your Content, and you represent and
+as far as they are yours to begin with (Section 2.8). Your library is kept in
+your account in our cloud, and each device you sign in on keeps a copy of it
+until you sign that device out. You grant us a limited, non-exclusive,
+worldwide, royalty-free license to host, store, copy and transmit Your Content,
+to apply to it the changes you, the agent and the assistants you connect make,
+and to send it to Anthropic as the agent's requests (Section 2.9), solely to
+store it, serve it to your own devices and the assistants you connect, and run
+the agent for you, for as long as it is in our cloud. You can download all of
+it at any time with Export, in Settings › Import and export. You are responsible for Your Content, and you represent and
 warrant that you have the rights you need to store and sync it through the Site
 and that doing so violates no law and no one else's rights. Our cloud does not
 encrypt Your Content end to end: what it holds is stored where we can read it,
@@ -101,30 +104,25 @@ readable text. What you save from someone else's site stays theirs: saving it gi
 what its owner and the law allow, and how you use it is your responsibility. The
 Privacy Policy says exactly what these fetches send and to whom.
 
-2.9 **The Agent.** The Site's agent is Claude's or ChatGPT's own agent program,
-which the apps include, run on your Mac on your own Claude plan from Anthropic
-or ChatGPT plan from OpenAI. Your use of the agent, and what it sends to that
-provider, is governed by your own agreement with the provider, including its
-terms and usage policies; we are not a party to that agreement. We never bill
-you for model usage and never ask for an API key. To use the agent you need a
-paid Claude plan or any ChatGPT plan; without one, the Site works as a library
-and a notes app. The agent reads and changes your library when you ask it to, and what it
-produces may be inaccurate, incomplete or inappropriate, so review what it
-changes before you rely on it. The services you connect the agent to are
-Third-Party Services (Section 5.1).
+2.9 **The Agent.** The Site's built-in agent runs in our cloud on Anthropic's
+Claude, on our account with Anthropic, not yours: you need no plan of your own
+and we never ask for an API key. Each account may use it within a free
+allowance we set, which we may change as described in Section 2.3; when the
+day's allowance is used, it answers again the next day. The agent reads and
+changes your library when you ask it to, asks you before it deletes anything,
+and every answer's changes can be undone from History, but what it produces may
+be inaccurate, incomplete or inappropriate, so review what it changes before
+you rely on it. You can also let an AI assistant of your own, such as Claude or
+ChatGPT, read and change your library through the connector, on the consent
+page we show you; what that assistant does with your library is governed by
+your own agreement with its provider, and the assistant is a Third-Party
+Service (Section 5.1).
 
-2.10 **The Online Library.** Signed in to an account, the Site keeps an online
-copy of your library (the app calls it your online library) so that your phone
-and your other Macs can read it and your phone can save into it. The online
-library is free and holds about 1 GB per account, counting every earlier
-version of every file, so deleting items frees no room. It never takes a file
-over 10 MB, which stays on the Mac it is on, and it takes what a Mac sends in
-pieces of at most 90 MB. When it is full it takes no new changes: they keep
-saving on your Mac, and your phone keeps its edits waiting, until it has room. A
-library that syncs to a sync server of your own, or that sits in a folder
-iCloud Drive, Dropbox, Google Drive, OneDrive or Obsidian Sync already syncs,
-does not use the online library. We may change these limits, or the online
-library itself, as described in Section 2.3.
+2.10 **Your Library's Room.** Your library is free and holds about 1 GB per
+account, counting its files and its history. It never takes a file over
+100 MB. When it is full it takes no new
+changes: they wait on the device that made them until it has room. We may
+change these limits as described in Section 2.3.
 
 2.11 **Acceptable Use.** You may not: (i) use the Site to store, sync or share
 content that is unlawful, or that infringes or misappropriates anyone else's
@@ -137,8 +135,7 @@ license, such as the MIT License, is governed by that license, and nothing in
 these Terms limits your rights under it. We publish the source code of the Site
 under the MIT License at https://github.com/kyh/inteligir. These Terms govern
 the hosted Site: our website, our cloud and your account. Third-party software
-included in the apps, such as the agent programs from Anthropic and OpenAI,
-comes under its own license terms.
+included in the apps comes under its own license terms.
 
 ## 3. Privacy
 
@@ -179,8 +176,8 @@ claim we become aware of.
 
 5.1 **Third-Party Services.** The Site may include links to or integrations with
 third-party websites or services (collectively, "**Third-Party Services**"),
-such as the agent's provider, the services you connect the agent to, a sync
-server of your own, and the services that deliver the apps and their updates. We
+such as an AI assistant you connect to your library and the services that
+deliver the apps and their updates. We
 do not control, endorse, or take responsibility for any Third-Party Services.
 You use all Third-Party Services at your own risk, and you acknowledge and agree
 that the applicable third party's own terms and privacy practices will apply to
@@ -229,8 +226,9 @@ These Terms remain in effect while you use the Site. We may suspend or terminate
 your access (including suspending access to or deleting your account) at any
 time and for any reason, including if we believe you have violated these Terms.
 We are not liable to you for any such termination. If your account is deleted,
-your library on your Mac and its history stay where they are, and what our cloud
-held for the account is deleted as our Privacy Policy describes. Upon
+your library, its history and your conversations with the agent are deleted
+from our cloud and from each device's copy, as our Privacy Policy describes, so
+export your library first if you want to keep it. Upon
 termination, Sections 2.2 through 2.6 and Sections 3 through 11 will survive.
 
 ## 9. State-Specific Legal Notices
