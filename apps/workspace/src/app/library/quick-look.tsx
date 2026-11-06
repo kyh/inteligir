@@ -10,7 +10,7 @@ import type { KeyboardEvent } from "react";
 
 import { useNow } from "../relative-time";
 import { useFileUrl } from "../cloud/library-context";
-import { cardMeta, KIND_LABELS } from "./item-labels";
+import { cardMeta, coverOf, KIND_LABELS } from "./item-labels";
 import { libraryShortcutFor } from "./library-keys";
 
 export interface QuickLookProps {
@@ -20,9 +20,6 @@ export interface QuickLookProps {
   // -1 or +1 along the grid's order
   readonly onStep: (by: -1 | 1) => void;
 }
-
-const coverOf = (row: ReplicaListingRow): string | null =>
-  row.fields.coverSha ?? (row.kind === "image" ? row.fields.originalSha : null);
 
 const Look = ({ row }: { row: ReplicaListingRow }) => {
   const nowMs = useNow();

@@ -7,6 +7,7 @@
 
 import { viewContextOf } from "@repo/agent-panel/agent-send";
 import type { AgentViewContext } from "@repo/agent-panel/agent-send";
+import { listedScope } from "@repo/domain/library-scope";
 import type { LibraryScope } from "@repo/domain/library-scope";
 import { jumpToFindMatch } from "@repo/editor/find-bar";
 import type { ItemSession } from "@repo/editor/item/item-session";
@@ -51,7 +52,7 @@ import {
   tagItems,
 } from "./library/library-verbs";
 import { LibraryView } from "./library/library-view";
-import { listedScope, listingQuery, saveFolderOf, saveTagsOf, scopeTitle } from "./library/listing";
+import { listingQuery, saveFolderOf, saveTagsOf, scopeTitle } from "./library/listing";
 import { CommandPalette } from "./palette/command-palette";
 import { Panel } from "./panel/panel";
 import type { PanelTab } from "./panel/panel";
@@ -378,6 +379,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const { catcherRef, dropInto } = useWindowCapture({
     enabled: !covered,
     into: () => (scope.kind === "folder" ? scopeTitle(scope, folders) : "Unsorted"),
+    modifier,
     onCapture: savePayload,
   });
 

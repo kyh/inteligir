@@ -8,10 +8,6 @@ import type { ListingFolder, ListingQuery } from "@repo/notes/library/library-in
 
 import type { LibrarySort } from "../prefs";
 
-// the rows one listing read answers: the grid asks for its whole count, since the listing is in
-// memory and a card is drawn only where it is in view
-const LISTING_PAGE_MAX = 100_000;
-
 export interface LibraryFilter {
   readonly scope: LibraryScope;
   readonly kind: ItemKind | null;
@@ -43,21 +39,13 @@ export const listingQuery = (filter: LibraryFilter): ListingQuery => {
   const query: ListingQuery = {
     ...scopeQuery(filter.scope),
     deleted: filter.scope.kind === "deleted",
-    limit: LISTING_PAGE_MAX,
+    // every row: the listing is in memory, and a card is drawn only where it is in view
+    limit: Number.POSITIVE_INFINITY,
     offset: 0,
     sort: filter.sort,
   };
   return filter.kind === null ? query : { ...query, kinds: [filter.kind] };
 };
-
-// a stored folder scope the library no longer lists reads as every item
-export const listedScope = (
-  scope: LibraryScope,
-  folders: readonly ListingFolder[],
-): LibraryScope =>
-  scope.kind === "folder" && !folders.some((folder) => folder.id === scope.folderId)
-    ? { kind: "all" }
-    : scope;
 
 // what the header calls the scope
 export const scopeTitle = (scope: LibraryScope, folders: readonly ListingFolder[]): string => {

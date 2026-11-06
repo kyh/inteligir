@@ -62,7 +62,7 @@ export const Panel = ({
     }}
     className="flex h-full min-h-0 flex-col"
   >
-    <TabsList className="shrink-0 px-2">
+    <TabsList className="h-9 shrink-0 px-2">
       <TabsTrigger value="info">Info</TabsTrigger>
       <TabsTrigger value="annotations">Highlights</TabsTrigger>
       <TabsTrigger value="history">History</TabsTrigger>

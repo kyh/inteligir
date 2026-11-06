@@ -224,15 +224,7 @@ export const LibraryView = ({
           )}
         </div>
       </header>
-      <KindChips
-        counts={page.kindCounts}
-        kind={kind}
-        onKindChange={onKindChange}
-        q={null}
-        onClearQuery={() => {
-          onKindChange(null);
-        }}
-      />
+      <KindChips counts={page.kindCounts} kind={kind} onKindChange={onKindChange} />
       {page.total === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-1 p-8 text-center">
           <p className="m-0 text-subtitle font-medium">{empty.title}</p>

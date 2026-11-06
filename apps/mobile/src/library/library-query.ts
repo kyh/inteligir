@@ -7,9 +7,6 @@ import type { LibraryScope } from "@repo/domain/library-scope";
 import type { ItemKind } from "@repo/notes/items/item-kind";
 import type { ListingFolder, ListingQuery } from "@repo/notes/library/library-index";
 
-// the rows one read answers: the listing is in memory, and a row is drawn only where it is in view
-const LISTING_MAX = 100_000;
-
 export interface LibraryFilter {
   readonly scope: LibraryScope;
   readonly kinds: ReadonlySet<ItemKind>;
@@ -20,7 +17,8 @@ export interface LibraryFilter {
 export const listingQuery = ({ hits, kinds, scope }: LibraryFilter): ListingQuery => {
   const query: ListingQuery = {
     deleted: scope.kind === "deleted",
-    limit: LISTING_MAX,
+    // every row: the listing is in memory, and a row is drawn only where it is in view
+    limit: Number.POSITIVE_INFINITY,
     offset: 0,
     sort: hits === null ? "saved" : "relevance",
   };

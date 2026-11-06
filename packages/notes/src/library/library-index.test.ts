@@ -98,6 +98,16 @@ describe(LibraryIndex, () => {
     expect(page.total).toBe(4);
   });
 
+  it("answers every row to a limit past the count, an unbounded one included", () => {
+    expect(ids(filled(), { limit: 10 })).toStrictEqual(["pinned", "new", "link", "old"]);
+    expect(ids(filled(), { limit: Number.POSITIVE_INFINITY })).toStrictEqual([
+      "pinned",
+      "new",
+      "link",
+      "old",
+    ]);
+  });
+
   it("re-sorts only what a change moved", () => {
     const index = filled();
     expect(ids(index)).toStrictEqual(["pinned", "new", "link", "old"]);

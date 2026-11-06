@@ -23,5 +23,17 @@ export const libraryScopeSchema = z.discriminatedUnion("kind", [
 ]);
 export type LibraryScope = z.infer<typeof libraryScopeSchema>;
 
+const EVERY_ITEM: LibraryScope = { kind: "all" };
+
+// a scope a screen keeps, as the library reads it now: a folder the library no longer lists (one
+// another device deleted) reads as every item, so nothing lists under it or saves into it
+export const listedScope = (
+  scope: LibraryScope,
+  folders: readonly { readonly id: string }[],
+): LibraryScope =>
+  scope.kind === "folder" && !folders.some((folder) => folder.id === scope.folderId)
+    ? EVERY_ITEM
+    : scope;
+
 // the most of a scope's selected items a message names; it says how many there were beside them
 export const LIBRARY_SELECTION_MAX = 200;

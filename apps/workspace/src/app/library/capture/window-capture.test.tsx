@@ -14,9 +14,11 @@ afterEach(() => {
 type OnCapture = (payload: CapturePayload) => void;
 
 const Harness = ({ enabled, onCapture }: { enabled: boolean; onCapture: OnCapture }) => {
+  // a Mac's: ⌘ is the shortcut modifier, ⌃ a key of its own
   const { catcherRef, dropInto } = useWindowCapture({
     into: () => "Reading",
     enabled,
+    modifier: "meta",
     onCapture,
   });
   return (
@@ -143,6 +145,15 @@ describe("⌘V where nothing takes text", () => {
     act(() => {
       vi.advanceTimersByTime(300);
     });
+    expect(document.activeElement).toBe(card());
+  });
+
+  it("is ⌘V alone on a Mac: ⌃V or an IME's V outside any field leaves the focus where it was", () => {
+    mount();
+    card().focus();
+    fireEvent.keyDown(card(), { key: "v", ctrlKey: true });
+    expect(document.activeElement).toBe(card());
+    fireEvent.keyDown(card(), { isComposing: true, key: "v", metaKey: true });
     expect(document.activeElement).toBe(card());
   });
 

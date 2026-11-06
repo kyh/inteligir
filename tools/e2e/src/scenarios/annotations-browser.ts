@@ -24,6 +24,16 @@ const DEADLINE_MS = 30_000;
 
 const TINTED = `String(document.querySelectorAll('${EDITOR} .bg-highlight').length)`;
 
+// whether the page draws the element where a person sees it: the point at its top is the element's
+// own, not clipped away by a panel that left it no height
+const shownAt = (selector: string): string => `(() => {
+  const element = document.querySelector(${JSON.stringify(selector)});
+  if (element === null) return "missing";
+  const box = element.getBoundingClientRect();
+  const hit = document.elementFromPoint(box.left + box.width / 2, box.top + Math.min(4, box.height / 2));
+  return String(hit !== null && element.contains(hit));
+})()`;
+
 type Highlight = Awaited<ReturnType<Library["annotations"]["list"]>>["highlights"][number];
 
 // the item's highlights as the cell holds them, once they hold what `holds` waits for
@@ -103,6 +113,11 @@ export const annotationsBrowser: Scenario = {
     await clickButtonIn(browser, PANEL, "Highlights");
     const card = `[data-annotation-id="${made.id}"]`;
     await browser(["wait", card], DEADLINE_MS);
+    await pollUntil(
+      async () => parseEval(await browser(["eval", shownAt(card)]), z.string()),
+      (shown) => shown === "true",
+      { deadlineMs: DEADLINE_MS, describe: (shown) => `the card was never in view (${shown})` },
+    );
     await untilBodyHolds(browser, ["Herons stand still", "Remove highlight"]);
     expectEq(
       await browser(["get", "value", `${card} textarea[aria-label="Note"]`]),

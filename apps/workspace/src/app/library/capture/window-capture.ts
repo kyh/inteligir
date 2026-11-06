@@ -7,10 +7,12 @@
 // picture in the viewer or Quick Look, a selection of text) is never a save: only what comes from
 // outside the window is.
 
+import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { RefObject } from "react";
 
 import { isTextEntryTarget } from "../../global-shortcuts";
+import { libraryShortcutFor } from "../library-keys";
 import { isEmptyPayload, payloadFrom } from "./capture-payload";
 import type { CapturePayload } from "./capture-payload";
 
@@ -20,6 +22,8 @@ export interface WindowCaptureOptions {
   // the name of where a save lands (a folder, Unsorted), which the drop's layer says
   into: () => string;
   onCapture: (payload: CapturePayload) => void;
+  // the platform's shortcut modifier, ⌘ on a Mac, which the table's save-clipboard row is read by
+  modifier: ShortcutModifier;
 }
 
 export interface WindowCapture {
@@ -38,16 +42,26 @@ const PASTE_WAIT_MS = 250;
 const inEditor = (target: EventTarget | null): boolean =>
   target instanceof Element && target.closest("[data-slate-editor]") !== null;
 
-const isPasteChord = (event: KeyboardEvent): boolean =>
-  (event.metaKey || event.ctrlKey) &&
-  !event.altKey &&
-  !event.shiftKey &&
-  event.key.toLowerCase() === "v";
+// the window's row of the library's table (`../library-keys`), the one its labels are spelled from
+const isSaveChord = (event: KeyboardEvent, modifier: ShortcutModifier): boolean =>
+  libraryShortcutFor(
+    {
+      altKey: event.altKey,
+      ctrlKey: event.ctrlKey,
+      key: event.key,
+      metaKey: event.metaKey,
+      nativeEvent: event,
+      shiftKey: event.shiftKey,
+    },
+    "window",
+    modifier,
+  )?.action === "save-clipboard";
 
 export const useWindowCapture = ({
   enabled,
   into,
   onCapture,
+  modifier,
 }: WindowCaptureOptions): WindowCapture => {
   const catcherRef = useRef<HTMLTextAreaElement | null>(null);
   const [dropInto, setDropInto] = useState<string | null>(null);
@@ -93,7 +107,7 @@ export const useWindowCapture = ({
     };
 
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (!isPasteChord(event) || isTextEntryTarget(event.target)) {
+      if (!isSaveChord(event, modifier) || isTextEntryTarget(event.target)) {
         return;
       }
       const catcher = catcherRef.current;
@@ -190,7 +204,7 @@ export const useWindowCapture = ({
       window.removeEventListener("drop", onDrop);
       window.removeEventListener("dragend", onDragEnd, true);
     };
-  }, [enabled]);
+  }, [enabled, modifier]);
 
   // a covered window takes no drop, so it draws no layer for one
   return { catcherRef, dropInto: enabled ? dropInto : null };

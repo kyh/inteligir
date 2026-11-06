@@ -56,6 +56,10 @@ export const formatBytes = (bytes: number): string => {
   return bytes === 1 ? "1 byte" : `${String(bytes)} bytes`;
 };
 
+// the file that stands for an item on its card and in Quick Look: its cover, else a picture's own
+export const coverOf = (row: ReplicaListingRow): string | null =>
+  row.fields.coverSha ?? (row.kind === "image" ? row.fields.originalSha : null);
+
 export const isUrlItem = (row: Pick<ReplicaListingRow, "kind" | "url">): boolean =>
   row.url !== null && URL_ITEM_KINDS.some((kind) => kind === row.kind);
 

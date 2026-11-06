@@ -6,7 +6,7 @@
 // open.
 
 import { Stack } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActionSheetIOS,
   Alert,
@@ -19,6 +19,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { listedScope } from "@repo/domain/library-scope";
 import type { LibraryScope } from "@repo/domain/library-scope";
 import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import type { ItemKind } from "@repo/notes/items/item-kind";
@@ -192,14 +193,17 @@ const LibraryScreen = () => {
   const screen = { backgroundColor: theme.background, flex: 1 };
   const { replica } = useLibrary();
   const status = useReplicaStatus();
-  const [scope, setScope] = useState<LibraryScope>({ kind: "all" });
+  const [chosenScope, setChosenScope] = useState<LibraryScope>({ kind: "all" });
   const [kinds, setKinds] = useState<ReadonlySet<ItemKind>>(() => new Set());
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
-  const hits = useSearchHits(query);
-  const listingAsked = useMemo(() => listingQuery({ hits, kinds, scope }), [hits, kinds, scope]);
-  const { page } = useListing(listingAsked);
   const folders = replica.folders();
+  // a folder deleted on another device reads as every item, so nothing lists under it or saves
+  // into it
+  const scope = listedScope(chosenScope, folders);
+  const hits = useSearchHits(query);
+  const listingAsked = listingQuery({ hits, kinds, scope });
+  const { page } = useListing(listingAsked);
 
   const refresh = async (): Promise<void> => {
     setRefreshing(true);
@@ -278,7 +282,7 @@ const LibraryScreen = () => {
             <Stack.Toolbar.MenuAction
               isOn={scope.kind === "all"}
               onPress={() => {
-                setScope({ kind: "all" });
+                setChosenScope({ kind: "all" });
               }}
             >
               All items
@@ -286,7 +290,7 @@ const LibraryScreen = () => {
             <Stack.Toolbar.MenuAction
               isOn={scope.kind === "unsorted"}
               onPress={() => {
-                setScope({ kind: "unsorted" });
+                setChosenScope({ kind: "unsorted" });
               }}
             >
               Unsorted
@@ -297,7 +301,7 @@ const LibraryScreen = () => {
                   key={folder.id}
                   isOn={scope.kind === "folder" && scope.folderId === folder.id}
                   onPress={() => {
-                    setScope({ folderId: folder.id, kind: "folder" });
+                    setChosenScope({ folderId: folder.id, kind: "folder" });
                   }}
                 >
                   {folder.name}
@@ -307,7 +311,7 @@ const LibraryScreen = () => {
             <Stack.Toolbar.MenuAction
               isOn={scope.kind === "deleted"}
               onPress={() => {
-                setScope({ kind: "deleted" });
+                setChosenScope({ kind: "deleted" });
               }}
             >
               Deleted

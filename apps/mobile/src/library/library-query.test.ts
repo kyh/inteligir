@@ -15,6 +15,13 @@ describe("the Library's question to the listing", () => {
     });
   });
 
+  it("asks for every row, however many the library holds", () => {
+    expect(listingQuery({ hits: null, kinds: NONE, scope: { kind: "all" } })).toMatchObject({
+      limit: Number.POSITIVE_INFINITY,
+      offset: 0,
+    });
+  });
+
   it("names Unsorted as the items in no folder, and a folder with what is under it", () => {
     expect(listingQuery({ hits: null, kinds: NONE, scope: { kind: "unsorted" } })).toMatchObject({
       folderId: null,

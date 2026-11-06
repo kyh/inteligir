@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { listedScope, listingQuery, saveFolderOf, saveTagsOf, scopeTitle } from "./listing";
+import { listingQuery, saveFolderOf, saveTagsOf, scopeTitle } from "./listing";
 
 const READING = {
   id: "0199a4c2-0000-7000-8000-0000000000f1",
@@ -28,6 +28,13 @@ describe("the grid's listing query", () => {
     expect(listingQuery({ ...base, scope: { kind: "deleted" } })).toMatchObject({ deleted: true });
   });
 
+  it("asks for every row, however many the library holds", () => {
+    expect(listingQuery({ kind: null, scope: { kind: "all" }, sort: "saved" })).toMatchObject({
+      limit: Number.POSITIVE_INFINITY,
+      offset: 0,
+    });
+  });
+
   it("narrows to the chip's kind only when one is pressed", () => {
     expect(listingQuery({ kind: "pdf", scope: { kind: "all" }, sort: "title" })).toMatchObject({
       kinds: ["pdf"],
@@ -40,14 +47,6 @@ describe("the grid's listing query", () => {
 });
 
 describe("a scope", () => {
-  it("reads a folder the library no longer lists as every item", () => {
-    expect(listedScope({ folderId: "gone", kind: "folder" }, [READING])).toStrictEqual({
-      kind: "all",
-    });
-    const held = { folderId: READING.id, kind: "folder" as const };
-    expect(listedScope(held, [READING])).toBe(held);
-  });
-
   it("titles the header, and says where a save from it lands", () => {
     expect(scopeTitle({ folderId: READING.id, kind: "folder" }, [READING])).toBe("Reading");
     expect(scopeTitle({ kind: "tag", tag: "papers" }, [])).toBe("#papers");

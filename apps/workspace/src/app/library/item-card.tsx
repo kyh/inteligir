@@ -27,7 +27,7 @@ import { useState } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 
 import { useFileUrl } from "../cloud/library-context";
-import { cardMeta, fileExtensionLabel } from "./item-labels";
+import { cardMeta, coverOf, fileExtensionLabel } from "./item-labels";
 
 export interface ItemCardProps {
   readonly row: ReplicaListingRow;
@@ -116,9 +116,6 @@ const CoverImage = ({ sha }: { sha: string }) => {
     />
   );
 };
-
-const coverOf = (row: ReplicaListingRow): string | null =>
-  row.fields.coverSha ?? (row.kind === "image" ? row.fields.originalSha : null);
 
 const CoverArea = ({ row }: { row: ReplicaListingRow }) => {
   if (row.fields.fetchState === "pending") {
