@@ -22,9 +22,9 @@ export interface AnnotationFold {
 }
 
 // markerIds null = doc unparseable: every annotation reports anchored and no orphan markers are
-// claimed, since either claim would be a guess. Its order is the document's (`markerRootIds`
-// visits each id's start marker first), so anchored roots read top to bottom and the unanchored
-// follow by `createdAt`.
+// claimed, since either claim would be a guess. Its order is the document's (the caller lists each
+// id where its first marker sits), so anchored roots read top to bottom and the unanchored follow
+// by `createdAt`.
 export const foldAnnotations = (
   store: AnnotationStore,
   markerIds: ReadonlySet<string> | null,
