@@ -45,7 +45,7 @@ const CLOSING_BLOCK = "The end.";
 // and without patches/@platejs__core@53.3.15.patch three times it. A pass quadratic in the note is
 // 64x. A store atom every block holds is recomputed on every change: Plate's toggle hider or its
 // navigation flash alone put a keystroke back at 120ms, 6-7x and 0.06 of the parse, and the two
-// beside the old annotation pairing cost 0.2 of it. A memory-starved CI runner's garbage collection
+// with an annotation pairing per block cost 0.2 of it. A memory-starved CI runner's garbage collection
 // pushes a ratio up by about half, so the ceilings leave that room over the recorded costs, and
 // sit well under those atoms' cost; the two atoms read no block's content, so this suite's watched
 // block never names them, and per-block-subscriptions.test.tsx holds them off by name.

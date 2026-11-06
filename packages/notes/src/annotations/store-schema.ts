@@ -34,8 +34,8 @@ const ANNOTATION_SOURCE_LABELS = {
   user: "You",
 } satisfies Record<AnnotationSource, string>;
 
-// every app writer signs its entries, so an unsigned one is an external or legacy writer's and
-// claims no author
+// every app writer signs its entries, so an unsigned one is an external writer's and claims no
+// author
 export const annotationSourceLabel = (source: AnnotationSource | undefined): string =>
   source === undefined ? "—" : ANNOTATION_SOURCE_LABELS[source];
 

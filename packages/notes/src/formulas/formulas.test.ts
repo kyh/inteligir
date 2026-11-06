@@ -93,9 +93,9 @@ describe("metadata", () => {
     expect(parseFormulaMeta("stale=true").stale).toBe(true);
   });
 
-  it("drops legacy format= on rewrite and keeps unknown keys", () => {
+  it("keeps unknown keys on rewrite", () => {
     const meta = parseFormulaMeta("id=abc;format=usd;x=1");
-    expect(serializeFormulaMeta(meta)).toBe("id=abc;x=1");
+    expect(serializeFormulaMeta(meta)).toBe("id=abc;format=usd;x=1");
   });
 
   it("serializes nothing for an anonymous pill", () => {

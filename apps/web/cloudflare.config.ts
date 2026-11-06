@@ -52,14 +52,11 @@ const worker = defineWorker({
   },
 });
 
-// the oldest build /v1 answers (src/worker/client-floor.ts). 0.6.0 sends no build header, which the
-// floor refuses on its own, so this admits exactly the builds that send one, a checkout's included
-// until its release raises the version; raise it to retire a wire shape every older build reads.
-// OWED BY THE NEXT RELEASE, which sets it to its own version (docs/releasing.md § 1): the thread
-// log, the dispatch inbox and their socket frames are retired, so a build that reports 0.6.0
-// pushes, pulls and claims against routes this Worker no longer answers, reads each as not-found
-// rather than as outdated, and keeps retrying them; and the vault's media table gains PDF, video
-// and audio rows, whose commits an older build cannot serve
+// the oldest build /v1 answers (src/worker/client-floor.ts). A build that sends no build header is
+// refused on its own, so this admits exactly the builds that send one, a checkout's included until
+// its release raises the version; raise it to drop a wire shape every older build reads. The next
+// release sets it to its own version (docs/releasing.md § 1), so a build that speaks a wire this
+// Worker does not answer is told to update rather than meeting not-found
 const MIN_CLIENT_BUILD = "0.6.0";
 
 // what both modes bind alike

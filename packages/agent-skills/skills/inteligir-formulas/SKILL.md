@@ -77,7 +77,7 @@ An independent value needs a fresh uuid.
 from a pill you are not rebuilding — it is the app telling the reader the number
 may be out of date.
 
-Unknown keys are preserved. Legacy `format=` is dropped on rewrite.
+Unknown keys are preserved.
 
 ## In Tables
 
