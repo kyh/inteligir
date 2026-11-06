@@ -468,8 +468,10 @@ describe("the replica's outbox", () => {
     phone.network.setOffline(true);
     const { sha } = await phone.replica.keepFile({ bytes: OTHER_PNG, mime: "image/png" });
     expect(sha).toBe(fileSha(OTHER_PNG));
+    expect(phone.replica.status().unsent, "a kept file alone is no change of the person's").toBe(0);
     await phone.replica.write(id, { ops: [pictureAt("i1", "a2", sha)] });
     expect(phone.blobs.held()).toStrictEqual([sha]);
+    expect(phone.replica.status().unsent, "the picture is one change, the write naming it").toBe(1);
     phone.network.setOffline(false);
     const call = network.hold("/v1/rpc/library/write");
     const syncing = phone.replica.sync();
@@ -515,6 +517,19 @@ describe("the replica's outbox", () => {
     await phone.replica.sync();
     expect(cell.uploads).toStrictEqual([sha]);
     expect(phone.blobs.held()).toStrictEqual([]);
+    expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
+  });
+
+  it("counts a kept file as a change of its own once it is parked, for the person to let go", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    await phone.replica.keepFile({ bytes: OTHER_PNG, mime: "image/png" });
+    await phone.blobs.clear();
+    await phone.replica.sync();
+    const { parked, unsent } = phone.replica.status();
+    expect(parked).toMatchObject([{ itemIds: [], reason: STAGED_FILE_GONE }]);
+    expect(unsent).toBe(1);
+    await phone.replica.discard(parked[0]?.seq ?? 0);
     expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
   });
 
@@ -836,11 +851,12 @@ describe("the outbox's changes, one at a time", () => {
     expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
   });
 
-  it("keeps the bytes a new row stages while a landing lets the same bytes go", async () => {
+  it("keeps the bytes a kept file puts while a landing lets the same bytes go", async () => {
     const cell = createFakeCell();
     const network = heldNetwork(cell, "phone");
     const counted = await countedSql();
     const phone = await openDevice(cell, "phone", { network: network.device, sql: counted.sql });
+    const id = await landedNote(cell, phone);
     await phone.replica.createFile({
       file: { bytes: PNG, mime: "image/png" },
       folderId: null,
@@ -850,7 +866,7 @@ describe("the outbox's changes, one at a time", () => {
     const call = network.hold("/v1/rpc/library/items/createFile");
     const syncing = phone.replica.sync();
     await call.reached;
-    // the file's item lands behind a screen's read while a note staging the same bytes is made
+    // the file's item lands behind a screen's read while the same bytes are kept for a note
     const screen = deferred();
     const reading = phone.sql.exclusive(async () => {
       await screen.promise;
@@ -860,26 +876,19 @@ describe("the outbox's changes, one at a time", () => {
     await vi.waitFor(() => {
       expect(counted.asked()).toBe(asked + 1);
     });
-    const note = phone.replica.createNote({
-      blocks: [
-        {
-          block: { children: [{ text: "" }], id: "i1", sha: fileSha(PNG), type: "img" },
-          ord: "a0",
-          section: "note",
-        },
-      ],
-      folderId: null,
-      tags: [],
-      title: "Again",
-    });
+    const kept = phone.replica.keepFile({ bytes: PNG, mime: "image/png" });
     await nextTurn();
     screen.resolve();
     await reading;
+    const { sha } = await kept;
+    await phone.replica.write(id, { ops: [pictureAt("i1", "a2", sha)] });
     await syncing;
-    const { id } = await note;
     await phone.replica.sync();
-    expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
+    // the landing let its bytes go before the kept file put them back, and they went up again
+    // from the device's own copy, which stayed until the write naming them landed
+    expect(cell.uploads).toStrictEqual([sha, sha]);
     expect(cell.item(id)?.blocks.has("i1")).toBe(true);
+    expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
     expect(phone.blobs.held()).toStrictEqual([]);
   });
 });

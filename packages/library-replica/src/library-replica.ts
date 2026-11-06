@@ -98,7 +98,8 @@ export interface ReplicaStatus {
   // what stopped the last pass, null once one ends clean; a session's end stops the replica
   // until it is started again
   readonly failure: ReplicaFailure | null;
-  // writes not landed yet, the parked ones among them
+  // writes not landed yet, the parked ones among them; a file kept for a write still to come
+  // counts only once it is parked, since the write that names it is the change
   readonly unsent: number;
   readonly parked: readonly ParkedWrite[];
   // the bodies this pass fetched, of all it wants
@@ -180,6 +181,11 @@ const dropEverything = function* dropEverything(): SqlPlan<void> {
     yield run(`DROP TABLE IF EXISTS ${quoted(nameSchema.parse(raw).name)}`);
   }
 };
+
+// a row the person would call a change of theirs: a file kept for a write still to come is part
+// of the write that names it, which stages it too, so it counts alone only once it is refused and
+// waits for the person
+const isChange = (row: OutboxRow): boolean => row.op.kind !== "keep" || row.state === "parked";
 
 const parkedOf = (rows: readonly OutboxRow[]): ParkedWrite[] =>
   rows.flatMap((row) =>
@@ -276,7 +282,7 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
   };
 
   const outboxStatus = (pending: readonly OutboxRow[]): void => {
-    setStatus({ parked: parkedOf(pending), unsent: pending.length });
+    setStatus({ parked: parkedOf(pending), unsent: pending.filter(isChange).length });
   };
 
   const refresh = async (
