@@ -6,8 +6,10 @@ import {
   fileKindOf,
   isItemKind,
   ITEM_KINDS,
+  keptFileType,
   LIBRARY_RULES_PATH,
   PAGES_DIR,
+  UNKNOWN_FILE_TYPE,
   UNSORTED_FOLDER,
   URL_ITEM_KINDS,
   WEB_URL_RULE,
@@ -37,6 +39,12 @@ describe("item kinds", () => {
     ["folder/.DS_Store", null],
   ])("%s is %s", (path, expected) => {
     expect(fileKindOf(path)).toBe(expected);
+  });
+
+  it("keeps a file as the type it came with, or as plain bytes when that is none", () => {
+    expect(keptFileType("image/png")).toBe("image/png");
+    expect(keptFileType("")).toBe(UNKNOWN_FILE_TYPE);
+    expect(UNKNOWN_FILE_TYPE).toBe("application/octet-stream");
   });
 
   it("lists each extension under one kind", () => {

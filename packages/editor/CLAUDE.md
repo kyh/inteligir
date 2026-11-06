@@ -334,9 +334,11 @@ alone, and no walk narrows structurally.
 
 - **A FILE PASTED OR DROPPED INTO A NOTE IS KEPT BEFORE ITS BLOCK IS WRITTEN.**
   The editor refuses one past the host's `fileMaxBytes` in words before reading
-  it, has the host keep the rest by sha (`keepFile`), and inserts each block
-  where the paste or the drop landed: an image, a video or a file card, whose
-  Download only a host that `savesFiles` offers. A browser's copy of a web
+  it, has the host keep the rest by sha (`keepFile`) under the file's type, or
+  plain bytes when the browser gives none (`keptFileType`, as the window's own
+  saves), and inserts the blocks where the paste or the drop landed, in the
+  order they came, the caret after the last: an image, a video or a file card,
+  whose Download only a host that `savesFiles` offers. A browser's copy of a web
   picture pastes as its markup. Rejected: the bytes held by the session until
   its pause (a quit in the pause lost them); a card opening a blob of the
   page's origin (it could run script). `packages/editor/src/kits/image-kit.tsx`.

@@ -66,6 +66,14 @@ export const fileKindOf = (path: string): FileKind | null => {
   return KIND_BY_EXTENSION.get(extnamePath(path).toLowerCase()) ?? "file";
 };
 
+// the type a file is kept as when nothing that handled it could tell: plain bytes
+export const UNKNOWN_FILE_TYPE = "application/octet-stream";
+
+// the type a file the person hands over is kept as: the one it came with, else plain bytes (a
+// browser gives "" for a file whose type it does not know, which the library takes for none)
+export const keptFileType = (handed: string): string =>
+  handed === "" ? UNKNOWN_FILE_TYPE : handed;
+
 export const UNSORTED_FOLDER = "Unsorted";
 export const COVERS_DIR = "assets/covers";
 export const PAGES_DIR = "assets/pages";

@@ -43,9 +43,10 @@ const ignore = (): void => {
 const FILE_MAX_BYTES = 100 * 1024 * 1024;
 
 // Installs the singleton the hooks read; the io half answers from the items and files it is
-// handed, keeps a file by its real sha and then draws it, the shell refuses every annotation and
-// hears every other ask as nothing, and an open, a new note and a kept file are recorded in
-// `calls`. `changed` says items moved, as a host's change feed does.
+// handed, keeps a file by its real sha and then draws it (refusing one with no type, as the hosts
+// do), the shell refuses every annotation and hears every other ask as nothing, and an open, a new
+// note and a kept file are recorded in `calls`. `changed` says items moved, as a host's change
+// feed does.
 /** @internal */
 export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   const calls: HostCall[] = [];
@@ -72,6 +73,10 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
       calls.push({ action: "keepFile", args: [bytes, mime] });
       if (options.keepFile !== undefined) {
         return await options.keepFile(bytes, mime);
+      }
+      // as both hosts' outboxes do, which stage no file without a type
+      if (mime === "") {
+        return await Promise.reject(new Error("a file is kept under a type"));
       }
       const sha = fileSha(bytes);
       files.set(sha, new Blob([bytes], { type: mime }));

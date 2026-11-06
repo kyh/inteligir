@@ -1,14 +1,16 @@
 // An image in an item is a block the library holds (by its bytes' sha, or a web address). A file
 // pasted or dropped into the text is kept in the library: the editor takes the event, so the
 // browser neither opens the file nor drops it as text, has the host keep each file's bytes by
-// their sha (`keepFile`), and inserts the block that names it where the paste or the drop landed,
-// a picture as an image, a recording as a video and anything else as a file. A file past the
-// library's size is refused in words, and nothing of it is read.
+// their sha (`keepFile`) under the type the file came with, or plain bytes when the browser could
+// not tell, and inserts the block that names it where the paste or the drop landed, a picture as
+// an image, a recording as a video and anything else as a file, several in the order they came. A
+// file past the library's size is refused in words, and nothing of it is read.
 
-import { KEYS } from "platejs";
-import type { SlateEditor, TElement, TRange } from "platejs";
+import { KEYS, PathApi } from "platejs";
+import type { PathRef, SlateEditor, TElement, TRange } from "platejs";
 import { createPlatePlugin } from "platejs/react";
 
+import { keptFileType } from "@repo/notes/items/item-kind";
 import { toast } from "@repo/ui/components/sonner";
 
 import { getEditorHostIo } from "@repo/editor/host-io";
@@ -53,14 +55,15 @@ const blockOf = (file: File, sha: string): TElement => {
 // the file's bytes kept by the host, or null when they could not be read or kept
 const keepOne = async (io: EditorHostIo, file: File): Promise<{ readonly sha: string } | null> => {
   try {
-    return await io.keepFile(new Uint8Array(await file.arrayBuffer()), file.type);
+    return await io.keepFile(new Uint8Array(await file.arrayBuffer()), keptFileType(file.type));
   } catch {
     return null;
   }
 };
 
-// each file in turn, kept and then placed where the paste or the drop landed, followed as the text
-// moves while the bytes are read
+// each file in turn, kept and then placed: the first where the paste or the drop landed, each
+// later one right after the block placed before it, both followed as the text moves while the
+// bytes are read, so the files keep their order and the caret rests past the last one
 const keepFiles = async (
   editor: SlateEditor,
   files: readonly File[],
@@ -68,6 +71,7 @@ const keepFiles = async (
 ): Promise<void> => {
   const io = getEditorHostIo();
   const place = at === null ? null : editor.api.rangeRef(at);
+  let last: PathRef | null = null;
   try {
     for (const file of files) {
       if (file.size > io.fileMaxBytes) {
@@ -79,14 +83,22 @@ const keepFiles = async (
         toast.error(fileNotKept(file.name));
         continue;
       }
+      const previous = last?.current ?? null;
       const target = place?.current ?? null;
-      if (target !== null) {
+      if (previous === null && target !== null) {
         editor.tf.select(target);
       }
-      insertVoidAndEscape(editor, blockOf(file, kept.sha));
+      const placed = insertVoidAndEscape(
+        editor,
+        blockOf(file, kept.sha),
+        previous === null ? undefined : PathApi.next(previous),
+      );
+      last?.unref();
+      last = placed === null ? null : editor.api.pathRef(placed);
     }
   } finally {
     place?.unref();
+    last?.unref();
   }
 };
 

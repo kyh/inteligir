@@ -13,6 +13,7 @@ import { jumpToFindMatch } from "@repo/editor/find-bar";
 import type { ItemSession } from "@repo/editor/item/item-session";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
+import { keptFileType } from "@repo/notes/items/item-kind";
 import type { ItemKind } from "@repo/notes/items/item-kind";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Sidebar } from "@repo/ui/components/sidebar";
@@ -85,7 +86,7 @@ const uploadPicked = async (
   for (const file of files) {
     const bytes = new Uint8Array(await file.arrayBuffer());
     await replica.createFile({
-      file: { bytes, mime: file.type === "" ? "application/octet-stream" : file.type },
+      file: { bytes, mime: keptFileType(file.type) },
       folderId,
       name: file.name,
       tags,

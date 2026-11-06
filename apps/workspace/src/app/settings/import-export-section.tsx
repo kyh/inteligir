@@ -9,6 +9,7 @@
 import { V1_BLOBS_PATH, V1_EXPORTS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import type { importJobSchema } from "@repo/contract/cloud/library/library-wire";
 import { fileSha } from "@repo/library-replica/library-replica";
+import { keptFileType } from "@repo/notes/items/item-kind";
 import type { ReplicaTransport } from "@repo/library-replica/replica-ports";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
@@ -70,7 +71,7 @@ const uploadFile = async (cloud: ReplicaTransport, file: File): Promise<string> 
   const response = await cloud.fetch(
     new Request(`${cloud.origin}${V1_BLOBS_PATH}/${sha}`, {
       body: bytes,
-      headers: { "content-type": file.type === "" ? "application/octet-stream" : file.type },
+      headers: { "content-type": keptFileType(file.type) },
       method: "PUT",
     }),
   );

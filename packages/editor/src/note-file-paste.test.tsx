@@ -141,6 +141,48 @@ describe("a file dropped into a note's text", () => {
     });
   });
 
+  it("whose type the browser cannot tell is kept as plain bytes and named in a file block", async () => {
+    const { editable, editor, host } = mount();
+    const sketch = new File(["x"], "plan.sketch");
+    expect(sketch.type, "jsdom, as a browser, gives no type it does not know").toBe("");
+
+    fireEvent.drop(editable, { dataTransfer: transfer([sketch]) });
+
+    await waitFor(() => {
+      expect(blocksOf(editor)).toContainEqual({
+        name: "plan.sketch",
+        sha: fileSha(new TextEncoder().encode("x")),
+        type: "file",
+      });
+    });
+    expect(
+      host.calls.flatMap((call) =>
+        call.action === "keepFile" ? [[[...call.args[0]], call.args[1]]] : [],
+      ),
+    ).toStrictEqual([[[...new TextEncoder().encode("x")], "application/octet-stream"]]);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("several at the end of a block land in the order they came, the caret after the last", async () => {
+    const { editable, editor } = mount();
+    const one = new File(["%PDF-1.7 one"], "one.pdf", { type: "application/pdf" });
+    const two = new File(["%PDF-1.7 two"], "two.pdf", { type: "application/pdf" });
+
+    fireEvent.drop(editable, { dataTransfer: transfer([one, two]) });
+
+    await waitFor(() => {
+      expect(blocksOf(editor).filter((block) => block.type === "file")).toHaveLength(2);
+    });
+    expect(blocksOf(editor).map(({ name, type }) => [type, name])).toStrictEqual([
+      ["p", undefined],
+      ["file", "one.pdf"],
+      ["file", "two.pdf"],
+      ["p", undefined],
+    ]);
+    expect(editor.api.void(), "the caret is left in no file's hidden text").toBeUndefined();
+    expect(editor.selection?.anchor.path).toStrictEqual([3, 0]);
+  });
+
   it("past the library's size is refused in words, and none of it is read or kept", async () => {
     const { editable, editor, host } = mount({ fileMaxBytes: 4 });
     const before = JSON.stringify(editor.children);
