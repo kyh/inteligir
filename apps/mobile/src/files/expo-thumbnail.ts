@@ -7,7 +7,7 @@
 import { File, Paths } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { thumbFormatOf } from "./file-cache";
-import type { ShrunkCover } from "./file-cache";
+import type { HeldFile } from "./file-cache";
 
 // the row's 64-point square is 192 px at 3x, and a landscape cover fills it by its height (a 1.91:1
 // link cover needs about 367 px of width to), so the thumbnail is kept wider than the square
@@ -29,7 +29,7 @@ const removed = (file: File): void => {
 export const shrinkToThumbnail = async (
   bytes: Uint8Array<ArrayBuffer>,
   mime: string,
-): Promise<ShrunkCover | null> => {
+): Promise<HeldFile | null> => {
   named += 1;
   const source = new File(Paths.cache, `thumb-${String(Date.now())}-${String(named)}`);
   try {
