@@ -207,34 +207,45 @@ const summaryOf = async (accountId: string) =>
   });
 
 describe("an export", () => {
-  it("writes the library as a zip in the vault's format, which reads back as the same library", async () => {
-    const from = newAccountId();
-    await withLibrary(from);
-    const { export: written } = await exported(from);
-    expect(written).toMatchObject({ message: null, state: "ready" });
-    expect(written.expiresAt).toBe((written.finishedAt ?? 0) + EXPORT_KEEP_MS);
-    const zip = await zipIn(from, written.id);
-    expect(zip.length).toBe(written.bytes);
-    const entries = await entriesOf(zip);
-    expect([...entries.keys()]).toEqual(
-      expect.arrayContaining(["AGENTS.md", "Beta.md", "Notes/Alpha.md", "A page worth reading.md"]),
-    );
+  // each test below builds a whole library and zips it: under a second alone, but past 5 s when
+  // the full verify runs four suites at once, so each states its own timeout
+  it(
+    "writes the library as a zip in the vault's format, which reads back as the same library",
+    { timeout: 30_000 },
+    async () => {
+      const from = newAccountId();
+      await withLibrary(from);
+      const { export: written } = await exported(from);
+      expect(written).toMatchObject({ message: null, state: "ready" });
+      expect(written.expiresAt).toBe((written.finishedAt ?? 0) + EXPORT_KEEP_MS);
+      const zip = await zipIn(from, written.id);
+      expect(zip.length).toBe(written.bytes);
+      const entries = await entriesOf(zip);
+      expect([...entries.keys()]).toEqual(
+        expect.arrayContaining([
+          "AGENTS.md",
+          "Beta.md",
+          "Notes/Alpha.md",
+          "A page worth reading.md",
+        ]),
+      );
 
-    const into = newAccountId();
-    const started = await startImport(into, { bytes: zip, mime: "application/zip" }, "markdown");
-    await runImportToEnd(into, started.jobId);
-    expect(await importJobOf(into, started.jobId)).toMatchObject({
-      state: "done",
-      unreadable: 0,
-    });
-    const before = await summaryOf(from);
-    // the fixture holds what a faithful round trip must carry
-    const link = before.items.find((item) => item.title === "A page worth reading");
-    expect(link?.article).toHaveLength(2);
-    expect(link?.files.map(([role]) => role)).toEqual(["cover"]);
-    expect(before.highlights).toHaveLength(2);
-    expect(await summaryOf(into)).toEqual(before);
-  });
+      const into = newAccountId();
+      const started = await startImport(into, { bytes: zip, mime: "application/zip" }, "markdown");
+      await runImportToEnd(into, started.jobId);
+      expect(await importJobOf(into, started.jobId)).toMatchObject({
+        state: "done",
+        unreadable: 0,
+      });
+      const before = await summaryOf(from);
+      // the fixture holds what a faithful round trip must carry
+      const link = before.items.find((item) => item.title === "A page worth reading");
+      expect(link?.article).toHaveLength(2);
+      expect(link?.files.map(([role]) => role)).toEqual(["cover"]);
+      expect(before.highlights).toHaveLength(2);
+      expect(await summaryOf(into)).toEqual(before);
+    },
+  );
 
   it("is written over many runs, an eviction among them, into the entries one run writes", async () => {
     const accountId = newAccountId();
@@ -263,82 +274,90 @@ describe("an export", () => {
     });
   }, 120_000);
 
-  it("fails once its runs keep being cut off, so another export can start", async () => {
-    const accountId = newAccountId();
-    await withLibrary(accountId);
-    const id = await inCell(cellOf(accountId), async (state) => {
-      const started = await libraryIn(state, accountId).exports.start({});
-      return started.export.id;
-    });
-    // each run is ended by the platform as soon as its count is on disk, an hour apart
-    for (let hour = 1; hour <= 3; hour += 1) {
-      await inCell(cellOf(accountId), async (state) => {
-        const host = jobHostIn(state, accountId, undefined, () => Date.now() + hour * 3_600_000);
-        const cutOff = {
-          ...host,
-          durable: async () => {
-            await host.durable();
-            throw new Error("the platform ended the run");
-          },
-        };
-        await expect(runExports(cutOff)).rejects.toThrow("the platform ended the run");
+  it(
+    "fails once its runs keep being cut off, so another export can start",
+    { timeout: 30_000 },
+    async () => {
+      const accountId = newAccountId();
+      await withLibrary(accountId);
+      const id = await inCell(cellOf(accountId), async (state) => {
+        const started = await libraryIn(state, accountId).exports.start({});
+        return started.export.id;
       });
-    }
-    const after = await inCell(cellOf(accountId), async (state) => {
-      // the run after the last it may take fails it
-      await runExports(jobHostIn(state, accountId, undefined, () => Date.now() + 4 * 3_600_000));
-      const client = libraryIn(state, accountId);
-      const { export: ended } = await client.exports.get({ id });
-      const { export: next } = await client.exports.start({});
-      return { ended, next };
-    });
-    expect(after.ended).toMatchObject({
-      message: expect.stringContaining("couldn't"),
-      state: "failed",
-    });
-    expect(after.next.id).not.toBe(id);
-  });
+      // each run is ended by the platform as soon as its count is on disk, an hour apart
+      for (let hour = 1; hour <= 3; hour += 1) {
+        await inCell(cellOf(accountId), async (state) => {
+          const host = jobHostIn(state, accountId, undefined, () => Date.now() + hour * 3_600_000);
+          const cutOff = {
+            ...host,
+            durable: async () => {
+              await host.durable();
+              throw new Error("the platform ended the run");
+            },
+          };
+          await expect(runExports(cutOff)).rejects.toThrow("the platform ended the run");
+        });
+      }
+      const after = await inCell(cellOf(accountId), async (state) => {
+        // the run after the last it may take fails it
+        await runExports(jobHostIn(state, accountId, undefined, () => Date.now() + 4 * 3_600_000));
+        const client = libraryIn(state, accountId);
+        const { export: ended } = await client.exports.get({ id });
+        const { export: next } = await client.exports.start({});
+        return { ended, next };
+      });
+      expect(after.ended).toMatchObject({
+        message: expect.stringContaining("couldn't"),
+        state: "failed",
+      });
+      expect(after.next.id).not.toBe(id);
+    },
+  );
 
-  it("is downloaded behind the credential, a range at a time, and let go after seven days", async () => {
-    const { cookie } = await signUpUser("export-download@example.test");
-    const laptop = await loginDevice(cookie, "Laptop");
-    const accountId = await userIdOf(cookie);
-    await withLibrary(accountId);
-    const { export: written } = await exported(accountId);
-    const url = `${ORIGIN}${V1_EXPORTS_PATH}/${written.id}`;
-    const auth = deviceHeaders(laptop.credential);
+  it(
+    "is downloaded behind the credential, a range at a time, and let go after seven days",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await signUpUser("export-download@example.test");
+      const laptop = await loginDevice(cookie, "Laptop");
+      const accountId = await userIdOf(cookie);
+      await withLibrary(accountId);
+      const { export: written } = await exported(accountId);
+      const url = `${ORIGIN}${V1_EXPORTS_PATH}/${written.id}`;
+      const auth = deviceHeaders(laptop.credential);
 
-    const whole = await exports.default.fetch(url, { headers: auth });
-    expect(whole.status).toBe(200);
-    expect(whole.headers.get("content-type")).toBe("application/zip");
-    expect(whole.headers.get("content-disposition")).toMatch(
-      /^attachment; filename="Library \d{4}-\d{2}-\d{2}\.zip"$/u,
-    );
-    expect(new Uint8Array(await whole.arrayBuffer())).toEqual(await zipIn(accountId, written.id));
-
-    const part = await exports.default.fetch(url, { headers: { ...auth, range: "bytes=0-3" } });
-    expect(part.status).toBe(206);
-    expect(new Uint8Array(await part.arrayBuffer())).toEqual(new Uint8Array([0x50, 0x4b, 3, 4]));
-
-    const signedOut = await drained(exports.default.fetch(url, { headers: buildHeaders() }));
-    expect(signedOut.status).toBe(401);
-    const other = await drained(
-      exports.default.fetch(`${ORIGIN}${V1_EXPORTS_PATH}/${crypto.randomUUID()}`, {
-        headers: auth,
-      }),
-    );
-    expect(other.status).toBe(404);
-
-    // seven days on, the alarm lets it go
-    await inCell(cellOf(accountId), async (state) => {
-      await runExports(
-        jobHostIn(state, accountId, undefined, () => Date.now() + EXPORT_KEEP_MS + 1000),
+      const whole = await exports.default.fetch(url, { headers: auth });
+      expect(whole.status).toBe(200);
+      expect(whole.headers.get("content-type")).toBe("application/zip");
+      expect(whole.headers.get("content-disposition")).toMatch(
+        /^attachment; filename="Library \d{4}-\d{2}-\d{2}\.zip"$/u,
       );
-      const { export: gone } = await libraryIn(state, accountId).exports.get({ id: written.id });
-      expect(gone.state).toBe("expired");
-    });
-    expect(await env.BLOBS.head(exportKey(accountId, written.id))).toBeNull();
-    const after = await drained(exports.default.fetch(url, { headers: auth }));
-    expect(after.status).toBe(404);
-  });
+      expect(new Uint8Array(await whole.arrayBuffer())).toEqual(await zipIn(accountId, written.id));
+
+      const part = await exports.default.fetch(url, { headers: { ...auth, range: "bytes=0-3" } });
+      expect(part.status).toBe(206);
+      expect(new Uint8Array(await part.arrayBuffer())).toEqual(new Uint8Array([0x50, 0x4b, 3, 4]));
+
+      const signedOut = await drained(exports.default.fetch(url, { headers: buildHeaders() }));
+      expect(signedOut.status).toBe(401);
+      const other = await drained(
+        exports.default.fetch(`${ORIGIN}${V1_EXPORTS_PATH}/${crypto.randomUUID()}`, {
+          headers: auth,
+        }),
+      );
+      expect(other.status).toBe(404);
+
+      // seven days on, the alarm lets it go
+      await inCell(cellOf(accountId), async (state) => {
+        await runExports(
+          jobHostIn(state, accountId, undefined, () => Date.now() + EXPORT_KEEP_MS + 1000),
+        );
+        const { export: gone } = await libraryIn(state, accountId).exports.get({ id: written.id });
+        expect(gone.state).toBe("expired");
+      });
+      expect(await env.BLOBS.head(exportKey(accountId, written.id))).toBeNull();
+      const after = await drained(exports.default.fetch(url, { headers: auth }));
+      expect(after.status).toBe(404);
+    },
+  );
 });
