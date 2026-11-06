@@ -22,12 +22,11 @@ import { editorShortcutFor } from "@repo/editor/editor-shortcuts";
 import type { AnnotationActions } from "@repo/editor/host-io";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 import { EditorHarness } from "./test-support/editor-harness";
 
-const OPEN_PATH = "open.md";
+const OPEN_ID = "item-open";
 const OTHER_PATH = "other.md";
 const ANNOTATED = "%%i:abc:start%%tinted words%%i:abc:end%% and plain tail\n";
 const PLAIN = "plain words here\n";
@@ -40,14 +39,11 @@ const valueOf = (markdown: string): Value => {
   return parsed.value;
 };
 
-const renderOpenNote = (markdown = ANNOTATED) => {
-  const store = createOpenNoteStore();
-  store.publishOpenPath(OPEN_PATH);
-  return render(<EditorHarness value={valueOf(markdown)} store={store} livePath={OPEN_PATH} />);
-};
+const renderOpenNote = (markdown = ANNOTATED) =>
+  render(<EditorHarness value={valueOf(markdown)} itemId={OPEN_ID} />);
 
 const liveEditor = (): PlateEditor => {
-  const editor = getLiveEditor(OPEN_PATH);
+  const editor = getLiveEditor(OPEN_ID);
   if (editor === null) {
     throw new Error("the mounted editor registers itself");
   }
@@ -62,8 +58,8 @@ const tintedLeaf = (view: ReturnType<typeof renderOpenNote>): string => {
 const KNOWN_ABC = { knownIds: new Set(["abc"]), notedIds: new Set<string>() };
 const RECT = { bottom: 20, height: 0, left: 10, right: 10, top: 10, width: 0 };
 
-const armed = (path: string, created: Promise<boolean> = Promise.resolve(true)): void => {
-  setPendingNote({ created, id: "abc", path, rect: RECT });
+const armed = (itemId: string, created: Promise<boolean> = Promise.resolve(true)): void => {
+  setPendingNote({ created, id: "abc", itemId, rect: RECT });
 };
 
 const hostAnswering = (answer: boolean) => {
@@ -103,7 +99,7 @@ describe("the highlight tint", () => {
   afterEach(cleanup);
 
   it("tints the range from the open item's own store", () => {
-    setAnnotationMeta(OPEN_PATH, KNOWN_ABC);
+    setAnnotationMeta(OPEN_ID, KNOWN_ABC);
 
     const leaf = tintedLeaf(renderOpenNote());
     expect(leaf).toContain("bg-highlight");
@@ -119,11 +115,11 @@ describe("the highlight tint", () => {
   });
 
   it("marks only a noted highlight in the gutter", () => {
-    setAnnotationMeta(OPEN_PATH, KNOWN_ABC);
+    setAnnotationMeta(OPEN_ID, KNOWN_ABC);
     expect(renderOpenNote().queryByRole("button", { name: "Highlights on this block" })).toBeNull();
     cleanup();
 
-    setAnnotationMeta(OPEN_PATH, { knownIds: new Set(["abc"]), notedIds: new Set(["abc"]) });
+    setAnnotationMeta(OPEN_ID, { knownIds: new Set(["abc"]), notedIds: new Set(["abc"]) });
     expect(
       renderOpenNote().getAllByRole("button", { name: "Highlights on this block" }),
     ).toHaveLength(1);
@@ -138,7 +134,7 @@ describe("the note popover", () => {
   afterEach(cleanup);
 
   it("draws over the item that made the highlight", () => {
-    armed(OPEN_PATH);
+    armed(OPEN_ID);
     const field = renderOpenNote().getByLabelText("Note");
     expect(field.getAttribute("placeholder")).toBe("Add a note…");
   });
@@ -150,7 +146,7 @@ describe("the note popover", () => {
 
   it("keeps the bare highlight on Escape, writing no note", () => {
     const { edit } = hostAnswering(true);
-    armed(OPEN_PATH);
+    armed(OPEN_ID);
     const view = renderOpenNote();
 
     fireEvent.change(view.getByLabelText("Note"), { target: { value: "never mind" } });
@@ -164,7 +160,7 @@ describe("the note popover", () => {
   it("writes the note on Return, once the highlight's own entry has landed", async () => {
     const created = deferred<boolean>();
     const { edit } = hostAnswering(true);
-    armed(OPEN_PATH, created.promise);
+    armed(OPEN_ID, created.promise);
     const view = renderOpenNote();
 
     fireEvent.change(view.getByLabelText("Note"), { target: { value: "  Is this right?  " } });
@@ -184,7 +180,7 @@ describe("the note popover", () => {
 
   it("writes no note on a highlight the host refused", async () => {
     const { edit } = hostAnswering(true);
-    armed(OPEN_PATH, Promise.resolve(false));
+    armed(OPEN_ID, Promise.resolve(false));
     const view = renderOpenNote();
 
     fireEvent.change(view.getByLabelText("Note"), { target: { value: "why?" } });
@@ -197,7 +193,7 @@ describe("the note popover", () => {
 
   it("commits an IME candidate rather than saving the half-composed note", async () => {
     const { edit } = hostAnswering(true);
-    armed(OPEN_PATH);
+    armed(OPEN_ID);
     const field = renderOpenNote().getByLabelText("Note");
     fireEvent.change(field, { target: { value: "日本" } });
 

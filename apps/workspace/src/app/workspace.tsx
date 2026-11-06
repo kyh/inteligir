@@ -12,8 +12,6 @@ import type { LibraryScope } from "@repo/domain/library-scope";
 import { jumpToFindMatch } from "@repo/editor/find-bar";
 import type { ItemSession } from "@repo/editor/item/item-session";
 import { getLiveEditor } from "@repo/editor/live-editor";
-import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import type { ItemKind } from "@repo/notes/items/item-kind";
 import { confirm } from "@repo/ui/components/confirm-dialog";
@@ -28,7 +26,13 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useStore } from "zustand";
 
-import { useLeaveGuard, useReplica, useReplicaQueries, useWire } from "./cloud/library-context";
+import {
+  useLeaveGuard,
+  useReadFile,
+  useReplica,
+  useReplicaQueries,
+  useWire,
+} from "./cloud/library-context";
 import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
 import { ItemView } from "./item/item-view";
@@ -128,6 +132,7 @@ const findOnceOpen = (session: ItemSession, { itemId, query }: PendingFind): voi
 
 export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => {
   const replica = useReplica();
+  const readFile = useReadFile();
   const wire = useWire();
   const queries = useReplicaQueries();
   const navigate = useNavigate();
@@ -146,8 +151,6 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const [nameRequest, setNameRequest] = useState<NameRequest | null>(null);
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [selection] = useState(createLibrarySelection);
-  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
-  const [noteStore] = useState(createOpenNoteStore);
   const sessionRef = useRef<ItemSession | null>(null);
   const findRef = useRef<PendingFind | null>(null);
   // the open item's session, which Info's properties write through
@@ -214,6 +217,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
         hostAsks("annotations");
       },
       openItem: hostOpens,
+      readFile,
       replica,
       showTag: hostShowsTag,
     });
@@ -225,7 +229,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       unsubscribe();
       hostRef.current = null;
     };
-  }, [replica]);
+  }, [readFile, replica]);
 
   // CLAUDE.md § THE TAB SENDS WHAT IT HOLDS UNTIL IT CLOSES, AND ASKS BEFORE LOSING IT: the open
   // item's edit counts as held until its pause writes it, the Mac writes it before it quits, and a
@@ -257,9 +261,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
 
   useEffect(() => {
     hostRef.current?.showing(openItem);
-    noteStore.publishOpenPath(openItem);
     replica.focus(openItem);
-  }, [openItem, noteStore, replica]);
+  }, [openItem, replica]);
 
   // a selected item that left the listing (deleted, moved out of the scope) leaves the selection
   useEffect(() => {
@@ -546,7 +549,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const panelItem = openItem ?? (moreSelected.length === 0 ? onlySelected : null);
 
   return (
-    <OpenNoteStoreProvider store={noteStore}>
+    <>
       <div className="h-dvh" inert={covered}>
         <SidebarProvider
           className="h-full"
@@ -773,6 +776,6 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
           setNameRequest(null);
         }}
       />
-    </OpenNoteStoreProvider>
+    </>
   );
 };

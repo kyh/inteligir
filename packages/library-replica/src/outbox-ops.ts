@@ -23,6 +23,7 @@ import type { JsonValue } from "@repo/notes/library/canonical-json";
 import { libraryItemFieldsSchema } from "@repo/notes/library/library-item";
 import {
   blockIdSchema,
+  collectFileShas,
   libraryBlockSchema,
   librarySectionSchema,
   storableBlockSchema,
@@ -118,6 +119,13 @@ const createFileSchema = z.strictObject({
   staged: z.array(stagedSchema),
 });
 
+// a file kept on the device for a write still to come, a picture pasted into a note's text: it goes
+// up as soon as it can, and the bytes stay while any row names them
+const keepSchema = z.strictObject({
+  kind: z.literal("keep"),
+  staged: z.tuple([stagedSchema]),
+});
+
 const idsSchema = z.array(idSchema).min(1);
 
 export const outboxOpSchema = z.discriminatedUnion("kind", [
@@ -126,6 +134,7 @@ export const outboxOpSchema = z.discriminatedUnion("kind", [
   saveLinkSchema,
   saveSchema,
   createFileSchema,
+  keepSchema,
   z.strictObject({ ids: idsSchema, kind: z.literal("delete") }),
   z.strictObject({ ids: idsSchema, kind: z.literal("restore") }),
   z.strictObject({ kind: z.literal("folders"), ops: z.array(folderOpSchema).min(1) }),
@@ -147,6 +156,7 @@ export const itemIdOf = (op: OutboxOp): string | null => {
     case "createFile": {
       return op.input.id;
     }
+    case "keep":
     case "delete":
     case "restore":
     case "folders": {
@@ -166,9 +176,31 @@ export const itemIdsOf = (op: OutboxOp): readonly string[] => {
 };
 
 export const stagedOf = (op: OutboxOp): readonly StagedFile[] =>
-  op.kind === "write" || op.kind === "create" || op.kind === "save" || op.kind === "createFile"
+  op.kind === "write" ||
+  op.kind === "create" ||
+  op.kind === "save" ||
+  op.kind === "createFile" ||
+  op.kind === "keep"
     ? op.staged
     : [];
+
+// the files the blocks a write puts or inserts, or a note it makes, name by their bytes
+export const shasNamed = (op: OutboxOp): ReadonlySet<string> => {
+  const shas = new Set<string>();
+  if (op.kind === "write") {
+    for (const libraryOp of op.ops) {
+      if (libraryOp.op === "put" || libraryOp.op === "insert") {
+        collectFileShas(libraryOp.block, shas);
+      }
+    }
+  }
+  if (op.kind === "create") {
+    for (const { block } of op.input.blocks) {
+      collectFileShas(block, shas);
+    }
+  }
+  return shas;
+};
 
 // ---- compaction ----
 

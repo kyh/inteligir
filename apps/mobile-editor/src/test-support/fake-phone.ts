@@ -20,6 +20,9 @@ import type {
 
 export const PHONE_NONCE = "test-nonce-0123456789";
 
+// the library's cap on one file, as the phone names it in `init`
+const FILE_MAX_BYTES = 100 * 1024 * 1024;
+
 type PageRequest = Extract<PageFrame, { type: "request" }>;
 
 type PhoneAnswer =
@@ -78,10 +81,13 @@ const createNoteAnswer = (
   return ok({ id });
 };
 
-// every item is a link target under its title, and a highlight is queued for the phone's store,
-// which a case reads off the request
+// a file the phone holds, as the bridge carries it
+type HeldFile = Extract<PageRequest, { kind: "keepFile" }>["payload"];
+
+// every item is a link target under its title, a kept file is held under the next free pretend
+// sha, and a highlight is queued for the phone's store, which a case reads off the request
 const answerFromLibrary =
-  (items: Map<string, ItemState>): Answerer =>
+  (items: Map<string, ItemState>, files: Map<string, HeldFile>): Answerer =>
   (request) => {
     switch (request.kind) {
       case "item": {
@@ -94,15 +100,18 @@ const answerFromLibrary =
       case "createNote": {
         return createNoteAnswer(items, request.payload);
       }
-      case "wikiTargets": {
+      case "linkTargets": {
         return ok({
-          targets: [...items].map(([id, state]) => ({
-            id,
-            path: `${state.fields.title}.md`,
-            title: state.fields.title,
-            type: "doc" as const,
-          })),
+          targets: [...items].map(([id, state]) => ({ id, title: state.fields.title })),
         });
+      }
+      case "keepFile": {
+        const sha = String(files.size + 1).padStart(64, "0");
+        files.set(sha, request.payload);
+        return ok({ sha });
+      }
+      case "readFile": {
+        return ok({ file: files.get(request.payload.sha) ?? null });
       }
       case "addHighlight":
       case "noteHighlight": {
@@ -118,6 +127,8 @@ const answerFromLibrary =
 export interface FakePhone {
   readonly transport: BridgeTransport;
   readonly items: Map<string, ItemState>;
+  // the files the phone holds, by sha
+  readonly files: Map<string, HeldFile>;
   readonly sent: PageFrame[];
   answer: Answerer;
   readonly deliver: (frame: NativeFrame) => void;
@@ -158,14 +169,23 @@ export const createFakePhone = (library: Readonly<Record<string, ItemState>> = {
     deliverText(JSON.stringify(frame));
   };
 
+  const files = new Map<string, HeldFile>();
   const phone: FakePhone = {
-    answer: answerFromLibrary(items),
+    answer: answerFromLibrary(items, files),
     deliver,
     deliverText,
     events: (type) => sent.filter(isType(type)),
     init: (overrides) => {
-      deliver({ focus: null, mode: "item", nonce: PHONE_NONCE, type: "init", ...overrides });
+      deliver({
+        fileMaxBytes: FILE_MAX_BYTES,
+        focus: null,
+        mode: "item",
+        nonce: PHONE_NONCE,
+        type: "init",
+        ...overrides,
+      });
     },
+    files,
     items,
     requests: (kind) => sent.filter(isKind(kind)),
     sent,

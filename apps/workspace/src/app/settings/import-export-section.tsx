@@ -20,7 +20,7 @@ import { useCloud, useWire } from "../cloud/library-context";
 import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { NEEDS_CONNECTION } from "../cloud/needs-connection";
 import { formatBytes, formatCount } from "../library/item-labels";
-import { saveBlob } from "../save-file";
+import { saveBlob } from "@repo/ui/lib/save-blob";
 import { Row, SectionHeading } from "./settings-chrome";
 
 type ImportJob = z.infer<typeof importJobSchema>;

@@ -20,6 +20,8 @@ export const MediaToolbar = () => {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const url = stringProp(element, "url") ?? "";
+  // a file the library holds is named by its bytes, which no address replaces
+  const held = stringProp(element, "sha") !== undefined;
 
   useEffect(() => {
     if (editing) {
@@ -93,20 +95,22 @@ export const MediaToolbar = () => {
         </>
       ) : (
         <>
-          <Button
-            variant="ghost"
-            size="icon-compact"
-            title="Edit URL"
-            className={BUTTON_CLASS}
-            onMouseDown={(e) => {
-              e.preventDefault();
-            }}
-            onClick={() => {
-              setEditing(true);
-            }}
-          >
-            <PencilIcon />
-          </Button>
+          {held ? null : (
+            <Button
+              variant="ghost"
+              size="icon-compact"
+              title="Edit URL"
+              className={BUTTON_CLASS}
+              onMouseDown={(e) => {
+                e.preventDefault();
+              }}
+              onClick={() => {
+                setEditing(true);
+              }}
+            >
+              <PencilIcon />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon-compact"

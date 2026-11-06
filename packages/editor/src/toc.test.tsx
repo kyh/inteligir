@@ -6,7 +6,6 @@ import type { PlateEditor } from "platejs/react";
 import { createRef } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import {
   activeHeadingAt,
   collectHeadings,
@@ -23,7 +22,7 @@ const p = (text: string) => ({ children: [{ text }], type: "p" });
 
 const mountValue = (value: Value): PlateEditor => {
   const ref = createRef<PlateEditor>();
-  render(<EditorHarness value={value} store={createOpenNoteStore()} ref={ref} />);
+  render(<EditorHarness value={value} ref={ref} />);
   if (ref.current === null) {
     throw new Error("the editor did not mount");
   }
@@ -147,7 +146,7 @@ describe("the scroll spy over a long note's runs", () => {
       ),
     ];
     const ref = createRef<PlateEditor>();
-    render(<EditorHarness value={value} store={createOpenNoteStore()} ref={ref} chunkSize={100} />);
+    render(<EditorHarness value={value} ref={ref} chunkSize={100} />);
     const editor = ref.current;
     if (editor === null) {
       throw new Error("the editor did not mount");

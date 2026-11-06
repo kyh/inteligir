@@ -1,7 +1,7 @@
 // a product surface speaks the person's words: the whole of it is the library and what is in it are
 // items, and no surface names the engine (git, commit, remote, repo, terminal, CLI, PATH, MCP;
 // AGENTS.md § Rules that matter).
-// detection is textual and a lower bound, like one-spelling.test.ts: it reads the quoted literals
+// detection is textual and a lower bound: it reads the quoted literals
 // that hold a space, with a template's `${…}` set aside and its own literals read too, and a .tsx
 // file's lines of JSX text, which is where the window's, the phone's and the shell's sentences
 // live.

@@ -61,14 +61,9 @@ const DATE_TAIL = String.raw`(?<value>${ISO_DATE_PATTERN})(?!\d)`;
 const FORMULA_RE = new RegExp(String.raw`\{${FORMULA_TAIL}`, "gu");
 const MARKER_RE = new RegExp(`%${MARKER_TAIL}`, "gu");
 
-// a date chip as written, `value` its day. Shared and global, like ANNOTATION_MARKER_STRIP_RE below:
-// hand it to replace, replaceAll, match or matchAll only.
+// a date chip as written, `value` its day. Shared and global: hand it to replace, replaceAll, match
+// or matchAll only, never to test or exec, whose lastIndex would carry from one caller into the next.
 export const DATE_CHIP_RE = new RegExp(`@${DATE_TAIL}`, "gu");
-
-// Looser than MARKER_RE on purpose, so a half-typed or malformed marker still leaves a preview or
-// a snippet. Shared and global: hand it to replace, replaceAll, match or matchAll only, never to
-// test or exec, whose lastIndex would carry from one caller into the next.
-export const ANNOTATION_MARKER_STRIP_RE = /%%i:[^%]*%%/gu;
 
 // A marker's `ids` stays the joined spelling so the serializer re-emits its bytes; this is the
 // one place the list is read.

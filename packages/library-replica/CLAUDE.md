@@ -68,3 +68,13 @@ and cited.
   wasm in workerd (sqlite-wasm compiles its glue at load).
   `packages/library-replica/src/memory-sql.ts`,
   `apps/web/replica-sql-service.ts`.
+
+- **A FILE KEPT FOR A BLOCK STILL TO BE WRITTEN IS AN OUTBOX ROW OF ITS OWN.**
+  `keepFile` stages the bytes by sha with a `keep` row, which uploads them as
+  soon as the outbox reaches it and lets them go; a write or a new note whose
+  blocks name a file a row stages stages it too, so the bytes stay until that
+  row lands and a `BLOB_MISSING` sends them again, and a file no write names
+  goes up and is the cell's to let go a day on. Rejected: the bytes passed with
+  the write (the editor held them in memory through its pause); a table of
+  kept files (a second staging beside the rows' own).
+  `packages/library-replica/src/outbox.ts`, `replica-commands.ts`.

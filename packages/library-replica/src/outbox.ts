@@ -20,7 +20,7 @@ import type { z } from "zod";
 
 import { sharedFailure, uploadBlob } from "./call-outcome";
 import type { CallFailure } from "./call-outcome";
-import { coalesceWrites, itemIdsOf, stagedOf } from "./outbox-ops";
+import { coalesceWrites, itemIdsOf, shasNamed, stagedOf } from "./outbox-ops";
 import type { OutboxOp, WriteOp } from "./outbox-ops";
 import { deleteAllRows, deleteRow, insertRow, readRows, saveRow } from "./outbox-rows";
 import type { OutboxRow } from "./outbox-rows";
@@ -169,6 +169,26 @@ const blocksOfWrite = function* blocksOfWrite(
     }
   }
   return { dropped, written };
+};
+
+// a write or a new note names a file a row still stages, a picture kept as it was pasted: the row
+// stages it too, so its bytes stay until this row lands and a BLOB_MISSING it meets sends them
+// again. A file no row stages any more is the cloud's already
+const withKeptFiles = (op: OutboxOp, rows: readonly OutboxRow[]): OutboxOp => {
+  if (op.kind !== "write" && op.kind !== "create") {
+    return op;
+  }
+  const staged = [...op.staged];
+  for (const sha of shasNamed(op)) {
+    if (staged.some((file) => file.sha === sha)) {
+      continue;
+    }
+    const held = rows.flatMap((row) => stagedOf(row.op)).find((file) => file.sha === sha);
+    if (held !== undefined) {
+      staged.push(held);
+    }
+  }
+  return { ...op, staged };
 };
 
 export const createOutbox = (context: OutboxContext): Outbox => {
@@ -575,6 +595,16 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       case "folders": {
         return await sendFolders(row, op);
       }
+      // its file is up, which was all it asked
+      case "keep": {
+        return await land(
+          row,
+          function* nothing() {
+            yield* [];
+          },
+          touchedNothing(),
+        );
+      }
       // no default
     }
   };
@@ -621,12 +651,13 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       return { kind: "more" };
     },
 
-    enqueue: async (op, files) => {
+    enqueue: async (given, files) => {
       const createdAt = context.clock.now();
       await hold(async () => {
         for (const file of files) {
           await blobs.put(file.sha, file.bytes, file.mime);
         }
+        const op = withKeptFiles(given, rows);
         // the last row naming the item, a delete or a restore of several included, so a write
         // joins only a write nothing on its item has queued behind, and only one no pin has sent
         const last =
@@ -656,7 +687,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
         });
         replace(next);
       });
-      await changedRow(op, []);
+      await changedRow(given, []);
     },
 
     load: async () => {

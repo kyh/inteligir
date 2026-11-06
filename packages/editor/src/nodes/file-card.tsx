@@ -1,7 +1,8 @@
-// An embed of a library file that is not an image (a PDF, a video, a sound, any other file) is
-// the item's original, not a broken picture: it draws as a card naming the file, and Open hands
-// its bytes to the system's viewer. Only a kind the browser shows itself is opened that way: a
-// blob URL runs in the page's own origin, so a type that could run script never gets one.
+// A file a note embeds that no picture or player draws (a PDF, a sound, a document, any other
+// file) is a card naming it, its glyph read from its name. Where the host can hand a file on
+// (`savesFiles`), its Download reads the bytes from where the host draws its files and saves them
+// under that name; the page itself never opens one, since a blob of its own origin is a page that
+// could run script.
 
 import {
   FileArchiveIcon,
@@ -16,15 +17,15 @@ import type { LucideProps } from "lucide-react";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/cn";
+import { saveBlob } from "@repo/ui/lib/save-blob";
 
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { fileKindOf } from "@repo/notes/items/item-kind";
 import type { FileKind } from "@repo/notes/items/item-kind";
-import { basenamePath } from "@repo/notes/knowledge/vault-path";
 
-// the glyph a file's kind is drawn with; a doc, which is no file kind, gets the plain one
-export const FileKindIcon = ({ path, ...props }: { path: string } & LucideProps) => {
-  const kind: FileKind | null = fileKindOf(path);
+// the glyph a file's kind is drawn with; a name of no known kind gets the plain one
+export const FileKindIcon = ({ name, ...props }: { name: string } & LucideProps) => {
+  const kind: FileKind | null = fileKindOf(name);
   switch (kind) {
     case "audio": {
       return <MusicIcon {...props} />;
@@ -51,69 +52,42 @@ export const FileKindIcon = ({ path, ...props }: { path: string } & LucideProps)
   }
 };
 
-// what the system viewer may be handed as a blob of the page's own origin
-const OPENABLE_TYPE = /^(?:application\/pdf|audio\/[\w.+-]+|video\/[\w.+-]+)$/u;
-
-// a viewer that never asks for the bytes again still gets a minute before the URL goes
-const OPEN_URL_LIFETIME_MS = 60_000;
-
-const openInViewer = async (path: string): Promise<void> => {
-  const result = await getEditorHostIo()
-    .readVaultAsset({ path })
-    .catch(() => null);
-  if (result === null || !result.ok || !OPENABLE_TYPE.test(result.bytes.type)) {
-    toast.error(`${basenamePath(path)} can't be shown here. Reveal it in Finder to open it.`);
-    return;
+const download = async (sha: string, name: string): Promise<void> => {
+  try {
+    saveBlob(await getEditorHostIo().readFile(sha), name);
+  } catch {
+    toast.error(`${name} isn't on this device yet. Try again once you're online.`);
   }
-  const url = URL.createObjectURL(result.bytes);
-  window.open(url, "_blank", "noopener");
-  setTimeout(() => {
-    URL.revokeObjectURL(url);
-  }, OPEN_URL_LIFETIME_MS);
 };
 
-// `path` null: the embed names a file the library does not hold
 export const FileCard = ({
-  path,
-  url,
+  sha,
+  name,
   selected,
 }: {
-  path: string | null;
-  url: string;
+  sha: string;
+  name: string;
   selected: boolean;
-}) => {
-  const name = basenamePath(path ?? url);
-  return (
-    <div
-      data-file-card=""
-      className={cn(
-        "flex items-center gap-3 rounded-md border border-border bg-muted/40 px-3 py-2",
-        selected && "ring-2 ring-ring ring-offset-2",
-      )}
-    >
-      <FileKindIcon path={path ?? url} className="size-4 shrink-0 text-muted-foreground" />
-      <div className="min-w-0 flex-1">
-        <p className="m-0 truncate text-subtitle">{name === "" ? "File" : name}</p>
-        {path === null ? (
-          <p className="m-0 truncate text-body text-muted-foreground">Not in your library</p>
-        ) : null}
-      </div>
-      {path === null ? null : (
-        <Button
-          variant="secondary"
-          size="compact"
-          onClick={() => {
-            const io = getEditorHostIo();
-            if (io.opensFiles) {
-              io.vault.openFile(path);
-              return;
-            }
-            void openInViewer(path);
-          }}
-        >
-          Open
-        </Button>
-      )}
-    </div>
-  );
-};
+}) => (
+  <div
+    data-file-card=""
+    className={cn(
+      "flex items-center gap-3 rounded-md border border-border bg-muted/40 px-3 py-2",
+      selected && "ring-2 ring-ring ring-offset-2",
+    )}
+  >
+    <FileKindIcon name={name} className="size-4 shrink-0 text-muted-foreground" />
+    <p className="m-0 min-w-0 flex-1 truncate text-subtitle">{name}</p>
+    {getEditorHostIo().savesFiles ? (
+      <Button
+        variant="secondary"
+        size="compact"
+        onClick={() => {
+          void download(sha, name);
+        }}
+      >
+        Download
+      </Button>
+    ) : null}
+  </div>
+);

@@ -24,7 +24,7 @@ import {
   shellStagedBlobs,
 } from "../../shell/shell-commands";
 import type { Held, LeaveGuard } from "./leave-guard";
-import { newId, pageClock } from "./page-library";
+import { fileAt, newId, pageClock } from "./page-library";
 import type { PageLibrary } from "./page-library";
 import { signOutTroubleText } from "./shell-trouble";
 import { createCloudWire } from "./v1";
@@ -116,6 +116,9 @@ export const openShellLibrary = async (
       cloud: transport,
       fileUrl: (sha) => `${config.filesOrigin}/${sha}`,
       leave,
+      // the shell's scheme answers a file from its staged files, its cache or the cloud
+      readFile: async (sha) =>
+        await fileAt(`${config.filesOrigin}/${sha}`, async (request) => await fetch(request)),
       left: leaveAccount(reload),
       replica: opening.replica,
       // a credential the cloud no longer takes (revoked elsewhere, the account deleted) can send

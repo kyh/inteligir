@@ -1,15 +1,18 @@
 // The editor's host on this page: what the editor's kits ask of the page, answered from the
 // replica. A link names its item by id, which the resolver maps to the item the replica holds, and
-// opening it opens that item; a highlight the chord makes is written to the open item as its own
-// entry, beside the markers the editor put around the passage, which the item's next write
-// carries; a note the editor makes (an extract, a link's Create) is made in that item's folder.
-// What the page has no door to (a file inside a note) answers that nothing is there.
+// opening it opens that item; an embed draws the item's blocks as the replica holds them; a file
+// a note names by its sha is drawn from where the page draws its files (the cloud's own route in
+// the tab, the shell's scheme on the Mac), and one pasted or dropped into the text is kept in the
+// replica's outbox, which sends it up ahead of the write that names it; a highlight the chord
+// makes is written to the open item as its own entry, beside the markers the editor put around the
+// passage, which the item's next write carries; a note the editor makes (an extract, a link's
+// Create) is made in that item's folder.
 
+import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
 import { installEditorHost } from "@repo/editor/host-io";
-import type { EditorHostIo, VaultActions } from "@repo/editor/host-io";
+import type { EditorHostIo, LinkTarget } from "@repo/editor/host-io";
 import { createLinkResolverFeed } from "@repo/editor/link-resolver-feed";
 import type { LibraryReplica } from "@repo/library-replica/library-replica";
-import type { WikiTarget } from "@repo/notes/knowledge/wiki-target";
 
 export interface PageEditorHost {
   // the item the editor shows now, whose highlights the chord writes; null over the library
@@ -20,29 +23,13 @@ export interface PageEditorHost {
 
 export interface PageEditorPorts {
   readonly replica: LibraryReplica;
+  // a file of the library as the page's host draws it
+  readonly readFile: (sha: string) => Promise<Blob>;
   readonly openItem: (itemId: string) => void;
   readonly askAgent: (selection: string) => void;
   readonly showTag: (tag: string) => void;
   readonly openAnnotations: (ids: string[]) => void;
 }
-
-// an item as a link resolves it: by its id first, then by its title, under a path of its own so
-// two items of one title are two targets
-const targetOf = (row: { id: string; title: string }): WikiTarget => ({
-  id: row.id,
-  path: `${row.title.replaceAll("/", " ")}.md`,
-  title: row.title,
-  type: "doc",
-});
-
-const nothingToDo = (): void => {
-  /* the page has no door for this */
-};
-
-const nothingThere = async (): Promise<never> => {
-  await Promise.resolve();
-  throw new Error("the library's page reads no file by its path");
-};
 
 const nowSeconds = (): number => Math.floor(Date.now() / 1000);
 
@@ -50,8 +37,8 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
   const { replica } = ports;
   const feed = createLinkResolverFeed();
   let showing: string | null = null;
-  let targets: readonly WikiTarget[] = [];
 
+  // every live item a link can name, by its id and the title its card shows
   const refreshTargets = (): void => {
     const page = replica.listing({
       deleted: false,
@@ -59,26 +46,24 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
       offset: 0,
       sort: "title",
     });
-    targets = page.items.map(targetOf);
-    feed.setTargets(targets);
-  };
-
-  const vault: VaultActions = {
-    openFile: (path) => {
-      const itemId = targets.find((target) => target.path === path)?.id;
-      if (itemId !== undefined) {
-        ports.openItem(itemId);
-      }
-    },
+    feed.setTargets(page.items.map(({ id, title }): LinkTarget => ({ id, title })));
   };
 
   const io: EditorHostIo = {
+    fileMaxBytes: BLOB_MAX_BYTES,
+    keepFile: async (bytes, mime) => await replica.keepFile({ bytes, mime }),
     linkResolver: feed.store,
-    onVaultChanged: () => nothingToDo,
-    opensFiles: false,
-    readVaultAsset: async () => await Promise.resolve({ error: "no file here", ok: false }),
-    readVaultFile: nothingThere,
-    vault,
+    onItemsChanged: (listener) =>
+      replica.onChange((change) => {
+        listener(change.reset ? null : change.ids);
+      }),
+    openItem: ports.openItem,
+    readFile: ports.readFile,
+    readItemBlocks: async (itemId) => {
+      const item = await replica.item(itemId);
+      return item?.blocks.map(({ block }) => block) ?? null;
+    },
+    savesFiles: true,
   };
 
   installEditorHost({

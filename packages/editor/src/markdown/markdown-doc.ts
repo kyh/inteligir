@@ -17,7 +17,7 @@ import type { ConvertFailure } from "@repo/editor/markdown/md-to-slate";
 
 // Why a value cannot stand for its markdown: never the bytes, which always parse, but the
 // editor's limits or its bugs.
-export type RoundTripFailure =
+type RoundTripFailure =
   | ConvertFailure
   // re-serializing never settles on one set of bytes
   | { kind: "unstable" }
@@ -200,6 +200,7 @@ export const analyzeMarkdown = (md: string): DocAnalysis => {
     : { kind: "roundtrip-loss" };
 };
 
+/** @internal */
 export const parseMarkdown = (
   md: string,
 ): { ok: true; value: Value } | { ok: false; reason: RoundTripFailure } => {

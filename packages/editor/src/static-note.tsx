@@ -1,9 +1,9 @@
-// A note drawn read-only, its constructs as cards and its links live: an embed's body and Quick
-// Look's preview of an item both draw through it. It reaches the editor host seam, so a kit file
-// base-kit composes must never import it eagerly (transclusion.tsx is reached through React.lazy).
+// An item's blocks drawn read-only, its constructs as cards and its links live: an embed's body
+// draws through it. It reaches the editor host seam, so a kit file base-kit composes must never
+// import it eagerly (transclusion.tsx is reached through React.lazy).
 
-import { createContext, useContext, useMemo } from "react";
-import type { MouseEvent, ReactNode } from "react";
+import { useMemo } from "react";
+import type { ReactNode } from "react";
 import { getLinkAttributes } from "@platejs/link";
 import { ElementApi, KEYS, TextApi, createSlateEditor } from "platejs";
 import type { TElement, TText, Value } from "platejs";
@@ -28,19 +28,16 @@ import { classNameSlateElement } from "@repo/editor/kits/kit-utils";
 import { TABLE_CELL_CLASS, TABLE_HEADER_CELL_CLASS } from "@repo/editor/kits/table-kit";
 import { isHttpUrl } from "@repo/editor/lib/url";
 import { alertMarkerPrefix, parseAlertVariant } from "@repo/editor/markdown/alert-marker";
-import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { stringProp } from "@repo/editor/node-props";
 import { CALLOUT_ALERT } from "@repo/editor/style-hooks";
 import { alertPresentation } from "@repo/editor/nodes/blockquote-node";
+import { FileCard } from "@repo/editor/nodes/file-card";
 import { ImageFigure } from "@repo/editor/nodes/image-node";
+import { LibraryVideo } from "@repo/editor/nodes/remote-media-node";
 import { RichBlockCard } from "@repo/editor/nodes/rich-block-chrome";
 import WikiChip from "@repo/editor/wiki/wiki-chip";
 import { wikiFieldsOf } from "@repo/editor/wiki/wiki-node";
 import type { WikiNodeFields } from "@repo/editor/wiki/wiki-node";
-import { useVaultActions, useVaultLinkTarget } from "@repo/editor/host";
-
-// The note an embed shows: a url inside it is relative to that note, not to the open one.
-const EmbeddedNotePathContext = createContext<string | null>(null);
 
 export const EmbedChip = ({ link, note }: { link: WikiNodeFields; note?: string | undefined }) => (
   <span className="inline-flex items-baseline gap-0.5">
@@ -56,31 +53,10 @@ export const EmbedChip = ({ link, note }: { link: WikiNodeFields; note?: string 
   </span>
 );
 
-// only an http(s) url is the browser's: in the shell a vault url in a new tab is a dead page, so
-// it opens in the app, and any other url draws as text.
+// only an http(s) url is the browser's; any other url draws as text, since an item is linked by
+// `[[…]]`, never by an address
 const LinkStatic = (props: SlateElementProps) => {
   const url = stringProp(props.element, "url") ?? "";
-  const notePath = useContext(EmbeddedNotePathContext);
-  const vaultPath = useVaultLinkTarget(url, notePath)?.path ?? null;
-  const { openFile } = useVaultActions();
-  if (vaultPath !== null) {
-    return (
-      <SlateElement
-        {...props}
-        as="a"
-        className="cursor-pointer"
-        attributes={{
-          ...props.attributes,
-          onClick: (event: MouseEvent) => {
-            event.preventDefault();
-            openFile(vaultPath);
-          },
-        }}
-      >
-        {props.children}
-      </SlateElement>
-    );
-  }
   const external = isHttpUrl(url)
     ? {
         ...getLinkAttributes(props.editor, {
@@ -162,15 +138,32 @@ const MediaStatic = (props: SlateElementProps) => {
   );
 };
 
-const ImageStatic = (props: SlateElementProps) => {
-  const notePath = useContext(EmbeddedNotePathContext);
-  return (
-    <SlateElement {...props} className="py-2.5">
-      <ImageFigure element={props.element} notePath={notePath} selected={false} />
-      {props.children}
-    </SlateElement>
-  );
-};
+const ImageStatic = (props: SlateElementProps) => (
+  <SlateElement {...props} className="py-2.5">
+    <ImageFigure element={props.element} selected={false} />
+    {props.children}
+  </SlateElement>
+);
+
+// a video or a file the library holds by its sha draws as the live one does; one by its address,
+// as its link
+const libraryMediaStatic = (kind: "video" | "file") =>
+  function LibraryMediaStatic(props: SlateElementProps) {
+    const sha = stringProp(props.element, "sha") ?? null;
+    if (sha === null) {
+      return <MediaStatic {...props} />;
+    }
+    return (
+      <SlateElement {...props} className="my-1">
+        {kind === "video" ? (
+          <LibraryVideo selected={false} sha={sha} />
+        ) : (
+          <FileCard name={stringProp(props.element, "name") ?? "File"} selected={false} sha={sha} />
+        )}
+        {props.children}
+      </SlateElement>
+    );
+  };
 
 const FormulaPillStatic = (props: SlateElementProps) => {
   const source = stringProp(props.element, "source") ?? "";
@@ -294,9 +287,9 @@ export const STATIC_COMPONENTS: ReadonlyMap<string, (props: SlateElementProps) =
     ["date", DateStatic],
     ["equation", EquationStatic],
     ["inline_equation", InlineEquationStatic],
-    ["video", MediaStatic],
+    ["video", libraryMediaStatic("video")],
     ["media_embed", MediaStatic],
-    ["file", MediaStatic],
+    ["file", libraryMediaStatic("file")],
     ["img", ImageStatic],
     ["hr", HrStatic],
     [FORMULA_PILL_KEY, FormulaPillStatic],
@@ -349,29 +342,13 @@ export const stripAlertMarkers = (value: Value): Value =>
     };
   });
 
-// `path` is the note being drawn: a relative url inside it resolves beside it, not beside the
-// note that is open.
-export const StaticNote = ({ content, path }: { content: string; path: string }) => {
-  const parsed = useMemo(() => parseMarkdown(content), [content]);
+export const StaticNote = ({ blocks }: { blocks: readonly TElement[] }) => {
   const editor = useMemo(
-    () =>
-      parsed.ok
-        ? createSlateEditor({
-            plugins: STATIC_KIT,
-            value: stripAlertMarkers(parsed.value),
-          })
-        : null,
-    [parsed],
+    () => createSlateEditor({ plugins: STATIC_KIT, value: stripAlertMarkers([...blocks]) }),
+    [blocks],
   );
-  if (content.trim() === "") {
+  if (blocks.length === 0) {
     return <span className="text-subtitle text-muted-foreground italic">This note is empty.</span>;
   }
-  if (!editor) {
-    return <pre className="whitespace-pre-wrap">{content}</pre>;
-  }
-  return (
-    <EmbeddedNotePathContext value={path}>
-      <PlateStatic editor={editor} />
-    </EmbeddedNotePathContext>
-  );
+  return <PlateStatic editor={editor} />;
 };

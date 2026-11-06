@@ -9,8 +9,6 @@ import type { Value } from "platejs";
 import type { PlateEditor } from "platejs/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
-
 import { EditorHarness } from "./test-support/editor-harness";
 
 const ROW_HEIGHT = 40;
@@ -35,7 +33,7 @@ const p = (text: string) => ({ children: [{ text }], type: "p" });
 
 const mountValue = (value: Value): PlateEditor => {
   const ref = createRef<PlateEditor>();
-  render(<EditorHarness value={value} store={createOpenNoteStore()} ref={ref} nodeIds />);
+  render(<EditorHarness value={value} ref={ref} nodeIds />);
   if (ref.current === null) {
     throw new Error("the editor did not mount");
   }

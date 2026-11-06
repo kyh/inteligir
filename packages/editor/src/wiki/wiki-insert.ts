@@ -9,14 +9,10 @@ import { getEditorHostActions } from "@repo/editor/host-io";
 import { wikiFieldsOfBody, wikiNode } from "@repo/editor/wiki/wiki-node";
 
 // A `!` before the `[[` upgrades the chip to an embed.
-export const insertWikiChipFromPicker = (
-  editor: SlateEditor,
-  body: string,
-  forceEmbed = false,
-): void => {
+export const insertWikiChipFromPicker = (editor: SlateEditor, body: string): void => {
   consumeTriggerLead(editor, "[");
   const bang = consumeTriggerLead(editor, "!");
-  const type = forceEmbed || bang ? WIKI_EMBED_KEY : WIKI_LINK_KEY;
+  const type = bang ? WIKI_EMBED_KEY : WIKI_LINK_KEY;
   // Slate would otherwise park the caret inside the void's empty text and swallow keystrokes.
   insertVoidAndEscape(editor, wikiNode(type, wikiFieldsOfBody(body)));
 };

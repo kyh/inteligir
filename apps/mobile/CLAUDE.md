@@ -83,9 +83,11 @@ how it ships.
   Documents; every other file and thumbnail is in the purgeable cache, its use
   stamped in `phone_files` and the least recent dropped past the cap. An upload
   whose write landed moves into the cache, or stays pinned, so the phone never
-  downloads what it sent. A screen draws a file only as an item's own, its
-  card's cover or its viewer's original: the item page answers no file inside
-  a note (`apps/mobile-editor/src/item/item-host.ts`). A file over 512 KB lists
+  downloads what it sent. A screen draws a file as an item's own, its card's
+  cover or its viewer's original, and the item page draws one a note names
+  from these bytes over the bridge, typed by its first bytes, and keeps one
+  pasted there through the replica's outbox
+  (`apps/mobile-editor/src/item/item-host.ts`). A file over 512 KB lists
   from a 320 px thumbnail made once. A sign-out moves the cache's generation,
   so a download begun before it lands nothing
   (`apps/mobile/src/files/file-cache.ts`). Rejected: `expo-file-system/legacy`
@@ -111,8 +113,9 @@ how it ships.
   2048px on its long edge with no EXIF, so no location reaches the library's
   history, and saved as a file item whose bytes are staged, pinned, until the
   upload lands, then kept (`apps/mobile/src/items/photo-ingest.ts`,
-  `apps/mobile/src/items/photo-plan.ts`). Rejected: a picked image placed in a
-  note (the page has no door to the phone's files).
+  `apps/mobile/src/items/photo-plan.ts`). Rejected: a picked photo placed in a
+  note (the photo button is the library's, where no note is open; a picture
+  pasted into a note's text lands in that note).
 
 - **A PHONE HIGHLIGHT IS THE EDITOR'S, AND THE SHEET WRITES ITS ENTRIES** (owner
   decision: the phone annotates and replies). The page's highlight and its note

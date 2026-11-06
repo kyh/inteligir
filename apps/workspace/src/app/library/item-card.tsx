@@ -88,7 +88,7 @@ const GlyphTile = ({ row }: { row: ReplicaListingRow }) => {
   const extension = fileExtensionLabel(name);
   return (
     <div aria-hidden="true" className="flex size-full flex-col items-center justify-center gap-1">
-      <FileKindIcon path={name} className="size-9 text-muted-foreground" strokeWidth={1.25} />
+      <FileKindIcon name={name} className="size-9 text-muted-foreground" strokeWidth={1.25} />
       {extension === "" ? null : (
         <span className="text-caption font-medium text-muted-foreground">{extension}</span>
       )}

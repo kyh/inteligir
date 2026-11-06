@@ -4,7 +4,7 @@ import type { PlateElementProps, RenderNodeWrapper } from "platejs/react";
 import { shallow } from "zustand/shallow";
 
 import { getEditorHostActions } from "@repo/editor/host-io";
-import { useOpenNotePath } from "@repo/editor/note/open-note-context";
+import { useOpenItemId } from "@repo/editor/open-item";
 import { Tooltip } from "@repo/ui/components/tooltip";
 
 import { annotationIdsByBlock, blockHoldsAnnotationMarkers } from "./annotation-ranges";
@@ -24,8 +24,8 @@ const AnnotationGutterBlock = (props: PlateElementProps) => {
     [element],
     { equalityFn: shallow },
   );
-  const notePath = useOpenNotePath();
-  const { notedIds = NONE_NOTED } = useAnnotationMeta(notePath);
+  const itemId = useOpenItemId();
+  const { notedIds = NONE_NOTED } = useAnnotationMeta(itemId);
   const noted = ids.filter((id) => notedIds.has(id));
 
   // the wrapper stays while the block holds markers, so a note landing on a highlight adds a dot

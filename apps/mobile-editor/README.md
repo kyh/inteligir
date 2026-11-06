@@ -58,8 +58,12 @@ end that receives it.
   requests `{ id, nonce, kind, payload }` — `item` (the item as the replica
   reads it, each block with its hash and place), `writeItem` (ops under their
   bases, answered queued, unchanged, missing, changed with the item as it
-  reads now, or invalid), `wikiTargets` (the items a link can name, by id and
+  reads now, or invalid), `linkTargets` (the items a link can name, by id and
   the title each goes by now, asked again whenever another item moves),
+  `readFile` (a file a note names, by its sha, from the phone's file cache,
+  which fetches it the first time; none while the phone can reach no copy),
+  `keepFile` (a file pasted into the text, kept by the phone's replica and
+  answered with its sha),
   `addHighlight` and `noteHighlight` (a highlight the editor marked and its
   note, each answered as queued), `createNote` (a note of blocks an extract
   moved, or a link's new note, made in the open item's folder and answered
@@ -73,7 +77,7 @@ end that receives it.
   made of a page (its facts and its article as blocks, in order) or why it read
   nothing, and `mergeAnswer { id, nonce, merged }`, a block both devices
   changed, merged, with whether the phone's lines were kept over the other's.
-- Native to page: `init { mode: "item", nonce, itemId, focus }` or
+- Native to page: `init { mode: "item", nonce, itemId, focus, fileMaxBytes }` or
   `init { mode: "headless", nonce }`, `response { id, ok }`,
   `itemChanged { ids, reset, overlapped }` (the replica moved; the page reads
   its item again when it is among them, and says so when the replica merged
@@ -91,8 +95,9 @@ on `window`, non-writable and non-configurable (`src/bridge/page-bridge.ts`):
 a message event is one a child frame's `parent.postMessage` could forge. The
 first well-formed `init` sets the nonce; a frame without it, or with another
 load's, is dropped, as is anything malformed. A highlight and its note wait as
-long as the phone takes, since the phone still queues one it answers late;
-every other request times out after `REQUEST_TIMEOUT_MS` (a write names its
+long as the phone takes, since the phone still queues one it answers late, and
+so do a file's read and its keep, which take as long as the download or the
+copy across the bridge; every other request times out after `REQUEST_TIMEOUT_MS` (a write names its
 bases, so its retry finds what landed). An answer is parsed by the kind it
 answers.
 

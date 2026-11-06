@@ -167,26 +167,25 @@ node is rather than discriminating structurally at each visit.
   grammar for an import (it needed a bridge to say where the two disagreed).
   `packages/notes/src/markdown/total-grammar.test.ts`.
 
-- **AN MD URL HAS ONE READING, AND THE EDITOR RESOLVES IT WITH THE LIBRARY'S
-  RESOLVER.** The import and the editor read a link's or an image's url through
-  `mdLinkTarget` (`@repo/notes/knowledge/link-extract`), and the editor resolves
-  it with `buildResolver` over the items its host feeds
-  (`packages/editor/src/link-resolver-feed.ts`), so a url naming an item the
-  library holds opens that item in the app, and only an http(s) url reaches
-  the browser. A non-image embed draws as a
-  file card whose Open shows the original in the system's viewer
-  (`packages/editor/src/nodes/file-card.tsx`), since an `<img>` over it is
-  broken. `useVaultLinkTarget` in `packages/editor/src/host.ts`,
-  `packages/editor/src/nodes/image-node.tsx`, `link-node.tsx`,
-  `packages/editor/src/transclusion.tsx`.
+- **AN MD URL HAS ONE READING, AND ONLY AN IMPORT RESOLVES ONE BY PATH.** An
+  import reads a link's or an image's url through `mdLinkTarget`
+  (`@repo/notes/knowledge/link-extract`) and resolves it with `buildResolver`
+  beside the file that wrote it, so a folder's relative links and pictures
+  become links by id and files by sha. Past the import nothing is a path: the
+  editor reaches an item by `[[…]]` through the resolver its host feeds with
+  the library's items (`packages/editor/src/link-resolver-feed.ts`) and a file
+  by its sha, and only an http(s) url reaches the browser. Rejected: resolving
+  a live note's relative url (no library item has a path to resolve it
+  against). `packages/editor/src/codec/import-plan.ts`.
 
 - **A WIKI LINK NAMES WHAT THE RESOLVER ANSWERS TO, AND ONE FUNCTION BESIDE THE
   PARSER WRITES IT.** `.md` is the one extension a link leaves off
   (`wikiLinkName` in `@repo/notes/knowledge/doc-file`), and the resolver keys
   that name, so a `.txt` note links as `[[todo.txt]]`. Rejected: dropping every
-  doc extension (it loses Obsidian's reading and the pinned resolver). The `[[`
-  picker targets `wikiTargetForPath`
+  doc extension (it loses Obsidian's reading and the pinned resolver). An
+  export spells a link by `wikiTargetForPath`
   (`@repo/notes/knowledge/link-resolve`: the name when it resolves back, else
-  the path). Every writer's bytes come from `serializeWikiBody`
+  the path), and the `[[` picker links an item by its id, with its title, so
+  no rename breaks it. Every writer's bytes come from `serializeWikiBody`
   (`@repo/notes/markdown/remark-wiki-link`), and its null writes nothing.
   `packages/notes/src/knowledge/link-resolve.test.ts`.

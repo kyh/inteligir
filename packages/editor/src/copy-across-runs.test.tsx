@@ -9,7 +9,6 @@ import type { PlateEditor } from "platejs/react";
 import { createRef } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import { EditorHarness } from "./test-support/editor-harness";
 
 afterEach(cleanup);
@@ -67,7 +66,7 @@ describe("a copy across a long note's runs", () => {
     document.head.append(sheet);
     const value: Value = Array.from({ length: 150 }, (_, index) => p(`Block ${String(index)}`));
     const ref = createRef<PlateEditor>();
-    render(<EditorHarness value={value} store={createOpenNoteStore()} ref={ref} chunkSize={100} />);
+    render(<EditorHarness value={value} ref={ref} chunkSize={100} />);
     const editor = ref.current;
     if (editor === null) {
       throw new Error("the editor did not mount");

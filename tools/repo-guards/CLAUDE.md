@@ -15,7 +15,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   every surface a person reads,
   where neither "vault" nor an engine's word appears
   (`tools/repo-guards/src/product-words.test.ts`, a textual lower bound over
-  quoted literals and JSX text, like `one-spelling.test.ts`). Coverage, if ever
+  quoted literals and JSX text). Coverage, if ever
   added, needs `coverage.include` (Vitest 4) and gates only `@repo/notes`. A
   guard's failure states its rule and names the file.
 

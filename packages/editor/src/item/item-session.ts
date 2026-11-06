@@ -16,7 +16,7 @@ import type { Point, SlateEditor, TElement } from "platejs";
 import { applyOps, libraryOpSchema, orderedBlocks } from "@repo/notes/library/block-ops";
 import type { ItemState, LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
-import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
+import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 
 import { blockId } from "@repo/editor/node-props";
 import { mergeBlocks } from "@repo/editor/stale-write";
@@ -34,16 +34,8 @@ export interface HeldItem {
   readonly bodyHeld: boolean;
 }
 
-// a file a block names by its sha, kept until the write that names it is queued
-interface ItemFile {
-  readonly sha: string;
-  readonly bytes: Uint8Array<ArrayBuffer>;
-  readonly mime: string;
-}
-
 interface ItemWrite {
   readonly ops: readonly LibraryOp[];
-  readonly files?: readonly { readonly bytes: Uint8Array<ArrayBuffer>; readonly mime: string }[];
 }
 
 type ItemWriteOutcome =
@@ -108,7 +100,6 @@ export interface ItemSession {
   // writes what is unsaved now, as leaving the item does
   readonly flush: () => Promise<void>;
   readonly patch: (ops: readonly FieldOp[]) => Promise<void>;
-  readonly stage: (file: ItemFile) => void;
   readonly status: () => ItemSessionStatus;
   readonly subscribe: (listener: () => void) => () => void;
   // writes what is unsaved and stops following the item, until it starts again
@@ -131,31 +122,6 @@ const stateOf = (item: HeldItem): ItemState => ({
   blocks: new Map(item.blocks.map((stored) => [stored.block.id, stored])),
   fields: item.fields,
 });
-
-const SHA_NODES = new Set(["img", "file", "video"]);
-
-const shasIn = (node: LibraryNode, into: Set<string>): void => {
-  if ("text" in node) {
-    return;
-  }
-  if (SHA_NODES.has(node.type) && "sha" in node && node.sha !== undefined) {
-    into.add(node.sha);
-  }
-  for (const child of node.children) {
-    shasIn(child, into);
-  }
-};
-
-// the shas the blocks a write puts or inserts name
-const shasWritten = (ops: readonly LibraryOp[]): Set<string> => {
-  const shas = new Set<string>();
-  for (const op of ops) {
-    if (op.op === "put" || op.op === "insert") {
-      shasIn(op.block, shas);
-    }
-  }
-  return shas;
-};
 
 const isFieldOp = (op: LibraryOp): op is FieldOp =>
   op.op === "set" || op.op === "tags" || op.op === "aliases" || op.op === "property";
@@ -324,7 +290,6 @@ export const createItemSession = (
   const idleMs = ports.idleMs ?? ITEM_IDLE_MS;
   const reads: ElementReads = new WeakMap();
   const listeners = new Set<() => void>();
-  const files = new Map<string, ItemFile>();
   let acked: ItemState | null = null;
   let pendingFields: FieldOp[] = [];
   let heldBack = 0;
@@ -494,18 +459,10 @@ export const createItemSession = (
         behind = false;
         return "done";
       }
-      const shas = shasWritten(diff.ops);
-      const staged = [...files.values()].filter((file) => shas.has(file.sha));
-      const outcome = await ports.store.write(itemId, {
-        files: staged.map(({ bytes, mime }) => ({ bytes, mime })),
-        ops,
-      });
+      const outcome = await ports.store.write(itemId, { ops });
       switch (outcome.kind) {
         case "queued":
         case "unchanged": {
-          for (const file of staged) {
-            files.delete(file.sha);
-          }
           pendingFields = pendingFields.slice(sentFields.length);
           failure = null;
           behind = false;
@@ -651,9 +608,6 @@ export const createItemSession = (
     edited,
     flush,
     patch,
-    stage: (file) => {
-      files.set(file.sha, file);
-    },
     start,
     status: () => snapshot,
     subscribe: (listener) => {

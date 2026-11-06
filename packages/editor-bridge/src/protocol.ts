@@ -11,7 +11,7 @@ import { z } from "zod";
 import { annotationIdSchema } from "@repo/notes/annotations/store-schema";
 import { blockHashSchema, libraryOpSchema } from "@repo/notes/library/block-ops";
 import { ordSchema } from "@repo/notes/library/block-order";
-import { libraryItemFieldsSchema } from "@repo/notes/library/library-item";
+import { libraryItemFieldsSchema, SHA256_HEX_RE } from "@repo/notes/library/library-item";
 import { librarySectionSchema, storableBlockSchema } from "@repo/notes/library/library-nodes";
 import { pageFactsSchema, rungSchema } from "@repo/page-reader/page-facts";
 
@@ -25,21 +25,18 @@ const nonceSchema = z.string().min(16);
 
 const idSchema = z.number().int().nonnegative();
 
-// an item a link can name, by its id and by the title it goes by now, under a path of its own so
-// two items of one title are two targets
-const wikiTargetSchema = z.strictObject({
-  id: z.string().min(1),
-  path: z.string().min(1),
-  title: z.string(),
-  type: z.literal("doc"),
-});
+// an item a link can name: its id and the title it goes by now
+const linkTargetSchema = z.strictObject({ id: z.string().min(1), title: z.string() });
 
-// the bridge carries strings, so bytes ride as base64 beside the media type the Blob is rebuilt with
-const assetBytesSchema = z.strictObject({ base64: z.string(), mediaType: z.string() });
+// the bridge carries strings, so a file's bytes ride as base64 beside the media type the Blob is
+// rebuilt with
+const fileBytesSchema = z.strictObject({ base64: z.string(), mediaType: z.string().min(1) });
 
 const noPayload = z.strictObject({});
 
 const itemIdSchema = z.string().min(1);
+
+const shaSchema = z.string().regex(SHA256_HEX_RE);
 
 // an item as the phone's replica reads it: its fields and its blocks in reading order, each with
 // the hash and the place a write's base names
@@ -78,19 +75,27 @@ const REQUEST_SCHEMAS = {
     result: z.strictObject({ item: heldItemSchema.nullable() }),
   },
   // the items a link can name
-  wikiTargets: {
+  linkTargets: {
     payload: noPayload,
-    result: z.strictObject({ targets: z.array(wikiTargetSchema) }),
+    result: z.strictObject({ targets: z.array(linkTargetSchema) }),
   },
-  // an item page's ops, each under the base it was computed from, with the bytes of every file a
-  // block it puts names; the phone's replica queues them for the cell
+  // an item page's ops, each under the base it was computed from; the phone's replica queues them
+  // for the cell, staging every file a block names that it keeps unsent
   writeItem: {
-    payload: z.strictObject({
-      files: z.array(assetBytesSchema),
-      itemId: itemIdSchema,
-      ops: z.array(libraryOpSchema),
-    }),
+    payload: z.strictObject({ itemId: itemIdSchema, ops: z.array(libraryOpSchema) }),
     result: itemWriteOutcomeSchema,
+  },
+  // a file of the library by its sha, as the phone's file cache holds it or fetches it; null while
+  // the phone can reach no copy of it
+  readFile: {
+    payload: z.strictObject({ sha: shaSchema }),
+    result: z.strictObject({ file: fileBytesSchema.nullable() }),
+  },
+  // bytes a block is about to name (a picture pasted into the text), kept on the phone by their
+  // sha and sent up ahead of the write that names them
+  keepFile: {
+    payload: fileBytesSchema,
+    result: z.strictObject({ sha: shaSchema }),
   },
   // a highlight the editor just marked on the passage it anchors: its bare entry, beside the
   // markers the item's next write carries
@@ -196,8 +201,10 @@ export const pageFrameSchema = z.discriminatedUnion("type", [
     requestFrame("addHighlight", REQUEST_SCHEMAS.addHighlight.payload),
     requestFrame("createNote", REQUEST_SCHEMAS.createNote.payload),
     requestFrame("item", REQUEST_SCHEMAS.item.payload),
+    requestFrame("keepFile", REQUEST_SCHEMAS.keepFile.payload),
+    requestFrame("linkTargets", REQUEST_SCHEMAS.linkTargets.payload),
     requestFrame("noteHighlight", REQUEST_SCHEMAS.noteHighlight.payload),
-    requestFrame("wikiTargets", REQUEST_SCHEMAS.wikiTargets.payload),
+    requestFrame("readFile", REQUEST_SCHEMAS.readFile.payload),
     requestFrame("writeItem", REQUEST_SCHEMAS.writeItem.payload),
   ]),
   // the receiver is installed and the page waits for `init`; it knows no nonce yet
@@ -240,8 +247,10 @@ export type PageFrame = z.infer<typeof pageFrameSchema>;
 /** @internal */
 export const nativeFrameSchema = z.discriminatedUnion("type", [
   z.discriminatedUnion("mode", [
-    // an item's editor over its blocks, by its id
+    // an item's editor over its blocks, by its id, and the most one file can be, past which the
+    // library takes none, so the page refuses a larger one before it reads a byte of it
     z.strictObject({
+      fileMaxBytes: z.number().int().positive(),
       focus: z.enum(["title", "body"]).nullable(),
       itemId: itemIdSchema,
       mode: z.literal("item"),

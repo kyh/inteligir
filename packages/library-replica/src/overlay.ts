@@ -216,6 +216,7 @@ export const layRow = (
         ? null
         : { blocks: state.blocks, fields: { ...state.fields, deletedAt: null } };
     }
+    case "keep":
     case "folders": {
       return state;
     }

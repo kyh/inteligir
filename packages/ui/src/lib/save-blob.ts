@@ -1,8 +1,8 @@
-// A file handed to the browser's own download from bytes the page already fetched. The address the
+// A file handed to the browser's own download from bytes the page already holds. The address the
 // link names is a blob of the page's own origin, the one a `download` link keeps its name on: a
 // link to another origin, the Mac's file scheme among them, is followed rather than saved
 // (https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/a#download), which in
-// the app's one window would put the file where the library was. So the file lands in Downloads
+// the Mac's one window would put the file where the library was. So the file lands in Downloads
 // under its own name, and the page stays where it is.
 
 // how long a saved file's address outlives the click that saved it, so the save has begun

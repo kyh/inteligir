@@ -11,12 +11,13 @@ table, the fixpoint serializer and its fixtures, and an item's editor
 session's ports and the `EditorHost` singleton
 (`packages/editor/src/host-io.ts`, opened to React by `host.ts`), installed by
 one `installEditorHost` call per host. Its
-`EditorHostIo` carries the link resolver store, so no host writes its own; its
+`EditorHostIo` reads the library by its own keys (THE EDITOR'S HOST SPEAKS THE
+LIBRARY) and carries the link resolver store, so no host writes its own; its
 `EditorHostActions` (Ask agent, `showTag`, a highlight's create, note and
-open, and a new note, all required) are how a deep node asks the shell; its
-`VaultActions` open what a link or a file card names, by the path the
-resolver answers it at. `static-note.tsx`
-draws a note read-only, for an embed and for Quick Look. `node-props.ts` is the
+open, and a new note, all required) are how a deep node asks the shell. The
+item editor provides the id of the item it shows (`open-item.tsx`), which a
+highlight's tint, a heading's fold and an embed's cycle check are keyed by.
+`static-note.tsx` draws an item's blocks read-only, for an embed. `node-props.ts` is the
 SLATE DECODE BOUNDARY: a node's dialect fields ride `TElement`'s open index
 signature, so each read arrives as `unknown` and becomes a domain value there
 alone, and no walk narrows structurally.
@@ -319,6 +320,26 @@ alone, and no walk narrows structurally.
   (two devices' edits to different blocks would meet); one editor handed from
   item to item (a closing write would diff the next one's blocks).
   `packages/editor/src/item/item-session.ts`, `item-diff.ts`.
+
+- **THE EDITOR'S HOST SPEAKS THE LIBRARY: AN ITEM BY ITS ID, A FILE BY ITS
+  SHA.** `openItem`, `readItemBlocks` and `onItemsChanged` take item ids, the
+  feed's `titleOf` is live, and `readFile(sha)` answers from the host's file
+  source (the tab's staged bytes, then `/v1/blobs`; the Mac's scheme; the
+  phone's cache over the bridge). A media block holds `{sha}` (a file its
+  `name`) or a web `{url}`, its type the Blob's. A link reaches an item only by
+  `[[…]]`; a markdown url resolves by path only in an import. Rejected: paths a
+  host maps to items (two titles share one); `mime` on the block (a second copy
+  of the file's type). `packages/editor/src/host-io.ts`,
+  `packages/editor/src/nodes/library-file.ts`.
+
+- **A FILE PASTED OR DROPPED INTO A NOTE IS KEPT BEFORE ITS BLOCK IS WRITTEN.**
+  The editor refuses one past the host's `fileMaxBytes` in words before reading
+  it, has the host keep the rest by sha (`keepFile`), and inserts each block
+  where the paste or the drop landed: an image, a video or a file card, whose
+  Download only a host that `savesFiles` offers. A browser's copy of a web
+  picture pastes as its markup. Rejected: the bytes held by the session until
+  its pause (a quit in the pause lost them); a card opening a blob of the
+  page's origin (it could run script). `packages/editor/src/kits/image-kit.tsx`.
 
 ## The open item's merge
 

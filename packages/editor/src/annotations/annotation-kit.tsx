@@ -10,7 +10,7 @@ import { getEditorHostActions } from "@repo/editor/host-io";
 import { selectionEdgeLocked } from "@repo/editor/kits/rich-block-lock-kit";
 import { liveEditorItemId } from "@repo/editor/live-editor";
 import { stringProp } from "@repo/editor/node-props";
-import { useOpenNotePath } from "@repo/editor/note/open-note-context";
+import { useOpenItemId } from "@repo/editor/open-item";
 import { revealCentered } from "@repo/editor/scroll-reveal";
 import { cn } from "@repo/ui/lib/cn";
 import { isImeComposing } from "@repo/ui/lib/ime";
@@ -57,8 +57,8 @@ type AnnotationDecoration = DecoratedRange & {
 const AnnotationRangeLeaf = (props: PlateLeafProps) => {
   const ids = splitMarkerIds(stringProp(props.leaf, "annotationIds") ?? "");
   const orphan = props.leaf.annotationOrphan === true;
-  const notePath = useOpenNotePath();
-  const { knownIds } = useAnnotationMeta(notePath);
+  const itemId = useOpenItemId();
+  const { knownIds } = useAnnotationMeta(itemId);
   const unknown = ids.length > 0 && ids.every((id) => !knownIds.has(id));
   return (
     <PlateLeaf
@@ -136,7 +136,7 @@ export const anchorNewAnnotation = (editor: SlateEditor): string | null => {
 
 export interface HighlightStarted {
   readonly id: string;
-  readonly path: string;
+  readonly itemId: string;
   // the host's answer to the highlight's own entry; a refusal has already stripped the markers
   readonly created: Promise<boolean>;
 }
@@ -161,8 +161,8 @@ const askForEntry = async (editor: SlateEditor, id: string, quote: string): Prom
 // one, so a long selection is a highlight with a clipped quote, never a refusal. A refused entry
 // takes its markers back out, so no highlight is left that the store does not hold.
 export const highlightSelection = (editor: SlateEditor): HighlightStarted | null => {
-  const path = liveEditorItemId(editor);
-  if (path === null || !selectionTakesHighlight(editor)) {
+  const itemId = liveEditorItemId(editor);
+  if (itemId === null || !selectionTakesHighlight(editor)) {
     return null;
   }
   const quote = clipQuote(selectionQuote(editor));
@@ -170,7 +170,7 @@ export const highlightSelection = (editor: SlateEditor): HighlightStarted | null
   if (id === null) {
     return null;
   }
-  return { created: askForEntry(editor, id, quote), id, path };
+  return { created: askForEntry(editor, id, quote), id, itemId };
 };
 
 // the note on a highlight just made: written once its entry is, and dropped when it was refused
@@ -232,19 +232,19 @@ export const beginHighlight = (editor: SlateEditor): boolean => {
   if (started === null) {
     return false;
   }
-  setPendingNote({ created: started.created, id: started.id, path: started.path, rect });
+  setPendingNote({ created: started.created, id: started.id, itemId: started.itemId, rect });
   void closeWhenRefused(started);
   return true;
 };
 
 const AnnotationNoteHost = () => {
-  const notePath = useOpenNotePath();
+  const itemId = useOpenItemId();
   const armed = useAnnotationSurface((state) => state.pendingNote);
   const [text, setText] = useState("");
   const fieldRef = useRef<HTMLTextAreaElement | null>(null);
 
   // drawn only over the item that made the highlight, so the note lands on the entry it names
-  const pending = armed?.path === notePath ? armed : null;
+  const pending = armed?.itemId === itemId ? armed : null;
   const pendingId = pending?.id ?? null;
 
   // arming happens outside React, so the draft is re-keyed during render rather than from an event

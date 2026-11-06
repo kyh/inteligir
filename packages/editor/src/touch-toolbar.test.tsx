@@ -10,7 +10,6 @@ import type { AnnotationActions } from "@repo/editor/host-io";
 import { registerLiveEditor } from "@repo/editor/live-editor";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import { GROUPS } from "@repo/editor/slash-items";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 import type { FakeEditorHostOptions } from "@repo/editor/test-support/fake-editor-host";
@@ -57,7 +56,7 @@ const mount = (markdown: string, host: FakeEditorHostOptions = {}): PlateEditor 
     <EditorHarness
       ref={ref}
       profile="touch"
-      store={createOpenNoteStore()}
+
       value={parsedValue(markdown)}
     />,
   );

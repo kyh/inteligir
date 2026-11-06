@@ -3,39 +3,43 @@
 
 import { useEffect, useState } from "react";
 import type { MouseEvent } from "react";
+import type { TElement } from "platejs";
 
 import { cn } from "@repo/ui/lib/cn";
 
-import { getEditorHostIo, vaultChangeTouches } from "@repo/editor/host-io";
+import { useLinkResolver } from "@repo/editor/host";
+import { getEditorHostIo } from "@repo/editor/host-io";
+import { useOpenItemId } from "@repo/editor/open-item";
 import { EmbedChip, StaticNote } from "@repo/editor/static-note";
 import { decideTransclusion } from "@repo/editor/transclusion-guard";
-import { useOpenNote } from "@repo/editor/note/open-note-context";
-import { useLinkResolver, useVaultActions } from "@repo/editor/host";
 import { wikiLabelOf } from "@repo/editor/wiki/wiki-node";
 import type { WikiNodeFields } from "@repo/editor/wiki/wiki-node";
 
 type TargetContent =
   | { status: "loading" }
   | { status: "missing" }
-  | { status: "ready"; content: string };
+  | { status: "ready"; blocks: readonly TElement[] };
 
-const useTargetContent = (path: string | null): TargetContent => {
+// the embedded item's blocks as this device holds them, read again when that item moves: only
+// then, or an embedding item would read every embed on each of its own keystrokes
+const useTargetContent = (itemId: string | null): TargetContent => {
   const [state, setState] = useState<TargetContent>({ status: "loading" });
   useEffect(() => {
-    if (path === null) {
+    if (itemId === null) {
       return;
     }
-    const bridge = getEditorHostIo();
+    const io = getEditorHostIo();
     let live = true;
     const read = async (): Promise<void> => {
       try {
-        const content = await bridge.readVaultFile({ path });
-        if (!live) {
-          return;
+        const blocks = await io.readItemBlocks(itemId);
+        if (live) {
+          setState(
+            blocks === null
+              ? { status: "missing" }
+              : { blocks: blocks.map((block) => ({ ...block })), status: "ready" },
+          );
         }
-        setState((prev) =>
-          prev.status === "ready" && prev.content === content ? prev : { content, status: "ready" },
-        );
       } catch {
         if (live) {
           setState({ status: "missing" });
@@ -43,10 +47,8 @@ const useTargetContent = (path: string | null): TargetContent => {
       }
     };
     void read();
-    // only when the change touched this target: otherwise a transcluding note re-reads every
-    // embed on each of its own keystrokes.
-    const unsubscribe = bridge.onVaultChanged((event) => {
-      if (vaultChangeTouches(event, path)) {
+    const unsubscribe = io.onItemsChanged((ids) => {
+      if (ids === null || ids.has(itemId)) {
         void read();
       }
     });
@@ -54,19 +56,18 @@ const useTargetContent = (path: string | null): TargetContent => {
       live = false;
       unsubscribe();
     };
-  }, [path]);
+  }, [itemId]);
   return state;
 };
 
 const Transclusion = ({ link }: { link: WikiNodeFields }) => {
-  const { resolveWikiTarget } = useLinkResolver();
-  const { openFile } = useVaultActions();
-  const hostPath = useOpenNote((s) => (s.editor.kind === "open" ? s.editor.path : null));
+  const { resolveWikiTarget, titleOf } = useLinkResolver();
+  const openItemId = useOpenItemId();
   const resolved =
     link.title === "" ? null : resolveWikiTarget(link.title, link.itemId ?? link.alias);
-  const content = useTargetContent(resolved);
+  const decision = decideTransclusion(openItemId, resolved);
+  const content = useTargetContent(decision.kind === "render" ? decision.itemId : null);
 
-  const decision = decideTransclusion(hostPath, resolved);
   if (decision.kind === "chip") {
     return <EmbedChip link={link} note={decision.reason === "cycle" ? "circular" : undefined} />;
   }
@@ -74,11 +75,12 @@ const Transclusion = ({ link }: { link: WikiNodeFields }) => {
     return <EmbedChip link={link} />;
   }
 
-  const target = decision.path;
-  const title = wikiLabelOf(link);
+  const target = decision.itemId;
+  const live = titleOf(target);
+  const title = wikiLabelOf(live === null ? link : { ...link, title: live });
   const onOpen = (e: MouseEvent) => {
     e.preventDefault();
-    openFile(target);
+    getEditorHostIo().openItem(target);
   };
 
   return (
@@ -101,7 +103,7 @@ const Transclusion = ({ link }: { link: WikiNodeFields }) => {
         {content.status === "loading" ? (
           <span className="text-muted-foreground italic">Loading…</span>
         ) : (
-          <StaticNote content={content.content} path={target} />
+          <StaticNote blocks={content.blocks} />
         )}
       </span>
     </span>

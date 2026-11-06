@@ -1,6 +1,5 @@
-import { createStore } from "zustand/vanilla";
-
-import type { WikiTarget } from "@repo/notes/knowledge/wiki-target";
+import { fileSha } from "@repo/library-replica/library-replica";
+import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 
 import { installEditorHost } from "@repo/editor/host-io";
 import type {
@@ -8,28 +7,30 @@ import type {
   AnnotationActions,
   EditorHostIo,
   ItemActions,
-  LinkResolver,
-  ReadVaultAssetResult,
-  VaultActions,
+  LinkTarget,
 } from "@repo/editor/host-io";
+import { createLinkResolverFeed } from "@repo/editor/link-resolver-feed";
 
-interface HostCall {
-  readonly action: keyof VaultActions | keyof ItemActions;
-  readonly args: readonly unknown[];
-}
+type HostCall =
+  | { readonly action: "openItem"; readonly args: readonly [string] }
+  | { readonly action: "createNote"; readonly args: readonly unknown[] }
+  | { readonly action: "keepFile"; readonly args: readonly [Uint8Array, string] };
 
 /** @internal */
 export interface FakeEditorHostOptions {
-  readonly resolveWikiTarget?: (target: string) => string | null;
-  readonly resolveMdTarget?: (target: string, fromPath: string) => string | null;
-  readonly readVaultAsset?: (path: string) => ReadVaultAssetResult;
-  // a note's bytes by path; a path it answers null for reads as missing
-  readonly readVaultFile?: (path: string) => string | null;
-  readonly wikiTargets?: readonly WikiTarget[];
+  // the items a link can name, resolved as a host's feed resolves them
+  readonly linkTargets?: readonly LinkTarget[];
+  // an item's blocks by its id, as the device holds them now; null reads as not on the device
+  readonly itemBlocks?: (itemId: string) => readonly LibraryBlock[] | null;
+  // the library's files by sha, which a kept file joins
+  readonly files?: ReadonlyMap<string, Blob>;
+  // answers a kept file in place of keeping it, still recorded, so a case can refuse it
+  readonly keepFile?: EditorHostIo["keepFile"];
+  readonly fileMaxBytes?: number;
+  readonly savesFiles?: boolean;
   // answers a new note in place of a fresh id, still recorded, so a case can hold it in flight or
   // refuse it
   readonly createNote?: ItemActions["createNote"];
-  readonly opensFiles?: boolean;
   readonly annotations?: AnnotationActions;
   readonly agent?: AgentRequestActions;
 }
@@ -38,19 +39,19 @@ const ignore = (): void => {
   // the fake shell has no panel, rail or composer to answer with
 };
 
-// Installs the singleton the hooks read; the io half answers as an empty, read-only library, a new
-// note is made under a fresh id, the shell refuses every annotation and hears every other ask as
-// nothing, and an open or a new note is recorded in `calls`.
+// the library's cap, as the hosts install it
+const FILE_MAX_BYTES = 100 * 1024 * 1024;
+
+// Installs the singleton the hooks read; the io half answers from the items and files it is
+// handed, keeps a file by its real sha and then draws it, the shell refuses every annotation and
+// hears every other ask as nothing, and an open, a new note and a kept file are recorded in
+// `calls`. `changed` says items moved, as a host's change feed does.
 /** @internal */
 export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   const calls: HostCall[] = [];
+  const files = new Map(options.files);
+  const listeners = new Set<(ids: ReadonlySet<string> | null) => void>();
   let made = 0;
-
-  const vault: VaultActions = {
-    openFile: (path) => {
-      calls.push({ action: "openFile", args: [path] });
-    },
-  };
 
   const items: ItemActions = {
     createNote: async (note) => {
@@ -63,29 +64,37 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     },
   };
 
-  const linkResolver = createStore<LinkResolver>()(() => ({
-    resolveMdTarget: options.resolveMdTarget ?? (() => null),
-    resolveWikiTarget: options.resolveWikiTarget ?? (() => null),
-    targets: options.wikiTargets ?? [],
-    titleOf: (itemId) =>
-      (options.wikiTargets ?? []).find((target) => target.id === itemId)?.title ?? null,
-  }));
-
+  const feed = createLinkResolverFeed();
+  feed.setTargets(options.linkTargets ?? []);
   const io: EditorHostIo = {
-    linkResolver,
-    onVaultChanged: () => () => {
-      // the fake vault announces no change, so there is no subscription to end
+    fileMaxBytes: options.fileMaxBytes ?? FILE_MAX_BYTES,
+    keepFile: async (bytes, mime) => {
+      calls.push({ action: "keepFile", args: [bytes, mime] });
+      if (options.keepFile !== undefined) {
+        return await options.keepFile(bytes, mime);
+      }
+      const sha = fileSha(bytes);
+      files.set(sha, new Blob([bytes], { type: mime }));
+      return await Promise.resolve({ sha });
     },
-    opensFiles: options.opensFiles ?? false,
-    readVaultAsset: async ({ path }) =>
-      await Promise.resolve(options.readVaultAsset?.(path) ?? { error: "no assets", ok: false }),
-    readVaultFile: async ({ path }) => {
-      const content = options.readVaultFile?.(path) ?? null;
-      return await (content === null
-        ? Promise.reject(new Error(`ENOENT ${path}`))
-        : Promise.resolve(content));
+    linkResolver: feed.store,
+    onItemsChanged: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     },
-    vault,
+    openItem: (itemId) => {
+      calls.push({ action: "openItem", args: [itemId] });
+    },
+    readFile: async (sha) => {
+      const file = files.get(sha);
+      return await (file === undefined
+        ? Promise.reject(new Error(`no file ${sha}`))
+        : Promise.resolve(file));
+    },
+    readItemBlocks: async (itemId) => await Promise.resolve(options.itemBlocks?.(itemId) ?? null),
+    savesFiles: options.savesFiles ?? true,
   };
 
   installEditorHost({
@@ -101,5 +110,13 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     io,
   });
 
-  return { calls };
+  return {
+    calls,
+    changed: (ids: ReadonlySet<string> | null) => {
+      for (const listener of listeners) {
+        listener(ids);
+      }
+    },
+    files,
+  };
 };

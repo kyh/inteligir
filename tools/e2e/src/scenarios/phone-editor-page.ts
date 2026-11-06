@@ -42,6 +42,18 @@ const ITEM_ID = "0190a000-0000-7000-8000-0000000000e2";
 // the item the link names by its id, which went by another name when the link was written
 const OTHER_ID = "0190a000-0000-7000-8000-0000000000e3";
 const ITEM_PARAGRAPH = "An item's paragraph to type into.";
+// a picture a note names by its sha, which the page reads from the phone's file cache
+const PICTURE_SHA = "e2".repeat(32);
+// one red pixel, a PNG Chromium decodes
+const PICTURE_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
+const PICTURE_BLOCK: LibraryBlock = {
+  caption: [{ text: "A pixel" }],
+  children: [{ text: "" }],
+  id: "i1",
+  sha: PICTURE_SHA,
+  type: "img",
+};
 const TAB_TEXT = "Tab text.";
 
 type HeldItem = NonNullable<RequestResult<"item">["item"]>;
@@ -114,13 +126,15 @@ const ITEM = heldOf([
 ]);
 
 // The phone's end of the bridge, run in the page as react-native-webview would host it, standing
-// in for its replica: it records every frame, answers the item it holds, the items a link can
-// name, each write with the outcome the drive queued for it (else queued for the cell), and each
-// highlight as queued, through the door the page installed, as the native end's injection does.
+// in for its replica and its file cache: it records every frame, answers the item it holds, the
+// items a link can name, the one picture it holds, each write with the outcome the drive queued
+// for it (else queued for the cell), and each highlight as queued, through the door the page
+// installed, as the native end's injection does.
 const PHONE_SCRIPT = `(() => {
   const nonce = ${JSON.stringify(NONCE)};
   const itemId = ${JSON.stringify(ITEM_ID)};
-  const targets = ${JSON.stringify([{ id: OTHER_ID, path: "Other", title: "Other", type: "doc" }])};
+  const targets = ${JSON.stringify([{ id: OTHER_ID, title: "Other" }])};
+  const picture = { base64: ${JSON.stringify(PICTURE_BASE64)}, mediaType: "image/png" };
   const state = { item: ${JSON.stringify(ITEM)}, outcomes: [], sent: [] };
   const answer = (request) => {
     if (request.kind === "item") {
@@ -129,8 +143,12 @@ const PHONE_SCRIPT = `(() => {
     if (request.kind === "writeItem") {
       return { ok: true, result: state.outcomes.shift() ?? { kind: "queued" } };
     }
-    if (request.kind === "wikiTargets") {
+    if (request.kind === "linkTargets") {
       return { ok: true, result: { targets } };
+    }
+    if (request.kind === "readFile") {
+      const held = request.payload.sha === ${JSON.stringify(PICTURE_SHA)};
+      return { ok: true, result: { file: held ? picture : null } };
     }
     if (request.kind === "addHighlight" || request.kind === "noteHighlight") {
       return { ok: true, result: { queued: true } };
@@ -230,6 +248,9 @@ const caretScript = (text: string, select: boolean): string => `(() => {
 
 // the drawing Pele answers, under the page's own CSP and from the one inlined script
 const DIAGRAM_LABELS = `JSON.stringify([...document.querySelectorAll(${JSON.stringify(`${EDITOR} svg.pele text`)})].map((text) => text.textContent))`;
+
+// the note's picture's width once it decoded from an object URL of the page's, else -1
+const PICTURE_DRAWN = `String((() => { const img = document.querySelector(${JSON.stringify(`${EDITOR} img[alt="A pixel"]`)}); return img !== null && img.src.startsWith("blob:") ? img.naturalWidth : -1; })())`;
 
 // the phone asks the agent from the item's own screen, so a selection offers no Ask agent
 const NO_ASK_AGENT = `String(document.querySelector('button[aria-label="Ask agent"]') === null)`;
@@ -332,7 +353,14 @@ const driveItem = async (
   await openPage(browser, page);
   await browser(["eval", PHONE_SCRIPT]);
   const phone = phoneOf(browser);
-  await phone.inject({ focus: null, itemId: ITEM_ID, mode: "item", nonce: NONCE, type: "init" });
+  await phone.inject({
+    fileMaxBytes: 100 * 1024 * 1024,
+    focus: null,
+    itemId: ITEM_ID,
+    mode: "item",
+    nonce: NONCE,
+    type: "init",
+  });
   await browser(["wait", EDITOR], 30_000);
   await pollUntil(
     phone.buffer,
@@ -389,11 +417,12 @@ const driveItem = async (
   const unforged = await phone.buffer();
   expect(!unforged.includes("FORGED"), "a nonce-less frame reloaded the item");
 
-  log("a change the phone announces is laid into the editor");
+  log("a change the phone announces is laid into the editor, its picture read from the phone");
   const fromMac = heldOf([
     TYPED_BLOCK,
     LINK_BLOCK,
     ...RICH,
+    PICTURE_BLOCK,
     paragraphBlock("p3", "The last line, from the Mac."),
   ]);
   await phone.replace(fromMac);
@@ -408,6 +437,14 @@ const driveItem = async (
     deadlineMs: 15_000,
     describe: (text) => `the announced change never reached the editor:\n${text}`,
   });
+  await pollUntil(
+    async () => parseEval(await browser(["eval", PICTURE_DRAWN]), z.string()),
+    (width) => width === "1",
+    {
+      deadlineMs: 15_000,
+      describe: (width) => `the note's picture never drew from the phone's file: width ${width}`,
+    },
+  );
 
   log("a write the phone finds changed is written again over the item it holds now");
   const added = heldOf([

@@ -1,4 +1,5 @@
 import { runInNewContext } from "node:vm";
+import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
 import { nativeFrameSchema, PAGE_RECEIVER } from "@repo/editor-bridge/protocol";
 import type {
   NativeFrame,
@@ -34,14 +35,17 @@ const framesOf = (script: string): NativeFrame[] => {
 
 const ITEM = "0190a000-0000-7000-8000-000000000001";
 const OTHER = "0190a000-0000-7000-8000-000000000002";
+const SHA = "a".repeat(64);
 
 // one answer per kind, each distinct, so a frame routed to the wrong port shows
 const PORT_ANSWERS = {
   addHighlight: { queued: true },
   createNote: { id: ITEM },
   item: { item: null },
+  keepFile: { sha: SHA },
+  linkTargets: { targets: [{ id: ITEM, title: "Plans" }] },
   noteHighlight: { queued: false },
-  wikiTargets: { targets: [{ id: ITEM, path: "Plans.md", title: "Plans", type: "doc" }] },
+  readFile: { file: { base64: "iVBORw==", mediaType: "image/png" } },
   writeItem: { kind: "missing" },
 } satisfies { [K in RequestKind]: RequestResult<K> };
 
@@ -49,28 +53,34 @@ const PAYLOADS = {
   addHighlight: { id: "c1", itemId: ITEM, quote: "a passage" },
   createNote: { besideId: ITEM, blocks: [], title: "Moved" },
   item: { itemId: ITEM },
+  keepFile: { base64: "iVBORw==", mediaType: "image/png" },
+  linkTargets: {},
   noteHighlight: { id: "c1", itemId: ITEM, text: "why?" },
-  wikiTargets: {},
-  writeItem: { files: [], itemId: ITEM, ops: [] },
+  readFile: { sha: SHA },
+  writeItem: { itemId: ITEM, ops: [] },
 } satisfies { [K in RequestKind]: RequestPayload<K> };
 
 const KINDS: readonly RequestKind[] = [
   "item",
   "writeItem",
-  "wikiTargets",
+  "linkTargets",
   "addHighlight",
   "noteHighlight",
   "createNote",
+  "readFile",
+  "keepFile",
 ];
 
 // one request of each kind, in KINDS' order, each carrying its id's position
 const requestFrames = (nonce: string): PageFrame[] => [
   { id: 0, kind: "item", nonce, payload: PAYLOADS.item, type: "request" },
   { id: 1, kind: "writeItem", nonce, payload: PAYLOADS.writeItem, type: "request" },
-  { id: 2, kind: "wikiTargets", nonce, payload: PAYLOADS.wikiTargets, type: "request" },
+  { id: 2, kind: "linkTargets", nonce, payload: PAYLOADS.linkTargets, type: "request" },
   { id: 3, kind: "addHighlight", nonce, payload: PAYLOADS.addHighlight, type: "request" },
   { id: 4, kind: "noteHighlight", nonce, payload: PAYLOADS.noteHighlight, type: "request" },
   { id: 5, kind: "createNote", nonce, payload: PAYLOADS.createNote, type: "request" },
+  { id: 6, kind: "readFile", nonce, payload: PAYLOADS.readFile, type: "request" },
+  { id: 7, kind: "keepFile", nonce, payload: PAYLOADS.keepFile, type: "request" },
 ];
 
 interface PortCall {
@@ -97,9 +107,17 @@ const recordingPorts = () => {
       calls.push({ kind: "noteHighlight", payload });
       return PORT_ANSWERS.noteHighlight;
     },
-    wikiTargets: async (payload) => {
-      calls.push({ kind: "wikiTargets", payload });
-      return PORT_ANSWERS.wikiTargets;
+    keepFile: async (payload) => {
+      calls.push({ kind: "keepFile", payload });
+      return PORT_ANSWERS.keepFile;
+    },
+    linkTargets: async (payload) => {
+      calls.push({ kind: "linkTargets", payload });
+      return PORT_ANSWERS.linkTargets;
+    },
+    readFile: async (payload) => {
+      calls.push({ kind: "readFile", payload });
+      return PORT_ANSWERS.readFile;
     },
     writeItem: async (payload) => {
       calls.push({ kind: "writeItem", payload });
@@ -165,8 +183,22 @@ describe("the native end of the editor page's bridge", () => {
     const second = load();
     expect(first).not.toBe(second);
     expect(injected).toMatchObject([
-      { focus: "title", itemId: ITEM, mode: "item", nonce: first, type: "init" },
-      { focus: null, itemId: ITEM, mode: "item", nonce: second, type: "init" },
+      {
+        fileMaxBytes: BLOB_MAX_BYTES,
+        focus: "title",
+        itemId: ITEM,
+        mode: "item",
+        nonce: first,
+        type: "init",
+      },
+      {
+        fileMaxBytes: BLOB_MAX_BYTES,
+        focus: null,
+        itemId: ITEM,
+        mode: "item",
+        nonce: second,
+        type: "init",
+      },
     ]);
   });
 
@@ -209,13 +241,13 @@ describe("the native end of the editor page's bridge", () => {
     const { calls, events, fromPage, load, responses } = hostOver();
     fromPage({
       id: 0,
-      kind: "wikiTargets",
+      kind: "linkTargets",
       nonce: "nonce-0000000000000001",
       payload: {},
       type: "request",
     });
     const nonce = load();
-    fromPage({ id: 1, kind: "wikiTargets", nonce: `${nonce}x`, payload: {}, type: "request" });
+    fromPage({ id: 1, kind: "linkTargets", nonce: `${nonce}x`, payload: {}, type: "request" });
     fromPage({ itemId: OTHER, nonce: `${nonce}x`, type: "openItem" });
     await nextTask();
     expect(calls).toStrictEqual([]);
@@ -229,7 +261,7 @@ describe("the native end of the editor page's bridge", () => {
     expect(injected).toStrictEqual([]);
     const nonce = load();
     for (const url of ["about:srcdoc", "https://example.com/", "file:///elsewhere/index.html"]) {
-      fromPage({ id: 1, kind: "wikiTargets", nonce, payload: {}, type: "request" }, url);
+      fromPage({ id: 1, kind: "linkTargets", nonce, payload: {}, type: "request" }, url);
       fromPage({ itemId: OTHER, nonce, type: "openItem" }, url);
     }
     await nextTask();
@@ -313,9 +345,9 @@ describe("the native end of the editor page's bridge", () => {
     expect(reloads).toHaveLength(1);
     await expect(pending).resolves.toBe(false);
 
-    fromPage({ id: 1, kind: "wikiTargets", nonce: before, payload: {}, type: "request" });
+    fromPage({ id: 1, kind: "linkTargets", nonce: before, payload: {}, type: "request" });
     const after = load();
-    fromPage({ id: 2, kind: "wikiTargets", nonce: after, payload: {}, type: "request" });
+    fromPage({ id: 2, kind: "linkTargets", nonce: after, payload: {}, type: "request" });
     await nextTask();
     expect(calls).toHaveLength(1);
     expect(responses()).toMatchObject([{ id: 2, nonce: after }]);
@@ -338,12 +370,12 @@ describe("the native end of the editor page's bridge", () => {
 
   it("injects a frame the page reads back unchanged, whatever the item holds", async () => {
     const hostile = `</script><script>alert("x")</script> 'single' "double"  line para \\ \`tick\` \${x}`;
-    const answer = { targets: [{ id: ITEM, path: "x.md", title: hostile, type: "doc" as const }] };
+    const answer = { targets: [{ id: ITEM, title: hostile }] };
     const { fromPage, load, responses } = hostOver({
-      ports: { wikiTargets: async () => await Promise.resolve(answer) },
+      ports: { linkTargets: async () => await Promise.resolve(answer) },
     });
     const nonce = load();
-    fromPage({ id: 1, kind: "wikiTargets", nonce, payload: {}, type: "request" });
+    fromPage({ id: 1, kind: "linkTargets", nonce, payload: {}, type: "request" });
     await nextTask();
     expect(responses()).toStrictEqual([
       { id: 1, nonce, ok: true, result: answer, type: "response" },

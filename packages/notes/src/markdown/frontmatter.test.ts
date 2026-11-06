@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  frontmatterYaml,
-  splitFrontmatter,
-  yamlScalarText,
-} from "@repo/notes/markdown/frontmatter";
+import { frontmatterYaml, yamlScalarText } from "@repo/notes/markdown/frontmatter";
 
 import { parseBare } from "./bare-parse";
 
@@ -21,31 +17,6 @@ describe("the frontmatter block is the one the scan reads", () => {
   it.each(Object.entries(NOTE_HEADERS))("%s: its yaml is the scan's yaml node", (_, src) => {
     const [first] = parseBare(src).children;
     expect(frontmatterYaml(src)).toBe(first?.type === "yaml" ? first.value : null);
-  });
-});
-
-describe(splitFrontmatter, () => {
-  it("returns the whole text as the body when there is no frontmatter", () => {
-    const text = "# Hello\n\nbody text\n";
-    expect(splitFrontmatter(text)).toStrictEqual({ body: text });
-  });
-
-  it("cuts a leading yaml block and keeps the body verbatim", () => {
-    const text = "---\ntitle: Note\ntags:\n  - a\n  - b\n---\n# Body\n\ntext\n";
-    expect(splitFrontmatter(text)).toStrictEqual({ body: "# Body\n\ntext\n" });
-  });
-
-  it("does not treat a mid-document --- as frontmatter", () => {
-    const text = "para\n\n---\n\nmore\n";
-    expect(splitFrontmatter(text).body).toBe(text);
-  });
-
-  it("cuts an empty block", () => {
-    expect(splitFrontmatter("---\n---\nbody\n").body).toBe("body\n");
-  });
-
-  it("cuts a block that is not a mapping without reading it", () => {
-    expect(splitFrontmatter("---\n- just\n- a list\n---\nbody\n").body).toBe("body\n");
   });
 });
 

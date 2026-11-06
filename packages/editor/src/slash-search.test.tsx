@@ -3,7 +3,6 @@ import { KEYS } from "platejs";
 import type { Value } from "platejs";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import { GROUPS } from "@repo/editor/slash-items";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
@@ -24,7 +23,7 @@ const searchSlashMenu = async (typed: string): Promise<string[]> => {
       type: "p",
     },
   ];
-  render(<EditorHarness store={createOpenNoteStore()} value={value} />);
+  render(<EditorHarness value={value} />);
   fireEvent.change(await screen.findByRole("combobox"), { target: { value: typed } });
   const options = await screen.findAllByRole("option");
   return options.map((option) => option.textContent);

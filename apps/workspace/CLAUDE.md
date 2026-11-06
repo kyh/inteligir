@@ -93,7 +93,7 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   left signed in with no credential); with one, the replica engine runs over
   the shell's SQLite and staged files, its calls going to the cloud's origin
   with the credential as the bearer and the build in a header. What differs by
-  host is one `PageLibrary`: where a file is drawn from, the transport an
+  host is one `PageLibrary`: where a file is drawn and read from, the transport an
   upload or an export rides, what the page does about what it holds before it
   goes (the tab asks; the Mac, whose outbox is on disk, writes the open item's
   edit when the shell says it is quitting) and where a sign-out goes. The
@@ -277,6 +277,18 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   request (a second read beside the turn's).
   `packages/agent-panel/src/tidy-library.ts`,
   `apps/workspace/src/app/settings/filing-rules.ts`.
+
+- **A FILE IN A NOTE IS READ WHERE THE PAGE DRAWS ITS FILES, AND ONE PASTED
+  THERE WAITS IN THE OUTBOX.** The editor's host reads a note's picture or
+  file through the `PageLibrary`'s `readFile`: the tab its own unsent bytes,
+  then `/v1/blobs/<sha>`, which the browser keeps under the cloud's immutable
+  answer; the Mac its scheme, which serves its staged files, its cache or the
+  cloud's copy. A file pasted or dropped into a note is kept by the replica's
+  `keepFile`, so it draws at once and goes up ahead of the write naming it.
+  Rejected: a cache of the page's own (the browser's already holds the
+  answer); an `<img>` on `/v1/blobs` (a pasted file is not there until the
+  outbox sends it). `apps/workspace/src/app/item/page-editor-host.ts`,
+  `apps/workspace/src/app/cloud/page-library.ts`.
 
 ## Repo guards, vendoring and tooling
 

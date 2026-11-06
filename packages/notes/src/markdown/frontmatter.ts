@@ -8,10 +8,6 @@ import { z } from "zod";
 const yamlValue = z.json();
 type YamlValue = z.infer<typeof yamlValue>;
 
-export interface SplitDoc {
-  body: string;
-}
-
 // remark-frontmatter's default `yaml` fence, read past the BOM micromark skips; the content group
 // is optional so an empty block matches. `eol` is the opener's terminator, which a rewrite keeps.
 const FRONTMATTER_RE =
@@ -28,10 +24,6 @@ export const frontmatterYaml = (text: string): string | null => {
 // the offset the block ends at, its BOM included: where a reader that withholds the header cuts.
 export const frontmatterEnd = (text: string): number | null =>
   FRONTMATTER_RE.exec(text)?.[0].length ?? null;
-
-export const splitFrontmatter = (text: string): SplitDoc => ({
-  body: text.slice(frontmatterEnd(text) ?? 0),
-});
 
 // yaml 1.2 core schema: `true`/`false` are the only booleans (yes/no/on/off stay text) and
 // dates are recognized only from explicit `YYYY-MM-DD` strings.

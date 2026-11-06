@@ -13,11 +13,8 @@ import {
   openFindBar,
   setFindQuery,
 } from "@repo/editor/find-bar";
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 
 import { EditorHarness } from "./test-support/editor-harness";
-
-const STORE = createOpenNoteStore();
 
 const VALUE: Value = [{ children: [{ text: "alpha beta ALPHA gamma" }], type: "p" }];
 
@@ -29,7 +26,7 @@ beforeAll(() => {
 describe("find bar", () => {
   it("highlights every case-insensitive match and tints the active one apart", () => {
     const holder = createRef<PlateEditor>();
-    const view = render(<EditorHarness value={VALUE} store={STORE} ref={holder} />);
+    const view = render(<EditorHarness value={VALUE} ref={holder} />);
     const editor = holder.current;
     expect(editor).not.toBeNull();
     if (editor === null) {
@@ -71,7 +68,7 @@ describe("find bar", () => {
 
   it("recounts when the note changes under the open bar", async () => {
     const holder = createRef<PlateEditor>();
-    const view = render(<EditorHarness value={VALUE} store={STORE} ref={holder} />);
+    const view = render(<EditorHarness value={VALUE} ref={holder} />);
     const editor = holder.current;
     if (editor === null) {
       throw new Error("the harness mounted no editor");
@@ -92,7 +89,7 @@ describe("find bar", () => {
 
   it("draws a jump's options as chips, and a chip drops them and recounts", () => {
     const holder = createRef<PlateEditor>();
-    const view = render(<EditorHarness value={VALUE} store={STORE} ref={holder} />);
+    const view = render(<EditorHarness value={VALUE} ref={holder} />);
     const editor = holder.current;
     if (editor === null) {
       throw new Error("the harness mounted no editor");

@@ -1,9 +1,11 @@
 // The writes a screen makes. Each is checked against the item as the screen reads it, so a base
 // the screen no longer shows is answered at once for the editor's diff3 to settle, then queued in
 // the replica's own transaction, which is the overlay's from that moment, and sent as soon as the
-// replica can. A file a write names is staged by its SHA-256 with the row that names it, before
-// the row, so no row waits on bytes the device never kept. A command's input is the wire's: one
-// its schema refuses throws, and nothing is queued.
+// replica can. A file is staged by its SHA-256 with the row that names it, before the row, so no
+// row waits on bytes the device never kept: a file item's or a cover's with its make, and one a
+// note's text embeds as it is kept, in a row of its own that uploads it, which the write or the
+// new note naming it stages too. A command's input is the wire's: one its schema refuses throws,
+// and nothing is queued.
 
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
@@ -64,8 +66,6 @@ type WriteOutcome =
 interface WriteInput {
   readonly ops: readonly LibraryOp[];
   readonly annotations?: readonly AnnotationOp[];
-  // the bytes of each file a block it puts embeds
-  readonly files?: readonly NewFile[];
 }
 
 interface NoteInput {
@@ -73,7 +73,6 @@ interface NoteInput {
   readonly folderId: string | null;
   readonly tags: readonly string[];
   readonly title: string;
-  readonly files?: readonly NewFile[];
 }
 
 export interface LinkInput {
@@ -121,6 +120,9 @@ export interface ReplicaCommands {
   readonly saveLink: (input: LinkInput) => Promise<Made>;
   readonly savePage: (input: PageInput) => Promise<Made>;
   readonly createFile: (input: FileInput) => Promise<Made & { readonly sha: string }>;
+  // a file for a block still to be written (a picture pasted into a note): kept on the device and
+  // sent up at once, its sha what the block names it by
+  readonly keepFile: (file: NewFile) => Promise<{ readonly sha: string }>;
   readonly deleteItems: (ids: readonly string[]) => Promise<void>;
   readonly restoreItems: (ids: readonly string[]) => Promise<void>;
   readonly writeFolders: (ops: readonly FolderOp[]) => Promise<void>;
@@ -198,22 +200,18 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
     createNote: async (input) =>
       await serial(async () => {
         const id = newId();
-        const files = staging(input.files ?? []);
-        await enqueue(
-          {
-            input: {
-              blocks: [...input.blocks],
-              folderId: input.folderId,
-              id,
-              savedAt: clock.now(),
-              tags: tagsOf(input.tags),
-              title: input.title,
-            },
-            kind: "create",
-            staged: files.staged,
+        await enqueue({
+          input: {
+            blocks: [...input.blocks],
+            folderId: input.folderId,
+            id,
+            savedAt: clock.now(),
+            tags: tagsOf(input.tags),
+            title: input.title,
           },
-          files.bytes,
-        );
+          kind: "create",
+          staged: [],
+        });
         return { folded: false, id };
       }),
 
@@ -224,6 +222,15 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
         }
       });
     },
+
+    keepFile: async (file) =>
+      await serial(async () => {
+        const sha = fileSha(file.bytes);
+        await enqueue({ kind: "keep", staged: [{ mime: file.mime, sha }] }, [
+          { bytes: file.bytes, mime: file.mime, sha },
+        ]);
+        return { sha };
+      }),
 
     restoreItems: async (ids) => {
       await serial(async () => {
@@ -298,18 +305,14 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
         if (touchesNothing(outcome) && annotations.length === 0) {
           return { kind: "unchanged" };
         }
-        const files = staging(input.files ?? []);
-        await enqueue(
-          {
-            annotations,
-            bases: basesOf(input.ops, blocks),
-            itemId,
-            kind: "write",
-            ops: [...input.ops],
-            staged: files.staged,
-          },
-          files.bytes,
-        );
+        await enqueue({
+          annotations,
+          bases: basesOf(input.ops, blocks),
+          itemId,
+          kind: "write",
+          ops: [...input.ops],
+          staged: [],
+        });
         return { kind: "queued" };
       }),
 

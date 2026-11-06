@@ -14,13 +14,7 @@ import type { BlockMerge, ReplicaTransport } from "./replica-ports";
 import { deferred, nextTurn } from "./test-support/deferred";
 import { createFakeCell } from "./test-support/fake-cell";
 import type { FakeCell, FakeDevice } from "./test-support/fake-cell";
-import {
-  memoryBlobs,
-  openDevice,
-  paragraph,
-  relaunch,
-  textOf,
-} from "./test-support/replica-harness";
+import { openDevice, paragraph, relaunch, textOf } from "./test-support/replica-harness";
 import type { TestDevice } from "./test-support/replica-harness";
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
@@ -64,6 +58,14 @@ const putText = async (
   return { baseHash: held.hash, block: paragraph(blockId, text), op: "put" };
 };
 
+// a picture block a write inserts, naming its file by sha
+const pictureAt = (blockId: string, ord: string, sha: string): LibraryOp => ({
+  block: { children: [{ text: "" }], id: blockId, sha, type: "img" },
+  op: "insert",
+  ord,
+  section: "note",
+});
+
 const write = async (replica: LibraryReplica, itemId: string, ops: readonly LibraryOp[]) => {
   const outcome = await replica.write(itemId, { ops });
   expect(outcome.kind).toBe("queued");
@@ -90,20 +92,34 @@ const replicaText = async (
 };
 
 // a device's database, counting the transactions asked of it, so a suite can wait for one to
-// queue behind a statement it holds
+// queue behind a statement it holds, and holding the next one asked until the suite lets it go
 interface CountedSql {
   readonly sql: MemorySql;
   readonly asked: () => number;
+  readonly holdNext: () => { readonly reached: Promise<void>; readonly release: () => void };
 }
 
 const countedSql = async (): Promise<CountedSql> => {
   const sql = await openMemorySql();
   let asked = 0;
+  let held: { readonly reached: () => void; readonly gate: Promise<void> } | null = null;
   return {
     asked: () => asked,
+    holdNext: () => {
+      const reached = deferred();
+      const gate = deferred();
+      held = { gate: gate.promise, reached: reached.resolve };
+      return { reached: reached.promise, release: gate.resolve };
+    },
     sql: {
       ...sql,
       exclusive: async (work) => {
+        const gate = held;
+        held = null;
+        if (gate !== null) {
+          gate.reached();
+          await gate.gate;
+        }
         asked += 1;
         return await sql.exclusive(work);
       },
@@ -428,7 +444,7 @@ describe("the replica's outbox", () => {
     expect(phone.replica.row(id)?.unsent).toBe(false);
   });
 
-  it("uploads a file before the item that names it, and again when the cell says it is missing", async () => {
+  it("uploads a file before the item that names it, and lets its bytes go once that lands", async () => {
     const cell = createFakeCell();
     const phone = await openDevice(cell, "phone");
     const file = await phone.replica.createFile({
@@ -442,28 +458,64 @@ describe("the replica's outbox", () => {
     expect(cell.uploads).toStrictEqual([file.sha]);
     expect(cell.item(file.id)?.fields.originalSha).toBe(file.sha);
     expect(phone.blobs.held()).toStrictEqual([]);
+  });
 
+  it("keeps a note's picture, uploads it before the write that names it, and lets it go once that lands", async () => {
+    const cell = createFakeCell();
+    const network = heldNetwork(cell, "phone");
+    const phone = await openDevice(cell, "phone", { network: network.device });
     const id = await landedNote(cell, phone);
-    const image = (blockId: string, ord: string): LibraryOp => ({
-      block: { children: [{ text: "" }], id: blockId, sha: fileSha(OTHER_PNG), type: "img" },
-      op: "insert",
-      ord,
-      section: "note",
-    });
-    await phone.replica.write(id, {
-      files: [{ bytes: OTHER_PNG, mime: "image/png" }],
-      ops: [image("i1", "a2")],
-    });
+    phone.network.setOffline(true);
+    const { sha } = await phone.replica.keepFile({ bytes: OTHER_PNG, mime: "image/png" });
+    expect(sha).toBe(fileSha(OTHER_PNG));
+    await phone.replica.write(id, { ops: [pictureAt("i1", "a2", sha)] });
+    expect(phone.blobs.held()).toStrictEqual([sha]);
+    phone.network.setOffline(false);
+    const call = network.hold("/v1/rpc/library/write");
+    const syncing = phone.replica.sync();
+    await call.reached;
+    // the kept file went up first, and stays on the device while the write naming it waits
+    expect(cell.uploads).toStrictEqual([sha]);
+    expect(phone.blobs.held()).toStrictEqual([sha]);
+    call.release();
+    await syncing;
+    expect(cell.item(id)?.blocks.has("i1")).toBe(true);
+    expect(phone.blobs.held()).toStrictEqual([]);
+    expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
+  });
+
+  it("sends a note's picture again when the cell answers the write that names it BLOB_MISSING", async () => {
+    const cell = createFakeCell();
+    const network = heldNetwork(cell, "phone");
+    const phone = await openDevice(cell, "phone", { network: network.device });
+    const id = await landedNote(cell, phone);
+    phone.network.setOffline(true);
+    const { sha } = await phone.replica.keepFile({ bytes: OTHER_PNG, mime: "image/png" });
+    await phone.replica.write(id, { ops: [pictureAt("i1", "a2", sha)] });
+    phone.network.setOffline(false);
+    const call = network.hold("/v1/rpc/library/write");
+    const syncing = phone.replica.sync();
+    await call.reached;
+    // the cell let the upload go between the two calls
+    cell.forgetBlob(sha);
+    call.release();
+    await syncing;
     await phone.replica.sync();
-    cell.forgetBlob(fileSha(OTHER_PNG));
-    await phone.replica.write(id, {
-      files: [{ bytes: OTHER_PNG, mime: "image/png" }],
-      ops: [image("i2", "a3")],
-    });
+    expect(cell.uploads).toStrictEqual([sha, sha]);
+    expect(cell.item(id)?.blocks.has("i1")).toBe(true);
+    expect(phone.blobs.held()).toStrictEqual([]);
+    expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
+  });
+
+  it("sends up a kept file no write names, and lets its bytes go", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const { sha } = await phone.replica.keepFile({ bytes: OTHER_PNG, mime: "image/png" });
+    expect(phone.blobs.held()).toStrictEqual([sha]);
     await phone.replica.sync();
-    expect(cell.uploads).toStrictEqual([file.sha, fileSha(OTHER_PNG), fileSha(OTHER_PNG)]);
-    expect(cell.item(id)?.blocks.has("i2")).toBe(true);
-    expect(phone.replica.status().unsent).toBe(0);
+    expect(cell.uploads).toStrictEqual([sha]);
+    expect(phone.blobs.held()).toStrictEqual([]);
+    expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
   });
 
   it("parks a write whose staged file this device no longer holds", async () => {
@@ -751,28 +803,15 @@ describe("the outbox's replay", () => {
 describe("the outbox's changes, one at a time", () => {
   it("sends a write that joined a queued row while a pass chose that row", async () => {
     const cell = createFakeCell();
-    const files = memoryBlobs();
-    const putAsked = deferred();
-    const putGate = deferred();
     const counted = await countedSql();
-    const phone = await openDevice(cell, "phone", {
-      blobs: {
-        ...files,
-        put: async (sha, bytes, mime) => {
-          putAsked.resolve();
-          await putGate.promise;
-          await files.put(sha, bytes, mime);
-        },
-      },
-      sql: counted.sql,
-    });
+    const phone = await openDevice(cell, "phone", { sql: counted.sql });
     const id = await landedNote(cell, phone);
     await write(phone.replica, id, [await putText(phone.replica, id, "p1", "one")]);
+    const joining = counted.holdNext();
     const second = phone.replica.write(id, {
-      files: [{ bytes: PNG, mime: "image/png" }],
       ops: [await putText(phone.replica, id, "p1", "two")],
     });
-    await putAsked.promise;
+    await joining.reached;
     // a screen's read holds the database: the join queues behind it, then the pass chooses the
     // row the join is about to change
     const screen = deferred();
@@ -780,7 +819,7 @@ describe("the outbox's changes, one at a time", () => {
     const reading = phone.sql.exclusive(async () => {
       await screen.promise;
     });
-    putGate.resolve();
+    joining.release();
     await vi.waitFor(() => {
       expect(counted.asked()).toBe(asked + 2);
     });
@@ -829,7 +868,6 @@ describe("the outbox's changes, one at a time", () => {
           section: "note",
         },
       ],
-      files: [{ bytes: PNG, mime: "image/png" }],
       folderId: null,
       tags: [],
       title: "Again",

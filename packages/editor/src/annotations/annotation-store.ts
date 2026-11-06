@@ -1,5 +1,5 @@
 // A module store rather than context: decorate callbacks and key handlers run
-// outside React. Everything is keyed by note path because a store answer or a
+// outside React. Everything is keyed by the item's id because a store answer or a
 // pending note can land after the open item moved on.
 
 import { create } from "zustand";
@@ -19,7 +19,7 @@ export interface AnchorRect {
 // highlight's own entry, which a note waits on, since an edit of an entry not yet written is refused
 export interface PendingNote {
   id: string;
-  path: string;
+  itemId: string;
   rect: AnchorRect;
   created: Promise<boolean>;
 }
@@ -44,14 +44,14 @@ export const useAnnotationSurface = create<AnnotationSurfaceState>()(() => ({
   pendingNote: null,
 }));
 
-// a note with no published meta yet reads as empty, so its ranges render as orphans until the store loads
-export const useAnnotationMeta = (path: string | null): AnnotationMeta =>
+// an item with no published meta yet reads as empty, so its ranges render as orphans until the store loads
+export const useAnnotationMeta = (itemId: string | null): AnnotationMeta =>
   useAnnotationSurface((state) =>
-    path === null ? EMPTY_META : (state.meta.get(path) ?? EMPTY_META),
+    itemId === null ? EMPTY_META : (state.meta.get(itemId) ?? EMPTY_META),
   );
 
-export const setAnnotationMeta = (path: string, meta: AnnotationMeta): void => {
-  useAnnotationSurface.setState((state) => ({ meta: new Map(state.meta).set(path, meta) }));
+export const setAnnotationMeta = (itemId: string, meta: AnnotationMeta): void => {
+  useAnnotationSurface.setState((state) => ({ meta: new Map(state.meta).set(itemId, meta) }));
 };
 
 export const setPendingNote = (pending: PendingNote | null): void => {

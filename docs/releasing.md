@@ -316,9 +316,14 @@ the owner's account; a spare macOS user keeps your own Keychain out of it.
   - With a card selected and no field focused, ⌘V of a copied link saves it
     (the paste catcher), and the focus returns to the card; ⌘V of a screenshot
     saves a picture.
-  - ⌘V inside a note still pastes into the note, but ⌘V of a screenshot there,
-    or a picture dropped on its text, adds nothing and says to save the picture
-    to the library as an item of its own.
+  - ⌘V inside a note still pastes text into the note, and ⌘V of a screenshot
+    there, or a picture or a PDF dropped from Finder on its text, lands where
+    the caret or the drop was and draws at once, the PDF as a card naming it
+    whose Download lands in Downloads. Turn the network off and paste another
+    screenshot. Passing: it draws offline, the footer says one change waits,
+    and once the network is back the item in the library's browser tab at
+    `/library` shows both pictures. A file over 100 MB dropped on the text is
+    refused with a message and adds nothing.
   - A link dragged from Safari, Chrome and Arc onto the window saves, and so
     does a file dragged from Finder onto the grid and onto a folder row.
   - A card dragged onto a folder in the sidebar moves, never saves.
@@ -404,7 +409,8 @@ account whose library holds about 2,000 items gives the timing check its load.
   backgrounding and killing the app keeps what was typed.
 - **Offline.** Turn on airplane mode, kill the app and open it. Passing: the
   library and any item open, a picture item opened once before opens in the
-  viewer, and one never opened says it is not on this iPhone yet. Edit a note
+  viewer, and one never opened says it is not on this iPhone yet; a note whose
+  text holds a picture the Mac pasted, opened once online, draws it offline. Edit a note
   and add a photo while still offline, kill the app, open it, turn airplane
   mode off. Passing: both reach the Mac, the banner under the library counts
   them down to nothing, and the photo then opens offline with no download.

@@ -42,6 +42,9 @@ export interface PageLibrary {
   // where a file of the library is drawn from: the cloud's own route in the tab, the shell's
   // scheme on the Mac
   readonly fileUrl: (sha: string) => string;
+  // a file's bytes from there, a file this device has not sent up yet among them, as the editor
+  // draws a picture in a note; rejects while no copy of it can be had
+  readonly readFile: (sha: string) => Promise<Blob>;
   // `/v1` for the bytes the wire does not carry: a file uploaded for an import, an export saved
   readonly cloud: ReplicaTransport;
   // this device has left its account, its replica already wiped: the host's next screen
@@ -79,24 +82,44 @@ export const pageClock: ReplicaClock = {
 export const newId = (): string => uuidV7(Date.now(), crypto.getRandomValues(new Uint8Array(16)));
 
 // a file waiting for the write that names it to land: in memory, as the rows are, so a reload
-// takes it with the write it waited for
-const memoryStagedBlobs = (): StagedBlobs => {
-  const held = new Map<string, Uint8Array<ArrayBuffer>>();
+// takes it with the write it waited for; the page draws it from here until then
+const memoryStagedBlobs = (): StagedBlobs & { readonly file: (sha: string) => Blob | null } => {
+  const held = new Map<string, Blob>();
   return {
     clear: async () => {
       held.clear();
       await Promise.resolve();
     },
-    put: async (sha, bytes) => {
-      held.set(sha, bytes);
+    file: (sha) => held.get(sha) ?? null,
+    put: async (sha, bytes, mime) => {
+      held.set(sha, new Blob([bytes], { type: mime }));
       await Promise.resolve();
     },
-    read: async (sha) => await Promise.resolve(held.get(sha) ?? null),
+    read: async (sha) => {
+      const file = held.get(sha);
+      return file === undefined ? null : new Uint8Array(await file.arrayBuffer());
+    },
     remove: async (sha) => {
       held.delete(sha);
       await Promise.resolve();
     },
   };
+};
+
+// where the tab draws a file of the library from: the cloud's own route, under its cookie
+const fileUrl = (sha: string): string => `${V1_BLOBS_PATH}/${sha}`;
+
+// a file of the library as `url` answers it, read whole
+export const fileAt = async (
+  url: string,
+  fetchFile: (request: Request) => Promise<Response>,
+): Promise<Blob> => {
+  const response = await fetchFile(new Request(url));
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw new Error(`the file answered ${String(response.status)}`);
+  }
+  return await response.blob();
 };
 
 const readSession = async (origin: string): Promise<SignedIn | null> => {
@@ -116,8 +139,9 @@ export const openPageLibrary = async (
     return { kind: "signed-out" };
   }
   const transport: ReplicaTransport = { fetch: async (request) => await fetch(request), origin };
+  const staged = memoryStagedBlobs();
   const opening = await openLibraryReplica({
-    blobs: memoryStagedBlobs(),
+    blobs: staged,
     clock: pageClock,
     dial: (url) => new WebSocket(url),
     merge: replicaMerge,
@@ -133,13 +157,17 @@ export const openPageLibrary = async (
     library: {
       account,
       cloud: transport,
-      fileUrl: (sha) => `${V1_BLOBS_PATH}/${sha}`,
+      fileUrl,
       leave,
       left: async (reason) => {
         leave.drop();
         window.location.assign(reason === "deleted" ? "/" : SIGN_IN_PATH);
         await Promise.resolve();
       },
+      // the file this tab has not sent up yet, else the cloud's, which the browser keeps as long
+      // as the cloud says a file under its sha never changes
+      readFile: async (sha) =>
+        staged.file(sha) ?? (await fileAt(`${origin}${fileUrl(sha)}`, transport.fetch)),
       replica: opening.replica,
       wire: createCloudWire(transport, onSessionEnd),
     },

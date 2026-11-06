@@ -13,7 +13,6 @@ import {
 import { isAnnotationMarker } from "@repo/editor/annotations/annotation-ranges";
 import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import { GROUPS } from "@repo/editor/slash-items";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
@@ -234,7 +233,7 @@ describe("a locked block's controls", () => {
       <EditorHarness
         ref={ref}
         profile="touch"
-        store={createOpenNoteStore()}
+
         value={valueOf(NOTE)}
       />,
     );
@@ -276,7 +275,7 @@ describe("a locked block's controls", () => {
         type: "p",
       },
     ];
-    render(<EditorHarness profile={profile} store={createOpenNoteStore()} value={value} />);
+    render(<EditorHarness profile={profile} value={value} />);
     const options = await screen.findAllByRole("option");
     const shown = options.map((option) => option.textContent);
     const rich = GROUPS.flatMap((group) => group.items).filter((item) => item.richBlock === true);
@@ -295,7 +294,7 @@ describe("a locked block's controls", () => {
     ["touch", []],
     ["desktop", ["Edit data", "Sketch", "Edit payload", "Edit", "Add tab"]],
   ] as const)("the %s kit draws only the editing controls it would apply", (profile, editing) => {
-    render(<EditorHarness profile={profile} store={createOpenNoteStore()} value={valueOf(NOTE)} />);
+    render(<EditorHarness profile={profile} value={valueOf(NOTE)} />);
     for (const name of ["Edit data", "Sketch", "Edit payload", "Edit", "Add tab"]) {
       expect(screen.queryAllByRole("button", { name }).length > 0, name).toBe(
         editing.some((drawn) => drawn === name),
@@ -316,7 +315,7 @@ describe("a locked block's controls", () => {
       <EditorHarness
         ref={ref}
         profile="touch"
-        store={createOpenNoteStore()}
+
         value={valueOf(NOTE)}
       />,
     );

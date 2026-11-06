@@ -65,7 +65,7 @@ export const useItemEditor = (
   init: EditorHostArgs["init"],
   onEvent: EditorHostArgs["onEvent"],
 ): ItemEditor => {
-  const { replica } = useLibrary();
+  const { files, replica } = useLibrary();
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [editor] = useState((): ItemEditor => {
     const source = editorPageSource();
@@ -74,7 +74,7 @@ export const useItemEditor = (
       mintNonce: mintBridgeNonce,
       onEvent,
       pageUrl: source?.uri ?? "",
-      ports: createItemPorts({ now: () => Date.now(), replica }),
+      ports: createItemPorts({ files, now: () => Date.now(), replica }),
     });
     return { host, source };
   });

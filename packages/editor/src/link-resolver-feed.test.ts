@@ -1,85 +1,74 @@
-import type { VaultEntry } from "@repo/editor/host-io";
+import type { LinkTarget } from "@repo/editor/host-io";
 import { createLinkResolverFeed } from "@repo/editor/link-resolver-feed";
-import type { WikiTarget } from "@repo/notes/knowledge/wiki-target";
 import { describe, expect, it } from "vitest";
 
-const LISTING: readonly VaultEntry[] = [
-  { kind: "doc", name: "Plan.md", path: "Projects/Plan.md" },
-  { kind: "doc", name: "Inbox.md", path: "Inbox.md" },
-  { kind: "other", name: "chart.png", path: "assets/chart.png" },
-];
-
 const PLAN_ID = "3f1c2b1e-8a4d-4c1e-9b2a-1d2e3f4a5b6c";
+const INBOX_ID = "0190a000-0000-7000-8000-000000000001";
 
-const TARGETS: readonly WikiTarget[] = [
-  { aliases: ["Roadmap"], id: PLAN_ID, path: "Projects/Plan.md", title: "Plan", type: "doc" },
-  { path: "Inbox.md", title: "Inbox", type: "doc" },
+const TARGETS: readonly LinkTarget[] = [
+  { id: PLAN_ID, title: "Plan" },
+  { id: INBOX_ID, title: "Inbox" },
 ];
 
 describe("the link resolver feed", () => {
-  it("resolves nothing before either input arrives", () => {
+  it("resolves nothing before the host feeds it", () => {
     const { store } = createLinkResolverFeed();
 
     expect(store.getState().resolveWikiTarget("Plan")).toBeNull();
-    expect(store.getState().resolveMdTarget("Plan.md", "Inbox.md")).toBeNull();
     expect(store.getState().targets).toStrictEqual([]);
   });
 
-  it("resolves a note's stem and an md url from the listing alone", () => {
-    const { setListing, store } = createLinkResolverFeed();
-
-    setListing(LISTING);
-
-    expect(store.getState().resolveWikiTarget("Plan")).toBe("Projects/Plan.md");
-    expect(store.getState().resolveMdTarget("assets/chart.png", "Inbox.md")).toBe(
-      "assets/chart.png",
-    );
-    expect(store.getState().resolveWikiTarget("Roadmap")).toBeNull();
-  });
-
-  it("adds the targets' alias and id tiers, and carries the targets it was built over", () => {
-    const { setListing, setTargets, store } = createLinkResolverFeed();
-    setListing(LISTING);
-
-    setTargets(TARGETS);
-
-    expect(store.getState().resolveWikiTarget("Roadmap")).toBe("Projects/Plan.md");
-    expect(store.getState().resolveWikiTarget("Old title", PLAN_ID)).toBe("Projects/Plan.md");
-    expect(store.getState().targets).toBe(TARGETS);
-  });
-
-  it("names an item by id as its card does, from its file, never its first heading", () => {
+  it("answers the item a link names by its title, whatever the case, and by the id it carries", () => {
     const { setTargets, store } = createLinkResolverFeed();
 
-    setTargets([{ id: PLAN_ID, path: "Projects/Plan 2.md", title: "Quarterly plan", type: "doc" }]);
-
-    expect(store.getState().titleOf(PLAN_ID)).toBe("Plan 2");
-    expect(store.getState().titleOf("0190a000-0000-7000-8000-00000000ffff")).toBeNull();
-  });
-
-  it("keeps each input when the other one moves", () => {
-    const { setListing, setTargets, store } = createLinkResolverFeed();
     setTargets(TARGETS);
-    setListing(LISTING);
 
-    expect(store.getState().resolveWikiTarget("Roadmap")).toBe("Projects/Plan.md");
-
-    setListing([...LISTING, { kind: "doc", name: "Notes.md", path: "Notes.md" }]);
-    expect(store.getState().targets).toBe(TARGETS);
-    expect(store.getState().resolveWikiTarget("Notes")).toBe("Notes.md");
+    expect(store.getState().resolveWikiTarget("Plan")).toBe(PLAN_ID);
+    expect(store.getState().resolveWikiTarget("inbox")).toBe(INBOX_ID);
+    expect(store.getState().resolveWikiTarget("Old title", PLAN_ID)).toBe(PLAN_ID);
+    expect(store.getState().resolveWikiTarget("Nothing yet")).toBeNull();
   });
 
-  it("hands every subscriber a new resolver on each input, so a link re-renders on it", () => {
-    const { setListing, setTargets, store } = createLinkResolverFeed();
+  it("files a title holding a slash under one name, and two items of one title under the first", () => {
+    const { setTargets, store } = createLinkResolverFeed();
+    const second = "0190a000-0000-7000-8000-000000000002";
+
+    setTargets([{ id: PLAN_ID, title: "Q3/Q4 plan" }, ...TARGETS, { id: second, title: "Inbox" }]);
+
+    expect(store.getState().resolveWikiTarget("Q3 Q4 plan")).toBe(PLAN_ID);
+    expect(store.getState().resolveWikiTarget("Inbox")).toBe(INBOX_ID);
+    expect(store.getState().resolveWikiTarget("", second)).toBe(second);
+    expect(store.getState().targets.map((target) => target.path)).toStrictEqual([
+      "Q3 Q4 plan.md",
+      "Plan.md",
+      "Inbox.md",
+      "Inbox.md",
+    ]);
+  });
+
+  it("names an item by id as its card does", () => {
+    const { setTargets, store } = createLinkResolverFeed();
+
+    setTargets([{ id: PLAN_ID, title: "Quarterly plan" }]);
+
+    expect(store.getState().titleOf(PLAN_ID)).toBe("Quarterly plan");
+    expect(store.getState().titleOf(INBOX_ID)).toBeNull();
+  });
+
+  it("hands every subscriber a new resolver each time the host feeds it, so a link re-renders", () => {
+    const { setTargets, store } = createLinkResolverFeed();
     const seen: unknown[] = [];
     store.subscribe((next) => {
       seen.push(next);
     });
 
-    setListing(LISTING);
     setTargets(TARGETS);
+    setTargets([...TARGETS, { id: "0190a000-0000-7000-8000-000000000003", title: "Notes" }]);
 
     expect(seen).toHaveLength(2);
     expect(seen[0]).not.toBe(seen[1]);
+    expect(store.getState().resolveWikiTarget("Notes")).toBe(
+      "0190a000-0000-7000-8000-000000000003",
+    );
   });
 });

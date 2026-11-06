@@ -1,58 +1,60 @@
-import type { LinkResolver, LinkResolverStore, VaultEntry } from "@repo/editor/host-io";
-import { docStem } from "@repo/notes/knowledge/doc-file";
-import { resolverEntriesOf } from "@repo/notes/knowledge/wiki-target";
-import type { WikiTarget } from "@repo/notes/knowledge/wiki-target";
+import type {
+  LinkResolver,
+  LinkResolverStore,
+  LinkTarget,
+  PickerTarget,
+} from "@repo/editor/host-io";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { createStore } from "zustand/vanilla";
 
-// What a host installs as `EditorHostIo.linkResolver`, and the two inputs it feeds: the session's
-// listing and the index's wiki targets, which arrive apart.
+// What a host installs as `EditorHostIo.linkResolver`, and the one input it feeds: the items a
+// link can name. The library's resolver files each under a name of its own, so a link written
+// with a title reaches the item that title names today, as the knowledge index resolves it, and
+// one carrying an id reaches that item whatever it is called.
 export interface LinkResolverFeed {
   readonly store: LinkResolverStore;
-  readonly setListing: (entries: readonly VaultEntry[]) => void;
-  readonly setTargets: (targets: readonly WikiTarget[]) => void;
+  readonly setTargets: (targets: readonly LinkTarget[]) => void;
 }
 
 const NO_RESOLVER: LinkResolver = {
-  resolveMdTarget: () => null,
   resolveWikiTarget: () => null,
   targets: [],
   titleOf: () => null,
 };
 
+// the name the resolver files an item under: its title, as a link writes it, with no folder in it
+const filedName = (title: string): string => `${title.replaceAll("/", " ")}.md`;
+
 export const createLinkResolverFeed = (): LinkResolverFeed => {
-  let entries: readonly VaultEntry[] = [];
-  let targets: readonly WikiTarget[] = [];
   const store = createStore<LinkResolver>()(() => NO_RESOLVER);
-  // Rebuilt whole from either input: the resolver's identity is what tells a link to re-render.
-  const rebuild = (): void => {
-    const { aliasEntries, idEntries } = resolverEntriesOf(targets);
-    const resolver = buildResolver(
-      entries.map((entry) => entry.path),
-      aliasEntries,
-      idEntries,
-    );
-    // an item's name is its file's, as its card shows it, never the first heading the picker shows
-    const titles = new Map(
-      targets.flatMap((target) =>
-        target.id === undefined ? [] : [[target.id, docStem(target.path)]],
-      ),
-    );
-    store.setState({
-      resolveMdTarget: (target, fromPath) => resolver.resolveMd(target, fromPath),
-      resolveWikiTarget: (target, alias) => resolver.resolveWiki(target, alias),
-      targets,
-      titleOf: (itemId) => titles.get(itemId) ?? null,
-    });
-  };
   return {
-    setListing: (next) => {
-      entries = next;
-      rebuild();
-    },
     setTargets: (next) => {
-      targets = next;
-      rebuild();
+      const targets: PickerTarget[] = next.map((target) => ({
+        ...target,
+        path: filedName(target.title),
+      }));
+      // two items of one title file under one name, which reaches the first the host lists
+      const owners = new Map<string, string>();
+      for (const target of targets) {
+        if (!owners.has(target.path)) {
+          owners.set(target.path, target.id);
+        }
+      }
+      const resolver = buildResolver(owners.keys());
+      const titles = new Map(targets.map((target) => [target.id, target.title]));
+      // rebuilt whole: the resolver's identity is what tells a link to re-render
+      store.setState({
+        // an id the link carries names its item whatever it is called now
+        resolveWikiTarget: (target, alias) => {
+          if (alias !== undefined && titles.has(alias)) {
+            return alias;
+          }
+          const path = resolver.resolveWiki(target);
+          return path === null ? null : (owners.get(path) ?? null);
+        },
+        targets,
+        titleOf: (itemId) => titles.get(itemId) ?? null,
+      });
     },
     store,
   };

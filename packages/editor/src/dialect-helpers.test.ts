@@ -1,9 +1,9 @@
 // Pure halves of the Inteligir dialect: the /month chip's first-day ISO and the
-// hover preview's markdown strip.
+// hover preview's plain lines.
 
 import { describe, expect, it } from "vitest";
 import { ElementApi } from "platejs";
-import type { Descendant } from "platejs";
+import type { Descendant, TElement } from "platejs";
 import { createPlateEditor } from "platejs/react";
 
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
@@ -48,44 +48,61 @@ describe("date chip inserts", () => {
   });
 });
 
+const VOID = [{ text: "" }];
+const paragraph = (children: Descendant[]): TElement => ({ children, type: "p" });
+
 describe(notePreviewHead, () => {
-  it("drops frontmatter and dialect plumbing, strips formatting", () => {
-    const md = [
-      "---",
-      "id: abc",
-      "---",
-      "# Title",
-      "",
-      "Some **bold** and a [[target|alias]] plus %%i:x:start%%noted%%i:x:end%% text.",
-      "",
-      "> quoted code",
-    ].join("\n");
-    expect(notePreviewHead(md)).toBe(
-      ["Title", "", "Some bold and a alias plus noted text.", "", "quoted code"].join("\n"),
+  it("reads each block as a line, a link as its chip, and drops markers, pictures and rich blocks", () => {
+    const blocks: TElement[] = [
+      { children: [{ text: "Title" }], type: "h1" },
+      paragraph([
+        { text: "Some " },
+        { bold: true, text: "bold" },
+        { text: " and a " },
+        { alias: "alias", children: VOID, itemId: null, title: "target", type: "wikiLink" },
+        { text: " plus " },
+        { children: VOID, ids: "x", type: "annotationMarker" },
+        { text: "noted" },
+        { children: VOID, ids: "x", type: "annotationMarker" },
+        { text: " text." },
+      ]),
+      { children: VOID, sha: "a".repeat(64), type: "img" },
+      { children: [paragraph([{ text: "quoted code" }])], type: "blockquote" },
+      { children: VOID, type: "chart_block", value: "{}" },
+    ];
+    expect(notePreviewHead(blocks)).toBe(
+      ["Title", "Some bold and a alias plus noted text.", "", "quoted code"].join("\n"),
     );
   });
 
-  it("labels a wiki link as its chip does, never by its uuid", () => {
-    const md = "See [[Plan|9e64c3df-c1e2-4a4d-8c07-91528f422413]] and [[C\\#Sharp]].";
-    expect(notePreviewHead(md)).toBe("See Plan and C#Sharp.");
+  it("labels a link to an item by the title it was written with, never its id", () => {
+    const blocks = [
+      paragraph([
+        { text: "See " },
+        {
+          children: VOID,
+          itemId: "9e64c3df-c1e2-4a4d-8c07-91528f422413",
+          title: "Plan",
+          type: "wikiLink",
+        },
+        { text: ", " },
+        { children: VOID, itemId: null, title: "Plan", type: "wikiEmbed" },
+        { text: " on " },
+        { children: VOID, date: "2026-08-22", type: "date" },
+        { text: " for " },
+        { children: VOID, display: "4", source: "2+2", type: "formulaPill" },
+        { text: "." },
+      ]),
+    ];
+    expect(notePreviewHead(blocks)).toBe("See Plan, Plan on 2026-08-22 for 4.");
   });
 
-  it("labels an embed as its target, without the bang", () => {
-    expect(notePreviewHead("Read ![[Plan]] first.")).toBe("Read Plan first.");
-  });
-
-  it.each([
-    ["a BOM", "\uFEFF---\nid: abc\n---\nBody\n"],
-    ["CRLF", "---\r\nid: abc\r\n---\r\nBody\r\n"],
-    ["a BOM and CRLF", "\uFEFF---\r\nid: abc\r\n---\r\nBody\r\n"],
-  ])("drops the frontmatter of a note with %s", (_, md) => {
-    expect(notePreviewHead(md)).toBe("Body");
-  });
-
-  it("caps at twenty lines", () => {
-    const md = Array.from({ length: 40 }, (_, i) => `line ${String(i)}`).join("\n");
-    const lines = notePreviewHead(md).split("\n");
+  it("caps at twenty lines, a soft break among them", () => {
+    const blocks = Array.from({ length: 40 }, (_, i) =>
+      paragraph([{ text: i === 0 ? "line 0\nline 0b" : `line ${String(i)}` }]),
+    );
+    const lines = notePreviewHead(blocks).split("\n");
     expect(lines).toHaveLength(20);
-    expect(lines[0]).toBe("line 0");
+    expect(lines.slice(0, 3)).toStrictEqual(["line 0", "line 0b", "line 1"]);
   });
 });

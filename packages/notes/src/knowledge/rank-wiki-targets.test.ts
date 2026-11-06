@@ -1,16 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { WikiTarget } from "./wiki-target";
 import { rankWikiTargets } from "./rank-wiki-targets";
+import type { RankableWikiTarget } from "./rank-wiki-targets";
 
-const doc = (path: string, title: string, aliases?: string[]): WikiTarget => {
-  const target: WikiTarget = { path, title, type: "doc" };
-  if (aliases !== undefined) {
-    target.aliases = aliases;
-  }
-  return target;
-};
+const doc = (path: string, title: string, aliases?: string[]): RankableWikiTarget =>
+  aliases === undefined ? { path, title } : { aliases, path, title };
 
-const paths = (targets: readonly WikiTarget[]): string[] => targets.map((target) => target.path);
+const paths = (targets: readonly RankableWikiTarget[]): string[] =>
+  targets.map((target) => target.path);
 
 describe(rankWikiTargets, () => {
   it("answers every target in listing order for a blank query", () => {
@@ -58,9 +54,9 @@ describe(rankWikiTargets, () => {
   });
 
   it("ranks an attachment by its file name like a note by its stem", () => {
-    const targets: WikiTarget[] = [
+    const targets = [
       doc("notes/diagrams.md", "Diagrams"),
-      { path: "assets/diagram.png", title: "diagram.png", type: "asset" },
+      doc("assets/diagram.png", "diagram.png"),
     ];
     expect(paths(rankWikiTargets(targets, "diagram.p"))).toStrictEqual(["assets/diagram.png"]);
   });

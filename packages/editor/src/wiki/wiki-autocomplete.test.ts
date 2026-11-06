@@ -87,22 +87,16 @@ describe("picker completion", () => {
     expect(out(editor)).toBe("see ![[target note]]\n");
   });
 
-  it("an attachment pick forces a wikiEmbed even from a plain [[", () => {
+  it("links a picked item by its id, with the title it goes by", () => {
     const editor = makeEditor("see ");
     const element = openWikiPicker(editor);
     commitComboboxInput(editor, element, false);
-    insertWikiChipFromPicker(editor, "diagram.png", true);
-    expect(findByType(editor, "wikiEmbed")?.title).toBe("diagram.png");
-    expect(findByType(editor, "wikiLink")).toBeNull();
-    expect(out(editor)).toBe("see ![[diagram.png]]\n");
-  });
-
-  it("a forced embed after ![[ still consumes the bang (no double bang)", () => {
-    const editor = makeEditor("see !");
-    const element = openWikiPicker(editor);
-    commitComboboxInput(editor, element, false);
-    insertWikiChipFromPicker(editor, "diagram.png", true);
-    expect(out(editor)).toBe("see ![[diagram.png]]\n");
+    insertWikiChipFromPicker(editor, "Plan|0190a000-0000-7000-8000-000000000001");
+    expect(findByType(editor, "wikiLink")).toMatchObject({
+      itemId: "0190a000-0000-7000-8000-000000000001",
+      title: "Plan",
+    });
+    expect(out(editor)).toBe("see [[Plan|0190a000-0000-7000-8000-000000000001]]\n");
   });
 
   it("keeps typing after completion in the text flow (caret escaped the void)", () => {

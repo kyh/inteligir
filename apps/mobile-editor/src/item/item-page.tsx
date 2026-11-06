@@ -7,8 +7,6 @@ import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { EditorProfileProvider } from "@repo/editor/editor-profile";
-import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import { mergeConflictLine } from "@repo/editor/note/vanished-prompt";
 import { ItemEditor } from "@repo/editor/item/item-editor";
 import type { ItemSession, ItemSessionPorts } from "@repo/editor/item/item-session";
@@ -29,9 +27,6 @@ const after = (ms: number, run: () => void): (() => void) => {
     clearTimeout(timer);
   };
 };
-
-// the editor's kits read the open note's store; an item page opens no note by its path
-const noNote = createOpenNoteStore();
 
 // the page follows the phone's appearance, so there is no choice to keep
 const keepSystemTheme = (): void => {
@@ -86,23 +81,21 @@ export const ItemPage = ({
       <SizeProvider size="compact">
         <MotionPolicy>
           <TooltipProvider>
-            <OpenNoteStoreProvider store={noNote}>
-              <EditorProfileProvider profile="touch">
-                <main
-                  data-editor-scroller=""
-                  className="h-dvh overflow-y-auto pt-[env(safe-area-inset-top)]"
-                >
-                  <ItemEditor
-                    itemId={init.itemId}
-                    ports={ports}
-                    onSession={(next) => {
-                      setSession(next);
-                      onSession(next);
-                    }}
-                  />
-                </main>
-              </EditorProfileProvider>
-            </OpenNoteStoreProvider>
+            <EditorProfileProvider profile="touch">
+              <main
+                data-editor-scroller=""
+                className="h-dvh overflow-y-auto pt-[env(safe-area-inset-top)]"
+              >
+                <ItemEditor
+                  itemId={init.itemId}
+                  ports={ports}
+                  onSession={(next) => {
+                    setSession(next);
+                    onSession(next);
+                  }}
+                />
+              </main>
+            </EditorProfileProvider>
             <ConfirmDialogHost />
             <Toaster position="top-center" />
           </TooltipProvider>
@@ -122,7 +115,7 @@ export const mountItemPage = ({
   init: ItemInit;
 }): MountedPage => {
   // installed before the first render: the editor's kits read the host as they render
-  const host = installItemPageHost(bridge, init.itemId);
+  const host = installItemPageHost(bridge, init);
   const ports: ItemSessionPorts = {
     after,
     notifyOverlap: (title) => {

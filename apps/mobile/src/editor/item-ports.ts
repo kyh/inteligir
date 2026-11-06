@@ -1,13 +1,17 @@
-// What an item's page asks the phone, answered from its replica: the item as it reads now, with
-// this phone's unsent writes laid over; a pause's ops, queued in the outbox under the bases the page
-// computed them from (a base that moved answers the item as it is, for the page's own merge); the
-// items a link can name; a highlight's bare entry and its note, beside the markers the item's next
-// write carries; and a note the editor makes, in the folder of the item it was made from, as the
+// What an item's page asks the phone, answered from its replica and its file cache: the item as it
+// reads now, with this phone's unsent writes laid over; a pause's ops, queued in the outbox under
+// the bases the page computed them from (a base that moved answers the item as it is, for the
+// page's own merge); the items a link can name; a file a note names, from the cache, which fetches
+// it the first time, and one the page keeps, in the outbox, which sends it up ahead of the write
+// naming it; a highlight's bare entry and its note, beside the markers the item's next write
+// carries; and a note the editor makes, in the folder of the item it was made from, as the
 // library's page writes them all. Pure: the screen binds it to the open item's replica, and the
 // suite drives it over a real one.
 
 import type { RequestPayload, RequestResult } from "@repo/editor-bridge/protocol";
 import type { LibraryReplica, ReplicaItem } from "@repo/library-replica/library-replica";
+import { sniffMedia } from "@repo/notes/items/sniff-media";
+import type { FileCache } from "../files/file-cache";
 import type { EditorRequestPorts } from "./editor-host";
 
 type HeldItem = Exclude<RequestResult<"item">["item"], null>;
@@ -21,14 +25,19 @@ const heldOf = (item: ReplicaItem): HeldItem => ({
 const bytesOf = (base64: string): Uint8Array<ArrayBuffer> =>
   Uint8Array.from(atob(base64), (character) => character.codePointAt(0) ?? 0);
 
+const base64Of = (bytes: Uint8Array): string => {
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCodePoint(byte);
+  }
+  return btoa(binary);
+};
+
 const writeItem = async (
   replica: LibraryReplica,
-  { files, itemId, ops }: RequestPayload<"writeItem">,
+  { itemId, ops }: RequestPayload<"writeItem">,
 ): Promise<RequestResult<"writeItem">> => {
-  const outcome = await replica.write(itemId, {
-    files: files.map(({ base64, mediaType }) => ({ bytes: bytesOf(base64), mime: mediaType })),
-    ops,
-  });
+  const outcome = await replica.write(itemId, { ops });
   switch (outcome.kind) {
     case "queued":
     case "unchanged":
@@ -47,20 +56,12 @@ const writeItem = async (
 
 const queued = (kind: string): boolean => kind === "queued" || kind === "unchanged";
 
-// an item a link can name, by its id and by its title, under a path of its own so two items of
-// one title are two targets
-const targetOf = (row: { readonly id: string; readonly title: string }) => ({
-  id: row.id,
-  path: `${row.title.replaceAll("/", " ")}.md`,
-  title: row.title,
-  type: "doc" as const,
-});
-
 export const createItemPorts = (args: {
   readonly replica: LibraryReplica;
+  readonly files: Pick<FileCache, "fileBytes">;
   readonly now: () => number;
 }): EditorRequestPorts => {
-  const { replica } = args;
+  const { files, replica } = args;
   return {
     addHighlight: async ({ id, itemId, quote }) => {
       const outcome = await replica.write(itemId, {
@@ -92,6 +93,17 @@ export const createItemPorts = (args: {
       const item = await replica.item(itemId);
       return { item: item === null ? null : heldOf(item) };
     },
+    keepFile: async ({ base64, mediaType }) =>
+      await replica.keepFile({ bytes: bytesOf(base64), mime: mediaType }),
+    linkTargets: async () => {
+      const page = replica.listing({
+        deleted: false,
+        limit: Math.max(1, replica.scopes().total),
+        offset: 0,
+        sort: "title",
+      });
+      return await Promise.resolve({ targets: page.items.map(({ id, title }) => ({ id, title })) });
+    },
     noteHighlight: async ({ id, itemId, text }) => {
       const store = await replica.annotations(itemId);
       const held = store[id];
@@ -104,14 +116,18 @@ export const createItemPorts = (args: {
       });
       return { queued: queued(outcome.kind) };
     },
-    wikiTargets: async () => {
-      const page = replica.listing({
-        deleted: false,
-        limit: Math.max(1, replica.scopes().total),
-        offset: 0,
-        sort: "title",
-      });
-      return await Promise.resolve({ targets: page.items.map(targetOf) });
+    // the type the file is drawn as is read from its bytes, which the cache keeps without one
+    readFile: async ({ sha }) => {
+      const bytes = await files.fileBytes(sha);
+      return {
+        file:
+          bytes === null
+            ? null
+            : {
+                base64: base64Of(bytes),
+                mediaType: sniffMedia(bytes)?.mediaType ?? "application/octet-stream",
+              },
+      };
     },
     writeItem: async (payload) => await writeItem(replica, payload),
   };

@@ -3,10 +3,11 @@ import { applyOps, orderedBlocks } from "@repo/notes/library/block-ops";
 import type { ItemState, LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
 import { ordBetween } from "@repo/notes/library/block-order";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
+import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { mulberry32, pick } from "@repo/notes/test-support/seeded-random";
 import { describe, expect, it } from "vitest";
 
-import { coalesceWrites, compactAnnotations, compactOps } from "./outbox-ops";
+import { coalesceWrites, compactAnnotations, compactOps, shasNamed } from "./outbox-ops";
 import type { WriteOp } from "./outbox-ops";
 import { paragraph } from "./test-support/replica-harness";
 
@@ -225,5 +226,51 @@ describe("an outbox row's compaction", () => {
       { baseHash: blockHash(paragraph("p1", "a")), block: paragraph("p1", "c"), op: "put" },
     ]);
     expect(joined.staged.map((file) => file.sha)).toStrictEqual(["a".repeat(64), "b".repeat(64)]);
+  });
+});
+
+// a picture block naming its file by sha
+const picture = (id: string, sha: string): LibraryBlock => ({
+  children: [{ text: "" }],
+  id,
+  sha,
+  type: "img",
+});
+
+describe(shasNamed, () => {
+  it("names the files a write's puts and inserts embed, never a drop's", () => {
+    const op: WriteOp = {
+      annotations: [],
+      bases: {},
+      itemId: "item-1",
+      kind: "write",
+      ops: [
+        { block: picture("i1", "a".repeat(64)), op: "insert", ord: "a0", section: "note" },
+        { baseHash: "0".repeat(32), block: picture("i2", "b".repeat(64)), op: "put" },
+        { baseHash: "0".repeat(32), blockId: "i3", op: "drop" },
+      ],
+      staged: [],
+    };
+    expect([...shasNamed(op)]).toStrictEqual(["a".repeat(64), "b".repeat(64)]);
+  });
+
+  it("names the files a new note's blocks embed, and none for a kept file's own row", () => {
+    expect([
+      ...shasNamed({
+        input: {
+          blocks: [{ block: picture("i1", "c".repeat(64)), ord: "a0", section: "note" }],
+          folderId: null,
+          id: "0190f0b0-0000-7000-8000-000000000000",
+          savedAt: 1,
+          tags: [],
+          title: "Pictures",
+        },
+        kind: "create",
+        staged: [],
+      }),
+    ]).toStrictEqual(["c".repeat(64)]);
+    expect(
+      shasNamed({ kind: "keep", staged: [{ mime: "image/png", sha: "c".repeat(64) }] }).size,
+    ).toBe(0);
   });
 });

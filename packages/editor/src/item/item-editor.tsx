@@ -20,6 +20,7 @@ import {
 import { WRITE_PLACEHOLDER } from "@repo/editor/kits/block-placeholder-kit";
 import { PROFILE_KITS } from "@repo/editor/kits/profile-kits";
 import { registerLiveEditor } from "@repo/editor/live-editor";
+import { OpenItemProvider } from "@repo/editor/open-item";
 import { TableOfContents } from "@repo/editor/toc";
 
 import { createItemSession } from "./item-session";
@@ -75,8 +76,8 @@ const ItemSurface = ({ itemId, ports, onSession }: ItemEditorProps) => {
       void session.close();
     };
   }, [session]);
-  // the editor answers for its item by the item's id, as a note's answers for its path: a
-  // highlight the chord makes, and a writer outside the surface, find it there
+  // the editor answers for its item by the item's id: a highlight the chord makes, and a writer
+  // outside the surface, find it there
   useEffect(() => registerLiveEditor(itemId, editor), [itemId, editor]);
   if (status.kind === "missing") {
     return (
@@ -93,13 +94,15 @@ const ItemSurface = ({ itemId, ports, onSession }: ItemEditorProps) => {
     scheduleFormulaRecompute(editor);
   };
   return (
-    <Plate editor={editor} onValueChange={handleValueChange}>
-      <EditorContainer>
-        <Editor placeholder={WRITE_PLACEHOLDER} spellCheck={false} />
-      </EditorContainer>
-      <FormulaRecompute itemId={itemId} store={ports.store} />
-      {profile === "desktop" ? <TableOfContents /> : null}
-    </Plate>
+    <OpenItemProvider itemId={itemId}>
+      <Plate editor={editor} onValueChange={handleValueChange}>
+        <EditorContainer>
+          <Editor placeholder={WRITE_PLACEHOLDER} spellCheck={false} />
+        </EditorContainer>
+        <FormulaRecompute itemId={itemId} store={ports.store} />
+        {profile === "desktop" ? <TableOfContents /> : null}
+      </Plate>
+    </OpenItemProvider>
   );
 };
 

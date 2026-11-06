@@ -10,11 +10,11 @@ import { useMutation } from "@tanstack/react-query";
 import { DownloadIcon, ExternalLinkIcon } from "lucide-react";
 
 import { useFileUrl } from "../cloud/library-context";
-import { saveBlob } from "../save-file";
+import { saveBlob } from "@repo/ui/lib/save-blob";
 
 // The file's bytes read where the host draws them, then saved under its own name: the Mac's
 // scheme is another origin than its page, where a `download` link would be followed instead
-// (save-file.ts). It reads what the device holds, so it runs with no connection too.
+// (`@repo/ui/lib/save-blob`). It reads what the device holds, so it runs with no connection too.
 const SaveFile = ({ url, name, label }: { url: string; name: string; label: string }) => {
   const save = useMutation({
     mutationFn: async () => {

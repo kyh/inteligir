@@ -11,23 +11,21 @@ import type { Value } from "platejs";
 import type { EditorProfile } from "@repo/editor/editor-profile";
 import { registerLiveEditor } from "@repo/editor/live-editor";
 import { PROFILE_KITS } from "@repo/editor/kits/profile-kits";
-import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
-import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
+import { OpenItemProvider } from "@repo/editor/open-item";
 import { EDITOR_CHUNK } from "@repo/editor/style-hooks";
 
 export const EditorHarness = ({
   value,
-  store,
+  itemId = null,
   ref,
-  livePath,
   nodeIds = false,
   profile = "desktop",
   chunkSize,
 }: {
   value: Value;
-  store: OpenNoteStore;
+  // the item the editor shows, as the item editor provides it and answers for it
+  itemId?: string | null;
   ref?: Ref<PlateEditor>;
-  livePath?: string;
   // Plate turns NodeIdPlugin off under NODE_ENV=test; the app runs it, and the block overlays
   // address blocks by that id.
   nodeIds?: boolean;
@@ -45,13 +43,13 @@ export const EditorHarness = ({
   });
   useImperativeHandle(ref, () => editor, [editor]);
   useEffect(() => {
-    if (livePath === undefined) {
+    if (itemId === null) {
       return;
     }
-    return registerLiveEditor(livePath, editor);
-  }, [livePath, editor]);
+    return registerLiveEditor(itemId, editor);
+  }, [itemId, editor]);
   return (
-    <OpenNoteStoreProvider store={store}>
+    <OpenItemProvider itemId={itemId}>
       <Plate editor={editor}>
         <PlateContent
           renderChunk={({ attributes, children, lowest }) =>
@@ -65,6 +63,6 @@ export const EditorHarness = ({
           }
         />
       </Plate>
-    </OpenNoteStoreProvider>
+    </OpenItemProvider>
   );
 };

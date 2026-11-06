@@ -7,7 +7,6 @@ import type { PlateEditor } from "platejs/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { headingCollapseKeys, toggleHeadingCollapse } from "@repo/editor/heading-collapse";
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 
 import { EditorHarness } from "./test-support/editor-harness";
 
@@ -52,12 +51,10 @@ describe("heading collapse", () => {
 const h2 = (text: string) => ({ children: [{ text }], type: "h2" });
 const p = (text: string) => ({ children: [{ text }], type: "p" });
 
-const mountNote = (path: string, value: Value): PlateEditor => {
+const mountNote = (itemId: string, value: Value): PlateEditor => {
   stubStorage();
-  const store = createOpenNoteStore();
-  store.publishOpenPath(path);
   const ref = createRef<PlateEditor>();
-  render(<EditorHarness value={value} store={store} ref={ref} nodeIds />);
+  render(<EditorHarness value={value} itemId={itemId} ref={ref} nodeIds />);
   if (ref.current === null) {
     throw new Error("the editor did not mount");
   }

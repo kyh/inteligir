@@ -1,7 +1,7 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, test } from "vitest";
 
-import { getEditorHostActions } from "@repo/editor/host-io";
+import { getEditorHostActions, getEditorHostIo } from "@repo/editor/host-io";
 import { createItemSession, ITEM_IDLE_MS } from "@repo/editor/item/item-session";
 import { headlessEditor } from "@repo/editor/markdown/markdown-doc";
 import { blockHash } from "@repo/notes/library/block-hash";
@@ -60,7 +60,14 @@ const manualTimers = () => {
 
 const connectItem = async (phone: FakePhone) => {
   const connecting = connectPageBridge(phone.transport);
-  phone.deliver({ focus: null, itemId: ITEM, mode: "item", nonce: PHONE_NONCE, type: "init" });
+  phone.deliver({
+    fileMaxBytes: 1024,
+    focus: null,
+    itemId: ITEM,
+    mode: "item",
+    nonce: PHONE_NONCE,
+    type: "init",
+  });
   const { bridge, init } = await connecting;
   if (init.mode !== "item") {
     throw new Error("the fake phone opened the page in another mode");
@@ -183,7 +190,7 @@ describe("an item page over the phone's replica", () => {
       mounted = mountItemPage({ bridge, container, init });
     });
     await waitFor(() => {
-      expect(phone.requests("wikiTargets")).toHaveLength(1);
+      expect(phone.requests("linkTargets")).toHaveLength(1);
     });
 
     const id = await getEditorHostActions().items.createNote({
@@ -211,8 +218,31 @@ describe("an item page over the phone's replica", () => {
       type: "itemChanged",
     });
     await waitFor(() => {
-      expect(phone.requests("wikiTargets")).toHaveLength(2);
+      expect(phone.requests("linkTargets")).toHaveLength(2);
     });
+  });
+
+  it("reads a note's file from the phone, keeps a pasted one there, and holds a paste to the phone's cap", async () => {
+    const phone = createFakePhone({ [ITEM]: itemOf(paragraph("p1", "first")) });
+    const { bridge, init } = await connectItem(phone);
+    const container = document.createElement("div");
+    document.body.append(container);
+    act(() => {
+      mounted = mountItemPage({ bridge, container, init });
+    });
+    const io = getEditorHostIo();
+    expect(io.fileMaxBytes).toBe(1024);
+    expect(io.savesFiles).toBe(false);
+
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+    const { sha } = await io.keepFile(png, "image/png");
+    expect(phone.requests("keepFile").map(({ payload }) => payload)).toStrictEqual([
+      { base64: btoa(String.fromCodePoint(...png)), mediaType: "image/png" },
+    ]);
+    const file = await io.readFile(sha);
+    expect(file.type).toBe("image/png");
+    expect(new Uint8Array(await file.arrayBuffer())).toStrictEqual(png);
+    await expect(io.readFile("f".repeat(64))).rejects.toThrow(/no copy/u);
   });
 
   it("draws the item it was opened on, and answers a flush once it is written", async () => {

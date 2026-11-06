@@ -66,9 +66,7 @@ src/
                        # markdown→Slate conversion runs), and the same
                        # grammar with no transformer run
     remark-wiki-link.ts  # own [[wiki-link]] tokenizer, byte-exact both ways;
-                       # the body's one parse, one writer and one display
-                       # label (`wikiLinkLabel`), which every chip, preview
-                       # and snippet on desktop and phone draws
+                       # the body's one parse and one writer
     remark-inline-html.ts  # every tag is inline html (flow html is off),
                        # folded with its closer as the tree compiles: a bare
                        # `<u>` the underline mark, any other pair one element

@@ -49,13 +49,11 @@ export const keepBoth: BlockMerge = async ({ base, mine, theirs }) => {
   return { block: paragraph(theirs.id, `${others} / ${ours}`), overlapped: false };
 };
 
-/** @internal */
-export interface MemoryBlobs extends StagedBlobs {
+interface MemoryBlobs extends StagedBlobs {
   readonly held: () => readonly string[];
 }
 
-/** @internal */
-export const memoryBlobs = (): MemoryBlobs => {
+const memoryBlobs = (): MemoryBlobs => {
   const files = new Map<string, Uint8Array<ArrayBuffer>>();
   return {
     clear: async () => {

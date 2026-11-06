@@ -15,16 +15,18 @@ const mountChip = (body: string, options?: FakeEditorHostOptions) => {
 };
 
 describe("a wiki chip over a controlled host", () => {
-  it("navigates to the path the host's listing resolved", () => {
+  it("opens the item the host's resolver names, by its id", () => {
     const calls = mountChip("Roadmap", {
-      resolveWikiTarget: (target) => (target === "Roadmap" ? "notes/roadmap.md" : null),
+      linkTargets: [{ id: "0190a000-0000-7000-8000-000000000001", title: "Roadmap" }],
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Roadmap" }));
-    expect(calls).toStrictEqual([{ action: "openFile", args: ["notes/roadmap.md"] }]);
+    expect(calls).toStrictEqual([
+      { action: "openItem", args: ["0190a000-0000-7000-8000-000000000001"] },
+    ]);
   });
 
-  it("offers to make a note the listing does not resolve, and makes nothing until asked", () => {
+  it("offers to make a note no item answers to, and makes nothing until asked", () => {
     const calls = mountChip("Someday");
 
     fireEvent.click(screen.getByRole("button", { name: "Someday" }));

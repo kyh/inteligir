@@ -16,8 +16,6 @@ import { noteFields } from "@repo/notes/test-support/library-items";
 
 import { deferred } from "@repo/editor/deferred";
 import type { Deferred } from "@repo/editor/deferred";
-import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 import { ItemEditor, MISSING_ITEM } from "./item-editor";
@@ -118,15 +116,13 @@ const portsOver = (store: ItemStore): ItemSessionPorts => ({
 const sessions: (ItemSession | null)[] = [];
 
 const Host = ({ itemId, ports }: { itemId: string; ports: ItemSessionPorts }) => (
-  <OpenNoteStoreProvider store={createOpenNoteStore()}>
-    <ItemEditor
-      itemId={itemId}
-      ports={ports}
-      onSession={(session) => {
-        sessions.push(session);
-      }}
-    />
-  </OpenNoteStoreProvider>
+  <ItemEditor
+    itemId={itemId}
+    ports={ports}
+    onSession={(session) => {
+      sessions.push(session);
+    }}
+  />
 );
 
 const editable = (): Element | null => document.querySelector('[contenteditable="true"]');

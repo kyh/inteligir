@@ -16,11 +16,8 @@ import {
   setFindQuery,
   setReplaceText,
 } from "@repo/editor/find-bar";
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 
 import { EditorHarness } from "./test-support/editor-harness";
-
-const STORE = createOpenNoteStore();
 
 const VALUE: Value = [
   { children: [{ text: "alpha beta ALPHA gamma" }], type: "p" },
@@ -34,7 +31,7 @@ beforeAll(() => {
 
 const mountEditor = (value: Value = VALUE): PlateEditor => {
   const holder = createRef<PlateEditor>();
-  render(<EditorHarness value={value} store={STORE} ref={holder} />);
+  render(<EditorHarness value={value} ref={holder} />);
   const editor = holder.current;
   if (editor === null) {
     throw new Error("the harness mounted no editor");

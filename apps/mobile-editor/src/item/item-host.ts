@@ -1,18 +1,21 @@
 // The page's item mode: the store an item session reads and writes (`@repo/editor/item/item-session`)
 // is the phone's replica on the other end of the bridge, so the page holds no copy of the library.
 // A link names its item by id, which is the key the editor resolves and opens it by: the page writes
-// what it holds and asks the native stack to push that item. A highlight the editor marks is
-// written to the item as its bare entry beside the markers the item's next write carries, its note
-// the same way, and a tap on a marked passage opens the phone's sheet of its highlights, as the
-// library's page does; a note the editor makes (an extract, a link's Create) the phone makes in
-// the item's folder. What the page has no door to (a file inside a note, an html block's frame)
-// answers that nothing is there.
+// what it holds and asks the native stack to push that item. An embed draws the item's blocks as
+// the phone's replica reads them; a file a note names by its sha is drawn from the phone's file
+// cache, which fetches it from the cloud the first time, and one pasted into the text is kept by
+// the phone's replica, which sends it up ahead of the write that names it. A highlight the editor
+// marks is written to the item as its bare entry beside the markers the item's next write carries,
+// its note the same way, and a tap on a marked passage opens the phone's sheet of its highlights,
+// as the library's page does; a note the editor makes (an extract, a link's Create) the phone
+// makes in the item's folder. The page hands no file on to the system: its WebView opens nothing
+// but web links.
 
 import { installEditorHost } from "@repo/editor/host-io";
-import type { EditorHostIo, VaultActions } from "@repo/editor/host-io";
+import type { EditorHostIo } from "@repo/editor/host-io";
 import type { ItemSession, ItemStore } from "@repo/editor/item/item-session";
 import { createLinkResolverFeed } from "@repo/editor/link-resolver-feed";
-import type { WikiTarget } from "@repo/notes/knowledge/wiki-target";
+import type { ItemInit } from "@repo/editor-bridge/protocol";
 import { toast } from "@repo/ui/components/sonner";
 
 import type { PageBridge } from "../bridge/page-bridge";
@@ -24,6 +27,9 @@ const base64Of = (bytes: Uint8Array): string => {
   }
   return btoa(binary);
 };
+
+const bytesOf = (base64: string): Uint8Array<ArrayBuffer> =>
+  Uint8Array.from(atob(base64), (character) => character.codePointAt(0) ?? 0);
 
 export const bridgeItemStore = (bridge: PageBridge): ItemStore => ({
   item: async (itemId) => {
@@ -41,24 +47,12 @@ export const bridgeItemStore = (bridge: PageBridge): ItemStore => ({
       }
     }),
   write: async (itemId, input) =>
-    await bridge.request("writeItem", {
-      files: (input.files ?? []).map(({ bytes, mime }) => ({
-        base64: base64Of(bytes),
-        mediaType: mime,
-      })),
-      itemId,
-      ops: [...input.ops],
-    }),
+    await bridge.request("writeItem", { itemId, ops: [...input.ops] }),
 });
 
 // what an item page does when the editor asks for a door it has not got: nothing
 const nothingToDo = (): void => {
-  /* an item page has no note by path and no agent of its own */
-};
-
-const nothingThere = async (): Promise<never> => {
-  await Promise.resolve();
-  throw new Error("an item page reads no file by its path");
+  /* an item page has no agent of its own */
 };
 
 export interface ItemPageHost {
@@ -67,10 +61,10 @@ export interface ItemPageHost {
   readonly stop: () => void;
 }
 
-export const installItemPageHost = (bridge: PageBridge, itemId: string): ItemPageHost => {
+export const installItemPageHost = (bridge: PageBridge, init: ItemInit): ItemPageHost => {
+  const { itemId } = init;
   const feed = createLinkResolverFeed();
   let session: ItemSession | null = null;
-  let targets: readonly WikiTarget[] = [];
 
   // the items a link can name, by id and by title, and the names they go by now, read again as
   // the library moves; a link shows the title it was written with until the phone answers, and one
@@ -84,9 +78,8 @@ export const installItemPageHost = (bridge: PageBridge, itemId: string): ItemPag
     }
     reading = true;
     try {
-      const { targets: read } = await bridge.request("wikiTargets", {});
-      targets = read;
-      feed.setTargets(read);
+      const { targets } = await bridge.request("linkTargets", {});
+      feed.setTargets(targets);
     } catch {
       // the next move asks again
     } finally {
@@ -99,12 +92,8 @@ export const installItemPageHost = (bridge: PageBridge, itemId: string): ItemPag
   };
   void readTargets();
 
-  // the resolver answers the path the phone lists an item under; the stack opens it by its id
-  const open = (path: string): void => {
-    const linked = targets.find((target) => target.path === path)?.id;
-    if (linked === undefined) {
-      return;
-    }
+  // the stack opens the linked item by its id, once what this page holds is written
+  const open = (linked: string): void => {
     void (async () => {
       await session?.flush();
       const status = session?.status();
@@ -122,15 +111,30 @@ export const installItemPageHost = (bridge: PageBridge, itemId: string): ItemPag
     return status?.kind !== "open" || !status.unsaved;
   };
 
-  const vault: VaultActions = { openFile: open };
-
   const io: EditorHostIo = {
+    fileMaxBytes: init.fileMaxBytes,
+    keepFile: async (bytes, mime) =>
+      await bridge.request("keepFile", { base64: base64Of(bytes), mediaType: mime }),
     linkResolver: feed.store,
-    onVaultChanged: () => nothingToDo,
-    opensFiles: false,
-    readVaultAsset: async () => await Promise.resolve({ error: "no file here", ok: false }),
-    readVaultFile: nothingThere,
-    vault,
+    onItemsChanged: (listener) =>
+      bridge.onNative((event) => {
+        if (event.type === "itemChanged") {
+          listener(event.reset ? null : new Set(event.ids));
+        }
+      }),
+    openItem: open,
+    readFile: async (sha) => {
+      const { file } = await bridge.request("readFile", { sha });
+      if (file === null) {
+        throw new Error("the phone holds no copy of this file now");
+      }
+      return new Blob([bytesOf(file.base64)], { type: file.mediaType });
+    },
+    readItemBlocks: async (embedded) => {
+      const { item } = await bridge.request("item", { itemId: embedded });
+      return item === null ? null : item.blocks.map(({ block }) => block);
+    },
+    savesFiles: false,
   };
 
   installEditorHost({

@@ -9,10 +9,9 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@repo/ui/componen
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { cn } from "@repo/ui/lib/cn";
 
-import { useLinkResolver, useVaultActions } from "@repo/editor/host";
+import { useLinkResolver } from "@repo/editor/host";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { notePreviewHead } from "@repo/editor/note-preview";
-import { docStem } from "@repo/notes/knowledge/doc-file";
 
 import { createLinkedNote } from "@repo/editor/wiki/wiki-insert";
 import { wikiLabelOf } from "@repo/editor/wiki/wiki-node";
@@ -35,15 +34,19 @@ const PreviewBody = ({ text }: { text: string | null }) => {
   return text;
 };
 
+// shows the item a chip names
+const openItem = (itemId: string): void => {
+  getEditorHostIo().openItem(itemId);
+};
+
 // a link with no title points at the open note (`[[#sec]]`): nothing to resolve or create
 const WikiChip = ({ link }: { link: WikiNodeFields }) => {
   const { resolveWikiTarget, titleOf } = useLinkResolver();
-  const { openFile } = useVaultActions();
   const [createOpen, setCreateOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewText, setPreviewText] = useState<string | null>(null);
   const chipRef = useRef<HTMLButtonElement>(null);
-  // the path the open preview was read for; a read landing after a close or a re-resolve is dropped
+  // the item the open preview was read for; a read landing after a close or a re-resolve is dropped
   const previewFor = useRef<string | null>(null);
 
   // a link to an item by its id shows the name the item goes by now
@@ -52,20 +55,25 @@ const WikiChip = ({ link }: { link: WikiNodeFields }) => {
   const resolved =
     link.title === "" ? null : resolveWikiTarget(link.title, link.itemId ?? link.alias);
 
-  const readPreview = async (path: string): Promise<void> => {
+  const readPreview = async (itemId: string): Promise<void> => {
     try {
-      const content = await getEditorHostIo().readVaultFile({ path });
-      if (previewFor.current === path) {
-        setPreviewText(notePreviewHead(content));
+      const blocks = await getEditorHostIo().readItemBlocks(itemId);
+      if (previewFor.current !== itemId) {
+        return;
       }
+      if (blocks === null) {
+        setPreviewOpen(false);
+        return;
+      }
+      setPreviewText(notePreviewHead(blocks.map((block) => ({ ...block }))));
     } catch {
-      if (previewFor.current === path) {
+      if (previewFor.current === itemId) {
         setPreviewOpen(false);
       }
     }
   };
 
-  // read on every open, never cached across hovers, so an agent edit between them is never shown stale.
+  // read on every open, never cached across hovers, so an edit between them is never shown stale.
   const onPreviewOpenChange = (open: boolean): void => {
     setPreviewOpen(open);
     if (!open) {
@@ -91,7 +99,7 @@ const WikiChip = ({ link }: { link: WikiNodeFields }) => {
       return;
     }
     if (resolved !== null) {
-      openFile(resolved);
+      openItem(resolved);
       return;
     }
     setCreateOpen(true);
@@ -130,10 +138,10 @@ const WikiChip = ({ link }: { link: WikiNodeFields }) => {
                 className="block w-full px-3 pt-2.5 pb-1 text-left text-body font-medium hover:underline"
                 onClick={() => {
                   closePreview();
-                  openFile(resolved);
+                  openItem(resolved);
                 }}
               >
-                {docStem(resolved)}
+                {titleOf(resolved) ?? label}
               </button>
               <div className="px-3 pb-3 text-body whitespace-pre-wrap select-text">
                 <PreviewBody text={previewText} />

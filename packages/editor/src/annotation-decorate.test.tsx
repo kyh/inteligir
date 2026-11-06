@@ -9,11 +9,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { insertAnnotationMarkers } from "@repo/editor/annotations/annotation-markers";
 import { setAnnotationMeta, useAnnotationSurface } from "@repo/editor/annotations/annotation-store";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 
 import { EditorHarness } from "./test-support/editor-harness";
 
-const NOTE_PATH = "note.md";
+const NOTE_ID = "item-note";
 
 const valueOf = (md: string): Value => {
   const parsed = parseMarkdown(md);
@@ -24,10 +23,8 @@ const valueOf = (md: string): Value => {
 };
 
 const renderNote = (md: string) => {
-  const store = createOpenNoteStore();
-  store.publishOpenPath(NOTE_PATH);
   const ref = createRef<PlateEditor>();
-  const view = render(<EditorHarness value={valueOf(md)} store={store} ref={ref} />);
+  const view = render(<EditorHarness value={valueOf(md)} itemId={NOTE_ID} ref={ref} />);
   return { ref, view };
 };
 
@@ -40,7 +37,7 @@ const ORPHAN = "decoration-dotted";
 
 describe("annotation range decoration", () => {
   beforeEach(() => {
-    setAnnotationMeta(NOTE_PATH, {
+    setAnnotationMeta(NOTE_ID, {
       knownIds: new Set(["abc", "y", "x", "mid", "c1"]),
     });
   });
@@ -118,7 +115,7 @@ describe("annotation range decoration", () => {
 
 describe("annotation gutter", () => {
   beforeEach(() => {
-    setAnnotationMeta(NOTE_PATH, { knownIds: new Set(["abc"]), notedIds: new Set(["abc"]) });
+    setAnnotationMeta(NOTE_ID, { knownIds: new Set(["abc"]), notedIds: new Set(["abc"]) });
   });
   afterEach(() => {
     cleanup();

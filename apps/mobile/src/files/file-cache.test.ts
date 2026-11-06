@@ -81,6 +81,21 @@ describe("the phone's copy of the library's files", () => {
     expect(folders.held("cache")).toStrictEqual([SHA_A]);
   });
 
+  it("answers a file's bytes for the editor page: a staged one at once, a fetched one kept, pinned when a note embeds it", async () => {
+    const sql = await phoneSql();
+    const { asked, cache, folders, served } = cacheOver(sql);
+    await embedIn(sql, SHA_B);
+    await cache.staged.put(SHA_A, bytesOf(8, PNG), "image/png");
+    served.set(SHA_B, bytesOf(12, PNG));
+
+    await expect(cache.fileBytes(SHA_A)).resolves.toStrictEqual(bytesOf(8, PNG));
+    await expect(cache.fileBytes(SHA_B)).resolves.toStrictEqual(bytesOf(12, PNG));
+    await expect(cache.fileBytes(SHA_B)).resolves.toStrictEqual(bytesOf(12, PNG));
+    await expect(cache.fileBytes(SHA_C)).resolves.toBeNull();
+    expect(asked).toStrictEqual([SHA_B, SHA_C]);
+    expect(folders.held("pinned")).toStrictEqual([SHA_B]);
+  });
+
   it("answers nothing for a file the cloud holds none of, or cannot be reached for", async () => {
     const sql = await phoneSql();
     const { cache } = cacheOver(sql, {

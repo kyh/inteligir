@@ -1,7 +1,7 @@
-// picking an attachment inserts `![[embed]]`: a bare link to a binary renders nothing useful.
+// a picked item is linked by its id, with the title it goes by now, so a rename never breaks it.
 
 import { useCallback, useState } from "react";
-import { FilePlusIcon, FileTextIcon, PaperclipIcon } from "lucide-react";
+import { FilePlusIcon, FileTextIcon } from "lucide-react";
 import { KEYS, createTSlatePlugin } from "platejs";
 import type { PluginConfig } from "platejs";
 import { PlateElement, createPlatePlugin } from "platejs/react";
@@ -15,36 +15,34 @@ import {
   InlineComboboxContent,
   InlineComboboxEmpty,
   InlineComboboxGroup,
-  InlineComboboxGroupLabel,
   InlineComboboxItem,
   InlineComboboxInput,
 } from "@repo/editor/inline-combobox";
 import { createLinkedNote, insertWikiChipFromPicker } from "@repo/editor/wiki/wiki-insert";
 import { WIKI_INPUT_KEY } from "@repo/editor/wiki/wiki-input-key";
-import { useLinkResolver, useWikiTargets } from "@repo/editor/host";
-import type { WikiTarget } from "@repo/notes/knowledge/wiki-target";
-import { wikiTargetForPath } from "@repo/notes/knowledge/link-resolve";
+import { useLinkResolver, useLinkTargets } from "@repo/editor/host";
+import type { PickerTarget } from "@repo/editor/host-io";
 import { rankWikiTargets } from "@repo/notes/knowledge/rank-wiki-targets";
 import { parseWikiBody, serializeWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 const CREATE_VALUE = "__create__";
 
-// Ranked and cut before any row mounts, never filtered per row: a row per vault entry is a mount
-// per note, each one re-filtering on every keystroke.
+// Ranked and cut before any row mounts, never filtered per row: a row per item is a mount per
+// item, each one re-filtering on every keystroke.
 /** @internal */
 export const WIKI_PICKER_MAX_ROWS = 50;
 
 const WikiInputElement = (props: PlateElementProps) => {
   const { editor, element } = props;
   const { resolveWikiTarget } = useLinkResolver();
-  const targets = useWikiTargets();
+  const targets = useLinkTargets();
   const [value, setValue] = useState("");
 
   const typed = parseWikiBody(value);
 
   const complete = useCallback(
-    (body: string, embed = false) => {
-      insertWikiChipFromPicker(editor, body, embed);
+    (body: string) => {
+      insertWikiChipFromPicker(editor, body);
     },
     [editor],
   );
@@ -69,32 +67,25 @@ const WikiInputElement = (props: PlateElementProps) => {
 
   // alias/anchor tails are passthrough, not search terms.
   const shown = rankWikiTargets(targets, typed.target).slice(0, WIKI_PICKER_MAX_ROWS);
-  const notes = shown.filter((target) => target.type === "doc");
-  const assets = shown.filter((target) => target.type === "asset");
 
-  // a path holding a bracket has no wiki spelling, so it is not offered
-  const itemFor = (target: WikiTarget) => {
+  // by its id after the pipe, unless the person typed an alias there; a title holding a bracket
+  // has no wiki spelling, so it is not offered
+  const itemFor = (target: PickerTarget) => {
     const body = serializeWikiBody({
       ...typed,
-      target: wikiTargetForPath(target.path, resolveWikiTarget),
+      alias: typed.alias ?? target.id,
+      target: target.title,
     });
     return body === null ? null : (
       <InlineComboboxItem
-        key={target.path}
-        value={target.path}
+        key={target.id}
+        value={target.id}
         onClick={() => {
-          complete(body, target.type === "asset");
+          complete(body);
         }}
       >
-        {target.type === "doc" ? (
-          <FileTextIcon className="mr-2 text-muted-foreground" />
-        ) : (
-          <PaperclipIcon className="mr-2 text-muted-foreground" />
-        )}
-        <span className="flex min-w-0 flex-1 items-baseline gap-2">
-          <span className="truncate">{target.title}</span>
-          <span className="truncate text-body text-muted-foreground">{target.path}</span>
-        </span>
+        <FileTextIcon className="mr-2 text-muted-foreground" />
+        <span className="truncate">{target.title}</span>
       </InlineComboboxItem>
     );
   };
@@ -112,7 +103,7 @@ const WikiInputElement = (props: PlateElementProps) => {
         <InlineComboboxContent>
           <InlineComboboxEmpty>Nothing found</InlineComboboxEmpty>
           <InlineComboboxGroup>
-            {notes.map(itemFor)}
+            {shown.map(itemFor)}
             {createBody !== null && (
               <InlineComboboxItem
                 value={CREATE_VALUE}
@@ -128,12 +119,6 @@ const WikiInputElement = (props: PlateElementProps) => {
               </InlineComboboxItem>
             )}
           </InlineComboboxGroup>
-          {assets.length > 0 && (
-            <InlineComboboxGroup>
-              <InlineComboboxGroupLabel>Attachments</InlineComboboxGroupLabel>
-              {assets.map(itemFor)}
-            </InlineComboboxGroup>
-          )}
         </InlineComboboxContent>
       </InlineCombobox>
       {props.children}

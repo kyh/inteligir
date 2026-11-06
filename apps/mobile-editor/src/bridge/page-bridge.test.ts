@@ -26,17 +26,15 @@ const listening = async () => {
   return { bridge, heard, phone };
 };
 
-// an answer to `wikiTargets`, naming one item by `title`
+// an answer to `linkTargets`, naming one item by `title`
+const targetsTitled = (title: string) => ({ targets: [{ id: ITEM, title }] });
+
 const answered = (id: number | undefined, title: string): NativeFrame => ({
   id: id ?? -1,
   nonce: PHONE_NONCE,
   ok: true,
-  result: { targets: [{ id: ITEM, path: `${title}.md`, title, type: "doc" }] },
+  result: targetsTitled(title),
   type: "response",
-});
-
-const targetsTitled = (title: string) => ({
-  targets: [{ id: ITEM, path: `${title}.md`, title, type: "doc" }],
 });
 
 const changed = {
@@ -78,9 +76,9 @@ describe("a request", () => {
     const { bridge, phone } = await connected();
     phone.answer = () => null;
 
-    const first = bridge.request("wikiTargets", {});
-    const second = bridge.request("wikiTargets", {});
-    const [a, b] = phone.requests("wikiTargets");
+    const first = bridge.request("linkTargets", {});
+    const second = bridge.request("linkTargets", {});
+    const [a, b] = phone.requests("linkTargets");
     phone.deliver(answered(b?.id, "b"));
     phone.deliver(answered(a?.id, "a"));
 
@@ -109,11 +107,11 @@ describe("a request", () => {
 
     // the refusal is asked for before the clock moves, so the rejection always has its handler
     await Promise.all([
-      expect(bridge.request("wikiTargets", {})).rejects.toThrow(/did not answer wikiTargets/u),
+      expect(bridge.request("linkTargets", {})).rejects.toThrow(/did not answer linkTargets/u),
       vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS),
     ]);
 
-    const [frame] = phone.requests("wikiTargets");
+    const [frame] = phone.requests("linkTargets");
     expect(() => {
       phone.deliver(answered(frame?.id, "late"));
     }).not.toThrow();
@@ -169,8 +167,8 @@ describe("what the page drops", () => {
   it("a response with no nonce, which settles nothing", async () => {
     const { bridge, phone } = await listening();
     phone.answer = () => null;
-    const asked = bridge.request("wikiTargets", {});
-    const [frame] = phone.requests("wikiTargets");
+    const asked = bridge.request("linkTargets", {});
+    const [frame] = phone.requests("linkTargets");
 
     phone.deliverText(
       JSON.stringify({
@@ -222,6 +220,7 @@ describe("the window transport", () => {
 
     // the script the native end injects calls the door with one string literal, the frame's JSON
     const script = nativeFrameScript({
+      fileMaxBytes: 1024,
       focus: "body",
       itemId: ITEM,
       mode: "item",

@@ -4,6 +4,7 @@
 // document (a child frame's message names its own address) and, after `init`, carries the nonce
 // this load was given; a fresh load of the page gets a fresh nonce.
 
+import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
 import { nativeFrameScript, parsePageFrame } from "@repo/editor-bridge/protocol";
 import type {
   ItemInit,
@@ -42,8 +43,9 @@ export interface EditorHostArgs {
   // the page's own address: a frame from any other document is dropped
   pageUrl: string;
   // what the first load's `init` says; a later load opens the same item with no focus, since the
-  // keyboard it would raise is one the person never asked for again
-  init: Omit<ItemInit, "mode" | "nonce" | "type">;
+  // keyboard it would raise is one the person never asked for again. Every load names the
+  // library's size cap, which the page holds a pasted file to
+  init: Omit<ItemInit, "fileMaxBytes" | "mode" | "nonce" | "type">;
   mintNonce: () => string;
   ports: EditorRequestPorts;
   onEvent: (event: EditorPageEvent) => void;
@@ -171,6 +173,7 @@ export const createEditorHost = (args: EditorHostArgs): EditorHost => {
     loads += 1;
     deliver({
       ...args.init,
+      fileMaxBytes: BLOB_MAX_BYTES,
       focus: first ? args.init.focus : null,
       mode: "item",
       nonce,

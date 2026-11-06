@@ -95,37 +95,36 @@ src/
   after typing. A pass a keystroke cannot afford caches by top-level block (the
   outline, the gutter's ids), which an edit replaces while keeping every other
   by identity.
-- **View state keys by the open item.** The workspace holds ONE open-note
-  store (an instance, `note/open-note-context.tsx`), told the id of the item
-  it shows, and every module holding view state — heading folds included —
-  keys by that id: a module outlives the document it describes, so a late
-  answer must not land on the item that replaced it.
+- **View state keys by the open item.** The item editor provides the id of the
+  item it shows (`open-item.tsx`), and every module holding view state —
+  heading folds and a highlight's tint and pending note included — keys by
+  that id: a module outlives the document it describes, so a late answer must
+  not land on the item that replaced it.
 
 ## Seams
 
 - `host-io.ts` — the injected host, `EditorHost`, as a MODULE SINGLETON
   because kit factories, paste handlers and a deep node's click run outside
-  React or with no route to the shell. Its `EditorHostIo` carries the link
-  resolver store (the knowledge index's own `buildResolver` over the items the
-  host feeds, for wiki targets and md urls alike, and the wiki targets it was
-  built over, which the `[[` picker lists — subscribed to rather than read,
-  because it moves with the library while the actions never do), `vault`'s one
-  verb, `openFile`, which opens what a link or a file card names, and the reads
-  by path an embed, a link's preview and a file inside a note ask for, which
-  both hosts answer with nothing there. Its `EditorHostActions` are what the
-  editor asks the shell for (Ask agent and a `#tag` chip's `showTag`, an
-  annotation's create, edit and open, and the note an extract or a link's
-  Create makes, `items.createNote`), every one required, so a host that leaves
-  one out fails to typecheck rather than drawing a button that does nothing.
-  Each host installs it once, through `installEditorHost`, ahead of the first
-  render (`apps/workspace/src/app/item/page-editor-host.ts`, over the tab's or
-  the Mac's replica, and the phone's over its WebView bridge,
-  `apps/mobile-editor/src/item/item-host.ts`), feeding the resolver store
-  through `link-resolver-feed.ts`, and `host.ts` is React's door
-  (`useVaultActions`, `useLinkResolver`, `useWikiTargets`, and
-  `useVaultLinkTarget`, which reads an md url through `mdLinkTarget` and
-  resolves it from the note it is written in — the open note, or the one an
-  embed shows — so an image or a link lands where the index says it does).
+  React or with no route to the shell. Its `EditorHostIo` speaks the library
+  by its own keys: `openItem`, `readItemBlocks` (an embed's body and a link's
+  hover preview) and `onItemsChanged` by item id, `readFile` by sha (a picture,
+  a recording or a file card in a note, drawn from an object URL of the page's
+  own), `keepFile` (a file pasted or dropped into the text, kept by its sha
+  ahead of the write that names it), the cap `fileMaxBytes` and whether a file
+  card may save a file (`savesFiles`); and the link resolver store (the
+  knowledge index's own `buildResolver` over the items the host feeds, the
+  `[[` picker's rows and `titleOf`, subscribed to rather than read, because it
+  moves with the library while the actions never do). Its `EditorHostActions`
+  are what the editor asks the shell for (Ask agent and a `#tag` chip's
+  `showTag`, an annotation's create, edit and open, and the note an extract or
+  a link's Create makes, `items.createNote`), every one required, so a host
+  that leaves one out fails to typecheck rather than drawing a button that does
+  nothing. Each host installs it once, through `installEditorHost`, ahead of
+  the first render (`apps/workspace/src/app/item/page-editor-host.ts`, over the
+  tab's or the Mac's replica and files, and the phone's over its WebView
+  bridge, `apps/mobile-editor/src/item/item-host.ts`), feeding the resolver
+  store through `link-resolver-feed.ts`, and `host.ts` is React's door
+  (`useLinkResolver`, `useLinkTargets`).
 - `stale-write.ts` — `mergeBlocks`, the replica's block merge: a block two
   writers changed, diff3-merged over each side's markdown
   (`codec/block-markdown.ts`), with whether it kept this device's lines over
@@ -140,9 +139,9 @@ src/
   item's blocks are in (or a line saying the device lacks it), which a host
   reads the status of and flushes, and `item/item-properties.ts` the panel's
   rows over its fields. A link to an item by id shows the name the item goes by
-  now, the resolver's `titleOf`, read off the host's wiki targets.
-- `note/open-note-context.tsx` — the open-note store. Every consumer under
-  the editor reads the open note through `useOpenNote(sel)`.
+  now, the resolver's `titleOf`, read off the items the host feeds.
+- `open-item.tsx` — the id of the item the editor shows, which the item editor
+  provides and `useOpenItemId` reads under it.
 - `editor-profile.tsx` — `EditorProfileProvider`, set once by a host around
   the column. The desktop sets none; a touch host sets `touch` and gets the
   touch kit, no outline rail and a narrower inset.
@@ -159,7 +158,7 @@ pnpm --filter @repo/editor test
 ```
 
 Two vitest projects: `editor` (node, `*.test.ts`) for the pipeline, the
-fixtures, the property/adversarial harnesses and the open-note store;
+fixtures, the property/adversarial harnesses and the link resolver feed;
 `editor-dom` (jsdom, `*.test.tsx`) for the components. `editor-dom` runs the
 sources through the React Compiler as the shipped page does, so a
 memoized read that goes stale fails here (`compiled-under-test.test.tsx`

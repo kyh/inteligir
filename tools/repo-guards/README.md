@@ -55,7 +55,6 @@ One per file; its header and its failure message state the rule in full.
 
 - `dep-dag.test.ts`: imports match `DECLARED_EDGES` from both sides, and each package reaches only what its platform allows.
 - `dangling-references.test.ts`: every `@repo/*` name and group-anchored path in a tracked file resolves (what it reads: below).
-- `one-spelling.test.ts`: where annotation markers sit in raw bytes is spelled once, or in an `elsewhere` row.
 - `route-paths.test.ts`: a non-procedure route path is spelled only at its contract home.
 - `turbo-cache-keys.test.ts`: a cached task over workspace deps has a `^` edge, and an import outside every workspace is a build input.
 - `desktop-shell-wire.test.ts`: the words the Rust shell shares with the page match on both sides.

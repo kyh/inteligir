@@ -60,6 +60,9 @@ export interface FileCache {
   readonly fileUri: (sha: string) => Promise<string | null>;
   // a card's cover: the file itself when it is small, else a thumbnail made once
   readonly thumbUri: (sha: string) => Promise<string | null>;
+  // a file's bytes as this phone holds them, else fetched and kept, as the editor page draws a
+  // file a note names; null when they cannot be had now
+  readonly fileBytes: (sha: string) => Promise<Uint8Array<ArrayBuffer> | null>;
   // stray files and rows go, and a pinned file no note embeds any more goes to the cache
   readonly sweep: () => Promise<void>;
   // every file of the account goes: a sign-out, a revocation, a new sign-in
@@ -296,6 +299,15 @@ export const createFileCache = (ports: FileCachePorts): FileCache => {
       return await land(since, name, "cache", shrunk.bytes);
     });
 
+  const fileBytes = async (sha: string): Promise<Uint8Array<ArrayBuffer> | null> => {
+    const held = await bytesOf(generation, sha);
+    if (held === null) {
+      return null;
+    }
+    await held.uri();
+    return held.bytes;
+  };
+
   const staged: StagedBlobs = {
     clear: async () => {
       await folders.clear("staged");
@@ -368,7 +380,7 @@ export const createFileCache = (ports: FileCachePorts): FileCache => {
     });
   };
 
-  return { clear, fileUri, staged, sweep, thumbUri };
+  return { clear, fileBytes, fileUri, staged, sweep, thumbUri };
 };
 
 // the format a cover's thumbnail is written in: one that keeps transparency for every source that

@@ -15,8 +15,6 @@ import { importItem } from "../codec/item-markdown";
 import { ItemEditor } from "../item/item-editor";
 import type { HeldItem, ItemSessionPorts, ItemStore } from "../item/item-session";
 import { getLiveEditor } from "../live-editor";
-import { OpenNoteStoreProvider } from "../note/open-note-context";
-import { createOpenNoteStore } from "../note/open-note-store";
 import { pretendLibrary } from "./codec-ports";
 
 // how many turns of the microtask queue an item's read gets to land in before the mount gives up
@@ -87,14 +85,7 @@ export interface MountedItem {
 // the item `markdown` reads in as, open in the item editor once its blocks are in
 export const mountItem = async (itemId: string, markdown: string): Promise<MountedItem> => {
   const ports = portsOver(itemId, itemOfMarkdown(markdown));
-  // the item the host shows is the open one, as the library's page publishes it
-  const opened = createOpenNoteStore();
-  opened.publishOpenPath(itemId);
-  const view = render(
-    <OpenNoteStoreProvider store={opened}>
-      <ItemEditor itemId={itemId} ports={ports} onSession={() => {}} />
-    </OpenNoteStoreProvider>,
-  );
+  const view = render(<ItemEditor itemId={itemId} ports={ports} onSession={() => {}} />);
   for (let turn = 0; turn < OPEN_TURNS; turn += 1) {
     const editable = view.container.querySelector<HTMLElement>('[data-slate-editor="true"]');
     const editor = getLiveEditor(itemId);

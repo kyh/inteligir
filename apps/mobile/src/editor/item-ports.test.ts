@@ -1,10 +1,17 @@
 import { createFakeCell } from "@repo/library-replica/test-support/fake-cell";
 import { openDevice, paragraph } from "@repo/library-replica/test-support/replica-harness";
+import { fileSha } from "@repo/library-replica/library-replica";
 import { blockHash } from "@repo/notes/library/block-hash";
 import { describe, expect, it } from "vitest";
 import { createItemPorts } from "./item-ports";
 
 const NOW = 1_700_000_300_000;
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+
+// the phone's file cache as the ports reach it: the bytes it holds by sha
+const heldFiles = (held: ReadonlyMap<string, Uint8Array<ArrayBuffer>> = new Map()) => ({
+  fileBytes: async (sha: string) => await Promise.resolve(held.get(sha) ?? null),
+});
 
 // a phone holding one landed note of one paragraph
 const phoneWithNote = async () => {
@@ -17,7 +24,7 @@ const phoneWithNote = async () => {
     title: "Plans",
   });
   await phone.replica.sync();
-  const ports = createItemPorts({ now: () => NOW, replica: phone.replica });
+  const ports = createItemPorts({ files: heldFiles(), now: () => NOW, replica: phone.replica });
   return { cell, id: made.id, phone, ports };
 };
 
@@ -39,13 +46,11 @@ describe("an item page's questions, answered from the phone's replica", () => {
     const base = blockHash(paragraph("p1", "first"));
     await expect(
       ports.writeItem({
-        files: [],
         itemId: id,
         ops: [{ baseHash: base, block: paragraph("p1", "first, edited"), op: "put" }],
       }),
     ).resolves.toStrictEqual({ kind: "queued" });
     const stale = await ports.writeItem({
-      files: [],
       itemId: id,
       ops: [{ baseHash: base, block: paragraph("p1", "again"), op: "put" }],
     });
@@ -58,9 +63,48 @@ describe("an item page's questions, answered from the phone's replica", () => {
 
   it("names every item a link can open, by id and by title", async () => {
     const { id, ports } = await phoneWithNote();
-    await expect(ports.wikiTargets({})).resolves.toStrictEqual({
-      targets: [{ id, path: "Plans.md", title: "Plans", type: "doc" }],
+    await expect(ports.linkTargets({})).resolves.toStrictEqual({
+      targets: [{ id, title: "Plans" }],
     });
+  });
+
+  it("answers a file the cache holds, typed by its bytes, and none for one it cannot reach", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const sha = fileSha(PNG);
+    const ports = createItemPorts({
+      files: heldFiles(new Map([[sha, PNG]])),
+      now: () => NOW,
+      replica: phone.replica,
+    });
+    await expect(ports.readFile({ sha })).resolves.toStrictEqual({
+      file: { base64: btoa(String.fromCodePoint(...PNG)), mediaType: "image/png" },
+    });
+    await expect(ports.readFile({ sha: "b".repeat(64) })).resolves.toStrictEqual({ file: null });
+  });
+
+  it("keeps a file the page pastes, which the write naming it sends up first", async () => {
+    const { cell, id, phone, ports } = await phoneWithNote();
+    const { sha } = await ports.keepFile({
+      base64: btoa(String.fromCodePoint(...PNG)),
+      mediaType: "image/png",
+    });
+    expect(sha).toBe(fileSha(PNG));
+    await ports.writeItem({
+      itemId: id,
+      ops: [
+        {
+          block: { children: [{ text: "" }], id: "i1", sha, type: "img" },
+          op: "insert",
+          ord: "a1",
+          section: "note",
+        },
+      ],
+    });
+    await phone.replica.sync();
+    expect(cell.uploads).toStrictEqual([sha]);
+    expect(cell.item(id)?.blocks.has("i1")).toBe(true);
+    expect(phone.blobs.held()).toStrictEqual([]);
   });
 
   it("writes a highlight's bare entry and then its note, as the library's page does", async () => {
@@ -97,7 +141,7 @@ describe("an item page's questions, answered from the phone's replica", () => {
       tags: [],
       title: "Plans",
     });
-    const ports = createItemPorts({ now: () => NOW, replica: phone.replica });
+    const ports = createItemPorts({ files: heldFiles(), now: () => NOW, replica: phone.replica });
 
     const { id } = await ports.createNote({
       besideId: source.id,
