@@ -424,6 +424,19 @@ export const libraryNodeSchema: z.ZodUnion<
 > = z.union([libraryTextSchema, libraryElementSchema]);
 export type LibraryNode = z.infer<typeof libraryNodeSchema>;
 
+// every file a node names by its bytes, an image's, a video's or a file block's, at any depth
+export const collectFileShas = (node: LibraryNode, into: Set<string>): void => {
+  if (!("children" in node)) {
+    return;
+  }
+  if ("sha" in node && node.sha !== undefined) {
+    into.add(node.sha);
+  }
+  for (const child of node.children) {
+    collectFileShas(child, into);
+  }
+};
+
 // a top-level block's id is its row's key, and only a top-level block has one: the ids Plate's
 // nodeId mints below the top level are the editor's own and never stored, so a block has one
 // spelling and one hash in every editor; `ref` is the name a link's `blockRef` reaches it by,

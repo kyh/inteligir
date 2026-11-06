@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { libraryBlockSchema, libraryNodeSchema, storableBlockSchema } from "./library-nodes";
+import {
+  collectFileShas,
+  libraryBlockSchema,
+  libraryNodeSchema,
+  storableBlockSchema,
+} from "./library-nodes";
 
 const leaf = [{ text: "" }];
 const sha = "a".repeat(64);
@@ -163,5 +168,32 @@ describe("the persisted node set", () => {
   it("stores what it parses as written", () => {
     const [first] = EVERY_BLOCK;
     expect(storableBlockSchema.parse(first)).toStrictEqual(first);
+  });
+});
+
+describe(collectFileShas, () => {
+  it("finds every file a block names, at any depth, and no web address", () => {
+    const other = "b".repeat(64);
+    const shas = new Set<string>();
+    for (const block of EVERY_BLOCK) {
+      collectFileShas(libraryBlockSchema.parse(block), shas);
+    }
+    collectFileShas(
+      libraryBlockSchema.parse({
+        children: [
+          {
+            children: [
+              { children: leaf, sha: other, type: "video" },
+              { children: leaf, type: "img", url: "https://example.com/a.png" },
+            ],
+            type: "column",
+          },
+        ],
+        id: "c9",
+        type: "column_group",
+      }),
+      shas,
+    );
+    expect([...shas].toSorted()).toStrictEqual([sha, other]);
   });
 });

@@ -11,7 +11,7 @@
 import type { ItemState } from "@repo/notes/library/block-ops";
 import { readMeta, recordChanges, writeMeta } from "@repo/notes/library/library-queries";
 import type { BlobRole } from "@repo/notes/library/library-schema";
-import type { LibraryNode } from "@repo/notes/library/library-nodes";
+import { collectFileShas } from "@repo/notes/library/library-nodes";
 import { chunkStatement, runPlan } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
 import { z } from "zod";
@@ -30,18 +30,6 @@ export interface BlobRef {
   readonly role: BlobRole;
 }
 
-const shasIn = (node: LibraryNode, into: Set<string>): void => {
-  if (!("children" in node)) {
-    return;
-  }
-  if ("sha" in node && node.sha !== undefined) {
-    into.add(node.sha);
-  }
-  for (const child of node.children) {
-    shasIn(child, into);
-  }
-};
-
 // every file an item names: its original, cover and page copy by field, and each image, video or
 // file its body embeds
 export const blobRefsOf = (state: ItemState): BlobRef[] => {
@@ -58,7 +46,7 @@ export const blobRefsOf = (state: ItemState): BlobRef[] => {
   }
   const embedded = new Set<string>();
   for (const stored of state.blocks.values()) {
-    shasIn(stored.block, embedded);
+    collectFileShas(stored.block, embedded);
   }
   for (const sha of embedded) {
     refs.push({ role: "embed", sha });
