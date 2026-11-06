@@ -39,9 +39,10 @@ src/
                        # compositions over it, the headless mirror the
                        # serializer runs, the markdown wiring, the rich-block lock
   nodes/               # every node type as a Base (headless) + React pair
-  note/                # the open note's store and React's door to it (the key
-                       # a kit reads view state by), and the line a merge that
-                       # kept this device's lines says
+  item/                # an item edited by its id: its editor, its session's
+                       # ops over the host's store, the block diff and its
+                       # properties
+  note/                # the line a merge that kept this device's lines says
   annotations/         # annotation markers, ranges, gutter, store
   formulas/            # `{{…}}` pills: the `{{` picker, entry, editing, recompute
   wiki/                # `[[…]]` links: the `[[` picker, the chip, insertion, keys
@@ -59,8 +60,9 @@ src/
                        # modules (the round trip, the typing budget, kit
                        # parity) sits here at the top
   *.ts(x)              # the editor surface and its column, the host seam
-                       # (§ Seams), the write policy, and the in-document
-                       # affordances: menus, toolbars, TOC, embeds
+                       # (§ Seams), the id of the item the editor shows
+                       # (`open-item.tsx`), the write policy, and the
+                       # in-document affordances: menus, toolbars, TOC, embeds
 ```
 
 ## Invariants

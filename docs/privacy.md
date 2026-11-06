@@ -267,10 +267,12 @@ The apps also hold to these, plainly:
   like a keyboard; where that audio goes is Apple's to say, under its own
   settings and terms.
 - **Where a phone photo was taken.** The phone opens the camera only when you
-  take a photo for a note, and from your library it receives only the photo you
-  pick. It keeps a copy at most 2048 pixels on its long side, saved again as a
-  JPEG without its location or any other camera details and named for when you
-  added it; only that copy reaches your library.
+  take a photo to add to your library, and from your photo library it receives
+  only the photo you pick. It keeps a copy at most 2048 pixels on its long
+  side, saved again as a JPEG without its location or any other camera details
+  and named for when you added it; only that copy reaches your library. A
+  picture you paste into a note's text is not saved again: it reaches your
+  library as the file you pasted, with whatever details it carries.
 - **The Mac's copy of your library, and its sign-in.** The Mac app keeps a
   copy of your library, and the files you open from it, in its own
   folders on that Mac, so it reads them with no connection; signing out deletes
@@ -612,9 +614,10 @@ These are the edges of that protection, stated plainly:
 - **Deleting an item does not delete its history**: its versions stay in your
   library's history, as [Retention](#retention) says, until the account is
   deleted. There is no purge.
-- **An image or file you paste, drop or save on a Mac is kept as the file it
-  was**, with any location or camera details it carries; only the phone saves a
-  photo again without them.
+- **An image or file you paste, drop or save is kept as the file it was**, on
+  every device and in the browser alike, with any location or camera details it
+  carries, a picture pasted into a note's text on the phone included; only a
+  photo the phone's photo button adds is saved again without them.
 - **A revoked device stops at the next request**, and its live connection is
   closed as part of the revoke — but revocation cannot reach a response already
   in flight.

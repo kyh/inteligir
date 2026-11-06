@@ -43,8 +43,7 @@ src/
     link-resolve.ts    # a link's target: the `[[Title|uuid]]` id tier, then
                        # five path and alias tiers, aliases last, and the keys
                        # an export page's resolver is filed under
-    wiki-target.ts, rank-wiki-targets.ts  # the `[[` picker's targets and
-                       # their order
+    rank-wiki-targets.ts  # the order of the `[[` picker's targets
     link-extract.ts    # what a markdown file says outside its blocks: an md
                        # url's target and the frontmatter's tags and aliases
     tag-grammar.ts     # the tag name, with no imports: an item's fields
