@@ -108,7 +108,7 @@ const anchorTitles = (dt: TransferLike): Map<string, string> => {
   const doc = new DOMParser().parseFromString(html, "text/html");
   for (const anchor of doc.querySelectorAll("a[href]")) {
     const href = anchor.getAttribute("href")?.trim() ?? "";
-    const text = anchor.textContent.replaceAll(/\s+/gu, " ").trim() ?? "";
+    const text = anchor.textContent.replaceAll(/\s+/gu, " ").trim();
     if (href !== "" && text !== "" && text !== href && !titles.has(href)) {
       titles.set(href, text);
     }

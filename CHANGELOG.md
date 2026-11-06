@@ -89,6 +89,7 @@ Inteligir is now a library of everything you save: links, articles, videos, imag
 - **Linear and Context7 in one click.** Settings › Connectors now offers Notion and Exa in one click. A Linear or Context7 connector you already added keeps working; to add one again, enter its address under Add a connector.
 - **Connected folders.** Settings › Connected folders is gone, and the agent is no longer told about folders outside your library. To point it at one, name the folder when you ask, or write a standing line such as "also look in Documents/Reports" into your filing rules (Edit filing rules…, in Settings › Agent), which the agent reads on every action. Or add those files to your library.
 - **Adding a connector by command.** Settings › Connectors adds a connector by its web address, or in one click from its list, and Connect by with its Command and Arguments fields is gone. A connector that runs a program on your Mac, set up in Claude's or ChatGPT's own app, still shows there and can be removed.
+- **Go to heading.** ⌘⇧O no longer opens a list of the note's headings. Once a note has three headings, click one in the outline beside it to jump there.
 - **Run on an HTML block.** An HTML block now always shows its preview, drawn with its scripts off, and its Run button is gone. To see its script work, copy the block's source into an `.html` file and open that in your browser.
 
 ### Fixed

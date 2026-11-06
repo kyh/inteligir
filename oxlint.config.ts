@@ -125,8 +125,7 @@ const platformPurity = (dir: string, regex: string, message: string) => ({
 export default defineConfig({
   extends: [core, react, tanstack, antiSlop, vitest],
   options: { reportUnusedDisableDirectives: "error", typeAware: true },
-  // TanStack Query's own rules, as its docs load them into oxlint; no-void-query-fn reads types a
-  // JS plugin is not handed, so the type-aware pass's own rules stand in for it
+  // TanStack Query's own rules, as its docs load them into oxlint
   jsPlugins: ["@tanstack/eslint-plugin-query"],
   ignorePatterns: [
     ...(core.ignorePatterns ?? []),
@@ -168,7 +167,7 @@ export default defineConfig({
       // unsafe.
       files: tests,
       rules: {
-        "require-await": "off",
+        "typescript/require-await": "off",
         "typescript/no-unsafe-argument": "off",
         "typescript/no-unsafe-assignment": "off",
         "typescript/no-unsafe-return": "off",
@@ -368,6 +367,10 @@ export default defineConfig({
   ],
   rules: {
     ...pluginQuery.configs.recommended.rules,
+    // it reads the queryFn's type from the TypeScript program ESLint's parser hands a rule, which
+    // oxlint hands no JS plugin, so it never fires; a queryFn that resolves undefined fails its
+    // query at once instead, logging a console.error, which fails a workspace suite
+    "@tanstack/query/no-void-query-fn": "off",
     "no-restricted-imports": restrictedImports([]),
     // Its message asks for a `// SAFETY:` comment, which admits nothing:
     // `typescript/consistent-type-assertions` refuses every assertion.
@@ -397,6 +400,13 @@ export default defineConfig({
     // `exited`) as though no await could change it, and prefer-optional-chain, which asks
     // `x === null || x.y === null` to be `x?.y === null`, false where x is null
     "typescript/no-unsafe-enum-assignment": "error",
+    // it asks every parameter's type to be deeply readonly, which the types a library hands a
+    // callback are not (React's events, DOM nodes, Plate's editor, zod's outputs): 1,160 findings
+    // in notes, the replica and the page alone, nearly all on a library's type
+    "typescript/prefer-readonly-parameter-types": "off",
+    // the typed rule in place of the base one, which reports the same functions untyped
+    "require-await": "off",
+    "typescript/require-await": "error",
     // No type assertion and no escape comment: parse at the boundary or narrow with a
     // type guard. `as const` asserts no other type and stays legal.
     "typescript/consistent-type-assertions": ["error", { assertionStyle: "never" }],

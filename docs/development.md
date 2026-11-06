@@ -45,7 +45,7 @@ pnpm testflight:mobile  # The phone: EAS builds it for iOS and submits it to Tes
 pnpm hotfix:mobile      # A JS-only fix to the phone builds already out, as an EAS Update
 pnpm build              # Build all
 pnpm typecheck          # Type check all
-pnpm lint               # Lint all   (oxlint)
+pnpm turbo run //#lint  # Lint all   (oxlint, type-aware), after the generate tasks whose types it reads
 pnpm format:fix         # Format     (oxfmt) — run BEFORE gates, never after
 pnpm verify             # The static gate (CI adds the e2e suite on top)
 pnpm e2e                # The scenario suite (one mode — the SPA is a static build)
@@ -154,7 +154,11 @@ cannot hide test regressions behind it, and `TEST_CONCURRENCY` caps how many
 tasks run at once (four by default), as it does for `pnpm test`. To run knip on its own, use `pnpm turbo run //#knip`: knip
 reads the extension's program, which extends the `.wxt/tsconfig.json` its
 `generate` task writes, so a bare `pnpm knip` on a fresh checkout sees none of
-the extension's suites and calls the exports they use unused.
+the extension's suites and calls the exports they use unused. Lint on its own
+is `pnpm turbo run //#lint` for the same reason: its type-aware pass reads
+every workspace's program, and the Worker's and the extension's take the Env
+types and the `.wxt/tsconfig.json` their `generate` tasks write, so a bare
+`pnpm lint` on a fresh checkout reads those two programs without them.
 
 CI then runs a few more that `verify` cannot: it installs agent-browser
 and the shell's WebDriver (`tauri-driver`, each pinned by hand, over
