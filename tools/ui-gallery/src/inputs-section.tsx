@@ -28,8 +28,8 @@ export const InputsSection = () => {
           <Input id="gallery-title" defaultValue="Release checklist" />
         </div>
         <div className="w-72 space-y-1.5">
-          <Label htmlFor="gallery-disabled">Vault location</Label>
-          <Input id="gallery-disabled" defaultValue="~/notes" disabled />
+          <Label htmlFor="gallery-disabled">Account</Label>
+          <Input id="gallery-disabled" defaultValue="you@example.com" disabled />
         </div>
       </Demo>
 

@@ -212,8 +212,8 @@ export const OverlaysSection = () => {
             <div className="flex flex-col gap-1 text-xs">
               <p className="text-sm font-medium">Welcome to inteligir</p>
               <p className="whitespace-pre-wrap text-muted-foreground">
-                This folder is your vault: plain markdown files that belong to you, versioned with
-                git.
+                Everything you save lands in your library: links, articles, pictures, PDFs and
+                notes.
               </p>
             </div>
           </HoverCardContent>

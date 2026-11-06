@@ -5,7 +5,7 @@
 
 import { isUuidWikiAlias } from "../markdown/remark-wiki-link";
 import { IMPLIED_LINK_EXTENSION, wikiLinkName, wikiLinkPath } from "./doc-file";
-import { basenamePath, dirnamePath, extnamePath, joinPath, normalizePath } from "./vault-path";
+import { basenamePath, dirnamePath, extnamePath, joinPath, normalizePath } from "./folder-path";
 
 export interface TargetResolver {
   resolveWiki: (target: string, alias?: string) => string | null;

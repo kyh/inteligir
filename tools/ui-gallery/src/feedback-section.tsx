@@ -22,7 +22,7 @@ export const FeedbackSection = () => (
 
     <Demo name="Separator" purpose="A rule between groups that belong to the same surface." stack>
       <div className="w-72 space-y-3">
-        <p className="text-sm">Vault</p>
+        <p className="text-sm">Library</p>
         <Separator />
         <p className="text-sm">Agent</p>
       </div>
@@ -48,7 +48,7 @@ export const FeedbackSection = () => (
       <Button
         variant="secondary"
         onClick={() => {
-          toast.error("Could not reach the vault");
+          toast.error("Could not reach the library");
         }}
       >
         Error toast

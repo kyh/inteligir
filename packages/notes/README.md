@@ -54,7 +54,7 @@ src/
                        # FTS5 match
     text-matches.ts    # literal occurrences in a text, for the find bar and
                        # the cell's excerpts
-    doc-file.ts, note-name.ts, asset-name.ts, vault-path.ts  # what a
+    doc-file.ts, note-name.ts, asset-name.ts, folder-path.ts  # what a
                        # markdown file is, a name's validity, a file's free
                        # name, and the folder tree's path helpers, which the
                        # import and the export read a zip by

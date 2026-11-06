@@ -1,4 +1,4 @@
-import { basenamePath, extnamePath, joinPath } from "./vault-path";
+import { basenamePath, extnamePath, joinPath } from "./folder-path";
 
 const DOC_EXTENSIONS = new Set([".md", ".markdown", ".mdx", ".txt"]);
 
@@ -31,7 +31,7 @@ export const wikiLinkName = (path: string): string => wikiLinkPath(basenamePath(
 
 // What an import makes an item of is what the user wrote. A dot-entry (the annotation store's
 // `.inteligir/`, another app's `.obsidian/`, the OS's `.DS_Store`) is nobody's to open here.
-export const isVaultMetadataPath = (path: string): boolean =>
+export const isDotEntryPath = (path: string): boolean =>
   path.split("/").some((segment) => segment.startsWith("."));
 
 // a free spelling of a name, and which of its spellings it is (1 for the name itself)

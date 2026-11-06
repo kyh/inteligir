@@ -24,7 +24,7 @@ import { itemNameFromTitle } from "@repo/notes/items/item-name";
 import { DEFAULT_ATTACHMENTS_FOLDER, freeAssetPathWhere } from "@repo/notes/knowledge/asset-name";
 import { freePath, freePathFrom } from "@repo/notes/knowledge/doc-file";
 import { buildResolver, wikiTargetForPath } from "@repo/notes/knowledge/link-resolve";
-import { joinPath, vaultCollisionKey } from "@repo/notes/knowledge/vault-path";
+import { joinPath, pathCollisionKey } from "@repo/notes/knowledge/folder-path";
 
 import { exportItem } from "./item-markdown";
 import type { ExportItem, HeldFile } from "./item-markdown";
@@ -108,10 +108,10 @@ const DOC_EXTENSION = ".md";
 const isTaken =
   (store: ExportStore) =>
   (path: string): boolean =>
-    store.taken(vaultCollisionKey(path));
+    store.taken(pathCollisionKey(path));
 
 const take = (store: ExportStore, path: string): string => {
-  store.take(vaultCollisionKey(path), path);
+  store.take(pathCollisionKey(path), path);
   return path;
 };
 
@@ -140,8 +140,8 @@ export const exportFolderPaths = (folders: readonly ExportFolder[]): Map<string,
     }
     const parent = folder.parentId === null ? "" : pathOf(folder.parentId, depth + 1);
     const name = itemNameFromTitle(folder.name) ?? "Folder";
-    const path = freePath(parent, name, "", (candidate) => taken.has(vaultCollisionKey(candidate)));
-    taken.add(vaultCollisionKey(path));
+    const path = freePath(parent, name, "", (candidate) => taken.has(pathCollisionKey(candidate)));
+    taken.add(pathCollisionKey(path));
     paths.set(id, path);
     return path;
   };
@@ -159,7 +159,7 @@ export const planExportDoc = (
   store: ExportStore,
 ): PlannedExportDoc => {
   const name = itemNameFromTitle(head.title) ?? UNTITLED;
-  const searchKey = vaultCollisionKey(joinPath(dir, `${name}${DOC_EXTENSION}`));
+  const searchKey = pathCollisionKey(joinPath(dir, `${name}${DOC_EXTENSION}`));
   const free = freePathFrom(
     dir,
     name,

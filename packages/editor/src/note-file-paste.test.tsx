@@ -102,7 +102,7 @@ describe("what the editor keeps from a paste or a drop", () => {
     expect(fileTooLarge("shot.png", 100 * 1024 * 1024)).toBe(
       "“shot.png” is larger than 100 MB, the most one file can be.",
     );
-    expect(fileNotKept("shot.png")).not.toMatch(/path|folder|vault|bytes/iu);
+    expect(fileNotKept("shot.png")).not.toMatch(/path|folder|bytes/iu);
   });
 });
 

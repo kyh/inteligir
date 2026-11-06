@@ -160,7 +160,7 @@ const captionText = (node: TElement): string => {
 };
 
 // an image on the web with no alt and no title reads back as the embed that wrote it; an alt or a
-// title keeps it an image, so neither is ever dropped, and a vault image is always one
+// title keeps it an image, so neither is ever dropped, and a picture in the folder is always one
 const embedFromImage = (block: TElement): TElement => {
   const url = stringProp(block, "url");
   if (

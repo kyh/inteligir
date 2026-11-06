@@ -1,8 +1,8 @@
 // What an item is, spelled once. Parser-free on purpose: the contract validates against these and
 // loads in every client, so this module reaches only the path grammars, never yaml or remark.
 
-import { isDocPath, isVaultMetadataPath } from "../knowledge/doc-file";
-import { extnamePath } from "../knowledge/vault-path";
+import { isDocPath, isDotEntryPath } from "../knowledge/doc-file";
+import { extnamePath } from "../knowledge/folder-path";
 
 export const ITEM_KINDS = ["note", "link", "video", "audio", "image", "pdf", "file"] as const;
 export type ItemKind = (typeof ITEM_KINDS)[number];
@@ -60,7 +60,7 @@ const KIND_BY_EXTENSION = new Map<string, FileKind>([
 
 // null for a doc or a metadata path, neither of which is a file item; "file" for any other name
 export const fileKindOf = (path: string): FileKind | null => {
-  if (isDocPath(path) || isVaultMetadataPath(path)) {
+  if (isDocPath(path) || isDotEntryPath(path)) {
     return null;
   }
   return KIND_BY_EXTENSION.get(extnamePath(path).toLowerCase()) ?? "file";

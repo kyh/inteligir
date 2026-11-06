@@ -121,7 +121,7 @@ const SETTLED_ON_IMPORT = new Map<string, (text: string) => string>([
   ],
 ]);
 
-describe("today's vault format imports losslessly", () => {
+describe("today's markdown imports losslessly", () => {
   it.each(fixtures().filter((one) => one.name.startsWith("canonical/")))("$name", (fixture) => {
     const settle = SETTLED_ON_IMPORT.get(fixture.name) ?? bodyOf;
     expect(bodyOf(exported(imported(fixture.text)).text)).toBe(settle(fixture.text));

@@ -1,7 +1,7 @@
 // The person's filing rules: one meta row of their own prose, which every turn of the built-in
 // agent sends after the person's message whenever it is new to the conversation
 // (`../agent/turn-message.ts`). The person writes it from Settings (`library.agent.setRules`); an
-// import that brings a vault's own fills it only while the library keeps none, and an export
+// import that brings a folder's own fills it only while the library keeps none, and an export
 // writes it back out.
 
 import { FILING_RULES_MAX } from "@repo/contract/cloud/library/library-wire";

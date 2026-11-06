@@ -30,7 +30,7 @@ const PROJECT_ID = "0195f3a0-5c1e-7000-8000-00000000000a";
 const PAGE_ID = "0195f3a0-5c1e-7000-8000-00000000000b";
 
 // an Obsidian vault beside a note this app wrote, the binaries named by a pretend sha
-const VAULT = {
+const OBSIDIAN_VAULT = {
   ".obsidian/app.json": '{"theme":"moonstone"}',
   "AGENTS.md": "File what I read under Inbox.\n",
   ".inteligir/annotations/0195f3a0-5c1e-7000-8000-00000000000b.json": `${JSON.stringify(
@@ -253,7 +253,7 @@ const textOf = (item: LibraryItem): string =>
     .join("");
 
 describe("an Obsidian vault read into the library", () => {
-  const library = readFolder(VAULT, BINARIES);
+  const library = readFolder(OBSIDIAN_VAULT, BINARIES);
   const daily = byTitle(library, "Daily");
   const project = byTitle(library, "Project X");
 
@@ -470,8 +470,8 @@ const contentOf = (library: ReadLibrary) =>
     .toSorted((a, b) => a.fields.title.localeCompare(b.fields.title));
 
 describe("export, then import, gives the library back", () => {
-  it("holds for the vault, ids aside", () => {
-    const first = readFolder(VAULT, BINARIES);
+  it("holds for the Obsidian vault, ids aside", () => {
+    const first = readFolder(OBSIDIAN_VAULT, BINARIES);
     const files = exportOf(first);
     const texts = Object.fromEntries(
       files.flatMap((file) => (file.kind === "text" ? [[file.path, file.text]] : [])),

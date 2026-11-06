@@ -43,11 +43,11 @@ const REPO_DOCS = {
 } satisfies Record<string, string>;
 
 // Object.entries below declares the tests in this order, which groups the repo doc ahead of the
-// vault fixtures
+// sample notes
 const EXPECTED = {
   // wrapped paragraphs → soft-break churn
   "README.md": "formattable",
-  // the fixture vault is pre-canonicalized so a first edit is a minimal diff, not a reflow.
+  // the sample notes are pre-canonicalized so a first edit is a minimal diff, not a reflow.
   "empty.md": "canonical",
   "welcome.md": "canonical",
   "tasks.md": "canonical",

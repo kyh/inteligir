@@ -447,7 +447,7 @@ const historyContract = {
 };
 
 // an import reads a file the device uploaded to `/v1/blobs` first: a Raindrop export's CSV, or a
-// zip of markdown, a vault from this app's export or Obsidian's included. The cell runs it as a
+// zip of markdown, this app's export or an Obsidian vault included. The cell runs it as a
 // job, a page at a time, every item it adds in one change set History shows
 const importsContract = {
   start: signedBase
@@ -473,7 +473,7 @@ const importsContract = {
     .output(z.object({ job: importJobSchema })),
 };
 
-// the whole library as a zip in the vault's format, written by the cell and downloaded from
+// the whole library as a zip of markdown, written by the cell and downloaded from
 // `/v1/exports/<id>` until it is let go, seven days on
 const exportsContract = {
   start: signedBase.input(z.strictObject({ opId })).output(z.object({ export: exportJobSchema })),

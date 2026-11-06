@@ -231,7 +231,7 @@ describe("the graph (the skill's own type-scale example)", () => {
 });
 
 // every note but "a", the open one, answered from its markdown
-const vault = (notes: Readonly<Record<string, string>>) => {
+const library = (notes: Readonly<Record<string, string>>) => {
   const reads: string[] = [];
   const read = async (noteId: string): Promise<CollectedFormula[] | null> => {
     reads.push(noteId);
@@ -256,7 +256,7 @@ const resolveFirst = async (
 
 describe("loading the graph", () => {
   it("follows a chain through a note the open one never names", async () => {
-    const { read, reads } = vault({
+    const { read, reads } = library({
       b: "{{@(c#c#fc)+1|0|id=fb;name=b}}\n",
       c: "{{40|40|id=fc;name=c}}\n",
     });
@@ -267,7 +267,7 @@ describe("loading the graph", () => {
   });
 
   it("answers cyclic for a loop across notes, reading each note once and never itself", async () => {
-    const { read, reads } = vault({
+    const { read, reads } = library({
       b: "{{@(a#a#fa)+1|0|id=fb;name=b}}\n",
     });
     const local = formulasIn("{{@(b#b#fb)+1|0|id=fa;name=a}}\n");
@@ -277,7 +277,7 @@ describe("loading the graph", () => {
   });
 
   it("stops reading at the cap, and a note past it answers missing-ref", async () => {
-    const { read, reads } = vault({
+    const { read, reads } = library({
       b: "{{@(c#c#fc)+1|0|id=fb;name=b}}\n",
       c: "{{40|40|id=fc;name=c}}\n",
     });

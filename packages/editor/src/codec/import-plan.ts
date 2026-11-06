@@ -12,7 +12,7 @@ import { annotationsStoreItemId } from "@repo/notes/annotations/store-schema";
 import { COVERS_DIR, fileKindOf, LIBRARY_RULES_PATH, PAGES_DIR } from "@repo/notes/items/item-kind";
 import type { FileKind } from "@repo/notes/items/item-kind";
 import { urlKey } from "@repo/notes/items/item-url";
-import { docStem, isDocPath, isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
+import { docStem, isDocPath, isDotEntryPath } from "@repo/notes/knowledge/doc-file";
 import { frontmatterAliases, mdLinkTarget } from "@repo/notes/knowledge/link-extract";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import type { TargetResolver } from "@repo/notes/knowledge/link-resolve";
@@ -22,7 +22,7 @@ import {
   extnamePath,
   normalizePath,
   relativePath,
-} from "@repo/notes/knowledge/vault-path";
+} from "@repo/notes/knowledge/folder-path";
 import { frontmatterYaml, parseProperties } from "@repo/notes/markdown/frontmatter";
 import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
@@ -42,7 +42,7 @@ export const importPathKind = (raw: string): ImportPathKind => {
   if (annotationsStoreItemId(path) !== null) {
     return "store";
   }
-  if (path === "" || isVaultMetadataPath(path)) {
+  if (path === "" || isDotEntryPath(path)) {
     return "skipped";
   }
   if (path.toLowerCase() === LIBRARY_RULES_PATH.toLowerCase()) {

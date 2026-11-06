@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { freeAssetPathWhere } from "@repo/notes/knowledge/asset-name";
-import { vaultCollisionKey } from "@repo/notes/knowledge/vault-path";
+import { pathCollisionKey } from "@repo/notes/knowledge/folder-path";
 
 // past every path held, compared as a case-insensitive disk compares them
 const freeAssetPath = (dir: string, baseName: string, takenPaths: readonly string[]): string => {
-  const taken = new Set(takenPaths.map(vaultCollisionKey));
-  return freeAssetPathWhere(dir, baseName, (path) => taken.has(vaultCollisionKey(path)));
+  const taken = new Set(takenPaths.map(pathCollisionKey));
+  return freeAssetPathWhere(dir, baseName, (path) => taken.has(pathCollisionKey(path)));
 };
 
 describe(freeAssetPathWhere, () => {

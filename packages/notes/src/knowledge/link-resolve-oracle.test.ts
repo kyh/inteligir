@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildResolver, wikiNameKeys } from "./link-resolve";
-import { basenamePath, extnamePath, normalizePath } from "./vault-path";
+import { basenamePath, extnamePath, normalizePath } from "./folder-path";
 import { mulberry32, pick } from "../test-support/seeded-random";
 
 // must match link-resolve's pickBest
@@ -70,7 +70,7 @@ const oracleResolveWiki = (all: readonly string[], target: string): string | nul
   return pickBest(all.filter((p) => lowerSuffixes.some((s) => p.toLowerCase().endsWith(s))));
 };
 
-const buildSyntheticVault = (rand: () => number, count: number): string[] => {
+const buildSyntheticFolder = (rand: () => number, count: number): string[] => {
   const dirs = ["", "notes", "wiki", "projects/alpha", "projects/beta", "Deep/Nested/Dir", "sub"];
   const stems = ["note", "Note", "roadmap", "digest", "Plan", "tasks", "readme", "Ideas"];
   const exts = [".md", ".md", ".md", ".png", ".txt"];
@@ -104,7 +104,7 @@ describe("link-resolve — bucket Tier 3 equals the full-scan oracle", () => {
   // ~5s under a contended full-repo run; the default 5s timeout is too tight
   it("matches on 1,000 path-style targets over 5,000 synthetic paths", { timeout: 20_000 }, () => {
     const rand = mulberry32(0xc0_ff_ee);
-    const paths = buildSyntheticVault(rand, 5000);
+    const paths = buildSyntheticFolder(rand, 5000);
     const resolver = buildResolver(paths);
 
     for (let i = 0; i < 1000; i += 1) {
@@ -164,7 +164,7 @@ describe("link-resolve — a bare name answers to exactly the paths filed under 
   it("over synthetic paths and every edge shape of a name", () => {
     const rand = mulberry32(0xba_5e);
     const paths = [
-      ...buildSyntheticVault(rand, 300),
+      ...buildSyntheticFolder(rand, 300),
       "note",
       "Note.MD",
       "z/sub/note.md.md",

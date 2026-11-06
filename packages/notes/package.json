@@ -2,7 +2,7 @@
   "name": "@repo/notes",
   "version": "0.1.0",
   "private": true,
-  "description": "Pure, platform-agnostic domain core. ZERO node/react/fs/dom deps, so the same code runs in the local server, in the browser and on a Worker. `src/knowledge/` is the link graph, search and projection engine over a vault; `src/markdown/` is the one markdown scan it reads, plus frontmatter and the dialect's own constructs. No I/O, no clock, no crypto — the caller injects them.",
+  "description": "Pure, platform-agnostic domain core. ZERO node/react/fs/dom deps, so the same code runs in the Worker's library cell and in every device's replica. `src/knowledge/` is the link graph, search and projection engine over a library; `src/markdown/` is the one markdown scan it reads, plus frontmatter and the dialect's own constructs. No I/O, no clock, no crypto — the caller injects them.",
   "type": "module",
   "exports": {
     "./annotations/annotation-threads": "./src/annotations/annotation-threads.ts",
@@ -38,7 +38,7 @@
     "./knowledge/search-query": "./src/knowledge/search-query.ts",
     "./knowledge/tag-grammar": "./src/knowledge/tag-grammar.ts",
     "./knowledge/text-matches": "./src/knowledge/text-matches.ts",
-    "./knowledge/vault-path": "./src/knowledge/vault-path.ts",
+    "./knowledge/folder-path": "./src/knowledge/folder-path.ts",
     "./library/block-hash": "./src/library/block-hash.ts",
     "./library/block-ops": "./src/library/block-ops.ts",
     "./library/block-order": "./src/library/block-order.ts",

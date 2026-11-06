@@ -36,7 +36,9 @@ const SidebarDemo = () => {
         <Sidebar variant="floating" label="Sidebar">
           <SidebarHeader>
             <div className="flex items-center gap-1 pr-1.5">
-              <span className="min-w-0 flex-1 truncate px-2 text-[13px] font-semibold">Vault</span>
+              <span className="min-w-0 flex-1 truncate px-2 text-[13px] font-semibold">
+                Library
+              </span>
               <Button variant="ghost" size="icon-compact" className="size-6" aria-label="Search">
                 <SearchIcon />
               </Button>

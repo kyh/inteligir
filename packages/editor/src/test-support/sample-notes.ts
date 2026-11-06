@@ -144,7 +144,7 @@ E = mc^2
 
 A nested archive note exercising deep folders in the sidebar tree.
 
-- Shipped the vault sync engine
+- Shipped the sync engine
 - Ported the editor kits
 `,
   "notes/roadmap.md": `# Roadmap
@@ -200,7 +200,7 @@ A nested tag #area/deep-dive lives here too.
 `,
   "welcome.md": `# Welcome
 
-This is the **inteligir** dev harness — a plain-browser run of the portable app against an in-memory vault. Edits persist until you reload the page.
+This is the **inteligir** dev harness — a plain-browser run of the portable app against an in-memory library. Edits persist until you reload the page.
 
 - Open a note from the sidebar
 - Try the editor: headings, lists, tables, code

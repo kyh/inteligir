@@ -1,4 +1,4 @@
-// A zip of markdown read into the library: a vault this app exported, one Obsidian keeps, or any
+// A zip of markdown read into the library: this app's export, an Obsidian vault, or any
 // folder of notes, by the codec's two-pass plan (`@repo/editor/codec/import-plan`). The first runs
 // walk the zip's directory, keeping each note's frontmatter, each highlights' store and the
 // filing rules, and putting every file in the library under its sha; then the plan is made once,
@@ -324,7 +324,7 @@ const writePlan = (scope: LandingScope, host: ImportHost, job: ImportJob): void 
     ROWS.store,
     plan.stores.map((value, idx) => ({ idx, value })),
   );
-  // the filing rules the vault brings, which never replace the library's own
+  // the filing rules the folder brings, which never replace the library's own
   if (plan.rules !== null) {
     adoptImportedRules(sql, plan.rules);
   }

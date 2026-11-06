@@ -3,11 +3,11 @@ import {
   docExtension,
   docStem,
   isDocPath,
-  isVaultMetadataPath,
+  isDotEntryPath,
   wikiLinkName,
   wikiLinkPath,
 } from "./doc-file";
-import { vaultCollisionKey } from "./vault-path";
+import { pathCollisionKey } from "./folder-path";
 
 describe("what counts as a doc", () => {
   it("names every extension the index and the listing carry", () => {
@@ -28,7 +28,7 @@ describe("what a listing hides", () => {
       "notes/.DS_Store",
       ".trash",
     ]) {
-      expect(isVaultMetadataPath(path)).toBe(true);
+      expect(isDotEntryPath(path)).toBe(true);
     }
   });
 
@@ -41,7 +41,7 @@ describe("what a listing hides", () => {
       "Welcome.md.annotations.json",
       "notes/meeting.annotations.json",
     ]) {
-      expect(isVaultMetadataPath(path)).toBe(false);
+      expect(isDotEntryPath(path)).toBe(false);
     }
   });
 });
@@ -91,7 +91,7 @@ describe("a name the disk already holds", () => {
   const decomposed = "Café.md";
 
   it("is one key in either case and either normalization", () => {
-    expect(vaultCollisionKey(decomposed)).toBe(vaultCollisionKey(composed.toUpperCase()));
-    expect(vaultCollisionKey("Cafe.md")).not.toBe(vaultCollisionKey(composed));
+    expect(pathCollisionKey(decomposed)).toBe(pathCollisionKey(composed.toUpperCase()));
+    expect(pathCollisionKey("Cafe.md")).not.toBe(pathCollisionKey(composed));
   });
 });

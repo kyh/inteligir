@@ -1,6 +1,6 @@
 # Images
 
-A vault asset with alt text:
+A picture with alt text:
 
 ![Architecture diagram](assets/diagram.png)
 

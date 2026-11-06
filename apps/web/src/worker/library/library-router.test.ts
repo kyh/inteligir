@@ -495,7 +495,7 @@ describe("the library's procedures", () => {
     });
   });
 
-  it("keeps the person's filing rules, which an import of a vault's own never replaces", async () => {
+  it("keeps the person's filing rules, which an import of a folder's own never replaces", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
       await expect(library.agent.rules()).resolves.toStrictEqual({ rules: null });

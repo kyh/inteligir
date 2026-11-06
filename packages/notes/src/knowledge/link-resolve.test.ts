@@ -13,7 +13,7 @@ describe("resolveWiki — precedence", () => {
     expect(r.resolveWiki("target")).toBe("target.md");
   });
 
-  it("resolves bare names by basename anywhere in the vault", () => {
+  it("resolves bare names by basename anywhere in the folder", () => {
     const r = buildResolver(["deep/nested/note.md", "other.md"]);
     expect(r.resolveWiki("note")).toBe("deep/nested/note.md");
   });
@@ -193,7 +193,7 @@ describe("resolveMd", () => {
     expect(r.resolveMd("img.png", "a/b.md")).toBe("a/img.png");
   });
 
-  it("falls back to vault-root-relative", () => {
+  it("falls back to root-relative", () => {
     expect(r.resolveMd("docs/guide.md", "a/b.md")).toBe("docs/guide.md");
   });
 
@@ -264,7 +264,7 @@ describe("a written wiki link resolves back to its note", () => {
   const dirs = ["", "zz", "a/b", "Issue#1", "C# dir"];
   const extensions = [".md", ".MD", ".txt", ".markdown", ".mdx"];
 
-  it("for every doc in a vault of colliding names", () => {
+  it("for every doc in a folder of colliding names", () => {
     for (const name of names) {
       expect(checkNoteName(name).ok, name).toBe(true);
     }
@@ -290,7 +290,7 @@ describe("a link's target spelled from the paths that share its keys", () => {
   const FOLDERS = ["", "x", "X", "x/y", "deep/x"];
   const EXTENSIONS = [".md", ".MD", ".txt", ""];
 
-  const vaultOf = (rand: () => number) => {
+  const folderOf = (rand: () => number) => {
     const docs = new Map<string, string[]>();
     const count = 2 + Math.floor(rand() * 10);
     for (let index = 0; index < count; index += 1) {
@@ -302,9 +302,9 @@ describe("a link's target spelled from the paths that share its keys", () => {
     return docs;
   };
 
-  it("answers wikiTargetForPath as a resolver over every path does, over 500 seeded vaults", () => {
+  it("answers wikiTargetForPath as a resolver over every path does, over 500 seeded folders", () => {
     for (let seed = 1; seed <= 500; seed += 1) {
-      const docs = vaultOf(mulberry32(seed));
+      const docs = folderOf(mulberry32(seed));
       const aliasEntries = [...docs].flatMap(([path, aliases]) =>
         aliases.map((alias): [string, string] => [alias, path]),
       );

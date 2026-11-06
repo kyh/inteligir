@@ -454,7 +454,7 @@ export const importJobSchema = z.object({
   // why a job failed, in a sentence the person reads
   message: z.string().nullable(),
   // what the import leaves out by its rules: a bookmark with no web address or one in the bin, and
-  // a path no item is made of (a vault's settings, another dot-folder's)
+  // a path no item is made of (Obsidian's settings, another dot-folder's)
   skipped: count,
   source: z.enum(IMPORT_SOURCES),
   startedAt: instant,
@@ -465,7 +465,7 @@ export const importJobSchema = z.object({
   unreadable: count,
 });
 
-// an export, a zip of the library in the vault's format, downloaded from `/v1/exports/<id>` while
+// an export, the library as a zip of markdown, downloaded from `/v1/exports/<id>` while
 // it is ready
 export const exportJobSchema = z.object({
   bytes: count.nullable(),

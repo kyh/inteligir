@@ -6,7 +6,7 @@
 // the directory gives. An encrypted entry, a method other than store or deflate, and a name that
 // climbs out of the zip are refused: the bytes are a stranger's.
 
-import { normalizePath } from "@repo/notes/knowledge/vault-path";
+import { normalizePath } from "@repo/notes/knowledge/folder-path";
 
 import { crc32 } from "./crc32";
 

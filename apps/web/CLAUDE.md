@@ -439,7 +439,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   prefill Opus 5.5 refuses, and it takes an approval answered after a later
   turn); PiHarness (`drop_block` on every request, a compaction that drops
   every kept thinking block, a hook that cannot refuse a call); Managed Agents
-  (a vault, a public connector, a webhook and an account-wide turn lock to
+  (its credential vault, a public connector, a webhook and an account-wide turn lock to
   attribute writes). `apps/web/src/worker/agent/agent-thread.ts`,
   `library-agent.ts`.
 

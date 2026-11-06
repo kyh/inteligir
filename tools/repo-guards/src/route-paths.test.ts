@@ -60,8 +60,7 @@ interface Hit extends Spelled {
   file: string;
 }
 
-// not followed by a word character or a dash, which tells `"/vault/asset?path="` from
-// `"./vault/asset-route"`.
+// not followed by a word character or a dash, which tells `"/library?item="` from `"/library-page"`
 const spells = (source: string, { path, quoted }: Pick<Spelled, "path" | "quoted">): boolean =>
   new RegExp(`${quoted ? "[\"'`!]" : ""}${path}(?![\\w-])`, "u").test(source);
 

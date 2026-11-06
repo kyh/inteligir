@@ -1,7 +1,7 @@
 // What a file is called in its folder when an export writes the library out as a markdown folder:
 // its own name, less what a filename should not carry, stepped past a name already taken.
 
-import { joinPath } from "./vault-path";
+import { joinPath } from "./folder-path";
 
 const UNSAFE_RUN = /[^\p{L}\p{N}._ -]+/gu;
 

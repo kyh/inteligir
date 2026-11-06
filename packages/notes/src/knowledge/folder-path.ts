@@ -58,7 +58,6 @@ export const relativePath = (fromDir: string, toPath: string): string => {
   return parts.join("/");
 };
 
-// A Mac's filesystem is case- and normalization-insensitive: two paths with one key are one file
-// there, so every writer that steps past a taken name, and the Worker that refuses a collision,
-// compares by it.
-export const vaultCollisionKey = (path: string): string => path.normalize("NFC").toLowerCase();
+// An export unzips onto a Mac, whose filesystem is case- and normalization-insensitive: two paths
+// with one key would be one file there, so the export steps past a taken name by it.
+export const pathCollisionKey = (path: string): string => path.normalize("NFC").toLowerCase();

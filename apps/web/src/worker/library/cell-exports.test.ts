@@ -1,4 +1,4 @@
-// Exports as the cell writes them: the whole library a zip in the vault's format under the
+// Exports as the cell writes them: the whole library a zip of markdown under the
 // account's prefix in R2, read back into another library as the same items, their text, their
 // links, highlights and files; written over many runs of the alarm, an eviction among them, into
 // the same entries one run writes; failed once its runs keep being cut off, so another can start;
@@ -25,7 +25,7 @@ import {
   runImportToEnd,
   startImport,
   uploadedFile,
-  VAULT,
+  OBSIDIAN_VAULT,
   zipOf,
 } from "../test-support/library-files";
 import { cellOf, inCell, newAccountId, paragraph } from "../test-support/library-cell";
@@ -37,7 +37,7 @@ import { openCellLibrary } from "./cell-library";
 
 const LINK = "https://pages.example/reading";
 
-// an account holding the small vault, imported, beside a saved link the cloud read: its article,
+// an account holding the small Obsidian vault, imported, beside a saved link the cloud read: its article,
 // its cover, and a highlight placed in the article
 const withLibrary = async (
   accountId: string,
@@ -45,7 +45,7 @@ const withLibrary = async (
 ): Promise<void> => {
   const started = await startImport(
     accountId,
-    { bytes: await zipOf({ ...VAULT, ...files }), mime: "application/zip" },
+    { bytes: await zipOf({ ...OBSIDIAN_VAULT, ...files }), mime: "application/zip" },
     "markdown",
   );
   await runImportToEnd(accountId, started.jobId);
@@ -211,7 +211,7 @@ describe("an export", () => {
   // each test below builds a whole library and zips it: under a second alone, but past 5 s when
   // the full verify runs four suites at once, so each states its own timeout
   it(
-    "writes the library as a zip in the vault's format, which reads back as the same library",
+    "writes the library as a zip of markdown, which reads back as the same library",
     { timeout: 30_000 },
     async () => {
       const from = newAccountId();

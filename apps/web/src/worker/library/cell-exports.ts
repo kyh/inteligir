@@ -1,4 +1,4 @@
-// The library written out as a zip in the vault's format (`@repo/editor/codec/export-plan`):
+// The library written out as a zip of markdown (`@repo/editor/codec/export-plan`):
 // every live item one markdown file in its folder, its highlights' store beside it, every file it
 // holds once under `assets/`, the filing rules at the root. The zip lives under the account's own
 // prefix in R2, `acct/<userId>/x/<id>.zip`, so the account's deletion takes it, seven days after

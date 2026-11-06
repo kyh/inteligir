@@ -16,7 +16,7 @@ import { Demo, DemoCase, GallerySection } from "./gallery-chrome";
 const STARTED_AT = 0;
 
 const ANSWER_TEXT =
-  "The vault holds four notes. Two link to Welcome, and none of them are unresolved.";
+  "The library holds four notes. Two link to Welcome, and none of them are unresolved.";
 
 export const AgentSection = () => {
   const [decision, setDecision] = useState<string | null>(null);
@@ -28,7 +28,7 @@ export const AgentSection = () => {
         purpose="A turn is running. Elapsed counts from the turn's own start, not from mount."
       >
         <DemoCase label="drive">
-          <LoadingState label="Reading the vault" variant="drive" />
+          <LoadingState label="Reading the library" variant="drive" />
         </DemoCase>
         <DemoCase label="dots">
           <LoadingState label="Indexing" variant="dots" />

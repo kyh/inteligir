@@ -16,7 +16,7 @@ import {
   runImportToEnd as runToEnd,
   runImportsOnce as runOnce,
   startImport,
-  VAULT,
+  OBSIDIAN_VAULT,
   zipOf,
 } from "../test-support/library-files";
 import { cellOf, clockAt, engineIn, inCell, newAccountId } from "../test-support/library-cell";
@@ -164,7 +164,7 @@ describe("a zip of notes", () => {
     const accountId = newAccountId();
     const started = await startImport(
       accountId,
-      { bytes: await zipOf(VAULT), mime: "application/zip" },
+      { bytes: await zipOf(OBSIDIAN_VAULT), mime: "application/zip" },
       "markdown",
     );
     await runToEnd(accountId, started.jobId);
@@ -251,7 +251,7 @@ describe("the files an import kept", () => {
 
   it("are named by its items once it resumes after an eviction, and only the file it read goes", async () => {
     const accountId = newAccountId();
-    const started = await startImport(accountId, await zip(VAULT), "markdown");
+    const started = await startImport(accountId, await zip(OBSIDIAN_VAULT), "markdown");
     await runOnce(accountId);
     await evictDurableObject(cellOf(accountId));
     await runToEnd(accountId, started.jobId);
@@ -264,7 +264,9 @@ describe("the files an import kept", () => {
       // the picture Alpha embeds and the PDF no note embeds, each named by its item
       expect(held.shas).toHaveLength(2);
       expect(held.shas.every(([, refs]) => refs === 1)).toBe(true);
-      expect(held.bytes).toBe(VAULT["pic.png"].length + VAULT["Attachments/lone.pdf"].length);
+      expect(held.bytes).toBe(
+        OBSIDIAN_VAULT["pic.png"].length + OBSIDIAN_VAULT["Attachments/lone.pdf"].length,
+      );
     });
   });
 });

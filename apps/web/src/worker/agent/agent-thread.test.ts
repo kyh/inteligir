@@ -215,7 +215,7 @@ const sentAs = (definition: ThreadDefinition) => ({
 // the filing rules as a system message holds them
 const rulesMessage = (text: string) => z.json().parse([{ text, type: "text" }]);
 
-// the library's filing rules, as an import of a vault that brings them leaves them
+// the library's filing rules, as an import of a folder that brings them leaves them
 const rulesIn = async (account: AgentAccount, rules: string): Promise<void> => {
   await cellRows(
     account,
