@@ -50,6 +50,9 @@ const CORPUS = {
 
 const PDF = new TextEncoder().encode("%PDF-1.7\n% a file a link answered with\n");
 
+const pageDiscovering = (endpoint: string): string =>
+  `<html><head><title>A post</title><link rel="alternate" type="application/json+oembed" href="${endpoint}"></head><body><article><p>${"Words worth keeping. ".repeat(40)}</p></article></body></html>`;
+
 describe("a saved link's reading", () => {
   // the file's first reading loads the page reader's chunk, seconds of import on a busy runner
   it(
@@ -150,6 +153,58 @@ describe("a saved link's reading", () => {
       kind: "video",
     });
     expect(textOfSection(item, "article")).not.toBe("[]");
+  });
+
+  it("reads a post an app shell hides from what the host's oEmbed says of it", async () => {
+    const url = "https://x.com/kyh/status/1";
+    const { accountId, itemId, job } = await savedLink(url);
+    const endpoint = oembedEndpoint(url, null) ?? "";
+    serveWeb({
+      [endpoint]: () =>
+        Response.json({
+          author_name: "A Poster",
+          html: `<blockquote><p>${"Words only the host's answer holds. ".repeat(6)}</p></blockquote>`,
+          provider_name: "X",
+        }),
+      [url]: htmlPage("<html><head><title>X</title></head><body><div id=root></div></body></html>"),
+    });
+    await deliver(job);
+    const item = await itemIn(accountId, itemId);
+    expect(item?.fields).toMatchObject({ author: "A Poster", fetchState: "filled", site: "X" });
+    expect(textOfSection(item, "article")).toContain("Words only the host's answer holds.");
+  });
+
+  it.each([
+    "http://10.0.0.5/oembed?url=post",
+    "http://127.0.0.1:8080/oembed?url=post",
+    "http://169.254.169.254/latest/meta-data/",
+  ])("never asks %s, a discovery link into private space", async (endpoint) => {
+    const url = "https://pages.example/posts/discovering";
+    const { accountId, itemId, job } = await savedLink(url);
+    const web = serveWeb({
+      [endpoint]: () => Response.json({ author_name: "Inside the network" }),
+      [url]: htmlPage(pageDiscovering(endpoint)),
+    });
+    await expect(deliver(job)).resolves.toMatchObject({ acked: true, retried: false });
+    expect(web.asked.map((hop) => hop.url)).toStrictEqual([url]);
+    const item = await itemIn(accountId, itemId);
+    expect(item?.fields).toMatchObject({ author: null, fetchState: "filled", title: "A post" });
+    expect(textOfSection(item, "article")).toContain("Words worth keeping.");
+  });
+
+  it("reads the page alone when its discovery link answers no JSON", async () => {
+    const url = "https://pages.example/posts/discovering";
+    const endpoint = "https://pages.example/oembed?url=post";
+    const { accountId, itemId, job } = await savedLink(url);
+    const web = serveWeb({
+      [endpoint]: htmlPage("<html><body>Not an answer</body></html>"),
+      [url]: htmlPage(pageDiscovering(endpoint)),
+    });
+    await expect(deliver(job)).resolves.toMatchObject({ acked: true, retried: false });
+    expect(web.asked.map((hop) => hop.url)).toContain(endpoint);
+    const item = await itemIn(accountId, itemId);
+    expect(item?.fields).toMatchObject({ author: null, fetchState: "filled", title: "A post" });
+    expect(textOfSection(item, "article")).toContain("Words worth keeping.");
   });
 
   it("keeps a PDF the address answered with as the item's original", async () => {

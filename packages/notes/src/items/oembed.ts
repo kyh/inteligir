@@ -1,8 +1,7 @@
 // a media host's own oEmbed answer: YouTube, Vimeo, TikTok, Spotify, SoundCloud and X (asked with
 // `dnt=true`), or the page's own discovery link. The answer is JSON from a site and so hostile: the
-// device that fills reads at most 256 KiB of it, it is parsed by a schema, every string is clipped,
-// and its thumbnail is one more cover candidate. The question and the reading are the same on every
-// device that fills; each asks through its own fetch.
+// fill reads at most 256 KiB of it, it is parsed by a schema, every string is clipped, and its
+// thumbnail is one more cover candidate.
 
 import { z } from "zod";
 
@@ -19,12 +18,16 @@ export interface OEmbed {
 
 export const OEMBED_MAX_BYTES = 256 * 1024;
 
-// a string clipped to `max`, and anything else (a number, a list, null) as absent
+// a string clipped to `max`, and anything else (a number, a list, null, no key at all) as absent:
+// every field of an answer is optional, and X's has neither a title nor a thumbnail
 const clipped = (max: number) =>
-  z.unknown().transform((value) => {
-    const text = z.string().safeParse(value);
-    return text.success ? text.data.trim().slice(0, max) : null;
-  });
+  z
+    .unknown()
+    .optional()
+    .transform((value) => {
+      const text = z.string().safeParse(value);
+      return text.success ? text.data.trim().slice(0, max) : null;
+    });
 
 const oembedSchema = z.looseObject({
   author_name: clipped(200),
