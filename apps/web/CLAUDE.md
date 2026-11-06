@@ -9,8 +9,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 - **A DEVICE SIGNS IN, OR SIGNS UP, WITH EMAIL + PASSWORD, and gets the same
   device credential** (owner decision, the Obsidian model). The login mints the
   credential, deletes its session and names the account, so a device holds one
-  secret and the cross-account fence and account label hold at once; the phone
-  keeps the bearer alone. The route is throttled per caller address, else it is
+  secret and the cross-account fence and account label hold at once; each
+  device keeps the account's name beside its bearer. The route is throttled per caller address, else it is
   a password oracle. No social providers: an in-app login can only be a
   password. Rejected: a second call to learn the account (a pending state
   readers must fail closed on); a browser approve page with one-time code, PKCE

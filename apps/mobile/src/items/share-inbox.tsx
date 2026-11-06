@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { Alert } from "react-native";
 import { useShareIntentContext } from "expo-share-intent";
 import type { ShareIntent } from "expo-share-intent";
@@ -9,6 +9,7 @@ import { useLibrary } from "@/lib/library-hooks";
 import { openItem } from "@/lib/routes";
 import type { SavedItem } from "./phone-saves";
 import { sharedSaveOf } from "./share-payload";
+import { createShareQueue } from "./share-queue";
 import { saveShared } from "./share-save";
 
 // the page's meta tags as the extension read them, without the ones it found empty
@@ -64,19 +65,18 @@ const settleShare = async (library: PhoneLibrary, intent: ShareIntent): Promise<
 export const ShareInbox = () => {
   const library = useLibrary();
   const { hasShareIntent, resetShareIntent, shareIntent } = useShareIntentContext();
-  const saving = useRef(false);
+  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
+  const [queue] = useState(createShareQueue<ShareIntent>);
 
+  // a share made while another settles waits its turn (`./share-queue`)
   useEffect(() => {
-    if (!hasShareIntent || saving.current) {
-      return;
-    }
-    saving.current = true;
-    void (async () => {
-      await settleShare(library, shareIntent);
-      resetShareIntent();
-      saving.current = false;
-    })();
-  }, [hasShareIntent, library, resetShareIntent, shareIntent]);
+    queue.offer(hasShareIntent ? shareIntent : null, {
+      reset: resetShareIntent,
+      settle: async (intent) => {
+        await settleShare(library, intent);
+      },
+    });
+  }, [hasShareIntent, library, queue, resetShareIntent, shareIntent]);
 
   return null;
 };

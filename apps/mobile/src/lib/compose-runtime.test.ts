@@ -247,4 +247,18 @@ describe("the phone's runtime", () => {
     expect(keys.held()).toBeNull();
     expect(cell.calls).toContain("phone account/signOut");
   });
+
+  it("stays signed in and says why when the phone cannot take its copy away", async () => {
+    const cell = createFakeCell();
+    const keys = keychain(KEPT);
+    const sql = openNodeReplicaSql(":memory:");
+    const { runtime } = runtimeOver(cell, { keys, sql });
+    await runtime.start();
+    // the database the wipe runs on is gone, as a disk that refuses the write leaves it
+    sql.close();
+    const outcome = await runtime.logout();
+    expect(outcome.kind).toBe("failed");
+    expect(runtime.session.get().kind).toBe("signed-in");
+    expect(keys.held()).toStrictEqual(KEPT);
+  });
 });

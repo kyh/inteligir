@@ -10,19 +10,38 @@ const REQUEST = {
   password: "a long password",
 };
 
-const storeOver = (network: FakeDevice) => {
+// the sign-in over a fake cloud and a Keychain in memory; `opens` is whether the library opens
+const storeOver = (network: FakeDevice, opens = true) => {
   const opened: KeptCredential[] = [];
+  // the credential each client was made with, null for none
+  const clients: (string | null)[] = [];
+  // what the Keychain holds of the sign-in, null once it holds nothing
+  interface Keychain {
+    kept: KeptCredential | null;
+  }
+  const keychain: Keychain = { kept: null };
   const store = createLoginStore({
-    client: () => network.client,
-    keep: async () => {
+    client: (credential) => {
+      clients.push(credential);
+      return network.client;
+    },
+    forget: async () => {
+      keychain.kept = null;
+      await Promise.resolve();
+    },
+    keep: async (kept) => {
+      keychain.kept = kept;
       await Promise.resolve();
     },
     signedIn: async (kept) => {
+      if (!opens) {
+        throw new Error("The library on this iPhone couldn't be opened.");
+      }
       opened.push(kept);
       await Promise.resolve();
     },
   });
-  return { opened, store };
+  return { clients, keychain, opened, store };
 };
 
 describe("the phone's sign-in", () => {
@@ -57,5 +76,35 @@ describe("the phone's sign-in", () => {
       message: "That didn't work. Check your connection and try again.",
     });
     expect(opened).toStrictEqual([]);
+  });
+
+  it("says a request the cloud would refuse in its own words, and sends nothing", async () => {
+    const cell = createFakeCell();
+    const { store } = storeOver(cell.device("phone"));
+    for (const request of [
+      { ...REQUEST, password: "7 chars" },
+      { ...REQUEST, email: "ada@" },
+    ]) {
+      await store.login(request);
+      expect(store.get()).toStrictEqual({
+        kind: "failed",
+        message: "Check your email and password.",
+      });
+    }
+    expect(cell.calls).toStrictEqual([]);
+  });
+
+  it("lets the device go, and forgets it, when the library does not open under it", async () => {
+    const cell = createFakeCell();
+    const { clients, keychain, store } = storeOver(cell.device("phone"), false);
+    await store.login(REQUEST);
+    expect(store.get()).toStrictEqual({
+      kind: "failed",
+      message: "The library on this iPhone couldn't be opened.",
+    });
+    expect(cell.calls.filter((call) => call.endsWith("account/signOut"))).toHaveLength(1);
+    // the sign-out went under the credential the sign-in answered
+    expect(clients.at(-1)).toMatch(/^igd_/u);
+    expect(keychain.kept).toBeNull();
   });
 });

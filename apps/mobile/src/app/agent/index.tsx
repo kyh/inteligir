@@ -12,7 +12,8 @@ import { useTheme } from "@/lib/theme";
 
 const ConversationsScreen = () => {
   const theme = useTheme();
-  const threads = (useThreads() ?? []).toSorted((a, b) => b.updatedAt - a.updatedAt);
+  // newest first, as the replica reads them
+  const threads = useThreads() ?? [];
   return (
     <SafeAreaView style={{ backgroundColor: theme.background, flex: 1 }} edges={["left", "right"]}>
       <Stack.Toolbar placement="right">

@@ -40,8 +40,8 @@ const deviceCredentialFields = {
 };
 export const deviceCredentialSchema = z.strictObject(deviceCredentialFields);
 
-// the account rides the answer that mints the credential, so a client knows whose library it holds
-// from its first request on; the stored credential stays the bearer alone
+// the account rides the answer that mints the credential, so a client knows whose library it opens
+// from its first request on, and each device keeps the account's name beside the bearer
 export const deviceLoginResponseSchema = z.object({
   ...deviceCredentialFields,
   email: z.string().min(1),

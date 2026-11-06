@@ -92,13 +92,14 @@ export const useItemEditor = (
       }),
     [editor, replica],
   );
-  // the body this item waits on comes first
-  useEffect(() => {
-    replica.focus(init.itemId);
-    return () => {
-      replica.focus(null);
-    };
-  }, [init.itemId, replica]);
+  // the body the item in view waits on comes first: the screen takes the focus each time it is in
+  // view, an item a pop returns to included, whatever order the blur and the focus fire in. A focus
+  // left on an item closed meanwhile orders one body first, which costs nothing
+  useFocusEffect(
+    useCallback(() => {
+      replica.focus(init.itemId);
+    }, [init.itemId, replica]),
+  );
   useFlushOnLeave(editor.host);
 
   return editor;

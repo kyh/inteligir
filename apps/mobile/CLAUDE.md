@@ -134,8 +134,10 @@ how it ships.
   saves it read, cover and all; a page it cannot read now is saved as its
   link, which the cloud's fill reads (`apps/mobile/src/items/share-save.ts`).
   It opens the item and only then lets the share go, so a signed-out share
-  waits (`apps/mobile/src/items/share-inbox.tsx`). Rejected: expo-sharing
-  (experimental receive, no page title); an extension that saves.
+  waits (`apps/mobile/src/items/share-inbox.tsx`), and a share made while one
+  settles is settled after it (`apps/mobile/src/items/share-queue.ts`).
+  Rejected: expo-sharing (experimental receive, no page title); an extension
+  that saves.
 
 - **THE PHONE ASKS THE ACCOUNT'S BUILT-IN AGENT, ONLINE ONLY, THROUGH THE PANEL
   EVERY DEVICE DRAWS.** A conversation is the account's, so the phone lists the

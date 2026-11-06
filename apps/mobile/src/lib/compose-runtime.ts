@@ -92,7 +92,10 @@ export type PhoneSession =
 // `unsent`: the phone holds changes the cloud has not taken, which signing out would discard
 export type LogoutOutcome =
   | { readonly kind: "signed-out" }
-  | { readonly kind: "unsent"; readonly edits: number };
+  | { readonly kind: "unsent"; readonly edits: number }
+  // the phone could not take its copy away (a full disk, a database that would not wipe), so it
+  // stays signed in, and the screen says why
+  | { readonly kind: "failed"; readonly message: string };
 
 export interface AppRuntime {
   readonly session: ReadableStore<PhoneSession>;
@@ -234,6 +237,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
 
   const login = createLoginStore({
     client: (credential) => v1ClientOver(transportFor(credential)),
+    forget: args.credentials.clear,
     keep: args.credentials.write,
     signedIn: async (kept) => {
       await open(kept, "signed-in");
@@ -259,7 +263,11 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       }
       // never waited on, so an unreachable cloud holds no sign-out open
       void revokeQuietly(library);
-      await leave(library, null);
+      try {
+        await leave(library, null);
+      } catch (error) {
+        return { kind: "failed", message: messageOf(error) };
+      }
       return { kind: "signed-out" };
     },
     login,
