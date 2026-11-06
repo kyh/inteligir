@@ -487,11 +487,14 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   A send that finds the day's turns or list cost spent is refused
   `AGENT_BUDGET`; each call's `max_tokens` is what the turn's ceiling and the
   day's remainder buy after its input, priced as the cache will likely bill
-  it; each reply books its exact usage at list price in micro-cents, a cut call
-  its reservation against the day but not its turn's ceiling, and a turn that
-  cost nothing is refunded. Rejected: the gateway's spend limit (eventually
-  consistent, a backstop); an estimate booked as spend.
-  `apps/web/src/worker/agent/agent-allowance.ts`.
+  it, and a call whose estimate reaches the compaction trigger reserves the
+  summary's pass too (the whole prompt read, `max_tokens` written, the
+  summary the answer's input); each reply books its exact usage at list price
+  in micro-cents, a cut call its reservation against the day but not its
+  turn's ceiling, and a turn that cost nothing is refunded. Rejected: the
+  gateway's spend limit (eventually consistent, a backstop); an estimate
+  booked as spend; one pass priced for a call that may make two (a turn would
+  book past what it reserved). `apps/web/src/worker/agent/agent-allowance.ts`.
 
 - **A THREAD IS THE ACCOUNT'S: ITS EVENTS ARE SYNCED ROWS ITS OBJECT'S OUTBOX
   PUSHES** (owner decision: the phone asks the agent too). The cell stores each
@@ -537,7 +540,9 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   DEPLOY'S DEFINITION IS TAKEN UP BETWEEN TURNS.** Every request asks for
   server-side compaction at 50,000 input tokens, the API's least (beta
   `compact-2026-01-12`), since a turn after a pause is reserved with its
-  prompt written to the cache again; its `compaction` block lands in the reply
+  prompt written to the cache again and the summary's pass beside its answer,
+  which a turn's ceiling holds there for text of up to about four characters a
+  token; its `compaction` block lands in the reply
   and is replayed, each request carrying the conversation from the last one
   that kept a summary, where the prefix the API checks starts. A thread whose
   definition a deploy changed moves onto the new one at a turn's start, its

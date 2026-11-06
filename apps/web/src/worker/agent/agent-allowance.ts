@@ -3,14 +3,16 @@
 // own data, `AGENT_ALLOWANCE` and `AGENT_PRICES` in cloudflare.config.ts, never code. A send is
 // counted as a turn when it is let in; each model call is reserved before it is sent, its
 // `max_tokens` what the turn's ceiling and the day's remainder buy after its input, the input
-// priced as the cache will most likely bill it; and each reply settles at its exact usage at list
-// price. Money is integer micro-cents throughout: a price of two decimals in dollars a million
-// tokens is a whole number of micro-cents a token, so nothing rounds.
+// priced as the cache will most likely bill it, and a call whose prompt may reach the compaction
+// trigger priced with the summarizing pass that may run first; and each reply settles at its exact
+// usage at list price. Money is integer micro-cents throughout: a price of two decimals in dollars
+// a million tokens is a whole number of micro-cents a token, so nothing rounds.
 
 import type { SqlStatements } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
 import { AGENT_MAX_TOKENS } from "./library-agent";
+import { COMPACTION_TRIGGER_TOKENS } from "./thread-request";
 import type { CallEstimate } from "./thread-wire";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -123,7 +125,6 @@ export type ReservationAnswer =
   | {
       readonly kind: "granted";
       readonly maxTokens: number;
-      readonly inputUcents: number;
       readonly reservedUcents: number;
     }
   | { readonly kind: "refused" };
@@ -143,6 +144,34 @@ export const inputUcentsOf = (estimate: CallEstimate, prices: TokenPrices, now: 
   return age <= HOUR_MS ? frozen * prices.cacheRead + rest : frozen * prices.cacheWrite1h + rest;
 };
 
+// What a call costs at a cap of `maxTokens`, as `fixed + maxTokens × perToken`. A call whose
+// estimate reaches the compaction trigger may be two sampling passes, each billed
+// (platform.claude.com/docs/en/build-with-claude/compaction-threshold#understanding-usage): the
+// summary, whose pass reads the whole prompt, priced as the estimate already prices it, and writes
+// at most `max_tokens`, which caps a summarizing pass
+// (platform.claude.com/docs/en/build-with-claude/compaction-on-demand#request-a-summary); then the
+// answer, whose prompt is the frozen system and tools, read from the cache the summary's pass just
+// used, and the summary, new input; and its output, at most `max_tokens`. Below the trigger the
+// estimate, which counts more tokens than the prompt holds, says the API cannot compact.
+interface CallCost {
+  readonly fixed: number;
+  readonly perToken: number;
+}
+
+const callCostOf = (estimate: CallEstimate, prices: TokenPrices, now: number): CallCost => {
+  const inputUcents = inputUcentsOf(estimate, prices, now);
+  if (estimate.promptTokens < COMPACTION_TRIGGER_TOKENS) {
+    return { fixed: inputUcents, perToken: prices.output };
+  }
+  const frozen = Math.min(estimate.frozenTokens, estimate.promptTokens);
+  // the summary as the answer's input: written to the cache, or sent bare, whichever costs more
+  const summaryInput = Math.max(prices.cacheWrite5m, prices.input);
+  return {
+    fixed: inputUcents + frozen * prices.cacheRead,
+    perToken: 2 * prices.output + summaryInput,
+  };
+};
+
 // the call's cap: what is left of the smaller limit after its input, in output tokens, at most
 // the agent's ceiling; too little to answer in is no call
 export const reservationOf = (
@@ -151,21 +180,16 @@ export const reservationOf = (
   limits: ReservationLimits,
   now: number,
 ): ReservationAnswer => {
-  const inputUcents = inputUcentsOf(estimate, prices, now);
-  const available = Math.min(limits.turnUcents, limits.dayUcents) - inputUcents;
+  const cost = callCostOf(estimate, prices, now);
+  const available = Math.min(limits.turnUcents, limits.dayUcents) - cost.fixed;
   const maxTokens = Math.min(
     AGENT_MAX_TOKENS,
-    prices.output === 0 ? AGENT_MAX_TOKENS : Math.floor(available / prices.output),
+    cost.perToken === 0 ? AGENT_MAX_TOKENS : Math.floor(available / cost.perToken),
   );
   if (maxTokens < MIN_MAX_TOKENS) {
     return { kind: "refused" };
   }
-  return {
-    inputUcents,
-    kind: "granted",
-    maxTokens,
-    reservedUcents: inputUcents + maxTokens * prices.output,
-  };
+  return { kind: "granted", maxTokens, reservedUcents: cost.fixed + maxTokens * cost.perToken };
 };
 
 // a step sent again after a cut or a failure, at the cap it was first sent with, so its bytes are
@@ -178,11 +202,11 @@ export const resendReservationOf = (
   limits: ReservationLimits,
   now: number,
 ): ReservationAnswer => {
-  const inputUcents = inputUcentsOf(estimate, prices, now);
-  const reservedUcents = inputUcents + maxTokens * prices.output;
+  const cost = callCostOf(estimate, prices, now);
+  const reservedUcents = cost.fixed + maxTokens * cost.perToken;
   return reservedUcents > limits.dayUcents
     ? { kind: "refused" }
-    : { inputUcents, kind: "granted", maxTokens, reservedUcents };
+    : { kind: "granted", maxTokens, reservedUcents };
 };
 
 // ---- the settlement ----

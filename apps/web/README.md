@@ -116,7 +116,8 @@ sockets, and lands only the whole reply, as returned, beside its usage; a call
 an instance died reading is sent again whole. A conversation past 50,000
 input tokens, the least the API compacts at, is compacted by the API inside
 the request that reaches them, its summary landing with the reply, and every
-request after carries the conversation from that summary on; at the API's
+request after carries the conversation from that summary on. A call that
+may compact is reserved for the summary's pass beside its answer; at the API's
 default of 150,000, a turn after a pause could not afford its first call.
 Every tool call runs in the cell
 through the library's own procedures as that turn's, its write's op id derived

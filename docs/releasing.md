@@ -636,7 +636,8 @@ them.
   than an hour, then ask in that thread for the note once more. Passing: the
   turn does not end `budget`; one reply of it opens with a `compaction` block,
   its call's usage carries a `compaction` entry in `iterations` and the ledger
-  books it (`agent_calls.cost_ucents`), and the gateway's log shows the request
+  books it (`agent_calls.cost_ucents`) at no more than that call reserved
+  (`reserved_ucents`), and the gateway's log shows the request
   after it far smaller than the one before. The next day (the day's two turns
   are spent), deploy the preview again with a change to
   `packages/agent-skills` and send again in that thread: the reply answers,

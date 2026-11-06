@@ -47,10 +47,10 @@ const HOUR_CACHE = { ttl: "1h", type: "ephemeral" } as const;
 const ROLLING_CACHE = { type: "ephemeral" } as const;
 
 // the input a request is compacted at, the least the API takes: a turn's first call after a pause
-// is reserved with its prompt written to the cache again (`./agent-allowance`), which a prompt this
-// long still leaves room in a turn's ceiling to answer after, and which at the API's default,
-// 150,000, costs more than the ceiling alone, so such a thread would end every turn refused before
-// its first call and never reach the threshold
+// is reserved with its prompt written to the cache again, and one that may compact with the
+// summary's pass beside the answer (`./agent-allowance`), which a prompt this long still leaves
+// room in a turn's ceiling for; at the API's default, 150,000, the input alone costs more than the
+// ceiling, so such a thread would end every turn refused before its first call and never compact
 export const COMPACTION_TRIGGER_TOKENS = 50_000;
 
 // ---- what a transcript row holds ----

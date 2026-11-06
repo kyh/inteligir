@@ -1,9 +1,10 @@
 // What a call may spend and what it cost (seeded, so a failure replays): a reservation covers what
-// the call is billed whenever the cache bills it as guessed, and overshoots by at most the prompt
-// written cold when it does not; two threads reserving at once never pass the day's cap together;
-// every list price is a whole number of micro-cents a token; a conversation resumed after a pause
-// can still be sent at the compaction trigger; usage is priced by the model that answered each part
-// of a reply, and a model the table does not price at its dearest row.
+// the call is billed whenever the cache bills it as guessed, a compaction's summarizing pass
+// included, and overshoots by at most the prompt written cold when it does not; two threads
+// reserving at once never pass the day's cap together; every list price is a whole number of
+// micro-cents a token; a conversation resumed after a pause can still be sent at the compaction
+// trigger; usage is priced by the model that answered each part of a reply, and a model the table
+// does not price at its dearest row.
 
 import { mulberry32 } from "@repo/notes/test-support/seeded-random";
 import { env } from "cloudflare:workers";
@@ -56,6 +57,17 @@ const estimateOf = (rand: () => number): CallEstimate => {
   };
 };
 
+// the estimate of a call that may compact: a prompt the estimate counts at the trigger or past it
+const compactingEstimateOf = (rand: () => number): CallEstimate => {
+  const estimate = estimateOf(rand);
+  const promptTokens = COMPACTION_TRIGGER_TOKENS + Math.floor(rand() * 60_000);
+  return {
+    ...estimate,
+    frozenTokens: Math.min(estimate.frozenTokens, promptTokens),
+    promptTokens,
+  };
+};
+
 const limitsOf = (rand: () => number): ReservationLimits => ({
   dayUcents: Math.floor(rand() * 200 * UCENTS_PER_CENT),
   turnUcents: Math.floor(rand() * 60 * UCENTS_PER_CENT),
@@ -103,12 +115,103 @@ describe("a call's reservation", () => {
     expect(granted).toBeGreaterThan(1000);
   });
 
+  // a call that compacts is billed two passes (`usage.iterations`): the summary, which reads the
+  // whole prompt as the estimate guessed the cache would bill it and writes at most the cap, then
+  // the answer, which reads the frozen system and tools and takes the summary as new input
+  it("covers a compaction's summarizing pass beside its answer whenever the cache bills as guessed (seeded)", () => {
+    const rand = mulberry32(0xc0_3a);
+    const table = pricesOf(env);
+    let granted = 0;
+    for (let run = 0; run < 5000; run += 1) {
+      const estimate = compactingEstimateOf(rand);
+      // room past a turn's ceiling, since a long prompt's input alone takes most of one
+      const room = Math.floor(rand() * 300 * UCENTS_PER_CENT);
+      const answer = reservationOf(estimate, prices(), { dayUcents: room, turnUcents: room }, NOW);
+      if (answer.kind === "refused") {
+        continue;
+      }
+      granted += 1;
+      const { frozenTokens, previous, promptTokens } = estimate;
+      const prompt = part(rand, promptTokens);
+      const age = previous === null ? Number.POSITIVE_INFINITY : NOW - previous.endedAt;
+      const cached =
+        previous !== null && age <= 5 * MINUTE
+          ? Math.min(previous.promptTokens, prompt)
+          : Math.min(frozenTokens, prompt);
+      const warm = age <= 60 * MINUTE;
+      const summary = part(rand, answer.maxTokens);
+      // the answer's prompt after the summary: written to the cache, or sent bare
+      const summaryWritten = rand() < 0.5;
+      const iterations = [
+        {
+          cache_creation: {
+            ephemeral_1h_input_tokens: warm ? 0 : cached,
+            ephemeral_5m_input_tokens: prompt - cached,
+          },
+          cache_read_input_tokens: warm ? cached : 0,
+          input_tokens: 0,
+          output_tokens: summary,
+          type: "compaction",
+        },
+        {
+          cache_creation: {
+            ephemeral_1h_input_tokens: 0,
+            ephemeral_5m_input_tokens: summaryWritten ? summary : 0,
+          },
+          cache_read_input_tokens: Math.min(frozenTokens, prompt),
+          input_tokens: summaryWritten ? 0 : summary,
+          output_tokens: part(rand, answer.maxTokens),
+          type: "message",
+        },
+      ];
+      const billed = priceUsage({ iterations }, AGENT_MODEL.id, table);
+      expect(billed.costUcents).toBeLessThanOrEqual(answer.reservedUcents);
+      expect(Number.isInteger(answer.reservedUcents)).toBe(true);
+      // and a step sent again at its first cap is held to the same bound
+      const again = resendReservationOf(
+        estimate,
+        prices(),
+        answer.maxTokens,
+        { dayUcents: Number.MAX_SAFE_INTEGER, turnUcents: 0 },
+        NOW,
+      );
+      expect(again).toEqual(answer);
+    }
+    expect(granted).toBeGreaterThan(1000);
+  });
+
+  it("prices a prompt the estimate counts under the compaction trigger as one pass", () => {
+    const estimate = {
+      frozenTokens: 20_000,
+      previous: null,
+      promptTokens: COMPACTION_TRIGGER_TOKENS - 1,
+    };
+    const room = { dayUcents: Number.MAX_SAFE_INTEGER, turnUcents: Number.MAX_SAFE_INTEGER };
+    const input = inputUcentsOf(estimate, prices(), NOW);
+    expect(reservationOf(estimate, prices(), room, NOW)).toEqual({
+      kind: "granted",
+      maxTokens: 64_000,
+      reservedUcents: input + 64_000 * prices().output,
+    });
+    // one token more, and the summary's pass is priced beside the answer
+    const reaching = { ...estimate, promptTokens: COMPACTION_TRIGGER_TOKENS };
+    expect(reservationOf(reaching, prices(), room, NOW)).toEqual({
+      kind: "granted",
+      maxTokens: 64_000,
+      reservedUcents:
+        inputUcentsOf(reaching, prices(), NOW) +
+        20_000 * prices().cacheRead +
+        64_000 * (2 * prices().output + prices().cacheWrite5m),
+    });
+  });
+
   it("overshoots a colder cache than it guessed by at most the prompt written cold (seeded)", () => {
     const rand = mulberry32(0xc0_1d);
     const table = pricesOf(env);
     const price = prices();
     for (let run = 0; run < 5000; run += 1) {
-      const estimate = estimateOf(rand);
+      const compacts = rand() < 0.5;
+      const estimate = compacts ? compactingEstimateOf(rand) : estimateOf(rand);
       const answer = reservationOf(estimate, price, limitsOf(rand), NOW);
       if (answer.kind === "refused") {
         continue;
@@ -116,21 +219,39 @@ describe("a call's reservation", () => {
       // nothing read: the frozen part written for the hour, the rest for five minutes
       const prompt = part(rand, estimate.promptTokens);
       const frozen = Math.min(estimate.frozenTokens, prompt);
-      const billed = priceUsage(
-        {
-          cache_creation: {
-            ephemeral_1h_input_tokens: frozen,
-            ephemeral_5m_input_tokens: prompt - frozen,
-          },
-          cache_read_input_tokens: 0,
-          input_tokens: 0,
-          output_tokens: part(rand, answer.maxTokens),
+      const cold = {
+        cache_creation: {
+          ephemeral_1h_input_tokens: frozen,
+          ephemeral_5m_input_tokens: prompt - frozen,
         },
-        AGENT_MODEL.id,
-        table,
-      );
+        cache_read_input_tokens: 0,
+        input_tokens: 0,
+        output_tokens: part(rand, answer.maxTokens),
+      };
+      // a compaction's answer finds even the frozen part cold, and writes the summary
+      const summary = part(rand, answer.maxTokens);
+      const usage = compacts
+        ? {
+            iterations: [
+              { ...cold, output_tokens: summary, type: "compaction" },
+              {
+                cache_creation: {
+                  ephemeral_1h_input_tokens: frozen,
+                  ephemeral_5m_input_tokens: summary,
+                },
+                cache_read_input_tokens: 0,
+                input_tokens: 0,
+                output_tokens: part(rand, answer.maxTokens),
+                type: "message",
+              },
+            ],
+          }
+        : cold;
+      const billed = priceUsage(usage, AGENT_MODEL.id, table);
+      // each pass's prompt written cold, at most: the summary's whole, the answer's frozen part
+      const coldTokens = estimate.promptTokens + (compacts ? estimate.frozenTokens : 0);
       expect(billed.costUcents - answer.reservedUcents).toBeLessThanOrEqual(
-        estimate.promptTokens * (price.cacheWrite1h - price.cacheRead),
+        coldTokens * (price.cacheWrite1h - price.cacheRead),
       );
     }
   });
@@ -158,7 +279,7 @@ describe("a call's reservation", () => {
     ).toEqual({ kind: "refused" });
   });
 
-  it("grants a conversation resumed after a pause at the compaction trigger, and would refuse one at the API's default", () => {
+  it("grants a conversation resumed after a pause at the compaction trigger, its summary's pass priced, and would refuse one at the API's default", () => {
     const definition = deployedDefinition();
     const frozenTokens = tokensAtMost(
       JSON.stringify(definition.system).length + JSON.stringify(definition.tools).length,
@@ -174,14 +295,11 @@ describe("a call's reservation", () => {
     });
     for (const idleMs of [6 * MINUTE, 61 * MINUTE, 24 * 60 * MINUTE]) {
       const label = `idle ${String(idleMs / MINUTE)} minutes`;
-      // four and a half characters a token: the estimate half again the real count
-      const atTrigger = reservationOf(
-        resumed(COMPACTION_TRIGGER_TOKENS, 4.5, idleMs),
-        prices(),
-        fresh,
-        NOW,
-      );
-      expect(atTrigger.kind, label).toBe("granted");
+      // four characters a token, the estimate a third again the real count: past the trigger by
+      // as much, so the summary's pass is priced beside the answer
+      const atTrigger = resumed(COMPACTION_TRIGGER_TOKENS, 4, idleMs);
+      expect(atTrigger.promptTokens, label).toBeGreaterThan(COMPACTION_TRIGGER_TOKENS);
+      expect(reservationOf(atTrigger, prices(), fresh, NOW).kind, label).toBe("granted");
       // three characters a token, the estimate the real count: the input alone outgrows the turn
       const atDefault = resumed(150_000, 3, idleMs);
       expect(inputUcentsOf(atDefault, prices(), NOW), label).toBeGreaterThan(turn);
