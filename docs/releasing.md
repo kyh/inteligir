@@ -644,6 +644,12 @@ them.
   carrying the compaction block under the new prompt, and the Worker's log
   shows `agent-definition-taken-up` for the thread. Throughout, no 400 and no
   `agent-thinking-dropped`.
+- **A conversation in Japanese and one full of ids are reserved what they
+  cost.** On a preview, ask in one thread for a Japanese summary of a long
+  Japanese note, and in another for the id of every item in a folder of fifty,
+  three turns each, the second after a six-minute pause and the third after an
+  hour. Passing: every turn ends `done`, and every `agent_calls` row of the
+  two threads books `cost_ucents` at no more than its `reserved_ucents`.
 - **Tidy my library follows the person's rules with a real model.** On a
   preview's `/library`, save "File birds under Birds." in Settings › Account ›
   Edit filing rules…, save three bird links and one recipe, then Tidy my

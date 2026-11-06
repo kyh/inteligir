@@ -13,7 +13,7 @@
 import type { SqlPort } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
-const THREAD_SCHEMA_VERSION = 2;
+const THREAD_SCHEMA_VERSION = 3;
 
 // where one model call stands: streaming while this instance reads it; done once its reply landed;
 // cut when an instance died reading it; refused before it was sent; failed or cancelled after
@@ -76,6 +76,9 @@ const DDL = [
     isolate TEXT NOT NULL,
     request_sha TEXT NOT NULL,
     max_tokens INTEGER NOT NULL,
+    -- the last transcript row the call's prompt holds, and its reply's once that lands; none for a
+    -- call never sent
+    covered_seq INTEGER,
     usage TEXT,
     stop_reason TEXT,
     started_at INTEGER NOT NULL,

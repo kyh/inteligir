@@ -33,16 +33,17 @@ import { callFailureFields, isApiError } from "./anthropic-client";
 import { AGENT_MAX_TOKENS } from "./library-agent";
 import {
   agentRequest,
+  callEstimateOf,
   frozenDefinition,
   logDroppedThinking,
   replyBlocksOf,
   requestMessages,
   sha256Hex,
   storedDefinition,
-  tokensAtMost,
   transcriptMessage,
 } from "./thread-request";
 import type {
+  CallAnchor,
   ReplyBlock,
   ThreadDefinition,
   ToolResultBlock,
@@ -446,32 +447,85 @@ const usageSchema = z.looseObject({
   cache_creation_input_tokens: z.number().nullish(),
   cache_read_input_tokens: z.number().nullish(),
   input_tokens: z.number(),
+  output_tokens: z.number(),
 });
 
-const previousCallSchema = z.object({ ended_at: z.number(), usage: z.string() });
+const lastCallSchema = z.object({
+  covered_seq: z.number(),
+  ended_at: z.number(),
+  replied: z.number(),
+  usage: z.string(),
+});
 
-// the last reply's prompt under the definition in force from `sinceSeq`, and when it landed, which
-// the cell prices the cache by: a reply under an earlier definition warmed a prefix this one does
-// not share
-const previousCall = (sql: SqlStatements, sinceSeq: number): CallEstimate["previous"] => {
+// The last call the API answered under the definition in force from `sinceSeq`, which the cell
+// prices the cache by and the next estimate counts from: when it landed, the prompt it was billed
+// (its usage's top level, the prompt after any compaction it made), its reply's tokens when the
+// transcript replays the reply, and the last row its prompt or reply holds. A call under an
+// earlier definition warmed a prefix this one does not share.
+const lastCall = (
+  sql: SqlStatements,
+  sinceSeq: number,
+): {
+  readonly anchor: CallAnchor;
+  readonly coveredSeq: number;
+  readonly replied: boolean;
+} | null => {
   const [raw] = sql.all(
-    `SELECT usage, ended_at FROM model_calls WHERE status = 'done' AND usage IS NOT NULL
-       AND turn >= (SELECT turn FROM transcript WHERE seq = ?)
-     ORDER BY ended_at DESC LIMIT 1`,
+    `SELECT m.usage, m.ended_at, m.covered_seq, t.role = 'assistant' AS replied
+       FROM model_calls m JOIN transcript t ON t.seq = m.covered_seq
+     WHERE m.status = 'done' AND m.usage IS NOT NULL
+       AND m.turn >= (SELECT turn FROM transcript WHERE seq = ?)
+     ORDER BY m.ended_at DESC LIMIT 1`,
     [sinceSeq],
   );
   if (raw === undefined) {
     return null;
   }
-  const row = previousCallSchema.parse(raw);
+  const row = lastCallSchema.parse(raw);
   const usage = usageSchema.parse(JSON.parse(row.usage));
   return {
-    endedAt: row.ended_at,
-    promptTokens:
-      usage.input_tokens +
-      (usage.cache_read_input_tokens ?? 0) +
-      (usage.cache_creation_input_tokens ?? 0),
+    anchor: {
+      endedAt: row.ended_at,
+      promptTokens:
+        usage.input_tokens +
+        (usage.cache_read_input_tokens ?? 0) +
+        (usage.cache_creation_input_tokens ?? 0),
+      replyTokens: row.replied === 1 ? usage.output_tokens : 0,
+    },
+    coveredSeq: row.covered_seq,
+    replied: row.replied === 1,
   };
+};
+
+// What the cell is told of a call before it goes, counted from the last call under its definition
+// when there is one: what its request carries past that call's prompt is the call's reply, when
+// the transcript replays it, a message for each row after it, and the filing rules when they go
+// with this call.
+const estimateOf = (
+  sql: SqlStatements,
+  call: {
+    readonly definition: ThreadDefinition;
+    readonly messages: readonly TranscriptMessage[];
+    readonly rules: string | null;
+    readonly sinceSeq: number;
+    readonly transcript: readonly StoredMessage[];
+  },
+): CallEstimate => {
+  const draft = agentRequest(call.definition, call.messages, AGENT_MAX_TOKENS);
+  const last = lastCall(sql, call.sinceSeq);
+  if (last === null) {
+    return callEstimateOf(call.definition, draft, null, []);
+  }
+  const added =
+    (last.replied ? 1 : 0) +
+    call.transcript.filter((message) => message.seq > last.coveredSeq).length +
+    (call.rules === null ? 0 : 1);
+  return callEstimateOf(
+    call.definition,
+    draft,
+    last.anchor,
+    added === 0 ? [] : call.messages.slice(-added),
+  );
 };
 
 // the turn's filing rules while they are still to land: the rules of a turn whose first reply has
@@ -664,6 +718,10 @@ const landReply = (
         { content: JSON.stringify(message.content), role: "assistant", turn: turn.turn },
         "model",
       );
+      host.sql.run(
+        "UPDATE model_calls SET covered_seq = (SELECT max(seq) FROM transcript) WHERE call_id = ?",
+        [call.callId],
+      );
       if (blocks.some((block) => block.type === "compaction" && block.content !== null)) {
         host.sql.run("DELETE FROM meta WHERE k = 'rules_hash'", []);
       }
@@ -817,15 +875,8 @@ const reserveAndSend = async (
   const resend = firstCapAt(sql, turn.turn, step);
   const rules = pendingRules(sql, turn, step);
   const messages = withRules(requestMessages(transcript, sinceSeq), rules);
-  const estimate: CallEstimate = {
-    frozenTokens: tokensAtMost(
-      JSON.stringify(definition.system).length + JSON.stringify(definition.tools).length,
-    ),
-    previous: previousCall(sql, sinceSeq),
-    promptTokens: tokensAtMost(
-      JSON.stringify(agentRequest(definition, messages, AGENT_MAX_TOKENS)).length,
-    ),
-  };
+  const estimate = estimateOf(sql, { definition, messages, rules, sinceSeq, transcript });
+  const coveredSeq = transcript.at(-1)?.seq ?? 0;
   let reserved: CellAnswer<Reservation>;
   try {
     reserved = await host.cell().agentReserve({
@@ -876,9 +927,19 @@ const reserveAndSend = async (
   }
   sql.run(
     `INSERT INTO model_calls (call_id, turn, step, attempt, status, isolate, request_sha,
-       max_tokens, started_at)
-     VALUES (?, ?, ?, ?, 'streaming', ?, ?, ?, ?)`,
-    [callId, turn.turn, step, tries.tries, host.isolate, requestSha, reservation.maxTokens, now],
+       max_tokens, covered_seq, started_at)
+     VALUES (?, ?, ?, ?, 'streaming', ?, ?, ?, ?, ?)`,
+    [
+      callId,
+      turn.turn,
+      step,
+      tries.tries,
+      host.isolate,
+      requestSha,
+      reservation.maxTokens,
+      coveredSeq,
+      now,
+    ],
   );
   const client = host.client();
   if (client === null) {

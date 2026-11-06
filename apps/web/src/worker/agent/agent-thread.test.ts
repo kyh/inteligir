@@ -39,9 +39,11 @@ import {
   deployedDefinition,
   requestMessages,
   storedDefinition,
+  tokensAtMost,
   transcriptMessage,
 } from "./thread-request";
 import type { ThreadDefinition } from "./thread-request";
+import type { CallEstimate } from "./thread-wire";
 
 // a turn's end can take a few model calls, each a round trip through the fake
 const TURN_MS = 30_000;
@@ -300,6 +302,71 @@ describe("a conversation's object", () => {
       );
       expect(thoughts.filter((thought) => thought !== "")).toHaveLength(notes.length);
       await expectRepliesAskedAsKept(account, sent.threadId);
+    },
+  );
+
+  it(
+    "counts each call's prompt from the call before it, at no fewer tokens than it is billed",
+    { timeout: TURN_MS },
+    async () => {
+      const account = agentAccount();
+      const threadId = crypto.randomUUID();
+      const estimates: CallEstimate[] = [];
+      const sent = await inSteppedThread(
+        account,
+        threadId,
+        script(
+          'call create_note {"markdown":"今日保存した記事を、フォルダに分けました。"}',
+          'call search_library {"query":"0193b5e2-7c4a-abcd-9f21-3a4b5c6d7e8f"}',
+        ),
+        async (thread) => {
+          await expect(restsAt(thread.run)).resolves.toBe("idle");
+          return thread.sent;
+        },
+        {
+          cell: (real) => ({
+            agentPreview: real.agentPreview,
+            agentPush: real.agentPush,
+            agentReserve: async (request) => {
+              estimates.push(request.estimate);
+              return await real.agentReserve(request);
+            },
+            agentTool: real.agentTool,
+          }),
+        },
+      );
+      const rows = await threadRows(
+        account.accountId,
+        threadId,
+        "SELECT usage FROM model_calls WHERE status = 'done' ORDER BY turn, step, attempt",
+      );
+      const billed = rows.map((row) =>
+        usageReportSchema.parse(JSON.parse(z.string().parse(row.usage))),
+      );
+      const prompts = billed.map(
+        (usage) =>
+          (usage.input_tokens ?? 0) +
+          (usage.cache_read_input_tokens ?? 0) +
+          (usage.cache_creation_input_tokens ?? 0),
+      );
+      expect(prompts).toHaveLength(3);
+      // the cache priced by the call before each, which the first has none of
+      expect(estimates.map((estimate) => estimate.previous?.promptTokens ?? null)).toStrictEqual([
+        null,
+        prompts[0],
+        prompts[1],
+      ]);
+      for (const [index, estimate] of estimates.entries()) {
+        expect(estimate.promptTokens, `call ${String(index)}`).toBeGreaterThanOrEqual(
+          prompts[index] ?? Number.POSITIVE_INFINITY,
+        );
+      }
+      // after the first, each counted from the call before it, below the whole request's count
+      const counted = estimates.slice(1).map((estimate) => estimate.promptTokens);
+      const wholes = sent.slice(1).map((body) => tokensAtMost(body));
+      for (const [index, promptTokens] of counted.entries()) {
+        expect(promptTokens).toBeLessThan(wholes[index] ?? 0);
+      }
     },
   );
 

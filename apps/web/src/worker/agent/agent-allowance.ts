@@ -157,7 +157,8 @@ export const inputUcentsOf = (estimate: CallEstimate, prices: TokenPrices, now: 
 // (platform.claude.com/docs/en/build-with-claude/compaction-on-demand#request-a-summary); then the
 // answer, whose prompt is the frozen system and tools, read from the cache the summary's pass just
 // used, and the summary, new input; and its output, at most `max_tokens`. Below the trigger the
-// estimate, which counts more tokens than the prompt holds, says the API cannot compact.
+// estimate, which counts at least the tokens the prompt holds (`callEstimateOf` in
+// `./thread-request`), says the API cannot compact.
 interface CallCost {
   readonly fixed: number;
   readonly perToken: number;

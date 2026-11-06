@@ -14,6 +14,7 @@ import { z } from "zod";
 import { openCellLibrary } from "../library/cell-library";
 import { agentCellIn, cellOf, inCell } from "../test-support/library-cell";
 import { valueOf } from "../test-support/agent-turns";
+import { textOf } from "../test-support/scripts-text";
 import {
   agentPricesSchema,
   allowanceOf,
@@ -32,8 +33,13 @@ import {
 } from "./agent-allowance";
 import type { ReservationLimits, TokenPrices } from "./agent-allowance";
 import { reserveForCall } from "./agent-turns";
-import { AGENT_MODEL } from "./library-agent";
-import { COMPACTION_TRIGGER_TOKENS, deployedDefinition, tokensAtMost } from "./thread-request";
+import { AGENT_MAX_TOKENS, AGENT_MODEL } from "./library-agent";
+import {
+  agentRequest,
+  callEstimateOf,
+  COMPACTION_TRIGGER_TOKENS,
+  deployedDefinition,
+} from "./thread-request";
 import { createThread, insertTurn } from "./turn-rows";
 import type { CallEstimate } from "./thread-wire";
 
@@ -41,6 +47,11 @@ const MINUTE = 60_000;
 const NOW = Date.UTC(2026, 9, 29, 12);
 
 const prices = (): TokenPrices => pricesFor(pricesOf(env), AGENT_MODEL.id);
+
+const userMessage = (text: string) => ({
+  content: [{ text, type: "text" as const }],
+  role: "user" as const,
+});
 
 // a call's estimate: its prompt, the frozen part of it, and the call before it, of some age
 const estimateOf = (rand: () => number): CallEstimate => {
@@ -279,35 +290,145 @@ describe("a call's reservation", () => {
     ).toStrictEqual({ kind: "refused" });
   });
 
-  it("grants a conversation resumed after a pause at the compaction trigger, its summary's pass priced, and would refuse one at the API's default", () => {
+  it("grants a conversation in any script resumed after a pause at the compaction trigger, its summary's pass priced, and would refuse one at the API's default", () => {
     const definition = deployedDefinition();
-    const frozenTokens = tokensAtMost(
-      JSON.stringify(definition.system).length + JSON.stringify(definition.tools).length,
-    );
     const turn = allowanceOf(env).turnCents * UCENTS_PER_CENT;
     const fresh = { dayUcents: turn, turnUcents: turn };
-    // a turn's first call, `idleMs` after the last: a prompt of `tokens` real tokens in a body of
-    // `chars` characters a token, which the estimate counts a third of
-    const resumed = (tokens: number, chars: number, idleMs: number): CallEstimate => ({
-      frozenTokens,
-      previous: { endedAt: NOW - idleMs, promptTokens: tokens },
-      promptTokens: tokensAtMost(tokens * chars),
-    });
+    // a turn's first call, `idleMs` after the last, which was billed a prompt of `tokens` and
+    // wrote a reply of a thousand: the person's message is all the request adds to what it carried
+    const resumed = (tokens: number, text: string, idleMs: number): CallEstimate => {
+      const added = userMessage(text);
+      const earlier = [
+        userMessage("the library ".repeat(tokens)),
+        { content: [{ text: "Done.", type: "text" as const }], role: "assistant" as const },
+      ];
+      const request = agentRequest(definition, [...earlier, added], AGENT_MAX_TOKENS);
+      const anchor = { endedAt: NOW - idleMs, promptTokens: tokens, replyTokens: 1000 };
+      return callEstimateOf(definition, request, anchor, [added]);
+    };
+    const words = {
+      cjk: "今日保存した記事を要約して、フォルダに分けてください。",
+      english: "Summarize what I saved today and file it into folders.",
+    };
     for (const idleMs of [6 * MINUTE, 61 * MINUTE, 24 * 60 * MINUTE]) {
-      const label = `idle ${String(idleMs / MINUTE)} minutes`;
-      // four characters a token, the estimate a third again the real count: past the trigger by
-      // as much, so the summary's pass is priced beside the answer
-      const atTrigger = resumed(COMPACTION_TRIGGER_TOKENS, 4, idleMs);
-      expect(atTrigger.promptTokens, label).toBeGreaterThan(COMPACTION_TRIGGER_TOKENS);
-      expect(reservationOf(atTrigger, prices(), fresh, NOW).kind, label).toBe("granted");
-      // three characters a token, the estimate the real count: the input alone outgrows the turn
-      const atDefault = resumed(150_000, 3, idleMs);
-      expect(inputUcentsOf(atDefault, prices(), NOW), label).toBeGreaterThan(turn);
-      expect(reservationOf(atDefault, prices(), fresh, NOW), label).toStrictEqual({
-        kind: "refused",
-      });
+      for (const [script, text] of Object.entries(words)) {
+        const label = `${script}, idle ${String(idleMs / MINUTE)} minutes`;
+        // at the trigger, so the summary's pass is priced beside the answer
+        const atTrigger = resumed(COMPACTION_TRIGGER_TOKENS, text, idleMs);
+        expect(atTrigger.promptTokens, label).toBeGreaterThan(COMPACTION_TRIGGER_TOKENS);
+        expect(reservationOf(atTrigger, prices(), fresh, NOW).kind, label).toBe("granted");
+        // at the API's default, the input alone outgrows the turn
+        const atDefault = resumed(150_000, text, idleMs);
+        expect(inputUcentsOf(atDefault, prices(), NOW), label).toBeGreaterThan(turn);
+        expect(reservationOf(atDefault, prices(), fresh, NOW), label).toStrictEqual({
+          kind: "refused",
+        });
+      }
     }
   });
+
+  // a conversation's request built from text in every script, the last call billed and its reply
+  // counted as Claude may bill them, and what was added since: the call is billed the most the
+  // text may be, compacted once that reaches the trigger, and never past what it reserved
+  it(
+    "covers a conversation in any script, compacting or not, its estimate counted from the last call (seeded)",
+    { timeout: 30_000 },
+    () => {
+      const rand = mulberry32(0x5c_17);
+      const table = pricesOf(env);
+      const definition = deployedDefinition();
+      // the frozen system and tools as Claude may bill English text
+      const frozen = Math.ceil(
+        ((JSON.stringify(definition.system).length + JSON.stringify(definition.tools).length) *
+          1.3) /
+          3.5,
+      );
+      let granted = 0;
+      let compacted = 0;
+      for (let run = 0; run < 300; run += 1) {
+        const before = textOf(rand, Math.floor(rand() * 60_000));
+        const reply = textOf(rand, Math.floor(rand() * 4000));
+        const added = textOf(rand, 1 + Math.floor(rand() * 8000));
+        const since = userMessage(added.text);
+        const request = agentRequest(
+          definition,
+          [
+            userMessage(before.text),
+            { content: [{ text: reply.text, type: "text" }], role: "assistant" },
+            since,
+          ],
+          AGENT_MAX_TOKENS,
+        );
+        const age = rand() < 0.3 ? null : Math.floor(rand() * 2 * 60 * MINUTE);
+        const anchor =
+          age === null
+            ? null
+            : {
+                endedAt: NOW - age,
+                promptTokens: frozen + before.tokens,
+                replyTokens: reply.tokens,
+              };
+        const estimate = callEstimateOf(definition, request, anchor, [since]);
+        const room = Math.floor(rand() * 300 * UCENTS_PER_CENT);
+        const answer = reservationOf(
+          estimate,
+          prices(),
+          { dayUcents: room, turnUcents: room },
+          NOW,
+        );
+        if (answer.kind === "refused") {
+          continue;
+        }
+        granted += 1;
+        // the prompt as billed, the most its text may be, read and written as the cell guessed
+        const prompt = frozen + before.tokens + reply.tokens + added.tokens;
+        expect(prompt).toBeLessThanOrEqual(estimate.promptTokens);
+        const reading = estimate.previous !== null && NOW - estimate.previous.endedAt <= 5 * MINUTE;
+        const cached = Math.min(
+          reading ? (estimate.previous?.promptTokens ?? 0) : estimate.frozenTokens,
+          prompt,
+        );
+        const warm = age !== null && age <= 60 * MINUTE;
+        const pass = (input: number, output: number) => ({
+          cache_creation: {
+            ephemeral_1h_input_tokens: warm ? 0 : cached,
+            ephemeral_5m_input_tokens: input - cached,
+          },
+          cache_read_input_tokens: warm ? cached : 0,
+          input_tokens: 0,
+          output_tokens: output,
+        });
+        const output = part(rand, answer.maxTokens);
+        const summary = part(rand, answer.maxTokens);
+        const compacts = prompt >= COMPACTION_TRIGGER_TOKENS;
+        compacted += compacts ? 1 : 0;
+        // a compaction's answer reads the frozen part the summary's pass just used, and writes
+        // the summary
+        const usage = compacts
+          ? {
+              iterations: [
+                { ...pass(prompt, summary), type: "compaction" },
+                {
+                  cache_creation: {
+                    ephemeral_1h_input_tokens: 0,
+                    ephemeral_5m_input_tokens: summary,
+                  },
+                  cache_read_input_tokens: Math.min(estimate.frozenTokens, prompt),
+                  input_tokens: 0,
+                  output_tokens: output,
+                  type: "message",
+                },
+              ],
+            }
+          : pass(prompt, output);
+        expect(priceUsage(usage, AGENT_MODEL.id, table).costUcents).toBeLessThanOrEqual(
+          answer.reservedUcents,
+        );
+      }
+      expect(granted).toBeGreaterThan(100);
+      expect(compacted).toBeGreaterThan(10);
+    },
+  );
 
   // two threads, a thousand calls between them, each reservation and settlement a cell transaction
   it(

@@ -487,14 +487,18 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   A send that finds the day's turns or list cost spent is refused
   `AGENT_BUDGET`; each call's `max_tokens` is what the turn's ceiling and the
   day's remainder buy after its input, priced as the cache will likely bill
-  it, and a call whose estimate reaches the compaction trigger reserves the
-  summary's pass too (the whole prompt read, `max_tokens` written, the
-  summary the answer's input); each reply books its exact usage at list price
-  in micro-cents, a cut call its reservation against the day but not its
-  turn's ceiling, and a turn that cost nothing is refunded. Rejected: the
-  gateway's spend limit (eventually consistent, a backstop); an estimate
-  booked as spend; one pass priced for a call that may make two (a turn would
-  book past what it reserved). `apps/web/src/worker/agent/agent-allowance.ts`.
+  it and counted at no fewer tokens than Claude bills: the last call's billed
+  prompt and reply, and what was added since at a token an id's character and
+  a UTF-8 byte beyond ASCII. A call whose estimate reaches the compaction
+  trigger reserves the summary's pass too (the whole prompt read,
+  `max_tokens` written, the summary the answer's input); each reply books its
+  exact usage at list price in micro-cents, a cut call its reservation against
+  the day but not its turn's ceiling, and a turn that cost nothing is
+  refunded. Rejected: the gateway's spend limit (eventually consistent, a
+  backstop); an estimate booked as spend; one pass priced for a call that may
+  make two (a turn would book past what it reserved); characters / 3 (it
+  counted CJK at a quarter of its tokens and ids at a third).
+  `apps/web/src/worker/agent/agent-allowance.ts`, `thread-request.ts`.
 
 - **A THREAD IS THE ACCOUNT'S: ITS EVENTS ARE SYNCED ROWS ITS OBJECT'S OUTBOX
   PUSHES** (owner decision: the phone asks the agent too). The cell stores each
@@ -536,25 +540,27 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   recorded replay (it cannot answer a request it never saw).
   `tools/messages-fake/src/messages-fake.ts`, `apps/web/messages-service.ts`.
 
-- **A LONG CONVERSATION IS COMPACTED BY THE API AT 50,000 TOKENS, AND A
-  DEPLOY'S DEFINITION IS TAKEN UP BETWEEN TURNS.** Every request asks for
-  server-side compaction at 50,000 input tokens, the API's least (beta
-  `compact-2026-01-12`), since a turn after a pause is reserved with its
-  prompt written to the cache again and the summary's pass beside its answer,
-  which a turn's ceiling holds there for text of up to about four characters a
-  token; its `compaction` block lands in the reply
-  and is replayed, each request carrying the conversation from the last one
-  that kept a summary, where the prefix the API checks starts. A thread whose
+- **A LONG CONVERSATION IS COMPACTED BY THE API AT 50,000 TOKENS, AND A DEPLOY'S
+  DEFINITION IS TAKEN UP BETWEEN TURNS.** Every request asks for server-side
+  compaction at 50,000 input tokens, the API's least (beta
+  `compact-2026-01-12`), since a turn after a pause is reserved with its prompt
+  written to the cache again and the summary's pass beside its answer, which a
+  turn's ceiling holds there in any script, its prompt counted from the last
+  call's billed one; the first call after a deploy moved its definition is
+  counted whole, so past about 66,000 tokens counted (about 37,000 real in a
+  conversation mostly CJK) it is refused, every turn, since no call under the
+  new definition lands to count from. Its `compaction` block lands in the reply
+  and is replayed, each request carrying the conversation from the last one that
+  kept a summary, where the prefix the API checks starts. A thread whose
   definition a deploy changed moves onto the new one at a turn's start, its
   requests from then on leaving out every thinking block before that turn, the
   leading run the API lets go. Rejected: the API's default, 150,000 (a resumed
-  turn's input alone would pass a turn's ceiling, so the thread would end
-  every send `budget`); keep-tail compaction of our own (every kept thinking
-  block is invalid after it); on-demand compaction (its retention standing
-  unsettled); sending what a compaction summarized (the reservation would
-  price input the API ignores); a thread on its first definition for good (its
-  tools drift from the procedures they call).
-  `apps/web/src/worker/agent/thread-request.ts`.
+  turn's input alone would pass a turn's ceiling, so the thread would end every
+  send `budget`); keep-tail compaction of our own (every kept thinking block is
+  invalid after it); on-demand compaction (its retention standing unsettled);
+  sending what a compaction summarized (the reservation would price input the
+  API ignores); a thread on its first definition for good (its tools drift from
+  the procedures they call). `apps/web/src/worker/agent/thread-request.ts`.
 
 - **THE LIBRARY'S PAGE IS THE WORKER'S, AT `/library`, FROM ITS OWN ASSETS AND
   UNDER ITS OWN POLICY.** Every path under the prefix reaches the Worker first

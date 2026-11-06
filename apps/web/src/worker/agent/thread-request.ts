@@ -33,6 +33,7 @@ import { z } from "zod";
 import { AGENT_SYSTEM_PROMPT } from "./agent-prompt";
 import { AGENT_TOOL_DEFINITIONS } from "./agent-tools";
 import { AGENT_MODEL } from "./library-agent";
+import type { CallEstimate } from "./thread-wire";
 
 // the thinking-block binding control, server-side fallback on a refusal, threshold compaction, and
 // the progress notes between tool calls shown
@@ -335,7 +336,113 @@ export const logDroppedThinking = (threadId: string, message: BetaMessage): numb
   return dropped;
 };
 
-// ---- what a body costs to send, as the cell prices a reservation ----
+// ---- what a request costs to send, as the cell prices a reservation ----
 
-// tokens are fewer than a third of a body's characters, so this overestimates on purpose
-export const tokensAtMost = (chars: number): number => Math.ceil(chars / 3);
+// a chain longer than this is no word, and is counted as an id is
+const WORD_MAX = 16;
+
+const isDigit = (point: number): boolean => point >= 0x30 && point <= 0x39;
+const isLetter = (point: number): boolean =>
+  (point >= 0x41 && point <= 0x5a) || (point >= 0x61 && point <= 0x7a);
+// the marks that join an id's or a file's parts, `+ - . / = _`: a uuid's hyphens, base64's `+`,
+// `/` and `=`, a name's dots and underscores
+const JOINERS: ReadonlySet<number> = new Set([0x2b, 0x2d, 0x2e, 0x2f, 0x3d, 0x5f]);
+
+// a character beyond ASCII as UTF-8 writes it
+const utf8Bytes = (point: number): number => {
+  if (point < 0x8_00) {
+    return 2;
+  }
+  return point < 0x1_00_00 ? 3 : 4;
+};
+
+// The most tokens `text` is billed as, counted in tenths of a token over its chains, each a run of
+// ASCII letters, digits and the marks that join an id's parts. A word, a chain of at most sixteen
+// with no digit, at 0.4 a letter and half a token a mark, as a space or any other ASCII is: more
+// than the 1.3 tokens the Opus 4.7 family's tokenizer spends where earlier ones spent one on 3.5
+// English characters (platform.claude.com/docs/en/about-claude/glossary), 0.37 a character. Any
+// other chain (a number, a sha, an id, base64, a word past sixteen) at a token a character, and
+// each character beyond ASCII (CJK, accents, emoji) at a token a UTF-8 byte: the most a tokenizer
+// that reads text by the byte can spend, the same glossary's "or even bytes".
+export const tokensAtMost = (text: string): number => {
+  let tenths = 0;
+  let chain = 0;
+  let letters = 0;
+  let digits = 0;
+  const closeChain = (): void => {
+    tenths += digits > 0 || chain > WORD_MAX ? 10 * chain : 4 * letters + 5 * (chain - letters);
+    chain = 0;
+    letters = 0;
+    digits = 0;
+  };
+  for (let at = 0; at < text.length;) {
+    const point = text.codePointAt(at) ?? 0;
+    at += point > 0xff_ff ? 2 : 1;
+    if (isLetter(point) || isDigit(point) || JOINERS.has(point)) {
+      chain += 1;
+      letters += isLetter(point) ? 1 : 0;
+      digits += isDigit(point) ? 1 : 0;
+      continue;
+    }
+    closeChain();
+    tenths += point < 0x80 ? 5 : 10 * utf8Bytes(point);
+  }
+  closeChain();
+  return Math.ceil(tenths / 10);
+};
+
+// the last call sent under the definition in force: when it landed, the prompt it was billed, and
+// the reply it wrote, which the transcript replays, in tokens
+export interface CallAnchor {
+  readonly endedAt: number;
+  readonly promptTokens: number;
+  readonly replyTokens: number;
+}
+
+// a message as counted beside its call's billed reply: its role and content, a reply's thinking
+// left out, which the reply's output holds
+const countedOf = (message: TranscriptMessage): TranscriptMessage => {
+  switch (message.role) {
+    case "assistant": {
+      return { content: message.content.filter((block) => !isThinking(block)), role: "assistant" };
+    }
+    case "user": {
+      return { content: message.content, role: "user" };
+    }
+    case "system": {
+      return { content: message.content, role: "system" };
+    }
+    // no default
+  }
+};
+
+// What the cell is told of a call before it goes. Its prompt at most: the whole request counted,
+// or, after a call the API answered under the same definition, that call's billed prompt and
+// reply and the messages `added` after its prompt counted, the reply's own among them less its
+// thinking, which its output holds, whichever is less: the API's own counts of the prompt and the
+// reply make the second exact but for what was added and the reply's blocks around its words. The
+// frozen system and tools, counted.
+export const callEstimateOf = (
+  definition: ThreadDefinition,
+  request: BetaMessageStreamParams,
+  anchor: CallAnchor | null,
+  added: readonly TranscriptMessage[],
+): CallEstimate => {
+  const whole = tokensAtMost(JSON.stringify(request));
+  return {
+    frozenTokens:
+      tokensAtMost(JSON.stringify(definition.system)) +
+      tokensAtMost(JSON.stringify(definition.tools)),
+    previous:
+      anchor === null ? null : { endedAt: anchor.endedAt, promptTokens: anchor.promptTokens },
+    promptTokens:
+      anchor === null
+        ? whole
+        : Math.min(
+            whole,
+            anchor.promptTokens +
+              anchor.replyTokens +
+              tokensAtMost(JSON.stringify(added.map(countedOf))),
+          ),
+  };
+};
