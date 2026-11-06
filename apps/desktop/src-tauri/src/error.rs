@@ -17,7 +17,8 @@ pub enum ShellError {
     /// The shell holds no such file.
     #[error("This Mac does not hold that file.")]
     Missing,
-    /// What the page sent is not what the command takes.
+    /// What the page sent is not what the command takes, or the shell's own work stopped on the
+    /// way (a task that ended, a listener that panicked, a record it could not write).
     #[error("{0}")]
     Invalid(String),
     #[error(transparent)]

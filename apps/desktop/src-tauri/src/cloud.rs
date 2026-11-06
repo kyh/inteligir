@@ -48,15 +48,15 @@ pub fn cloud_origin() -> String {
     }
 }
 
-/// An origin on this machine, spelled as an origin: no path, no query, no trailing slash.
+/// An origin on this machine, spelled as the origin it parses to: no path, query, fragment,
+/// userinfo or trailing slash, and no spelling of it but the canonical one, since the page builds
+/// every call's address on it.
 fn is_loopback_origin(origin: &str) -> bool {
-    !origin.ends_with('/')
-        && tauri::Url::parse(origin).is_ok_and(|url| {
-            url.scheme() == "http"
-                && matches!(url.host_str(), Some("localhost" | "127.0.0.1"))
-                && url.path() == "/"
-                && url.query().is_none()
-        })
+    tauri::Url::parse(origin).is_ok_and(|url| {
+        url.scheme() == "http"
+            && matches!(url.host_str(), Some("localhost" | "127.0.0.1"))
+            && url.origin().ascii_serialization() == origin
+    })
 }
 
 /// The build header's value every request names: `<version>+desktop`.
@@ -126,5 +126,8 @@ mod tests {
         assert!(!is_loopback_origin("http://127.0.0.1:48213/"));
         assert!(!is_loopback_origin("http://evil.example:80"));
         assert!(!is_loopback_origin("http://localhost:5174/v1"));
+        assert!(!is_loopback_origin("http://localhost:5174#x"));
+        assert!(!is_loopback_origin("http://u:p@localhost:5174"));
+        assert!(!is_loopback_origin("http://localhost:5174?x=1"));
     }
 }
