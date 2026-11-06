@@ -10,7 +10,6 @@
 
 import type { RequestPayload, RequestResult } from "@repo/editor-bridge/protocol";
 import type { LibraryReplica, ReplicaItem } from "@repo/library-replica/library-replica";
-import { sniffMedia } from "@repo/notes/items/sniff-media";
 import type { FileCache } from "../files/file-cache";
 import type { EditorRequestPorts } from "./editor-host";
 
@@ -58,7 +57,7 @@ const queued = (kind: string): boolean => kind === "queued" || kind === "unchang
 
 export const createItemPorts = (args: {
   readonly replica: LibraryReplica;
-  readonly files: Pick<FileCache, "fileBytes">;
+  readonly files: Pick<FileCache, "heldFile">;
   readonly now: () => number;
 }): EditorRequestPorts => {
   const { files, replica } = args;
@@ -116,17 +115,11 @@ export const createItemPorts = (args: {
       });
       return { queued: queued(outcome.kind) };
     },
-    // the type the file is drawn as is read from its bytes, which the cache keeps without one
+    // drawn as the type it was kept or served as, so a recording plays as one
     readFile: async ({ sha }) => {
-      const bytes = await files.fileBytes(sha);
+      const file = await files.heldFile(sha);
       return {
-        file:
-          bytes === null
-            ? null
-            : {
-                base64: base64Of(bytes),
-                mediaType: sniffMedia(bytes)?.mediaType ?? "application/octet-stream",
-              },
+        file: file === null ? null : { base64: base64Of(file.bytes), mediaType: file.mime },
       };
     },
     writeItem: async (payload) => await writeItem(replica, payload),

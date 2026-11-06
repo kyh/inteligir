@@ -10,17 +10,24 @@ import type { ReplicaSql } from "@repo/library-replica/replica-ports";
 import { z } from "zod";
 
 // phone_files: what the phone keeps of the library's files, by name (a file's SHA-256, or a
-// cover's thumbnail beside it), the place it is kept in and its size, and when a screen last drew
-// it, by which the discardable ones go least recently used first
+// cover's thumbnail beside it), the place it is kept in, the type it was kept or served as and its
+// size, and when a screen last drew it, by which the discardable ones go least recently used
+// first. phone_staged: the type each file waiting to be sent was kept as, which its bytes in the
+// staged folder do not carry.
 const PHONE_STEPS: readonly (readonly string[])[] = [
   [
     `CREATE TABLE phone_files (
        name TEXT PRIMARY KEY,
        place TEXT NOT NULL CHECK (place IN ('pinned', 'cache')),
+       mime TEXT NOT NULL,
        bytes INTEGER NOT NULL CHECK (bytes >= 0),
        used_at INTEGER NOT NULL
      ) STRICT, WITHOUT ROWID`,
     "CREATE INDEX phone_files_lru ON phone_files (place, used_at)",
+    `CREATE TABLE phone_staged (
+       sha TEXT PRIMARY KEY,
+       mime TEXT NOT NULL
+     ) STRICT, WITHOUT ROWID`,
   ],
 ];
 

@@ -10,8 +10,10 @@ import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import type { V1Client } from "@repo/contract/cloud/v1";
 import type { ReplicaTransport } from "@repo/library-replica/replica-ports";
+import { keptFileType } from "@repo/notes/items/item-kind";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
+import type { HeldFile } from "../files/file-cache";
 
 export const phoneTransport = (args: {
   readonly origin: string;
@@ -40,13 +42,13 @@ export const v1ClientOver = (transport: ReplicaTransport): V1Client =>
     }),
   );
 
-// a file's bytes from `/v1/blobs/<sha>`, checked against the hash it is named by; null when the
-// cloud holds none
+// a file's bytes from `/v1/blobs/<sha>`, checked against the hash it is named by, and the type the
+// cloud serves it as, the one it was kept as; null when the cloud holds none
 export const downloadBlob = async (
   transport: ReplicaTransport,
   sha256Hex: (bytes: Uint8Array<ArrayBuffer>) => Promise<string>,
   sha: string,
-): Promise<Uint8Array<ArrayBuffer> | null> => {
+): Promise<HeldFile | null> => {
   const response = await transport.fetch(new Request(`${transport.origin}${V1_BLOBS_PATH}/${sha}`));
   if (response.status === 404) {
     await response.arrayBuffer();
@@ -60,5 +62,5 @@ export const downloadBlob = async (
   if ((await sha256Hex(bytes)) !== sha) {
     throw new Error("The library's file came changed on the way.");
   }
-  return bytes;
+  return { bytes, mime: keptFileType(response.headers.get("content-type") ?? "") };
 };

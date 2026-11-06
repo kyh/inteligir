@@ -1,6 +1,6 @@
 // The phone's copy of the library's files (spec §6, "What each device holds"): each by its
-// SHA-256, fetched from the cloud once, the first time a screen draws it, however many screens ask
-// at once. A file a live note of the person's embeds is pinned, kept in Documents out of the device
+// SHA-256 with the type it was kept or served as, fetched from the cloud once, the first time a
+// screen draws it, however many screens ask at once. A file a live note of the person's embeds is pinned, kept in Documents out of the device
 // backup and out of the cap's reach; everything else is a discardable copy in the OS's cache, which
 // iOS may purge, the least recently drawn let go first past the cap. A file this phone added waits,
 // staged, until the write that names it lands (the engine's StagedBlobs), draws from there
@@ -14,6 +14,7 @@
 
 import type { ReplicaSql, StagedBlobs } from "@repo/library-replica/replica-ports";
 import { serialLock } from "@repo/library-replica/serial-lock";
+import { UNKNOWN_FILE_TYPE } from "@repo/notes/items/item-kind";
 import { sniffMedia } from "@repo/notes/items/sniff-media";
 import { z } from "zod";
 
@@ -40,11 +41,18 @@ export interface ShrunkCover {
   readonly mime: string;
 }
 
+// a file's bytes and the type it was kept as, or the cloud served it as
+export interface HeldFile {
+  readonly bytes: Uint8Array<ArrayBuffer>;
+  readonly mime: string;
+}
+
 export interface FileCachePorts {
   readonly sql: ReplicaSql;
   readonly folders: FileFolders;
-  // the file's bytes from the cloud, whole and hash-checked; null when the cloud holds none
-  readonly download: (sha: string) => Promise<Uint8Array<ArrayBuffer> | null>;
+  // the file from the cloud, whole and hash-checked, with the type it serves; null when the cloud
+  // holds none
+  readonly download: (sha: string) => Promise<HeldFile | null>;
   // a cover drawn at a card's width, or null when it cannot be decoded
   readonly shrink: (bytes: Uint8Array<ArrayBuffer>, mime: string) => Promise<ShrunkCover | null>;
   readonly now: () => number;
@@ -60,9 +68,9 @@ export interface FileCache {
   readonly fileUri: (sha: string) => Promise<string | null>;
   // a card's cover: the file itself when it is small, else a thumbnail made once
   readonly thumbUri: (sha: string) => Promise<string | null>;
-  // a file's bytes as this phone holds them, else fetched and kept, as the editor page draws a
-  // file a note names; null when they cannot be had now
-  readonly fileBytes: (sha: string) => Promise<Uint8Array<ArrayBuffer> | null>;
+  // a file as this phone holds it, else fetched and kept, as the editor page draws a file a note
+  // names, with the type it was kept as; null when it cannot be had now
+  readonly heldFile: (sha: string) => Promise<HeldFile | null>;
   // stray files and rows go, and a pinned file no note embeds any more goes to the cache
   readonly sweep: () => Promise<void>;
   // every file of the account goes: a sign-out, a revocation, a new sign-in
@@ -81,6 +89,7 @@ const rowsSchema = z.array(
   }),
 );
 const countSchema = z.array(z.object({ total: z.number().nullable() }));
+const typeSchema = z.array(z.object({ mime: z.string() }));
 
 const thumbName = (sha: string): string => `${sha}.thumb`;
 
@@ -161,20 +170,16 @@ export const createFileCache = (ports: FileCachePorts): FileCache => {
 
   // one download and one landing per file however many screens ask for it at once; a clear lets
   // the old ones go, which land nothing
-  let downloads = new Map<string, Promise<Uint8Array<ArrayBuffer> | null>>();
+  let downloads = new Map<string, Promise<HeldFile | null>>();
   let landings = new Map<string, Promise<string | null>>();
-  // under the lock: the bytes written by `name` and indexed
-  const keep = async (
-    name: string,
-    place: "pinned" | "cache",
-    bytes: Uint8Array<ArrayBuffer>,
-  ): Promise<string> => {
-    const uri = await folders.write(place, name, bytes);
+  // under the lock: the file written by `name` and indexed with its type
+  const keep = async (name: string, place: "pinned" | "cache", file: HeldFile): Promise<string> => {
+    const uri = await folders.write(place, name, file.bytes);
     await sql.run(
-      `INSERT INTO phone_files (name, place, bytes, used_at) VALUES (?, ?, ?, ?)
-       ON CONFLICT (name) DO UPDATE SET place = excluded.place, bytes = excluded.bytes,
-         used_at = excluded.used_at`,
-      [name, place, bytes.byteLength, ports.now()],
+      `INSERT INTO phone_files (name, place, mime, bytes, used_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (name) DO UPDATE SET place = excluded.place, mime = excluded.mime,
+         bytes = excluded.bytes, used_at = excluded.used_at`,
+      [name, place, file.mime, file.bytes.byteLength, ports.now()],
     );
     if (place === "cache") {
       await trim();
@@ -182,22 +187,28 @@ export const createFileCache = (ports: FileCachePorts): FileCache => {
     return uri;
   };
 
-  // bytes fetched under `since` kept by `name`, unless a clear came between
+  // a file fetched under `since` kept by `name`, unless a clear came between
   const land = async (
     since: number,
     name: string,
     place: "pinned" | "cache",
-    bytes: Uint8Array<ArrayBuffer>,
+    file: HeldFile,
   ): Promise<string | null> =>
-    await lock(async () => (since === generation ? await keep(name, place, bytes) : null));
+    await lock(async () => (since === generation ? await keep(name, place, file) : null));
 
-  // a file's own bytes fetched under `since`, pinned when a note embeds it
-  const landFile = async (
-    since: number,
-    sha: string,
-    bytes: Uint8Array<ArrayBuffer>,
-  ): Promise<string | null> =>
-    await land(since, sha, (await isPinned(sql, sha)) ? "pinned" : "cache", bytes);
+  // a file fetched under `since`, pinned when a note embeds it
+  const landFile = async (since: number, sha: string, file: HeldFile): Promise<string | null> =>
+    await land(since, sha, (await isPinned(sql, sha)) ? "pinned" : "cache", file);
+
+  // the type a file in `place` was kept as; plain bytes for one whose type the phone never kept
+  const typeOf = async (place: FilePlace, sha: string): Promise<string> => {
+    const [row] = typeSchema.parse(
+      place === "staged"
+        ? await sql.all("SELECT mime FROM phone_staged WHERE sha = ?", [sha])
+        : await sql.all("SELECT mime FROM phone_files WHERE name = ?", [sha]),
+    );
+    return row?.mime ?? UNKNOWN_FILE_TYPE;
+  };
 
   // where this phone holds the file already, or null
   const heldUri = async (sha: string): Promise<string | null> => {
@@ -216,8 +227,8 @@ export const createFileCache = (ports: FileCachePorts): FileCache => {
     return uri;
   };
 
-  // the file's bytes from the cloud; null offline, when the cloud did not answer or holds none
-  const fetched = async (sha: string): Promise<Uint8Array<ArrayBuffer> | null> =>
+  // the file from the cloud; null offline, when the cloud did not answer or holds none
+  const fetched = async (sha: string): Promise<HeldFile | null> =>
     await once(downloads, sha, async () => {
       try {
         return await ports.download(sha);
@@ -226,45 +237,48 @@ export const createFileCache = (ports: FileCachePorts): FileCache => {
       }
     });
 
-  // the file kept on this phone, landing `bytes` unless a landing of it is already on its way
+  // the file kept on this phone, landing `file` unless a landing of it is already on its way
   const keptFile = async (
     since: number,
     sha: string,
-    bytes: () => Promise<Uint8Array<ArrayBuffer> | null>,
+    file: () => Promise<HeldFile | null>,
   ): Promise<string | null> =>
     await once(landings, sha, async () => {
       const held = await heldUri(sha);
       if (held !== null) {
         return held;
       }
-      const got = await bytes();
+      const got = await file();
       return got === null ? null : await landFile(since, sha, got);
     });
 
   const fileUri = async (sha: string): Promise<string | null> =>
     await keptFile(generation, sha, async () => await fetched(sha));
 
-  // the file's bytes as this phone holds them, else as the cloud answers them; `uri` keeps them
-  // and says where they are drawn from, null when a clear came between
+  // the file as this phone holds it, else as the cloud answers it; `uri` keeps it and says where
+  // it is drawn from, null when a clear came between
   const bytesOf = async (
     since: number,
     sha: string,
   ): Promise<{
-    readonly bytes: Uint8Array<ArrayBuffer>;
+    readonly file: HeldFile;
     readonly uri: () => Promise<string | null>;
   } | null> => {
     for (const place of ["staged", "pinned", "cache"] as const) {
       const bytes = await folders.read(place, sha);
       if (bytes !== null) {
-        return { bytes, uri: async () => await fileUri(sha) };
+        return {
+          file: { bytes, mime: await typeOf(place, sha) },
+          uri: async () => await fileUri(sha),
+        };
       }
     }
-    const bytes = await fetched(sha);
-    return bytes === null
+    const file = await fetched(sha);
+    return file === null
       ? null
       : {
-          bytes,
-          uri: async () => await keptFile(since, sha, async () => await Promise.resolve(bytes)),
+          file,
+          uri: async () => await keptFile(since, sha, async () => await Promise.resolve(file)),
         };
   };
 
@@ -287,43 +301,54 @@ export const createFileCache = (ports: FileCachePorts): FileCache => {
       if (held === null) {
         return null;
       }
-      if (held.bytes.byteLength <= THUMB_OVER_BYTES) {
+      const { bytes } = held.file;
+      if (bytes.byteLength <= THUMB_OVER_BYTES) {
         return await held.uri();
       }
-      const mime = sniffMedia(held.bytes)?.mediaType ?? null;
-      const shrunk = mime === null ? null : await ports.shrink(held.bytes, mime).catch(() => null);
+      // decoded as what its first bytes say it is, which a cover's thumbnail is made from
+      const mime = sniffMedia(bytes)?.mediaType ?? null;
+      const shrunk = mime === null ? null : await ports.shrink(bytes, mime).catch(() => null);
       if (shrunk === null) {
         unshrinkable.add(sha);
         return await held.uri();
       }
-      return await land(since, name, "cache", shrunk.bytes);
+      return await land(since, name, "cache", shrunk);
     });
 
-  const fileBytes = async (sha: string): Promise<Uint8Array<ArrayBuffer> | null> => {
+  const heldFile = async (sha: string): Promise<HeldFile | null> => {
     const held = await bytesOf(generation, sha);
     if (held === null) {
       return null;
     }
     await held.uri();
-    return held.bytes;
+    return held.file;
   };
 
   const staged: StagedBlobs = {
     clear: async () => {
       await folders.clear("staged");
+      await sql.run("DELETE FROM phone_staged", []);
     },
-    put: async (sha, bytes) => {
+    // the type first: the bytes are what makes the file found, so it is never found untyped
+    put: async (sha, bytes, mime) => {
+      await sql.run(
+        "INSERT INTO phone_staged (sha, mime) VALUES (?, ?) ON CONFLICT (sha) DO UPDATE SET mime = excluded.mime",
+        [sha, mime],
+      );
       await folders.write("staged", sha, bytes);
     },
     read: async (sha) => await folders.read("staged", sha),
-    // the write naming it landed, so the cloud holds it: kept as a fetched copy would be
+    // the write naming it landed, so the cloud holds it: kept as a fetched copy would be, its type
+    // with it
     remove: async (sha) => {
       await lock(async () => {
         const bytes = await folders.read("staged", sha);
         if (bytes !== null) {
-          await keep(sha, (await isPinned(sql, sha)) ? "pinned" : "cache", bytes);
+          const file = { bytes, mime: await typeOf("staged", sha) };
+          await keep(sha, (await isPinned(sql, sha)) ? "pinned" : "cache", file);
         }
         await folders.remove("staged", sha);
+        await sql.run("DELETE FROM phone_staged WHERE sha = ?", [sha]);
       });
     },
   };
@@ -374,13 +399,14 @@ export const createFileCache = (ports: FileCachePorts): FileCache => {
       landings = new Map();
       unshrinkable.clear();
       await sql.run("DELETE FROM phone_files", []);
+      await sql.run("DELETE FROM phone_staged", []);
       for (const place of ["pinned", "cache", "staged"] as const) {
         await folders.clear(place);
       }
     });
   };
 
-  return { clear, fileBytes, fileUri, staged, sweep, thumbUri };
+  return { clear, fileUri, heldFile, staged, sweep, thumbUri };
 };
 
 // the format a cover's thumbnail is written in: one that keeps transparency for every source that

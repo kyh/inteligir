@@ -27,7 +27,7 @@ describe("the phone's database", () => {
         [],
       ),
     );
-    expect(tables.map((row) => row.name)).toStrictEqual(["phone_files"]);
+    expect(tables.map((row) => row.name)).toStrictEqual(["phone_files", "phone_staged"]);
     await expect(sql.all("SELECT v FROM meta WHERE k = 'phone_schema'", [])).resolves.toStrictEqual(
       [{ v: 1 }],
     );

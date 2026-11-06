@@ -7,7 +7,7 @@ import { openPhoneTables } from "../lib/phone-db";
 import { deferred } from "../test-support/async";
 import { memoryFolders } from "../test-support/memory-folders";
 import { createFileCache, thumbFormatOf, THUMB_OVER_BYTES } from "./file-cache";
-import type { FileCachePorts } from "./file-cache";
+import type { FileCachePorts, HeldFile } from "./file-cache";
 
 const SHA_A = "a".repeat(64);
 const SHA_B = "b".repeat(64);
@@ -43,19 +43,26 @@ const embedIn = async (sql: ReplicaSql, sha: string): Promise<void> => {
   );
 };
 
+// what the cloud serves, by sha: a file's bytes, served as a picture unless the case names a type
+type Served = Map<string, Uint8Array<ArrayBuffer> | HeldFile>;
+
+const servedFile = (file: Uint8Array<ArrayBuffer> | HeldFile): HeldFile =>
+  file instanceof Uint8Array ? { bytes: file, mime: "image/png" } : file;
+
 const cacheOver = (
   sql: ReplicaSql,
-  more: Partial<FileCachePorts> & { readonly served?: Map<string, Uint8Array<ArrayBuffer>> } = {},
+  more: Partial<FileCachePorts> & { readonly served?: Served } = {},
 ) => {
   const folders = memoryFolders();
   const asked: string[] = [];
   let now = 1000;
-  const served = more.served ?? new Map<string, Uint8Array<ArrayBuffer>>();
+  const served: Served = more.served ?? new Map();
   const cache = createFileCache({
     capBytes: 100,
     download: async (sha) => {
       asked.push(sha);
-      return await Promise.resolve(served.get(sha) ?? null);
+      const file = served.get(sha);
+      return await Promise.resolve(file === undefined ? null : servedFile(file));
     },
     folders,
     now: () => {
@@ -81,19 +88,49 @@ describe("the phone's copy of the library's files", () => {
     expect(folders.held("cache")).toStrictEqual([SHA_A]);
   });
 
-  it("answers a file's bytes for the editor page: a staged one at once, a fetched one kept, pinned when a note embeds it", async () => {
+  it("answers a file for the editor page: a staged one at once, a fetched one kept, pinned when a note embeds it", async () => {
     const sql = await phoneSql();
     const { asked, cache, folders, served } = cacheOver(sql);
     await embedIn(sql, SHA_B);
     await cache.staged.put(SHA_A, bytesOf(8, PNG), "image/png");
     served.set(SHA_B, bytesOf(12, PNG));
 
-    await expect(cache.fileBytes(SHA_A)).resolves.toStrictEqual(bytesOf(8, PNG));
-    await expect(cache.fileBytes(SHA_B)).resolves.toStrictEqual(bytesOf(12, PNG));
-    await expect(cache.fileBytes(SHA_B)).resolves.toStrictEqual(bytesOf(12, PNG));
-    await expect(cache.fileBytes(SHA_C)).resolves.toBeNull();
+    await expect(cache.heldFile(SHA_A)).resolves.toStrictEqual({
+      bytes: bytesOf(8, PNG),
+      mime: "image/png",
+    });
+    await expect(cache.heldFile(SHA_B)).resolves.toStrictEqual({
+      bytes: bytesOf(12, PNG),
+      mime: "image/png",
+    });
+    await expect(cache.heldFile(SHA_B)).resolves.toStrictEqual({
+      bytes: bytesOf(12, PNG),
+      mime: "image/png",
+    });
+    await expect(cache.heldFile(SHA_C)).resolves.toBeNull();
     expect(asked).toStrictEqual([SHA_B, SHA_C]);
     expect(folders.held("pinned")).toStrictEqual([SHA_B]);
+  });
+
+  it("keeps each file's type wherever it moves: staged, kept once sent, fetched and drawn again", async () => {
+    const sql = await phoneSql();
+    const { cache, served } = cacheOver(sql);
+    // a recording's bytes, whose type no sniff of its first bytes would name
+    const clip = bytesOf(6);
+    await cache.staged.put(SHA_A, clip, "video/quicktime");
+    await expect(cache.heldFile(SHA_A)).resolves.toMatchObject({ mime: "video/quicktime" });
+    await cache.staged.remove(SHA_A);
+    await expect(cache.heldFile(SHA_A)).resolves.toStrictEqual({
+      bytes: clip,
+      mime: "video/quicktime",
+    });
+
+    served.set(SHA_B, { bytes: bytesOf(6), mime: "video/mp4" });
+    await expect(cache.heldFile(SHA_B)).resolves.toMatchObject({ mime: "video/mp4" });
+    await expect(cache.heldFile(SHA_B), "drawn again from the phone's copy").resolves.toMatchObject(
+      { mime: "video/mp4" },
+    );
+    await expect(sql.all("SELECT sha FROM phone_staged", [])).resolves.toStrictEqual([]);
   });
 
   it("answers nothing for a file the cloud holds none of, or cannot be reached for", async () => {
@@ -166,12 +203,12 @@ describe("the phone's copy of the library's files", () => {
 
   it("lands nothing fetched for an account the phone left while it came", async () => {
     const sql = await phoneSql();
-    const answer = deferred<Uint8Array<ArrayBuffer> | null>();
+    const answer = deferred<HeldFile | null>();
     const { cache, folders } = cacheOver(sql, { download: async () => await answer.promise });
 
     const drawing = cache.fileUri(SHA_A);
     await cache.clear();
-    answer.resolve(bytesOf(4));
+    answer.resolve({ bytes: bytesOf(4), mime: "image/png" });
 
     await expect(drawing).resolves.toBeNull();
     expect(folders.held("cache")).toStrictEqual([]);
@@ -206,7 +243,7 @@ describe("the phone's copy of the library's files", () => {
 
   it("fetches a file once however many screens ask for it at once", async () => {
     const sql = await phoneSql();
-    const answer = deferred<Uint8Array<ArrayBuffer> | null>();
+    const answer = deferred<HeldFile | null>();
     const { asked, cache } = cacheOver(sql, {
       download: async (sha) => {
         asked.push(sha);
@@ -215,7 +252,7 @@ describe("the phone's copy of the library's files", () => {
     });
 
     const drawing = [cache.fileUri(SHA_A), cache.fileUri(SHA_A), cache.thumbUri(SHA_A)];
-    answer.resolve(bytesOf(10, PNG));
+    answer.resolve({ bytes: bytesOf(10, PNG), mime: "image/png" });
 
     await expect(Promise.all(drawing)).resolves.toStrictEqual([
       `memory://cache/${SHA_A}`,

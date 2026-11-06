@@ -83,16 +83,16 @@ how it ships.
   Documents; every other file and thumbnail is in the purgeable cache, its use
   stamped in `phone_files` and the least recent dropped past the cap. An upload
   whose write landed moves into the cache, or stays pinned, so the phone never
-  downloads what it sent. A screen draws a file as an item's own, its card's
-  cover or its viewer's original, and the item page draws one a note names
-  from these bytes over the bridge, typed by its first bytes, and keeps one
-  pasted there through the replica's outbox
-  (`apps/mobile-editor/src/item/item-host.ts`). A file over 512 KB lists
-  from a 320 px thumbnail made once. A sign-out moves the cache's generation,
-  so a download begun before it lands nothing
+  downloads what it sent. Each file keeps the type it was staged as or the
+  cloud served (`phone_files`, `phone_staged`), which the item page draws a
+  note's file by over the bridge, and one pasted there goes through the
+  replica's outbox (`apps/mobile-editor/src/item/item-host.ts`). A file over
+  512 KB lists from a 320 px thumbnail made once. A sign-out moves the cache's
+  generation, so a download begun before it lands nothing
   (`apps/mobile/src/files/file-cache.ts`). Rejected: `expo-file-system/legacy`
   (its promise API is deprecated); a staged upload discarded once sent (the
-  next draw downloaded what the phone had just sent).
+  next draw downloaded what the phone had just sent); a type read from the
+  first bytes (no sniff names a recording, which WebKit then may not play).
 
 - **THE PHONE'S CREDENTIAL IS IN THE KEYCHAIN, THIS DEVICE ONLY, AFTER FIRST
   UNLOCK.** It reads in the background a share wakes, never moves to another
@@ -109,13 +109,16 @@ how it ships.
   `tools/e2e/src/scenarios/phone-file-ops-hosted.ts`.
 
 - **A PHONE PHOTO IS AN IMAGE ITEM OF ITS OWN, A JPEG OF AT MOST 2048PX WITH NO
-  EXIF.** The Mac's editor draws no HEIC, so a photo is re-encoded to at most
-  2048px on its long edge with no EXIF, so no location reaches the library's
-  history, and saved as a file item whose bytes are staged, pinned, until the
-  upload lands, then kept (`apps/mobile/src/items/photo-ingest.ts`,
-  `apps/mobile/src/items/photo-plan.ts`). Rejected: a picked photo placed in a
-  note (the photo button is the library's, where no note is open; a picture
-  pasted into a note's text lands in that note).
+  EXIF.** The Mac's editor draws no HEIC, so a photo the photo button adds is
+  re-encoded to at most 2048px on its long edge with no EXIF, so no location
+  reaches the library's history, and saved as a file item whose bytes are
+  staged, pinned, until the upload lands, then kept
+  (`apps/mobile/src/items/photo-ingest.ts`,
+  `apps/mobile/src/items/photo-plan.ts`). A picture pasted into a note's text
+  is kept as the bytes the paste handed over, with whatever details they
+  carry, as on every device. Rejected: a picked photo placed in a note (the
+  photo button is the library's, where no note is open; a paste into a note's
+  text lands in that note).
 
 - **A PHONE HIGHLIGHT IS THE EDITOR'S, AND THE SHEET WRITES ITS ENTRIES** (owner
   decision: the phone annotates and replies). The page's highlight and its note

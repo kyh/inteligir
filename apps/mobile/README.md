@@ -93,7 +93,8 @@ exclusive one (`withExclusiveTransactionAsync`, a connection of its own) behind
 one JS write lock, every value is bound and every prepared statement is
 finalized in a `finally`. The library's tables are the cell's own schema,
 versioned by its `meta.schema` row, and the phone's own (`phone_files`, the
-file cache's use) are one step in `src/lib/phone-db.ts`. A sign-in wipes the
+file cache's use and each file's type, and `phone_staged`, the type of each
+file waiting to be sent) are one step in `src/lib/phone-db.ts`. A sign-in wipes the
 file and starts it over, so a credential over an empty database pulls the
 library afresh.
 
@@ -118,8 +119,9 @@ in `Paths.cache`, stamped as used and dropped oldest first past the cap, and a
 file over 512 KB lists from a 320 px thumbnail made once. An upload whose write
 landed is kept as a fetched file is. A screen draws a file as an item's own,
 its card's cover or its viewer's original, and the item page draws one a note
-names from the cache over its bridge (`readFile`), and keeps one pasted into
-the text through the replica (`keepFile`). A sign-out moves the cache's generation,
+names from the cache over its bridge (`readFile`), as the type it was kept or
+served as, and keeps one pasted into the text through the replica
+(`keepFile`). A sign-out moves the cache's generation,
 so a download begun before it lands nothing.
 
 ## Sharing to the phone

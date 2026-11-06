@@ -3,14 +3,15 @@ import { openDevice, paragraph } from "@repo/library-replica/test-support/replic
 import { fileSha } from "@repo/library-replica/library-replica";
 import { blockHash } from "@repo/notes/library/block-hash";
 import { describe, expect, it } from "vitest";
+import type { HeldFile } from "../files/file-cache";
 import { createItemPorts } from "./item-ports";
 
 const NOW = 1_700_000_300_000;
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 
-// the phone's file cache as the ports reach it: the bytes it holds by sha
-const heldFiles = (held: ReadonlyMap<string, Uint8Array<ArrayBuffer>> = new Map()) => ({
-  fileBytes: async (sha: string) => await Promise.resolve(held.get(sha) ?? null),
+// the phone's file cache as the ports reach it: the files it holds by sha, with their types
+const heldFiles = (held: ReadonlyMap<string, HeldFile> = new Map()) => ({
+  heldFile: async (sha: string) => await Promise.resolve(held.get(sha) ?? null),
 });
 
 // a phone holding one landed note of one paragraph
@@ -68,17 +69,28 @@ describe("an item page's questions, answered from the phone's replica", () => {
     });
   });
 
-  it("answers a file the cache holds, typed by its bytes, and none for one it cannot reach", async () => {
+  it("answers a file the cache holds as the type it was kept as, and none for one it cannot reach", async () => {
     const cell = createFakeCell();
     const phone = await openDevice(cell, "phone");
-    const sha = fileSha(PNG);
+    // a recording's first bytes, which name no type a sniff of a picture or a PDF knows
+    const MP4 = new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x6d, 0x70, 0x34, 0x32]);
+    const picture = fileSha(PNG);
+    const recording = fileSha(MP4);
     const ports = createItemPorts({
-      files: heldFiles(new Map([[sha, PNG]])),
+      files: heldFiles(
+        new Map([
+          [picture, { bytes: PNG, mime: "image/png" }],
+          [recording, { bytes: MP4, mime: "video/mp4" }],
+        ]),
+      ),
       now: () => NOW,
       replica: phone.replica,
     });
-    await expect(ports.readFile({ sha })).resolves.toStrictEqual({
+    await expect(ports.readFile({ sha: picture })).resolves.toStrictEqual({
       file: { base64: btoa(String.fromCodePoint(...PNG)), mediaType: "image/png" },
+    });
+    await expect(ports.readFile({ sha: recording })).resolves.toStrictEqual({
+      file: { base64: btoa(String.fromCodePoint(...MP4)), mediaType: "video/mp4" },
     });
     await expect(ports.readFile({ sha: "b".repeat(64) })).resolves.toStrictEqual({ file: null });
   });
