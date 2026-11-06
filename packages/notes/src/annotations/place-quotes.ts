@@ -9,8 +9,6 @@
 // appended under a trailing `## Highlights` heading, each quote a blockquote its markers wrap, its
 // text escaped.
 
-import { splitMarkerIds } from "../markdown/remark-inline-constructs";
-
 import { annotationPassages, projectPassages } from "./passage-text";
 import type { PassageProjection } from "./passage-text";
 import { escapePhrasingText } from "./phrasing-escape";
@@ -240,22 +238,4 @@ export const placeQuotes = (
     missing: missing.map((quote) => quote.id).filter((id) => !appended.includes(id)),
     placed,
   };
-};
-
-// the markers naming any of `ids` spliced out: a pair the ids share with others keeps the others
-export const stripAnnotationMarkers = (content: string, ids: readonly string[]): string => {
-  const removing = new Set(ids);
-  let out = "";
-  let cursor = 0;
-  for (const marker of projectPassages(content).markerSpans) {
-    const listed = splitMarkerIds(marker.ids);
-    if (!listed.some((id) => removing.has(id))) {
-      continue;
-    }
-    const kept = listed.filter((id) => !removing.has(id));
-    out += content.slice(cursor, marker.start);
-    out += kept.length === 0 ? "" : `%%i:${kept.join(",")}:${marker.edge}%%`;
-    cursor = marker.end;
-  }
-  return out + content.slice(cursor);
 };

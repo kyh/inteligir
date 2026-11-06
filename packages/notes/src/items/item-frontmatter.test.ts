@@ -1,120 +1,40 @@
 import { describe, expect, it } from "vitest";
 
 import { frontmatterYaml, parseProperties } from "../markdown/frontmatter";
-import { splitLines } from "../text/source-lines";
-import {
-  composeItemFile,
-  itemFactsOf,
-  NOTE_FACTS,
-  readItemFacts,
-  withItemFields,
-} from "./item-frontmatter";
-import type { ItemFieldPatch } from "./item-frontmatter";
-import { FILL_OWNED_KEYS, ITEM_KEYS } from "./item-kind";
-import type { ItemKey } from "./item-kind";
-import { mulberry32, pick } from "../test-support/seeded-random";
+import { readItemFacts } from "./item-frontmatter";
 
-const SAVED = Date.UTC(2026, 9, 17, 9, 12, 30);
-
-const written = (content: string, patch: ItemFieldPatch): string => {
-  const verdict = withItemFields(content, patch);
-  if (verdict.kind !== "written") {
-    throw new Error(`expected a write, got ${verdict.kind}`);
-  }
-  return verdict.content;
+// a file's facts, its frontmatter read as an import reads it
+const factsOf = (content: string) => {
+  const yaml = frontmatterYaml(content);
+  return readItemFacts(yaml === null ? null : parseProperties(yaml));
 };
-
-describe("composeItemFile", () => {
-  it("writes id, the item keys in order, tags as a block list, then pinned", () => {
-    expect(
-      composeItemFile(
-        {
-          description: "One line.",
-          id: "i",
-          kind: "link",
-          pinned: true,
-          saved: "2026-10-17T09:12:30Z",
-          site: null,
-          tags: ["reading", "a/b"],
-          url: "https://a.com/",
-        },
-        "body\n",
-      ),
-    ).toBe(
-      "---\nid: i\nkind: link\nurl: https://a.com/\nsaved: 2026-10-17T09:12:30Z\ndescription: One line.\ntags:\n  - reading\n  - a/b\npinned: true\n---\n\nbody\n",
-    );
-  });
-
-  it("omits a note's kind, quotes what yaml would misread, and writes no block for no fields", () => {
-    expect(composeItemFile({ kind: "note", saved: "2026-10-17" }, "")).toBe(
-      "---\nsaved: 2026-10-17\n---\n",
-    );
-    expect(composeItemFile({ description: "a: b", site: "true" }, "")).toBe(
-      '---\nsite: "true"\ndescription: "a: b"\n---\n',
-    );
-    expect(composeItemFile({ url: "https://a.com/?x=1,2" }, "")).toBe(
-      "---\nurl: https://a.com/?x=1,2\n---\n",
-    );
-    expect(composeItemFile({}, "just text\n")).toBe("just text\n");
-  });
-
-  it("round-trips through readItemFacts", () => {
-    const content = composeItemFile(
-      {
-        author: "Steph Ango",
-        description: "d",
-        "fetch-error": "e",
-        fetched: "2026-10-17T09:12:33Z",
-        id: "i",
-        kind: "video",
-        published: "2023-07-01",
-        saved: "2026-10-17T09:12:30Z",
-        site: "YouTube",
-        url: "https://youtu.be/abc",
-      },
-      "",
-    );
-    expect(itemFactsOf(content)).toEqual({
-      author: "Steph Ango",
-      description: "d",
-      fetchError: "e",
-      fetchedMs: Date.UTC(2026, 9, 17, 9, 12, 33),
-      hasId: true,
-      host: "youtu.be",
-      kind: "video",
-      published: "2023-07-01",
-      savedMs: SAVED,
-      site: "YouTube",
-      url: "https://youtu.be/abc",
-      urlKey: "youtube.com/watch?v=abc",
-    });
-  });
-});
 
 describe("readItemFacts", () => {
   it("is a plain note for no block, an invalid one, or one with no item keys", () => {
-    expect(itemFactsOf("hello")).toBe(NOTE_FACTS);
-    expect(itemFactsOf("---\nkey: [unclosed\n---\n")).toBe(NOTE_FACTS);
-    expect(readItemFacts(null)).toBe(NOTE_FACTS);
-    expect(itemFactsOf("---\ntitle: x\n---\n")).toEqual(NOTE_FACTS);
+    const note = readItemFacts(null);
+    expect(note.kind).toBe("note");
+    expect(note.url).toBeNull();
+    expect(factsOf("---\nkey: [unclosed\n---\n")).toEqual(note);
+    expect(factsOf("hello")).toEqual(note);
+    expect(factsOf("---\ntitle: x\n---\n")).toEqual(note);
   });
 
   it("folds the kind, and an unknown one is a note", () => {
-    expect(itemFactsOf("---\nkind: ' LINK '\n---\n").kind).toBe("link");
-    expect(itemFactsOf("---\nkind: bookmark\n---\n").kind).toBe("note");
-    expect(itemFactsOf("---\nkind: 5\n---\n").kind).toBe("note");
+    expect(factsOf("---\nkind: ' LINK '\n---\n").kind).toBe("link");
+    expect(factsOf("---\nkind: bookmark\n---\n").kind).toBe("note");
+    expect(factsOf("---\nkind: 5\n---\n").kind).toBe("note");
   });
 
   it("keeps only a web url, and any kind may carry one", () => {
-    expect(itemFactsOf("---\nurl: ftp://a.com\n---\n").url).toBeNull();
-    const note = itemFactsOf("---\nurl: https://a.com/x?utm_source=y\n---\n");
+    expect(factsOf("---\nurl: ftp://a.com\n---\n").url).toBeNull();
+    const note = factsOf("---\nurl: https://a.com/x?utm_source=y\n---\n");
     expect(note.kind).toBe("note");
     expect(note.urlKey).toBe("a.com/x");
     expect(note.host).toBe("a.com");
   });
 
   it("reads authors, dates and numbers as written, clipped", () => {
-    const facts = itemFactsOf(
+    const facts = factsOf(
       [
         "---",
         "author:",
@@ -132,162 +52,5 @@ describe("readItemFacts", () => {
     expect(facts.site).toBe("s".repeat(80));
     expect(facts.savedMs).toBe(Date.UTC(2026, 9, 17));
     expect(facts.fetchedMs).toBeNull();
-  });
-});
-
-describe("withItemFields", () => {
-  it("keeps the BOM, CRLF, comments, unknown keys and flow lists byte-exact", () => {
-    const content =
-      "﻿---\r\nid: x\r\n# keep me\r\nother: [a,  b]\r\nkind: link\r\ntags: [r, s]\r\n---\r\nbody\r\n";
-    expect(written(content, { site: "S" })).toBe(
-      "﻿---\r\nid: x\r\n# keep me\r\nother: [a,  b]\r\nkind: link\r\nsite: S\r\ntags: [r, s]\r\n---\r\nbody\r\n",
-    );
-  });
-
-  it("puts an added key before the nearest later one, else after id, else first", () => {
-    expect(written("---\nid: x\nfoo: 1\nurl: https://a.com\n---\n", { kind: "link" })).toBe(
-      "---\nid: x\nfoo: 1\nkind: link\nurl: https://a.com\n---\n",
-    );
-    expect(written("---\nfoo: 1\nid: x\n---\n", { site: "S" })).toBe(
-      "---\nfoo: 1\nid: x\nsite: S\n---\n",
-    );
-    expect(written("---\nfoo: 1\n---\n", { site: "S" })).toBe("---\nsite: S\nfoo: 1\n---\n");
-    expect(written("body\n", { kind: "link", url: "https://a.com" })).toBe(
-      "---\nkind: link\nurl: https://a.com\n---\n\nbody\n",
-    );
-  });
-
-  it("replaces a key's own lines, block values included", () => {
-    expect(written("---\nauthor:\n  - a\n  - b\nsite: s\n---\n", { author: "C" })).toBe(
-      "---\nauthor: C\nsite: s\n---\n",
-    );
-  });
-
-  it("validates the kind, the url and the times, and writes them canonical", () => {
-    expect(withItemFields("x", { kind: "bookmark" })).toEqual({
-      key: "kind",
-      kind: "refused",
-      reason: "bookmark is not an item kind",
-    });
-    expect(withItemFields("x", { url: "ftp://a" }).kind).toBe("refused");
-    expect(withItemFields("x", { saved: "yesterday" }).kind).toBe("refused");
-    expect(written("x", { saved: "2026-10-17T11:12:30+02:00" })).toBe(
-      "---\nsaved: 2026-10-17T09:12:30Z\n---\n\nx",
-    );
-    expect(written("x", { url: "https://u:p@a.com/?fbclid=1" })).toBe(
-      "---\nurl: https://a.com/\n---\n\nx",
-    );
-  });
-
-  it("removes a key for null and for a note's kind, dropping an emptied block", () => {
-    expect(written("---\nkind: link\nsite: s\n---\nx", { kind: "note" })).toBe(
-      "---\nsite: s\n---\nx",
-    );
-    expect(written("---\nsite: s\n---\nx", { site: null })).toBe("x");
-  });
-
-  it("writes a block it adds one blank line above the body, and an emptied block takes it", () => {
-    expect(written("Hello\n", { description: "D" })).toBe("---\ndescription: D\n---\n\nHello\n");
-    expect(written("\nHello\n", { description: "D" })).toBe("---\ndescription: D\n---\n\nHello\n");
-    expect(written("", { kind: "link" })).toBe("---\nkind: link\n---\n");
-    expect(written("\uFEFFHello\r\n", { site: "S" })).toBe(
-      "\uFEFF---\r\nsite: S\r\n---\r\n\r\nHello\r\n",
-    );
-    expect(written("---\nsite: s\n---\n\nHello\n", { site: null })).toBe("Hello\n");
-    expect(written("\uFEFF---\r\nsite: s\r\n---\r\n\r\nHello\r\n", { site: null })).toBe(
-      "\uFEFFHello\r\n",
-    );
-    // a block that stays is a line cut: the bytes under it are kept, flush or not
-    expect(written("---\nsite: s\n---\nHello\n", { site: "T" })).toBe("---\nsite: T\n---\nHello\n");
-  });
-
-  it("is unchanged when every key already says it, and refuses an invalid block", () => {
-    expect(
-      withItemFields("---\nkind: link\npublished: 2023-07-01\n---\n", {
-        kind: "link",
-        published: "2023-07-01",
-        site: null,
-      }),
-    ).toEqual({ kind: "unchanged" });
-    expect(withItemFields("---\nkey: [unclosed\n---\n", { site: "s" })).toEqual({
-      kind: "invalid",
-    });
-  });
-
-  it("names the fill's keys among the item keys", () => {
-    for (const key of FILL_OWNED_KEYS) {
-      expect(ITEM_KEYS).toContain(key);
-    }
-    expect(FILL_OWNED_KEYS).not.toContain("url");
-    expect(FILL_OWNED_KEYS).not.toContain("saved");
-  });
-});
-
-const OTHER_LINES = [
-  "# a comment",
-  "other: [a,  b]",
-  "title-ish: 'quoted'",
-  "aliases:",
-  "  - one",
-  "nested:",
-  "  key: value",
-  "tags: [x, y]",
-  "pinned: true",
-];
-const PATCH_VALUES = {
-  author: ["Ann", null],
-  description: ["One, two: three", "plain", null],
-  "fetch-error": ["It failed.", null],
-  fetched: ["2026-10-17T09:12:33Z", "2026-10-17", null],
-  kind: ["link", "video", "note", null],
-  published: ["2023-07-01", null],
-  saved: ["2026-10-17T09:12:30Z", null],
-  site: ["Site", null],
-  url: ["https://a.com/x", null],
-} satisfies Record<ItemKey, readonly (string | null)[]>;
-
-const isItemLine = (line: string): boolean => ITEM_KEYS.some((key) => line.startsWith(`${key}:`));
-
-describe("the seeded fuzz", () => {
-  it("touches only the patched keys' lines, reads back the patch, and settles", () => {
-    const rand = mulberry32(0xf0_0d);
-    for (let i = 0; i < 300; i += 1) {
-      const eol = rand() < 0.5 ? "\r\n" : "\n";
-      const bom = rand() < 0.3 ? "﻿" : "";
-      const others = OTHER_LINES.filter(() => rand() < 0.5).filter(
-        (line, index, all) => !line.startsWith("  ") || all[index - 1]?.endsWith(":") === true,
-      );
-      const start = composeItemFile(
-        { id: "i", kind: "link", saved: "2026-10-17T09:12:30Z", url: "https://a.com/" },
-        "",
-      );
-      const startLines = splitLines(frontmatterYaml(start) ?? "");
-      const block = [...startLines, ...others];
-      const content = `${bom}---${eol}${block.join(eol)}${eol}---${eol}body${eol}`;
-      const patch: Record<string, string | null> = {};
-      for (const key of ITEM_KEYS) {
-        if (rand() < 0.4) {
-          patch[key] = pick(rand, PATCH_VALUES[key]);
-        }
-      }
-      const verdict = withItemFields(content, patch);
-      expect(verdict.kind, JSON.stringify({ content, patch })).not.toBe("invalid");
-      const next = verdict.kind === "written" ? verdict.content : content;
-      expect(next.startsWith(`${bom}---${eol}`)).toBe(true);
-      expect(next.endsWith(`---${eol}body${eol}`)).toBe(true);
-      const yaml = frontmatterYaml(next) ?? "";
-      expect(parseProperties(yaml).kind).not.toBe("invalid");
-      expect(splitLines(yaml).filter((line) => !isItemLine(line))).toEqual(
-        block.filter((line) => !isItemLine(line)),
-      );
-      const facts = itemFactsOf(next);
-      if (patch["site"] !== undefined) {
-        expect(facts.site).toBe(patch["site"]);
-      }
-      if (patch["kind"] !== undefined) {
-        expect(facts.kind).toBe(patch["kind"] ?? "note");
-      }
-      expect(withItemFields(next, patch)).toEqual({ kind: "unchanged" });
-    }
   });
 });

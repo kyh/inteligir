@@ -70,7 +70,7 @@ const isPinned = (parsed: ParsedProperties): boolean => {
 const uniqueTags = (yaml: string): string[] => {
   const seen = new Set<string>();
   const tags: string[] = [];
-  for (const { tag } of frontmatterTags(yaml)) {
+  for (const tag of frontmatterTags(yaml)) {
     if (!seen.has(tag.toLowerCase())) {
       seen.add(tag.toLowerCase());
       tags.push(tag);

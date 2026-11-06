@@ -56,9 +56,9 @@ describe("pixelSize", () => {
 });
 
 describe("the fill's sentences", () => {
-  it("says each failure the way the item's file does", () => {
-    expect(failureOf({ kind: "refused", refusal: "this-mac" }).sentence).toBe(
-      "This address is on this Mac, so its page isn't read.",
+  it("says each failure the way the item does", () => {
+    expect(failureOf({ kind: "refused", refusal: "private-network" }).sentence).toBe(
+      "This address is on a private network, which the cloud can't reach, so its page isn't read.",
     );
     expect(failureOf({ kind: "refused", refusal: "private-from-public" }).sentence).toBe(
       "The page pointed at an address on your own network, so it isn't read.",

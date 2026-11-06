@@ -1,7 +1,8 @@
 // what a host's spelling alone says about where it is, read with no lookup: a name every resolver
 // that honours RFC 6761 answers with this very device, a name no public resolver answers, and an
-// address written out. The Mac's guard reads the first two before it resolves anything; the phone,
-// whose fetch has no lookup to vet, judges a page's claims by all three.
+// address written out. The cloud's fill refuses the first two before it asks for anything, and
+// the phone and the extension, whose fetches have no lookup to vet, judge a page's claims by all
+// three.
 
 import { urlHost } from "./item-url";
 

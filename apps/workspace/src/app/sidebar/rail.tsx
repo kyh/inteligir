@@ -3,7 +3,7 @@
 // from the replica, and a footer saying where the library stands: up to date, sending, or waiting
 // for a connection.
 
-import type { CellLibraryScope } from "@repo/domain/library-scope";
+import type { LibraryScope } from "@repo/domain/library-scope";
 import { Button } from "@repo/ui/components/button";
 import {
   DropdownMenu,
@@ -55,10 +55,10 @@ interface FolderActions {
 }
 
 export interface RailProps {
-  readonly scope: CellLibraryScope;
+  readonly scope: LibraryScope;
   // an item is open over the grid, so no scope row is lit
   readonly itemOpen: boolean;
-  readonly onScope: (scope: CellLibraryScope) => void;
+  readonly onScope: (scope: LibraryScope) => void;
   readonly folders: FolderActions;
   readonly onOpenSearch: () => void;
   readonly onOpenSettings: () => void;
@@ -70,7 +70,7 @@ const Count = ({ count }: { count: number }) => (
   </span>
 );
 
-const isLit = (scope: CellLibraryScope, itemOpen: boolean, row: CellLibraryScope): boolean => {
+const isLit = (scope: LibraryScope, itemOpen: boolean, row: LibraryScope): boolean => {
   if (itemOpen || scope.kind !== row.kind) {
     return false;
   }
@@ -95,9 +95,9 @@ const FolderRows = ({
   onScope,
   actions,
 }: {
-  scope: CellLibraryScope;
+  scope: LibraryScope;
   itemOpen: boolean;
-  onScope: (scope: CellLibraryScope) => void;
+  onScope: (scope: LibraryScope) => void;
   actions: FolderActions;
 }) => {
   const queries = useReplicaQueries();
@@ -109,7 +109,7 @@ const FolderRows = ({
     <>
       <SidebarMenu aria-label="Folders">
         {folderPaths(folders).map((row) => {
-          const target: CellLibraryScope = { folderId: row.id, kind: "folder" };
+          const target: LibraryScope = { folderId: row.id, kind: "folder" };
           return (
             <SidebarMenuItem key={row.id}>
               <SidebarMenuButton
@@ -189,9 +189,9 @@ const TagRows = ({
   itemOpen,
   onScope,
 }: {
-  scope: CellLibraryScope;
+  scope: LibraryScope;
   itemOpen: boolean;
-  onScope: (scope: CellLibraryScope) => void;
+  onScope: (scope: LibraryScope) => void;
 }) => {
   const tags = useQuery(useReplicaQueries().tags()).data ?? [];
   if (tags.length === 0) {
@@ -200,7 +200,7 @@ const TagRows = ({
   return (
     <SidebarMenu aria-label="Tags">
       {tags.map(({ items, tag }) => {
-        const target: CellLibraryScope = { kind: "tag", tag };
+        const target: LibraryScope = { kind: "tag", tag };
         return (
           <SidebarMenuItem key={tag}>
             <SidebarMenuButton
@@ -230,9 +230,9 @@ export const Rail = ({
 }: RailProps) => {
   const scopes = useQuery(useReplicaQueries().scopes()).data;
   const [tagsOpen, setTagsOpen] = usePref(PREFS.railTagsOpen);
-  const all: CellLibraryScope = { kind: "all" };
-  const unsorted: CellLibraryScope = { kind: "unsorted" };
-  const deleted: CellLibraryScope = { kind: "deleted" };
+  const all: LibraryScope = { kind: "all" };
+  const unsorted: LibraryScope = { kind: "unsorted" };
+  const deleted: LibraryScope = { kind: "deleted" };
   return (
     <>
       <SidebarHeader>

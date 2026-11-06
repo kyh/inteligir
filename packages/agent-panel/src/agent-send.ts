@@ -5,8 +5,8 @@
 // from Unsorted, whatever the screen shows.
 
 import type { agentViewContextSchema } from "@repo/contract/cloud/library/library-wire";
-import type { CellLibraryScope } from "@repo/domain/library-scope";
-import { LIBRARY_SELECTION_MAX } from "@repo/domain/view-context";
+import type { LibraryScope } from "@repo/domain/library-scope";
+import { LIBRARY_SELECTION_MAX } from "@repo/domain/library-scope";
 import type { z } from "zod";
 
 import { TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
@@ -24,7 +24,7 @@ export interface SendInput {
 // narrowed to and the selection, the first of it by id; none from Deleted
 export const viewContextOf = (screen: {
   readonly openItem: string | null;
-  readonly scope: CellLibraryScope;
+  readonly scope: LibraryScope;
   readonly kind: NonNullable<LibraryViewContext["kinds"]>[number] | null;
   readonly selected: readonly string[];
 }): AgentViewContext | undefined => {

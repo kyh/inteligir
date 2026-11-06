@@ -1,9 +1,9 @@
 # @repo/domain
 
-The zod-only leaf: the library scopes a screen shows and the view context a
-message to the built-in agent carries. The library's page, the phone and the
-account's cell parse the same shapes with it, so it holds schemas and nothing
-else — no node, no transport, no React.
+The zod-only leaf: the library scopes a screen shows, which the view context a
+message to the built-in agent carries too. The library's page, the phone and
+the account's cell parse the same shapes with it, so it holds schemas and
+nothing else — no node, no transport, no React.
 
 ## Why it exists
 
@@ -25,15 +25,18 @@ phone.
 
 ```
 src/
-  library-scope.ts   # which part of the library a screen shows, in its one spelling
-  view-context.ts    # the screen a message left from
+  library-scope.ts   # which part of the library a screen shows, in its one spelling,
+                     #   and the most of its selection a message names
 ```
 
 Every subpath is exported by name in `package.json`; there is no barrel.
 
 ## Invariants
 
-- **A view context rides the message.** Never a thread column, never a
+- **A scope names a folder by its id**, as the account's cell keeps it, so a
+  folder renamed or moved is the same scope on every device.
+- **A view context rides the message** (`agentViewContextSchema` in
+  `@repo/contract/cloud/library/library-wire`). Never a thread column, never a
   mutable "current view": it describes the screen a message left from, so
   nothing reconciles it on navigation.
 

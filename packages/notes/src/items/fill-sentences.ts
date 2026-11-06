@@ -1,17 +1,12 @@
-// why a page was not read, in one plain sentence, as the item's `fetch-error` says it, and whether
-// the fill tries again later: offline, a timeout, a resolver that did not answer, or a site saying
-// it is busy (429, 503) leave the stub as it is for a retry; anything else is said in the file.
-// Every filler of a link says it in these words: the Mac's guarded fetch, the phone's and the cloud's.
+// why a page was not read, in one plain sentence, as the item says it, and whether the fill tries
+// again later: offline, a timeout, a resolver that did not answer, or a site saying it is busy
+// (429, 503) leave the link waiting for a retry; anything else is said on the item. Every reader
+// of a link says it in these words: the cloud's fill and the phone's share alike.
 
-// what the Mac's address guard refuses to dial; the phone's fetch, which has no lookup, refuses only
-// a hop from a public address to one whose spelling names private space; and the cloud's, which
-// reaches no private space at all, refuses a saved address whose spelling names it
-export type FetchRefusal =
-  | "this-mac"
-  | "link-local"
-  | "reserved"
-  | "private-from-public"
-  | "private-network";
+// what a fetch refuses to ask: the phone's, which has no lookup, refuses only a hop from a public
+// address to one whose spelling names private space; the cloud's, which reaches no private space
+// at all, refuses a saved address whose spelling names it, or space no host holds
+type FetchRefusal = "reserved" | "private-from-public" | "private-network";
 
 export type FetchFailure =
   | { kind: "refused"; refusal: FetchRefusal }
@@ -87,7 +82,7 @@ export const statusFailure = (status: number): FetchFailure => ({
   transient: TRANSIENT_STATUSES.has(status),
 });
 
-export interface FillFailure {
+interface FillFailure {
   sentence: string;
   transient: boolean;
 }
@@ -97,8 +92,8 @@ const MB = 1024 * 1024;
 
 const LIMIT_MB = 10;
 
-// MB to the nearest whole, as fileTooLargeMessage says it; a size the read only knows is past the
-// limit (the site declared none, or one that rounds to the limit) is said as over it
+// MB to the nearest whole; a size the read only knows is past the limit (the site declared none, or
+// one that rounds to the limit) is said as over it
 export const fileOnlyLinked = (bytes: number | null): string => {
   const mb = bytes === null ? null : Math.max(1, Math.round(bytes / MB));
   return mb === null || mb <= LIMIT_MB
@@ -110,18 +105,6 @@ export const failureOf = (failure: FetchFailure): FillFailure => {
   switch (failure.kind) {
     case "refused": {
       switch (failure.refusal) {
-        case "this-mac": {
-          return {
-            sentence: "This address is on this Mac, so its page isn't read.",
-            transient: false,
-          };
-        }
-        case "link-local": {
-          return {
-            sentence: "This address is on this network's own hardware, so its page isn't read.",
-            transient: false,
-          };
-        }
         case "private-from-public": {
           return {
             sentence: "The page pointed at an address on your own network, so it isn't read.",
@@ -164,8 +147,7 @@ export const failureOf = (failure: FetchFailure): FillFailure => {
     }
     case "plain-http": {
       return {
-        sentence:
-          "The iPhone reads a public page only over a secure (https) connection; choose Refresh from the page on a Mac to read this one.",
+        sentence: "The iPhone reads a public page only over a secure (https) connection.",
         transient: false,
       };
     }

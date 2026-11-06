@@ -4,9 +4,7 @@ import {
   COVERS_DIR,
   FILE_KIND_EXTENSIONS,
   fileKindOf,
-  fileTooLargeMessage,
   isItemKind,
-  ITEM_FILE_MAX_BYTES,
   ITEM_KINDS,
   LIBRARY_RULES_PATH,
   PAGES_DIR,
@@ -56,17 +54,8 @@ describe("item kinds", () => {
   });
 });
 
-describe("the refusal sentences", () => {
+describe("the web rule", () => {
   it("says the web rule", () => {
     expect(WEB_URL_RULE).toBe("Only web links (http or https) can be saved.");
-  });
-
-  it.each([
-    [24 * 1024 * 1024, "“Big.mov” is 24 MB. inteligir keeps files up to 10 MB."],
-    [ITEM_FILE_MAX_BYTES + 1, "“Big.mov” is 10 MB. inteligir keeps files up to 10 MB."],
-    [10.6 * 1024 * 1024, "“Big.mov” is 11 MB. inteligir keeps files up to 10 MB."],
-    [1024, "“Big.mov” is 1 MB. inteligir keeps files up to 10 MB."],
-  ])("%d bytes", (bytes, expected) => {
-    expect(fileTooLargeMessage("Big.mov", bytes)).toBe(expected);
   });
 });

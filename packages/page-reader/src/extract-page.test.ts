@@ -10,8 +10,6 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { analyzeMarkdown, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
-import { composeLinkBody } from "@repo/notes/items/item-body";
-import { composeItemFile } from "@repo/notes/items/item-frontmatter";
 import { FILL_LIMITS } from "@repo/notes/items/link-fill";
 
 import { extractPage, extractPageBlocks, KEPT_MIN } from "./extract-page";
@@ -268,28 +266,6 @@ describe("every corpus page", () => {
     const result = extracted(name);
     expect(analyzeMarkdown(result.article).kind).toBe("canonical");
     expect(result.kept >= KEPT_MIN || result.rung !== "rich").toBe(true);
-  });
-
-  it.each(names)("%s composes into an item that opens rich", (name) => {
-    const { article, facts } = extracted(name);
-    const item = composeItemFile(
-      {
-        description: facts.description,
-        fetched: "2026-10-17T09:12:33Z",
-        id: "7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17",
-        kind: "link",
-        saved: "2026-10-17T09:12:30Z",
-        site: facts.site,
-        url: PAGE_URL,
-      },
-      composeLinkBody({
-        article,
-        copy: "assets/pages/3f9a0c2b1d4e5f60.html",
-        cover: "assets/covers/3f9a0c2b1d4e5f60.jpg",
-        note: "For Tuesday.\n",
-      }),
-    );
-    expect(analyzeMarkdown(item).kind).toBe("canonical");
   });
 });
 

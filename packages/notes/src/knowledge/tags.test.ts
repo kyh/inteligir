@@ -1,87 +1,50 @@
 import { describe, expect, it } from "vitest";
 
-import { scanDoc } from "./link-extract";
+import { frontmatterTags } from "./link-extract";
+import { inlineTagSpans } from "./tag-grammar";
 
-const tagsOf = (source: string): string[] => scanDoc(source).tags;
+const tagsIn = (text: string): string[] => inlineTagSpans(text).map(({ tag }) => tag);
 
-describe("scanDoc — inline tag extraction", () => {
+describe("an inline tag", () => {
   it("pulls `#tag` tokens from prose", () => {
-    expect(tagsOf("A note about #project and #ideas here.\n")).toEqual(["project", "ideas"]);
+    expect(tagsIn("A note about #project and #ideas here.")).toEqual(["project", "ideas"]);
   });
 
   it("requires a letter first — excludes `#123` and fully-numeric hex", () => {
-    expect(tagsOf("issue #123 and #456789 not tags\n")).toEqual([]);
+    expect(tagsIn("issue #123 and #456789 not tags")).toEqual([]);
   });
 
   it("allows nested `a/b` tags and dashes, not a trailing separator", () => {
-    expect(tagsOf("#area/deep-dive and #foo/ and #bar-\n")).toEqual([
-      "area/deep-dive",
-      "foo",
-      "bar",
-    ]);
+    expect(tagsIn("#area/deep-dive and #foo/ and #bar-")).toEqual(["area/deep-dive", "foo", "bar"]);
   });
 
-  it("does not match `#` glued to a preceding word char (C#, ##h)", () => {
-    expect(tagsOf("C# rocks and a ##heading marker\n")).toEqual([]);
-  });
-
-  it("excludes tags inside inline code spans and fenced code", () => {
-    const src = "Text `#nope` inline.\n\n```\n#alsonope in a fence\n```\n\nBut #yes counts.\n";
-    expect(tagsOf(src)).toEqual(["yes"]);
-  });
-
-  it("excludes url fragments and link/image labels", () => {
-    const src =
-      "See <https://example.com/x#frag> and [a #label](out.md) and ![alt #nope](p.png), but #real here.\n";
-    expect(tagsOf(src)).toEqual(["real"]);
-  });
-
-  it("finds tags inside emphasis and headings", () => {
-    expect(tagsOf("## Topic #inheading\n\nBody with **#bold** tag.\n")).toEqual([
-      "inheading",
-      "bold",
-    ]);
+  it("does not match `#` glued to a preceding word char (C#, ##h) or a url's fragment", () => {
+    expect(tagsIn("C# rocks and a ##heading marker, https://example.com/x#frag")).toEqual([]);
   });
 
   it("keeps unicode letter tags", () => {
-    expect(tagsOf("café notes #café and #日本語\n")).toEqual(["café", "日本語"]);
-  });
-
-  it("reads an alert's body as the markdown the editor renders", () => {
-    const src = [
-      "Before #outer.",
-      "",
-      "> [!NOTE]",
-      "> Inside #inner and `#code`, [a #label](x.md).",
-      "",
-      "```js",
-      "#not-a-callout",
-      "```",
-      "",
-    ].join("\n");
-    expect(tagsOf(src)).toEqual(["outer", "inner"]);
+    expect(tagsIn("café notes #café and #日本語")).toEqual(["café", "日本語"]);
   });
 });
 
-describe("scanDoc — frontmatter tags", () => {
-  it("reads the frontmatter `tags` array, then inline tags in order", () => {
-    const src = "---\ntags:\n  - meta\n  - demo\n---\n\n# Note\n\nBody #inline here.\n";
-    expect(tagsOf(src)).toEqual(["meta", "demo", "inline"]);
+describe("frontmatter tags", () => {
+  it("reads the `tags` array in order", () => {
+    expect(frontmatterTags("tags:\n  - meta\n  - demo\n")).toEqual(["meta", "demo"]);
   });
 
-  it("tolerates and strips a leading `#` on frontmatter tags", () => {
-    const src = '---\ntags: ["#alpha", beta]\n---\n\nBody\n';
-    expect(tagsOf(src)).toEqual(["alpha", "beta"]);
+  it("tolerates and strips a leading `#`", () => {
+    expect(frontmatterTags('tags: ["#alpha", beta]\n')).toEqual(["alpha", "beta"]);
   });
 
   it("reads a lone string as one tag, as aliases do", () => {
-    expect(tagsOf("---\ntags: single\n---\n\nBody #inline\n")).toEqual(["single", "inline"]);
-    expect(tagsOf("---\ntags: '#hashed'\n---\n")).toEqual(["hashed"]);
+    expect(frontmatterTags("tags: single\n")).toEqual(["single"]);
+    expect(frontmatterTags("tags: '#hashed'\n")).toEqual(["hashed"]);
   });
 
-  it("indexes only what an inline `#` could spell", () => {
-    expect(tagsOf("---\ntags: [2026, reading list, ok]\n---\n")).toEqual(["ok"]);
-    expect(tagsOf('---\ntags: ["2026", ok]\n---\n')).toEqual(["ok"]);
-    expect(tagsOf("---\ntags: 2026\n---\n")).toEqual([]);
+  it("reads only what an inline `#` could spell", () => {
+    expect(frontmatterTags("tags: [2026, reading list, ok]\n")).toEqual(["ok"]);
+    expect(frontmatterTags('tags: ["2026", ok]\n')).toEqual(["ok"]);
+    expect(frontmatterTags("tags: 2026\n")).toEqual([]);
+    expect(frontmatterTags(": [\n")).toEqual([]);
   });
 });

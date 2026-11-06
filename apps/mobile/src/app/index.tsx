@@ -19,7 +19,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import type { CellLibraryScope } from "@repo/domain/library-scope";
+import type { LibraryScope } from "@repo/domain/library-scope";
 import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import type { ItemKind } from "@repo/notes/items/item-kind";
 import { createPhoneSaves } from "@/items/phone-saves";
@@ -58,7 +58,7 @@ const openRow = (row: ReplicaListingRow): void => {
   openItem(row.id);
 };
 
-const SaveField = ({ scope }: { scope: CellLibraryScope }) => {
+const SaveField = ({ scope }: { scope: LibraryScope }) => {
   const { replica } = useLibrary();
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -192,7 +192,7 @@ const LibraryScreen = () => {
   const screen = { backgroundColor: theme.background, flex: 1 };
   const { replica } = useLibrary();
   const status = useReplicaStatus();
-  const [scope, setScope] = useState<CellLibraryScope>({ kind: "all" });
+  const [scope, setScope] = useState<LibraryScope>({ kind: "all" });
   const [kinds, setKinds] = useState<ReadonlySet<ItemKind>>(() => new Set());
   const [query, setQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);

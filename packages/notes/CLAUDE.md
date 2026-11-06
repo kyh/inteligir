@@ -1,10 +1,9 @@
 # Decisions: @repo/notes
 
 The library model (an item as fields and blocks, its ops, its undo and its
-SQL), and the markdown vault's knowledge engine beside it until its last
-client moves: the scan, the index's rules,
-search, links and tags. `AGENTS.md` § Decisions says how a bullet is written
-and cited.
+SQL), the dialect's markdown grammar the codec, the import and the export read
+and write by, and the rules of search, links and tags.
+`AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Shape
 
@@ -95,38 +94,40 @@ node is rather than discriminating structurally at each visit.
 
 ## Items
 
-- **AN ITEM IS ONE MARKDOWN FILE, AND `@repo/notes/items` IS ITS ONE READER AND
-  WRITER.** A link, a video, an image's wrapper and a person's note are each one
-  doc, whose facts are frontmatter keys (`kind`, `url`, `site`, `author`,
-  `published`, `saved`, `fetched`, `fetch-error`, `description`, beside `id`,
-  `tags`, `pinned` and `aliases`) read by `readItemFacts`: a missing or unknown
-  `kind` is a note, and a note writes none. The filename is the title
-  (`itemNameFromTitle` in `@repo/notes/items/item-name`). A stub is an app-made
-  url item whose page is unread, which needs the `id` and `saved` every writer
-  stamps (`isItemStub`). Rejected: a `title:` key (two names that drift).
+- **A MARKDOWN FILE'S FACTS ARE ITS FRONTMATTER KEYS, AND ONE READER READS
+  THEM.** An import, and the codec reading a file back, take a link's, a
+  video's or a note's facts from its frontmatter (`kind`, `url`, `site`,
+  `author`, `published`, `saved`, `fetched`, `fetch-error`, `description`,
+  beside `id`, `tags` and `aliases`) through `readItemFacts`
+  (`@repo/notes/items/item-frontmatter`), into the item's fields: a missing or
+  unknown `kind` is a note, and an export writes a note none. The filename is
+  the title (`itemNameFromTitle` in `@repo/notes/items/item-name`). Rejected:
+  a `title:` key (two names that drift); a frontmatter block kept in the item
+  (its keys are the item's fields).
 
 - **A URL HAS ONE KEY, COMPUTED WITHOUT THE PLATFORM'S URL.**
   `@repo/notes/items/item-url` parses by the RFC 3986 appendix-B regex. The key
   drops the scheme, userinfo, `www.`, a default port, the tracking parameters
   and a non-route fragment, folds the host and its aliases (`youtu.be`, `x.com`,
-  a mobile host) and sorts the query; `cleanUrl`, what `url:` holds, drops only
-  userinfo and tracking parameters, so `urlKey(cleanUrl(u)) === urlKey(u)` (a
-  seeded property). The key is projected, so a rule change bumps
-  `PROJECTION_VERSION`, and `URL` is a banned global here (`oxlint.config.ts`).
-  Rejected: `new URL()` (React Native's is not WHATWG, so the phone and Mac
-  would disagree) and storing the key in frontmatter (a rule change strands
-  every file on the old one).
+  a mobile host) and sorts the query; `cleanUrl`, what an item's url holds,
+  drops only userinfo and tracking parameters, so `urlKey(cleanUrl(u)) ===
+  urlKey(u)` (a seeded property). The key is a row `deriveItem` writes with
+  every write of the item, and `URL` is a banned global here
+  (`oxlint.config.ts`). Rejected: `new URL()` (React Native's is not WHATWG, so
+  the phone and the Mac would disagree); the key as a field (a rule change
+  strands every item on the old one).
 
 ## Annotations
 
 - **AN ANNOTATION IS A HIGHLIGHT AND AN OPTIONAL NOTE, STORED BY THE ITEM'S
   ID.** Markers, `%%i:<id>[,<id>…]:start%%…%%i:<ids>:end%%`, wrap the passage in
-  the item's bytes; entries live in `.inteligir/annotations/<item id>.json`,
-  keyed by entry id (`text`, `""` for a bare highlight; a root's `quote`;
+  the item's blocks; entries are the item's rows in its library's
+  `annotations` table (`@repo/notes/library/library-schema`), keyed by entry id (`text`, `""` for a bare highlight; a root's `quote`;
   `createdAt`/`updatedAt` in unix seconds; `source`; a reply's `parentId`). The
   fold lists roots in marker order, then the unanchored by creation
   (`foldAnnotations` in `@repo/notes/annotations/annotation-threads`). An
-  unanchored root is waiting on a stub, whose fill places it by its quote, and
+  unanchored root is waiting on a link not yet read, whose fill places it by its
+  quote, and
   missing elsewhere, derived on every answer, never stored (a stored claim
   breaks whichever of text and store is written first). Rejected: resolve (a
   reading mark is not a task) and the comments name (two spellings forever).
@@ -152,30 +153,26 @@ node is rather than discriminating structurally at each visit.
   file is in the library is `fileKindOf` (`@repo/notes/items/item-kind`), and
   what a doc is as an item is its `kind`: one answer each, for every client.
 
-- **THE SCAN READS A NOTE IN THE EDITOR'S OWN GRAMMAR, AND THAT GRAMMAR IS
-  TOTAL.** The knowledge scan walks the editor's plugin list as a bare parse
-  (`@repo/notes/markdown/bare-parse`), so the index reads as prose exactly what
-  the editor draws as prose: no indented code, no flow html, and math as latex,
-  never a link. No input throws: with no jsx or expressions, `<` opens an html
-  tag, an autolink or text and `{` is prose, and a tag folds with its closer as
-  the tree compiles (`@repo/notes/markdown/remark-inline-html`), as the editor
-  pairs it, or stays an `html` literal. Rejected: a second, plain-markdown
-  grammar for the scan (it needed a bridge to say where the two disagreed).
+- **THE DIALECT'S GRAMMAR IS THE EDITOR'S OWN, AND IT IS TOTAL.** Every reader
+  of markdown, the codec, an import and the editor alike, parses through one
+  plugin list (`@repo/notes/markdown/md-plugins`), so what reads as prose is
+  what the editor draws as prose: no indented code, no flow html, and math as
+  latex, never a link. No input throws: with no jsx or expressions, `<` opens an
+  html tag, an autolink or text and `{` is prose, and a tag folds with its
+  closer as the tree compiles (`@repo/notes/markdown/remark-inline-html`), as
+  the editor pairs it, or stays an `html` literal. An escape stays on the text
+  it wrote even where GFM splits that text for a bare url
+  (`@repo/notes/markdown/text-escapes`). Rejected: a second, plain-markdown
+  grammar for an import (it needed a bridge to say where the two disagreed).
   `packages/notes/src/markdown/total-grammar.test.ts`.
 
-- **A RENAME'S SPANS SKIP WHAT THE EDITOR CARRIES AS SOURCE.** A span is a
-  licence to rewrite bytes, so the scan withholds spans inside a construct the
-  editor carries as its source (`isOpaqueSource` in
-  `@repo/notes/markdown/remark-opaque`, walked by
-  `@repo/notes/knowledge/link-extract`); the index path emits no spans.
-
-- **AN MD URL HAS ONE READING, AND THE EDITOR RESOLVES IT WITH THE INDEX'S
-  RESOLVER.** The scan and the editor read a link's or an image's url through
+- **AN MD URL HAS ONE READING, AND THE EDITOR RESOLVES IT WITH THE LIBRARY'S
+  RESOLVER.** The import and the editor read a link's or an image's url through
   `mdLinkTarget` (`@repo/notes/knowledge/link-extract`), and the editor resolves
-  it from its note with the index's `buildResolver`
-  (`packages/editor/src/link-resolver-feed.ts`), so the image the index cannot
-  resolve is the one drawn missing, a vault url opens in the app, and only an
-  http(s) url reaches the browser. A missed image falls back to a root path,
+  it from its item with `buildResolver`
+  (`packages/editor/src/link-resolver-feed.ts`), so the image the resolver
+  cannot find is the one drawn missing, a library url opens in the app, and
+  only an http(s) url reaches the browser. A missed image falls back to a root path,
   since a pasted asset lands before the listing. A non-image embed draws as a
   file card whose Open shows the original in the system's viewer
   (`packages/editor/src/nodes/file-card.tsx`), since an `<img>` over it is

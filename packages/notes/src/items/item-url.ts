@@ -1,6 +1,6 @@
 // A url's one key, computed without the platform's URL: React Native's is not WHATWG, so the phone
-// and the Mac would key one link differently. Import-free, and every rule here is projected
-// (`urlKey` lands in the index), so a change to one bumps PROJECTION_VERSION.
+// and the Mac would key one link differently. Import-free; the key is a row `deriveItem` writes
+// with every write of the item (`../library/derive-item.ts`).
 
 // RFC 3986 appendix B, read as a web address: the scheme and authority are required below
 const URI_RE =

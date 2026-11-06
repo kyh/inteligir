@@ -5,7 +5,7 @@ import { parseTheme } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
 import { useCallback, useState } from "react";
 import { z } from "zod";
-import { cellLibraryScopeSchema } from "@repo/domain/library-scope";
+import { libraryScopeSchema } from "@repo/domain/library-scope";
 import { APPEARANCE_DEFAULTS, appearanceSchema } from "./appearance-options";
 
 export interface PagePref<Value, Fallback> {
@@ -54,7 +54,7 @@ export type LibrarySort = (typeof LIBRARY_SORTS)[number];
 export const PREFS = {
   appearance: pref("inteligir.appearance", json(appearanceSchema), APPEARANCE_DEFAULTS),
   // the scope the library opens on; a folder that is no longer listed reads as every item
-  libraryScope: pref("inteligir.library-scope", json(cellLibraryScopeSchema), { kind: "all" }),
+  libraryScope: pref("inteligir.library-scope", json(libraryScopeSchema), { kind: "all" }),
   librarySort: pref("inteligir.library-sort", z.enum(LIBRARY_SORTS), "saved"),
   // closed until asked for: an annotation focus or the top bar's Annotations opens it
   panelOpen: pref("inteligir.panel-open", flag, false),

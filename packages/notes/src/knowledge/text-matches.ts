@@ -2,8 +2,6 @@
 // line a hit sits, and a jump must land on exactly the bytes the row showed. One matcher
 // serves the listing and the find bar, so the two cannot disagree.
 
-import { splitLinesKeepingTerminators } from "../text/source-lines";
-
 export interface TextMatchOptions {
   caseSensitive: boolean;
   wholeWord: boolean;
@@ -21,28 +19,6 @@ export interface TextMatch {
 export interface TextOffset {
   offset: number;
   length: number;
-}
-
-export interface DocText {
-  path: string;
-  title: string;
-  body: string;
-}
-
-export type VaultMatch = TextMatch & {
-  path: string;
-  title: string;
-  // this match's index among the doc's matches, in document order
-  ordinal: number;
-  before: string;
-  text: string;
-  after: string;
-};
-
-// `total` counts every match; `matches` stops at the caller's limit
-export interface VaultMatches {
-  matches: VaultMatch[];
-  total: number;
 }
 
 const EXCERPT_BEFORE = 40;
@@ -78,22 +54,14 @@ export const findTextOffsets = (
   options: TextMatchOptions,
 ): TextOffset[] => (needle === "" ? [] : hitsIn(matcher(needle, options), text));
 
-// `parts` is splitLinesKeepingTerminators' cut, so a caller that already split the text once
-// does not split it again
-export const findLineMatches = (parts: readonly string[], pattern: RegExp): TextMatch[] => {
-  const found: TextMatch[] = [];
-  for (let index = 0; index < parts.length; index += 2) {
-    for (const hit of hitsIn(pattern, parts[index] ?? "")) {
-      found.push({ column: hit.offset, length: hit.length, line: index / 2 + 1 });
-    }
-  }
-  return found;
-};
+// a match's line clipped around it, as a listing row shows it
+export interface MatchExcerpt {
+  before: string;
+  text: string;
+  after: string;
+}
 
-export const excerptAround = (
-  line: string,
-  match: TextMatch,
-): Pick<VaultMatch, "before" | "text" | "after"> => {
+export const excerptAround = (line: string, match: TextMatch): MatchExcerpt => {
   const start = match.column;
   const end = start + match.length;
   const from = Math.max(0, start - EXCERPT_BEFORE);
@@ -112,50 +80,3 @@ const PRINTABLE_ASCII = /^[\u0020-\u007E]+$/u;
 // every doc is scanned (null)
 export const bodyPrefilters = (needles: readonly string[]): string[] | null =>
   needles.every((needle) => PRINTABLE_ASCII.test(needle)) ? [...needles] : null;
-
-const byPath = (a: DocText, b: DocText): number => {
-  if (a.path < b.path) {
-    return -1;
-  }
-  if (a.path > b.path) {
-    return 1;
-  }
-  return 0;
-};
-
-// in path order, so a re-run reads the same
-export const collectVaultMatches = (
-  docs: Iterable<DocText>,
-  needle: string,
-  options: TextMatchOptions,
-  limit: number,
-): VaultMatches => {
-  if (needle === "") {
-    return { matches: [], total: 0 };
-  }
-  const pattern = matcher(needle, options);
-  const matches: VaultMatch[] = [];
-  let total = 0;
-  for (const doc of [...docs].toSorted(byPath)) {
-    const parts = splitLinesKeepingTerminators(doc.body);
-    const found = findLineMatches(parts, pattern);
-    total += found.length;
-    if (found.length === 0 || matches.length >= limit) {
-      continue;
-    }
-    for (const [ordinal, match] of found.entries()) {
-      if (matches.length >= limit) {
-        break;
-      }
-      const line = parts[(match.line - 1) * 2] ?? "";
-      matches.push({
-        ...match,
-        ...excerptAround(line, match),
-        ordinal,
-        path: doc.path,
-        title: doc.title,
-      });
-    }
-  }
-  return { matches, total };
-};

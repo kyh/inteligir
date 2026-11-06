@@ -2,7 +2,7 @@
 // header chose, as one `ListingQuery`. A scope names what the rail names: every item, those in no
 // folder, a folder and what is under it, a tag and its children, or what was deleted.
 
-import type { CellLibraryScope } from "@repo/domain/library-scope";
+import type { LibraryScope } from "@repo/domain/library-scope";
 import type { ItemKind } from "@repo/notes/items/item-kind";
 import type { ListingFolder, ListingQuery } from "@repo/notes/library/library-index";
 
@@ -13,12 +13,12 @@ import type { LibrarySort } from "../prefs";
 const LISTING_PAGE_MAX = 100_000;
 
 export interface LibraryFilter {
-  readonly scope: CellLibraryScope;
+  readonly scope: LibraryScope;
   readonly kind: ItemKind | null;
   readonly sort: LibrarySort;
 }
 
-const scopeQuery = (scope: CellLibraryScope): Partial<ListingQuery> => {
+const scopeQuery = (scope: LibraryScope): Partial<ListingQuery> => {
   switch (scope.kind) {
     case "all": {
       return {};
@@ -52,15 +52,15 @@ export const listingQuery = (filter: LibraryFilter): ListingQuery => {
 
 // a stored folder scope the library no longer lists reads as every item
 export const listedScope = (
-  scope: CellLibraryScope,
+  scope: LibraryScope,
   folders: readonly ListingFolder[],
-): CellLibraryScope =>
+): LibraryScope =>
   scope.kind === "folder" && !folders.some((folder) => folder.id === scope.folderId)
     ? { kind: "all" }
     : scope;
 
 // what the header calls the scope
-export const scopeTitle = (scope: CellLibraryScope, folders: readonly ListingFolder[]): string => {
+export const scopeTitle = (scope: LibraryScope, folders: readonly ListingFolder[]): string => {
   switch (scope.kind) {
     case "all": {
       return "All items";
@@ -82,9 +82,9 @@ export const scopeTitle = (scope: CellLibraryScope, folders: readonly ListingFol
 };
 
 // the folder a save from this scope lands in: the shown folder's, else none (Unsorted)
-export const saveFolderOf = (scope: CellLibraryScope): string | null =>
+export const saveFolderOf = (scope: LibraryScope): string | null =>
   scope.kind === "folder" ? scope.folderId : null;
 
 // a tag a save from this scope carries: the shown tag's
-export const saveTagsOf = (scope: CellLibraryScope): string[] =>
+export const saveTagsOf = (scope: LibraryScope): string[] =>
   scope.kind === "tag" ? [scope.tag] : [];

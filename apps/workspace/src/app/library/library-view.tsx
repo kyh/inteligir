@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@repo/ui/components/dropdown-menu";
-import type { CellLibraryScope } from "@repo/domain/library-scope";
+import type { LibraryScope } from "@repo/domain/library-scope";
 import { ArrowDownUpIcon, PlusIcon } from "lucide-react";
 
 import { TIDY_LABEL } from "@repo/agent-panel/tidy-library";
@@ -48,7 +48,7 @@ interface LibraryAdd {
 }
 
 export interface LibraryViewProps {
-  readonly scope: CellLibraryScope;
+  readonly scope: LibraryScope;
   readonly title: string;
   // undefined until the replica's listing has been read once
   readonly page: ListingPage<ReplicaListingRow> | undefined;
@@ -69,7 +69,7 @@ interface EmptyWords {
   readonly body: string;
 }
 
-const emptyWords = (scope: CellLibraryScope): EmptyWords => {
+const emptyWords = (scope: LibraryScope): EmptyWords => {
   switch (scope.kind) {
     case "deleted": {
       return { body: "What you delete waits here until you empty it.", title: "Nothing deleted" };

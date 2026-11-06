@@ -1,15 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  addReply,
-  addRoot,
-  deleteAnnotation,
-  editEntry,
-  foldAnnotations,
-  rootOf,
-  threadIds,
-} from "./annotation-threads";
-import { markerRootIds } from "./marker-ids";
+import { markerRootIds } from "../test-support/annotation-markers";
+import { foldAnnotations } from "./annotation-threads";
 import {
   ANNOTATION_ID_RE,
   ANNOTATION_SOURCES,
@@ -85,26 +77,6 @@ describe("annotation store schema", () => {
   });
 });
 
-describe("markerRootIds", () => {
-  it("collects comma-shared ids and ignores fences", () => {
-    const source = [
-      "A %%i:c1:start%%range%%i:c1:end%% and %%i:a,b:start%%shared%%i:a,b:end%%.",
-      "",
-      "```",
-      "%%i:fenced:start%% literal %%i:fenced:end%%",
-      "```",
-      "",
-    ].join("\n");
-    expect(markerRootIds(source)).toEqual(new Set(["c1", "a", "b"]));
-  });
-
-  it("reads the markers of a doc holding a tag that cannot pair", () => {
-    expect(markerRootIds("%%i:c1:start%%x%%i:c1:end%% <Foo>broken</Bar>\n")).toEqual(
-      new Set(["c1"]),
-    );
-  });
-});
-
 describe("foldAnnotations", () => {
   it("builds threads with replies in parent-chain order and flags both orphan directions", () => {
     const folded = foldAnnotations(STORE, new Set(["c1", "ghost"]));
@@ -139,94 +111,12 @@ describe("foldAnnotations", () => {
     };
     const folded = foldAnnotations(broken, new Set(["c1"]));
     expect(folded.strayIds.toSorted()).toEqual(["dangling", "loopA", "loopB"]);
-    expect(rootOf(broken, "loopA")).toBeNull();
-    expect(rootOf(broken, "dangling")).toBeNull();
   });
 
   it("claims nothing about markers when the doc was unparseable", () => {
     const folded = foldAnnotations(STORE, null);
     expect(folded.orphanMarkers).toEqual([]);
     expect(folded.annotations.every((annotation) => annotation.anchored)).toBe(true);
-  });
-});
-
-describe("transforms", () => {
-  it("addRoot refuses a taken id and appends in insertion order", () => {
-    expect(addRoot(STORE, { at: AT, id: "c1", source: "user", text: "x" }).ok).toBe(false);
-    const added = addRoot(STORE, { at: AT + 5, id: "n1", source: "user", text: "x" });
-    expect(added.ok).toBe(true);
-    if (!added.ok) {
-      return;
-    }
-    expect(Object.keys(added.store).at(-1)).toBe("n1");
-    expect(STORE.n1).toBeUndefined();
-  });
-
-  it("addRoot keeps a bare highlight's quote, and a parse gives it back", () => {
-    const added = addRoot(STORE, {
-      at: AT,
-      id: "h1",
-      quote: "the passage",
-      source: "user",
-      text: "",
-    });
-    expect(added.ok).toBe(true);
-    if (!added.ok) {
-      return;
-    }
-    const parsed = parseAnnotationStore(serializeAnnotationStore(added.store));
-    expect(parsed.ok ? parsed.store.h1 : null).toEqual({
-      createdAt: AT,
-      quote: "the passage",
-      source: "user",
-      text: "",
-      updatedAt: AT,
-    });
-  });
-
-  it("addReply requires a parent reachable from a root", () => {
-    expect(
-      addReply(STORE, { at: AT, id: "r9", parentId: "missing", source: "agent", text: "x" }).ok,
-    ).toBe(false);
-    const nested = addReply(STORE, {
-      at: AT,
-      id: "r9",
-      parentId: "c1-r2",
-      source: "agent",
-      text: "x",
-    });
-    expect(nested.ok).toBe(true);
-  });
-
-  it("editEntry rewrites one entry's text in place, signed by its writer, and refuses an unknown id", () => {
-    const edited = editEntry(STORE, { at: AT + 9, id: "c1", source: "agent", text: "Ship it." });
-    expect(edited.ok).toBe(true);
-    if (!edited.ok) {
-      return;
-    }
-    expect(Object.keys(edited.store)).toEqual(Object.keys(STORE));
-    expect(edited.store.c1).toEqual({
-      createdAt: AT,
-      source: "agent",
-      text: "Ship it.",
-      updatedAt: AT + 9,
-    });
-    expect(editEntry(STORE, { at: AT, id: "nope", source: "user", text: "x" }).ok).toBe(false);
-  });
-
-  it("deleteAnnotation removes the whole chain and answers which ids died", () => {
-    const deleted = deleteAnnotation(STORE, "c1");
-    expect(deleted.ok).toBe(true);
-    if (!deleted.ok) {
-      return;
-    }
-    expect(deleted.removedIds.toSorted()).toEqual(["c1", "c1-r1", "c1-r2"]);
-    expect(Object.keys(deleted.store)).toEqual(["b9"]);
-    expect(threadIds(STORE, "c1").toSorted()).toEqual(["c1", "c1-r1", "c1-r2"]);
-  });
-
-  it("deleteAnnotation refuses a reply id", () => {
-    expect(deleteAnnotation(STORE, "c1-r1").ok).toBe(false);
   });
 });
 

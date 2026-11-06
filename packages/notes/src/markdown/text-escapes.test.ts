@@ -40,6 +40,16 @@ describe("a construct whose first character an escape wrote", () => {
     expect(stringify(parseMdast(md).root)).toBe(md);
   });
 
+  it("is text past a bare url GFM found in the same text, which splits it", () => {
+    const md = "www\\.y.org2026-01-02) \\@2026-01-02-$\n";
+    expect(outlineOf(md)).toEqual([
+      "  paragraph",
+      "    link",
+      "      text www.y.org2026-01-02",
+      "    text ) @2026-01-02-$",
+    ]);
+  });
+
   it("is text: a `:::` line inside a toggle, which would close it", () => {
     const md = ":::toggle\nsummary\n\n\\:::\n\nafter\n:::\n";
     expect(outlineOf(md)).toEqual([

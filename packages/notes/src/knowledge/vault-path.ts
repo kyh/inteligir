@@ -1,5 +1,6 @@
-// No node:path: this runs in client bundles. The grammar is spelled once because
-// the wire contract, the server and the index all refuse by it.
+// A folder tree's paths without node:path, since this runs in client bundles and the Worker: the
+// import's and the export's plans, a zip's reader and the links' resolver join, split and compare
+// an entry's place in the tree a markdown folder is by these.
 
 // `..` past the root is kept (`normalizePath("../x") === "../x"`) so a caller can detect the escape
 export const normalizePath = (p: string): string => {
@@ -56,65 +57,6 @@ export const relativePath = (fromDir: string, toPath: string): string => {
   const parts = [...Array.from({ length: ups }, () => ".."), ...toParts.slice(common)];
   return parts.join("/");
 };
-
-// atomic writes stage under this; the listing, the watcher and git (.git/info/exclude) all hide it
-export const VAULT_TMP_PREFIX = ".inteligir-tmp-";
-
-const MAX_VAULT_PATH_LENGTH = 1024;
-
-export class VaultPathError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "VaultPathError";
-  }
-}
-
-export type VaultPathParse =
-  | { readonly ok: true; readonly path: string }
-  | { readonly ok: false; readonly message: string };
-
-// `\` is refused rather than treated as a separator, so a path never names different files on different platforms
-export const parseVaultPath = (raw: string): VaultPathParse => {
-  if (raw.length === 0 || raw.length > MAX_VAULT_PATH_LENGTH) {
-    return { message: "path must be a non-empty string of reasonable length", ok: false };
-  }
-  if (raw.includes("\0")) {
-    return { message: "path must not contain null bytes", ok: false };
-  }
-  if (raw.includes("\\")) {
-    return { message: "path must use / separators", ok: false };
-  }
-  if (raw.startsWith("/")) {
-    return { message: "path must be relative to the vault root", ok: false };
-  }
-  const segments = raw.split("/").filter((segment) => segment.length > 0);
-  if (segments.length === 0) {
-    return { message: "path must name an entry inside the vault", ok: false };
-  }
-  for (const segment of segments) {
-    if (segment === "." || segment === "..") {
-      return { message: "path must not contain . or .. segments", ok: false };
-    }
-    if (segment.toLowerCase() === ".git") {
-      return { message: "path must not reach into .git", ok: false };
-    }
-    if (segment.startsWith(VAULT_TMP_PREFIX)) {
-      return { message: "path must not name a staging file", ok: false };
-    }
-  }
-  return { ok: true, path: segments.join("/") };
-};
-
-export const normalizeVaultPath = (raw: string): string => {
-  const parsed = parseVaultPath(raw);
-  if (!parsed.ok) {
-    throw new VaultPathError(parsed.message);
-  }
-  return parsed.path;
-};
-
-export const isIgnoredEntryName = (name: string): boolean =>
-  name.toLowerCase() === ".git" || name.startsWith(VAULT_TMP_PREFIX);
 
 // A Mac's filesystem is case- and normalization-insensitive: two paths with one key are one file
 // there, so every writer that steps past a taken name, and the Worker that refuses a collision,

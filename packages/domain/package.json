@@ -5,8 +5,7 @@
   "description": "The library scopes and view contexts the page, the phone and the cell parse, in zod alone.",
   "type": "module",
   "exports": {
-    "./library-scope": "./src/library-scope.ts",
-    "./view-context": "./src/view-context.ts"
+    "./library-scope": "./src/library-scope.ts"
   },
   "scripts": {
     "test": "vitest run",

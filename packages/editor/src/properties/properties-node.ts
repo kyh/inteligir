@@ -1,5 +1,5 @@
-// the panel edits the frontmatter node and Plate's serialize → onChange → editNote path
-// persists it; there is no second write path to the file.
+// a markdown file's frontmatter as the editor holds it: one node at the top, its yaml as written,
+// which a formula reads its note's id from (`../formulas/formula-recompute.ts`).
 
 import { ElementApi } from "platejs";
 import type { SlateEditor, TElement, TNode } from "platejs";
@@ -17,20 +17,4 @@ export const readFrontmatterRaw = (editor: SlateEditor): string | null => {
     return stringProp(first, "value") ?? "";
   }
   return null;
-};
-
-export const writeFrontmatterRaw = (editor: SlateEditor, raw: string): void => {
-  const hasNode = readFrontmatterRaw(editor) !== null;
-  if (raw === "") {
-    if (hasNode) {
-      editor.tf.removeNodes({ at: [0] });
-    }
-    return;
-  }
-  if (hasNode) {
-    editor.tf.setNodes({ value: raw }, { at: [0] });
-    return;
-  }
-  const node: TElement = { children: [{ text: "" }], type: FRONTMATTER_KEY, value: raw };
-  editor.tf.insertNodes(node, { at: [0], select: false });
 };

@@ -9,8 +9,7 @@
 
 import { z } from "zod";
 
-import { cellItemScopeSchema } from "@repo/domain/library-scope";
-import { LIBRARY_SELECTION_MAX } from "@repo/domain/view-context";
+import { itemScopeSchema, LIBRARY_SELECTION_MAX } from "@repo/domain/library-scope";
 import {
   ANNOTATION_QUOTE_MAX,
   annotationIdSchema,
@@ -432,7 +431,7 @@ export const agentViewContextSchema = z.discriminatedUnion("surface", [
     itemIds: z.array(idSchema).max(LIBRARY_SELECTION_MAX),
     kinds: z.array(itemKindSchema).min(1).optional(),
     q: z.string().min(1).max(500).optional(),
-    scope: cellItemScopeSchema,
+    scope: itemScopeSchema,
     // how many are selected, which may exceed itemIds.length
     selected: z.number().int().nonnegative(),
     surface: z.literal("library"),

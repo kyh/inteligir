@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { markerRootIds } from "./marker-ids";
+import { markerRootIds } from "../test-support/annotation-markers";
 import { annotationPassages } from "./passage-text";
-import { placeQuotes, stripAnnotationMarkers } from "./place-quotes";
+import { placeQuotes } from "./place-quotes";
 
 const placeOne = (content: string, quote: string, occurrence?: number) =>
   placeQuotes(content, [{ id: "h1", occurrence, quote }], { final: false });
@@ -166,23 +166,18 @@ describe("a final placement", () => {
     ).toBe("---\nid: x\n---\n\n## Highlights\n\n> %%i:h1:start%%x%%i:h1:end%%\n");
   });
 
+  // a bare url an escape broke is found again in finished text, which once cost the date after it
+  // its escape: the passage read the chip's date without its `@`
+  it("reads an escaped date after a bare url back with its @", () => {
+    const quote = "www.y.org' a www.y.org2026-01-02) @2026-01-02-$";
+    const placed = placeQuotes("", [{ id: "h1", quote }], { final: true });
+    expect(placed.appended).toEqual(["h1"]);
+    expect(placed.content).toContain("\\@2026-01-02-$%%i:h1:end%%");
+    expect(annotationPassages(placed.content).get("h1")).toBe(quote);
+  });
+
   it("appends nothing without final", () => {
     const placed = placeQuotes("Body.\n", [{ id: "h1", quote: "gone" }], { final: false });
     expect(placed).toEqual({ appended: [], content: "Body.\n", missing: ["h1"], placed: [] });
-  });
-});
-
-describe("stripping markers", () => {
-  it("splices out exactly the named ids, keeping the rest of a shared pair", () => {
-    const content = "x %%i:a1,b2:start%%y%%i:a1,b2:end%% %%i:c3:start%%z%%i:c3:end%%\n";
-    expect(stripAnnotationMarkers(content, ["a1"])).toBe(
-      "x %%i:b2:start%%y%%i:b2:end%% %%i:c3:start%%z%%i:c3:end%%\n",
-    );
-    expect(stripAnnotationMarkers(content, ["a1", "b2", "c3"])).toBe("x y z\n");
-  });
-
-  it("leaves a marker in code and an escaped one alone", () => {
-    const content = "`%%i:a1:start%%` \\%%i:a1:end%% %%i:a1:start%%k%%i:a1:end%%\n";
-    expect(stripAnnotationMarkers(content, ["a1"])).toBe("`%%i:a1:start%%` \\%%i:a1:end%% k\n");
   });
 });

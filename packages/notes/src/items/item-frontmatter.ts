@@ -1,25 +1,12 @@
-// An item's facts, read from its frontmatter, and the one writer of its keys. YAML-bearing, so
-// the server, the projection worker and the phone load it and the contract never does.
+// An item's facts as a markdown file's frontmatter says them, which an import reads into the
+// item's fields (`@repo/editor/codec/item-fields`). YAML-bearing, so the contract never loads it.
 
-import { splitLines } from "../text/source-lines";
-import { BOM } from "../markdown/parsed-offsets";
-import {
-  frontmatterEnd,
-  frontmatterYaml,
-  noteIdOfProperties,
-  parseProperties,
-  PINNED_KEY,
-  replaceFrontmatterYaml,
-  replaceTopLevelKey,
-  TAGS_KEY,
-  topLevelKeyRange,
-  yamlScalarText,
-} from "../markdown/frontmatter";
+import { noteIdOfProperties } from "../markdown/frontmatter";
 import type { ParsedProperties, TypedProperty } from "../markdown/frontmatter";
-import { isItemKind, ITEM_KEYS } from "./item-kind";
+import { isItemKind } from "./item-kind";
 import type { ItemKey, ItemKind } from "./item-kind";
-import { formatItemTime, parseItemTime } from "./item-time";
-import { cleanUrl, isWebUrl, urlHost, urlKey } from "./item-url";
+import { parseItemTime } from "./item-time";
+import { isWebUrl, urlHost, urlKey } from "./item-url";
 
 export interface ItemFacts {
   kind: ItemKind;
@@ -37,7 +24,7 @@ export interface ItemFacts {
   hasId: boolean;
 }
 
-export const NOTE_FACTS: ItemFacts = {
+const NOTE_FACTS: ItemFacts = {
   author: null,
   description: null,
   fetchError: null,
@@ -133,195 +120,4 @@ export const readItemFacts = (parsed: ParsedProperties | null): ItemFacts => {
     url,
     urlKey: url === null ? null : urlKey(url),
   };
-};
-
-export const itemFactsOf = (content: string): ItemFacts => {
-  const yaml = frontmatterYaml(content);
-  return readItemFacts(yaml === null ? null : parseProperties(yaml));
-};
-
-export type ItemFieldPatch = { readonly [K in ItemKey]?: string | null };
-
-// a block value, plain unless yaml would read it back as something else
-const scalar = (value: string): string => yamlScalarText(value, "plain", "block");
-
-const keyLine = (key: string, value: string): string => `${key}: ${scalar(value)}`;
-
-// a note's kind is the absence of the key
-const writtenValue = (key: ItemKey, value: string | null | undefined): string | null =>
-  value === undefined || value === null || (key === "kind" && value === "note") ? null : value;
-
-// `id`, then ITEM_KEYS in order, then `tags` as a block list, then `pinned`; absent values
-// skipped, and a body below a blank line
-export type ItemFileFields = ItemFieldPatch & {
-  id?: string;
-  tags?: readonly string[];
-  pinned?: boolean;
-};
-
-export const composeItemFile = (fields: ItemFileFields, body: string): string => {
-  const lines: string[] = [];
-  if (fields.id !== undefined) {
-    lines.push(keyLine("id", fields.id));
-  }
-  for (const key of ITEM_KEYS) {
-    const value = writtenValue(key, fields[key]);
-    if (value !== null) {
-      lines.push(keyLine(key, value));
-    }
-  }
-  const tags = fields.tags ?? [];
-  if (tags.length > 0) {
-    lines.push(`${TAGS_KEY}:`, ...tags.map((tag) => `  - ${scalar(tag)}`));
-  }
-  if (fields.pinned === true) {
-    lines.push(`${PINNED_KEY}: true`);
-  }
-  if (lines.length === 0) {
-    return body;
-  }
-  // one blank line under the block, as the editor writes it, so the item is its own fixpoint
-  return `---\n${lines.join("\n")}\n---\n${body === "" ? "" : "\n"}${body}`;
-};
-
-// the blank line the editor writes between a block and the body under it
-const SEPARATING_LINE = /^\r?\n/u;
-
-// replaceFrontmatterYaml, holding the editor's spelling at the block's two edges: a block this
-// adds to a doc that had none sits one blank line above the body, and a block this empties takes
-// that line with it. A block that stays is a line cut, every byte under it kept.
-export const replaceItemYaml = (content: string, yaml: string): string => {
-  const end = frontmatterEnd(content);
-  const writesBlock = yaml.trim() !== "";
-  if ((end !== null) === writesBlock) {
-    return replaceFrontmatterYaml(content, yaml);
-  }
-  const bom = content.startsWith(BOM) ? BOM : "";
-  const body = content.slice(end ?? bom.length).replace(SEPARATING_LINE, "");
-  if (!writesBlock) {
-    return `${bom}${body}`;
-  }
-  const flush = replaceFrontmatterYaml(content, yaml);
-  const block = flush.slice(0, flush.length - (content.length - bom.length));
-  if (body === "") {
-    return block;
-  }
-  return `${block}${block.endsWith("\r\n") ? "\r\n" : "\n"}${body}`;
-};
-
-export type WithItemFieldsVerdict =
-  | { kind: "written"; content: string }
-  | { kind: "unchanged" }
-  // the block does not parse; nothing may rewrite it
-  | { kind: "invalid" }
-  // a value failed validation
-  | { kind: "refused"; key: ItemKey; reason: string };
-
-type Validated = { ok: true; value: string | null } | { ok: false; reason: string };
-
-const validate = (key: ItemKey, value: string | null): Validated => {
-  if (value === null) {
-    return { ok: true, value: null };
-  }
-  switch (key) {
-    case "kind": {
-      const kind = value.trim().toLowerCase();
-      if (!isItemKind(kind)) {
-        return { ok: false, reason: `${value} is not an item kind` };
-      }
-      return { ok: true, value: kind === "note" ? null : kind };
-    }
-    case "url": {
-      const url = cleanUrl(value);
-      return url === null ? { ok: false, reason: "not a web link" } : { ok: true, value: url };
-    }
-    case "saved":
-    case "fetched": {
-      const ms = parseItemTime(value);
-      return ms === null
-        ? { ok: false, reason: "not an ISO date or time" }
-        : { ok: true, value: formatItemTime(ms) };
-    }
-    default: {
-      return { ok: true, value };
-    }
-  }
-};
-
-// where an absent key goes: after the nearest present ITEM_KEYS key before it, else before the
-// nearest present one after it, else after `id:`, else first. So a filled stub reads in compose
-// order, and two Macs filling one stub write the same bytes.
-const insertionIndex = (lines: readonly string[], key: ItemKey): number => {
-  const at = ITEM_KEYS.indexOf(key);
-  for (const before of ITEM_KEYS.slice(0, at).toReversed()) {
-    const range = topLevelKeyRange(lines, before);
-    if (range !== null) {
-      return range.end;
-    }
-  }
-  for (const after of ITEM_KEYS.slice(at + 1)) {
-    const range = topLevelKeyRange(lines, after);
-    if (range !== null) {
-      return range.start;
-    }
-  }
-  return topLevelKeyRange(lines, "id")?.end ?? 0;
-};
-
-// a key already reading as the value (in any spelling) or spelled as its line is left alone
-const holdsAlready = (
-  current: TypedProperty | undefined,
-  lines: readonly string[],
-  range: { start: number; end: number },
-  line: string,
-  value: string,
-): boolean =>
-  ((current?.type === "text" || current?.type === "date") && current.value === value) ||
-  (range.end - range.start === 1 && lines[range.start] === line);
-
-// A line cut: a present key's own lines are replaced and every other byte of the block is left
-// alone (its line ending, a BOM, comments, unknown keys, a flow list). `null` removes the key.
-export const withItemFields = (content: string, patch: ItemFieldPatch): WithItemFieldsVerdict => {
-  const yaml = frontmatterYaml(content);
-  const parsed = parseProperties(yaml ?? "");
-  if (parsed.kind === "invalid") {
-    return { kind: "invalid" };
-  }
-  const properties = parsed.kind === "valid" ? parsed.properties : [];
-  let lines = yaml === null || yaml === "" ? [] : splitLines(yaml);
-  let changed = false;
-  for (const key of ITEM_KEYS) {
-    const raw = patch[key];
-    if (raw === undefined) {
-      continue;
-    }
-    const validated = validate(key, raw);
-    if (!validated.ok) {
-      return { key, kind: "refused", reason: validated.reason };
-    }
-    const { value } = validated;
-    const range = topLevelKeyRange(lines, key);
-    if (value === null) {
-      if (range !== null) {
-        lines = replaceTopLevelKey(lines, key, []);
-        changed = true;
-      }
-      continue;
-    }
-    const line = keyLine(key, value);
-    if (range !== null && holdsAlready(propertyOf(properties, key), lines, range, line, value)) {
-      continue;
-    }
-    if (range === null) {
-      const index = insertionIndex(lines, key);
-      lines = [...lines.slice(0, index), line, ...lines.slice(index)];
-    } else {
-      lines = replaceTopLevelKey(lines, key, [line]);
-    }
-    changed = true;
-  }
-  if (!changed) {
-    return { kind: "unchanged" };
-  }
-  return { content: replaceItemYaml(content, lines.join("\n")), kind: "written" };
 };

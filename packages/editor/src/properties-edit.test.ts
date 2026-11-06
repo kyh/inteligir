@@ -4,16 +4,11 @@ import { createSlateEditor } from "platejs";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import {
-  parseProperties,
-  serializeProperties,
-  typeNewProperty,
-} from "@repo/notes/markdown/frontmatter";
-import type { TypedProperty } from "@repo/notes/markdown/frontmatter";
+import { parseProperties } from "@repo/notes/markdown/frontmatter";
 
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
-import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
-import { readFrontmatterRaw, writeFrontmatterRaw } from "@repo/editor/properties/properties-node";
+import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
+import { readFrontmatterRaw } from "@repo/editor/properties/properties-node";
 
 const seed = (md: string) => {
   const parsed = parseMarkdown(md);
@@ -22,68 +17,16 @@ const seed = (md: string) => {
   }
   return createSlateEditor({ plugins: EDITOR_KIT, value: parsed.value });
 };
-const serialize = (editor: ReturnType<typeof seed>): string => serializeNote(editor);
-
-const editProperty = (
-  editor: ReturnType<typeof seed>,
-  mutate: (props: TypedProperty[]) => TypedProperty[],
-) => {
-  const raw = readFrontmatterRaw(editor) ?? "";
-  const parsed = parseProperties(raw);
-  if (parsed.kind !== "valid") {
-    throw new Error(`expected valid, got ${parsed.kind}`);
-  }
-  writeFrontmatterRaw(editor, serializeProperties(mutate(parsed.properties), raw));
-};
 
 const DOC =
   "---\ntitle: Note\ndone: false\ntags:\n  - a\n  - b\nnested:\n  x: 1\n  y: 2\n---\n\n# Body\n\ntext\n";
 
-describe("properties panel edit → serialize", () => {
+describe("the frontmatter node", () => {
   it("reads the frontmatter node's raw yaml", () => {
     const editor = seed(DOC);
     expect(readFrontmatterRaw(editor)).toBe(
       "title: Note\ndone: false\ntags:\n  - a\n  - b\nnested:\n  x: 1\n  y: 2",
     );
-  });
-
-  it("editing a checkbox flips only that key; the unsupported map is untouched", () => {
-    const editor = seed(DOC);
-    editProperty(editor, (props) =>
-      props.map((p) => (p.key === "done" ? { key: "done", type: "checkbox", value: true } : p)),
-    );
-    expect(serialize(editor)).toBe(
-      "---\ntitle: Note\ndone: true\ntags:\n  - a\n  - b\nnested:\n  x: 1\n  y: 2\n---\n\n# Body\n\ntext\n",
-    );
-  });
-
-  it("editing a text value serializes the new bytes", () => {
-    const editor = seed(DOC);
-    editProperty(editor, (props) =>
-      props.map((p) => (p.key === "title" ? { key: "title", type: "text", value: "Renamed" } : p)),
-    );
-    expect(serialize(editor)).toContain("title: Renamed\n");
-  });
-
-  it("adding a property to a note with no frontmatter inserts a block", () => {
-    const editor = seed("# Body\n\ntext\n");
-    expect(readFrontmatterRaw(editor)).toBeNull();
-    writeFrontmatterRaw(editor, serializeProperties([typeNewProperty("title", "Hello")], ""));
-    const out = serialize(editor);
-    expect(out.startsWith("---\ntitle: Hello\n---\n")).toBe(true);
-    expect(out).toContain("# Body");
-    expect(parseProperties(readFrontmatterRaw(editor) ?? "")).toEqual({
-      kind: "valid",
-      properties: [{ key: "title", type: "text", value: "Hello" }],
-    });
-  });
-
-  it("clearing every property removes the frontmatter block", () => {
-    const editor = seed(DOC);
-    writeFrontmatterRaw(editor, serializeProperties([], readFrontmatterRaw(editor) ?? ""));
-    const out = serialize(editor);
-    expect(out.startsWith("---")).toBe(false);
-    expect(out).toContain("# Body");
   });
 });
 

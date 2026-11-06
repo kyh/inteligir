@@ -28,17 +28,6 @@ export const ITEM_KEYS = [
 ] as const;
 export type ItemKey = (typeof ITEM_KEYS)[number];
 
-// what a fill (and the url-item verdict's winner) owns; `url` and `saved` are written once, at save
-export const FILL_OWNED_KEYS = [
-  "kind",
-  "site",
-  "author",
-  "published",
-  "fetched",
-  "fetch-error",
-  "description",
-] as const satisfies readonly ItemKey[];
-
 export type FileKind = "image" | "pdf" | "video" | "audio" | "file";
 
 // wider than the servable media table: `.heic` is an image item the asset route does not serve
@@ -76,10 +65,6 @@ export const fileKindOf = (path: string): FileKind | null => {
   return KIND_BY_EXTENSION.get(extnamePath(path).toLowerCase()) ?? "file";
 };
 
-// the largest file the library takes; equal to the hosted library's VAULT_ASSET_MAX_BYTES, which
-// a contract test holds
-export const ITEM_FILE_MAX_BYTES = 10 * 1024 * 1024;
-
 export const UNSORTED_FOLDER = "Unsorted";
 export const COVERS_DIR = "assets/covers";
 export const PAGES_DIR = "assets/pages";
@@ -94,15 +79,5 @@ export const contentAddressedName = (sha256Hex: string, extension: string): stri
 // the library's filing rules, which the agent reads; hidden from the grid
 export const LIBRARY_RULES_PATH = "AGENTS.md";
 
-// The refusal sentences every client says, spelled here because the phone reaches no
-// @repo/contract/local module; the local contract re-exports both.
+// what a device says of a link it will not save, in the one sentence every device says it
 export const WEB_URL_RULE = "Only web links (http or https) can be saved.";
-
-const BYTES_PER_MB = 1024 * 1024;
-
-const wholeMegabytes = (bytes: number): number => Math.max(1, Math.round(bytes / BYTES_PER_MB));
-
-export const fileTooLargeMessage = (name: string, bytes: number): string =>
-  `“${name}” is ${String(wholeMegabytes(bytes))} MB. inteligir keeps files up to ${String(
-    wholeMegabytes(ITEM_FILE_MAX_BYTES),
-  )} MB.`;

@@ -1,5 +1,6 @@
-// No imports, on purpose: the contract validates a tag name against this, and every client that
-// loads the contract would otherwise load the markdown parser behind the scan.
+// No imports, on purpose: an item's fields validate a tag name against this
+// (`../library/library-item.ts`), which the contract loads in every client, and no markdown parser
+// may come along with it.
 
 export interface InlineTagSpan {
   start: number;

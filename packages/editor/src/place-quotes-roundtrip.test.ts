@@ -7,12 +7,14 @@
 import { describe, expect, it } from "vitest";
 
 import { analyzeMarkdown, toCanonical } from "@repo/editor/markdown/markdown-doc";
-import { markerRootIds } from "@repo/notes/annotations/marker-ids";
+import { markerRootIds } from "@repo/notes/test-support/annotation-markers";
 
 import { annotationPassages } from "@repo/notes/annotations/passage-text";
 import { placeQuotes } from "@repo/notes/annotations/place-quotes";
 
-import { canonicalCorpus, quotesOf, seededRandom } from "./test-support/quote-corpus";
+import { mulberry32 } from "@repo/notes/test-support/seeded-random";
+
+import { canonicalCorpus, quotesOf } from "./test-support/quote-corpus";
 
 const TABLE_ROW = /^(?:> )*\|/u;
 
@@ -24,7 +26,7 @@ const rewrittenLines = (placed: string, canonical: string): string[] => {
 };
 
 describe("the editor keeps a placed highlight's bytes", () => {
-  const random = seededRandom(17);
+  const random = mulberry32(17);
   const cases = canonicalCorpus().flatMap((doc) =>
     quotesOf(doc.content, random, 10).map((quote, index) => ({ ...doc, id: `q${index}`, quote })),
   );
@@ -101,7 +103,7 @@ const highlighted = (quote: string): string => {
 };
 
 describe("a quote under Highlights reads back as itself, in the editor's own spelling", () => {
-  const random = seededRandom(4242);
+  const random = mulberry32(4242);
   const quotes = [
     "[x](javascript:alert(1)) <img src=x onerror=y> {{1+1|2}} %%i:zz:start%% @2026-10-17",
     "*emphasis* _under_ **strong** ~~gone~~ `code` $$m$$ [[Wiki]] ![[embed]] #tag",
@@ -125,7 +127,7 @@ describe("a quote under Highlights reads back as itself, in the editor's own spe
 // respelled on the first save, or left alone where the editor cannot settle one; either way the
 // highlight and its markers survive
 describe("a quote packed with bare urls keeps its highlight through the editor", () => {
-  const random = seededRandom(99);
+  const random = mulberry32(99);
   const quotes = Array.from({ length: 200 }, () =>
     hostileQuote(random, [...WORDS, ...URLS]),
   ).filter((quote) => quote !== "");

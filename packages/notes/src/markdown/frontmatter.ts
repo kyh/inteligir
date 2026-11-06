@@ -1,11 +1,7 @@
 // yaml the typed ADT cannot represent is preserved byte-exactly, never coerced or dropped.
 
 import { isMap, isScalar, isSeq, parse as parseYaml, parseDocument } from "yaml";
-import type { Scalar } from "yaml";
 import { z } from "zod";
-
-import { splitLines } from "../text/source-lines";
-import { BOM } from "./parsed-offsets";
 
 // yaml 1.2 core has no timestamp tag, so every value is json-shaped; `.nan`/`.inf` fail the
 // schema and read as unsupported.
@@ -36,20 +32,6 @@ export const frontmatterEnd = (text: string): number | null =>
 export const splitFrontmatter = (text: string): SplitDoc => ({
   body: text.slice(frontmatterEnd(text) ?? 0),
 });
-
-// The one recomposition every key edit runs: the BOM and the note's line ending survive, the
-// body is sliced rather than re-read, and yaml with nothing in it drops the block. A note with
-// no block yet takes the ending of its first line.
-export const replaceFrontmatterYaml = (content: string, yaml: string): string => {
-  const match = FRONTMATTER_RE.exec(content);
-  const bom = content.startsWith(BOM) ? BOM : "";
-  const body = match ? content.slice(match[0].length) : content.slice(bom.length);
-  if (yaml.trim() === "") {
-    return bom + body;
-  }
-  const eol = match?.groups?.eol ?? /\r?\n/u.exec(content)?.[0] ?? "\n";
-  return `${bom}---${eol}${splitLines(yaml).join(eol)}${eol}---${eol}${body}`;
-};
 
 // yaml 1.2 core schema: `true`/`false` are the only booleans (yes/no/on/off stay text) and
 // dates are recognized only from explicit `YYYY-MM-DD` strings.
@@ -132,59 +114,6 @@ export const parseProperties = (yamlText: string): ParsedProperties => {
   return { kind: "valid", properties };
 };
 
-// A line cut, not a re-serialization: serializeProperties restyles what it re-emits (a flow
-// list's spacing), and a key edit must leave the other keys byte-exact. The key's own lines are
-// its `key:` line and the indented or `- ` lines that continue a block value under it. The key
-// may be quoted: the parse reads `"id":` as `id`. `end` is one past its last line.
-const topLevelKeyLine = (key: string): RegExp =>
-  new RegExp(`^(?:${key}|"${key}"|'${key}')[ \\t]*:`, "u");
-
-const CONTINUES_VALUE = /^[ \t-]/u;
-
-export const topLevelKeyRange = (
-  lines: readonly string[],
-  key: string,
-): { start: number; end: number } | null => {
-  const keyLine = topLevelKeyLine(key);
-  const start = lines.findIndex((line) => keyLine.test(line));
-  if (start === -1) {
-    return null;
-  }
-  let end = start + 1;
-  while (end < lines.length && CONTINUES_VALUE.test(lines[end] ?? "")) {
-    end += 1;
-  }
-  return { end, start };
-};
-
-// The top-level key line cut every frontmatter key writer runs: `replacement` stands where the
-// key's own lines (topLevelKeyRange) stood, and every other line is kept as it was.
-export const replaceTopLevelKey = (
-  lines: readonly string[],
-  key: string,
-  replacement: readonly string[],
-): string[] => {
-  const keyLine = topLevelKeyLine(key);
-  const kept: string[] = [];
-  let inValue = false;
-  for (const line of lines) {
-    if (keyLine.test(line)) {
-      inValue = true;
-      kept.push(...replacement);
-      continue;
-    }
-    if (inValue && CONTINUES_VALUE.test(line)) {
-      continue;
-    }
-    inValue = false;
-    kept.push(line);
-  }
-  return kept;
-};
-
-const withoutTopLevelKey = (lines: readonly string[], key: string): string[] =>
-  replaceTopLevelKey(lines, key, []);
-
 // the note's identity: frontmatter `id`, the value `[[Title|uuid]]` resolves and the annotation
 // store is keyed by. Text only: a number or a list is not a name.
 export const noteIdOfProperties = (parsed: ParsedProperties | null): string | null => {
@@ -199,226 +128,13 @@ export const noteIdOfProperties = (parsed: ParsedProperties | null): string | nu
   return id === "" ? null : id;
 };
 
-export const frontmatterId = (content: string): string | null =>
-  noteIdOfProperties(parseProperties(frontmatterYaml(content) ?? ""));
-
-// `invalid`: the frontmatter is not valid YAML, and nothing here may rewrite bytes it cannot
-// read. `foreign-id`: the note carries an `id` that is not text (a number, a date, a list);
-// someone may resolve by it, so it is reported rather than overwritten. `value` is how it reads.
-export type FrontmatterIdVerdict =
-  | { kind: "unchanged"; id: string }
-  | { kind: "written"; content: string }
-  | { kind: "invalid" }
-  | { kind: "foreign-id"; value: string };
-
-export type FrontmatterIdYamlVerdict =
-  | Exclude<FrontmatterIdVerdict, { kind: "written" }>
-  | { kind: "written"; yaml: string };
-
-// YAML 1.2 core's null spellings: `id:` and `id: ~` hold nothing a minted id could displace
-const YAML_NULL_RE = /^(?:~|null|Null|NULL)?$/u;
-
-const holdsNoValue = (prop: TypedProperty): boolean =>
-  (prop.type === "text" && prop.value.trim() === "") ||
-  (prop.type === "unsupported" && YAML_NULL_RE.test(prop.rawYaml.trim()));
-
-// A line cut like the pin's: `id:` goes first, an empty one is replaced, a note that has one
-// keeps it. Over the block's own YAML, the form the live editor's frontmatter node holds.
-export const frontmatterYamlWithId = (
-  yaml: string | null,
-  id: string,
-): FrontmatterIdYamlVerdict => {
-  const parsed = parseProperties(yaml ?? "");
-  if (parsed.kind === "invalid") {
-    return { kind: "invalid" };
-  }
-  const kept = noteIdOfProperties(parsed);
-  if (kept !== null) {
-    return { id: kept, kind: "unchanged" };
-  }
-  const existing =
-    parsed.kind === "valid" ? parsed.properties.find((p) => p.key === "id") : undefined;
-  if (existing !== undefined && !holdsNoValue(existing)) {
-    return {
-      kind: "foreign-id",
-      value: existing.type === "unsupported" ? existing.rawYaml : JSON.stringify(existing.value),
-    };
-  }
-  const lines = yaml === null || yaml === "" ? [] : splitLines(yaml);
-  return { kind: "written", yaml: [`id: ${id}`, ...withoutTopLevelKey(lines, "id")].join("\n") };
-};
-
-export const withFrontmatterId = (content: string, id: string): FrontmatterIdVerdict => {
-  const verdict = frontmatterYamlWithId(frontmatterYaml(content), id);
-  return verdict.kind === "written"
-    ? { content: replaceFrontmatterYaml(content, verdict.yaml), kind: "written" }
-    : verdict;
-};
-
-export type FrontmatterIdReassign =
-  | { kind: "written"; content: string }
-  | { kind: "changed" }
-  | { kind: "invalid" };
-
-// A copy that shares its original's id takes a new one on the line the old one stood on, so
-// nothing else in the block moves. `changed`: the note no longer carries `from` (it took another
-// id, lost it, or never had it), and nothing is written over an identity the caller never saw.
-export const reassignFrontmatterId = (
-  content: string,
-  from: string,
-  to: string,
-): FrontmatterIdReassign => {
-  const yaml = frontmatterYaml(content);
-  const parsed = parseProperties(yaml ?? "");
-  if (parsed.kind === "invalid") {
-    return { kind: "invalid" };
-  }
-  if (yaml === null || noteIdOfProperties(parsed) !== from) {
-    return { kind: "changed" };
-  }
-  const lines = replaceTopLevelKey(splitLines(yaml), "id", [`id: ${to}`]);
-  return { content: replaceFrontmatterYaml(content, lines.join("\n")), kind: "written" };
-};
-
-// a copy of a note, such as a sync conflict's, must not inherit the note's identity: two notes
-// with one `id:` make the `[[Title|uuid]]` tier ambiguous.
-export const removeFrontmatterId = (content: string): string => {
-  const yaml = frontmatterYaml(content);
-  if (yaml === null) {
-    return content;
-  }
-  const lines = splitLines(yaml);
-  const kept = withoutTopLevelKey(lines, "id");
-  return kept.length === lines.length ? content : replaceFrontmatterYaml(content, kept.join("\n"));
-};
-
-type TypedValue = Exclude<TypedProperty, { type: "unsupported" }>["value"];
-
-const typedValue = (prop: TypedProperty): TypedValue | undefined =>
-  prop.type === "unsupported" ? undefined : prop.value;
-
-const valueEqual = (a: TypedValue | undefined, b: TypedValue | undefined): boolean => {
-  if (Array.isArray(a) && Array.isArray(b)) {
-    return a.length === b.length && a.every((item, i) => item === b[i]);
-  }
-  return a === b;
-};
-
-// an unsupported value has none to compare, so a typed one written over it is always set
-const typedValuesOf = (raw: string): Map<string, TypedValue> => {
-  const parsed = parseProperties(raw);
-  const values = new Map<string, TypedValue>();
-  for (const prop of parsed.kind === "valid" ? parsed.properties : []) {
-    const value = typedValue(prop);
-    if (value !== undefined) {
-      values.set(prop.key, value);
-    }
-  }
-  return values;
-};
-
-// edits the Document parsed from `priorRaw` rather than re-stringifying, so untouched keys
-// (every `unsupported` one) keep their source bytes, comments included.
-export const serializeProperties = (properties: TypedProperty[], priorRaw: string): string => {
-  if (properties.length === 0) {
-    return "";
-  }
-  const doc = parseDocument(priorRaw);
-  const priorValues = typedValuesOf(priorRaw);
-  if (isMap(doc.contents)) {
-    const desired = new Set(properties.map((prop) => prop.key));
-    const removable = doc.contents.items
-      .map((item) => (isScalar(item.key) ? String(item.key.value) : String(item.key)))
-      .filter((key) => !desired.has(key));
-    for (const key of removable) {
-      doc.delete(key);
-    }
-  }
-  for (const prop of properties) {
-    if (prop.type === "unsupported") {
-      continue;
-    }
-    const next = typedValue(prop);
-    if (!priorValues.has(prop.key) || !valueEqual(priorValues.get(prop.key), next)) {
-      doc.set(prop.key, next);
-    }
-  }
-  // a mapping stringifies with one trailing newline; the frontmatter node value carries none.
-  return doc.toString().replace(/\n$/u, "");
-};
-
-// `alias:` is honored only when it is the doc's only alias list: extraction prefers `aliases`,
-// so minting one beside `alias` would shadow the old entries.
-export const addFrontmatterAlias = (content: string, alias: string): string | null => {
-  const trimmed = alias.trim();
-  if (trimmed === "") {
-    return null;
-  }
-  const yaml = frontmatterYaml(content);
-  const parsed = parseProperties(yaml ?? "");
-  if (parsed.kind === "invalid") {
-    return null;
-  }
-  const props = parsed.kind === "valid" ? parsed.properties : [];
-  const key =
-    props.some((p) => p.key === "aliases") || !props.some((p) => p.key === "alias")
-      ? "aliases"
-      : "alias";
-  const existing = props.find((p) => p.key === key);
-  if (existing !== undefined && existing.type !== "tags") {
-    return null;
-  }
-  const current = existing === undefined ? [] : existing.value;
-  if (current.some((a) => a.trim().toLowerCase() === trimmed.toLowerCase())) {
-    return null;
-  }
-  const nextProps: TypedProperty[] =
-    existing === undefined
-      ? [...props, { key, type: "tags", value: [trimmed] }]
-      : props.map((p): TypedProperty =>
-          p.key === key && p.type === "tags"
-            ? { key: p.key, type: "tags", value: [...p.value, trimmed] }
-            : p,
-        );
-  return replaceFrontmatterYaml(content, serializeProperties(nextProps, yaml ?? ""));
-};
-
-export const PINNED_KEY = "pinned";
-
 // the key the index reads a note's tags from, beside its inline `#tag`s
 export const TAGS_KEY = "tags";
 
-type YamlScalarStyle = "plain" | "single" | "double";
-
-export interface YamlStringEntry {
-  value: string;
-  // offsets into the yaml text, a quoted scalar's quotes included
-  start: number;
-  end: number;
-  style: YamlScalarStyle;
-}
-
-const scalarStyle = (type: Scalar.Type | undefined): YamlScalarStyle | null => {
-  switch (type) {
-    case "PLAIN": {
-      return "plain";
-    }
-    case "QUOTE_SINGLE": {
-      return "single";
-    }
-    case "QUOTE_DOUBLE": {
-      return "double";
-    }
-    default: {
-      return null;
-    }
-  }
-};
-
-// A list key's string entries and where each sits: a sequence's string items, or one bare string.
-// Anything else in it (a number, a map, a block scalar) is skipped rather than costing the key, so
-// a hand-written `[2026, ok]` still yields `ok`. Empty on invalid yaml, which nothing may rewrite.
-export const yamlStringEntries = (yamlText: string, key: string): YamlStringEntry[] => {
+// A list key's string entries: a sequence's string items, or one bare string. Anything else in it
+// (a number, a map, a block scalar) is skipped rather than costing the key, so a hand-written
+// `[2026, ok]` still yields `ok`. Empty on invalid yaml.
+export const yamlStringEntries = (yamlText: string, key: string): string[] => {
   if (yamlText.trim() === "") {
     return [];
   }
@@ -434,15 +150,11 @@ export const yamlStringEntries = (yamlText: string, key: string): YamlStringEntr
   const value = doc.contents.items.find(
     (item) => isScalar(item.key) && String(item.key.value) === key,
   )?.value;
-  const entries: YamlStringEntry[] = [];
+  const entries: string[] = [];
   for (const node of isSeq(value) ? value.items : [value]) {
-    if (!isScalar(node) || !node.range) {
-      continue;
-    }
-    const text = z.string().safeParse(node.value);
-    const style = scalarStyle(node.type);
-    if (text.success && style !== null) {
-      entries.push({ end: node.range[1], start: node.range[0], style, value: text.data });
+    const text = isScalar(node) ? z.string().safeParse(node.value) : null;
+    if (text?.success === true) {
+      entries.push(text.data);
     }
   }
   return entries;
@@ -465,6 +177,8 @@ const plainReadsAsItself = (value: string, context: YamlScalarContext): boolean 
   }
 };
 
+type YamlScalarStyle = "plain" | "single" | "double";
+
 // a value spelled in the style its scalar was written in, so a splice restyles nothing; a plain
 // scalar that cannot hold it plainly is double-quoted instead.
 export const yamlScalarText = (
@@ -479,42 +193,6 @@ export const yamlScalarText = (
     return value;
   }
   return JSON.stringify(value);
-};
-
-export type PinnedYamlVerdict =
-  | { kind: "unchanged" }
-  | { kind: "invalid" }
-  | { kind: "changed"; yaml: string };
-
-// A pin is a frontmatter key, so it travels with the file. Unpinning removes the key rather than
-// writing `false`, and a block that empties goes with it ("" is the caller's cue to drop it).
-export const pinnedFrontmatterYaml = (yaml: string | null, pinned: boolean): PinnedYamlVerdict => {
-  const parsed = parseProperties(yaml ?? "");
-  if (parsed.kind === "invalid") {
-    return { kind: "invalid" };
-  }
-  const props = parsed.kind === "valid" ? parsed.properties : [];
-  const current = props.find((p) => p.key === PINNED_KEY);
-  const isPinned = current !== undefined && current.type === "checkbox" && current.value;
-  if (isPinned === pinned) {
-    return { kind: "unchanged" };
-  }
-  const lines = yaml === null || yaml === "" ? [] : splitLines(yaml);
-  const kept = withoutTopLevelKey(lines, PINNED_KEY);
-  const next = pinned ? [...kept, `${PINNED_KEY}: true`] : kept;
-  return { kind: "changed", yaml: next.every((line) => line.trim() === "") ? "" : next.join("\n") };
-};
-
-// null: the frontmatter is not valid YAML, and nothing here may rewrite bytes it cannot read.
-export const setFrontmatterPinned = (content: string, pinned: boolean): string | null => {
-  const verdict = pinnedFrontmatterYaml(frontmatterYaml(content), pinned);
-  if (verdict.kind === "invalid") {
-    return null;
-  }
-  if (verdict.kind === "unchanged") {
-    return content;
-  }
-  return replaceFrontmatterYaml(content, verdict.yaml);
 };
 
 export const typeNewProperty = (key: string, rawValue: string): TypedProperty => {

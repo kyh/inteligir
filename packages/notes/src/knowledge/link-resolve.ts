@@ -51,47 +51,22 @@ const add = (map: Map<string, Set<string>>, key: string, path: string): void => 
   }
 };
 
-const drop = (map: Map<string, Set<string>>, key: string, path: string): void => {
-  const owners = map.get(key);
-  if (owners === undefined) {
-    return;
-  }
-  owners.delete(path);
-  if (owners.size === 0) {
-    map.delete(key);
-  }
-};
-
 const ownersOf = (map: Map<string, Set<string>>, key: string): Iterable<string> =>
   map.get(key) ?? [];
 
-// a resolver kept live as the vault moves: each path, alias and id is filed and unfiled on its
-// own, so a new note costs its own keys rather than a rebuild over every path (the index asks
-// this once per save). every answer is the one `buildResolver` gives over the same final sets.
-export type PathResolver = TargetResolver & {
-  addPath: (path: string) => void;
-  removePath: (path: string) => void;
-  // replaces every alias the path owned
-  setAliases: (path: string, aliases: readonly string[]) => void;
-  setNoteId: (path: string, id: string | null) => void;
-};
-
 // alias keys are normalized like written targets so an alias containing `/` matches the same clean form
-interface FilingResolver {
-  resolver: PathResolver;
-  setNoteIds: (path: string, ids: readonly string[]) => void;
-}
-
-const filingResolver = (): FilingResolver => {
+const filedResolver = (): TargetResolver & {
+  addPath: (path: string) => void;
+  addAlias: (path: string, alias: string) => void;
+  addNoteId: (path: string, id: string) => void;
+} => {
   const exact = new Set<string>();
   const exactLower = new Map<string, Set<string>>();
   const byName = new Map<string, Set<string>>();
   const byNameLower = new Map<string, Set<string>>();
   const aliasCs = new Map<string, Set<string>>();
   const aliasCi = new Map<string, Set<string>>();
-  const aliasKeysOf = new Map<string, readonly string[]>();
   const idOwners = new Map<string, Set<string>>();
-  const idsOf = new Map<string, readonly string[]>();
 
   const addPath = (raw: string): void => {
     const path = normalizePath(raw);
@@ -106,57 +81,23 @@ const filingResolver = (): FilingResolver => {
     }
   };
 
-  const removePath = (raw: string): void => {
-    const path = normalizePath(raw);
-    if (!exact.delete(path)) {
-      return;
-    }
-    drop(exactLower, path.toLowerCase(), path);
-    for (const key of wikiNameKeys(path)) {
-      drop(byName, key, path);
-      drop(byNameLower, key.toLowerCase(), path);
-    }
-  };
-
-  const setAliases = (raw: string, aliases: readonly string[]): void => {
+  const addAlias = (raw: string, alias: string): void => {
     const owner = normalizePath(raw);
-    if (owner === "") {
+    const key = normalizePath(alias.trim());
+    if (owner === "" || key === "") {
       return;
     }
-    for (const key of aliasKeysOf.get(owner) ?? []) {
-      drop(aliasCs, key, owner);
-      drop(aliasCi, key.toLowerCase(), owner);
-    }
-    const keys = aliases.map((alias) => normalizePath(alias.trim())).filter((key) => key !== "");
-    for (const key of keys) {
-      add(aliasCs, key, owner);
-      add(aliasCi, key.toLowerCase(), owner);
-    }
-    if (keys.length === 0) {
-      aliasKeysOf.delete(owner);
-    } else {
-      aliasKeysOf.set(owner, keys);
-    }
+    add(aliasCs, key, owner);
+    add(aliasCi, key.toLowerCase(), owner);
   };
 
   // a copy carries its original's id, and an owner listed under two ids answers to both
-  const setNoteIds = (raw: string, ids: readonly string[]): void => {
+  const addNoteId = (raw: string, id: string): void => {
     const owner = normalizePath(raw);
-    if (owner === "") {
+    if (owner === "" || id === "") {
       return;
     }
-    for (const prior of idsOf.get(owner) ?? []) {
-      drop(idOwners, prior, owner);
-    }
-    const kept = ids.filter((id) => id !== "");
-    for (const id of kept) {
-      add(idOwners, id, owner);
-    }
-    if (kept.length === 0) {
-      idsOf.delete(owner);
-    } else {
-      idsOf.set(owner, kept);
-    }
+    add(idOwners, id, owner);
   };
 
   const lookupExact = (candidate: string): string | null => {
@@ -254,33 +195,7 @@ const filingResolver = (): FilingResolver => {
     return null;
   };
 
-  const setNoteId = (path: string, id: string | null): void => {
-    setNoteIds(path, id === null ? [] : [id]);
-  };
-
-  return {
-    resolver: { addPath, removePath, resolveMd, resolveNoteId, resolveWiki, setAliases, setNoteId },
-    setNoteIds,
-  };
-};
-
-export const createPathResolver = (): PathResolver => filingResolver().resolver;
-
-// one alias list and one id per owner, as a doc carries them
-const groupByOwner = <T>(
-  entries: Iterable<readonly [value: T, owner: string]>,
-): Map<string, T[]> => {
-  const owned = new Map<string, T[]>();
-  for (const [value, rawOwner] of entries) {
-    const owner = normalizePath(rawOwner);
-    const list = owned.get(owner);
-    if (list) {
-      list.push(value);
-    } else {
-      owned.set(owner, [value]);
-    }
-  }
-  return owned;
+  return { addAlias, addNoteId, addPath, resolveMd, resolveNoteId, resolveWiki };
 };
 
 export const buildResolver = (
@@ -288,17 +203,18 @@ export const buildResolver = (
   aliasEntries?: Iterable<readonly [alias: string, path: string]>,
   idEntries?: Iterable<readonly [id: string, path: string]>,
 ): TargetResolver => {
-  const { resolver, setNoteIds } = filingResolver();
+  const filed = filedResolver();
   for (const path of paths) {
-    resolver.addPath(path);
+    filed.addPath(path);
   }
-  for (const [owner, aliases] of groupByOwner(aliasEntries ?? [])) {
-    resolver.setAliases(owner, aliases);
+  for (const [alias, owner] of aliasEntries ?? []) {
+    filed.addAlias(owner, alias);
   }
-  for (const [owner, ids] of groupByOwner(idEntries ?? [])) {
-    setNoteIds(owner, ids);
+  for (const [id, owner] of idEntries ?? []) {
+    filed.addNoteId(owner, id);
   }
-  return resolver;
+  const { resolveMd, resolveNoteId, resolveWiki } = filed;
+  return { resolveMd, resolveNoteId, resolveWiki };
 };
 
 // the shortest target that resolves back to `path`: its name, else its path, spelled without the

@@ -7,7 +7,7 @@
 
 import { viewContextOf } from "@repo/agent-panel/agent-send";
 import type { AgentViewContext } from "@repo/agent-panel/agent-send";
-import type { CellLibraryScope } from "@repo/domain/library-scope";
+import type { LibraryScope } from "@repo/domain/library-scope";
 import { jumpToFindMatch } from "@repo/editor/find-bar";
 import type { ItemSession } from "@repo/editor/item/item-session";
 import { getLiveEditor } from "@repo/editor/live-editor";
@@ -269,7 +269,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
     }
   }, [page, selection]);
 
-  const chooseScope = (next: CellLibraryScope): void => {
+  const chooseScope = (next: LibraryScope): void => {
     storeScope(next);
     setKind(null);
     selection.apply({ kind: "clear" });

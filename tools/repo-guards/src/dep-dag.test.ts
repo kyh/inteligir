@@ -582,7 +582,7 @@ describe("the contract's @repo/notes edge", () => {
             `MARKDOWN PARSER IN THE CONTRACT  ${file} imports "${specifier}", which loads "${reach.specifier}"\n` +
               `  via ${reach.chain.join(" -> ")}\n` +
               `  rule: @repo/contract's @repo/notes edge is the parser-free grammars the contract validates against — the contract loads in every client, so a remark-carrying module drags the markdown parser into every bundle\n` +
-              `  fix: move what the contract needs into an import-free module beside it, as tag-grammar.ts and link-kinds.ts are`,
+              `  fix: move what the contract needs into an import-free module beside it, as tag-grammar.ts is`,
           );
         }
       }
@@ -590,10 +590,10 @@ describe("the contract's @repo/notes edge", () => {
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 
-  it("sees the parser behind the scan, so a clean walk is a real one", () => {
-    const scan = notesExportFile("@repo/notes/knowledge/link-extract");
-    expect(scan).not.toBeNull();
-    expect(scan === null ? null : markdownParserReach(scan)?.specifier).toMatch(MARKDOWN_PARSER);
+  it("sees the parser behind the dialect's parse, so a clean walk is a real one", () => {
+    const parse = notesExportFile("@repo/notes/markdown/parse");
+    expect(parse).not.toBeNull();
+    expect(parse === null ? null : markdownParserReach(parse)?.specifier).toMatch(MARKDOWN_PARSER);
   });
 });
 

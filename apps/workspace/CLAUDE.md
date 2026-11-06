@@ -176,12 +176,14 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
 
 - **A LIBRARY SCOPE HAS ONE SPELLING, `@repo/domain/library-scope`.** Which
   part of the library a screen shows (all of it, Unsorted, a folder, a tag or
-  Deleted) is one set of zod arms (`packages/domain/src/library-scope.ts`),
-  read by the page's `PREFS` row (`apps/workspace/src/app/prefs.ts`), the
-  replica's listing and a view context's `scope`
-  (`packages/domain/src/view-context.ts`), a folder named by its id as the cell
-  keeps it. Rejected: a scope per surface or per wire, spellings that drift the
-  first time a scope gains a kind.
+  Deleted) is one set of zod arms (`packages/domain/src/library-scope.ts`), a
+  folder named by its id as the cell keeps it, read by the page's `PREFS` row
+  (`apps/workspace/src/app/prefs.ts`), the replica's listing and a view
+  context's `scope` (`agentViewContextSchema` in
+  `packages/contract/src/cloud/library/library-wire.ts`), which names any of
+  them but Deleted. Rejected: a scope per surface or per wire, spellings that
+  drift the first time a scope gains a kind; a folder by its path (a rename
+  would move it out of every remembered scope).
 
 - **THE LIBRARY IS HOME, AND AN ITEM IS SHOWN BY ITS KIND.** With nothing open
   the page is the grid of the rail's scope, one card per item; an empty scope

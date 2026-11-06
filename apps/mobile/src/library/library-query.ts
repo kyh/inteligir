@@ -3,7 +3,7 @@
 // replica's own full-text index, offline as every device ranks it; a scope names a folder by its id
 // as the cell keeps it.
 
-import type { CellLibraryScope } from "@repo/domain/library-scope";
+import type { LibraryScope } from "@repo/domain/library-scope";
 import type { ItemKind } from "@repo/notes/items/item-kind";
 import type { ListingFolder, ListingQuery } from "@repo/notes/library/library-index";
 
@@ -11,7 +11,7 @@ import type { ListingFolder, ListingQuery } from "@repo/notes/library/library-in
 const LISTING_MAX = 100_000;
 
 export interface LibraryFilter {
-  readonly scope: CellLibraryScope;
+  readonly scope: LibraryScope;
   readonly kinds: ReadonlySet<ItemKind>;
   // a search's hits by item id, best first; null while the field is empty
   readonly hits: ReadonlyMap<string, number> | null;
@@ -45,7 +45,7 @@ export const listingQuery = ({ hits, kinds, scope }: LibraryFilter): ListingQuer
 };
 
 // what the header calls the scope
-export const scopeTitle = (scope: CellLibraryScope, folders: readonly ListingFolder[]): string => {
+export const scopeTitle = (scope: LibraryScope, folders: readonly ListingFolder[]): string => {
   switch (scope.kind) {
     case "all": {
       return "Library";
@@ -67,5 +67,5 @@ export const scopeTitle = (scope: CellLibraryScope, folders: readonly ListingFol
 };
 
 // a scope's new note and saved link land in its folder; every other scope's in Unsorted
-export const saveFolderOf = (scope: CellLibraryScope): string | null =>
+export const saveFolderOf = (scope: LibraryScope): string | null =>
   scope.kind === "folder" ? scope.folderId : null;
