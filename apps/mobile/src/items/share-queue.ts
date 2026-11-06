@@ -4,7 +4,7 @@
 // the one before it is done, and the context is let go only once the intent just settled is still
 // the one it holds: a reset after the first would clear the second unsaved.
 
-export interface ShareQueuePorts<T> {
+interface ShareQueuePorts<T> {
   // saves the share and opens its item; it never throws
   readonly settle: (intent: T) => Promise<void>;
   // lets the context's intent go
