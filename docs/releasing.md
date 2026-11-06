@@ -781,6 +781,6 @@ Only once every check has passed, and the three close together.
 - **The phone, anything native** (a module, a config plugin, the SDK, the
   editor page): a new build of the same version, `pnpm testflight:mobile` from
   a branch off the tag, then `apps/mobile/README.md` § Per release from step 3.
-- **The Mac app or the CLI**: a patch version through this whole runbook. All
+- **The Mac app or the extension**: a patch version through this whole runbook. All
   three manifests move with it, but the phone's build may stay behind; its
   JavaScript hotfixes then branch from the tag of the build TestFlight serves.

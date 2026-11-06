@@ -1,13 +1,14 @@
 # @repo/editor
 
-The note editor: Plate (platejs) over the vault's markdown, plus everything that
+The item editor: Plate (platejs) over an item's blocks, the markdown codec an
+import, an export and the agent read and write through, and everything that
 keeps a round-trip byte-stable.
 
 ## Why it exists
 
 The editor is the largest single thing in the product and the one with the
-strictest invariant — **opening a file and saving it back must not change its
-bytes**. Splitting it out makes that invariant a package boundary: the byte
+strictest invariant — **reading a file in and writing it back out must not
+change its bytes**. Splitting it out makes that invariant a package boundary: the byte
 contract, its fixture matrix and the kit-parity guards live together, and the
 workspace above it consumes an editor rather than containing one.
 

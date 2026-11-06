@@ -244,8 +244,8 @@ gates and the owner's device checks, and this section is the phone's own half.
 The credentials (the distribution certificate, the provisioning profile, the
 App Store Connect API key) live on EAS, never in this repo, and build numbers
 are EAS's (`appVersionSource: remote`, `autoIncrement`), so no commit bumps
-one. The marketing version is `package.json`'s, the product version the CLI
-and the desktop carry (`tools/repo-guards/src/release-versions.test.ts`).
+one. The marketing version is `package.json`'s, the product version the Mac
+app and the extension carry (`tools/repo-guards/src/release-versions.test.ts`).
 `eas.json` names the node and pnpm the repo is checked with, and no
 `.easignore`: EAS falls back to `.gitignore`, which keeps `.release/` and
 every `.env*` out of the upload. The editor page is gitignored build output,
@@ -311,7 +311,7 @@ already holds items: the phone signs in, never signs up.
 ### Per release (owner)
 
 `docs/releasing.md` says when each step runs: steps 1 to 3 before anything is
-published, 4 to 6 once the Mac app and the CLI are out.
+published, 4 to 6 once the Mac app and the extension are out.
 
 1. **Pre-flight.** `docs/privacy.md` names every flow the phone makes (each
    `/v1` route it calls is a row of its table, and Expo's update check is
