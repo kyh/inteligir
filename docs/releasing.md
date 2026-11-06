@@ -112,12 +112,6 @@ On main, clean, at the commit to ship:
 pnpm format:fix && pnpm verify && pnpm e2e && pnpm smoke:cli && pnpm smoke:desktop && pnpm package:extension
 ```
 
-Two scenarios serve real pages from the machine's own private address
-(`link-capture`, `import-integrated`), and skip with "no usable LAN address" on a machine
-that has none, as an agent's sandbox does. CI's runner has one and runs them
-under `--no-skip`, so they are proven by the release commit's green CI below,
-whatever a local run skipped.
-
 `smoke:desktop` packages the app, signs it, notarizes it with `.release/` and
 boots it; quit any running Inteligir first, since the packaged app would hand
 over to it. Its output must say `package: notarizing with …` and

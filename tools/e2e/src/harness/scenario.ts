@@ -29,7 +29,9 @@ export interface ScenarioContext {
   log: (message: string) => void;
   boot: (options: BootOptions) => Promise<AppInstance>;
   bareRemote: (name?: string) => Promise<string>;
-  cloudWorker: (options?: Pick<LaunchCloudWorkerArgs, "json" | "vars">) => Promise<CloudWorker>;
+  cloudWorker: (
+    options?: Pick<LaunchCloudWorkerArgs, "json" | "pages" | "vars">,
+  ) => Promise<CloudWorker>;
   // a relay to a booted Worker the scenario can cut and restore, closed at teardown
   cloudLink: (worker: CloudWorker) => Promise<CloudLink>;
   // the built Tauri shell on the scenario's scratch home, which outlives a launch, driven over
@@ -148,6 +150,9 @@ export const createScenarioContext = (args: CreateScenarioContextArgs): Scenario
     }
     if (options?.json !== undefined) {
       launch.json = options.json;
+    }
+    if (options?.pages !== undefined) {
+      launch.pages = options.pages;
     }
     return await launchCloudWorker(launch);
   },

@@ -9,6 +9,7 @@ import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
 import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import type { V1Client } from "@repo/contract/cloud/v1";
+import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import { uuidV7 } from "@repo/notes/library/uuid-v7";
 import { z } from "zod";
 import { PHONE_BUILD } from "./cloud-account";
@@ -44,6 +45,45 @@ export const uploadFile = async (
   });
   await response.arrayBuffer();
   return { sha, status: response.status };
+};
+
+// a file's bytes as an app reads them, with the request's own headers (a range, say)
+export const readFile = async (
+  worker: CloudWorker,
+  credential: string,
+  sha: string,
+  headers: Readonly<Record<string, string>> = {},
+): Promise<Response> => {
+  const asked = phoneHeaders(credential);
+  for (const [name, value] of Object.entries(headers)) {
+    asked.set(name, value);
+  }
+  return await fetch(`${worker.origin}${V1_BLOBS_PATH}/${sha}`, { headers: asked });
+};
+
+// an item's every field as the change log last wrote it, read the way a replica pulls it, or null
+// for an item it holds no live row of
+export const itemFieldsOf = async (
+  library: V1Client["library"],
+  id: string,
+): Promise<LibraryItemFields | null> => {
+  let fields: LibraryItemFields | null = null;
+  let cursor = 0;
+  for (;;) {
+    const page = await library.sync.pull({ cursor, epoch: null });
+    if (page.kind === "reset") {
+      throw new Error("the change log answered a reset to a pull from its start");
+    }
+    for (const change of page.changes) {
+      if (change.kind === "item" && change.id === id) {
+        fields = change.row?.kind === "live" ? change.row.fields : null;
+      }
+    }
+    if (!page.more) {
+      return fields;
+    }
+    cursor = page.upto;
+  }
 };
 
 const accountIdSchema = z.object({ accountId: z.string().nullable() });

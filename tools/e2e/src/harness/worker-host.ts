@@ -1,14 +1,17 @@
 // Boots apps/web's built Worker under Miniflare, as its own process so the harness supervises and
 // kills it like any other child. Reads the Build Output `cf build` writes, so the bindings and the
-// queues it consumes are the ones that deploy, never a restatement. A second port answers what an account still holds (its
-// library cell, its files in R2 and its rows in D1), read through Miniflare's own handles, so a
-// scenario observes a deletion the Worker itself would never describe.
+// queues it consumes are the ones that deploy, never a restatement. A second port answers what an
+// account still holds (its library cell, its files in R2 and its rows in D1), read through
+// Miniflare's own handles, so a scenario observes a deletion the Worker itself would never
+// describe. A scenario's pages are served under a public name of their own, which the Worker's
+// fetch reaches through Miniflare's outbound service: the fill's guard judges that name as it
+// judges any site's, and every other fetch leaves as it would.
 
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
-import { Miniflare, MiniflareWorkerConfigBaseSchema } from "miniflare";
-import type { MiniflareOptions } from "miniflare";
+import { Miniflare, MiniflareWorkerConfigBaseSchema, fetch } from "miniflare";
+import type { MiniflareOptions, Request, Response } from "miniflare";
 import { z } from "zod";
 
 const HostArgsSchema = z.object({
@@ -21,6 +24,8 @@ const HostArgsSchema = z.object({
   vars: z.record(z.string(), z.string()),
   // over the config's JSON bindings, each replaced whole
   json: z.record(z.string(), z.json()),
+  // a public host name the Worker's fetch is answered for by a page server on loopback
+  pages: z.record(z.string(), z.url({ protocol: /^http$/u })),
 });
 
 const ManifestSchema = z.object({
@@ -47,6 +52,23 @@ const jsonBinding = (value: JsonBinding["value"]): JsonBinding => ({ type: "json
 
 const args = HostArgsSchema.parse(JSON.parse(process.argv[2] ?? "null"));
 
+// a fetch for one of the scenario's page hosts asked of its server, as the site would answer it: a
+// redirect is handed back, for the fill to judge its next hop
+const outbound = async (request: Request): Promise<Response> => {
+  const url = new URL(request.url);
+  const server = args.pages[url.hostname];
+  if (server === undefined) {
+    return await fetch(request);
+  }
+  return await fetch(new URL(`${url.pathname}${url.search}`, server), {
+    body: request.body,
+    duplex: "half",
+    headers: request.headers,
+    method: request.method,
+    redirect: "manual",
+  });
+};
+
 const workerOptions = async (): Promise<MiniflareOptions["workers"]> => {
   const raw: unknown = JSON.parse(
     await readFile(path.join(args.outputDir, "worker.config.json"), "utf-8"),
@@ -72,18 +94,20 @@ const workerOptions = async (): Promise<MiniflareOptions["workers"]> => {
     ...Object.entries(args.vars).map(([name, value]) => [name, textBinding(value)]),
     ...Object.entries(args.json).map(([name, value]) => [name, jsonBinding(value)]),
   ]);
-  return [
-    {
-      config: {
-        ...config,
-        env: { ...config.env, ...vars },
-        manifest: { mainModule: manifest.mainModule, modules },
-        // the production routes would leave the local origin unrouted; the fill queues' consumers
-        // stay, so a link saved here is read by the Worker's own consumer, as it is deployed
-        triggers: (config.triggers ?? []).filter((trigger) => trigger.type === "queue"),
-      },
+  const worker: NonNullable<MiniflareOptions["workers"]>[number] = {
+    config: {
+      ...config,
+      env: { ...config.env, ...vars },
+      manifest: { mainModule: manifest.mainModule, modules },
+      // the production routes would leave the local origin unrouted; the fill queues' consumers
+      // stay, so a link saved here is read by the Worker's own consumer, as it is deployed
+      triggers: (config.triggers ?? []).filter((trigger) => trigger.type === "queue"),
     },
-  ];
+  };
+  if (Object.keys(args.pages).length > 0) {
+    worker.dev = { outboundService: { handler: outbound, type: "fetcher" } };
+  }
+  return [worker];
 };
 
 // one batch: D1 runs it as one transaction and pays the request overhead once. Splitting the DDL on

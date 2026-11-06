@@ -40,6 +40,9 @@ export interface LaunchCloudWorkerArgs {
   vars?: Readonly<Record<string, string>>;
   // over its JSON bindings, each replaced whole, such as the built-in agent's allowance
   json?: Readonly<Record<string, Json>>;
+  // public host names whose pages a server on loopback answers, for the Worker's own fetch
+  // (`./worker-host.ts`); a page saved at one is read by the fill as any site's is
+  pages?: Readonly<Record<string, string>>;
 }
 
 type Json = string | number | boolean | null | readonly Json[] | { readonly [key: string]: Json };
@@ -136,6 +139,7 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
             outputDir: path.join(webDir, ".cloudflare", "output", "v0", "workers", "default"),
             port,
             json: args.json ?? {},
+            pages: args.pages ?? {},
             schemaFile,
             stateDir,
             vars: {

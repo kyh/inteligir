@@ -138,8 +138,8 @@ instance's explicit sync against the hosted vault (`hosted-vault.ts`); the
 phone's own runtime under node over its own database, signed in as the
 owner, a second one standing in for another device, with a network a
 scenario can take away (`phone-runtime.ts`); the page
-server a save's fetch may read, on this machine's own network address
-(`lan-fixture.ts`); the browser extension's dev build, connected through the
+server a save's fetch reads, on loopback, which the Worker's fill reaches under
+a public name of its own (`page-fixture.ts`); the browser extension's dev build, connected through the
 site's connect page, and its worker's save (`extension-fixture.ts`); and the PNG
 reader for what a frame or a thumbnail
 draws (`png-pixels.ts`).
@@ -217,13 +217,12 @@ environment was provisioned passes `--no-skip`, and every skip, the browser's
 and the display's alike, becomes a FAIL carrying the reason it would have
 skipped with.
 
-A scenario whose save must read a page serves it from `lan-fixture.ts`, on the
-first address of this machine that the guarded fetch reads from (private or
-public space, by the guard's own `classifyAddress`); a machine with none, such
-as a sandbox whose only address is in reserved space, skips that scenario at
-the fixture's start with "no usable LAN address". It is the one way such a
-scenario skips, and the guard is never widened for it: a CI runner's private
-address runs them all.
+A scenario whose save must read a page serves it from `page-fixture.ts`, on
+loopback. The phone's runtime reads it there; the Worker's fill reads it at
+`PAGE_HOST`, a name in `.test` that the Worker host answers from that server
+through Miniflare's outbound service (`cloudWorker({ pages })`), so the fill's
+guard judges the name as it judges any site's and is never widened for a
+scenario, and every machine runs them all.
 
 The Worker is built through turbo by the first scenario that boots one, once
 per run, rather than at suite start, because only the scenarios that boot a

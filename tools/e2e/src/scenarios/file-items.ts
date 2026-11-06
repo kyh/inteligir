@@ -1,262 +1,222 @@
-import { createHash, randomBytes } from "node:crypto";
-import { existsSync } from "node:fs";
-import { mkdir, readFile, truncate, writeFile } from "node:fs/promises";
-import path from "node:path";
-import { isDefinedError, safe } from "@orpc/client";
-import { fileTooLargeMessage } from "@repo/contract/local/items/items-schema";
-import { VAULT_ASSET_PATH, VAULT_THUMB_PATH } from "@repo/contract/local/routes";
-import { vaultDeletedResponseSchema } from "@repo/contract/local/vault/vault-schema";
-import { authorizationHeader, readServerFile } from "inteligir/server/server-file";
-import { z } from "zod";
-import { agentShellCli } from "../harness/agent-shell-cli";
-import type { AgentShellCli } from "../harness/agent-shell-cli";
+// files kept as items in the library in the cloud: a PDF, a recording, an archive and a picture
+// each uploaded by its sha (`/v1/blobs/<sha>`) and made an item of its kind; a file past the cap
+// refused before its bytes are read; each served as the apps read it, a PDF with no sandbox, a
+// recording by its ranges, anything else under one; a deleted item's file kept for Deleted and the
+// item restored whole; and a picture two items name kept when one of them is emptied from Deleted.
+
+import { randomBytes } from "node:crypto";
+import { once } from "node:events";
+import { request } from "node:http";
+import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
+import { BLOB_MAX_BYTES, V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
+import type { V1Client } from "@repo/contract/cloud/v1";
 import { expect, expectEq } from "../harness/assert";
-import { describeExecError, gitIn } from "../harness/exec";
-import type { AppInstance } from "../harness/instance";
-import { pollUntil } from "../harness/poll";
-import { readPngPixels, solidPng } from "../harness/png-pixels";
+import { OWNER, PHONE_BUILD, signUp } from "../harness/cloud-account";
+import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
+import type { CloudWorker } from "../harness/cloud-worker";
+import { solidPng } from "../harness/png-pixels";
 import type { Scenario, ScenarioContext } from "../harness/scenario";
+import { newItemId, readFile, uploadFile, v1Client } from "../harness/v1-wire";
+import { z } from "zod";
 
-const MiB = 1024 * 1024;
-
-// the auto-commit's quiet window is 15 s and its longest wait 60 s
-const COMMIT_DEADLINE_MS = 75_000;
-
-const RED = [220, 20, 30, 255] as const;
-
-const PDF = "Lecture notes.pdf";
-const WEBM = "clip.webm";
-const ZIP = "archive.zip";
-const PNG = "red.png";
-
-const sha256 = (bytes: Uint8Array): string => createHash("sha256").update(bytes).digest("hex");
-
-const savedSchema = z.object({ outcome: z.literal("created"), path: z.string() });
-
-// the embed a file item's wrapper holds: `![](assets/x.pdf)` or `![](<assets/a b.pdf>)`
-const EMBED = /!\[\]\((?<target><[^>]+>|[^)\s]+)\)/u;
-
-// one saved file: its bytes, its wrapper and its original
-interface SavedFile {
-  bytes: Uint8Array;
-  wrapper: string;
-  original: string;
+interface Source {
+  readonly name: string;
+  readonly type: string;
+  readonly bytes: Uint8Array<ArrayBuffer>;
+  readonly kind: string;
 }
 
-const sourceFiles = (): Map<string, Uint8Array> =>
-  new Map([
-    [PDF, new Uint8Array(Buffer.concat([Buffer.from("%PDF-1.4\n"), randomBytes(4096)]))],
-    [ZIP, new Uint8Array(Buffer.concat([Buffer.from("PK\u0003\u0004"), randomBytes(2048)]))],
-    [
-      WEBM,
-      new Uint8Array(Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), randomBytes(65_536)])),
-    ],
-    [PNG, solidPng(48, 32, RED)],
-  ]);
+const SOURCES: readonly Source[] = [
+  {
+    bytes: new Uint8Array(Buffer.concat([Buffer.from("%PDF-1.4\n"), randomBytes(4096)])),
+    kind: "pdf",
+    name: "Lecture notes.pdf",
+    type: "application/pdf",
+  },
+  {
+    bytes: new Uint8Array(
+      Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), randomBytes(65_536)]),
+    ),
+    kind: "video",
+    name: "clip.webm",
+    type: "video/webm",
+  },
+  {
+    bytes: new Uint8Array(Buffer.concat([Buffer.from("PK\u0003\u0004"), randomBytes(2048)])),
+    kind: "file",
+    name: "archive.zip",
+    type: "application/zip",
+  },
+  {
+    bytes: solidPng(48, 32, [220, 20, 30, 255]),
+    kind: "image",
+    name: "red.png",
+    type: "image/png",
+  },
+];
 
-const originalOf = async (app: AppInstance, wrapper: string): Promise<string> => {
-  const { content } = await app.api.vault.read({ path: wrapper });
-  const target = EMBED.exec(content)?.groups?.target ?? "";
-  expect(target !== "", `${wrapper} embeds its original`);
-  return target.startsWith("<") ? target.slice(1, -1) : target;
-};
+interface Saved {
+  readonly source: Source;
+  readonly id: string;
+  readonly sha: string;
+}
 
-const bytesOnDisk = async (app: AppInstance, vaultPath: string): Promise<Uint8Array | null> => {
-  const absolute = path.join(app.vaultDir, vaultPath);
-  return existsSync(absolute) ? new Uint8Array(await readFile(absolute)) : null;
-};
+type Library = V1Client["library"];
 
-const hashOnDisk = async (app: AppInstance, vaultPath: string): Promise<string | null> => {
-  const bytes = await bytesOnDisk(app, vaultPath);
-  return bytes === null ? null : sha256(bytes);
-};
+const bytesOf = async (response: Response): Promise<Buffer> =>
+  Buffer.from(await response.arrayBuffer());
 
-const lastCommitTouching = async (app: AppInstance, vaultPath: string): Promise<string> =>
-  await gitIn(app.vaultDir, ["log", "-1", "--format=%H", "--", vaultPath]);
-
-// a byte route, with the bearer the CLI reads
-const byteRoute = async (
-  app: AppInstance,
-  route: string,
-  vaultPath: string,
-  init: { headers?: Record<string, string>; query?: string } = {},
-): Promise<Response> => {
-  const server = readServerFile(app.dataDir);
-  expect(server !== null, "the instance published its server.json");
-  return await fetch(
-    `${app.baseUrl}${route}?path=${encodeURIComponent(vaultPath)}${init.query ?? ""}`,
-    { headers: { ...init.headers, authorization: authorizationHeader(server.token) } },
-  );
-};
-
-const saveAll = async (
-  ctx: ScenarioContext,
-  app: AppInstance,
-  cli: AgentShellCli,
-): Promise<Map<string, SavedFile>> => {
-  const sources = path.join(ctx.scratchDir, "files");
-  await mkdir(sources, { recursive: true });
-  const saved = new Map<string, SavedFile>();
-  for (const [name, bytes] of sourceFiles()) {
-    await writeFile(path.join(sources, name), bytes);
-    const { stdout } = await cli("save", path.join(sources, name), "--json");
-    const wrapper = savedSchema.parse(JSON.parse(stdout)).path;
-    const original = await originalOf(app, wrapper);
-    expectEq(await hashOnDisk(app, original), sha256(bytes), `${original}'s bytes`);
-    saved.set(name, { bytes, original, wrapper });
+const saveAll = async (worker: CloudWorker, credential: string, library: Library) => {
+  const saved = new Map<string, Saved>();
+  for (const source of SOURCES) {
+    const upload = await uploadFile(worker, credential, source);
+    expectEq(upload.status, 201, `${source.name}'s upload`);
+    const { item } = await library.items.createFile({
+      folderId: null,
+      id: newItemId(),
+      name: source.name,
+      savedAt: Date.now(),
+      sha: upload.sha,
+      tags: [],
+    });
+    const read = await library.items.read({ id: item.id });
+    expectEq(read.fields.kind, source.kind, `${source.name}'s kind`);
+    saved.set(source.name, { id: item.id, sha: upload.sha, source });
   }
-  expectEq(saved.get(PDF)?.wrapper, "Unsorted/Lecture notes.md", "the PDF's wrapper");
-  expectEq(saved.get(ZIP)?.wrapper, "Unsorted/archive.md", "the zip's wrapper");
   return saved;
 };
 
-const expectOneCommitEach = async (
-  app: AppInstance,
-  saved: ReadonlyMap<string, SavedFile>,
-): Promise<void> => {
-  for (const { original, wrapper } of saved.values()) {
-    const commit = await pollUntil(
-      async () => await lastCommitTouching(app, wrapper),
-      (sha) => sha !== "",
-      { deadlineMs: COMMIT_DEADLINE_MS, describe: () => `${wrapper} was never committed` },
-    );
-    expectEq(
-      await lastCommitTouching(app, original),
-      commit,
-      `${original} shares ${wrapper}'s commit`,
-    );
-  }
-};
-
-const expectOverCapRefused = async (
-  ctx: ScenarioContext,
-  app: AppInstance,
-  cli: AgentShellCli,
-): Promise<void> => {
-  const big = path.join(ctx.scratchDir, "film.mp4");
-  await writeFile(big, "");
-  await truncate(big, 11 * MiB);
-  let refusal = "";
-  try {
-    await cli("save", big, "--json");
-  } catch (error) {
-    refusal = describeExecError(error);
-  }
-  expect(
-    refusal.includes(fileTooLargeMessage("film.mp4", 11 * MiB)),
-    `the CLI refused it: ${refusal}`,
-  );
-  const [served] = await safe(
-    app.api.items.saveFile({ file: new Blob([new Uint8Array(11 * MiB)]), name: "film.mp4" }),
-  );
-  expect(isDefinedError(served) && served.code === "PAYLOAD_TOO_LARGE", "the server refused it");
-};
-
-const expectServed = async (app: AppInstance, saved: ReadonlyMap<string, SavedFile>) => {
-  const pdf = await byteRoute(app, VAULT_ASSET_PATH, saved.get(PDF)?.original ?? "");
-  expectEq(pdf.status, 200, "the PDF's status");
-  expectEq(pdf.headers.get("content-type"), "application/pdf", "the PDF's type");
-  const policy = pdf.headers.get("content-security-policy") ?? "sandbox";
-  expect(!policy.includes("sandbox"), `a PDF has no sandbox: ${policy}`);
-
-  const webm = saved.get(WEBM);
-  const probe = await byteRoute(app, VAULT_ASSET_PATH, webm?.original ?? "", {
-    headers: { range: "bytes=0-1" },
+// a PUT that declares a file past the cap: refused on its length, so not one byte is sent
+const declaredPastTheCap = async (worker: CloudWorker, credential: string): Promise<number> => {
+  const put = request(`${worker.origin}${V1_BLOBS_PATH}/${"0".repeat(64)}`, {
+    headers: {
+      ...clientBuildHeaders(PHONE_BUILD),
+      authorization: `Bearer ${credential}`,
+      "content-length": String(BLOB_MAX_BYTES + 1),
+      "content-type": "video/mp4",
+    },
+    method: "PUT",
   });
-  expectEq(probe.status, 206, "the webm's probe");
+  put.flushHeaders();
+  const [response] = await once(put, "response");
+  const { statusCode } = z.object({ statusCode: z.number().int() }).parse(response);
+  put.destroy();
+  return statusCode;
+};
+
+const expectServed = async (
+  worker: CloudWorker,
+  credential: string,
+  saved: ReadonlyMap<string, Saved>,
+) => {
+  const shaOf = (name: string): string => saved.get(name)?.sha ?? "";
+  const pdf = await readFile(worker, credential, shaOf("Lecture notes.pdf"));
+  expectEq(pdf.status, 200, "the PDF's read");
+  expectEq(pdf.headers.get("content-type"), "application/pdf", "the PDF's type");
+  const pdfPolicy = pdf.headers.get("content-security-policy") ?? "sandbox";
+  expect(!pdfPolicy.includes("sandbox"), `a PDF has no sandbox: ${pdfPolicy}`);
+  await pdf.arrayBuffer();
+
+  const webm = saved.get("clip.webm");
+  const probe = await readFile(worker, credential, shaOf("clip.webm"), { range: "bytes=0-1" });
+  expectEq(probe.status, 206, "the recording's probe");
   expectEq(
     probe.headers.get("content-range"),
-    `bytes 0-1/${String(webm?.bytes.length ?? 0)}`,
+    `bytes 0-1/${String(webm?.source.bytes.length ?? 0)}`,
     "the probe's range",
   );
+  const probed = await bytesOf(probe);
+  expectEq(probed.length, 2, "the probe's bytes");
 
-  const zip = await byteRoute(app, VAULT_ASSET_PATH, saved.get(ZIP)?.original ?? "");
-  expectEq(zip.status, 400, "an archive is stored, never served");
-
-  const thumb = await byteRoute(app, VAULT_THUMB_PATH, saved.get(PNG)?.original ?? "", {
-    query: "&w=320",
-  });
-  expectEq(thumb.status, 200, "the thumbnail's status");
-  const drawn = readPngPixels(new Uint8Array(await thumb.arrayBuffer()));
-  expectEq(drawn.pixelAt(0, 0).join(","), RED.join(","), "the thumbnail's first pixel");
-};
-
-const linkerCount = async (app: AppInstance, vaultPath: string): Promise<number> => {
-  const { backlinks } = await app.api.knowledge.backlinks({ path: vaultPath });
-  return backlinks.length;
-};
-
-const expectSharedFileKept = async (
-  app: AppInstance,
-  cli: AgentShellCli,
-  picture: SavedFile,
-): Promise<void> => {
-  await app.api.vault.write({
-    content: `# Mood\n\n![](${picture.original})\n`,
-    guard: { kind: "absent" },
-    path: "Mood.md",
-  });
-  await pollUntil(
-    async () => await linkerCount(app, picture.original),
-    (count) => count >= 2,
-    { deadlineMs: 30_000, describe: (count) => `${picture.original} has ${String(count)} linkers` },
-  );
-  await cli("vault", "delete", picture.wrapper);
+  const zip = await readFile(worker, credential, shaOf("archive.zip"));
   expect(
-    (await bytesOnDisk(app, picture.original)) !== null,
-    "the picture another note shows stays",
+    (zip.headers.get("content-security-policy") ?? "").includes("sandbox"),
+    "an archive is served under a sandbox",
+  );
+  expectEq(
+    Buffer.compare(await bytesOf(zip), Buffer.from(saved.get("archive.zip")?.source.bytes ?? [])),
+    0,
+    "the archive's bytes",
   );
 };
 
 const expectDeleteAndRestore = async (
-  app: AppInstance,
-  cli: AgentShellCli,
-  pdf: SavedFile,
-): Promise<void> => {
-  await cli("vault", "delete", pdf.wrapper);
-  expectEq(await bytesOnDisk(app, pdf.original), null, "the PDF's original left with it");
-  const { stdout: listed } = await cli("vault", "deleted", "--json");
-  const { entries } = vaultDeletedResponseSchema.parse(JSON.parse(listed));
-  const held = entries.find((entry) => entry.path === pdf.original);
-  expectEq(held?.heldBy ?? null, pdf.wrapper, "the original is held by its wrapper");
-  expectEq(held?.kind ?? null, "file", "the original is listed as a file");
-  const wrapperEntry = entries.find((entry) => entry.path === pdf.wrapper);
-  expect(wrapperEntry !== undefined, "the wrapper is listed");
+  ctx: ScenarioContext,
+  worker: CloudWorker,
+  credential: string,
+  library: Library,
+  pdf: Saved,
+) => {
+  ctx.log("deleting the PDF's item keeps its file for Deleted; restoring brings it back whole");
+  const { deleted } = await library.items.delete({ ids: [pdf.id] });
+  expectEq(deleted, [pdf.id], "the PDF's item deleted");
+  const listed = await library.items.list({ kind: "pdf" });
+  expectEq(listed.items.length, 0, "PDFs listed once it is deleted");
+  const { restored: back } = await library.items.restore({ ids: [pdf.id] });
+  expectEq(back, [pdf.id], "the PDF's item restored");
+  const restored = await library.items.read({ id: pdf.id });
+  expectEq([restored.fields.kind, restored.fields.deletedAt], ["pdf", null], "the restored item");
+  const bytes = await bytesOf(await readFile(worker, credential, pdf.sha));
+  expectEq(Buffer.compare(bytes, Buffer.from(pdf.source.bytes)), 0, "the restored PDF's bytes");
+};
 
-  const { stdout: restored } = await cli("vault", "restore", pdf.wrapper, wrapperEntry.sha);
-  expect(restored.includes("with 1 file"), `the restore names the file: ${restored}`);
-  expectEq(await hashOnDisk(app, pdf.original), sha256(pdf.bytes), "the restored PDF");
+const expectSharedFileKept = async (
+  ctx: ScenarioContext,
+  worker: CloudWorker,
+  credential: string,
+  library: Library,
+  picture: Saved,
+) => {
+  ctx.log("a picture two items name stays when one of them is emptied from Deleted");
+  const { item: second } = await library.items.createFile({
+    folderId: null,
+    id: newItemId(),
+    name: "red copy.png",
+    savedAt: Date.now(),
+    sha: picture.sha,
+    tags: [],
+  });
+  await library.items.delete({ ids: [picture.id] });
+  const { purged } = await library.items.purge({ ids: [picture.id] });
+  expectEq(purged, [picture.id], "the first picture's item emptied");
+  const kept = await readFile(worker, credential, picture.sha);
+  expectEq(kept.status, 200, "the picture the second item names");
+  expectEq(
+    Buffer.compare(await bytesOf(kept), Buffer.from(picture.source.bytes)),
+    0,
+    "the kept picture's bytes",
+  );
+  const secondRead = await library.items.read({ id: second.id });
+  expectEq(secondRead.fields.kind, "image", "the second item");
 };
 
 export const fileItems: Scenario = {
   description:
-    "a PDF, a webm and a zip saved as items, each a wrapper and its original in one commit; a file over the cap refused; a delete takes the original and Deleted lists it held by its wrapper; a restore is byte-identical; a second note embedding it keeps it",
+    "a PDF, a webm, a zip and a PNG uploaded by their sha land as items of their kind; a file declared past the cap is refused before its bytes; the PDF is served with no sandbox, the recording by its ranges and the archive under a sandbox; a deleted item keeps its file and restores whole; a picture two items name stays when one is emptied from Deleted",
   name: "file-items",
-  timeoutMs: 240_000,
+  timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    const app = await ctx.boot({ name: "files" });
-    const cli = agentShellCli(ctx.repoRoot, app.dataDir);
+    const worker = await ctx.cloudWorker();
+    await signUp(worker.origin);
+    const { credential } = await v1Client(worker, null).account.signIn({
+      ...OWNER,
+      deviceName: "E2E Phone",
+    });
+    const { library } = v1Client(worker, credential);
 
-    ctx.log("save a PDF, a zip, a webm and a picture as items from the command line");
-    const saved = await saveAll(ctx, app, cli);
+    ctx.log("a PDF, a recording, an archive and a picture land as items of their kind");
+    const saved = await saveAll(worker, credential, library);
 
-    ctx.log("each wrapper and its original land in one commit");
-    await expectOneCommitEach(app, saved);
+    ctx.log("a file declared past the cap is refused on its length");
+    expectEq(await declaredPastTheCap(worker, credential), 413, "the oversized upload");
 
-    ctx.log("a file over the cap is refused, before any request and by the server");
-    await expectOverCapRefused(ctx, app, cli);
+    ctx.log("the PDF unsandboxed, a recording's range, and the archive under a sandbox");
+    await expectServed(worker, credential, saved);
 
-    ctx.log("the PDF unsandboxed, a webm range, no archive, and the picture's thumbnail");
-    await expectServed(app, saved);
-
-    const picture = saved.get(PNG);
-    const pdf = saved.get(PDF);
-    expect(picture !== undefined && pdf !== undefined, "the picture and the PDF were saved");
-
-    ctx.log("a second note embeds the picture: deleting the picture's item keeps it");
-    await expectSharedFileKept(app, cli, picture);
-
-    ctx.log("deleting the PDF's item takes its original; restoring brings it back byte-identical");
-    await expectDeleteAndRestore(app, cli, pdf);
+    const pdf = saved.get("Lecture notes.pdf");
+    const picture = saved.get("red.png");
+    expect(pdf !== undefined && picture !== undefined, "the PDF and the picture were saved");
+    await expectDeleteAndRestore(ctx, worker, credential, library, pdf);
+    await expectSharedFileKept(ctx, worker, credential, library, picture);
   },
 };

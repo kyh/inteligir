@@ -10,7 +10,7 @@ import path from "node:path";
 import { expect, expectEq } from "../harness/assert";
 import { signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { startLoopbackFixture } from "../harness/lan-fixture";
+import { startPageFixture } from "../harness/page-fixture";
 import {
   drained,
   libraryOf,
@@ -73,7 +73,7 @@ export const phoneSaveHosted: Scenario = {
   name: "phone-save-hosted",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    const site = await startLoopbackFixture({
+    const site = await startPageFixture({
       "/cover.jpg": { body: coverBytes(), type: "image/jpeg" },
       "/file-over-app": { body: PAGE },
       "/later": { body: PAGE },

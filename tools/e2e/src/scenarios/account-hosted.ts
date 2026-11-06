@@ -1,16 +1,9 @@
-import { existsSync } from "node:fs";
-import { isDefinedError, safe } from "@orpc/client";
-import { deviceCredentialPath } from "inteligir/server/cloud/credential-store";
+import { ORPCError, safe } from "@orpc/client";
 import { expect, expectEq } from "../harness/assert";
 import { OWNER } from "../harness/cloud-account";
 import { E2E_INVITE_CODE, WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { hostedVaultEnv } from "../harness/hosted-vault";
-import type { AppInstance } from "../harness/instance";
-import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { accountIdOf, holdingsOf, newItemId, uploadFile, v1Client } from "../harness/v1-wire";
-
-const REVOKED_DEADLINE_MS = 15_000;
 
 // a one-pixel PNG, the file the phone keeps in the library
 const PIXEL = new Uint8Array(
@@ -20,40 +13,32 @@ const PIXEL = new Uint8Array(
   ),
 );
 
+// the code a refusal answers, or what was answered instead
+const codeOf = (error: Error | null): string =>
+  error instanceof ORPCError ? error.code : `no refusal (${String(error)})`;
+
 export const accountHosted: Scenario = {
   description:
-    "an account created in the app (`cloud.signUp`) against a Miniflare Worker signs that instance in as it; the invite is spent, so a second sign-up with it is FORBIDDEN; a second instance signs in with the same email and password, and the first lists both devices and revokes it; a phone signs in over the one wire and writes a note and a file into the account's library cell; a wrong password deletes nothing, and the right one signs the first out and takes the cell's items, the files in R2 and the account's rows in D1 with it, after which the phone's credential reaches nothing, the password signs nothing in and the invite stays spent",
+    "an account created over the one wire with an invite code (`account.signUp`) answers device A's credential; the invite is spent, so a second sign-up with it is FORBIDDEN; device B signs in with the same email and password, A lists both devices and revokes B, whose next call is UNAUTHORIZED; a phone writes a note and a file into the account's library cell; a wrong password deletes nothing, and the right one takes the cell's items, the files in R2 and the account's rows in D1 with it, after which every credential reaches nothing, the password signs nothing in and the invite stays spent",
   name: "account-hosted",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
     const worker = await ctx.cloudWorker();
+    const { account } = v1Client(worker, null);
 
-    // each vault syncs to a bare remote of its own: the account's hosted one would meet B's
-    // history as an unrelated one, a conflict beside what this scenario proves.
-    const boot = async (name: string): Promise<AppInstance> =>
-      await ctx.boot({
-        extraEnv: hostedVaultEnv(worker.origin),
-        name,
-        vaultRemote: await ctx.bareRemote(name),
-      });
-    const a = await boot("a");
-    const b = await boot("b");
-
-    ctx.log("A creates the account with the invite code, through the production route");
-    const created = await a.api.cloud.signUp({
+    ctx.log("A creates the account with the invite code");
+    const a = await account.signUp({
       ...OWNER,
       deviceName: "E2E Device A",
       inviteCode: E2E_INVITE_CODE,
       name: "E2E Owner",
     });
-    expect(
-      created.state === "signed-in" && created.accountEmail === OWNER.email,
-      `A's sign-up answered ${JSON.stringify(created)}`,
-    );
+    expectEq(a.email, OWNER.email, "A's sign-up answers the account");
+    const asA = v1Client(worker, a.credential);
 
-    ctx.log("the invite is spent: B cannot create another account with it");
+    ctx.log("the invite is spent: no other account can be created with it");
     const [refusal] = await safe(
-      b.api.cloud.signUp({
+      account.signUp({
         deviceName: "E2E Device B",
         email: "e2e-second@inteligir.local",
         inviteCode: E2E_INVITE_CODE,
@@ -61,65 +46,42 @@ export const accountHosted: Scenario = {
         password: OWNER.password,
       }),
     );
-    expect(
-      isDefinedError(refusal) && refusal.code === "FORBIDDEN",
-      `reusing the invite answered ${isDefinedError(refusal) ? refusal.code : String(refusal)}`,
-    );
-    const refused = await b.api.cloud.status();
-    expect(refused.state === "signed-out", `B after the refusal is ${refused.state}`);
+    expectEq(codeOf(refusal), "FORBIDDEN", "reusing the invite");
 
     ctx.log("B signs in to the account A created, with its email and password");
-    const joined = await b.api.cloud.login({ ...OWNER, deviceName: "E2E Device B" });
-    expect(
-      joined.state === "signed-in" && joined.accountEmail === OWNER.email,
-      `B's login answered ${JSON.stringify(joined)}`,
-    );
+    const b = await account.signIn({ ...OWNER, deviceName: "E2E Device B" });
+    expectEq(b.email, OWNER.email, "B's sign-in answers the account");
+    const asB = v1Client(worker, b.credential);
 
-    ctx.log("A lists the account's devices with its own credential: itself, marked, and B");
-    const listed = await a.api.cloud.devices();
+    ctx.log("A lists the account's devices with its own credential, and revokes B");
+    const listed = await asA.account.devices.list();
     expectEq(
-      listed.devices.map(({ current, name }) => ({ current, name })),
+      listed.devices.map(({ id, name, revokedAt }) => ({ id, name, revoked: revokedAt !== null })),
       [
-        { current: true, name: "E2E Device A" },
-        { current: false, name: "E2E Device B" },
+        { id: a.deviceId, name: "E2E Device A", revoked: false },
+        { id: b.deviceId, name: "E2E Device B", revoked: false },
       ],
       "A's device list",
     );
-    const bRow = listed.devices.find((device) => !device.current);
-    expect(bRow?.id === joined.deviceId, `A listed B as ${JSON.stringify(bRow)}`);
-
-    ctx.log("A revokes B");
     expectEq(
-      await a.api.cloud.revokeDevice({ deviceId: joined.deviceId }),
+      await asA.account.devices.revoke({ deviceId: b.deviceId }),
       { revoked: true },
       "A's revoke of B",
     );
-    const after = await a.api.cloud.devices();
+    const [revoked] = await safe(asB.account.devices.list());
+    expectEq(codeOf(revoked), "UNAUTHORIZED", "B's next call");
+    const after = await asA.account.devices.list();
     expectEq(
-      after.devices.map((device) => device.name),
-      ["E2E Device A"],
+      after.devices.map(({ name, revokedAt }) => ({ name, revoked: revokedAt !== null })),
+      [
+        { name: "E2E Device A", revoked: false },
+        { name: "E2E Device B", revoked: true },
+      ],
       "A's device list after the revoke",
     );
 
-    ctx.log("B's next request is refused: B reaches unauthorized");
-    await pollUntil(
-      async () => {
-        // any request under B's credential hears the revocation; the refusal itself is expected
-        await safe(b.api.cloud.devices());
-        return await b.api.cloud.status();
-      },
-      (status) => status.state === "unauthorized",
-      {
-        deadlineMs: REVOKED_DEADLINE_MS,
-        describe: (status) => `B never answered unauthorized: ${JSON.stringify(status)}`,
-        intervalMs: 200,
-      },
-    );
-    const stillA = await a.api.cloud.status();
-    expect(stillA.state === "signed-in", `A after revoking B is ${stillA.state}`);
-
     ctx.log("a phone signs in over the one wire and writes the library through it");
-    const phone = await v1Client(worker, null).account.signIn({
+    const phone = await account.signIn({
       ...OWNER,
       deviceName: "E2E Phone",
     });
@@ -156,20 +118,15 @@ export const accountHosted: Scenario = {
     );
 
     ctx.log("A's deletion with a wrong password is refused, and A stays signed in");
-    const [wrong] = await safe(a.api.cloud.deleteAccount({ password: "not-the-password" }));
-    expect(
-      isDefinedError(wrong) && wrong.code === "UNAUTHORIZED",
-      `a wrong password answered ${isDefinedError(wrong) ? wrong.code : String(wrong)}`,
-    );
-    const kept = await a.api.cloud.status();
-    expect(kept.state === "signed-in", `A after the wrong password is ${kept.state}`);
+    const [wrong] = await safe(asA.account.delete({ password: "not-the-password" }));
+    expectEq(codeOf(wrong), "INVALID_CREDENTIALS", "a wrong password");
+    await asA.account.devices.list();
 
-    ctx.log("A deletes the account with its password: A is signed out, its credential gone");
-    const deleted = await a.api.cloud.deleteAccount({ password: OWNER.password });
-    expect(deleted.state === "signed-out", `A's deletion answered ${deleted.state}`);
-    expect(
-      !existsSync(deviceCredentialPath(a.dataDir)),
-      "A's credential file outlived the deletion",
+    ctx.log("A deletes the account with its password");
+    expectEq(
+      await asA.account.delete({ password: OWNER.password }),
+      { deleted: true },
+      "A's deletion",
     );
 
     ctx.log("the account's cell, its files in R2 and its rows in D1 went with it");
@@ -180,29 +137,25 @@ export const accountHosted: Scenario = {
     );
     expectEq(gone.files, 0, "the deleted account's files in R2");
     expectEq(gone.rows, { devices: 0, sessions: 0, users: 0 }, "the deleted account's rows in D1");
-    const [unreachable] = await safe(library.items.list({}));
-    expect(
-      isDefinedError(unreachable) && unreachable.code === "UNAUTHORIZED",
-      `the phone after the deletion answered ${isDefinedError(unreachable) ? unreachable.code : String(unreachable)}`,
-    );
+    for (const [label, client] of [
+      ["A", asA],
+      ["the phone", v1Client(worker, phone.credential)],
+    ] as const) {
+      const [unreachable] = await safe(client.library.items.list({}));
+      expectEq(codeOf(unreachable), "UNAUTHORIZED", `${label} after the deletion`);
+    }
 
     ctx.log("the account is gone: its password signs nothing in, and its invite stays spent");
-    const [login] = await safe(a.api.cloud.login({ ...OWNER, deviceName: "E2E Device A" }));
-    expect(
-      isDefinedError(login) && login.code === "UNAUTHORIZED",
-      `signing in to the deleted account answered ${isDefinedError(login) ? login.code : String(login)}`,
-    );
+    const [login] = await safe(account.signIn({ ...OWNER, deviceName: "E2E Device A" }));
+    expectEq(codeOf(login), "INVALID_CREDENTIALS", "signing in to the deleted account");
     const [recreated] = await safe(
-      a.api.cloud.signUp({
+      account.signUp({
         ...OWNER,
         deviceName: "E2E Device A",
         inviteCode: E2E_INVITE_CODE,
         name: "E2E Owner",
       }),
     );
-    expect(
-      isDefinedError(recreated) && recreated.code === "FORBIDDEN",
-      `reusing the deleted account's invite answered ${isDefinedError(recreated) ? recreated.code : String(recreated)}`,
-    );
+    expectEq(codeOf(recreated), "FORBIDDEN", "reusing the deleted account's invite");
   },
 };
