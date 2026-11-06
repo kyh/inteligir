@@ -59,9 +59,11 @@ export const installPageEditorHost = (ports: PageEditorPorts): PageEditorHost =>
       }),
     openItem: ports.openItem,
     readFile: ports.readFile,
+    // none while the item's body is still to come, as the open item waits for it, so an embed
+    // never draws a note this device has not pulled as an empty one
     readItemBlocks: async (itemId) => {
       const item = await replica.item(itemId);
-      return item?.blocks.map(({ block }) => block) ?? null;
+      return item?.bodyHeld === true ? item.blocks.map(({ block }) => block) : null;
     },
     savesFiles: true,
   };

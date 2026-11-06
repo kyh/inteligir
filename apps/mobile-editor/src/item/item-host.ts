@@ -130,9 +130,10 @@ export const installItemPageHost = (bridge: PageBridge, init: ItemInit): ItemPag
       }
       return new Blob([bytesOf(file.base64)], { type: file.mediaType });
     },
+    // none while the item's body is still to come to the phone, as the open item waits for it
     readItemBlocks: async (embedded) => {
       const { item } = await bridge.request("item", { itemId: embedded });
-      return item === null ? null : item.blocks.map(({ block }) => block);
+      return item?.bodyHeld === true ? item.blocks.map(({ block }) => block) : null;
     },
     savesFiles: false,
   };

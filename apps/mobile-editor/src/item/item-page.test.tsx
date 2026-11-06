@@ -245,6 +245,37 @@ describe("an item page over the phone's replica", () => {
     await expect(io.readFile("f".repeat(64))).rejects.toThrow(/no copy/u);
   });
 
+  it("answers an embedded item's blocks only once the phone holds its body", async () => {
+    const other = "0190a000-0000-7000-8000-000000000002";
+    const phone = createFakePhone({
+      [ITEM]: itemOf(paragraph("p1", "first")),
+      [other]: itemOf(paragraph("o1", "Pulled at last.")),
+    });
+    const { bridge, init } = await connectItem(phone);
+    const container = document.createElement("div");
+    document.body.append(container);
+    act(() => {
+      mounted = mountItemPage({ bridge, container, init });
+    });
+    const io = getEditorHostIo();
+    await expect(io.readItemBlocks(other)).resolves.toStrictEqual([
+      paragraph("o1", "Pulled at last."),
+    ]);
+
+    // the phone has the item's row, and its body is still to come
+    const library = phone.answer;
+    phone.answer = (request) =>
+      request.kind === "item" && request.payload.itemId === other
+        ? {
+            ok: true,
+            result: {
+              item: { blocks: [], bodyHeld: false, fields: noteFields({ title: "Other" }) },
+            },
+          }
+        : library(request);
+    await expect(io.readItemBlocks(other)).resolves.toBeNull();
+  });
+
   it("draws the item it was opened on, and answers a flush once it is written", async () => {
     const phone = createFakePhone({ [ITEM]: itemOf(paragraph("p1", "Hello from the item.")) });
     const { bridge, init } = await connectItem(phone);

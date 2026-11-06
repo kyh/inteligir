@@ -132,6 +132,21 @@ describe("an embedded item's blocks", () => {
     expect(screen.queryByText("Loading…")).toBeNull();
   });
 
+  it("are a chip while the device has their item but not yet its body, and drawn once it lands", async () => {
+    // the host answers none for an item whose body is still to come, as both hosts do
+    let pulled = false;
+    const host = mountEmbed((id) => (id === TARGET_ID && pulled ? TARGET : null));
+    await expect(screen.findByText("Target")).resolves.toBeTruthy();
+    expect(screen.queryByText("This note is empty.")).toBeNull();
+
+    pulled = true;
+    act(() => {
+      host.changed(new Set([TARGET_ID]));
+    });
+
+    await expect(screen.findByText("4")).resolves.toBeTruthy();
+  });
+
   it("are never the open item's own, which embeds as a chip saying so", async () => {
     mountEmbed(only(HUB_ID), "Hub");
     await expect(screen.findByText("(circular)")).resolves.toBeTruthy();

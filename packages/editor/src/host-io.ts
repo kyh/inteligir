@@ -44,7 +44,7 @@ export interface EditorHostIo {
   // shows the item a link, an embed or a chip names
   readonly openItem: (itemId: string) => void;
   // an embedded item's blocks in reading order, as this device holds them now; null for an item it
-  // holds none of
+  // holds none of, or whose body it has still to pull
   readonly readItemBlocks: (itemId: string) => Promise<readonly LibraryBlock[] | null>;
   // these items moved, or `null`: any of them may have
   readonly onItemsChanged: (listener: (ids: ReadonlySet<string> | null) => void) => () => void;
