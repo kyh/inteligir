@@ -40,7 +40,8 @@ describe("a long item's top level", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders in runs of a hundred blocks, every block mounted", async () => {
+  // 250 real Plate blocks, on purpose: three runs are the claim
+  it("renders in runs of a hundred blocks, every block mounted", { timeout: 30_000 }, async () => {
     const editable = await mount("long", paragraphs(250));
     const boxes = runs(editable);
     expect(boxes.map((box) => box.children.length)).toStrictEqual([100, 100, 50]);
