@@ -29,7 +29,7 @@ owner's.
 ## Commands
 
 ```bash
-pnpm dev                # THE PRODUCT — the Mac app's window over the local Worker (pnpm dev:web)
+pnpm dev                # The Mac app's window over the local Worker (pnpm dev:web)
 pnpm dev:desktop        # Alias of dev
 pnpm dev:mobile         # apps/mobile: expo start, in a terminal (turbo refuses it piped or under CI;
                         #   pnpm --filter @repo/mobile dev runs it without one)
@@ -77,9 +77,10 @@ replica on disk, the Keychain) draws nothing in a tab.
 Developer ID and notarized when `.release/` is present (`apps/desktop/README.md`
 § Packaging).
 
-`pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, device
-login, `/v1`, every library cell and the account's socket, the library's page
-at `/library` — over a local D1 file and
+`pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, `/v1` with
+the apps' sign-in, every library cell and the account's socket, each
+conversation with the built-in agent, the fill queue, the connector and the
+library's page at `/library` — over a local D1 file, R2, a queue, KV and
 miniflare's Durable Objects. Sign-up is invite-only and there is no seeded account — `AGENTS.md`
 § "There is no seeded login" has the exact commands.
 
@@ -169,8 +170,9 @@ is one build —
 the workspace is a plain SPA served as files, so the suite drives the same
 bytes and the same policy a user gets. So a green `verify` is not a green CI;
 run `pnpm e2e` too before claiming one. A second job runs on macOS, where the
-app ships: `pnpm test` again, since APFS, FSEvents and a tmpdir behind a
-symlink exist only there, and `pnpm smoke:desktop` on an ad-hoc pack
+app ships: `pnpm test` again, since the shell's macOS code compiles and APFS
+and a tmpdir behind a symlink exist only there, and `pnpm smoke:desktop` on an
+ad-hoc pack
 (`INTELIGIR_PACK_UNSIGNED=1`). Each step CI adds on top of `pnpm verify`
 carries the reason `verify` cannot run it as a comment beside it in
 `.github/workflows/ci.yml`.

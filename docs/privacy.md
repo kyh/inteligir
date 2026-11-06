@@ -436,9 +436,12 @@ and email delivery). Specifically:
   its KV storage holds each assistant you connected: what it registered (its
   name and the addresses it gave), its grant, filed under your account with
   its name and what you let it do, and its tokens, kept only as hashes;
-  storage it keeps for your account alone (your own Durable Objects, and storage
-  named for your library) holds your library, your devices' live
-  connections and each conversation with the built-in agent; its AI Gateway
+  storage it keeps for your account alone (your own Durable Objects, and the
+  R2 storage named for your library, which holds your files) holds your
+  library, your devices' live connections and each conversation with the
+  built-in agent; its Queues hold each link your library asked our cloud to
+  read, as your account's id, the item's and its address, until our cloud has
+  read it or recorded that it could not; its AI Gateway
   passes each request the built-in agent makes to Anthropic, and is asked to
   keep only its metadata (the model, how many tokens, its status and how long
   it took), never what it carries; its email sending delivers your

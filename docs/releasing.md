@@ -96,9 +96,8 @@ On main, clean, at the commit to ship:
 3. When the comment on `MIN_CLIENT_BUILD` (`apps/web/cloudflare.config.ts`)
    says the next release owes the floor, set it to `<version>` and drop that
    line. Every checkout since the last release reports the last release's
-   version, so a change that retires a `/cloud` shape those checkouts read
-   cannot raise the floor past them, and the comment names the shape this
-   release retires.
+   version, so a change that drops a `/v1` shape an older build reads cannot
+   raise the floor past those checkouts: it writes that line instead.
 4. Every release uploads the extension (§ 6), whether or not it changed: the
    floor names the product's version, so a store build left a release behind
    is refused the day the floor passes it.
@@ -132,9 +131,9 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
      `pnpm --filter @repo/web db:push:remote`, then `--explain` again, which
      now plans nothing.
    - A `DROP INDEX` or an `ALTER TABLE … DROP COLUMN` of a column Better Auth
-     no longer writes (`account.issuer`, with its index): push it as Deploy
-     finishes, since a sign-up fails while one side has it and the other does
-     not, then `--explain` again.
+     does not write (such as `account.issuer`, with its index): push it as
+     Deploy finishes, since a sign-up fails while one side has it and the
+     other does not, then `--explain` again.
    - Anything that recreates a table (a `__new_` table, a `DROP TABLE`): STOP.
      D1 ignores the foreign-key pragma a recreate leans on, so the drop
      cascades through every session, account and device (`apps/web/CLAUDE.md`,
@@ -199,6 +198,41 @@ The commands below name the pack as `app`:
 ```sh
 app=apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app
 ```
+
+### The cloud's resources
+
+Each target's own, in the Cloudflare dashboard of the account
+`CLOUDFLARE_ACCOUNT_ID` names; nothing here is shared by production and the
+previews.
+
+- **Every secret is set, and the Worker holds only its two.** Workers ›
+  `inteligir-web` › Settings lists `BETTER_AUTH_SECRET` and `AI_GATEWAY_TOKEN`
+  as secrets and nothing else secret (the two `bindings.secret()` rows of
+  `apps/web/cloudflare.config.ts`), production's own values; the previews'
+  base config holds two values of their own (`apps/web/README.md`
+  § Previews); and the repository's Actions secrets hold
+  `CLOUDFLARE_API_TOKEN`, with the scopes `apps/web/README.md` § Build &
+  deploy names, and `CLOUDFLARE_ACCOUNT_ID`. Passing: a sign-in on
+  inteligir.com and one on a preview each keep their session across a
+  reload, and the built-in agent's gateway checks below pass on both.
+- **The connector's OAuth namespace is the target's.** Workers KV lists the
+  namespace production's first deploy made for `OAUTH_KV` and
+  `inteligir-oauth-preview`, and nothing else binds either. Passing: an
+  assistant connected on a preview is not among production's
+  `account.assistants.list`, and its token is refused at
+  `https://inteligir.com/connector`.
+- **The fill queue and its dead-letter queue.** Queues lists
+  `inteligir-fill`, consumed by `inteligir-web` with three retries and
+  `inteligir-fill-failed` as its dead-letter queue, `inteligir-fill-failed`,
+  consumed by `inteligir-web` too, and `inteligir-fill-preview`, consumed by
+  nothing. Passing: a link saved on production whose host answers 500 ends
+  `failed` with its reason within about five minutes, and
+  `inteligir-fill-failed` holds nothing after it.
+- **A preview binds only preview resources.** On the PR's preview: an
+  account made there cannot sign in on inteligir.com, a file uploaded there
+  is not in `inteligir-vault`, and a link saved there stays unread, since
+  nothing consumes `inteligir-fill-preview` (`apps/web/README.md`
+  § Previews). Passing: each holds.
 
 ### The Mac app
 
@@ -592,10 +626,12 @@ them.
   Authenticated Gateway on, its token the target's `AI_GATEWAY_TOKEN`
   (production's Worker secret; the previews' base-config secret), the target's
   own Anthropic workspace key stored under `default`, Require provider
-  credentials on, caching, rate limiting and guardrails off, and a daily spend
-  limit. Passing: a request without `cf-aig-authorization` is refused; one
-  with it and no `x-api-key` answers 200 for `max_tokens: 1`; the gateway's
-  log shows that request with no prompt or reply.
+  credentials on, caching, rate limiting and guardrails off, its logs keeping
+  no payload (the setting off, as every request's `cf-aig-collect-log-payload:
+  false` asks), and a daily spend limit. Passing: a request without
+  `cf-aig-authorization` is refused; one with it and no `x-api-key` answers
+  200 for `max_tokens: 1`; the gateway's log shows that request with no prompt
+  or reply.
 - **Production's Worker names its gateway.** The newest Deploy run's "Build &
   deploy web" step printed `true` from its gateway check before `cf deploy`,
   and signed in on inteligir.com, `library.agent.send({ text: "Hello." })`

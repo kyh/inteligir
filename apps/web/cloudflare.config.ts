@@ -44,19 +44,20 @@ const worker = defineWorker({
     // each conversation with the built-in agent, which only its account's cell names
     // (src/worker/agent/agent-thread.ts)
     AgentThreadDO: exports.durableObject({ storage: "sqlite" }),
-    // retired classes: each namespace stays a tombstone, its class gone from the entry, until a
-    // deploy's response names it safe to drop (the account socket's, then the hosted vault's two)
+    // deleted classes: each namespace is a tombstone, its class in no entry, until a deploy's
+    // response names it safe to drop from this map (docs/releasing.md § 5)
     ThreadSyncDO: exports.durableObject({ state: "deleted" }),
     RepoCell: exports.durableObject({ state: "deleted" }),
     Registry: exports.durableObject({ state: "deleted" }),
   },
 });
 
-// the oldest build /v1 answers (src/worker/client-floor.ts). A build that sends no build header is
-// refused on its own, so this admits exactly the builds that send one, a checkout's included until
-// its release raises the version; raise it to drop a wire shape every older build reads. The next
-// release sets it to its own version (docs/releasing.md § 1), so a build that speaks a wire this
-// Worker does not answer is told to update rather than meeting not-found
+// the oldest build /v1 answers (src/worker/client-floor.ts): a request naming no build, or one
+// below this, is refused as outdated, so the build is told to update rather than meeting a wire it
+// does not speak. A change that drops a /v1 shape an older build reads owes the floor, and the
+// release after it raises this to its own version (docs/releasing.md § 1, step 3); every checkout
+// reports the last release's version, so the floor never passes one before then.
+// The next release owes the floor: this Worker answers no wire a 0.6.0 build speaks.
 const MIN_CLIENT_BUILD = "0.6.0";
 
 // what both modes bind alike
