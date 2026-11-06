@@ -108,11 +108,12 @@ how it ships.
   asks first, and then discards it (owner decision).
   `tools/e2e/src/scenarios/phone-file-ops-hosted.ts`.
 
-- **A PHONE PHOTO IS AN IMAGE ITEM OF ITS OWN, A JPEG OF AT MOST 2048PX WITH NO
-  EXIF.** The Mac's editor draws no HEIC, so a photo the photo button adds is
-  re-encoded to at most 2048px on its long edge with no EXIF, so no location
-  reaches the library's history, and saved as a file item whose bytes are
-  staged, pinned, until the upload lands, then kept
+- **A PHONE PHOTO IS AN IMAGE ITEM OF ITS OWN, AT MOST 2048PX WITH NO EXIF, A
+  JPEG UNLESS IT WAS A PNG.** The Mac's editor draws no HEIC, so a photo the
+  photo button adds is re-encoded to at most 2048px on its long edge with no
+  EXIF, so no location reaches the library's history, and saved as a file item
+  whose bytes are staged, pinned, until the upload lands, then kept. A PNG is
+  re-encoded as a PNG, since a JPEG has no transparency and draws it black
   (`apps/mobile/src/items/photo-ingest.ts`,
   `apps/mobile/src/items/photo-plan.ts`). A picture pasted into a note's text
   is kept as the bytes the paste handed over, with whatever details they

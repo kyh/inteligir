@@ -1,8 +1,8 @@
-// A photo from the camera or the library, scaled down and re-encoded as a JPEG, then saved as an
-// image item of its own through the replica's outbox, so one taken offline lands once the phone is
-// back. The re-encode writes no EXIF, so where the photo was taken never reaches the library or
-// its history. A HEIC is decoded here too, since the Mac's editor and every browser take JPEG.
-// Only a screen imports this; it loads native modules.
+// A photo from the camera or the library, scaled down and re-encoded, then saved as an image item
+// of its own through the replica's outbox, so one taken offline lands once the phone is back. The
+// re-encode writes no EXIF, so where the photo was taken never reaches the library or its history.
+// A HEIC becomes a JPEG here, since the Mac's editor and every browser take one, and a PNG stays
+// a PNG. Only a screen imports this; it loads native modules.
 
 import { File } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
@@ -15,7 +15,8 @@ import type { ImagePickerOptions } from "expo-image-picker";
 import { ActionSheetIOS } from "react-native";
 import { messageOf } from "../lib/error-message";
 import type { LibraryReplica } from "@repo/library-replica/library-replica";
-import { photoBaseName, photoResize } from "./photo-plan";
+import { photoName, photoResize, photoType } from "./photo-plan";
+import type { PhotoType } from "./photo-plan";
 
 export type PhotoIngest =
   | { kind: "picked"; itemId: string }
@@ -50,7 +51,13 @@ const chooseSource = async (): Promise<PhotoSource | null> =>
     );
   });
 
-const pick = async (source: PhotoSource): Promise<PhotoIngest | { kind: "uri"; uri: string }> => {
+interface PickedPhoto {
+  kind: "photo";
+  type: PhotoType;
+  uri: string;
+}
+
+const pick = async (source: PhotoSource): Promise<PhotoIngest | PickedPhoto> => {
   if (source === "camera") {
     const permission = await requestCameraPermissionsAsync();
     if (!permission.granted) {
@@ -65,18 +72,24 @@ const pick = async (source: PhotoSource): Promise<PhotoIngest | { kind: "uri"; u
       ? await launchCameraAsync(PICKER_OPTIONS)
       : await launchImageLibraryAsync(PICKER_OPTIONS);
   const asset = result.canceled ? undefined : result.assets[0];
-  return asset === undefined ? { kind: "cancelled" } : { kind: "uri", uri: asset.uri };
+  return asset === undefined
+    ? { kind: "cancelled" }
+    : { kind: "photo", type: photoType(asset.mimeType), uri: asset.uri };
 };
 
 // the size is read off the decoded image: the picker may answer 0 for one it was not told
-const reencoded = async (uri: string): Promise<Uint8Array<ArrayBuffer>> => {
+const reencoded = async ({ type, uri }: PickedPhoto): Promise<Uint8Array<ArrayBuffer>> => {
   const original = await ImageManipulator.manipulate(uri).renderAsync();
   const size = photoResize(original.width, original.height);
   const image =
     size === null
       ? original
       : await ImageManipulator.manipulate(original).resize(size).renderAsync();
-  const saved = await image.saveAsync({ compress: JPEG_QUALITY, format: SaveFormat.JPEG });
+  const saved = await image.saveAsync(
+    type === "image/png"
+      ? { format: SaveFormat.PNG }
+      : { compress: JPEG_QUALITY, format: SaveFormat.JPEG },
+  );
   const file = new File(saved.uri);
   const bytes = await file.bytes();
   try {
@@ -97,13 +110,13 @@ export const ingestPhoto = async (
   }
   try {
     const picked = await pick(source);
-    if (picked.kind !== "uri") {
+    if (picked.kind !== "photo") {
       return picked;
     }
     const made = await replica.createFile({
-      file: { bytes: await reencoded(picked.uri), mime: "image/jpeg" },
+      file: { bytes: await reencoded(picked), mime: picked.type },
       folderId,
-      name: photoBaseName(new Date()),
+      name: photoName(new Date(), picked.type),
       tags: [],
     });
     return { itemId: made.id, kind: "picked" };
