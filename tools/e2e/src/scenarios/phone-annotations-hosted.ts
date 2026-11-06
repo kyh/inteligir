@@ -49,7 +49,11 @@ export const phoneAnnotationsHosted: Scenario = {
     await untilItem(phone, made.id, (item) => item?.bodyHeld === true, "the phone pulls the note");
 
     ctx.log("the phone highlights the passage and notes it");
-    const ports = createItemPorts({ now: () => Date.now(), replica: libraryOf(phone).replica });
+    const ports = createItemPorts({
+      files: libraryOf(phone).files,
+      now: () => Date.now(),
+      replica: libraryOf(phone).replica,
+    });
     const edits = createAnnotationEdits({
       itemId: made.id,
       now: () => Date.now(),
