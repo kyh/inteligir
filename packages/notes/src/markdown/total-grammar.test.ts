@@ -191,7 +191,7 @@ const random = (seed: number): (() => number) => {
 const closedPosition = z.object({ end: z.object({ offset: z.number() }) });
 
 const unclosed = (node: Nodes): string | null => {
-  if (node.position !== undefined && !closedPosition.safeParse(node.position).success) {
+  if (node.position !== undefined && !closedPosition.validate(node.position)) {
     return node.type;
   }
   if ("children" in node) {

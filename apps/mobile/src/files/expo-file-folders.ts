@@ -1,5 +1,4 @@
-// The file cache's folders on the phone (expo-file-system's File and Directory, never
-// expo-file-system/legacy): what the person's own notes embed and what waits to be uploaded under
+// The file cache's folders on the phone (expo-file-system's File and Directory objects): what the person's own notes embed and what waits to be uploaded under
 // Documents, kept out of the device backup since it downloads again or is sent from here, and the
 // discardable copies under Paths.cache, which iOS may purge under storage pressure and keeps out of
 // the backup itself. A write lands under a partial name and is moved into place, so a file found is
