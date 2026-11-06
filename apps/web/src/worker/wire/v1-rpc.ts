@@ -5,8 +5,7 @@
 // only that: any identity header the request brought is dropped, and so are its credentials,
 // which the cell never reads.
 
-import { libraryCell } from "../library/library-cell";
-import { PRINCIPAL_HEADER, principalHeaderValue } from "../library/library-principal";
+import { forwardAsPrincipal } from "../library/library-principal";
 import type { AppPrincipal } from "../library/library-principal";
 import { V1_LIBRARY_RPC_PATH } from "../library/library-rpc";
 import { isBelowFloor } from "../client-floor";
@@ -15,9 +14,6 @@ import { spendDeviceBudget } from "../rate-limit";
 import { serveAccountRpc } from "./account-router";
 import { rpcRefusal } from "./rpc-refusal";
 import { holderIdOf, lazyPrincipal } from "./v1-principal";
-
-// what the cell is handed in place of what the caller sent
-const FORWARD_DROPS = [PRINCIPAL_HEADER, "authorization", "cookie"] as const;
 
 const forwardLibraryCall = async (
   request: Request,
@@ -32,14 +28,7 @@ const forwardLibraryCall = async (
   if (!(await spendDeviceBudget(env, createDb(env.DB), "rpc", holderIdOf(verified)))) {
     return await rpcRefusal("TOO_MANY_REQUESTS");
   }
-  const headers = new Headers(request.headers);
-  for (const name of FORWARD_DROPS) {
-    headers.delete(name);
-  }
-  headers.set(PRINCIPAL_HEADER, principalHeaderValue(verified));
-  return await libraryCell(ctx.exports, verified.accountId).fetch(
-    new Request(request, { headers }),
-  );
+  return await forwardAsPrincipal(ctx.exports, request, verified);
 };
 
 export const handleV1Rpc = async (

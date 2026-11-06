@@ -5,8 +5,8 @@
 // end before the call returns, so none is held across an await.
 
 import { LibraryRowError } from "@repo/notes/library/library-sql";
+import { sqlRowSchema } from "@repo/notes/library/sql-value";
 import type { SqlPort, SqlRow } from "@repo/notes/library/library-sql";
-import { z } from "zod";
 
 export interface CellStorage extends SqlPort {
   // what the cell's SQLite holds, its history included: one half of what the quota counts
@@ -14,10 +14,9 @@ export interface CellStorage extends SqlPort {
 }
 
 // the schema stores no BLOB column, so a byte value is a row this build never wrote
-const rowSchema = z.record(z.string(), z.union([z.string(), z.number(), z.null()]));
 
 const rowOf = (raw: Record<string, SqlStorageValue>): SqlRow => {
-  const row = rowSchema.safeParse(raw);
+  const row = sqlRowSchema.safeParse(raw);
   if (!row.success) {
     throw new LibraryRowError("a row holds bytes, which the library never stores", {
       cause: row.error,

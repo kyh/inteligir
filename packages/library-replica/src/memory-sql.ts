@@ -7,17 +7,16 @@
 
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import type { Sqlite3Static } from "@sqlite.org/sqlite-wasm";
+import { sqlRowSchema } from "@repo/notes/library/sql-value";
 import type { SqlRow } from "@repo/notes/library/library-sql";
-import { z } from "zod";
 
 import type { ReplicaSql, ReplicaStatements } from "./replica-ports";
 
 // the wasm loads once a page, on the first database asked for. The module imports nothing of this
-// package's but types, so node loads it as it stands: the Worker's suites serve a replica's
-// database from their node side (apps/web/replica-sql-service.ts)
+// package's but types, and of `@repo/notes` only the row's schema, which imports zod alone, so node
+// loads it as it stands: the Worker's suites serve a replica's database from their node side
+// (apps/web/replica-sql-service.ts)
 let loading: Promise<Sqlite3Static> | null = null;
-
-const rowSchema = z.record(z.string(), z.union([z.string(), z.number(), z.null()]));
 
 export interface MemorySql extends ReplicaSql {
   readonly close: () => void;
@@ -45,7 +44,7 @@ export const openMemorySql = async (): Promise<MemorySql> => {
   const statements: ReplicaStatements = {
     all: async (sql, params) =>
       await Promise.resolve(
-        db.selectObjects(sql, [...params]).map((row): SqlRow => rowSchema.parse(row)),
+        db.selectObjects(sql, [...params]).map((row): SqlRow => sqlRowSchema.parse(row)),
       ),
     run: async (sql, params) => {
       db.exec({ bind: [...params], sql });

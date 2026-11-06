@@ -10,9 +10,10 @@ import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-so
 import { z } from "zod";
 
 // who a socket answers to: a device by its credential, or a browser tab by its session; the
-// Worker verifies it and stamps it on the upgrade, over any copy the request carried
+// Worker verifies it and stamps it on the upgrade, over any copy the request carried, and the
+// ticket it opens with names the same holder (`./socket-ticket`)
 const HOLDER_KINDS = ["device", "session"] as const;
-const holderSchema = z.object({
+export const holderSchema = z.strictObject({
   id: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/u),
   kind: z.enum(HOLDER_KINDS),
 });

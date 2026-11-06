@@ -8,6 +8,7 @@
 import { base64UrlFromBytes, bytesFromBase64 } from "@repo/contract/cloud/bytes";
 import { z } from "zod";
 
+import { holderSchema } from "./cell-sockets";
 import type { SocketHolder } from "./cell-sockets";
 
 /** @internal */
@@ -20,17 +21,10 @@ const encoder = new TextEncoder();
 const claimSchema = z.strictObject({
   accountId: z.string().min(1).max(128),
   expiresAt: z.number().int().nonnegative(),
-  holder: z.strictObject({
-    id: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/u),
-    kind: z.enum(["device", "session"]),
-  }),
+  holder: holderSchema,
 });
 
-export interface SocketClaim {
-  readonly accountId: string;
-  readonly holder: SocketHolder;
-  readonly expiresAt: number;
-}
+export type SocketClaim = z.infer<typeof claimSchema>;
 
 const BASE64_URL = /^[A-Za-z0-9_-]+$/u;
 

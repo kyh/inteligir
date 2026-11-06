@@ -15,19 +15,11 @@ import { insufficientScope } from "@cloudflare/workers-oauth-provider";
 import type { OAuthResourceHandler } from "@cloudflare/workers-oauth-provider";
 
 import { createDb } from "../db/client";
-import { libraryCell } from "../library/library-cell";
-import {
-  LIBRARY_SCOPES,
-  PRINCIPAL_HEADER,
-  principalHeaderValue,
-} from "../library/library-principal";
+import { forwardAsPrincipal, LIBRARY_SCOPES } from "../library/library-principal";
 import type { ConnectorPrincipal } from "../library/library-principal";
 import { spendDeviceBudget } from "../rate-limit";
 import { connectorAuth, READ_SCOPE } from "./connector-auth";
 import type { TokenProps } from "./connector-auth";
-
-// what the cell is handed in place of what the caller sent
-const FORWARD_DROPS = [PRINCIPAL_HEADER, "authorization", "cookie"] as const;
 
 const isLibraryScope = (scope: string): scope is (typeof LIBRARY_SCOPES)[number] =>
   LIBRARY_SCOPES.some((known) => known === scope);
@@ -64,14 +56,7 @@ const forwardToCell: OAuthResourceHandler<Env, TokenProps> = {
       },
       scopes,
     };
-    const headers = new Headers(request.headers);
-    for (const name of FORWARD_DROPS) {
-      headers.delete(name);
-    }
-    headers.set(PRINCIPAL_HEADER, principalHeaderValue(principal));
-    return await libraryCell(ctx.exports, principal.accountId).fetch(
-      new Request(request, { headers }),
-    );
+    return await forwardAsPrincipal(ctx.exports, request, principal);
   },
 };
 

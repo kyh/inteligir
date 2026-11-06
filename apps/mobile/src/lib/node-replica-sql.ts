@@ -6,13 +6,14 @@
 import { DatabaseSync } from "node:sqlite";
 import type { ReplicaSql, ReplicaStatements } from "@repo/library-replica/replica-ports";
 import { serialLock } from "@repo/library-replica/serial-lock";
+import { sqlRowSchema } from "@repo/notes/library/sql-value";
 import type { SqlRow, SqlValue } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 import { settle } from "./settle";
 
 // node answers a column as its own value type; the library's schema stores no blob and no bigint,
 // so anything else is a file this runtime did not write
-const rowsSchema = z.array(z.record(z.string(), z.union([z.string(), z.number(), z.null()])));
+const rowsSchema = z.array(sqlRowSchema);
 
 const bound = (params: readonly SqlValue[]): SqlValue[] => [...params];
 

@@ -252,7 +252,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   credential (a second verifier, a D1 read inside every cell call); a stub
   method per procedure (oRPC's handler takes a request).
   `apps/web/src/worker/wire/v1-rpc.ts`, `v1-principal.ts`,
-  `apps/web/src/worker/library/library-do.ts`.
+  `apps/web/src/worker/library/library-principal.ts`, `library-do.ts`.
 
 - **THE CELL IMPLEMENTS EVERY LIBRARY ROW ONCE, OVER ITS ENGINE AND THE
   MARKDOWN CODEC.** `implement(libraryTools)`: a write lands in one transaction

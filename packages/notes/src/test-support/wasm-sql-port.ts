@@ -6,10 +6,10 @@
 // 2 MB, a pattern match, a pragma, or a transaction statement sent as SQL.
 
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-import { z } from "zod";
 
 import { utf8ByteLength } from "../library/canonical-json";
 import { runPlan, SQL_MAX_PARAMS, SQL_MAX_STATEMENT_BYTES } from "../library/library-sql";
+import { sqlRowSchema } from "../library/sql-value";
 import type {
   AsyncSqlStatements,
   SqlPlan,
@@ -23,8 +23,6 @@ const sqlite3 = await sqlite3InitModule();
 
 const VALUE_MAX_BYTES = 2_000_000;
 const REFUSED_SQL = /\b(?:like|glob|pragma|begin|commit|rollback|savepoint|release)\b/iu;
-
-const rowSchema = z.record(z.string(), z.union([z.string(), z.number(), z.null()]));
 
 export interface WasmSqlPort extends SqlPort {
   // every statement the port ran, in order
@@ -64,7 +62,7 @@ export const openWasmSqlPort = (): WasmSqlPort => {
   return {
     all: (sql, params): SqlRow[] => {
       record(sql, params);
-      return db.selectObjects(sql, [...params]).map((row) => rowSchema.parse(row));
+      return db.selectObjects(sql, [...params]).map((row) => sqlRowSchema.parse(row));
     },
     close: () => {
       db.close();

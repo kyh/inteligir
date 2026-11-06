@@ -11,6 +11,7 @@
 import { z } from "zod";
 
 import type { CellActor } from "./cell-actor";
+import { libraryCell } from "./library-cell";
 
 export const PRINCIPAL_HEADER = "x-library-principal";
 
@@ -96,8 +97,28 @@ export const changesLibrary = (principal: Principal): boolean =>
 
 // a header carries Latin-1 alone and a device's name may hold any letter, so the JSON is
 // percent-encoded
+/** @internal */
 export const principalHeaderValue = (principal: NamedPrincipal): string =>
   encodeURIComponent(JSON.stringify(principalSchema.parse(principal)));
+
+// what the cell is handed in place of what the caller sent: any identity header the request
+// brought, and its credentials, which the cell never reads
+const FORWARD_DROPS = [PRINCIPAL_HEADER, "authorization", "cookie"] as const;
+
+// a call forwarded whole into the account's cell, carrying the principal the Worker verified and
+// nothing the caller sent in its place: an app's on `/v1/rpc` and an assistant's on the connector
+export const forwardAsPrincipal = async (
+  exports: Cloudflare.Exports,
+  request: Request,
+  principal: NamedPrincipal,
+): Promise<Response> => {
+  const headers = new Headers(request.headers);
+  for (const name of FORWARD_DROPS) {
+    headers.delete(name);
+  }
+  headers.set(PRINCIPAL_HEADER, principalHeaderValue(principal));
+  return await libraryCell(exports, principal.accountId).fetch(new Request(request, { headers }));
+};
 
 // the principal a header names, never the built-in agent's
 export const principalFromHeader = (value: string | null): NamedPrincipal | null => {

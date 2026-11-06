@@ -9,15 +9,14 @@
 import { openMemorySql } from "@repo/library-replica/memory-sql";
 import type { MemorySql } from "@repo/library-replica/memory-sql";
 import type { ReplicaStatements } from "@repo/library-replica/replica-ports";
+import { sqlValueSchema } from "@repo/notes/library/sql-value";
 import { z } from "zod";
-
-const valueSchema = z.union([z.string(), z.number(), z.null()]);
 
 const replicaSqlCallSchema = z.discriminatedUnion("op", [
   z.object({
     db: z.string(),
     op: z.enum(["all", "run"]),
-    params: z.array(valueSchema),
+    params: z.array(sqlValueSchema),
     sql: z.string(),
     tx: z.string().nullable(),
   }),

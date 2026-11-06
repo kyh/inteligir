@@ -4,13 +4,12 @@
 // rollback around the work, as the in-memory driver holds its database around `exclusive`.
 
 import type { ReplicaSql, ReplicaStatements } from "@repo/library-replica/replica-ports";
+import { sqlRowSchema } from "@repo/notes/library/sql-value";
 import type { SqlValue } from "@repo/notes/library/library-sql";
 import { env } from "cloudflare:workers";
 import { z } from "zod";
 
-const rowsSchema = z.object({
-  rows: z.array(z.record(z.string(), z.union([z.string(), z.number(), z.null()]))),
-});
+const rowsSchema = z.object({ rows: z.array(sqlRowSchema) });
 const txSchema = z.object({ tx: z.string() });
 const failureSchema = z.object({ message: z.string() });
 const doneSchema = z.object({});

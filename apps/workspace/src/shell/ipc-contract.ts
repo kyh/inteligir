@@ -5,6 +5,7 @@
 // at the parse. A command that cannot do what it was asked rejects with the shell's error
 // (`shell-error.ts`); a unit answer crosses as null.
 
+import { sqlRowSchema, sqlValueSchema } from "@repo/notes/library/sql-value";
 import { z } from "zod";
 import { keptCredentialSchema, shellConfigSchema } from "./shell-config";
 import { updateStateSchema } from "./update-state";
@@ -47,9 +48,8 @@ const noArgs = z.undefined();
 const done = z.null();
 
 // a value the replica binds or reads: the library's SQL holds text, numbers and null
-const sqlValueSchema = z.union([z.string(), z.number(), z.null()]);
 const statementArgs = z.strictObject({ params: z.array(sqlValueSchema), sql: z.string().min(1) });
-const rowsSchema = z.array(z.record(z.string(), sqlValueSchema));
+const rowsSchema = z.array(sqlRowSchema);
 // a transaction the shell holds open between statements
 const tokenSchema = z.number().int().positive();
 const tokenArgs = z.strictObject({ token: tokenSchema });

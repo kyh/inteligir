@@ -5,9 +5,12 @@
 // `runPlan` over a synchronous port or `runPlanAsync` over an asynchronous one. A port runs exactly
 // one statement per call, never a BEGIN or a SAVEPOINT: a transaction is its `transaction(work)`.
 
-import { utf8ByteLength } from "./canonical-json";
+import type { z } from "zod";
 
-export type SqlValue = string | number | null;
+import { utf8ByteLength } from "./canonical-json";
+import type { sqlValueSchema } from "./sql-value";
+
+export type SqlValue = z.infer<typeof sqlValueSchema>;
 export type SqlRow = Readonly<Record<string, SqlValue>>;
 
 export interface SqlStatement {
