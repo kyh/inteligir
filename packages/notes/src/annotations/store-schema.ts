@@ -1,14 +1,13 @@
 import { z } from "zod";
 
-// One dot-folder for what the app owns inside the vault, keyed by the item's frontmatter id so a
-// rename or move outside the app strands nothing. The cloud was rejected for it: the anchors live
-// in the note's bytes and travel through git, so bodies in a second sync system drift from them.
-export const ANNOTATIONS_STORE_DIR = ".inteligir/annotations";
+// An export's one dot-folder for its items' annotations, a file each keyed by the item's id, which
+// an import reads back, so a folder renamed or moved before the import strands nothing
+const ANNOTATIONS_STORE_DIR = ".inteligir/annotations";
 
 // the key must also be a file name; a uuid is, and so is any plain name
 const NOTE_ID_KEY_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
 
-export const isNoteIdKey = (id: string): boolean => NOTE_ID_KEY_RE.test(id);
+const isNoteIdKey = (id: string): boolean => NOTE_ID_KEY_RE.test(id);
 
 const STORE_FILE_SUFFIX = ".json";
 

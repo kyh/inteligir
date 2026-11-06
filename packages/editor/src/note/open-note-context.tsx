@@ -16,7 +16,7 @@ export const OpenNoteStoreProvider = ({
 }) => <OpenNoteStoreContext value={store}>{children}</OpenNoteStoreContext>;
 
 // a missing provider is a mount-order bug; throw rather than make every call site carry a dead null check.
-export const useOpenNoteStore = (): OpenNoteStore => {
+const useOpenNoteStore = (): OpenNoteStore => {
   const store = useContext(OpenNoteStoreContext);
   if (store === null) {
     throw new Error("useOpenNoteStore used outside <OpenNoteStoreProvider>");

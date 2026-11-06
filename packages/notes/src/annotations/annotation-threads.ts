@@ -1,6 +1,6 @@
 import type { AnnotationEntry, AnnotationStore } from "./store-schema";
 
-export interface AnnotationReply {
+interface AnnotationReply {
   id: string;
   entry: AnnotationEntry;
 }

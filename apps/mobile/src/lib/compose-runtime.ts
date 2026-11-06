@@ -108,7 +108,7 @@ export interface AppRuntime {
 }
 
 export const SIGNED_OUT_ELSEWHERE = "This iPhone was signed out of your library.";
-export const ACCOUNT_DELETED = "Your account was deleted, and its library with it.";
+const ACCOUNT_DELETED = "Your account was deleted, and its library with it.";
 
 // the account's device slot back, best-effort: offline, or a cloud that did not answer, leaves
 // the device list naming this phone, to remove

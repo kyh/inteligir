@@ -24,7 +24,7 @@ export interface FormulaNodeProps {
 export const isFormulaPill = (node: TNode): node is TElement =>
   ElementApi.isElement(node) && node.type === FORMULA_PILL_KEY;
 
-export const mintFormulaId = (): string => crypto.randomUUID();
+const mintFormulaId = (): string => crypto.randomUUID();
 
 const propsFrom = (source: string, display: string, meta: FormulaMeta): FormulaNodeProps => ({
   display,

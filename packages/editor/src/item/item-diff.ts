@@ -54,7 +54,7 @@ export const readElement = (element: TElement, reads?: ElementReads): ReadElemen
   return read;
 };
 
-export interface HeldBack {
+interface HeldBack {
   readonly index: number;
   readonly reason: string;
 }

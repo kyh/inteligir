@@ -2,7 +2,7 @@
 // note open with its bytes and whether they are unsaved, or none. An item opened by id publishes
 // none (its session says its own state).
 
-export type SaveError =
+type SaveError =
   | { readonly kind: "vanished" }
   | { readonly kind: "refused"; readonly message: string };
 

@@ -33,7 +33,7 @@ import {
   showConsent,
   workerFetch,
 } from "../test-support/connector-session";
-import { pkcePair } from "./pkce";
+import { pkcePair } from "../test-support/pkce";
 
 // an MCP request any client opens with, here sent bare to see what answers it
 const initialize = (headers: Record<string, string> = {}) =>

@@ -29,7 +29,7 @@ interface FilterItem {
   keywords?: string[] | undefined;
   label?: string | undefined;
 }
-export type FilterFn = (item: FilterItem, search: string) => boolean;
+type FilterFn = (item: FilterItem, search: string) => boolean;
 
 interface InlineComboboxContextValue {
   commit: (focusEditor: boolean) => void;

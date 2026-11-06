@@ -65,7 +65,7 @@ export interface OpenNoteStore {
 
 // `carry`: a rename moved the open note, so history entries naming the old path
 // are rewritten rather than pushed, or Back would offer a path the rename deleted.
-export type OpenPathChange = "navigate" | "carry";
+type OpenPathChange = "navigate" | "carry";
 
 export const createOpenNoteStore = (): OpenNoteStore => {
   const store = createStore<OpenNoteState>()(() => INITIAL_STATE);

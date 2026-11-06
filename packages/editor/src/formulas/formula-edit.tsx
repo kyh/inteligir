@@ -29,7 +29,7 @@ const formulaEntriesById = (editor: SlateEditor, id: string): NodeEntry<TElement
   return out;
 };
 
-export const applyFormulaEdit = (
+const applyFormulaEdit = (
   editor: SlateEditor,
   element: TElement,
   props: FormulaNodeProps,

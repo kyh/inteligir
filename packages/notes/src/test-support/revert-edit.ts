@@ -19,7 +19,7 @@ export type RevertInput = TurnEdit & {
   readonly current: string | null;
 };
 
-export type RevertKeepReason = "edited-since" | "deleted-since" | "recreated-since";
+type RevertKeepReason = "edited-since" | "deleted-since" | "recreated-since";
 
 // `expected` is the bytes the verdict was computed from, which the caller's compare-and-swap
 // must still find at the path

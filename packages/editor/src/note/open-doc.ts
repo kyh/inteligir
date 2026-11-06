@@ -1,7 +1,7 @@
 // .mdx excluded: the Plate markdown pipeline doesn't round-trip MDX.
 const MARKDOWN_RE = /\.(?:md|markdown)$/iu;
 
-export const isMarkdownPath = (path: string): boolean => MARKDOWN_RE.test(path);
+const isMarkdownPath = (path: string): boolean => MARKDOWN_RE.test(path);
 
 // `loading` carries the intent path so highlights key off it before content lands;
 // it is also the transient during a rename carry or a vanish.

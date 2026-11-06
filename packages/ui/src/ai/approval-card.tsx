@@ -2,7 +2,7 @@
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import type { HTMLAttributes, InputHTMLAttributes, ReactNode, RefAttributes } from "react";
+import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
 import { ArrowUpIcon, CheckIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/cn";
@@ -10,21 +10,13 @@ import { cn } from "@repo/ui/lib/cn";
 export interface ApprovalAnswer {
   questionId: string;
   optionIds: string[];
-  custom?: string;
-}
-
-interface PendingAnswer {
-  questionId: string;
-  optionIds: string[];
-  custom: string;
 }
 
 interface ApprovalCardContextValue {
   register: (questionId: string) => void;
-  answer: (questionId: string, optionIds: string[], custom: string) => void;
+  answer: (questionId: string, optionIds: string[]) => void;
   picked: Record<string, string[]>;
-  custom: Record<string, string>;
-  submit: (pending?: PendingAnswer) => void;
+  submit: (pending?: ApprovalAnswer) => void;
   hasAnswer: boolean;
   sending: boolean;
 }
@@ -78,32 +70,25 @@ const ApprovalCard = ({
 }: ApprovalCardProps & RefAttributes<HTMLDivElement>) => {
   const [order, setOrder] = useState<readonly string[]>([]);
   const [picked, setPicked] = useState<Record<string, string[]>>({});
-  const [custom, setCustom] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<ApprovalCardStatus>("open");
 
-  const answered = order.filter(
-    (id) => (picked[id] ?? []).length > 0 || (custom[id] ?? "").trim().length > 0,
-  );
+  const answered = order.filter((id) => (picked[id] ?? []).length > 0);
 
   const register = useCallback((questionId: string) => {
     setOrder((current) => (current.includes(questionId) ? current : [...current, questionId]));
   }, []);
-  const answer = useCallback((questionId: string, optionIds: string[], nextCustom: string) => {
+  const answer = useCallback((questionId: string, optionIds: string[]) => {
     setPicked((current) => ({ ...current, [questionId]: optionIds }));
-    setCustom((current) => ({ ...current, [questionId]: nextCustom }));
   }, []);
   const submit = useCallback(
-    (pending?: PendingAnswer) => {
+    (pending?: ApprovalAnswer) => {
       // a commit-on-pick answer arrives in the handler that made the pick, before state holds it
       const nextPicked =
         pending === undefined ? picked : { ...picked, [pending.questionId]: pending.optionIds };
-      const nextCustom =
-        pending === undefined ? custom : { ...custom, [pending.questionId]: pending.custom };
-      const answers = order.map((questionId) => {
-        const text = (nextCustom[questionId] ?? "").trim();
-        const entry: ApprovalAnswer = { optionIds: nextPicked[questionId] ?? [], questionId };
-        return text.length > 0 ? { ...entry, custom: text } : entry;
-      });
+      const answers = order.map((questionId): ApprovalAnswer => ({
+        optionIds: nextPicked[questionId] ?? [],
+        questionId,
+      }));
       setStatus("sending");
       void (async () => {
         try {
@@ -114,13 +99,13 @@ const ApprovalCard = ({
         }
       })();
     },
-    [order, picked, custom, onSubmit],
+    [order, picked, onSubmit],
   );
   const hasAnswer = order.length > 0 && answered.length === order.length;
   const sending = status === "sending";
   const value = useMemo<ApprovalCardContextValue>(
-    () => ({ answer, custom, hasAnswer, picked, register, sending, submit }),
-    [register, answer, picked, custom, submit, hasAnswer, sending],
+    () => ({ answer, hasAnswer, picked, register, sending, submit }),
+    [register, answer, picked, submit, hasAnswer, sending],
   );
 
   if (status === "sent") {
@@ -179,7 +164,7 @@ const ApprovalQuestion = ({
   ref,
   ...props
 }: ApprovalQuestionProps & RefAttributes<HTMLDivElement>) => {
-  const { answer, custom, picked, register, submit } = useApprovalCard();
+  const { answer, picked, register, submit } = useApprovalCard();
   useEffect(() => {
     register(questionId);
   }, [register, questionId]);
@@ -192,14 +177,13 @@ const ApprovalQuestion = ({
         ? selected.filter((entry) => entry !== optionId)
         : [...selected, optionId];
       const next = kind === "radio" ? [optionId] : toggled;
-      const nextCustom = kind === "radio" ? "" : (custom[questionId] ?? "");
-      answer(questionId, next, nextCustom);
+      answer(questionId, next);
       // a single choice commits on pick, so the pick has to ride the submit
       if (kind === "radio") {
-        submit({ custom: nextCustom, optionIds: next, questionId });
+        submit({ optionIds: next, questionId });
       }
     },
-    [answer, custom, kind, questionId, selected, submit],
+    [answer, kind, questionId, selected, submit],
   );
 
   const context = useMemo(
@@ -291,39 +275,6 @@ const ApprovalOption = ({
   );
 };
 
-const ApprovalCustomAnswer = ({
-  className,
-  ref,
-  ...props
-}: Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange"> &
-  RefAttributes<HTMLInputElement>) => {
-  const card = useApprovalCard();
-  const { questionId, kind, selected } = useApprovalQuestion();
-  const typed = card.custom[questionId] ?? "";
-  return (
-    <label className="-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 transition-colors duration-100 focus-within:bg-hover hover:bg-hover">
-      <span aria-hidden className="size-4 shrink-0" />
-      <input
-        ref={ref}
-        value={typed}
-        disabled={card.sending}
-        onChange={(event) => {
-          // typing clears a radio pick, or one question would send two answers
-          card.answer(questionId, kind === "radio" ? [] : selected, event.target.value);
-        }}
-        placeholder="Type something…"
-        aria-label="Custom answer"
-        data-slot="approval-custom-answer"
-        className={cn(
-          "min-w-0 flex-1 bg-transparent text-subtitle text-ink outline-none placeholder:text-ink-3",
-          className,
-        )}
-        {...props}
-      />
-    </label>
-  );
-};
-
 const ApprovalActions = ({
   className,
   children,
@@ -357,4 +308,4 @@ const ApprovalActions = ({
   );
 };
 
-export { ApprovalCard, ApprovalQuestion, ApprovalOption, ApprovalCustomAnswer, ApprovalActions };
+export { ApprovalCard, ApprovalQuestion, ApprovalOption, ApprovalActions };

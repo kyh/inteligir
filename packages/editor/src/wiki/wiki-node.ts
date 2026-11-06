@@ -83,7 +83,7 @@ export const wikiFieldsOfBody = (body: string): WikiNodeFields => {
   };
 };
 
-export const anchorOf = (fields: WikiNodeFields): string | undefined =>
+const anchorOf = (fields: WikiNodeFields): string | undefined =>
   fields.heading ?? (fields.blockRef === undefined ? undefined : `^${fields.blockRef}`);
 
 // the parts of the body a node is written with: the id after the pipe unless an alias holds it

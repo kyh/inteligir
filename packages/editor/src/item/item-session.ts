@@ -34,18 +34,18 @@ export interface HeldItem {
 }
 
 // a file a block names by its sha, kept until the write that names it is queued
-export interface ItemFile {
+interface ItemFile {
   readonly sha: string;
   readonly bytes: Uint8Array<ArrayBuffer>;
   readonly mime: string;
 }
 
-export interface ItemWrite {
+interface ItemWrite {
   readonly ops: readonly LibraryOp[];
   readonly files?: readonly { readonly bytes: Uint8Array<ArrayBuffer>; readonly mime: string }[];
 }
 
-export type ItemWriteOutcome =
+type ItemWriteOutcome =
   | { readonly kind: "queued" }
   | { readonly kind: "unchanged" }
   | { readonly kind: "missing" }

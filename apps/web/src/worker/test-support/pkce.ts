@@ -1,6 +1,6 @@
 // A PKCE pair (RFC 7636 § 4.1, § 4.2): 32 random bytes as the verifier, and its SHA-256 as the
 // S256 challenge, both base64url. The provider refuses a public client's authorization without
-// one, so the built-in agent's grant makes a pair as every assistant does.
+// one, so the suites' assistant makes a pair as every assistant does.
 
 import { base64UrlFromBytes } from "@repo/contract/cloud/bytes";
 

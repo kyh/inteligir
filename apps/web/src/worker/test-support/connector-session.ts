@@ -9,7 +9,7 @@ import { exports } from "cloudflare:workers";
 import { expect } from "vitest";
 import { z } from "zod";
 
-import { pkcePair } from "../connector/pkce";
+import { pkcePair } from "./pkce";
 import { cookieHeaderOf, ORIGIN } from "./cloud-helpers";
 
 export const CONNECTOR_URL = `${ORIGIN}${CONNECTOR_PATH}`;

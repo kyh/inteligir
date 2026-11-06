@@ -69,7 +69,7 @@ const coverOf = async (
 
 // what this phone read of a shared page, or null when it read nothing the cloud should not read
 // again: a page that did not answer, an answer that is no page, or a reader that broke
-export const readSharedPage = async (
+const readSharedPage = async (
   ports: ShareReadPorts,
   shared: Extract<SharedSave, { kind: "link" }>,
   target: SaveTarget,

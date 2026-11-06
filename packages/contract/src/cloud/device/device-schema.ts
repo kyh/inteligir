@@ -39,7 +39,6 @@ const deviceCredentialFields = {
   deviceId: z.string().min(1),
 };
 export const deviceCredentialSchema = z.strictObject(deviceCredentialFields);
-export type DeviceCredential = z.infer<typeof deviceCredentialSchema>;
 
 // the account rides the answer that mints the credential, so a client knows whose library it holds
 // from its first request on; the stored credential stays the bearer alone
@@ -50,7 +49,7 @@ export const deviceLoginResponseSchema = z.object({
 });
 export type DeviceLoginResponse = z.infer<typeof deviceLoginResponseSchema>;
 
-export const deviceSchema = z.object({
+const deviceSchema = z.object({
   createdAt: z.number().int(),
   id: z.string().min(1),
   lastSeenAt: z.number().int().nullable(),

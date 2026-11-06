@@ -38,7 +38,7 @@ export type LibraryChangeKind = (typeof LIBRARY_CHANGE_KINDS)[number];
 const TAG_ORIGINS = ["field", "inline"] as const;
 // what an item holds a file as: its original, its cover, a thumbnail, its page copy, or an image
 // or file its body embeds
-export const BLOB_ROLES = ["original", "cover", "thumb", "copy", "embed"] as const;
+const BLOB_ROLES = ["original", "cover", "thumb", "copy", "embed"] as const;
 export type BlobRole = (typeof BLOB_ROLES)[number];
 // who a change set is by: the person, the built-in agent, a connected assistant, an import, the
 // cloud reading a page, an undo, or the library itself (a dangling link resolving)

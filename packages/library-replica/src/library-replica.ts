@@ -62,18 +62,8 @@ import { createSocketHint } from "./replica-socket";
 import type { SocketHint } from "./replica-socket";
 import { serialLock } from "./serial-lock";
 
-export type { CallFailure } from "./call-outcome";
 export type { ReplicaItem, ReplicaListingRow } from "./replica-listing";
-export type {
-  FileInput,
-  LinkInput,
-  Made,
-  NewFile,
-  NoteInput,
-  PageInput,
-  WriteInput,
-  WriteOutcome,
-} from "./replica-commands";
+export type { LinkInput, Made, PageInput } from "./replica-commands";
 export { fileSha } from "./replica-commands";
 
 type ThreadRow = z.infer<typeof threadRowSchema>;
@@ -86,7 +76,7 @@ type PassOutcome =
   | { readonly kind: "failed"; readonly failure: ReplicaFailure };
 
 // what stopped a pass: a call's failure, or a fault of this device's own
-export type ReplicaFailure = CallFailure | { readonly kind: "fault"; readonly message: string };
+type ReplicaFailure = CallFailure | { readonly kind: "fault"; readonly message: string };
 
 // the minute's check-in: a pull, and the socket dialled again if it dropped
 const CHECK_IN_MS = 60_000;

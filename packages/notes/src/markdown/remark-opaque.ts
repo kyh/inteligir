@@ -27,7 +27,7 @@ declare module "mdast" {
 
 // Plate's types declare mdx's nodes on mdast, and this package's files are compiled inside the
 // editor's program as well as its own, where they do not exist; the grammar never produces one.
-export type PlateDeclaredType =
+type PlateDeclaredType =
   | "mdxFlowExpression"
   | "mdxJsxFlowElement"
   | "mdxJsxTextElement"
@@ -90,7 +90,7 @@ const isGrammarNodeType = (type: string): type is GrammarNodeType =>
 
 // exported for the knowledge scan, which reads this grammar's bare tree: a link inside one of these
 // is the editor's string, not its link, so rename byte-surgery must not splice into it.
-export const isOpaqueSource = (node: Nodes): boolean =>
+const isOpaqueSource = (node: Nodes): boolean =>
   isGrammarNodeType(node.type) && HELD_AS_SOURCE[node.type];
 
 // toMarkdown always terminates with one newline; the opaque value is a fragment.

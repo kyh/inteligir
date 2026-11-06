@@ -26,7 +26,7 @@ export interface PageRequest {
   reachesPrivate: boolean;
 }
 
-export interface FetchedPage {
+interface FetchedPage {
   // where the redirects ended
   url: string;
   // lowercased, without parameters
@@ -38,9 +38,7 @@ export interface FetchedPage {
   declaredBytes: number | null;
 }
 
-export type PageFetchResult =
-  | { ok: true; page: FetchedPage }
-  | { ok: false; failure: FetchFailure };
+type PageFetchResult = { ok: true; page: FetchedPage } | { ok: false; failure: FetchFailure };
 
 export type PageFetch = (request: PageRequest) => Promise<PageFetchResult>;
 

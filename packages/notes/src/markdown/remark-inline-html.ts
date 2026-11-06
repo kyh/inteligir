@@ -19,7 +19,7 @@ export interface Underline extends Parent {
 }
 
 // the tags as written, around what they enclose
-export interface HtmlElement extends Parent {
+interface HtmlElement extends Parent {
   type: "htmlElement";
   open: Html;
   close: Html;

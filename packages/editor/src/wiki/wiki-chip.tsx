@@ -19,9 +19,9 @@ import type { WikiNodeFields } from "@repo/editor/wiki/wiki-node";
 
 const HOVER_PREVIEW_DELAY_MS = 350;
 
-export const RESOLVED_CHIP_CLASS =
+const RESOLVED_CHIP_CLASS =
   "cursor-pointer rounded-sm bg-primary/10 px-1 text-primary transition-colors hover:bg-primary/20";
-export const UNRESOLVED_CHIP_CLASS =
+const UNRESOLVED_CHIP_CLASS =
   "cursor-pointer rounded-sm px-1 text-muted-foreground underline decoration-dashed decoration-muted-foreground/60 underline-offset-2 transition-colors hover:bg-muted";
 
 const PreviewBody = ({ text }: { text: string | null }) => {

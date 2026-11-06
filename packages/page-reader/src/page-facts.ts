@@ -30,7 +30,7 @@ export type PageFacts = z.infer<typeof pageFactsSchema>;
 export const rungSchema = z.enum(["rich", "plain", "text"]);
 export type Rung = z.infer<typeof rungSchema>;
 
-export const extractedPageSchema = z.strictObject({
+const extractedPageSchema = z.strictObject({
   // the article as the editor's own fixpoint; "" when the page holds no text the editor could keep
   article: z.string(),
   facts: pageFactsSchema,

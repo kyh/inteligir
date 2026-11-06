@@ -14,8 +14,8 @@ import { isTagName } from "../knowledge/tag-grammar";
 import { parseCsv } from "./csv";
 
 // why a row of the export is left out: it names no address, one off the web, or sits in the bin
-export const IMPORT_SKIP_REASONS = ["no-url", "not-web-url", "in-trash"] as const;
-export type ImportSkipReason = (typeof IMPORT_SKIP_REASONS)[number];
+const IMPORT_SKIP_REASONS = ["no-url", "not-web-url", "in-trash"] as const;
+type ImportSkipReason = (typeof IMPORT_SKIP_REASONS)[number];
 
 export interface RaindropHighlight {
   quote: string;
@@ -37,7 +37,7 @@ export interface RaindropRow {
   favorite: boolean;
 }
 
-export interface SkippedRow {
+interface SkippedRow {
   record: number;
   reason: ImportSkipReason;
 }

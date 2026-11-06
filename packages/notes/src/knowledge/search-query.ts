@@ -72,7 +72,7 @@ const STOPWORDS = new Set(
     .filter((word) => word !== ""),
 );
 
-export const isStopword = (token: string): boolean => STOPWORDS.has(token);
+const isStopword = (token: string): boolean => STOPWORDS.has(token);
 
 export const planSearchQuery = (
   query: string,

@@ -13,7 +13,7 @@ import type {
   VaultActions,
 } from "@repo/editor/host-io";
 
-export interface HostCall {
+interface HostCall {
   readonly action: keyof VaultActions;
   readonly args: readonly unknown[];
 }

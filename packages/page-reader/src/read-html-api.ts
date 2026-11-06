@@ -10,4 +10,5 @@ import type { ExtractedPageBlocks } from "./page-reading";
 // a page's html read into its facts and its article as the library's blocks, named by the host's ids
 export type ReadHtml = (args: PageArgs, newBlockId: () => string) => ExtractedPageBlocks;
 
+/** @public read through the entry's `types` condition, which knip's resolver does not follow */
 export declare const readHtml: ReadHtml;

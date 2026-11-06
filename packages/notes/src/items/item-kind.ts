@@ -15,7 +15,7 @@ export const URL_ITEM_KINDS = ["link", "video", "audio"] as const satisfies read
 
 // the frontmatter keys an item's facts live in, in the order a writer puts them (`id` before
 // them, `tags` and `pinned` after); spelled here so a parser-free reader can name them
-export const ITEM_KEYS = [
+const ITEM_KEYS = [
   "kind",
   "url",
   "site",

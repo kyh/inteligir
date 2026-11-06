@@ -83,7 +83,7 @@ const AnnotationRangeLeaf = (props: PlateLeafProps) => {
 };
 
 // the selection's text, a block per line: what a highlight records it was made on
-export const selectionQuote = (editor: SlateEditor): string => {
+const selectionQuote = (editor: SlateEditor): string => {
   const { selection } = editor;
   if (selection === null) {
     return "";

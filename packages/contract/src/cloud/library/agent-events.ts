@@ -20,7 +20,7 @@ const toolNameSchema = z.string().min(1).max(128);
 // why a turn ended: Claude ended it; the person stopped it; the allowance did; Claude's reply ran
 // out of room, refused, or outgrew the conversation's window; Claude could not be reached; or the
 // request itself failed
-export const TURN_END_REASONS = [
+const TURN_END_REASONS = [
   "done",
   "cancelled",
   "budget",
@@ -33,7 +33,7 @@ export const TURN_END_REASONS = [
 export type TurnEndReason = (typeof TURN_END_REASONS)[number];
 
 // who settled an approval: the person, its ten minutes running out, or the turn stopped
-export const APPROVAL_DECIDERS = ["person", "timeout", "cancel"] as const;
+const APPROVAL_DECIDERS = ["person", "timeout", "cancel"] as const;
 
 export const agentEventSchema = z.discriminatedUnion("type", [
   // what the person sent, and the screen they sent it from

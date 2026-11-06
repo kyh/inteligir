@@ -22,7 +22,7 @@ import type { StreamPlan } from "./fake-reply.ts";
 import { scriptOf } from "./fake-script.ts";
 import { checkThinking } from "./fake-signature.ts";
 
-export const FAKE_STATS_PATH = "/__fake/stats";
+const FAKE_STATS_PATH = "/__fake/stats";
 
 // the Messages endpoint, and AI Gateway's provider-native route to it
 const MESSAGES_PATH = /^(?:\/v1\/[^/]+\/[^/]+\/anthropic)?\/v1\/messages$/u;

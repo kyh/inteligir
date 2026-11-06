@@ -33,7 +33,7 @@ type PlacedBlock = z.infer<typeof placedBlockSchema>;
 type SaveInput = Extract<OutboxOp, { kind: "save" }>["input"];
 
 // a file's bytes as a screen hands them over, and the type they are sent as
-export interface NewFile {
+interface NewFile {
   readonly bytes: Uint8Array<ArrayBuffer>;
   readonly mime: string;
 }
@@ -41,7 +41,7 @@ export interface NewFile {
 // the sha a block names a file by, which the host computes before it builds the block
 export const fileSha = (bytes: Uint8Array): string => bytesToHex(sha256(bytes));
 
-export type WriteOutcome =
+type WriteOutcome =
   // durable, and laid over what the screens read
   | { readonly kind: "queued" }
   // every op was already true
@@ -61,14 +61,14 @@ export type WriteOutcome =
       readonly fields: Extract<ApplyOutcome, { kind: "invalid" }>["fields"];
     };
 
-export interface WriteInput {
+interface WriteInput {
   readonly ops: readonly LibraryOp[];
   readonly annotations?: readonly AnnotationOp[];
   // the bytes of each file a block it puts embeds
   readonly files?: readonly NewFile[];
 }
 
-export interface NoteInput {
+interface NoteInput {
   readonly blocks: readonly PlacedBlock[];
   readonly folderId: string | null;
   readonly tags: readonly string[];
@@ -91,7 +91,7 @@ export interface PageInput extends Omit<SaveInput, "coverSha" | "id" | "savedAt"
   readonly cover: NewFile | null;
 }
 
-export interface FileInput {
+interface FileInput {
   readonly name: string;
   readonly title?: string;
   readonly file: NewFile;

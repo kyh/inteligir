@@ -26,10 +26,6 @@ const ALLOWED_EXPORTS = new Map<string, string>([
     "The consumed ApprovalCard's multi-answer footer — single-choice questions commit on pick today; held for the first multi-answer approval.",
   ],
   [
-    "packages/ui/src/ai/approval-card.tsx#ApprovalCustomAnswer",
-    "The consumed ApprovalCard's free-text answer row — held with the approval vocabulary for prompts that take a typed reply.",
-  ],
-  [
     "packages/ui/src/ai/streaming-text.tsx#StreamingAction",
     "The consumed StreamingText's inline action chip, held for answer-with-actions turns.",
   ],
