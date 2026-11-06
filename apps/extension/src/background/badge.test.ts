@@ -36,4 +36,23 @@ describe("the toolbar's badge", () => {
     const title = await browser.action.getTitle({ tabId: TAB });
     expect(title).toBe("Inteligir can't save this kind of page");
   });
+
+  it("shows a later save's check mark for its own two seconds", async () => {
+    await showOutcome(TAB, { created: true, kind: "saved", title: "File over app" });
+    await vi.advanceTimersByTimeAsync(1500);
+    await showSaving(TAB);
+    await showOutcome(TAB, { created: true, kind: "saved", title: "Second" });
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(badge()).resolves.toBe("✓");
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(badge()).resolves.toBe("");
+  });
+
+  it("clears one tab's check mark on its own, whatever another tab shows", async () => {
+    await showOutcome(TAB, { created: true, kind: "saved", title: "File over app" });
+    await showSaving(TAB + 1);
+    await vi.advanceTimersByTimeAsync(2000);
+    await expect(badge()).resolves.toBe("");
+    await expect(browser.action.getBadgeText({ tabId: TAB + 1 })).resolves.toBe("…");
+  });
 });
