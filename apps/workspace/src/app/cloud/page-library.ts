@@ -21,7 +21,7 @@ import type {
 import { uuidV7 } from "@repo/notes/library/uuid-v7";
 import { z } from "zod";
 
-import { forgetAccountStorage } from "./account-storage";
+import { claimAccountStorage, forgetAccountStorage } from "./account-storage";
 import type { LeaveGuard } from "./leave-guard";
 import { keepSession } from "./session-keeper";
 import { createCloudWire, watchSessionEnd } from "./v1";
@@ -31,6 +31,11 @@ import type { CloudWire } from "./v1";
 export interface SignedIn {
   readonly email: string;
   readonly name: string;
+}
+
+// who the site's session says this is, by the id that outlives a change of address
+interface SessionUser extends SignedIn {
+  readonly id: string;
 }
 
 // why this device leaves its account: a sign-out, or the account deleted
@@ -63,7 +68,7 @@ export type PageOpening =
 
 // Better Auth's own answer for the cookie this request carries: null when it names no session
 const sessionSchema = z
-  .object({ user: z.object({ email: z.string(), name: z.string() }) })
+  .object({ user: z.object({ email: z.string(), id: z.string(), name: z.string() }) })
   .nullable();
 
 const SIGN_IN_PATH = "/app/sign-in";
@@ -127,7 +132,7 @@ export const fileAt = async (
 
 // who this cookie signs in, or null when the site says no one; a fault of the site's says neither,
 // so it rejects rather than send a signed-in person to sign in again
-const readSession = async (origin: string): Promise<SignedIn | null> => {
+const readSession = async (origin: string): Promise<SessionUser | null> => {
   const response = await fetch(`${origin}/api/auth/get-session`, { credentials: "same-origin" });
   if (response.status === 401) {
     return null;
@@ -148,6 +153,7 @@ export const openPageLibrary = async (
     forgetAccountStorage();
     return { kind: "signed-out" };
   }
+  claimAccountStorage(account.id);
   const transport: ReplicaTransport = { fetch: async (request) => await fetch(request), origin };
   const staged = memoryStagedBlobs();
   const opening = await openLibraryReplica({

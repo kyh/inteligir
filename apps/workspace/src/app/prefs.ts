@@ -20,6 +20,12 @@ const pref = <Value>(
   fallback: NoInfer<Value>,
 ): PagePref<Value, Value> => ({ fallback, key, schema });
 
+// a row with nothing to say until something writes it
+const unsetPref = <Value>(
+  key: string,
+  schema: z.ZodType<Value, string>,
+): PagePref<Value, null> => ({ fallback: null, key, schema });
+
 const json = <Value>(schema: z.ZodType<Value>) =>
   z.codec(z.string(), z.unknown().pipe(schema), {
     decode: (raw, payload) => {
@@ -64,6 +70,8 @@ export const PREFS = {
   sidebarWidth: pref("inteligir.sidebar-width", railWidth, 260),
   // the document's own `spellcheck`, which every field inherits unless it sets its own
   spellcheck: pref("inteligir.spellcheck", flag, true),
+  // whose `account-storage.ts` is: an account's opaque id, since nothing here needs its address
+  storageAccount: unsetPref("inteligir.storage-account", z.string()),
   theme: pref("inteligir.theme", themeName, "system"),
 };
 

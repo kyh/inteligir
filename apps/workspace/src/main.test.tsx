@@ -51,7 +51,9 @@ describe("a tab the build floor refuses", () => {
     async () => {
       vi.stubGlobal("fetch", async (input: Request | string) => {
         if (!(input instanceof Request)) {
-          return Response.json({ user: { email: "owner@example.com", name: "Owner" } });
+          return Response.json({
+            user: { email: "owner@example.com", id: "user-1", name: "Owner" },
+          });
         }
         const { response } = await floor.handle(input, { prefix: V1_RPC_PATH });
         return response ?? new Response(null, { status: 404 });

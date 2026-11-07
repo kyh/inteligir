@@ -20,7 +20,8 @@ afterEach(() => {
 });
 
 const ORIGIN = "https://cell.test";
-const SIGNED_IN = { user: { email: "owner@example.com", name: "Owner" } };
+const SIGNED_IN = { user: { email: "owner@example.com", id: "user-1", name: "Owner" } };
+const NEXT_ACCOUNT = { user: { email: "next@example.com", id: "user-2", name: "Next" } };
 
 const remembered = (): void => {
   writePref(PREFS.libraryScope, { kind: "tag", tag: "field" });
@@ -42,7 +43,7 @@ describe("the tab's library", () => {
   it("reads its session again on the keeper's wait, past the read it opened with", async () => {
     const answerSession = vi.fn<(url: string) => Promise<Response>>(async () => {
       await Promise.resolve();
-      return Response.json({ user: { email: "owner@example.com", name: "Owner" } });
+      return Response.json(SIGNED_IN);
     });
     vi.stubGlobal("fetch", answerSession);
     const waiting: { readonly ms: number; readonly run: () => void }[] = [];
@@ -116,6 +117,37 @@ describe("reading the session the tab opens on", () => {
     ).rejects.toThrow("the session read answered 503");
     expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "tag", tag: "field" });
     expect([...headingCollapseKeys("item-1")]).toStrictEqual(["a-fold"]);
+  });
+});
+
+// the tab as a load opens it and closes it, over whatever session the cookie names by then
+const openedAs = async (session: typeof SIGNED_IN): Promise<void> => {
+  vi.stubGlobal("fetch", async () => await Promise.resolve(Response.json(session)));
+  const { replica } = await opened(() => {});
+  await replica.close();
+};
+
+describe("what the page's own storage holds, as an account opens on it", () => {
+  it("is gone when another account left it, its session having lapsed with no tab open", async () => {
+    await openedAs(SIGNED_IN);
+    remembered();
+    await openedAs(NEXT_ACCOUNT);
+    expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "all" });
+    expect([...headingCollapseKeys("item-1")]).toStrictEqual([]);
+  });
+
+  it("stays when the same account opens again", async () => {
+    await openedAs(SIGNED_IN);
+    remembered();
+    await openedAs(SIGNED_IN);
+    expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "tag", tag: "field" });
+    expect([...headingCollapseKeys("item-1")]).toStrictEqual(["a-fold"]);
+  });
+
+  it("names its account by the opaque id alone", async () => {
+    await openedAs(SIGNED_IN);
+    expect(JSON.stringify({ ...window.localStorage })).toContain(SIGNED_IN.user.id);
+    expect(JSON.stringify({ ...window.localStorage })).not.toContain(SIGNED_IN.user.email);
   });
 });
 

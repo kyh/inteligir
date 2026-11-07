@@ -14,12 +14,14 @@ import { APP_COMMANDS, LEAVING_EVENT } from "../../shell/ipc-contract";
 import type { KeptCredential, ShellConfig } from "../../shell/shell-config";
 import { clearShell, mockShell, replicaReplies, reply } from "../../shell/test-support/mock-shell";
 import { PREFS, readPref, writePref } from "../prefs";
+import { forgetAccountStorage } from "./account-storage";
 import { createShellLeaveGuard, macTransport, openShellLibrary } from "./shell-library";
 
 afterEach(() => {
   clearShell();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  forgetAccountStorage();
 });
 
 const CONFIG: ShellConfig = {
@@ -32,6 +34,12 @@ const KEPT: KeptCredential = {
   credential: `igd_${"a".repeat(64)}`,
   email: "owner@example.com",
   userId: "user-1",
+};
+
+const NEXT_ACCOUNT: KeptCredential = {
+  credential: `igd_${"b".repeat(64)}`,
+  email: "next@example.com",
+  userId: "user-2",
 };
 
 const configReply = reply(APP_COMMANDS.config)(() => CONFIG);
@@ -285,6 +293,53 @@ describe("what the page's own storage holds of an account", () => {
     expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "all" });
     void library.replica.close();
     memory.close();
+  });
+});
+
+// the page as a launch opens it, over whatever credential the shell kept by then
+const openedAs = async (kept: KeptCredential | null): Promise<void> => {
+  const memory = await openMemorySql();
+  mockShell(
+    configReply,
+    reply(APP_COMMANDS.credential.restore)(() => kept),
+    ...replicaReplies(memory),
+  );
+  const opening = await openShellLibrary(createShellLeaveGuard(), () => {});
+  if (opening.kind === "ready") {
+    void opening.library.replica.close();
+  }
+  memory.close();
+};
+
+describe("what the page's own storage holds, as the Mac opens on it", () => {
+  it("is gone when another account left it", async () => {
+    await openedAs(KEPT);
+    remembered();
+    await openedAs(NEXT_ACCOUNT);
+    expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "all" });
+    expect([...headingCollapseKeys("item-1")]).toStrictEqual([]);
+  });
+
+  it("stays when the same account opens again", async () => {
+    await openedAs(KEPT);
+    remembered();
+    await openedAs(KEPT);
+    expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "tag", tag: "field" });
+    expect([...headingCollapseKeys("item-1")]).toStrictEqual(["a-fold"]);
+  });
+
+  it("is gone on the sign-in, a quit having cut a leave off once the credential went", async () => {
+    await openedAs(KEPT);
+    remembered();
+    await openedAs(null);
+    expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "all" });
+    expect([...headingCollapseKeys("item-1")]).toStrictEqual([]);
+  });
+
+  it("names its account by the opaque id alone", async () => {
+    await openedAs(KEPT);
+    expect(JSON.stringify({ ...window.localStorage })).toContain(KEPT.userId);
+    expect(JSON.stringify({ ...window.localStorage })).not.toContain(KEPT.email);
   });
 });
 
