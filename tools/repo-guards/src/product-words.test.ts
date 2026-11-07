@@ -52,7 +52,8 @@ const WORDS: readonly Word[] = [
   { name: "vault", pattern: /\bvaults?\b/iu },
   {
     name: "an engine word",
-    pattern: /\b(?:git|commits?|committed|remotes?|repos?|repository|terminal)\b/iu,
+    // "committed to" is a promise, which a legal page makes, and no engine's word
+    pattern: /\b(?:git|commits?|committed(?! to\b)|remotes?|repos?|repository|terminal)\b/iu,
   },
   { name: "an engine word", pattern: /\b(?:CLI|PATH|MCP)\b/u },
 ];

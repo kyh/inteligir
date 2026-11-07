@@ -650,11 +650,11 @@ These are the edges of that protection, stated plainly:
   closed as part of the revoke — but revocation cannot reach a response already
   in flight.
 - **Signing out on a device revokes it the same way, but only if our cloud hears
-  the sign-out.** Settings › Account on a Mac waits for a connection. The phone
-  and the browser extension go on without one, and a Mac whose library will not
-  open signs out without telling our cloud. A device our cloud did not hear from
-  forgets its credential while its row stays active, until you revoke it from
-  Settings › Account on a Mac or from the account pages on our website.
+  the sign-out.** Settings › Account on a Mac waits for a connection. The phone,
+  the browser extension and a Mac whose library will not open go on without one.
+  A device our cloud did not hear from forgets its credential while its row stays
+  active, until you revoke it from Settings › Account on a Mac or from the
+  account pages on our website.
 
 ## International data transfer
 

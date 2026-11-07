@@ -390,6 +390,13 @@ the owner's account; a spare macOS user keeps your own Keychain out of it.
 - **A long address in an approval.** Ask the agent to save a link with a very
   long address. Passing: it wraps inside the approval card and pushes nothing
   off the panel. jsdom has no layout.
+- **Sign out during a load.** Open a large PDF and sign out while it loads.
+  Passing: the Caches files folder stays empty. `cargo test` proves this with a
+  real listener and a sign-out mid-fetch, not with WebKit driving the scheme.
+- **Sign out from "Your library didn't open".** Force that page and press Sign
+  out. Passing: this Mac leaves the device list within the reload. A suite proves
+  the forget, revoke and reload order over a mock shell, not WebKit's reload
+  racing the call, which waits 3 seconds at most.
 
 ### The browser extension
 
@@ -521,8 +528,10 @@ account whose library holds about 2,000 items gives the timing check its load.
   Settings › Account on the Mac lists it beside the first phone.
 - **Share a page.** Share a page from Safari to Save to Inteligir. Passing: it
   opens read, titled by the page, with its site, cover and article, within a
-  few seconds and before any Mac or the cloud reads it. From YouTube, X and
-  Mail: the link is saved and read the same way. Shared offline: it saves as
+  few seconds and before any Mac or the cloud reads it. From YouTube and Mail:
+  the link is saved and read the same way, a video's text its description. From
+  X: a post saves as an unread link and fills in with its words once it reaches
+  the cloud, rather than staying blank under the title X. Shared offline: it saves as
   its link at once, "Waiting to be read", and is read once it reaches the
   cloud. Shared signed out: it waits for the sign-in. A photo does not offer
   Inteligir. Share a second page while the first is still being read: both
@@ -622,6 +631,26 @@ account whose library holds about 2,000 items gives the timing check its load.
   first bytes with no hang. These run the shared redirect walk and capped read
   on Expo's own fetch stream, including its release-then-cancel when the cap is
   passed, which the suites only run on node's streams.
+- **Stop beside a question.** Ask the agent to delete an item. While its
+  question waits, Stop shows beside it. Press Stop. Passing: the question reads
+  Declined, the answer ends Stopped, and nothing moves to Deleted. Press Cancel
+  on a second ask. Passing: that call alone is turned down and the answer goes
+  on. No suite draws this screen.
+- **What sign-out leaves behind.** On a build holding `modules/http-cache`, read
+  a library image and share a page, sign out, then inspect the app's
+  Library/Caches HTTP cache (`Cache.db`, `fsCachedData`). Passing: it holds no
+  library file, no shared page and no bearer. A suite proves the Worker's
+  no-store on device reads and that each leaving path calls the clear, while
+  `URLCache.shared.removeAllCachedResponses()` has only been typechecked.
+- **Sign out during a share.** Share a page and sign out while it is still being
+  read, then sign in again. Passing: the item saves and opens. A suite proves the
+  closed replica's refusal and the held share, not the extension's own hand-off.
+- **An open item that folds.** Save a link offline at an address already in the
+  library, leave the item open and type, then go online. Passing: the screen
+  stays open through the fold and the typed words land on the older item. On
+  that item, Move to Deleted moves the item on screen, since
+  `apps/mobile/src/app/item/[id].tsx` deletes by the id its item read answered,
+  a line no suite runs.
 
 ### The iPhone app, in the simulator or a development build
 
@@ -714,6 +743,12 @@ account whose library holds about 2,000 items gives the timing check its load.
   and one normal row. Passing: each ends `done` with added 1, unreadable 1.
   Local workerd took a 3 MB row and refused only at 9 MB, so no suite meets the
   platform's 2 MB row limit.
+- **A reset from a consent page.** With the sending domain live, open the
+  connector's consent page signed out, choose Forgot your password?, and open the
+  real email in a different browser. Passing: the reset page's Sign in link
+  carries the way back, and signing in lands on the consent page, not the
+  library. Check the Password changed view's Sign in link here too: no suite
+  draws that view, since it follows a submit.
 
 ### The library in a browser tab
 
