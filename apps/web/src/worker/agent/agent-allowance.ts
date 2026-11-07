@@ -201,8 +201,9 @@ export const reservationOf = (
 };
 
 // a step sent again after a cut or a failure, at the cap it was first sent with, so its bytes are
-// those it first went out with: the day must hold it, and the turn's ceiling, already spent once
-// on this step, is not asked again, so one call at most is paid twice
+// those it first went out with: the turn's ceiling, already spent once on this step, is not asked
+// again, and every try cut books its reservation against the day, so the day alone bounds what a
+// step's tries cost
 export const resendReservationOf = (
   estimate: CallEstimate,
   prices: TokenPrices,
@@ -248,14 +249,6 @@ interface UsageTokens {
   readonly output: number;
 }
 
-const NO_TOKENS: UsageTokens = {
-  cacheRead: 0,
-  cacheWrite1h: 0,
-  cacheWrite5m: 0,
-  input: 0,
-  output: 0,
-};
-
 const tokensOf = (part: z.infer<typeof usagePartSchema>): UsageTokens => {
   const split = part.cache_creation;
   const written1h = split?.ephemeral_1h_input_tokens ?? 0;
@@ -280,48 +273,31 @@ const costOf = (tokens: UsageTokens, prices: TokenPrices): number =>
   tokens.cacheWrite1h * prices.cacheWrite1h +
   tokens.output * prices.output;
 
-const added = (left: UsageTokens, right: UsageTokens): UsageTokens => ({
-  cacheRead: left.cacheRead + right.cacheRead,
-  cacheWrite1h: left.cacheWrite1h + right.cacheWrite1h,
-  cacheWrite5m: left.cacheWrite5m + right.cacheWrite5m,
-  input: left.input + right.input,
-  output: left.output + right.output,
-});
-
-export interface PricedUsage {
-  readonly tokens: UsageTokens;
-  readonly costUcents: number;
-}
-
-// a reply's usage at list price: each of its iterations (the model asked, a fallback model, a
-// compaction) at the prices of the model it names, one that names none, a compaction, which runs
-// on the model asked, at `model`'s, the model the call went to; a reply with no iterations whole
-// at `model`'s
+// a reply's usage at list price, in micro-cents: each of its iterations (the model asked, a
+// fallback model, a compaction) at the prices of the model it names, one that names none, a
+// compaction, which runs on the model asked, at `model`'s, the model the call went to; a reply with
+// no iterations whole at `model`'s
 export const priceUsage = (
   report: z.infer<typeof usageReportSchema>,
   model: string,
   table: PriceTable,
-): PricedUsage => {
+): number => {
   const iterations = report.iterations ?? [];
   if (iterations.length === 0) {
-    const tokens = tokensOf(report);
-    return { costUcents: costOf(tokens, pricesFor(table, model)), tokens };
+    return costOf(tokensOf(report), pricesFor(table, model));
   }
-  let tokens = NO_TOKENS;
   let costUcents = 0;
   for (const iteration of iterations) {
-    const part = tokensOf(iteration);
-    tokens = added(tokens, part);
-    costUcents += costOf(part, pricesFor(table, iteration.model ?? model));
+    costUcents += costOf(tokensOf(iteration), pricesFor(table, iteration.model ?? model));
   }
-  return { costUcents, tokens };
+  return costUcents;
 };
 
 // ---- the ledger ----
 
 const spentSchema = z.object({ cost_ucents: z.number(), turns: z.number() });
 const countSchema = z.object({ count: z.number() });
-const sumSchema = z.object({ total: z.number().nullable() });
+const sumSchema = z.object({ total: z.number() });
 
 const spentOn = (sql: SqlStatements, day: string) => {
   const [row] = sql.all("SELECT turns, cost_ucents FROM agent_usage WHERE day = ?", [day]);
@@ -341,35 +317,17 @@ export const turnsLeft = (sql: SqlStatements, allowance: Allowance, now: number)
 // nothing is given back on the day it was booked
 export const bookTurn = (sql: SqlStatements, day: string, turns: 1 | -1): void => {
   sql.run(
-    `INSERT INTO agent_usage (day, turns, input_tokens, cache_read_tokens, cache_write_5m_tokens,
-       cache_write_1h_tokens, output_tokens, cost_ucents)
-     VALUES (?, max(0, ?), 0, 0, 0, 0, 0, 0)
+    `INSERT INTO agent_usage (day, turns, cost_ucents) VALUES (?, max(0, ?), 0)
      ON CONFLICT (day) DO UPDATE SET turns = max(0, turns + ?)`,
     [day, turns, turns],
   );
 };
 
-const bookUsage = (sql: SqlStatements, day: string, priced: PricedUsage): void => {
-  const { tokens } = priced;
+const bookCost = (sql: SqlStatements, day: string, costUcents: number): void => {
   sql.run(
-    `INSERT INTO agent_usage (day, turns, input_tokens, cache_read_tokens, cache_write_5m_tokens,
-       cache_write_1h_tokens, output_tokens, cost_ucents)
-     VALUES (?, 0, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT (day) DO UPDATE SET input_tokens = input_tokens + excluded.input_tokens,
-       cache_read_tokens = cache_read_tokens + excluded.cache_read_tokens,
-       cache_write_5m_tokens = cache_write_5m_tokens + excluded.cache_write_5m_tokens,
-       cache_write_1h_tokens = cache_write_1h_tokens + excluded.cache_write_1h_tokens,
-       output_tokens = output_tokens + excluded.output_tokens,
-       cost_ucents = cost_ucents + excluded.cost_ucents`,
-    [
-      day,
-      tokens.input,
-      tokens.cacheRead,
-      tokens.cacheWrite5m,
-      tokens.cacheWrite1h,
-      tokens.output,
-      priced.costUcents,
-    ],
+    `INSERT INTO agent_usage (day, turns, cost_ucents) VALUES (?, 0, ?)
+     ON CONFLICT (day) DO UPDATE SET cost_ucents = cost_ucents + excluded.cost_ucents`,
+    [day, costUcents],
   );
 };
 
@@ -407,8 +365,8 @@ export const limitsOf = (
   );
   const daySpent = spentOn(sql, dayOf(now)).cost_ucents;
   return {
-    dayUcents: allowance.dayCents * UCENTS_PER_CENT - daySpent - (sumSchema.parse(open).total ?? 0),
-    turnUcents: allowance.turnCents * UCENTS_PER_CENT - (sumSchema.parse(turnSpent).total ?? 0),
+    dayUcents: allowance.dayCents * UCENTS_PER_CENT - daySpent - sumSchema.parse(open).total,
+    turnUcents: allowance.turnCents * UCENTS_PER_CENT - sumSchema.parse(turnSpent).total,
   };
 };
 
@@ -424,36 +382,35 @@ export const recordReservation = (
   now: number,
 ): void => {
   sql.run(
-    `INSERT INTO agent_calls (call_id, thread_id, turn, day, reserved_ucents, max_tokens,
-       reserved_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (call_id) DO NOTHING`,
-    [call.callId, call.threadId, call.turn, dayOf(now), call.reservedUcents, call.maxTokens, now],
+    `INSERT INTO agent_calls (call_id, thread_id, turn, day, reserved_ucents, max_tokens)
+     VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (call_id) DO NOTHING`,
+    [call.callId, call.threadId, call.turn, dayOf(now), call.reservedUcents, call.maxTokens],
   );
 };
 
-// a call settled once, on the day it was reserved: at its priced usage, at its reservation when
-// it was cut short, or at nothing when the API answered it with an error
+// a call settled once, on the day it was reserved: at its usage's price in micro-cents, at its
+// reservation when it was cut short, or at nothing when the API answered it with an error
 export const settleCall = (
   sql: SqlStatements,
   callId: string,
-  settlement: PricedUsage | "reserved" | "free",
+  settlement: number | "reserved" | "free",
 ): void => {
   const held = heldReservation(sql, callId);
   if (held?.cost_ucents !== null) {
     return;
   }
-  let priced: PricedUsage = { costUcents: 0, tokens: NO_TOKENS };
+  let costUcents = 0;
   if (settlement === "reserved") {
-    priced = { costUcents: held.reserved_ucents, tokens: NO_TOKENS };
+    costUcents = held.reserved_ucents;
   } else if (settlement !== "free") {
-    priced = settlement;
+    costUcents = settlement;
   }
   sql.run("UPDATE agent_calls SET cost_ucents = ?, cut = ? WHERE call_id = ?", [
-    priced.costUcents,
+    costUcents,
     settlement === "reserved" ? 1 : 0,
     callId,
   ]);
-  bookUsage(sql, held.day, priced);
+  bookCost(sql, held.day, costUcents);
 };
 
 const openCallSchema = z.object({ call_id: z.string() });
@@ -474,5 +431,5 @@ export const settleTurnCalls = (
     "SELECT coalesce(sum(cost_ucents), 0) AS total FROM agent_calls WHERE thread_id = ? AND turn = ?",
     [turn.threadId, turn.turn],
   );
-  return sumSchema.parse(row).total ?? 0;
+  return sumSchema.parse(row).total;
 };

@@ -17,7 +17,7 @@ import type { SqlPlan, SqlRow } from "./library-sql";
 
 // bump on any change below, and on any change to the JSON a replica's outbox row holds
 // (`@repo/library-replica`), which no build reads in another's shape
-export const LIBRARY_SCHEMA_VERSION = 9;
+export const LIBRARY_SCHEMA_VERSION = 10;
 
 // STRICT tables are SQLite 3.37; a replica's engine is checked against it at open. The cell's is
 // the platform's own, and a Durable Object refuses sqlite_version() ("not authorized to use
@@ -51,9 +51,6 @@ export const CHANGE_SET_ACTORS = [
   "undo",
   "system",
 ] as const;
-
-// where a thread's open turn stands: running, or waiting on the person's approval of a call
-export const AGENT_TURN_PHASES = ["running", "awaiting_approval"] as const;
 
 // what an import reads (a Raindrop export, a folder of markdown zipped, Obsidian's included), where
 // a job stands, and the phase a running one is in: reading the file into its plan, landing its
@@ -303,18 +300,16 @@ const CELL_DDL = [
   // the built-in agent's switch: no row is on, the default, since there is no credential to make
   `CREATE TABLE IF NOT EXISTS agent_switch (
     slot INTEGER PRIMARY KEY CHECK (slot = 1),
-    enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
-    changed_at INTEGER NOT NULL
+    enabled INTEGER NOT NULL CHECK (enabled IN (0, 1))
   ) STRICT`,
   // each thread's open turn, at most one: its number in the thread, which keys the change set its
-  // writes open, what the person sent, where it stands and how many of its calls wait on the
-  // person, whether the person stopped it, and when its conversation's object was last heard
-  // from, which the watch job asks after
+  // writes open, what the person sent, how many of its calls wait on the person, whether the
+  // person stopped it, and when its conversation's object was last heard from, which the watch job
+  // asks after
   `CREATE TABLE IF NOT EXISTS agent_turns (
     thread_id TEXT PRIMARY KEY,
     turn INTEGER NOT NULL,
     message TEXT NOT NULL,
-    phase TEXT NOT NULL CHECK (phase IN (${oneOf(AGENT_TURN_PHASES)})),
     waiting INTEGER NOT NULL DEFAULT 0 CHECK (waiting >= 0),
     cancel INTEGER NOT NULL DEFAULT 0 CHECK (cancel IN (0, 1)),
     started_at INTEGER NOT NULL,
@@ -331,8 +326,7 @@ const CELL_DDL = [
     reserved_ucents INTEGER NOT NULL,
     max_tokens INTEGER NOT NULL,
     cost_ucents INTEGER,
-    cut INTEGER NOT NULL DEFAULT 0 CHECK (cut IN (0, 1)),
-    reserved_at INTEGER NOT NULL
+    cut INTEGER NOT NULL DEFAULT 0 CHECK (cut IN (0, 1))
   ) STRICT`,
   `CREATE INDEX IF NOT EXISTS agent_calls_turn ON agent_calls (thread_id, turn)`,
   `CREATE INDEX IF NOT EXISTS agent_calls_open ON agent_calls (cost_ucents)`,
@@ -350,16 +344,11 @@ const CELL_DDL = [
     queued_at INTEGER NOT NULL
   ) STRICT`,
   `CREATE INDEX IF NOT EXISTS agent_queue_order ON agent_queue (queued_at, id)`,
-  // what the built-in agent spent on each UTC day: its turns, the tokens its calls were billed by
-  // category, and their list cost in micro-cents
+  // what the built-in agent spent on each UTC day: its turns, and their calls' list cost in
+  // micro-cents
   `CREATE TABLE IF NOT EXISTS agent_usage (
     day TEXT PRIMARY KEY,
     turns INTEGER NOT NULL,
-    input_tokens INTEGER NOT NULL,
-    cache_read_tokens INTEGER NOT NULL,
-    cache_write_5m_tokens INTEGER NOT NULL,
-    cache_write_1h_tokens INTEGER NOT NULL,
-    output_tokens INTEGER NOT NULL,
     cost_ucents INTEGER NOT NULL
   ) STRICT`,
   `CREATE TABLE IF NOT EXISTS import_jobs (

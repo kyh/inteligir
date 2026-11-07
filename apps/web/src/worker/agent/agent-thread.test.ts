@@ -427,12 +427,12 @@ describe("a conversation's object", () => {
         compacting?.call_id ?? "",
       );
       const table = pricesOf(env);
-      const priced = priceUsage(usage, AGENT_MODEL.id, table).costUcents;
+      const priced = priceUsage(usage, AGENT_MODEL.id, table);
       const answering = priceUsage(
         { ...usage, iterations: usage.iterations?.filter((entry) => entry.type !== "compaction") },
         AGENT_MODEL.id,
         table,
-      ).costUcents;
+      );
       expect(booked?.cost_ucents).toBe(priced);
       expect(priced).toBeGreaterThan(answering);
       // the next turn answers, sending the filing rules again: the compaction summarized them
@@ -894,7 +894,7 @@ describe("a conversation's object", () => {
       expect(messages.map(({ event }) => event)).toStrictEqual([
         { text: "Answered by the fallback model.", type: "agent.message" },
       ]);
-      const [usage] = await cellRows(account, "SELECT output_tokens, cost_ucents FROM agent_usage");
+      const [usage] = await cellRows(account, "SELECT cost_ucents FROM agent_usage");
       expect(usage?.cost_ucents).toBeGreaterThan(0);
       await send(account, script("Thanks."), sent.threadId);
       await settled(account, sent.threadId);

@@ -6,7 +6,6 @@
 
 import { agentViewContextSchema, THREAD_STATUSES } from "@repo/contract/cloud/library/library-wire";
 import { recordChanges } from "@repo/notes/library/library-queries";
-import { AGENT_TURN_PHASES } from "@repo/notes/library/library-schema";
 import { runPlan } from "@repo/notes/library/library-sql";
 import type { SqlRow, SqlStatements } from "@repo/notes/library/library-sql";
 import { z } from "zod";
@@ -100,13 +99,10 @@ export const everyThreadId = (sql: SqlStatements): string[] =>
 
 // ---- the open turns ----
 
-export type TurnPhase = (typeof AGENT_TURN_PHASES)[number];
-
 const turnRowSchema = z.object({
   cancel: z.number(),
   heard_at: z.number(),
   message: z.string(),
-  phase: z.enum(AGENT_TURN_PHASES),
   started_at: z.number(),
   thread_id: z.string(),
   turn: z.number(),
@@ -117,7 +113,6 @@ export interface OpenTurn {
   readonly threadId: string;
   readonly turn: number;
   readonly message: TurnMessage;
-  readonly phase: TurnPhase;
   // the calls of the turn waiting on the person
   readonly waiting: number;
   readonly cancel: boolean;
@@ -126,7 +121,7 @@ export interface OpenTurn {
   readonly heardAt: number;
 }
 
-const TURN_COLUMNS = "thread_id, turn, message, phase, waiting, cancel, started_at, heard_at";
+const TURN_COLUMNS = "thread_id, turn, message, waiting, cancel, started_at, heard_at";
 
 const openTurnFrom = (raw: SqlRow): OpenTurn => {
   const row = turnRowSchema.parse(raw);
@@ -134,7 +129,6 @@ const openTurnFrom = (raw: SqlRow): OpenTurn => {
     cancel: row.cancel === 1,
     heardAt: row.heard_at,
     message: messageText.parse(row.message),
-    phase: row.phase,
     startedAt: row.started_at,
     threadId: row.thread_id,
     turn: row.turn,
@@ -177,9 +171,8 @@ export const insertTurn = (
   },
 ): void => {
   sql.run(
-    `INSERT INTO agent_turns (thread_id, turn, message, phase, waiting, cancel, started_at,
-       heard_at)
-     VALUES (?, ?, ?, 'running', 0, 0, ?, ?)`,
+    `INSERT INTO agent_turns (thread_id, turn, message, waiting, cancel, started_at, heard_at)
+     VALUES (?, ?, ?, 0, 0, ?, ?)`,
     [
       turn.threadId,
       turn.turn,
@@ -195,15 +188,13 @@ export const heardFrom = (sql: SqlStatements, threadId: string, now: number): vo
   sql.run("UPDATE agent_turns SET heard_at = ? WHERE thread_id = ?", [now, threadId]);
 };
 
-// a call of the turn began waiting on the person, or stopped waiting
-export const moveWaiting = (sql: SqlStatements, threadId: string, by: 1 | -1): TurnPhase => {
-  sql.run(
-    `UPDATE agent_turns SET waiting = max(0, waiting + ?),
-       phase = CASE WHEN max(0, waiting + ?) > 0 THEN 'awaiting_approval' ELSE 'running' END
-     WHERE thread_id = ?`,
-    [by, by, threadId],
-  );
-  return openTurnOf(sql, threadId)?.phase ?? "running";
+// a call of the turn began waiting on the person, or stopped waiting; what that leaves the thread
+export const moveWaiting = (sql: SqlStatements, threadId: string, by: 1 | -1): ThreadStatus => {
+  sql.run("UPDATE agent_turns SET waiting = max(0, waiting + ?) WHERE thread_id = ?", [
+    by,
+    threadId,
+  ]);
+  return (openTurnOf(sql, threadId)?.waiting ?? 0) > 0 ? "awaiting_approval" : "running";
 };
 
 export const markCancel = (sql: SqlStatements, threadId: string): void => {
@@ -324,10 +315,10 @@ export const agentIsOn = (sql: SqlStatements): boolean => {
   return row === undefined || switchSchema.parse(row).enabled === 1;
 };
 
-export const setSwitch = (sql: SqlStatements, enabled: boolean, now: number): void => {
+export const setSwitch = (sql: SqlStatements, enabled: boolean): void => {
   sql.run(
-    `INSERT INTO agent_switch (slot, enabled, changed_at) VALUES (1, ?, ?)
-     ON CONFLICT (slot) DO UPDATE SET enabled = excluded.enabled, changed_at = excluded.changed_at`,
-    [enabled ? 1 : 0, now],
+    `INSERT INTO agent_switch (slot, enabled) VALUES (1, ?)
+     ON CONFLICT (slot) DO UPDATE SET enabled = excluded.enabled`,
+    [enabled ? 1 : 0],
   );
 };

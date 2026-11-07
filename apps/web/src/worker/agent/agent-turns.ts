@@ -695,7 +695,8 @@ const settleEntry = (
 };
 
 // one push of a thread's object, applied once by its sequence in one transaction: its events
-// stored, its calls settled, the turn's phase moved, and the turn sealed by the push that ends it
+// stored, its calls settled, the thread's status moved, and the turn sealed by the push that ends
+// it
 export const landPush = async (
   cell: AgentCell,
   request: PushRequest,
@@ -738,12 +739,12 @@ export const landPush = async (
           rows.push(row);
         }
         if (entry.event.type === "approval.asked" || entry.event.type === "approval.answered") {
-          const phase = moveWaiting(
+          const status = moveWaiting(
             storage,
             push.threadId,
             entry.event.type === "approval.asked" ? 1 : -1,
           );
-          setThreadStatus(scope, push.threadId, phase);
+          setThreadStatus(scope, push.threadId, status);
         }
         ended ||= entry.event.type === "turn.ended";
       }

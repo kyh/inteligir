@@ -78,9 +78,7 @@ const askedApproval = async (account: AgentAccount, threadId: string) =>
 const spentToday = async (account: AgentAccount, cents: number): Promise<void> => {
   await cellRows(
     account,
-    `INSERT INTO agent_usage (day, turns, input_tokens, cache_read_tokens, cache_write_5m_tokens,
-       cache_write_1h_tokens, output_tokens, cost_ucents)
-     VALUES (?, 0, 0, 0, 0, 0, 0, ?)`,
+    "INSERT INTO agent_usage (day, turns, cost_ucents) VALUES (?, 0, ?)",
     dayOf(Date.now()),
     cents * UCENTS_PER_CENT,
   );
