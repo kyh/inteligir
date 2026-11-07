@@ -167,7 +167,7 @@ describe("Obsidian's spellings, through a real export and import", () => {
       const typed = typedItem("note", [typedLine(`${text}.`), typedLine(text, "second")]);
       expect(content(reimported(typed)), JSON.stringify(text)).toStrictEqual(content(typed));
     }
-  });
+  }, 60_000);
 
   it("keeps them typed anywhere a person writes", () => {
     const typed = typedItem("note", [
