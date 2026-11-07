@@ -210,6 +210,38 @@ describe("a page's reading, landed", () => {
     });
   });
 
+  it("files the item a link folds onto in the link's folder, only where it has none", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const library = libraryIn(state, accountId);
+      const engine = openCellLibrary(state, env);
+      const unfiled = await library.items.saveLink({ url: "https://pages.example/unfiled" });
+      const filed = await library.items.saveLink({
+        folder: { path: "Archive" },
+        url: "https://pages.example/filed",
+      });
+      const foldFromReading = async (url: string, finalUrl: string) => {
+        const stub = await library.items.saveLink({ folder: { path: "Reading" }, url });
+        const landed = engine.landReading(
+          read({ itemId: stub.item.id, url }, [paragraph("f", "Folded.")], { finalUrl }),
+        );
+        expect(landed).toMatchObject({ ok: true, value: { kind: "folded" } });
+        return stub.item.fields.folderId;
+      };
+
+      const reading = await foldFromReading(
+        "https://short.example/a",
+        unfiled.item.fields.url ?? "",
+      );
+      await foldFromReading("https://short.example/b", filed.item.fields.url ?? "");
+
+      expect(reading).not.toBeNull();
+      expect(stateOf(state, unfiled.item.id)?.fields.folderId).toBe(reading);
+      expect(filed.item.fields.folderId).not.toBeNull();
+      expect(stateOf(state, filed.item.id)?.fields.folderId).toBe(filed.item.fields.folderId);
+    });
+  });
+
   it("leaves a folded link read, so it stays where a person restores it", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {

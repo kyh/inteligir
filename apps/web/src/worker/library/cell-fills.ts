@@ -232,9 +232,9 @@ const landRead = (
 };
 
 // a stub whose page turned out to be another item's: the page lands on that item as a save of it
-// would, the stub's tags and note go with it, and the stub goes to Deleted read, where it can be
-// restored and stays, since one still waiting would be asked again and fold again. The fold is
-// one change set of the fill's, both items in it
+// would, the stub's folder, tags and note go with it, and the stub goes to Deleted read, where it
+// can be restored and stays, since one still waiting would be asked again and fold again. The fold
+// is one change set of the fill's, both items in it
 const foldOnto = (
   scope: LandingScope,
   codec: CellCodec,
@@ -252,7 +252,7 @@ const foldOnto = (
     codec,
     { ...held, id: holderId },
     readAnnotationRows(scope.storage, holderId),
-    { ...pageOf(landing), folderId: null, tags: stub.state.fields.tags },
+    { ...pageOf(landing), folderId: stub.state.fields.folderId, tags: stub.state.fields.tags },
     null,
     {
       blocks: [...stub.state.blocks.values()].filter((stored) => stored.section === "note"),

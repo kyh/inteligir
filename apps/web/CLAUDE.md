@@ -375,9 +375,10 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   only where the page gave one, renames only an item still named by its
   address, and never touches the note; an item deleted, read or readdressed
   meanwhile lands nothing, so a message met twice lands once. A page whose
-  redirects end at another live item's address folds onto it, the stub's tags
-  and note with it, and a fold sets the fields by the same rule, one function
-  a device's save calls too. The stub goes to Deleted read, so restoring it
+  redirects end at another live item's address folds onto it, the stub's
+  folder, tags and note with it, and a fold sets the fields and files the item
+  by a device save's own rules, in the one function that save calls too, so a
+  filed item stays where it is. The stub goes to Deleted read, so restoring it
   asks no reading that would only fold it again. Rejected: bases the consumer
   read (a reading nobody edited around would conflict with every save
   meanwhile).
