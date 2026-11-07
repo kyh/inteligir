@@ -79,7 +79,8 @@ src/
   `/v1` handler's status map, since an unmapped code answers 400.
   `cloud/v1-contract.test.ts` holds it to exactly the custom codes the rows
   declare and answers each through a real handler and link. An error no row
-  declares is a fault a client retries, never a verdict on its credential.
+  declares is never a verdict on a credential: it is a fault a client retries,
+  but for `BAD_REQUEST`, which says the call can never land as it is.
 - **Every library write takes an optional `opId`**, which the cell keeps, so
   an outbox resending after a lost answer lands once; the test names each read
   it exempts. A write names the base it was computed from (a block's hash, a
@@ -98,9 +99,11 @@ src/
   `LIBRARY_PAGE_PATH` and refuses a second spelling outside the file that owns
   it, and `privacy-routes.test.ts` holds every `/v1` route here to a row in
   `docs/privacy.md`.
-- **A socket frame is a hint, never state.** The socket says the library moved
-  and the agent's thread did, each frame JSON and one of a type a build does not
-  know no frame at all, so a newer cell can add types
+- **The socket's `library` frame is a hint, never state.** It says the library
+  moved, and a pull carries what did. A `thread` frame carries the agent's turn
+  as it moves: an event the thread's next pull holds too, or a preview no pull
+  ever does. Each frame is JSON, and one of a type a build does not know is no
+  frame at all, so a newer cell can add types
   (`cloud/library/library-socket.ts`).
 
 ## Testing

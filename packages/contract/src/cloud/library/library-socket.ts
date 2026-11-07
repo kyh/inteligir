@@ -1,7 +1,8 @@
-// The account's socket: a hint that the library moved, never its state, which a pull carries. A
-// browser's socket carries no header, so it opens with a short-lived ticket an authenticated `/v1`
-// call minted (`account.socketTicket`), in the query string the Worker's logs redact. Every frame
-// is JSON; one of a type this build does not know is no frame, so a newer cell can add types.
+// The account's socket: a hint that the library moved, never its state, which a pull carries, and
+// the built-in agent's turn as it moves. A browser's socket carries no header, so it opens with a
+// short-lived ticket an authenticated `/v1` call minted (`account.socketTicket`), in the query
+// string the Worker's logs redact. Every frame is JSON; one of a type this build does not know is
+// no frame, so a newer cell can add types.
 
 import { z } from "zod";
 
