@@ -53,11 +53,11 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   Settings, in one notice the root keeps up while any waits offline. A refusal
   the contract declares says its own sentence; any other failure says the
   screen's fallback, never an error's own words. The one retry rule never
-  retries a declared refusal, so no screen turns retries off itself, and a session
-  that ended sends the tab to sign in. A write whose order matters shares a
-  `scope`, and refetches in its own callbacks, awaited, only the family it
-  moved. Rejected: a call outside TanStack (it fails at once offline); a note
-  per button (a menu's verb has none). `apps/workspace/src/app/cloud/v1.ts`,
+  retries a declared refusal, so no screen turns retries off itself. A write
+  whose order matters shares a `scope`, and refetches in its own callbacks,
+  awaited, only the family it moved. Rejected: a call outside TanStack (it fails
+  at once offline); a note per button (a menu's verb has none).
+  `apps/workspace/src/app/cloud/v1.ts`,
   `apps/workspace/src/app/cloud/needs-connection.tsx`, over
   `packages/contract/src/cloud/refusal-text.ts`, which the phone says too.
 
@@ -83,6 +83,20 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   out of sight as the phone does (its outbox is on disk, the tab's is not); a
   listener always armed (it bars the back-forward cache).
   `apps/workspace/src/app/cloud/leave-guard.ts`, `apps/workspace/src/main.tsx`.
+
+- **A SESSION'S END IS ANSWERED HOWEVER THE PAGE MEETS IT.** The replica calls
+  through a client of its own and stops at a session's end, so each host watches
+  its status beside the wire's interceptor and gives both one answer: the tab
+  goes to the site's sign-in, the Mac lets its credential go and opens on the
+  sign-in, and a Mac below the build floor keeps its credential, replica and
+  outbox and says to update, in a toast and in the rail's footer, since the
+  next build goes on as the same device. Rejected: waiting for a wire call (an
+  idle page makes none, and a stopped replica reads as up to date); a page of
+  its own for the outdated Mac, as the phone draws (the Mac's library reads and
+  queues on disk, and its updater needs no person to go find it).
+  `apps/workspace/src/app/cloud/v1.ts`,
+  `apps/workspace/src/app/cloud/shell-library.ts`,
+  `apps/workspace/src/app/sidebar/sync-words.ts`.
 
 - **IN THE MAC APP THE PAGE OPENS THE SHELL'S REPLICA, AFTER A SIGN-IN OF ITS
   OWN.** The same build runs in the Mac's window, where `main.tsx` asks the
@@ -114,8 +128,9 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   header (Library, Search), then the groups Library (All items, Unsorted),
   Folders, Tags (folding) and Deleted, each row a scope read from the replica
   with its count; a footer says where the library stands (up to date, sending,
-  waiting for a connection, or a change the cell refused, with Try again and
-  Let it go) beside Settings. Each row sets the grid's scope (`libraryScope`)
+  waiting for a connection, a pass that keeps failing, a sign-in that ended, an
+  update it needs, or a change the cell refused, with Try again and Let it go)
+  beside Settings. Each row sets the grid's scope (`libraryScope`)
   and goes back to the library; a folder's other verbs are its right-click and
   its More button. Rejected: a window-wide strip (a second bar under the rail).
   `apps/workspace/src/app/sidebar/rail.tsx`, `sync-line.tsx`.

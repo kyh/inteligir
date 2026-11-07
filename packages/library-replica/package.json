@@ -5,6 +5,7 @@
   "description": "The replica engine every device runs over its own SQLite: it pulls the account's library cell's change log into the shared schema, lays the outbox's queued writes over what landed, replays them oldest first and settles a conflict through the block merge it is handed. Pure: the SQL, the clock, the ids, the transport, the socket, the staged files and the merge are injected.",
   "type": "module",
   "exports": {
+    "./call-outcome": "./src/call-outcome.ts",
     "./library-replica": "./src/library-replica.ts",
     "./memory-sql": "./src/memory-sql.ts",
     "./replica-ports": "./src/replica-ports.ts",

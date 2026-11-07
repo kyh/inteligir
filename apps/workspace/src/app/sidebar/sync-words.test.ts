@@ -32,7 +32,39 @@ describe("what the rail says of the library", () => {
     expect(syncWords({ ...CAUGHT_UP, failure: unreachable }, true).tone).toBe("waiting");
   });
 
-  it("puts a refused change ahead of everything else", () => {
+  it("says the sign-in ended, whatever else stands, since nothing more can go", () => {
+    const failure = { end: "signed-out" as const, kind: "session" as const };
+    expect(syncWords({ ...CAUGHT_UP, failure }, true)).toStrictEqual({
+      text: "Signed out. Sign in again to go on",
+      tone: "attention",
+    });
+    const parked = [{ itemIds: ["a"], reason: "Too large.", seq: 3 }];
+    expect(syncWords({ ...CAUGHT_UP, failure, parked, unsent: 1 }, false).text).toBe(
+      "Signed out. Sign in again to go on",
+    );
+  });
+
+  it("says to update a build the cloud refuses, and what waits for it", () => {
+    const failure = { end: "outdated" as const, kind: "session" as const };
+    expect(syncWords({ ...CAUGHT_UP, failure }, true)).toStrictEqual({
+      text: "Update Inteligir to stay up to date",
+      tone: "attention",
+    });
+    expect(syncWords({ ...CAUGHT_UP, failure, unsent: 3 }, true).text).toBe(
+      "Update Inteligir to send 3 changes",
+    );
+  });
+
+  it("never says it is up to date while every pass is failing", () => {
+    const stuck = { text: "Your library couldn't update. Trying again soon", tone: "attention" };
+    const fault = { kind: "fault" as const, message: "no such table: items" };
+    expect(syncWords({ ...CAUGHT_UP, failure: fault }, true)).toStrictEqual(stuck);
+    expect(syncWords({ ...CAUGHT_UP, failure: fault, unsent: 2 }, true)).toStrictEqual(stuck);
+    const malformed = { kind: "malformed" as const, message: "Your library couldn't take this." };
+    expect(syncWords({ ...CAUGHT_UP, failure: malformed }, true)).toStrictEqual(stuck);
+  });
+
+  it("puts a refused change ahead of everything but the sign-in", () => {
     const parked = [{ itemIds: ["a"], reason: "Too large.", seq: 3 }];
     expect(syncWords({ ...CAUGHT_UP, parked, unsent: 1 }, false)).toStrictEqual({
       text: "1 change not saved",

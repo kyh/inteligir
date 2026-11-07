@@ -21,7 +21,7 @@ import { uuidV7 } from "@repo/notes/library/uuid-v7";
 import { z } from "zod";
 
 import type { LeaveGuard } from "./leave-guard";
-import { createCloudWire } from "./v1";
+import { createCloudWire, watchSessionEnd } from "./v1";
 import type { CloudWire } from "./v1";
 
 // who is signed in: Settings › Account names them
@@ -152,6 +152,8 @@ export const openPageLibrary = async (
   if (opening.kind === "unsupported") {
     return { kind: "unsupported" };
   }
+  // the tab names no build, so the floor never refuses it: every end it meets is a sign-in's
+  watchSessionEnd(opening.replica, onSessionEnd);
   return {
     kind: "ready",
     library: {

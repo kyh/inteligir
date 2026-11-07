@@ -12,6 +12,7 @@
 import { clientBuildValue, CLIENT_BUILD_HEADER } from "@repo/contract/cloud/client-build";
 import { toast } from "@repo/ui/components/sonner";
 import { replicaMerge } from "@repo/editor/stale-write";
+import type { SessionEnd } from "@repo/library-replica/call-outcome";
 import { openLibraryReplica } from "@repo/library-replica/library-replica";
 import type { ReplicaTransport } from "@repo/library-replica/replica-ports";
 
@@ -27,7 +28,10 @@ import type { Held, LeaveGuard } from "./leave-guard";
 import { fileAt, newId, pageClock } from "./page-library";
 import type { PageLibrary } from "./page-library";
 import { signOutTroubleText } from "./shell-trouble";
-import { createCloudWire } from "./v1";
+import { createCloudWire, watchSessionEnd } from "./v1";
+
+const OUTDATED =
+  "This version of Inteligir is too old for your library. It updates itself when you quit, and what you change here waits until then.";
 
 export type ShellOpening =
   | { readonly kind: "ready"; readonly library: PageLibrary }
@@ -80,10 +84,23 @@ export const createShellLeaveGuard = (): LeaveGuard => {
 };
 
 // this Mac leaves its account: the shell lets go of the credential, the replica's file and every
-// file of the account, and the page opens again on the sign-in
-const leaveAccount = (reload: () => void) => async (): Promise<void> => {
-  await shellCredential.forget();
-  reload();
+// file of the account, and the page opens again on the sign-in. A sign-out, the replica and every
+// wire call may each ask, and share the one leaving; only one that failed goes again
+const leaveAccount = (reload: () => void): (() => Promise<void>) => {
+  let leaving: Promise<void> | null = null;
+  const leave = async (): Promise<void> => {
+    try {
+      await shellCredential.forget();
+    } catch (error) {
+      leaving = null;
+      throw error;
+    }
+    reload();
+  };
+  return async () => {
+    leaving ??= leave();
+    await leaving;
+  };
 };
 
 // `reload` opens the page again from the start: the library, or the sign-in once signed out
@@ -109,6 +126,25 @@ export const openShellLibrary = async (
   if (opening.kind === "unsupported") {
     return { kind: "unsupported" };
   }
+  const left = leaveAccount(reload);
+  // a credential the cloud no longer takes (revoked elsewhere, the account deleted) can send
+  // nothing more, so the Mac lets it go and asks for a sign-in; a shell that could not let it go
+  // says why and stays, since a reload would open on the credential it still keeps. Below the
+  // build floor the credential stands, so the replica and its outbox wait on disk for the update
+  const sessionEnded = (end: SessionEnd): void => {
+    if (end === "outdated") {
+      toast.error(OUTDATED, { id: "outdated" });
+      return;
+    }
+    void (async () => {
+      try {
+        await left();
+      } catch (error) {
+        toast.error(signOutTroubleText(error), { id: "leave-account" });
+      }
+    })();
+  };
+  watchSessionEnd(opening.replica, sessionEnded);
   return {
     kind: "ready",
     library: {
@@ -119,20 +155,9 @@ export const openShellLibrary = async (
       // the shell's scheme answers a file from its staged files, its cache or the cloud
       readFile: async (sha) =>
         await fileAt(`${config.filesOrigin}/${sha}`, async (request) => await fetch(request)),
-      left: leaveAccount(reload),
+      left,
       replica: opening.replica,
-      // a credential the cloud no longer takes (revoked elsewhere, the account deleted) can send
-      // nothing more, so the Mac lets it go and asks for a sign-in; a shell that could not let it
-      // go says why and stays, since a reload would open on the credential it still keeps
-      wire: createCloudWire(transport, () => {
-        void (async () => {
-          try {
-            await leaveAccount(reload)();
-          } catch (error) {
-            toast.error(signOutTroubleText(error), { id: "leave-account" });
-          }
-        })();
-      }),
+      wire: createCloudWire(transport, sessionEnded),
     },
   };
 };
