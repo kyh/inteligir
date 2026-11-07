@@ -412,11 +412,11 @@ const pushAtomic = (
 };
 
 // the value indexes of a `:::` or `=== Label` line at a line's start, newline included, and of a
-// quote's alert marker: the container's grammar, never its text. An escape keeps a line text, as
-// the transform reads it
+// quote's alert marker: the container's grammar, never its text. A line an escape keeps text goes
+// too, though the transform reads it: a marker beside it leaves the escape needless, so the editor
+// would rewrite a line a placement only splices, and a quote that needs it stays unplaced instead
 const structuralIndexes = (
   value: string,
-  escapes: ReadonlySet<number>,
   source: string,
   start: number,
   lead: number,
@@ -428,7 +428,7 @@ const structuralIndexes = (
   let lineStart = 0;
   for (const line of value.split("\n")) {
     const atLineStart = lineStart > 0 || isLineStart(source, start);
-    if (atLineStart && !escapes.has(lineStart) && isContainerLine(line.replace(/\r$/u, ""))) {
+    if (atLineStart && isContainerLine(line.replace(/\r$/u, ""))) {
       for (let index = lineStart; index <= lineStart + line.length; index += 1) {
         structural.add(index);
       }
@@ -495,17 +495,10 @@ const textContext = (
   start: number,
 ): TextContext => {
   const value = node.value ?? "";
-  const escapes = escapesOf(node);
   return {
     aligned,
-    escapes,
-    structural: structuralIndexes(
-      value,
-      escapes,
-      builder.source,
-      start,
-      builder.leads.get(node) ?? 0,
-    ),
+    escapes: escapesOf(node),
+    structural: structuralIndexes(value, builder.source, start, builder.leads.get(node) ?? 0),
     value,
   };
 };

@@ -51,12 +51,8 @@ describe("the text a person reads", () => {
     expect(projectPassages("> [!NOTE]\n> Mind this.\n").text).toBe("Mind this. ");
   });
 
-  it("reads an escaped container line as the text the transform leaves it", () => {
-    const content = "before\n\\:::toggle\nafter\n";
-    const projection = projectPassages(content);
-    expect(projection.text).toBe("before :::toggle after ");
-    const colon = projection.text.indexOf(":");
-    expect(content.slice(projection.from[colon], projection.to[colon])).toBe("\\:");
+  it("leaves an escaped container line out too, so no marker lands beside its escape", () => {
+    expect(projectPassages("before\n\\:::toggle\nafter\n").text).toBe("before after ");
   });
 
   it("maps each character to the bytes that spell it", () => {
