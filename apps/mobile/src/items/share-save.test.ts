@@ -87,6 +87,10 @@ const articleOf = (cell: FakeCell, id: string): string[] =>
     .filter(({ section }) => section === "article")
     .map(({ block }) => textOf(block));
 
+// where the cloud's reading of an item stands, written as a device writes a field
+const stateOf = (value: LibraryItemFields["fetchState"], base: LibraryItemFields["fetchState"]) =>
+  ({ base, field: "fetchState", op: "set", value }) as const;
+
 const phone = async () => {
   const cell = createFakeCell();
   const device = await openDevice(cell, "phone");
@@ -147,8 +151,6 @@ describe("a share whose address moved", () => {
     facts: { ...READ.facts, title: "Log in" },
   };
   const LINK = { kind: "link", note: null, title: null } as const;
-  const stateOf = (value: LibraryItemFields["fetchState"], base: LibraryItemFields["fetchState"]) =>
-    ({ base, field: "fetchState", op: "set", value }) as const;
 
   const heldRead = async (held: Awaited<ReturnType<typeof phone>>) => {
     const saved = await saveShared(
