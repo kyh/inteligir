@@ -76,7 +76,7 @@ export const itemFieldsOf = async (
     }
     for (const change of page.changes) {
       if (change.kind === "item" && change.id === id) {
-        fields = change.row?.kind === "live" ? change.row.fields : null;
+        fields = change.row.kind === "live" ? change.row.fields : null;
       }
     }
     if (!page.more) {

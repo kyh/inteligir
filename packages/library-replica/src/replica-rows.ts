@@ -102,14 +102,6 @@ const touch = (touched: Touched, kind: LibraryChange["kind"], id: string): void 
 
 // ---- an item ----
 
-const ITEM_TABLES = [
-  "DELETE FROM blocks WHERE item_id = ?",
-  "DELETE FROM links WHERE source_id = ?",
-  "DELETE FROM item_tags WHERE item_id = ?",
-  "DELETE FROM annotations WHERE item_id = ?",
-  "DELETE FROM body_wants WHERE item_id = ?",
-] as const;
-
 const wantBody = function* wantBody(itemId: string, seq: number): SqlPlan<void> {
   yield run(
     `INSERT INTO body_wants (item_id, seq) VALUES (?, ?)
@@ -167,14 +159,6 @@ const layLiveRow = function* layLiveRow(row: LiveItemRow): SqlPlan<boolean> {
   return landed;
 };
 
-const forgetItem = function* forgetItem(itemId: string): SqlPlan<void> {
-  yield run("DELETE FROM search_fts WHERE rowid = (SELECT rid FROM items WHERE id = ?)", [itemId]);
-  for (const sql of ITEM_TABLES) {
-    yield run(sql, [itemId]);
-  }
-  yield run("DELETE FROM items WHERE id = ?", [itemId]);
-};
-
 const applyItem = function* applyItem(
   change: Extract<LibraryChange, { kind: "item" }>,
   touched: Touched,
@@ -184,9 +168,7 @@ const applyItem = function* applyItem(
     return;
   }
   const { row } = change;
-  if (row === null) {
-    yield* forgetItem(change.id);
-  } else if (row.kind === "purged") {
+  if (row.kind === "purged") {
     yield* storeTombstone({
       deletedAt: row.deletedAt ?? row.updatedAt,
       id: row.id,
@@ -207,15 +189,13 @@ const applyFolder = function* applyFolder(
   touched: Touched,
 ): SqlPlan<void> {
   const { row } = change;
-  yield row === null
-    ? run("DELETE FROM folders WHERE id = ? AND seq < ?", [change.id, change.seq])
-    : run(
-        `INSERT INTO folders (id, parent_id, name, sort, deleted_at, seq) VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT (id) DO UPDATE SET parent_id = excluded.parent_id, name = excluded.name,
-         sort = excluded.sort, deleted_at = excluded.deleted_at, seq = excluded.seq
-       WHERE excluded.seq > folders.seq`,
-        [row.id, row.parentId, row.name, row.sort, row.deletedAt, row.seq],
-      );
+  yield run(
+    `INSERT INTO folders (id, parent_id, name, sort, deleted_at, seq) VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT (id) DO UPDATE SET parent_id = excluded.parent_id, name = excluded.name,
+       sort = excluded.sort, deleted_at = excluded.deleted_at, seq = excluded.seq
+     WHERE excluded.seq > folders.seq`,
+    [row.id, row.parentId, row.name, row.sort, row.deletedAt, row.seq],
+  );
   touch(touched, "folder", change.id);
 };
 

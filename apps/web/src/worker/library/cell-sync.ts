@@ -91,7 +91,7 @@ const itemRowOf = (
 ): Extract<LibraryChange, { kind: "item" }>["row"] => {
   const item = runPlan(sql, readItem(id));
   if (item === null) {
-    return null;
+    throw new LibraryRowError(`the change log names an item the library does not hold: ${id}`);
   }
   return item.kind === "purged"
     ? { deletedAt: item.deletedAt, id, kind: "purged", seq: item.seq, updatedAt: item.updatedAt }
@@ -111,7 +111,7 @@ const folderRowOf = (sql: SqlStatements, id: string) => {
     [id],
   );
   if (raw === undefined) {
-    return null;
+    throw new LibraryRowError(`the change log names a folder the library does not hold: ${id}`);
   }
   const row = folderRowSchema.parse(raw);
   return {
@@ -178,10 +178,10 @@ const changeOf = (sql: SqlStatements, entry: ChangeEntry): LibraryChange => {
   const { id, seq } = entry;
   switch (entry.kind) {
     case "item": {
-      return { id, kind: "item", row: entry.gone ? null : itemRowOf(sql, id), seq };
+      return { id, kind: "item", row: itemRowOf(sql, id), seq };
     }
     case "folder": {
-      return { id, kind: "folder", row: entry.gone ? null : folderRowOf(sql, id), seq };
+      return { id, kind: "folder", row: folderRowOf(sql, id), seq };
     }
     case "annotation": {
       const row = entry.gone ? null : readAnnotationRow(sql, id);

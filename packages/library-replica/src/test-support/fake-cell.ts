@@ -49,7 +49,7 @@ type ConflictCurrent = z.infer<typeof conflictCurrentSchema>;
 type AnnotationOp = z.infer<typeof annotationOpSchema>;
 type FolderOp = z.infer<typeof folderOpSchema>;
 type AnnotationRow = Exclude<Extract<LibraryChange, { kind: "annotation" }>["row"], null>;
-type FolderRow = Exclude<Extract<LibraryChange, { kind: "folder" }>["row"], null>;
+type FolderRow = Extract<LibraryChange, { kind: "folder" }>["row"];
 type ChangeKind = LibraryChange["kind"];
 
 interface CellItem {
@@ -496,11 +496,10 @@ export const createFakeCell = (): FakeCell => {
   const changeOf = (entry: Entry): LibraryChange => {
     switch (entry.kind) {
       case "item": {
-        const item = items.get(entry.id);
         return {
           id: entry.id,
           kind: "item",
-          row: item === undefined ? null : liveRow(entry.id, item),
+          row: liveRow(entry.id, held(entry.id)),
           seq: entry.seq,
         };
       }
@@ -513,7 +512,11 @@ export const createFakeCell = (): FakeCell => {
         };
       }
       case "folder": {
-        return { id: entry.id, kind: "folder", row: folders.get(entry.id) ?? null, seq: entry.seq };
+        const row = folders.get(entry.id);
+        if (row === undefined) {
+          throw new Error(`the fake cell logs a folder it does not hold: ${entry.id}`);
+        }
+        return { id: entry.id, kind: "folder", row, seq: entry.seq };
       }
       default: {
         throw new Error(`the fake cell logs no ${entry.kind}`);

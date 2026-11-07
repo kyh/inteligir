@@ -181,18 +181,19 @@ export const threadEventRowSchema = z.object({
   type: z.string().min(1),
 });
 
-// one entry of the change log: the row as it is now, or null when it is gone; a body is not a row,
+// one entry of the change log: the row as it is now, null when it is gone, which an item and a
+// folder never are, since each keeps its row once it is deleted or emptied; a body is not a row,
 // and is wanted again whenever its item's sequence moves
 const changeOf = <K extends string, R extends z.ZodType>(kind: K, row: R) =>
-  z.object({ id: z.string().min(1), kind: z.literal(kind), row: row.nullable(), seq: seqSchema });
+  z.object({ id: z.string().min(1), kind: z.literal(kind), row, seq: seqSchema });
 
 export const libraryChangeSchema = z.discriminatedUnion("kind", [
   changeOf("item", itemRowSchema),
   changeOf("folder", folderRowSchema),
-  changeOf("annotation", annotationRowSchema),
-  changeOf("blob", blobRowSchema),
-  changeOf("thread", threadRowSchema),
-  changeOf("thread_event", threadEventRowSchema),
+  changeOf("annotation", annotationRowSchema.nullable()),
+  changeOf("blob", blobRowSchema.nullable()),
+  changeOf("thread", threadRowSchema.nullable()),
+  changeOf("thread_event", threadEventRowSchema.nullable()),
 ]);
 
 // ---- bodies ----
