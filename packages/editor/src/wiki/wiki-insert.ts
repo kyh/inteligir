@@ -6,7 +6,7 @@ import { consumeTriggerLead } from "@repo/editor/combobox-input";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { WIKI_EMBED_KEY, WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
 import { getEditorHostActions } from "@repo/editor/host-io";
-import { wikiFieldsOfBody, wikiNode } from "@repo/editor/wiki/wiki-node";
+import { wikiNodeOfBody } from "@repo/editor/wiki/wiki-node";
 
 // A `!` before the `[[` upgrades the chip to an embed.
 export const insertWikiChipFromPicker = (editor: SlateEditor, body: string): void => {
@@ -14,7 +14,7 @@ export const insertWikiChipFromPicker = (editor: SlateEditor, body: string): voi
   const bang = consumeTriggerLead(editor, "!");
   const type = bang ? WIKI_EMBED_KEY : WIKI_LINK_KEY;
   // Slate would otherwise park the caret inside the void's empty text and swallow keystrokes.
-  insertVoidAndEscape(editor, wikiNode(type, wikiFieldsOfBody(body)));
+  insertVoidAndEscape(editor, wikiNodeOfBody(type, body));
 };
 
 // a link's Create: an empty note under the name the link is written with, which the link then

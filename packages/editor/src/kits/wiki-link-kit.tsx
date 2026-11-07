@@ -10,7 +10,7 @@ import type { PlateElementProps } from "platejs/react";
 
 import { WIKI_EMBED_KEY, WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
-import { wikiFieldsOf, wikiFieldsOfBody, wikiLabelOf, wikiNode } from "@repo/editor/wiki/wiki-node";
+import { wikiFieldsOf, wikiLabelOf, wikiNodeOfBody } from "@repo/editor/wiki/wiki-node";
 import type { WikiNodeFields } from "@repo/editor/wiki/wiki-node";
 
 import { wikiEmbedBasePlugin, wikiLinkBasePlugin } from "./headless/wiki-link-base";
@@ -90,10 +90,7 @@ const completeWikiChip = (editor: SlateEditor): boolean => {
     });
   });
   // Slate would otherwise park the caret inside the void's empty text and swallow keystrokes.
-  insertVoidAndEscape(
-    editor,
-    wikiNode(bang ? WIKI_EMBED_KEY : WIKI_LINK_KEY, wikiFieldsOfBody(body)),
-  );
+  insertVoidAndEscape(editor, wikiNodeOfBody(bang ? WIKI_EMBED_KEY : WIKI_LINK_KEY, body));
   return true;
 };
 

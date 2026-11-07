@@ -15,7 +15,8 @@ import {
 } from "@repo/notes/markdown/remark-wiki-link";
 import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
-import type { WIKI_EMBED_KEY, WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
+import { OPAQUE_KEY, WIKI_EMBED_KEY } from "@repo/editor/dialect-node-keys";
+import type { WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
 import { stringProp } from "@repo/editor/node-props";
 
 export interface WikiNodeFields {
@@ -69,6 +70,7 @@ export const wikiNode = (
 const BLOCK_REF_RE = /^\^(?<ref>[A-Za-z0-9-]+)$/u;
 
 // a body as the written node it spells: the target as written, its id from a uuid after the pipe
+/** @internal */
 export const wikiFieldsOfBody = (body: string): WikiNodeFields => {
   const { alias, anchor, target } = parseWikiBody(body);
   const ref = anchor === undefined ? undefined : BLOCK_REF_RE.exec(anchor)?.groups?.ref;
@@ -85,6 +87,26 @@ export const wikiFieldsOfBody = (body: string): WikiNodeFields => {
 
 const anchorOf = (fields: WikiNodeFields): string | undefined =>
   fields.heading ?? (fields.blockRef === undefined ? undefined : `^${fields.blockRef}`);
+
+const isNameless = (fields: WikiNodeFields): boolean =>
+  fields.title === "" && fields.itemId === null;
+
+// `[[#sec]]`: an anchor in the item the link stands in, which no name or id reaches further
+export const isSameItemLink = (fields: WikiNodeFields): boolean =>
+  isNameless(fields) && anchorOf(fields) !== undefined;
+
+// the node a `[[…]]` body spells as a person types or pastes it; a body that reaches nothing, with
+// no name, id or anchor, is kept as its source, which no link can store
+export const wikiNodeOfBody = (type: WikiNodeType, body: string): TElement => {
+  const fields = wikiFieldsOfBody(body);
+  return isNameless(fields) && anchorOf(fields) === undefined
+    ? {
+        children: voidLeaf({}),
+        source: `${type === WIKI_EMBED_KEY ? "!" : ""}[[${body}]]`,
+        type: OPAQUE_KEY,
+      }
+    : wikiNode(type, fields);
+};
 
 // the parts of the body a node is written with: the id after the pipe unless an alias holds it
 export const wikiPartsOf = (fields: WikiNodeFields): WikiBody => {

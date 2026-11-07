@@ -62,8 +62,10 @@ alone, and no walk narrows structurally.
   (nothing in Plate consumes a hue).
 
 - **NOTES SPEAK THE INTELIGIR DIALECT**: `[[Title]]` / `[[Title#H]]` /
-  `[[Title|alias]]` / `[[Title|uuid]]` wiki links (the last pipe starts the
-  alias), `{{source|display|meta}}` formula pills, `%%i:id:start/end%%`
+  `[[#H]]` / `[[Title|alias]]` / `[[Title|uuid]]` wiki links (the last pipe
+  starts the alias, an anchor alone stays in its own item, and a body that
+  reaches nothing is kept as its source), `{{source|display|meta}}` formula
+  pills, `%%i:id:start/end%%`
   annotation markers, `@2026-08-22` date chips, `<u>…</u>` underline, GitHub
   alerts (`> [!NOTE]` … `> [!CAUTION]`) as THE callout, `inteligir-chart` /
   `inteligir-canvas` / `inteligir-html` fences, the `:::tabs`, `:::toggle` and

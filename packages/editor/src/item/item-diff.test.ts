@@ -9,6 +9,9 @@ import type { LibraryBlock, LibraryNode, LibrarySection } from "@repo/notes/libr
 import { landed, noteFields, paragraph } from "@repo/notes/test-support/library-items";
 import { mulberry32 } from "@repo/notes/test-support/seeded-random";
 
+import { WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
+import { wikiNodeOfBody } from "@repo/editor/wiki/wiki-node";
+
 import { diffValue, readElement } from "./item-diff";
 import { elementOf } from "./item-session";
 
@@ -120,6 +123,40 @@ describe("an item's value as the ops it writes", () => {
     expect(diff.ops).toStrictEqual([]);
     expect(diff.heldBack).toStrictEqual(["n0"]);
   });
+
+  it.each(["#Rollback", "#^r1", "#Rollback|the plan"])(
+    "stores a link to a place in its own item, [[%s]]",
+    (body) => {
+      const item = itemOf(1, 0);
+      const link = wikiNodeOfBody(WIKI_LINK_KEY, body);
+      const value = [{ children: [{ text: "see " }, link, { text: "" }], id: "n0", type: "p" }];
+      const diff = diffValue(item.blocks, value);
+      expect(diff.heldBack).toStrictEqual([]);
+      expect(diff.ops).toMatchObject([{ op: "put" }]);
+    },
+  );
+
+  it.each(["|the plan", " "])(
+    "keeps a body that reaches nothing, [[%s]], as its source",
+    (body) => {
+      const item = itemOf(1, 0);
+      const value = [
+        {
+          children: [{ text: "" }, wikiNodeOfBody(WIKI_LINK_KEY, body), { text: "" }],
+          id: "n0",
+          type: "p",
+        },
+      ];
+      const diff = diffValue(item.blocks, value);
+      expect(diff.heldBack).toStrictEqual([]);
+      expect(diff.ops).toMatchObject([
+        {
+          block: { children: [{ source: `[[${body}]]`, type: "opaque" }] },
+          op: "put",
+        },
+      ]);
+    },
+  );
 
   it("reads a block around a picker still open in it, whose query nobody has written yet", () => {
     const item = itemOf(1, 0);

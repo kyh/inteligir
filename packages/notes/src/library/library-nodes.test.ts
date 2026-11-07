@@ -22,6 +22,9 @@ const EVERY_BLOCK = [
       { children: leaf, itemId: null, title: "Not yet", type: "wikiLink" },
       { blockRef: "b1", children: leaf, itemId: "item-3", title: "Third", type: "wikiEmbed" },
       { alias: "300", children: leaf, itemId: null, title: "shot.png", type: "wikiEmbed" },
+      { children: leaf, heading: "Rollback", itemId: null, title: "", type: "wikiLink" },
+      { blockRef: "b1", children: leaf, itemId: null, title: "", type: "wikiEmbed" },
+      { children: leaf, itemId: "item-4", title: "", type: "wikiLink" },
       { text: " #work/plans " },
       { children: leaf, date: "2026-07-01", type: "date" },
       {
@@ -149,6 +152,14 @@ describe("the persisted node set", () => {
     [
       "an embed with no title",
       { children: [{ children: leaf, itemId: "item-3", type: "wikiEmbed" }], id: "p", type: "p" },
+    ],
+    [
+      "a link that reaches nothing",
+      {
+        children: [{ alias: "shown", children: leaf, itemId: null, title: "", type: "wikiLink" }],
+        id: "p",
+        type: "p",
+      },
     ],
     [
       "the old wiki link spelling",

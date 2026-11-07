@@ -140,7 +140,7 @@ const standInText = (element: LibraryElement): string | null => {
   }
   switch (element.type) {
     case "wikiLink": {
-      return element.alias ?? element.title;
+      return element.alias ?? (element.title || (element.heading ?? ""));
     }
     case "date": {
       return element.date;
@@ -328,22 +328,17 @@ export const deriveItem = (
     };
     visitElements([block], (node) => {
       switch (node.type) {
-        case "wikiLink": {
-          link("wiki", {
-            blockRef: node.blockRef,
-            heading: node.heading,
-            targetId: node.itemId,
-            targetKey: titleKey(node.title),
-          });
-          break;
-        }
+        case "wikiLink":
         case "wikiEmbed": {
-          link("embed", {
-            blockRef: node.blockRef,
-            heading: node.heading,
-            targetId: node.itemId,
-            targetKey: titleKey(node.title),
-          });
+          // an anchor alone stays inside this item, so it is no link between items
+          if (node.title !== "" || node.itemId !== null) {
+            link(node.type === "wikiLink" ? "wiki" : "embed", {
+              blockRef: node.blockRef,
+              heading: node.heading,
+              targetId: node.itemId,
+              targetKey: node.title === "" ? null : titleKey(node.title),
+            });
+          }
           break;
         }
         case "a": {

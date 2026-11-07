@@ -19,7 +19,13 @@ import { z } from "zod";
 
 import { WIKI_EMBED_KEY, WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
 import { stringProp } from "@repo/editor/node-props";
-import { wikiBodyOf, wikiFieldsOf, wikiNode, wikiPartsOf } from "@repo/editor/wiki/wiki-node";
+import {
+  isSameItemLink,
+  wikiBodyOf,
+  wikiFieldsOf,
+  wikiNode,
+  wikiPartsOf,
+} from "@repo/editor/wiki/wiki-node";
 
 import { MARK_KEYS, isText, leaf, marksOf, tidyInlines } from "./slate-leaves";
 import type { Marks } from "./slate-leaves";
@@ -239,7 +245,8 @@ const mediaOf = (file: LibraryFile, look: ImageLook): TElement => {
 };
 
 // a link that reaches an item names it by id and shows its title; one that reaches none waits, by
-// the name the writer gave, for an item of that name. A link with no name at all is kept as source
+// the name the writer gave, for an item of that name; an anchor alone stays in the item it stands
+// in. A link with no name at all is kept as source
 const readWiki = (node: TElement, embed: boolean, reading: Reading): TElement => {
   const written = wikiFieldsOf(node);
   const link = wikiPartsOf(written);
@@ -248,7 +255,9 @@ const readWiki = (node: TElement, embed: boolean, reading: Reading): TElement =>
   const named = reached?.kind === "title" ? reached.title : writtenTitle(written.title);
   const title = item?.title ?? named;
   if (title.trim() === "") {
-    return opaqueOf(`${embed ? "!" : ""}[[${wikiBodyOf(written) ?? ""}]]`);
+    return isSameItemLink(written)
+      ? node
+      : opaqueOf(`${embed ? "!" : ""}[[${wikiBodyOf(written) ?? ""}]]`);
   }
   return wikiNode(embed ? WIKI_EMBED_KEY : WIKI_LINK_KEY, {
     ...written,

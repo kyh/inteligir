@@ -71,13 +71,7 @@ import {
 import { embedTypeForUrl } from "@repo/editor/lib/embed-url";
 import { leadingAlertMarker } from "@repo/editor/markdown/alert-marker";
 import { stringProp } from "@repo/editor/node-props";
-import {
-  wikiBodyOf,
-  wikiFieldsOf,
-  wikiFieldsOfBody,
-  wikiLabelOf,
-  wikiNode,
-} from "@repo/editor/wiki/wiki-node";
+import { wikiBodyOf, wikiFieldsOf, wikiLabelOf, wikiNodeOfBody } from "@repo/editor/wiki/wiki-node";
 import type { WikiNodeType } from "@repo/editor/wiki/wiki-node";
 
 const ensureBlocks = (children: Descendant[]): Descendant[] =>
@@ -376,8 +370,7 @@ const articleSectionRule: WideMdRule = {
 // written; a node whose title no body can carry writes its words as text, which loses the link but
 // never the words
 const wikiRule = (type: WikiNodeType): WideMdRule => ({
-  deserialize: (node: WikiLink | WikiEmbed): TElement =>
-    wikiNode(type, wikiFieldsOfBody(node.body)),
+  deserialize: (node: WikiLink | WikiEmbed): TElement => wikiNodeOfBody(type, node.body),
   serialize: (node: TElement): WikiLink | WikiEmbed | MdText => {
     const fields = wikiFieldsOf(node);
     const body = wikiBodyOf(fields);
