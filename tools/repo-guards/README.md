@@ -14,8 +14,8 @@ structure: the dependency DAG and where each package may reach, that a route
 path has one spelling, that every turbo cache key names what its output reads.
 Those are questions the compiler, knip and a unit suite cannot ask — a file
 guard cannot see one unused export beside four used ones, TypeScript catches a
-missing arm but never a drifted table, and turbo strips an undeclared env var
-with no error on either side.
+missing arm but never a drifted table, and turbo replays a stale output with no
+error when an edit falls outside a task's cache key.
 
 Every guard obeys three rules. It states its own rule in the failure, so the
 message is the documentation. It names the file to change. And it DERIVES every
@@ -140,6 +140,7 @@ tables the guards' own docs cite are `guard-docs.test.ts`'s.
    anchor.
 4. Knip's vitest plugin reads `src/**/*.test.ts` as this workspace's entries,
    so a helper module is reachable only from a test.
+5. Add its row to § The guards; `guard-docs.test.ts` fails without one.
 
 ## Running
 
