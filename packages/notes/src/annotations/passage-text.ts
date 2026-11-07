@@ -124,11 +124,30 @@ interface Found {
   segment: Segment;
 }
 
+// an overlapping match loses to the earlier one, as the transform decides
+const inTextOrder = (value: string, found: readonly Found[]): Segment[] => {
+  const segments: Segment[] = [];
+  let cursor = 0;
+  for (const { start, end, segment } of found.toSorted((a, b) => a.start - b.start)) {
+    if (start < cursor) {
+      continue;
+    }
+    if (start > cursor) {
+      segments.push({ end: start, kind: "text", start: cursor });
+    }
+    segments.push(segment);
+    cursor = end;
+  }
+  if (cursor < value.length) {
+    segments.push({ end: value.length, kind: "text", start: cursor });
+  }
+  return segments;
+};
+
 // what a text stands in: a label reads no date, and a bare link's text is its address, no call
 type TextPlace = "prose" | "label" | "address";
 
-// the constructs of one text's value in order; an escaped first character keeps one text, and an
-// overlapping match loses to the earlier one, as the transform decides
+// the constructs of one text's value in order; an escaped first character keeps one text
 const segmentsOf = (value: string, escapes: ReadonlySet<number>, place: TextPlace): Segment[] => {
   const found: Found[] = [];
   for (const match of value.matchAll(FORMULA_RE)) {
@@ -172,23 +191,7 @@ const segmentsOf = (value: string, escapes: ReadonlySet<number>, place: TextPlac
       found.push({ end, segment: { end, kind: "unit", start, text: "" }, start });
     }
   }
-  found.sort((a, b) => a.start - b.start);
-  const segments: Segment[] = [];
-  let cursor = 0;
-  for (const { start, end, segment } of found) {
-    if (start < cursor) {
-      continue;
-    }
-    if (start > cursor) {
-      segments.push({ end: start, kind: "text", start: cursor });
-    }
-    segments.push(segment);
-    cursor = end;
-  }
-  if (cursor < value.length) {
-    segments.push({ end: value.length, kind: "text", start: cursor });
-  }
-  return segments;
+  return inTextOrder(value, found);
 };
 
 interface Aligned {

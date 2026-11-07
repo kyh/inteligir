@@ -7,6 +7,8 @@ import { placeQuotes } from "./place-quotes";
 const placeOne = (content: string, quote: string, occurrence?: number) =>
   placeQuotes(content, [{ id: "h1", occurrence, quote }], { final: false });
 
+const cell = (text: string) => `| a | b |\n| - | - |\n| ${text} | x |\n`;
+
 describe("where the markers land", () => {
   it("wraps the n-th occurrence", () => {
     const content = "the cat and the dog and the bird\n";
@@ -44,8 +46,6 @@ describe("where the markers land", () => {
   });
 
   describe("in a cell of two lines", () => {
-    const cell = (text: string) => `| a | b |\n| - | - |\n| ${text} | x |\n`;
-
     it("matches across the lines, each marker on its own line's bytes", () => {
       const placed = placeOne(cell("the one<br/>two here"), "one two");
       expect(placed.content).toBe(cell("the %%i:h1:start%%one<br/>two%%i:h1:end%% here"));
