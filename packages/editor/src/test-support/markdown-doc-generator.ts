@@ -1,7 +1,7 @@
 // Output is not byte-canonical (toCanonical normalizes it) and avoids opaque
 // constructs, so the property test exercises the modelled nodes.
 
-import { ALERT_VARIANTS } from "@repo/editor/markdown/alert-marker";
+import { ALERT_VARIANTS } from "@repo/notes/markdown/alert-marker";
 
 // oxlint-disable no-bitwise -- mulberry32 is defined in terms of 32-bit word math; the seeded sequence is the point
 const mulberry32 = (seed: number): (() => number) => {

@@ -176,11 +176,6 @@ export interface WikiBody {
   alias?: string;
 }
 
-// `targetRange` is the raw slice a rename rewrites; when the title carries `\#`/`\\` escapes it
-// covers the escaped bytes while `target` is unescaped, so a rename writes its target escaped.
-/** @internal */
-export type WikiBodyRange = WikiBody & { targetRange?: { start: number; end: number } };
-
 // the resolved-link form puts the target note's uuid after the pipe.
 const UUID_ALIAS_RE = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/iu;
 
@@ -215,23 +210,16 @@ const anchorIndex = (head: string): number => {
   return -1;
 };
 
-/** @internal */
-export const parseWikiBodyRange = (body: string): WikiBodyRange => {
+export const parseWikiBody = (body: string): WikiBody => {
   // the last pipe starts the alias: a title containing `|` is legal when paired with a
   // resolved-uuid suffix.
   const pipe = body.lastIndexOf("|");
   const head = pipe === -1 ? body : body.slice(0, pipe);
   const alias = pipe === -1 ? undefined : body.slice(pipe + 1).trim();
   const hash = anchorIndex(head);
-  const segment = hash === -1 ? head : head.slice(0, hash);
-  const rawTarget = segment.trim();
-  const target = unescapeWikiText(rawTarget);
+  const target = unescapeWikiText((hash === -1 ? head : head.slice(0, hash)).trim());
   const anchor = hash === -1 ? undefined : unescapeWikiText(head.slice(hash + 1).trim());
-  const result: WikiBodyRange = { target };
-  if (target !== "") {
-    const start = segment.length - segment.trimStart().length;
-    result.targetRange = { end: start + rawTarget.length, start };
-  }
+  const result: WikiBody = { target };
   if (anchor !== undefined && anchor !== "") {
     result.anchor = anchor;
   }
@@ -239,11 +227,6 @@ export const parseWikiBodyRange = (body: string): WikiBodyRange => {
     result.alias = alias;
   }
   return result;
-};
-
-export const parseWikiBody = (body: string): WikiBody => {
-  const { targetRange: _range, ...display } = parseWikiBodyRange(body);
-  return display;
 };
 
 interface WikiBodyParts {

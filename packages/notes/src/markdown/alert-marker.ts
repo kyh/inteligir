@@ -1,6 +1,6 @@
-// GitHub's alert grammar, spelled once: the renderer, the serializer and turn-into all read a
-// quote through it, because any two that disagree on `> [!note]` render an alert the save
-// escapes to `\[!note]`. The variant matches in any case; the bytes keep the case written.
+// GitHub's alert grammar, spelled once: the renderer, the serializer, turn-into and quote placement
+// all read a quote through it, because any two that disagree on `> [!note]` render an alert the
+// save escapes to `\[!note]`. The variant matches in any case; the bytes keep the case written.
 
 /** @internal */
 export const ALERT_VARIANTS = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"] as const;

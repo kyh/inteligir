@@ -58,11 +58,11 @@ const MARKER_TAIL = `%i:(?<ids>${ANNOTATION_ID_PATTERN}(?:,${ANNOTATION_ID_PATTE
 // but a digit that would make its day a longer number
 const DATE_TAIL = String.raw`(?<value>${ISO_DATE_PATTERN})(?!\d)`;
 
-const FORMULA_RE = new RegExp(String.raw`\{${FORMULA_TAIL}`, "gu");
-const MARKER_RE = new RegExp(`%${MARKER_TAIL}`, "gu");
-
-// a date chip as written, `value` its day. Shared and global: hand it to replace, replaceAll, match
-// or matchAll only, never to test or exec, whose lastIndex would carry from one caller into the next.
+// Shared and global, these three: hand one to replace, replaceAll, match or matchAll only, never to
+// test or exec, whose lastIndex would carry from one caller into the next.
+export const FORMULA_RE = new RegExp(String.raw`\{${FORMULA_TAIL}`, "gu");
+export const MARKER_RE = new RegExp(`%${MARKER_TAIL}`, "gu");
+// a date chip as written, `value` its day
 export const DATE_CHIP_RE = new RegExp(`@${DATE_TAIL}`, "gu");
 
 // A marker's `ids` stays the joined spelling so the serializer re-emits its bytes; this is the

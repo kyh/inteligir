@@ -9,10 +9,13 @@
 // widens to its edge. Code, math and frontmatter are not text.
 
 import { z } from "zod";
-import { ANNOTATION_ID_PATTERN } from "./store-schema";
-import { MD_PROCESSOR } from "../markdown/md-plugins";
+import { leadingAlertMarker } from "../markdown/alert-marker";
+import { parseBare } from "../markdown/bare-parse";
+import { isContainerLine } from "../markdown/remark-containers";
 import {
   DATE_CHIP_RE,
+  FORMULA_RE,
+  MARKER_RE,
   parseFormulaRaw,
   splitMarkerIds,
 } from "../markdown/remark-inline-constructs";
@@ -38,21 +41,8 @@ const TEXT_DATA = z.object({ escapes: z.array(z.number().int()).optional() });
 const escapesOf = (node: MdNode): Set<number> =>
   new Set(TEXT_DATA.safeParse(node.data).data?.escapes);
 
-// the dialect's own spellings, matched in a text's value as its transform matches them
-const MARKER_RE = new RegExp(
-  `%%i:(?<ids>${ANNOTATION_ID_PATTERN}(?:,${ANNOTATION_ID_PATTERN})*):(?<edge>start|end)%%`,
-  "gu",
-);
-// a pill, `{{source|display|meta}}`: FORMULA_TAIL in remark-inline-constructs
-const FORMULA_RE = /\{\{[^|{}\n]+(?:\|[^|{}\n]*)?(?:\|[^{}\n]*)?\}\}/gu;
-// a `:::` container line or a tab's `=== Label`: line grammar the transform lifts out of text
-const STRUCTURE_LINE_RE =
-  /^(?::::(?:article|toggle|tabs|columns|column(?: \d+(?:\.\d+)?%)?)?|=== .*)\r?$/u;
 // a character reference, which spells one character in several
 const CHARACTER_REFERENCE_RE = /^&(?:#\d{1,7}|#[xX][\da-fA-F]{1,6}|[A-Za-z][A-Za-z\d]{0,31});/u;
-// a GitHub alert's marker leading a quote: the editor draws it as the alert's badge, never as text
-// (`packages/editor/src/markdown/alert-marker.ts`, ALERT_LEAD_RE)
-const ALERT_LEAD_RE = /^\s*\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s?/iu;
 const ASCII_PUNCTUATION = /^[!-/:-@[-`{-~]$/u;
 // the bytes that may open a line inside a quote or a list, before its text
 const LINE_PREFIX_CHARACTERS = new Set([" ", "\t", ">"]);
@@ -250,12 +240,10 @@ const alignText = (
   return !span.whole || source.slice(at, end).trim() === "" ? { from, to } : null;
 };
 
-const offsetsOf = (node: MdNode, shift: number): { start: number; end: number } | null => {
+const offsetsOf = (node: MdNode): { start: number; end: number } | null => {
   const start = node.position?.start.offset;
   const end = node.position?.end.offset;
-  return start === undefined || end === undefined
-    ? null
-    : { end: end + shift, start: start + shift };
+  return start === undefined || end === undefined ? null : { end, start };
 };
 
 // a bare url: a link whose bytes are the url itself, never `[text](url)` or `<url>`; the dialect
@@ -277,12 +265,8 @@ const wikiText = (body: string): string => {
   return bar === -1 ? body : body.slice(bar + 1);
 };
 
-// micromark drops a leading byte-order mark before it counts
-const BYTE_ORDER_MARK = String.fromCodePoint(0xfe_ff);
-
 interface Builder {
   source: string;
-  shift: number;
   markerSpans: MarkerBytes[];
   characters: string[];
   from: number[];
@@ -394,7 +378,7 @@ const pushAtomic = (
   inLink: boolean,
 ): void => {
   if (node.type === "text") {
-    const own = offsetsOf(node, builder.shift);
+    const own = offsetsOf(node);
     if (own !== null) {
       noteMarkerBytes(builder, own);
     }
@@ -419,7 +403,7 @@ const pushAtomic = (
     return;
   }
   if (node.type === "link") {
-    noteBareUrl(builder, offsetsOf(node, builder.shift) ?? bounds);
+    noteBareUrl(builder, offsetsOf(node) ?? bounds);
   }
   const linked = inLink || node.type === "link" || node.type === "linkReference";
   for (const child of node.children ?? []) {
@@ -442,7 +426,7 @@ const structuralIndexes = (
   let lineStart = 0;
   for (const line of value.split("\n")) {
     const atLineStart = lineStart > 0 || isLineStart(source, start);
-    if (atLineStart && STRUCTURE_LINE_RE.test(line)) {
+    if (atLineStart && isContainerLine(line.replace(/\r$/u, ""))) {
       for (let index = lineStart; index <= lineStart + line.length; index += 1) {
         structural.add(index);
       }
@@ -593,7 +577,7 @@ const walkPhrasing = (
   let run: MdNode[] = [];
   let runStart = parent.start;
   for (const child of children) {
-    const bounds = offsetsOf(child, builder.shift);
+    const bounds = offsetsOf(child);
     if (bounds === null) {
       run.push(child);
       continue;
@@ -617,15 +601,14 @@ const walkPhrasing = (
 const noteAlertLead = (builder: Builder, quote: MdNode): void => {
   const [paragraph] = quote.children ?? [];
   const [text] = paragraph?.type === "paragraph" ? (paragraph.children ?? []) : [];
-  const lead = text?.type === "text" ? ALERT_LEAD_RE.exec(text.value ?? "") : null;
+  const lead = text?.type === "text" ? leadingAlertMarker(text.value ?? "") : null;
   if (text !== undefined && lead !== null) {
-    builder.leads.set(text, lead[0].length);
+    builder.leads.set(text, lead.end);
   }
 };
 
 export const projectPassages = (source: string): PassageProjection => {
-  const shift = source.startsWith(BYTE_ORDER_MARK) ? 1 : 0;
-  const tree: MdNode = MD_PROCESSOR.parse(source);
+  const tree: MdNode = parseBare(source);
   const builder: Builder = {
     bareUrls: [],
     block: [],
@@ -636,7 +619,6 @@ export const projectPassages = (source: string): PassageProjection => {
     leads: new Map(),
     markerSpans: [],
     markers: new Map(),
-    shift,
     source,
     to: [],
     urlTails: [],
@@ -651,7 +633,7 @@ export const projectPassages = (source: string): PassageProjection => {
       builder.blockIndex += 1;
       separate(builder);
       const first = builder.characters.length;
-      const bounds = offsetsOf(node, shift);
+      const bounds = offsetsOf(node);
       if (bounds !== null) {
         walkPhrasing(builder, node.children ?? [], bounds);
       }

@@ -1,6 +1,6 @@
 // stock gfm splits `| {{5|5}} |` across two cells, so pipes inside `{{…}}` on table-shaped lines
 // are escaped to `\|` ahead of micromark; idempotent over canonical output. not applied to the
-// knowledge scan: its tree positions drive rename byte-surgery and this pass shifts columns.
+// bare parse: this pass shifts columns, and that tree's offsets name the source's bytes.
 
 import type { Nodes } from "mdast";
 
