@@ -174,7 +174,7 @@ hash compare against D1 — never cached, so revocation is immediate; its
 (`LAST_SEEN_RESOLUTION_MS`), so a verify is one read. The
 VERIFIED credential's userId — never a path or a body — names the state it
 reaches: the socket upgrade to that user's own library cell, `LibraryDO`
-named `library:<userId>` (the one forwarded request, carrying the verified
+named `library:<userId>` (on the cell's own socket path, carrying the verified
 holder; a revoke and a deletion call the cell by RPC), and the account
 deletion reads D1 directly. `/v1/rpc` answers every refusal, an unhandled
 fault included, in its own protocol, and `/v1/blobs`, `/v1/exports` and the

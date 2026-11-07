@@ -21,6 +21,9 @@ export type SocketHolder = z.infer<typeof holderSchema>;
 
 export const SOCKET_HOLDER_HEADER = "x-library-socket-holder";
 
+// the cell's own door for an upgrade, which only `./socket-routes` forwards to
+export const CELL_SOCKET_PATH = "/socket";
+
 export const holderHeaderValue = (holder: SocketHolder): string => `${holder.kind}:${holder.id}`;
 
 export const holderFromHeader = (value: string | null): SocketHolder | null => {

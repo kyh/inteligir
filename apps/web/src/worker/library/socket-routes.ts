@@ -12,7 +12,7 @@ import { createDb } from "../db/client";
 import type { Db } from "../db/client";
 import { device, session } from "../db/schema";
 import { plainText } from "../plain-http";
-import { holderHeaderValue, SOCKET_HOLDER_HEADER } from "./cell-sockets";
+import { CELL_SOCKET_PATH, holderHeaderValue, SOCKET_HOLDER_HEADER } from "./cell-sockets";
 import type { SocketHolder } from "./cell-sockets";
 import { errorFields } from "../log";
 import { libraryCell } from "./library-cell";
@@ -34,7 +34,7 @@ const forwardToCell = async (
   headers.delete("authorization");
   headers.set(SOCKET_HOLDER_HEADER, holderHeaderValue(holder));
   return await libraryCell(ctx.exports, accountId).fetch(
-    new Request("https://library-cell/socket", { headers }),
+    new Request(`https://library-cell${CELL_SOCKET_PATH}`, { headers }),
   );
 };
 

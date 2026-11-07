@@ -11,6 +11,7 @@
 import { z } from "zod";
 
 import type { CellActor } from "./cell-actor";
+import { SOCKET_HOLDER_HEADER } from "./cell-sockets";
 import { libraryCell } from "./library-cell";
 
 export const PRINCIPAL_HEADER = "x-library-principal";
@@ -103,7 +104,7 @@ export const principalHeaderValue = (principal: NamedPrincipal): string =>
 
 // what the cell is handed in place of what the caller sent: any identity header the request
 // brought, and its credentials, which the cell never reads
-const FORWARD_DROPS = [PRINCIPAL_HEADER, "authorization", "cookie"] as const;
+const FORWARD_DROPS = [PRINCIPAL_HEADER, SOCKET_HOLDER_HEADER, "authorization", "cookie"] as const;
 
 // a call forwarded whole into the account's cell, carrying the principal the Worker verified and
 // nothing the caller sent in its place: an app's on `/v1/rpc` and an assistant's on the connector

@@ -55,6 +55,7 @@ import { runImports } from "./cell-imports";
 import { openCellSchema } from "./cell-schema";
 import {
   acceptSocket,
+  CELL_SOCKET_PATH,
   holderFromHeader,
   pingLibraryMoved,
   severHolder,
@@ -118,7 +119,10 @@ export class LibraryDO extends DurableObject<Env> {
     if (pathname === CONNECTOR_PATH) {
       return await this.#serveConnector(request);
     }
-    return this.#acceptSocket(request);
+    if (pathname === CELL_SOCKET_PATH) {
+      return this.#acceptSocket(request);
+    }
+    return plainText(404, "not found");
   }
 
   // the principal the Worker stamped, held to this cell's own account: only the Worker reaches a
