@@ -79,7 +79,7 @@ export interface ConnectDeps {
 }
 
 // a revoke the cloud did not take leaves a device the devices page can revoke
-const revokeQuietly = async (deps: ConnectDeps, connection: Connection): Promise<void> => {
+export const revokeQuietly = async (deps: ConnectDeps, connection: Connection): Promise<void> => {
   try {
     await deps.revoke(connection);
   } catch {
@@ -87,17 +87,17 @@ const revokeQuietly = async (deps: ConnectDeps, connection: Connection): Promise
   }
 };
 
-// the connect page's question or its hand-over, from the page at `origin`, answered with the
-// account the extension now saves to
+// the connect page's hello or its hand-over, from the page at `origin`: a hello connects no
+// account, and a hand-over answers the one the extension now saves to
 export const answerConnectPage = async (
   request: ExtensionConnectRequest,
   origin: string,
   deps: ConnectDeps,
 ): Promise<ExtensionConnectAnswer> => {
-  const held = await readConnection();
   if (request.type === "hello") {
-    return { email: held?.email ?? null };
+    return { email: null };
   }
+  const held = await readConnection();
   await keepConnection({ ...request.connection, origin });
   if (held !== null && held.credential !== request.connection.credential) {
     void revokeQuietly(deps, held);

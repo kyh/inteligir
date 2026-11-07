@@ -64,7 +64,8 @@ const bytesOfPercentEncoded = (data: string): Uint8Array<ArrayBuffer> | null => 
   return Uint8Array.from(bytes);
 };
 
-// the bytes a data: url holds; what they are is for the save to sniff
+// the bytes a data: url holds, read as the browser reads the picture: percent-decoded first, a
+// base64 body included; what they are is for the save to sniff
 /** @internal */
 export const bytesOfDataUrl = (url: string): Uint8Array<ArrayBuffer> | null => {
   const match = DATA_URL.exec(url);
@@ -73,7 +74,8 @@ export const bytesOfDataUrl = (url: string): Uint8Array<ArrayBuffer> | null => {
   }
   const { data = "", params = "" } = match.groups;
   const isBase64 = params.split(";").some((param) => param.trim().toLowerCase() === "base64");
-  return isBase64 ? bytesOfBase64(data) : bytesOfPercentEncoded(data);
+  const body = bytesOfPercentEncoded(data);
+  return isBase64 && body !== null ? bytesOfBase64(new TextDecoder().decode(body)) : body;
 };
 
 export const menuAction = (click: MenuClick): MenuAction => {

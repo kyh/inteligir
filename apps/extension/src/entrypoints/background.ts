@@ -11,19 +11,19 @@ import { browser } from "wxt/browser";
 import type { Browser, PublicPath } from "wxt/browser";
 import { defineBackground } from "wxt/utils/define-background";
 
-import type { ExtensionRequest, Outcome } from "../messages";
+import type { ExtensionRequest, Outcome, Status, WorkerAnswer } from "../messages";
 import { DEV_CLOUD_ORIGIN, flavorOfMode } from "../manifest";
 import { showOutcome, showSaving } from "../background/badge";
 import { captureTab, fetchCover } from "../background/capture-tab";
 import { cloudOf } from "../background/cloud";
-import { forgetConnection, readConnection } from "../background/connection";
+import { readConnection, revokeQuietly } from "../background/connection";
 import type { Connection } from "../background/connection";
 import { connectPageListener, ownPagesListener } from "../background/listeners";
 import { MENU_ITEMS, menuAction } from "../background/menus";
 import type { MenuContext } from "../background/menus";
 import { saveAddress, savePicture, saveTab } from "../background/save-page";
 import type { SaveDeps, TabFacts } from "../background/save-page";
-import { ensureSendAlarm, forgetQueue, SEND_ALARM, sendQueued } from "../background/save-queue";
+import { ensureSendAlarm, SEND_ALARM, sendQueued, signedOut } from "../background/save-queue";
 
 // src/entrypoints/welcome, which WXT writes at this path
 const WELCOME_PAGE = "/welcome.html" satisfies PublicPath;
@@ -31,29 +31,18 @@ const WELCOME_PAGE = "/welcome.html" satisfies PublicPath;
 const cloudFor = (connection: Connection) =>
   cloudOf(connection, browser.runtime.getManifest().version);
 
-// the credential is no longer the account's: the extension forgets it and what waited under it
-const signedOut = async (): Promise<void> => {
-  await forgetQueue();
-  await forgetConnection();
-  await ensureSendAlarm();
-};
-
 const saveDeps: SaveDeps = {
   capture: captureTab,
   cloud: cloudFor,
-  connection: readConnection,
   fetchCover,
   newBlockId: () => crypto.randomUUID(),
   now: () => Date.now(),
   randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
-  signedOut,
 };
 
 const sendDeps = {
   cloud: cloudFor,
-  connection: readConnection,
   now: () => Date.now(),
-  signedOut,
 };
 
 // the cloud this build connects to before it holds a connection: the production site, or for the
@@ -80,27 +69,26 @@ const withBadge = async (tabId: number, run: () => Promise<Outcome>): Promise<Ou
   return outcome;
 };
 
-const status = async (): Promise<Outcome> => {
+const status = async (): Promise<Status> => {
   const connection = await readConnection();
   return {
     connectUrl: connectUrl(connection),
     connection:
       connection === null
         ? null
-        : { email: connection.email, libraryUrl: `${connection.origin}${LIBRARY_PAGE_PATH}` },
-    kind: "status",
+        : {
+            email: connection.email,
+            libraryUrl: `${connection.origin}${LIBRARY_PAGE_PATH}`,
+            manageUrl: browser.runtime.getURL(WELCOME_PAGE),
+          },
   };
 };
 
-const revokeQuietly = async (connection: Connection): Promise<void> => {
-  try {
-    await cloudFor(connection).signOut();
-  } catch {
-    // a revoke the cloud did not take leaves a device the devices page can revoke
-  }
+const revoke = async (connection: Connection): Promise<void> => {
+  await cloudFor(connection).signOut();
 };
 
-const answer = async (request: ExtensionRequest): Promise<Outcome> => {
+const answer = async (request: ExtensionRequest): Promise<WorkerAnswer> => {
   switch (request.type) {
     case "save": {
       let tab: Browser.tabs.Tab;
@@ -120,10 +108,9 @@ const answer = async (request: ExtensionRequest): Promise<Outcome> => {
     }
     case "disconnect": {
       const connection = await readConnection();
-      await signedOut();
-      // best effort, never waited on by what the page shows
       if (connection !== null) {
-        void revokeQuietly(connection);
+        await signedOut(connection.deviceId);
+        void revokeQuietly({ revoke }, connection);
       }
       return await status();
     }
@@ -193,8 +180,8 @@ const installed = async (reason: string): Promise<void> => {
   }
 };
 
-// every start: the credential and the queue kept from the capture script WXT injects, and the
-// alarm made again while a save waits, since an update or a restart can clear it
+// every start: the credential and the queue kept from the capture script the worker injects, and
+// the alarm made again while a save waits, since an update or a restart can clear it
 const starting = async (): Promise<void> => {
   await browser.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
   await ensureSendAlarm();
@@ -212,9 +199,7 @@ export default defineBackground({
         answered: async () => {
           await sendQueued(sendDeps);
         },
-        revoke: async (connection) => {
-          await cloudFor(connection).signOut();
-        },
+        revoke,
       }),
     );
     browser.contextMenus.onClicked.addListener((info, tab) => {
@@ -227,6 +212,10 @@ export default defineBackground({
     });
     browser.runtime.onInstalled.addListener((details) => {
       void installed(details.reason);
+    });
+    // the one event that wakes the worker as the browser starts, which a cleared alarm cannot
+    browser.runtime.onStartup.addListener(() => {
+      void sendQueued(sendDeps);
     });
     void starting();
   },

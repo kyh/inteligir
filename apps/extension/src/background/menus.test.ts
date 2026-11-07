@@ -71,6 +71,19 @@ describe("a data: address's bytes", () => {
     );
   });
 
+  // as the browser reads one: its body percent-decoded first, then its base64
+  it("are its base64 with its escapes decoded, as the picture the browser draws", () => {
+    const signature = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    expect(bytesOfDataUrl("data:image/png;base64,iVBORw0KGgo%3D")).toStrictEqual(signature);
+    expect(bytesOfDataUrl("data:image/png;base64,iVBOR%0Aw0KGgo=")).toStrictEqual(signature);
+    expect(
+      menuAction({
+        menuItemId: "save-image",
+        srcUrl: "data:image/png;base64,iVBORw0KGgo%3D",
+      }),
+    ).toStrictEqual({ bytes: signature, kind: "picture" });
+  });
+
   it("are a large run of plain text whole, past what a call's arguments hold", () => {
     const run = "a".repeat(200_000);
     expect(bytesOfDataUrl(`data:image/svg+xml;utf8,<svg>${run}</svg>`)).toStrictEqual(
@@ -80,6 +93,7 @@ describe("a data: address's bytes", () => {
 
   it("are none for a body that is not one", () => {
     expect(bytesOfDataUrl("data:image/png;base64,***")).toBeNull();
+    expect(bytesOfDataUrl("data:image/png;base64,iVBORw0KGgo%")).toBeNull();
     expect(bytesOfDataUrl("data:image/png,100%")).toBeNull();
     expect(bytesOfDataUrl("https://example.test/i.png")).toBeNull();
   });

@@ -61,7 +61,7 @@ describe("the connect page's messages", () => {
     revoked.length = 0;
   });
 
-  it("answers whose library it saves to, and keeps a credential handed over with the page's origin as its cloud", async () => {
+  it("names no account to a hello, and keeps a credential handed over with the page's origin as its cloud", async () => {
     await expect(answerConnectPage({ type: "hello" }, SITE, deps)).resolves.toStrictEqual({
       email: null,
     });
@@ -73,7 +73,7 @@ describe("the connect page's messages", () => {
     const held = await readConnection();
     expect(held).toStrictEqual({ ...MINTED, origin: SITE });
     await expect(answerConnectPage({ type: "hello" }, SITE, deps)).resolves.toStrictEqual({
-      email: MINTED.email,
+      email: null,
     });
     expect(revoked).toStrictEqual([]);
   });

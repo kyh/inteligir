@@ -32,29 +32,57 @@ export const OUTCOME_REASONS = [
 ] as const;
 export type OutcomeReason = (typeof OUTCOME_REASONS)[number];
 
+// how a save went
 const outcomeSchema = z.discriminatedUnion("kind", [
   // `created` is false for a page the library already held, which the save folded onto
   z.object({ created: z.boolean(), kind: z.literal("saved"), title: z.string() }),
   // the cloud did not answer: the save waits and goes once it does
   z.object({ kind: z.literal("queued") }),
   z.object({ kind: z.literal("refused"), reason: z.enum(OUTCOME_REASONS) }),
-  // the connection this browser holds, the account's email and the library's address, or none
-  z.object({
-    // the site's page that connects this browser to an account
-    connectUrl: z.string(),
-    connection: z.object({ email: z.string(), libraryUrl: z.string() }).nullable(),
-    kind: z.literal("status"),
-  }),
 ]);
 export type Outcome = z.infer<typeof outcomeSchema>;
 
-// a page asks its worker and reads the answer; an answer that is not one is a failure to report
-export const askWorker = async (request: ExtensionRequest): Promise<Outcome> => {
+const statusSchema = z.object({
+  // the site's page that connects this browser to an account
+  connectUrl: z.string(),
+  // the connection this browser holds, the account's email, the library's address and the page
+  // with Disconnect, or none
+  connection: z
+    .object({ email: z.string(), libraryUrl: z.string(), manageUrl: z.string() })
+    .nullable(),
+});
+export type Status = z.infer<typeof statusSchema>;
+
+// what the worker sends a page: a save's outcome, a status, or, for any work that failed, a refusal
+export type WorkerAnswer = Outcome | Status;
+
+const SAVE_FAILED: Outcome = { kind: "refused", reason: "failed" };
+
+// a page asks its worker and reads the answer; an answer that is not one is `unread`, a failure to
+// report
+const answerTo = async <T, U>(
+  request: ExtensionRequest,
+  schema: z.ZodType<T>,
+  unread: U,
+): Promise<T | U> => {
   try {
     const answer: unknown = await browser.runtime.sendMessage(request);
-    const parsed = outcomeSchema.safeParse(answer);
-    return parsed.success ? parsed.data : { kind: "refused", reason: "failed" };
+    const parsed = schema.safeParse(answer);
+    return parsed.success ? parsed.data : unread;
   } catch {
-    return { kind: "refused", reason: "failed" };
+    return unread;
   }
+};
+
+export interface WorkerAsks {
+  readonly save: (tabId: number) => Promise<Outcome>;
+  // null for an answer that is not a status
+  readonly status: () => Promise<Status | null>;
+  readonly disconnect: () => Promise<Status | null>;
+}
+
+export const askWorker: WorkerAsks = {
+  disconnect: async () => await answerTo({ type: "disconnect" }, statusSchema, null),
+  save: async (tabId) => await answerTo({ tabId, type: "save" }, outcomeSchema, SAVE_FAILED),
+  status: async () => await answerTo({ type: "status" }, statusSchema, null),
 };

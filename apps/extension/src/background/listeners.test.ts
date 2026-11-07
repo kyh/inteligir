@@ -3,7 +3,7 @@ import { browser } from "wxt/browser";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 
 import type { ExtensionConnectAnswer } from "@repo/contract/cloud/extension/extension-connect";
-import type { ExtensionRequest, Outcome } from "../messages";
+import type { ExtensionRequest, WorkerAnswer } from "../messages";
 import type { Connection } from "./connection";
 import { connectPageListener, ownPagesListener } from "./listeners";
 import { CONNECTION } from "./test-support/fake-cloud";
@@ -29,11 +29,7 @@ describe("the extension's own pages", () => {
   const asked: ExtensionRequest[] = [];
   const listener = ownPagesListener(async (request) => {
     asked.push(request);
-    return {
-      connectUrl: "http://localhost:5174/connect/extension",
-      connection: null,
-      kind: "status",
-    };
+    return { connectUrl: "http://localhost:5174/connect/extension", connection: null };
   });
   const POPUP = { id: browser.runtime.id, url: browser.runtime.getURL("/popup.html") };
 
@@ -42,10 +38,10 @@ describe("the extension's own pages", () => {
   });
 
   it("are answered what they ask, once the answer is ready", async () => {
-    const { answers, respond } = answersOf<Outcome>();
+    const { answers, respond } = answersOf<WorkerAnswer>();
     expect(listener({ type: "status" }, POPUP, respond)).toBe(true);
     await vi.waitFor(() => {
-      expect(answers).toMatchObject([{ connection: null, kind: "status" }]);
+      expect(answers).toMatchObject([{ connection: null }]);
     });
     expect(asked).toStrictEqual([{ type: "status" }]);
   });
@@ -53,9 +49,9 @@ describe("the extension's own pages", () => {
   it("are answered a failure when the work behind the answer failed", async () => {
     const failing = ownPagesListener(async () => {
       await Promise.reject(new Error("storage is full"));
-      return { connectUrl: "", connection: null, kind: "status" };
+      return { connectUrl: "", connection: null };
     });
-    const { answers, respond } = answersOf<Outcome>();
+    const { answers, respond } = answersOf<WorkerAnswer>();
     expect(failing({ type: "status" }, POPUP, respond)).toBe(true);
     await vi.waitFor(() => {
       expect(answers).toStrictEqual([{ kind: "refused", reason: "failed" }]);
@@ -82,7 +78,7 @@ describe("the extension's own pages", () => {
       [POPUP, { tabId: 1, type: "disconnect" }],
       [POPUP, "disconnect"],
     ] as const;
-    const { answers, respond } = answersOf<Outcome>();
+    const { answers, respond } = answersOf<WorkerAnswer>();
     for (const [sender, message] of refused) {
       expect(listener(message, sender, respond), JSON.stringify([sender, message])).toBe(false);
     }

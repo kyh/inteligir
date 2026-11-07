@@ -46,6 +46,7 @@ interface ExtensionManifest {
   manifest_version: 3;
   minimum_chrome_version: string;
   name: string;
+  options_ui: { open_in_tab: boolean; page: string };
   permissions: string[];
   version: string;
 }
@@ -66,9 +67,11 @@ export const extensionManifest = (flavor: ExtensionFlavor, version: string): Ext
     externally_connectable: { matches: [connectPagePattern(flavor)] },
     icons,
     manifest_version: 3,
-    // every API under `browser`, and an onMessage answer by promise (Chrome's own floor for both)
+    // every API under `browser`, which is Chrome's own floor for it
     minimum_chrome_version: "148",
     name: "Inteligir",
+    // the page with Disconnect, which a person can open again from the toolbar button's own menu
+    options_ui: { open_in_tab: true, page: "welcome.html" },
     permissions: ["activeTab", "alarms", "contextMenus", "scripting", "storage"],
     version,
   };

@@ -1,5 +1,5 @@
-// what the popup, the welcome page and the toolbar's badge say about an answer, in one place. A
-// refusal says what the person can do about it, and links where that is done.
+// what the popup and the toolbar's badge say of how a save went, in one place. A refusal says what
+// the person can do about it, and links where that is done.
 
 import type { Outcome, OutcomeReason } from "./messages";
 
@@ -34,11 +34,6 @@ export const outcomeLine = (outcome: Outcome): OutcomeLine => {
     }
     case "refused": {
       return REFUSAL_COPY[outcome.reason];
-    }
-    case "status": {
-      return outcome.connection === null
-        ? REFUSAL_COPY["not-connected"]
-        : { connect: false, text: `Saving to ${outcome.connection.email}'s library` };
     }
     // no default
   }

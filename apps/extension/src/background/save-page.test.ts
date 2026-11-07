@@ -1,18 +1,21 @@
+import { ORPCError } from "@orpc/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { browser } from "wxt/browser";
+import type { Browser } from "wxt/browser";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 
 import type { CapturedPage } from "../capture/captured-page";
 import { CAPTURE_DEADLINE_MS } from "./capture-tab";
-import type { Connection } from "./connection";
+import { forgetConnection, readConnection } from "./connection";
 import { saveAddress, savePicture, saveTab } from "./save-page";
 import type { SaveDeps } from "./save-page";
 import { queuedSaves, SEND_ALARM } from "./save-queue";
-import { CONNECTION, fakeCloud, savedAs } from "./test-support/fake-cloud";
+import { fakeCloud, handOver, MINTED, NEXT, savedAs } from "./test-support/fake-cloud";
 import type { FakeCloud } from "./test-support/fake-cloud";
 
-beforeEach(() => {
+beforeEach(async () => {
   fakeBrowser.reset();
+  await handOver(MINTED);
 });
 
 afterEach(() => {
@@ -57,18 +60,21 @@ const page = (overrides: Partial<CapturedPage> = {}): CapturedPage => ({
   ...overrides,
 });
 
+const badRequest = async (): Promise<never> => {
+  throw new ORPCError("BAD_REQUEST");
+};
+
+const unauthorized = async (): Promise<never> => {
+  throw new ORPCError("UNAUTHORIZED");
+};
+
 let seq = 0;
 
-const depsWith = (
-  cloud: FakeCloud,
-  options: { captured?: CapturedPage | null; connection?: Connection | null } = {},
-) => {
+const depsWith = (cloud: FakeCloud, options: { captured?: CapturedPage | null } = {}) => {
   const covers: string[] = [];
-  let signedOut = 0;
   const deps: SaveDeps = {
     capture: async () => (options.captured === undefined ? page() : options.captured),
     cloud: () => cloud.cloud,
-    connection: async () => (options.connection === undefined ? CONNECTION : options.connection),
     fetchCover: async (url) => {
       covers.push(url);
       return PNG;
@@ -79,11 +85,8 @@ const depsWith = (
     },
     now: () => Date.UTC(2026, 10, 5, 12),
     randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
-    signedOut: async () => {
-      signedOut += 1;
-    },
   };
-  return { covers, deps, signedOut: () => signedOut };
+  return { covers, deps };
 };
 
 describe("a tab saved", () => {
@@ -155,6 +158,75 @@ describe("a tab saved", () => {
     ]);
   });
 
+  it("is saved as its link, for the cloud to read, when it held no text the reader could keep", async () => {
+    const shell = [
+      "<!doctype html>",
+      '<html lang="en"><head><title>A shell</title>',
+      '<meta name="description" content="A page its scripts have yet to draw.">',
+      '</head><body><div id="root"></div></body></html>',
+    ].join("\n");
+    const cloud = fakeCloud({});
+    await saveTab(depsWith(cloud, { captured: page({ html: shell, title: "A shell" }) }).deps, {
+      tab: TAB,
+    });
+    expect(cloud.saves).toStrictEqual([]);
+    expect(cloud.links).toStrictEqual([
+      expect.objectContaining({ selection: PASSAGE, title: "A shell", url: URL_SAVED }),
+    ]);
+  });
+
+  it("is saved as its link when the cloud will not take its reading as a call", async () => {
+    for (const code of ["BAD_REQUEST", "PAYLOAD_TOO_LARGE"]) {
+      const cloud = fakeCloud({
+        save: async () => {
+          throw new ORPCError(code);
+        },
+      });
+      await expect(saveTab(depsWith(cloud).deps, { tab: TAB }), code).resolves.toMatchObject({
+        created: true,
+        kind: "saved",
+      });
+      const [save] = cloud.saves;
+      expect(cloud.links, code).toStrictEqual([
+        expect.objectContaining({
+          id: save?.id,
+          opId: save?.opId,
+          selection: PASSAGE,
+          url: URL_SAVED,
+        }),
+      ]);
+      await expect(queuedSaves()).resolves.toStrictEqual([]);
+    }
+  });
+
+  it("lets go a save whose link the cloud refuses too, and says so", async () => {
+    const cloud = fakeCloud({ save: badRequest, saveLink: badRequest });
+    await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
+      kind: "refused",
+      reason: "failed",
+    });
+    expect(cloud.links).toHaveLength(1);
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
+  });
+
+  it("sends no link past a refusal the link would meet as well", async () => {
+    for (const [code, reason] of [
+      ["QUOTA", "library-full"],
+      ["CLIENT_OUTDATED", "update-extension"],
+    ] as const) {
+      const cloud = fakeCloud({
+        save: async () => {
+          throw new ORPCError(code);
+        },
+      });
+      await expect(saveTab(depsWith(cloud).deps, { tab: TAB }), code).resolves.toStrictEqual({
+        kind: "refused",
+        reason,
+      });
+      expect(cloud.links, code).toStrictEqual([]);
+    }
+  });
+
   it("waits, as its address, title and passage alone, when the cloud does not answer", async () => {
     const cloud = fakeCloud({
       save: async () => {
@@ -166,48 +238,93 @@ describe("a tab saved", () => {
     });
     const [queued] = await queuedSaves();
     expect(queued).toMatchObject({
-      deviceId: CONNECTION.deviceId,
+      deviceId: MINTED.deviceId,
       selection: PASSAGE,
       title: "File over app",
       url: URL_SAVED,
     });
     expect(Object.keys(queued ?? {}).toSorted()).toStrictEqual([
       "deviceId",
+      "firstTry",
       "id",
       "opId",
       "savedAt",
       "selection",
       "title",
       "url",
-      "waitingSince",
     ]);
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
   });
 
-  it("is kept in the queue before its first call goes", async () => {
+  it("is kept in the queue, the alarm standing, before its first call goes", async () => {
     let queuedAtCall: number | null = null;
+    let alarmAtCall: Browser.alarms.Alarm | undefined;
     const cloud = fakeCloud({
       save: async () => {
         const queued = await queuedSaves();
         queuedAtCall = queued.length;
+        alarmAtCall = await browser.alarms.get(SEND_ALARM);
         return savedAs("File over app");
       },
     });
     await saveTab(depsWith(cloud).deps, { tab: TAB });
     expect(queuedAtCall).toBe(1);
+    expect(alarmAtCall).toBeDefined();
+  });
+
+  it("ends the connection, and asks for it again, once the cloud says the credential is gone", async () => {
+    const cloud = fakeCloud({
+      save: async () => {
+        throw new ORPCError("UNAUTHORIZED");
+      },
+    });
+    await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
+      kind: "refused",
+      reason: "signed-out",
+    });
+    await expect(readConnection()).resolves.toBeNull();
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
+  });
+
+  it("asks for the connection again when another save's refusal already ended it", async () => {
+    const other = depsWith(fakeCloud({ save: unauthorized })).deps;
+    const cloud = fakeCloud({
+      save: async () => {
+        await saveTab(other, { tab: TAB });
+        return await unauthorized();
+      },
+    });
+    await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
+      kind: "refused",
+      reason: "signed-out",
+    });
+  });
+
+  it("keeps the connection a connect handed over while its call under the old one was on its way", async () => {
+    const cloud = fakeCloud({
+      save: async () => {
+        await handOver(NEXT);
+        throw new ORPCError("UNAUTHORIZED");
+      },
+    });
+    await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
+      kind: "refused",
+      reason: "failed",
+    });
+    await expect(readConnection()).resolves.toMatchObject({ deviceId: NEXT.deviceId });
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
 
   it("asks for a connection first, and saves nothing off the web", async () => {
     const cloud = fakeCloud({});
     await expect(
-      saveTab(depsWith(cloud, { connection: null }).deps, { tab: TAB }),
-    ).resolves.toStrictEqual({
+      saveTab(depsWith(cloud).deps, { tab: { ...TAB, url: "chrome://settings" } }),
+    ).resolves.toStrictEqual({ kind: "refused", reason: "unsupported-page" });
+    await forgetConnection();
+    await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
       kind: "refused",
       reason: "not-connected",
     });
-    await expect(
-      saveTab(depsWith(cloud).deps, { tab: { ...TAB, url: "chrome://settings" } }),
-    ).resolves.toStrictEqual({ kind: "refused", reason: "unsupported-page" });
     expect(cloud.saves).toStrictEqual([]);
     await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
@@ -234,6 +351,19 @@ describe("a right-click's address or picture", () => {
     expect(cloud.files).toStrictEqual([
       expect.objectContaining({ name: "file-over-app.png", sha: "c".repeat(64) }),
     ]);
+  });
+
+  it("keeps the connection a connect handed over while a picture's call was on its way", async () => {
+    const cloud = fakeCloud({
+      putFile: async () => {
+        await handOver(NEXT);
+        throw new ORPCError("UNAUTHORIZED");
+      },
+    });
+    await expect(
+      savePicture(depsWith(cloud).deps, { bytes: PNG, pageUrl: URL_SAVED }),
+    ).resolves.toStrictEqual({ kind: "refused", reason: "failed" });
+    await expect(readConnection()).resolves.toMatchObject({ deviceId: NEXT.deviceId });
   });
 
   it("says a picture's bytes need a connection, since they wait in no queue", async () => {

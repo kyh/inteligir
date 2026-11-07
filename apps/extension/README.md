@@ -33,7 +33,7 @@ src/manifest.ts                   the MV3 manifest, one function of the build's 
 src/entrypoints/background.ts     the service worker: its listeners, the menus, the badge
 src/entrypoints/capture.ts        the script executeScript injects: the rendered DOM, cloned
 src/entrypoints/popup/            the toolbar's popup: the save and how it went
-src/entrypoints/welcome/          the page an install opens: the account it saves to, or Connect
+src/entrypoints/welcome/          the page an install, the popup and Options open: the account and Disconnect, or Connect
 src/background/connection.ts      the credential, kept in storage, and the connect page's messages
 src/background/listeners.ts       who the worker hears: its own pages and the one connect page
 src/background/cloud.ts           the /v1 calls, their deadline and what a failure means
@@ -43,7 +43,7 @@ src/background/capture-tab.ts     the capture injected, and a cover's bytes fetc
 src/background/menus.ts           what each right-click item saves
 src/capture/                      the capture's clone of the page and the shape it answers
 src/messages.ts                   what the pages ask the worker, and its answers
-src/outcome-copy.ts               every sentence the popup, the welcome page and the badge say
+src/outcome-copy.ts               what the popup and the badge say of how a save went
 ```
 
 The pages ask the worker, and the worker asks the cloud. `pnpm

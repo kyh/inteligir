@@ -1,20 +1,19 @@
 // the toolbar's popup: it saves the tab it opened over as soon as it opens and says how that went,
 // in outcome-copy.ts's sentences, never the cloud's own words; a browser not yet connected to an
-// account is pointed at the site's page that connects it, and a connected one at its library.
+// account is pointed at the site's page that connects it, and a connected one at its library and
+// the page that lets the connection go.
 
 import { Spinner } from "@repo/ui/components/spinner";
 import { useEffect, useRef, useState } from "react";
 
-import type { ExtensionRequest, Outcome } from "../../messages";
+import type { Outcome, Status, WorkerAsks } from "../../messages";
 import { outcomeLine } from "../../outcome-copy";
 
 export interface PopupProps {
   // the tab the popup opened over, or null when there is none to save
   activeTabId: () => Promise<number | null>;
-  ask: (request: ExtensionRequest) => Promise<Outcome>;
+  ask: Pick<WorkerAsks, "save" | "status">;
 }
-
-type Status = Extract<Outcome, { kind: "status" }>;
 
 const Headline = ({ outcome, status }: { outcome: Outcome | null; status: Status | null }) => {
   if (outcome === null) {
@@ -56,25 +55,20 @@ const Headline = ({ outcome, status }: { outcome: Outcome | null; status: Status
   );
 };
 
-// the tab the popup opened over and what saving it answered, with where the library is
+// what saving the tab answered, with where the library is
 interface OpenedSave {
   answer: Outcome;
   status: Status | null;
 }
 
-const statusOf = (outcome: Outcome): Status | null => (outcome.kind === "status" ? outcome : null);
-
-// null when there is no tab to save
 const saveOpenedTab = async (
   activeTabId: PopupProps["activeTabId"],
   ask: PopupProps["ask"],
 ): Promise<OpenedSave> => {
   const tabId = await activeTabId();
   const answer: Outcome =
-    tabId === null
-      ? { kind: "refused", reason: "unsupported-page" }
-      : await ask({ tabId, type: "save" });
-  return { answer, status: statusOf(await ask({ type: "status" })) };
+    tabId === null ? { kind: "refused", reason: "unsupported-page" } : await ask.save(tabId);
+  return { answer, status: await ask.status() };
 };
 
 export const Popup = ({ activeTabId, ask }: PopupProps) => {
@@ -100,20 +94,30 @@ export const Popup = ({ activeTabId, ask }: PopupProps) => {
     };
   }, [activeTabId, ask]);
 
-  const libraryUrl = opened?.status?.connection?.libraryUrl ?? null;
+  const connection = opened?.status?.connection ?? null;
 
   return (
     <main className="flex w-80 flex-col gap-3 bg-background p-4 text-foreground">
       <Headline outcome={opened?.answer ?? null} status={opened?.status ?? null} />
-      {libraryUrl === null ? null : (
-        <a
-          className="text-body text-muted-foreground underline"
-          href={libraryUrl}
-          rel="noreferrer"
-          target="_blank"
-        >
-          Open your library
-        </a>
+      {connection === null ? null : (
+        <>
+          <a
+            className="text-body text-muted-foreground underline"
+            href={connection.libraryUrl}
+            rel="noreferrer"
+            target="_blank"
+          >
+            Open your library
+          </a>
+          <a
+            className="text-body text-muted-foreground underline"
+            href={connection.manageUrl}
+            rel="noreferrer"
+            target="_blank"
+          >
+            Manage connection
+          </a>
+        </>
       )}
     </main>
   );

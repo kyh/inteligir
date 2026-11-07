@@ -26,8 +26,8 @@ import { WORKER_CONDITIONS } from "./worker-conditions";
 // the extension's version is its package's
 const { version } = extensionPackage;
 
-// the files every build ships by name: the manifest names the worker and the popup, the worker
-// the capture script and the welcome page
+// the files every build ships by name: the manifest names the worker, the popup and the welcome
+// page, the worker the capture script
 const NAMED_FILES = ["background.js", "capture.js", "manifest.json", "popup.html", "welcome.html"];
 
 const fail = (message: string): never => {

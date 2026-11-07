@@ -33,6 +33,15 @@ describe("the manifest", () => {
     expect(store.minimum_chrome_version).toBe("148");
   });
 
+  it("names the welcome page as its options in every build, so the browser can open it again", () => {
+    for (const flavor of ["dev", "store", "store-unpacked"] as const) {
+      expect(extensionManifest(flavor, "0.6.0").options_ui, flavor).toStrictEqual({
+        open_in_tab: true,
+        page: "welcome.html",
+      });
+    }
+  });
+
   it("lets only the site's connect page message it, the production site's in a store build", () => {
     expect(extensionManifest("store", "0.6.0").externally_connectable).toStrictEqual({
       matches: ["https://inteligir.com/connect/extension"],

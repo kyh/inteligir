@@ -13,7 +13,7 @@ const MINTED = {
 };
 
 // an extension that answers as the case scripts, and what the page asked of the cloud: the email
-// it is connected as, null for none, or "absent" for no extension at all
+// the message connected, null for none, or "absent" for no extension at all
 const portsWith = (answer: (request: ExtensionConnectRequest) => string | null) => {
   const asked: ExtensionConnectRequest[] = [];
   const revoked: string[] = [];
@@ -66,13 +66,19 @@ describe("a message to the extension", () => {
       {
         sendMessage: async (...args) => {
           sent.push(args);
-          return { email: MINTED.email, extra: true };
+          return { email: null, extra: true };
         },
       },
       { type: "hello" },
     );
-    expect(answer).toStrictEqual({ email: MINTED.email });
+    expect(answer).toStrictEqual({ email: null });
     expect(sent).toStrictEqual([[EXTENSION_ID, { type: "hello" }]]);
+    await expect(
+      askExtension(
+        { sendMessage: async () => ({ email: MINTED.email }) },
+        { connection: MINTED, type: "connect" },
+      ),
+    ).resolves.toStrictEqual({ email: MINTED.email });
     await expect(
       askExtension({ sendMessage: async () => "nonsense" }, { type: "hello" }),
     ).resolves.toBeNull();

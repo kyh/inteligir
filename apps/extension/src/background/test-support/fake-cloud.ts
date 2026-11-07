@@ -2,6 +2,7 @@
 // the script's, a thrown error included, so a case says how the cloud met a save
 
 import type { Cloud, FileCreate, LinkSave, PageSave, Saved } from "../cloud";
+import { answerConnectPage } from "../connection";
 import type { Connection } from "../connection";
 
 export const CONNECTION: Connection = {
@@ -10,6 +11,15 @@ export const CONNECTION: Connection = {
   email: "reader@example.test",
   origin: "http://localhost:5174",
   userId: "reader",
+};
+
+const { origin: SITE, ...minted } = CONNECTION;
+export const MINTED = minted;
+export const NEXT = { ...minted, credential: `igd_${"b".repeat(64)}`, deviceId: "next-device" };
+
+// the connect page's hand-over, which keeps what it is given and revokes what that replaces
+export const handOver = async (connection: typeof MINTED): Promise<void> => {
+  await answerConnectPage({ connection, type: "connect" }, SITE, { revoke: async () => {} });
 };
 
 export const savedAs = (title: string, folded = false): Saved => ({
@@ -25,7 +35,6 @@ export interface FakeCloud {
   readonly links: LinkSave[];
   readonly files: FileCreate[];
   readonly uploads: { readonly bytes: Uint8Array; readonly mime: string }[];
-  signOuts: number;
 }
 
 export const fakeCloud = (script: {
@@ -52,14 +61,11 @@ export const fakeCloud = (script: {
         fake.links.push(input);
         return await (script.saveLink ?? (async () => savedAs(input.title ?? input.url)))();
       },
-      signOut: async () => {
-        fake.signOuts += 1;
-      },
+      signOut: async () => {},
     },
     files: [],
     links: [],
     saves: [],
-    signOuts: 0,
     uploads: [],
   };
   return fake;

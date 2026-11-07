@@ -5,66 +5,51 @@ import { fakeBrowser } from "wxt/testing/fake-browser";
 
 import { COVER_DEADLINE_MS, COVER_TRIES } from "./capture-tab";
 import { CALL_DEADLINE_MS } from "./cloud";
-import type { Connection } from "./connection";
-import {
-  ensureSendAlarm,
-  keepSave,
-  markWaiting,
-  queuedSaves,
-  SEND_ALARM,
-  sendQueued,
-} from "./save-queue";
+import { forgetConnection, readConnection } from "./connection";
+import { keepSave, markWaiting, queuedSaves, SEND_ALARM, sendQueued } from "./save-queue";
 import type { QueuedSave } from "./save-queue";
-import { CONNECTION, fakeCloud } from "./test-support/fake-cloud";
+import { CONNECTION, fakeCloud, handOver, MINTED, NEXT } from "./test-support/fake-cloud";
 
-beforeEach(() => {
+beforeEach(async () => {
   fakeBrowser.reset();
+  await handOver(MINTED);
 });
 
 const NOW = Date.UTC(2026, 10, 5, 12);
 
 const waiting = (overrides: Partial<QueuedSave> = {}): QueuedSave => ({
   deviceId: CONNECTION.deviceId,
+  firstTry: false,
   id: "01900000-0000-7000-8000-000000000001",
   opId: "01900000-0000-7000-8000-0000000000a1",
   savedAt: NOW - 1000,
   selection: "a passage",
   title: "File over app",
   url: "https://example.test/file-over-app",
-  waitingSince: NOW - 500,
   ...overrides,
 });
 
-const depsWith = (
-  cloud: ReturnType<typeof fakeCloud>,
-  connection: Connection | null = CONNECTION,
-) => {
-  let signedOut = 0;
-  return {
-    deps: {
-      cloud: () => cloud.cloud,
-      connection: async () => connection,
-      now: () => NOW,
-      signedOut: async () => {
-        signedOut += 1;
-      },
-    },
-    signedOut: () => signedOut,
-  };
-};
+const depsWith = (cloud: ReturnType<typeof fakeCloud>) => ({
+  cloud: () => cloud.cloud,
+  now: () => NOW,
+});
 
 describe("a save that waits", () => {
   it("keeps the address, the title and the passage, and holds the alarm while it waits", async () => {
-    await markWaiting(waiting({ waitingSince: null }), NOW);
-    await expect(queuedSaves()).resolves.toStrictEqual([waiting({ waitingSince: NOW })]);
+    await markWaiting(waiting({ firstTry: true }));
+    await expect(queuedSaves()).resolves.toStrictEqual([waiting()]);
+    await expect(browser.alarms.get(SEND_ALARM)).resolves.toMatchObject({ periodInMinutes: 0.5 });
+  });
+
+  it("holds the alarm from the moment it is kept, so a first try whose worker stopped is sent", async () => {
+    await keepSave(waiting({ firstTry: true }));
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toMatchObject({ periodInMinutes: 0.5 });
   });
 
   it("is sent as its link, the passage with it, and goes, and the alarm with the last of them", async () => {
     await keepSave(waiting());
-    await ensureSendAlarm();
     const cloud = fakeCloud({});
-    await sendQueued(depsWith(cloud).deps);
+    await sendQueued(depsWith(cloud));
     expect(cloud.links).toStrictEqual([
       {
         id: waiting().id,
@@ -87,7 +72,7 @@ describe("a save that waits", () => {
         throw new TypeError("Failed to fetch");
       },
     });
-    await sendQueued(depsWith(cloud).deps);
+    await sendQueued(depsWith(cloud));
     expect(cloud.links).toHaveLength(1);
     await expect(queuedSaves()).resolves.toHaveLength(2);
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
@@ -98,14 +83,14 @@ describe("a save that waits", () => {
     const longestTry = COVER_TRIES * COVER_DEADLINE_MS + 2 * CALL_DEADLINE_MS;
     const cloud = fakeCloud({});
     for (const age of [5000, 61_000, longestTry]) {
-      await keepSave(waiting({ savedAt: NOW - age, waitingSince: null }));
-      await sendQueued(depsWith(cloud).deps);
+      await keepSave(waiting({ firstTry: true, savedAt: NOW - age }));
+      await sendQueued(depsWith(cloud));
       expect(cloud.links, `a first try ${String(age)} ms in`).toStrictEqual([]);
     }
     await expect(queuedSaves()).resolves.toHaveLength(1);
     // its worker was stopped mid-call: nothing will say how it went, so it goes again
-    await keepSave(waiting({ savedAt: NOW - 10 * 60_000, waitingSince: null }));
-    await sendQueued(depsWith(cloud).deps);
+    await keepSave(waiting({ firstTry: true, savedAt: NOW - 10 * 60_000 }));
+    await sendQueued(depsWith(cloud));
     expect(cloud.links).toHaveLength(1);
   });
 
@@ -117,16 +102,16 @@ describe("a save that waits", () => {
         throw new ORPCError("CLIENT_OUTDATED");
       },
     });
-    await sendQueued(depsWith(outdated).deps);
+    await sendQueued(depsWith(outdated));
     expect(outdated.links).toHaveLength(1);
     await expect(queuedSaves()).resolves.toStrictEqual([
-      waiting({ waitingSince: NOW }),
+      waiting(),
       waiting({ opId: "01900000-0000-7000-8000-0000000000a2", savedAt: NOW - 900 }),
     ]);
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
     // the updated extension's worker sends both
     const updated = fakeCloud({});
-    await sendQueued(depsWith(updated).deps);
+    await sendQueued(depsWith(updated));
     expect(updated.links).toHaveLength(2);
     await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
@@ -139,23 +124,64 @@ describe("a save that waits", () => {
         throw new ORPCError("QUOTA");
       },
     });
-    await sendQueued(depsWith(cloud).deps);
+    await sendQueued(depsWith(cloud));
     expect(cloud.links.map((link) => link.opId)).toStrictEqual([
       "01900000-0000-7000-8000-0000000000a3",
     ]);
     await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
 
+  it("is let go, unsent, once this browser holds no connection", async () => {
+    await keepSave(waiting());
+    await forgetConnection();
+    const cloud = fakeCloud({});
+    await sendQueued(depsWith(cloud));
+    expect(cloud.links).toStrictEqual([]);
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
+    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeUndefined();
+  });
+
   it("ends the connection, and what waited under it, once the cloud says the credential is gone", async () => {
     await keepSave(waiting());
+    await keepSave(waiting({ opId: "01900000-0000-7000-8000-0000000000a2", savedAt: NOW - 900 }));
     const cloud = fakeCloud({
       saveLink: async () => {
         throw new ORPCError("UNAUTHORIZED");
       },
     });
-    const run = depsWith(cloud);
-    await sendQueued(run.deps);
-    expect(run.signedOut()).toBe(1);
+    await sendQueued(depsWith(cloud));
+    await expect(readConnection()).resolves.toBeNull();
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
+    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeUndefined();
+  });
+
+  it("keeps the connection a connect handed over while a call under the old one was on its way", async () => {
+    await keepSave(waiting());
+    await keepSave(waiting({ opId: "01900000-0000-7000-8000-0000000000a2", savedAt: NOW - 900 }));
+    const cloud = fakeCloud({
+      saveLink: async () => {
+        await handOver(NEXT);
+        await keepSave(
+          waiting({
+            deviceId: NEXT.deviceId,
+            opId: "01900000-0000-7000-8000-0000000000a3",
+            savedAt: NOW - 800,
+          }),
+        );
+        throw new ORPCError("UNAUTHORIZED");
+      },
+    });
+    await sendQueued(depsWith(cloud));
+    await expect(readConnection()).resolves.toMatchObject({ deviceId: NEXT.deviceId });
+    await expect(queuedSaves()).resolves.toHaveLength(3);
+    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
+    // the next pass lets the old credential's saves go, and sends what the new one made
+    const answering = fakeCloud({});
+    await sendQueued(depsWith(answering));
+    expect(answering.links.map((link) => link.opId)).toStrictEqual([
+      "01900000-0000-7000-8000-0000000000a3",
+    ]);
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
 
   it("drops a record that does not parse, rather than sending it", async () => {
