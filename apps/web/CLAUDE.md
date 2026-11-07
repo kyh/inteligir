@@ -692,9 +692,11 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   reads an `AGENTS.md` as a note like any other, and an export writes the rules
   under that name, no file for a blank page, so moving them is a paste. The one
   file an import passes over is an `AGENTS.md` at the export's root, below any
-  folder a zip wrapped it in, that says exactly what the library's rules say,
-  which it counts as already saved, so an export reads back into its own
-  library as nothing new. A
+  folder `unwrapExport` takes off, that says exactly what the library's rules
+  say, which it counts as already saved, so an export reads back into its own
+  library as nothing new. An export of notes alone, zipped again under its
+  folder, carries no mark of one, so it stays that folder and its rules a note
+  there. A
   running conversation hears of a change at its next reply, and of a clearing
   too, in a system message of its own, since the rules it holds outlive the
   turn that sent them.

@@ -111,8 +111,11 @@ root.
   unknown `kind` is a note, and an export writes a note none. The filename is
   the title (`itemNameFromTitle` in `@repo/notes/items/item-name`), and a
   `title:` key is written only for a title the file's stem cannot carry, one
-  its name mended or numbered, so an export reads back as the item. Rejected:
-  a frontmatter block kept in the item (its keys are the item's fields).
+  its name mended or numbered or the empty one, so an export reads back as the
+  item: `title: ""` is no title, and a blank `title:`, which says nothing,
+  leaves the filename standing and stays a property, as an Obsidian template
+  writes it. Rejected: a frontmatter block kept in the item (its keys are the
+  item's fields).
 
 - **A URL HAS ONE KEY, COMPUTED WITHOUT THE PLATFORM'S URL.**
   `@repo/notes/items/item-url` parses by the RFC 3986 appendix-B regex. The key
