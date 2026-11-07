@@ -611,6 +611,86 @@ describe("a reference and its definition", () => {
   });
 });
 
+describe("a footnote", () => {
+  const NOTED =
+    "Before.\n\nA long para with a claim[^a] and more words.\n\nAfter.\n\n[^a]: the source\n";
+
+  it("rides as its source, and the paragraph it stands in lands", () => {
+    const item = imported(NOTED);
+    expect(item.leftOut).toBe(0);
+    expect(types(item)).toStrictEqual(["p", "p", "p", "p"]);
+    const stored = JSON.stringify(item.blocks);
+    expect(stored).toContain("A long para with a claim");
+    expect(stored).toContain(" and more words.");
+    expect(stored).toContain('"source":"[^a]"');
+    expect(stored).toContain('"source":"[^a]: the source"');
+    expect(bodyOf(exported(item).text)).toBe(NOTED);
+    expect(content(reimported(item))).toStrictEqual(content(item));
+    expect(content(reimported(reimported(item)))).toStrictEqual(content(item));
+  });
+
+  it.each([
+    ["a line alone", "text[^1] more\n\n[^1]: note\n"],
+    ["a heading", "# Title[^1]\n\n[^1]: note\n"],
+    ["a list item", "- item one[^1]\n- item two\n\n[^1]: note\n"],
+    ["a quote", "> one[^1]\n> two\n\n[^1]: note\n"],
+    ["an alert", "> [!NOTE]\n> one[^1]\n\n[^1]: note\n"],
+    ["a table", "| a      | b   |\n| ------ | --- |\n| one[^1] | two |\n\n[^1]: note\n"],
+    ["a toggle", ":::toggle\none[^1]\n:::\n\n[^1]: note\n"],
+    ["a tab", ":::tabs\n=== A\none[^1]\n:::\n\n[^1]: note\n"],
+  ])("keeps the words around one in %s", (_name, text) => {
+    const item = imported(text);
+    expect(item.leftOut).toBe(0);
+    const body = bodyOf(exported(item).text);
+    expect(body).toContain("[^1]");
+    expect(body).toContain("[^1]: note");
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it.each([
+    ["ending a toggle", ":::toggle\nBody[^a].\n\n[^a]: the source\n\n:::\n", "toggle"],
+    ["alone in a toggle", ":::toggle\n[^a]: the source\n\n:::\n", "toggle"],
+    ["ending a tab", ":::tabs\n=== A\nBody[^a].\n\n[^a]: the source\n\n:::\n", "tab_group"],
+    [
+      "ending a column",
+      ":::columns\n:::column\nBody[^a].\n\n[^a]: the source\n\n:::\n:::\n",
+      "column_group",
+    ],
+  ])("keeps a container a definition stands %s in", (_name, text, type) => {
+    const item = imported(text);
+    expect(types(item)).toStrictEqual([type]);
+    expect(bodyOf(exported(item).text)).toBe(text);
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it("keeps a definition of several blocks whole", () => {
+    const text = "One[^a].\n\n[^a]: First.\n\n    Second.\n\n    - third\n\nAfter.\n";
+    const item = imported(text);
+    expect(item.leftOut).toBe(0);
+    expect(bodyOf(exported(item).text)).toBe(text);
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it("keeps a definition nothing uses, and a call no definition answers, as words", () => {
+    const item = imported("[^a]: unused\n\nA call[^nothing] alone.\n");
+    expect(item.leftOut).toBe(0);
+    const body = bodyOf(exported(item).text);
+    expect(body).toContain("[^a]: unused");
+    expect(body).toContain("nothing");
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  // no spelling is read in a held source, so a highlight there writes the escape that says it is text
+  it("reads nothing out of what a definition holds", () => {
+    const item = imported("One[^a].\n\n[^a]: ==kept== and @2026-08-22 and [[Other]]\n");
+    expect(item.annotations).toStrictEqual({});
+    expect(bodyOf(exported(item).text)).toContain(
+      String.raw`[^a]: \==kept== and @2026-08-22 and [[Other]]`,
+    );
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+});
+
 describe("a tab's label", () => {
   it.each([
     [String.raw`\@2026-08-22`, "@2026-08-22"],

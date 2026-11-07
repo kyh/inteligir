@@ -84,7 +84,8 @@ src/
   (`@repo/notes/markdown/remark-inline-html`), so every file the codec reads
   becomes blocks, settled through the serializer as it comes in. Constructs
   with no editor node — a tag that cannot pair, any pair but a bare `<u>`, raw
-  HTML — are opaque inline nodes (`@repo/notes/markdown/remark-opaque`): shown
+  HTML, a footnote, a definition nothing used — are opaque inline nodes
+  (`@repo/notes/markdown/remark-opaque`): shown
   as inert literal text and written back byte-for-byte, and `{` is prose. Only
   a nesting deeper than the conversion holds is refused (an import leaves the
   file out, an agent's edit is turned down), so nothing is written over it; a

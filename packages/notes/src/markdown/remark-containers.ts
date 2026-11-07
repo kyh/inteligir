@@ -26,7 +26,7 @@ import type { Plugin, Processor, Transformer } from "unified";
 
 import { splitLinesKeepingTerminators } from "../text/source-lines";
 import { isMdastRoot } from "./mdast-nodes";
-import { isHeldDefinition } from "./remark-opaque";
+import { isHeldDefinition, isHeldFootnote } from "./remark-opaque";
 import { escapedAt, joinedText, textCutter } from "./text-escapes";
 
 export type ContainerContent = BlockContent | DefinitionContent;
@@ -622,15 +622,10 @@ const rewriteTree = (node: Root | RootContent): void => {
 };
 
 // a marker line runs on into the paragraph one of these leaves open, so a blank line ends it first
-const ABSORBS_NEXT_LINE: ReadonlySet<string> = new Set([
-  "blockquote",
-  "footnoteDefinition",
-  "list",
-  "table",
-]);
+const ABSORBS_NEXT_LINE: ReadonlySet<string> = new Set(["blockquote", "list", "table"]);
 
 const blankBeforeMarker = (last: ContainerContent | undefined): string =>
-  last !== undefined && ABSORBS_NEXT_LINE.has(last.type) ? "\n" : "";
+  last !== undefined && (ABSORBS_NEXT_LINE.has(last.type) || isHeldFootnote(last)) ? "\n" : "";
 
 const emptyFirstItem = (list: List): boolean => {
   const [item] = list.children;
