@@ -335,8 +335,9 @@ const reachesTarget = (value: {
   value.blockRef !== undefined;
 const REACHES_TARGET = { error: "names no item, title or anchor" };
 
-// a link by the target's id, so a rename rewrites nothing: the title is what the writer saw, and
-// a null id is a link to a title no item holds yet, which resolves when one appears
+// a link by the target's id, so a rename rewrites nothing. The title is what the writer saw, empty
+// where an id or an anchor alone reaches the target. A null id stays null and writes no `links` row:
+// an editor reads the title against the items it holds, each time it draws the link
 const wikiLink = z
   .strictObject({
     alias: z.string().min(1).optional(),
@@ -349,9 +350,9 @@ const wikiLink = z
   })
   .refine(reachesTarget, REACHES_TARGET);
 
-// an embed shows its target whole, one heading's section of it, or one block of it; like a link it
-// names its target by id with the title the writer saw, a null id waiting for an item of that
-// title, and an alias is what the writer put after its last pipe (Obsidian's width of an image)
+// an embed shows its target whole, one heading's section of it, or one block of it; it names its
+// target as a link does, and an alias is what the writer put after its last pipe (Obsidian's width
+// of an image)
 const wikiEmbed = z
   .strictObject({
     alias: z.string().min(1).optional(),
