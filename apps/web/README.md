@@ -484,9 +484,7 @@ to create the first account.
 Setup, once:
 
 ```bash
-# the Deploy token also needs D1: Edit, Workers R2 Storage: Edit, Queues: Edit and
-# Workers KV Storage: Edit, and the
-# repo needs a CLOUDFLARE_ACCOUNT_ID secret beside CLOUDFLARE_API_TOKEN
+# the Deploy token also needs D1: Edit and Workers R2 Storage: Edit
 # wrangler: cf has no preview secret command yet
 pnpm -F @repo/web exec wrangler preview base-config secret put BETTER_AUTH_SECRET --worker-name inteligir-web  # a preview-only value
 # the token of the `inteligir-preview` AI Gateway, which stores the PREVIEW Anthropic
