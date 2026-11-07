@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { bodyPrefilters, excerptAround, findTextOffsets } from "./text-matches";
+import { excerptAround, findTextOffsets, isPrintableAscii } from "./text-matches";
 
 const LOOSE = { caseSensitive: false, wholeWord: false };
 
@@ -54,17 +54,18 @@ describe("offsets into one string", () => {
 describe("the excerpt around a match", () => {
   it("clips both sides and marks the cut", () => {
     const line = `${"a".repeat(60)}NEEDLE${"b".repeat(120)}`;
-    const excerpt = excerptAround(line, { column: 60, length: 6, line: 1 });
+    const excerpt = excerptAround(line, { length: 6, offset: 60 });
     expect(excerpt.text).toBe("NEEDLE");
     expect(excerpt.before).toBe(`…${"a".repeat(40)}`);
     expect(excerpt.after).toBe(`${"b".repeat(80)}…`);
   });
 });
 
-describe("the prefilter a store may apply", () => {
-  it("is the needles while every one is printable ascii, and nothing otherwise", () => {
-    expect(bodyPrefilters(["deploy now", "Plan B"])).toStrictEqual(["deploy now", "Plan B"]);
-    expect(bodyPrefilters(["deploy", "acción"])).toBeNull();
-    expect(bodyPrefilters(["a\tb"])).toBeNull();
+describe("a needle SQLite folds as the matcher does", () => {
+  it("is printable ascii on one line", () => {
+    expect(isPrintableAscii("deploy now")).toBe(true);
+    expect(isPrintableAscii("acción")).toBe(false);
+    expect(isPrintableAscii("a\tb")).toBe(false);
+    expect(isPrintableAscii("a\nb")).toBe(false);
   });
 });

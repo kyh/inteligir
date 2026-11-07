@@ -11,13 +11,7 @@ import { annotationEntrySchema, annotationSourceSchema } from "../annotations/st
 import type { AnnotationStore } from "../annotations/store-schema";
 import { renderFtsMatch } from "../knowledge/fts-match";
 import { searchExcerpt } from "../knowledge/search-excerpt";
-import {
-  planSearchQuery,
-  SEARCH_FIELD_WEIGHTS,
-  stemText,
-  TYPED_QUERY,
-} from "../knowledge/search-query";
-import type { SearchQueryOptions } from "../knowledge/search-query";
+import { planSearchQuery, SEARCH_FIELD_WEIGHTS, stemText } from "../knowledge/search-query";
 import { blockHashSchema, orderedBlocks } from "./block-ops";
 import type { ItemState, StoredBlock } from "./block-ops";
 import { compareBlockPlaces, ordSchema } from "./block-order";
@@ -671,12 +665,11 @@ export interface LibrarySearchHit {
 export const searchLibrary = function* searchLibrary(
   query: string,
   limit: number,
-  options: SearchQueryOptions = TYPED_QUERY,
 ): SqlPlan<LibrarySearchHit[]> {
   if (limit <= 0) {
     return [];
   }
-  for (const plan of planSearchQuery(query, options)) {
+  for (const plan of planSearchQuery(query)) {
     const rows = yield all(SEARCH_SQL, [renderFtsMatch(plan), limit]);
     if (rows.length > 0) {
       return rows.map((raw) => {

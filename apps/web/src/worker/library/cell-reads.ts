@@ -13,8 +13,11 @@ import type {
 } from "@repo/contract/cloud/library/library-wire";
 import { itemView, viewPage } from "@repo/editor/codec/item-view";
 import type { ViewPage } from "@repo/editor/codec/item-view";
-import { TYPED_QUERY } from "@repo/notes/knowledge/search-query";
-import { bodyPrefilters, excerptAround, findTextOffsets } from "@repo/notes/knowledge/text-matches";
+import {
+  excerptAround,
+  findTextOffsets,
+  isPrintableAscii,
+} from "@repo/notes/knowledge/text-matches";
 import type { ItemKind } from "@repo/notes/items/item-kind";
 import { compareText } from "@repo/notes/library/block-order";
 import { itemCardSchema } from "@repo/notes/library/derive-item";
@@ -249,7 +252,7 @@ const lineExcerpt = (text: string, query: string): string | null => {
   for (const line of text.split("\n")) {
     const [match] = findTextOffsets(line, query, { caseSensitive: false, wholeWord: false });
     if (match !== undefined) {
-      const excerpt = excerptAround(line, { column: match.offset, length: match.length, line: 1 });
+      const excerpt = excerptAround(line, match);
       return `${excerpt.before}${excerpt.text}${excerpt.after}`;
     }
   }
@@ -262,10 +265,10 @@ const lineExcerpt = (text: string, query: string): string | null => {
 // on one line has such a scan, since SQLite folds ascii case alone and a match lives in one line
 const searchHits = (sql: SqlStatements, query: string): Map<string, string> => {
   const hits = new Map<string, string>();
-  for (const hit of runPlan(sql, searchLibrary(query, SEARCH_CANDIDATES, TYPED_QUERY))) {
+  for (const hit of runPlan(sql, searchLibrary(query, SEARCH_CANDIDATES))) {
     hits.set(hit.itemId, hit.snippet);
   }
-  if (bodyPrefilters([query]) === null || query.includes("\n")) {
+  if (!isPrintableAscii(query)) {
     return hits;
   }
   let after: string | null = null;

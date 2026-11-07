@@ -357,9 +357,6 @@ describe("search", () => {
       "titled",
       "body",
     ]);
-    expect(exec(port, searchLibrary("tool", 10, { typing: false }))).toStrictEqual([
-      expect.objectContaining({ itemId: "body", snippet: expect.stringContaining("tools") }),
-    ]);
   });
 
   it("cuts an item's index row under a Durable Object's row limit", { timeout: 30_000 }, () => {

@@ -142,7 +142,7 @@ node is rather than discriminating structurally at each visit.
 - **Stemming is a SHADOW of the indexed text, never a rewrite of it.** Each of
   the four literal columns (title, headings, meta, body) has a stem shadow at
   equal bm25 weight, and `@repo/notes/knowledge/search-query` owns the one
-  policy both engines run. Every term asks both halves, and that OR is the exact
+  policy every index runs. Every term asks both halves, and that OR is the exact
   tier: a doc holding the literal word scores about twice a stem-only hit.
   Rejected: FTS5's `porter` tokenizer (it stems the index, so a prefix query for
   a half-typed word stops retrieving, 86 of 1,555 labelled prefixes, and it puts

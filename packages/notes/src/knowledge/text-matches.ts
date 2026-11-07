@@ -7,15 +7,7 @@ export interface TextMatchOptions {
   wholeWord: boolean;
 }
 
-// line is 1-based; column is the utf-16 offset inside that line
-export interface TextMatch {
-  line: number;
-  column: number;
-  length: number;
-}
-
-// offset is the utf-16 offset into the whole string, for a caller whose text is not a file's
-// lines (an editor's text leaf)
+// offset is the utf-16 offset into the text searched
 export interface TextOffset {
   offset: number;
   length: number;
@@ -61,8 +53,8 @@ export interface MatchExcerpt {
   after: string;
 }
 
-export const excerptAround = (line: string, match: TextMatch): MatchExcerpt => {
-  const start = match.column;
+export const excerptAround = (line: string, match: TextOffset): MatchExcerpt => {
+  const start = match.offset;
   const end = start + match.length;
   const from = Math.max(0, start - EXCERPT_BEFORE);
   const to = Math.min(line.length, end + EXCERPT_AFTER);
@@ -75,8 +67,5 @@ export const excerptAround = (line: string, match: TextMatch): MatchExcerpt => {
 
 const PRINTABLE_ASCII = /^[\u0020-\u007E]+$/u;
 
-// a store may narrow the docs it hands over to those holding one of these ascii substrings,
-// case-insensitively; outside ascii the case fold differs by engine, so one such needle means
-// every doc is scanned (null)
-export const bodyPrefilters = (needles: readonly string[]): string[] | null =>
-  needles.every((needle) => PRINTABLE_ASCII.test(needle)) ? [...needles] : null;
+// the needles SQLite's case fold reads as this matcher does, each on one line
+export const isPrintableAscii = (needle: string): boolean => PRINTABLE_ASCII.test(needle);
