@@ -131,11 +131,11 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   derives before the deploy and checks after it. The script creates the GitHub
   deployment on the head commit (`.github/scripts/worker-preview.mjs`), since a
   job's `environment:` under `workflow_run` records the default branch, and
-  deletes a closed PR's Preview before it reports it gone, a 404 alone being no
-  failure. Rejected: Workers Builds (it deploys on push and cannot wait for CI);
-  a preview on the production D1 (PR code would write real accounts);
-  `cf previews delete` for the close (it exits 1 on a 404 and on an expired
-  token alike).
+  deletes a closed PR's Preview before it reports it gone, Cloudflare's "Preview
+  not found" alone being no failure. Rejected: Workers Builds (it deploys on push
+  and cannot wait for CI); a preview on the production D1 (PR code would write
+  real accounts); `cf previews delete` for the close (it exits 1 on a miss and on
+  an expired token alike).
   `.github/workflows/preview.yml`, `apps/web/README.md` § Previews.
 
 - **`/v1` IS ONE oRPC WIRE, `/v1/rpc`, ITS REFUSALS DECLARED ONCE.** The

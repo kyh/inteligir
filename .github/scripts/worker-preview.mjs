@@ -192,17 +192,21 @@ const report = async (project, state, url) => {
   });
 };
 
-// a PR that never went green never had a Preview, so a 404 leaves nothing to do. Any other refusal
-// throws before a surface says the Preview is gone, since nothing comes back to retry it. cf's own
-// delete exits 1 on a 404 and on an expired token alike.
+// Cloudflare's "Preview not found.": a PR that never went green never had one, so there is nothing
+// to delete. Its code, not a 404, which a Worker's wrong name or a moved route answers too.
+const PREVIEW_NOT_FOUND = /"code":\s*10025\b/u;
+
+// any other refusal throws before a surface says the Preview is gone, since nothing comes back to
+// retry it. cf's own delete exits 1 on a miss and on an expired token alike.
 const deletePreview = async (project, pr) => {
   const path = `/accounts/${env("CLOUDFLARE_ACCOUNT_ID")}/workers/workers/${project}/previews/pr-${pr}`;
   const response = await fetch(`${cloudflareApi}${path}`, {
     headers: { authorization: `Bearer ${env("CLOUDFLARE_API_TOKEN")}` },
     method: "DELETE",
   });
-  if (!response.ok && response.status !== 404) {
-    throw new Error(`DELETE ${path}: ${response.status} ${await response.text()}`);
+  const refusal = response.ok ? "" : await response.text();
+  if (!response.ok && !PREVIEW_NOT_FOUND.test(refusal)) {
+    throw new Error(`DELETE ${path}: ${response.status} ${refusal}`);
   }
 };
 

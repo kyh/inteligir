@@ -465,7 +465,8 @@ URL, a "View deployment" button on the PR, a fresh deploy on every push, and the
 Preview deleted when the PR closes. `.github/workflows/preview.yml` runs it;
 `.github/scripts/worker-preview.mjs` draws the comment and the deployment, and
 deletes the Preview. A delete Cloudflare refuses fails the job and leaves the
-comment as it was, so rerun the job; a 404 is a PR that never had a Preview.
+comment as it was, so rerun the job; only "Preview not found", a PR that never
+had one, is no failure.
 
 A Preview never touches production data. `cloudflare.config.ts` binds
 `inteligir-auth-preview` (D1), `inteligir-vault-preview` (R2),

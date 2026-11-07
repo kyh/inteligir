@@ -54,10 +54,17 @@ interface StateRow {
   readonly url?: string;
 }
 
+// Cloudflare's refusal of a delete: a status, and the code its envelope carries
+interface DeleteRefusal {
+  readonly status: number;
+  readonly code: number;
+  readonly message: string;
+}
+
 interface Seed {
   readonly comments?: readonly Comment[];
   readonly deployments?: readonly Deployment[];
-  readonly previewDeleteStatus?: number;
+  readonly deleteRefusal?: DeleteRefusal;
 }
 
 interface Stub {
@@ -126,8 +133,17 @@ const serve = async (seed: Seed): Promise<Stub> => {
     } else if (method === "POST" && url.pathname.endsWith("/statuses")) {
       send(outgoing, 201, "{}");
     } else if (route === `DELETE ${PREVIEW_PATH}`) {
-      const status = seed.previewDeleteStatus ?? 200;
-      send(outgoing, status, JSON.stringify({ errors: [], result: null, success: status < 300 }));
+      const refusal = seed.deleteRefusal;
+      send(
+        outgoing,
+        refusal?.status ?? 200,
+        JSON.stringify({
+          errors: refusal === undefined ? [] : [{ code: refusal.code, message: refusal.message }],
+          messages: [],
+          result: null,
+          success: refusal === undefined,
+        }),
+      );
     } else {
       send(outgoing, 500, JSON.stringify({ message: `the stub has no ${route}` }));
     }
@@ -305,24 +321,29 @@ describe("worker-preview.mjs close", () => {
     expect(stub.comments[0]?.body).toContain("Deleted");
   });
 
-  it("takes a 404 as a PR that never had a Preview, and closes", async () => {
-    const stub = await serve({ ...closing, previewDeleteStatus: 404 });
+  it("takes Cloudflare's not-found as a PR that never had a Preview, and closes", async () => {
+    const stub = await serve({
+      ...closing,
+      deleteRefusal: { code: 10_025, message: "Preview not found.", status: 404 },
+    });
     const { code } = await runScript(stub, "close", PROJECT);
     expect(code).toBe(0);
     expect(stub.seen.some((seen) => seen.path === PREVIEW_PATH)).toBe(true);
     expect(stub.comments[0]?.body).toContain("Deleted");
   });
 
-  it.each([401, 403, 500, 503])(
-    "fails on a %i from the delete, with nothing reported gone",
-    async (previewDeleteStatus) => {
-      const stub = await serve({ ...closing, previewDeleteStatus });
-      const { code, stderr } = await runScript(stub, "close", PROJECT);
-      expect(code).not.toBe(0);
-      expect(stderr).toContain(String(previewDeleteStatus));
-      expect(statusPosts(stub)).toStrictEqual([]);
-      expect(commentWrites(stub)).toStrictEqual([]);
-      expect(stub.comments[0]?.body).not.toContain("Deleted");
-    },
-  );
+  it.each([
+    { code: 10_000, message: "Authentication error", status: 401 },
+    { code: 10_000, message: "Authentication error", status: 403 },
+    { code: 10_007, message: "This Worker does not exist on your account.", status: 404 },
+    { code: 10_013, message: "An unknown error has occurred.", status: 500 },
+  ])("fails on a $status, code $code, with nothing reported gone", async (deleteRefusal) => {
+    const stub = await serve({ ...closing, deleteRefusal });
+    const { code, stderr } = await runScript(stub, "close", PROJECT);
+    expect(code).not.toBe(0);
+    expect(stderr).toContain(deleteRefusal.message);
+    expect(statusPosts(stub)).toStrictEqual([]);
+    expect(commentWrites(stub)).toStrictEqual([]);
+    expect(stub.comments[0]?.body).not.toContain("Deleted");
+  });
 });
