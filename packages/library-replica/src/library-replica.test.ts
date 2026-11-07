@@ -1554,6 +1554,38 @@ describe("a save the cell folds onto another item", () => {
     await expect(replicaText(phone.replica, holder, "n1")).resolves.toBe("my note");
   });
 
+  it("puts the words each save brought after the note of the item holding the address", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    phone.network.setOffline(true);
+    const mac = await openDevice(cell, "mac");
+    const holder = await mac.replica.saveLink({ folderId: null, tags: [], url: ADDRESS });
+    await write(mac.replica, holder.id, [noted("n1", "my note")]);
+    await mac.replica.sync();
+
+    await phone.replica.saveLink({ folderId: null, note: "saved", tags: [], url: ADDRESS });
+    await phone.replica.savePage({
+      article: [],
+      cover: null,
+      facts: { author: null, description: null, lang: null, published: null, site: null },
+      folderId: null,
+      note: "read",
+      selection: null,
+      tags: [],
+      title: "An article",
+      url: ADDRESS,
+    });
+    phone.network.setOffline(false);
+    await phone.replica.sync();
+
+    const item = await phone.replica.item(holder.id);
+    expect(item?.blocks.map(({ block }) => textOf(block))).toStrictEqual([
+      "my note",
+      "saved",
+      "read",
+    ]);
+  });
+
   it("keeps the rows on the item that holds the address across a relaunch", async () => {
     const cell = createFakeCell();
     const network = heldNetwork(cell, "phone");

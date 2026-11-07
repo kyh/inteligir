@@ -36,6 +36,7 @@ import { urlKey } from "@repo/notes/items/item-url";
 import { blockHash } from "@repo/notes/library/block-hash";
 import { applyOps, orderedBlocks } from "@repo/notes/library/block-ops";
 import type { LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
+import { ordsBetween } from "@repo/notes/library/block-order";
 import { deriveItem, titleKey } from "@repo/notes/library/derive-item";
 import { fileFields, noteFields, pageFields, stubFields } from "@repo/notes/library/item-makes";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
@@ -121,12 +122,18 @@ const placed = (block: LibraryBlock, ord: string, section: LibrarySection): Stor
   section,
 });
 
-// a save's words as the one paragraph the real cell's codec would read them into
-const noteBlocks = (id: string, note: string | undefined): [string, StoredBlock][] => {
+// a save's words as the one paragraph the real cell's codec would read them into, past the note
+// block at `after`; blank words are none
+const noteBlocks = (
+  id: string,
+  note: string | undefined,
+  after: string | null = null,
+): [string, StoredBlock][] => {
   const blockId = `${id}-note`;
-  return note === undefined
+  const [ord] = ordsBetween(after, null, 1);
+  return note === undefined || note.trim() === "" || ord === undefined
     ? []
-    : [[blockId, placed({ children: [{ text: note }], id: blockId, type: "p" }, "n0", "note")]];
+    : [[blockId, placed({ children: [{ text: note }], id: blockId, type: "p" }, ord, "note")]];
 };
 
 // every sha the blocks a write carries name their bytes by
@@ -425,10 +432,17 @@ export const createFakeCell = (): FakeCell => {
     }
   };
 
-  const foldTags = (id: string, tags: readonly string[]) => {
+  // a save onto the item holding its address: its tags join the item's, its note goes after the
+  // item's own
+  const foldOnto = (id: string, tags: readonly string[], note: string | undefined) => {
     const item = held(id);
     const merged = [...new Set([...item.fields.tags, ...tags])];
-    return { folded: true, ...land(id, { ...item.fields, tags: merged }, item.blocks) };
+    const last = orderedBlocks(item.blocks).findLast((stored) => stored.section === "note");
+    const blocks = new Map([
+      ...item.blocks,
+      ...noteBlocks(`${id}-${String(head + 1)}`, note, last?.ord ?? null),
+    ]);
+    return { folded: true, ...land(id, { ...item.fields, tags: merged }, blocks) };
   };
 
   // the live sibling a folder would share a name with, which the cell answers a CONFLICT naming
@@ -611,7 +625,7 @@ export const createFakeCell = (): FakeCell => {
             needsBlobs(input.coverSha === null ? [] : [input.coverSha]);
             const holder = holderOf(input.url);
             if (holder !== null) {
-              return foldTags(holder, input.tags);
+              return foldOnto(holder, input.tags, input.note);
             }
             made(input.id);
             return {
@@ -634,7 +648,7 @@ export const createFakeCell = (): FakeCell => {
           once(input.opId, z.object({ folded: z.boolean() }).and(landedSchema), () => {
             const holder = holderOf(input.url);
             if (holder !== null) {
-              return foldTags(holder, input.tags ?? []);
+              return foldOnto(holder, input.tags ?? [], input.note);
             }
             const id = input.id ?? "01900000-0000-7000-8000-cell00000000";
             made(id);
