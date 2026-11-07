@@ -34,9 +34,11 @@ pnpm dev:web    # the Worker on localhost:5174, serving this page's build at
 Sign in at `localhost:5174/app/sign-in` (`AGENTS.md` § "There is no seeded
 login" makes the account) and the tab comes back to `/library`; reload it after
 an edit. The page runs through the Worker's own route and policy, as a deploy
-does (`apps/web/src/worker/library/library-page.ts`). Anything that needs the
-shell (the updater, Reveal, printing, the diagnostics) draws nothing in a tab:
-`underShell()` in `src/shell/shell-commands.ts` says where the page runs.
+does (`apps/web/src/worker/library/library-page.ts`). What the shell holds (the
+replica on disk, the Keychain, the file cache, the updater) a tab does not: it
+keeps its replica in memory, its session in a cookie, and Settings' Updates row
+says why it offers none. `underShell()` in `src/shell/shell-commands.ts` says
+where the page runs.
 
 ## Tests
 

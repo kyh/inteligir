@@ -4,8 +4,8 @@
 //
 // The browser tab's: SQLite's own wasm in memory, with the session cookie for its credential. The
 // tab keeps nothing between loads: it pulls the library again each time it opens, and a write it
-// queued goes once the cell answers, so the tab is online only (spec §6, "Web"). The Mac's is the
-// shell's (`shell-library.ts`).
+// queued goes once the cell answers, so the tab is online only. The Mac's is the shell's
+// (`shell-library.ts`).
 
 import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { replicaMerge } from "@repo/editor/stale-write";

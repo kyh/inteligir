@@ -56,7 +56,7 @@ export const PREFS = {
   // the scope the library opens on; a folder that is no longer listed reads as every item
   libraryScope: pref("inteligir.library-scope", json(libraryScopeSchema), { kind: "all" }),
   librarySort: pref("inteligir.library-sort", z.enum(LIBRARY_SORTS), "saved"),
-  // closed until asked for: an annotation focus or the top bar's Annotations opens it
+  // closed until asked for: a click on a highlight or the open item's panel button opens it
   panelOpen: pref("inteligir.panel-open", flag, false),
   // the right panel is the same primitive as the rail, dragged by the same handle
   panelWidth: pref("inteligir.panel-width", railWidth, 320),
