@@ -13,7 +13,7 @@ const FRAME = "gap-2 rounded-lg border border-border bg-card p-3";
 
 const changes = (count: number): string => (count === 1 ? "1 change" : `${String(count)} changes`);
 
-// what waits on a connection, said once whatever the reason the last pass stopped
+// what waits on a connection, said only while the cloud cannot be reached
 const waitingLine = (status: ReplicaStatus): string | null => {
   if (status.unsent === status.parked.length) {
     return null;

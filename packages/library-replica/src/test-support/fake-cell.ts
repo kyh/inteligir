@@ -119,6 +119,14 @@ const placed = (block: LibraryBlock, ord: string, section: LibrarySection): Stor
   section,
 });
 
+// a save's words as the one paragraph the real cell's codec would read them into
+const noteBlocks = (id: string, note: string | undefined): [string, StoredBlock][] => {
+  const blockId = `${id}-note`;
+  return note === undefined
+    ? []
+    : [[blockId, placed({ children: [{ text: note }], id: blockId, type: "p" }, "n0", "note")]];
+};
+
 // every sha the blocks a write carries name their bytes by
 const SHA_KEY_RE = /"sha":"(?<sha>[0-9a-f]{64})"/gu;
 const shasIn = (json: string): Set<string> =>
@@ -198,8 +206,11 @@ export const createFakeCell = (): FakeCell => {
   const annotations = new Map<string, AnnotationRow>();
   const folders = new Map<string, FolderRow>();
   const log = new Map<string, Entry>();
-  // each file's type, as its upload named it
-  const blobs = new Map<string, string>();
+  // each file's bytes, and its type as its upload named it
+  const blobs = new Map<
+    string,
+    { readonly bytes: Uint8Array<ArrayBuffer>; readonly mime: string }
+  >();
   const answers = new Map<string, unknown>();
   const calls: string[] = [];
   const uploads: string[] = [];
@@ -554,7 +565,7 @@ export const createFakeCell = (): FakeCell => {
           once(input.opId, landedSchema, () => {
             made(input.id);
             needsBlobs([input.sha]);
-            const mime = blobs.get(input.sha) ?? UNKNOWN_FILE_TYPE;
+            const mime = blobs.get(input.sha)?.mime ?? UNKNOWN_FILE_TYPE;
             return land(input.id, fileFields({ ...input, mime }), new Map());
           }),
         ),
@@ -599,12 +610,13 @@ export const createFakeCell = (): FakeCell => {
               ...land(
                 input.id,
                 pageFields(input, NOW),
-                new Map(
-                  input.article.map((block) => [
+                new Map([
+                  ...input.article.map((block): [string, StoredBlock] => [
                     block.block.id,
                     placed(block.block, block.ord, "article"),
                   ]),
-                ),
+                  ...noteBlocks(input.id, input.note),
+                ]),
               ),
             };
           }),
@@ -632,7 +644,7 @@ export const createFakeCell = (): FakeCell => {
                   title: input.title,
                   url: input.url,
                 }),
-                new Map(),
+                new Map(noteBlocks(id, input.note)),
               ),
             };
           }),
@@ -705,14 +717,22 @@ export const createFakeCell = (): FakeCell => {
       return new Response(null, { status: 400 });
     }
     uploads.push(sha);
-    blobs.set(sha, request.headers.get("content-type") ?? UNKNOWN_FILE_TYPE);
+    blobs.set(sha, { bytes, mime: request.headers.get("content-type") ?? UNKNOWN_FILE_TYPE });
     return new Response(null, { status: 201 });
+  };
+
+  const download = (sha: string): Response => {
+    const file = blobs.get(sha);
+    return file === undefined
+      ? new Response(null, { status: 404 })
+      : new Response(file.bytes, { headers: { "content-type": file.mime } });
   };
 
   const serve = async (name: string, request: Request): Promise<Response> => {
     const path = request.url.slice(ORIGIN.length);
-    if (path.startsWith(`${V1_BLOBS_PATH}/`) && request.method === "PUT") {
-      return await upload(request, path.slice(V1_BLOBS_PATH.length + 1));
+    if (path.startsWith(`${V1_BLOBS_PATH}/`)) {
+      const sha = path.slice(V1_BLOBS_PATH.length + 1);
+      return request.method === "PUT" ? await upload(request, sha) : download(sha);
     }
     calls.push(`${name} ${path.slice(V1_RPC_PATH.length + 1)}`);
     const { matched, response } = await handler.handle(request, { prefix: V1_RPC_PATH });

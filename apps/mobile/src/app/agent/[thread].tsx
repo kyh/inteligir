@@ -15,47 +15,44 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { composerPlaceholder, sendInput, viewContextOf } from "@repo/agent-panel/agent-send";
 import type { AgentViewContext } from "@repo/agent-panel/agent-send";
 import {
-  agentRefusalWords,
+  answerWords,
   approvalWords,
+  callRefusalWords,
+  EMPTY_WORDS,
   endingWords,
   isWorking,
+  sendRefusalWords,
   statusWords,
   threadBlocks,
   threadEntries,
   toolWords,
   waitingApprovals,
+  workWords,
 } from "@repo/agent-panel/thread-entries";
 import type { ThreadBlock, WaitingApproval } from "@repo/agent-panel/thread-entries";
 import { useLibrary, usePreview, useThreadEvents, useThreads } from "@/lib/library-hooks";
-import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { firstParam, NEW_THREAD } from "@/lib/routes";
 import { SPACE, useTheme } from "@/lib/theme";
 import { TextButton } from "@/ui/text-button";
 
 const NEEDS_CONNECTION = "Needs a connection";
-const UNREACHABLE = "The agent couldn't be reached.";
 
-// a refused send in the person's words, the allowance's naming when it fills again from now
-const refusalWords = (cause: unknown): string =>
-  agentRefusalWords(cause, Date.now()) ?? refusalText(cause, UNREACHABLE);
+// a refused send, the allowance's words naming when it fills again from now
+const refusalNow = (cause: unknown): string => sendRefusalWords(cause, Date.now());
 
 // the screen a message leaves from: the item it was asked about, else the whole library
 const contextOf = (fromItem: string | null): AgentViewContext | undefined =>
   viewContextOf({ kind: null, openItem: fromItem, scope: { kind: "all" }, selected: [] });
 
-const workLine = (block: Extract<ThreadBlock, { kind: "work" }>): string => {
-  if (block.uses.length === 0) {
-    return block.notes.at(-1)?.text ?? "Thought it through";
-  }
-  const steps = block.uses.length === 1 ? "1 step" : `${String(block.uses.length)} steps`;
-  return `Worked through ${steps}`;
-};
-
-const Block = ({ block }: { block: ThreadBlock }) => {
+const Block = ({ block, live }: { block: ThreadBlock; live: boolean }) => {
   if (block.kind === "work") {
     return (
       <View className="gap-1 rounded-lg border border-border px-3 py-2">
-        <Text className="text-13 font-semibold text-muted-foreground">{workLine(block)}</Text>
+        {live ? null : (
+          <Text className="text-13 font-semibold text-muted-foreground">
+            {workWords(block.uses.length)}
+          </Text>
+        )}
         {block.notes.map((note) => (
           <Text key={note.eventId} className="text-13 text-muted-foreground">
             {note.text}
@@ -93,11 +90,7 @@ const Block = ({ block }: { block: ThreadBlock }) => {
       );
     }
     case "approval.answered": {
-      return (
-        <Text className="text-13 text-muted-foreground">
-          {event.result === "allow" ? "Allowed." : "Declined."}
-        </Text>
-      );
+      return <Text className="text-13 text-muted-foreground">{answerWords(event.result)}</Text>;
     }
     case "turn.ended": {
       const words = endingWords(event.reason);
@@ -166,8 +159,8 @@ const Conversation = ({ threadId }: { threadId: string }) => {
   const failure = respond.error ?? cancel.error;
   return (
     <View className="gap-3">
-      {blocks.map((block) => (
-        <Block key={block.key} block={block} />
+      {blocks.map((block, index) => (
+        <Block key={block.key} block={block} live={working && index === blocks.length - 1} />
       ))}
       {preview === null ? null : (
         <Text className="text-16 text-foreground leading-[22px]">{preview}</Text>
@@ -196,7 +189,7 @@ const Conversation = ({ threadId }: { threadId: string }) => {
           <Text className="text-13 text-muted-foreground">{NEEDS_CONNECTION}</Text>
         ) : null}
         {failure === null ? null : (
-          <Text className="text-13 text-destructive">{refusalText(failure, UNREACHABLE)}</Text>
+          <Text className="text-13 text-destructive">{callRefusalWords(failure)}</Text>
         )}
       </View>
     </View>
@@ -220,7 +213,7 @@ const Composer = ({
   const send = useMutation(
     queries.library.agent.send.mutationOptions({
       onError: (cause) => {
-        setRefused(refusalWords(cause));
+        setRefused(refusalNow(cause));
       },
       onSuccess: (answer) => {
         setText("");
@@ -287,9 +280,7 @@ const ConversationScreen = () => {
         >
           {threadId === null ? (
             <Text className="pt-6 text-center text-16 text-muted-foreground">
-              {fromItem === null
-                ? "Ask the agent to file, tag, find or summarize what you have saved."
-                : "Ask the agent about this item."}
+              {fromItem === null ? EMPTY_WORDS : "Ask the agent about this item."}
             </Text>
           ) : (
             <Conversation threadId={threadId} />

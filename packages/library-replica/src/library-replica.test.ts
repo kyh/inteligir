@@ -742,6 +742,25 @@ describe("the replica's pull", () => {
   });
 });
 
+describe("what a pass says", () => {
+  it("ends in one status, so a listener never hears a failed pass as a clean one", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    await phone.replica.sync();
+    phone.network.setOffline(true);
+    const heard: { syncing: boolean; failure: string | null }[] = [];
+    phone.replica.onStatus(() => {
+      const { failure, syncing } = phone.replica.status();
+      heard.push({ failure: failure?.kind ?? null, syncing });
+    });
+    await phone.replica.sync();
+    expect(heard).toStrictEqual([
+      { failure: null, syncing: true },
+      { failure: "unreachable", syncing: false },
+    ]);
+  });
+});
+
 describe("what the screens read", () => {
   it("finds what landed, less what this device deleted", async () => {
     const cell = createFakeCell();
@@ -752,6 +771,21 @@ describe("what the screens read", () => {
     phone.network.setOffline(true);
     await phone.replica.deleteItems([id]);
     await expect(phone.replica.search("second", 10)).resolves.toStrictEqual([]);
+  });
+
+  it("finds what Deleted holds only when asked for it, less what this device restored", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const id = await landedNote(cell, phone);
+    await expect(phone.replica.search("second", 10, "deleted")).resolves.toStrictEqual([]);
+    await phone.replica.deleteItems([id]);
+    await phone.replica.sync();
+    const hits = await phone.replica.search("second", 10, "deleted");
+    expect(hits.map((hit) => hit.itemId)).toStrictEqual([id]);
+    await expect(phone.replica.search("second", 10)).resolves.toStrictEqual([]);
+    phone.network.setOffline(true);
+    await phone.replica.restoreItems([id]);
+    await expect(phone.replica.search("second", 10, "deleted")).resolves.toStrictEqual([]);
   });
 
   it("answers a saved address the library holds with that item, and lists no second card", async () => {

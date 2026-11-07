@@ -2,7 +2,7 @@
 // after a link is the sentence's, and so is a closing bracket the link never opened: "(see
 // https://x.y/z)" saves https://x.y/z, while https://en.wikipedia.org/wiki/Foo_(bar) keeps its
 // own. The marks are the keyboard's as well as ASCII's: iOS types “ ” for ", an ellipsis, and a
-// full-width keyboard its own brackets and stops. Pure: the item ops and the tests read it.
+// full-width keyboard its own brackets and stops. Pure: `phone-saves.ts` and the tests read it.
 
 import { isWebUrl } from "@repo/notes/items/item-url";
 

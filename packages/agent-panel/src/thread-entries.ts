@@ -11,6 +11,7 @@ import type {
   THREAD_STATUSES,
   threadEventRowSchema,
 } from "@repo/contract/cloud/library/library-wire";
+import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { cleanUrl, urlHost } from "@repo/notes/items/item-url";
 import { z } from "zod";
 import { isOrpcError } from "@repo/contract/cloud/v1/errors";
@@ -171,16 +172,36 @@ const ENDINGS = {
 // how a turn ended, as the panel says it; "" for a turn that simply finished
 export const endingWords = (reason: TurnEndReason): string => ENDINGS[reason];
 
+// what a screen with no conversation on it says
+export const EMPTY_WORDS = "Ask the agent to file, tag, find or summarize what you have saved.";
+
+// how the person answered an approval
+export const answerWords = (
+  result: Extract<AgentEvent, { type: "approval.answered" }>["result"],
+) => (result === "allow" ? "Allowed." : "Declined.");
+
+// a finished run of work in a line, by the calls it made
+export const workWords = (steps: number): string => {
+  if (steps === 0) {
+    return "Thought it through";
+  }
+  return steps === 1 ? "Worked through 1 step" : `Worked through ${String(steps)} steps`;
+};
+
+// a refused call to the agent: the sentence the refusal declares, else that it was not reached
+export const callRefusalWords = (cause: unknown): string =>
+  refusalText(cause, "The agent couldn't be reached.");
+
 const TIME = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
 
 // AGENT_BUDGET's data as the wire declares it
 const budgetDataSchema = z.object({ resetsAt: z.number().int().nonnegative() });
 
-// what a send the cell refused says: the allowance and when it fills again, or the agent off or
-// out of reach; null for a refusal that is not the agent's own
-export const agentRefusalWords = (cause: unknown, nowMs: number): string | null => {
+// what a send the cell refused says: the allowance and when it fills again, the agent off or out
+// of reach, or any other refused call's words
+export const sendRefusalWords = (cause: unknown, nowMs: number): string => {
   if (!isOrpcError(cause) || !cause.defined) {
-    return null;
+    return callRefusalWords(cause);
   }
   if (cause.code === "AGENT_BUDGET") {
     const budget = budgetDataSchema.safeParse(cause.data);
@@ -192,7 +213,7 @@ export const agentRefusalWords = (cause: unknown, nowMs: number): string | null 
   if (cause.code === "SERVICE_UNAVAILABLE") {
     return "The built-in agent is off or can’t be reached right now. You can turn it on in Settings.";
   }
-  return null;
+  return callRefusalWords(cause);
 };
 
 // one call the agent made, as a run of work shows it

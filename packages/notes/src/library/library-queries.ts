@@ -587,12 +587,12 @@ const COLUMN_WEIGHTS = [
 ].join(", ");
 
 // the body comes back whole and search-excerpt cuts it, since fts5's snippet() cannot see a
-// stem-only hit; an item in Deleted is not found
+// stem-only hit; a search answers from one side of Deleted
 const SEARCH_SQL = `SELECT items.id AS id, search_fts.title AS title, search_fts.meta AS meta,
   search_fts.body AS body,
   bm25(search_fts, ${COLUMN_WEIGHTS}, ${COLUMN_WEIGHTS}) AS rank
 FROM search_fts JOIN items ON items.rid = search_fts.rowid
-WHERE search_fts MATCH ? AND items.deleted_at IS NULL AND items.purged = 0
+WHERE search_fts MATCH ? AND (items.deleted_at IS NOT NULL) = ? AND items.purged = 0
 ORDER BY rank, items.id
 LIMIT ?`;
 
@@ -603,6 +603,9 @@ const searchRowSchema = z.object({
   rank: z.number(),
   title: z.string(),
 });
+
+// the side of Deleted a search answers from: an item in Deleted is found only from Deleted itself
+export type SearchSide = "live" | "deleted";
 
 export interface LibrarySearchHit {
   readonly itemId: string;
@@ -616,12 +619,13 @@ export interface LibrarySearchHit {
 export const searchLibrary = function* searchLibrary(
   query: string,
   limit: number,
+  side: SearchSide = "live",
 ): SqlPlan<LibrarySearchHit[]> {
   if (limit <= 0) {
     return [];
   }
   for (const plan of planSearchQuery(query)) {
-    const rows = yield all(SEARCH_SQL, [renderFtsMatch(plan), limit]);
+    const rows = yield all(SEARCH_SQL, [renderFtsMatch(plan), side === "deleted" ? 1 : 0, limit]);
     if (rows.length > 0) {
       return rows.map((raw) => {
         const row = parseRow(raw, searchRowSchema, "a search hit");

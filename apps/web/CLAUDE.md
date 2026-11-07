@@ -9,8 +9,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 - **A DEVICE SIGNS IN, OR SIGNS UP, WITH EMAIL + PASSWORD, and gets the same
   device credential** (owner decision, the Obsidian model). The login mints the
   credential, deletes its session and names the account, so a device holds one
-  secret and the cross-account fence and account label hold at once; each
-  device keeps the account's name beside its bearer. The route is throttled
+  secret and the cross-account fence and account label hold at once; a device
+  that names the account keeps it beside its bearer. The route is throttled
   per caller address, else it is a password oracle. No social providers: an
   in-app login can only be a password. Rejected: a second call to learn the
   account (a pending state readers must fail closed on); a browser approve
@@ -344,10 +344,13 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   parser gives it; a public address is asked like a name. It judges the saved
   address and every redirect alike, follows at most five, counts bytes as they
   arrive and gives the read 20 s; `global_fetch_strictly_public` sends even
-  this zone through its front door. Rejected: a lookup first (the platform
-  dials by name anyway); refusing every address written out (a public page's
-  refusal said a private network it was not on); leaving it to the platform (a
-  refusal said at once beats three vague retries).
+  this zone through its front door. The redirects and the capped read are the
+  phone's share's too (`packages/notes/src/items/page-fetch.ts`), so a host
+  keeps only which hops it asks, how it asks and its deadline. Rejected: a
+  lookup first (the platform dials by name anyway); refusing every address
+  written out (a public page's refusal said a private network it was not on);
+  leaving it to the platform (a refusal said at once beats three vague retries);
+  a copy of the read per host (two status gates to hold equal).
   `apps/web/src/worker/fill/page-fetch.ts`, `address-space.ts`.
 
 - **A READING LANDS ONLY THE ARTICLE AND THE FACTS A FILL OWNS, AS ITS OWN
@@ -400,10 +403,11 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 
 - **THE CLOUD KEEPS A PAGE'S COVER AS THE SITE SERVED IT, AND EACH DEVICE DRAWS
   ITS OWN THUMBNAIL.** The consumer keeps the first candidate that is really a
-  picture of a cover's size whole, within `FILL_LIMITS.coverBytes`, and decodes
-  nothing. Rejected: a wasm thumbnail (a decoded picture is four bytes a
-  pixel, 48 MB for 4000 by 3000, in an isolate whose heap the reading already
-  uses; not measured); the Images binding (it bills every picture); a
+  picture of a cover's size whole, within `FILL_LIMITS.coverBytes` and
+  `FILL_LIMITS.coverMaxPixels`, and decodes nothing. Rejected: a wasm thumbnail
+  (a decoded picture is four bytes a pixel, 48 MB for 4000 by 3000, in an
+  isolate whose heap the reading already uses; not measured); the Images
+  binding (it bills every picture); a
   thumbnail made in the cell (its CPU holds every write). `apps/web/src/worker/fill/read-page.ts`,
   `packages/notes/src/items/link-fill.ts`.
 

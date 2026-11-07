@@ -1,7 +1,6 @@
 import { createFakeCell } from "@repo/library-replica/test-support/fake-cell";
 import type { FakeDevice } from "@repo/library-replica/test-support/fake-cell";
 import { describe, expect, it } from "vitest";
-import type { KeptCredential } from "../credential/credential-codec";
 import { createLoginStore } from "./login-store";
 
 const REQUEST = {
@@ -12,12 +11,12 @@ const REQUEST = {
 
 // the sign-in over a fake cloud and a Keychain in memory; `opens` is whether the library opens
 const storeOver = (network: FakeDevice, opens = true) => {
-  const opened: KeptCredential[] = [];
+  const opened: string[] = [];
   // the credential each client was made with, null for none
   const clients: (string | null)[] = [];
   // what the Keychain holds of the sign-in, null once it holds nothing
   interface Keychain {
-    kept: KeptCredential | null;
+    kept: string | null;
   }
   const keychain: Keychain = { kept: null };
   const store = createLoginStore({
@@ -54,7 +53,7 @@ describe("the phone's sign-in", () => {
     await first;
 
     expect(cell.calls.filter((call) => call.endsWith("account/signIn"))).toHaveLength(1);
-    expect(opened).toMatchObject([{ email: "ada@example.com" }]);
+    expect(opened).toHaveLength(1);
     expect(store.get()).toStrictEqual({ kind: "idle" });
   });
 

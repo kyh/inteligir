@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPageFetch } from "./page-fetch";
-import type { PageRequest, PlatformFetch } from "./page-fetch";
+import type { PhonePageRequest, PlatformFetch } from "./page-fetch";
 
 const HEADERS = { acceptLanguage: "en-US,en;q=0.9", userAgent: "inteligir-test" };
 
-const PAGE: PageRequest = {
+const PAGE: PhonePageRequest = {
   accept: "text/html",
   maxBytes: 8,
   overflow: "truncate",
@@ -12,7 +12,10 @@ const PAGE: PageRequest = {
   url: "https://stephango.com/file-over-app",
 };
 
-const COVER: PageRequest = { ...PAGE, accept: "image/*", overflow: "refuse" };
+const COVER: PhonePageRequest = { ...PAGE, accept: "image/*", overflow: "refuse" };
+
+// whatever stopped it: every refusal saves the link for the cloud to read
+const NOT_READ = { ok: false };
 
 afterEach(() => {
   vi.useRealTimers();
@@ -65,14 +68,12 @@ describe("the phone's page fetch", () => {
 
     const read = await fetchPage({ ...PAGE, maxBytes: 64 });
 
-    expect(read).toStrictEqual({
+    expect(read).toMatchObject({
       ok: true,
       page: {
         bytes: new TextEncoder().encode("<h1>a</h1>"),
         charset: "ISO-8859-1",
-        declaredBytes: null,
         mediaType: "text/html",
-        truncated: false,
         url: PAGE.url,
       },
     });
@@ -99,28 +100,19 @@ describe("the phone's page fetch", () => {
       HEADERS,
     );
 
-    await expect(fetchPage({ ...PAGE, url: "file:///etc/hosts" })).resolves.toStrictEqual({
-      failure: { kind: "unreachable", transient: false },
-      ok: false,
-    });
+    await expect(fetchPage({ ...PAGE, url: "file:///etc/hosts" })).resolves.toMatchObject(NOT_READ);
     expect(seen).toStrictEqual([]);
   });
 
-  it("says a refused status in the standard's words, a busy site as worth a later try", async () => {
-    const gone = createPageFetch(
-      answering(() => new Response("nope", { status: 404 })),
-      HEADERS,
-    );
-    const busy = createPageFetch(
-      answering(() => new Response("", { status: 503 })),
-      HEADERS,
-    );
+  it("reads no page from an answer that is not one, a redirect to nowhere included", async () => {
+    for (const status of [304, 301, 404, 503]) {
+      const fetchPage = createPageFetch(
+        answering(() => new Response(status === 404 ? "nope" : null, { status })),
+        HEADERS,
+      );
 
-    await expect(gone(PAGE)).resolves.toStrictEqual({
-      failure: { kind: "status", reason: "not found", status: 404, transient: false },
-      ok: false,
-    });
-    await expect(busy(PAGE)).resolves.toMatchObject({ failure: { status: 503, transient: true } });
+      await expect(fetchPage(PAGE), String(status)).resolves.toMatchObject(NOT_READ);
+    }
   });
 
   it("keeps a page's first bytes up to the cap and reads no further", async () => {
@@ -132,9 +124,7 @@ describe("the phone's page fetch", () => {
 
     const read = await fetchPage(PAGE);
 
-    expect(
-      read.ok && { body: text(read.page.bytes), truncated: read.page.truncated },
-    ).toStrictEqual({ body: "<head><b", truncated: true });
+    expect(read.ok && text(read.page.bytes)).toBe("<head><b");
     expect(stream.cancelled()).toBe(true);
   });
 
@@ -144,10 +134,7 @@ describe("the phone's page fetch", () => {
       answering(() => new Response(declared.body, { headers: { "content-length": "10" } })),
       HEADERS,
     );
-    await expect(big(COVER)).resolves.toStrictEqual({
-      failure: { bytes: 10, kind: "too-large" },
-      ok: false,
-    });
+    await expect(big(COVER)).resolves.toMatchObject(NOT_READ);
     expect(declared.cancelled()).toBe(true);
 
     const undeclared = chunked(["01234", "56789"]);
@@ -155,13 +142,10 @@ describe("the phone's page fetch", () => {
       answering(() => new Response(undeclared.body)),
       HEADERS,
     );
-    await expect(runs(COVER)).resolves.toStrictEqual({
-      failure: { bytes: 10, kind: "too-large" },
-      ok: false,
-    });
+    await expect(runs(COVER)).resolves.toMatchObject(NOT_READ);
   });
 
-  it("says a page that never answered timed out, and one it could not reach unreachable for now", async () => {
+  it("gives up on a page that never answered, and reads none it could not reach", async () => {
     vi.useFakeTimers();
     const hanging = createPageFetch(
       async (_, init) =>
@@ -175,16 +159,13 @@ describe("the phone's page fetch", () => {
     );
     const reading = hanging(PAGE);
     await vi.advanceTimersByTimeAsync(20_000);
-    await expect(reading).resolves.toStrictEqual({ failure: { kind: "timeout" }, ok: false });
+    await expect(reading).resolves.toMatchObject(NOT_READ);
 
     const offline = createPageFetch(
       async () => await Promise.reject(new TypeError("Network request failed")),
       HEADERS,
     );
-    await expect(offline(PAGE)).resolves.toStrictEqual({
-      failure: { kind: "unreachable", transient: true },
-      ok: false,
-    });
+    await expect(offline(PAGE)).resolves.toMatchObject(NOT_READ);
   });
 
   it("follows a redirect itself, resolved against the hop it came from, and reads where it ended", async () => {
@@ -227,10 +208,7 @@ describe("the phone's page fetch", () => {
         return await Promise.resolve(new Response(null, { headers: { location }, status: 302 }));
       }, HEADERS);
 
-      await expect(fetchPage(PAGE), location).resolves.toStrictEqual({
-        failure: { kind: "refused", refusal: "private-from-public" },
-        ok: false,
-      });
+      await expect(fetchPage(PAGE), location).resolves.toMatchObject(NOT_READ);
       expect(seen, location).toStrictEqual([PAGE.url]);
     }
   });
@@ -261,14 +239,11 @@ describe("the phone's page fetch", () => {
       );
     }, HEADERS);
 
-    await expect(fetchPage(PAGE)).resolves.toStrictEqual({
-      failure: { kind: "redirects" },
-      ok: false,
-    });
+    await expect(fetchPage(PAGE)).resolves.toMatchObject(NOT_READ);
     expect(hops).toBe(6);
   });
 
-  it("asks a public page nothing over plain http, which iOS would refuse, and says so in its own words", async () => {
+  it("asks a public page nothing over plain http, which iOS would refuse", async () => {
     const seen: string[] = [];
     const fetchPage = createPageFetch(async (url) => {
       seen.push(url);
@@ -277,14 +252,10 @@ describe("the phone's page fetch", () => {
       );
     }, HEADERS);
 
-    await expect(fetchPage({ ...PAGE, url: "http://example.com/a" })).resolves.toStrictEqual({
-      failure: { kind: "plain-http" },
-      ok: false,
-    });
-    await expect(fetchPage(PAGE)).resolves.toStrictEqual({
-      failure: { kind: "plain-http" },
-      ok: false,
-    });
+    await expect(fetchPage({ ...PAGE, url: "http://example.com/a" })).resolves.toMatchObject(
+      NOT_READ,
+    );
+    await expect(fetchPage(PAGE)).resolves.toMatchObject(NOT_READ);
     expect(seen).toStrictEqual([PAGE.url]);
   });
 });

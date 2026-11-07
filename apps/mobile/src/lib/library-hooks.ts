@@ -1,19 +1,20 @@
 // The screens' reads of the library this phone holds, each kept current with the replica's change
-// feed: the listing and its scopes from memory, an item, its highlights and the conversations from
-// the replica's SQL (every one with this phone's unsent writes laid over, and every one offline),
-// the reply the agent is writing from the socket, and a file's address from the file cache. The
-// signed-in library comes down through one context the root provides, so no screen holds a
-// runtime of its own.
+// feed: the listing from memory, an item, its highlights and the conversations from the replica's
+// SQL (every one with this phone's unsent writes laid over, and every one offline), the reply the
+// agent is writing from the socket, and a file's address from the file cache. The signed-in library
+// comes down through one context the root provides, so no screen holds a runtime of its own.
 
-import { createContext, use, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import type { ListingPage, ListingQuery, ListingScopes } from "@repo/notes/library/library-index";
+import { createContext, use, useEffect, useState, useSyncExternalStore } from "react";
+import type { ListingPage, ListingQuery } from "@repo/notes/library/library-index";
 import type {
+  LibraryReplica,
   ReplicaChange,
   ReplicaItem,
   ReplicaListingRow,
   ReplicaStatus,
 } from "@repo/library-replica/library-replica";
 import type { AnnotationStore } from "@repo/notes/annotations/store-schema";
+import { watchFile } from "../files/watch-file";
 import type { PhoneLibrary } from "./compose-runtime";
 
 export const LibraryContext = createContext<PhoneLibrary | null>(null);
@@ -45,22 +46,19 @@ const useChanges = (moved: (change: ReplicaChange) => boolean): number => {
 const anyItem = (change: ReplicaChange): boolean =>
   change.kinds.has("item") || change.kinds.has("folder") || change.kinds.has("annotation");
 
-export interface ListingView {
-  readonly page: ListingPage<ReplicaListingRow>;
-  readonly scopes: ListingScopes;
-  // the change it was read after
-  readonly version: number;
-}
+// the listing is the replica's memory, which moves under a render, so the change it is read after
+// is an argument: the React Compiler keys a call on its arguments, and drops a memo dependency the
+// body does not read, which would leave the list as it was at the last change of query
+const listingAfter = (
+  replica: LibraryReplica,
+  query: ListingQuery,
+  _change: number,
+): ListingPage<ReplicaListingRow> => replica.listing(query);
 
-export const useListing = (query: ListingQuery): ListingView => {
+export const useListing = (query: ListingQuery): ListingPage<ReplicaListingRow> => {
   const { replica } = useLibrary();
-  const version = useChanges(anyItem);
-  // the listing is the replica's memory, which moves under a render: read again at each change it
-  // could show, which a memo on the query alone would miss
-  return useMemo(
-    () => ({ page: replica.listing(query), scopes: replica.scopes(), version }),
-    [query, replica, version],
-  );
+  const change = useChanges(anyItem);
+  return listingAfter(replica, query, change);
 };
 
 export const useReplicaStatus = (): ReplicaStatus => {
@@ -134,24 +132,22 @@ export const usePreview = (threadId: string): string | null => {
 };
 
 // where a file draws from on this phone, or a card's cover drawn small: undefined while it is
-// asked for, null when it cannot be had now (offline, before it was ever drawn here)
+// asked for, null while it cannot be had (offline, before it was ever drawn here), which comes
+// right once the library can be reached
 export const useFileUri = (sha: string | null, small = false): string | null | undefined => {
-  const { files } = useLibrary();
+  const { files, replica } = useLibrary();
   const [held, setHeld] = useState<{ sha: string; uri: string | null } | null>(null);
   useEffect(() => {
     if (sha === null) {
       return;
     }
-    let live = true;
-    void (async () => {
-      const uri = small ? await files.thumbUri(sha) : await files.fileUri(sha);
-      if (live) {
+    return watchFile({
+      ask: async () => (small ? await files.thumbUri(sha) : await files.fileUri(sha)),
+      replica,
+      told: (uri) => {
         setHeld({ sha, uri });
-      }
-    })();
-    return () => {
-      live = false;
-    };
-  }, [files, sha, small]);
+      },
+    });
+  }, [files, replica, sha, small]);
   return held?.sha === sha ? held.uri : undefined;
 };

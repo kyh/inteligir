@@ -24,12 +24,13 @@ import {
   youTubeStills,
 } from "@repo/notes/items/oembed";
 import type { OEmbed } from "@repo/notes/items/oembed";
+import type { FetchedPage } from "@repo/notes/items/page-fetch";
 import { sniffMedia } from "@repo/notes/items/sniff-media";
 import { decodeText } from "@repo/notes/text/decode-text";
 
 import type { FillJob } from "./fill-job";
 import type { FillLanding } from "./fill-landing";
-import type { FetchedPage, PageFetch } from "./page-fetch";
+import type { PageFetch } from "./page-fetch";
 
 const PAGE_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
 const COVER_ACCEPT =

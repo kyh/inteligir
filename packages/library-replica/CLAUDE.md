@@ -36,10 +36,11 @@ and cited.
   replaces it. A save of an address another item holds lists no card of its
   own. A make shows by the field rules the cell lands it by, so a card reads
   alike on both sides of its landing. Residuals: search finds an unsent edit's
-  words once it lands; a landing asks for the item's body again; a saved link's
-  note shows once the cell has read it from markdown. Rejected: optimistic rows
-  in the synced tables (a pull could not tell them apart); a device's own guess
-  at a make's fields (a video listed as a link until it landed).
+  words once it lands, and an unsent delete in Deleted's search once it lands; a
+  landing asks for the item's body again; a saved link's note shows once the
+  cell has read it from markdown. Rejected: optimistic rows in the synced tables
+  (a pull could not tell them apart); a device's own guess at a make's fields (a
+  video listed as a link until it landed).
   `packages/library-replica/src/replica-listing.ts`, `overlay.ts`,
   `packages/notes/src/library/item-makes.ts`.
 

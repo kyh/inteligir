@@ -69,13 +69,14 @@ sheet is imported once, by `app/_layout.tsx`.
   system's scheme recolours every screen with no `dark:` in it.
 - **A value outside a class reads `lib/palette.ts`**: a navigator's options, an
   `ActivityIndicator`, a safe area's or a WebView's background, through
-  `useTheme()`; a field's placeholder is a `placeholder:` class. Its values are the sheet's,
-  and `src/styles.test.ts` compiles the sheet as Metro does and holds the two
-  equal in both schemes, so a color changes in both or the suite fails.
+  `useTheme()`; a field's placeholder is a `placeholder:` class. It holds only
+  the tokens read that way, at the sheet's values, and `src/styles.test.ts`
+  compiles the sheet as Metro does and holds the two equal in both schemes, so
+  such a color changes in both or the suite fails.
 - **A rem is the web's.** react-native-css reads every rem at the sheet's
   `:root` font size, 16px, so Tailwind's spacing and radii are the web's:
-  `p-4` is 16, `rounded-lg` 8. The sheet imports Tailwind's theme and
-  utilities apart, with no preflight, as NativeWind 5 sets a sheet up. The type
+  `p-4` is 16, `rounded-lg` 8. The sheet imports Tailwind's theme and preflight
+  layered and its utilities unlayered, as NativeWind 5 sets a sheet up. The type
   sizes are the phone's own, named by their px (`text-12` to `text-30`), each a
   size alone, and a reading line's height is a `leading-*` class beside it.
 - **A multi-line field is padded `pt-*` and `pb-*`.** `py-*` compiles to
@@ -116,9 +117,12 @@ A file is kept by its hash (`src/files/file-cache.ts`), fetched once however
 many screens ask: a staged upload, and a file a live note of the person's
 embeds, are pinned in Documents, out of the device backup; every other file is
 in `Paths.cache`, stamped as used and dropped oldest first past the cap, and a
-file over 512 KB lists from a 320 px thumbnail made once. An upload whose write
-landed is kept as a fetched file is. A screen draws a file as an item's own,
-its card's cover or its viewer's original, and the item page draws one a note
+file over 512 KB lists from a 320 px thumbnail made once. A picture past what a
+phone may decode shows the card's placeholder. A screen waiting on a file it
+could not reach gets it once the library answers again
+(`src/files/watch-file.ts`). An upload whose write landed is kept as a fetched
+file is. A screen draws a file as an item's own, its card's cover or its
+viewer's original, and the item page draws one a note
 names from the cache over its bridge (`readFile`), as the type it was kept or
 served as, and keeps one pasted into the text through the replica
 (`keepFile`). A sign-out moves the cache's generation,
@@ -131,7 +135,9 @@ The share extension hands a page, a link or text to the app, which reads it
 page is fetched by the phone, each redirect judged by its spelling
 (`src/items/page-fetch.ts`), read in the headless page by the library's own
 reader and saved read, with its cover; a page it cannot read now, offline
-among them, is saved as its link, which the cloud reads once it lands.
+among them, is saved as its link, which the cloud reads once it lands. Words
+shared beside the link are kept either way: as the item's note, or as an
+unread link's title when they are short enough to name it.
 
 ## The agent
 
@@ -155,22 +161,24 @@ the error shows.
 
 A sign-in is one library (`src/lib/compose-runtime.ts`): its replica, its
 `/v1` client and query helpers, its files and its previews, made together and
-closed together. An `unauthorized` any request hears ends it for all of them
-and wipes the rows and files, keeping the credential so the sign-in screen can
-say this device was signed out; a `client-outdated` ends it as `outdated` and
-wipes nothing, so the next build resumes from what the phone holds. Which
-screens exist is the ROUTE GUARD's answer (`Stack.Protected` in
-`app/_layout.tsx`), never a per-screen branch, and a cold launch is
-`restoring` until the Keychain read ends, so the sign-in form never flashes
-over a device that is signed in.
+closed together. An `unauthorized` a pass of the replica hears ends it for all
+of them and takes the rows, the files and the credential, which stays only
+when the copy would not go, so the next launch meets the same refusal; the
+sign-in screen says this device was signed out from the session's notice. A
+refusal on any other call, a file's or the agent's, waits for the replica's
+next pass. A `client-outdated` ends it as `outdated` and wipes nothing, so the
+next build resumes from what the phone holds. Which screens exist is the ROUTE
+GUARD's answer (`Stack.Protected` in `app/_layout.tsx`), never a per-screen
+branch, and a cold launch is `restoring` until the Keychain read ends, so the
+sign-in form never flashes over a device that is signed in.
 
 ## Verified vs device-side
 
 - **Verified here** (`pnpm --filter @repo/mobile typecheck` + `test`, and the
   repo-wide `pnpm verify`): the composition's restore, sign-in, sign-out,
   revocation and outdated build over a fake cell, the phone's own tables over
-  `node:sqlite`, the credential codec and its Keychain accessibility (over a
-  stand-in Keychain), the sign-in store, the file cache (pinning, the cap, the
+  `node:sqlite`, the credential and its Keychain accessibility (over a stand-in
+  Keychain), the sign-in store, the file cache (pinning, the cap, the
   thumbnail, the generation), the editor page's native end (every frame kind
   to its port, a foreign document's, another load's and a malformed frame
   dropped, a flush held until the page answers, the load policy), the item
@@ -189,10 +197,10 @@ over a device that is signed in.
   brings a manifest or a permission fails it until `app.config.js` says why.
 - **The stylesheet** (`src/styles.test.ts`): it compiles `src/styles.css` with
   the screens' own classes, Tailwind under PostCSS and then react-native-css as
-  Metro does, and holds each token's light and dark value to `lib/palette.ts`,
-  each color class to its token's variable, a rem to 16px, a size class to a
-  size alone, a line-height and a placeholder class to what they draw, and no
-  multi-line field to `py-*`.
+  Metro does, and holds every token to one light and one dark value, those a
+  prop reads to `lib/palette.ts`, each color class to its token's variable, a
+  rem to 16px, a size class to a size alone, a line-height and a placeholder
+  class to what they draw, and no multi-line field to `py-*`.
 - **The bundle**: `pnpm build` runs `expo export --platform ios`, so every
   `pnpm verify` and CI run compiles the phone's JavaScript to Hermes bytecode,
   and the stylesheet into it, offline, on Linux and macOS alike.
@@ -229,15 +237,16 @@ last transformed it, so a class just added that draws nothing under a running
 `dev` needs `pnpm --filter @repo/mobile dev --clear`; `pnpm --filter
 @repo/mobile test` compiles it the same way without a device.
 
-Unset, the phone talks to the production origin, the same rule the desktop
-follows (`PRODUCTION_CLOUD_ORIGIN` in `@repo/contract/cloud/origin`, the one
-spelling both read). `EXPO_PUBLIC_CLOUD_URL` is read once, at bundle time,
-through `src/lib/cloud-url.ts`: Metro inlines it, so a store build carries no
-value and cannot point anywhere else. A value that is not an absolute http(s)
-URL throws rather than guessing, and there is no LAN-host fallback: the
-Worker's dev server binds localhost, so an origin derived from the Metro host
-could never answer a phone. The simulator shares the Mac's localhost; a
-physical phone needs a URL it can reach.
+Unset, the phone talks to the production origin in every build
+(`PRODUCTION_CLOUD_ORIGIN` in `@repo/contract/cloud/origin`, which the desktop
+spells again in `apps/desktop/src-tauri/src/cloud.rs` under a repo guard).
+`EXPO_PUBLIC_CLOUD_URL` is read once, at bundle time, through
+`src/lib/cloud-url.ts`: Metro inlines it, so a store build carries no value and
+cannot point anywhere else. A value that is not an absolute http(s) URL throws
+rather than guessing, and there is no LAN-host fallback: the Worker's dev
+server binds localhost, so an origin derived from the Metro host could never
+answer a phone. The simulator shares the Mac's localhost; a physical phone
+needs a URL it can reach.
 
 ## Shipping
 

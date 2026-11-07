@@ -4,7 +4,6 @@ import { SPACE } from "@/lib/theme";
 // each size's class written out whole: Tailwind makes a class only where its full name is in a
 // source, so one assembled from parts would draw nothing
 const SIZE_CLASS = {
-  13: "text-13",
   14: "text-14",
   16: "text-16",
 } as const;

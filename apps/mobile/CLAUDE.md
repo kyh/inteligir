@@ -50,8 +50,9 @@ how it ships.
   revocation and a refused login show (`apps/mobile/src/lib/compose-runtime.ts`,
   `apps/mobile/src/login/login-store.ts`). A sign-in is ONE library, its
   replica, `/v1` client, query helpers, files and previews made together and
-  closed together, so a revocation any request hears ends it for all and a
-  refusal heard under an earlier sign-in never ends the next. The route guard,
+  closed together, so a revocation a pass of the replica hears ends it for all,
+  a refusal on any other call waits for the next pass, and a refusal heard
+  under an earlier sign-in never ends the next. The route guard,
   never a per-screen branch, decides which screens exist (`Stack.Protected` in
   `apps/mobile/src/app/_layout.tsx`): signed in, the Library, an item, a
   script-less viewer of a file and the agent; signed out, the sign-in.
@@ -87,18 +88,30 @@ how it ships.
   cloud served (`phone_files`, `phone_staged`), which the item page draws a
   note's file by over the bridge, and one pasted there goes through the
   replica's outbox (`apps/mobile-editor/src/item/item-host.ts`). A file over
-  512 KB lists from a 320 px thumbnail made once. A sign-out moves the cache's
+  512 KB lists from a 320 px thumbnail made once. No cover is decoded past
+  `FILL_LIMITS.coverMaxPixels`: one is drawn whole only when it is a small file
+  whose header names a size within that, any other picture goes through the
+  thumbnail, one at a time in the app's own process and measured by the decoder
+  before it decodes, and one refused or that made no thumbnail shows the card's
+  placeholder, since a few bytes can name a bitmap that kills the app on every
+  launch (`apps/mobile/src/files/expo-thumbnail.ts`). Residual: a turned AVIF
+  or HEIC, whose header nothing here reads, is drawn upright before the decoder
+  measures it. A screen waiting on a file it could not reach asks again after
+  each pass of the replica that ends clean, a failed one saying nothing of the
+  file (`apps/mobile/src/files/watch-file.ts`). A sign-out moves the cache's
   generation, so a download begun before it lands nothing
   (`apps/mobile/src/files/file-cache.ts`). Rejected: `expo-file-system/legacy`
   (its promise API is deprecated); a staged upload discarded once sent (the
   next draw downloaded what the phone had just sent); a type read from the
   first bytes (no sniff names a recording, which WebKit then may not play).
 
-- **THE PHONE'S CREDENTIAL IS IN THE KEYCHAIN, THIS DEVICE ONLY, AFTER FIRST
-  UNLOCK.** It reads in the background a share wakes, never moves to another
-  phone by a backup, and a Keychain that refuses the write fails the sign-in,
-  whose device is signed out again, rather than a sign-in that is gone on the
-  next launch (`apps/mobile/src/credential/secure-store-credential.ts`).
+- **THE PHONE'S CREDENTIAL IS IN THE KEYCHAIN, THIS DEVICE ONLY, WHILE UNLOCKED.**
+  Nothing reads it behind a lock screen, since the app runs nothing in the
+  background and a share opens it in front. It never moves to another phone by
+  a backup, and a Keychain that refuses the write fails the sign-in, whose
+  device is signed out again, rather than a sign-in that is gone on the next
+  launch (`apps/mobile/src/credential/secure-store-credential.ts`). Rejected:
+  after first unlock (a looser class for a read no path makes).
 
 - **A PHONE SAVE IS ONE CREATE WHERE THE LIBRARY'S SCOPE SAVES.** A link is
   saved for the cloud's fill to read, and the cell folds it onto the item
@@ -141,6 +154,10 @@ how it ships.
   (`apps/mobile/src/items/page-fetch.ts`), reads it in the headless page and
   saves it read, cover and all; a page it cannot read now is saved as its
   link, which the cloud's fill reads (`apps/mobile/src/items/share-save.ts`).
+  Words shared beside the link are never lost: they are the item's note, or
+  an unread link's title when they are short enough to name it, since the
+  cloud keeps a title it is given and a page read names itself
+  (`apps/mobile/src/items/share-payload.ts`).
   It opens the item and only then lets the share go, so a signed-out share
   waits (`apps/mobile/src/items/share-inbox.tsx`), and a share made while one
   settles is settled after it (`apps/mobile/src/items/share-queue.ts`).
@@ -168,9 +185,9 @@ how it ships.
   `.dark`), so the system scheme recolours every class, named as the web's
   tokens are (`bg-card`), a placeholder included (`placeholder:`). A colour
   React Native takes as a value (a navigator's options, an indicator, a
-  background) reads `apps/mobile/src/lib/palette.ts`, which
-  `apps/mobile/src/styles.test.ts` holds equal to the compiled sheet in both
-  schemes. Rejected: `StyleSheet.create` over a copied palette (a second
+  background) reads `apps/mobile/src/lib/palette.ts`, which holds only those,
+  and which `apps/mobile/src/styles.test.ts` holds equal to the compiled sheet
+  in both schemes. Rejected: `StyleSheet.create` over a copied palette (a second
   spelling in each screen); `@repo/ui` (DOM, which the dep-dag guard refuses).
 
 - **THE PHONE'S STYLE PINS ARE NATIVEWIND'S RELEASE CANDIDATE PAIR, SET UP AS

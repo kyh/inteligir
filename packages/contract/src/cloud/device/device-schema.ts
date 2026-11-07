@@ -1,5 +1,5 @@
 // What `account.*` (`../account/account-contract.ts`) reads and answers about a device: the
-// sign-in that mints its credential, the credential's shape at rest, and the account's devices.
+// sign-in that mints its credential, the credential's shape, and the account's devices.
 
 import { z } from "zod";
 
@@ -30,18 +30,11 @@ export const deviceLoginRequestSchema = z.strictObject({
   password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
 });
 
-// the credential at rest is parsed on every read: a malformed record must read as
-// "signed out", never as a credential the cloud refuses on every request forever
-const deviceCredentialFields = {
+// the account rides the answer that mints the credential, so a client knows whose library it opens
+// from its first request on, and a device that names the account keeps it beside the bearer
+export const deviceLoginResponseSchema = z.object({
   credential: z.string().regex(DEVICE_CREDENTIAL_PATTERN),
   deviceId: z.string().min(1),
-};
-export const deviceCredentialSchema = z.strictObject(deviceCredentialFields);
-
-// the account rides the answer that mints the credential, so a client knows whose library it opens
-// from its first request on, and each device keeps the account's name beside the bearer
-export const deviceLoginResponseSchema = z.object({
-  ...deviceCredentialFields,
   email: z.string().min(1),
   userId: z.string().min(1),
 });

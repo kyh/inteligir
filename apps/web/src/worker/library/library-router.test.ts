@@ -146,6 +146,35 @@ describe("the library's procedures", () => {
     });
   });
 
+  it("keeps the words a page was saved with as its note, a new item's and after a held item's own", async () => {
+    await inCell(cellOf(), async (state) => {
+      const library = clientIn(state, clockAt());
+      const url = "https://example.com/words";
+      const first = await library.items.save({
+        ...pageSave(url),
+        note: "For ==Tuesday==, before the call.",
+      });
+      expect(first.folded).toBe(false);
+      const made = await library.items.read({ id: first.item.id });
+      expect(made.view.markdown).toContain("For ");
+      expect(made.view.markdown).toContain("Tuesday");
+      expect(made.view.markdown).toContain(":::article");
+      const { highlights } = await library.annotations.list({ itemId: first.item.id });
+      expect(highlights).toStrictEqual([expect.objectContaining({ quote: "Tuesday" })]);
+
+      const again = await library.items.save({ ...pageSave(url), note: "And for ==Friday==." });
+      expect(again).toMatchObject({ folded: true, item: { id: first.item.id } });
+      const folded = await library.items.read({ id: first.item.id });
+      expect(folded.view.markdown.indexOf("Tuesday")).toBeLessThan(
+        folded.view.markdown.indexOf("Friday"),
+      );
+      const held = await library.annotations.list({ itemId: first.item.id });
+      expect(new Set(held.highlights.map(({ quote }) => quote))).toStrictEqual(
+        new Set(["Tuesday", "Friday"]),
+      );
+    });
+  });
+
   it("places an item's highlights again in the article a second save brings, and keeps the article a read without one", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());

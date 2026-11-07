@@ -254,7 +254,10 @@ const foldOnto = (
     readAnnotationRows(scope.storage, holderId),
     { ...pageOf(landing), folderId: null, tags: stub.state.fields.tags },
     null,
-    [...stub.state.blocks.values()].filter((stored) => stored.section === "note"),
+    {
+      blocks: [...stub.state.blocks.values()].filter((stored) => stored.section === "note"),
+      highlights: [],
+    },
   );
   const { fields } = stub.state;
   const ops: LibraryOp[] = [

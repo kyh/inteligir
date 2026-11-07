@@ -5,7 +5,7 @@
 import { Stack } from "expo-router";
 import { FlatList, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { statusWords } from "@repo/agent-panel/thread-entries";
+import { EMPTY_WORDS, statusWords } from "@repo/agent-panel/thread-entries";
 import { useThreads } from "@/lib/library-hooks";
 import { openAgent } from "@/lib/routes";
 import { useTheme } from "@/lib/theme";
@@ -33,9 +33,7 @@ const ConversationsScreen = () => {
         keyExtractor={(thread) => thread.id}
         ListEmptyComponent={
           <View className="items-center px-6 py-24">
-            <Text className="text-center text-16 text-muted-foreground">
-              Ask the agent to file, tag, find or summarize what you have saved.
-            </Text>
+            <Text className="text-center text-16 text-muted-foreground">{EMPTY_WORDS}</Text>
           </View>
         }
         renderItem={({ item: thread }) => {

@@ -1,5 +1,5 @@
 // The native end of the editor page's bridge, and the one policy for what the WebView may load.
-// Pure: the screen attaches the WebView and hands it the ports over the phone's store, so every
+// Pure: the screen attaches the WebView and hands it the ports over the phone's replica, so every
 // frame it answers or drops runs under test. A frame counts only when it came from the page's own
 // document (a child frame's message names its own address) and, after `init`, carries the nonce
 // this load was given; a fresh load of the page gets a fresh nonce.

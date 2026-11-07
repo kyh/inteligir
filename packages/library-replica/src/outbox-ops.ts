@@ -98,6 +98,7 @@ const saveSchema = z.strictObject({
     }),
     folderId: idSchema.nullable(),
     id: newIdSchema,
+    note: z.string().max(MARKDOWN_MAX).optional(),
     savedAt: FIELDS.savedAt,
     selection: z.string().min(1).max(ANNOTATION_QUOTE_MAX).nullable(),
     tags: FIELDS.tags,

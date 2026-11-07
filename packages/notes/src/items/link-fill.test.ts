@@ -20,4 +20,11 @@ describe("a cover candidate", () => {
     expect(coverPicture(pngOf(FILL_LIMITS.coverMinEdge - 1, 64))).toBeNull();
     expect(coverPicture(new TextEncoder().encode("<html>not a picture</html>"))).toBeNull();
   });
+
+  it("is no cover when its header names more pixels than a device may decode, however small the file", () => {
+    const edge = Math.floor(Math.sqrt(FILL_LIMITS.coverMaxPixels));
+    expect(coverPicture(pngOf(edge, edge))).toStrictEqual({ mime: "image/png" });
+    expect(coverPicture(pngOf(edge + 1, edge + 1))).toBeNull();
+    expect(coverPicture(pngOf(30_000, 30_000))).toBeNull();
+  });
 });

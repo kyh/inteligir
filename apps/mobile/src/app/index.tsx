@@ -23,6 +23,7 @@ import { listedScope } from "@repo/domain/library-scope";
 import type { LibraryScope } from "@repo/domain/library-scope";
 import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import type { ItemKind } from "@repo/notes/items/item-kind";
+import type { SearchSide } from "@repo/notes/library/library-queries";
 import { createPhoneSaves } from "@/items/phone-saves";
 import { ingestPhoto } from "@/items/photo-ingest";
 import type { SavedItem } from "@/items/phone-saves";
@@ -32,7 +33,13 @@ import { useLibrary, useListing, useReplicaStatus } from "@/lib/library-hooks";
 import { openConversations, openItem, openViewer } from "@/lib/routes";
 import { SPACE, useTheme } from "@/lib/theme";
 import { LibraryCardRow } from "@/library/library-card";
-import { listingQuery, saveFolderOf, scopeTitle } from "@/library/library-query";
+import {
+  listingQuery,
+  saveFolderOf,
+  scopeTitle,
+  searchHits,
+  searchSideOf,
+} from "@/library/library-query";
 import { UnsentBanner } from "@/library/unsent-banner";
 import { confirmSignOut } from "@/ui/confirm-sign-out";
 
@@ -46,9 +53,6 @@ const KIND_CHIPS: readonly { kind: ItemKind; label: string }[] = [
   { kind: "file", label: "Files" },
   { kind: "note", label: "Notes" },
 ];
-
-// at most this many hits a search ranks
-const SEARCH_HITS = 500;
 
 // a picture or a PDF opens full size; everything else opens in the editor
 const openRow = (row: ReplicaListingRow): void => {
@@ -151,11 +155,13 @@ const KindChips = ({
 );
 
 // the replica's ranked hits for the words typed, offline as online
-const useSearchHits = (query: string): ReadonlyMap<string, number> | null => {
+const useSearchHits = (query: string, side: SearchSide): ReadonlyMap<string, number> | null => {
   const { replica } = useLibrary();
-  const [hits, setHits] = useState<{ query: string; ranks: ReadonlyMap<string, number> } | null>(
-    null,
-  );
+  const [hits, setHits] = useState<{
+    query: string;
+    ranks: ReadonlyMap<string, number>;
+    side: SearchSide;
+  } | null>(null);
   const words = query.trim();
   useEffect(() => {
     if (words === "") {
@@ -163,19 +169,19 @@ const useSearchHits = (query: string): ReadonlyMap<string, number> | null => {
     }
     let live = true;
     void (async () => {
-      const found = await replica.search(words, SEARCH_HITS);
+      const ranks = await searchHits(replica, words, side);
       if (live) {
-        setHits({ query: words, ranks: new Map(found.map((hit, rank) => [hit.itemId, rank])) });
+        setHits({ query: words, ranks, side });
       }
     })();
     return () => {
       live = false;
     };
-  }, [replica, words]);
+  }, [replica, side, words]);
   if (words === "") {
     return null;
   }
-  return hits?.query === words ? hits.ranks : new Map();
+  return hits?.query === words && hits.side === side ? hits.ranks : new Map();
 };
 
 const emptyLabel = (pulled: boolean, filtered: boolean): string => {
@@ -201,9 +207,9 @@ const LibraryScreen = () => {
   // a folder deleted on another device reads as every item, so nothing lists under it or saves
   // into it
   const scope = listedScope(chosenScope, folders);
-  const hits = useSearchHits(query);
+  const hits = useSearchHits(query, searchSideOf(scope));
   const listingAsked = listingQuery({ hits, kinds, scope });
-  const { page } = useListing(listingAsked);
+  const page = useListing(listingAsked);
 
   const refresh = async (): Promise<void> => {
     setRefreshing(true);
