@@ -21,7 +21,7 @@ import { openLibraryReplica } from "@repo/library-replica/library-replica";
 import type { ReplicaTransport } from "@repo/library-replica/replica-ports";
 
 import type { KeptCredential, ShellConfig } from "../../shell/shell-config";
-import { forgetAccountStorage } from "./account-storage";
+import { claimAccountStorage, forgetAccountStorage } from "./account-storage";
 import {
   shellConfig,
   shellCredential,
@@ -168,8 +168,11 @@ export const openShellLibrary = async (
   const config = await shellConfig();
   const kept: KeptCredential | null = await shellCredential.restore();
   if (kept === null) {
+    // the shell lets go first, so a quit in the middle of a leave leaves this to the next open
+    forgetAccountStorage();
     return { config, kind: "signed-out" };
   }
+  claimAccountStorage(kept.userId);
   const transport = macTransport(config, kept.credential);
   const opening = await openLibraryReplica({
     blobs: shellStagedBlobs(),

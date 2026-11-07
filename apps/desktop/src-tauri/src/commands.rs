@@ -135,7 +135,8 @@ fn named(request: &Request<'_>, header: &str) -> ShellResult<String> {
 }
 
 /// A file the outbox will upload: its bytes are the request's raw body, its sha and the type it is
-/// sent as are headers, and the scheme serves it as that type until the cloud holds it.
+/// sent as are headers, and the scheme serves it as that type until the cloud holds it. With no
+/// account signed in it is `signed-out`.
 #[tauri::command]
 pub async fn files_stage(app: AppHandle, request: Request<'_>) -> ShellResult<()> {
     let InvokeBody::Raw(bytes) = request.body() else {
@@ -147,7 +148,7 @@ pub async fn files_stage(app: AppHandle, request: Request<'_>) -> ShellResult<()
     let content_type = named(&request, FILE_TYPE_HEADER)?;
     let bytes = bytes.clone();
     blocking(app, move |account| {
-        account.files().stage(&sha, &bytes, &content_type)
+        account.stage(&sha, &bytes, &content_type)
     })
     .await
 }

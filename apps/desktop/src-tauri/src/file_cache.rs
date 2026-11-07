@@ -5,7 +5,8 @@
 //! beside it (`<sha>.type`), the one the page staged it as or the cloud served it as, and moves
 //! with it. Both are read by the page through the shell's own scheme (`file_scheme.rs`); a file
 //! neither holds is fetched from `/v1/blobs/<sha>` with the device's credential, checked against
-//! its sha and kept, unless a sign-out came between the fetch and its landing.
+//! its sha and kept. A sign-out that comes between a file's asking and its landing, a fetched
+//! file's or a staged one's, lands it nowhere.
 
 use std::fmt::Write as _;
 use std::fs::{self, File, OpenOptions};
@@ -29,7 +30,7 @@ pub struct Held {
     pub content_type: String,
 }
 
-/// What became of a fetched file.
+/// What became of a file on its way to this Mac's disk.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Landing {
     Kept,
@@ -169,7 +170,7 @@ struct Folders {
     limit: u64,
     // one writer at a time, so an eviction never counts a file another write is renaming in
     writing: Mutex<()>,
-    // moved by a clear under the writer's lock, so a fetch that began before it lands nothing
+    // moved by a clear under the writer's lock, so a fetch or a stage begun before it lands nothing
     generation: AtomicU64,
 }
 
@@ -200,7 +201,8 @@ impl FileCache {
             .unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// What a fetch hands `keep` back: it lands only if no clear came between.
+    /// What a fetch hands `keep` back, and a page's file `stage`: it lands only if no clear came
+    /// between.
     pub fn generation(&self) -> u64 {
         self.folders.generation.load(Ordering::SeqCst)
     }
@@ -221,10 +223,17 @@ impl FileCache {
         self.folders.cache_dir.join(format!("{sha}{TYPE_SUFFIX}"))
     }
 
-    /// A file the outbox will upload, with the type it is sent as: kept until the write naming it
-    /// lands, whatever the cache's limit. Bytes that do not hash to their sha are refused, as the
-    /// cloud would refuse them.
-    pub fn stage(&self, sha: &str, bytes: &[u8], content_type: &str) -> ShellResult<()> {
+    /// A file the outbox will upload, asked for under the generation `since`, with the type it is
+    /// sent as: kept until the write naming it lands, whatever the cache's limit, while no clear
+    /// came between. Bytes that do not hash to their sha are refused, as the cloud would refuse
+    /// them.
+    pub fn stage(
+        &self,
+        sha: &str,
+        bytes: &[u8],
+        content_type: &str,
+        since: u64,
+    ) -> ShellResult<Landing> {
         let sha = checked(sha)?;
         if sha_of(bytes) != sha {
             return Err(ShellError::Invalid(format!(
@@ -232,8 +241,12 @@ impl FileCache {
             )));
         }
         let _writing = self.write_lock();
+        if self.generation() != since {
+            return Ok(Landing::AccountLeft);
+        }
         write_whole(&self.staged_type_path(sha), content_type.as_bytes())?;
-        Ok(write_whole(&self.staged_path(sha), bytes)?)
+        write_whole(&self.staged_path(sha), bytes)?;
+        Ok(Landing::Kept)
     }
 
     pub fn staged(&self, sha: &str) -> ShellResult<Option<Vec<u8>>> {
@@ -267,7 +280,7 @@ impl FileCache {
     }
 
     /// Everything this Mac holds of the library's files, as a sign-out leaves nothing of the
-    /// account behind, a fetch still on its way included.
+    /// account behind, a fetch or a stage still on its way included.
     pub fn clear(&self) -> ShellResult<()> {
         let _writing = self.write_lock();
         self.folders.generation.fetch_add(1, Ordering::SeqCst);
@@ -490,6 +503,11 @@ mod tests {
         cache.keep(sha, held, cache.generation())
     }
 
+    /// A file staged as a page that asked just now stages it.
+    fn staged(cache: &FileCache, sha: &str, held: &Held) -> ShellResult<Landing> {
+        cache.stage(sha, &held.bytes, &held.content_type, cache.generation())
+    }
+
     #[test]
     fn a_kept_file_is_a_hit_with_its_type() -> ShellResult<()> {
         let dir = tempfile::tempdir()?;
@@ -512,7 +530,7 @@ mod tests {
             Err(ShellError::Invalid(_))
         ));
         assert!(matches!(
-            cache.stage(&sha, &other.bytes, &other.content_type),
+            staged(&cache, &sha, &other),
             Err(ShellError::Invalid(_))
         ));
         assert!(matches!(
@@ -550,7 +568,7 @@ mod tests {
         let dir = tempfile::tempdir()?;
         let cache = cache_in(dir.path(), 0);
         let (sha, held) = file("a staged photo");
-        cache.stage(&sha, &held.bytes, &held.content_type)?;
+        staged(&cache, &sha, &held)?;
         // a fetched file meets a limit of nothing and goes at once; the staged one stays
         let (other, other_file) = file("fetched");
         kept(&cache, &other, &other_file)?;
@@ -576,7 +594,7 @@ mod tests {
             content_type: "application/pdf".to_owned(),
         };
         let sha = sha_of(&held.bytes);
-        cache.stage(&sha, &held.bytes, &held.content_type)?;
+        staged(&cache, &sha, &held)?;
         assert_eq!(whole(&cache, &sha)?.as_ref(), Some(&held));
         cache.unstage(&sha)?;
         assert_eq!(whole(&cache, &sha)?.as_ref(), Some(&held));
@@ -590,12 +608,12 @@ mod tests {
     fn clearing_leaves_nothing_of_the_account() -> ShellResult<()> {
         let dir = tempfile::tempdir()?;
         let cache = cache_in(dir.path(), CACHE_LIMIT_BYTES);
-        let (staged, staged_file) = file("staged");
+        let (waiting, waiting_file) = file("staged");
         let (fetched, fetched_file) = file("kept");
-        cache.stage(&staged, &staged_file.bytes, &staged_file.content_type)?;
+        staged(&cache, &waiting, &waiting_file)?;
         kept(&cache, &fetched, &fetched_file)?;
         cache.clear_staged()?;
-        assert_eq!(cache.staged(&staged)?, None);
+        assert_eq!(cache.staged(&waiting)?, None);
         assert!(whole(&cache, &fetched)?.is_some());
         cache.clear()?;
         assert_eq!(whole(&cache, &fetched)?, None);
@@ -617,6 +635,25 @@ mod tests {
         // the next fetch, under the generation the clear left, lands
         assert_eq!(kept(&cache, &sha, &held)?, Landing::Kept);
         assert!(whole(&cache, &sha)?.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn a_file_staged_across_a_clear_lands_nothing() -> ShellResult<()> {
+        let dir = tempfile::tempdir()?;
+        let cache = cache_in(dir.path(), CACHE_LIMIT_BYTES);
+        let (sha, held) = file("on its way up");
+        let since = cache.generation();
+        cache.clear()?;
+        assert_eq!(
+            cache.stage(&sha, &held.bytes, &held.content_type, since)?,
+            Landing::AccountLeft
+        );
+        assert_eq!(cache.staged(&sha)?, None);
+        assert!(!dir.path().join("staged").exists());
+        // the next stage, under the generation the clear left, lands
+        assert_eq!(staged(&cache, &sha, &held)?, Landing::Kept);
+        assert_eq!(cache.staged(&sha)?, Some(held.bytes));
         Ok(())
     }
 

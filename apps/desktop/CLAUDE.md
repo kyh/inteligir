@@ -120,12 +120,15 @@ a bullet is written and cited.
   in the data dir, never evicted, until its upload moves it into the cache;
   each file's type, the one the page staged it as or the cloud served, moves
   with it. A sign-out moves the cache's generation, so a fetch begun before it
-  keeps nothing and answers as a miss signed out. Every file but a PDF is
-  served under a script-less sandbox, as the cloud serves it; a PDF keeps
-  WebKit's viewer under a policy that runs no script and that only the app's
-  page may frame. Rejected: the cloud's route straight from the page (an
-  `<img>` carries no bearer, and offline it draws nothing); the asset protocol
-  over a scope of the disk (no fetch on a miss).
+  keeps nothing and answers as a miss signed out, and a stage begun before it
+  lands nothing and is refused as signed out, as the row naming it would be.
+  Every file but a PDF is served under a script-less sandbox, as the cloud
+  serves it; a PDF keeps WebKit's viewer under a policy that runs no script and
+  that only the app's page may frame. Rejected: the cloud's route straight from
+  the page (an `<img>` carries no bearer, and offline it draws nothing); the
+  asset protocol over a scope of the disk (no fetch on a miss); the page's wipe
+  ahead of the shell's forget at a session's end (what a sign-out leaves behind
+  would rest on the page, and a wipe that hangs would hold the leave).
   Residual: WebKitGTK's player loads nothing from a custom scheme, so a
   recording's playback is the owner's check on a Mac (`docs/releasing.md`).
   `apps/desktop/src-tauri/src/file_scheme.rs`, `file_cache.rs`.

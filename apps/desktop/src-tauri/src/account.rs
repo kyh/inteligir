@@ -7,8 +7,8 @@ use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use crate::credential::{Credentials, DeviceCredential};
-use crate::error::ShellResult;
-use crate::file_cache::{self, FetchAs, FileCache};
+use crate::error::{ShellError, ShellResult};
+use crate::file_cache::{self, FetchAs, FileCache, Landing};
 use crate::replica::Replica;
 
 pub struct Account {
@@ -48,12 +48,23 @@ impl Account {
     }
 
     /// The credential a miss is fetched with, while an account is signed in. The generation is
-    /// read first, so a sign-out that lands between the two reads leaves it behind and the fetch
-    /// keeps nothing.
+    /// read first, so a sign-out that lands between the two reads leaves it behind and what it
+    /// was read for lands nothing.
     pub fn fetching_as(&self) -> Option<FetchAs> {
         let since = self.files.generation();
         let bearer = self.bearer_slot().clone()?;
         Some(FetchAs { bearer, since })
+    }
+
+    /// A file the outbox will upload, for the account signed in. One that outlives its account
+    /// would sit in the data dir with no row naming it, since nothing evicts a staged file, so it
+    /// is refused as the row itself would be.
+    pub fn stage(&self, sha: &str, bytes: &[u8], content_type: &str) -> ShellResult<()> {
+        let asking = self.fetching_as().ok_or(ShellError::SignedOut)?;
+        match self.files.stage(sha, bytes, content_type, asking.since)? {
+            Landing::Kept => Ok(()),
+            Landing::AccountLeft => Err(ShellError::SignedOut),
+        }
     }
 
     /// The account's replica: one file an account, named by a hash of its id, so no id reaches a
@@ -118,7 +129,6 @@ mod tests {
     use tauri::http::{Request, StatusCode};
 
     use super::*;
-    use crate::error::ShellError;
     use crate::file_cache::{CACHE_LIMIT_BYTES, CloudFiles};
     use crate::file_scheme;
     use crate::replica::{Statement, TRANSACTION_IDLE_LIMIT};
@@ -188,7 +198,7 @@ mod tests {
             .run(&statement("CREATE TABLE kept (body TEXT)"))?;
         let bytes = b"a staged photo";
         let sha = file_cache::sha_of(bytes);
-        account.files().stage(&sha, bytes, "image/png")?;
+        account.stage(&sha, bytes, "image/png")?;
         assert_eq!(account.forget()?, Some(signed_in()));
         assert_eq!(account.forget()?, None);
         assert_eq!(bearer_of(&account), None);
@@ -196,6 +206,43 @@ mod tests {
         assert_eq!(account.files().staged(&sha)?, None);
         assert!(account.replica().all(&statement("SELECT 1")).is_err());
         assert_eq!(account_in(dir.path(), &store).restore()?, None);
+        Ok(())
+    }
+
+    #[test]
+    fn a_file_staged_once_the_account_left_is_refused_and_held_nowhere() -> ShellResult<()> {
+        let dir = tempfile::tempdir()?;
+        let store: Arc<CredentialStore> = keyring_core::mock::Store::new()?;
+        let account = account_in(dir.path(), &store);
+        account.keep(&signed_in())?;
+        account.forget()?;
+        let bytes = b"a photo dropped as the Mac was revoked";
+        let sha = file_cache::sha_of(bytes);
+        assert!(matches!(
+            account.stage(&sha, bytes, "image/png"),
+            Err(ShellError::SignedOut)
+        ));
+        assert_eq!(account.files().staged(&sha)?, None);
+        assert!(!dir.path().join("staged").exists());
+        Ok(())
+    }
+
+    #[test]
+    fn a_file_on_its_way_up_at_a_sign_out_lands_nothing() -> ShellResult<()> {
+        let dir = tempfile::tempdir()?;
+        let store: Arc<CredentialStore> = keyring_core::mock::Store::new()?;
+        let account = account_in(dir.path(), &store);
+        account.keep(&signed_in())?;
+        let bytes = b"a photo dropped as the Mac was revoked";
+        let sha = file_cache::sha_of(bytes);
+        let since = account.fetching_as().ok_or(ShellError::SignedOut)?.since;
+        account.forget()?;
+        assert_eq!(
+            account.files().stage(&sha, bytes, "image/png", since)?,
+            Landing::AccountLeft
+        );
+        assert_eq!(account.files().staged(&sha)?, None);
+        assert!(!dir.path().join("staged").exists());
         Ok(())
     }
 
