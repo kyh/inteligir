@@ -161,6 +161,13 @@ how it ships.
   an unread link's title when they are short enough to name it, since the
   cloud keeps a title it is given and a page read names itself
   (`apps/mobile/src/items/share-payload.ts`).
+  A page keeps its address to the last character, since it comes over as
+  nothing but that address; text takes its link and its note from
+  `apps/mobile/src/items/link-in-text.ts`, every spelling of the link out and
+  its lines kept. Rejected: the library's own `webUrl` for text (its search
+  stops at a bracket, a comma or an accented letter, so the wrong page is read);
+  trimming a sentence's marks off every share (the real last character of
+  `…/Oklahoma!`).
   It opens the item and only then lets the share go, so a signed-out share
   waits, and so does one a sign-out caught mid-read, which the closed replica
   refuses (`apps/mobile/src/items/share-inbox.tsx`), and a share made while one

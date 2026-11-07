@@ -2,13 +2,14 @@
 // after a link is the sentence's, and so is a closing bracket the link never opened: "(see
 // https://x.y/z)" saves https://x.y/z, while https://en.wikipedia.org/wiki/Foo_(bar) keeps its
 // own. The marks are the keyboard's as well as ASCII's: iOS types “ ” for ", an ellipsis, and a
-// full-width keyboard its own brackets and stops. Pure: `phone-saves.ts` and the tests read it.
+// full-width keyboard its own brackets and stops. Pure: `phone-saves.ts`, `share-payload.ts` and
+// the tests read it.
 
-import { isWebUrl } from "@repo/notes/items/item-url";
+import { isWebUrl, urlKey } from "@repo/notes/items/item-url";
 
 // quotes never sit inside a link someone typed, so one ends it; ’ may (smart punctuation types
 // it for an apostrophe), so it ends a link only as its last mark
-const LINK_IN_TEXT = /https?:\/\/[^\s<>"'`“”‘«»「」『』]+/iu;
+const LINK_IN_TEXT = /https?:\/\/[^\s<>"'`“”‘«»「」『』]+/giu;
 const SENTENCE_PUNCTUATION = new Set([
   ".",
   ",",
@@ -49,12 +50,14 @@ const QUOTE_CLOSER_OF: ReadonlyMap<string, string> = new Map([
   ["『", "』"],
   ['"', '"'],
   ["'", "'"],
+  ["`", "`"],
+  ["<", ">"],
 ]);
 
 const countOf = (text: string, ch: string): number => text.split(ch).length - 1;
 
 // a closing bracket ends the link only while the link holds fewer of its opener than of it
-export const linkTail = (candidate: string): string => {
+const linkTail = (candidate: string): string => {
   let url = candidate;
   for (let last = url.at(-1); last !== undefined; last = url.at(-1)) {
     const opener = OPENER_OF.get(last);
@@ -91,6 +94,22 @@ const withoutOpenersOf = (before: string, closers: readonly string[]): string =>
   return [...before].filter((_, index) => !dropped.has(index)).join("");
 };
 
+// the punctuation after a closing quote is the link's, as it is with no quote between them
+const pastPunctuation = (text: string): string => {
+  const words = [...text].findIndex((ch) => !SENTENCE_PUNCTUATION.has(ch));
+  return words === -1 ? "" : text.slice(words);
+};
+
+// what joins the words the link stood between: the line breaks they had, the most on either side,
+// since the link's own line goes with it, or a space
+const seamOf = (before: string, after: string): string => {
+  const breaks = Math.max(
+    countOf(before.slice(before.trimEnd().length), "\n"),
+    countOf(after.slice(0, after.length - after.trimStart().length), "\n"),
+  );
+  return breaks === 0 ? " " : "\n".repeat(breaks);
+};
+
 // the note: the text around the link, less the marks that framed it. A markdown link's label is
 // the note, and a bracket or a quote the link sat in goes with the link
 const restAround = (before: string, tail: string, after: string): string => {
@@ -107,24 +126,37 @@ const restAround = (before: string, tail: string, after: string): string => {
   const quote = QUOTE_CLOSER_OF.get(head.at(-1) ?? "");
   if (quote !== undefined && (tail.includes(quote) || next.startsWith(quote))) {
     head = head.slice(0, -1);
-    next = tail.includes(quote) ? next : next.slice(quote.length);
+    next = tail.includes(quote) ? next : pastPunctuation(next.slice(quote.length));
   }
-  return [head.trim(), next.trim()].filter((part) => part !== "").join(" ");
+  const left = head.trim();
+  const right = next.trim();
+  return left === "" || right === "" ? `${left}${right}` : `${left}${seamOf(head, next)}${right}`;
 };
 
-export const linkInText = (text: string): { url: string; rest: string } | null => {
-  const found = LINK_IN_TEXT.exec(text);
-  if (found === null) {
-    return null;
-  }
-  const url = linkTail(found[0]);
-  if (!isWebUrl(url)) {
-    return null;
-  }
-  const rest = restAround(
+const textWithout = (text: string, found: RegExpExecArray, url: string): string =>
+  restAround(
     text.slice(0, found.index),
     found[0].slice(url.length),
     text.slice(found.index + found[0].length),
   );
-  return { rest, url };
+
+export const linkInText = (text: string): { url: string; rest: string } | null => {
+  const [found] = text.matchAll(LINK_IN_TEXT);
+  if (found === undefined) {
+    return null;
+  }
+  const url = linkTail(found[0]);
+  return isWebUrl(url) ? { rest: textWithout(text, found, url), url } : null;
+};
+
+// the text with every spelling of `url` taken out, each as `linkInText` takes the first link out
+export const withoutLink = (text: string, url: string): string => {
+  const key = urlKey(url);
+  for (const found of text.matchAll(LINK_IN_TEXT)) {
+    const spelling = linkTail(found[0]);
+    if (key !== null && urlKey(spelling) === key) {
+      return withoutLink(textWithout(text, found, spelling), url);
+    }
+  }
+  return text;
 };

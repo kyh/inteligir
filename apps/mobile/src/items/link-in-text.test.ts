@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { linkInText } from "./link-in-text";
+import { linkInText, withoutLink } from "./link-in-text";
 
 const urlIn = (text: string): string | null => linkInText(text)?.url ?? null;
 
@@ -65,6 +65,22 @@ describe("a link inside text", () => {
       rest: "he said",
       url: "https://x.y/a",
     });
+    expect(linkInText("Read <https://x.y/a> tonight")?.rest).toBe("Read tonight");
+    expect(linkInText("Read `https://x.y/a` tonight")?.rest).toBe("Read tonight");
+  });
+
+  it("leaves the sentence's punctuation after a closing quote with the link", () => {
+    expect(linkInText('read "https://x.y/a".')?.rest).toBe("read");
+    expect(linkInText("read “https://x.y/a”, then call")?.rest).toBe("read then call");
+    expect(linkInText("“https://x.y/a”.")?.rest).toBe("");
+  });
+
+  it("keeps the line breaks around the link, and only a space where there were none", () => {
+    expect(linkInText("one\nhttps://x.y/a\ntwo")?.rest).toBe("one\ntwo");
+    expect(linkInText("one\n\nhttps://x.y/a\n\ntwo")?.rest).toBe("one\n\ntwo");
+    expect(linkInText("one\n\nhttps://x.y/a\ntwo")?.rest).toBe("one\n\ntwo");
+    expect(linkInText("one https://x.y/a\ntwo")?.rest).toBe("one\ntwo");
+    expect(linkInText("one   https://x.y/a   two")?.rest).toBe("one two");
   });
 
   it("takes the rest of the text as the note, the link's punctuation with it", () => {
@@ -74,5 +90,22 @@ describe("a link inside text", () => {
     });
     expect(linkInText("no link here")).toBeNull();
     expect(linkInText("https://)")).toBeNull();
+  });
+});
+
+describe("a link taken out of text", () => {
+  it("takes out each spelling of it by the same rules, and leaves every other link", () => {
+    expect(
+      withoutLink("a https://x.y/z b (see https://x.y/z/?utm_source=m).", "https://x.y/z"),
+    ).toBe("a b see");
+    expect(withoutLink("a “https://x.y/z” b https://x.y/other c", "https://x.y/z")).toBe(
+      "a b https://x.y/other c",
+    );
+    expect(withoutLink("a https://x.y/other b", "https://x.y/z")).toBe("a https://x.y/other b");
+    expect(withoutLink("no link here", "https://x.y/z")).toBe("no link here");
+  });
+
+  it("takes out nothing for what names no page", () => {
+    expect(withoutLink("a https://x.y/z b", "x.y")).toBe("a https://x.y/z b");
   });
 });

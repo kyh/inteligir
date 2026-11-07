@@ -1,12 +1,13 @@
 // What a share from another app asks the phone to save, read from what the share extension handed
-// over: a page or a link with its title, or text, which may hold a link of its own. The shared link
-// rides along in the text in its own spellings (a trailing slash, a tracker), so every web address
-// in the text naming the same page is taken out of what the text says, and what is left is the
-// person's words, never lost. Text that still holds an address, or only punctuation, names nothing.
+// over: a page or a link with its title, or text, which may hold a link of its own. A page comes
+// over as its address and nothing else, the page's own to the last character, whatever it ends in.
+// In text, the library's own search stops an address at a bracket, a comma or an accented letter,
+// so the link is read here, where a sentence's marks are told from the address's. Every spelling
+// of the link is taken out of what the text says, and what is left is the person's words, never
+// lost. Text that still holds an address, or only punctuation, names nothing.
 // Pure: the share inbox and the tests read it.
 
-import { urlKey } from "@repo/notes/items/item-url";
-import { linkTail } from "./link-in-text";
+import { linkInText, withoutLink } from "./link-in-text";
 
 interface SharedLink {
   kind: "link";
@@ -32,9 +33,6 @@ const filled = (value: string | null | undefined): string | null => {
   return trimmed === "" ? null : trimmed;
 };
 
-// a web address as text writes it: up to the next space
-const WEB_TOKEN = /https?:\/\/\S+/giu;
-
 const looksLikeTitle = (text: string): boolean =>
   text.length <= TITLE_MAX &&
   !/[\r\n]/u.test(text) &&
@@ -43,18 +41,8 @@ const looksLikeTitle = (text: string): boolean =>
 
 // the text with every spelling of the shared link taken out; null when nothing but punctuation is
 // left
-const besideLink = (text: string | null, url: string): string | null => {
-  if (text === null) {
-    return null;
-  }
-  const key = urlKey(url);
-  const left = filled(
-    text
-      .replaceAll(WEB_TOKEN, (token) =>
-        key !== null && urlKey(linkTail(token)) === key ? "" : token,
-      )
-      .replaceAll(/[ \t]{2,}/gu, " "),
-  );
+const besideLink = (text: string, url: string): string | null => {
+  const left = filled(withoutLink(text, url));
   return left !== null && /[\p{L}\p{N}]/u.test(left) ? left : null;
 };
 
@@ -64,15 +52,12 @@ export const sharedSaveOf = (intent: ShareHandoff): SharedSave => {
   if (given === null) {
     return text === null ? { kind: "nothing" } : { kind: "text", text };
   }
-  // the share extension finds this address in text, so it can end in the sentence's own punctuation
-  const url = linkTail(given);
-  return {
-    kind: "link",
-    // the link itself often rides along in the text, which says nothing more
-    note: besideLink(text, url),
-    title: filled(intent.meta?.title) ?? filled(intent.meta?.["og:title"]),
-    url,
-  };
+  const title = filled(intent.meta?.title) ?? filled(intent.meta?.["og:title"]);
+  if (text === null || text === given) {
+    return { kind: "link", note: null, title, url: given };
+  }
+  const url = linkInText(text)?.url ?? given;
+  return { kind: "link", note: besideLink(text, url), title, url };
 };
 
 // a link saved unread has no page to name it and keeps the title it is given, so short words beside
