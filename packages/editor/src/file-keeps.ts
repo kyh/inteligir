@@ -1,5 +1,5 @@
 // A file is kept before the block that names it exists, so an editor's value says nothing of one in
-// flight: what writes that editor watches here, and waits for one before it goes.
+// flight: what writes that editor watches here, and writes behind each one.
 
 import type { SlateEditor } from "platejs";
 
