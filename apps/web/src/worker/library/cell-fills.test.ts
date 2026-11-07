@@ -210,6 +210,39 @@ describe("a page's reading, landed", () => {
     });
   });
 
+  it("carries a stub's note onto the item its page folds onto, as that item's note", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const library = libraryIn(state, accountId);
+      const engine = openCellLibrary(state, env);
+      const holder = await library.items.saveLink({ url: "https://pages.example/final" });
+      engine.landReading(
+        read({ itemId: holder.item.id, url: "https://pages.example/final" }, [
+          paragraph("h", "Held."),
+        ]),
+      );
+      const stub = await library.items.saveLink({
+        note: "Look at this",
+        url: "https://short.example/x",
+      });
+      engine.landReading(
+        read(
+          { itemId: stub.item.id, url: "https://short.example/x" },
+          [paragraph("f", "Folded.")],
+          {
+            finalUrl: "https://pages.example/final",
+          },
+        ),
+      );
+      const note = [...(stateOf(state, holder.item.id)?.blocks.values() ?? [])].filter(
+        (stored) => stored.section === "note",
+      );
+      expect(note).toHaveLength(1);
+      expect(JSON.stringify(note)).toContain("Look at this");
+      expect(stateOf(state, holder.item.id)?.fields.title).toBe("The page's own title");
+    });
+  });
+
   it("leaves a folded link read, so it stays where a person restores it", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {

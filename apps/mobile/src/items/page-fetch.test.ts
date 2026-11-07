@@ -6,9 +6,9 @@ const HEADERS = { acceptLanguage: "en-US,en;q=0.9", userAgent: "inteligir-test" 
 
 const PAGE: PhonePageRequest = {
   accept: "text/html",
+  from: "https://stephango.com/file-over-app",
   maxBytes: 8,
   overflow: "truncate",
-  reachesPrivate: false,
   url: "https://stephango.com/file-over-app",
 };
 
@@ -225,9 +225,40 @@ describe("the phone's page fetch", () => {
       HEADERS,
     );
 
-    const read = await fetchPage({ ...PAGE, maxBytes: 64, reachesPrivate: true, url: saved });
+    const read = await fetchPage({ ...PAGE, maxBytes: 64, from: saved, url: saved });
 
     expect(read.ok && read.page.url).toBe("http://192.168.1.20/notes/");
+  });
+
+  it("goes back into private space from nowhere but private space, however the walk began", async () => {
+    const saved = "http://go/x";
+    const seen: string[] = [];
+    const answers = new Map<string, string>([
+      [saved, "https://public.example.com/a"],
+      ["https://public.example.com/a", "http://10.0.0.5/admin"],
+    ]);
+    const fetchPage = createPageFetch(async (url) => {
+      seen.push(url);
+      return await Promise.resolve(
+        new Response(null, { headers: { location: answers.get(url) ?? "" }, status: 302 }),
+      );
+    }, HEADERS);
+
+    await expect(fetchPage({ ...PAGE, from: saved, url: saved })).resolves.toMatchObject(NOT_READ);
+    expect(seen).toStrictEqual([saved, "https://public.example.com/a"]);
+  });
+
+  it("asks nothing in private space of what a public address named", async () => {
+    const seen: { url: string; init: RequestInit }[] = [];
+    const fetchPage = createPageFetch(
+      answering(() => new Response(""), seen),
+      HEADERS,
+    );
+
+    await expect(fetchPage({ ...COVER, url: "http://10.0.0.5/cam.png" })).resolves.toMatchObject(
+      NOT_READ,
+    );
+    expect(seen).toStrictEqual([]);
   });
 
   it("stops after five redirects", async () => {

@@ -137,8 +137,7 @@ page is fetched by the phone, each redirect judged by its spelling
 (`src/items/page-fetch.ts`), read in the headless page by the library's own
 reader and saved read, with its cover; a page it cannot read now, offline
 among them, or read no text from, is saved as its link, which the cloud reads
-once it lands. Words shared beside the link are kept either way: as the item's
-note, or as an unread link's title when they are short enough to name it.
+once it lands. Words shared beside the link are the item's note either way.
 
 ## The agent
 

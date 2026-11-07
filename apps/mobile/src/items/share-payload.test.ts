@@ -2,19 +2,19 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import { redirectSystemPath } from "../app/+native-intent";
-import { isShareHandoff, sharedSaveOf, unreadLink } from "./share-payload";
+import { isShareHandoff, sharedSaveOf } from "./share-payload";
 import type { ShareHandoff } from "./share-payload";
 
 const URL = "https://stephango.com/file-over-app";
 
-// the search `parseShareIntent` runs over shared text, read out of the installed library, whose
+// the search `parseShareIntent` runs over shared text, read out of the installed package, whose
 // module needs a native runtime to load: the app is handed the first http match
-const libraryBuild = readFileSync(
+const packageBuild = readFileSync(
   createRequire(import.meta.url).resolve("expo-share-intent/build/utils.js"),
   "utf-8",
 );
 const ADDRESS_SEARCH = new RegExp(
-  /\.text\s+\.match\(\/(?<search>.+)\/gi\)/u.exec(libraryBuild)?.groups?.search ?? "",
+  /\.text\s+\.match\(\/(?<search>.+)\/gi\)/u.exec(packageBuild)?.groups?.search ?? "",
   "giu",
 );
 
@@ -75,6 +75,12 @@ describe("what a share asks the phone to save", () => {
     ['see "https://example.com/z" now', "https://example.com/z", "see now"],
     ["see “https://example.com/z” now", "https://example.com/z", "see now"],
     ["see 'https://example.com/z' now", "https://example.com/z", "see now"],
+    [
+      "Read https://en.wikipedia.org/wiki/Murphy's_law tonight",
+      "https://en.wikipedia.org/wiki/Murphy's_law",
+      "Read tonight",
+    ],
+    ["see **https://example.com/z** now", "https://example.com/z", "see now"],
     ["see ‘https://example.com/z’ now", "https://example.com/z", "see now"],
     ['read "https://example.com/z".', "https://example.com/z", "read"],
     ["read “https://example.com/z”.", "https://example.com/z", "read"],
@@ -109,23 +115,7 @@ describe("what a share asks the phone to save", () => {
     }
   });
 
-  it("names an unread link by short words beside it, never by the marks around the link", () => {
-    const named = { kind: "link", note: null, title: "see", url: "https://example.com/z" };
-    const shared = sharedSaveOf(textShare("(see https://example.com/z)"));
-    expect(shared.kind === "link" ? unreadLink(shared) : null).toStrictEqual(named);
-    const long = `Read this before the meeting.\nIt explains why we keep everything in files.`;
-    const words = { kind: "link", note: long, title: null, url: URL } as const;
-    expect(unreadLink(words)).toStrictEqual(words);
-    const titled = {
-      kind: "link",
-      note: "For Tuesday.",
-      title: "File over app",
-      url: URL,
-    } as const;
-    expect(unreadLink(titled)).toStrictEqual(titled);
-  });
-
-  it("takes every spelling of the shared link out of its text, and makes no title of a link", () => {
+  it("takes every spelling of the shared link out of its text", () => {
     const shared = "https://example.com/a";
     for (const text of [
       `${shared} ${shared}/`,
@@ -140,14 +130,12 @@ describe("what a share asks the phone to save", () => {
         url: shared,
       });
     }
-    const other = sharedSaveOf(textShare(`Breaking: ${shared} and https://t.co/abc`));
-    expect(other).toStrictEqual({
+    expect(sharedSaveOf(textShare(`Breaking: ${shared} and https://t.co/abc`))).toStrictEqual({
       kind: "link",
       note: "Breaking: and https://t.co/abc",
       title: null,
       url: shared,
     });
-    expect(other.kind === "link" ? unreadLink(other) : null).toStrictEqual(other);
   });
 
   it("takes the extension's address when the text's link reads as none", () => {
@@ -160,7 +148,7 @@ describe("what a share asks the phone to save", () => {
   });
 
   it.each(["httpbin.org", "httpbin.org is neat", "see http.cat for this"])(
-    "saves as text what the library's search calls an address and no web address is: %s",
+    "saves as text what expo-share-intent's search calls an address and no web address is: %s",
     (text) => {
       expect(textShare(text).webUrl).not.toBeNull();
       expect(sharedSaveOf(textShare(text))).toStrictEqual({ kind: "text", text });

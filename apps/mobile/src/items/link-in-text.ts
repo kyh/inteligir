@@ -9,10 +9,12 @@ import { isWebUrl, urlKey } from "@repo/notes/items/item-url";
 
 // letters of any script, numbers, the ASCII an address spells and the full-width brackets it can
 // hold. A quote, an emoji, a dash or a full-width stop never sits inside a link someone typed, and
-// a language with no spaces runs its sentence straight on from the link, so each ends it; ’ may
-// (smart punctuation types it for an apostrophe), so it ends a link only as its last mark
+// a language with no spaces runs its sentence straight on from the link, so each ends it; an
+// apostrophe may (' pasted, ’ as smart punctuation types it), so it ends a link only as its last
+// mark, or in a host, which never holds one
 const LINK_IN_TEXT =
-  /https?:\/\/[\p{L}\p{N}\p{M}!#$%&()*+,\-./:;=?@[\\\]^_{|}~’（）［］｛｝【】〈〉《》]+/giu;
+  /https?:\/\/[\p{L}\p{N}\p{M}!#$%&'()*+,\-./:;=?@[\\\]^_{|}~’（）［］｛｝【】〈〉《》]+/giu;
+const HOST_BEFORE_APOSTROPHE = /^https?:\/\/[^/?#'’]+(?=['’])/iu;
 const SENTENCE_PUNCTUATION = new Set([
   "*",
   ".",
@@ -22,6 +24,7 @@ const SENTENCE_PUNCTUATION = new Set([
   "!",
   "?",
   "…",
+  "'",
   "’",
   "。",
   "、",
@@ -63,9 +66,10 @@ const countOf = (text: string, ch: string): number => text.split(ch).length - 1;
 // the link in what the search found: up to a closing bracket it never opened, whatever follows
 // that, and short of the punctuation a sentence puts after it
 const linkOf = (found: string): string => {
+  const address = HOST_BEFORE_APOSTROPHE.exec(found)?.[0] ?? found;
   const open = new Map<string, number>();
   let end = 0;
-  for (const ch of found) {
+  for (const ch of address) {
     const opener = OPENER_OF.get(ch);
     if (opener !== undefined && (open.get(opener) ?? 0) === 0) {
       break;
@@ -76,7 +80,7 @@ const linkOf = (found: string): string => {
     }
     end += ch.length;
   }
-  let url = found.slice(0, end);
+  let url = address.slice(0, end);
   while (SENTENCE_PUNCTUATION.has(url.at(-1) ?? "")) {
     url = url.slice(0, -1);
   }
@@ -104,9 +108,14 @@ const withoutOpenersOf = (before: string, closers: readonly string[]): string =>
   return [...before].filter((_, index) => !dropped.has(index)).join("");
 };
 
-// the marks a sentence puts straight after a link: its punctuation and its closing brackets
+// the marks a sentence puts straight after a link: its punctuation and its closing brackets, short
+// of an apostrophe that opens a word (https://example.com's)
 const marksAt = (text: string): string => {
-  const words = [...text].findIndex((ch) => !SENTENCE_PUNCTUATION.has(ch) && !OPENER_OF.has(ch));
+  const words = [...text].findIndex(
+    (ch, index) =>
+      (!SENTENCE_PUNCTUATION.has(ch) && !OPENER_OF.has(ch)) ||
+      /^['’][\p{L}\p{N}]/u.test(text.slice(index)),
+  );
   return words === -1 ? text : text.slice(0, words);
 };
 
@@ -125,16 +134,19 @@ const seamOf = (before: string, after: string): string => {
 const restAround = (before: string, after: string): string => {
   const marks = marksAt(after);
   const next = after.slice(marks.length);
+  // markdown's emphasis opens where the words before the link, or its label, end
+  const unemphasised = (words: string): string =>
+    marks.includes("*") ? words.replace(/\*+$/u, "") : words;
   let head = before;
   let closers = [...marks].filter((ch) => OPENER_OF.has(ch));
   const markdown = /\[(?<label>[^\]]*)\]\($/u.exec(head);
   if (markdown !== null && closers[0] === ")") {
-    head = `${head.slice(0, markdown.index)}${markdown.groups?.label ?? ""}`;
+    head = `${unemphasised(head.slice(0, markdown.index))}${markdown.groups?.label ?? ""}`;
     closers = closers.slice(1);
   }
-  head = withoutOpenersOf(head, closers);
-  // ’ can be among the marks, which took it for the sentence's; any other quote closes after them,
-  // and the marks past it are the link's too
+  head = unemphasised(withoutOpenersOf(head, closers));
+  // an apostrophe can be among the marks, which took it for the sentence's; any other quote closes
+  // after them, and the marks past it are the link's too
   const quote = QUOTE_CLOSER_OF.get(head.at(-1) ?? "");
   if (quote !== undefined && (marks.includes(quote) || next.startsWith(quote))) {
     return restAround(head.slice(0, -1), marks.includes(quote) ? next : next.slice(quote.length));

@@ -152,30 +152,47 @@ how it ships.
   a page, a link or text, never a photo or a file) writes the share into the
   App Group and opens the app at its handoff address
   (`apps/mobile/src/app/+native-intent.ts`, which never throws). The signed-in
-  app fetches the page itself, judging each redirect by its spelling
+  app fetches the page itself, judging each redirect by its spelling, a step
+  into private space only from an address there
   (`apps/mobile/src/items/page-fetch.ts`), reads it in the headless page and
   saves it read, cover and all; a page it cannot read now, an answer that is a
   file whatever it was served as (`isPage`, the fill's own rule), or a page it
   read no text from, is saved as its link, which the cloud's fill reads
   (`apps/mobile/src/items/share-save.ts`). An address that moved, a redirect
-  having changed its `urlKey`, keeps the address it was shared at unless the
+  having changed its `urlKey`, can have ended at a sign-in wall, since the phone
+  sends no cookie. So an item already at the shared address keeps its article:
+  the share lands on it as a link, which adds the note, unless the cloud has yet
+  to read it or could not and it holds no article (`fetchState` alone cannot
+  say, since Read the page again leaves the article on an item that waits). A
+  read past that keeps the shared address, an item there taking it, unless the
   end is surely the page: the replica holds that address, so the save joins
-  that item as the fill's fold does, or a link turned out a video or a song.
-  A holder the replica has yet to pull makes a second item until Read the page
-  again folds it. Rejected: the final address on every save (a page that
+  that item as the fill's fold does and an item waiting at the shared address
+  folds onto it too, or a link no item holds turned out a video or a song. An
+  end past what an item's address holds stays shared, as the fill's does. A
+  moved save that stays at the shared address takes the sheet's title before
+  the read's, since a wall names itself; any other takes the read's first.
+  Residual: a holder the replica has yet to pull goes unseen, so one at the end
+  leaves a second item, until Read the page again folds it, and one at the
+  shared address takes the read over its article; a waiting item that takes the
+  read of a video or a song keeps kind link, since only the fill sets a kind on
+  an item that exists. Rejected: the final address on every save (a page that
   redirects to its sign-in would be saved at the sign-in's address); handing
   every moved address to the fill (app share links are short links, and a site
   that blocks data centres would end unread though the phone had read it).
-  Words shared beside the link are never lost: they are the item's note, or
-  an unread link's title when they are short enough to name it, since the
-  cloud keeps a title it is given and a page read names itself
-  (`apps/mobile/src/items/share-payload.ts`). A moved address left unread keeps
-  them as its note, since a page answered it and a fold carries a note and no
-  title.
+  Words shared beside the link are the item's note on every path, since every
+  save and every fold carries a note and a fold drops a stub's title
+  (`apps/mobile/src/items/share-payload.ts`); an unread link is named by its
+  address or by the title the share sheet gave. Residual: an app that hands a
+  page's name as text leaves a note repeating the title once the cloud reads
+  it, redundant and not lost, since only the phone's own read knows the title
+  to compare. Rejected: short words naming an unread link (an item that already
+  holds the address takes no title, so they would be lost there); a fold moving
+  a stub's title into the note (a second path to remember what the note already
+  carries).
   A page keeps its address to the last character, since it comes over as
   nothing but that address; text takes its link and its note from
   `apps/mobile/src/items/link-in-text.ts`, every spelling of the link out and
-  its lines kept. Rejected: the library's own `webUrl` for text (its search
+  its lines kept. Rejected: expo-share-intent's `webUrl` for text (its search
   stops at a bracket, a comma or an accented letter, so the wrong page is read);
   trimming a sentence's marks off every share (the real last character of
   `…/Oklahoma!`); reading a link up to the first space (a language with no

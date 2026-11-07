@@ -11,7 +11,6 @@ import { base64FromBytes } from "@repo/contract/cloud/bytes";
 import type { FillAnswer, FillJob } from "@repo/editor-bridge/protocol";
 import { ReplicaClosedError } from "@repo/library-replica/library-replica";
 import type { LibraryReplica, Made, PageInput } from "@repo/library-replica/library-replica";
-import { namesPrivateSpace } from "@repo/notes/items/host-names";
 import { kindForUrl, urlKey } from "@repo/notes/items/item-url";
 import {
   coverPicture,
@@ -21,10 +20,10 @@ import {
   preferredText,
 } from "@repo/notes/items/link-fill";
 import { fieldLine, savedFacts } from "@repo/notes/items/saved-facts";
+import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
 import type { PageFetch } from "./page-fetch";
 import { createPhoneSaves } from "./phone-saves";
 import type { SavedItem, SaveTarget } from "./phone-saves";
-import { unreadLink } from "./share-payload";
 import type { SharedLink, SharedSave } from "./share-payload";
 
 export interface ShareReadPorts {
@@ -37,21 +36,18 @@ const PAGE_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q
 const COVER_ACCEPT = "image/webp,image/png,image/jpeg,image/gif;q=0.8,*/*;q=0.5";
 
 // the first candidate that is really a picture of a cover's size, kept whole as the site served it;
-// a page in private space may name a cover there, a public one never
+// the fetch judges each by the page that named it, which is where the walk ended
 const coverOf = async (
   ports: ShareReadPorts,
   pageUrl: string,
   candidates: readonly string[],
 ): Promise<PageInput["cover"]> => {
   for (const url of new Set(candidates)) {
-    if (!namesPrivateSpace(pageUrl) && namesPrivateSpace(url)) {
-      continue;
-    }
     const fetched = await ports.fetch({
       accept: COVER_ACCEPT,
+      from: pageUrl,
       maxBytes: FILL_LIMITS.coverBytes,
       overflow: "refuse",
-      reachesPrivate: namesPrivateSpace(pageUrl),
       url,
     });
     if (!fetched.ok) {
@@ -66,53 +62,69 @@ const coverOf = async (
   return null;
 };
 
-// what this phone made of a shared page: the page it read, or the link the cloud's fill is to read
-type SharedRead =
-  | { readonly kind: "page"; readonly page: PageInput }
-  | { readonly kind: "link"; readonly link: SharedLink };
+// whether an item can take a page this phone read after a move: one the cloud has yet to read, or
+// could not, and that holds no article, since Read the page again leaves the article on an item
+// that waits; a body still to come may hold one
+const takesARead = async (replica: LibraryReplica, itemId: string): Promise<boolean> => {
+  const item = await replica.item(itemId);
+  return (
+    item !== null &&
+    item.bodyHeld &&
+    (item.fields.fetchState === "pending" || item.fields.fetchState === "failed") &&
+    !item.blocks.some(({ section }) => section === "article")
+  );
+};
 
-// A move can end anywhere, a sign-in wall included, so the item keeps the address it was shared at
-// unless the end is surely the page: the library holds it, so the save joins that item as the
-// fill's fold does, or a link turned out a video or a song, as the fill's kind does
+// where a page read after a move is saved; null when it is not, the item at the shared address
+// taking the share as its link. A move can end anywhere, a sign-in wall included, so that item
+// comes first and keeps its article, and the save keeps the shared address unless the end is surely
+// the page: the library holds it, so the save joins that item as the fill's fold does, and the
+// item left waiting folds onto it too, or a link no item holds turned out a video or a song, as the
+// fill's kind does. An end past what an item's address holds stays shared, as the fill's does
 const movedAddress = async (
   replica: LibraryReplica,
   shared: string,
   landed: string,
-): Promise<string> => {
-  const namesItsKind = kindForUrl(shared) === "link" && kindForUrl(landed) !== "link";
-  return namesItsKind || (await replica.holderOf(landed)) !== null ? landed : shared;
+): Promise<string | null> => {
+  const holder = await replica.holderOf(shared);
+  if (holder !== null && !(await takesARead(replica, holder))) {
+    return null;
+  }
+  if (landed.length > ITEM_FIELD_CAPS.url) {
+    return shared;
+  }
+  if ((await replica.holderOf(landed)) !== null) {
+    return landed;
+  }
+  const namesItsKind =
+    holder === null && kindForUrl(shared) === "link" && kindForUrl(landed) !== "link";
+  return namesItsKind ? landed : shared;
 };
 
-// A page that did not answer, an answer that is no page, a reader that broke or a reading with no
-// article is left unread. The cloud names a moved page when it reads it, and its fold carries a
-// note and no title, so the words stay the note; it never reaches private space, so a link there
-// keeps the name its words give it
+// the page this phone read of a share; null leaves the share its link: a page that did not answer,
+// an answer that is no page, a move the item at the shared address takes as its link, a reader that
+// broke or a reading with no article
 const readSharedPage = async (
   ports: ShareReadPorts,
   replica: LibraryReplica,
   shared: SharedLink,
   target: SaveTarget,
-): Promise<SharedRead> => {
-  const reachesPrivate = namesPrivateSpace(shared.url);
+): Promise<PageInput | null> => {
   const fetched = await ports.fetch({
     accept: PAGE_ACCEPT,
+    from: shared.url,
     maxBytes: FILL_LIMITS.htmlBytes,
     overflow: "truncate",
-    // a redirect reaches private space only from an address that names it itself
-    reachesPrivate,
     url: shared.url,
   });
-  if (!fetched.ok) {
-    return { kind: "link", link: unreadLink(shared) };
+  if (!fetched.ok || !isPage(fetched.page)) {
+    return null;
   }
   const landed = fetched.page.url;
   const moved = urlKey(landed) !== urlKey(shared.url);
-  const unread: SharedRead = {
-    kind: "link",
-    link: moved && !reachesPrivate ? shared : unreadLink(shared),
-  };
-  if (!isPage(fetched.page)) {
-    return unread;
+  const url = moved ? await movedAddress(replica, shared.url, landed) : shared.url;
+  if (url === null) {
+    return null;
   }
   let answer: FillAnswer;
   try {
@@ -123,25 +135,28 @@ const readSharedPage = async (
       url: landed,
     });
   } catch {
-    return unread;
+    return null;
   }
   if (answer.kind !== "read" || !deviceKeepsReading(answer.article)) {
-    return unread;
+    return null;
   }
-  const title = fieldLine(answer.facts.title) ?? fieldLine(shared.title) ?? "";
+  const readTitle = fieldLine(answer.facts.title);
+  // a move that stayed at the shared address may have ended at a wall, which names itself
+  const title =
+    (moved && url === shared.url ? (shared.title ?? readTitle) : (readTitle ?? shared.title)) ?? "";
   const page: PageInput = {
     article: answer.article,
-    cover: await coverOf(ports, shared.url, answer.facts.images),
+    cover: await coverOf(ports, landed, answer.facts.images),
     facts: savedFacts(answer.facts),
     folderId: target.folderId,
     selection: null,
     tags: [],
     title,
-    url: moved ? await movedAddress(replica, shared.url, landed) : shared.url,
+    url,
   };
   // words that only say the page's own title again add nothing to its note
   const note = shared.note === title ? null : shared.note;
-  return { kind: "page", page: note === null ? page : { ...page, note } };
+  return note === null ? page : { ...page, note };
 };
 
 // what became of a share: saved, refused, or its library gone under it, a sign-out landing while
@@ -163,11 +178,11 @@ export const saveShared = async (
   try {
     switch (shared.kind) {
       case "link": {
-        const read = await readSharedPage(args.ports, args.replica, shared, target);
-        if (read.kind === "link") {
-          return await saves.saveLink(read.link, target);
+        const page = await readSharedPage(args.ports, args.replica, shared, target);
+        if (page === null) {
+          return await saves.saveLink(shared, target);
         }
-        const made: Made = await args.replica.savePage(read.page);
+        const made: Made = await args.replica.savePage(page);
         return { kind: "saved", made };
       }
       case "text": {
