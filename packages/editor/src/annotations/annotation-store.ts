@@ -26,9 +26,8 @@ export interface PendingNote {
 
 export interface AnnotationMeta {
   knownIds: ReadonlySet<string>;
-  // the ids whose annotation carries a note or a reply, which the gutter marks. Absent where the
-  // host draws no gutter (the phone's page), which publishes the ids its ranges tint by alone.
-  notedIds?: ReadonlySet<string>;
+  // the ids whose annotation carries a note or a reply, which the gutter marks
+  notedIds: ReadonlySet<string>;
 }
 
 interface AnnotationSurfaceState {

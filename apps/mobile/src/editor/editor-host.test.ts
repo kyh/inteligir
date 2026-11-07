@@ -41,6 +41,7 @@ const SHA = "a".repeat(64);
 const PORT_ANSWERS = {
   addHighlight: { queued: true },
   createNote: { id: ITEM },
+  highlightIds: { ids: ["c1"] },
   item: { item: null },
   keepFile: { sha: SHA },
   linkTargets: { targets: [{ id: ITEM, title: "Plans" }] },
@@ -52,6 +53,7 @@ const PORT_ANSWERS = {
 const PAYLOADS = {
   addHighlight: { id: "c1", itemId: ITEM, quote: "a passage" },
   createNote: { besideId: ITEM, blocks: [], title: "Moved" },
+  highlightIds: { itemId: ITEM },
   item: { itemId: ITEM },
   keepFile: { base64: "iVBORw==", mediaType: "image/png" },
   linkTargets: {},
@@ -69,6 +71,7 @@ const KINDS: readonly RequestKind[] = [
   "createNote",
   "readFile",
   "keepFile",
+  "highlightIds",
 ];
 
 // one request of each kind, in KINDS' order, each carrying its id's position
@@ -81,6 +84,7 @@ const requestFrames = (nonce: string): PageFrame[] => [
   { id: 5, kind: "createNote", nonce, payload: PAYLOADS.createNote, type: "request" },
   { id: 6, kind: "readFile", nonce, payload: PAYLOADS.readFile, type: "request" },
   { id: 7, kind: "keepFile", nonce, payload: PAYLOADS.keepFile, type: "request" },
+  { id: 8, kind: "highlightIds", nonce, payload: PAYLOADS.highlightIds, type: "request" },
 ];
 
 interface PortCall {
@@ -98,6 +102,10 @@ const recordingPorts = () => {
     createNote: async (payload) => {
       calls.push({ kind: "createNote", payload });
       return PORT_ANSWERS.createNote;
+    },
+    highlightIds: async (payload) => {
+      calls.push({ kind: "highlightIds", payload });
+      return PORT_ANSWERS.highlightIds;
     },
     item: async (payload) => {
       calls.push({ kind: "item", payload });

@@ -97,6 +97,11 @@ const REQUEST_SCHEMAS = {
     payload: fileBytesSchema,
     result: z.strictObject({ sha: shaSchema }),
   },
+  // the highlights an item holds, queued ones among them, which its marked passages tint by
+  highlightIds: {
+    payload: z.strictObject({ itemId: itemIdSchema }),
+    result: z.strictObject({ ids: z.array(annotationIdSchema) }),
+  },
   // a highlight the editor just marked on the passage it anchors: its bare entry, beside the
   // markers the item's next write carries
   addHighlight: {
@@ -200,6 +205,7 @@ export const pageFrameSchema = z.discriminatedUnion("type", [
   z.discriminatedUnion("kind", [
     requestFrame("addHighlight", REQUEST_SCHEMAS.addHighlight.payload),
     requestFrame("createNote", REQUEST_SCHEMAS.createNote.payload),
+    requestFrame("highlightIds", REQUEST_SCHEMAS.highlightIds.payload),
     requestFrame("item", REQUEST_SCHEMAS.item.payload),
     requestFrame("keepFile", REQUEST_SCHEMAS.keepFile.payload),
     requestFrame("linkTargets", REQUEST_SCHEMAS.linkTargets.payload),

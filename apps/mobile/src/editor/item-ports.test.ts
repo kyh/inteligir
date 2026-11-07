@@ -140,6 +140,12 @@ describe("an item page's questions, answered from the phone's replica", () => {
     expect(cell.annotation("h1")).toMatchObject({ quote: "first", text: "why?" });
   });
 
+  it("names the highlights an item holds, one still queued among them", async () => {
+    const { id, ports } = await phoneWithNote();
+    await ports.addHighlight({ id: "h1", itemId: id, quote: "first" });
+    await expect(ports.highlightIds({ itemId: id })).resolves.toStrictEqual({ ids: ["h1"] });
+  });
+
   it("makes a note of the page's blocks in the folder of the item it was made from", async () => {
     const cell = createFakeCell();
     const phone = await openDevice(cell, "phone");

@@ -153,6 +153,9 @@ const PHONE_SCRIPT = `(() => {
     if (request.kind === "addHighlight" || request.kind === "noteHighlight") {
       return { ok: true, result: { queued: true } };
     }
+    if (request.kind === "highlightIds") {
+      return { ok: true, result: { ids: [] } };
+    }
     return { error: "the scripted phone does not answer " + request.kind, ok: false };
   };
   window.ReactNativeWebView = {

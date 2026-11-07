@@ -3,10 +3,10 @@
 // the bases the page computed them from (a base that moved answers the item as it is, for the
 // page's own merge); the items a link can name; a file a note names, from the cache, which fetches
 // it the first time, and one the page keeps, in the outbox, which sends it up ahead of the write
-// naming it; a highlight's bare entry and its note, beside the markers the item's next write
-// carries; and a note the editor makes, in the folder of the item it was made from, as the
-// library's page writes them all. Pure: the screen binds it to the open item's replica, and the
-// suite drives it over a real one.
+// naming it; the highlights a passage tints by; a highlight's bare entry and its note, beside the
+// markers the item's next write carries; and a note the editor makes, in the folder of the item it
+// was made from, as the library's page writes them all. Pure: the screen binds it to the open
+// item's replica, and the suite drives it over a real one.
 
 import type { RequestPayload, RequestResult } from "@repo/editor-bridge/protocol";
 import type { LibraryReplica, ReplicaItem } from "@repo/library-replica/library-replica";
@@ -88,6 +88,7 @@ export const createItemPorts = (args: {
       });
       return { id: made.id };
     },
+    highlightIds: async ({ itemId }) => ({ ids: Object.keys(await replica.annotations(itemId)) }),
     item: async ({ itemId }) => {
       const item = await replica.item(itemId);
       return { item: item === null ? null : heldOf(item) };
