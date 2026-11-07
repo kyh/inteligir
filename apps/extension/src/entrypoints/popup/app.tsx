@@ -6,16 +6,14 @@
 import { Spinner } from "@repo/ui/components/spinner";
 import { useEffect, useRef, useState } from "react";
 
-import type { ExtensionRequest, Outcome } from "../../messages";
+import type { Outcome, Status, WorkerAsks } from "../../messages";
 import { outcomeLine } from "../../outcome-copy";
 
 export interface PopupProps {
   // the tab the popup opened over, or null when there is none to save
   activeTabId: () => Promise<number | null>;
-  ask: (request: ExtensionRequest) => Promise<Outcome>;
+  ask: Pick<WorkerAsks, "save" | "status">;
 }
-
-type Status = Extract<Outcome, { kind: "status" }>;
 
 const Headline = ({ outcome, status }: { outcome: Outcome | null; status: Status | null }) => {
   if (outcome === null) {
@@ -63,18 +61,14 @@ interface OpenedSave {
   status: Status | null;
 }
 
-const statusOf = (outcome: Outcome): Status | null => (outcome.kind === "status" ? outcome : null);
-
 const saveOpenedTab = async (
   activeTabId: PopupProps["activeTabId"],
   ask: PopupProps["ask"],
 ): Promise<OpenedSave> => {
   const tabId = await activeTabId();
   const answer: Outcome =
-    tabId === null
-      ? { kind: "refused", reason: "unsupported-page" }
-      : await ask({ tabId, type: "save" });
-  return { answer, status: statusOf(await ask({ type: "status" })) };
+    tabId === null ? { kind: "refused", reason: "unsupported-page" } : await ask.save(tabId);
+  return { answer, status: await ask.status() };
 };
 
 export const Popup = ({ activeTabId, ask }: PopupProps) => {

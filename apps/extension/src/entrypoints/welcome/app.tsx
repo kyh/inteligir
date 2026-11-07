@@ -7,13 +7,11 @@ import { Button } from "@repo/ui/components/button";
 import { Spinner } from "@repo/ui/components/spinner";
 import { useEffect, useState } from "react";
 
-import type { ExtensionRequest, Outcome } from "../../messages";
+import type { Status, WorkerAsks } from "../../messages";
 
 export interface WelcomeProps {
-  ask: (request: ExtensionRequest) => Promise<Outcome>;
+  ask: Pick<WorkerAsks, "disconnect" | "status">;
 }
-
-type Status = Extract<Outcome, { kind: "status" }>;
 
 const CONNECT_COPY = "Connect this browser to your Inteligir library to save to it.";
 const UNREADABLE_COPY = "Couldn't read this browser's connection. Close this page and try again.";
@@ -65,22 +63,13 @@ const Connection = ({
   );
 };
 
-// the connection the worker answers, after a look or a disconnect
-const readStatus = async (
-  ask: WelcomeProps["ask"],
-  request: ExtensionRequest,
-): Promise<Status | "unreadable"> => {
-  const answer = await ask(request);
-  return answer.kind === "status" ? answer : "unreadable";
-};
-
 export const Welcome = ({ ask }: WelcomeProps) => {
   const [status, setStatus] = useState<Status | "unreadable" | null>(null);
 
   useEffect(() => {
     let live = true;
     const look = async () => {
-      const answer = await readStatus(ask, { type: "status" });
+      const answer = (await ask.status()) ?? "unreadable";
       if (live) {
         setStatus(answer);
       }
@@ -105,7 +94,7 @@ export const Welcome = ({ ask }: WelcomeProps) => {
       <Connection
         onDisconnect={() => {
           void (async () => {
-            setStatus(await readStatus(ask, { type: "disconnect" }));
+            setStatus((await ask.disconnect()) ?? "unreadable");
           })();
         }}
         status={status}

@@ -3,7 +3,7 @@ import { StrictMode } from "react";
 import { afterEach, describe, expect, it, test } from "vitest";
 
 import { OUTCOME_REASONS } from "../../messages";
-import type { ExtensionRequest, Outcome, OutcomeReason } from "../../messages";
+import type { ExtensionRequest, Outcome, OutcomeReason, Status, WorkerAsks } from "../../messages";
 import { outcomeLine } from "../../outcome-copy";
 import { Welcome } from "../welcome/app";
 import { Popup } from "./app";
@@ -16,20 +16,29 @@ const WELCOME_URL = "chrome-extension://an-id/welcome.html";
 
 const saved = (created: boolean): Outcome => ({ created, kind: "saved", title: "File over app" });
 const refused = (reason: OutcomeReason): Outcome => ({ kind: "refused", reason });
-const connected: Outcome = {
+const connected: Status = {
   connectUrl: CONNECT_URL,
   connection: { email: "reader@example.test", libraryUrl: LIBRARY_URL, manageUrl: WELCOME_URL },
-  kind: "status",
 };
-const notConnected: Outcome = { connectUrl: CONNECT_URL, connection: null, kind: "status" };
+const notConnected: Status = { connectUrl: CONNECT_URL, connection: null };
 
-// a worker that answers a save from the script and a status as the case says, and records what it
-// was asked
-const worker = (status: Outcome, ...answers: Outcome[]) => {
+// a worker that answers a save from the script and a status as the case says, null being none it
+// could read, and records what it was asked
+const worker = (status: Status | null, ...answers: Outcome[]) => {
   const asked: ExtensionRequest[] = [];
-  const ask = async (request: ExtensionRequest): Promise<Outcome> => {
-    asked.push(request);
-    return request.type === "save" ? (answers.shift() ?? refused("failed")) : status;
+  const ask: WorkerAsks = {
+    disconnect: async () => {
+      asked.push({ type: "disconnect" });
+      return status;
+    },
+    save: async (tabId) => {
+      asked.push({ tabId, type: "save" });
+      return answers.shift() ?? refused("failed");
+    },
+    status: async () => {
+      asked.push({ type: "status" });
+      return status;
+    },
   };
   return { ask, asked };
 };
@@ -137,7 +146,7 @@ describe("the welcome page", () => {
   });
 
   it("says a connection it could not read in its own words, never a save's", async () => {
-    render(<Welcome ask={worker(refused("failed")).ask} />);
+    render(<Welcome ask={worker(null).ask} />);
     const line = await screen.findByRole("alert");
     expect(line.textContent).not.toBe(outcomeLine(refused("failed")).text);
   });

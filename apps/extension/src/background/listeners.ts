@@ -12,7 +12,7 @@ import { browser } from "wxt/browser";
 import type { Browser } from "wxt/browser";
 
 import { extensionRequestSchema } from "../messages";
-import type { ExtensionRequest, Outcome } from "../messages";
+import type { ExtensionRequest, WorkerAnswer } from "../messages";
 import type { ExtensionFlavor } from "../manifest";
 import { answerConnectPage, connectPageOrigin } from "./connection";
 import type { ConnectDeps } from "./connection";
@@ -26,7 +26,7 @@ const fromOwnPages = (sender: Browser.runtime.MessageSender): boolean =>
 type MessageListener = Parameters<typeof browser.runtime.onMessage.addListener>[0];
 type ExternalListener = Parameters<typeof browser.runtime.onMessageExternal.addListener>[0];
 
-export const ownPagesListener = (answer: (request: ExtensionRequest) => Promise<Outcome>) =>
+export const ownPagesListener = (answer: (request: ExtensionRequest) => Promise<WorkerAnswer>) =>
   ((message, sender, sendResponse) => {
     if (!fromOwnPages(sender)) {
       return false;
@@ -36,13 +36,13 @@ export const ownPagesListener = (answer: (request: ExtensionRequest) => Promise<
       return false;
     }
     void (async () => {
-      let outcome: Outcome;
+      let reply: WorkerAnswer;
       try {
-        outcome = await answer(parsed.data);
+        reply = await answer(parsed.data);
       } catch {
-        outcome = { kind: "refused", reason: "failed" };
+        reply = { kind: "refused", reason: "failed" };
       }
-      sendResponse(outcome);
+      sendResponse(reply);
     })();
     return true;
   }) satisfies MessageListener;

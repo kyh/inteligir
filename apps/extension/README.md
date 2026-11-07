@@ -43,7 +43,7 @@ src/background/capture-tab.ts     the capture injected, and a cover's bytes fetc
 src/background/menus.ts           what each right-click item saves
 src/capture/                      the capture's clone of the page and the shape it answers
 src/messages.ts                   what the pages ask the worker, and its answers
-src/outcome-copy.ts               every sentence the popup, the welcome page and the badge say
+src/outcome-copy.ts               what the popup and the badge say of how a save went
 ```
 
 The pages ask the worker, and the worker asks the cloud. `pnpm

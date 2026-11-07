@@ -11,7 +11,7 @@ import { browser } from "wxt/browser";
 import type { Browser, PublicPath } from "wxt/browser";
 import { defineBackground } from "wxt/utils/define-background";
 
-import type { ExtensionRequest, Outcome } from "../messages";
+import type { ExtensionRequest, Outcome, Status, WorkerAnswer } from "../messages";
 import { DEV_CLOUD_ORIGIN, flavorOfMode } from "../manifest";
 import { showOutcome, showSaving } from "../background/badge";
 import { captureTab, fetchCover } from "../background/capture-tab";
@@ -71,7 +71,7 @@ const withBadge = async (tabId: number, run: () => Promise<Outcome>): Promise<Ou
   return outcome;
 };
 
-const status = async (): Promise<Outcome> => {
+const status = async (): Promise<Status> => {
   const connection = await readConnection();
   return {
     connectUrl: connectUrl(connection),
@@ -83,7 +83,6 @@ const status = async (): Promise<Outcome> => {
             libraryUrl: `${connection.origin}${LIBRARY_PAGE_PATH}`,
             manageUrl: browser.runtime.getURL(WELCOME_PAGE),
           },
-    kind: "status",
   };
 };
 
@@ -95,7 +94,7 @@ const revokeQuietly = async (connection: Connection): Promise<void> => {
   }
 };
 
-const answer = async (request: ExtensionRequest): Promise<Outcome> => {
+const answer = async (request: ExtensionRequest): Promise<WorkerAnswer> => {
   switch (request.type) {
     case "save": {
       let tab: Browser.tabs.Tab;
