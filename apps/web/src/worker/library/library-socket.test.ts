@@ -8,7 +8,7 @@ import {
 import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
 import { evictDurableObject, listDurableObjectIds } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import {
@@ -224,6 +224,19 @@ describe("the account's socket", () => {
     await expect(closedWithin(opened, 300)).resolves.toBe("open");
     await cellOf(accountId).sever({ id: laptop.deviceId, kind: "device" });
     await expect(opened.closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
+  });
+
+  it("closes a socket whose device was revoked while its upgrade was on the way", async () => {
+    const { login, ticket } = await signedInDevice("socket-race@example.test");
+    await v1Link(deviceHeaders(login.credential)).account.signOut();
+    // the upgrade's own check read the device before the revocation, whose sever then found no
+    // socket to close
+    const prepare = env.DB.prepare.bind(env.DB);
+    vi.spyOn(env.DB, "prepare").mockImplementationOnce((query) =>
+      prepare(query.replace('"device"."revoked_at" is null', "1 = 1")),
+    );
+    const opened = await openWithTicket(ticket);
+    await expect(closedWithin(opened, 300)).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
   });
 
   it("opens for no assistant's token, on any path under the connector, under any holder", async () => {

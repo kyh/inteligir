@@ -49,7 +49,8 @@ export const revokeDevice = async (
   if (revoked === undefined) {
     return false;
   }
-  await forgetDeviceBudgets(db, [target.deviceId]);
+  // the sever first: a fault past the update has no retry, which finds the row already revoked
   await severSockets(ctx.exports, target.userId, { id: target.deviceId, kind: "device" });
+  await forgetDeviceBudgets(db, [target.deviceId]);
   return true;
 };

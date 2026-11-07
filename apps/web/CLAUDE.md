@@ -63,8 +63,11 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   credential reaches that door. A committed write sends every socket the head.
   Every client's socket opens on `/v1/socket` with a minute's HMAC ticket a
   `/v1` call minted, since a browser's sends no header, its holder checked in D1
-  again; that check is the upgrade's alone, so a device's revocation and every
-  session's end (a sign-out, a password reset) close that holder's sockets.
+  again; that check is the upgrade's alone, read before the cell accepts and
+  once more after, since a sever closes only sockets already accepted, so a
+  device's revocation and every session's end (a sign-out, a password reset)
+  close that holder's sockets, a revocation's sever coming first after its
+  update, since a retry meets a row already revoked.
   Rejected: a socket object beside the cell (every ping crossing to it); the
   bearer in the URL (it outlives a minute in any log); a bearer on the upgrade
   for the clients that can send one (a second door to keep); the upgrade as the

@@ -2,8 +2,9 @@
 // cell, which keeps it. It opens with a ticket (`./socket-ticket`) on every client, since a
 // browser's socket carries no header; the Worker names the cell from the account the ticket
 // verified, and stamps its holder over any copy the request carried. The ticket goes no further.
-// The holder's standing is checked at the upgrade alone, so whatever ends it later, a device's
-// revocation or a session's end, closes its sockets here (`severSockets`).
+// The holder's standing is checked at the upgrade alone, before the cell accepts and again after,
+// so whatever ends it later, a device's revocation or a session's end, closes its sockets here
+// (`severSockets`).
 
 import { SOCKET_TICKET_PARAM } from "@repo/contract/cloud/library/library-socket";
 import { and, eq, gt, isNull } from "drizzle-orm";
@@ -82,13 +83,17 @@ export const handleLibrarySocket = async (
   const ticket = url.searchParams.get(SOCKET_TICKET_PARAM);
   const claim =
     ticket === null ? null : await readSocketTicket(env.BETTER_AUTH_SECRET, ticket, now);
-  if (
-    claim === null ||
-    !(await holderStands(createDb(env.DB), claim.accountId, claim.holder, now))
-  ) {
+  const db = createDb(env.DB);
+  if (claim === null || !(await holderStands(db, claim.accountId, claim.holder, now))) {
     return plainText(401, "You're signed out. Sign in again.");
   }
-  return await forwardToCell(request, ctx, claim.accountId, claim.holder);
+  const opened = await forwardToCell(request, ctx, claim.accountId, claim.holder);
+  // a sever closes only the sockets already accepted, so an end that came between the check and the
+  // accept closed nothing; read after the accept, that end is seen here or its sever sees the socket
+  if (opened.status === 101 && !(await holderStands(db, claim.accountId, claim.holder, now))) {
+    await severSockets(ctx.exports, claim.accountId, claim.holder);
+  }
+  return opened;
 };
 
 // the sockets a holder opened while it stood, closed once it no longer does: the credential is
