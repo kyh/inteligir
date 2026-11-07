@@ -97,6 +97,7 @@ const refusalError = (refusal: CellRefusal): Error => {
     case "url-held": {
       return new ConflictError({
         data: { current: [{ itemId: refusal.itemId, kind: "item", seq: refusal.seq }] },
+        message: "Another item in your library already holds this link.",
       });
     }
     case "too-large": {

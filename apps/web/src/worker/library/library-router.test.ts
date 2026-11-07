@@ -697,6 +697,28 @@ describe("the library's procedures", () => {
     });
   });
 
+  it("answers an undo another item's link holds back in words that say so", async () => {
+    await inCell(cellOf(), async (state) => {
+      const clock = clockAt();
+      const library = clientIn(state, clock);
+      const url = "https://pages.example/held";
+      const { item } = await library.items.saveLink({ url });
+      clock.now += 120_000;
+      await library.items.delete({ ids: [item.id] });
+      clock.now += 120_000;
+      const { changeSets } = await library.history.list({ itemId: item.id });
+      const holder = await library.items.saveLink({ url });
+      await expect(
+        library.history.undo({ changeSetIds: [changeSets[0]?.id ?? ""] }),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+        data: { current: [{ itemId: holder.item.id, kind: "item" }] },
+        defined: true,
+        message: "Another item in your library already holds this link.",
+      });
+    });
+  });
+
   it("lists the account's threads newest first, pages a thread's events, and deletes a thread as gone", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
