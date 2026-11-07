@@ -466,8 +466,8 @@ describe("a block a list item opens with", () => {
   });
 
   it.each([
-    ["a bullet", "disc"],
-    ["a numbered item", "decimal"],
+    ["bullet", "disc"],
+    ["numbered item", "decimal"],
   ] as const)("keeps an empty %s above the list nested under it", (_name, listStyleType) => {
     const number = listStyleType === "decimal" ? { listStart: 1 } : {};
     const typed = typedItem("note", [
@@ -604,7 +604,7 @@ describe("a reference and its definition", () => {
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
-  it("keeps a held definition that opens a toggle, whatever its label escapes, a definition", () => {
+  it("keeps a definition that opens a toggle one, whatever its label escapes", () => {
     const item = imported(":::toggle\n\n[a\\]b]: https://example.com\n\nBody.\n:::\n");
     expect(bodyOf(exported(item).text)).toBe(
       ":::toggle\n\n[a\\]b]: https://example.com\n\nBody.\n:::\n",
