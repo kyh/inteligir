@@ -10,9 +10,16 @@ import { REPO_ROOT, sourceOf, trackedFiles } from "./repo";
 const GUARD_DIR = "tools/repo-guards/src/";
 const SELF = `${GUARD_DIR}guard-docs.test.ts`;
 const README = "tools/repo-guards/README.md";
-const DOCS = [README, "tools/repo-guards/CLAUDE.md", "packages/contract/README.md"];
+const DOCS = [
+  README,
+  "tools/repo-guards/CLAUDE.md",
+  "packages/contract/README.md",
+  "apps/web/README.md",
+];
 const ANCHOR_GUARD = "dep-dag.test.ts";
 const ANCHOR_TABLE = "DECLARED_EDGES";
+// read by a dependency from the environment, so no source of ours spells it
+const DEPENDENCY_NAMES = new Set(["BETTER_AUTH_TRUSTED_ORIGINS"]);
 
 const LISTED_GUARD = /^- `(?<guard>[a-z0-9-]+\.test\.ts)`:/gmu;
 const CITED_NAME = /`(?<name>[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*)`/gu;
@@ -65,12 +72,12 @@ describe("the guards' docs", () => {
     }
     const held = namesInSource();
     const dead = cited
-      .filter(({ name }) => !held.has(name))
+      .filter(({ name }) => !held.has(name) && !DEPENDENCY_NAMES.has(name))
       .map(({ doc, name }) => `  ${doc}  ${name}`);
     expect(
       dead,
       `These docs cite a name no source holds.\n` +
-        `  rule: a table or constant named beside a guard is one a reader can open\n` +
+        `  rule: a table, constant or wire code a doc names is one a reader can open\n` +
         `  fix: repoint the citation at the live name, or delete it with what it named\n` +
         `${dead.join("\n")}\n`,
     ).toStrictEqual([]);

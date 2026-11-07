@@ -80,7 +80,7 @@ One per file; its header and its failure message state the rule in full.
 - `tests-beside-source.test.ts`: no tracked path sits in a `__tests__` folder; a suite is beside its module, shared test code in `test-support/`.
 - `product-words.test.ts`: a surface's quoted sentences and JSX text say no engine word, or the file is an `ALLOWED` row.
 - `icon-buttons.test.ts`: every icon-size `Button` carries a label, and no `Tooltip` wraps one.
-- `guard-docs.test.ts`: this list is the guards on disk, and a name the guards' docs cite is one the source holds.
+- `guard-docs.test.ts`: this list is the guards on disk, and a name the guards' docs, the contract's README or the Worker's README cite is one the source holds.
 - `worker-preview.test.ts`: the Preview workflow's script, run against a stub of GitHub and Cloudflare: it reads back only the bot's comment, every page of the environment PRs share, and reports a Preview gone only once it is.
 - `remote-media.test.ts`: the tab's, the Mac's and the phone's editor page's content policies let no item draw from the web.
 

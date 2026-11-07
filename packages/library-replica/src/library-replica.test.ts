@@ -455,6 +455,26 @@ describe("the replica's outbox", () => {
     expect(phone.replica.status().unsent).toBe(0);
   });
 
+  it("holds a write a full library refused until the person sends it again, room or no room", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const id = await landedNote(cell, phone);
+    cell.noRoom.add(id);
+    await write(phone.replica, id, [await putText(phone.replica, id, "p1", "no room for this")]);
+    await phone.replica.sync();
+    const [parked] = phone.replica.status().parked;
+    expect(parked).toMatchObject({ itemIds: [id], reason: "Your library is full." });
+
+    cell.noRoom.delete(id);
+    await phone.replica.sync();
+    expect(cellText(cell, id, "p1")).toBe("first");
+
+    await phone.replica.retry(parked?.seq ?? 0);
+    await phone.replica.sync();
+    expect(cellText(cell, id, "p1")).toBe("no room for this");
+    expect(phone.replica.status().unsent).toBe(0);
+  });
+
   it("lets a parked write go when the person discards it, showing the item as the cell holds it", async () => {
     const cell = createFakeCell();
     const phone = await openDevice(cell, "phone");

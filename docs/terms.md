@@ -121,8 +121,9 @@ Service (Section 5.1).
 2.10 **Your Library's Room.** Your library is free and holds about 1 GB per
 account, counting its files and its history. It never takes a file over
 100 MB. When it is full it takes no new
-changes: they wait on the device that made them until it has room. We may
-change these limits as described in Section 2.3.
+changes: the device that made one says so, and the change is not saved until
+you send it again once there is room. We may change these limits as described
+in Section 2.3.
 
 2.11 **Acceptable Use.** You may not: (i) use the Site to store, sync or share
 content that is unlawful, or that infringes or misappropriates anyone else's

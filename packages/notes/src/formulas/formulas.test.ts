@@ -21,7 +21,7 @@ const evaluate = (source: string): number | null => {
 };
 
 describe("the executable grammar (the skill's own examples)", () => {
-  it("computes the spec's arithmetic", () => {
+  it("computes plain arithmetic", () => {
     expect(evaluate("2+2")).toBe(4);
     expect(evaluate("1000*12")).toBe(12_000);
     expect(evaluate("28")).toBe(28);
