@@ -51,6 +51,14 @@ describe("the text a person reads", () => {
     expect(projectPassages("> [!NOTE]\n> Mind this.\n").text).toBe("Mind this. ");
   });
 
+  it("reads an escaped container line as the text the transform leaves it", () => {
+    const content = "before\n\\:::toggle\nafter\n";
+    const projection = projectPassages(content);
+    expect(projection.text).toBe("before :::toggle after ");
+    const colon = projection.text.indexOf(":");
+    expect(content.slice(projection.from[colon], projection.to[colon])).toBe("\\:");
+  });
+
   it("maps each character to the bytes that spell it", () => {
     const content = "a \\* b &amp; c\n";
     const projection = projectPassages(content);
@@ -59,6 +67,13 @@ describe("the text a person reads", () => {
     expect(content.slice(projection.from[star], projection.to[star])).toBe("\\*");
     const ampersand = projection.text.indexOf("&");
     expect(content.slice(projection.from[ampersand], projection.to[ampersand])).toBe("&amp;");
+  });
+
+  it("names the bytes past a leading byte-order mark", () => {
+    const content = "\uFEFFplain word\n";
+    const projection = projectPassages(content);
+    const word = projection.text.indexOf("word");
+    expect(content.slice(projection.from[word], projection.to[word + 3])).toBe("word");
   });
 });
 
