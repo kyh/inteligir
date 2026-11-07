@@ -18,6 +18,7 @@ import { remarkInlineConstructs } from "./remark-inline-constructs";
 import { remarkInlineHtml } from "./remark-inline-html";
 import { remarkObsidian } from "./remark-obsidian";
 import { remarkOpaque } from "./remark-opaque";
+import { remarkReferences } from "./remark-references";
 import { remarkWikiLink } from "./remark-wiki-link";
 import { remarkTextEscapes } from "./text-escapes";
 
@@ -133,6 +134,7 @@ export const MD_REMARK_PLUGINS: Plugin[] = [
   remarkInlineConstructs,
   remarkObsidian,
   remarkContainers,
+  remarkReferences,
   remarkOpaqueCanonical,
 ];
 

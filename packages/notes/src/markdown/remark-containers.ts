@@ -26,6 +26,7 @@ import type { Plugin, Processor, Transformer } from "unified";
 
 import { splitLinesKeepingTerminators } from "../text/source-lines";
 import { isMdastRoot } from "./mdast-nodes";
+import { isHeldDefinition } from "./remark-opaque";
 import { escapedAt, joinedText, textCutter } from "./text-escapes";
 
 export type ContainerContent = BlockContent | DefinitionContent;
@@ -640,7 +641,7 @@ const emptyFirstItem = (list: List): boolean => {
 // a block that cannot interrupt a paragraph would be read as more of the marker line's text, and
 // a `---` rule under it as the setext underline that makes the marker a heading
 const blankAfterMarker = (first: ContainerContent | undefined): string => {
-  if (first?.type === "definition" || first?.type === "thematicBreak") {
+  if (first?.type === "thematicBreak" || isHeldDefinition(first)) {
     return "\n";
   }
   if (first?.type === "list") {

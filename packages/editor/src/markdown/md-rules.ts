@@ -19,6 +19,7 @@ import type {
   MdRules,
   MdCode,
   MdInlineMath,
+  MdLink,
   MdList,
   MdParagraph,
   MdTableRow,
@@ -105,8 +106,10 @@ const defaultTableSerialize = defaultTable?.serialize;
 if (!defaultTableDeserialize || !defaultTableSerialize) {
   throw new Error("@platejs/markdown defaultRules.table is missing — pipeline cannot start");
 }
-const defaultLinkSerialize = defaultRules.a?.serialize;
-if (!defaultLinkSerialize) {
+const defaultLink = defaultRules.a;
+const defaultLinkDeserialize = defaultLink?.deserialize;
+const defaultLinkSerialize = defaultLink?.serialize;
+if (!defaultLinkDeserialize || !defaultLinkSerialize) {
   throw new Error("@platejs/markdown defaultRules.a is missing — pipeline cannot start");
 }
 const defaultParagraph = defaultRules.p;
@@ -385,8 +388,18 @@ const autolinkLiteral = (node: { type: string }, url: string): MDPhrasingContent
 // The literal is an opaque inline, not `html`: mdast-util-to-markdown turns the line break before
 // an html node into a space, since html opening a line could read as a flow block, and that joins
 // a url on its own line to the line above.
+// A title is words of the link's own, which Plate's default drops both ways and no literal can spell.
 const linkRule: WideMdRule = {
+  deserialize: (node: MdLink, deco: MdDecoration, options: DeserializeMdOptions): TElement => {
+    const link = defaultLinkDeserialize(node, deco, options);
+    const title = node.title ?? "";
+    return title === "" ? link : { ...link, title };
+  },
   serialize: (node: TLinkElement, options: SerializeMdOptions) => {
+    const title = stringProp(node, "title");
+    if (title !== undefined) {
+      return { ...defaultLinkSerialize(node, options), title };
+    }
     const [only, ...rest] = convertNodesSerialize(node.children, options);
     const literal = only === undefined || rest.length > 0 ? null : autolinkLiteral(only, node.url);
     return literal ?? defaultLinkSerialize(node, options);

@@ -1,8 +1,9 @@
 // a construct the slate model has no node for is held as a string and serialized back verbatim;
 // without one, a tag deserializes to escaped text and the first save mangles `<Foo>` into
-// `\<Foo>`. With htmlFlow disabled every such construct is phrasing, so the string is inline. An
-// element's value is re-serialized, not sliced from source: a slice spanning lines inside a
-// blockquote would capture the `> ` markers and the stringifier would add a second set.
+// `\<Foo>`. With htmlFlow disabled such a construct is phrasing and the string inline; a definition
+// is the one that stands in a flow, so its string sits in a paragraph of its own. An element's
+// value is re-serialized, not sliced from source: a slice spanning lines inside a blockquote would
+// capture the `> ` markers and the stringifier would add a second set.
 
 import type { Node, Nodes, Parents } from "mdast";
 import type { Options as ToMarkdownOptions, State } from "mdast-util-to-markdown";
@@ -49,7 +50,8 @@ const HELD_AS_SOURCE: Record<GrammarNodeType, boolean> = {
   columnGroup: false,
   annotationMarker: false,
   date: false,
-  definition: false,
+  // one no reference used (`./remark-references`)
+  definition: true,
   delete: false,
   emphasis: false,
   footnoteDefinition: false,
@@ -61,11 +63,13 @@ const HELD_AS_SOURCE: Record<GrammarNodeType, boolean> = {
   // a pair of tags the editor has no mark for
   htmlElement: true,
   image: false,
-  imageReference: false,
+  // a reference `./remark-references` found no definition for
+  imageReference: true,
   inlineCode: false,
   inlineMath: false,
   link: false,
-  linkReference: false,
+  // as an image's
+  linkReference: true,
   list: false,
   listItem: false,
   math: false,
@@ -87,6 +91,20 @@ const HELD_AS_SOURCE: Record<GrammarNodeType, boolean> = {
   yaml: false,
 };
 
+const DEFINITION_SOURCE_RE = /^\[[^\]\n]+\]:/u;
+
+// a paragraph that is a definition held as source, which the writer spaces as the definition its
+// next read finds
+export const isHeldDefinition = (node: Nodes | undefined): boolean => {
+  if (node?.type !== "paragraph") {
+    return false;
+  }
+  const [only, ...rest] = node.children;
+  return (
+    only?.type === "opaqueInline" && rest.length === 0 && DEFINITION_SOURCE_RE.test(only.value)
+  );
+};
+
 const isGrammarNodeType = (type: string): type is GrammarNodeType =>
   Object.hasOwn(HELD_AS_SOURCE, type);
 
@@ -97,11 +115,15 @@ const isOpaqueSource = (node: Nodes): boolean =>
 const render = (node: Nodes, options: ToMarkdownOptions): string =>
   toMarkdown(node, options).replace(/\n$/u, "");
 
-const toOpaque = (node: Nodes, options: ToMarkdownOptions): OpaqueInline | null => {
+const toOpaque = (node: Nodes, options: ToMarkdownOptions): Nodes | null => {
   if (!isOpaqueSource(node)) {
     return null;
   }
-  return { type: "opaqueInline", value: node.type === "html" ? node.value : render(node, options) };
+  const opaque: OpaqueInline = {
+    type: "opaqueInline",
+    value: node.type === "html" ? node.value : render(node, options),
+  };
+  return node.type === "definition" ? { children: [opaque], type: "paragraph" } : opaque;
 };
 
 // top-down: an opaque node is rendered from its original subtree and not descended into.
