@@ -2,6 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
 import { z } from "zod";
 import { modChord, parseEval, untilBodyHolds } from "../harness/agent-browser";
+import type { ScenarioBrowser } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { openLibraryTab, untilItemText } from "../harness/library-tab";
@@ -13,6 +14,7 @@ const MOUNT_DEADLINE_MS = 60_000;
 // a late async failure must not slip in after the error sweep.
 const QUIESCENCE_MS = 1000;
 const PALETTE_CHORD = modChord("p");
+const PHONE_WIDTH = 375;
 const WELCOME = "Welcome to your library";
 const TYPED = " Typed in the tab.";
 
@@ -40,6 +42,25 @@ const assertDocumentPolicy = async (origin: string): Promise<void> => {
     site.status === 404,
     `a path that only starts like the page's answered ${String(site.status)}`,
   );
+};
+
+// the policy's tables are the site's widest thing: one that sets the page's width sends the page
+// sideways and takes the fixed header off a phone's screen, on a width no suite renders
+const assertPhoneWidth = async (browser: ScenarioBrowser, origin: string): Promise<void> => {
+  await browser(["set", "viewport", String(PHONE_WIDTH), "812"]);
+  await browser(["open", `${origin}/privacy`], 60_000);
+  const { header, page } = parseEval(
+    await browser([
+      "eval",
+      `JSON.stringify({
+        header: document.querySelector("header").getBoundingClientRect().right,
+        page: document.documentElement.scrollWidth,
+      })`,
+    ]),
+    z.object({ header: z.number(), page: z.number() }),
+  );
+  expect(page <= PHONE_WIDTH, `the privacy page is ${String(page)}px wide on a phone`);
+  expect(header <= PHONE_WIDTH, `the site's header ends at ${String(header)}px on a phone`);
 };
 
 export const browserSmoke: Scenario = {
@@ -80,6 +101,11 @@ export const browserSmoke: Scenario = {
     ctx.log("a sign-in nothing asked to come back from lands in the library");
     await fresh.signInBare(worker);
     await fresh.close();
+
+    ctx.log("the site's widest page keeps a phone's width");
+    const phone = await ctx.browser("smoke-phone");
+    await assertPhoneWidth(phone, worker.origin);
+    await phone.close();
 
     ctx.log("the signed-in tab pulled the library: the seeded item's card is in the grid");
     await browser(["wait", libraryCard(welcomeId)], MOUNT_DEADLINE_MS);
