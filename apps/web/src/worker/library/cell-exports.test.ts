@@ -205,8 +205,10 @@ const entriesOf = async (zip: Uint8Array): Promise<Map<string, string>> => {
 };
 
 // every path the zip holds, a path it holds twice twice
-const pathsIn = async (zip: Uint8Array): Promise<string[]> =>
-  (await readZipEntries(sourceOf(zip))).map((entry) => entry.path);
+const pathsIn = async (zip: Uint8Array): Promise<string[]> => {
+  const entries = await readZipEntries(sourceOf(zip));
+  return entries.map((entry) => entry.path);
+};
 
 // the library as another library holding the same items would read: each item's fields, its
 // note's and its article's text, the items it links by their titles and the files it holds, which
