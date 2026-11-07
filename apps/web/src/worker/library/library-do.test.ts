@@ -26,8 +26,10 @@ import {
 import { threadHolds, threadOf } from "../test-support/agent-turns";
 import { ACCOUNT_PURGE_STEPS } from "./account-purge";
 import { accountBlobPrefix, blobKey } from "./cell-blobs";
+import { scheduleJob } from "./cell-jobs";
 import { openCellLibrary, scheduleAlarm, settleCommit } from "./cell-library";
 import type { CellRefusal } from "./cell-refusal";
+import { cellStorageOf } from "./cell-storage";
 import { cellAccountId } from "./library-cell";
 import { PRINCIPAL_HEADER, principalHeaderValue } from "./library-principal";
 import type { NamedPrincipal } from "./library-principal";
@@ -404,6 +406,28 @@ describe("deleting the account from its cell", () => {
       refusal: { kind: "gone" },
     });
     await expect(env.BLOBS.head(key)).resolves.toBeNull();
+  });
+
+  it("keeps no alarm for a job a failed step left behind, once the deletion began", async () => {
+    const accountId = newAccountId();
+    const stub = cellOf(accountId);
+    await inCell(stub, async (state) => {
+      const [tombstone] = ACCOUNT_PURGE_STEPS;
+      await tombstone?.run({
+        accountId,
+        ctx: state,
+        email: "never-signed-up@example.test",
+        env,
+      });
+      scheduleJob(
+        cellStorageOf(state.storage),
+        { id: "agent-watch:left", kind: "agent-watch", payload: "{}" },
+        Date.now(),
+      );
+      await state.storage.setAlarm(Date.now() + 60_000);
+      await scheduleAlarm(state, openCellLibrary(state, env));
+      await expect(state.storage.getAlarm()).resolves.toBeNull();
+    });
   });
 
   it("runs again from the top after a step failed, as Better Auth retries the deletion", async () => {

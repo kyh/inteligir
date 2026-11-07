@@ -537,7 +537,9 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     land,
     landApart,
     landReading,
-    nextJobAt: () => nextJobAt(storage),
+    // once the deletion began no job runs, so one a failed step left would fire the alarm for good;
+    // the deletion's retry wipes it
+    nextJobAt: () => (deletedAt() === null ? nextJobAt(storage) : null),
     pull,
     purgeItems,
     read,
