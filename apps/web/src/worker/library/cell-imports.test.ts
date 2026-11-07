@@ -310,6 +310,55 @@ describe("a zip of notes", () => {
   });
 });
 
+// the import read a path a run, the cell evicted after each, as a large zip reads
+const inSteps = async (accountId: string, jobId: string): Promise<void> => {
+  let at = Date.now();
+  const past = () => {
+    at += 11_000;
+    return at;
+  };
+  for (let run = 0; run < 60; run += 1) {
+    await inCell(cellOf(accountId), async (state) => {
+      await runImports(jobHostIn(state, accountId, undefined, past));
+    });
+    await evictDurableObject(cellOf(accountId));
+    if (await ended(accountId, jobId)()) {
+      return;
+    }
+  }
+  throw new Error("the import never ended");
+};
+
+// a zip read a path a run into a library of its own, and what it landed
+const landedFrom = async (files: Readonly<Record<string, Uint8Array>>) => {
+  const accountId = newAccountId();
+  const started = await startImport(accountId, await zip(files), "markdown");
+  await inSteps(accountId, started.jobId);
+  const job = await jobOf(accountId, started.jobId);
+  const read = await inCell(cellOf(accountId), async (state) => {
+    const { folders } = await libraryIn(state, accountId).organize.outline();
+    const names = new Map<unknown, string>(folders.map(({ id, name }) => [id, name]));
+    return {
+      folders: folders.map((folder) => folder.name).toSorted(),
+      highlights: state.storage.sql
+        .exec("SELECT item_id, quote FROM annotations")
+        .toArray()
+        .map((row) => [row.item_id, row.quote]),
+      items: state.storage.sql
+        .exec("SELECT title, kind, folder_id, cover_sha, original_sha FROM items ORDER BY title")
+        .toArray()
+        .map((row) => ({
+          cover: row.cover_sha !== null,
+          folder: names.get(row.folder_id) ?? null,
+          kind: row.kind,
+          original: row.original_sha !== null,
+          title: row.title,
+        })),
+    };
+  });
+  return { job, read };
+};
+
 describe("a zip of an unpacked export", () => {
   const ID = "0195f3a0-5c1e-7000-8000-0000000000e1";
   const COVER = "assets/covers/0123456789abcdef.png";
@@ -354,54 +403,6 @@ describe("a zip of an unpacked export", () => {
     [`${TOP}/.DS_Store`]: encoder.encode("left by Finder"),
     [`__MACOSX/${TOP}/._Spec.md`]: encoder.encode("left by the Mac's zip"),
   });
-
-  // the import read a path a run, the cell evicted after each, as a large zip reads
-  const inSteps = async (accountId: string, jobId: string): Promise<void> => {
-    let at = Date.now();
-    const past = () => {
-      at += 11_000;
-      return at;
-    };
-    for (let run = 0; run < 60; run += 1) {
-      await inCell(cellOf(accountId), async (state) => {
-        await runImports(jobHostIn(state, accountId, undefined, past));
-      });
-      await evictDurableObject(cellOf(accountId));
-      if (await ended(accountId, jobId)()) {
-        return;
-      }
-    }
-    throw new Error("the import never ended");
-  };
-
-  const landedFrom = async (files: Readonly<Record<string, Uint8Array>>) => {
-    const accountId = newAccountId();
-    const started = await startImport(accountId, await zip(files), "markdown");
-    await inSteps(accountId, started.jobId);
-    const job = await jobOf(accountId, started.jobId);
-    const read = await inCell(cellOf(accountId), async (state) => {
-      const { folders } = await libraryIn(state, accountId).organize.outline();
-      const names = new Map(folders.map((folder) => [folder.id, folder.name]));
-      return {
-        folders: folders.map((folder) => folder.name).toSorted(),
-        highlights: state.storage.sql
-          .exec("SELECT item_id, quote FROM annotations")
-          .toArray()
-          .map((row) => [row.item_id, row.quote]),
-        items: state.storage.sql
-          .exec("SELECT title, kind, folder_id, cover_sha, original_sha FROM items ORDER BY title")
-          .toArray()
-          .map((row) => ({
-            cover: row.cover_sha !== null,
-            folder: names.get(String(row.folder_id)) ?? null,
-            kind: row.kind,
-            original: row.original_sha !== null,
-            title: row.title,
-          })),
-      };
-    });
-    return { job, read };
-  };
 
   it("reads as it reads at the zip's root, a run a path, once a Mac's Compress wrapped it", async () => {
     const rooted = await landedFrom(EXPORT);

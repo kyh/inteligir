@@ -169,25 +169,26 @@ describe("an open item's title", () => {
   });
 });
 
-describe("a new note", () => {
-  const madeANote = async () => {
-    forgetPref(PREFS.libraryScope);
-    const { replica } = await openDevice(createFakeCell(), "tab");
-    const { library } = fakePageLibrary({ answer: () => ({}) });
-    const router = createAppRouter(createMemoryHistory({ initialEntries: ["/library"] }), {
-      library: { ...library, replica },
-      queryClient: createPageQueryClient(),
-    });
-    render(<RouterProvider router={router} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Add to the library" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "New note" }));
-    const title = await screen.findByRole("textbox", { name: "Title" });
-    const id = z
-      .string()
-      .parse(new URL(router.history.location.href, "http://page").searchParams.get("item"));
-    return { id, replica, title };
-  };
+// the whole page at the library, with New note chosen from the Add menu and its item open
+const madeANote = async () => {
+  forgetPref(PREFS.libraryScope);
+  const { replica } = await openDevice(createFakeCell(), "tab");
+  const { library } = fakePageLibrary({ answer: () => ({}) });
+  const router = createAppRouter(createMemoryHistory({ initialEntries: ["/library"] }), {
+    library: { ...library, replica },
+    queryClient: createPageQueryClient(),
+  });
+  render(<RouterProvider router={router} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Add to the library" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "New note" }));
+  const title = await screen.findByRole("textbox", { name: "Title" });
+  const id = z
+    .string()
+    .parse(new URL(router.history.location.href, "http://page").searchParams.get("item"));
+  return { id, replica, title };
+};
 
+describe("a new note", () => {
   it("has no title of its own, and its field says so by its placeholder", async () => {
     const { id, replica, title } = await madeANote();
 

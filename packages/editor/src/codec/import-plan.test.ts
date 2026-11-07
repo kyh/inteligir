@@ -643,7 +643,7 @@ describe("export, then import, gives the library back", () => {
       ["an export whose only folder is its assets", ["assets/shot.png"]],
       ["nothing but what a Mac left", ["__MACOSX/assets/._shot.png"]],
       ["a mark that is a file", [`${TOP}/assets`, `${TOP}/Daily.md`]],
-    ])("keeps %s", (_shape, paths) => {
+    ])("keeps %s", (_zip, paths) => {
       const entries = paths.map((path) => ({ path }));
       expect(unwrapExport(entries)).toStrictEqual(entries);
     });

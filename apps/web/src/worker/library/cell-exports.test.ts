@@ -348,7 +348,7 @@ describe("an export", () => {
       });
       const { export: written } = await exported(from);
       const zip = await zipIn(from, written.id);
-      expect(await pathsIn(zip)).toStrictEqual(["Untitled.md"]);
+      await expect(pathsIn(zip)).resolves.toStrictEqual(["Untitled.md"]);
 
       const into = newAccountId();
       await imported(into, zip);

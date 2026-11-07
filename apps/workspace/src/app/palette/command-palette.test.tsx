@@ -41,16 +41,14 @@ const Opened = ({ actions, onClose }: { actions: PaletteActions; onClose: () => 
   );
 };
 
+const HITS = new Map([
+  ["#todo", [{ itemId: PLANS, score: 1, snippet: "", title: "" }]],
+  ["spring", [{ itemId: PLANS, score: 1, snippet: "a trip in spring", title: "Plans" }]],
+]);
+
 const drawPalette = () => {
   const search = vi.fn<LibraryReplica["search"]>(
-    async (query: string) =>
-      await Promise.resolve(
-        query === "spring"
-          ? [{ itemId: PLANS, score: 1, snippet: "a trip in spring", title: "Plans" }]
-          : query === "#todo"
-            ? [{ itemId: PLANS, score: 1, snippet: "", title: "" }]
-            : [],
-      ),
+    async (query: string) => await Promise.resolve(HITS.get(query) ?? []),
   );
   const { library } = fakePageLibrary({ answer: () => ({}), search });
   const actions = spyActions();
