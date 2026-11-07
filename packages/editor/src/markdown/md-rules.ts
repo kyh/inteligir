@@ -112,6 +112,11 @@ const defaultLinkSerialize = defaultLink?.serialize;
 if (!defaultLinkDeserialize || !defaultLinkSerialize) {
   throw new Error("@platejs/markdown defaultRules.a is missing — pipeline cannot start");
 }
+const defaultEquation = defaultRules.equation;
+const defaultEquationDeserialize = defaultEquation?.deserialize;
+if (!defaultEquationDeserialize) {
+  throw new Error("@platejs/markdown defaultRules.equation is missing — pipeline cannot start");
+}
 const defaultParagraph = defaultRules.p;
 const defaultParagraphDeserialize = defaultParagraph?.deserialize;
 const defaultParagraphSerialize = defaultParagraph?.serialize;
@@ -222,6 +227,18 @@ const isEmptyInlineEquation = (node: Descendant): boolean =>
   ElementApi.isElement(node) &&
   node.type === "inline_equation" &&
   (stringProp(node, "texExpression") ?? "") === "";
+
+// what follows a `$$` on its line is the fence's meta to remark-math, and Plate's default drops it,
+// though a person who opens with `$$ E = mc^2` wrote the expression's first line there
+const equationRule: NonNullable<MdRules["equation"]> = {
+  ...defaultEquation,
+  deserialize: (node, deco, options) =>
+    defaultEquationDeserialize(
+      { ...node, value: (node.meta ?? "") === "" ? node.value : `${node.meta}\n${node.value}` },
+      deco,
+      options,
+    ),
+};
 
 const inlineEquationRule: WideMdRule = {
   serialize: (node: TElement): MdInlineMath | undefined =>
@@ -616,6 +633,8 @@ export const MD_RULES: MdRules = {
       value: stringProp(node, "value") ?? "",
     }),
   },
+
+  equation: equationRule,
 
   inline_equation: inlineEquationRule,
 

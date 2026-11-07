@@ -611,6 +611,16 @@ describe("a reference and its definition", () => {
   });
 });
 
+describe("an equation's fence line", () => {
+  it("leads the expression, since an equation has nowhere else to hold it", () => {
+    const item = imported("$$ E = mc^2\n+ x\n$$\n");
+    expect(item.leftOut).toBe(0);
+    expect(types(item)).toStrictEqual(["equation"]);
+    expect(bodyOf(exported(item).text)).toBe("$$\nE = mc^2\n+ x\n$$\n");
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+});
+
 describe("a footnote", () => {
   const NOTED =
     "Before.\n\nA long para with a claim[^a] and more words.\n\nAfter.\n\n[^a]: the source\n";
