@@ -175,8 +175,8 @@ sign-in form never flashes over a device that is signed in.
 - **Verified here** (`pnpm --filter @repo/mobile typecheck` + `test`, and the
   repo-wide `pnpm verify`): the composition's restore, sign-in, sign-out,
   revocation and outdated build over a fake cell, the phone's own tables over
-  `node:sqlite`, the credential codec and its Keychain accessibility (over a
-  stand-in Keychain), the sign-in store, the file cache (pinning, the cap, the
+  `node:sqlite`, the credential and its Keychain accessibility (over a stand-in
+  Keychain), the sign-in store, the file cache (pinning, the cap, the
   thumbnail, the generation), the editor page's native end (every frame kind
   to its port, a foreign document's, another load's and a malformed frame
   dropped, a flush held until the page answers, the load policy), the item

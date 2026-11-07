@@ -13,7 +13,6 @@ import {
 } from "@repo/contract/cloud/device/device-schema";
 import type { DeviceLoginResponse } from "@repo/contract/cloud/device/device-schema";
 import type { V1Client } from "@repo/contract/cloud/v1";
-import type { KeptCredential } from "../credential/credential-codec";
 import { messageOf } from "../lib/error-message";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
@@ -35,8 +34,8 @@ export interface LoginStoreArgs {
   // `/v1` with no credential yet, and with the one a sign-in just answered
   readonly client: (credential: string | null) => V1Client;
   // opens the library under the credential `keep` kept
-  readonly signedIn: (kept: KeptCredential) => Promise<void>;
-  readonly keep: (kept: KeptCredential) => Promise<void>;
+  readonly signedIn: (credential: string) => Promise<void>;
+  readonly keep: (credential: string) => Promise<void>;
   // lets go of the credential `keep` kept
   readonly forget: () => Promise<void>;
 }
@@ -85,13 +84,8 @@ export const createLoginStore = (args: LoginStoreArgs): LoginStore => {
       state.set({ kind: "failed", message: refusalText(error, DID_NOT_WORK) });
       return;
     }
-    const kept: KeptCredential = {
-      credential: answer.credential,
-      deviceId: answer.deviceId,
-      email: answer.email,
-    };
     try {
-      await args.keep(kept);
+      await args.keep(answer.credential);
     } catch (error) {
       await letGo(answer.credential);
       state.set({
@@ -101,7 +95,7 @@ export const createLoginStore = (args: LoginStoreArgs): LoginStore => {
       return;
     }
     try {
-      await args.signedIn(kept);
+      await args.signedIn(answer.credential);
       state.set({ kind: "idle" });
     } catch (error) {
       await letGo(answer.credential);

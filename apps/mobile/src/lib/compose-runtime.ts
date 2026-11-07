@@ -27,7 +27,6 @@ import type {
   ReplicaSql,
   SocketDial,
 } from "@repo/library-replica/replica-ports";
-import type { KeptCredential } from "../credential/credential-codec";
 import { createFileCache } from "../files/file-cache";
 import type { FileCache, FileCachePorts, FileFolders } from "../files/file-cache";
 import { createLoginStore } from "../login/login-store";
@@ -39,8 +38,8 @@ import { openPhoneTables } from "./phone-db";
 import { downloadBlob, phoneTransport, v1ClientOver } from "./phone-transport";
 
 export interface CredentialStore {
-  readonly read: () => Promise<KeptCredential | null>;
-  readonly write: (credential: KeptCredential) => Promise<void>;
+  readonly read: () => Promise<string | null>;
+  readonly write: (credential: string) => Promise<void>;
   readonly clear: () => Promise<void>;
 }
 
@@ -69,7 +68,6 @@ export interface ComposeRuntimeArgs {
 
 // the account's library as this phone holds it, while signed in
 export interface PhoneLibrary {
-  readonly email: string;
   readonly replica: LibraryReplica;
   // what only the cell answers (the agent, the account), which waits for a connection: the client,
   // and TanStack Query's options over it, one set for the sign-in's link
@@ -138,7 +136,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   };
   // the signed-in library's own: the sign-in it was opened under, which a sign-out that could not
   // finish opens again, and what it stops when it goes (its status watch and its previews)
-  let opened: { readonly kept: KeptCredential; readonly release: () => void } | null = null;
+  let opened: { readonly credential: string; readonly release: () => void } | null = null;
 
   const stop = (): void => {
     opened?.release();
@@ -208,22 +206,21 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     }
   };
 
-  const open = async (kept: KeptCredential, source: "restored" | "signed-in"): Promise<void> => {
+  const open = async (credential: string, source: "restored" | "signed-in"): Promise<void> => {
     const db = await database();
-    let files = filesOver(db, kept.credential);
-    let replica = await replicaOver(db, files, kept.credential);
+    let files = filesOver(db, credential);
+    let replica = await replicaOver(db, files, credential);
     await openPhoneTables(db);
     if (source === "signed-in") {
       // another account's library, or the last sign-in's, goes before this one's is pulled
       await replica.wipe();
       await files.clear();
-      files = filesOver(db, kept.credential);
-      replica = await replicaOver(db, files, kept.credential);
+      files = filesOver(db, credential);
+      replica = await replicaOver(db, files, credential);
     }
-    const client = v1ClientOver(transportFor(kept.credential));
+    const client = v1ClientOver(transportFor(credential));
     const library: PhoneLibrary = {
       client,
-      email: kept.email,
       files,
       previews: createThreadPreviews(replica.onThreadFrame),
       queries: createTanstackQueryUtils(client),
@@ -242,7 +239,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       void ended(library, failure.end === "gone" ? ACCOUNT_DELETED : SIGNED_OUT_ELSEWHERE);
     });
     opened = {
-      kept,
+      credential,
       release: () => {
         unwatch();
         library.previews.stop();
@@ -260,9 +257,9 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   };
 
   // the kept sign-in's library opened over what the phone holds, or why it could not be
-  const restore = async (kept: KeptCredential): Promise<void> => {
+  const restore = async (credential: string): Promise<void> => {
     try {
-      await open(kept, "restored");
+      await open(credential, "restored");
     } catch (error) {
       session.set({ kind: "failed", message: messageOf(error) });
     }
@@ -272,8 +269,8 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     client: (credential) => v1ClientOver(transportFor(credential)),
     forget: args.credentials.clear,
     keep: args.credentials.write,
-    signedIn: async (kept) => {
-      await open(kept, "signed-in");
+    signedIn: async (credential) => {
+      await open(credential, "signed-in");
     },
   });
 
@@ -301,7 +298,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       } catch (error) {
         // the wipe closed the replica before it failed, so the phone opens again what it still
         // holds, under the sign-in it never let go
-        await restore(held.kept);
+        await restore(held.credential);
         return { kind: "failed", message: messageOf(error) };
       }
       // once the copy is gone, and never waited on, so an unreachable cloud holds no sign-out open
@@ -318,7 +315,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
         return;
       }
       started = true;
-      let kept: KeptCredential | null = null;
+      let kept: string | null = null;
       try {
         kept = await args.credentials.read();
       } catch (error) {

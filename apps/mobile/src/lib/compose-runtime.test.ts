@@ -8,7 +8,6 @@ import type { FakeCell } from "@repo/library-replica/test-support/fake-cell";
 import type { ReplicaSql } from "@repo/library-replica/replica-ports";
 import { idSource, keepBoth, openDevice } from "@repo/library-replica/test-support/replica-harness";
 import { describe, expect, it, vi } from "vitest";
-import type { KeptCredential } from "../credential/credential-codec";
 import { watchFile } from "../files/watch-file";
 import { memoryFolders } from "../test-support/memory-folders";
 import { composeRuntime, SIGNED_OUT_ELSEWHERE } from "./compose-runtime";
@@ -22,7 +21,7 @@ const SIGN_IN = {
 };
 
 // the Keychain as the suite holds it: what it keeps, and one that refuses every write
-const keychain = (kept: KeptCredential | null = null) => {
+const keychain = (kept: string | null = null) => {
   let held = kept;
   let refusing = false;
   const store: CredentialStore = {
@@ -136,11 +135,7 @@ const fileOnTheMac = async (cell: FakeCell): Promise<string> => {
   return sha;
 };
 
-const KEPT: KeptCredential = {
-  credential: `igd_${"9".repeat(64)}`,
-  deviceId: "device-0",
-  email: "ada@example.com",
-};
+const KEPT = `igd_${"9".repeat(64)}`;
 
 // a phone signed in, gone offline, with a screen waiting for `sha`
 const offlineWatch = async (cell: FakeCell, sha: string) => {
@@ -230,7 +225,7 @@ describe("the phone's runtime", () => {
     expect(runtime.session.get()).toStrictEqual({ kind: "signed-out", notice: null });
   });
 
-  it("keeps a sign-in's credential and whose library it is, then pulls the library", async () => {
+  it("keeps a sign-in's credential, then pulls the library", async () => {
     const cell = createFakeCell();
     await noteOnTheMac(cell, "Plans");
     const keys = keychain();
@@ -239,9 +234,8 @@ describe("the phone's runtime", () => {
     await runtime.login.login(SIGN_IN);
 
     expect(runtime.login.get()).toStrictEqual({ kind: "idle" });
-    expect(keys.held()).toMatchObject({ email: "ada@example.com" });
+    expect(keys.held()).toMatch(/^igd_/u);
     const library = signedIn(runtime);
-    expect(library.email).toBe("ada@example.com");
     await library.replica.sync();
     expect(titles(library)).toStrictEqual(["Plans"]);
   });

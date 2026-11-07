@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createKeychainCredentials } from "./secure-store-credential";
 import type { Keychain } from "./secure-store-credential";
-import { serializeCredential } from "./credential-codec";
 
 // stand-ins for expo-secure-store's native constants: its default, a level a backup carries to a
 // new phone, and the one this app writes
@@ -32,11 +31,7 @@ const fakeKeychain = (held: Record<string, Item> = {}) => {
   return { items, keychain };
 };
 
-const CREDENTIAL = {
-  credential: `igd_${"a".repeat(64)}`,
-  deviceId: "dev_1",
-  email: "ada@example.com",
-};
+const CREDENTIAL = `igd_${"a".repeat(64)}`;
 
 describe("the phone's stored credential", () => {
   it("is kept for this phone alone, so no backup restores it onto another, and only while unlocked", async () => {
@@ -50,13 +45,8 @@ describe("the phone's stored credential", () => {
   });
 
   it("replaces a revoked credential still stored, rather than keeping its accessibility", async () => {
-    const revoked = {
-      credential: `igd_${"b".repeat(64)}`,
-      deviceId: "dev_0",
-      email: "ada@example.com",
-    };
     const { items, keychain } = fakeKeychain({
-      "device-credential": { accessible: AFTER_FIRST_UNLOCK, value: serializeCredential(revoked) },
+      "device-credential": { accessible: AFTER_FIRST_UNLOCK, value: `igd_${"b".repeat(64)}` },
     });
     const credentials = createKeychainCredentials(keychain);
 
@@ -66,5 +56,13 @@ describe("the phone's stored credential", () => {
     await expect(credentials.read()).resolves.toStrictEqual(CREDENTIAL);
     await credentials.clear();
     await expect(credentials.read()).resolves.toBeNull();
+  });
+
+  it("reads a record that is no credential as signed out, never as one the cloud always refuses", async () => {
+    const { keychain } = fakeKeychain({
+      "device-credential": { accessible: WHEN_UNLOCKED_THIS_DEVICE_ONLY, value: "nope" },
+    });
+
+    await expect(createKeychainCredentials(keychain).read()).resolves.toBeNull();
   });
 });
