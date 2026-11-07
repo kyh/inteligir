@@ -180,7 +180,7 @@ describe("a conversation's blocks", () => {
 });
 
 describe("a thread's state", () => {
-  it("says nothing while it rests, and a turn under way is working", () => {
+  it("says nothing while it rests, and is working unless it rests or waits on the person", () => {
     expect(statusWords("idle")).toBe("");
     expect(statusWords("awaiting_approval")).toBe("Waiting for you");
     expect(isWorking("running")).toBe(true);

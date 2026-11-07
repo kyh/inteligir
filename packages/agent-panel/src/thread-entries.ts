@@ -28,7 +28,8 @@ const STATUS_WORDS = {
 
 export const statusWords = (status: ThreadStatus): string => STATUS_WORDS[status];
 
-// a turn under way: a send waits for it, and Stop ends it
+// the agent is at work or about to be, which Stop ends; a turn waiting on the person is under way
+// too, but its approval card is what answers it
 export const isWorking = (status: ThreadStatus): boolean =>
   status === "running" || status === "queued";
 
@@ -207,14 +208,14 @@ export interface ToolUse {
   readonly answered: boolean;
 }
 
-// what a conversation draws, in order: a message either way, a run of the agent's work between
-// them (its notes and its calls), an answered approval, and a turn's end
 // a progress note of the agent's, keyed by the event that carried it
 interface WorkNote {
   readonly eventId: string;
   readonly text: string;
 }
 
+// what a conversation draws, in order: a message either way, a run of the agent's work between
+// them (its notes and its calls), an answered approval, and a turn's end
 export type ThreadBlock =
   | { readonly kind: "entry"; readonly key: string; readonly entry: ThreadEntry }
   | {
