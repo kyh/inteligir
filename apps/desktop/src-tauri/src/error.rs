@@ -27,8 +27,6 @@ pub enum ShellError {
     Io(#[from] std::io::Error),
     #[error("The Keychain refused: {0}")]
     Keychain(#[from] keyring_core::Error),
-    #[error("The cloud could not be reached: {0}")]
-    Network(#[from] reqwest::Error),
 }
 
 impl ShellError {
@@ -42,7 +40,6 @@ impl ShellError {
             Self::Sql(_) => "sql",
             Self::Io(_) => "io",
             Self::Keychain(_) => "keychain",
-            Self::Network(_) => "network",
         }
     }
 }

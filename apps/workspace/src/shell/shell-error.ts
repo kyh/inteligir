@@ -6,16 +6,7 @@
 import { z } from "zod";
 
 const shellErrorSchema = z.strictObject({
-  kind: z.enum([
-    "signed-out",
-    "transaction-gone",
-    "missing",
-    "invalid",
-    "sql",
-    "io",
-    "keychain",
-    "network",
-  ]),
+  kind: z.enum(["signed-out", "transaction-gone", "missing", "invalid", "sql", "io", "keychain"]),
   message: z.string(),
 });
 // the shell's own kinds, and `bridge` for a rejection that is none of them: the bridge's fault

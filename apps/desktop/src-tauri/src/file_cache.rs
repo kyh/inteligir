@@ -349,17 +349,17 @@ pub struct CloudFiles {
 /// The client a miss is fetched with, over the crypto provider the updater's plugin installs too
 /// (ring), so the shell carries one TLS stack; installed here first, since reqwest builds no
 /// client without one.
-pub fn http_client() -> ShellResult<reqwest::Client> {
+pub fn http_client() -> reqwest::Result<reqwest::Client> {
     if rustls::crypto::CryptoProvider::get_default().is_none() {
         // a race lost to another installer leaves that one's provider, which is the same ring
         let _ = rustls::crypto::ring::default_provider().install_default();
     }
-    Ok(reqwest::Client::builder().build()?)
+    reqwest::Client::builder().build()
 }
 
-/// `GET /v1/blobs/<sha>` with the device's credential and build, as the outbox uploads one.
-pub async fn fetch(cloud: &CloudFiles, credential: &str, sha: &str) -> ShellResult<Fetched> {
-    let sha = checked(sha)?;
+/// `GET /v1/blobs/<sha>` with the device's credential and build, as the outbox uploads one. The
+/// scheme answers a failure as a status, so it stays reqwest's and never crosses the bridge.
+pub async fn fetch(cloud: &CloudFiles, credential: &str, sha: &str) -> reqwest::Result<Fetched> {
     let response = cloud
         .client
         .get(format!("{}/v1/blobs/{sha}", cloud.origin))
@@ -421,6 +421,7 @@ pub fn requested_range(header: Option<&str>, total: u64) -> Result<Option<(u64, 
 
 #[cfg(test)]
 mod tests {
+    use std::error::Error;
     use std::io::{BufRead, BufReader, Read};
     use std::net::TcpListener;
     use std::time::Duration;
@@ -624,7 +625,7 @@ mod tests {
         Ok((origin, serving))
     }
 
-    fn cloud_at(origin: String) -> ShellResult<CloudFiles> {
+    fn cloud_at(origin: String) -> reqwest::Result<CloudFiles> {
         Ok(CloudFiles {
             client: http_client()?,
             origin,
@@ -633,7 +634,7 @@ mod tests {
     }
 
     #[test]
-    fn a_miss_is_fetched_with_the_credential_and_the_build() -> ShellResult<()> {
+    fn a_miss_is_fetched_with_the_credential_and_the_build() -> Result<(), Box<dyn Error>> {
         let body: &'static [u8] = b"the cloud's copy";
         let (origin, serving) = answer_once("200 OK", body)?;
         let sha = sha_of(body);
@@ -666,7 +667,7 @@ mod tests {
     }
 
     #[test]
-    fn a_refused_miss_is_its_status() -> ShellResult<()> {
+    fn a_refused_miss_is_its_status() -> Result<(), Box<dyn Error>> {
         let (origin, serving) = answer_once("404 Not Found", b"")?;
         let fetched = tauri::async_runtime::block_on(fetch(
             &cloud_at(origin)?,
