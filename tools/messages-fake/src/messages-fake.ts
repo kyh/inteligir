@@ -1,13 +1,13 @@
 // A scripted Claude Messages API with no model and no account behind it, for the local Worker
 // (`pnpm dev:web`), the e2e scenarios and the Worker's suites: the built-in agent's client reaches
-// it as it reaches AI Gateway, at `<origin>/v1/messages` or the gateway's provider-native path
-// (`/v1/<account>/<gateway>/anthropic/v1/messages`), so every thread runs its one code path. It
-// answers only a streamed request carrying the gateway's token header, refuses what Claude Opus
-// 5.5 refuses (`./fake-request.ts`), checks every replayed thinking block (`./fake-signature.ts`)
-// and drops and counts one that fails under `drop_block` instead of refusing, and replies by the
-// person's script (`./fake-script.ts`, `./fake-reply.ts`). It keeps no conversation: only its three
-// counters, at `/__fake/stats`, and per request body the failures and stalls a script asked for.
-// Web-standard throughout, so the suites run it in workerd and `./serve.ts` in node.
+// it at `<origin>/v1/messages`, as it reaches AI Gateway at its route's `/v1/messages`, so every
+// thread runs its one code path. It answers only a streamed request carrying the gateway's token
+// header, refuses what Claude Opus 5.5 refuses (`./fake-request.ts`), checks every replayed
+// thinking block (`./fake-signature.ts`) and drops and counts one that fails under `drop_block`
+// instead of refusing, and replies by the person's script (`./fake-script.ts`, `./fake-reply.ts`).
+// It keeps no conversation: only its three counters, at `/__fake/stats`, and per request body the
+// failures and stalls a script asked for. Web-standard throughout, so the suites run it in workerd
+// and `./serve.ts` in node.
 
 import {
   BINDING_BETA,
@@ -23,9 +23,7 @@ import { scriptOf } from "./fake-script.ts";
 import { checkThinking } from "./fake-signature.ts";
 
 const FAKE_STATS_PATH = "/__fake/stats";
-
-// the Messages endpoint, and AI Gateway's provider-native route to it
-const MESSAGES_PATH = /^(?:\/v1\/[^/]+\/[^/]+\/anthropic)?\/v1\/messages$/u;
+const MESSAGES_PATH = "/v1/messages";
 
 /** @internal */
 export interface FakeStats {
@@ -211,7 +209,7 @@ export const messagesFake = (): MessagesFake => {
       if (incoming.method === "GET" && pathname === FAKE_STATS_PATH) {
         return Response.json({ drops, held, requests } satisfies FakeStats);
       }
-      if (incoming.method === "POST" && MESSAGES_PATH.test(pathname)) {
+      if (incoming.method === "POST" && pathname === MESSAGES_PATH) {
         return await answer(incoming);
       }
       return Response.json(

@@ -15,7 +15,7 @@ export const FeedbackSection = () => (
       </DemoCase>
       <DemoCase label="in a button">
         <Button variant="secondary" loading>
-          Committing
+          Saving
         </Button>
       </DemoCase>
     </Demo>
@@ -27,9 +27,9 @@ export const FeedbackSection = () => (
         <p className="text-sm">Agent</p>
       </div>
       <div className="flex h-8 items-center gap-3">
-        <span className="text-sm">Local</span>
+        <span className="text-sm">Folders</span>
         <Separator orientation="vertical" />
-        <span className="text-sm">Synced</span>
+        <span className="text-sm">Tags</span>
       </div>
     </Demo>
 
@@ -40,7 +40,7 @@ export const FeedbackSection = () => (
       <Button
         variant="secondary"
         onClick={() => {
-          toast.success("Copied for an external agent");
+          toast.success("Moved 2 items to Deleted.");
         }}
       >
         Success toast

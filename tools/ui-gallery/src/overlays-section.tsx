@@ -59,7 +59,7 @@ const demoRow = (label: string, caps?: readonly string[]): DemoRow => ({
 });
 
 const PALETTE_ROWS: readonly CommandRowGroup<DemoRow>[] = [
-  { heading: "Notes", items: [demoRow("Release checklist"), demoRow("Weekly review")] },
+  { heading: "Items", items: [demoRow("Release checklist"), demoRow("Weekly review")] },
   {
     heading: "Commands",
     items: [demoRow("New note", ["⌘", "N"]), demoRow("Open settings", ["⌘", ","])],
@@ -83,7 +83,7 @@ export const OverlaysSection = () => {
   const ask = async () => {
     setConfirmed(
       await confirm({
-        body: "The buffer has edits that are not on disk yet.",
+        body: "This item has edits that are not saved yet.",
         confirmLabel: "Discard",
         destructive: true,
         title: "Discard unsaved changes?",
@@ -105,10 +105,8 @@ export const OverlaysSection = () => {
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Rename note</DialogTitle>
-              <DialogDescription>
-                The filename is the title — renaming rewrites the links that point here.
-              </DialogDescription>
+              <DialogTitle>Rename folder</DialogTitle>
+              <DialogDescription>Everything in it stays where it is.</DialogDescription>
             </DialogHeader>
             <div className="mt-6 flex justify-end gap-2">
               <Button
@@ -146,9 +144,9 @@ export const OverlaysSection = () => {
         <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete this note permanently?</AlertDialogTitle>
+              <AlertDialogTitle>Delete this item forever?</AlertDialogTitle>
               <AlertDialogDescription>
-                It is already in the trash. Deleting it now skips the 30-day window.
+                Its text, files and highlights are gone for good. This can&apos;t be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -193,9 +191,9 @@ export const OverlaysSection = () => {
           <PopoverTrigger render={<Button variant="secondary">Open popover</Button>} />
           <PopoverContent className="w-64">
             <div className="flex flex-col gap-1 text-sm">
-              <p className="text-base font-medium">Auto-commit</p>
+              <p className="text-base font-medium">Waiting for a connection</p>
               <p className="text-muted-foreground">
-                Writes are committed on a rolling window, not per keystroke.
+                Your changes wait on this device and send themselves once you are back online.
               </p>
             </div>
           </PopoverContent>
@@ -256,16 +254,13 @@ export const OverlaysSection = () => {
             setPaletteOpen(open);
             setPaletteQuery("");
           }}
-          title="Command palette"
-          description="Open a note or run a command"
+          title="Search"
+          description="Search the library, or run a command"
           query={paletteQuery}
           onQueryChange={setPaletteQuery}
           groups={paletteGroups}
         >
-          <CommandInput
-            placeholder="Search notes or commands…"
-            aria-label="Search notes or commands"
-          />
+          <CommandInput aria-label="Search the library" placeholder="Search the library…" />
           <CommandList>
             {paletteGroups.map((group) => (
               <CommandGroup key={group.heading} heading={group.heading}>

@@ -163,8 +163,7 @@ export interface WorkspaceFiles {
 
 const cachedFiles = new Map<string, WorkspaceFiles>();
 
-// shipped is `src/**` only: build scripts, configs and the editor's dev/ demo are not what a
-// dependent gets.
+// shipped is `src/**` only: build scripts and configs are not what a dependent gets.
 export const workspaceFiles = (workspace: Workspace): WorkspaceFiles => {
   const cached = cachedFiles.get(workspace.name);
   if (cached !== undefined) {
@@ -217,9 +216,8 @@ const IMPORT_SPECIFIER = /\b(?:from|import|require)\s*\(?\s*["'](?<specifier>[^"
 
 const cachedSources = new Map<string, string>();
 
-// full-line comments dropped, so prose naming a package or a change kind cannot invent one; a
-// trailing comment is left alone because stripping it safely means parsing the line, and eating
-// real code fails open.
+// full-line comments dropped, so prose naming a package cannot invent one; a trailing comment is
+// left alone because stripping it safely means parsing the line, and eating real code fails open.
 export const sourceOf = (relativePath: string): string => {
   const cached = cachedSources.get(relativePath);
   if (cached !== undefined) {

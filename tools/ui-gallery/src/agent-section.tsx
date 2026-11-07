@@ -12,8 +12,9 @@ import { useState } from "react";
 
 import { Demo, DemoCase, GallerySection } from "./gallery-chrome";
 
-// fixed so the elapsed readout is stable across screenshots.
-const STARTED_AT = 0;
+// a turn that began before this page loaded, so its readout runs ahead of the cases counting from
+// mount
+const TURN_STARTED_AT = Date.now() - 12_000;
 
 const ANSWER_TEXT =
   "The library holds four notes. Two link to Welcome, and none of them are unresolved.";
@@ -36,8 +37,11 @@ export const AgentSection = () => {
         <DemoCase label="orbit">
           <LoadingState label="Waiting on the model" variant="orbit" />
         </DemoCase>
-        <DemoCase label="with elapsed">
-          <LoadingState label="Committing" startedAt={STARTED_AT} showElapsed={false} />
+        <DemoCase label="from the turn's start">
+          <LoadingState label="Filing items" startedAt={TURN_STARTED_AT} />
+        </DemoCase>
+        <DemoCase label="no elapsed">
+          <LoadingState label="Saving" showElapsed={false} />
         </DemoCase>
       </Demo>
 
@@ -48,12 +52,12 @@ export const AgentSection = () => {
       >
         <div className="w-full max-w-md">
           <Thinking label="Working" doneLabel="Thought for 4s" working defaultExpanded>
-            <ThinkingStep>Read Getting Started.md</ThinkingStep>
+            <ThinkingStep>Read Getting Started</ThinkingStep>
             <ThinkingReasoning>
-              The link is unresolved because the target was renamed, not deleted.
+              The link is unresolved because no item holds that title yet.
             </ThinkingReasoning>
             <ThinkingTool secondary="2 matches" mono>
-              grep &quot;Welcome&quot;
+              Searched for &quot;Welcome&quot;
             </ThinkingTool>
           </Thinking>
         </div>
@@ -66,18 +70,18 @@ export const AgentSection = () => {
 
       <Demo
         name="ToolChipList · ToolChip · ToolChipDetail"
-        purpose="What the turn touched: commands run, files changed. Details open per chip."
+        purpose="What the turn touched: the library calls it made. Details open per chip."
         stack
       >
         <div className="w-full max-w-md">
-          <ToolChipList summary="3 files changed" defaultExpanded>
-            <ToolChip icon="write" label="Edited" chip="Getting Started.md" mono>
+          <ToolChipList summary="3 library calls" defaultExpanded>
+            <ToolChip icon="write" label="Edited an item" chip="Getting Started" mono>
               <ToolChipDetail tone="add">+ Added a section on backlinks</ToolChipDetail>
               <ToolChipDetail>- Removed the stale link</ToolChipDetail>
             </ToolChip>
-            <ToolChip icon="read" label="Read" chip="Use Cases.md" mono />
-            <ToolChip icon="run" label="Ran" chip="pnpm verify" mono detailMono>
-              <ToolChipDetail>18 tasks, all green</ToolChipDetail>
+            <ToolChip icon="read" label="Read an item" chip="Use Cases" mono />
+            <ToolChip icon="read" label="Searched the library" chip="2 matches" mono detailMono>
+              <ToolChipDetail>Getting Started, Use Cases</ToolChipDetail>
             </ToolChip>
           </ToolChipList>
         </div>
@@ -111,14 +115,13 @@ export const AgentSection = () => {
             sentLabel="Answered"
           >
             <ApprovalQuestion
-              questionId="write-getting-started"
-              prompt="Write to Getting Started.md?"
-              detail="The turn wants to add a section on backlinks."
+              questionId="edit-getting-started"
+              prompt="Edit Getting Started?"
+              detail="The agent wants to add a section on backlinks."
               kind="radio"
             >
-              <ApprovalOption optionId="allow">Allow once</ApprovalOption>
-              <ApprovalOption optionId="allow-always">Allow for this turn</ApprovalOption>
-              <ApprovalOption optionId="deny">Deny</ApprovalOption>
+              <ApprovalOption optionId="allow">Approve</ApprovalOption>
+              <ApprovalOption optionId="deny">Cancel</ApprovalOption>
             </ApprovalQuestion>
             <ApprovalActions />
           </ApprovalCard>

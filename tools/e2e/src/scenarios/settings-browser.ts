@@ -36,6 +36,9 @@ const RAINDROP = `id,title,note,excerpt,url,folder,tags,created,cover,highlights
 `;
 const PASTA = "Pasta al limone";
 const DELETE_DIALOG = '[role="dialog"]:has(input[type="password"])';
+// the cloud's own sentence, written out: any failure it did not declare toasts the screen's
+// fallback, so a toast alone proves no refusal
+const WRONG_PASSWORD_REFUSAL = "That email and password don't match an account.";
 const DELETE_STATE = `(() => {
   const button = [...document.querySelectorAll(${JSON.stringify(`${DELETE_DIALOG} button`)})].find((el) => el.textContent.trim() === "Delete everything");
   if (!button) return "missing";
@@ -126,8 +129,11 @@ export const settingsBrowser: Scenario = {
     await clickButtonIn(browser, DELETE_DIALOG, "Delete everything");
     await pollUntil(
       async () => parseEval(await browser(["eval", TOAST_TEXT]), z.string()),
-      (text) => text.length > 0,
-      { deadlineMs: DEADLINE_MS, describe: () => "the refused deletion said nothing" },
+      (text) => text.includes(WRONG_PASSWORD_REFUSAL),
+      {
+        deadlineMs: DEADLINE_MS,
+        describe: (text) => `the refused deletion never said the refusal; its toasts say:\n${text}`,
+      },
     );
     const still = await library.agent.status();
     expect(!still.enabled, "the account answered nothing after a refused deletion");

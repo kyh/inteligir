@@ -21,9 +21,9 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 
 - **A GUARD DERIVES EVERY VALUE IT CAN, AND IS FOR A FAILURE NOTHING ELSE
   REPORTS.** What it cannot derive is a row carrying its reason
-  (`ALLOWED_EXPORTS`, `CLOUD_ONLY_CLIENTS`, `EXCLUDED_COMMANDS`, `PROSE_SIZES`,
-  product-words' `ALLOWED`), and `dep-dag.test.ts`'s `DECLARED_EDGES` is the pin
-  itself. A second copy of a tool's check, or of what the tree already prints,
+  (`ALLOWED_EXPORTS`, `EDITOR_PAGE_CLIENTS`, `PROSE_SIZES`, product-words'
+  `ALLOWED`), and `dep-dag.test.ts`'s `DECLARED_EDGES` is the pin itself. A
+  second copy of a tool's check, or of what the tree already prints,
   is one more table every change keeps in step, so knip's unused dependencies,
   oxlint's import rules and `pnpm e2e --list` get no guard, and CI is
   `pnpm verify` plus the steps `verify` cannot run, each with its reason beside
@@ -149,7 +149,9 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   whose imports name no extension (most of the contract's) cannot load in a
   script, so a script parses only the fields it reads
   (`apps/desktop/scripts/smoke-packaged.ts`). `.github/scripts/worker-preview.mjs`
-  stays JS: its first step runs before the job sets up the repo's node.
+  stays JS: its first step runs before the job sets up the repo's node. It sits
+  in no workspace, so this one's suite runs it against a stub of both APIs
+  (`tools/repo-guards/src/worker-preview.test.ts`).
 
 - **A TEST SITS BESIDE THE MODULE IT TESTS, AND A PACKAGE'S SHARED TEST CODE IS
   ITS `test-support/`.** A suite is `<name>.test.ts` beside its `<name>.ts`, and

@@ -1,10 +1,10 @@
-// an extension save, end to end across the lanes: the dev build in a real Chromium reads the page
-// as the person sees it (X), saves it read through `/v1` so the cloud never asks for it (S1), and
-// the selection saved with it is placed in the article's own text (S3). The page writes its
-// passage with its own script after it loads, so the passage is in the page the browser shows and
-// in no markup the server ever sent: a save that fetched the page could not hold it. The page is
-// served on loopback, which the dev build may script without a click; the cloud reads nothing from
-// such an address, so its text can only be the one the extension read.
+// an extension save, end to end: the dev build in a real Chromium reads the page as the person sees
+// it, saves it read through `/v1` so the cloud never asks for it, and the selection saved with it
+// is placed in the article's own text. The page writes its passage with its own script after it
+// loads, so the passage is in the page the browser shows and in no markup the server ever sent: a
+// save that fetched the page could not hold it. The page is served on loopback, which the dev build
+// may script without a click; the cloud reads nothing from such an address, so its text can only
+// be the one the extension read.
 
 import { once } from "node:events";
 import { createServer } from "node:http";

@@ -463,7 +463,10 @@ Every PR from a branch of this repo gets a
 green, the way Vercel previews a PR: a sticky comment with the status and the
 URL, a "View deployment" button on the PR, a fresh deploy on every push, and the
 Preview deleted when the PR closes. `.github/workflows/preview.yml` runs it;
-`.github/scripts/worker-preview.mjs` draws the comment and the deployment.
+`.github/scripts/worker-preview.mjs` draws the comment and the deployment, and
+deletes the Preview. A delete Cloudflare refuses fails the job and leaves the
+comment as it was, so rerun the job; only "Preview not found", a PR that never
+had one, is no failure.
 
 A Preview never touches production data. `cloudflare.config.ts` binds
 `inteligir-auth-preview` (D1), `inteligir-vault-preview` (R2),
@@ -481,9 +484,7 @@ to create the first account.
 Setup, once:
 
 ```bash
-# the Deploy token also needs D1: Edit, Workers R2 Storage: Edit, Queues: Edit and
-# Workers KV Storage: Edit, and the
-# repo needs a CLOUDFLARE_ACCOUNT_ID secret beside CLOUDFLARE_API_TOKEN
+# the Deploy token also needs D1: Edit and Workers R2 Storage: Edit
 # wrangler: cf has no preview secret command yet
 pnpm -F @repo/web exec wrangler preview base-config secret put BETTER_AUTH_SECRET --worker-name inteligir-web  # a preview-only value
 # the token of the `inteligir-preview` AI Gateway, which stores the PREVIEW Anthropic

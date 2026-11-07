@@ -17,11 +17,6 @@ export interface TrackedProcess {
 
 export interface SupervisedChild extends TrackedProcess {
   exited: () => boolean;
-  // the leader alone, where stop() signals the whole group: what an OS quit sends an app
-  signalLeader: (signal: NodeJS.Signals) => void;
-  // an OS quit, then the group: SIGTERM to the leader alone, which a server takes as one ordered
-  // shutdown, and once it exits (or `graceMs` runs out) stop() for whatever it left behind
-  quit: (graceMs: number) => Promise<void>;
 }
 
 // module scope: the runner's signal handlers need one place naming every group to kill.
@@ -92,7 +87,7 @@ export interface SpawnSupervisedArgs {
   env: NodeJS.ProcessEnv;
 }
 
-// its own process group, so stop() kills the tree: Miniflare's workerd and a dev server's own
+// its own process group, so stop() kills the tree: Miniflare's workerd and tauri-driver's own
 // children would otherwise outlive it.
 export const spawnSupervised = (args: SpawnSupervisedArgs): SupervisedChild => {
   const child = spawn(args.file, [...args.argv], {
@@ -144,31 +139,10 @@ export const spawnSupervised = (args: SpawnSupervisedArgs): SupervisedChild => {
     stopPromise ??= pid === undefined ? Promise.resolve() : stopProcessGroup(pid, args.name);
     await stopPromise;
   };
-  const signalLeader = (signal: NodeJS.Signals): void => {
-    if (pid !== undefined && !exited) {
-      process.kill(pid, signal);
-    }
-  };
   return {
     exited: () => exited,
     name: args.name,
     outputTail: (lines = 40) => outputLines.slice(-lines).join("\n"),
-    async quit(graceMs) {
-      if (stopPromise === null) {
-        try {
-          signalLeader("SIGTERM");
-        } catch {
-          // the leader is already gone.
-        }
-        const deadline = Date.now() + graceMs;
-        // `exited` is set by the child's exit listener while this loop waits
-        for (let gone = exited; !gone && Date.now() < deadline; gone = exited) {
-          await delay(KILL_POLL_INTERVAL_MS);
-        }
-      }
-      await stop();
-    },
-    signalLeader,
     stop,
   };
 };

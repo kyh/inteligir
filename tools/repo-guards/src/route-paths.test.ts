@@ -7,9 +7,8 @@ import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import { describe, expect, it } from "vitest";
 import { isTestFile, sourceOf, workspaceSourceFiles, workspaces } from "./repo";
 
-// `/ws` is absent: two characters plus a slash matches far too much ordinary prose and code. A
-// `quoted` path is a word module paths hold too (`@repo/notes/library/…`), so it counts only where
-// a string or a route pattern starts with it.
+// a `quoted` path is a word module paths hold too (`@repo/notes/library/…`), so it counts only
+// where a string or a route pattern starts with it.
 interface Namespace {
   readonly home: string;
   readonly paths: readonly string[];
