@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 
 import { zipFiles } from "../test-support/library-files";
-import { readZipEntries, readZipEntry, ZipError } from "./zip-read";
+import { openZipEntry, readZipEntries, readZipEntry, ZipError } from "./zip-read";
 import type { ByteSource } from "./zip-read";
 import type { ZipFile } from "./zip-write";
 
@@ -56,6 +56,27 @@ const onlyEntry = async (source: ByteSource) => {
   return entry;
 };
 
+const U32_MAX = 0xff_ff_ff_ff;
+
+// a zip that is only a directory of one entry, by its name, its size and its extra field
+const directoryOf = (name: string, size: number, extra: Uint8Array): Uint8Array => {
+  const written = encoder.encode(name);
+  const record = 46 + written.length + extra.length;
+  const bytes = new Uint8Array(record + 22);
+  const data = new DataView(bytes.buffer);
+  data.setUint32(0, 0x02_01_4b_50, true);
+  data.setUint32(24, size, true);
+  data.setUint16(28, written.length, true);
+  data.setUint16(30, extra.length, true);
+  bytes.set(written, 46);
+  bytes.set(extra, 46 + written.length);
+  data.setUint32(record, 0x06_05_4b_50, true);
+  data.setUint16(record + 8, 1, true);
+  data.setUint16(record + 10, 1, true);
+  data.setUint32(record + 12, record, true);
+  return bytes;
+};
+
 describe("a zip this writer streams", () => {
   it("reads back file for file, deflated or stored, its UTF-8 names whole", async () => {
     const bytes = await zipFiles([
@@ -88,6 +109,41 @@ describe("a zip this writer streams", () => {
     const at = 30 + "note.md".length;
     bytes[at] = 255 - (bytes[at] ?? 0);
     await expect(readZipEntry(source, entry, 1024)).rejects.toBeInstanceOf(ZipError);
+  });
+
+  it("refuses an entry whose deflated bytes are damaged, and reads the one after it", async () => {
+    const words = "deflated words\n".repeat(20);
+    const bytes = await zipFiles([textFile("a.md", words), textFile("b.md", "the next one")]);
+    // a deflate block's first byte, set to a block type deflate does not have
+    bytes[30 + "a.md".length] = 0xff;
+    const source = sourceOf(bytes);
+    const [damaged, next] = await readZipEntries(source);
+    if (damaged === undefined || next === undefined) {
+      throw new Error("the zip listed fewer entries than it holds");
+    }
+    await expect(readZipEntry(source, damaged, 1024)).rejects.toMatchObject({ fault: "corrupt" });
+    await expect(
+      new Response(await openZipEntry(source, damaged)).arrayBuffer(),
+    ).rejects.toBeInstanceOf(ZipError);
+    expect(decoder.decode(await readZipEntry(source, next, 1024))).toBe("the next one");
+  });
+
+  it("keeps a read that failed its own error, which says nothing of the entry", async () => {
+    const bytes = await zipFiles([textFile("a.md", "deflated words\n".repeat(20))]);
+    const source = sourceOf(bytes);
+    const entry = await onlyEntry(source);
+    const down = new Error("the bucket is down");
+    const failing: ByteSource = {
+      // the local header reads, and the entry's own bytes do not
+      read: async (offset, length) => {
+        if (length !== 30) {
+          throw down;
+        }
+        return await source.read(offset, length);
+      },
+      size: source.size,
+    };
+    await expect(readZipEntry(failing, entry, 1024)).rejects.toBe(down);
   });
 
   it("refuses an entry its directory says is encrypted", async () => {
@@ -142,6 +198,18 @@ describe("a zip another writer made", () => {
     data.setUint32(32, 0xff_ff_ff_ff, true);
     data.setUint32(36, 0xff_ff_ff_ff, true);
     await expect(readZipEntries(sourceOf(bytes))).rejects.toMatchObject({ fault: "corrupt" });
+  });
+
+  it("refuses a ZIP64 extra cut short of the sizes it says it holds", async () => {
+    // an entry whose size defers to a ZIP64 extra that says eight bytes and holds two
+    const zip = directoryOf("big.bin", U32_MAX, Uint8Array.of(1, 0, 8, 0, 0, 0));
+    await expect(readZipEntries(sourceOf(zip))).rejects.toMatchObject({ fault: "corrupt" });
+  });
+
+  it.each(["Notes/", "Notes\\"])("leaves out the folder entry %s", async (name) => {
+    await expect(
+      readZipEntries(sourceOf(directoryOf(name, 0, new Uint8Array()))),
+    ).resolves.toStrictEqual([]);
   });
 
   it("is refused when it is no zip at all", async () => {

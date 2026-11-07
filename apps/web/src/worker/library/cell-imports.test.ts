@@ -294,6 +294,28 @@ describe("what a zip's note left out", () => {
     expect(stored).toContain("Some words.");
   });
 
+  it("counts an entry whose deflated bytes are damaged, and reads the rest", async () => {
+    const accountId = newAccountId();
+    const file = await zip({
+      "Bad.md": encoder.encode("A damaged note.\n"),
+      "Good.md": encoder.encode("A whole note.\n"),
+      "bad.txt": encoder.encode("A damaged file.\n"),
+    });
+    for (const name of ["Bad.md", "bad.txt"]) {
+      // a deflate block's first byte, after the local header and its name, set to a block type
+      // deflate does not have
+      file.bytes[Buffer.from(file.bytes).indexOf(name) + name.length] = 0xff;
+    }
+    const started = await startImport(accountId, file, "markdown");
+    await runToEnd(accountId, started.jobId);
+    await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
+      added: 1,
+      state: "done",
+      unreadable: 2,
+    });
+    await expect(blocksIn(accountId)).resolves.toContain("A whole note.");
+  });
+
   it("counts nothing for a link with no address, whose words stay", async () => {
     const { job, stored } = await imported({
       "Bare.md": encoder.encode("One [word]() and the rest.\n"),

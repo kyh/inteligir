@@ -154,7 +154,7 @@ const zip64Sizes = (extra: DataView, sizes: Sizes): Sizes => {
     if (id === ZIP64_EXTRA) {
       let field = at + 4;
       const next = (): number => {
-        if (field + 8 > at + 4 + length) {
+        if (field + 8 > Math.min(at + 4 + length, extra.byteLength)) {
           throw corrupt("a ZIP64 extra field is shorter than its sizes");
         }
         const value = u64(extra, field);
@@ -200,8 +200,9 @@ export const readZipEntries = async (source: ByteSource): Promise<ZipEntry[]> =>
       size: u32(data, at + 24),
     });
     const path = pathOf(name);
+    const written = decoder.decode(name);
     // a folder's own entry names no file
-    if (path !== null && !decoder.decode(name).endsWith("/")) {
+    if (path !== null && !written.endsWith("/") && !written.endsWith("\\")) {
       entries.push({
         ...sizes,
         crc: u32(data, at + 16),
@@ -249,6 +250,48 @@ const rawStream = (
   });
 };
 
+// the entry's deflated bytes inflated. The platform's inflation says only that it failed, and a
+// read that failed comes through it as another error, so a failure no read raised is a damaged
+// entry, and one a read raised stays that read's, which says nothing of the entry
+const inflated = (
+  source: ByteSource,
+  start: number,
+  entry: ZipEntry,
+): ReadableStream<Uint8Array> => {
+  const failedReads: unknown[] = [];
+  const reading: ByteSource = {
+    read: async (offset, length) => {
+      try {
+        return await source.read(offset, length);
+      } catch (error) {
+        failedReads.push(error);
+        throw error;
+      }
+    },
+    size: source.size,
+  };
+  const reader = rawStream(reading, start, entry.compressedSize)
+    .pipeThrough(new DecompressionStream("deflate-raw"))
+    .getReader();
+  return new ReadableStream<Uint8Array>({
+    cancel: async (reason) => {
+      await reader.cancel(reason);
+    },
+    async pull(controller) {
+      try {
+        const next = await reader.read();
+        if (next.done) {
+          controller.close();
+        } else {
+          controller.enqueue(next.value);
+        }
+      } catch {
+        controller.error(failedReads.at(0) ?? corrupt(`${entry.path}'s bytes do not inflate`));
+      }
+    },
+  });
+};
+
 // the entry's bytes held to what the directory says of them: an inflation past its size (a zip
 // bomb), short of it, or with another CRC is refused
 const verified = (entry: ZipEntry) => {
@@ -286,9 +329,10 @@ export const openZipEntry = async (
   if (start + entry.compressedSize > source.size) {
     throw corrupt(`${entry.path} runs past the end of the file`);
   }
-  const raw = rawStream(source, start, entry.compressedSize);
   const plain =
-    entry.method === DEFLATED ? raw.pipeThrough(new DecompressionStream("deflate-raw")) : raw;
+    entry.method === DEFLATED
+      ? inflated(source, start, entry)
+      : rawStream(source, start, entry.compressedSize);
   return plain.pipeThrough(verified(entry));
 };
 
