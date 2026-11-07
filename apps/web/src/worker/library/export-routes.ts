@@ -59,6 +59,7 @@ export const handleExportRoute = async (
     request,
     env.BLOBS,
     exportKey(principal.accountId, id.data),
+    principal,
     MISSING,
   );
   if (response.status < 300) {

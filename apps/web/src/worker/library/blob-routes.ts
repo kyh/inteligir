@@ -21,6 +21,7 @@ import { holderIdOf, lazyPrincipal } from "../wire/v1-principal";
 import { blobKey } from "./cell-blobs";
 import type { CellRefusal } from "./cell-refusal";
 import { libraryCell } from "./library-cell";
+import type { AppPrincipal } from "./library-principal";
 
 const BLOB_PATH = /^\/v1\/blobs\/(?<sha>[^/]+)$/u;
 
@@ -55,8 +56,8 @@ const serveUnder = (headers: Headers, contentType: string | undefined): void => 
 
 // ---- reads ----
 
-// a file never changes under its sha, so a device keeps it as long as it likes, and no shared
-// cache keeps it at all
+// a file never changes under its sha, so a tab's browser keeps it as long as it likes, and no
+// shared cache keeps it at all
 const READ_HEADERS = {
   "accept-ranges": "bytes",
   "cache-control": "private, max-age=31536000, immutable",
@@ -129,6 +130,7 @@ export const readObject = async (
   request: Request,
   bucket: R2Bucket,
   key: string,
+  reader: AppPrincipal,
   missing = "That file isn't in the library.",
 ): Promise<Response> => {
   const object = await bucket.get(key, { onlyIf: conditionsOf(request), range: request.headers });
@@ -139,6 +141,11 @@ export const readObject = async (
   object.writeHttpMetadata(headers);
   headers.set("etag", object.httpEtag);
   headers.set("last-modified", object.uploaded.toUTCString());
+  // a device keeps what it reads where a sign-out empties it; a copy in the HTTP cache under it,
+  // stored beside the bearer that read it, is one nothing empties
+  if (reader.actor.kind === "device") {
+    headers.set("cache-control", "no-store");
+  }
   serveUnder(headers, object.httpMetadata?.contentType);
   if (!("body" in object)) {
     return preconditionFailed(request, headers);
@@ -285,5 +292,5 @@ export const handleBlobRoute = async (
   }
   return request.method === "PUT"
     ? await writeBlob(request, env, ctx, { accountId: principal.accountId, sha })
-    : await readObject(request, env.BLOBS, blobKey(principal.accountId, sha));
+    : await readObject(request, env.BLOBS, blobKey(principal.accountId, sha), principal);
 };

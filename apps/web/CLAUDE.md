@@ -294,7 +294,10 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   the request's range and preconditions: 206 from `object.range` for any single
   range, one spanning the file included, 416 for one past the end, a
   multi-part ask whole, 304 and 412; every file but a PDF is served under a
-  script-less sandbox. A file's row is the cell's alone: a device asks for a
+  script-less sandbox. A device's read answers `no-store`, a file and an export
+  alike, since it keeps what it reads where a sign-out empties it, and an HTTP
+  cache under it would hold those bytes and the bearer past that; a tab's
+  answers immutable. A file's row is the cell's alone: a device asks for a
   file by the sha an item's row names, and takes its type from the answer.
   Rejected: a byte-range parser of our own (R2 parses the header); a signed
   URL (a credential in a logged address); a file's row synced to every device

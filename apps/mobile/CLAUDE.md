@@ -74,8 +74,10 @@ how it ships.
   BACKUP.** Both download again or are sent from here (owner decision), so
   `apps/mobile/modules/backup-exclusion` keeps them out of the iCloud backup
   (`apps/mobile/src/files/expo-file-folders.ts`). A sign-in, a sign-out and a
-  revocation wipe the rows and every file; the boot keeps them, and a kept
-  credential over an empty database pulls the library afresh.
+  revocation wipe the rows, every file and the system's HTTP cache
+  (`apps/mobile/modules/http-cache`), which the Worker's `no-store` keeps a
+  file's bytes out of but not a page a share read; the boot keeps them, and a
+  kept credential over an empty database pulls the library afresh.
 
 - **A FILE'S BYTES ARE KEPT BY ITS HASH, FETCHED ONCE: PINNED, OR CACHED AND
   DROPPED OLDEST FIRST.** A file is downloaded once however many screens ask

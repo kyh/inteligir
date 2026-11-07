@@ -583,6 +583,7 @@ describe("an export", () => {
       const auth = deviceHeaders(laptop.credential);
 
       const whole = await exports.default.fetch(url, { headers: auth });
+      expect(whole.headers.get("cache-control")).toBe("no-store");
       expect(whole.status).toBe(200);
       expect(whole.headers.get("content-type")).toBe("application/zip");
       expect(whole.headers.get("content-disposition")).toMatch(

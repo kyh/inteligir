@@ -429,10 +429,11 @@ clear and never backs up. The phone's sign-in is kept in the iPhone's Keychain
 for that iPhone alone: a backup restored onto another phone does not carry it,
 so the new phone signs in again and becomes a device of its own.
 
-- **Signing out** on the phone erases all of it — items, files and anything
-  unsent, which it asks about first — and tells our cloud to remove the phone
-  from your account. A phone that signs out offline forgets its sign-in all the
-  same; revoke it from Settings › Account on a Mac.
+- **Signing out** on the phone erases all of it — items, files, what the phone
+  kept of pages it read and anything unsent, which it asks about first — and
+  tells our cloud to remove the phone from your account. A phone that signs out
+  offline forgets its sign-in all the same; revoke it from Settings › Account on
+  a Mac.
 - **Revoking the phone** from a Mac, or **deleting the account**, erases the
   same the next time the phone reaches our cloud and is refused, without
   asking. Until then it keeps what it holds.

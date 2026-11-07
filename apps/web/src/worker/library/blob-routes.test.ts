@@ -238,6 +238,32 @@ describe("a file's bytes", () => {
     expect(stranger.status).toBe(404);
   });
 
+  it("is kept by a tab's browser, and by no HTTP cache under a device, whose own a sign-out empties", async () => {
+    const { auth, cookie } = await signedIn("blob-kept@example.test");
+    const { bytes, sha } = await fileOf(TEN);
+    await put(auth, sha, bytes);
+
+    const tab = await drained(
+      exports.default.fetch(urlOf(sha), { headers: sessionHeaders(cookie) }),
+    );
+    expect(tab.headers.get("cache-control")).toBe("private, max-age=31536000, immutable");
+
+    const whole = await drained(exports.default.fetch(urlOf(sha), { headers: auth }));
+    expect(whole.headers.get("cache-control")).toBe("no-store");
+    const range = await drained(
+      exports.default.fetch(urlOf(sha), { headers: { ...auth, range: "bytes=0-1" } }),
+    );
+    expect(range.status).toBe(206);
+    expect(range.headers.get("cache-control")).toBe("no-store");
+    const held = await drained(
+      exports.default.fetch(urlOf(sha), {
+        headers: { ...auth, "if-none-match": whole.headers.get("etag") ?? "" },
+      }),
+    );
+    expect(held.status).toBe(304);
+    expect(held.headers.get("cache-control")).toBe("no-store");
+  });
+
   it("refuses an old build, no credential, a name that is no sha and any other method", async () => {
     const { auth } = await signedIn("blob-refusals@example.test");
     const { sha } = await fileOf(TEN);
