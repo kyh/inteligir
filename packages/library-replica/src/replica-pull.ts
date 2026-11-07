@@ -124,10 +124,10 @@ const layBodies = function* layBodies(
       settled.push(body.id);
       continue;
     }
-    // a body newer than the row this replica holds: the row's own change, still to be pulled,
-    // wants it again at its sequence
+    // a body sent for another row leaves the want standing, or a row ahead of every block would
+    // read as a body held empty until its own change was pulled
     const held = yield* readItem(body.id);
-    if (held === null || held.kind === "purged" || held.seq < body.seq) {
+    if (held === null || held.kind === "purged") {
       settled.push(body.id);
     }
   }
