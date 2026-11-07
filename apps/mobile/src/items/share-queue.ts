@@ -30,10 +30,10 @@ export const createShareQueue = <T>(): ShareQueue<T> => {
     try {
       for (;;) {
         const intent = held;
-        const ports = latest;
-        if (intent === null || ports === null) {
+        if (intent === null || latest === null) {
           return;
         }
+        const ports = latest;
         if ((await ports.settle(intent)) === "held") {
           if (latest === ports) {
             return;
