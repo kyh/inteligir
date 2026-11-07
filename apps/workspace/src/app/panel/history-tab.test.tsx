@@ -2,7 +2,9 @@
 
 import { createORPCErrorFromJson } from "@orpc/client";
 import { toast } from "@repo/ui/components/sonner";
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { onlineManager } from "@tanstack/react-query";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
@@ -11,6 +13,7 @@ import { HistoryTab } from "./history-tab";
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  onlineManager.setOnline(true);
 });
 
 const ITEM = "0199a4c2-0000-7000-8000-0000000000b1";
@@ -27,6 +30,24 @@ const set = (id: string, label: string, undoneBy: string | null = null) => ({
   turn: null,
   undoneBy,
 });
+
+// the tab, until "Leave" takes it away, and back
+const Leaving = ({ flushOpen }: { flushOpen: () => Promise<void> }) => {
+  const [open, setOpen] = useState(true);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setOpen((now) => !now);
+        }}
+      >
+        Leave
+      </button>
+      {open ? <HistoryTab itemId={ITEM} flushOpen={flushOpen} /> : null}
+    </>
+  );
+};
 
 describe("an item's History", () => {
   it("shows a version of a note with no title from its first words", async () => {
@@ -92,6 +113,70 @@ describe("an item's History", () => {
       ]);
     });
     expect(flushOpen).toHaveBeenCalledOnce();
+  });
+
+  it("holds Undo from the press, and sends it once the open item is written", async () => {
+    const written = Promise.withResolvers<null>();
+    const { calls, library } = fakePageLibrary({
+      answer: ({ path }) =>
+        path === "library.history.list"
+          ? { changeSets: [set("s1", "Renamed Plans")], cursor: null }
+          : { changeSetId: "u1", kept: [], refused: [], reverted: [ITEM] },
+    });
+    renderOnLibrary(
+      <HistoryTab
+        itemId={ITEM}
+        flushOpen={async () => {
+          await written.promise;
+        }}
+      />,
+      library,
+    );
+    const undo = await screen.findByRole("button", { name: "Undo" });
+    fireEvent.click(undo);
+    await waitFor(() => {
+      expect(undo.hasAttribute("disabled")).toBe(true);
+    });
+    expect(calls.filter((call) => call.path === "library.history.undo")).toStrictEqual([]);
+    written.resolve(null);
+    await waitFor(() => {
+      expect(calls.filter((call) => call.path === "library.history.undo")).toHaveLength(1);
+    });
+  });
+
+  it("keeps Undo down through leaving the tab and coming back", async () => {
+    const { calls, library } = fakePageLibrary({
+      answer: ({ path }) =>
+        path === "library.history.list"
+          ? { changeSets: [set("s1", "Renamed Plans")], cursor: null }
+          : { changeSetId: "u1", kept: [], refused: [], reverted: [ITEM] },
+    });
+    renderOnLibrary(
+      <Leaving
+        flushOpen={async () => {
+          await Promise.resolve();
+        }}
+      />,
+      library,
+    );
+    const undo = await screen.findByRole("button", { name: "Undo" });
+    act(() => {
+      onlineManager.setOnline(false);
+    });
+    fireEvent.click(undo);
+    const leave = screen.getByRole("button", { name: "Leave" });
+    fireEvent.click(leave);
+    fireEvent.click(leave);
+    const back = await screen.findByRole("button", { name: "Undo" });
+    await waitFor(() => {
+      expect(back.hasAttribute("disabled")).toBe(true);
+    });
+    act(() => {
+      onlineManager.setOnline(true);
+    });
+    await waitFor(() => {
+      expect(calls.filter((call) => call.path === "library.history.undo")).toHaveLength(1);
+    });
   });
 
   it("says so, and calls it no success, when a later change kept everything", async () => {

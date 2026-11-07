@@ -41,17 +41,11 @@ import { Button } from "@repo/ui/components/button";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
-import {
-  useInfiniteQuery,
-  useIsMutating,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, PlusIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { everyChangeSet, historyPages, UNDO_SCOPE } from "../cloud/history-pages";
+import { everyChangeSet, historyPages, UNDO_SCOPE, useUndoWaits } from "../cloud/history-pages";
 import { useReplica, useReplicaQueries, useWire } from "../cloud/library-context";
 import { retryUnlessRefused } from "../cloud/v1";
 import { refusalText } from "@repo/contract/cloud/refusal-text";
@@ -76,9 +70,11 @@ export interface AgentPanelProps {
 const EntryRow = ({
   entry,
   undo,
+  undoWaits,
 }: {
   entry: ThreadEntry;
   undo: (turn: number) => (() => void) | null;
+  undoWaits: boolean;
 }) => {
   const { event } = entry;
   switch (event.type) {
@@ -116,7 +112,7 @@ const EntryRow = ({
         <div className="flex items-center gap-2" data-turn-ended={event.turn}>
           {words === "" ? null : <p className="m-0 text-caption text-muted-foreground">{words}</p>}
           {run === null ? null : (
-            <Button size="compact" variant="ghost" onClick={run}>
+            <Button size="compact" variant="ghost" disabled={undoWaits} onClick={run}>
               Undo this turn
             </Button>
           )}
@@ -268,6 +264,7 @@ const Conversation = ({
       onError: (cause) => {
         toast.error(refusalText(cause, "That couldn't be undone."));
       },
+      onMutate: flushOpen,
       // refused too: an open list hears nothing of what another device took back, so a refusal can
       // be the first it learns of it
       onSettled: async () => {
@@ -276,10 +273,10 @@ const Conversation = ({
       scope: UNDO_SCOPE,
     }),
   );
+  const undoWaits = useUndoWaits();
   const changeSets = changeSetsOf(sets.data?.pages ?? []);
   const undoSets = (ids: readonly string[]): void => {
     void (async () => {
-      await flushOpen();
       const kept: string[] = [];
       const refused: string[] = [];
       const reverted: string[] = [];
@@ -309,15 +306,12 @@ const Conversation = ({
   const whole = hasNextPage ? null : conversationUndo(changeSets);
   // read again at the press: a turn's set seals as the turn ends and the list on screen follows it,
   // so that list can be a turn short of the conversation, or hold what another device took back. A
-  // mutation though it writes nothing, so the press waits offline under the root's notice and
-  // behind an undo in flight. Keyed by the conversation, since one that waits can outlast this
-  // component: the key keeps it to the conversation it was pressed in, and its button down on a
-  // return to that conversation
-  const pressKey = ["undo-conversation", threadId];
-  const pressWaits = useIsMutating({ mutationKey: pressKey }) > 0;
+  // mutation though it writes nothing, so the press waits offline under the root's notice and in
+  // the undos' queue. Keyed by the conversation, since one that waits can outlast this component:
+  // the key keeps it to the conversation it was pressed in
   const undoConversation = useMutation({
     mutationFn: async () => await everyChangeSet(client, { threadId }),
-    mutationKey: pressKey,
+    mutationKey: ["undo-conversation", threadId],
     onError: (cause) => {
       toast.error(refusalText(cause, "That couldn't be undone."));
     },
@@ -341,7 +335,7 @@ const Conversation = ({
         block.kind === "work" ? (
           <WorkBlock key={block.key} block={block} live={working && index === blocks.length - 1} />
         ) : (
-          <EntryRow key={block.key} entry={block.entry} undo={undoTurn} />
+          <EntryRow key={block.key} entry={block.entry} undo={undoTurn} undoWaits={undoWaits} />
         ),
       )}
       {preview === null ? null : <StreamingText text={preview} streaming data-agent-preview />}
@@ -392,7 +386,7 @@ const Conversation = ({
           <Button
             size="compact"
             variant="ghost"
-            disabled={pressWaits}
+            disabled={undoWaits}
             onClick={() => {
               undoConversation.mutate();
             }}

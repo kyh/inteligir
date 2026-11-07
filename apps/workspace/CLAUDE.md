@@ -108,13 +108,17 @@ is parsed in `src/shell/shell-commands.ts`.
   page saw (a session that lapsed with no tab open, a quit in the middle of
   one) takes it at the next open, which compares the storage's one
   `storageAccount` row, an account's opaque id, with who is opening. The
-  Mac's routes ride the hash, since its document never changes. Rejected: a
-  first-run window of the shell's own (a second page beside the one the shell
+  Mac's routes ride the hash, since its document never changes, so a reload
+  keeps the route, and the page drops it where it lands signed out: the next
+  account opens on All items, not on the last one's Settings or item. Rejected:
+  a first-run window of the shell's own (a second page beside the one the shell
   carries); the tab's cookie in the window (a cross-site cookie WebKit would
   not send); clearing only where an open reads no session (the site's sign-in
   takes a lapsed cookie and lands on the library, so the next account's first
-  open reads one). `apps/workspace/src/app/cloud/shell-library.ts`,
-  `apps/workspace/src/app/cloud/sign-in-page.tsx`.
+  open reads one); dropping the route in each way of leaving (a sign-out, a
+  deletion, a revoke and the failed open's Sign out each reload, and all of them
+  meet that one arm). `apps/workspace/src/app/cloud/shell-library.ts`,
+  `apps/workspace/src/app/cloud/sign-in-page.tsx`, `apps/workspace/src/main.tsx`.
 
 - **A SESSION'S END IS ANSWERED HOWEVER THE PAGE MEETS IT.** The replica calls
   through a client of its own and stops at a session's end, so each host watches
@@ -285,7 +289,17 @@ is parsed in `src/shell/shell-commands.ts`.
   agent's panel both say. An undo reads the list again however it ended, since
   an open list hears nothing of what another device took back and a refusal can
   be the first it learns of it. History is the cell's, so it waits for a
-  connection.
+  connection. Every undo waits in one queue, joined at the press with the open
+  item's write inside it, so the queue is the order of the presses, and while
+  anything waits in it every Undo stays down, History's and the agent panel's
+  two, whichever surface pressed it and through leaving and coming back, since
+  a set goes back once and the cell refuses a whole undo that names one already
+  undone. Rejected: holding each button by its own undo (a press from another
+  surface, or before leaving, left it live to a refusal); leaving Undo this
+  conversation live to read behind what waits (a long conversation's undos join
+  a batch at a time, so its read ran ahead of the next batch and named it);
+  writing the open item before joining the queue (a file still being kept let a
+  later press overtake it).
   `apps/workspace/src/app/panel/history-tab.tsx`,
   `apps/workspace/src/app/cloud/history-pages.ts`.
 
@@ -303,8 +317,8 @@ is parsed in `src/shell/shell-commands.ts`.
   unsaved edit is written: the sets are read from every page the cell answers,
   the whole conversation's Undo offered once all are in and sent in as few
   undos as the cell takes, and asked again as each turn ends, since a turn's
-  set seals with it. Its press reads them once more, behind any undo in flight,
-  and when none is left to take back it sends nothing and says so. While a turn
+  set seals with it. Its press reads them once more, and when none is left to
+  take back it sends nothing and says so. While a turn
   is open, a turn waiting on an approval among them, every device draws Stop,
   which turns down what it asked and ends the answer, and the page no Undo of
   the conversation, since the open turn's set is out of its reach. Rejected: an

@@ -18,7 +18,7 @@ import {
 } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { historyPages, UNDO_SCOPE } from "../cloud/history-pages";
+import { historyPages, UNDO_SCOPE, useUndoWaits } from "../cloud/history-pages";
 import { useReplica, useWire } from "../cloud/library-context";
 import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { CellAnswer } from "../cloud/needs-connection";
@@ -125,6 +125,7 @@ export const HistoryTab = ({
       onError: (cause) => {
         toast.error(refusalText(cause, "That change couldn't be undone."));
       },
+      onMutate: flushOpen,
       // refused too: an open list hears nothing of what another device took back, so a refusal can
       // be the first it learns of it
       onSettled: async () => {
@@ -136,6 +137,7 @@ export const HistoryTab = ({
       scope: UNDO_SCOPE,
     }),
   );
+  const undoWaits = useUndoWaits();
   return (
     <>
       <CellAnswer query={history} failed="History couldn't be read.">
@@ -171,12 +173,9 @@ export const HistoryTab = ({
                     <Button
                       size="compact"
                       variant="secondary"
-                      disabled={set.undoneBy !== null || set.closedAt === null || undo.isPending}
+                      disabled={set.undoneBy !== null || set.closedAt === null || undoWaits}
                       onClick={() => {
-                        void (async () => {
-                          await flushOpen();
-                          undo.mutate({ changeSetIds: [set.id] });
-                        })();
+                        undo.mutate({ changeSetIds: [set.id] });
                       }}
                     >
                       Undo
