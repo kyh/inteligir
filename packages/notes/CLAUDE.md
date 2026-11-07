@@ -10,8 +10,8 @@ and write by, and the rules of search, links and tags.
 Pure and platform-neutral: no node, react or ui import and no `crypto` global
 (lint-enforced), and every platform capability (the SQL driver, the clock,
 random bytes and fresh ids) is injected.
-`markdown/mdast-nodes.ts` is the mdast NARROWING boundary: a walk asks it what a
-node is rather than discriminating structurally at each visit.
+`markdown/mdast-nodes.ts` narrows a transform's bare `Node` input to the mdast
+root.
 
 ## Library
 
@@ -36,8 +36,9 @@ node is rather than discriminating structurally at each visit.
   title falls back to the first heading, then the first line; the outline
   keeps the first h1 to h3, as the editor's contents do, each cut to a line),
   the index text (every heading ranks), the links by id or url key, and each
-  block's anchored highlights. Rejected: syncing derived rows (two
-  derivations would drift), a frontmatter block (its keys are columns).
+  block's anchored highlights. The card alone rides its row, so a replica draws
+  an item before its body arrives. Rejected: syncing the other derived rows
+  (two derivations would drift), a frontmatter block (its keys are columns).
   `packages/notes/src/library/derive-item.ts`.
 
 - **A BLOCK IS GUARDED BY ITS HASH, ITS PLACE BY ITS KEY, A FIELD BY ITS
@@ -62,20 +63,21 @@ node is rather than discriminating structurally at each visit.
   renumberings conflict) and interleaving the sections (a fill's keys would
   thread through the person's).
 
-- **UNDO RUNS A CHANGE SET BACKWARDS IN REVERT-EDIT'S ORIENTATION, BLOCK FOR
-  LINE.** `@repo/notes/library/revert-change`: the set's after is the base,
+- **UNDO RUNS A CHANGE SET BACKWARDS AS A THREE-WAY MERGE, BLOCK FOR LINE.**
+  `@repo/notes/library/revert-change`: the set's after is the base,
   the item now is mine, its before is theirs; the order merges by diff3 over
   block ids, fields revert one by one, highlights entry by entry, and an
   overlap keeps the item whole and named. An item the set made goes to Deleted
   unless a person's part changed since (a fill is not a person), told by each
   fill's own change set: a field still holds what the set left or what a fill
-  wrote there. Sets undo newest first. Unlike revert-edit, a block keeps its
+  wrote there. Sets undo newest first. Unlike the line oracle the suites hold it
+  to (`packages/notes/src/test-support/revert-edit.ts`), a block keeps its
   identity across a move, so a block moved, edited and then deleted stays
   deleted. Rejected: a list of the fields a fill owns (it drifts from what a
   fill writes, and a title is a fill's on an unread link and a person's after).
   `packages/notes/src/library/revert-change.test.ts`.
 
-- **THE LIBRARY'S SQL IS ONE SCHEMA AND ONE SET OF PLANS FOR THREE ENGINES.**
+- **THE LIBRARY'S SQL IS ONE SCHEMA AND ONE SET OF PLANS FOR EVERY ENGINE.**
   `@repo/notes/library/library-schema` versions STRICT tables, a replica's
   outbox among them, by a `meta.schema` row, a mismatch starting the engine
   over, and holds a replica to SQLite 3.37 (a Durable Object refuses

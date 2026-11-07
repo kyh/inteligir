@@ -1,9 +1,8 @@
 // Takes one change set's change to an item back while keeping every change made since: the change
-// run backwards three ways, in the orientation `@repo/notes/text/revert-edit` takes a file back
-// in — the set's after as the base, the item now as mine, the set's before as theirs — block by
-// block, field by field and highlight by highlight. A block the set changed and someone changed
-// again keeps the item whole and names it; Undo never takes an item half back. Snapshots in, ops
-// out: the caller lands them through the same guarded apply every write takes.
+// run backwards three ways, the set's after as the base, the item now as mine and the set's before
+// as theirs, block by block, field by field and highlight by highlight. A block the set changed
+// and someone changed again keeps the item whole and names it; Undo never takes an item half back.
+// Snapshots in, ops out: the caller lands them through the same guarded apply every write takes.
 
 import { annotationEntriesOf, sameAnnotationEntry } from "../annotations/store-schema";
 import type { AnnotationStore } from "../annotations/store-schema";

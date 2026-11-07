@@ -136,8 +136,9 @@ note as `.md`, and WIDER than what a link may leave off: `.md` alone, so a
 **note** — an item of kind `note`, the text a person writes. An imported doc
 whose `kind:` is missing or unknown is one, its filename its title, with no
 slug layer.
-Every item's name follows one rule, `@repo/notes/knowledge/note-name`, whatever
-its kind: a name may not hold `[` or `]`, which would end a link to it.
+The name an export files an item under follows one rule,
+`@repo/notes/items/item-name`, whatever its kind: it may not hold `[` or `]`,
+which would end a link to it.
 
 **line** — a line's content EXCLUDES its terminator, whichever flavor (`\r\n`,
 `\r`, `\n`), stated once in `@repo/notes`' `text/source-lines`. A second reading

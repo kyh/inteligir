@@ -1,4 +1,4 @@
-// The one schema of the library's SQLite, which the cell and both device replicas create alike:
+// The one schema of the library's SQLite, which the cell and every replica create alike:
 // the synced tables every engine holds, and the cell's own or a replica's beside them. Its version is the
 // `schema` row of `meta`, never SQLite's own version pragma, which a Durable Object refuses
 // (https://developers.cloudflare.com/durable-objects/best-practices/rules-of-durable-objects/).

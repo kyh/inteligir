@@ -20,7 +20,7 @@ const isControl = (cp: number): boolean => cp < 0x20 || (cp >= 0x7f && cp <= 0x9
 
 const DROPPED = new Set(["*", "?", "<", ">"]);
 
-// rules 2–6: every character a title may not carry as written, replaced or dropped
+// every character a title may not carry as written, replaced or dropped
 const repairChars = (text: string): string => {
   let out = "";
   for (const ch of text) {

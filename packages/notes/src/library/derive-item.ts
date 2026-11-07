@@ -1,7 +1,8 @@
 // What an item's rows say that no writer writes: its title as the library shows it, its card, its
 // searchable text, the links and tags its blocks hold and the highlights each block anchors. One
 // walk over the fields and the blocks in reading order, in the same transaction as the write, on
-// the cell and on every replica alike, so nothing derived is ever synced or stale.
+// the cell and on every replica alike, so nothing derived is stale. The card alone is synced, with
+// its row, so a replica draws an item before its body arrives.
 
 import { z } from "zod";
 
