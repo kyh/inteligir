@@ -108,14 +108,13 @@ describe("a thread's entries", () => {
     });
   });
 
-  it("says only the tool's name for a call it cannot read, which the cell refuses too", () => {
-    expect(approvalWords(askedFor("save_link", { url: "not a link" }), noTitles)).toStrictEqual({
-      detail: null,
-      question: "The agent wants to: saved a link.",
-    });
-    expect(approvalWords(askedFor("a_later_tool", {}), noTitles).question).toBe(
-      "The agent wants to: used the library.",
+  it("claims nothing of a call it cannot read", () => {
+    const unread = { detail: null, question: "The agent wants to use the library." };
+    expect(approvalWords(askedFor("save_link", { url: "not a link" }), noTitles)).toStrictEqual(
+      unread,
     );
+    expect(approvalWords(askedFor("delete_items", { ids: [] }), noTitles)).toStrictEqual(unread);
+    expect(approvalWords(askedFor("a_later_tool", {}), noTitles)).toStrictEqual(unread);
   });
 
   it("says a tool and an ending in the person's words", () => {

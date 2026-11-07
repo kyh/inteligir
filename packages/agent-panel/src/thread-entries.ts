@@ -48,12 +48,11 @@ export const threadEntries = (rows: readonly ThreadEventRow[]): ThreadEntry[] =>
     });
 
 // what a call waiting on the person would do, read off its input: the items a delete would move,
-// the address a save would reach as the library would read it, or for a call this build cannot
-// read, whose input the cell refuses too, only its tool
+// the address a save would reach as the library would read it, or nothing this build can say
 type ApprovalAsk =
   | { readonly kind: "delete"; readonly ids: readonly string[] }
   | { readonly kind: "save"; readonly host: string; readonly url: string }
-  | { readonly kind: "other"; readonly name: string };
+  | { readonly kind: "unread" };
 
 const deleteInputSchema = z.object({ ids: z.array(z.string()).min(1) });
 const saveInputSchema = z.object({ url: z.string() });
@@ -66,7 +65,7 @@ const askOf = ({ input, name }: Extract<AgentEvent, { type: "approval.asked" }>)
   const saving = name === "save_link" ? saveInputSchema.safeParse(input) : null;
   const url = saving?.success === true ? cleanUrl(saving.data.url) : null;
   const host = url === null ? null : urlHost(url);
-  return url === null || host === null ? { kind: "other", name } : { host, kind: "save", url };
+  return url === null || host === null ? { kind: "unread" } : { host, kind: "save", url };
 };
 
 // an approval the person has not answered: the `approval.asked` event `respond` names
@@ -151,11 +150,8 @@ export const approvalWords = (
         question: `The agent wants to save a link from ${ask.host}. Reading its page shows that site this whole address.`,
       };
     }
-    case "other": {
-      return {
-        detail: null,
-        question: `The agent wants to: ${toolWords(ask.name).toLowerCase()}.`,
-      };
+    case "unread": {
+      return { detail: null, question: "The agent wants to use the library." };
     }
     // no default
   }
