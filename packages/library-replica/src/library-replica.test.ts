@@ -826,17 +826,17 @@ describe("what the screens read", () => {
   });
 });
 
-describe("a make before the cell answers", () => {
-  const shown = (replica: LibraryReplica, id: string) => {
-    const row = replica.row(id);
-    return {
-      cover: row?.fields.coverSha,
-      kind: row?.kind,
-      title: row?.title,
-      url: row?.url,
-    };
+const shown = (replica: LibraryReplica, id: string) => {
+  const row = replica.row(id);
+  return {
+    cover: row?.fields.coverSha,
+    kind: row?.kind,
+    title: row?.title,
+    url: row?.url,
   };
+};
 
+describe("a make before the cell answers", () => {
   it("lists a saved link as it will land", async () => {
     const cell = createFakeCell();
     const phone = await openDevice(cell, "phone");
