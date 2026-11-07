@@ -144,6 +144,8 @@ export const openPageLibrary = async (
 ): Promise<PageOpening> => {
   const account = await readSession(origin);
   if (account === null) {
+    // a session ends with no tab open too, so nothing else saw it go
+    forgetAccountStorage();
     return { kind: "signed-out" };
   }
   const transport: ReplicaTransport = { fetch: async (request) => await fetch(request), origin };
