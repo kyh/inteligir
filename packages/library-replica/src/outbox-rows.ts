@@ -98,13 +98,10 @@ export const insertRow = function* insertRow(row: {
 };
 
 export const saveRow = function* saveRow(row: OutboxRow): SqlPlan<void> {
-  yield run("UPDATE outbox SET op = ?, item_id = ?, state = ?, reason = ? WHERE seq = ?", [
-    opJsonOf(row.op),
-    itemIdOf(row.op),
-    row.state,
-    row.reason,
-    row.seq,
-  ]);
+  yield run(
+    "UPDATE outbox SET op_id = ?, op = ?, item_id = ?, state = ?, reason = ? WHERE seq = ?",
+    [row.opId, opJsonOf(row.op), itemIdOf(row.op), row.state, row.reason, row.seq],
+  );
 };
 
 export const deleteRow = function* deleteRow(seq: number): SqlPlan<void> {

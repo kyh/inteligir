@@ -366,4 +366,34 @@ describe("the replica engine against the account's cell", () => {
       await expect(textIn(laptop.replica, holder.id, "n1")).resolves.toBe("my note");
     },
   );
+
+  it(
+    "parks a restore of an address another item holds, and asks again once it is free",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("restore");
+      const phone = await deviceOn(cookie, "Phone");
+      const url = "https://example.com/article";
+      const deleted = await phone.replica.saveLink({ folderId: null, tags: [], url });
+      await phone.replica.sync();
+      await phone.replica.deleteItems([deleted.id]);
+      await phone.replica.sync();
+      const holder = await phone.replica.saveLink({ folderId: null, tags: [], url });
+      await phone.replica.sync();
+
+      await phone.replica.restoreItems([deleted.id]);
+      await phone.replica.sync();
+      expect(phone.replica.status()).toMatchObject({ failure: null, unsent: 1 });
+      const [parked] = phone.replica.status().parked;
+      expect(parked).toMatchObject({ itemIds: [deleted.id] });
+
+      await phone.replica.deleteItems([holder.id]);
+      await phone.replica.sync();
+      await phone.replica.retry(parked?.seq ?? 0);
+      await phone.replica.sync();
+      expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
+      expect(phone.replica.row(deleted.id)?.deletedAt).toBeNull();
+      expect(phone.replica.row(holder.id)?.deletedAt).not.toBeNull();
+    },
+  );
 });

@@ -51,7 +51,9 @@ and cited.
   parked row stops neither the pass nor the pull, and a folder's holds no other
   folder, so the person can rename the one in its way. A make the cell folds
   onto the item at its address takes the rows naming it along, in its landing's
-  transaction, and a block they name there settles as any other. Rejected:
+  transaction, and a block they name there settles as any other. A restore the
+  cell leaves in Deleted for an address another item holds parks what it left
+  under a new op id, since the cell keeps its answer under the old one. Rejected:
   dropping a refused write; a whole-item retry (two devices' edits to different
   blocks would meet); stopping the pass on a row that cannot change (every later
   write and the pull wait on it, with nothing for the person to answer); parking

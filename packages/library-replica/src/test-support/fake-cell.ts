@@ -96,6 +96,8 @@ export interface FakeCell {
   readonly calls: string[];
   readonly uploads: string[];
   readonly forgetBlob: (sha: string) => void;
+  // an item the cell no longer holds, and has told no device of yet
+  readonly forgetItem: (id: string) => void;
   // the op ids the cell keeps answers for go, as thirty days take them
   readonly forgetAnswers: () => void;
   // writes to these items are refused as too large
@@ -508,6 +510,7 @@ export const createFakeCell = (): FakeCell => {
   };
 
   const landedSchema = z.object({ item: liveItemRowSchema });
+  const restoredSchema = z.object({ missing: z.array(z.string()), restored: z.array(z.string()) });
   const os = implement(v1Contract);
 
   const router = {
@@ -583,14 +586,20 @@ export const createFakeCell = (): FakeCell => {
           }
           return { deleted, missing: input.ids.filter((id) => !deleted.includes(id)) };
         }),
-        restore: os.library.items.restore.handler(({ input }) => {
-          const restored = input.ids.filter((id) => items.has(id));
-          for (const id of restored) {
-            const item = held(id);
-            land(id, { ...item.fields, deletedAt: null }, item.blocks);
-          }
-          return { missing: input.ids.filter((id) => !restored.includes(id)), restored };
-        }),
+        restore: os.library.items.restore.handler(({ input }) =>
+          once(input.opId, restoredSchema, () => {
+            const restored = input.ids.filter((id) => {
+              const address = items.get(id)?.fields.url ?? null;
+              const holder = address === null ? null : holderOf(address);
+              return items.has(id) && (holder === null || holder === id);
+            });
+            for (const id of restored) {
+              const item = held(id);
+              land(id, { ...item.fields, deletedAt: null }, item.blocks);
+            }
+            return { missing: input.ids.filter((id) => !restored.includes(id)), restored };
+          }),
+        ),
         save: os.library.items.save.handler(({ input }) =>
           once(input.opId, z.object({ folded: z.boolean() }).and(landedSchema), () => {
             needsBlobs(input.coverSha === null ? [] : [input.coverSha]);
@@ -782,6 +791,9 @@ export const createFakeCell = (): FakeCell => {
     },
     forgetBlob: (sha) => {
       blobs.delete(sha);
+    },
+    forgetItem: (id) => {
+      items.delete(id);
     },
     head: () => head,
     item: (id) => items.get(id) ?? null,

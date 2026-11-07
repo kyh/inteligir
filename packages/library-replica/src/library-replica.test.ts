@@ -1207,6 +1207,86 @@ describe("a change no resend can pass", () => {
   });
 });
 
+describe("a restore the cell refuses", () => {
+  const ADDRESS = "https://example.com/article";
+  const ADDRESS_HELD =
+    "Another item already holds this address. Delete it and try again, or let this go.";
+
+  // an item in Deleted, and the item saved at its address since
+  const savedAgain = async (phone: TestDevice) => {
+    const deleted = await phone.replica.saveLink({ folderId: null, tags: [], url: ADDRESS });
+    await phone.replica.sync();
+    await phone.replica.deleteItems([deleted.id]);
+    await phone.replica.sync();
+    const holder = await phone.replica.saveLink({ folderId: null, tags: [], url: ADDRESS });
+    await phone.replica.sync();
+    expect(holder.id).not.toBe(deleted.id);
+    return { deleted: deleted.id, holder: holder.id };
+  };
+
+  it("parks a restore of an address another item holds, and lets it go", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const { deleted } = await savedAgain(phone);
+    await phone.replica.restoreItems([deleted]);
+    await phone.replica.sync();
+
+    expect(phone.replica.status()).toMatchObject({
+      failure: null,
+      parked: [{ itemIds: [deleted], reason: ADDRESS_HELD }],
+      unsent: 1,
+    });
+    expect(cell.item(deleted)?.fields.deletedAt).not.toBeNull();
+    const [parked] = phone.replica.status().parked;
+    await phone.replica.discard(parked?.seq ?? 0);
+    expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
+    expect(phone.replica.row(deleted)?.deletedAt).not.toBeNull();
+  });
+
+  it("asks again once the address is free, though the cell keeps its first answer", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const { deleted, holder } = await savedAgain(phone);
+    await phone.replica.restoreItems([deleted]);
+    await phone.replica.sync();
+    await phone.replica.deleteItems([holder]);
+    await phone.replica.sync();
+    await phone.replica.retry(phone.replica.status().parked[0]?.seq ?? 0);
+    await phone.replica.sync();
+
+    expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
+    expect(cell.item(deleted)?.fields.deletedAt).toBeNull();
+    expect(phone.replica.row(deleted)?.deletedAt).toBeNull();
+  });
+
+  it("restores what it can and parks only the item whose address is held", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const { deleted } = await savedAgain(phone);
+    const note = await landedNote(cell, phone);
+    await phone.replica.deleteItems([note]);
+    await phone.replica.sync();
+    await phone.replica.restoreItems([deleted, note]);
+    await phone.replica.sync();
+
+    expect(phone.replica.status().parked).toMatchObject([{ itemIds: [deleted] }]);
+    expect(cell.item(note)?.fields.deletedAt).toBeNull();
+    expect(phone.replica.row(note)?.deletedAt).toBeNull();
+  });
+
+  it("says nothing of an item with no address the cell no longer holds", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const note = await landedNote(cell, phone);
+    await phone.replica.deleteItems([note]);
+    await phone.replica.sync();
+    cell.forgetItem(note);
+    await phone.replica.restoreItems([note]);
+    await phone.replica.sync();
+    expect(phone.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
+  });
+});
+
 const noted = (blockId: string, text: string, ord = "a0"): LibraryOp => ({
   block: paragraph(blockId, text),
   op: "insert",
