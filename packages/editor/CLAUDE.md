@@ -330,7 +330,9 @@ alone, and no walk narrows structurally.
   A block no store takes is counted among what an import could not read, and
   an edit, a note the agent writes or a save's note holding one is turned
   down; a link or image with no address is its words or its source, so it
-  takes no block with it. A list item is its words: a list an item opens with
+  takes no block with it, and one with a title is its source, which keeps the
+  title (`packages/notes/src/markdown/remark-opaque.ts`). A list item is its
+  words: a list an item opens with
   nests under an empty line, and any other block it opens with keeps its type
   and stands outside the list where the item stood, a to-do's box on a line
   above it. Rejected: Plate's list rule (it made every such block a `p`, which

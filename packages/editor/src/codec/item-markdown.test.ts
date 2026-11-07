@@ -1049,6 +1049,26 @@ describe("one file as its item", () => {
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
+  it.each([
+    ['![alt](<> "some title")\n', '![alt](<> "some title")'],
+    ['[words](<> "some title")\n', '[words](<> "some title")'],
+    ['[*fine* words](<> "some title")\n', '[*fine* words](<> "some title")'],
+    ['[r]\n\n[r]: <> "emptytitle"\n', '[r](<> "emptytitle")'],
+    ['![r][r]\n\n[r]: <> "emptytitle"\n', '![r](<> "emptytitle")'],
+    ['[![alt](<> "some title")](https://example.com)\n', '![alt](<> "some title")'],
+    [
+      String.raw`| [words](<> "a\|b") |
+| - |
+`,
+      String.raw`[words](<> "a\|b")`,
+    ],
+  ])("keeps the title of what names no address in %j", (text, source) => {
+    const item = imported(text);
+    expect(item.leftOut).toBe(0);
+    expect(bodyOf(exported(item).text)).toContain(source);
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
   it("counts what it left out: a block no item can hold, a store it cannot read", () => {
     const fence = `\`\`\`inteligir-html\n${"x".repeat(BLOCK_MAX_BYTES)}\n\`\`\`\n`;
     const text = `Kept.\n\n${fence}`;

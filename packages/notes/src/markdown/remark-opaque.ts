@@ -114,8 +114,12 @@ export const isHeldFootnote = (node: Nodes | undefined): boolean =>
 const isGrammarNodeType = (type: string): type is GrammarNodeType =>
   Object.hasOwn(HELD_AS_SOURCE, type);
 
+// the library holds no link or image with no address, and a title is words it would take with it
+const isTitleOnNoAddress = (node: Nodes): boolean =>
+  (node.type === "link" || node.type === "image") && node.url === "" && (node.title ?? "") !== "";
+
 const isOpaqueSource = (node: Nodes): boolean =>
-  isGrammarNodeType(node.type) && HELD_AS_SOURCE[node.type];
+  (isGrammarNodeType(node.type) && HELD_AS_SOURCE[node.type]) || isTitleOnNoAddress(node);
 
 // toMarkdown always terminates with one newline; the opaque value is a fragment.
 const render = (node: Nodes, options: ToMarkdownOptions): string =>
