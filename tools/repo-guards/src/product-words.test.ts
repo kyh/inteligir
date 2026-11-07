@@ -24,11 +24,15 @@ const SURFACES = [
 const RUST_UI_DIR = "apps/desktop/src-tauri/src";
 
 // the sentences spelled outside a surface's workspace: @repo/notes's for every surface to show (a
-// name's refusal, a file's refusal), and the consent route's, the refusals the consent page shows a
-// person
+// name's refusal, a file's refusal), the consent route's, the refusals the consent page shows a
+// person, and the cell's for an import, which the page shows as the job's outcome
 const SENTENCE_MODULES = [
   "packages/notes/src/items/item-kind.ts",
   "apps/web/src/worker/connector/consent-route.ts",
+  "apps/web/src/worker/library/cell-import-host.ts",
+  "apps/web/src/worker/library/cell-import-markdown.ts",
+  "apps/web/src/worker/library/cell-import-raindrop.ts",
+  "apps/web/src/worker/library/cell-imports.ts",
 ] as const;
 
 // the pages the Worker writes as HTML itself, whose text is read as JSX text is: the consent page an
