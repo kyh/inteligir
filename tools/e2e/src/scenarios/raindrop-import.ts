@@ -7,8 +7,8 @@ import type { Scenario, ScenarioContext } from "../harness/scenario";
 import { uploadFile, v1Client } from "../harness/v1-wire";
 
 // every link sits in TEST-NET-1 (192.0.2.0/24), space the guarded fetch refuses before it opens a
-// socket: each page's fill fails here and nothing leaves the machine (§0.2.9). the import itself
-// fetches nothing.
+// socket: each page's fill fails here and nothing leaves the machine. the import itself fetches
+// nothing.
 const LINK_HOST = "http://192.0.2.10";
 const HEADER = "id,title,note,excerpt,url,folder,tags,created,cover,highlights,favorite";
 const FILL_DEADLINE_MS = 60_000;

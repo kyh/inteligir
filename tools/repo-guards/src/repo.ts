@@ -163,8 +163,7 @@ export interface WorkspaceFiles {
 
 const cachedFiles = new Map<string, WorkspaceFiles>();
 
-// shipped is `src/**` only: build scripts, configs and the editor's dev/ demo are not what a
-// dependent gets.
+// shipped is `src/**` only: build scripts and configs are not what a dependent gets.
 export const workspaceFiles = (workspace: Workspace): WorkspaceFiles => {
   const cached = cachedFiles.get(workspace.name);
   if (cached !== undefined) {

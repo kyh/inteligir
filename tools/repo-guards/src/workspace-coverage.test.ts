@@ -1,7 +1,7 @@
 // pnpm resolves membership, so every guard walks exactly the packages pnpm links; this holds the
 // other direction, that every package.json on disk is a member, since one pnpm ignores is unlinked
-// and walked by no guard. workspaceFiles walks src/** only: build scripts, bin/, configs and
-// .github are outside every guard built on it.
+// and walked by no guard. workspaceFiles walks src/** only: build scripts, configs and .github are
+// outside every guard built on it.
 
 import fs from "node:fs";
 import path from "node:path";

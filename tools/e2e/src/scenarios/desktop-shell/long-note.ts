@@ -123,8 +123,6 @@ const climb = async (page: WebDriverSession, words: string): Promise<z.infer<typ
     climbSchema,
   );
 
-// from the library: the article opens from its card, and the find bar's far jumps and the scroll
-// back up are measured in it
 // the palette's chord as the window's listener hears it, held by the modifier the page reads off
 // the user agent (WebKitGTK's names a Mac)
 const OPEN_PALETTE = `const mac = /mac|iphone|ipad|ipod/iu.test(navigator.userAgent);
