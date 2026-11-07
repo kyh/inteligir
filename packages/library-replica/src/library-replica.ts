@@ -40,6 +40,7 @@ import type { OutboxRow } from "./outbox-rows";
 import { createCommands } from "./replica-commands";
 import type { ReplicaCommands } from "./replica-commands";
 import {
+  heldAtAddress,
   layFolders,
   readAllListingRows,
   readListingRows,
@@ -150,6 +151,8 @@ export interface LibraryReplica extends ReplicaCommands {
   // item it landed on, under the id the screen was opened with
   readonly item: (itemId: string) => Promise<ReplicaItem | null>;
   readonly annotations: (itemId: string) => Promise<AnnotationStore>;
+  // the live item at an address, which a save there joins
+  readonly holderOf: (url: string) => Promise<string | null>;
   // the library's ranked search over what has landed, less what this device moved to the other
   // side of Deleted
   readonly search: (query: string, limit: number, side?: SearchSide) => Promise<LibrarySearchHit[]>;
@@ -579,6 +582,8 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
     },
 
     folders: () => folders,
+
+    holderOf: async (url) => await runPlanAsync(sql, heldAtAddress(url)),
 
     item: async (asked) => {
       const itemId = folded.landedAs(asked);

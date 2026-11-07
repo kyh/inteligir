@@ -1,9 +1,8 @@
 // A share from another app, saved: a page the share sheet hands over is read on this phone, as the
 // extension reads the page it is on, and saved through `items.save` with its facts, its article
 // and its cover, so the library holds it read from the first moment; a page this phone cannot read
-// now (offline, no page at the address, a reader that broke), a link that leads elsewhere, or a
-// page it read no text from is saved as its link, which the cloud's fill reads once it lands.
-// Either way the words shared beside it are kept.
+// now (offline, no page at the address, a reader that broke) or read no text from is saved as its
+// link, which the cloud's fill reads once it lands. Either way the words shared beside it are kept.
 // Text alone is a thought. The page is fetched by the phone itself, each redirect judged by its
 // spelling, and read by the reader in the headless page.
 // Platform-free: the scenario suite runs it under node over the reader's own code.
@@ -13,7 +12,7 @@ import type { FillAnswer, FillJob } from "@repo/editor-bridge/protocol";
 import { ReplicaClosedError } from "@repo/library-replica/library-replica";
 import type { LibraryReplica, Made, PageInput } from "@repo/library-replica/library-replica";
 import { namesPrivateSpace } from "@repo/notes/items/host-names";
-import { urlKey } from "@repo/notes/items/item-url";
+import { kindForUrl, urlKey } from "@repo/notes/items/item-url";
 import {
   coverPicture,
   deviceKeepsReading,
@@ -72,18 +71,28 @@ type SharedRead =
   | { readonly kind: "page"; readonly page: PageInput }
   | { readonly kind: "link"; readonly link: SharedLink };
 
+// A move can end anywhere, a sign-in wall included, so the item keeps the address it was shared at
+// unless the end is surely the page: the library holds it, so the save joins that item as the
+// fill's fold does, or a link turned out a video or a song, as the fill's kind does
+const movedAddress = async (
+  replica: LibraryReplica,
+  shared: string,
+  landed: string,
+): Promise<string> => {
+  const namesItsKind = kindForUrl(shared) === "link" && kindForUrl(landed) !== "link";
+  return namesItsKind || (await replica.holderOf(landed)) !== null ? landed : shared;
+};
+
 // A page that did not answer, an answer that is no page, a reader that broke or a reading with no
-// article is left unread. An address that moved is left to the fill too, since a save keys on the
-// address it is given and only the fill, which sees where a link ended, folds it onto the item
-// already there and takes that address's kind. There a page is known to name itself, and a fold
-// carries a note and no title, so the words stay the note. The fill never reaches private space,
-// so an address there is read here wherever it moved
+// article is left unread. The cloud names a moved page when it reads it, and its fold carries a
+// note and no title, so the words stay the note; it never reaches private space, so a link there
+// keeps the name its words give it
 const readSharedPage = async (
   ports: ShareReadPorts,
+  replica: LibraryReplica,
   shared: SharedLink,
   target: SaveTarget,
 ): Promise<SharedRead> => {
-  const unread: SharedRead = { kind: "link", link: unreadLink(shared) };
   const reachesPrivate = namesPrivateSpace(shared.url);
   const fetched = await ports.fetch({
     accept: PAGE_ACCEPT,
@@ -94,11 +103,14 @@ const readSharedPage = async (
     url: shared.url,
   });
   if (!fetched.ok) {
-    return unread;
+    return { kind: "link", link: unreadLink(shared) };
   }
-  if (!reachesPrivate && urlKey(fetched.page.url) !== urlKey(shared.url)) {
-    return { kind: "link", link: shared };
-  }
+  const landed = fetched.page.url;
+  const moved = urlKey(landed) !== urlKey(shared.url);
+  const unread: SharedRead = {
+    kind: "link",
+    link: moved && !reachesPrivate ? shared : unreadLink(shared),
+  };
   if (!isPage(fetched.page)) {
     return unread;
   }
@@ -107,8 +119,8 @@ const readSharedPage = async (
     answer = await ports.read({
       base64: base64FromBytes(fetched.page.bytes),
       charset: fetched.page.charset,
-      prefer: preferredText(shared.url),
-      url: fetched.page.url,
+      prefer: preferredText(shared.url, landed),
+      url: landed,
     });
   } catch {
     return unread;
@@ -125,7 +137,7 @@ const readSharedPage = async (
     selection: null,
     tags: [],
     title,
-    url: shared.url,
+    url: moved ? await movedAddress(replica, shared.url, landed) : shared.url,
   };
   // words that only say the page's own title again add nothing to its note
   const note = shared.note === title ? null : shared.note;
@@ -151,7 +163,7 @@ export const saveShared = async (
   try {
     switch (shared.kind) {
       case "link": {
-        const read = await readSharedPage(args.ports, shared, target);
+        const read = await readSharedPage(args.ports, args.replica, shared, target);
         if (read.kind === "link") {
           return await saves.saveLink(read.link, target);
         }

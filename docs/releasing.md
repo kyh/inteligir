@@ -396,7 +396,17 @@ the owner's account; a spare macOS user keeps your own Keychain out of it.
 - **Sign out from "Your library didn't open".** Force that page and press Sign
   out. Passing: this Mac leaves the device list within the reload. A suite proves
   the forget, revoke and reload order over a mock shell, not WebKit's reload
-  racing the call, which waits 3 seconds at most.
+  racing the call, which waits 3 seconds at most. This holds while the Mac can
+  read its sign-in. With the Keychain refused it has nothing to sign out with:
+  it stays listed, and is removed from another device.
+- **An export zipped again in Finder.** Unpack an export, Compress its folder in
+  Finder and import that zip into a fresh account. Passing: highlights, covers
+  and originals come back on their items, and no stray assets folder or extra
+  cards appear. The suites build this zip shape by hand, not with Finder.
+- **Signing in as someone else on this Mac.** Sign in, choose a tag in the rail,
+  sign out in Settings, then sign in as a second account. Passing: the signed
+  app opens on All items. Quit and relaunch signed in as that account. Passing:
+  the scope it chose stays.
 
 ### The browser extension
 
@@ -539,7 +549,26 @@ account whose library holds about 2,000 items gives the timing check its load.
 - **A plain-http page and a redirect.** Share `http://neverssl.com` and a
   shortened https link (a `bit.ly` one). Passing: the http page is saved as
   its link for the cloud to read, never fetched by the phone; the short link
-  is read at the address it redirects to.
+  is read at the address it redirects to. Share a short link to a page the
+  library already holds. Passing: it joins that item, with no second card. From
+  Notes, share `Look at this https://bit.ly/…`. Passing: the page names the item
+  and "Look at this" is its note.
+- **A shared address to its last character.** Share
+  `https://en.wikipedia.org/wiki/Oklahoma!` from Safari. Passing: the item's
+  address keeps the `!` and it reads as the musical. Vitest reads the library's
+  search out of its build, but only a device runs the Swift handoff.
+- **A link inside shared text.** From Notes, share
+  `Read https://en.wikipedia.org/wiki/Mercury_(planet) tonight`. Passing: the
+  item reads the planet and "Read tonight" is its note, or its title if it saved
+  unread. Share three lines with the link on the middle one. Passing: a read
+  page's note keeps the two other lines on their own lines. Share
+  `これ見て https://en.wikipedia.org/wiki/Oklahoma。次の文`. Passing: the item
+  reads the state and its note is `これ見て 次の文`, which also proves the link's
+  pattern on the phone's own engine, since vitest runs V8.
+- **New note with no words.** New note, then go back without typing. Passing:
+  the Library row, its long-press sheet and the item's screen title read
+  Untitled. Type a line and go back. Passing: they read that line. Phone
+  components do not run under vitest.
 - **The item in view loads first.** Sign in afresh to the 2,000-item account,
   open an item, follow a `[[link]]` in it, then go back before the pull ends.
   Passing: the item you went back to shows its text while the rest of the
@@ -810,6 +839,11 @@ account whose library holds about 2,000 items gives the timing check its load.
 - **A list pasted from a real document, in the tab and in the Mac app.** Copy a
   nested, lettered list from Google Docs and from Word and paste it into an
   item. Passing: every block saves. The suites only ran hand-written HTML.
+- **A session that ran out, then someone else.** Sign in as one account, choose
+  a tag in the rail and fold a heading, then delete the session cookie with no
+  tab open. Sign in as a second account at `/app/sign-in`, or sign up with an
+  invite. Passing: the library opens on All items with no old tag in the title,
+  and a new paste carries no tag. The suites stub the sign-in.
 
 ### The connector
 

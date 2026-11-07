@@ -226,7 +226,7 @@ describe("a share, saved", () => {
     },
   );
 
-  it("hands an address that moved to the cloud, which alone folds it and names its kind", async () => {
+  it("reads an address that moved here, and the item keeps the address it was shared at", async () => {
     const { cell, device, newBlockId } = await phone();
     const jobs: FillJob[] = [];
     const short = "https://bit.ly/x";
@@ -245,11 +245,98 @@ describe("a share, saved", () => {
       sharedSaveOf({ meta: null, text: `Look at this ${short}`, webUrl: short }),
     );
     await device.replica.sync();
-    expect(jobs).toStrictEqual([]);
-    expect(cell.calls).toContain("phone library/items/saveLink");
-    expect(cell.calls).not.toContain("phone library/items/save");
+    expect(jobs.map(({ url }) => url)).toStrictEqual([URL]);
+    expect(cell.calls).toContain("phone library/items/save");
     const id = saved?.kind === "saved" ? saved.made.id : "";
-    expect(cell.item(id)?.fields.url).toBe(short);
+    expect(cell.item(id)?.fields).toMatchObject({ title: "File over app", url: short });
+    expect(noteOf(cell, id)).toStrictEqual(["Look at this"]);
+  });
+
+  it("saves a page that moved at the address the library holds, so it joins that item", async () => {
+    const { cell, device, newBlockId } = await phone();
+    const ports = { fetch: servingPage, read: async () => await Promise.resolve(READ) };
+    const first = await saveShared(
+      { newBlockId, ports, replica: device.replica },
+      { kind: "link", note: null, title: null, url: URL },
+    );
+    await device.replica.sync();
+    const short = "https://bit.ly/x";
+    const saved = await saveShared(
+      {
+        newBlockId,
+        ports: { ...ports, fetch: redirecting(short, URL) },
+        replica: device.replica,
+      },
+      { kind: "link", note: "Worth keeping", title: null, url: short },
+    );
+    await device.replica.sync();
+    const held = first?.kind === "saved" ? first.made.id : "";
+    expect(saved).toMatchObject({ kind: "saved", made: { folded: true, id: held } });
+    expect(noteOf(cell, held)).toStrictEqual(["Worth keeping"]);
+    expect(cell.item(held)?.fields.url).toBe(URL);
+  });
+
+  it("takes the address a link turned out a video at, and reads it for its description", async () => {
+    const { cell, device, newBlockId } = await phone();
+    const jobs: FillJob[] = [];
+    const short = "https://t.co/x";
+    const video = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    const saved = await saveShared(
+      {
+        newBlockId,
+        ports: {
+          fetch: redirecting(short, video),
+          read: async (job) => {
+            jobs.push(job);
+            return await Promise.resolve(READ);
+          },
+        },
+        replica: device.replica,
+      },
+      { kind: "link", note: null, title: null, url: short },
+    );
+    await device.replica.sync();
+    expect(jobs.map(({ prefer }) => prefer)).toStrictEqual(["description"]);
+    const id = saved?.kind === "saved" ? saved.made.id : "";
+    expect(cell.item(id)?.fields).toMatchObject({ kind: "video", url: video });
+  });
+
+  it("keeps the address of a video that moved to a wall of no kind", async () => {
+    const { cell, device, newBlockId } = await phone();
+    const video = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    const saved = await saveShared(
+      {
+        newBlockId,
+        ports: {
+          fetch: redirecting(video, "https://consent.example.com/?continue=1"),
+          read: async () => await Promise.resolve(READ),
+        },
+        replica: device.replica,
+      },
+      { kind: "link", note: null, title: null, url: video },
+    );
+    await device.replica.sync();
+    const id = saved?.kind === "saved" ? saved.made.id : "";
+    expect(cell.item(id)?.fields).toMatchObject({ kind: "video", url: video });
+  });
+
+  it("leaves a moved page it found no text in to the cloud, the words staying the note", async () => {
+    const { cell, device, newBlockId } = await phone();
+    const short = "https://bit.ly/x";
+    const saved = await saveShared(
+      {
+        newBlockId,
+        ports: {
+          fetch: redirecting(short, URL),
+          read: async () => await Promise.resolve({ ...READ, article: [] }),
+        },
+        replica: device.replica,
+      },
+      sharedSaveOf({ meta: null, text: `Look at this ${short}`, webUrl: short }),
+    );
+    await device.replica.sync();
+    expect(cell.calls).toContain("phone library/items/saveLink");
+    const id = saved?.kind === "saved" ? saved.made.id : "";
     expect(cell.item(id)?.fields.title).not.toBe("Look at this");
     expect(noteOf(cell, id)).toStrictEqual(["Look at this"]);
   });
