@@ -24,12 +24,12 @@ import type { Outcome } from "../messages";
 import { CAPTURE_DEADLINE_MS, COVER_TRIES } from "./capture-tab";
 import { failureOf } from "./cloud";
 import type { Cloud, Saved } from "./cloud";
+import { readConnection } from "./connection";
 import type { Connection } from "./connection";
 import { dropSave, keepSave, linkOf, markWaiting, signedOut } from "./save-queue";
 import type { QueuedSave } from "./save-queue";
 
 export interface SaveDeps {
-  readonly connection: () => Promise<Connection | null>;
   readonly cloud: (connection: Connection) => Cloud;
   // the tab's page, or null when the browser will not script it or it answered no page
   readonly capture: (tabId: number) => Promise<CapturedPage | null>;
@@ -188,7 +188,7 @@ const captureInTime = async (deps: SaveDeps, tabId: number): Promise<CapturedPag
 };
 
 export const saveTab = async (deps: SaveDeps, args: TabSave): Promise<Outcome> => {
-  const connection = await deps.connection();
+  const connection = await readConnection();
   if (connection === null) {
     return refused("not-connected");
   }
@@ -239,7 +239,7 @@ export const saveTab = async (deps: SaveDeps, args: TabSave): Promise<Outcome> =
 // a link or a web picture a right-click names, saved by its address for the cloud to read: a
 // picture's address answers with its bytes, which the cloud keeps as a picture of its own
 export const saveAddress = async (deps: SaveDeps, url: string): Promise<Outcome> => {
-  const connection = await deps.connection();
+  const connection = await readConnection();
   if (connection === null) {
     return refused("not-connected");
   }
@@ -255,7 +255,7 @@ export const savePicture = async (
   deps: SaveDeps,
   picture: { readonly bytes: Uint8Array<ArrayBuffer>; readonly pageUrl: string },
 ): Promise<Outcome> => {
-  const connection = await deps.connection();
+  const connection = await readConnection();
   if (connection === null) {
     return refused("not-connected");
   }

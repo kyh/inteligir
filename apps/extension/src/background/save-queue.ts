@@ -126,7 +126,6 @@ export const linkOf = (save: QueuedSave): LinkSave => {
 };
 
 export interface SendDeps {
-  readonly connection: () => Promise<Connection | null>;
   readonly cloud: (connection: Connection) => Cloud;
   readonly now: () => number;
 }
@@ -140,7 +139,7 @@ const waitsToResend = (failure: CallFailure): boolean =>
 // every waiting save sent oldest first, until one cannot go yet: the cloud is not there, or not for
 // this build, so the rest wait with it
 export const sendQueued = async (deps: SendDeps): Promise<void> => {
-  const connection = await deps.connection();
+  const connection = await readConnection();
   for (const save of await queuedSaves()) {
     if (connection === null || save.deviceId !== connection.deviceId) {
       await dropSave(save);

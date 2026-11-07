@@ -6,16 +6,16 @@ import { fakeBrowser } from "wxt/testing/fake-browser";
 
 import type { CapturedPage } from "../capture/captured-page";
 import { CAPTURE_DEADLINE_MS } from "./capture-tab";
-import { readConnection } from "./connection";
-import type { Connection } from "./connection";
+import { forgetConnection, readConnection } from "./connection";
 import { saveAddress, savePicture, saveTab } from "./save-page";
 import type { SaveDeps } from "./save-page";
 import { queuedSaves, SEND_ALARM } from "./save-queue";
-import { CONNECTION, fakeCloud, handOver, MINTED, NEXT, savedAs } from "./test-support/fake-cloud";
+import { fakeCloud, handOver, MINTED, NEXT, savedAs } from "./test-support/fake-cloud";
 import type { FakeCloud } from "./test-support/fake-cloud";
 
-beforeEach(() => {
+beforeEach(async () => {
   fakeBrowser.reset();
+  await handOver(MINTED);
 });
 
 afterEach(() => {
@@ -66,15 +66,11 @@ const badRequest = async (): Promise<never> => {
 
 let seq = 0;
 
-const depsWith = (
-  cloud: FakeCloud,
-  options: { captured?: CapturedPage | null; connection?: Connection | null } = {},
-) => {
+const depsWith = (cloud: FakeCloud, options: { captured?: CapturedPage | null } = {}) => {
   const covers: string[] = [];
   const deps: SaveDeps = {
     capture: async () => (options.captured === undefined ? page() : options.captured),
     cloud: () => cloud.cloud,
-    connection: async () => (options.connection === undefined ? CONNECTION : options.connection),
     fetchCover: async (url) => {
       covers.push(url);
       return PNG;
@@ -238,7 +234,7 @@ describe("a tab saved", () => {
     });
     const [queued] = await queuedSaves();
     expect(queued).toMatchObject({
-      deviceId: CONNECTION.deviceId,
+      deviceId: MINTED.deviceId,
       selection: PASSAGE,
       title: "File over app",
       url: URL_SAVED,
@@ -273,7 +269,6 @@ describe("a tab saved", () => {
   });
 
   it("ends the connection, and asks for it again, once the cloud says the credential is gone", async () => {
-    await handOver(MINTED);
     const cloud = fakeCloud({
       save: async () => {
         throw new ORPCError("UNAUTHORIZED");
@@ -288,7 +283,6 @@ describe("a tab saved", () => {
   });
 
   it("asks for the connection again when another save's refusal already ended it", async () => {
-    await handOver(MINTED);
     const refusal = async (): Promise<never> => {
       throw new ORPCError("UNAUTHORIZED");
     };
@@ -306,7 +300,6 @@ describe("a tab saved", () => {
   });
 
   it("keeps the connection a connect handed over while its call under the old one was on its way", async () => {
-    await handOver(MINTED);
     const cloud = fakeCloud({
       save: async () => {
         await handOver(NEXT);
@@ -324,14 +317,13 @@ describe("a tab saved", () => {
   it("asks for a connection first, and saves nothing off the web", async () => {
     const cloud = fakeCloud({});
     await expect(
-      saveTab(depsWith(cloud, { connection: null }).deps, { tab: TAB }),
-    ).resolves.toStrictEqual({
+      saveTab(depsWith(cloud).deps, { tab: { ...TAB, url: "chrome://settings" } }),
+    ).resolves.toStrictEqual({ kind: "refused", reason: "unsupported-page" });
+    await forgetConnection();
+    await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
       kind: "refused",
       reason: "not-connected",
     });
-    await expect(
-      saveTab(depsWith(cloud).deps, { tab: { ...TAB, url: "chrome://settings" } }),
-    ).resolves.toStrictEqual({ kind: "refused", reason: "unsupported-page" });
     expect(cloud.saves).toStrictEqual([]);
     await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
@@ -361,7 +353,6 @@ describe("a right-click's address or picture", () => {
   });
 
   it("keeps the connection a connect handed over while a picture's call was on its way", async () => {
-    await handOver(MINTED);
     const cloud = fakeCloud({
       putFile: async () => {
         await handOver(NEXT);

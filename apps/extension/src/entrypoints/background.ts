@@ -34,7 +34,6 @@ const cloudFor = (connection: Connection) =>
 const saveDeps: SaveDeps = {
   capture: captureTab,
   cloud: cloudFor,
-  connection: readConnection,
   fetchCover,
   newBlockId: () => crypto.randomUUID(),
   now: () => Date.now(),
@@ -43,7 +42,6 @@ const saveDeps: SaveDeps = {
 
 const sendDeps = {
   cloud: cloudFor,
-  connection: readConnection,
   now: () => Date.now(),
 };
 
