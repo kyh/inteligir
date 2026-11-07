@@ -1,7 +1,7 @@
 // The page in its item mode: one item's editor, by its id, over the phone's replica on the other end
 // of the bridge. The page draws the item's blocks with the desktop's editor through the touch kit,
-// writes what changed as ops after a pause, says why a write failed, and opens a linked item through
-// the native stack.
+// writes what changed as ops after a pause, says why a write failed, and opens a linked item
+// through the native stack.
 
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";

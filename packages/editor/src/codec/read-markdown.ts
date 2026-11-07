@@ -1,7 +1,8 @@
-// Markdown read into the editor's value as its own export would read back: an embed of a file (`![[shot.png|300]]`) made the image the rule table reads `![|300](path)` as,
-// so the parse lifts it into a block of its own as it lifts every markdown image, then the value
-// written and read again until its bytes hold still, so a file a person wrote by hand reads as the
-// value its own export reads back as.
+// Markdown read into the editor's value as its own export would read back: an embed of a file
+// (`![[shot.png|300]]`) made the image the rule table reads `![|300](path)` as, so the parse lifts
+// it into a block of its own as it lifts every markdown image, then the value written and read
+// again until its bytes hold still, so a file a person wrote by hand reads as the value its own
+// export reads back as.
 
 import { ElementApi } from "platejs";
 import type { Descendant, TElement } from "platejs";

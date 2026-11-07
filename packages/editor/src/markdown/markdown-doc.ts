@@ -195,7 +195,8 @@ export const analyzeMarkdown = (md: string): DocAnalysis => {
   if (out.trimEnd() === md.trimEnd() && fixpoint.at === out) {
     return { kind: "canonical" };
   }
-  // a write leaves pass-1 bytes and each later one advances the chain, so the whole chain must keep the text.
+  // a write leaves pass-1 bytes and each later one advances the chain, so all of it must keep the
+  // text.
   return keepsText(md, out) && keepsText(md, fixpoint.at)
     ? { kind: "normalizes" }
     : { kind: "roundtrip-loss" };

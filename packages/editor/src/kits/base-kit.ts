@@ -1,7 +1,7 @@
-// The headless mirror: the codec's editor is built from exactly this list, and the live kit composes
-// the React halves of the same plugins. Every file here is headless (kits/headless/, plus the
-// markdown wiring), so the fixpoint runs in node: the fill worker canonicalizes a saved page with
-// it, and nothing it reaches imports React, a stylesheet or a node built-in.
+// The headless mirror: the codec's editor is built from exactly this list, and the live kit
+// composes the React halves of the same plugins. Every file here is headless (kits/headless/, plus
+// the markdown wiring), so the fixpoint runs in node: the fill worker canonicalizes a saved page
+// with it, and nothing it reaches imports React, a stylesheet or a node built-in.
 
 import { MarkdownKit } from "@repo/editor/kits/markdown-kit";
 

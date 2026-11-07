@@ -63,9 +63,9 @@ alone, and no walk narrows structurally.
 
 - **NOTES SPEAK THE INTELIGIR DIALECT**: `[[Title]]` / `[[Title#H]]` /
   `[[#H]]` / `[[Title|alias]]` / `[[Title|uuid]]` wiki links (the last pipe
-  starts the alias, an anchor alone stays in its own item, and a body that
-  reaches nothing is kept as its source), `{{source|display|meta}}` formula
-  pills, `%%i:id:start/end%%`
+  starts the alias, an anchor alone stays in its own item, a link by id may hold
+  no title while its item has none, and a body that reaches nothing is kept as
+  its source), `{{source|display|meta}}` formula pills, `%%i:id:start/end%%`
   annotation markers, `@2026-08-22` date chips, `<u>…</u>` underline, GitHub
   alerts (`> [!NOTE]` … `> [!CAUTION]`) as THE callout, `inteligir-chart` /
   `inteligir-canvas` / `inteligir-html` fences, the `:::tabs`, `:::toggle` and
@@ -321,15 +321,17 @@ alone, and no walk narrows structurally.
   from elsewhere is laid in outside the undo and starts it over, since an undo
   replays each edit at the path it was recorded at, a block both sides changed
   merged by `mergeBlocks` (`packages/editor/src/stale-write.ts`), which the
-  replica runs on a CONFLICT too. Each item gets its own editor and session, drawn once
-  its blocks are in (`packages/editor/src/item/item-editor.tsx`). A block no
-  write can store stays as the person left it and counts as a failure and as
-  unsaved, so the surface says so on every host and each host holds the leave;
+  replica runs on a CONFLICT too. Each item gets its own editor and session,
+  drawn once its blocks are in (`packages/editor/src/item/item-editor.tsx`). A
+  block no write can store stays as the person left it and counts as a failure
+  and as unsaved, so the surface says so on every host and each host holds the
+  leave;
   a picker open in a block is read around, since its query is nobody's writing.
   A write the store rejects stays unsaved and goes again after a pause, and a
   first read that fails says so and offers another, each in the person's words.
   A file still being kept counts as unsaved and a leave waits for it, since the
-  block that names it is in no value until it is.
+  block that names it is in no value until it is, while what the value holds
+  goes at once.
   A block keeps its section wherever it stands, and a new one is the note's, so
   a read of the page never takes what the person typed under it, which reads
   above the article when the item opens again. Rejected: the value mirrored
