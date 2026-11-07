@@ -18,6 +18,7 @@ import {
   bytesFolderPath,
   contentAddressedName,
   COVERS_DIR,
+  extensionOfMediaType,
   LIBRARY_RULES_PATH,
 } from "@repo/notes/items/item-kind";
 import { itemNameFromTitle } from "@repo/notes/items/item-name";
@@ -62,38 +63,8 @@ export interface PlannedExportDoc {
   readonly path: string;
 }
 
-// a file's extension from its media type
-const MEDIA_EXTENSIONS = new Map<string, string>([
-  ["application/json", "json"],
-  ["application/pdf", "pdf"],
-  ["audio/aac", "aac"],
-  ["audio/flac", "flac"],
-  ["audio/mp4", "m4a"],
-  ["audio/mpeg", "mp3"],
-  ["audio/ogg", "ogg"],
-  ["audio/wav", "wav"],
-  ["image/apng", "apng"],
-  ["image/avif", "avif"],
-  ["image/bmp", "bmp"],
-  ["image/gif", "gif"],
-  ["image/heic", "heic"],
-  ["image/jpeg", "jpg"],
-  ["image/png", "png"],
-  ["image/svg+xml", "svg"],
-  ["image/webp", "webp"],
-  ["image/x-icon", "ico"],
-  ["text/html", "html"],
-  ["text/markdown", "md"],
-  ["text/plain", "txt"],
-  ["video/mp4", "mp4"],
-  ["video/quicktime", "mov"],
-  ["video/webm", "webm"],
-  ["video/x-m4v", "m4v"],
-]);
-
 const extensionOf = (mediaType: string | null): string =>
-  (mediaType === null ? undefined : MEDIA_EXTENSIONS.get(mediaType.split(";")[0]?.trim() ?? "")) ??
-  "bin";
+  (mediaType === null ? null : extensionOfMediaType(mediaType)) ?? "bin";
 
 const UNTITLED = "Untitled";
 const FOLDER_DEPTH_MAX = 64;

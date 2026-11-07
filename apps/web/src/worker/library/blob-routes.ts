@@ -8,6 +8,7 @@
 // a sandbox blanks.
 
 import { BLOB_MAX_BYTES, V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
+import { UNKNOWN_FILE_TYPE } from "@repo/notes/items/item-kind";
 import { SHA256_HEX_RE } from "@repo/notes/library/library-item";
 import { z } from "zod";
 
@@ -172,7 +173,7 @@ const MEDIA_TYPE = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/u;
 // the type a file was sent as, without its parameters, or bytes of no known type
 const mediaTypeOf = (header: string | null): string => {
   const type = (header ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
-  return MEDIA_TYPE.test(type) ? type : "application/octet-stream";
+  return MEDIA_TYPE.test(type) ? type : UNKNOWN_FILE_TYPE;
 };
 
 const refusalAnswer = (refusal: Pick<CellRefusal, "kind">): Response => {

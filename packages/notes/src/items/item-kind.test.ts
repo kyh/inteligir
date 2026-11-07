@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   COVERS_DIR,
+  extensionOfMediaType,
   FILE_KIND_EXTENSIONS,
   fileKindOf,
   isItemKind,
   ITEM_KINDS,
   keptFileType,
   LIBRARY_RULES_PATH,
+  mediaTypeOfName,
   UNKNOWN_FILE_TYPE,
   URL_ITEM_KINDS,
   WEB_URL_RULE,
@@ -43,6 +45,23 @@ describe("item kinds", () => {
     expect(keptFileType("image/png")).toBe("image/png");
     expect(keptFileType("")).toBe(UNKNOWN_FILE_TYPE);
     expect(UNKNOWN_FILE_TYPE).toBe("application/octet-stream");
+  });
+
+  it("names a type for every extension that makes a picture, PDF, video or sound", () => {
+    const kinded = Object.values(FILE_KIND_EXTENSIONS).flat();
+    expect(kinded.filter((ext) => mediaTypeOfName(`a${ext}`) === null)).toStrictEqual([]);
+  });
+
+  it("reads a type from every extension it goes by, and writes it under the first", () => {
+    expect(["a.ogg", "b.OGA", "c.opus"].map(mediaTypeOfName)).toStrictEqual([
+      "audio/ogg",
+      "audio/ogg",
+      "audio/ogg",
+    ]);
+    expect(extensionOfMediaType("audio/ogg")).toBe("ogg");
+    expect(extensionOfMediaType("image/jpeg; q=1")).toBe("jpg");
+    expect(extensionOfMediaType("application/x-unknown")).toBeNull();
+    expect(mediaTypeOfName("no-extension")).toBeNull();
   });
 
   it("lists each extension under one kind", () => {

@@ -7,6 +7,7 @@ import { collectFileShas } from "@repo/notes/library/library-nodes";
 import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
 
 import { CODEC_NOW, withoutId } from "../test-support/codec-ports";
+import { mediaTypeOfName } from "@repo/notes/items/item-kind";
 import { basenamePath, dirnamePath } from "@repo/notes/knowledge/folder-path";
 import { wikiFilingKeys, wikiTargetKeys } from "@repo/notes/knowledge/link-resolve";
 
@@ -121,16 +122,8 @@ const BINARIES = new Map(
 );
 
 // each pretend file's media type, by the extension it was found under
-const MEDIA_TYPES = new Map([
-  [".html", "text/html"],
-  [".jpg", "image/jpeg"],
-  [".pdf", "application/pdf"],
-  [".png", "image/png"],
-]);
-const mediaTypeOf = (sha: string): string | null => {
-  const path = [...BINARIES].find(([, held]) => held === sha)?.[0] ?? "";
-  return MEDIA_TYPES.get(path.slice(path.lastIndexOf("."))) ?? null;
-};
+const mediaTypeOf = (sha: string): string | null =>
+  mediaTypeOfName([...BINARIES].find(([, held]) => held === sha)?.[0] ?? "");
 
 const counters = (): PlanIds & { newBlockId: () => string; newAnnotationId: () => string } => {
   let next = 0;
