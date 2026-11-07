@@ -1,7 +1,7 @@
 // What a share from another app asks the phone to save, read from what the share extension handed
 // over: a page or a link with its title, or text, which may hold a link of its own. A page comes
 // over as its address and nothing else, the page's own to the last character, whatever it ends in.
-// In text, the library's own search stops an address at a bracket, a comma or an accented letter,
+// In text, expo-share-intent's search stops an address at a bracket, a comma or an accented letter,
 // so the link is read here, where a sentence's marks are told from the address's. Every spelling
 // of the link is taken out of what the text says, and what is left is the person's words, the
 // item's note on every path. Only punctuation left is no note.
@@ -41,7 +41,7 @@ const besideLink = (text: string, url: string): string | null => {
 export const sharedSaveOf = (intent: ShareHandoff): SharedSave => {
   const given = filled(intent.webUrl);
   const text = filled(intent.text);
-  // the library's search also answers a bare name that starts with http, such as httpbin.org
+  // expo-share-intent's search also answers a bare name that starts with http, such as httpbin.org
   if (given === null || !isWebUrl(given)) {
     return text === null ? { kind: "nothing" } : { kind: "text", text };
   }

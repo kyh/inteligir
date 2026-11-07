@@ -7,14 +7,14 @@ import type { ShareHandoff } from "./share-payload";
 
 const URL = "https://stephango.com/file-over-app";
 
-// the search `parseShareIntent` runs over shared text, read out of the installed library, whose
+// the search `parseShareIntent` runs over shared text, read out of the installed package, whose
 // module needs a native runtime to load: the app is handed the first http match
-const libraryBuild = readFileSync(
+const packageBuild = readFileSync(
   createRequire(import.meta.url).resolve("expo-share-intent/build/utils.js"),
   "utf-8",
 );
 const ADDRESS_SEARCH = new RegExp(
-  /\.text\s+\.match\(\/(?<search>.+)\/gi\)/u.exec(libraryBuild)?.groups?.search ?? "",
+  /\.text\s+\.match\(\/(?<search>.+)\/gi\)/u.exec(packageBuild)?.groups?.search ?? "",
   "giu",
 );
 
@@ -148,7 +148,7 @@ describe("what a share asks the phone to save", () => {
   });
 
   it.each(["httpbin.org", "httpbin.org is neat", "see http.cat for this"])(
-    "saves as text what the library's search calls an address and no web address is: %s",
+    "saves as text what expo-share-intent's search calls an address and no web address is: %s",
     (text) => {
       expect(textShare(text).webUrl).not.toBeNull();
       expect(sharedSaveOf(textShare(text))).toStrictEqual({ kind: "text", text });

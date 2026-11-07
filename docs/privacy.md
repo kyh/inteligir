@@ -256,16 +256,17 @@ The apps also hold to these, plainly:
   selected, and is sent, for our cloud to read, once you are back online.
 - **Sharing from your iPhone.** Sharing a page to Inteligir has the phone fetch
   that page once, from the phone, and save what it read, its address, title,
-  text and cover, into your library, like any other edit on the phone; text you
-  share is saved as you shared it. The request carries no cookies, sign-in or
-  referrer; the site sees your phone's IP address, a Safari-compatible user
-  agent naming inteligir and its version, and your preferred language, as a
-  browser visit would. It asks only web addresses, a page on the internet only
-  over https, and from a page on the internet it never asks a picture, an
-  oEmbed address or a redirect's next stop whose address names your own
-  network by how it is spelled, even when the address you shared does. A page
-  it cannot read then, offline included, or finds no text in, is saved as its
-  address, which our cloud reads once it arrives.
+  text and cover, into your library, like any other edit on the phone. A link
+  inside text you share is fetched and saved the same way, the words around it
+  its note, and other text is saved as you shared it. The request carries no
+  cookies, sign-in or referrer; the site sees your phone's IP address, a
+  Safari-compatible user agent naming inteligir and its version, and your
+  preferred language, as a browser visit would. It asks only web addresses, a
+  page on the internet only over https, and from a page on the internet it
+  never asks a picture, an oEmbed address or a redirect's next stop whose
+  address names your own network by how it is spelled, even when the address
+  you shared does. A page it cannot read then, offline included, or finds no
+  text in, is saved as its address, which our cloud reads once it arrives.
 - **Importing.** The file you choose to import (a Raindrop CSV, or a zip of
   notes such as an Obsidian folder) is uploaded to your library, read there and
   deleted once the import ends. Each imported link is then filled in as above.
