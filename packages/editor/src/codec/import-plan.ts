@@ -6,9 +6,9 @@
 // `@repo/notes/knowledge/link-resolve`). Last, every file no item names becomes an item of its
 // own, so a bare file is a card of its own. Obsidian's settings (`.obsidian/`), every other
 // dot-folder and what an operating system left are skipped, and a `.canvas` or a `.base` is always
-// an item, never an attachment. An `AGENTS.md` is a note like any other, unless its writer finds it says what the
-// library's rules say: filing rules reach the agent as the person's own instructions, so only the
-// person writes them, and a zip is anyone's text.
+// an item, never an attachment. An `AGENTS.md` is a note like any other, unless its writer finds it
+// says what the library's rules say: filing rules reach the agent as the person's own instructions,
+// so only the person writes them, and a zip is anyone's text.
 
 import { annotationsStoreItemId } from "@repo/notes/annotations/store-schema";
 import { COVERS_DIR, fileKindOf, isBytesFolderPath } from "@repo/notes/items/item-kind";

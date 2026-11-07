@@ -2,8 +2,8 @@
 // each run reads only what it writes: the plan's rows (the filing rules it took a name for, the
 // paths taken, how far a name's search for a free spelling got, each folder's path, each item's
 // file in the plan's order, the items filed under each key a link resolves by, the files the items
-// hold in the order they were placed), the zip's entries' records, the uploaded parts' etags by their numbers, and the zip's
-// bytes past its last whole part.
+// hold in the order they were placed), the zip's entries' records, the uploaded parts' etags by
+// their numbers, and the zip's bytes past its last whole part.
 
 import { base64FromBytes, bytesFromBase64 } from "@repo/contract/cloud/bytes";
 import type { ExportStore } from "@repo/editor/codec/export-plan";
