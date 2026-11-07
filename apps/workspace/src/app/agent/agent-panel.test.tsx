@@ -60,7 +60,7 @@ const panel = (
   flushOpen = vi.fn<() => Promise<void>>(async () => {
     await Promise.resolve();
   }),
-  threadId = THREAD,
+  threadId: string | null = THREAD,
 ) => (
   <AgentPanel
     threadId={threadId}
@@ -83,6 +83,24 @@ const oneFinishedTurn = [
 ];
 
 const UNDONE = { changeSetId: "u1", kept: [], refused: [], reverted: ["i1"] };
+
+// the panel on THREAD, until "Move" takes it to `to`, and back
+const Moving = ({ to }: { to: string | null }) => {
+  const [open, setOpen] = useState<string | null>(THREAD);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setOpen((now) => (now === THREAD ? to : THREAD));
+        }}
+      >
+        Move
+      </button>
+      {panel(undefined, open)}
+    </>
+  );
+};
 
 const noticeUp = (): boolean =>
   toast.getToasts().some((shown) => "title" in shown && shown.title === NEEDS_CONNECTION);
@@ -396,34 +414,48 @@ describe("the agent panel's conversation", () => {
       events: oneFinishedTurn,
       threads: [thread, { ...thread, id: OTHER_THREAD }],
     });
-    const Switching = () => {
-      const [open, setOpen] = useState(THREAD);
-      return (
-        <>
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(OTHER_THREAD);
-            }}
-          >
-            Open the other
-          </button>
-          {panel(undefined, open)}
-        </>
-      );
-    };
-    renderOnLibrary(<Switching />, library);
+    renderOnLibrary(<Moving to={OTHER_THREAD} />, library);
     const whole = await screen.findByRole("button", { name: "Undo this conversation" });
     setOnline(false);
     fireEvent.click(whole);
     await waitFor(() => {
       expect(whole).toHaveProperty("disabled", true);
     });
-    fireEvent.click(screen.getByRole("button", { name: "Open the other" }));
+    fireEvent.click(screen.getByRole("button", { name: "Move" }));
     setOnline(true);
     await waitFor(() => {
       expect(callsTo(calls, "library.history.undo")).toStrictEqual([{ changeSetIds: ["s1"] }]);
     });
+  });
+
+  it("keeps its button down through leaving the conversation and coming back", async () => {
+    const said = vi.spyOn(toast, "error");
+    const { calls, library } = fakePageLibrary({
+      answer: ({ path }) =>
+        path === "library.history.list" ? { changeSets: [set("s1", 1)], cursor: null } : UNDONE,
+      events: oneFinishedTurn,
+      threads: [thread],
+    });
+    renderOnLibrary(<Moving to={null} />, library);
+    const whole = await screen.findByRole("button", { name: "Undo this conversation" });
+    setOnline(false);
+    fireEvent.click(whole);
+    const move = screen.getByRole("button", { name: "Move" });
+    fireEvent.click(move);
+    expect(screen.queryByRole("button", { name: "Undo this conversation" })).toBeNull();
+    fireEvent.click(move);
+    const back = await screen.findByRole("button", { name: "Undo this conversation" });
+    expect(back).toHaveProperty("disabled", true);
+    fireEvent.click(back);
+    setOnline(true);
+    await waitFor(() => {
+      expect(callsTo(calls, "library.history.undo")).toStrictEqual([{ changeSetIds: ["s1"] }]);
+    });
+    await waitFor(() => {
+      expect(back).toHaveProperty("disabled", false);
+    });
+    expect(callsTo(calls, "library.history.undo")).toHaveLength(1);
+    expect(said).not.toHaveBeenCalled();
   });
 
   it.each([

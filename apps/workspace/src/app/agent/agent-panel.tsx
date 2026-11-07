@@ -41,7 +41,13 @@ import { Button } from "@repo/ui/components/button";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useIsMutating,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { ArrowLeftIcon, PlusIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -302,10 +308,14 @@ const Conversation = ({
   // read again at the press: a turn's set seals as the turn ends and the list on screen follows it,
   // so that list can be a turn short of the conversation, or hold what another device took back. A
   // mutation though it writes nothing, so the press waits offline under the root's notice and
-  // behind an undo in flight; its thread is a variable, since one that waits takes each render's
-  // options and the panel may be on another conversation by the time it goes
+  // behind an undo in flight. Keyed by the conversation, since one that waits can outlast this
+  // component: the key keeps it to the conversation it was pressed in, and its button down on a
+  // return to that conversation
+  const pressKey = ["undo-conversation", threadId];
+  const pressWaits = useIsMutating({ mutationKey: pressKey }) > 0;
   const undoConversation = useMutation({
-    mutationFn: async (pressedIn: string) => await everyChangeSet(client, { threadId: pressedIn }),
+    mutationFn: async () => await everyChangeSet(client, { threadId }),
+    mutationKey: pressKey,
     onError: (cause) => {
       toast.error(refusalText(cause, "That couldn't be undone."));
     },
@@ -380,9 +390,9 @@ const Conversation = ({
           <Button
             size="compact"
             variant="ghost"
-            disabled={undoConversation.isPending}
+            disabled={pressWaits}
             onClick={() => {
-              undoConversation.mutate(threadId);
+              undoConversation.mutate();
             }}
           >
             Undo this conversation
