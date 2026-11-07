@@ -6,7 +6,7 @@
 // is one atomic unit. A text node whose value its source spells (plain, escaped, or across a
 // quote's or a list's line prefixes) maps character by character; any other inline (a link, a
 // strong or emphasis run, inline code, an html tag, a wiki link) is atomic: an edge inside it
-// widens to its edge. Code, math and frontmatter are not text.
+// widens to its edge. Code, math, frontmatter and a footnote's definition are not text.
 
 import { z } from "zod";
 import { leadingAlertMarker } from "../markdown/alert-marker";
@@ -51,8 +51,17 @@ const DELIMITERS = new Set(["*", "_", "~"]);
 
 // blocks whose children are the text a person reads
 const PHRASING_BLOCKS = new Set(["paragraph", "heading", "tableCell"]);
-// flow that holds no reading text
-const SKIPPED_FLOW = new Set(["code", "math", "yaml", "html", "definition", "thematicBreak"]);
+// flow that holds no reading text: a footnote's definition stands as its source, where no marker
+// reads
+const SKIPPED_FLOW = new Set([
+  "code",
+  "math",
+  "yaml",
+  "html",
+  "definition",
+  "footnoteDefinition",
+  "thematicBreak",
+]);
 // inlines that contribute nothing to the text: an embed, a footnote's number, a tag
 const SILENT_INLINES = new Set([
   "image",

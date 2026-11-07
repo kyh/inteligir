@@ -108,6 +108,11 @@ describe("where the markers land", () => {
     const content = "---\ntitle: secret\n---\n\n```\nsecret\n```\n\n$$\nsecret\n$$\n";
     expect(placeOne(content, "secret").missing).toStrictEqual(["h1"]);
   });
+
+  it("matches nothing in a footnote's definition, which stands as its source", () => {
+    const content = "One[^a].\n\n[^a]: secret\n";
+    expect(placeOne(content, "secret").missing).toStrictEqual(["h1"]);
+  });
 });
 
 describe("a final placement", () => {

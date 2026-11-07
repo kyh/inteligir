@@ -600,6 +600,19 @@ describe("a highlight placed by its quote", () => {
     expect([...after.values()].map((stored) => withoutId(stored.block))).toHaveLength(3);
   });
 
+  it("finds no quote in a footnote's definition, whose source holds no marker", () => {
+    const blocks = storedOf("One[^a].\n\nTwo.\n\n[^a]: the source words\n\n    and more body\n");
+    const placed = placeItemQuotes(
+      blocks,
+      [
+        { id: "q1", quote: "source words" },
+        { id: "q2", quote: "more body" },
+      ],
+      portsWith(),
+    );
+    expect(placed).toMatchObject({ missing: ["q1", "q2"], ops: [], placed: [] });
+  });
+
   it("leaves a quote whose markers the note holds where it stands", () => {
     const text = [
       "---",
