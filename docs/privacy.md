@@ -372,9 +372,9 @@ Specifically, in our cloud:
 - Device rows (including revoked ones) persist as the dashboard's audit trail
   until account deletion. A device's throttling counters are deleted when it is
   revoked.
-- A row for each assistant you disconnected (its grant's id, your account and
-  when) persists until account deletion, so an assistant renewing its access
-  at that moment stays out.
+- A row for each assistant you disconnected (its grant's id and your account)
+  persists until account deletion, so an assistant renewing its access at that
+  moment stays out.
 - Throttling rows keyed on an address, not an account, cannot be found by
   account deletion. Better Auth deletes every row whose timestamp is over a
   minute old whenever one of its own limits opens a fresh window, so a row

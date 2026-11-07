@@ -15,7 +15,7 @@ export const markGrantRevoked = async (
 ): Promise<void> => {
   await db
     .insert(revokedGrant)
-    .values({ grantId: grant.grantId, revokedAt: new Date(), userId: grant.accountId })
+    .values({ grantId: grant.grantId, userId: grant.accountId })
     .onConflictDoNothing();
 };
 

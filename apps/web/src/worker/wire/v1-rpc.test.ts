@@ -6,8 +6,9 @@ import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { markGrantRevoked } from "../connector/revoked-grants";
 import { createDb } from "../db/client";
-import { device, inviteCode, rateLimit, session, user } from "../db/schema";
+import { device, inviteCode, rateLimit, revokedGrant, session, user } from "../db/schema";
 import { accountBlobPrefix, blobKey } from "../library/cell-blobs";
 import { PRINCIPAL_HEADER, principalHeaderValue } from "../library/library-principal";
 import { deviceRateKey } from "../rate-limit";
@@ -427,17 +428,21 @@ describe("the account's rows", () => {
     const { accountId, credential, laptop } = await signedUp(email);
     await laptop.library.items.createNote({ markdown: "Soon gone." });
     await env.BLOBS.put(blobKey(accountId, "c".repeat(64)), "bytes");
+    const db = createDb(env.DB);
+    await markGrantRevoked(db, { accountId, grantId: "disconnected" });
 
     await expect(laptop.account.delete({ password: PASSWORD })).resolves.toStrictEqual({
       deleted: true,
     });
 
-    const db = createDb(env.DB);
     await expect(db.select().from(user).where(eq(user.id, accountId)).all()).resolves.toStrictEqual(
       [],
     );
     await expect(
       db.select().from(device).where(eq(device.userId, accountId)).all(),
+    ).resolves.toStrictEqual([]);
+    await expect(
+      db.select().from(revokedGrant).where(eq(revokedGrant.userId, accountId)).all(),
     ).resolves.toStrictEqual([]);
     await expect(
       db.select().from(session).where(eq(session.userId, accountId)).all(),
