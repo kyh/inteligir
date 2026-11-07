@@ -8,6 +8,7 @@ import {
   annotationSourceLabel,
   mintAnnotationId,
   parseAnnotationStore,
+  sameAnnotationEntry,
   serializeAnnotationStore,
 } from "./store-schema";
 import type { AnnotationEntry, AnnotationStore } from "./store-schema";
@@ -35,6 +36,20 @@ const STORE: AnnotationStore = {
 };
 
 describe("annotation store schema", () => {
+  it("reads two entries as one whatever order their fields come in, and any field's change apart", () => {
+    const entry = { createdAt: AT, quote: "q", source: "user", text: "t", updatedAt: AT } as const;
+    const reordered = {
+      updatedAt: AT,
+      text: "t",
+      source: "user",
+      quote: "q",
+      createdAt: AT,
+    } as const;
+    expect(sameAnnotationEntry(entry, reordered)).toBe(true);
+    expect(sameAnnotationEntry(entry, { ...reordered, parentId: "p" })).toBe(false);
+    expect(sameAnnotationEntry(entry, { ...reordered, quote: "other" })).toBe(false);
+  });
+
   it("round-trips insertion order", () => {
     const raw = `${JSON.stringify(
       {

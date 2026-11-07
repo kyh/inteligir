@@ -96,6 +96,8 @@ export const annotationEntrySchema = z.object({
 });
 export type AnnotationEntry = z.infer<typeof annotationEntrySchema>;
 
+const ENTRY_FIELDS = annotationEntrySchema.keyof().options;
+
 // field by field: a parsed entry and one built from a row spell the same fields in different orders
 export const sameAnnotationEntry = (
   a: AnnotationEntry | undefined,
@@ -103,12 +105,7 @@ export const sameAnnotationEntry = (
 ): boolean =>
   a === undefined || b === undefined
     ? a === b
-    : a.text === b.text &&
-      a.quote === b.quote &&
-      a.createdAt === b.createdAt &&
-      a.updatedAt === b.updatedAt &&
-      a.source === b.source &&
-      a.parentId === b.parentId;
+    : ENTRY_FIELDS.every((field) => a[field] === b[field]);
 
 export const annotationStoreSchema = z.record(annotationIdSchema, annotationEntrySchema);
 export type AnnotationStore = z.infer<typeof annotationStoreSchema>;
