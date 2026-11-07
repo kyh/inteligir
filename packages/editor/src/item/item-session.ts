@@ -570,12 +570,14 @@ export const createItemSession = (
     keeping.delete(keep);
     publish();
   };
-  // what the value holds goes at once, however long a file takes, and leaving waits for one still
-  // being kept, whose block is in no value until it is
+  // what the value holds goes at once, however long a file takes, and a file being kept goes behind
+  // it: its block is in no value until it is, which can be after that first write read the value
   const flush = async (): Promise<void> => {
+    let filesOut = keeping.size > 0;
     await writeNow();
-    while (keeping.size > 0) {
+    while (filesOut || keeping.size > 0) {
       await Promise.allSettled(keeping);
+      filesOut = false;
       await writeNow();
     }
   };
