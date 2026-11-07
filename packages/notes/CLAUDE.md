@@ -165,7 +165,9 @@ root.
   and an unclaimed one lands in the folder above it. What an operating system
   leaves (`isOsLitterPath`) is passed over first, there too, since unpacking
   and zipping an export again puts it in those folders; a file a person saved
-  under such a name is written under a name of its bytes instead.
+  under such a name is written under a name of its bytes instead, and a folder
+  under that name and ` (folder)`, so an export writes nothing it would pass
+  over.
 
 - **THE DIALECT'S GRAMMAR IS THE EDITOR'S OWN, AND IT IS TOTAL.** Every reader
   of markdown, the codec, an import and the editor alike, parses through one

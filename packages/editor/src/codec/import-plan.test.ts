@@ -559,6 +559,23 @@ describe("export, then import, gives the library back", () => {
     ]);
   });
 
+  it.each(["__MACOSX", "Thumbs.db", "desktop.ini", "DESKTOP.INI"])(
+    "keeps the items of a person's folder named %s",
+    (name) => {
+      const first = readFolder({ "Filed/Kept.md": "A note.\n" }, new Map());
+      const texts = Object.fromEntries(
+        exportOf({
+          ...first,
+          folders: first.folders.map((folder) => ({ ...folder, name })),
+        }).flatMap((file) => (file.kind === "text" ? [[file.path, file.text]] : [])),
+      );
+      const back = readFolder(texts, new Map());
+      expect(back.skipped).toStrictEqual([]);
+      expect(back.items.map((item) => item.fields.title)).toStrictEqual(["Kept"]);
+      expect(back.folders.map((folder) => folder.name)).toStrictEqual([`${name} (folder)`]);
+    },
+  );
+
   it.each([".env", ".gitignore", "notes.md", "Thumbs.db.bak"])(
     "reads %s as a file in a bytes folder",
     (name) => {

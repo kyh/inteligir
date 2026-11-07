@@ -4,8 +4,9 @@
 // (a saved link's cover under `assets/covers/`, where an import looks for it). A file is written
 // under the name it was saved under, so a `.canvas` stays one, in a folder of its bytes where that
 // name alone would read as a note or be passed over; only bytes no name came with, or none an
-// import reads anywhere, take an extension from their media type. A link is written by the shortest target that resolves back to its item
-// among the exported files (`wikiTargetForPath`), so the folder reads back into the same library.
+// import reads anywhere, take an extension from their media type. A link is written by the
+// shortest target that resolves back to its item among the exported files (`wikiTargetForPath`),
+// so the folder reads back into the same library.
 //
 // The plan is made a step at a time over a store its writer keeps (`ExportStore`), so a writer
 // holds one item and its own page of the plan, never the library's: every path is taken in the
@@ -93,6 +94,13 @@ export const rulesFile = (rules: string): ExportFile => ({
   text: rules,
 });
 
+// a folder's name a disk holds; an import passes over an operating system's folders wherever they
+// stand, and every item in them, so a person's folder of that name is told from theirs
+const folderName = (title: string): string => {
+  const name = itemNameFromTitle(title) ?? "Folder";
+  return isOsLitterPath(name) ? `${name} (folder)` : name;
+};
+
 // every folder's path, each name made one a disk holds and told from its siblings
 export const exportFolderPaths = (folders: readonly ExportFolder[]): Map<string, string> => {
   const byId = new Map(folders.map((folder) => [folder.id, folder]));
@@ -105,7 +113,7 @@ export const exportFolderPaths = (folders: readonly ExportFolder[]): Map<string,
       return known ?? "";
     }
     const parent = folder.parentId === null ? "" : pathOf(folder.parentId, depth + 1);
-    const name = itemNameFromTitle(folder.name) ?? "Folder";
+    const name = folderName(folder.name);
     const path = freePath(parent, name, "", (candidate) => taken.has(pathCollisionKey(candidate)));
     taken.add(pathCollisionKey(path));
     paths.set(id, path);
