@@ -81,6 +81,8 @@ export type ItemSessionStatus =
   | { readonly kind: "opening" }
   // the device holds no such item: it was deleted, or never reached this device
   | { readonly kind: "missing" }
+  // its first read failed, in the person's words: `read` asks again
+  | { readonly kind: "unread"; readonly failure: string }
   | {
       readonly kind: "open";
       // the item's fields with this session's patches laid over
@@ -95,6 +97,8 @@ export type ItemSessionStatus =
 export interface ItemSession {
   // reads the item into the editor and follows it
   readonly start: () => Promise<void>;
+  // reads the item again, into the editor or under what it holds
+  readonly read: () => Promise<void>;
   // the editor's value moved: the host's change callback
   readonly edited: () => void;
   // writes what is unsaved now, as leaving the item does
@@ -116,6 +120,10 @@ export const KEPT_CHANGING = "This item kept changing elsewhere while it saved. 
 /** @internal */
 export const BLOCK_HELD_BACK =
   "Part of this item can't be saved. Shorten or change it, or leaving loses what changed there.";
+/** @internal */
+export const ITEM_UNSAVED = "This item couldn't be saved just now. It will try again.";
+/** @internal */
+export const ITEM_UNREAD = "This item couldn't be read just now.";
 
 // a stored block as the element the editor holds
 /** @internal */
@@ -142,9 +150,6 @@ const rebased = (op: FieldOp, fields: LibraryItemFields): FieldOp => {
   const { base: _stale, ...rest } = op;
   return current === undefined ? rest : { ...rest, base: current };
 };
-
-const messageOf = (cause: unknown): string =>
-  cause instanceof Error ? cause.message : String(cause);
 
 // what a block's place in the editor becomes when an item lands under an open edit
 type Decision =
@@ -324,7 +329,7 @@ export const createItemSession = (
     if (missing) {
       snapshot = { kind: "missing" };
     } else if (acked === null) {
-      snapshot = { kind: "opening" };
+      snapshot = failure === null ? { kind: "opening" } : { failure, kind: "unread" };
     } else {
       const laid = pendingFields.length === 0 ? null : applyOps(acked, pendingFields);
       snapshot = {
@@ -339,18 +344,12 @@ export const createItemSession = (
     }
   };
 
-  // one write or one landing at a time, in the order they were asked for; a failure is said in
-  // the status and the next write tries again
+  // one write or one read at a time, in the order they were asked for
   const serial = async (work: () => Promise<void>): Promise<void> => {
     const previous = queue;
     const run = (async () => {
       await previous;
-      try {
-        await work();
-      } catch (error) {
-        failure = messageOf(error);
-        publish();
-      }
+      await work();
     })();
     queue = run;
     await run;
@@ -470,6 +469,8 @@ export const createItemSession = (
 
   // whether the tries ran out on an item that kept moving, which leaves the edit unsaved
   const write = async (): Promise<"done" | "ran-out"> => {
+    // a patch the item refused is gone, and that stays said through the blocks written after it
+    let refused: string | null = null;
     for (let attempt = 0; attempt < SETTLE_TRIES && !missing; attempt += 1) {
       const base = acked;
       if (base === null) {
@@ -480,7 +481,7 @@ export const createItemSession = (
       const sentFields = pendingFields;
       const ops = [...diff.ops, ...sentFields];
       if (ops.length === 0) {
-        failure = null;
+        failure = refused;
         behind = false;
         return "done";
       }
@@ -489,7 +490,7 @@ export const createItemSession = (
         case "queued":
         case "unchanged": {
           pendingFields = pendingFields.slice(sentFields.length);
-          failure = null;
+          failure = refused;
           behind = false;
           for (const op of diff.ops) {
             const held = op.op === "drop" ? base.blocks.get(op.blockId) : undefined;
@@ -518,7 +519,8 @@ export const createItemSession = (
         case "invalid": {
           // the fields the patch leaves break the item's caps: the patch goes, the blocks stay
           pendingFields = pendingFields.slice(sentFields.length);
-          failure = `the item cannot hold these ${outcome.fields.join(", ")}`;
+          refused = `This item can't hold these ${outcome.fields.join(", ")}.`;
+          failure = refused;
           break;
         }
         case "missing": {
@@ -535,13 +537,23 @@ export const createItemSession = (
     return "ran-out";
   };
 
+  const writeOrSay = async (): Promise<"done" | "ran-out"> => {
+    try {
+      return await write();
+    } catch {
+      failure = ITEM_UNSAVED;
+      behind = true;
+      return "ran-out";
+    }
+  };
+
   const flush = async (): Promise<void> => {
     cancelIdle?.();
     cancelIdle = null;
     await serial(async () => {
-      // an edit the tries ran out on goes again after the next pause while the item is open, and
-      // the status says why meanwhile
-      if ((await write()) === "ran-out" && following) {
+      // an edit the tries ran out on, or a write the store rejected, goes again after the next
+      // pause while the item is open, and the status says why meanwhile
+      if ((await writeOrSay()) === "ran-out" && following) {
         arm(() => {
           void flush();
         });
@@ -552,6 +564,9 @@ export const createItemSession = (
 
   const land = async (overlappedThere: boolean): Promise<void> => {
     const item = await ports.store.item(itemId);
+    if (failure === ITEM_UNREAD) {
+      failure = null;
+    }
     missing = item === null;
     // a body the replica no longer holds (it started over) is pulled again, and no block of it
     // was removed meanwhile
@@ -566,6 +581,7 @@ export const createItemSession = (
   // blocks is opening, until a change brings what was still to come
   const open = async (): Promise<void> => {
     const item = await ports.store.item(itemId);
+    failure = null;
     missing = item === null;
     if (item === null || !item.bodyHeld) {
       publish();
@@ -583,6 +599,19 @@ export const createItemSession = (
     publish();
   };
 
+  // the item as the store holds it now; a read that fails is said, and the next change or a
+  // person's retry reads again
+  const read = async (overlappedThere = false): Promise<void> => {
+    await serial(async () => {
+      try {
+        await (acked === null ? open() : land(overlappedThere));
+      } catch {
+        failure = ITEM_UNREAD;
+        publish();
+      }
+    });
+  };
+
   const start = async (): Promise<void> => {
     if (following) {
       return;
@@ -590,15 +619,10 @@ export const createItemSession = (
     following = true;
     unsubscribe = ports.store.onChange((change) => {
       if (following && (change.reset || change.ids.has(itemId))) {
-        const overlapped = change.overlapped.has(itemId);
-        void serial(async () => {
-          await (acked === null ? open() : land(overlapped));
-        });
+        void read(change.overlapped.has(itemId));
       }
     });
-    await serial(async () => {
-      await (acked === null ? open() : land(false));
-    });
+    await read();
   };
 
   const edited = (): void => {
@@ -638,6 +662,9 @@ export const createItemSession = (
     edited,
     flush,
     patch,
+    read: async () => {
+      await read();
+    },
     start,
     status: () => snapshot,
     subscribe: (listener) => {

@@ -113,7 +113,7 @@ const findOnceOpen = (session: ItemSession, { itemId, query }: PendingFind): voi
   // answers whether the session is past opening, and lands the bar if it opened the item
   const landed = (): boolean => {
     const status = session.status();
-    if (status.kind === "opening") {
+    if (status.kind === "opening" || status.kind === "unread") {
       return false;
     }
     const editor = getLiveEditor(itemId);

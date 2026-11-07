@@ -3,7 +3,7 @@
 // The item surface as a host mounts it: one editor and one session per item, drawn only once the
 // item's blocks are in, over a store held in memory whose reads and writes a case can hold.
 
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { SlateEditor } from "platejs";
 import type * as PlateReact from "platejs/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -20,7 +20,7 @@ import type { Deferred } from "@repo/editor/deferred";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 import { ItemEditor, MISSING_ITEM } from "./item-editor";
-import { BLOCK_HELD_BACK } from "./item-session";
+import { BLOCK_HELD_BACK, ITEM_UNREAD } from "./item-session";
 import type { HeldItem, ItemSession, ItemSessionPorts, ItemStore } from "./item-session";
 
 // every editor the surface makes, in the order it makes them, so a case can type into one
@@ -234,6 +234,21 @@ describe("an item's surface", () => {
       await session.flush();
     });
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("says a first read that failed, and offers to read the item again", async () => {
+    const items = new Map([[A, itemOf("A", paragraph("a1", "the item's text"))]]);
+    const { held, store } = memoryStore(items);
+    const read = deferred<null>();
+    held.read = read;
+    render(<Host itemId={A} ports={portsOver(store)} />);
+    read.reject(new Error("the page gave up waiting for the phone"));
+    await expect(screen.findByText(ITEM_UNREAD)).resolves.toBeDefined();
+    expect(editable()).toBeNull();
+    held.read = null;
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await expect(screen.findByText("the item's text")).resolves.toBeDefined();
+    expect(screen.queryByText(ITEM_UNREAD)).toBeNull();
   });
 
   it("says an item this device does not hold is not here, with no editor to type into", async () => {

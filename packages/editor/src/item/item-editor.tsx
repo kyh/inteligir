@@ -10,6 +10,7 @@
 import { useEffect, useEffectEvent, useState, useSyncExternalStore } from "react";
 import { Plate, useEditorRef, usePlateEditor } from "platejs/react";
 
+import { Button } from "@repo/ui/components/button";
 import { cn } from "@repo/ui/lib/cn";
 
 import { Editor, EditorContainer, editorColumnPx } from "@repo/editor/editor-chrome";
@@ -85,6 +86,23 @@ const ItemSurface = ({ itemId, ports, onSession }: ItemEditorProps) => {
       <p className={cn(editorColumnPx(profile), "pt-4 text-body text-muted-foreground")}>
         {MISSING_ITEM}
       </p>
+    );
+  }
+  if (status.kind === "unread") {
+    return (
+      <div className={cn(editorColumnPx(profile), "flex flex-col items-start gap-2 pt-4")}>
+        <p role="alert" className="text-body text-destructive">
+          {status.failure}
+        </p>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            void session.read();
+          }}
+        >
+          Try again
+        </Button>
+      </div>
     );
   }
   if (status.kind === "opening") {

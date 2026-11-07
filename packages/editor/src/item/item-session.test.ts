@@ -23,7 +23,14 @@ import { replicaMerge } from "@repo/editor/stale-write";
 
 import { readElement } from "./item-diff";
 import { itemProperties } from "./item-properties";
-import { BLOCK_HELD_BACK, createItemSession, ITEM_IDLE_MS, KEPT_CHANGING } from "./item-session";
+import {
+  BLOCK_HELD_BACK,
+  createItemSession,
+  ITEM_IDLE_MS,
+  ITEM_UNREAD,
+  ITEM_UNSAVED,
+  KEPT_CHANGING,
+} from "./item-session";
 import type { ItemSession, ItemStore, ItemStoreChange } from "./item-session";
 
 const code = (id: string, lines: readonly string[]): LibraryBlock => ({
@@ -726,6 +733,101 @@ describe("an item open in the editor", () => {
     await session.flush();
     expect(NodeApi.string(editor.children[0] ?? { text: "" }).startsWith("firsty")).toBe(true);
     expect(session.status()).toMatchObject({ failure: BLOCK_HELD_BACK, unsaved: true });
+  });
+
+  it("keeps an edit unsaved and goes again after a pause when the store rejects the write", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    let rejections = 1;
+    const failing: ItemStore = {
+      item: phone.replica.item,
+      onChange: phone.replica.onChange,
+      write: async (itemId, input) => {
+        if (rejections > 0) {
+          rejections -= 1;
+          throw new Error("SQLITE_FULL: database or disk is full");
+        }
+        return await phone.replica.write(itemId, input);
+      },
+    };
+    const { editor, session } = await openOn(phone, id, failing);
+    editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+    session.edited();
+    await session.flush();
+    expect(session.status()).toMatchObject({ failure: ITEM_UNSAVED, unsaved: true });
+    await pause(phone, session);
+    expect(session.status()).toMatchObject({ failure: null, unsaved: false });
+    await phone.replica.sync();
+    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
+  });
+
+  it("answers a flush unsaved for as long as the store rejects the write", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    const refusing: ItemStore = {
+      item: phone.replica.item,
+      onChange: phone.replica.onChange,
+      write: async () => {
+        await Promise.resolve();
+        throw new Error("the page gave up waiting for the phone");
+      },
+    };
+    const { editor, session } = await openOn(phone, id, refusing);
+    editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+    session.edited();
+    await session.flush();
+    await session.flush();
+    expect(session.status()).toMatchObject({ failure: ITEM_UNSAVED, unsaved: true });
+    await session.close();
+    expect(session.status()).toMatchObject({ failure: ITEM_UNSAVED, unsaved: true });
+  });
+
+  it("says a field patch the item cannot hold, and still writes the blocks beside it", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+    await session.patch([{ key: "k".repeat(1001), op: "property", value: "v" }]);
+    expect(session.status()).toMatchObject({
+      failure: "This item can't hold these properties.",
+      unsaved: false,
+    });
+    await phone.replica.sync();
+    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
+    expect(cell.item(id)?.fields.properties).toStrictEqual({});
+  });
+
+  it("says a field patch the item cannot hold when nothing else is left to write", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    const { session } = await openOn(phone, id);
+    await session.patch([{ key: "k".repeat(1001), op: "property", value: "v" }]);
+    expect(session.status()).toMatchObject({
+      failure: "This item can't hold these properties.",
+      unsaved: false,
+    });
+  });
+
+  it("says a first read that failed, and opens the item when asked again", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    let rejections = 1;
+    const failing: ItemStore = {
+      item: async (itemId) => {
+        if (rejections > 0) {
+          rejections -= 1;
+          throw new Error("the page gave up waiting for the phone");
+        }
+        return await phone.replica.item(itemId);
+      },
+      onChange: phone.replica.onChange,
+      write: phone.replica.write,
+    };
+    const { editor, session } = await openOn(phone, id, failing);
+    expect(session.status()).toStrictEqual({ failure: ITEM_UNREAD, kind: "unread" });
+    await session.read();
+    expect(session.status()).toMatchObject({ failure: null, kind: "open" });
+    expect(editorText(editor, 0)).toBe("first");
   });
 
   it("opens with no undo reaching what the editor held before the item", async () => {

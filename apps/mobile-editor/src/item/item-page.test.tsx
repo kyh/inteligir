@@ -2,7 +2,12 @@ import { act, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, test } from "vitest";
 
 import { getEditorHostActions, getEditorHostIo } from "@repo/editor/host-io";
-import { BLOCK_HELD_BACK, createItemSession, ITEM_IDLE_MS } from "@repo/editor/item/item-session";
+import {
+  BLOCK_HELD_BACK,
+  createItemSession,
+  ITEM_IDLE_MS,
+  ITEM_UNSAVED,
+} from "@repo/editor/item/item-session";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { headlessEditor } from "@repo/editor/markdown/markdown-doc";
 import { blockHash } from "@repo/notes/library/block-hash";
@@ -290,6 +295,31 @@ describe("an item page over the phone's replica", () => {
     phone.deliver({ id: 4, nonce: PHONE_NONCE, type: "flush" });
     await waitFor(() => {
       expect(phone.events("flushed")).toMatchObject([{ id: 4, ok: true }]);
+    });
+  });
+
+  it("answers a flush that failed while the phone rejects the write, in the person's words", async () => {
+    const phone = createFakePhone({ [ITEM]: itemOf(paragraph("p1", "Hello from the item.")) });
+    const { bridge, init } = await connectItem(phone);
+    const container = document.createElement("div");
+    document.body.append(container);
+    act(() => {
+      mounted = mountItemPage({ bridge, container, init });
+    });
+    await expect(screen.findByText("Hello from the item.")).resolves.toBeDefined();
+    const library = phone.answer;
+    phone.answer = (request) =>
+      request.kind === "writeItem" ? { error: "SQLITE_FULL", ok: false } : library(request);
+    act(() => {
+      getLiveEditor(ITEM)?.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+    });
+    phone.deliver({ id: 4, nonce: PHONE_NONCE, type: "flush" });
+    await waitFor(() => {
+      expect(phone.events("flushed")).toMatchObject([{ id: 4, ok: false }]);
+    });
+    expect(phone.events("editorState").at(-1)).toMatchObject({
+      dirty: true,
+      saveError: ITEM_UNSAVED,
     });
   });
 
