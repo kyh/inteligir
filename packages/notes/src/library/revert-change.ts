@@ -312,8 +312,9 @@ const sameAnnotations = (a: AnnotationStore, b: AnnotationStore): boolean => {
 
 // whether anyone but a fill changed the item since the set: a field holds what the set left or
 // what a fill wrote there, read off the fill's own change, since one field can be either's (a fill
-// names an unread link, and a person renames it). A fill's lists are a fold's, carrying a person's
-// tags over, so those count, as the note section's blocks and the highlights do
+// names an unread link, and a person renames it). A fill's folder and lists are a fold's, carrying
+// a person's filing and tags over, so those count, as the note section's blocks and the highlights
+// do
 const personTouched = ({ after, fills }: MadeItem, now: ItemNow): boolean => {
   const { fields } = now.state;
   const fillWrote = (field: ScalarField): boolean =>
@@ -322,6 +323,7 @@ const personTouched = ({ after, fills }: MadeItem, now: ItemNow): boolean => {
     );
   return !(
     SCALAR_FIELDS.every((field) => fields[field] === after.fields[field] || fillWrote(field)) &&
+    fields.folderId === after.fields.folderId &&
     sameList(fields.tags, after.fields.tags) &&
     sameList(fields.aliases, after.fields.aliases) &&
     sameJson(fields.properties, after.fields.properties) &&

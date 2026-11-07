@@ -710,6 +710,30 @@ describe("Undo of a saved link, once its page is read", () => {
       });
     });
   });
+
+  it("keeps a link a fold carried a person's folder onto", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const library = libraryIn(state, accountId);
+      const engine = openCellLibrary(state, env);
+      const url = "https://pages.example/final";
+      const holder = await library.items.saveLink({ url });
+      engine.landReading(read({ itemId: holder.item.id, url }, [paragraph("h", "Held.")]));
+      const short = "https://short.example/z";
+      const stub = await library.items.saveLink({ folder: { path: "Reading" }, url: short });
+      engine.landReading(
+        read({ itemId: stub.item.id, url: short }, [paragraph("f", "Folded.")], { finalUrl: url }),
+      );
+      const { folderId } = stub.item.fields;
+      expect(folderId).not.toBeNull();
+      expect(stateOf(state, holder.item.id)?.fields.folderId).toBe(folderId);
+      await expect(undoSave(library, holder.item.id)).resolves.toMatchObject({
+        kept: [holder.item.id],
+        reverted: [],
+      });
+      expect(stateOf(state, holder.item.id)?.fields).toMatchObject({ deletedAt: null, folderId });
+    });
+  });
 });
 
 describe("a reading's ask", () => {

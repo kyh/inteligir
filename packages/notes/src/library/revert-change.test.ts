@@ -218,6 +218,15 @@ describe(revertItemChange, () => {
       expect(revert(change, folded, versionsOf(made, folded))).toStrictEqual(EDITED);
     });
 
+    it("stays when a fold carried a person's folder onto it", () => {
+      const folded = landed(made, [
+        ...read,
+        { base: null, field: "folderId", op: "set", value: "reading" },
+      ]);
+      const change = changeOf(null, made, {}, [fillOf(made, folded)]);
+      expect(revert(change, folded, versionsOf(made, folded))).toStrictEqual(EDITED);
+    });
+
     it("goes when the set itself wrote a name the fill has since replaced", () => {
       const filled = landed(made, named);
       const renamed = landed(filled, [
