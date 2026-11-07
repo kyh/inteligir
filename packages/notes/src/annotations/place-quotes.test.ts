@@ -7,6 +7,8 @@ import { placeQuotes } from "./place-quotes";
 const placeOne = (content: string, quote: string, occurrence?: number) =>
   placeQuotes(content, [{ id: "h1", occurrence, quote }], { final: false });
 
+const cell = (text: string) => `| a | b |\n| - | - |\n| ${text} | x |\n`;
+
 describe("where the markers land", () => {
   it("wraps the n-th occurrence", () => {
     const content = "the cat and the dog and the bird\n";
@@ -35,6 +37,41 @@ describe("where the markers land", () => {
     expect(placeOne("Due @2026-10-17 then.\n", "2026-10").content).toBe(
       "Due %%i:h1:start%%@2026-10-17%%i:h1:end%% then.\n",
     );
+  });
+
+  it("finds a quote of a bare url whose address spells a call", () => {
+    const placed = placeOne("see https://x.y/?q=[^a-z]+b now\n", "https://x.y/?q=[^a-z]+b");
+    expect(placed.missing).toStrictEqual([]);
+    expect(placed.content).toBe("see %%i:h1:start%%https://x.y/?q=[^a-z]+b %%i:h1:end%%now\n");
+  });
+
+  describe("in a cell of two lines", () => {
+    it("matches across the lines, each marker on its own line's bytes", () => {
+      const placed = placeOne(cell("the one<br/>two here"), "one two");
+      expect(placed.content).toBe(cell("the %%i:h1:start%%one<br/>two%%i:h1:end%% here"));
+      expect(annotationPassages(placed.content).get("h1")).toBe("one two");
+    });
+
+    it("finds no word the two lines would make", () => {
+      expect(placeOne(cell("one<br/>two"), "onetwo").missing).toStrictEqual(["h1"]);
+    });
+
+    it("places a quote of one line on that line", () => {
+      expect(placeOne(cell("one<br/>two"), "one").content).toBe(
+        cell("%%i:h1:start%%one%%i:h1:end%%<br/>two"),
+      );
+      expect(placeOne(cell("one<br/>two"), "two").content).toBe(
+        cell("one<br/>%%i:h1:start%%two%%i:h1:end%%"),
+      );
+    });
+
+    it.each([
+      ["a literal mark", "one*", "one"],
+      ["a bare url", "see https://a.b/c", "https://a.b/c"],
+    ])("widens no edge past a line ending in %s, as past a block", (_name, line, quote) => {
+      expect(placeOne(cell(`${line}<br/>two`), quote).missing).toStrictEqual(["h1"]);
+      expect(placeOne(`${line}\n\ntwo\n`, quote).missing).toStrictEqual(["h1"]);
+    });
   });
 
   it("widens an edge inside a word to the word", () => {

@@ -6,12 +6,15 @@
 // is one atomic unit. A text node whose value its source spells (plain, escaped, or across a
 // quote's or a list's line prefixes) maps character by character; any other inline (a link, a
 // strong or emphasis run, inline code, an html tag, a wiki link) is atomic: an edge inside it
-// widens to its edge. Code, math, frontmatter and a footnote's definition are not text.
+// widens to its edge, and the `<br/>` between a cell's lines is a block edge, as the editor reads
+// it. Code, math, frontmatter and a footnote's definition are not text.
 
 import { z } from "zod";
 import { leadingAlertMarker } from "../markdown/alert-marker";
+import { isBareLink } from "../markdown/autolink-text";
 import { parseBare } from "../markdown/bare-parse";
 import { isContainerLine } from "../markdown/remark-containers";
+import { CELL_BREAK } from "../markdown/remark-inline-html";
 import {
   DATE_CHIP_RE,
   FORMULA_RE,
@@ -32,6 +35,8 @@ interface MdNode {
   value?: string;
   body?: string;
   depth?: number;
+  url?: string;
+  title?: string | null | undefined;
   // unknown: each node kind's data has its own shape, read through TEXT_DATA
   data?: unknown;
 }
@@ -120,9 +125,31 @@ interface Found {
   segment: Segment;
 }
 
-// the constructs of one text's value in order; an escaped first character keeps one text, and an
-// overlapping match loses to the earlier one, as the transform decides
-const segmentsOf = (value: string, escapes: ReadonlySet<number>, inLink: boolean): Segment[] => {
+// an overlapping match loses to the earlier one, as the transform decides
+const inTextOrder = (value: string, found: readonly Found[]): Segment[] => {
+  const segments: Segment[] = [];
+  let cursor = 0;
+  for (const { start, end, segment } of found.toSorted((a, b) => a.start - b.start)) {
+    if (start < cursor) {
+      continue;
+    }
+    if (start > cursor) {
+      segments.push({ end: start, kind: "text", start: cursor });
+    }
+    segments.push(segment);
+    cursor = end;
+  }
+  if (cursor < value.length) {
+    segments.push({ end: value.length, kind: "text", start: cursor });
+  }
+  return segments;
+};
+
+// what a text stands in: a label reads no date, and a bare link's text is its address, no call
+type TextPlace = "prose" | "label" | "address";
+
+// the constructs of one text's value in order; an escaped first character keeps one text
+const segmentsOf = (value: string, escapes: ReadonlySet<number>, place: TextPlace): Segment[] => {
   const found: Found[] = [];
   for (const match of value.matchAll(FORMULA_RE)) {
     if (!escapes.has(match.index)) {
@@ -147,7 +174,7 @@ const segmentsOf = (value: string, escapes: ReadonlySet<number>, inLink: boolean
       });
     }
   }
-  if (!inLink) {
+  if (place === "prose") {
     for (const match of value.matchAll(DATE_CHIP_RE)) {
       const day = match.groups?.value;
       if (day !== undefined && !escapes.has(match.index)) {
@@ -160,26 +187,12 @@ const segmentsOf = (value: string, escapes: ReadonlySet<number>, inLink: boolean
       }
     }
   }
-  for (const { end, start } of footnoteCallsIn(value, (index) => escapes.has(index))) {
-    found.push({ end, segment: { end, kind: "unit", start, text: "" }, start });
-  }
-  found.sort((a, b) => a.start - b.start);
-  const segments: Segment[] = [];
-  let cursor = 0;
-  for (const { start, end, segment } of found) {
-    if (start < cursor) {
-      continue;
+  if (place !== "address") {
+    for (const { end, start } of footnoteCallsIn(value, (index) => escapes.has(index))) {
+      found.push({ end, segment: { end, kind: "unit", start, text: "" }, start });
     }
-    if (start > cursor) {
-      segments.push({ end: start, kind: "text", start: cursor });
-    }
-    segments.push(segment);
-    cursor = end;
   }
-  if (cursor < value.length) {
-    segments.push({ end: value.length, kind: "text", start: cursor });
-  }
-  return segments;
+  return inTextOrder(value, found);
 };
 
 interface Aligned {
@@ -320,6 +333,11 @@ const separate = (builder: Builder): void => {
   }
 };
 
+const nextBlock = (builder: Builder): void => {
+  separate(builder);
+  builder.blockIndex += 1;
+};
+
 const mark = (builder: Builder, ids: string, edge: "start" | "end"): void => {
   for (const id of splitMarkerIds(ids)) {
     const span = builder.markers.get(id) ?? { end: null, start: null };
@@ -383,12 +401,19 @@ const noteBareUrl = (builder: Builder, bounds: { start: number; end: number }): 
   builder.urlTails.push({ end, start: bounds.end });
 };
 
+const placeWithin = (node: MdNode, place: TextPlace): TextPlace => {
+  if (node.type === "link") {
+    return isBareLink(node) ? "address" : "label";
+  }
+  return node.type === "linkReference" ? "label" : place;
+};
+
 // a node read as one unit: every character it shows spans the node's bytes
 const pushAtomic = (
   builder: Builder,
   node: MdNode,
   bounds: { start: number; end: number },
-  inLink: boolean,
+  place: TextPlace,
 ): void => {
   if (node.type === "text") {
     const own = offsetsOf(node);
@@ -396,7 +421,7 @@ const pushAtomic = (
       noteMarkerBytes(builder, own);
     }
     const value = node.value ?? "";
-    for (const segment of segmentsOf(value, escapesOf(node), inLink)) {
+    for (const segment of segmentsOf(value, escapesOf(node), place)) {
       if (segment.kind === "marker") {
         mark(builder, segment.ids, segment.edge);
         continue;
@@ -418,9 +443,9 @@ const pushAtomic = (
   if (node.type === "link") {
     noteBareUrl(builder, offsetsOf(node) ?? bounds);
   }
-  const linked = inLink || node.type === "link" || node.type === "linkReference";
+  const within = placeWithin(node, place);
   for (const child of node.children ?? []) {
-    pushAtomic(builder, child, bounds, linked);
+    pushAtomic(builder, child, bounds, within);
   }
 };
 
@@ -464,8 +489,7 @@ const pushTextRun = (builder: Builder, text: TextContext, start: number, end: nu
   for (let index = start; index < end; index += 1) {
     if (text.structural.has(index)) {
       if (!inStructure) {
-        separate(builder);
-        builder.blockIndex += 1;
+        nextBlock(builder);
         inStructure = true;
       }
       continue;
@@ -486,7 +510,7 @@ const pushAligned = (builder: Builder, text: TextContext): void => {
   if (first !== undefined && last !== undefined) {
     noteMarkerBytes(builder, { end: last, start: first });
   }
-  for (const segment of segmentsOf(text.value, text.escapes, false)) {
+  for (const segment of segmentsOf(text.value, text.escapes, "prose")) {
     if (segment.kind === "marker") {
       mark(builder, segment.ids, segment.edge);
     } else if (segment.kind === "unit") {
@@ -518,7 +542,7 @@ const pushText = (builder: Builder, node: MdNode, bounds: { start: number; end: 
         builder.delimiters.add(offset);
       }
     }
-    pushAtomic(builder, node, bounds, false);
+    pushAtomic(builder, node, bounds, "prose");
     return;
   }
   const lead = builder.leads.get(node) ?? 0;
@@ -584,21 +608,26 @@ const pushUnplaced = (
       if (node.type === "text") {
         pushAligned(builder, textContext(node, part, own));
       } else if (own.size === 0) {
-        pushAtomic(builder, node, bounds, false);
+        pushAtomic(builder, node, bounds, "prose");
       }
     }
     return;
   }
 };
 
+// a child of the cell alone: the writer closes a mark at each of a cell's lines, and what a quote is
+// placed in is the writer's
+const isCellBreak = (block: MdNode, child: MdNode): boolean =>
+  block.type === "tableCell" && child.type === "html" && child.value === CELL_BREAK;
+
 const walkPhrasing = (
   builder: Builder,
-  children: readonly MdNode[],
-  parent: { start: number; end: number },
+  block: MdNode,
+  span: { start: number; end: number },
 ): void => {
   let run: MdNode[] = [];
-  let runStart = parent.start;
-  for (const child of children) {
+  let runStart = span.start;
+  for (const child of block.children ?? []) {
     const bounds = offsetsOf(child);
     if (bounds === null) {
       run.push(child);
@@ -611,12 +640,14 @@ const walkPhrasing = (
     runStart = bounds.end;
     if (child.type === "text") {
       pushText(builder, child, bounds);
+    } else if (isCellBreak(block, child)) {
+      nextBlock(builder);
     } else {
-      pushAtomic(builder, child, bounds, false);
+      pushAtomic(builder, child, bounds, "prose");
     }
   }
   if (run.length > 0) {
-    pushUnplaced(builder, run, { end: parent.end, start: runStart });
+    pushUnplaced(builder, run, { end: span.end, start: runStart });
   }
 };
 
@@ -652,12 +683,11 @@ export const projectPassages = (source: string): PassageProjection => {
       return;
     }
     if (PHRASING_BLOCKS.has(node.type)) {
-      builder.blockIndex += 1;
-      separate(builder);
+      nextBlock(builder);
       const first = builder.characters.length;
       const bounds = offsetsOf(node);
       if (bounds !== null) {
-        walkPhrasing(builder, node.children ?? [], bounds);
+        walkPhrasing(builder, node, bounds);
       }
       if (atRoot && node.type === "heading" && (node.depth ?? 0) <= 2) {
         const heading = builder.characters.slice(first).join("").trim();

@@ -90,7 +90,9 @@ alone, and no walk narrows structurally.
   with its definition out of view are read from finished text, so a backslash
   before one's first character keeps it text (`\@2026-08-22`, `\[^a]`), and the
   serializer writes that escape before typed text the next parse would read as
-  one, so what a person types stays text. A `=== Label` line is one finished
+  one, so what a person types stays text. A bare link has no escape to write and
+  needs none: its text is its address, which no call stands in, so an edit
+  beside one leaves it as it is. A `=== Label` line is one finished
   text too: a label is plain words, a construct in one leaves the whole group
   prose, and the writer escapes a label that would read as one, a bare url
   among them, since what GFM reads past that escape is still the line's text.
@@ -104,7 +106,8 @@ alone, and no walk narrows structurally.
 
 - **THE DIALECT HAS NO JSX**: its blocks are one `:::` line grammar that nests
   in any flow container, a `:::` closing the innermost, and every tag is html,
-  the editor's own only where it is a bare `<u>`
+  the editor's own only where it is a bare `<u>` or a `<br/>` in a table cell
+  (A `<br/>` IN A TABLE CELL IS THE BOUNDARY BETWEEN ITS BLOCKS)
   (`@repo/notes/markdown/remark-containers`). Rejected: jsx tags for the toggle,
   columns, dates and embeds (an MDX tokenizer in the grammar, a jsx writer in
   the serializer, and tags other markdown tools draw as raw html), and a date as
@@ -435,14 +438,17 @@ alone, and no walk narrows structurally.
 - **A `<br/>` IN A TABLE CELL IS THE BOUNDARY BETWEEN ITS BLOCKS.** The table
   writer joins a cell's blocks with that tag and has no other word for a cell's
   second line, so the read cuts a cell at it. An image is a block wherever it
-  stands in a cell, so a tag beside one is the edge it already has. A cell
-  settles on its first write, and its two lines stay two through an edit or a
-  highlight anywhere in the table. Only the writer's spelling is the boundary:
-  `<br>` stays the tag it is. Rejected: holding the tag as source (a re-read of
-  the table would turn a person's second line into a tag), an inline image in a
-  cell (a second image node for one place), and a writer that drops the tag
-  beside an image (it would filter Plate's private output).
-  `packages/editor/src/markdown/md-rules.ts`.
+  stands in a cell, so a tag beside one, a space between them or not, is the
+  edge it already has. A cell settles on its first write, and its two lines
+  stay two through an edit or a highlight anywhere in the table. The text a
+  quote is matched in reads the tag as that same edge, so a quote across the
+  two lines places. Only the writer's spelling is the boundary: `<br>` stays
+  the tag it is. Rejected: holding the tag as source (a re-read of the table
+  would turn a person's second line into a tag), an inline image in a cell (a
+  second image node for one place), and a writer that drops the tag beside an
+  image (it would filter Plate's private output).
+  `packages/editor/src/markdown/md-rules.ts`,
+  `packages/notes/src/annotations/passage-text.ts`.
 
 ## The open item's merge
 

@@ -13,7 +13,7 @@ import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { pretendLibrary, withoutId } from "../test-support/codec-ports";
 import { editItemView, placeItemQuotes } from "./item-edit";
 import type { EditPorts } from "./item-edit";
-import { importItem } from "./item-markdown";
+import { exportItem, importItem } from "./item-markdown";
 import { itemView, viewPage } from "./item-view";
 
 const OTHER_ID = "0195f3a0-5c1e-7000-8000-0000000000c1";
@@ -61,35 +61,36 @@ const portsWith = (): EditPorts => {
   };
 };
 
+const FIELDS: LibraryItemFields = {
+  aliases: [],
+  author: null,
+  coverSha: null,
+  deletedAt: null,
+  description: null,
+  fetchError: null,
+  fetchState: "none",
+  fetchedAt: null,
+  folderId: null,
+  kind: "note",
+  lang: null,
+  originalName: null,
+  originalSha: null,
+  pinnedAt: null,
+  properties: {},
+  published: null,
+  savedAt: 0,
+  site: null,
+  tags: [],
+  title: "Item",
+  url: null,
+};
+
 // the item's blocks after the ops, as an applied write leaves them
 const landed = (
   blocks: Map<string, StoredBlock>,
   ops: Parameters<typeof applyOps>[1],
 ): Map<string, StoredBlock> => {
-  const fields: LibraryItemFields = {
-    aliases: [],
-    author: null,
-    coverSha: null,
-    deletedAt: null,
-    description: null,
-    fetchError: null,
-    fetchState: "none",
-    fetchedAt: null,
-    folderId: null,
-    kind: "note",
-    lang: null,
-    originalName: null,
-    originalSha: null,
-    pinnedAt: null,
-    properties: {},
-    published: null,
-    savedAt: 0,
-    site: null,
-    tags: [],
-    title: "Item",
-    url: null,
-  };
-  const state: ItemState = { blocks, fields };
+  const state: ItemState = { blocks, fields: FIELDS };
   const outcome = applyOps(state, ops);
   if (outcome.kind !== "applied") {
     throw new Error(`the ops did not land: ${outcome.kind}`);
@@ -659,6 +660,42 @@ describe("a footnote's call, its definition in another block", () => {
   });
 });
 
+describe("a bare link whose address spells a call", () => {
+  const ADDRESS = "https://x.y/?q=[^a-z]+b";
+  const paragraph: LibraryBlock = {
+    children: [
+      { text: "see " },
+      { children: [{ text: ADDRESS }], type: "a", url: ADDRESS },
+      { text: " now and then" },
+    ],
+    id: "p",
+    type: "p",
+  };
+  const stored = (): Map<string, StoredBlock> =>
+    new Map([["p", { block: paragraph, hash: blockHash(paragraph), ord: "a0", section: "note" }]]);
+  const untouched = JSON.stringify({ children: [{ text: ADDRESS }], type: "a", url: ADDRESS });
+
+  it("stands untouched through an edit elsewhere in its paragraph", () => {
+    const after = editedTo(stored(), "then", "later");
+    expect(JSON.stringify([...after.values()])).toContain(untouched);
+    expect(textOf(after)).toBe(`see ${ADDRESS} now and later\n`);
+  });
+
+  it("stands untouched through a quote placed elsewhere in its paragraph", () => {
+    const blocks = stored();
+    const placed = placeItemQuotes(blocks, [{ id: "q1", quote: "then" }], portsWith());
+    expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
+    const after = landed(blocks, placed.ops);
+    expect(JSON.stringify([...after.values()])).toContain(untouched);
+    expect(textOf(after)).toBe(`see ${ADDRESS} now and %%i:q1:start%%then%%i:q1:end%%\n`);
+  });
+
+  it("places a quote of its own text", () => {
+    const placed = placeItemQuotes(stored(), [{ id: "q1", quote: ADDRESS }], portsWith());
+    expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
+  });
+});
+
 describe("a link or an equation in a table cell", () => {
   it.each([
     ["a link", "| a | b |\n| - | - |\n| [[Other note]] | word |\n"],
@@ -710,6 +747,34 @@ describe("a link or an equation in a table cell", () => {
       const placed = placeItemQuotes(blocks, [{ id: "q1", quote: "words" }], portsWith());
       expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
       expect(cellsOf(landed(blocks, placed.ops))).toContain(LINE_CELL);
+    });
+
+    it("hold a quote across them, each marker on its own line's bytes", () => {
+      const blocks = storedOf(LINES);
+      const placed = placeItemQuotes(blocks, [{ id: "q1", quote: "one two" }], portsWith());
+      expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
+      const after = landed(blocks, placed.ops);
+      const row = "| %%i:q1:start%%one<br/>two%%i:q1:end%% | some words here |";
+      expect(textOf(after)).toContain(row);
+      const file = exportItem(
+        { annotations: {}, blocks: after, fields: FIELDS, id: OTHER_ID },
+        pretendLibrary().exportPorts(),
+        null,
+      );
+      expect(file.text).toContain(row);
+      const cell = withoutIds(cellsOf(after));
+      expect(cell).toContain('"type":"annotationMarker"},{"text":"one"}],"type":"p"}');
+      expect(cell).toContain('{"children":[{"text":"two"},{"children":[{"text":""}],"edge":"end"');
+      expect(withoutIds(cellsOf(storedOf(file.text)))).toBe(cell);
+    });
+
+    it("hold a quote across them where one mark spelled both", () => {
+      const blocks = storedOf("| a |\n| - |\n| **one<br/>two** |\n");
+      const placed = placeItemQuotes(blocks, [{ id: "q1", quote: "one two" }], portsWith());
+      expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
+      expect(textOf(landed(blocks, placed.ops))).toContain(
+        "| %%i:q1:start%%**one**<br/>**two**%%i:q1:end%% |",
+      );
     });
   });
 

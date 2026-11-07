@@ -10,6 +10,7 @@ import { serializeMd } from "@platejs/markdown";
 import { recordFlowSpans } from "@repo/notes/markdown/flow-spans";
 import type { FlowSpan } from "@repo/notes/markdown/flow-spans";
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
+import { CELL_BREAK } from "@repo/notes/markdown/remark-inline-html";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { pruneForMarkdown } from "@repo/editor/markdown/md-rules";
@@ -69,7 +70,7 @@ export const headlessEditor = (): SlateEditor => createSlateEditor({ plugins: BA
 // the tag the table writer joins a cell's blocks with spells no word of the note
 const letters = (s: string): string =>
   s
-    .replaceAll("<br/>", "")
+    .replaceAll(CELL_BREAK, "")
     .replaceAll(/[^\p{L}\p{N}]+/gu, "")
     .toLowerCase();
 

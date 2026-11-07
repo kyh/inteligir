@@ -30,6 +30,7 @@ import type {
 import { z } from "zod";
 
 import { LIST_MAX_INDENT } from "@repo/notes/library/library-nodes";
+import { isAutolinkText } from "@repo/notes/markdown/autolink-text";
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { isContainerContent } from "@repo/notes/markdown/remark-containers";
 import type {
@@ -49,6 +50,7 @@ import type {
   DateChip,
   FormulaPill,
 } from "@repo/notes/markdown/remark-inline-constructs";
+import { CELL_BREAK } from "@repo/notes/markdown/remark-inline-html";
 import type { Underline } from "@repo/notes/markdown/remark-inline-html";
 import {
   CANVAS_LANG,
@@ -187,13 +189,6 @@ const embedFromImage = (block: TElement): TElement => {
   return type === null ? block : { children: [{ text: "" }], type, url };
 };
 
-const BARE_AUTOLINK_PROTOCOL_RE = /^https?:\/\//iu;
-const WWW_AUTOLINK_RE = /^www\./iu;
-
-// mirrors micromark-extension-gfm-autolink-literal's email tokenizer, so a match emitted as raw
-// bytes re-parses as the same autolink.
-const GFM_EMAIL_RE = /^[+\-.\w]+@(?=[^@]*\.[\dA-Za-z])(?:[-_\dA-Za-z]|\.(?=[\dA-Za-z]))*[A-Za-z]$/u;
-
 const isMdText = (node: { type: string }): node is MdText => node.type === "text";
 
 const TABLE_ALIGN = z.array(z.enum(["center", "left", "right"]).nullable());
@@ -302,7 +297,9 @@ const paragraphRule: WideMdRule = {
 };
 
 const isCellBreak = (node: Descendant): boolean =>
-  ElementApi.isElement(node) && node.type === OPAQUE_KEY && stringProp(node, "source") === "<br/>";
+  ElementApi.isElement(node) &&
+  node.type === OPAQUE_KEY &&
+  stringProp(node, "source") === CELL_BREAK;
 
 const cellLines = (children: readonly Descendant[]): Descendant[][] => {
   const lines: Descendant[][] = [[]];
@@ -316,17 +313,20 @@ const cellLines = (children: readonly Descendant[]): Descendant[][] => {
   return lines;
 };
 
+const isBlank = (node: Descendant): boolean => TextApi.isText(node) && node.text.trim() === "";
+
 // The table writer joins a cell's blocks with `<br/>` and has no other word for its second line, so
 // the tag reads back as that boundary. A block lifted out of the line, an image, already stands
-// on one, so the empty line a tag beside it leaves is not the cell's.
+// on one, so the line a tag beside it leaves, a space at most, is not the cell's.
 const cellBlocks = (blocks: readonly Descendant[]): Descendant[] =>
   blocks.flatMap((block, index): Descendant[] => {
     if (!ElementApi.isElement(block) || block.type !== KEYS.p) {
       return [block];
     }
     const lines = cellLines(block.children);
-    const start = index > 0 && lines[0]?.length === 0 ? 1 : 0;
-    const end = index < blocks.length - 1 && lines.at(-1)?.length === 0 ? -1 : lines.length;
+    const start = index > 0 && lines[0]?.every(isBlank) === true ? 1 : 0;
+    const end =
+      index < blocks.length - 1 && lines.at(-1)?.every(isBlank) === true ? -1 : lines.length;
     return lines
       .slice(start, end)
       .map((children) => ({ ...block, children: children.length > 0 ? children : [{ text: "" }] }));
@@ -422,13 +422,6 @@ const listRule: WideMdRule = {
   deserialize: (node: MdList, deco: MdDecoration, options: DeserializeMdOptions): TElement[] =>
     listBlocks(node, 1, deco, options),
 };
-
-// text a re-parse reads back as this same link: a bare url, a www literal (gfm prefixes its url
-// with `http://`), or a gfm email
-const isAutolinkText = (text: string, url: string): boolean =>
-  (text === url && BARE_AUTOLINK_PROTOCOL_RE.test(url)) ||
-  (url === `http://${text}` && WWW_AUTOLINK_RE.test(text)) ||
-  (`mailto:${text}` === url && GFM_EMAIL_RE.test(text));
 
 type MdMarkWrapper = MdDelete | MdEmphasis | MdStrong;
 

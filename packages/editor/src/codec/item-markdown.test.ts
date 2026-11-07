@@ -775,6 +775,29 @@ describe("a footnote", () => {
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
+  it.each([
+    ["a bare url", "https://x.y/?q=[^a-z]+b", "https://x.y/?q=[^a-z]+b"],
+    ["a www address", "www.x.y/?q=[^a-z]+b", "www.x.y/?q=[^a-z]+b"],
+    ["an angled url", "<https://x.y/?q=[^a-z]+b>", "https://x.y/?q=[^a-z]+b"],
+    ["a marked bare url", "_https://x.y/?q=[^a-z]+b_", "_https://x.y/?q=[^a-z]+b_"],
+  ])("holds nothing in %s, whose text is its address", (_name, spelled, written) => {
+    for (const text of [`see ${spelled} now\n`, `see ${spelled} now\n\n[^a-z]: said\n`]) {
+      const item = imported(text);
+      expect(JSON.stringify(item.blocks)).not.toContain('"source":"[^a-z]"');
+      expect(bodyOf(exported(item).text)).toContain(`see ${written} now`);
+      expect(content(reimported(item))).toStrictEqual(content(item));
+    }
+  });
+
+  it.each([
+    ["words of its own", "[see [^a] here](https://x.y/z)"],
+    ["its address and a title", '[https://x.y/[^a]](https://x.y/[^a] "words")'],
+  ])("holds a call in a label of %s", (_name, spelled) => {
+    const item = imported(`${spelled} now\n`);
+    expect(JSON.stringify(item.blocks)).toContain('"source":"[^a]"');
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
   it("reads a tab's label past a call it spells", () => {
     const item = imported(":::tabs\n=== See [^a]\nbody\n:::\n");
     expect(item.blocks.map(({ block }) => block.type)).toStrictEqual(["tab_group"]);
@@ -1021,6 +1044,31 @@ describe("one file as its item", () => {
     const again = reimported(item);
     expect(content(again)).toStrictEqual(content(item));
     expect(exported(reimported(again)).text).toBe(exported(item).text);
+  });
+
+  const IMAGE = "![i](https://a.b/c.png)";
+
+  it.each([
+    ["after the image", `${IMAGE} <br/> y`, [" y"], `${IMAGE}<br/> y`],
+    ["before the image", `y <br/> ${IMAGE}`, ["y "], `y <br/>${IMAGE}`],
+    ["on both sides", `x <br/> ${IMAGE} <br/> y`, ["x ", " y"], `x <br/>${IMAGE}<br/> y`],
+    ["between two images", `${IMAGE} ${IMAGE}`, [], `${IMAGE}<br/>${IMAGE}`],
+  ])("reads the space %s as the edge the image has", (_name, cell, lines, written) => {
+    const item = imported(`| a |\n| - |\n| ${cell} |\n`);
+    expect(
+      [...JSON.stringify(item.blocks).matchAll(/"text":"(?<text>[^"]*)"\}\],"type":"p"/gu)].map(
+        ([, text]) => text,
+      ),
+    ).toStrictEqual(["a", ...lines]);
+    expect(exported(item).text).toContain(`| ${written} |`);
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it("keeps a blank line a person left between an image and a caption", () => {
+    const cell = `${IMAGE}<br/> <br/>y`;
+    const item = imported(`| a |\n| - |\n| ${cell} |\n`);
+    expect(exported(item).text).toContain(`| ${cell} |`);
+    expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
   it.each([

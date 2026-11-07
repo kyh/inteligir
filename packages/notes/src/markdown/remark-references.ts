@@ -3,13 +3,15 @@
 // which every reader after this one already knows, and a definition one used goes with it. A
 // definition nothing used stays the line it is, as source (`./remark-opaque`). A footnote's call
 // reads only beside its definition, and an edit re-reads the stretch it touched alone, so a call
-// left in finished text is held here too: typed text that spells one has its `[` escaped. This runs
-// after `./remark-containers`, so a tab's label keeps the words it spells.
+// left in finished text is held here too: typed text that spells one has its `[` escaped, and a bare
+// link is the address it spells, with no label for a call to stand in. This runs after
+// `./remark-containers`, so a tab's label keeps the words it spells.
 
 import type { Definition, Nodes, Parent, PhrasingContent, Root, RootContent, Text } from "mdast";
 import type { Plugin, Transformer } from "unified";
 import { visit } from "unist-util-visit";
 
+import { isBareLink } from "./autolink-text";
 import type { Range } from "./line-scan";
 import { isMdastRoot } from "./mdast-nodes";
 import { escapedAt, textCutter } from "./text-escapes";
@@ -110,7 +112,7 @@ const holdFootnoteCalls = (parent: Parent): void => {
     if (child.type === "text") {
       return heldCallsIn(child);
     }
-    if ("children" in child) {
+    if ("children" in child && !(child.type === "link" && isBareLink(child))) {
       holdFootnoteCalls(child);
     }
     return [child];
