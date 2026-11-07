@@ -86,11 +86,12 @@ alone, and no walk narrows structurally.
   is plain nested `.md`: no bundles, no meta.json.
 
 - **A DIALECT CONSTRUCT IS READ FROM FINISHED TEXT, SO A BACKSLASH KEEPS ONE
-  TEXT.** Pills, dates, annotation markers and `:::` lines are read from
-  finished text, so a backslash before one's first character keeps it text
-  (`\@2026-08-22`), and the serializer writes that escape before typed text the
-  next parse would read as one, so what a person types stays text. A `=== Label`
-  line is one finished text too: a label is plain words, a construct in one
+  TEXT.** Pills, dates, annotation markers, `:::` lines and a footnote's call
+  with its definition out of view are read from finished text, so a backslash
+  before one's first character keeps it text (`\@2026-08-22`, `\[^a]`), and the
+  serializer writes that escape before typed text the next parse would read as
+  one, so what a person types stays text. A `=== Label` line is one finished
+  text too: a label is plain words, a construct in one
   leaves the whole group prose, and the writer escapes a label that would read
   as one, a bare url among them, since what GFM reads past that escape is still
   the line's text. Rejected: reading a construct in a label (a label is a
@@ -98,6 +99,7 @@ alone, and no walk narrows structurally.
   the same rule (MARKDOWN IS A CODEC BESIDE THE LIBRARY).
   `packages/notes/src/markdown/text-escapes.ts`,
   `packages/notes/src/markdown/remark-inline-constructs.ts`,
+  `packages/notes/src/markdown/remark-references.ts`,
   `packages/notes/src/markdown/remark-containers.ts`.
 
 - **THE DIALECT HAS NO JSX**: its blocks are one `:::` line grammar that nests

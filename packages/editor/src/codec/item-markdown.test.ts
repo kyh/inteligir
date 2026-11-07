@@ -746,12 +746,38 @@ describe("a footnote", () => {
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
-  it("keeps a definition nothing uses, and a call no definition answers, as words", () => {
+  it("keeps a definition nothing uses, and a call no definition answers, as their source", () => {
     const item = imported("[^a]: unused\n\nA call[^nothing] alone.\n");
     expect(item.leftOut).toBe(0);
     const body = bodyOf(exported(item).text);
     expect(body).toContain("[^a]: unused");
-    expect(body).toContain("nothing");
+    expect(body).toContain("A call[^nothing] alone.");
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it("keeps text a person typed that spells a call as that text", () => {
+    const item = typedItem("note", [typedLine("A typed [^a] here.")]);
+    expect(bodyOf(exported(item).text).trimEnd()).toBe(String.raw`A typed \[^a] here.`);
+    expect(JSON.stringify(reimported(item).blocks)).toContain("A typed [^a] here.");
+    expect(content(reimported(item)).blocks).toStrictEqual(content(item).blocks);
+  });
+
+  it.each([
+    ["[see [^a]](https://example.com) here\n\n[^a]: said\n"],
+    ["[see [^a]](https://example.com) here\n"],
+    ["**bold [^a] words**\n"],
+    ["| a[^b] |\n| - |\n| c[^d] |\n"],
+    ["[^a]: see [^b]\n\nOne[^a].\n"],
+  ])("holds a call wherever text stands in %j", (text) => {
+    const item = imported(text);
+    expect(item.leftOut).toBe(0);
+    expect(bodyOf(exported(item).text)).not.toContain(String.raw`\[^`);
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it("reads a tab's label past a call it spells", () => {
+    const item = imported(":::tabs\n=== See [^a]\nbody\n:::\n");
+    expect(item.blocks.map(({ block }) => block.type)).toStrictEqual(["tab_group"]);
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 

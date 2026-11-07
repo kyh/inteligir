@@ -19,6 +19,7 @@ import {
   parseFormulaRaw,
   splitMarkerIds,
 } from "../markdown/remark-inline-constructs";
+import { footnoteCallsIn } from "../markdown/remark-references";
 
 // the dialect's tree as this walk reads it: the parse's mdast, structurally
 interface MdPoint {
@@ -158,6 +159,9 @@ const segmentsOf = (value: string, escapes: ReadonlySet<number>, inLink: boolean
         });
       }
     }
+  }
+  for (const { end, start } of footnoteCallsIn(value, (index) => escapes.has(index))) {
+    found.push({ end, segment: { end, kind: "unit", start, text: "" }, start });
   }
   found.sort((a, b) => a.start - b.start);
   const segments: Segment[] = [];

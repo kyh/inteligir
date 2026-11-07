@@ -120,6 +120,19 @@ const NOTE = [
   "",
 ].join("\n");
 
+// the blocks after one edit of the view, which has to land
+const editedTo = (
+  blocks: Map<string, StoredBlock>,
+  oldText: string,
+  newText: string,
+): Map<string, StoredBlock> => {
+  const edited = editItemView(blocks, [{ newText, oldText }], portsWith());
+  if (edited.kind !== "changed") {
+    throw new Error(`the edit did not land: ${JSON.stringify(edited)}`);
+  }
+  return landed(blocks, edited.ops);
+};
+
 const groupOf = (label: string): string =>
   `:::tabs\n=== ${label}\nbody here now\n\n=== Second\nmore\n:::\n`;
 
@@ -598,6 +611,53 @@ describe("an edit made on the view", () => {
   });
 });
 
+describe("a footnote's call, its definition in another block", () => {
+  const FOOTNOTED = "One[^a] word and more.\n\nTwo.\n\n[^a]: secret\n";
+
+  it("stays a call through an edit of its line", () => {
+    const blocks = storedOf(FOOTNOTED);
+    const after = editedTo(blocks, "word", "sentence");
+    expect(JSON.stringify([...after.values()].map(({ block }) => block))).toContain(
+      '{"children":[{"text":""}],"source":"[^a]","type":"opaque"}',
+    );
+    expect(textOf(after)).toBe("One[^a] sentence and more.\n\nTwo.\n\n[^a]: secret\n");
+  });
+
+  it.each([
+    ["word and", "One[^a] %%i:q1:start%%word and%%i:q1:end%% more."],
+    ["One word", "%%i:q1:start%%One[^a] word%%i:q1:end%% and more."],
+  ])("stays a call through the quote `%s` placed on its line", (quote, line) => {
+    for (const text of [FOOTNOTED, "One[^a] word and more.\n\nTwo.\n"]) {
+      const blocks = storedOf(text);
+      const placed = placeItemQuotes(blocks, [{ id: "q1", quote }], portsWith());
+      expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
+      expect(textOf(landed(blocks, placed.ops))).toContain(line);
+    }
+  });
+
+  it("reads the same in an edit of its line as in the whole item", () => {
+    const blocks = storedOf("One[^a] word.\n\nTwo.\n");
+    const whole = JSON.stringify([...blocks.values()].map(({ block }) => withoutId(block)));
+    const after = editedTo(blocks, "word.", "word!");
+    expect(JSON.stringify([...after.values()].map(({ block }) => withoutId(block)))).toBe(
+      whole.replace("word.", "word!"),
+    );
+  });
+
+  it.each([
+    [String.raw`One \[^a] word.`],
+    [String.raw`One [\^a] word.`],
+    [String.raw`One [^a\] word.`],
+    ["One `[^a]` word."],
+  ])("leaves what a person typed, `%s`, as text through an edit", (line) => {
+    const blocks = storedOf(`${line}\n\nTwo.\n`);
+    expect(JSON.stringify([...blocks.values()])).not.toContain('"opaque"');
+    const after = editedTo(blocks, "word", "sentence");
+    expect(JSON.stringify([...after.values()])).not.toContain('"opaque"');
+    expect(textOf(after)).toContain("sentence.");
+  });
+});
+
 describe("a link or an equation in a table cell", () => {
   it.each([
     ["a link", "| a | b |\n| - | - |\n| [[Other note]] | word |\n"],
@@ -619,11 +679,7 @@ describe("a link or an equation in a table cell", () => {
     const blocks = storedOf(table);
     const before = cellsOf(blocks);
     expect(before).toContain(OTHER_ID);
-    const edited = editItemView(blocks, [{ newText: "changed", oldText: "word" }], portsWith());
-    if (edited.kind !== "changed") {
-      throw new Error(`the edit refused: ${JSON.stringify(edited)}`);
-    }
-    expect(withoutIds(cellsOf(landed(blocks, edited.ops)))).toBe(
+    expect(withoutIds(cellsOf(editedTo(blocks, "word", "changed")))).toBe(
       withoutIds(before).replace("word", "changed"),
     );
   });
@@ -653,11 +709,7 @@ describe("a link or an equation in a table cell", () => {
 `);
     const before = cellsOf(blocks);
     expect(before).toContain(String.raw`|x| + \\Vert y`);
-    const edited = editItemView(blocks, [{ newText: "changed", oldText: "word" }], portsWith());
-    if (edited.kind !== "changed") {
-      throw new Error(`the edit refused: ${JSON.stringify(edited)}`);
-    }
-    expect(withoutIds(cellsOf(landed(blocks, edited.ops)))).toBe(
+    expect(withoutIds(cellsOf(editedTo(blocks, "word", "changed")))).toBe(
       withoutIds(before).replace("word", "changed"),
     );
   });

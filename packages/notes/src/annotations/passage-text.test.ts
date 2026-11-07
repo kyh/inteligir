@@ -70,6 +70,13 @@ describe("the text a person reads", () => {
     },
   );
 
+  it("reads a footnote's call as nothing, its definition in view or not", () => {
+    expect(projectPassages("One[^a] word.\n\n[^a]: said\n").text).toBe("One word. ");
+    expect(projectPassages("One[^a] word.\n").text).toBe("One word. ");
+    expect(projectPassages(String.raw`One\[^a] word.`).text).toBe("One[^a] word. ");
+    expect(projectPassages(String.raw`One[\^a] word.`).text).toBe("One[^a] word. ");
+  });
+
   it("reads an address on a line that is no label", () => {
     expect(projectPassages(`before https\\://a.bc after\nmore\n`).text).toBe(
       "before https://a.bc after more ",

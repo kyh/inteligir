@@ -1,13 +1,18 @@
 // A reference spells its address apart from its words (`[design doc][1]`, and `[1]: https://…`
 // anywhere in the file), and the library holds neither: each reads as the link or image it names,
 // which every reader after this one already knows, and a definition one used goes with it. A
-// definition nothing used stays the line it is, as source (`./remark-opaque`).
+// definition nothing used stays the line it is, as source (`./remark-opaque`). A footnote's call
+// reads only beside its definition, and an edit re-reads the stretch it touched alone, so a call
+// left in finished text is held here too: typed text that spells one has its `[` escaped. This runs
+// after `./remark-containers`, so a tab's label keeps the words it spells.
 
-import type { Definition, Nodes, Root } from "mdast";
+import type { Definition, Nodes, Parent, PhrasingContent, Root, RootContent, Text } from "mdast";
 import type { Plugin, Transformer } from "unified";
 import { visit } from "unist-util-visit";
 
+import type { Range } from "./line-scan";
 import { isMdastRoot } from "./mdast-nodes";
+import { escapedAt, textCutter } from "./text-escapes";
 
 // the first definition of a label is the one a reference means
 const definitionsIn = (tree: Root): ReadonlyMap<string, Definition> => {
@@ -66,10 +71,57 @@ const resolveReferences = (tree: Root): void => {
   });
 };
 
+// global, so for matchAll alone
+const FOOTNOTE_CALL_RE = /\[\^[^\s[\]]+\]/gu;
+
+const anyEscaped = ({ end, start }: Range, escaped: (index: number) => boolean): boolean => {
+  for (let index = start; index < end; index += 1) {
+    if (escaped(index)) {
+      return true;
+    }
+  }
+  return false;
+};
+
+// the calls finished text still spells; an escape anywhere in one is what micromark reads as no call
+export const footnoteCallsIn = (value: string, escaped: (index: number) => boolean): Range[] =>
+  [...value.matchAll(FOOTNOTE_CALL_RE)]
+    .map((match) => ({ end: match.index + match[0].length, start: match.index }))
+    .filter((call) => !anyEscaped(call, escaped));
+
+const heldCallsIn = (node: Text): PhrasingContent[] => {
+  const cut = textCutter(node);
+  const read: PhrasingContent[] = [];
+  let cursor = 0;
+  for (const { end, start } of footnoteCallsIn(node.value, (at) => escapedAt(node, at))) {
+    if (start > cursor) {
+      read.push(cut(cursor, start));
+    }
+    read.push({ type: "opaqueInline", value: node.value.slice(start, end) });
+    cursor = end;
+  }
+  return cursor === 0
+    ? [node]
+    : [...read, ...(cursor < node.value.length ? [cut(cursor, node.value.length)] : [])];
+};
+
+const holdFootnoteCalls = (parent: Parent): void => {
+  parent.children = parent.children.flatMap((child): RootContent[] => {
+    if (child.type === "text") {
+      return heldCallsIn(child);
+    }
+    if ("children" in child) {
+      holdFootnoteCalls(child);
+    }
+    return [child];
+  });
+};
+
 export const remarkReferences: Plugin = function remarkReferences(): Transformer {
   return (tree) => {
     if (isMdastRoot(tree)) {
       resolveReferences(tree);
+      holdFootnoteCalls(tree);
     }
   };
 };
