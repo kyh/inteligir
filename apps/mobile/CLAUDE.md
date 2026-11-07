@@ -158,14 +158,23 @@ how it ships.
   file whatever it was served as (`isPage`, the fill's own rule), or a page it
   read no text from, is saved as its link, which the cloud's fill reads
   (`apps/mobile/src/items/share-save.ts`). An address that moved, a redirect
-  having changed its `urlKey`, keeps the address it was shared at unless the
-  end is surely the page: the replica holds that address, so the save joins
-  that item as the fill's fold does, or a link turned out a video or a song.
-  A holder the replica has yet to pull makes a second item until Read the page
-  again folds it. Rejected: the final address on every save (a page that
-  redirects to its sign-in would be saved at the sign-in's address); handing
-  every moved address to the fill (app share links are short links, and a site
-  that blocks data centres would end unread though the phone had read it).
+  having changed its `urlKey`, can have ended at a sign-in wall, since the phone
+  sends no cookie. So the item already at the shared address takes the share:
+  as a link, which adds the note and leaves its article, unless the cloud has
+  yet to read it or could not and it holds no article, when it takes the
+  phone's read (`fetchState` alone cannot say, since Read the page again leaves
+  the article on an item that waits). With no item there the save keeps the
+  shared address unless the end is surely the page: the replica holds that
+  address, so the save joins that item as the fill's fold does, or a link
+  turned out a video or a song. An end past what an item's address holds stays
+  shared, as the fill's does. A moved save that stays at the shared address
+  takes the sheet's title before the read's, since a wall names itself; any
+  other takes the read's first. A holder the replica has yet to pull makes a
+  second item until Read the page again folds it. Rejected: the final address
+  on every save (a page that redirects to its sign-in would be saved at the
+  sign-in's address); handing every moved address to the fill (app share links
+  are short links, and a site that blocks data centres would end unread though
+  the phone had read it).
   Words shared beside the link are the item's note on every path, since every
   save and every fold carries a note and a fold carries no title
   (`apps/mobile/src/items/share-payload.ts`); an unread link is named by its

@@ -8,6 +8,7 @@
 // Pure: the share inbox and the tests read it.
 
 import { isWebUrl } from "@repo/notes/items/item-url";
+import { fieldLine } from "@repo/notes/items/saved-facts";
 import { linkInText, withoutLink } from "./link-in-text";
 
 export interface SharedLink {
@@ -44,7 +45,8 @@ export const sharedSaveOf = (intent: ShareHandoff): SharedSave => {
   if (given === null || !isWebUrl(given)) {
     return text === null ? { kind: "nothing" } : { kind: "text", text };
   }
-  const title = filled(intent.meta?.title) ?? filled(intent.meta?.["og:title"]);
+  const title =
+    fieldLine(intent.meta?.title ?? null) ?? fieldLine(intent.meta?.["og:title"] ?? null);
   if (text === null || text === given) {
     return { kind: "link", note: null, title, url: given };
   }

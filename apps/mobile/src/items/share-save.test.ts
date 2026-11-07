@@ -1,5 +1,7 @@
 import type { FillAnswer, FillJob } from "@repo/editor-bridge/protocol";
 import { fileSha } from "@repo/library-replica/library-replica";
+import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
+import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import { createFakeCell } from "@repo/library-replica/test-support/fake-cell";
 import type { FakeCell } from "@repo/library-replica/test-support/fake-cell";
 import { openDevice, paragraph, textOf } from "@repo/library-replica/test-support/replica-harness";
@@ -10,6 +12,7 @@ import { deferred } from "../test-support/async";
 import { sharedSaveOf } from "./share-payload";
 import type { SharedSave } from "./share-payload";
 import { saveShared } from "./share-save";
+import type { ShareReadPorts } from "./share-save";
 
 const URL = "https://stephango.com/file-over-app";
 
@@ -42,6 +45,11 @@ const servingPage: PageFetch = async (request) =>
 
 const offline: PageFetch = async () => await Promise.resolve({ ok: false });
 
+const portsOf = (fetch: PageFetch, answer: FillAnswer = READ): ShareReadPorts => ({
+  fetch,
+  read: async () => await Promise.resolve(answer),
+});
+
 // the phone's own fetch, over a web where one address redirects to a page
 const redirecting = (from: string, to: string): PageFetch =>
   createPageFetch(
@@ -69,6 +77,14 @@ const PDF = new TextEncoder().encode("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n");
 const noteOf = (cell: FakeCell, id: string): string[] =>
   [...(cell.item(id)?.blocks.values() ?? [])]
     .filter(({ section }) => section === "note")
+    .map(({ block }) => textOf(block));
+
+const idOf = (saved: Awaited<ReturnType<typeof saveShared>>): string =>
+  saved?.kind === "saved" ? saved.made.id : "";
+
+const articleOf = (cell: FakeCell, id: string): string[] =>
+  [...(cell.item(id)?.blocks.values() ?? [])]
+    .filter(({ section }) => section === "article")
     .map(({ block }) => textOf(block));
 
 const phone = async () => {
@@ -119,6 +135,220 @@ describe("a share under a sign-out", () => {
       await next.replica.close();
     },
   );
+});
+
+describe("a share whose address moved", () => {
+  const SHORT = "https://bit.ly/x";
+  const VIDEO = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+  const WALL = "https://stephango.com/login?next=/file-over-app";
+  const WALL_READ: FillAnswer = {
+    ...READ,
+    article: [{ block: paragraph("w1", "Log in to keep reading."), ord: "a0" }],
+    facts: { ...READ.facts, title: "Log in" },
+  };
+  const LINK = { kind: "link", note: null, title: null } as const;
+  const stateOf = (value: LibraryItemFields["fetchState"], base: LibraryItemFields["fetchState"]) =>
+    ({ base, field: "fetchState", op: "set", value }) as const;
+
+  const heldRead = async (held: Awaited<ReturnType<typeof phone>>) => {
+    const saved = await saveShared(
+      { ...held, ports: portsOf(servingPage), replica: held.device.replica },
+      { ...LINK, url: URL },
+    );
+    await held.device.replica.sync();
+    return idOf(saved);
+  };
+
+  const heldUnread = async (held: Awaited<ReturnType<typeof phone>>, url: string) => {
+    const saved = await saveShared(
+      { ...held, ports: portsOf(offline), replica: held.device.replica },
+      { ...LINK, url },
+    );
+    await held.device.replica.sync();
+    return idOf(saved);
+  };
+
+  it("adds the words to the article it holds there and reads nothing of the wall", async () => {
+    const held = await phone();
+    const { cell, device, newBlockId } = held;
+    const id = await heldRead(held);
+    const jobs: FillJob[] = [];
+    const saved = await saveShared(
+      {
+        newBlockId,
+        ports: {
+          fetch: redirecting(URL, WALL),
+          read: async (job) => {
+            jobs.push(job);
+            return await Promise.resolve(WALL_READ);
+          },
+        },
+        replica: device.replica,
+      },
+      { ...LINK, note: "Worth keeping", url: URL },
+    );
+    await device.replica.sync();
+    expect(saved).toMatchObject({ kind: "saved", made: { folded: true, id } });
+    expect(jobs).toStrictEqual([]);
+    expect(cell.calls.filter((call) => call === "phone library/items/save")).toHaveLength(1);
+    expect(cell.calls).toContain("phone library/items/saveLink");
+    expect(articleOf(cell, id)).toStrictEqual(["File over app is a philosophy."]);
+    expect(noteOf(cell, id)).toStrictEqual(["Worth keeping"]);
+  });
+
+  it.each([
+    ["waits for the cloud", null],
+    ["the cloud failed to read", stateOf("failed", "pending")],
+  ])("reads a page into the item there that %s", async (_case, op) => {
+    const held = await phone();
+    const { cell, device, newBlockId } = held;
+    const id = await heldUnread(held, SHORT);
+    if (op !== null) {
+      await device.replica.write(id, { ops: [op] });
+      await device.replica.sync();
+    }
+    const saved = await saveShared(
+      { newBlockId, ports: portsOf(redirecting(SHORT, URL)), replica: device.replica },
+      { ...LINK, note: "Worth keeping", url: SHORT },
+    );
+    await device.replica.sync();
+    expect(saved).toMatchObject({ kind: "saved", made: { folded: true, id } });
+    expect(cell.calls).toContain("phone library/items/save");
+    expect(noteOf(cell, id)).toStrictEqual(["Worth keeping"]);
+  });
+
+  it.each([
+    ["waiting to be read again", stateOf("pending", "filled")],
+    ["whose reading again failed", stateOf("failed", "filled")],
+  ])("leaves the article of an item %s", async (_case, op) => {
+    const held = await phone();
+    const { cell, device, newBlockId } = held;
+    const id = await heldRead(held);
+    await device.replica.write(id, { ops: [op] });
+    await device.replica.sync();
+    await saveShared(
+      { newBlockId, ports: portsOf(redirecting(URL, WALL), WALL_READ), replica: device.replica },
+      { ...LINK, url: URL },
+    );
+    await device.replica.sync();
+    expect(cell.calls.filter((call) => call === "phone library/items/save")).toHaveLength(1);
+    expect(articleOf(cell, id)).toStrictEqual(["File over app is a philosophy."]);
+  });
+
+  it.each([["filled"], ["none"]] as const)(
+    "reads nothing into an item there the cloud calls %s",
+    async (state) => {
+      const held = await phone();
+      const { cell, device, newBlockId } = held;
+      const id = await heldUnread(held, SHORT);
+      await device.replica.write(id, { ops: [stateOf(state, "pending")] });
+      await device.replica.sync();
+      await saveShared(
+        {
+          newBlockId,
+          ports: portsOf(redirecting(SHORT, WALL), WALL_READ),
+          replica: device.replica,
+        },
+        { ...LINK, url: SHORT },
+      );
+      await device.replica.sync();
+      expect(cell.calls).not.toContain("phone library/items/save");
+    },
+  );
+
+  it("reads nothing into an item whose body has yet to arrive, since it may hold an article", async () => {
+    const held = await phone();
+    const { cell, newBlockId } = held;
+    const id = await heldRead(held);
+    await held.device.replica.write(id, { ops: [stateOf("failed", "filled")] });
+    await held.device.replica.sync();
+    cell.setBodiesPerAnswer(0);
+    const second = await openDevice(cell, "second phone");
+    await second.replica.sync();
+    await saveShared(
+      { newBlockId, ports: portsOf(redirecting(URL, WALL), WALL_READ), replica: second.replica },
+      { ...LINK, url: URL },
+    );
+    await second.replica.sync();
+    expect(cell.calls).not.toContain("second phone library/items/save");
+    expect(cell.calls).toContain("second phone library/items/saveLink");
+  });
+
+  it.each([
+    ["unread", null],
+    ["read", stateOf("filled", "pending")],
+  ])("makes no second item of a short link held %s that lands on a video", async (_case, op) => {
+    const held = await phone();
+    const { cell, device, newBlockId } = held;
+    const short = "https://t.co/x";
+    const id = await heldUnread(held, short);
+    if (op !== null) {
+      await device.replica.write(id, { ops: [op] });
+      await device.replica.sync();
+    }
+    const saved = await saveShared(
+      { newBlockId, ports: portsOf(redirecting(short, VIDEO)), replica: device.replica },
+      { ...LINK, note: "Worth keeping", url: short },
+    );
+    await device.replica.sync();
+    expect(saved).toMatchObject({ kind: "saved", made: { folded: true, id } });
+    expect(cell.items().size).toBe(1);
+    expect(noteOf(cell, id)).toStrictEqual(["Worth keeping"]);
+  });
+
+  it("names a save that stays at the shared address by the sheet's title, since a wall names itself", async () => {
+    const { cell, device, newBlockId } = await phone();
+    const saved = await saveShared(
+      { newBlockId, ports: portsOf(redirecting(URL, WALL), WALL_READ), replica: device.replica },
+      { ...LINK, title: "The real post", url: URL },
+    );
+    await device.replica.sync();
+    expect(cell.item(idOf(saved))?.fields).toMatchObject({ title: "The real post", url: URL });
+  });
+
+  it("names a save at the landed address, and one that never moved, by what it read", async () => {
+    const { cell, device, newBlockId } = await phone();
+    const video = await saveShared(
+      { newBlockId, ports: portsOf(redirecting(SHORT, VIDEO)), replica: device.replica },
+      { ...LINK, title: "bit.ly", url: SHORT },
+    );
+    const page = await saveShared(
+      { newBlockId, ports: portsOf(servingPage), replica: device.replica },
+      { ...LINK, title: "From the sheet", url: URL },
+    );
+    await device.replica.sync();
+    expect(cell.item(idOf(video))?.fields).toMatchObject({ title: "File over app", url: VIDEO });
+    expect(cell.item(idOf(page))?.fields).toMatchObject({ title: "File over app", url: URL });
+  });
+
+  it.each([
+    ["a video", `${VIDEO}&t=${"1".repeat(ITEM_FIELD_CAPS.url)}`],
+    ["a page the library holds", `${URL}?utm_content=${"1".repeat(ITEM_FIELD_CAPS.url)}`],
+  ])("stays at the shared address when %s lands past an item's address", async (_case, landed) => {
+    const held = await phone();
+    const { cell, device, newBlockId } = held;
+    await heldRead(held);
+    const saved = await saveShared(
+      { newBlockId, ports: portsOf(redirecting(SHORT, landed)), replica: device.replica },
+      { ...LINK, url: SHORT },
+    );
+    await device.replica.sync();
+    expect(cell.item(idOf(saved))?.fields.url).toBe(SHORT);
+  });
+
+  it("saves a title longer than an item's, clipped, whether or not it read the page", async () => {
+    const { cell, device, newBlockId } = await phone();
+    const saved = await saveShared(
+      { newBlockId, ports: portsOf(offline), replica: device.replica },
+      sharedSaveOf({
+        meta: { title: "t".repeat(ITEM_FIELD_CAPS.line + 1) },
+        text: URL,
+        webUrl: URL,
+      }),
+    );
+    await device.replica.sync();
+    expect(cell.item(idOf(saved))?.fields.title).toHaveLength(ITEM_FIELD_CAPS.line);
+  });
 });
 
 describe("a share, saved", () => {
