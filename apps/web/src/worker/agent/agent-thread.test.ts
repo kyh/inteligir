@@ -28,6 +28,7 @@ import {
 } from "../test-support/agent-turns";
 import type { AgentAccount } from "../test-support/agent-turns";
 import { blockTypesOf, expectSharedPrefixes, unmarkedOf } from "../test-support/request-bodies";
+import { cellOf } from "../test-support/library-cell";
 import { inSteppedThread } from "../test-support/thread-host";
 import { pricesOf, priceUsage, usageReportSchema } from "./agent-allowance";
 import type { AgentThreadDO } from "./agent-thread";
@@ -1192,6 +1193,42 @@ describe("a conversation's loop, stepped", () => {
       expect(rolesOf(2).slice(0, 3)).toStrictEqual(["user", "system", "assistant"]);
       expect(rolesOf(3)).not.toContain("system");
       expect(rolesOf(4)).toStrictEqual(["user", "system", "assistant"]);
+      await expectRepliesAskedAsKept(account, threadId);
+    },
+  );
+
+  it(
+    "tells a conversation taking up a deploy's definition that its filing rules are cleared",
+    { timeout: TURN_MS },
+    async () => {
+      const account = agentAccount();
+      const threadId = crypto.randomUUID();
+      await rulesIn(account, "File trips under Travel.");
+      const first = deployedDefinition();
+      let deployed = first;
+      await inSteppedThread(
+        account,
+        threadId,
+        script("Noted."),
+        async ({ deliver, run }) => {
+          await expect(restsAt(run)).resolves.toBe("idle");
+          deployed = { ...first, system: [...first.system, { text: "A deploy.", type: "text" }] };
+          // a stub made here, inside the thread's object, which may not use one made outside it
+          await rulesIn({ ...account, cell: cellOf(account.accountId) }, "");
+          await deliver(script("Cleared."));
+          await expect(restsAt(run)).resolves.toBe("idle");
+        },
+        { definition: () => deployed },
+      );
+      const transcript = await transcriptOf(account, threadId);
+      expect(
+        transcript.flatMap((row) =>
+          row.role === "system" ? [[row.turn, z.json().parse(JSON.parse(row.content))]] : [],
+        ),
+      ).toStrictEqual([
+        [1, rulesMessage("File trips under Travel.")],
+        [2, rulesMessage(RULES_CLEARED)],
+      ]);
       await expectRepliesAskedAsKept(account, threadId);
     },
   );

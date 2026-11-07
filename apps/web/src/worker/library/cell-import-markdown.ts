@@ -2,9 +2,10 @@
 // folder of notes, by the codec's two-pass plan (`@repo/editor/codec/import-plan`). The first runs
 // walk the zip's directory, keeping each note's frontmatter and each highlights' store, and
 // putting every file in the library under its sha; then the plan is made once, every note's item
-// and id minted and kept, an address or an id the library holds already standing for its item. Later runs land a page of notes at a time, each read whole against the plan, and
-// last every file no note embedded becomes an item of its own. Every run reads the zip where it
-// lies in R2, a range at a time.
+// and id minted and kept, an address or an id the library holds already standing for its item.
+// Later runs land a page of notes at a time, each read whole against the plan, and last every file
+// no note embedded becomes an item of its own. Every run reads the zip where it lies in R2, a range
+// at a time.
 
 import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
 import { importMediaType } from "./import-media-types";

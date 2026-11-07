@@ -160,7 +160,8 @@ export const inputUcentsOf = (estimate: CallEstimate, prices: TokenPrices, now: 
 // estimate, which counts at least the tokens the prompt holds (`callEstimateOf` in
 // `./thread-request`), says the API cannot compact. A fallback's pass is priced by neither: with it
 // reserved, a cold first call at a turn's ceiling buys under `MIN_MAX_TOKENS` and is refused, so a
-// decline books past its reservation, and the turn's next call finds nothing left.
+// decline books past its reservation, and one that takes the turn past its ceiling leaves its next
+// call nothing.
 interface CallCost {
   readonly fixed: number;
   readonly perToken: number;
