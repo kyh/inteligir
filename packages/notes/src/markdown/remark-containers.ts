@@ -26,7 +26,7 @@ import type { Plugin, Processor, Transformer } from "unified";
 
 import { splitLinesKeepingTerminators } from "../text/source-lines";
 import { isMdastRoot } from "./mdast-nodes";
-import { escapedAt, textCutter } from "./text-escapes";
+import { escapedAt, joinedText, textCutter } from "./text-escapes";
 
 export type ContainerContent = BlockContent | DefinitionContent;
 
@@ -179,13 +179,12 @@ const markerOf = (line: Line): Marker | null => {
     : null;
 };
 
-// a merged line keeps no escapes: no marker is read from the paragraphs this builds
 const paragraphOf = (lines: readonly Line[]): Paragraph => {
   const children: PhrasingContent[] = [];
   const push = (node: PhrasingContent): void => {
     const last = children.at(-1);
     if (node.type === "text" && last?.type === "text") {
-      children[children.length - 1] = { type: "text", value: last.value + node.value };
+      children[children.length - 1] = joinedText(last, node);
       return;
     }
     children.push(node);

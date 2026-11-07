@@ -391,6 +391,20 @@ describe("an edit made on the view", () => {
     ]);
   });
 
+  it("keeps an escape an edit writes on a line beside a `:::` line as the person's text", () => {
+    const blocks = storedOf(":::toggle\nbody here\n:::\n");
+    const edit = editItemView(
+      blocks,
+      [{ newText: "first line\n\\==x== literal", oldText: "body here" }],
+      portsWith(),
+    );
+    expect(edit.kind).toBe("changed");
+    if (edit.kind === "changed") {
+      expect(edit.highlights).toStrictEqual([]);
+      expect(JSON.stringify(edit.ops)).toContain("==x== literal");
+    }
+  });
+
   it("reads the spellings an edit writes in the note, the last edit's alone", () => {
     const blocks = storedOf(NOTE);
     const outcome = editItemView(

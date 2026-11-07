@@ -273,6 +273,29 @@ describe("Obsidian's spellings, through a real export and import", () => {
     ]);
   });
 
+  // a paragraph a `:::` line runs through is cut into lines and joined again around the marker
+  it.each([
+    ":::toggle\nfirst line\n\\==x== literal\n:::\n",
+    ":::toggle\n\\==x== literal\nsecond line\n:::\n",
+    ":::toggle\nabc\n:::\nfoo\n\\==x== literal\n",
+    ":::tabs\n=== A\nfirst line\n\\==x== literal\n:::\n",
+    ":::columns\n:::column\nfirst line\n\\==x== literal\n:::\n:::\n",
+  ])("takes a backslash on a line beside a `:::` line in %j as the person's text", (text) => {
+    const item = imported(text);
+    expect(item.annotations).toStrictEqual({});
+    expect(JSON.stringify(item.blocks)).toContain("==x== literal");
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it("keeps a comment and a ref a backslash wrote beside a `:::` line as words", () => {
+    const item = imported(":::toggle\nabc\n:::\nfoo \\%%c%%\nbar \\^abc\n");
+    expect(item.blocks.map(({ block }) => block.ref)).toStrictEqual([undefined, undefined]);
+    const stored = JSON.stringify(item.blocks);
+    expect(stored).not.toContain('"type":"opaque"');
+    expect(stored).toContain("foo %%c%%\\nbar ^abc");
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
   it("reads none of them inside a link's words or a code span", () => {
     const item = imported("[==a== %%b%%](https://example.com) and `==c== %%d%%`\n");
     expect(item.annotations).toStrictEqual({});

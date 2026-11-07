@@ -79,6 +79,18 @@ export const textCutter = (node: Text): ((start: number, end: number) => Text) =
   };
 };
 
+// two neighbouring texts as one, each escape still on the character it wrote
+export const joinedText = (left: Text, right: Text): Text => {
+  const value = left.value + right.value;
+  const escapes = [
+    ...(left.data?.escapes ?? []),
+    ...(right.data?.escapes ?? []).map((at) => at + left.value.length),
+  ];
+  return escapes.length === 0
+    ? { type: "text", value }
+    : { data: { escapes }, type: "text", value };
+};
+
 // GFM takes the space after a todo's checkbox off the item's first text only as its paragraph
 // closes, so the escapes noted while that text was read each stand one too far along
 const alignTodoEscapes: Transform = (tree) => {
