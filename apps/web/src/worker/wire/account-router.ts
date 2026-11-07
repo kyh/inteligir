@@ -63,12 +63,14 @@ const accountRouter = os.router({
     list: os.assistants.list.use(signedIn).handler(async ({ context }) => ({
       assistants: await listAssistants(
         connectorAuth(context.env).helpers,
+        context.db,
         context.signedIn.accountId,
       ),
     })),
     revoke: os.assistants.revoke.use(signedIn).handler(async ({ context, errors, input }) => {
       const revoked = await revokeAssistant(
         connectorAuth(context.env).helpers,
+        context.db,
         context.signedIn.accountId,
         input.grantId,
       );

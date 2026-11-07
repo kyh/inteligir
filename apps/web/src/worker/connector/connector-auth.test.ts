@@ -7,7 +7,7 @@ import { RPCLink } from "@orpc/client/fetch";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import type { V1Client } from "@repo/contract/cloud/v1";
 import { env } from "cloudflare:workers";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { createDb } from "../db/client";
@@ -53,6 +53,17 @@ const initialize = async (headers: Record<string, string> = {}) =>
       "content-type": "application/json",
       ...headers,
     },
+    method: "POST",
+  });
+
+// a client renewing its access at the token endpoint
+const refresh = async (clientId: string, refreshToken: string): Promise<Response> =>
+  await workerFetch(`${ORIGIN}/oauth/token`, {
+    body: new URLSearchParams({
+      client_id: clientId,
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    }),
     method: "POST",
   });
 
@@ -286,6 +297,45 @@ describe("the account's assistants", () => {
     expect(answered.status).toBe(200);
     const left = await account.assistants.list();
     expect(left.assistants).toHaveLength(1);
+  });
+
+  it("ends an assistant's access though a renewal was writing its grant back as it was disconnected", async () => {
+    const { cookie } = await signUpUser("connector-race@example.test");
+    const device = await loginDevice(cookie, "Laptop");
+    const { account } = accountClient(device.credential);
+    const minted = await connectAssistant(cookie);
+    const { assistants } = await account.assistants.list();
+
+    // the renewal has read the grant and is about to write it back when the revoke runs; flags,
+    // since a promise resolved from one request's context would carry the other's on with it
+    let reachedWrite = false;
+    let revokeRan = false;
+    const put = env.OAUTH_KV.put.bind(env.OAUTH_KV);
+    const heldWrite = vi.spyOn(env.OAUTH_KV, "put").mockImplementation(async (key, ...rest) => {
+      if (key.startsWith("grant:")) {
+        reachedWrite = true;
+        await vi.waitUntil(() => revokeRan);
+      }
+      await put(key, ...rest);
+    });
+    const renewing = refresh(minted.clientId, minted.refresh_token);
+    await vi.waitUntil(() => reachedWrite);
+    await account.assistants.revoke({ grantId: assistants[0]?.grantId ?? "" });
+    revokeRan = true;
+    const renewal = await renewing;
+    heldWrite.mockRestore();
+    const renewed = z
+      .object({ access_token: z.string(), refresh_token: z.string() })
+      .parse(await renewal.json());
+
+    const challenged = await drained(
+      initialize({ authorization: `Bearer ${renewed.access_token}` }),
+    );
+    expect(challenged.status).toBe(401);
+    const refused = await refresh(minted.clientId, renewed.refresh_token);
+    await expect(refused.json()).resolves.toMatchObject({ error: "invalid_grant" });
+    const left = await account.assistants.list();
+    expect(left.assistants).toStrictEqual([]);
   });
 
   it("names no other account's grant", async () => {

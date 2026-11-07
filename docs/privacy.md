@@ -372,6 +372,9 @@ Specifically, in our cloud:
 - Device rows (including revoked ones) persist as the dashboard's audit trail
   until account deletion. A device's throttling counters are deleted when it is
   revoked.
+- A row for each assistant you disconnected (its grant's id, your account and
+  when) persists until account deletion, so an assistant renewing its access
+  at that moment stays out.
 - Throttling rows keyed on an address, not an account, cannot be found by
   account deletion. Better Auth deletes every row whose timestamp is over a
   minute old whenever one of its own limits opens a fresh window, so a row
@@ -434,7 +437,8 @@ us operate the Service or our business (such as hosting, information technology
 and email delivery). Specifically:
 
 - **Cloudflare** runs our cloud and our website. Its D1 database holds your
-  account, sessions, devices, the invite you redeemed and the throttling rows;
+  account, sessions, devices, the invite you redeemed, a row for each assistant
+  you disconnected and the throttling rows;
   its KV storage holds each assistant you connected: what it registered (its
   name and the addresses it gave), its grant, filed under your account with
   its name and what you let it do, and its tokens, kept only as hashes;
@@ -570,7 +574,8 @@ account row itself goes:
    D1, and **your email is dropped from the invite you redeemed** (the code
    stays burned). This is late on purpose: until then your device can still ask
    again if a step failed.
-   Then Better Auth deletes your sessions, your password hash and the account row.
+   Then Better Auth deletes your sessions, your password hash and the account row,
+   and the rows for assistants you disconnected go with it.
    All six steps run BEFORE that, so a step that fails aborts the deletion and
    leaves the account able to ask again; every step is idempotent, so asking again
    resumes. Each of your devices erases its copy the next time our cloud refuses it

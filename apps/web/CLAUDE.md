@@ -393,11 +393,15 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   since each is a KV record; `SITE_ORIGIN` names issuer and resource, never the
   request's Host, so one deployment's tokens open no other's. A grant is
   `library` or `library:read`, the person's choice, and the handler refuses a
-  token holding neither: the provider advertises scopes but enforces none.
-  Rejected: the MCP SDK's bearer middleware or an authorization server of our
-  own (a second verifier to audit); the Host header (the workers.dev name and
-  the domain would be two servers whose tokens refuse each other).
-  `apps/web/src/worker/connector/connector-auth.ts`,
+  token holding neither: the provider advertises scopes but enforces none. A
+  grant the person disconnected is a row in D1, written before the KV delete and
+  read by the token exchange, every call and the account's list, since a refresh
+  that read the grant before the delete writes it back after. Rejected: the MCP
+  SDK's bearer middleware or an authorization server of our own (a second
+  verifier to audit); the Host header (the workers.dev name and the domain would
+  be two servers whose tokens refuse each other); the KV delete alone (KV has no
+  compare-and-swap, and the provider's token check never reads the grant).
+  `apps/web/src/worker/connector/connector-auth.ts`, `revoked-grants.ts`,
   `apps/web/cloudflare.config.ts`.
 
 - **THE CONSENT PAGE IS THE WORKER'S, AT `/connect/authorize`, OVER THE SITE'S
