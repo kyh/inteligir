@@ -6,11 +6,10 @@ the built-in agent against it, through the SDK's `baseURL` or as its `fetch`,
 so every conversation's object runs the one code path it runs deployed
 (`apps/web/src/worker/agent/anthropic-client.ts`).
 
-It answers `POST /v1/messages` and AI Gateway's provider-native path to it
-(`/v1/<account>/<gateway>/anthropic/v1/messages`), only a streamed request that
-carries the gateway's `cf-aig-authorization` header, and streams the
-documented events: thinking, text, tool calls and compaction with their
-deltas, every usage field with the 5-minute and 1-hour cache writes apart,
+It answers `POST /v1/messages`, only a streamed request that carries the
+gateway's `cf-aig-authorization` header, and streams the documented events:
+thinking, text, tool calls and compaction with their deltas, every usage field
+with the 5-minute and 1-hour cache writes apart,
 `usage.iterations` on every reply when the compaction beta is sent, and
 `input_transformations` when the thinking-binding beta is sent. Usage is
 deterministic: a quarter of a block's characters, rounded up, everything

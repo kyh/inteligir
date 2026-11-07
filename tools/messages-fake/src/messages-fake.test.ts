@@ -608,7 +608,9 @@ describe("the scripted Messages API", () => {
     await expect(stats.json()).resolves.toStrictEqual({ drops: 0, held: 0, requests: 1 });
     const unserved = await fake.fetch(new Request("http://fake.test/v1/models"));
     expect(unserved.status).toBe(404);
-    const gateway = await send(fake, bodyOf([person("Hello.")]));
-    expect(gateway.type).toBe("message");
+    const gateway = await fake.fetch(
+      new Request("http://fake.test/v1/account/gateway/anthropic/v1/messages", { method: "POST" }),
+    );
+    expect(gateway.status).toBe(404);
   });
 });
