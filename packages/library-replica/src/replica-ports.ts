@@ -37,9 +37,8 @@ export interface ReplicaTransport {
 // the account's socket, as every platform's WebSocket is
 export interface ReplicaSocket {
   readonly addEventListener: {
-    (type: "open" | "error", listener: () => void): void;
+    (type: "open" | "close", listener: () => void): void;
     (type: "message", listener: (event: { readonly data?: unknown }) => void): void;
-    (type: "close", listener: (event: { readonly code?: number | undefined }) => void): void;
   };
   readonly send: (data: string) => void;
   readonly close: () => void;
