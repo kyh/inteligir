@@ -290,6 +290,21 @@ describe("a share whose address moved", () => {
     expect(noteOf(cell, id)).toStrictEqual(["Worth keeping"]);
   });
 
+  it("joins the page the library holds at the end, leaving the item there to the cloud's fold", async () => {
+    const held = await phone();
+    const { cell, device, newBlockId } = held;
+    const page = await heldRead(held);
+    const stub = await heldUnread(held, SHORT);
+    const saved = await saveShared(
+      { newBlockId, ports: portsOf(redirecting(SHORT, URL)), replica: device.replica },
+      { ...LINK, note: "Worth keeping", url: SHORT },
+    );
+    await device.replica.sync();
+    expect(saved).toMatchObject({ kind: "saved", made: { folded: true, id: page } });
+    expect(noteOf(cell, page)).toStrictEqual(["Worth keeping"]);
+    expect(cell.item(stub)?.fields.fetchState).toBe("pending");
+  });
+
   it.each([
     ["waiting to be read again", stateOf("pending", "filled")],
     ["whose reading again failed", stateOf("failed", "filled")],

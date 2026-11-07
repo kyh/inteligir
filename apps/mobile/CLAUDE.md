@@ -164,19 +164,19 @@ how it ships.
   as a link, which adds the note and leaves its article, unless the cloud has
   yet to read it or could not and it holds no article, when it takes the
   phone's read (`fetchState` alone cannot say, since Read the page again leaves
-  the article on an item that waits). With no item there the save keeps the
-  shared address unless the end is surely the page: the replica holds that
-  address, so the save joins that item as the fill's fold does, or a link
-  turned out a video or a song. An end past what an item's address holds stays
-  shared, as the fill's does. A moved save that stays at the shared address
-  takes the sheet's title before the read's, since a wall names itself; any
-  other takes the read's first. Residual: a holder the replica has yet to pull
-  goes unseen, so one at the end leaves a second item and one at the shared
-  address takes the read over its article; a waiting item at the shared address
-  that takes the read stays beside a holder of the end, until Read the page
-  again folds it, and keeps kind link, since only the fill sets a kind on an
-  item that exists. Rejected: the final address on every save (a page that
-  redirects to its sign-in would be saved at the sign-in's address); handing
+  the article on an item that waits). Otherwise the save keeps the shared
+  address unless the end is surely the page: the replica holds that address, so
+  the save joins that item as the fill's fold does, and an item left waiting at
+  the shared address folds onto it too, or a link no item holds turned out a
+  video or a song. An end past what an item's address holds stays shared, as the
+  fill's does. A moved save that stays at the shared address takes the sheet's
+  title before the read's, since a wall names itself; any other takes the
+  read's first. Residual: a holder the replica has yet to pull goes unseen, so
+  one at the end leaves a second item, until Read the page again folds it, and
+  one at the shared address takes the read over its article; a waiting item that
+  takes the read of a video or a song keeps kind link, since only the fill sets
+  a kind on an item that exists. Rejected: the final address on every save (a
+  page that redirects to its sign-in would be saved at the sign-in's address); handing
   every moved address to the fill (app share links are short links, and a site
   that blocks data centres would end unread though the phone had read it).
   Words shared beside the link are the item's note on every path, since every

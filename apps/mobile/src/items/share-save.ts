@@ -77,24 +77,28 @@ const takesARead = async (replica: LibraryReplica, itemId: string): Promise<bool
 
 // where a page read after a move is saved; null when it is not, the item at the shared address
 // taking the share as its link. A move can end anywhere, a sign-in wall included, so that item
-// comes first and keeps its article, and with none there the item keeps the shared address unless
-// the end is surely the page: the library holds it, so the save joins that item as the fill's fold
-// does, or a link turned out a video or a song, as the fill's kind does. An end past what an item's
-// address holds stays shared, as the fill's does
+// comes first and keeps its article, and the save keeps the shared address unless the end is surely
+// the page: the library holds it, so the save joins that item as the fill's fold does, and the
+// item left waiting folds onto it too, or a link no item holds turned out a video or a song, as the
+// fill's kind does. An end past what an item's address holds stays shared, as the fill's does
 const movedAddress = async (
   replica: LibraryReplica,
   shared: string,
   landed: string,
 ): Promise<string | null> => {
   const holder = await replica.holderOf(shared);
-  if (holder !== null) {
-    return (await takesARead(replica, holder)) ? shared : null;
+  if (holder !== null && !(await takesARead(replica, holder))) {
+    return null;
   }
   if (landed.length > ITEM_FIELD_CAPS.url) {
     return shared;
   }
-  const namesItsKind = kindForUrl(shared) === "link" && kindForUrl(landed) !== "link";
-  return namesItsKind || (await replica.holderOf(landed)) !== null ? landed : shared;
+  if ((await replica.holderOf(landed)) !== null) {
+    return landed;
+  }
+  const namesItsKind =
+    holder === null && kindForUrl(shared) === "link" && kindForUrl(landed) !== "link";
+  return namesItsKind ? landed : shared;
 };
 
 // the page this phone read of a share; null leaves the share its link: a page that did not answer,
