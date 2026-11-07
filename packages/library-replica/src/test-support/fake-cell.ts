@@ -336,7 +336,7 @@ export const createFakeCell = (): FakeCell => {
   };
 
   // a write refused for leaving its item live at an address another live item holds
-  const addressHeld = (itemId: string, fields: LibraryItemFields): void => {
+  const refuseHeldAddress = (itemId: string, fields: LibraryItemFields): void => {
     const holder = fields.url === null || fields.deletedAt !== null ? null : holderOf(fields.url);
     const item = holder === null || holder === itemId ? undefined : items.get(holder);
     if (holder !== null && item !== undefined) {
@@ -374,7 +374,7 @@ export const createFakeCell = (): FakeCell => {
     if (outcome.kind !== "applied") {
       throw new Error("a write met a conflict it did not answer");
     }
-    addressHeld(input.itemId, outcome.state.fields);
+    refuseHeldAddress(input.itemId, outcome.state.fields);
     const { touched } = outcome;
     // every op already true, a resend's after its answer was let go: the item as it stands
     if (
