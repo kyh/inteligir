@@ -3,8 +3,8 @@
 // highlights' store under `.inteligir/annotations/`, and every file it holds once under `assets/`
 // (a saved link's cover under `assets/covers/`, where an import looks for it). A file is written
 // under the name it was saved under, so a `.canvas` stays one, in a folder of its bytes where that
-// name alone would read as a note or be passed over; only bytes no name came with take an extension
-// from their media type. A link is written by the shortest target that resolves back to its item
+// name alone would read as a note or be passed over; only bytes no name came with, or none an
+// import reads anywhere, take an extension from their media type. A link is written by the shortest target that resolves back to its item
 // among the exported files (`wikiTargetForPath`), so the folder reads back into the same library.
 //
 // The plan is made a step at a time over a store its writer keeps (`ExportStore`), so a writer
@@ -23,7 +23,7 @@ import {
 } from "@repo/notes/items/item-kind";
 import { itemNameFromTitle } from "@repo/notes/items/item-name";
 import { DEFAULT_ATTACHMENTS_FOLDER, freeAssetPathWhere } from "@repo/notes/knowledge/asset-name";
-import { docStem, freePath, freePathFrom } from "@repo/notes/knowledge/doc-file";
+import { docStem, freePath, freePathFrom, isOsLitterPath } from "@repo/notes/knowledge/doc-file";
 import { mdLinkUrl } from "@repo/notes/knowledge/link-extract";
 import { buildResolver, wikiTargetForPath } from "@repo/notes/knowledge/link-resolve";
 import { basenamePath, joinPath, pathCollisionKey } from "@repo/notes/knowledge/folder-path";
@@ -164,6 +164,11 @@ const contentAddressed = (dir: string, sha: string, extension: string): string =
 const readable = (sha: string, path: string): string =>
   importPathKind(path) === "file" ? path : bytesFolderPath(sha, basenamePath(path));
 
+// an import passes over an operating system's names wherever they stand, a folder of a file's
+// bytes among those places, so a file saved under one is written as one no name came with
+const keptName = (name: string | null): string | null =>
+  name === null || isOsLitterPath(name) ? null : name;
+
 // every file an item holds, given one place per sha and role, in the places an import reads
 const filePlaces = (ports: ExportDocPorts, title: string) => {
   const { mediaType, store } = ports;
@@ -184,8 +189,9 @@ const filePlaces = (ports: ExportDocPorts, title: string) => {
   const byName = (sha: string, name: string): string =>
     assign(`named:${sha}:${name}`, sha, () => named(sha, name));
   return {
-    body: (file: WrittenFile): string =>
-      file.name === null
+    body: (file: WrittenFile): string => {
+      const name = keptName(file.name);
+      return name === null
         ? assign(`body:${file.sha}`, file.sha, () =>
             readable(
               file.sha,
@@ -196,7 +202,8 @@ const filePlaces = (ports: ExportDocPorts, title: string) => {
               ),
             ),
           )
-        : byName(file.sha, file.name),
+        : byName(file.sha, name);
+    },
     held: (file: HeldFile): string => {
       const { sha } = file;
       switch (file.role) {
@@ -206,7 +213,8 @@ const filePlaces = (ports: ExportDocPorts, title: string) => {
           );
         }
         case "original": {
-          return file.name === null
+          const name = keptName(file.name);
+          return name === null
             ? assign(`original:${sha}`, sha, () =>
                 readable(
                   sha,
@@ -217,7 +225,7 @@ const filePlaces = (ports: ExportDocPorts, title: string) => {
                   ),
                 ),
               )
-            : byName(sha, file.name);
+            : byName(sha, name);
         }
         // no default
       }

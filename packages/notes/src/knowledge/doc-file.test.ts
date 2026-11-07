@@ -4,6 +4,7 @@ import {
   docStem,
   isDocPath,
   isDotEntryPath,
+  isOsLitterPath,
   wikiLinkName,
   wikiLinkPath,
 } from "./doc-file";
@@ -42,6 +43,34 @@ describe("what a listing hides", () => {
       "notes/meeting.annotations.json",
     ]) {
       expect(isDotEntryPath(path)).toBe(false);
+    }
+  });
+});
+
+describe("what an operating system leaves behind", () => {
+  it("knows its litter at any depth, however its name is cased", () => {
+    for (const path of [
+      ".DS_Store",
+      "assets/0123456789abcdef/.DS_Store",
+      "assets/0123456789abcdef/._spec.pdf",
+      "__MACOSX/notes/spec.pdf",
+      "notes/Thumbs.db",
+      "notes/thumbs.db",
+      "notes/desktop.ini",
+    ]) {
+      expect(isOsLitterPath(path)).toBe(true);
+    }
+  });
+
+  it("leaves a person's own names alone", () => {
+    for (const path of [
+      ".env",
+      "assets/.hidden.pdf",
+      "Thumbs.db.md",
+      "desktop.md",
+      "macosx/a.md",
+    ]) {
+      expect(isOsLitterPath(path)).toBe(false);
     }
   });
 });

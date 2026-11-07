@@ -146,7 +146,7 @@ export const contentAddressedName = (sha256Hex: string, extension: string): stri
 
 // a file an export cannot write under its own name in `assets/`, because another file holds that
 // name or an import would read that path as a note or pass it over: a folder of its bytes, which
-// an import reads as the file it is, whatever its name says
+// an import reads as the file it is, whatever its name says, an operating system's litter aside
 export const bytesFolderPath = (sha256Hex: string, name: string): string =>
   `${DEFAULT_ATTACHMENTS_FOLDER}/${sha256Hex.slice(0, CONTENT_ADDRESS_HEX_CHARS)}/${name}`;
 

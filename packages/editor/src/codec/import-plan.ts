@@ -4,9 +4,9 @@
 // store. Pass two reads one doc at a time against the whole plan, resolving its links
 // by the resolver's tiers (path, name, alias, then the `[[Title|uuid]]` id,
 // `@repo/notes/knowledge/link-resolve`). Last, every file no item names becomes an item of its
-// own, so a bare file is a card of its own. Obsidian's settings (`.obsidian/`) and
-// every other dot-folder are skipped, and a `.canvas` or a `.base` is always an item, never an
-// attachment. An `AGENTS.md` is a note like any other, unless its writer finds it says what the
+// own, so a bare file is a card of its own. Obsidian's settings (`.obsidian/`), every other
+// dot-folder and what an operating system left are skipped, and a `.canvas` or a `.base` is always
+// an item, never an attachment. An `AGENTS.md` is a note like any other, unless its writer finds it says what the
 // library's rules say: filing rules reach the agent as the person's own instructions, so only the
 // person writes them, and a zip is anyone's text.
 
@@ -14,7 +14,7 @@ import { annotationsStoreItemId } from "@repo/notes/annotations/store-schema";
 import { COVERS_DIR, fileKindOf, isBytesFolderPath } from "@repo/notes/items/item-kind";
 import type { FileKind } from "@repo/notes/items/item-kind";
 import { urlKey } from "@repo/notes/items/item-url";
-import { docStem, isDocPath, isDotEntryPath } from "@repo/notes/knowledge/doc-file";
+import { docStem, isDocPath, isDotEntryPath, isOsLitterPath } from "@repo/notes/knowledge/doc-file";
 import { mdLinkTarget } from "@repo/notes/knowledge/link-extract";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import type { TargetResolver } from "@repo/notes/knowledge/link-resolve";
@@ -43,6 +43,9 @@ export const importPathKind = (raw: string): ImportPathKind => {
   const path = normalizePath(raw);
   if (annotationsStoreItemId(path) !== null) {
     return "store";
+  }
+  if (isOsLitterPath(path)) {
+    return "skipped";
   }
   if (isBytesFolderPath(path)) {
     return "file";
@@ -299,6 +302,11 @@ const fileItemFields = (file: PlannedFile, now: number): ImportedFields => {
   };
 };
 
+// the folder a file's item stands in: a folder of a file's bytes is named for no person to read,
+// so its file stands in the folder above
+const fileItemFolder = (path: string): string =>
+  dirnamePath(isBytesFolderPath(path) ? dirnamePath(path) : path);
+
 // pass three: every file no item names, and every `.canvas` and `.base` no item holds as its
 // original, an item of its own in its folder; a cover no item holds is no card, since it is part
 // of an item
@@ -315,7 +323,7 @@ export const planFileItems = (
       ITEM_ONLY_EXTENSIONS.has(extnamePath(file.path).toLowerCase()));
   return plan.files.filter(ownItem).map((file) => ({
     fields: fileItemFields(file, now),
-    folderPath: dirnamePath(file.path),
+    folderPath: fileItemFolder(file.path),
     itemId: ids.newItemId(),
   }));
 };

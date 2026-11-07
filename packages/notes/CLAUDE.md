@@ -161,7 +161,11 @@ root.
   is `fileKindOf` (`@repo/notes/items/item-kind`), and what a doc is as an item
   is its `kind`: one answer each, for every reader. A kept file whose own name
   would read as a doc or a dot-entry stands in `assets/<16 hex>/`, its bytes'
-  folder (`bytesFolderPath`), which an import reads as a file by that shape.
+  folder (`bytesFolderPath`), which an import reads as a file by that shape,
+  and an unclaimed one lands in the folder above it. What an operating system
+  leaves (`isOsLitterPath`) is passed over first, there too, since unpacking
+  and zipping an export again puts it in those folders; a file a person saved
+  under such a name is written under a name of its bytes instead.
 
 - **THE DIALECT'S GRAMMAR IS THE EDITOR'S OWN, AND IT IS TOTAL.** Every reader
   of markdown, the codec, an import and the editor alike, parses through one

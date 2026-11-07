@@ -185,7 +185,11 @@ const readFolder = (
     }
   }
   for (const [path, sha] of binaries) {
-    entries.push({ kind: "file", path, sha });
+    if (importPathKind(path) === "file") {
+      entries.push({ kind: "file", path, sha });
+    } else {
+      skipped.push(path);
+    }
   }
   const plan = planImport(entries, ids);
   const reader = openPlan(plan);
@@ -531,6 +535,34 @@ describe("export, then import, gives the library back", () => {
       expect(items.map((item) => item.fields)).toMatchObject([
         { kind: "pdf", originalName: name, originalSha: sha },
       ]);
+    },
+  );
+
+  it("keeps a file a person saved under a name an operating system leaves behind", () => {
+    const sha = shaOf("Thumbs.db");
+    const saved = readFolder({}, new Map([["kept.bin", sha]]));
+    const files = exportOf({
+      ...saved,
+      items: saved.items.map((item) => ({
+        ...item,
+        fields: { ...item.fields, originalName: "Thumbs.db" },
+      })),
+    });
+    const texts = Object.fromEntries(
+      files.flatMap((file) => (file.kind === "text" ? [[file.path, file.text]] : [])),
+    );
+    const bytes = new Map(
+      files.flatMap((file) => (file.kind === "bytes" ? [[file.path, file.sha] as const] : [])),
+    );
+    expect(readFolder(texts, bytes).items.map((item) => item.fields)).toMatchObject([
+      { kind: "file", originalSha: sha },
+    ]);
+  });
+
+  it.each([".env", ".gitignore", "notes.md", "Thumbs.db.bak"])(
+    "reads %s as a file in a bytes folder",
+    (name) => {
+      expect(importPathKind(`assets/0123456789abcdef/${name}`)).toBe("file");
     },
   );
 
