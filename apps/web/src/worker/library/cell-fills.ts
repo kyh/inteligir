@@ -6,7 +6,7 @@
 // The consumer reads the page and hands it back (`../fill/fill-consumer`), and it lands here as a
 // change set of its own: only the article and the facts a fill owns, so the person's note and
 // fields are never touched, and only on an item still waiting for that reading at that address,
-// so a message met twice lands once. One url, one item (R22): a page whose redirects end at an
+// so a message met twice lands once. One url, one item: a page whose redirects end at an
 // address another live item holds folds onto that item, unless the stub keeps highlights of its
 // own, which its own text must hold.
 

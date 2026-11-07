@@ -1,4 +1,4 @@
-// Saving a web address: one url, one item (rule R22). A save of an address a live item holds
+// Saving a web address: one url, one item. A save of an address a live item holds
 // folds onto that item, adding what it brings, and only an address no live item holds makes one.
 // A page a device read itself (the extension, the share sheet) lands read, its article replacing
 // the item's and the item's highlights placed again in it by their quotes, since the markers the

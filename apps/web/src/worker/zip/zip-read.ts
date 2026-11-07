@@ -29,7 +29,7 @@ export interface ZipEntry {
   readonly headerOffset: number;
 }
 
-export type ZipFault = "not-a-zip" | "corrupt" | "encrypted" | "method" | "too-large";
+type ZipFault = "not-a-zip" | "corrupt" | "encrypted" | "method" | "too-large";
 
 export class ZipError extends Error {
   readonly fault: ZipFault;
@@ -172,7 +172,7 @@ const zip64Sizes = (extra: DataView, sizes: Sizes): Sizes => {
   return sizes;
 };
 
-// every file the zip's directory names, folders left out; null names an entry it refuses to read
+// every file the zip's directory names, a folder or a name that climbs out of the zip left out
 export const readZipEntries = async (source: ByteSource): Promise<ZipEntry[]> => {
   const directory = await directoryOf(source);
   if (directory.size > DIRECTORY_MAX_BYTES || directory.count > ENTRIES_MAX) {
