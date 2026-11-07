@@ -5,7 +5,7 @@
 // itself, publishes its RFC 9728 metadata, challenges a call with no valid token and admits only
 // tokens minted for its own address. Both are named from one per-deployment origin, never the
 // request's Host, so a Preview's tokens are its own; KV holds the clients, grants and tokens, and
-// nothing else. The consent page is this Worker's (`./consent-route`).
+// each consent request for its ten minutes. The consent page is this Worker's (`./consent-route`).
 
 import { CONNECTOR_PATH } from "@repo/contract/cloud/connector";
 import {
@@ -33,8 +33,8 @@ export const CONSENT_PATH = "/connect/authorize";
 const TOKEN_PATH = "/oauth/token";
 const REGISTRATION_PATH = "/oauth/register";
 
-// the scope any access needs, which a client asks for first; the consent page grants it, or
-// `library` with it, as the person chooses
+// the scope a client is told to ask for first; the consent page grants it, or `library` in its
+// place, as the person chooses
 export const READ_SCOPE = "library:read";
 
 const DAY_SECONDS = 24 * 60 * 60;
@@ -148,7 +148,6 @@ const validatedToken = async (
 
 export interface ConnectorAuth {
   readonly origin: string;
-  readonly resource: string;
   readonly authorizationServer: OAuthAuthorizationServer<Env>;
   readonly helpers: OAuthHelpers;
   // the connector behind its token check, answering with `handler` once a token validates
@@ -167,7 +166,6 @@ export const connectorAuth = (env: Env): ConnectorAuth => {
     authorizationServer,
     helpers: authorizationServer.getOAuthApi(env),
     origin,
-    resource,
     resourceServer: (handler) =>
       new OAuthResourceServer<Env, TokenProps>({
         handler,

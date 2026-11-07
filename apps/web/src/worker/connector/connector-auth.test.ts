@@ -274,7 +274,7 @@ describe("the connector's sign-in", () => {
     expect(minted.scope).toBe("library:read");
   });
 
-  it("steps up a token that holds neither library scope, naming the one any access needs", async () => {
+  it("steps up a token that holds neither library scope, naming the one a client asks for first", async () => {
     // a grant the consent page never makes, completed through the provider's own helpers
     const { cookie } = await signUpUser("connector-step-up@example.test");
     const userId = await userIdOf(cookie);

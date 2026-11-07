@@ -415,7 +415,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   field a client sent, says where access is sent and warns of a loopback
   address, and asks to "read and change your library". Rejected: a Start route
   (the provider's helpers take the raw request, and the page would carry the
-  site's bundle); remembering an approval (every connect asks).
+  site's bundle); remembering an approval (every connect asks); `form-action`
+  (browsers disagree on whether it holds the 302 to the assistant's origin).
   `apps/web/src/worker/connector/consent-route.ts`, `consent-page.ts`,
   `apps/web/src/routes/app/sign-in.tsx`, `sign-up.tsx`.
 

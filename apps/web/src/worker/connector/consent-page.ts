@@ -31,7 +31,9 @@ button { font: inherit; border-radius: 0.5rem; padding: 0.5rem 1rem; cursor: poi
 button.secondary { background: transparent; color: var(--fg); border-color: var(--line); }
 `;
 
-// no script, no frame, nothing from elsewhere; a form posts back here alone
+// no script, no frame, nothing from elsewhere. `default-src` does not cover a form's target, which
+// the action-less form keeps here; `form-action` stays out because browsers disagree on whether it
+// also holds the redirect after a post, and both answers leave by a 302 to the assistant's origin
 export const CONSENT_PAGE_POLICY =
   "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'";
 
