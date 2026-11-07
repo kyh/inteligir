@@ -93,13 +93,15 @@ describe(besideChild, () => {
   });
 });
 
-describe("the look past a link", () => {
-  const nested = (depth: number): string =>
-    Array.from({ length: depth }).reduce<string>(
-      (inner) => `<b>w [https://x.y/a](https://x.y/a) ${inner}</b>`,
-      "`c`",
-    );
+const nested = (depth: number): string => {
+  let tags = "`c`";
+  for (let level = 0; level < depth; level += 1) {
+    tags = `<b>w [https://x.y/a](https://x.y/a) ${tags}</b>`;
+  }
+  return tags;
+};
 
+describe("the look past a link", () => {
   it("writes what a tag holds a few times a level, however deep the tags go", () => {
     const depth = 10;
     let writes = 0;
