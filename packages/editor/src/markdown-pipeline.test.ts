@@ -47,6 +47,18 @@ describe("a block a list item opens with", () => {
     expect(listPropsOf(md)).toStrictEqual([[type]]);
   });
 
+  it("lands a web image a read page lists as the embed it is", () => {
+    const ids = ["b1", "b2"].values();
+    const page = articleBlocks(
+      "-   ![](https://a.b/c.png)\n-   words\n",
+      () => ids.next().value ?? "",
+    );
+    expect(page?.blocks.map(({ block }) => block)).toMatchObject([
+      { type: "media_embed", url: "https://a.b/c.png" },
+      { listStyleType: "disc", type: "p" },
+    ]);
+  });
+
   it("gives a to-do's box its own line above what the item held", () => {
     expect(listPropsOf("- [x] ![](https://a.b/c.png)\n")).toStrictEqual([
       ["p", "checked", "indent", "listStyleType"],
