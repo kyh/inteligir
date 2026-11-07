@@ -91,7 +91,7 @@ const connectorPrincipalOf = (authInfo: AuthInfo | undefined): ConnectorPrincipa
 export const authInfoOf = (principal: ConnectorPrincipal): AuthInfo => ({
   clientId: principal.actor.clientId,
   extra: { principal },
-  scopes: [...principal.scopes],
+  scopes: [...principal.actor.scopes],
   token: "",
 });
 

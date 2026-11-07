@@ -44,7 +44,6 @@ const files = async (prefix: string): Promise<number> => {
 const principal = (accountId: string): NamedPrincipal => ({
   accountId,
   actor: { deviceId: "laptop-1", deviceName: "Laptop", kind: "device" },
-  scopes: ["library"],
 });
 
 const itemCount = (state: DurableObjectState): number =>
@@ -108,8 +107,13 @@ describe("the library cell", () => {
     const stub = cellOf(accountId);
     const assistant: NamedPrincipal = {
       accountId,
-      actor: { clientId: "client-1", clientName: "Claude", grantId: "grant-1", kind: "assistant" },
-      scopes: ["library"],
+      actor: {
+        clientId: "client-1",
+        clientName: "Claude",
+        grantId: "grant-1",
+        kind: "assistant",
+        scopes: ["library"],
+      },
     };
     const status = async (path: string, as: NamedPrincipal): Promise<number> => {
       const answer = await stub.fetch(`https://cell.test${path}`, {

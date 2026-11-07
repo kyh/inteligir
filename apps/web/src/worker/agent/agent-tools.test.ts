@@ -179,12 +179,17 @@ describe("the built-in agent's principal", () => {
     const claimed = {
       accountId: "account-1",
       actor: { kind: "agent", threadId: "thread-1", turn: 1 },
-      scopes: ["library"],
     };
     expect(principalFromHeader(encodeURIComponent(JSON.stringify(claimed)))).toBeNull();
     const assistant = {
       ...claimed,
-      actor: { clientId: "client-1", clientName: "Claude", grantId: "grant-1", kind: "assistant" },
+      actor: {
+        clientId: "client-1",
+        clientName: "Claude",
+        grantId: "grant-1",
+        kind: "assistant",
+        scopes: ["library"],
+      },
     };
     expect(principalFromHeader(encodeURIComponent(JSON.stringify(assistant)))).toStrictEqual(
       assistant,

@@ -18,7 +18,6 @@ const ORIGIN = "https://cell.test";
 const PRINCIPAL: NamedPrincipal = {
   accountId: "account",
   actor: { deviceId: "laptop-1", deviceName: "Laptop", kind: "device" },
-  scopes: ["library"],
 };
 
 // the library's rows over the cell's handler, with a cap on what the library may hold

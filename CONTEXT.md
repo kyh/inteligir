@@ -26,8 +26,9 @@ accounts. Not a **replica**, which a device reads while it writes through the
 cell.
 
 **principal** — who a library call is by, as the Worker verified it: the
-account, the scopes its credential holds, and the actor whose **change set**
-its writes join (a device, or the site's own tab on its session). The Worker
+account and the actor whose **change set** its writes join (a device, the
+site's own tab on its session, or a **connected assistant** under one grant,
+the only actor with scopes). The Worker
 stamps it on the call it forwards to the **library cell** and drops any copy the
 request brought (`apps/web/src/worker/library/library-principal.ts`). Not a
 credential: the cell never sees one.

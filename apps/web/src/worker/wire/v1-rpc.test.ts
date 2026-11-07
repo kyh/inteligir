@@ -109,7 +109,6 @@ describe("the one wire's door", () => {
     const claim = principalHeaderValue({
       accountId: theirs.accountId,
       actor: { deviceId: "stolen", deviceName: "Stolen", kind: "device" },
-      scopes: ["library"],
     });
     const stamped = v1Link({ ...deviceHeaders(mine.credential), [PRINCIPAL_HEADER]: claim });
     const { item } = await stamped.library.items.createNote({ markdown: "Whose is this?" });

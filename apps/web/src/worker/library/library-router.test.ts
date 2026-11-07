@@ -35,7 +35,6 @@ const GiB = 1024 * 1024 * 1024;
 const laptop = (accountId: string): NamedPrincipal => ({
   accountId,
   actor: { deviceId: "laptop-1", deviceName: "Laptop", kind: "device" },
-  scopes: ["library"],
 });
 
 const newId = (): string => uuidV7(Date.now(), crypto.getRandomValues(new Uint8Array(16)));

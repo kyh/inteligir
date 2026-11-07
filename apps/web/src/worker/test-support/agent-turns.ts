@@ -50,7 +50,6 @@ const laptopClient = (
   const actor = cellActorOf({
     accountId: agent.accountId,
     actor: { deviceId: "laptop-1", deviceName: "Laptop", kind: "device" },
-    scopes: ["library"],
   });
   return createRouterClient(libraryRouter, {
     context: { actor: () => actor, agent, library, settle: agent.settle },

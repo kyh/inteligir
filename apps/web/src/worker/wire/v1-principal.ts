@@ -26,7 +26,6 @@ const verifyPrincipal = async (
       : {
           accountId: verified.userId,
           actor: { deviceId: verified.deviceId, deviceName: verified.deviceName, kind: "device" },
-          scopes: ["library"],
         };
   }
   if (!fromOwnPage(request)) {
@@ -40,7 +39,6 @@ const verifyPrincipal = async (
     : {
         accountId: signedIn.user.id,
         actor: { kind: "session", sessionId: signedIn.session.id },
-        scopes: ["library"],
       };
 };
 

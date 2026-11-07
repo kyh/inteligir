@@ -53,8 +53,8 @@ const forwardToCell: OAuthResourceHandler<Env, TokenProps> = {
         clientName: props.clientName,
         grantId: props.grantId,
         kind: "assistant",
+        scopes,
       },
-      scopes,
     };
     return await forwardAsPrincipal(ctx.exports, request, principal);
   },
