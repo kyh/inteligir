@@ -106,7 +106,8 @@ alone, and no walk narrows structurally.
 
 - **THE DIALECT HAS NO JSX**: its blocks are one `:::` line grammar that nests
   in any flow container, a `:::` closing the innermost, and every tag is html,
-  the editor's own only where it is a bare `<u>`
+  the editor's own only where it is a bare `<u>` or a `<br/>` in a table cell
+  (A `<br/>` IN A TABLE CELL IS THE BOUNDARY BETWEEN ITS BLOCKS)
   (`@repo/notes/markdown/remark-containers`). Rejected: jsx tags for the toggle,
   columns, dates and embeds (an MDX tokenizer in the grammar, a jsx writer in
   the serializer, and tags other markdown tools draw as raw html), and a date as
