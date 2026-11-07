@@ -47,7 +47,13 @@ import {
   PAGE_MS,
 } from "./cell-import-host";
 import type { ImportHost, StepOutcome } from "./cell-import-host";
-import { advanceImport, dropImportRows, importRows, putImportRows } from "./cell-import-jobs";
+import {
+  advanceImport,
+  dropImportRows,
+  fitsImportRow,
+  importRows,
+  putImportRows,
+} from "./cell-import-jobs";
 import type { ImportJob } from "./cell-import-jobs";
 import { landNew, setDeleted, storeAdds } from "./cell-items";
 import { ITEM_TEXT_MAX_BYTES, urlHolder } from "./cell-landing";
@@ -210,6 +216,9 @@ const keepEntryFile = async (
     : { kind: "unreadable" };
 };
 
+const rowOf = (value: Entry): EntryRead =>
+  fitsImportRow(value) ? { kind: "row", value } : { kind: "unreadable" };
+
 const readEntry = async (
   host: ImportHost,
   source: ByteSource,
@@ -223,14 +232,15 @@ const readEntry = async (
     case "doc": {
       const text = await textOf(source, entry, ITEM_TEXT_MAX_BYTES);
       const front = text.slice(0, frontmatterEnd(text) ?? 0);
-      return { kind: "row", value: { kind, path: entry.path, text: front, zip: entry } };
+      return rowOf({ kind, path: entry.path, text: front, zip: entry });
     }
     case "rules":
     case "store": {
-      return {
-        kind: "row",
-        value: { kind, path: entry.path, text: await textOf(source, entry, ITEM_TEXT_MAX_BYTES) },
-      };
+      return rowOf({
+        kind,
+        path: entry.path,
+        text: await textOf(source, entry, ITEM_TEXT_MAX_BYTES),
+      });
     }
     case "file": {
       return await keepEntryFile(host, source, entry);

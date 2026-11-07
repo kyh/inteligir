@@ -50,6 +50,8 @@ const noteOf = (title: string, bytes: number): Uint8Array =>
   encoder.encode(`# ${title}\n\n${"A line of plain words in a long note.\n\n".repeat(bytes / 40)}`);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+// past a Durable Object's 2 MB row, under what an item's text holds
+const PAST_A_ROW = 3 * 1024 * 1024;
 
 const blocksIn = (accountId: string) =>
   inCell(cellOf(accountId), (state) =>
@@ -147,6 +149,28 @@ describe("a Raindrop import", () => {
         .one(),
     );
     expect(count).toStrictEqual({ keys: 230, n: 230 });
+  });
+
+  it("leaves out a row past what a plan row holds, and lands the rest", async () => {
+    const accountId = newAccountId();
+    const started = await startImport(
+      accountId,
+      csv(
+        [
+          "id,title,note,excerpt,url,folder,tags,created,cover,highlights,favorite",
+          `1,Long,${"n".repeat(PAST_A_ROW)},,https://example.com/long,,,,,,`,
+          "2,Short,,,https://example.com/short,,,,,,",
+        ].join("\n"),
+      ),
+      "raindrop",
+      true,
+    );
+    await runAlarmsUntil(cellOf(accountId), ended(accountId, started.jobId));
+    await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
+      added: 1,
+      state: "done",
+      unreadable: 1,
+    });
   });
 
   it("stops on a file that is no Raindrop export, saying how", async () => {
@@ -314,6 +338,19 @@ describe("what a zip's note left out", () => {
       unreadable: 2,
     });
     await expect(blocksIn(accountId)).resolves.toContain("A whole note.");
+  });
+
+  it.each([
+    ["filing rules", "AGENTS.md", "x".repeat(PAST_A_ROW)],
+    ["highlights' store", `.inteligir/annotations/${ID}.json`, `"${"x".repeat(PAST_A_ROW)}"`],
+    ["frontmatter", "Long.md", `---\nauthor: ${"x".repeat(PAST_A_ROW)}\n---\nWords.\n`],
+  ])("counts %s past what a plan row holds, and reads the rest", async (_, path, text) => {
+    const { job, stored } = await imported({
+      "Whole.md": encoder.encode("A whole note.\n"),
+      [path]: encoder.encode(text),
+    });
+    expect(job).toMatchObject({ added: 1, state: "done", unreadable: 1 });
+    expect(stored).toContain("A whole note.");
   });
 
   it("counts nothing for a link with no address, whose words stay", async () => {

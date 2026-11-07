@@ -19,7 +19,7 @@ import {
 import type { FileKind } from "@repo/notes/items/item-kind";
 import { urlKey } from "@repo/notes/items/item-url";
 import { docStem, isDocPath, isDotEntryPath } from "@repo/notes/knowledge/doc-file";
-import { frontmatterAliases, mdLinkTarget } from "@repo/notes/knowledge/link-extract";
+import { mdLinkTarget } from "@repo/notes/knowledge/link-extract";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import type { TargetResolver } from "@repo/notes/knowledge/link-resolve";
 import {
@@ -29,7 +29,7 @@ import {
   normalizePath,
   relativePath,
 } from "@repo/notes/knowledge/folder-path";
-import { frontmatterYaml, parseProperties } from "@repo/notes/markdown/frontmatter";
+import { frontmatterYaml } from "@repo/notes/markdown/frontmatter";
 import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 import { readFrontmatter } from "./item-fields";
@@ -153,7 +153,7 @@ const docFront = (path: string, text: string): DocFront => {
   const yaml = frontmatterYaml(text);
   const read = readFrontmatter(yaml, docStem(path), 0);
   return {
-    aliases: frontmatterAliases(parseProperties(yaml ?? "")),
+    aliases: read.fields.aliases,
     fileId: read.id,
     title: read.fields.title,
     urlKey: read.fields.url === null ? null : urlKey(read.fields.url),

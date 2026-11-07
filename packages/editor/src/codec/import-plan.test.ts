@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { blockHash } from "@repo/notes/library/block-hash";
 import type { StoredBlock } from "@repo/notes/library/block-ops";
+import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
 import { collectFileShas } from "@repo/notes/library/library-nodes";
 import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
 
@@ -341,6 +342,18 @@ describe("an Obsidian vault read into the library", () => {
       { children: [{ text: "" }], source: "%%not shown%%", type: "opaque" },
     ]);
     expect(textOf(daily)).toContain(" under #log and #log/today.");
+  });
+
+  it("plans no more aliases than an item holds", () => {
+    const aliases = Array.from(
+      { length: ITEM_FIELD_CAPS.listEntries + 1 },
+      (_, index) => `- a${String(index)}`,
+    );
+    const plan = planImport(
+      [{ kind: "doc", path: "Many.md", text: `---\naliases:\n${aliases.join("\n")}\n---\n` }],
+      counters(),
+    );
+    expect(plan.docs[0]?.aliases).toHaveLength(ITEM_FIELD_CAPS.listEntries);
   });
 
   it("embeds an image with its width and a canvas as a file, and keeps the canvas an item", () => {

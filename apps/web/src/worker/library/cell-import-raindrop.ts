@@ -20,7 +20,7 @@ import { folderOfTarget } from "./cell-folders";
 import type { FolderTarget } from "./cell-folders";
 import { apart, DONE, failed, importActor, LIBRARY_FULL, MORE, PAGE_MS } from "./cell-import-host";
 import type { ImportHost, StepOutcome } from "./cell-import-host";
-import { advanceImport, importRows, putImportRows } from "./cell-import-jobs";
+import { advanceImport, fitsImportRow, importRows, putImportRows } from "./cell-import-jobs";
 import type { ImportJob } from "./cell-import-jobs";
 import { blankFields, landNew, noteBlocksOf } from "./cell-items";
 import type { AddOp } from "./cell-items";
@@ -96,15 +96,17 @@ const readExport = async (host: ImportHost, job: ImportJob): Promise<StepOutcome
     return failed(UNREADABLE[parse.reason]);
   }
   const plan = planRaindropImport(parse.rows, host.now());
+  const rows = plan.items
+    .map((item, idx) => ({ idx, value: plannedOf(item) }))
+    .filter((row) => fitsImportRow(row.value));
   const written = apart(host.library, (scope) => {
-    putImportRows(
-      scope.storage,
-      job.id,
-      ROW,
-      plan.items.map((item, idx) => ({ idx, value: plannedOf(item) })),
-    );
+    putImportRows(scope.storage, job.id, ROW, rows);
     advanceImport(scope.storage, job.id, {
-      counts: { alreadySaved: plan.duplicates, skipped: parse.skipped.length },
+      counts: {
+        alreadySaved: plan.duplicates,
+        skipped: parse.skipped.length,
+        unreadable: plan.items.length - rows.length,
+      },
       cursor: 0,
       phase: "landing",
       total: parse.rows.length + parse.skipped.length,

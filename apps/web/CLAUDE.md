@@ -349,7 +349,9 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   the job's cursor with what they land. A run is counted before it starts, so
   one the platform ends counts, and five in a row that move nothing stop it. A
   note past 1 MiB is left out (reading costs about 11 s of CPU a MiB,
-  measured). Pass one puts every file in the library, the plan is made once,
+  measured), and so is an entry or bookmark past a plan row (`fitsImportRow`,
+  since a row the platform refuses would stop the import). Pass one puts every
+  file in the library, the plan is made once,
   then the notes and the files no live item names land in one change set. A
   note whose id or address a live item holds is counted, and one whose item
   sits in Deleted brings that item back as it stands. Rejected: one run per
