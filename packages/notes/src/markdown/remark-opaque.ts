@@ -4,11 +4,12 @@
 // element's value is re-serialized, not sliced from source: a slice spanning lines inside a
 // blockquote would capture the `> ` markers and the stringifier would add a second set.
 
-import type { Node, Nodes } from "mdast";
-import type { Options as ToMarkdownOptions } from "mdast-util-to-markdown";
+import type { Node, Nodes, Parents } from "mdast";
+import type { Options as ToMarkdownOptions, State } from "mdast-util-to-markdown";
 import type { Plugin, Processor } from "unified";
 import { toMarkdown } from "mdast-util-to-markdown";
 
+import { escapeBarePipes } from "./line-scan";
 import { isMdastRoot } from "./mdast-nodes";
 
 export interface OpaqueInline extends Node {
@@ -119,9 +120,15 @@ const makeOpaque = (node: Nodes, options: ToMarkdownOptions): void => {
   }
 };
 
+// gfm-table has unescaped a text's pipes by the time a spelling is read from it, and a tag's
+// children render with no table around them, so the cell's escape is written back here
 const opaqueToMarkdown: ToMarkdownOptions = {
   handlers: {
-    opaqueInline: Object.assign((node: OpaqueInline) => node.value, { peek: () => "<" }),
+    opaqueInline: Object.assign(
+      (node: OpaqueInline, _parent: Parents | undefined, state: State) =>
+        state.stack.includes("tableCell") ? escapeBarePipes(node.value) : node.value,
+      { peek: () => "<" },
+    ),
   },
 };
 

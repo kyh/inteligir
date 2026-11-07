@@ -296,6 +296,25 @@ describe("Obsidian's spellings, through a real export and import", () => {
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
+  it.each([
+    ["a comment", String.raw`%%y\|z%%`],
+    ["a pair of tags", String.raw`<kbd>x\|y</kbd>`],
+    // a tag holds its source as written, so its escape is already there
+    ["a tag", String.raw`<b title="x\|y">`],
+  ])("keeps the pipe of %s in a table cell in its cell", (_name, cell) => {
+    const item = imported(`| a |\n| - |\n| ${cell} |\n`);
+    expect(bodyOf(exported(item).text)).toContain(`| ${cell} |`);
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it("reads a comment whose pipe a table cell escapes as the comment it is", () => {
+    const item = imported(String.raw`| a |
+| - |
+| %%y\|z%% |
+`);
+    expect(JSON.stringify(item.blocks)).toContain('"source":"%%y|z%%"');
+  });
+
   it("reads none of them inside a link's words or a code span", () => {
     const item = imported("[==a== %%b%%](https://example.com) and `==c== %%d%%`\n");
     expect(item.annotations).toStrictEqual({});
