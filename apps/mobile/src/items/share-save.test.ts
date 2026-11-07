@@ -249,7 +249,28 @@ describe("a share, saved", () => {
     expect(cell.calls).toContain("phone library/items/saveLink");
     expect(cell.calls).not.toContain("phone library/items/save");
     const id = saved?.kind === "saved" ? saved.made.id : "";
-    expect(cell.item(id)?.fields).toMatchObject({ title: "Look at this", url: short });
+    expect(cell.item(id)?.fields.url).toBe(short);
+    expect(cell.item(id)?.fields.title).not.toBe("Look at this");
+    expect(noteOf(cell, id)).toStrictEqual(["Look at this"]);
+  });
+
+  it("reads an address in private space here wherever it moved, the fill never reaching it", async () => {
+    const { cell, device, newBlockId } = await phone();
+    const home = "http://nas.local/";
+    const saved = await saveShared(
+      {
+        newBlockId,
+        ports: {
+          fetch: redirecting(home, "http://nas.local/login"),
+          read: async () => await Promise.resolve(READ),
+        },
+        replica: device.replica,
+      },
+      { kind: "link", note: null, title: null, url: home },
+    );
+    await device.replica.sync();
+    expect(cell.calls).toContain("phone library/items/save");
+    expect(cell.item(saved?.kind === "saved" ? saved.made.id : "")?.fields.url).toBe(home);
   });
 
   it("reads an address that only changed its spelling on the way, as itself", async () => {

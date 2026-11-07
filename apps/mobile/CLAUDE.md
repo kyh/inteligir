@@ -160,13 +160,15 @@ how it ships.
   the cloud's fill reads (`apps/mobile/src/items/share-save.ts`). An address
   moved when a redirect changed its `urlKey`, since a save keys on the address
   it is given and only the fill folds a link onto the item holding where it
-  ended and takes that address's kind. Rejected: the final address on
-  `items.save` (a second fold, and a page that redirects to its sign-in would
-  be saved at the sign-in's address).
+  ended and takes that address's kind; an address in private space is read here
+  wherever it moved, since the fill never reaches it. Rejected: the final
+  address on `items.save` (a second fold, and a page that redirects to its
+  sign-in would be saved at the sign-in's address).
   Words shared beside the link are never lost: they are the item's note, or
   an unread link's title when they are short enough to name it, since the
   cloud keeps a title it is given and a page read names itself
-  (`apps/mobile/src/items/share-payload.ts`).
+  (`apps/mobile/src/items/share-payload.ts`). An address that moved keeps them
+  as its note, since a page answered it and a fold carries a note and no title.
   A page keeps its address to the last character, since it comes over as
   nothing but that address; text takes its link and its note from
   `apps/mobile/src/items/link-in-text.ts`, every spelling of the link out and

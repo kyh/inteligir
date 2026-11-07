@@ -10,7 +10,7 @@
 import { isWebUrl } from "@repo/notes/items/item-url";
 import { linkInText, withoutLink } from "./link-in-text";
 
-interface SharedLink {
+export interface SharedLink {
   kind: "link";
   url: string;
   title: string | null;

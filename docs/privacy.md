@@ -262,8 +262,8 @@ The apps also hold to these, plainly:
   over https, and from a page on the internet it never asks a picture, an
   oEmbed address or a redirect's next stop whose address names your own
   network by how it is spelled. A page it cannot read then, offline included,
-  an address that redirects to another page, or a page it finds no text in, is
-  saved as its address, which our cloud reads once it arrives.
+  a page on the internet that redirects to another, or a page it finds no text
+  in, is saved as its address, which our cloud reads once it arrives.
 - **Importing.** The file you choose to import (a Raindrop CSV, or a zip of
   notes such as an Obsidian folder) is uploaded to your library, read there and
   deleted once the import ends. Each imported link is then filled in as above.

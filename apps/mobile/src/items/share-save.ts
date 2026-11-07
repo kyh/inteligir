@@ -26,7 +26,7 @@ import type { PageFetch } from "./page-fetch";
 import { createPhoneSaves } from "./phone-saves";
 import type { SavedItem, SaveTarget } from "./phone-saves";
 import { unreadLink } from "./share-payload";
-import type { SharedSave } from "./share-payload";
+import type { SharedLink, SharedSave } from "./share-payload";
 
 export interface ShareReadPorts {
   readonly fetch: PageFetch;
@@ -67,25 +67,40 @@ const coverOf = async (
   return null;
 };
 
-// what this phone read of a shared page, or null when the cloud's fill is to read it: a page that
-// did not answer, an address that moved, an answer that is no page, a reader that broke, or a
-// reading with no article. A save keys on the address it is given, so only the fill, which sees
-// where a link ended, folds it onto the item already there and takes that address's kind
+// what this phone made of a shared page: the page it read, or the link the cloud's fill is to read
+type SharedRead =
+  | { readonly kind: "page"; readonly page: PageInput }
+  | { readonly kind: "link"; readonly link: SharedLink };
+
+// A page that did not answer, an answer that is no page, a reader that broke or a reading with no
+// article is left unread. An address that moved is left to the fill too, since a save keys on the
+// address it is given and only the fill, which sees where a link ended, folds it onto the item
+// already there and takes that address's kind. There a page is known to name itself, and a fold
+// carries a note and no title, so the words stay the note. The fill never reaches private space,
+// so an address there is read here wherever it moved
 const readSharedPage = async (
   ports: ShareReadPorts,
-  shared: Extract<SharedSave, { kind: "link" }>,
+  shared: SharedLink,
   target: SaveTarget,
-): Promise<PageInput | null> => {
+): Promise<SharedRead> => {
+  const unread: SharedRead = { kind: "link", link: unreadLink(shared) };
+  const reachesPrivate = namesPrivateSpace(shared.url);
   const fetched = await ports.fetch({
     accept: PAGE_ACCEPT,
     maxBytes: FILL_LIMITS.htmlBytes,
     overflow: "truncate",
     // a redirect reaches private space only from an address that names it itself
-    reachesPrivate: namesPrivateSpace(shared.url),
+    reachesPrivate,
     url: shared.url,
   });
-  if (!fetched.ok || urlKey(fetched.page.url) !== urlKey(shared.url) || !isPage(fetched.page)) {
-    return null;
+  if (!fetched.ok) {
+    return unread;
+  }
+  if (!reachesPrivate && urlKey(fetched.page.url) !== urlKey(shared.url)) {
+    return { kind: "link", link: shared };
+  }
+  if (!isPage(fetched.page)) {
+    return unread;
   }
   let answer: FillAnswer;
   try {
@@ -96,10 +111,10 @@ const readSharedPage = async (
       url: fetched.page.url,
     });
   } catch {
-    return null;
+    return unread;
   }
   if (answer.kind !== "read" || !deviceKeepsReading(answer.article)) {
-    return null;
+    return unread;
   }
   const title = fieldLine(answer.facts.title) ?? fieldLine(shared.title) ?? "";
   const page: PageInput = {
@@ -113,7 +128,8 @@ const readSharedPage = async (
     url: shared.url,
   };
   // words that only say the page's own title again add nothing to its note
-  return shared.note === null || shared.note === title ? page : { ...page, note: shared.note };
+  const note = shared.note === title ? null : shared.note;
+  return { kind: "page", page: note === null ? page : { ...page, note } };
 };
 
 // what became of a share: saved, refused, or its library gone under it, a sign-out landing while
@@ -135,11 +151,11 @@ export const saveShared = async (
   try {
     switch (shared.kind) {
       case "link": {
-        const page = await readSharedPage(args.ports, shared, target);
-        if (page === null) {
-          return await saves.saveLink(unreadLink(shared), target);
+        const read = await readSharedPage(args.ports, shared, target);
+        if (read.kind === "link") {
+          return await saves.saveLink(read.link, target);
         }
-        const made: Made = await args.replica.savePage(page);
+        const made: Made = await args.replica.savePage(read.page);
         return { kind: "saved", made };
       }
       case "text": {
