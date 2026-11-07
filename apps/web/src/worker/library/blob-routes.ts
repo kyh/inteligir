@@ -3,7 +3,7 @@
 // A PUT asks the account's cell for room at the length it declares, streams the body into R2,
 // which refuses bytes that do not hash to the sha, and has the cell settle the file's row at the
 // size R2 holds. A GET or HEAD hands the request's own headers to R2, which answers the range and
-// the preconditions they name; the Worker spells the status, a stranger's page copy is served
+// the preconditions they name; the Worker spells the status, a stranger's html file is served
 // under a script-less sandbox, and every other file under a sandbox too, but a PDF, whose viewer
 // a sandbox blanks.
 
@@ -31,9 +31,9 @@ export const isBlobPath = (pathname: string): boolean => pathname.startsWith(`${
 // no script and loads nothing but itself, and only this origin may frame it
 const PDF_POLICY =
   "default-src 'none'; object-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'self'";
-// a kept copy of a page is a stranger's page: the sandbox runs none of its script and gives it no
-// origin, it loads only what it carries inline, and a link it holds, followed, names nothing here
-const PAGE_COPY_POLICY =
+// an html file is a stranger's page: the sandbox runs none of its script and gives it no origin,
+// it loads only what it carries inline, and a link it holds, followed, names nothing here
+const HTML_POLICY =
   "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; media-src data:";
 // any other file: an <img> never runs an svg's script, but a navigation to its url would
 const SANDBOX_POLICY = "default-src 'none'; sandbox";
@@ -45,7 +45,7 @@ const serveUnder = (headers: Headers, contentType: string | undefined): void => 
     return;
   }
   if (type === "text/html") {
-    headers.set("content-security-policy", PAGE_COPY_POLICY);
+    headers.set("content-security-policy", HTML_POLICY);
     headers.set("referrer-policy", "no-referrer");
     return;
   }

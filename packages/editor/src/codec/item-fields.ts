@@ -29,7 +29,7 @@ import type { ParsedProperties, TypedProperty } from "@repo/notes/markdown/front
 // deleted, which the import sets from the folder and the body
 export type FileFields = Omit<
   LibraryItemFields,
-  "copySha" | "coverSha" | "deletedAt" | "folderId" | "originalName" | "originalSha"
+  "coverSha" | "deletedAt" | "folderId" | "originalName" | "originalSha"
 >;
 
 export interface FrontmatterRead {

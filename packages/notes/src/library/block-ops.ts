@@ -79,7 +79,6 @@ const setOf = <F extends ScalarField>(field: F) =>
 // one variant per field, so a patch's values are its field's own type
 const setOpSchema = z.discriminatedUnion("field", [
   setOf("author"),
-  setOf("copySha"),
   setOf("coverSha"),
   setOf("deletedAt"),
   setOf("description"),

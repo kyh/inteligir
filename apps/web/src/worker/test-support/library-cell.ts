@@ -103,7 +103,6 @@ export const SYSTEM: CellActor = { kind: "system", label: "Library" };
 export const noteFields = (overrides: Partial<LibraryItemFields> = {}): LibraryItemFields => ({
   aliases: [],
   author: null,
-  copySha: null,
   coverSha: null,
   deletedAt: null,
   description: null,

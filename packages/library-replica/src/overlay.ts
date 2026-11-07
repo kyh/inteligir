@@ -82,7 +82,6 @@ const layLibraryOp = (state: ItemState, op: LibraryOp, bases: WriteOp["bases"]):
 const blankFields = (savedAt: number): LibraryItemFields => ({
   aliases: [],
   author: null,
-  copySha: null,
   coverSha: null,
   deletedAt: null,
   description: null,

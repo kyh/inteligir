@@ -22,7 +22,6 @@ const REASON = "The page answered 404: it may have moved.";
 const fields = (patch: Partial<LibraryItemFields>): LibraryItemFields => ({
   aliases: [],
   author: null,
-  copySha: null,
   coverSha: null,
   deletedAt: null,
   description: null,

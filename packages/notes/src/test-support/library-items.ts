@@ -13,7 +13,6 @@ import { pick } from "./seeded-random";
 export const noteFields = (overrides: Partial<LibraryItemFields> = {}): LibraryItemFields => ({
   aliases: [],
   author: null,
-  copySha: null,
   coverSha: null,
   deletedAt: null,
   description: null,

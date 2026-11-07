@@ -93,7 +93,6 @@ type ScalarField = Exclude<keyof LibraryItemFields, "aliases" | "properties" | "
 
 const SCALAR_FIELDS = [
   "author",
-  "copySha",
   "coverSha",
   "deletedAt",
   "description",

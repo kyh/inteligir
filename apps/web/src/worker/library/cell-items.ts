@@ -52,7 +52,6 @@ export interface NewItem {
 export const blankFields = (now: number): LibraryItemFields => ({
   aliases: [],
   author: null,
-  copySha: null,
   coverSha: null,
   deletedAt: null,
   description: null,

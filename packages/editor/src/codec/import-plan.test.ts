@@ -96,8 +96,6 @@ const OBSIDIAN_VAULT = {
     "",
     ":::",
     "",
-    "[Copy of the page](assets/pages/0123456789abcdef.html)",
-    "",
   ].join("\n"),
 } satisfies Record<string, string>;
 
@@ -112,7 +110,6 @@ const BINARIES = new Map(
   [
     "assets/shot.png",
     "assets/covers/0123456789abcdef.jpg",
-    "assets/pages/0123456789abcdef.html",
     "board.canvas",
     "Untitled.base",
     "orphan.pdf",
@@ -198,8 +195,8 @@ const readFolder = (
     if (!read.ok) {
       throw new Error(`${read.path}: ${read.reason}`);
     }
-    const { coverSha, copySha, originalSha } = read.read.item.fields;
-    for (const sha of [coverSha, copySha, originalSha]) {
+    const { coverSha, originalSha } = read.read.item.fields;
+    for (const sha of [coverSha, originalSha]) {
       if (sha !== null) {
         attached.add(sha);
       }
@@ -388,10 +385,9 @@ describe("an Obsidian vault read into the library", () => {
     });
   });
 
-  it("reads a saved link: its cover, its copy, its page", () => {
+  it("reads a saved link: its cover and its page", () => {
     const page = byTitle(library, "Read later");
     expect(page.fields).toMatchObject({
-      copySha: shaOf("assets/pages/0123456789abcdef.html"),
       coverSha: shaOf("assets/covers/0123456789abcdef.jpg"),
       fetchState: "filled",
     });
@@ -505,8 +501,8 @@ describe("export, then import, gives the library back", () => {
         file.kind === "bytes" ? [[file.path, file.sha]] : [],
       ),
     );
-    // every file under the name it was saved under, so a canvas still opens as one; a cover, a
-    // page copy and an image a note embeds by its bytes alone, under their bytes' own names
+    // every file under the name it was saved under, so a canvas still opens as one; a cover and
+    // an image a note embeds by its bytes alone, under their bytes' own names
     expect([...bytes.keys()].toSorted()).toStrictEqual(
       [
         "assets/Q3 report.docx",
@@ -515,7 +511,6 @@ describe("export, then import, gives the library back", () => {
         "assets/orphan.pdf",
         "assets/spec.pdf",
         byBytes("assets/covers", "assets/covers/0123456789abcdef.jpg", "jpg"),
-        byBytes("assets/pages", "assets/pages/0123456789abcdef.html", "html"),
         byBytes("assets", "assets/shot.png", "png"),
       ].toSorted(),
     );

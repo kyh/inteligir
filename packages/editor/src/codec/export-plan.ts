@@ -1,12 +1,11 @@
 // The library as a folder of markdown, the files a zip is written from: each item one
 // markdown file named for its title in its folder, the filing rules as `AGENTS.md` at the root, its
 // highlights' store under `.inteligir/annotations/`, and every file it holds once under `assets/`
-// (a saved link's cover under `assets/covers/` and its page copy under `assets/pages/`, where an
-// import looks for them). A file is written under the name it was saved under, so a `.canvas`
-// stays one, in a folder of its bytes where that name alone would read as a note or be passed over;
-// only bytes no name came with take an extension from their media type. A link is
-// written by the shortest target that resolves back to its item among the exported files
-// (`wikiTargetForPath`), so the folder reads back into the same library.
+// (a saved link's cover under `assets/covers/`, where an import looks for it). A file is written
+// under the name it was saved under, so a `.canvas` stays one, in a folder of its bytes where that
+// name alone would read as a note or be passed over; only bytes no name came with take an extension
+// from their media type. A link is written by the shortest target that resolves back to its item
+// among the exported files (`wikiTargetForPath`), so the folder reads back into the same library.
 //
 // The plan is made a step at a time over a store its writer keeps (`ExportStore`), so a writer
 // holds one item and its own page of the plan, never the library's: every path is taken in the
@@ -20,7 +19,6 @@ import {
   contentAddressedName,
   COVERS_DIR,
   LIBRARY_RULES_PATH,
-  PAGES_DIR,
 } from "@repo/notes/items/item-kind";
 import { itemNameFromTitle } from "@repo/notes/items/item-name";
 import { DEFAULT_ATTACHMENTS_FOLDER, freeAssetPathWhere } from "@repo/notes/knowledge/asset-name";
@@ -245,9 +243,6 @@ const filePlaces = (ports: ExportDocPorts, title: string) => {
           return assign(`cover:${sha}`, sha, () =>
             contentAddressed(COVERS_DIR, sha, extensionOf(mediaType(sha))),
           );
-        }
-        case "copy": {
-          return assign(`copy:${sha}`, sha, () => contentAddressed(PAGES_DIR, sha, "html"));
         }
         case "original": {
           return file.name === null

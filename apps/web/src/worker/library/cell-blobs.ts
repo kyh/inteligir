@@ -30,19 +30,16 @@ export interface BlobRef {
   readonly role: BlobRole;
 }
 
-// every file an item names: its original, cover and page copy by field, and each image, video or
-// file its body embeds
+// every file an item names: its original and cover by field, and each image, video or file its
+// body embeds
 export const blobRefsOf = (state: ItemState): BlobRef[] => {
   const refs: BlobRef[] = [];
-  const { copySha, coverSha, originalSha } = state.fields;
+  const { coverSha, originalSha } = state.fields;
   if (originalSha !== null) {
     refs.push({ role: "original", sha: originalSha });
   }
   if (coverSha !== null) {
     refs.push({ role: "cover", sha: coverSha });
-  }
-  if (copySha !== null) {
-    refs.push({ role: "copy", sha: copySha });
   }
   const embedded = new Set<string>();
   for (const stored of state.blocks.values()) {

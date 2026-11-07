@@ -17,7 +17,7 @@ import type { SqlPlan, SqlRow } from "./library-sql";
 
 // bump on any change below, and on any change to the JSON a replica's outbox row holds
 // (`@repo/library-replica`), which no build reads in another's shape
-export const LIBRARY_SCHEMA_VERSION = 9;
+export const LIBRARY_SCHEMA_VERSION = 10;
 
 // STRICT tables are SQLite 3.37; a replica's engine is checked against it at open. The cell's is
 // the platform's own, and a Durable Object refuses sqlite_version() ("not authorized to use
@@ -36,9 +36,9 @@ export const LIBRARY_CHANGE_KINDS = [
 export type LibraryChangeKind = (typeof LIBRARY_CHANGE_KINDS)[number];
 
 const TAG_ORIGINS = ["field", "inline"] as const;
-// what an item holds a file as: its original, its cover, a thumbnail, its page copy, or an image
-// or file its body embeds
-const BLOB_ROLES = ["original", "cover", "thumb", "copy", "embed"] as const;
+// what an item holds a file as: its original, its cover, a thumbnail, or an image or file its
+// body embeds
+const BLOB_ROLES = ["original", "cover", "thumb", "embed"] as const;
 export type BlobRole = (typeof BLOB_ROLES)[number];
 // who a change set is by: the person, the built-in agent, a connected assistant, an import, the
 // cloud reading a page, an undo, or the library itself (a dangling link resolving)
@@ -99,7 +99,6 @@ const ITEMS_DDL = `CREATE TABLE IF NOT EXISTS items (
   cover_sha TEXT,
   original_sha TEXT,
   original_name TEXT,
-  copy_sha TEXT,
   fetch_state TEXT CHECK (fetch_state IN (${oneOf(FETCH_STATES)})),
   fetched_at INTEGER,
   fetch_error TEXT,

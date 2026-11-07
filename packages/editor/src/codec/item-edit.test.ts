@@ -68,7 +68,6 @@ const landed = (
   const fields: LibraryItemFields = {
     aliases: [],
     author: null,
-    copySha: null,
     coverSha: null,
     deletedAt: null,
     description: null,

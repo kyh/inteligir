@@ -14,7 +14,6 @@ import {
   fileKindOf,
   isBytesFolderPath,
   LIBRARY_RULES_PATH,
-  PAGES_DIR,
 } from "@repo/notes/items/item-kind";
 import type { FileKind } from "@repo/notes/items/item-kind";
 import { urlKey } from "@repo/notes/items/item-url";
@@ -337,9 +336,8 @@ export interface ReadFiles {
   readonly originals: ReadonlySet<string>;
 }
 
-// a cover or a page copy, where an export puts them
-const structural = (path: string): boolean =>
-  path.startsWith(`${COVERS_DIR}/`) || path.startsWith(`${PAGES_DIR}/`);
+// a cover, where an export puts one
+const isCoverPath = (path: string): boolean => path.startsWith(`${COVERS_DIR}/`);
 
 const fileItemFields = (file: PlannedFile, now: number): ImportedFields => {
   const extension = extnamePath(file.path);
@@ -347,7 +345,6 @@ const fileItemFields = (file: PlannedFile, now: number): ImportedFields => {
   return {
     aliases: [],
     author: null,
-    copySha: null,
     coverSha: file.kind === "image" ? file.sha : null,
     description: null,
     fetchError: null,
@@ -369,8 +366,8 @@ const fileItemFields = (file: PlannedFile, now: number): ImportedFields => {
 };
 
 // pass three: every file no item names, and every `.canvas` and `.base` no item holds as its
-// original, an item of its own in its folder; a cover or a page copy no item holds is no card,
-// since it is part of an item
+// original, an item of its own in its folder; a cover no item holds is no card, since it is part
+// of an item
 export const planFileItems = (
   plan: ImportPlan,
   read: ReadFiles,
@@ -380,7 +377,7 @@ export const planFileItems = (
   const known = new Map(plan.folders.map((folder) => [folder.path, folder.id]));
   const table = folderTable(ids.newFolderId, known);
   const ownItem = (file: PlannedFile): boolean =>
-    !structural(file.path) &&
+    !isCoverPath(file.path) &&
     !read.originals.has(file.sha) &&
     (!read.attached.has(file.sha) ||
       ITEM_ONLY_EXTENSIONS.has(extnamePath(file.path).toLowerCase()));
