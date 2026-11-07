@@ -35,8 +35,8 @@ root.
   `deriveItem` reads the card (an empty
   title falls back to the first heading, then the first line, and a surface
   draws an item with none of them as Untitled, a word no field holds, so a new
-  note follows its body on every device; the outline
-  keeps the first h1 to h3, as the editor's contents do, each cut to a line),
+  note follows its body on every device; the outline keeps the first h1 to h3,
+  as the editor's contents do, each cut to a line),
   the index text (every heading ranks), the links by id or url key, and each
   block's anchored highlights. The card alone rides its row, so a replica draws
   an item before its body arrives. Rejected: syncing the other derived rows
@@ -169,12 +169,13 @@ root.
   and zipping an export again puts it in those folders; a file a person saved
   under such a name is written under the item's title as its original and a
   name of its bytes as a block's file, and a folder under that name and
-  ` (folder)`, so an export writes nothing it would pass over. Every mark of an export is read from the zip's root, and a Mac's
-  Compress of the unpacked folder puts all of it under that folder, so an import
-  first takes off a sole top folder that every path but what an operating system
-  left shares, when it holds a highlights' store or `assets/`
-  (`packages/editor/src/codec/import-plan.ts`). Rejected: taking off any sole
-  top folder (an Obsidian vault's is a folder the person named).
+  ` (folder)`, so an export writes nothing it would pass over. Every mark of an
+  export is read from the zip's root, and a Mac's Compress of the unpacked folder
+  puts all of it under that folder, so an import first takes off a sole top
+  folder that every path but what an operating system left shares, when it holds
+  a highlights' store or `assets/` (`packages/editor/src/codec/import-plan.ts`).
+  Rejected: taking off any sole top folder (an Obsidian vault's is a folder the
+  person named).
 
 - **THE DIALECT'S GRAMMAR IS THE EDITOR'S OWN, AND IT IS TOTAL.** Every reader
   of markdown, the codec, an import and the editor alike, parses through one
