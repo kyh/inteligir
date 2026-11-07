@@ -1,7 +1,7 @@
 //! The account this Mac is signed in to, and everything of it the shell holds: the credential in
 //! the Keychain, the replica's file for that account, its staged and cached files, and the bearer
-//! the file scheme fetches a miss with. A sign-in keeps the credential and opens the account's
-//! replica; a launch restores both; a sign-out leaves nothing of the account behind.
+//! the file scheme fetches a miss with. A sign-in opens the account's replica and keeps the
+//! credential; a launch restores both; a sign-out leaves nothing of the account behind.
 
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard, PoisonError};
@@ -78,16 +78,23 @@ impl Account {
         Ok(Some(credential))
     }
 
-    /// A sign-in's credential, kept in the Keychain before its account's replica opens.
+    /// A sign-in's credential, kept in the Keychain once its account's replica opened: the page
+    /// revokes a sign-in this refuses, so the Keychain never holds one it let go.
     pub fn keep(&self, credential: &DeviceCredential) -> ShellResult<()> {
-        self.credentials.keep(credential)?;
-        self.open(credential)
+        self.open(credential)?;
+        self.credentials.keep(credential).inspect_err(|_| {
+            self.close();
+        })
+    }
+
+    fn close(&self) {
+        self.bearer_slot().take();
+        self.replica.close();
     }
 
     /// Signs this Mac out: the credential, the replica's file and every file of the account go.
     pub fn forget(&self) -> ShellResult<()> {
-        self.bearer_slot().take();
-        self.replica.close();
+        self.close();
         file_cache::remove_dir_if_there(&self.library_dir)?;
         self.files.clear()?;
         self.credentials.forget()
@@ -184,6 +191,34 @@ mod tests {
         assert_eq!(account.files().staged(&sha)?, None);
         assert!(account.replica().all(&statement("SELECT 1")).is_err());
         assert_eq!(account_in(dir.path(), &store).restore()?, None);
+        Ok(())
+    }
+
+    #[test]
+    fn a_sign_in_whose_replica_will_not_open_leaves_no_credential() -> ShellResult<()> {
+        let dir = tempfile::tempdir()?;
+        let store: Arc<CredentialStore> = keyring_core::mock::Store::new()?;
+        let account = account_in(dir.path(), &store);
+        // a file where the replica's folder goes, as a disk that refuses it would
+        std::fs::write(dir.path().join("library"), b"")?;
+        assert!(account.keep(&signed_in()).is_err());
+        assert_eq!(bearer_of(&account), None);
+        assert_eq!(account_in(dir.path(), &store).restore()?, None);
+        Ok(())
+    }
+
+    #[test]
+    fn a_sign_in_the_keychain_refuses_leaves_nothing_open() -> ShellResult<()> {
+        let dir = tempfile::tempdir()?;
+        let store: Arc<CredentialStore> = keyring_core::mock::Store::new()?;
+        let account = account_in(dir.path(), &store);
+        account.credentials.refuse_next_write()?;
+        assert!(matches!(
+            account.keep(&signed_in()),
+            Err(ShellError::Keychain(_))
+        ));
+        assert_eq!(bearer_of(&account), None);
+        assert!(account.replica().all(&statement("SELECT 1")).is_err());
         Ok(())
     }
 
