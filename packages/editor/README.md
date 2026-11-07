@@ -40,9 +40,9 @@ src/
                        # serializer runs, the markdown wiring, the rich-block lock
   nodes/               # every node type as a Base (headless) + React pair
   item/                # an item edited by its id: its editor, its session's
-                       # ops over the host's store, the block diff and its
-                       # properties
-  note/                # the line a merge that kept this device's lines says
+                       # ops over the host's store, the block diff, its
+                       # properties and the line a merge that kept this device's
+                       # lines says
   annotations/         # annotation markers, ranges, gutter, store
   formulas/            # `{{…}}` pills: the `{{` picker, entry, editing, recompute
   wiki/                # `[[…]]` links: the `[[` picker, the chip, insertion, keys

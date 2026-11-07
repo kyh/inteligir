@@ -23,7 +23,6 @@ import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-n
 import { watchFileKeeps } from "@repo/editor/file-keeps";
 import { blockId } from "@repo/editor/node-props";
 import { mergeBlocks } from "@repo/editor/stale-write";
-import type { BlockSides, MergedBlock } from "@repo/editor/stale-write";
 
 import { diffValue, readElement } from "./item-diff";
 import type { ElementReads } from "./item-diff";
@@ -73,10 +72,8 @@ export interface ItemSessionPorts {
   // a timer the session cancels: the pause that writes
   readonly after: (ms: number, run: () => void) => () => void;
   // a merge kept this device's lines where another device changed the same ones: the host says
-  // so of the item by its title, as a note's merge is said (`mergeConflictLine`)
+  // so of the item by its title (`mergeConflictLine`)
   readonly notifyOverlap: (title: string) => void;
-  readonly merge?: (sides: BlockSides) => MergedBlock;
-  readonly idleMs?: number;
 }
 
 export type ItemSessionStatus =
@@ -182,7 +179,6 @@ interface Landing {
   readonly movedHere: ReadonlySet<string>;
   // the blocks this editor holds that no write can store, and so no merge can read
   readonly heldBack: ReadonlySet<string | null>;
-  readonly merge: (sides: BlockSides) => MergedBlock;
   readonly overlapped: Set<string>;
 }
 
@@ -191,7 +187,6 @@ const landingOf = (
   item: HeldItem,
   value: readonly TElement[],
   reads: ElementReads,
-  merge: (sides: BlockSides) => MergedBlock,
 ): Landing => {
   const touched = new Set<string>();
   const movedHere = new Set<string>();
@@ -215,7 +210,6 @@ const landingOf = (
   return {
     base,
     heldBack: new Set(diff.heldBack),
-    merge,
     mine,
     movedHere,
     overlapped: new Set(),
@@ -243,7 +237,7 @@ const decide = (landing: Landing, id: string): Decision => {
   if (!changedHere || ours === undefined || was === undefined) {
     return { block: now.block, kind: "take" };
   }
-  const merged = landing.merge({ base: was.block, mine: ours.block, theirs: now.block });
+  const merged = mergeBlocks({ base: was.block, mine: ours.block, theirs: now.block });
   if (merged.overlapped) {
     landing.overlapped.add(id);
   }
@@ -308,8 +302,6 @@ export const createItemSession = (
   editor: SlateEditor,
   ports: ItemSessionPorts,
 ): ItemSession => {
-  const merge = ports.merge ?? mergeBlocks;
-  const idleMs = ports.idleMs ?? ITEM_IDLE_MS;
   const reads: ElementReads = new WeakMap();
   const dropped = new Map<string, LibrarySection>();
   const listeners = new Set<() => void>();
@@ -440,7 +432,7 @@ export const createItemSession = (
       return;
     }
     const value = editor.children;
-    const landing = landingOf(base, item, value, reads, merge);
+    const landing = landingOf(base, item, value, reads);
     const target = valueAfter(landing, value);
     const { selection } = editor;
     const anchor = selection === null ? null : heldPoint(selection.anchor);
@@ -469,7 +461,7 @@ export const createItemSession = (
   // the pause that writes, from now: `run` is the flush it ends in
   const arm = (run: () => void): void => {
     cancelIdle?.();
-    cancelIdle = ports.after(idleMs, () => {
+    cancelIdle = ports.after(ITEM_IDLE_MS, () => {
       cancelIdle = null;
       run();
     });

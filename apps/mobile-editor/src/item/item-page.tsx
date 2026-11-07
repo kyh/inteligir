@@ -7,9 +7,9 @@ import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { EditorProfileProvider } from "@repo/editor/editor-profile";
-import { mergeConflictLine } from "@repo/editor/note/vanished-prompt";
 import { ItemEditor } from "@repo/editor/item/item-editor";
 import type { ItemSession, ItemSessionPorts } from "@repo/editor/item/item-session";
+import { mergeConflictLine } from "@repo/editor/item/merge-conflict-line";
 import type { ItemInit } from "@repo/editor-bridge/protocol";
 import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { Toaster, toast } from "@repo/ui/components/sonner";
@@ -119,7 +119,7 @@ export const mountItemPage = ({
   const ports: ItemSessionPorts = {
     after,
     notifyOverlap: (title) => {
-      toast.warning(mergeConflictLine(title === "" ? "This item" : title));
+      toast.warning(mergeConflictLine(title));
     },
     store: bridgeItemStore(bridge),
   };

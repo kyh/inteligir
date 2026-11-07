@@ -5,8 +5,7 @@
 
 import { ItemEditor } from "@repo/editor/item/item-editor";
 import type { ItemSession, ItemSessionPorts } from "@repo/editor/item/item-session";
-import { mergeConflictLine } from "@repo/editor/note/vanished-prompt";
-import { mergeBlocks } from "@repo/editor/stale-write";
+import { mergeConflictLine } from "@repo/editor/item/merge-conflict-line";
 import { setAnnotationMeta } from "@repo/editor/annotations/annotation-store";
 import { setFindBarAnchor } from "@repo/editor/find-bar";
 import { Button } from "@repo/ui/components/button";
@@ -98,7 +97,6 @@ export const ItemView = ({ itemId, onBack, onTogglePanel, onSession }: ItemViewP
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [ports] = useState<ItemSessionPorts>(() => ({
     after,
-    merge: mergeBlocks,
     notifyOverlap: (title) => {
       toast.warning(mergeConflictLine(title));
     },

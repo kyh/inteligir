@@ -3,12 +3,7 @@ import { afterEach, describe, expect, it, test } from "vitest";
 
 import { useAnnotationSurface } from "@repo/editor/annotations/annotation-store";
 import { getEditorHostActions, getEditorHostIo } from "@repo/editor/host-io";
-import {
-  BLOCK_HELD_BACK,
-  createItemSession,
-  ITEM_IDLE_MS,
-  ITEM_UNSAVED,
-} from "@repo/editor/item/item-session";
+import { BLOCK_HELD_BACK, createItemSession, ITEM_UNSAVED } from "@repo/editor/item/item-session";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { headlessEditor } from "@repo/editor/markdown/markdown-doc";
 import { blockHash } from "@repo/notes/library/block-hash";
@@ -90,7 +85,6 @@ const sessionOver = async (phone: FakePhone) => {
   const overlaps: string[] = [];
   const session = createItemSession(ITEM, editor, {
     after: timers.after,
-    idleMs: ITEM_IDLE_MS,
     notifyOverlap: (title) => {
       overlaps.push(title);
     },

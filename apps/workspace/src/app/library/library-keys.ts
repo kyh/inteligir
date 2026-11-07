@@ -1,7 +1,7 @@
 // The library's bindings, the sixth table: the grid's own keys, the item view's way back, and the
 // window's paste. A row is spelled from here wherever it is drawn, so the listener and the label
-// never disagree. `where` is whose listener reads the row: the
-// grid's element, the item view's root, or the window.
+// never disagree. `where` is whose listener reads the row: the grid's element, the item view's
+// root, or the window.
 
 import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { isImeComposing } from "@repo/ui/lib/ime";
