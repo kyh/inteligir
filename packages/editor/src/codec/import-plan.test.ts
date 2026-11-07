@@ -90,7 +90,11 @@ const OBSIDIAN_VAULT = {
     "",
     "![](assets/covers/0123456789abcdef.jpg)",
     "",
+    ":::article",
+    "",
     "The page says %%i:h1:start%%a passage%%i:h1:end%% here, with #hashtag text.",
+    "",
+    ":::",
     "",
     "[Copy of the page](assets/pages/0123456789abcdef.html)",
     "",
@@ -384,7 +388,7 @@ describe("an Obsidian vault read into the library", () => {
     });
   });
 
-  it("reads a saved link from before the article section: its cover, its copy, its page", () => {
+  it("reads a saved link: its cover, its copy, its page", () => {
     const page = byTitle(library, "Read later");
     expect(page.fields).toMatchObject({
       copySha: shaOf("assets/pages/0123456789abcdef.html"),

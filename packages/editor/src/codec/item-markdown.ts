@@ -4,8 +4,7 @@
 // `.inteligir/annotations/<id>.json`. The files an item holds whole sit where an export puts
 // them: a saved link's cover the body's first embed under `assets/covers/`, its page
 // copy the last line's `[Copy of the page]` link, a file item's original its first embed of its
-// kind. A read link's file with no `:::article` reads its whole body as the page, which Read the
-// page again replaces.
+// kind.
 
 import type { Root, RootContent } from "mdast";
 import { ElementApi } from "platejs";
@@ -137,8 +136,6 @@ const copyLinkUrl = (block: TElement | undefined): string | null => {
 };
 
 const under = (dir: string, path: string): boolean => path.startsWith(`${dir}/`);
-
-const isUrlKind = (kind: ItemKind): boolean => URL_ITEM_KINDS.some((url) => url === kind);
 
 const originalKind = (kind: ItemKind): boolean =>
   !URL_ITEM_KINDS.some((url) => url === kind) && kind !== "note";
@@ -280,10 +277,7 @@ export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport =
     front.fields.kind,
     ports,
   );
-  // a read link from before the article section: its body is the page
-  const readPage =
-    parts.article === null && isUrlKind(front.fields.kind) && front.fields.fetchState === "filled";
-  const note = readPage ? [] : [...before, ...after];
+  const note = [...before, ...after];
   if (front.invalidYaml !== null) {
     note.unshift(yamlBlock(front.invalidYaml));
   }
@@ -293,7 +287,7 @@ export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport =
   };
   const read = (value: TElement[]): TElement[] => settled(elementsOf(embedFiles(value, readPorts)));
   const noteRead = readBlocks(read(note), readPorts, ports);
-  const pageRead = readBlocks(read(readPage ? before : article), readPorts, null);
+  const pageRead = readBlocks(read(article), readPorts, null);
   const noteBlocks = nameDrafts(noteRead.blocks, ports.newBlockId);
   const pageBlocks = nameDrafts(pageRead.blocks, ports.newBlockId);
   const highlights = annotationsOf(source.annotations, noteRead.highlights, ports.now);
@@ -389,13 +383,10 @@ export const exportItem = (
       ),
     );
   }
-  // a read link's note beside no page keeps the section, so the note does not read back as the page
-  const keepsSection =
-    article.length > 0 ||
-    (note.length > 0 && isUrlKind(fields.kind) && fields.fetchState === "filled");
-  const body: TElement[] = keepsSection
-    ? [...head, ...note, { children: article, type: ARTICLE_SECTION_KEY }]
-    : [...head, ...note];
+  const body: TElement[] =
+    article.length > 0
+      ? [...head, ...note, { children: article, type: ARTICLE_SECTION_KEY }]
+      : [...head, ...note];
   if (fields.copySha !== null) {
     body.push(heldCopy(ports.held({ role: "copy", sha: fields.copySha })));
   }
