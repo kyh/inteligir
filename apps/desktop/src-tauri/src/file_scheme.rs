@@ -294,7 +294,7 @@ mod tests {
         let files = files_in(dir.path());
         let bytes = b"%PDF-1.4 taken offline";
         let sha = sha_of(bytes);
-        files.stage(&sha, bytes, "application/pdf")?;
+        files.stage(&sha, bytes, "application/pdf", files.generation())?;
         for moment in ["staged", "uploaded"] {
             if moment == "uploaded" {
                 files.unstage(&sha)?;
