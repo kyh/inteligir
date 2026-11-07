@@ -1,11 +1,21 @@
+import type { Nodes } from "mdast";
 import { describe, expect, it } from "vitest";
 
 import { analyzeMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
+import { blockHash } from "@repo/notes/library/block-hash";
+import type { StoredBlock } from "@repo/notes/library/block-ops";
+import { MD_PROCESSOR } from "@repo/notes/markdown/md-plugins";
+
+import { exportItem, importItem } from "./codec/item-markdown";
+import type { ExportedItem, ImportedItem } from "./codec/item-markdown";
+import { pretendLibrary } from "./test-support/codec-ports";
 
 // Invariants: (a) analyzeMarkdown never throws; (b) canonical ⇒ roundTrip is
 // byte-stable modulo trailing whitespace; (c) roundTrip output re-parses and is a
 // fixpoint; (d) canonical ⇒ no letters invented or lost; (e) analysis refuses conversion ⟺
-// roundTrip throws. Fix the pipeline, never relax an invariant.
+// roundTrip throws; (f) every doc, canonical or not, keeps its words through importItem, an
+// exportItem and a second trip, or the import counts what it left out. Fix the pipeline, never
+// relax an invariant.
 
 type ViolationKind =
   | "a-analyze-throw"
@@ -13,7 +23,8 @@ type ViolationKind =
   | "c-not-idempotent"
   | "c-output-does-not-reparse"
   | "d-canonical-content-loss"
-  | "e-analysis-roundtrip-disagree";
+  | "e-analysis-roundtrip-disagree"
+  | "f-import-words-lost";
 
 // `signature` is the dedupe key across inputs
 interface Violation {
@@ -143,6 +154,94 @@ const canonicalViolations = (
   return found;
 };
 
+const library = pretendLibrary();
+
+const FRONTMATTER_RE = /^---\n[\s\S]*?\n---\n\n?/u;
+
+const trip = (item: ImportedItem): ExportedItem =>
+  exportItem(
+    {
+      annotations: item.annotations,
+      blocks: new Map(
+        item.blocks.map((placed): [string, StoredBlock] => [
+          placed.block.id,
+          { ...placed, hash: blockHash(placed.block) },
+        ]),
+      ),
+      fields: { ...item.fields, deletedAt: null, folderId: null },
+      id: "0195f3a0-5c1e-7000-8000-000000000001",
+    },
+    library.exportPorts(),
+    null,
+  );
+
+// the words of the tree as written, before a transformer can lose one: frontmatter is fields with
+// a suite of their own, an html tag's attributes are its grammar, and an autolink's scheme is one
+// its text only implies
+const spelled = (node: Nodes): readonly (string | null | undefined)[] =>
+  node.type === "yaml" || node.type === "html"
+    ? []
+    : [
+        "alt" in node ? node.alt : null,
+        "body" in node ? node.body : null,
+        "lang" in node ? node.lang : null,
+        "meta" in node ? node.meta : null,
+        "title" in node ? node.title : null,
+        "url" in node ? node.url.replace(/^(?:https?:\/\/|mailto:)/iu, "") : null,
+        "value" in node ? node.value : null,
+      ];
+
+// by a stack, since the pathological docs nest past what a recursive walk can reach
+const docWords = (md: string): readonly string[] => {
+  const words = new Set<string>();
+  const pending: Nodes[] = [MD_PROCESSOR.parse(md)];
+  for (let node = pending.pop(); node !== undefined; node = pending.pop()) {
+    for (const field of spelled(node)) {
+      for (const word of (field ?? "").split(/[\s|]+/u)) {
+        words.add(letters(word));
+      }
+    }
+    if ("children" in node) {
+      pending.push(...node.children);
+    }
+  }
+  words.delete("");
+  return [...words];
+};
+
+// what an export of this doc no longer holds, the first trip and the second, or null when the
+// import said so itself: a refusal keeps the file out whole, and `leftOut` counts a block
+const wordsLost = (md: string, words: readonly string[]): string[] | null => {
+  const read = importItem({ annotations: null, name: "Doc", text: md }, library.importPorts());
+  if (!read.ok || read.item.leftOut > 0) {
+    return null;
+  }
+  const first = trip(read.item);
+  const reread = importItem({ ...first, name: "Doc" }, library.importPorts());
+  if (!reread.ok || reread.item.leftOut > 0) {
+    return [...words];
+  }
+  const held = [first, trip(reread.item)].map(({ text }) =>
+    letters(text.replace(FRONTMATTER_RE, "")),
+  );
+  return words.filter((word) => !held.every((body) => body.includes(word)));
+};
+
+// (f): every doc keeps its words, whatever its bytes become, or says what it left out
+const wordsViolations = (md: string): Violation[] => {
+  const lost = wordsLost(md, docWords(md)) ?? [];
+  return lost.length === 0
+    ? []
+    : [
+        {
+          detail: `lost ${clip(lost.join(" "), 60)}`,
+          input: md,
+          kind: "f-import-words-lost",
+          signature: "f|words",
+        },
+      ];
+};
+
 const hunt = (md: string): Violation[] => {
   let analysis: Analysis;
   try {
@@ -173,6 +272,7 @@ const hunt = (md: string): Violation[] => {
   if (analysis.kind === "canonical") {
     found.push(...canonicalViolations(md, out, rtError));
   }
+  found.push(...wordsViolations(md));
   return found;
 };
 
@@ -513,16 +613,42 @@ const fuzzDocs = (count: number): [string, string][] => {
   return docs;
 };
 
+// docs a reference or a footnote stands in, and the words each must land with, its labels among
+// them, spelled long since a letter or two sits inside anything
+const WHOLE: readonly (readonly [string, readonly string[]])[] = [
+  ['[shown words][handle]\n\n[handle]: /somewhere "titled"\n', ["shown", "somewhere", "titled"]],
+  ["![seen picture][handle]\n\n[handle]: /picture.png\n", ["seen", "picturepng"]],
+  ["[collapsed][]\n\n[collapsed]: /somewhere\n", ["collapsed", "somewhere"]],
+  ["[shortcut] words\n\n[shortcut]: /somewhere\n", ["shortcut", "words", "somewhere"]],
+  ['[unused]: /nowhere "unsaid"\n', ["unused", "nowhere", "unsaid"]],
+  ["before\n\n[unused]: /nowhere\n\nafter\n", ["before", "unused", "nowhere", "after"]],
+  ["[missing][handle] stays\n", ["missing", "handle", "stays"]],
+  ["claim[^mark] follows\n\n[^mark]: the source\n", ["claim", "mark", "follows", "source"]],
+  ["# heading[^mark]\n\n[^mark]: see [[target]]\n", ["heading", "mark", "target"]],
+  ["- item[^mark]\n- other\n\n[^mark]: the source\n", ["item", "other", "mark", "source"]],
+  ["> quoted[^mark]\n\n[^mark]: the source\n", ["quoted", "mark", "source"]],
+  [":::toggle\nfolded[^mark]\n\n[^mark]: the source\n:::\n", ["folded", "mark", "source"]],
+];
+
 describe("adversarial round-trip hunt", () => {
   it("handcrafted corpus upholds the invariants", { timeout: 90_000 }, () => {
     expect(report(Object.entries(CORPUS))).toStrictEqual([]);
+  });
+
+  it("a reference, a definition and a footnote land whole", { timeout: 30_000 }, () => {
+    expect(
+      WHOLE.flatMap(([md, words]) => {
+        const lost = wordsLost(md, words);
+        return lost === null || lost.length > 0 ? [{ lost, md }] : [];
+      }),
+    ).toStrictEqual([]);
   });
 
   it("seeded fuzz corpus upholds the invariants", { timeout: 120_000 }, () => {
     expect(report(fuzzDocs(140))).toStrictEqual([]);
   });
 
-  it("pathological nesting never escapes analyzeMarkdown", { timeout: 120_000 }, () => {
+  it("pathological nesting never escapes analyzeMarkdown", { timeout: 240_000 }, () => {
     // depth 3000 is past the mdast→Slate recursion limit (~1250 on Node defaults)
     // but inside micromark's own (~6-8k), so it exercises the conversion overflow
     const deep: [string, string][] = [
