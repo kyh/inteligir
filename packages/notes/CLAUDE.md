@@ -248,10 +248,15 @@ root.
   `isBareLink`, each with the neighbours it can see, so a link the writer labels
   is a labelled link to them. A link touching a mark keeps its label, since the
   writer may spell the character beside a mark as a reference, and a literal with
-  no space before the next link does too. Rejected: a copy of gfm's rules (it reads
+  no space before the next link does too. So does a link in a mark's own node,
+  which only a held source holds, since a literal runs on through the closer into
+  bytes the writer cannot see, and a mail address with a `>` after it, since only
+  one character before shows and a `<` further back would close on it as an angle
+  link to another address. Rejected: a copy of gfm's rules (it reads
   a literal twice, in its tokenizer and over finished text, by two different
   trails, and a copy of either drifts), deciding in the rule table (a rule sees
-  no neighbour) and a pass over the tree ahead of the write (only the write knows
-  what it will escape).
+  no neighbour), a pass over the tree ahead of the write (only the write knows
+  what it will escape) and labelling every link in a held source (a url written
+  by hand in a footnote or a tag would not stay as typed).
   `packages/notes/src/markdown/autolink-text.ts`,
   `packages/editor/src/markdown-bare-links.test.ts`.

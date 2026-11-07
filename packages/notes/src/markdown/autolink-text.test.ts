@@ -52,6 +52,10 @@ describe(isBareLink, () => {
   ])("hears what stands beside it: %s", (_name, beside, bare) => {
     expect(isBareLink(link("https://x.y/a"), beside)).toBe(bare);
   });
+
+  it("is false of a mail address a `>` follows, which an angle further back would close on", () => {
+    expect(isBareLink(link("a@b.cd", "mailto:a@b.cd"), { after: ">", before: "#" })).toBe(false);
+  });
 });
 
 describe(besideChild, () => {

@@ -173,6 +173,13 @@ describe("opaque nodes (constructs with no editor node)", () => {
     expectOpaque("press <kbd>K</kbd> now\n", ["<kbd>K</kbd>"]);
   });
 
+  it.each([[String.raw`<kbd>a\*b\*c</kbd>`], [String.raw`<span>\[x]\(y)</span>`]])(
+    "keeps the escapes of a tag's text, which would read as syntax without them: %s",
+    (held) => {
+      expectOpaque(`${held}\n`, [held]);
+    },
+  );
+
   it("reads a fragment as text: `<>` opens no tag", () => {
     expect(opaqueValues("<>fragment</>\n")).toStrictEqual([]);
   });

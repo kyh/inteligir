@@ -140,12 +140,15 @@ const between = (
   state: State,
   info: Info,
 ): string => {
+  // a held element is written with no paragraph above it, and only phrasing takes the text's escapes
+  const exit = state.enter("phrasing");
   const tracker = state.createTracker(info);
   let value = tracker.move(open);
   value += tracker.move(
     state.containerPhrasing(node, { ...tracker.current(), after: "<", before: value }),
   );
   value += tracker.move(close);
+  exit();
   return value;
 };
 

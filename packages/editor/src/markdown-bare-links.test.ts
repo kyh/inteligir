@@ -126,6 +126,8 @@ describe("a link keeps its label beside what a literal would run into", () => {
     ["a mark after a mail link", `${MAIL}_a_\n`],
     ["a word before a www link", `x${WWW}\n`],
     ["a word after a www link", `${WWW}b\n`],
+    ["a `>` that would close an angle link further back", `<#${MAIL}>\n`],
+    ["the same angle a few characters back", `<$%${MAIL}>\n`],
   ])("%s", (_name, md) => {
     expect(kept(md)).toBe(md);
   });
@@ -304,6 +306,8 @@ const BESIDE = [
   ["`a`", ""],
   ["", "<u>a</u>"],
   ["<u>a</u>", ""],
+  ["<#", ">"],
+  ["<", ">"],
 ] as const;
 
 describe("every address beside everything", () => {
@@ -328,6 +332,49 @@ describe("every address beside everything", () => {
     ),
   )("%j", (md) => {
     expect(readOf(kept(md))).toStrictEqual(readOf(md));
+  });
+});
+
+describe("a link in a held source", () => {
+  it.each([
+    ["punctuation and a word after it", `<span>${LABELLED}.x</span>\n`],
+    ["a call after it", `<span>${LABELLED}[^b]</span>\n`],
+    ["the end of a mark", `<span>**${LABELLED}**</span>\n`],
+    ["the end of a mark, words run on past it", `<span>**${LABELLED}**.x</span>\n`],
+    ["the end of a mark, a hard break after it", `<span>**${LABELLED}**\\\nb</span>\n`],
+    ["the end of a mark in a footnote", `[^a]: **${LABELLED}**\n`],
+    ["a hard break in a footnote", `[^a]: **${LABELLED}**\\\n    b\n`],
+    ["a call past a mark in a footnote", `[^a]: *x ${LABELLED}*[^b]\n`],
+  ])("keeps its label at %s", (_name, md) => {
+    expect(kept(md)).toBe(md);
+  });
+
+  it.each([
+    ["a tag", "<span>https://x.y/a</span>\n"],
+    ["a word a space away", "<span>https://x.y/a b</span>\n"],
+    ["a hard break", "<span>https://x.y/a  \nb</span>\n"],
+    ["an underline around it", "<span><u>https://x.y/a</u></span>\n"],
+    ["a footnote", "[^a]: see https://x.y/a\n"],
+    ["a hard break in a footnote", "[^a]: https://x.y/a  \n    b\n"],
+  ])("stays bare at %s", (_name, md) => {
+    expect(kept(md)).toBe(md);
+  });
+
+  const INNER_RE = /^<span>(?<inner>[^]*)<\/span>\n$/u;
+  const WWW_ADDRESS = "www.x.y/a";
+
+  // an underline is a tag the library reads through, so a held tag's bytes read as they stand
+  it.each(
+    [spelled(URL), spelled(`${URL}!`), spelled(WWW_ADDRESS, `http://${WWW_ADDRESS}`), MAIL].flatMap(
+      (link) =>
+        BESIDE.flatMap(([before, after]) =>
+          ["", "**", "_", "~~"].map((mark) => `${before}${mark}${link}${mark}${after}`),
+        ),
+    ),
+  )("%j reads the same held", (inline) => {
+    const inner = INNER_RE.exec(kept(`<span>${inline}</span>\n`))?.groups?.inner;
+    assert(inner !== undefined, inline);
+    expect(readOf(`<u>${inner}</u>\n`)).toStrictEqual(readOf(`<u>${inline}</u>\n`));
   });
 });
 

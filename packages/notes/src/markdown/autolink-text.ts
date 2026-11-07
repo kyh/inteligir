@@ -18,8 +18,9 @@ const GFM = unified().use(remarkParse).use(remarkGfm).freeze();
 const BARE_AUTOLINK_PROTOCOL_RE = /^https?:\/\//iu;
 const WWW_AUTOLINK_RE = /^www\./iu;
 
-// a literal runs on to the next space at most, so nothing past that moves where it ends
-const NEXT_WORD_RE = /^\S*/u;
+// a literal runs on to the next space at most, so nothing past that moves where it ends. No wider
+// a space than these: gfm's pass over finished text runs on through a no-break space
+const NEXT_WORD_RE = /^[^ \t\r\n]*/u;
 
 // text that spells this address: a url, a www literal (gfm prefixes its url with `http://`) or a
 // mail address
@@ -50,11 +51,14 @@ interface Beside {
 
 // What stands before the link is one character of text, which the writer has escaped where it needs
 // to: left bare here a `<` would open an angle link and a `[` a label, and words ahead keep a `#` or
-// `>` from opening a block.
+// `>` from opening a block. A `<` further back shows to no asker, and a `>` after a mail address
+// closes it into an angle link to another: `<#a@b.cd>`. gfm reads that `>` into any other literal.
 const readsBack = (literal: string, url: string, { after, before }: Beside): boolean => {
   const text = asciiPunctuation(before.codePointAt(0) ?? null) ? `\\${before}` : before;
   const word = NEXT_WORD_RE.exec(after)?.[0] ?? "";
-  return firstLink(GFM.parse(`words ${text}${literal}${word}`))?.url === url;
+  return (
+    !after.startsWith(">") && firstLink(GFM.parse(`words ${text}${literal}${word}`))?.url === url
+  );
 };
 
 interface LinkNode {
@@ -128,14 +132,16 @@ const literalOf = (link: Link, state: State): PhrasingContent | null => {
     : markedLiteral(only, link.url, state);
 };
 
+// the siblings of a link the writer sees every byte around. A literal runs on through a mark's
+// closer into what stands past it, which no view here reaches, so a link in a mark's own node has
+// none: only a held source holds one, since the library keeps its marks on a link's text.
 const phrasingOf = (parent: Parents | undefined): readonly PhrasingContent[] => {
   switch (parent?.type) {
-    case "delete":
-    case "emphasis":
     case "heading":
+    case "htmlElement":
     case "paragraph":
-    case "strong":
-    case "tableCell": {
+    case "tableCell":
+    case "underline": {
       return parent.children;
     }
     default: {
@@ -178,11 +184,11 @@ const bareSpelling = (
   info: Info,
 ): string | null => {
   const literal = literalOf(link, state);
-  if (literal === null) {
-    return null;
-  }
   const siblings = phrasingOf(parent);
   const index = siblings.indexOf(link);
+  if (literal === null || index === -1) {
+    return null;
+  }
   const before = edgeOf(info.before.slice(-1), state);
   if (touchesMark(siblings, index) || (literal.type !== "html" && WORD_END_RE.test(before))) {
     return null;
