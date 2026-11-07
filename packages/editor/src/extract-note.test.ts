@@ -47,11 +47,11 @@ describe("what leaves", () => {
     expect(selectedTopLevelPaths(editor)).toStrictEqual([[1], [2]]);
   });
 
-  it("is titled by the first heading, else the first line, else Untitled", () => {
+  it("is titled by the first heading, else the first line, else not at all", () => {
     expect(extractionTitle([p("b1", "first line\nsecond"), h2("b2", "Plan")])).toBe("Plan");
     expect(extractionTitle([p("b1", "first line\nsecond")])).toBe("first line");
     expect(extractionTitle([p("b1", "a: b")])).toBe("a: b");
-    expect(extractionTitle([p("b1", "   ")])).toBe("Untitled");
+    expect(extractionTitle([p("b1", "   ")])).toBe("");
     expect(extractionTitle([p("b1", "x".repeat(100))])).toBe("x".repeat(80));
   });
 });
@@ -83,6 +83,22 @@ describe("the extract", () => {
     expect(ords).toStrictEqual(ords.toSorted());
     expect(texts(editor)).toStrictEqual(["Plan", ""]);
     expect(linkAt(editor, [1])).toMatchObject({ itemId: "note-1", title: "one", type: "wikiLink" });
+  });
+
+  it("makes a note with no title of blocks with no words, and links it by id", async () => {
+    const made: NewNote[] = [];
+    installFakeEditorHost({
+      createNote: async (note) => {
+        made.push(note);
+        return await Promise.resolve("note-1");
+      },
+    });
+    const editor = editorOver([h2("b1", "Plan"), p("b2", "   ")]);
+
+    await extractBlocksToNote(editor, [[1]]);
+
+    expect(made).toMatchObject([{ title: "" }]);
+    expect(linkAt(editor, [1])).toMatchObject({ itemId: "note-1", title: "", type: "wikiLink" });
   });
 
   it("undoes the removal and the link together", async () => {

@@ -34,9 +34,9 @@ root.
   (`packages/notes/src/library/library-queries.test.ts` sums it).
   `deriveItem` reads the card (an empty
   title falls back to the first heading, then the first line, and a surface
-  draws an item with none of them as Untitled, a word no field holds, so a new
-  note follows its body on every device; the outline keeps the first h1 to h3,
-  as the editor's contents do, each cut to a line),
+  draws an item with none of them as Untitled, a word the app gives no note, so
+  a new note follows its body on every device; the outline keeps the first h1
+  to h3, as the editor's contents do, each cut to a line),
   the index text (every heading ranks), the links by id or url key, and each
   block's anchored highlights. The card alone rides its row, so a replica draws
   an item before its body arrives. Rejected: syncing the other derived rows

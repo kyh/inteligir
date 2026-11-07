@@ -29,8 +29,7 @@ const TITLE_MAX_CHARS = 80;
 export const extractionTitle = (blocks: readonly TElement[]): string => {
   const source = blocks.find((block) => HEADING_TYPES.has(block.type)) ?? blocks[0];
   const line = source === undefined ? "" : (NodeApi.string(source).split("\n")[0] ?? "");
-  const title = line.slice(0, TITLE_MAX_CHARS).trim();
-  return shownTitle(title);
+  return line.slice(0, TITLE_MAX_CHARS).trim();
 };
 
 // the top-level blocks the selection touches: a partly selected list leaves as a whole
@@ -144,7 +143,9 @@ export const extractBlocksToNote = async (
     getLiveEditor(itemId) === editor &&
     signatureOf(blocksAt(editor, current)) === signature;
   if (!unchanged) {
-    toast.warning(`Made ${title}, but this item changed meanwhile, so the blocks stayed.`);
+    toast.warning(
+      `Made ${shownTitle(title)}, but this item changed meanwhile, so the blocks stayed.`,
+    );
     return null;
   }
   editor.tf.withoutNormalizing(() => {
@@ -158,6 +159,6 @@ export const extractBlocksToNote = async (
     editor.tf.select(end);
   }
   editor.tf.focus();
-  toast.success(`Extracted to ${title}`);
+  toast.success(`Extracted to ${shownTitle(title)}`);
   return created;
 };
