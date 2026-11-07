@@ -307,6 +307,7 @@ export const libraryBrowser: Scenario = {
       (fields) => fields.folderId === archive.id,
       "the move never reached the cell",
     );
+    await browser(["wait", "--fn", `!document.querySelector('[role="dialog"]')`], DEADLINE_MS);
 
     ctx.log("an open item follows a rename another device made");
     expectEq(
