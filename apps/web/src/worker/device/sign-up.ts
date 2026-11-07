@@ -23,13 +23,12 @@ const apiErrorBodySchema = z.object({ code: z.string() });
 
 // Better Auth's one refusal of this account: the request's schema holds the same bounds, so
 // anything else it raises is a store's fault, which the route answers as internal
-const isAccountExists = (error: unknown): boolean => {
-  if (!(error instanceof APIError) || error.statusCode !== 422) {
-    return false;
-  }
+const isAccountExists = (error: APIError): boolean => {
   const body = apiErrorBodySchema.safeParse(error.body);
   // USER_ALREADY_EXISTS, and the _USE_ANOTHER_EMAIL spelling signUpEmail raises today
-  return body.success && body.data.code.startsWith("USER_ALREADY_EXISTS");
+  return (
+    error.statusCode === 422 && body.success && body.data.code.startsWith("USER_ALREADY_EXISTS")
+  );
 };
 
 export const signUpDevice = async (
@@ -48,7 +47,7 @@ export const signUpDevice = async (
   } catch (error) {
     // no account came of it, so the code goes back whatever the reason
     await releaseInvite(db, args.inviteCode, args.email);
-    if (isAccountExists(error)) {
+    if (error instanceof APIError && isAccountExists(error)) {
       return { failure: "account-exists", signedUp: false };
     }
     throw error;
