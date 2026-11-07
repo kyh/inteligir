@@ -171,15 +171,16 @@ how it ships.
   shared, as the fill's does. A moved save that stays at the shared address
   takes the sheet's title before the read's, since a wall names itself; any
   other takes the read's first. Residual: a holder the replica has yet to pull
-  makes a second item, and a waiting item at the shared address that takes the
-  read stays beside a holder of the end, until Read the page again folds it;
-  such an item keeps kind link, since only the fill sets a kind on an item that
-  exists. Rejected: the final address on every save (a page that redirects to
-  its sign-in would be saved at the sign-in's address); handing every moved
-  address to the fill (app share links are short links, and a site that blocks
-  data centres would end unread though the phone had read it).
+  goes unseen, so one at the end leaves a second item and one at the shared
+  address takes the read over its article; a waiting item at the shared address
+  that takes the read stays beside a holder of the end, until Read the page
+  again folds it, and keeps kind link, since only the fill sets a kind on an
+  item that exists. Rejected: the final address on every save (a page that
+  redirects to its sign-in would be saved at the sign-in's address); handing
+  every moved address to the fill (app share links are short links, and a site
+  that blocks data centres would end unread though the phone had read it).
   Words shared beside the link are the item's note on every path, since every
-  save and every fold carries a note and a fold carries no title
+  save and every fold carries a note and a fold drops a stub's title
   (`apps/mobile/src/items/share-payload.ts`); an unread link is named by its
   address or by the title the share sheet gave. Residual: an app that hands a
   page's name as text leaves a note repeating the title once the cloud reads

@@ -263,10 +263,10 @@ The apps also hold to these, plainly:
   Safari-compatible user agent naming inteligir and its version, and your
   preferred language, as a browser visit would. It asks only web addresses, a
   page on the internet only over https, and from a page on the internet it
-  never asks a picture, an oEmbed address or a redirect's next stop whose
-  address names your own network by how it is spelled, even when the address
-  you shared does. A page it cannot read then, offline included, or finds no
-  text in, is saved as its address, which our cloud reads once it arrives.
+  never asks a picture or a redirect's next stop whose address names your own
+  network by how it is spelled, even when the address you shared does. A page
+  it cannot read then, offline included, or finds no text in, is saved as its
+  address, which our cloud reads once it arrives.
 - **Importing.** The file you choose to import (a Raindrop CSV, or a zip of
   notes such as an Obsidian folder) is uploaded to your library, read there and
   deleted once the import ends. Each imported link is then filled in as above.
@@ -1061,9 +1061,9 @@ Everything else the app reaches is someone else's:
 - **Expo's update service**, for the phone's update check described above.
 - **The sites you save**: from our cloud, for a link your library holds unread,
   with the cover files they name, the cover a Raindrop import recorded, and
-  the oEmbed addresses above; from your iPhone, for a page you share to it; and
-  from the browser the extension runs in, for the cover picture of a page it
-  saves.
+  the oEmbed addresses above; from your iPhone, for a page or a link you share
+  to it; and from the browser the extension runs in, for the cover picture of a
+  page it saves.
 
 ---
 
