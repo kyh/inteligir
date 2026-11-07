@@ -1,5 +1,3 @@
-// frontmatter is not selectable: pinned at [0], edited through the properties panel.
-
 import {
   BlockMenuPlugin,
   BlockSelectionPlugin,
@@ -10,15 +8,13 @@ import { KEYS, getPluginTypes } from "platejs";
 import { BlockContextMenu } from "@repo/editor/block-context-menu";
 import { BlockSelection } from "@repo/editor/block-selection";
 import { CursorOverlay } from "@repo/editor/cursor-overlay";
-import { isFrontmatterElement } from "@repo/editor/properties/properties-node";
 
 export const BlockMenuKit = [
   BlockSelectionPlugin.configure(({ editor }) => ({
     options: {
       enableContextMenu: true,
       isSelectable: (element) =>
-        !getPluginTypes(editor, [KEYS.column, KEYS.codeLine, KEYS.td]).includes(element.type) &&
-        !isFrontmatterElement(element),
+        !getPluginTypes(editor, [KEYS.column, KEYS.codeLine, KEYS.td]).includes(element.type),
     },
     render: {
       belowRootNodes: (props) => {

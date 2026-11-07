@@ -65,24 +65,6 @@ $$
 Inline math $$E = mc^2$$ mid-sentence.
 `,
   "empty.md": "",
-  "frontmatter-note.md": `---
-title: Frontmatter note
-published: true
-draft: false
-priority: 2
-due: 2026-07-01
-status: on
-tags:
-  - meta
-  - demo
-nested:
-  keep: me
----
-
-# Frontmatter note
-
-Edit the typed properties above; the yaml block round-trips byte-for-byte.
-`,
   "journal.md": `# Journal
 
 ## 2026-07-01
@@ -170,15 +152,6 @@ Inline \`code\` and a blockquote:
 
 > Bytes on disk stay canonical.
 `,
-  "private-note.md": `---
-private: true
----
-
-# Private note
-
-This note is marked private, so every AI surface skips it on this device.
-`,
-  // its inline #meta unifies with frontmatter-note.md's `tags`, so the tag list demos both sources
   "tagged.md": `# Tagged note
 
 Inline tags: working on #project and #meta this week, with #ideas to chase.

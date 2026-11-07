@@ -14,7 +14,7 @@ import type { ImportedItem } from "./item-markdown";
 const FIXTURES = fileURLToPath(new URL("../test-support/fixtures/roundtrip/", import.meta.url));
 
 const fixtures = (): { name: string; text: string }[] =>
-  (["canonical", "churn"] as const).flatMap((dir) =>
+  (["canonical", "churn", "frontmatter"] as const).flatMap((dir) =>
     readdirSync(`${FIXTURES}${dir}`)
       .toSorted()
       .map((file) => ({
@@ -96,7 +96,7 @@ const SETTLED_ON_IMPORT = new Map<string, (text: string) => string>([
   // YAML no field can read is no field's: it moves into the note as its first code block, where
   // the person can see and mend it
   [
-    "canonical/frontmatter-invalid.md",
+    "frontmatter/invalid.md",
     (text) =>
       `\`\`\`yaml\n${FRONTMATTER_RE.exec(text)?.groups?.yaml ?? ""}\n\`\`\`\n\n${bodyOf(text)}`,
   ],
@@ -122,7 +122,7 @@ const SETTLED_ON_IMPORT = new Map<string, (text: string) => string>([
 ]);
 
 describe("today's markdown imports losslessly", () => {
-  it.each(fixtures().filter((one) => one.name.startsWith("canonical/")))("$name", (fixture) => {
+  it.each(fixtures().filter((one) => !one.name.startsWith("churn/")))("$name", (fixture) => {
     const settle = SETTLED_ON_IMPORT.get(fixture.name) ?? bodyOf;
     expect(bodyOf(exported(imported(fixture.text)).text)).toBe(settle(fixture.text));
   });

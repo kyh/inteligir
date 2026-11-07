@@ -95,7 +95,7 @@ const valuesOf = (yaml: string, parsed: ParsedProperties): Map<string, PropertyV
     if (json.success) {
       values.set(prop.key, json.data);
     } else if (prop.type === "unsupported") {
-      values.set(prop.key, prop.rawYaml);
+      values.set(prop.key, prop.raw);
     }
   }
   return values;

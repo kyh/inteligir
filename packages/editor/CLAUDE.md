@@ -107,8 +107,10 @@ alone, and no walk narrows structurally.
   (`packages/editor/src/item/item-properties.ts`). The panel reads whatever
   source it is handed (`packages/editor/src/properties/property-source.ts`),
   and an item's own fields (its title, tags, folder and pin) are Info's, so no
-  key has two editors. Rejected: a frontmatter block in an item (its keys are
-  columns).
+  key has two editors. Only a file has frontmatter: a `---` fence that opens a
+  paste, an agent's text or a page is that text's own lines, read as a YAML code
+  block (`packages/editor/src/markdown/md-rules.ts`). Rejected: a frontmatter
+  block in an item (its keys are columns).
 
 - **THE PLATE SLASH MENU IS THE INSERTION SURFACE, AND THE TOUCH TOOLBAR IS ITS
   SOFT-KEYBOARD TWIN.** Slash rows are grouped data: each row's markdown

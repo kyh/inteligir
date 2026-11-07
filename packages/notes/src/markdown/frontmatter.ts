@@ -35,7 +35,7 @@ export type TypedProperty =
   | { key: string; type: "checkbox"; value: boolean }
   | { key: string; type: "date"; value: string }
   | { key: string; type: "tags"; value: string[] }
-  | { key: string; type: "unsupported"; rawYaml: string };
+  | { key: string; type: "unsupported"; raw: string };
 
 // a caller must never rewrite the block on `invalid`.
 export type ParsedProperties =
@@ -47,7 +47,7 @@ export type ParsedProperties =
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/u;
 
 // branch order is the precedence; z.number() already rejects NaN/±Infinity.
-const classify = (key: string, value: YamlValue, rawYaml: string): TypedProperty => {
+const classify = (key: string, value: YamlValue, raw: string): TypedProperty => {
   const checkbox = z.boolean().safeParse(value);
   if (checkbox.success) {
     return { key, type: "checkbox", value: checkbox.data };
@@ -67,7 +67,7 @@ const classify = (key: string, value: YamlValue, rawYaml: string): TypedProperty
   if (tags.success) {
     return { key, type: "tags", value: tags.data };
   }
-  return { key, rawYaml, type: "unsupported" };
+  return { key, raw, type: "unsupported" };
 };
 
 export const parseProperties = (yamlText: string): ParsedProperties => {
@@ -95,12 +95,12 @@ export const parseProperties = (yamlText: string): ParsedProperties => {
     const valueNode = item.value;
     // range[0..1] is the value span, excluding the key and trailing node gap.
     const range = valueNode?.range;
-    const rawYaml = range ? yamlText.slice(range[0], range[1]).trimEnd() : "";
+    const raw = range ? yamlText.slice(range[0], range[1]).trimEnd() : "";
     const value = yamlValue.safeParse(
       valueNode === null || valueNode === undefined ? null : valueNode.toJSON(),
     );
     properties.push(
-      value.success ? classify(key, value.data, rawYaml) : { key, rawYaml, type: "unsupported" },
+      value.success ? classify(key, value.data, raw) : { key, raw, type: "unsupported" },
     );
   }
   return { kind: "valid", properties };
@@ -195,7 +195,7 @@ export const typeNewProperty = (key: string, rawValue: string): TypedProperty =>
     const parsed = yamlValue.safeParse(parseYaml(rawValue));
     return parsed.success
       ? classify(key, parsed.data, rawValue)
-      : { key, rawYaml: rawValue, type: "unsupported" };
+      : { key, raw: rawValue, type: "unsupported" };
   } catch {
     return classify(key, rawValue, rawValue);
   }

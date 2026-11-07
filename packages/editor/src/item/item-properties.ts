@@ -4,7 +4,7 @@
 // all words) is drawn as it is and never written.
 
 import type { PropertyValue } from "@repo/notes/library/library-item";
-import type { ParsedProperties, TypedProperty } from "@repo/notes/markdown/frontmatter";
+import type { TypedProperty } from "@repo/notes/markdown/frontmatter";
 import { z } from "zod";
 
 import type { PropertyEdit, PropertySource } from "@repo/editor/properties/property-source";
@@ -35,22 +35,19 @@ const rowOf = (key: string, value: PropertyValue): TypedProperty => {
       ? { key, type: "date", value: written.data }
       : { key, type: "text", value: written.data };
   }
-  return { key, rawYaml: JSON.stringify(value), type: "unsupported" };
+  return { key, raw: JSON.stringify(value), type: "unsupported" };
 };
 
 // the value a row writes; null for one the panel does not edit
 const valueOf = (prop: TypedProperty): PropertyValue | null =>
   prop.type === "unsupported" ? null : prop.value;
 
-const rowsOf = (status: ItemSessionStatus): ParsedProperties =>
+const rowsOf = (status: ItemSessionStatus): readonly TypedProperty[] =>
   status.kind === "open"
-    ? {
-        kind: "valid",
-        properties: Object.entries(status.fields.properties).flatMap(([key, value]) =>
-          value === undefined ? [] : [rowOf(key, value)],
-        ),
-      }
-    : { kind: "none" };
+    ? Object.entries(status.fields.properties).flatMap(([key, value]) =>
+        value === undefined ? [] : [rowOf(key, value)],
+      )
+    : [];
 
 // the patch an edit makes over the properties the item holds now; none for one that no longer
 // applies, or a row the panel does not edit

@@ -11,7 +11,6 @@ import { CodeBlockBaseKit } from "./headless/code-block-base";
 import { ColumnBaseKit } from "./headless/column-base";
 import { DateBaseKit } from "./headless/date-base";
 import { EmbedBaseKit } from "./headless/embed-base";
-import { FrontmatterBaseKit } from "./headless/frontmatter-base";
 import { ImageBaseKit } from "./headless/image-base";
 import { InlineConstructsBaseKit } from "./headless/inline-constructs-base";
 import { LinkBaseKit } from "./headless/link-base";
@@ -38,7 +37,6 @@ export const BASE_KIT = [
   ...DateBaseKit,
   ...MathBaseKit,
   ...OpaqueBaseKit,
-  ...FrontmatterBaseKit,
   ...WikiLinkBaseKit,
   ...InlineConstructsBaseKit,
   ...RichBlocksBaseKit,

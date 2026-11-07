@@ -3,6 +3,7 @@ import { createSlateEditor, ElementApi } from "platejs";
 import type { Descendant } from "platejs";
 import { serializeMd } from "@platejs/markdown";
 
+import { articleBlocks } from "@repo/editor/codec/item-markdown";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { stringProp } from "@repo/editor/node-props";
 import {
@@ -349,8 +350,14 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
     expect(roundTrip("***\n***\n")).toBe("***\n\n---\n");
     expect(roundTrip("***\n\nkey: value\n\n***\n")).toBe("***\n\nkey: value\n\n---\n");
     expect(roundTrip("x\n\n---\n")).toBe("x\n\n---\n");
-    const fm = "---\ntitle: x\n---\n\nbody\n";
-    expect(roundTrip(fm)).toBe(fm);
+  });
+
+  it("keeps a fence that opens a body as a code block the library can hold", () => {
+    expect(roundTrip("---\ntitle: x\n---\n\nbody\n")).toBe("```yaml\ntitle: x\n```\n\nbody\n");
+    const ids = ["b1", "b2"].values();
+    const page = articleBlocks("---\ntitle: x\n---\n\nbody\n", () => ids.next().value ?? "");
+    expect(page?.refused).toStrictEqual([]);
+    expect(page?.blocks[0]?.block).toMatchObject({ lang: "yaml", type: "code_block" });
   });
 
   it("writes url-less media as an empty image, which reads back as one", () => {

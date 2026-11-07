@@ -17,7 +17,6 @@ import {
   CHART_BLOCK_KEY,
   ANNOTATION_MARKER_KEY,
   FORMULA_PILL_KEY,
-  FRONTMATTER_KEY,
   HTML_BLOCK_KEY,
   OPAQUE_KEY,
   WIKI_EMBED_KEY,
@@ -216,12 +215,6 @@ const HrStatic = (props: SlateElementProps) => (
 // renders no text, as live; inline, because the default <div> would break the line it sits in.
 const AnnotationMarkerStatic = (props: SlateElementProps) => <SlateElement {...props} as="span" />;
 
-const FrontmatterStatic = (props: SlateElementProps) => (
-  <SlateElement {...props} className="hidden">
-    {props.children}
-  </SlateElement>
-);
-
 // the default static renderer is a bare <div> per node, which flattens a table into stacked lines.
 const TableStatic = (props: SlateElementProps) => (
   <SlateElement {...props} as="table" className="my-1">
@@ -298,7 +291,6 @@ export const STATIC_COMPONENTS: ReadonlyMap<string, (props: SlateElementProps) =
     [CANVAS_BLOCK_KEY, richBlockStatic("canvas")],
     [HTML_BLOCK_KEY, richBlockStatic("html")],
     [OPAQUE_KEY, OpaqueStatic],
-    [FRONTMATTER_KEY, FrontmatterStatic],
     ["table", TableStatic],
     ["tr", TableRowStatic],
     ["td", classNameSlateElement("td", TABLE_CELL_CLASS)],

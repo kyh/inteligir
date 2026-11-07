@@ -3,11 +3,7 @@ import type { KeyboardEvent } from "react";
 import { PlusIcon } from "lucide-react";
 
 import { typeNewProperty } from "@repo/notes/markdown/frontmatter";
-import type {
-  ParsedProperties,
-  PropertyType,
-  TypedProperty,
-} from "@repo/notes/markdown/frontmatter";
+import type { PropertyType, TypedProperty } from "@repo/notes/markdown/frontmatter";
 import { Input } from "@repo/ui/components/input";
 import { isImeComposing } from "@repo/ui/lib/ime";
 
@@ -193,15 +189,11 @@ const AddProperty = ({ onAdd }: { onAdd: (key: string, value: string) => void })
   );
 };
 
-// the rows a source holds, each editable in place; a source that cannot read them (a frontmatter
-// that is not a property list) is left untouched and says so
+// the rows a source holds, each editable in place
 export const PropertiesPanel = <S,>({ source }: { source: PropertySource<S> }) => {
   const snapshot = useSyncExternalStore(source.subscribe, source.snapshot);
-  const parsed = useMemo<ParsedProperties>(() => source.read(snapshot), [source, snapshot]);
+  const properties = useMemo(() => source.read(snapshot), [source, snapshot]);
   const [overrides, setOverrides] = useState<Record<string, PropertyType>>({});
-
-  const properties = parsed.kind === "valid" ? parsed.properties : [];
-  const invalid = parsed.kind === "invalid";
 
   const commit = (edit: PropertyEdit) => {
     source.commit(edit);
@@ -224,15 +216,6 @@ export const PropertiesPanel = <S,>({ source }: { source: PropertySource<S> }) =
   const handleAdd = (key: string, value: string) => {
     commit({ kind: "add", prop: typeNewProperty(key, value) });
   };
-
-  if (invalid) {
-    return (
-      <p className="rounded-[8px] bg-muted/50 px-2.5 py-1.5 text-body text-muted-foreground">
-        Properties unavailable — this note&rsquo;s frontmatter isn&rsquo;t a valid property list.
-        It&rsquo;s preserved untouched; edit it in the document.
-      </p>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-0.5">

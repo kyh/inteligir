@@ -58,8 +58,6 @@ const EXPECTED = {
   "kitchen-sink.md": "canonical",
   // the angle autolink saves bare; the stray `{`, `<50ms` and the html stay
   "legacy-web-clip.md": "formattable",
-  "frontmatter-note.md": "canonical",
-  "private-note.md": "canonical",
   "tagged.md": "canonical",
   "components-playground.md": "canonical",
   "math-and-diagrams.md": "canonical",

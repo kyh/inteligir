@@ -27,7 +27,7 @@ import { parseMdast } from "@repo/notes/markdown/parse";
 import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 import { headlessEditor, serializeNote } from "@repo/editor/markdown/markdown-doc";
-import { ARTICLE_SECTION_KEY } from "@repo/editor/markdown/md-rules";
+import { ARTICLE_SECTION_KEY, yamlCodeBlock } from "@repo/editor/markdown/md-rules";
 import { mdToSlate, rootToSlate } from "@repo/editor/markdown/md-to-slate";
 import { stringProp } from "@repo/editor/node-props";
 
@@ -192,13 +192,6 @@ const takeHeldFiles = (
   return held;
 };
 
-// a block that is not YAML, kept where the person can see and mend it
-const yamlBlock = (yaml: string): TElement => ({
-  children: yaml.split(/\r?\n/u).map((line) => ({ children: [leaf(line, {})], type: "code_line" })),
-  lang: "yaml",
-  type: "code_block",
-});
-
 const placed = (blocks: readonly LibraryBlock[], section: LibrarySection): PlacedBlock[] => {
   const ords = blocks.length === 0 ? [] : ordsBetween(null, null, blocks.length);
   return blocks.map((block, index) => ({ block, ord: ords[index] ?? "a0", section }));
@@ -288,7 +281,7 @@ export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport =
     parts.article === null && isUrlKind(front.fields.kind) && front.fields.fetchState === "filled";
   const note = readPage ? [] : [...before, ...after];
   if (front.invalidYaml !== null) {
-    note.unshift(yamlBlock(front.invalidYaml));
+    note.unshift(yamlCodeBlock(front.invalidYaml));
   }
   const readPorts = {
     image: (url: string): LibraryFile | null => ports.file(url),

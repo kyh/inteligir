@@ -1,5 +1,4 @@
-// Rule dispatch: deserialize routes by mdast type, serialize by the Slate node's plugin key —
-// hence the yaml/frontmatter split.
+// Rule dispatch: deserialize routes by mdast type, serialize by the Slate node's plugin key.
 
 import type { AlignType } from "mdast";
 import { ElementApi, KEYS, NodeApi, TextApi } from "platejs";
@@ -60,7 +59,6 @@ import {
   CHART_BLOCK_KEY,
   ANNOTATION_MARKER_KEY,
   FORMULA_PILL_KEY,
-  FRONTMATTER_KEY,
   HTML_BLOCK_KEY,
   OPAQUE_KEY,
   TAB_GROUP_KEY,
@@ -76,6 +74,15 @@ import type { WikiNodeType } from "@repo/editor/wiki/wiki-node";
 
 const ensureBlocks = (children: Descendant[]): Descendant[] =>
   children.length > 0 ? children : [{ children: [{ text: "" }], type: "p" }];
+
+// YAML no field reads, kept as a code block where the person can see and mend it
+export const yamlCodeBlock = (yaml: string): TElement => ({
+  children: yaml
+    .split(/\r?\n/u)
+    .map((line) => ({ children: [{ text: line }], type: KEYS.codeLine })),
+  lang: "yaml",
+  type: KEYS.codeBlock,
+});
 
 // fail fast if a @platejs/markdown bump reshapes defaultRules.
 const defaultCodeBlock = defaultRules.code_block;
@@ -511,13 +518,6 @@ export const MD_RULES: MdRules = {
     },
   },
 
-  [FRONTMATTER_KEY]: {
-    serialize: (node: TElement): MdYaml => ({
-      type: "yaml",
-      value: stringProp(node, "value") ?? "",
-    }),
-  },
-
   [HTML_BLOCK_KEY]: {
     serialize: (node: TElement): MdCode => ({
       lang: HTML_LANG,
@@ -647,13 +647,10 @@ export const MD_RULES: MdRules = {
 
   [WIKI_LINK_KEY]: wikiRule(WIKI_LINK_KEY),
 
-  // Plate maps mdast `yaml` in its type table but ships no rule; without this and the
-  // `frontmatter` serialize rule above, frontmatter is parsed then dropped.
+  // Plate maps mdast `yaml` in its type table but ships no rule, so a fence with none is dropped.
+  // Only a file has frontmatter, read off its mdast before this runs: a fence that opens a paste,
+  // an agent's text or a page is that text's own lines.
   yaml: {
-    deserialize: (node: MdYaml): TElement => ({
-      children: [{ text: "" }],
-      type: FRONTMATTER_KEY,
-      value: node.value,
-    }),
+    deserialize: (node: MdYaml): TElement => yamlCodeBlock(node.value),
   },
 };
