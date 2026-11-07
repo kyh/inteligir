@@ -68,6 +68,21 @@ const holderStands = async (
   return row !== undefined;
 };
 
+// the sockets a holder opened while it stood, closed once it no longer does: the credential is
+// already dead in D1, and no per-request check reaches a socket that has its upgrade. Best-effort:
+// a failure costs a stale socket, never a live credential
+export const severSockets = async (
+  exports: Cloudflare.Exports,
+  accountId: string,
+  holder: SocketHolder,
+): Promise<void> => {
+  try {
+    await libraryCell(exports, accountId).sever(holder);
+  } catch (error) {
+    console.warn({ event: "socket-sever-failed", holder: holder.kind, ...errorFields(error) });
+  }
+};
+
 // the ticket in the query string, which the logs redact; the build floor does not apply, since a
 // browser's socket cannot name its build and the ticket came from a call that met it
 export const handleLibrarySocket = async (
@@ -94,19 +109,4 @@ export const handleLibrarySocket = async (
     await severSockets(ctx.exports, claim.accountId, claim.holder);
   }
   return opened;
-};
-
-// the sockets a holder opened while it stood, closed once it no longer does: the credential is
-// already dead in D1, and no per-request check reaches a socket that has its upgrade. Best-effort:
-// a failure costs a stale socket, never a live credential
-export const severSockets = async (
-  exports: Cloudflare.Exports,
-  accountId: string,
-  holder: SocketHolder,
-): Promise<void> => {
-  try {
-    await libraryCell(exports, accountId).sever(holder);
-  } catch (error) {
-    console.warn({ event: "socket-sever-failed", holder: holder.kind, ...errorFields(error) });
-  }
 };

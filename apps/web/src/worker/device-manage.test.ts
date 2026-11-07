@@ -90,7 +90,7 @@ describe("a device managing its account's devices", () => {
 
     await expect(
       as(mac.credential).account.devices.revoke({ deviceId: phone.deviceId }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
     faulty.mockRestore();
 
     await expect(closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
