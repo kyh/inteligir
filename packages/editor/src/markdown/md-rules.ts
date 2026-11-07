@@ -310,17 +310,20 @@ const cellLines = (children: readonly Descendant[]): Descendant[][] => {
   return lines;
 };
 
+const isBlank = (node: Descendant): boolean => TextApi.isText(node) && node.text.trim() === "";
+
 // The table writer joins a cell's blocks with `<br/>` and has no other word for its second line, so
 // the tag reads back as that boundary. A block lifted out of the line, an image, already stands
-// on one, so the empty line a tag beside it leaves is not the cell's.
+// on one, so the line a tag beside it leaves, a space at most, is not the cell's.
 const cellBlocks = (blocks: readonly Descendant[]): Descendant[] =>
   blocks.flatMap((block, index): Descendant[] => {
     if (!ElementApi.isElement(block) || block.type !== KEYS.p) {
       return [block];
     }
     const lines = cellLines(block.children);
-    const start = index > 0 && lines[0]?.length === 0 ? 1 : 0;
-    const end = index < blocks.length - 1 && lines.at(-1)?.length === 0 ? -1 : lines.length;
+    const start = index > 0 && lines[0]?.every(isBlank) === true ? 1 : 0;
+    const end =
+      index < blocks.length - 1 && lines.at(-1)?.every(isBlank) === true ? -1 : lines.length;
     return lines
       .slice(start, end)
       .map((children) => ({ ...block, children: children.length > 0 ? children : [{ text: "" }] }));

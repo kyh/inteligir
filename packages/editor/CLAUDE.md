@@ -437,13 +437,14 @@ alone, and no walk narrows structurally.
 - **A `<br/>` IN A TABLE CELL IS THE BOUNDARY BETWEEN ITS BLOCKS.** The table
   writer joins a cell's blocks with that tag and has no other word for a cell's
   second line, so the read cuts a cell at it. An image is a block wherever it
-  stands in a cell, so a tag beside one is the edge it already has. A cell
-  settles on its first write, and its two lines stay two through an edit or a
-  highlight anywhere in the table. Only the writer's spelling is the boundary:
-  `<br>` stays the tag it is. Rejected: holding the tag as source (a re-read of
-  the table would turn a person's second line into a tag), an inline image in a
-  cell (a second image node for one place), and a writer that drops the tag
-  beside an image (it would filter Plate's private output).
+  stands in a cell, so a tag beside one, a space between them or not, is the
+  edge it already has. A cell settles on its first write, and its two lines
+  stay two through an edit or a highlight anywhere in the table. Only the
+  writer's spelling is the boundary: `<br>` stays the tag it is. Rejected:
+  holding the tag as source (a re-read of the table would turn a person's
+  second line into a tag), an inline image in a cell (a second image node for
+  one place), and a writer that drops the tag beside an image (it would filter
+  Plate's private output).
   `packages/editor/src/markdown/md-rules.ts`.
 
 ## The open item's merge

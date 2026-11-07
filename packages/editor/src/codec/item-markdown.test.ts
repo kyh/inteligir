@@ -1046,6 +1046,31 @@ describe("one file as its item", () => {
     expect(exported(reimported(again)).text).toBe(exported(item).text);
   });
 
+  const IMAGE = "![i](https://a.b/c.png)";
+
+  it.each([
+    ["after the image", `${IMAGE} <br/> y`, [" y"], `${IMAGE}<br/> y`],
+    ["before the image", `y <br/> ${IMAGE}`, ["y "], `y <br/>${IMAGE}`],
+    ["on both sides", `x <br/> ${IMAGE} <br/> y`, ["x ", " y"], `x <br/>${IMAGE}<br/> y`],
+    ["between two images", `${IMAGE} ${IMAGE}`, [], `${IMAGE}<br/>${IMAGE}`],
+  ])("reads the space %s as the edge the image has", (_name, cell, lines, written) => {
+    const item = imported(`| a |\n| - |\n| ${cell} |\n`);
+    expect(
+      [...JSON.stringify(item.blocks).matchAll(/"text":"(?<text>[^"]*)"\}\],"type":"p"/gu)].map(
+        ([, text]) => text,
+      ),
+    ).toStrictEqual(["a", ...lines]);
+    expect(exported(item).text).toContain(`| ${written} |`);
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it("keeps a blank line a person left between an image and a caption", () => {
+    const cell = `${IMAGE}<br/> <br/>y`;
+    const item = imported(`| a |\n| - |\n| ${cell} |\n`);
+    expect(exported(item).text).toContain(`| ${cell} |`);
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
   it.each([
     ["one<br/>two", ["one", "two"]],
     ["**one<br/>two**", ["one", "two"]],
