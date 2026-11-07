@@ -242,6 +242,48 @@ describe("a page's reading, landed", () => {
     });
   });
 
+  it("files the item a link folds onto only in a folder that stands", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const library = libraryIn(state, accountId);
+      const engine = openCellLibrary(state, env);
+      const deleteFolder = async (id: string | null) => {
+        if (id === null) {
+          throw new Error("the link was filed in no folder");
+        }
+        await library.folders.write({ ops: [{ id, op: "delete" }] });
+      };
+      const fold = (itemId: string, url: string, finalUrl: string | null) => {
+        const landed = engine.landReading(
+          read({ itemId, url }, [paragraph("f", "Folded.")], { finalUrl: finalUrl ?? "" }),
+        );
+        expect(landed).toMatchObject({ ok: true, value: { kind: "folded" } });
+      };
+
+      const unfiled = await library.items.saveLink({ url: "https://pages.example/unfiled" });
+      const lost = await library.items.saveLink({
+        folder: { path: "Gone" },
+        url: "https://short.example/lost",
+      });
+      await deleteFolder(lost.item.fields.folderId);
+      fold(lost.item.id, "https://short.example/lost", unfiled.item.fields.url);
+      expect(stateOf(state, unfiled.item.id)?.fields.folderId).toBeNull();
+
+      const orphaned = await library.items.saveLink({
+        folder: { path: "Old" },
+        url: "https://pages.example/orphaned",
+      });
+      await deleteFolder(orphaned.item.fields.folderId);
+      const kept = await library.items.saveLink({
+        folder: { path: "Reading" },
+        url: "https://short.example/kept",
+      });
+      fold(kept.item.id, "https://short.example/kept", orphaned.item.fields.url);
+      expect(kept.item.fields.folderId).not.toBeNull();
+      expect(stateOf(state, orphaned.item.id)?.fields.folderId).toBe(kept.item.fields.folderId);
+    });
+  });
+
   it("leaves a folded link read, so it stays where a person restores it", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
