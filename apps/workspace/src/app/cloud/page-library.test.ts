@@ -31,7 +31,7 @@ describe("the tab's library", () => {
     if (opening.kind !== "ready") {
       throw new Error(`the library did not open: ${opening.kind}`);
     }
-    expect(answerSession).toHaveBeenCalledTimes(1);
+    expect(answerSession).toHaveBeenCalledOnce();
 
     waiting.find(({ ms }) => ms === SESSION_READ_MS)?.run();
     expect(answerSession).toHaveBeenCalledTimes(2);
