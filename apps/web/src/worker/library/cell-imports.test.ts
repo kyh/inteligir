@@ -203,6 +203,60 @@ describe("a zip of notes", () => {
   });
 });
 
+describe("a zip's highlights", () => {
+  const ID = "0195f3a0-5c1e-7000-8000-0000000000f1";
+  const NOTE = encoder.encode(
+    `---\nid: ${ID}\n---\nSome %%i:m-root:start%%marked words%%i:m-root:end%% here.\n`,
+  );
+  const ROOT = { createdAt: 1, quote: "marked words", source: "user", text: "", updatedAt: 1 };
+  const REPLY = { createdAt: 2, parentId: "m-root", source: "user", text: "why", updatedAt: 2 };
+
+  const imported = async (store: Readonly<Record<string, unknown>>) => {
+    const accountId = newAccountId();
+    const started = await startImport(
+      accountId,
+      await zip({
+        "Marked.md": NOTE,
+        [`.inteligir/annotations/${ID}.json`]: encoder.encode(JSON.stringify(store)),
+      }),
+      "markdown",
+    );
+    await runToEnd(accountId, started.jobId);
+    const rows = await inCell(cellOf(accountId), (state) =>
+      state.storage.sql
+        .exec("SELECT id, parent_id FROM annotations ORDER BY id")
+        .toArray()
+        .map((row) => [row.id, row.parent_id]),
+    );
+    return { job: await jobOf(accountId, started.jobId), rows };
+  };
+
+  it("land a reply the store holds ahead of its root", async () => {
+    const { job, rows } = await imported({ "c-reply": REPLY, "m-root": ROOT });
+    expect(job).toMatchObject({ added: 1, highlights: 1, unreadable: 0 });
+    expect(rows).toStrictEqual([
+      ["c-reply", "m-root"],
+      ["m-root", null],
+    ]);
+  });
+
+  it("leave out a reply no root of the store answers, and keep the note", async () => {
+    const { job, rows } = await imported({
+      "a-stray": { ...REPLY, parentId: "gone" },
+      "b-nested": { ...REPLY, parentId: "c-reply" },
+      "c-reply": REPLY,
+      "d-bare": { ...REPLY, parentId: "e-unquoted" },
+      "e-unquoted": { createdAt: 1, text: "", updatedAt: 1 },
+      "m-root": ROOT,
+    });
+    expect(job).toMatchObject({ added: 1, highlights: 1, unreadable: 0 });
+    expect(rows).toStrictEqual([
+      ["c-reply", "m-root"],
+      ["m-root", null],
+    ]);
+  });
+});
+
 describe("the files an import kept", () => {
   // two files of a few hundred KiB, which the first pass puts in the library as it reads them
   const FILES = {
