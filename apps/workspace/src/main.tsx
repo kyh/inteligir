@@ -145,6 +145,8 @@ const openInShell = async (target: Root): Promise<void> => {
   }
   switch (opening.kind) {
     case "signed-out": {
+      // the route is the last account's, and the sign-in reloads onto whatever this URL says
+      window.history.replaceState(null, "", window.location.pathname);
       target.render(
         <StrictMode>
           <SignInPage

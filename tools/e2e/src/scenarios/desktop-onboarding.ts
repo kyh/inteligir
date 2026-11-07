@@ -1,7 +1,8 @@
 // The Mac app's first run against a booted Worker: a fresh home opens on the window's sign-in and
 // keeps nothing of an account; signing in keeps the device's credential and opens the library from
 // the shell's own replica, a SQLite file in the app's data dir holding what the account holds; a
-// relaunch goes straight to the library; and Sign out leaves nothing of the account on the Mac.
+// relaunch goes straight to the library; Sign out leaves nothing of the account on the Mac; and the
+// next sign-in opens on the library, not on the Settings the sign-out was pressed from.
 
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
@@ -24,7 +25,7 @@ return button !== undefined;`;
 
 export const desktopOnboarding: Scenario = {
   description:
-    "the built shell on a fresh home opens its one window on the page it carries, at the sign-in, holding no replica; signing in as the account keeps its credential and draws the account's item from the shell's own replica file; a relaunch opens the library with no sign-in; Sign out removes the replica's file and opens the sign-in again",
+    "the built shell on a fresh home opens its one window on the page it carries, at the sign-in, holding no replica; signing in as the account keeps its credential and draws the account's item from the shell's own replica file; a relaunch opens the library with no sign-in; Sign out removes the replica's file and opens the sign-in again; the next sign-in opens the library, not the Settings it left from",
   name: "desktop-onboarding",
   // the shell launches twice, beside a booted Worker
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS + 180_000,
@@ -95,6 +96,14 @@ export const desktopOnboarding: Scenario = {
     expect(
       after.devices.filter((held) => held.revokedAt === null).length === 1,
       "the sign-out left the Mac's credential live",
+    );
+
+    ctx.log("the next sign-in opens the library, not the Settings the sign-out left from");
+    await signInThroughWindow(again.window, OWNER);
+    // Settings covers a grid that stays mounted, so a card alone would pass on it
+    await again.window.waitUntil(
+      `document.querySelector(${JSON.stringify(libraryCard(item.id))}) !== null && document.querySelector("#account") === null`,
+      DEADLINE_MS,
     );
     await again.quit();
   },

@@ -108,13 +108,17 @@ is parsed in `src/shell/shell-commands.ts`.
   page saw (a session that lapsed with no tab open, a quit in the middle of
   one) takes it at the next open, which compares the storage's one
   `storageAccount` row, an account's opaque id, with who is opening. The
-  Mac's routes ride the hash, since its document never changes. Rejected: a
-  first-run window of the shell's own (a second page beside the one the shell
+  Mac's routes ride the hash, since its document never changes, so a reload
+  keeps the route, and the page drops it where it lands signed out: the next
+  account opens on All items, not on the last one's Settings or item. Rejected:
+  a first-run window of the shell's own (a second page beside the one the shell
   carries); the tab's cookie in the window (a cross-site cookie WebKit would
   not send); clearing only where an open reads no session (the site's sign-in
   takes a lapsed cookie and lands on the library, so the next account's first
-  open reads one). `apps/workspace/src/app/cloud/shell-library.ts`,
-  `apps/workspace/src/app/cloud/sign-in-page.tsx`.
+  open reads one); dropping the route in each way of leaving (a sign-out, a
+  deletion, a revoke and the failed open's Sign out each reload, and all of them
+  meet that one arm). `apps/workspace/src/app/cloud/shell-library.ts`,
+  `apps/workspace/src/app/cloud/sign-in-page.tsx`, `apps/workspace/src/main.tsx`.
 
 - **A SESSION'S END IS ANSWERED HOWEVER THE PAGE MEETS IT.** The replica calls
   through a client of its own and stops at a session's end, so each host watches
