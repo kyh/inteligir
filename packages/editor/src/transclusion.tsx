@@ -78,8 +78,7 @@ const EmbeddedBlocks = ({
 const Transclusion = ({ link }: { link: WikiNodeFields }) => {
   const { resolveWikiTarget, titleOf } = useLinkResolver();
   const openItemId = useOpenItemId();
-  const resolved =
-    link.title === "" ? null : resolveWikiTarget(link.title, link.itemId ?? link.alias);
+  const resolved = resolveWikiTarget(link.title, link.itemId ?? link.alias);
   const decision = decideTransclusion(openItemId, resolved);
   const content = useTargetContent(decision.kind === "render" ? decision.itemId : null);
 

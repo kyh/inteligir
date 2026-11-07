@@ -241,3 +241,58 @@ describe("an embedded item's links", () => {
     expect(calls).toContainEqual({ action: "openItem", args: [TARGET_ID] });
   });
 });
+
+const linkOf = (
+  fields: { readonly itemId: string | null; readonly title: string; readonly heading?: string },
+  type: "wikiLink" | "wikiEmbed" = "wikiLink",
+): Value => [
+  { children: [{ text: "" }, { ...fields, children: VOID, type }, { text: "" }], type: "p" },
+];
+
+// the target goes by `title`, which is empty for an item not named yet
+const mountLink = (value: Value, title = "") => {
+  const host = installFakeEditorHost({
+    itemBlocks: only(TARGET_ID),
+    linkTargets: [
+      { id: HUB_ID, title: "Hub" },
+      { id: TARGET_ID, title },
+    ],
+  });
+  render(<EditorHarness itemId={HUB_ID} value={value} />);
+  return host;
+};
+
+describe("a link written to an item with no title", () => {
+  it("is called Untitled, and opens its item", async () => {
+    const { calls } = mountLink(linkOf({ itemId: TARGET_ID, title: "" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Untitled" }));
+    expect(calls).toContainEqual({ action: "openItem", args: [TARGET_ID] });
+  });
+
+  it("goes by the name its item takes, and opens it", async () => {
+    const { calls } = mountLink(linkOf({ itemId: TARGET_ID, title: "" }), "Named since");
+    fireEvent.click(await screen.findByRole("button", { name: "Named since" }));
+    expect(calls).toContainEqual({ action: "openItem", args: [TARGET_ID] });
+  });
+
+  it("embeds its item", async () => {
+    mountLink(linkOf({ itemId: TARGET_ID, title: "" }, "wikiEmbed"));
+    await expect(screen.findByText("4")).resolves.toBeTruthy();
+  });
+
+  it("offers nothing to create once its item is gone, since it has no name to create", async () => {
+    const { calls } = mountLink(linkOf({ itemId: OTHER_ID, title: "" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Untitled" }));
+    expect(screen.queryByText("Create")).toBeNull();
+    expect(calls).toStrictEqual([]);
+  });
+});
+
+describe("a link to a place in its own item", () => {
+  it("opens nothing and offers nothing to create", async () => {
+    const { calls } = mountLink(linkOf({ heading: "Rollback", itemId: null, title: "" }));
+    fireEvent.click(await screen.findByRole("button", { name: "#Rollback" }));
+    expect(screen.queryByText("Create")).toBeNull();
+    expect(calls).toStrictEqual([]);
+  });
+});

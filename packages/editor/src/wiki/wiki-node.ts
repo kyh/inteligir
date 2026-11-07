@@ -14,6 +14,7 @@ import {
   serializeWikiBody,
 } from "@repo/notes/markdown/remark-wiki-link";
 import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
+import { UNTITLED } from "@repo/notes/items/item-name";
 
 import { OPAQUE_KEY, WIKI_EMBED_KEY } from "@repo/editor/dialect-node-keys";
 import type { WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
@@ -135,11 +136,15 @@ export const wikiBodyOf = (fields: WikiNodeFields): string | null => {
   );
 };
 
-// what a link shows when no host names its target better: the alias, else the title and anchor
+// what a link shows when no host names its target better: the alias, else the title and anchor,
+// and an item with no title goes by the app's word for one, since a chip of nothing draws nothing
 export const wikiLabelOf = (fields: WikiNodeFields): string => {
   if (fields.alias !== undefined) {
     return fields.alias;
   }
   const anchor = anchorOf(fields);
-  return anchor === undefined ? fields.title : `${fields.title}#${anchor}`;
+  if (anchor !== undefined) {
+    return `${fields.title}#${anchor}`;
+  }
+  return fields.title === "" ? UNTITLED : fields.title;
 };
