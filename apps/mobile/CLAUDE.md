@@ -159,7 +159,8 @@ how it ships.
   cloud keeps a title it is given and a page read names itself
   (`apps/mobile/src/items/share-payload.ts`).
   It opens the item and only then lets the share go, so a signed-out share
-  waits (`apps/mobile/src/items/share-inbox.tsx`), and a share made while one
+  waits, and so does one a sign-out caught mid-read, which the closed replica
+  refuses (`apps/mobile/src/items/share-inbox.tsx`), and a share made while one
   settles is settled after it (`apps/mobile/src/items/share-queue.ts`).
   Rejected: expo-sharing (experimental receive, no page title); an extension
   that saves.

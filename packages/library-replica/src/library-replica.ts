@@ -65,6 +65,7 @@ import { serialLock } from "./serial-lock";
 
 export type { ReplicaItem, ReplicaListingRow } from "./replica-listing";
 export type { LinkInput, Made, PageInput } from "./replica-commands";
+export { ReplicaClosedError } from "./outbox";
 export { fileSha } from "./replica-commands";
 
 type ThreadRow = z.infer<typeof threadRowSchema>;

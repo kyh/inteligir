@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { nextTask } from "../test-support/async";
 import { createShareQueue } from "./share-queue";
 
 // a settle the test ends when it chooses, as a page read that takes its time
@@ -10,13 +11,14 @@ const pending = () => {
     reset: () => {
       events.push("reset");
     },
-    settle: async (intent: string): Promise<void> => {
+    settle: async (intent: string): Promise<"settled"> => {
       events.push(`settle ${intent}`);
       // oxlint-disable-next-line promise/avoid-new -- a settle the test ends by hand, which only a promise's resolve can do
       await new Promise<void>((resolve) => {
         ends.push(resolve);
       });
       events.push(`settled ${intent}`);
+      return "settled";
     },
   };
   const end = (index: number): void => {
@@ -60,5 +62,29 @@ describe("the shares the inbox settles", () => {
     });
     queue.offer(null, ports);
     expect(events).toStrictEqual(["settle only", "settled only", "reset"]);
+  });
+
+  it("keeps a share its library left under it, for the screen the next sign-in mounts", async () => {
+    const reset = vi.fn<() => void>();
+    const settled: string[] = [];
+    const queue = createShareQueue<string>();
+    queue.offer("only", {
+      reset,
+      settle: async () => await Promise.resolve("held"),
+    });
+    await nextTask();
+    expect(reset).not.toHaveBeenCalled();
+
+    queue.offer("only", {
+      reset,
+      settle: async (intent) => {
+        settled.push(intent);
+        return await Promise.resolve("settled");
+      },
+    });
+    await vi.waitFor(() => {
+      expect(reset).toHaveBeenCalledOnce();
+    });
+    expect(settled).toStrictEqual(["only"]);
   });
 });

@@ -7,7 +7,6 @@ import type { PhoneLibrary } from "@/lib/compose-runtime";
 import { messageOf } from "@/lib/error-message";
 import { useLibrary } from "@/lib/library-hooks";
 import { openItem } from "@/lib/routes";
-import type { SavedItem } from "./phone-saves";
 import { sharedSaveOf } from "./share-payload";
 import { createShareQueue } from "./share-queue";
 import { saveShared } from "./share-save";
@@ -26,10 +25,14 @@ const metaOf = (meta: ShareIntent["meta"]): Record<string, string> | null => {
   return kept;
 };
 
-// the save, the item opened and every refusal told; it never throws, so the share is let go after
-const settleShare = async (library: PhoneLibrary, intent: ShareIntent): Promise<void> => {
+// the save, the item opened and every refusal told; it never throws, so the share is let go after,
+// unless its library left under it, when it waits for the next sign-in as a signed-out share does
+const settleShare = async (
+  library: PhoneLibrary,
+  intent: ShareIntent,
+): Promise<"settled" | "held"> => {
   const page = headlessPage();
-  let saved: SavedItem | null;
+  let saved: Awaited<ReturnType<typeof saveShared>>;
   try {
     saved = await saveShared(
       {
@@ -49,13 +52,17 @@ const settleShare = async (library: PhoneLibrary, intent: ShareIntent): Promise<
     );
   } catch (error) {
     Alert.alert("Couldn't save", messageOf(error));
-    return;
+    return "settled";
+  }
+  if (saved?.kind === "left") {
+    return "held";
   }
   if (saved?.kind === "refused") {
     Alert.alert("Couldn't save", saved.message);
   } else if (saved !== null) {
     openItem(saved.made.id);
   }
+  return "settled";
 };
 
 // A share from Safari, YouTube, Mail or any app is a save the app makes: the extension only hands
@@ -72,9 +79,7 @@ export const ShareInbox = () => {
   useEffect(() => {
     queue.offer(hasShareIntent ? shareIntent : null, {
       reset: resetShareIntent,
-      settle: async (intent) => {
-        await settleShare(library, intent);
-      },
+      settle: async (intent) => await settleShare(library, intent),
     });
   }, [hasShareIntent, library, queue, resetShareIntent, shareIntent]);
 

@@ -9,6 +9,7 @@
 
 import { base64FromBytes } from "@repo/contract/cloud/bytes";
 import type { FillAnswer, FillJob } from "@repo/editor-bridge/protocol";
+import { ReplicaClosedError } from "@repo/library-replica/library-replica";
 import type { LibraryReplica, Made, PageInput } from "@repo/library-replica/library-replica";
 import { namesPrivateSpace } from "@repo/notes/items/host-names";
 import { coverPicture, FILL_LIMITS, isPageType } from "@repo/notes/items/link-fill";
@@ -110,6 +111,10 @@ const readSharedPage = async (
   return shared.note === null || shared.note === title ? page : { ...page, note: shared.note };
 };
 
+// what became of a share: saved, refused, or its library gone under it, a sign-out landing while
+// the page was read, which saved nothing and leaves the share to the next sign-in
+type SharedOutcome = SavedItem | { readonly kind: "left" };
+
 // a share saved however it can be: read here, else as its link, else as text; null for a share
 // that held nothing to save
 export const saveShared = async (
@@ -119,24 +124,31 @@ export const saveShared = async (
     readonly newBlockId: () => string;
   },
   shared: SharedSave,
-): Promise<SavedItem | null> => {
+): Promise<SharedOutcome | null> => {
   const target: SaveTarget = { folderId: null };
   const saves = createPhoneSaves({ newBlockId: args.newBlockId, replica: args.replica });
-  switch (shared.kind) {
-    case "link": {
-      const page = await readSharedPage(args.ports, shared, target);
-      if (page === null) {
-        return await saves.saveLink(unreadLink(shared), target);
+  try {
+    switch (shared.kind) {
+      case "link": {
+        const page = await readSharedPage(args.ports, shared, target);
+        if (page === null) {
+          return await saves.saveLink(unreadLink(shared), target);
+        }
+        const made: Made = await args.replica.savePage(page);
+        return { kind: "saved", made };
       }
-      const made: Made = await args.replica.savePage(page);
-      return { kind: "saved", made };
+      case "text": {
+        return await saves.saveText(shared.text, target);
+      }
+      case "nothing": {
+        return null;
+      }
+      // no default
     }
-    case "text": {
-      return await saves.saveText(shared.text, target);
+  } catch (error) {
+    if (error instanceof ReplicaClosedError) {
+      return { kind: "left" };
     }
-    case "nothing": {
-      return null;
-    }
-    // no default
+    throw error;
   }
 };
