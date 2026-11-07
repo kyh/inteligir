@@ -186,6 +186,31 @@ describe("the library's procedures", () => {
     });
   });
 
+  it("folds a device's read by the reading's own rule, keeping a fact it left out and a title the person gave", async () => {
+    await inCell(cellOf(), async (state) => {
+      const library = clientIn(state, clockAt());
+      const url = "https://example.com/saved-later";
+      const stub = await library.items.saveLink({ title: "My name for it", url });
+      const facts = { author: null, description: null, lang: null, published: null, site: null };
+      await library.items.save({
+        ...pageSave(url),
+        facts: { ...facts, author: "A. Writer" },
+      });
+      await library.items.save({
+        ...pageSave(url),
+        facts: { ...facts, site: "Pages" },
+        title: "The page's own title",
+      });
+      const read = await library.items.read({ id: stub.item.id });
+      expect(read.fields).toMatchObject({
+        author: "A. Writer",
+        fetchState: "filled",
+        site: "Pages",
+        title: "My name for it",
+      });
+    });
+  });
+
   it("keeps a link's selection as a highlight: waiting on a stub, placed in an item that holds its text", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());

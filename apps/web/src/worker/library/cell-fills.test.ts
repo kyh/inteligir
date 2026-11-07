@@ -210,6 +210,72 @@ describe("a page's reading, landed", () => {
     });
   });
 
+  it("folds by the reading's own rule: a fact only where the page gave one, a title only over the address", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const library = libraryIn(state, accountId);
+      const engine = openCellLibrary(state, env);
+      const final = "https://pages.example/kept-facts";
+      const holder = await library.items.saveLink({ url: final });
+      engine.landReading(read({ itemId: holder.item.id, url: final }, [paragraph("h", "Held.")]));
+      const stub = await library.items.saveLink({ url: "https://short.example/facts" });
+      engine.landReading(
+        read({ itemId: stub.item.id, url: "https://short.example/facts" }, [paragraph("f", "F.")], {
+          facts: { author: null, description: null, lang: "fr", published: null, site: null },
+          finalUrl: final,
+          title: "Another title",
+        }),
+      );
+      expect(stateOf(state, holder.item.id)?.fields).toMatchObject({
+        author: "A. Writer",
+        description: "What the page says.",
+        lang: "fr",
+        site: "Pages",
+        title: "The page's own title",
+      });
+    });
+  });
+
+  it("keeps the title a person gave an unread item a page folds onto", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const library = libraryIn(state, accountId);
+      const engine = openCellLibrary(state, env);
+      const final = "https://pages.example/named";
+      const holder = await library.items.saveLink({ title: "My name for it", url: final });
+      const stub = await library.items.saveLink({ url: "https://short.example/named" });
+      engine.landReading(
+        read({ itemId: stub.item.id, url: "https://short.example/named" }, [paragraph("f", "F.")], {
+          finalUrl: final,
+        }),
+      );
+      expect(stateOf(state, holder.item.id)?.fields).toMatchObject({
+        author: "A. Writer",
+        fetchState: "filled",
+        title: "My name for it",
+      });
+    });
+  });
+
+  it("names an unread item still called by its address after the page folded onto it", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const library = libraryIn(state, accountId);
+      const engine = openCellLibrary(state, env);
+      const final = "https://pages.example/placeholder";
+      const holder = await library.items.saveLink({ url: final });
+      const stub = await library.items.saveLink({ url: "https://short.example/placeholder" });
+      engine.landReading(
+        read(
+          { itemId: stub.item.id, url: "https://short.example/placeholder" },
+          [paragraph("f", "F.")],
+          { finalUrl: final },
+        ),
+      );
+      expect(stateOf(state, holder.item.id)?.fields.title).toBe("The page's own title");
+    });
+  });
+
   it("lands nothing on an item that no longer waits for the reading", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {

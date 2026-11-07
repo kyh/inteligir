@@ -297,8 +297,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 - **A SAVED PAGE OF A URL THE LIBRARY HOLDS FOLDS ONTO ITS ITEM, ITS ARTICLE
   REPLACING THE ITEM'S AND THE ITEM'S HIGHLIGHTS PLACED AGAIN.** One url, one
   item (R22): a device's read lands its article in place of the item's, leaves
-  the person's note alone, sets the facts the fill owns and adds its tags, and
-  in the same write places every highlight that keeps a quote by that quote,
+  the person's note alone, sets the item's fields as a reading does and adds
+  its tags, and in the same write places every highlight that keeps a quote by that quote,
   since the markers went with the old article; one the note holds stays where
   it is, a selection the item keeps adds nothing, and a read with no article
   leaves the item's. Rejected: keeping the first article (a resave never shows
@@ -338,9 +338,10 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   address, and never touches the note; an item deleted, read or readdressed
   meanwhile lands nothing, so a message met twice lands once. A page whose
   redirects end at another live item's address folds onto it, the stub's tags
-  and note with it. Rejected: bases the consumer read (a reading nobody edited
-  around would conflict with every save meanwhile).
-  `apps/web/src/worker/library/cell-fills.ts`.
+  and note with it, and a fold sets the fields by the same rule, one function
+  a device's save calls too. Rejected: bases the consumer read (a reading
+  nobody edited around would conflict with every save meanwhile).
+  `apps/web/src/worker/library/cell-fills.ts`, `cell-saves.ts`.
 
 - **AN IMPORT IS A CELL JOB RUN A PAGE AT A TIME, ITS PLAN IN ROWS.**
   `library.imports.start` names a file the device uploaded, and each alarm run

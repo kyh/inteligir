@@ -94,37 +94,37 @@ const articleOf = (input: ReadPage): PlacedBlock[] =>
   input.article.map(({ block, ord }) => ({ block, ord, section: "article" }));
 
 // a field op that changes something; one whose value is its base is left out
-const changes = (op: LibraryOp): boolean => op.op !== "set" || op.base !== op.value;
+export const changes = (op: LibraryOp): boolean => op.op !== "set" || op.base !== op.value;
 
-// the read page's facts over the item's: what the fill owns, the page's title for a stub never
-// read (its own was the address's placeholder), and the page's cover where it brought one
-const factOps = (state: ItemState, input: ReadPage, now: number): LibraryOp[] => {
-  const { fields } = state;
-  const { facts } = input;
-  const title = fields.fetchState === "filled" || input.title === "" ? fields.title : input.title;
-  const ops: LibraryOp[] = [
-    { base: fields.author, field: "author", op: "set", value: facts.author },
-    { base: fields.description, field: "description", op: "set", value: facts.description },
-    { base: fields.lang, field: "lang", op: "set", value: facts.lang },
-    { base: fields.published, field: "published", op: "set", value: facts.published },
-    { base: fields.site, field: "site", op: "set", value: facts.site },
-    {
-      base: fields.coverSha,
-      field: "coverSha",
-      op: "set",
-      value: input.coverSha ?? fields.coverSha,
-    },
+const FACT_FIELDS = ["author", "description", "lang", "published", "site"] as const;
+
+// the fields a read page sets, however it reached the item: what it said of itself where it said
+// anything (a value it did not give never removes one an import gave), its cover where it brought
+// one, the reading's own state, and its title (empty when it gave none) only over the address the
+// item is still named by
+export const pageFieldOps = (
+  fields: LibraryItemFields,
+  page: Pick<ReadPage, "coverSha" | "facts" | "title">,
+  now: number,
+): LibraryOp[] => {
+  const ops: LibraryOp[] = [];
+  for (const field of FACT_FIELDS) {
+    const value = page.facts[field];
+    if (value !== null) {
+      ops.push({ base: fields[field], field, op: "set", value });
+    }
+  }
+  if (page.coverSha !== null) {
+    ops.push({ base: fields.coverSha, field: "coverSha", op: "set", value: page.coverSha });
+  }
+  ops.push(
     { base: fields.fetchError, field: "fetchError", op: "set", value: null },
     { base: fields.fetchState, field: "fetchState", op: "set", value: "filled" },
     { base: fields.fetchedAt, field: "fetchedAt", op: "set", value: now },
-    {
-      base: fields.folderId,
-      field: "folderId",
-      op: "set",
-      value: fields.folderId ?? input.folderId,
-    },
-    { base: fields.title, field: "title", op: "set", value: title },
-  ];
+  );
+  if (page.title !== "" && fields.url !== null && fields.title === itemNameFromUrl(fields.url)) {
+    ops.push({ base: fields.title, field: "title", op: "set", value: page.title });
+  }
   return ops.filter(changes);
 };
 
@@ -197,8 +197,9 @@ const appendedNote = (
 };
 
 // a page onto the item holding its address: its article replaces the item's, unless the read
-// found none, and the item's highlights are placed again in it; its facts land where the fill
-// owns them, its tags join the item's, and a note it brings goes after the item's own
+// found none, and the item's highlights are placed again in it; its fields land as a reading's do,
+// its folder only where the item has none, its tags join the item's, and a note it brings goes
+// after the item's own
 export const foldPage = (
   scope: LandingScope,
   actor: CellActor,
@@ -223,7 +224,10 @@ export const foldPage = (
           ...articleOf(input).map((placed): LibraryOp => ({ ...placed, op: "insert" })),
         ]
       : []),
-    ...factOps(held, input, scope.now),
+    ...pageFieldOps(held.fields, input, scope.now),
+    ...(held.fields.folderId === null && input.folderId !== null
+      ? [{ base: null, field: "folderId", op: "set", value: input.folderId } as const]
+      : []),
     ...tagsOp(held.fields, input.tags),
     ...appendedNote(held, note),
   ];

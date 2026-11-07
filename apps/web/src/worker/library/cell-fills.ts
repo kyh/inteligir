@@ -16,7 +16,6 @@ import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import { readItemState } from "@repo/notes/library/library-queries";
 import { runPlan } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
-import { itemNameFromUrl } from "@repo/notes/items/item-name";
 import { kindForUrl, urlKey } from "@repo/notes/items/item-url";
 import { z } from "zod";
 
@@ -30,7 +29,7 @@ import { deferJob, dueJobs, scheduleJob } from "./cell-jobs";
 import type { DueJob } from "./cell-jobs";
 import { urlHolder } from "./cell-landing";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
-import { foldPage, quotesOf } from "./cell-saves";
+import { changes, foldPage, pageFieldOps, quotesOf } from "./cell-saves";
 import { landWrite } from "./cell-writes";
 
 // who a page's reading is by, in History's words
@@ -175,46 +174,30 @@ export const sentFills = (sql: SqlStatements, claimed: readonly ClaimedFill[]): 
   }
 };
 
-// what a page says of itself, each set only where it said anything
-const FACT_FIELDS = ["author", "description", "lang", "published", "site"] as const;
+const pageOf = (landing: Extract<FillLanding, { kind: "read" }>) => ({
+  article: landing.article,
+  coverSha: landing.coverSha,
+  facts: landing.facts,
+  title: landing.title ?? "",
+});
 
-const changes = (op: LibraryOp): boolean => op.op !== "set" || op.base !== op.value;
-
-// the fields a reading sets: what the page said of itself where it said anything (a value it did
-// not give never removes one an import gave), its cover, the reading's own state, and a title in
-// place of the address the item was named by while unread
+// the fields a reading sets: a read page's, and the kind its address or its player shows it to be
 const readFieldOps = (
   fields: LibraryItemFields,
   landing: Extract<FillLanding, { kind: "read" }>,
   now: number,
 ): LibraryOp[] => {
-  const { facts } = landing;
-  const placeholder = fields.url !== null && fields.title === itemNameFromUrl(fields.url);
   const upgraded = kindForUrl(landing.finalUrl);
   const kind =
     fields.kind === "link"
       ? (landing.playable ?? (upgraded === "link" ? fields.kind : upgraded))
       : fields.kind;
-  const ops: LibraryOp[] = [];
-  for (const field of FACT_FIELDS) {
-    const value = facts[field];
-    if (value !== null) {
-      ops.push({ base: fields[field], field, op: "set", value });
-    }
-  }
-  if (landing.coverSha !== null) {
-    ops.push({ base: fields.coverSha, field: "coverSha", op: "set", value: landing.coverSha });
-  }
-  ops.push(
-    { base: fields.kind, field: "kind", op: "set", value: kind },
-    { base: fields.fetchError, field: "fetchError", op: "set", value: null },
-    { base: fields.fetchState, field: "fetchState", op: "set", value: "filled" },
-    { base: fields.fetchedAt, field: "fetchedAt", op: "set", value: now },
-  );
-  if (placeholder && landing.title !== null) {
-    ops.push({ base: fields.title, field: "title", op: "set", value: landing.title });
-  }
-  return ops.filter(changes);
+  return [
+    ...pageFieldOps(fields, pageOf(landing), now),
+    ...(kind === fields.kind
+      ? []
+      : [{ base: fields.kind, field: "kind", op: "set", value: kind } as const]),
+  ];
 };
 
 // the item's article replaced by the page's, unless the page held none, which leaves the item's
@@ -278,14 +261,7 @@ const foldOnto = (
     codec,
     { ...held, id: holderId },
     readAnnotationRows(scope.storage, holderId),
-    {
-      article: landing.article,
-      coverSha: landing.coverSha,
-      facts: landing.facts,
-      folderId: null,
-      title: landing.title ?? "",
-      tags: stub.state.fields.tags,
-    },
+    { ...pageOf(landing), folderId: null, tags: stub.state.fields.tags },
     null,
     [...stub.state.blocks.values()].filter((stored) => stored.section === "note"),
   );
