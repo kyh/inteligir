@@ -1,7 +1,7 @@
 // A folder of markdown, this app's export or an Obsidian vault, read into the library in two
 // passes, so a job can run the second a page at a time and resume. Pass one plans from every path
-// and every doc's frontmatter: each folder, each doc's item and id, every file's bytes, and every
-// highlights' store. Pass two reads one doc at a time against the whole plan, resolving its links
+// and every doc's frontmatter: each doc's item and id, every file's bytes, and every highlights'
+// store. Pass two reads one doc at a time against the whole plan, resolving its links
 // by the resolver's tiers (path, name, alias, then the `[[Title|uuid]]` id,
 // `@repo/notes/knowledge/link-resolve`). Last, every file no item names becomes an item of its
 // own, so a bare file is a card of its own. Obsidian's settings (`.obsidian/`) and
@@ -67,19 +67,10 @@ export type ImportEntry =
   | { readonly kind: "store"; readonly path: string; readonly text: string }
   | { readonly kind: "file"; readonly path: string; readonly sha: string };
 
-/** @internal */
-export interface PlannedFolder {
-  readonly id: string;
-  readonly parentId: string | null;
-  readonly name: string;
-  readonly path: string;
-}
-
 export interface PlannedDoc {
   readonly path: string;
   readonly itemId: string;
   readonly title: string;
-  readonly folderId: string | null;
   // the `id:` its frontmatter carries, which other docs' `[[Title|uuid]]` key by
   readonly fileId: string | null;
   // the id of the highlights' store it reads: a highlight's id is the library's, so of the docs
@@ -98,7 +89,6 @@ interface PlannedFile {
 
 // pass one's answer, plain data a resumable job keeps between its pages
 export interface ImportPlan {
-  readonly folders: readonly PlannedFolder[];
   readonly docs: readonly PlannedDoc[];
   readonly files: readonly PlannedFile[];
   // the docs' highlight stores, each by the frontmatter id it is keyed by
@@ -109,40 +99,9 @@ export interface ImportPlan {
 
 export interface PlanIds {
   readonly newItemId: () => string;
-  readonly newFolderId: () => string;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
-
-interface FolderTable {
-  readonly folders: PlannedFolder[];
-  readonly idOf: (dir: string) => string | null;
-}
-
-// a folder for every directory an item sits in, and every directory above one; a directory a
-// table before this one made keeps its folder
-const folderTable = (
-  newFolderId: () => string,
-  known: ReadonlyMap<string, string> = new Map(),
-): FolderTable => {
-  const folders: PlannedFolder[] = [];
-  const ids = new Map(known);
-  const idOf = (dir: string): string | null => {
-    if (dir === "") {
-      return null;
-    }
-    const held = ids.get(dir);
-    if (held !== undefined) {
-      return held;
-    }
-    const parentId = idOf(dirnamePath(dir));
-    const id = newFolderId();
-    ids.set(dir, id);
-    folders.push({ id, name: basenamePath(dir), parentId, path: dir });
-    return id;
-  };
-  return { folders, idOf };
-};
 
 interface DocFront {
   readonly fileId: string | null;
@@ -165,7 +124,6 @@ const docFront = (path: string, text: string): DocFront => {
 // pass one: every path planned, an item id minted for each doc (its own uuid kept when it has an
 // unused one), and the resolver every doc's links are read through
 export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): ImportPlan => {
-  const table = folderTable(ids.newFolderId);
   const docs: PlannedDoc[] = [];
   const files: PlannedFile[] = [];
   const stores: { key: string; text: string }[] = [];
@@ -205,7 +163,6 @@ export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): Impor
         docs.push({
           aliases: front.aliases,
           fileId: front.fileId,
-          folderId: table.idOf(dirnamePath(path)),
           itemId,
           path,
           storeId,
@@ -217,12 +174,11 @@ export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): Impor
       // no default
     }
   }
-  return { docs, files, folders: table.folders, rules, stores };
+  return { docs, files, rules, stores };
 };
 
 // a plan opened for pass two: its lookups and its resolver, built once for every doc it reads
 export interface PlanReader {
-  readonly plan: ImportPlan;
   readonly resolver: TargetResolver;
   readonly docs: ReadonlyMap<string, PlannedDoc>;
   readonly files: ReadonlyMap<string, PlannedFile>;
@@ -232,7 +188,6 @@ export interface PlanReader {
 export const openPlan = (plan: ImportPlan): PlanReader => ({
   docs: new Map(plan.docs.map((doc) => [doc.path, doc])),
   files: new Map(plan.files.map((file) => [file.path, file])),
-  plan,
   resolver: buildResolver(
     [...plan.docs.map((doc) => doc.path), ...plan.files.map((file) => file.path)],
     plan.docs.flatMap((doc) => doc.aliases.map((alias): [string, string] => [alias, doc.path])),
@@ -318,15 +273,9 @@ export const importPlannedDoc = (
 
 interface PlannedFileItem {
   readonly itemId: string;
-  readonly path: string;
-  readonly folderId: string | null;
+  // the folder's path in the zip, "" at its root
+  readonly folderPath: string;
   readonly fields: ImportedFields;
-}
-
-export interface FileItems {
-  readonly items: readonly PlannedFileItem[];
-  // the folders the file items sit in that no doc's did
-  readonly folders: readonly PlannedFolder[];
 }
 
 // what the library's items name of the files once pass two has run: every file, and those an item
@@ -373,19 +322,15 @@ export const planFileItems = (
   read: ReadFiles,
   ids: PlanIds,
   now: number,
-): FileItems => {
-  const known = new Map(plan.folders.map((folder) => [folder.path, folder.id]));
-  const table = folderTable(ids.newFolderId, known);
+): PlannedFileItem[] => {
   const ownItem = (file: PlannedFile): boolean =>
     !isCoverPath(file.path) &&
     !read.originals.has(file.sha) &&
     (!read.attached.has(file.sha) ||
       ITEM_ONLY_EXTENSIONS.has(extnamePath(file.path).toLowerCase()));
-  const items = plan.files.filter(ownItem).map((file) => ({
+  return plan.files.filter(ownItem).map((file) => ({
     fields: fileItemFields(file, now),
-    folderId: table.idOf(dirnamePath(file.path)),
+    folderPath: dirnamePath(file.path),
     itemId: ids.newItemId(),
-    path: file.path,
   }));
-  return { folders: table.folders, items };
 };

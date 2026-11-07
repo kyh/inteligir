@@ -23,6 +23,7 @@ import type {
   ReadFiles,
 } from "@repo/editor/codec/import-plan";
 import { urlKey } from "@repo/notes/items/item-url";
+import { dirnamePath } from "@repo/notes/knowledge/folder-path";
 import { libraryItemFieldsSchema } from "@repo/notes/library/library-item";
 import { readItem } from "@repo/notes/library/library-queries";
 import { runPlan } from "@repo/notes/library/library-sql";
@@ -106,7 +107,6 @@ type Entry = z.infer<typeof entrySchema>;
 const plannedDocSchema = z.object({
   aliases: z.array(z.string()),
   fileId: z.string().nullable(),
-  folderId: z.string().nullable(),
   itemId: z.string(),
   path: z.string(),
   storeId: z.string().nullable(),
@@ -121,13 +121,6 @@ const docRowSchema = z.object({
 });
 type DocRow = z.infer<typeof docRowSchema>;
 
-const folderRowSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  parentId: z.string().nullable(),
-  path: z.string(),
-});
-
 const fileRowSchema = z.object({
   kind: z.enum(["image", "pdf", "video", "audio", "file"]),
   path: z.string(),
@@ -138,7 +131,7 @@ const storeRowSchema = z.object({ key: z.string(), text: z.string() });
 
 const fileItemRowSchema = z.object({
   fields: libraryItemFieldsSchema.omit({ deletedAt: true, folderId: true }),
-  folderPath: z.string().nullable(),
+  folderPath: z.string(),
   itemId: z.string(),
 });
 
@@ -147,7 +140,6 @@ const ROWS = {
   entry: "entry",
   file: "file",
   fileItem: "file-item",
-  folder: "folder",
   store: "store",
 } as const;
 
@@ -163,8 +155,8 @@ const libraryPath = (path: string): string =>
     .map((name) => name.trim().slice(0, 255))
     .join("/");
 
-const folderIdOf = (scope: LandingScope, host: ImportHost, path: string | null): string | null =>
-  path === null || path === ""
+const folderIdOf = (scope: LandingScope, host: ImportHost, path: string): string | null =>
+  path === ""
     ? null
     : (folderOfTarget(scope, { path: libraryPath(path) }, host.library.ids.item) ?? null);
 
@@ -309,10 +301,7 @@ const writePlan = (scope: LandingScope, host: ImportHost, job: ImportJob): void 
   const zips = new Map(
     entries.flatMap((entry) => (entry.kind === "doc" ? [[entry.path, entry.zip] as const] : [])),
   );
-  const plan = planImport(entries.map(importEntryOf), {
-    newFolderId: host.library.ids.item,
-    newItemId: host.library.ids.item,
-  });
+  const plan = planImport(entries.map(importEntryOf), { newItemId: host.library.ids.item });
   putImportRows(
     sql,
     job.id,
@@ -323,12 +312,6 @@ const writePlan = (scope: LandingScope, host: ImportHost, job: ImportJob): void 
         ? []
         : [{ idx, value: { ...settledDoc(sql, doc, host.library.ids.item), zip } }];
     }),
-  );
-  putImportRows(
-    sql,
-    job.id,
-    ROWS.folder,
-    plan.folders.map((value, idx) => ({ idx, value })),
   );
   putImportRows(
     sql,
@@ -416,19 +399,15 @@ const readPaths = async (
 interface LoadedPlan {
   readonly plan: ImportPlan;
   readonly docs: readonly DocRow[];
-  readonly folderPaths: ReadonlyMap<string, string>;
 }
 
 const loadPlan = (sql: SqlStatements, jobId: string): LoadedPlan => {
   const docs = importRows(sql, jobId, ROWS.doc, ALL, docRowSchema).map((row) => row.value);
-  const folders = importRows(sql, jobId, ROWS.folder, ALL, folderRowSchema).map((row) => row.value);
   return {
     docs,
-    folderPaths: new Map(folders.map((folder) => [folder.id, folder.path])),
     plan: {
       docs: docs.map((row) => row.doc),
       files: importRows(sql, jobId, ROWS.file, ALL, fileRowSchema).map((row) => row.value),
-      folders,
       rules: null,
       stores: importRows(sql, jobId, ROWS.store, ALL, storeRowSchema).map((row) => row.value),
     },
@@ -462,7 +441,6 @@ const landDoc = (
   host: ImportHost,
   job: ImportJob,
   read: Extract<ReturnType<typeof importPlannedDoc>, { ok: true }>["read"],
-  folderPath: string | null,
 ): z.input<typeof LANDED> => {
   const { item, doc } = read;
   const key = item.fields.url === null ? null : urlKey(item.fields.url);
@@ -476,7 +454,11 @@ const landDoc = (
   const landed = landNew(scope, importActor(job), {
     annotations,
     blocks: item.blocks,
-    fields: { ...item.fields, deletedAt: null, folderId: folderIdOf(scope, host, folderPath) },
+    fields: {
+      ...item.fields,
+      deletedAt: null,
+      folderId: folderIdOf(scope, host, dirnamePath(doc.path)),
+    },
     id: doc.itemId,
   });
   askFill(scope, landed);
@@ -543,11 +525,9 @@ const docOutcome = async (
   if (!read.ok) {
     return skip({ unreadable: 1 });
   }
-  const folderPath =
-    row.doc.folderId === null ? null : (context.loaded.folderPaths.get(row.doc.folderId) ?? null);
   return settle(
     library.land(importActor(job), { answer: LANDED, opId: undefined }, (scope) => {
-      const result = landDoc(scope, host, job, read.read, folderPath);
+      const result = landDoc(scope, host, job, read.read);
       advanceImport(scope.storage, job.id, {
         changeSetId: result.held ? undefined : scope.set().id,
         counts: result.held
@@ -590,30 +570,19 @@ const planFiles = (scope: LandingScope, host: ImportHost, job: ImportJob, loaded
   const items = planFileItems(
     loaded.plan,
     namedFiles(sql, job.id),
-    { newFolderId: host.library.ids.item, newItemId: host.library.ids.item },
+    { newItemId: host.library.ids.item },
     host.now(),
   );
-  const paths = new Map([
-    ...loaded.folderPaths,
-    ...items.folders.map((folder) => [folder.id, folder.path] as const),
-  ]);
   putImportRows(
     sql,
     job.id,
     ROWS.fileItem,
-    items.items.map((item, idx) => ({
-      idx,
-      value: {
-        fields: item.fields,
-        folderPath: item.folderId === null ? null : (paths.get(item.folderId) ?? null),
-        itemId: item.itemId,
-      },
-    })),
+    items.map((value, idx) => ({ idx, value })),
   );
   advanceImport(sql, job.id, {
     cursor: 0,
     phase: "files",
-    total: loaded.docs.length + items.items.length,
+    total: loaded.docs.length + items.length,
   });
 };
 

@@ -7,6 +7,7 @@ import { collectFileShas } from "@repo/notes/library/library-nodes";
 import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
 
 import { CODEC_NOW, withoutId } from "../test-support/codec-ports";
+import { basenamePath, dirnamePath } from "@repo/notes/knowledge/folder-path";
 import { wikiFilingKeys, wikiTargetKeys } from "@repo/notes/knowledge/link-resolve";
 
 import {
@@ -17,7 +18,7 @@ import {
   planExportDoc,
   rulesFile,
 } from "./export-plan";
-import type { ExportFile, ExportStore, PlannedExportDoc } from "./export-plan";
+import type { ExportFile, ExportFolder, ExportStore, PlannedExportDoc } from "./export-plan";
 import {
   importPathKind,
   importPlannedDoc,
@@ -25,7 +26,7 @@ import {
   planFileItems,
   planImport,
 } from "./import-plan";
-import type { ImportEntry, PlanIds, PlannedFolder } from "./import-plan";
+import type { ImportEntry, PlanIds } from "./import-plan";
 import type { ExportItem, ImportedFields } from "./item-markdown";
 
 const PROJECT_ID = "0195f3a0-5c1e-7000-8000-00000000000a";
@@ -141,7 +142,6 @@ const counters = (): PlanIds & { newBlockId: () => string; newAnnotationId: () =
   return {
     newAnnotationId: mint("hl"),
     newBlockId: mint("b"),
-    newFolderId: mint("folder-"),
     newItemId: () => {
       uuid += 1;
       return `0195f3a0-5c1e-7000-9000-${String(uuid).padStart(12, "0")}`;
@@ -151,7 +151,7 @@ const counters = (): PlanIds & { newBlockId: () => string; newAnnotationId: () =
 
 interface LibraryItem {
   readonly itemId: string;
-  readonly folderPath: string | null;
+  readonly folderPath: string;
   readonly fields: ImportedFields;
   readonly blocks: readonly { block: LibraryBlock; ord: string; section: "note" | "article" }[];
   readonly annotations: ExportItem["annotations"];
@@ -159,11 +159,24 @@ interface LibraryItem {
 
 interface ReadLibrary {
   readonly items: LibraryItem[];
-  readonly folders: PlannedFolder[];
-  readonly folderPaths: Map<string, string>;
+  readonly folders: ExportFolder[];
   readonly skipped: string[];
   readonly rules: string | null;
 }
+
+// the folder each item sits in and every folder above it, as the cell makes them, each by its path
+const foldersOf = (items: readonly LibraryItem[]): ExportFolder[] => {
+  const paths = new Set<string>();
+  for (const item of items) {
+    for (let path = item.folderPath; path !== ""; path = dirnamePath(path)) {
+      paths.add(path);
+    }
+  }
+  return [...paths].map((path) => {
+    const parent = dirnamePath(path);
+    return { id: path, name: basenamePath(path), parentId: parent === "" ? null : parent };
+  });
+};
 
 // the three passes over a folder's files, as an import job runs them
 const readFolder = (
@@ -189,7 +202,6 @@ const readFolder = (
   const attached = new Set<string>();
   const originals = new Set<string>();
   const items: LibraryItem[] = [];
-  const folderPaths = new Map(plan.folders.map((folder) => [folder.id, folder.path]));
   for (const doc of plan.docs) {
     const read = importPlannedDoc(reader, doc, files[doc.path] ?? "", { ...ids, now: CODEC_NOW });
     if (!read.ok) {
@@ -211,25 +223,14 @@ const readFolder = (
       annotations: read.read.item.annotations,
       blocks: read.read.item.blocks,
       fields: read.read.item.fields,
-      folderPath: doc.folderId === null ? null : (folderPaths.get(doc.folderId) ?? null),
+      folderPath: dirnamePath(doc.path),
       itemId: doc.itemId,
     });
   }
-  const fileItems = planFileItems(plan, { attached, originals }, ids, CODEC_NOW);
-  const folders = [...plan.folders, ...fileItems.folders];
-  for (const folder of fileItems.folders) {
-    folderPaths.set(folder.id, folder.path);
+  for (const item of planFileItems(plan, { attached, originals }, ids, CODEC_NOW)) {
+    items.push({ ...item, annotations: {}, blocks: [] });
   }
-  for (const item of fileItems.items) {
-    items.push({
-      annotations: {},
-      blocks: [],
-      fields: item.fields,
-      folderPath: item.folderId === null ? null : (folderPaths.get(item.folderId) ?? null),
-      itemId: item.itemId,
-    });
-  }
-  return { folderPaths, folders, items, rules: plan.rules, skipped };
+  return { folders: foldersOf(items), items, rules: plan.rules, skipped };
 };
 
 const byTitle = (library: ReadLibrary, title: string): LibraryItem => {
@@ -292,15 +293,9 @@ describe("an Obsidian vault read into the library", () => {
   it("files every item in its folder", () => {
     expect(daily.folderPath).toBe("Notes");
     expect(project.folderPath).toBe("Projects");
-    expect(byTitle(library, "orphan").folderPath).toBeNull();
+    expect(byTitle(library, "orphan").folderPath).toBe("");
     // a file alone in a folder of its own sits under the folder its parent already is
     expect(byTitle(library, "spec").folderPath).toBe("Projects/Specs");
-    const projects = library.folders.find((folder) => folder.path === "Projects");
-    expect(library.folders.filter((folder) => folder.path === "Projects")).toHaveLength(1);
-    expect(library.folders.find((folder) => folder.path === "Projects/Specs")).toMatchObject({
-      name: "Specs",
-      parentId: projects?.id,
-    });
   });
 
   it("resolves links by path, name, alias and id, a block ref beside them", () => {
@@ -455,7 +450,6 @@ const exportInSteps = (library: ReadLibrary, items: readonly ExportItem[]): Expo
 };
 
 const exportOf = (library: ReadLibrary): ExportFile[] => {
-  const folderIds = new Map(library.folders.map((folder) => [folder.path, folder.id]));
   const items = library.items.map((item): ExportItem => ({
     annotations: item.annotations,
     blocks: new Map(
@@ -467,7 +461,7 @@ const exportOf = (library: ReadLibrary): ExportFile[] => {
     fields: {
       ...item.fields,
       deletedAt: null,
-      folderId: item.folderPath === null ? null : (folderIds.get(item.folderPath) ?? null),
+      folderId: item.folderPath === "" ? null : item.folderPath,
     },
     id: item.itemId,
   }));
