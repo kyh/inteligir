@@ -5,7 +5,7 @@ one origin: the TanStack Start pages, Better Auth on D1, device login, each
 account's library cell (a SQLite Durable Object holding the library and its
 devices' sockets), the connector a person's own assistant reaches the library
 through. The wire contract is `@repo/contract/cloud` — the Worker implements
-it, the local app's and the phone's clients consume it.
+it, the Mac's, the phone's, the tab's and the extension's clients consume it.
 
 ## Layout
 
@@ -69,12 +69,12 @@ src/
     zip/             The zip codec imports read and exports write
     db/              Drizzle schema + client for the D1 auth database
     rate-limit.ts    The D1 fixed window every throttled route spends
-    types/           The highlight.js and page reader stubs that keep the DOM
-                     lib out (below)
+    types/           The highlight.js stub that keeps the DOM lib out (below),
+                     and the type of a suite's `?raw` import
     *.test.ts        suites run inside workerd (@cloudflare/vitest-plugin:
                      real D1 + DO)
     test-support/    Their shared harness: the schema setup, the client
-                     helpers, a pack builder and the test env's types
+                     helpers and the test env's types
 ```
 
 `src/worker/` compiles without `lib.dom` on purpose: workerd and the DOM both
@@ -296,9 +296,9 @@ and end them, and the account's deletion revokes every one.
   credential is revoked from `/app/devices` or from Settings › Account on any
   signed-in device or the library's tab: `account.devices.list` and
   `account.devices.revoke` take a session or a live device credential of the
-  same account (`src/worker/wire/account-router.ts`), the `igd_` prefix
-  deciding which, so a device credential never reaches Better Auth and a
-  revoked one is refused rather than tried as a session.
+  same account (`src/worker/wire/account-router.ts`), an `Authorization`
+  header deciding which, so a device credential never reaches Better Auth and
+  a revoked one is refused rather than tried as a session.
 - **A signing-out device revokes itself** (`account.signOut`, which revokes
   the device a credential names, and ends the session a browser tab signs out
   with). It is the dashboard's revoke — the row's `revoked_at`, the device's

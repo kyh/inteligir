@@ -166,7 +166,7 @@ describe("the desktop shell's wire", () => {
   it("runs the page on the origin the cloud lets read its answers", () => {
     expect(
       rustConstant(WINDOW, "PAGE_ORIGIN"),
-      `${WINDOW}'s PAGE_ORIGIN is not MAC_APP_ORIGIN, the one origin the Worker answers CORS for\n`,
+      `${WINDOW}'s PAGE_ORIGIN is not MAC_APP_ORIGIN, the Mac page's origin the Worker answers CORS for\n`,
     ).toBe(MAC_APP_ORIGIN);
   });
 

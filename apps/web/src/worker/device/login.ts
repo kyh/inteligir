@@ -125,7 +125,8 @@ export const loginDevice = async (db: Db, auth: Auth, args: LoginArgs): Promise<
   return minted === null ? refuseLogin("device-limit") : { loggedIn: true, response: minted };
 };
 
-// must run first in account deletion: while a device row lives, its credential still verifies
+// last in the account's deletion (`../library/account-purge`): while a device row lives its
+// credential still verifies, so a failed step leaves a device to ask again
 export const purgeDeviceRows = async (db: Db, userId: string): Promise<void> => {
   // ids read before the delete: once the rows are gone nothing else can name their limiter rows
   const owned = await db

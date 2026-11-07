@@ -30,10 +30,6 @@ export { AgentThreadDO } from "./agent/agent-thread";
 /** @public */
 export { LibraryDO } from "./library/library-do";
 
-// CORS for two origins alone, the Mac app's page, which its shell serves, and the browser
-// extension's (./cors.ts): every other page is this Worker's own, and a reflected allow-origin
-// beside a cookie-bearing auth surface would be worse than none.
-
 // ./server.ts splits on these, so a route added below must be reachable through one or it never arrives
 const OWNED_PREFIXES = ["/api/", "/v1/"] as const;
 

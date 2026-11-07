@@ -110,8 +110,9 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   Worker parses every answer through its row's output schema, which strips
   what the row did not declare, and a client reads only the fields it names; a
   refusal is narrowed by its code, one a build does not know is no verdict on
-  its credential, and an error no row declares is a fault to retry. Requests
-  stay `z.strictObject`, since only the newest Worker reads them. A shape
+  its credential, and an error no row declares is a fault to retry, but for
+  `BAD_REQUEST`, which says the call can never land as it is. Requests stay
+  `z.strictObject`, since only the newest Worker reads them. A shape
   retires only once the floor passes every build reading it, and a field that
   changes what a row MEANS reaches only clients declaring it. Rejected: a wire
   final at birth behind strict readers (every addition a new row); per-row
