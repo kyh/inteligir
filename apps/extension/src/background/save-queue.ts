@@ -31,6 +31,8 @@ const ABANDONED_MS = FIRST_TRY_MS + 30_000;
 const queuedSaveSchema = z.strictObject({
   // the device it was made under: a save is never sent under another connection's credential
   deviceId: z.string().min(1),
+  // no try has gone unanswered yet, so the first may still be under way
+  firstTry: z.boolean(),
   // the item's id and the write's op id, minted once, so a resend after a lost answer lands once
   id: z.uuidv7(),
   opId: z.uuid(),
@@ -38,8 +40,6 @@ const queuedSaveSchema = z.strictObject({
   selection: z.string().min(1).nullable(),
   title: z.string(),
   url: z.string().min(1),
-  // when a try last went unanswered; null while the first is under way
-  waitingSince: z.number().int().nonnegative().nullable(),
 });
 export type QueuedSave = z.infer<typeof queuedSaveSchema>;
 
@@ -108,8 +108,8 @@ export const signedOut = async (deviceId: string): Promise<boolean> => {
 };
 
 // a try that went unanswered: the save waits for the alarm
-export const markWaiting = async (save: QueuedSave, now: number): Promise<void> => {
-  await keepSave({ ...save, waitingSince: now });
+export const markWaiting = async (save: QueuedSave): Promise<void> => {
+  await keepSave({ ...save, firstTry: false });
 };
 
 // a waiting save as the link it is sent as: its passage and its title only where it has one
@@ -145,7 +145,7 @@ export const sendQueued = async (deps: SendDeps): Promise<void> => {
       await dropSave(save);
       continue;
     }
-    const due = save.waitingSince !== null || deps.now() - save.savedAt >= ABANDONED_MS;
+    const due = !save.firstTry || deps.now() - save.savedAt >= ABANDONED_MS;
     if (!due) {
       continue;
     }
@@ -155,7 +155,7 @@ export const sendQueued = async (deps: SendDeps): Promise<void> => {
     } catch (error) {
       const failure = failureOf(error);
       if (waitsToResend(failure)) {
-        await markWaiting(save, deps.now());
+        await markWaiting(save);
         break;
       }
       if (failure.kind === "signed-out") {

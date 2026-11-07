@@ -19,13 +19,13 @@ const NOW = Date.UTC(2026, 10, 5, 12);
 
 const waiting = (overrides: Partial<QueuedSave> = {}): QueuedSave => ({
   deviceId: CONNECTION.deviceId,
+  firstTry: false,
   id: "01900000-0000-7000-8000-000000000001",
   opId: "01900000-0000-7000-8000-0000000000a1",
   savedAt: NOW - 1000,
   selection: "a passage",
   title: "File over app",
   url: "https://example.test/file-over-app",
-  waitingSince: NOW - 500,
   ...overrides,
 });
 
@@ -42,13 +42,13 @@ const depsWith = (
 
 describe("a save that waits", () => {
   it("keeps the address, the title and the passage, and holds the alarm while it waits", async () => {
-    await markWaiting(waiting({ waitingSince: null }), NOW);
-    await expect(queuedSaves()).resolves.toStrictEqual([waiting({ waitingSince: NOW })]);
+    await markWaiting(waiting({ firstTry: true }));
+    await expect(queuedSaves()).resolves.toStrictEqual([waiting()]);
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toMatchObject({ periodInMinutes: 0.5 });
   });
 
   it("holds the alarm from the moment it is kept, so a first try whose worker stopped is sent", async () => {
-    await keepSave(waiting({ waitingSince: null }));
+    await keepSave(waiting({ firstTry: true }));
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toMatchObject({ periodInMinutes: 0.5 });
   });
 
@@ -89,13 +89,13 @@ describe("a save that waits", () => {
     const longestTry = COVER_TRIES * COVER_DEADLINE_MS + 2 * CALL_DEADLINE_MS;
     const cloud = fakeCloud({});
     for (const age of [5000, 61_000, longestTry]) {
-      await keepSave(waiting({ savedAt: NOW - age, waitingSince: null }));
+      await keepSave(waiting({ firstTry: true, savedAt: NOW - age }));
       await sendQueued(depsWith(cloud).deps);
       expect(cloud.links, `a first try ${String(age)} ms in`).toStrictEqual([]);
     }
     await expect(queuedSaves()).resolves.toHaveLength(1);
     // its worker was stopped mid-call: nothing will say how it went, so it goes again
-    await keepSave(waiting({ savedAt: NOW - 10 * 60_000, waitingSince: null }));
+    await keepSave(waiting({ firstTry: true, savedAt: NOW - 10 * 60_000 }));
     await sendQueued(depsWith(cloud).deps);
     expect(cloud.links).toHaveLength(1);
   });
@@ -111,7 +111,7 @@ describe("a save that waits", () => {
     await sendQueued(depsWith(outdated).deps);
     expect(outdated.links).toHaveLength(1);
     await expect(queuedSaves()).resolves.toStrictEqual([
-      waiting({ waitingSince: NOW }),
+      waiting(),
       waiting({ opId: "01900000-0000-7000-8000-0000000000a2", savedAt: NOW - 900 }),
     ]);
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();

@@ -63,15 +63,11 @@ const refusedSignedOut = async (deviceId: string): Promise<Outcome> =>
   refused((await signedOut(deviceId)) ? "signed-out" : "failed");
 
 // how a call that did not land ends the save it made
-const settleFailure = async (
-  deps: SaveDeps,
-  queued: QueuedSave,
-  cause: unknown,
-): Promise<Outcome> => {
+const settleFailure = async (queued: QueuedSave, cause: unknown): Promise<Outcome> => {
   const failure = failureOf(cause);
   switch (failure.kind) {
     case "unanswered": {
-      await markWaiting(queued, deps.now());
+      await markWaiting(queued);
       return { kind: "queued" };
     }
     case "signed-out": {
@@ -149,26 +145,22 @@ const queuedFor = (
   return {
     ...save,
     deviceId: connection.deviceId,
+    firstTry: true,
     id: uuidV7(now, deps.randomBytes(16)),
     opId: uuidV7(now, deps.randomBytes(16)),
     savedAt: now,
-    waitingSince: null,
   };
 };
 
 // a save kept before its call, sent, and let go once it landed or can never land
-const sendKept = async (
-  deps: SaveDeps,
-  queued: QueuedSave,
-  call: () => Promise<Saved>,
-): Promise<Outcome> => {
+const sendKept = async (queued: QueuedSave, call: () => Promise<Saved>): Promise<Outcome> => {
   await keepSave(queued);
   try {
     const saved = await call();
     await dropSave(queued);
     return savedOutcome(saved);
   } catch (error) {
-    return await settleFailure(deps, queued, error);
+    return await settleFailure(queued, error);
   }
 };
 
@@ -217,7 +209,7 @@ export const saveTab = async (deps: SaveDeps, args: TabSave): Promise<Outcome> =
   const html = page?.html ?? null;
   const read = html === null ? null : readCapture(deps, html, url);
   const cloud = deps.cloud(connection);
-  return await sendKept(deps, queued, async () => {
+  return await sendKept(queued, async () => {
     if (read === null) {
       return await cloud.saveLink(linkOf(queued));
     }
@@ -253,7 +245,7 @@ export const saveAddress = async (deps: SaveDeps, url: string): Promise<Outcome>
   }
   const queued = queuedFor(deps, connection, { selection: null, title: "", url });
   const cloud = deps.cloud(connection);
-  return await sendKept(deps, queued, async () => await cloud.saveLink(linkOf(queued)));
+  return await sendKept(queued, async () => await cloud.saveLink(linkOf(queued)));
 };
 
 // a picture a page drew from its own bytes (a data: address) has no address to save, so its

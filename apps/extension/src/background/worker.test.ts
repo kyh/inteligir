@@ -10,13 +10,13 @@ import { CONNECTION, handOver, MINTED } from "./test-support/fake-cloud";
 
 const WAITING = {
   deviceId: CONNECTION.deviceId,
+  firstTry: false,
   id: "01900000-0000-7000-8000-000000000001",
   opId: "01900000-0000-7000-8000-0000000000a1",
   savedAt: Date.UTC(2026, 10, 5, 12),
   selection: null,
   title: "File over app",
   url: "https://example.test/file-over-app",
-  waitingSince: Date.UTC(2026, 10, 5, 12),
 };
 
 // the calls the fake browser leaves out, which the worker makes

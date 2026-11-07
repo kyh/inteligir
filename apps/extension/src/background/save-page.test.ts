@@ -245,13 +245,13 @@ describe("a tab saved", () => {
     });
     expect(Object.keys(queued ?? {}).toSorted()).toStrictEqual([
       "deviceId",
+      "firstTry",
       "id",
       "opId",
       "savedAt",
       "selection",
       "title",
       "url",
-      "waitingSince",
     ]);
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
   });
