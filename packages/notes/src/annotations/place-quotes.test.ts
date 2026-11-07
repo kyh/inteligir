@@ -65,9 +65,12 @@ describe("where the markers land", () => {
       );
     });
 
-    it("widens no edge past a line, as it widens none past a block", () => {
-      expect(placeOne(cell("one*<br/>two"), "one").missing).toStrictEqual(["h1"]);
-      expect(placeOne("one*\n\ntwo\n", "one").missing).toStrictEqual(["h1"]);
+    it.each([
+      ["a literal mark", "one*", "one"],
+      ["a bare url", "see https://a.b/c", "https://a.b/c"],
+    ])("widens no edge past a line ending in %s, as past a block", (_name, line, quote) => {
+      expect(placeOne(cell(`${line}<br/>two`), quote).missing).toStrictEqual(["h1"]);
+      expect(placeOne(`${line}\n\ntwo\n`, quote).missing).toStrictEqual(["h1"]);
     });
   });
 
