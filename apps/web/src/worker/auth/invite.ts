@@ -4,6 +4,7 @@ import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
 } from "@repo/contract/cloud/device/device-schema";
+import { InviteRefusedError } from "@repo/contract/cloud/v1/errors";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { createSignUpAuth } from "./auth";
@@ -20,9 +21,6 @@ import { spendCallerBudget } from "../rate-limit";
 // owner mints another.
 
 const CODE_PATTERN = /^[A-Za-z0-9-]{6,64}$/u;
-
-// one message for "no such code" and "already used", so a caller learns only that this code will not work
-export const INVITE_REFUSED = "That invite code isn't valid. Check it and try again.";
 
 // false when the code will not work: malformed, unknown, or already claimed
 export const claimInvite = async (db: Db, code: string, email: string): Promise<boolean> => {
@@ -103,7 +101,7 @@ export const handleInviteSignUp = async (
   }
   const parsed = body.data;
   if (!(await claimInvite(db, parsed.inviteCode, parsed.email))) {
-    return formRefusal(403, INVITE_REFUSED);
+    return formRefusal(403, new InviteRefusedError().message);
   }
 
   const response = await forwardSignUp(request, env, ctx, parsed);

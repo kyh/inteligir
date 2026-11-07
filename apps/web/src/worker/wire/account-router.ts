@@ -10,7 +10,7 @@ import {
   UnauthorizedError,
   V1_ERROR_STATUS_MAP,
 } from "@repo/contract/cloud/v1/errors";
-import { ORPCError, implement, onError } from "@orpc/server";
+import { implement, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { RequestLimitHandlerPlugin } from "@orpc/server/plugins";
 import { V1_RPC_PATH, v1Contract } from "@repo/contract/cloud/v1";
@@ -184,18 +184,7 @@ const accountRouter = os.router({
     if (result.signedUp) {
       return result.response;
     }
-    switch (result.failure) {
-      case "invite-refused": {
-        throw errors.FORBIDDEN();
-      }
-      case "account-exists": {
-        throw errors.ACCOUNT_EXISTS();
-      }
-      case "bad-request": {
-        throw new ORPCError("BAD_REQUEST", { message: result.message });
-      }
-      // no default
-    }
+    throw result.failure === "invite-refused" ? errors.FORBIDDEN() : errors.ACCOUNT_EXISTS();
   }),
   // a minute's ticket the account's socket opens with (`/v1/socket`), naming this credential
   socketTicket: os.socketTicket.use(signedIn).handler(async ({ context }) => {
