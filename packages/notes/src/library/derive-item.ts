@@ -13,7 +13,7 @@ import { orderedBlocks } from "./block-ops";
 import type { StoredBlock } from "./block-ops";
 import { utf8ByteLength } from "./canonical-json";
 import type { LibraryItemFields } from "./library-item";
-import type { LibraryElement, LibraryNode, LibrarySection } from "./library-nodes";
+import type { LibraryElement, LibraryNode } from "./library-nodes";
 
 // a card's preview: the first paragraph's text, cut short
 const PREVIEW_MAX = 140;
