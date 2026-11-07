@@ -64,6 +64,18 @@ describe("the headless page's reader", () => {
     expect(new Set(article.map(({ block }) => block.id)).size).toBe(article.length);
   });
 
+  it("reads a page for the text its job names, so a video keeps its description", () => {
+    const answer = readPage({
+      base64: utf8Base64(
+        PAGE.replace("</head>", '<meta name="description" content="A talk."></head>'),
+      ),
+      charset: "utf-8",
+      prefer: "description",
+      url: "https://www.youtube.com/watch?v=abc123",
+    });
+    expect(textsOf(answer)).toStrictEqual(["A talk."]);
+  });
+
   it("answers failed for bytes it cannot read, never an exception", () => {
     expect(
       readPage({ base64: "!!not base64!!", charset: null, prefer: "article", url: "https://a" }),

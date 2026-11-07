@@ -152,8 +152,9 @@ how it ships.
   (`apps/mobile/src/app/+native-intent.ts`, which never throws). The signed-in
   app fetches the page itself, judging each redirect by its spelling
   (`apps/mobile/src/items/page-fetch.ts`), reads it in the headless page and
-  saves it read, cover and all; a page it cannot read now is saved as its
-  link, which the cloud's fill reads (`apps/mobile/src/items/share-save.ts`).
+  saves it read, cover and all; a page it cannot read now, or read no text
+  from, is saved as its link, which the cloud's fill reads
+  (`apps/mobile/src/items/share-save.ts`).
   Words shared beside the link are never lost: they are the item's note, or
   an unread link's title when they are short enough to name it, since the
   cloud keeps a title it is given and a page read names itself

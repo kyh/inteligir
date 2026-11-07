@@ -1,8 +1,10 @@
 // What any device that reads a saved link judges by: how much of a page it reads, which of its
-// pictures is a cover, and whether an answer is a page, a video or a sound at all. The cloud's fill
+// pictures is a cover, whether an answer is a page, a video or a sound at all, which of a page's
+// texts it reads for, and whether a reading is kept. The cloud's fill
 // (apps/web/src/worker/fill/read-page.ts), the extension and the phone's share each read by these,
 // so a link reads the same whichever device read it.
 
+import { kindForUrl } from "./item-url";
 import { pixelSize, sniffMedia } from "./sniff-media";
 import type { PixelSize } from "./sniff-media";
 
@@ -59,3 +61,21 @@ export const playableKindOf = (mediaType: string | null): "video" | "audio" | nu
   }
   return mediaType?.startsWith("audio/") === true ? "audio" : null;
 };
+
+// which of a page's texts a saved address keeps as its article: a video's or a song's page holds
+// little prose, so its description stands for it
+export const preferredText = (url: string): "article" | "description" => {
+  const kind = kindForUrl(url);
+  return kind === "video" || kind === "audio" ? "description" : "article";
+};
+
+// a device has the cloud's fill behind it and an item saved read is never filled, so it keeps only
+// an article and hands the page over: the fill can find what a device did not, such as a post an
+// app shell hides, which its host's oEmbed holds
+export const deviceKeepsReading = (article: readonly unknown[]): boolean => article.length > 0;
+
+// nothing reads after the fill, so it keeps a page that named itself though none of its text settled
+export const fillKeepsReading = (read: {
+  readonly rung: string | null;
+  readonly facts: { readonly title: string | null; readonly description: string | null };
+}): boolean => read.rung !== null || read.facts.title !== null || read.facts.description !== null;

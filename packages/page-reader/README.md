@@ -25,8 +25,8 @@ nothing here dials.
 - `page-meta.ts` — Open Graph, Twitter, JSON-LD and plain meta, each in its
   order of precedence, every value clipped and every url kept only as http(s).
 - `html-to-markdown.ts` — turndown under the dialect's escapes.
-- `page-facts.ts` — the answer's zod schema, which the phone page's bridge
-  carries.
+- `page-facts.ts` — the facts' zod schema, which the phone page's bridge
+  carries, and the reading's types.
 - `page-reading.ts` — that reading as blocks, in types that name no DOM.
 - `read-html.ts` — the reading over linkedom, for a host with no DOM of its own.
 - `read-html-api.ts` — that entry's signature in types that name no DOM, for a

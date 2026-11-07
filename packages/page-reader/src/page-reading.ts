@@ -11,6 +11,5 @@ export interface ExtractedPageBlocks {
   // the article as its item's article section; no blocks when the page holds no text the editor
   // could keep
   readonly article: ArticleBlocks;
-  readonly kept: number;
   readonly rung: Rung | null;
 }
