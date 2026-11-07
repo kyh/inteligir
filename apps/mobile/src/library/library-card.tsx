@@ -4,6 +4,7 @@
 
 import { Image, Pressable, Text, View } from "react-native";
 import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
+import { shownTitle } from "@repo/notes/items/item-name";
 import { useFileUri } from "@/lib/library-hooks";
 
 const THUMB_SIZE = 64;
@@ -46,7 +47,7 @@ export const LibraryCardRow = ({
     >
       <View className="grow basis-0 gap-0.5">
         <Text className="text-16 text-card-foreground" numberOfLines={2}>
-          {row.title}
+          {shownTitle(row.title)}
         </Text>
         {caption === "" ? null : (
           <Text className="text-13 text-muted-foreground" numberOfLines={1}>

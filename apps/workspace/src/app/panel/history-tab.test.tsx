@@ -29,6 +29,38 @@ const set = (id: string, label: string, undoneBy: string | null = null) => ({
 });
 
 describe("an item's History", () => {
+  it("shows a version of a note with no title from its first words", async () => {
+    const { library } = fakePageLibrary({
+      answer: ({ path }) =>
+        path === "library.history.list"
+          ? { changeSets: [set("s1", "Typed in Plans")], cursor: null }
+          : {
+              blocks: [
+                {
+                  block: { children: [{ text: "Groceries" }], id: "b1", type: "p" },
+                  hash: "h",
+                  ord: "a0",
+                  section: "note",
+                },
+              ],
+              fields: { title: "" },
+              rev: 1,
+            },
+    });
+    renderOnLibrary(
+      <HistoryTab
+        itemId={ITEM}
+        flushOpen={async () => {
+          await Promise.resolve();
+        }}
+      />,
+      library,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Show this version" }));
+    const version = await within(await screen.findByRole("dialog")).findByText(/Groceries/u);
+    expect(version.textContent?.startsWith("Groceries")).toBe(true);
+  });
+
   it("reads older sets a page at a time, and undoes one after writing the open item", async () => {
     const flushOpen = vi.fn<() => Promise<void>>(async () => {
       await Promise.resolve();

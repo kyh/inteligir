@@ -2,6 +2,7 @@
 // script and loads nothing but the file, from the phone's file cache, which fetches it from the
 // cloud the first time and keeps it offline after. A file of another kind says so.
 
+import { shownTitle } from "@repo/notes/items/item-name";
 import { Stack, useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
@@ -100,7 +101,11 @@ const ViewerScreen = () => {
 
   return (
     <SafeAreaView style={screenOf(theme.background)} edges={["left", "right", "bottom"]}>
-      <Stack.Screen options={{ title: item?.card.title ?? "" }} />
+      <Stack.Screen
+        options={{
+          title: item === null || item === undefined ? "" : shownTitle(item.card.title),
+        }}
+      />
       {body}
     </SafeAreaView>
   );

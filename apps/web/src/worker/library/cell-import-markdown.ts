@@ -15,6 +15,7 @@ import {
   openPlan,
   planFileItems,
   planImport,
+  unwrapExport,
 } from "@repo/editor/codec/import-plan";
 import type {
   ImportEntry,
@@ -355,9 +356,9 @@ const readPaths = async (
   if (source === null) {
     return failed(FILE_GONE);
   }
-  let entries: ZipEntry[];
+  let entries: readonly ZipEntry[];
   try {
-    entries = await readZipEntries(source);
+    entries = unwrapExport(await readZipEntries(source));
   } catch (error) {
     if (error instanceof ZipError) {
       return failed(NOT_A_ZIP);

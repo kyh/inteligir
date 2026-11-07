@@ -8,7 +8,7 @@ import type { ItemSession, ItemSessionPorts } from "@repo/editor/item/item-sessi
 import { mergeConflictLine } from "@repo/editor/item/merge-conflict-line";
 import { setAnnotationMeta } from "@repo/editor/annotations/annotation-store";
 import { setFindBarAnchor } from "@repo/editor/find-bar";
-import { UNTITLED } from "@repo/notes/items/item-name";
+import { shownTitle, UNTITLED } from "@repo/notes/items/item-name";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
@@ -163,7 +163,7 @@ export const ItemView = ({ railOpen, itemId, onBack, onTogglePanel, onSession }:
             {held.fields.fetchState === "pending" || held.fields.fetchState === "failed" ? (
               <PendingNotice failed={held.fields.fetchError} />
             ) : null}
-            <FileStage fields={held.fields} title={held.card.title} />
+            <FileStage fields={held.fields} title={shownTitle(held.card.title)} />
           </>
         )}
         <ItemEditor itemId={itemId} ports={ports} onSession={onSession} />

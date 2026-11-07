@@ -23,6 +23,7 @@ import { listedScope } from "@repo/domain/library-scope";
 import type { LibraryScope } from "@repo/domain/library-scope";
 import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import type { ItemKind } from "@repo/notes/items/item-kind";
+import { shownTitle } from "@repo/notes/items/item-name";
 import type { SearchSide } from "@repo/notes/library/library-queries";
 import { createPhoneSaves } from "@/items/phone-saves";
 import { ingestPhoto } from "@/items/photo-ingest";
@@ -253,7 +254,7 @@ const LibraryScreen = () => {
         cancelButtonIndex: 0,
         destructiveButtonIndex: deleted ? undefined : 2,
         options,
-        title: row.title,
+        title: shownTitle(row.title),
       },
       (index) => {
         if (index === 1) {

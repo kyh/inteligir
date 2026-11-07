@@ -4,16 +4,18 @@
 // store. Pass two reads one doc at a time against the whole plan, resolving its links
 // by the resolver's tiers (path, name, alias, then the `[[Title|uuid]]` id,
 // `@repo/notes/knowledge/link-resolve`). Last, every file no item names becomes an item of its
-// own, so a bare file is a card of its own. Obsidian's settings (`.obsidian/`), every other
-// dot-folder and what an operating system left are skipped, and a `.canvas` or a `.base` is always
-// an item, never an attachment. An `AGENTS.md` is a note like any other, unless its writer finds it
-// says what the library's rules say: filing rules reach the agent as the person's own instructions,
-// so only the person writes them, and a zip is anyone's text.
+// own, so a bare file is a card of its own. A zip's paths reach all this with the folder an
+// unpacked export was zipped under taken off (`unwrapExport`). Obsidian's settings (`.obsidian/`),
+// every other dot-folder and what an operating system left are skipped, and a `.canvas` or a
+// `.base` is always an item, never an attachment. An `AGENTS.md` is a note like any other, unless
+// its writer finds it says what the library's rules say: filing rules reach the agent as the
+// person's own instructions, so only the person writes them, and a zip is anyone's text.
 
 import { annotationsStoreItemId } from "@repo/notes/annotations/store-schema";
 import { COVERS_DIR, fileKindOf, isBytesFolderPath } from "@repo/notes/items/item-kind";
 import type { FileKind } from "@repo/notes/items/item-kind";
 import { urlKey } from "@repo/notes/items/item-url";
+import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/knowledge/asset-name";
 import { docStem, isDocPath, isDotEntryPath, isOsLitterPath } from "@repo/notes/knowledge/doc-file";
 import { mdLinkTarget } from "@repo/notes/knowledge/link-extract";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
@@ -54,6 +56,38 @@ export const importPathKind = (raw: string): ImportPathKind => {
     return "skipped";
   }
   return isDocPath(path) ? "doc" : "file";
+};
+
+// what marks a folder an export's rather than a person's: its highlights' stores or its kept files
+const isExportMark = (path: string): boolean =>
+  annotationsStoreItemId(path) !== null || path.startsWith(`${DEFAULT_ATTACHMENTS_FOLDER}/`);
+
+const exportWrapper = (entries: readonly { readonly path: string }[]): string | null => {
+  const paths = entries.map((entry) => entry.path).filter((path) => !isOsLitterPath(path));
+  const first = paths.at(0) ?? "";
+  const wrapper = first.slice(0, first.indexOf("/") + 1);
+  return wrapper !== "" &&
+    paths.every((path) => path.startsWith(wrapper)) &&
+    paths.some((path) => isExportMark(path.slice(wrapper.length)))
+    ? wrapper
+    : null;
+};
+
+// A zip's whole listing with the folder an unpacked export was zipped under taken off, since a
+// Mac's Compress keeps that folder and every mark of an export is read from the root. A folder
+// holding no such mark stays, so an Obsidian vault's name is a folder in the library. It answers
+// from the listing alone, so every run of a job reading the same zip takes off the same folder.
+export const unwrapExport = <Entry extends { readonly path: string }>(
+  entries: readonly Entry[],
+): readonly Entry[] => {
+  const wrapper = exportWrapper(entries);
+  return wrapper === null
+    ? entries
+    : entries.map((entry) =>
+        entry.path.startsWith(wrapper)
+          ? { ...entry, path: entry.path.slice(wrapper.length) }
+          : entry,
+      );
 };
 
 // one path of the folder, as pass one reads it: a doc's or a store's text, a file's bytes by sha

@@ -96,6 +96,13 @@ const hover = (element: HTMLElement): void => {
 
 const reason = (): HTMLElement => within(screen.getByRole("dialog")).getByText(REASON);
 
+describe("a card with no title and no words", () => {
+  it("is called Untitled, to the eye and to a screen reader", () => {
+    drawCard(linkRow({ title: "" }));
+    expect(screen.getByRole("gridcell", { name: "Untitled" }).textContent).toContain("Untitled");
+  });
+});
+
 describe("a card whose page went unread", () => {
   it("draws no badge when the page was read", () => {
     drawCard(linkRow({}));

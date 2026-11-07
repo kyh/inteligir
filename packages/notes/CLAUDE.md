@@ -33,8 +33,10 @@ root.
   card and url key included, stays well inside a Durable Object's 2 MB
   (`packages/notes/src/library/library-queries.test.ts` sums it).
   `deriveItem` reads the card (an empty
-  title falls back to the first heading, then the first line; the outline
-  keeps the first h1 to h3, as the editor's contents do, each cut to a line),
+  title falls back to the first heading, then the first line, and a surface
+  draws an item with none of them as Untitled, a word the app gives no note, so
+  a new note follows its body on every device; the outline keeps the first h1
+  to h3, as the editor's contents do, each cut to a line),
   the index text (every heading ranks), the links by id or url key, and each
   block's anchored highlights. The card alone rides its row, so a replica draws
   an item before its body arrives. Rejected: syncing the other derived rows
@@ -109,8 +111,11 @@ root.
   unknown `kind` is a note, and an export writes a note none. The filename is
   the title (`itemNameFromTitle` in `@repo/notes/items/item-name`), and a
   `title:` key is written only for a title the file's stem cannot carry, one
-  its name mended or numbered, so an export reads back as the item. Rejected:
-  a frontmatter block kept in the item (its keys are the item's fields).
+  its name mended or numbered or the empty one, so an export reads back as the
+  item: `title: ""` is no title, and a blank `title:`, which says nothing,
+  leaves the filename standing and stays a property, as an Obsidian template
+  writes it. Rejected: a frontmatter block kept in the item (its keys are the
+  item's fields).
 
 - **A URL HAS ONE KEY, COMPUTED WITHOUT THE PLATFORM'S URL.**
   `@repo/notes/items/item-url` parses by the RFC 3986 appendix-B regex. The key
@@ -165,9 +170,15 @@ root.
   and an unclaimed one lands in the folder above it. What an operating system
   leaves (`isOsLitterPath`) is passed over first, there too, since unpacking
   and zipping an export again puts it in those folders; a file a person saved
-  under such a name is written under a name of its bytes instead, and a folder
-  under that name and ` (folder)`, so an export writes nothing it would pass
-  over.
+  under such a name is written under the item's title as its original and a
+  name of its bytes as a block's file, and a folder under that name and
+  ` (folder)`, so an export writes nothing it would pass over. Every mark of an
+  export is read from the zip's root, and a Mac's Compress of the unpacked folder
+  puts all of it under that folder, so an import first takes off a sole top
+  folder that every path but what an operating system left shares, when it holds
+  a highlights' store or `assets/` (`packages/editor/src/codec/import-plan.ts`).
+  Rejected: taking off any sole top folder (an Obsidian vault's is a folder the
+  person named).
 
 - **THE DIALECT'S GRAMMAR IS THE EDITOR'S OWN, AND IT IS TOTAL.** Every reader
   of markdown, the codec, an import and the editor alike, parses through one

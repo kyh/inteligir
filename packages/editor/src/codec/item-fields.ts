@@ -48,19 +48,20 @@ const cut = (text: string | null, max: number): string | null => {
   return clipped === "" ? null : clipped.slice(0, max);
 };
 
-const textProp = (parsed: ParsedProperties, key: string): string | null => {
-  if (parsed.kind !== "valid") {
-    return null;
-  }
-  const prop = parsed.properties.find((entry: TypedProperty) => entry.key === key);
-  if (prop === undefined || (prop.type !== "text" && prop.type !== "date")) {
-    return null;
-  }
-  return prop.value.trim() === "" ? null : prop.value.trim();
-};
-
 const propOf = (parsed: ParsedProperties, key: string): TypedProperty | undefined =>
   parsed.kind === "valid" ? parsed.properties.find((prop) => prop.key === key) : undefined;
+
+// what a key holds, "" among it: an export writes `title: ""` for an item with no title of its
+// own, whose card follows its body, so the file's name must not stand in for it
+const writtenText = (parsed: ParsedProperties, key: string): string | null => {
+  const prop = propOf(parsed, key);
+  return prop?.type === "text" || prop?.type === "date" ? prop.value.trim() : null;
+};
+
+const textProp = (parsed: ParsedProperties, key: string): string | null => {
+  const text = writtenText(parsed, key);
+  return text === "" ? null : text;
+};
 
 const isPinned = (parsed: ParsedProperties): boolean => {
   const prop = propOf(parsed, "pinned");
@@ -188,7 +189,7 @@ const unreadValues = (
     ["published", fields.published !== null],
     ["saved", true],
     ["site", fields.site !== null],
-    ["title", textProp(parsed, "title") !== null],
+    ["title", writtenText(parsed, "title") !== null],
     ["url", fields.url !== null],
   ]);
   const restOf = (key: string, value: PropertyValue): PropertyValue | undefined => {
@@ -242,7 +243,7 @@ export const readFrontmatter = (
     savedAt: facts.savedMs ?? now,
     site: cut(facts.site, ITEM_FIELD_CAPS.line),
     tags: uniqueTags(yaml),
-    title: cut(textProp(parsed, "title") ?? name, ITEM_FIELD_CAPS.line) ?? "",
+    title: cut(writtenText(parsed, "title") ?? name, ITEM_FIELD_CAPS.line) ?? "",
     url,
   };
   const properties: Record<string, PropertyValue> = {};

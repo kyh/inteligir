@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { FOLDER_NAME_MAX } from "@repo/contract/cloud/library/library-wire";
 import { RAINDROP_EXPORT } from "@repo/notes/imports/test-support/raindrop-export";
 import type { JsonValue } from "@repo/notes/library/canonical-json";
-import { libraryIn } from "../fill/test-support/fill-cell";
+import { libraryIn, pngOf } from "../fill/test-support/fill-cell";
 import {
   ended,
   importJobOf as jobOf,
@@ -307,6 +307,130 @@ describe("a zip of notes", () => {
       message: expect.stringContaining("isn't a zip of notes"),
       state: "failed",
     });
+  });
+});
+
+// the import read a path a run, the cell evicted after each, as a large zip reads
+const inSteps = async (accountId: string, jobId: string): Promise<void> => {
+  let at = Date.now();
+  const past = () => {
+    at += 11_000;
+    return at;
+  };
+  for (let run = 0; run < 60; run += 1) {
+    await inCell(cellOf(accountId), async (state) => {
+      await runImports(jobHostIn(state, accountId, undefined, past));
+    });
+    await evictDurableObject(cellOf(accountId));
+    if (await ended(accountId, jobId)()) {
+      return;
+    }
+  }
+  throw new Error("the import never ended");
+};
+
+// a zip read a path a run into a library of its own, and what it landed
+const landedFrom = async (files: Readonly<Record<string, Uint8Array>>) => {
+  const accountId = newAccountId();
+  const started = await startImport(accountId, await zip(files), "markdown");
+  await inSteps(accountId, started.jobId);
+  const job = await jobOf(accountId, started.jobId);
+  const read = await inCell(cellOf(accountId), async (state) => {
+    const { folders } = await libraryIn(state, accountId).organize.outline();
+    const names = new Map<unknown, string>(folders.map(({ id, name }) => [id, name]));
+    return {
+      folders: folders.map((folder) => folder.name).toSorted(),
+      highlights: state.storage.sql
+        .exec("SELECT item_id, quote FROM annotations")
+        .toArray()
+        .map((row) => [row.item_id, row.quote]),
+      items: state.storage.sql
+        .exec("SELECT title, kind, folder_id, cover_sha, original_sha FROM items ORDER BY title")
+        .toArray()
+        .map((row) => ({
+          cover: row.cover_sha !== null,
+          folder: names.get(row.folder_id) ?? null,
+          kind: row.kind,
+          original: row.original_sha !== null,
+          title: row.title,
+        })),
+    };
+  });
+  return { job, read };
+};
+
+describe("a zip of an unpacked export", () => {
+  const ID = "0195f3a0-5c1e-7000-8000-0000000000e1";
+  const COVER = "assets/covers/0123456789abcdef.png";
+  const PDF = "assets/spec.pdf";
+  const KEPT = "assets/fedcba9876543210/readme.md";
+  const TOP = "Library 2026-11-07";
+  const STORE = { h1: { createdAt: 1, quote: "marked", source: "user", text: "", updatedAt: 1 } };
+  // what an export writes of a read link with a highlight and of two files filed in a folder,
+  // whose held files it names from the root
+  const EXPORT = {
+    [`.inteligir/annotations/${ID}.json`]: encoder.encode(JSON.stringify(STORE)),
+    [COVER]: pngOf(40, 30),
+    [KEPT]: encoder.encode("kept under a note's name"),
+    [PDF]: encoder.encode("%PDF-1.7\n% a file\n"),
+    "Filed/Readme.md": encoder.encode(`---\nkind: file\n---\n\n![](${KEPT})\n`),
+    "Filed/Spec.md": encoder.encode(`---\nkind: pdf\n---\n\n![](${PDF})\n`),
+    "Reading/Marked.md": encoder.encode(
+      [
+        "---",
+        `id: ${ID}`,
+        "kind: link",
+        "url: https://example.com/marked",
+        "fetched: 2026-05-01T10:00:05Z",
+        "---",
+        "",
+        `![](${COVER})`,
+        "",
+        ":::article",
+        "",
+        "Some %%i:h1:start%%marked%%i:h1:end%% words.",
+        "",
+        ":::",
+        "",
+      ].join("\n"),
+    ),
+  };
+
+  // the same files under the folder they were unpacked to, with what a Mac's Compress adds
+  const compressed = (files: Readonly<Record<string, Uint8Array>>) => ({
+    ...Object.fromEntries(Object.entries(files).map(([path, bytes]) => [`${TOP}/${path}`, bytes])),
+    ".DS_Store": encoder.encode("left by Finder"),
+    [`${TOP}/.DS_Store`]: encoder.encode("left by Finder"),
+    [`__MACOSX/${TOP}/._Spec.md`]: encoder.encode("left by the Mac's zip"),
+  });
+
+  it("reads as it reads at the zip's root, a run a path, once a Mac's Compress wrapped it", async () => {
+    const rooted = await landedFrom(EXPORT);
+    expect(rooted.read.highlights).toStrictEqual([[ID, "marked"]]);
+    expect(rooted.read.items).toStrictEqual([
+      { cover: true, folder: "Reading", kind: "link", original: false, title: "Marked" },
+      { cover: false, folder: "Filed", kind: "file", original: true, title: "Readme" },
+      { cover: false, folder: "Filed", kind: "pdf", original: true, title: "Spec" },
+    ]);
+
+    const wrapped = await landedFrom(compressed(EXPORT));
+
+    expect(wrapped.read).toStrictEqual(rooted.read);
+    expect(wrapped.job).toMatchObject({
+      added: rooted.job.added,
+      highlights: 1,
+      skipped: 3,
+      state: "done",
+      unreadable: 0,
+    });
+  }, 60_000);
+
+  it("keeps a folder that holds nothing of an export's, as Obsidian's does", async () => {
+    const { read } = await landedFrom({
+      "MyVault/.obsidian/app.json": encoder.encode("{}"),
+      "MyVault/Beta.md": encoder.encode("Beta's own words.\n"),
+    });
+    expect(read.items).toMatchObject([{ folder: "MyVault", title: "Beta" }]);
   });
 });
 

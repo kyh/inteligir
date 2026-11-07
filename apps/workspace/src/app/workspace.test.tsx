@@ -12,6 +12,7 @@ import { z } from "zod";
 
 import { createAppRouter } from "../router";
 import { createPageQueryClient } from "./cloud/v1";
+import { forgetPref, PREFS } from "./prefs";
 import { fakePageLibrary } from "./test-support/fake-page-library";
 
 afterEach(() => {
@@ -164,6 +165,59 @@ describe("an open item's title", () => {
     const title = await screen.findByRole("textbox", { name: "Title" });
 
     expect(title.getAttribute("spellcheck")).toBe("false");
+    await replica.close();
+  });
+});
+
+// the whole page at the library, with New note chosen from the Add menu and its item open
+const madeANote = async () => {
+  forgetPref(PREFS.libraryScope);
+  const { replica } = await openDevice(createFakeCell(), "tab");
+  const { library } = fakePageLibrary({ answer: () => ({}) });
+  const router = createAppRouter(createMemoryHistory({ initialEntries: ["/library"] }), {
+    library: { ...library, replica },
+    queryClient: createPageQueryClient(),
+  });
+  render(<RouterProvider router={router} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Add to the library" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "New note" }));
+  const title = await screen.findByRole("textbox", { name: "Title" });
+  const id = z
+    .string()
+    .parse(new URL(router.history.location.href, "http://page").searchParams.get("item"));
+  return { id, replica, title };
+};
+
+describe("a new note", () => {
+  it("has no title of its own, and its field says so by its placeholder", async () => {
+    const { id, replica, title } = await madeANote();
+
+    expect(replica.row(id)?.fields.title).toBe("");
+    expect(title).toHaveProperty("value", "");
+    expect(title).toHaveProperty("placeholder", "Untitled");
+    await replica.close();
+  });
+
+  it("goes by its first line until the person names it", async () => {
+    const { id, replica, title } = await madeANote();
+
+    await replica.write(id, {
+      ops: [
+        {
+          block: { children: [{ text: "Groceries" }], id: "b1", type: "p" },
+          op: "insert",
+          ord: "a0",
+          section: "note",
+        },
+      ],
+    });
+    expect(replica.row(id)?.title).toBe("Groceries");
+
+    fireEvent.change(title, { target: { value: "Shopping" } });
+    fireEvent.blur(title);
+    await vi.waitFor(() => {
+      expect(replica.row(id)?.title).toBe("Shopping");
+    });
     await replica.close();
   });
 });

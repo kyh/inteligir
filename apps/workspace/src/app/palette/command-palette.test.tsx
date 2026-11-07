@@ -41,14 +41,14 @@ const Opened = ({ actions, onClose }: { actions: PaletteActions; onClose: () => 
   );
 };
 
+const HITS = new Map([
+  ["#todo", [{ itemId: PLANS, score: 1, snippet: "", title: "" }]],
+  ["spring", [{ itemId: PLANS, score: 1, snippet: "a trip in spring", title: "Plans" }]],
+]);
+
 const drawPalette = () => {
   const search = vi.fn<LibraryReplica["search"]>(
-    async (query: string) =>
-      await Promise.resolve(
-        query === "spring"
-          ? [{ itemId: PLANS, score: 1, snippet: "a trip in spring", title: "Plans" }]
-          : [],
-      ),
+    async (query: string) => await Promise.resolve(HITS.get(query) ?? []),
   );
   const { library } = fakePageLibrary({ answer: () => ({}), search });
   const actions = spyActions();
@@ -121,6 +121,12 @@ describe("the palette", () => {
     expect(screen.getByText("Open")).toBeDefined();
     fireEvent.keyDown(field(), { key: "Enter" });
     expect(actions.openHit).toHaveBeenCalledWith(PLANS, "spring");
+  });
+
+  it("calls a hit with no title Untitled", async () => {
+    drawPalette();
+    fireEvent.change(field(), { target: { value: "#todo" } });
+    await expect(screen.findByRole("option", { name: /Untitled/u })).resolves.toBeDefined();
   });
 
   it("offers to save a typed web address", async () => {
