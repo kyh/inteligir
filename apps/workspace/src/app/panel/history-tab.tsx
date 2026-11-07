@@ -93,8 +93,7 @@ const RevisionDialog = ({
         <CellAnswer query={revision} failed="This version couldn't be read.">
           {(data) => (
             <pre className="max-h-[60vh] overflow-auto font-mono text-body whitespace-pre-wrap select-text">
-              {data.fields.title}
-              {"\n\n"}
+              {data.fields.title === "" ? "" : `${data.fields.title}\n\n`}
               {
                 itemView(new Map(data.blocks.map((stored) => [stored.block.id, stored])), {
                   title: (linked) => replica.row(linked)?.title ?? null,
