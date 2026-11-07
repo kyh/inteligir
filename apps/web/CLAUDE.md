@@ -500,10 +500,14 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `max_tokens` written, the summary the answer's input); each reply books its
   exact usage at list price in micro-cents, a cut call its reservation against
   the day but not its turn's ceiling, and a turn that cost nothing is
-  refunded. Rejected: the gateway's spend limit (eventually consistent, a
-  backstop); an estimate booked as spend; one pass priced for a call that may
-  make two (a turn would book past what it reserved); characters / 3 (it
-  counted CJK at a quarter of its tokens and ids at a third).
+  refunded. The one pass no reservation holds is a fallback's: it books past
+  what the call reserved, at most once a turn, since the next call finds
+  nothing left. Rejected: the gateway's spend limit (eventually consistent, a
+  backstop); an estimate booked as spend; one pass priced for a compaction that
+  makes two (a turn would book past what it reserved); reserving the fallback
+  too (a cold first call at the 50-cent ceiling buys under the smallest cap, so
+  every new conversation is refused); characters / 3 (it counted CJK at a
+  quarter of its tokens and ids at a third).
   `apps/web/src/worker/agent/agent-allowance.ts`, `thread-request.ts`.
 
 - **A THREAD IS THE ACCOUNT'S: ITS EVENTS ARE SYNCED ROWS ITS OBJECT'S OUTBOX

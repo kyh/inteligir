@@ -158,7 +158,9 @@ export const inputUcentsOf = (estimate: CallEstimate, prices: TokenPrices, now: 
 // answer, whose prompt is the frozen system and tools, read from the cache the summary's pass just
 // used, and the summary, new input; and its output, at most `max_tokens`. Below the trigger the
 // estimate, which counts at least the tokens the prompt holds (`callEstimateOf` in
-// `./thread-request`), says the API cannot compact.
+// `./thread-request`), says the API cannot compact. A fallback's pass is priced by neither: with it
+// reserved, a cold first call at a turn's ceiling buys under `MIN_MAX_TOKENS` and is refused, so a
+// decline books past its reservation, and the turn's next call finds nothing left.
 interface CallCost {
   readonly fixed: number;
   readonly perToken: number;
