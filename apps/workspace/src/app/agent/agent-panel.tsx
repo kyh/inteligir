@@ -12,6 +12,7 @@ import {
   callRefusalWords,
   EMPTY_WORDS,
   endingWords,
+  isUnderWay,
   isWorking,
   readsOnly,
   sendRefusalWords,
@@ -298,6 +299,7 @@ const Conversation = ({
   // offered once every page is read, so it takes back the whole conversation
   const whole = hasNextPage ? null : conversationUndo(changeSets);
   const working = thread !== undefined && isWorking(thread.status);
+  const underWay = thread !== undefined && isUnderWay(thread.status);
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3" data-thread={threadId}>
       {blocks.map((block, index) =>
@@ -340,7 +342,7 @@ const Conversation = ({
         {thread === undefined || statusWords(thread.status) === "" ? null : (
           <span className="text-caption text-muted-foreground">{statusWords(thread.status)}</span>
         )}
-        {working ? (
+        {underWay ? (
           <Button
             size="compact"
             variant="ghost"
@@ -351,7 +353,7 @@ const Conversation = ({
             Stop
           </Button>
         ) : null}
-        {whole === null || working ? null : (
+        {whole === null || underWay ? null : (
           <Button
             size="compact"
             variant="ghost"

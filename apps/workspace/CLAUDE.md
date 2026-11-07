@@ -289,8 +289,11 @@ is parsed in `src/shell/shell-commands.ts`.
   unsaved edit is written: the sets are read from every page the cell answers,
   the whole conversation's Undo offered once all are in and sent in as few
   undos as the cell takes, and asked again as each turn ends, since a turn's
-  set seals with it. Rejected: an agent the device runs (a runtime and a
-  model credential on every device); a socket of the page's own to the conversation's
+  set seals with it. While a turn is open, a turn waiting on an approval among
+  them, every device draws Stop, which turns down what it asked and ends the
+  answer, and the page no Undo of the conversation, since the open turn's set
+  is out of its reach. Rejected: an agent the device runs (a runtime and a model
+  credential on every device); a socket of the page's own to the conversation's
   object; one page of sets (a long conversation's oldest turns lost their
   Undo). `apps/workspace/src/app/agent/agent-panel.tsx`, over
   `packages/agent-panel/src/thread-entries.ts`, `thread-undo.ts`.

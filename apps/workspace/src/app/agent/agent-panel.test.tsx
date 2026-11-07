@@ -120,6 +120,36 @@ describe("the agent panel's conversation", () => {
     expect(screen.getByText(/save a link from collector\.example/u)).toBeDefined();
   });
 
+  it("offers Stop and no Undo of the conversation while a turn waits on the person", async () => {
+    const { calls, library } = fakePageLibrary({
+      answer: ({ path }) =>
+        path === "library.history.list"
+          ? { changeSets: [set("s1", 1)], cursor: null }
+          : { status: "idle", threadId: THREAD },
+      events: [
+        row(0, { text: "File these.", type: "user.message" }),
+        row(1, { reason: "done", turn: 1, type: "turn.ended" }),
+        row(2, { text: "Bin the draft.", type: "user.message" }),
+        row(3, {
+          input: { ids: ["x"] },
+          name: "delete_items",
+          toolUseId: "toolu_1",
+          type: "approval.asked",
+          until: AT + 600_000,
+        }),
+      ],
+      threads: [{ ...thread, status: "awaiting_approval" }],
+    });
+    renderOnLibrary(panel(), library);
+    // the sets are in once the finished turn offers its own undo
+    await screen.findByRole("button", { name: "Undo this turn" });
+    expect(screen.queryByRole("button", { name: "Undo this conversation" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await waitFor(() => {
+      expect(callsTo(calls, "library.agent.cancel")).toStrictEqual([{ threadId: THREAD }]);
+    });
+  });
+
   it("undoes a turn's set once the open item is written, and the conversation from every page", async () => {
     const flushOpen = vi.fn<() => Promise<void>>(async () => {
       await Promise.resolve();
