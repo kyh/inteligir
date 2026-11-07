@@ -31,4 +31,10 @@ describe("an error's logged fields", () => {
     expect(fields.message.endsWith("…")).toBe(true);
     expect(fields.causes[0]?.length).toBe(301);
   });
+
+  it("keeps a stack's frames alone, since a stack opens with the whole message", () => {
+    const { stack } = errorFields(new Error("private text ".repeat(100)));
+    expect(stack).not.toContain("private text");
+    expect(stack).toMatch(/^\s+at /u);
+  });
 });

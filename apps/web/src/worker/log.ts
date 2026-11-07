@@ -16,6 +16,9 @@ const MESSAGE_MAX = 300;
 const clipped = (text: string): string =>
   text.length > MESSAGE_MAX ? `${text.slice(0, MESSAGE_MAX)}…` : text;
 
+// a stack opens with the whole message, so only its frames are kept
+const STACK_FRAME = /^\s+at .+$/gmu;
+
 export const errorFields = (cause: unknown): ErrorFields => {
   const causes: string[] = [];
   let next = cause instanceof Error ? cause.cause : undefined;
@@ -26,7 +29,7 @@ export const errorFields = (cause: unknown): ErrorFields => {
   }
   return {
     message: clipped(cause instanceof Error ? cause.message : String(cause)),
-    stack: cause instanceof Error ? cause.stack : undefined,
+    stack: cause instanceof Error ? cause.stack?.match(STACK_FRAME)?.join("\n") : undefined,
     causes,
   };
 };
