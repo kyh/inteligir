@@ -112,6 +112,17 @@ describe("Save a link", () => {
   });
 });
 
+describe("an open item's title", () => {
+  it("sets its own spell check off, as the body does", async () => {
+    const replica = await pageOverANote();
+
+    const title = await screen.findByRole("textbox", { name: "Title" });
+
+    expect(title.getAttribute("spellcheck")).toBe("false");
+    await replica.close();
+  });
+});
+
 describe("what the editor asks of the page", () => {
   it("quotes a passage asked about in the agent's composer, which takes the keyboard", async () => {
     const replica = await pageOverANote();

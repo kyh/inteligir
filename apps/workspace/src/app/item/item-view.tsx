@@ -16,7 +16,7 @@ import { isImeComposing } from "@repo/ui/lib/ime";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeftIcon, PanelRightIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 
 import { useReplica, useReplicaQueries } from "../cloud/library-context";
 import { isTextEntryTarget } from "../global-shortcuts";
@@ -51,6 +51,7 @@ const TitleField = ({ itemId, title }: { itemId: string; title: string }) => {
   return (
     <input
       aria-label="Title"
+      spellCheck={false}
       className="min-w-0 flex-1 truncate bg-transparent text-title font-medium outline-none"
       value={draft ?? title}
       placeholder="Untitled"
@@ -70,6 +71,17 @@ const TitleField = ({ itemId, title }: { itemId: string; title: string }) => {
     />
   );
 };
+
+// where the editor's find bar (⌘F) draws, over the item's text
+const FindBarAnchor = () => <div ref={setFindBarAnchor} className="relative" />;
+
+// a far jump, the outline and WebKit's missing scroll anchor are kept against this element
+// (packages/editor/src/run-anchoring.ts, scroll-reveal.ts, toc.tsx)
+const EditorScroller = ({ children }: { children: ReactNode }) => (
+  <div className="min-h-0 flex-1 overflow-y-auto" data-editor-scroller="">
+    {children}
+  </div>
+);
 
 export const ItemView = ({ itemId, onBack, onTogglePanel, onSession }: ItemViewProps) => {
   const replica = useReplica();
@@ -142,11 +154,8 @@ export const ItemView = ({ itemId, onBack, onTogglePanel, onSession }: ItemViewP
           <PanelRightIcon />
         </Button>
       </header>
-      {/* where the editor's find bar (⌘F) draws, over the item's text */}
-      <div ref={setFindBarAnchor} className="relative" />
-      {/* the editor's scroller: a far jump, the outline and WebKit's missing scroll anchor are
-          kept against it (packages/editor/src/run-anchoring.ts, scroll-reveal.ts, toc.tsx) */}
-      <div className="min-h-0 flex-1 overflow-y-auto" data-editor-scroller="">
+      <FindBarAnchor />
+      <EditorScroller>
         {held === null ? null : (
           <>
             <SourceHeader fields={held.fields} />
@@ -157,7 +166,7 @@ export const ItemView = ({ itemId, onBack, onTogglePanel, onSession }: ItemViewP
           </>
         )}
         <ItemEditor itemId={itemId} ports={ports} onSession={onSession} />
-      </div>
+      </EditorScroller>
     </div>
   );
 };
