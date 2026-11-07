@@ -224,19 +224,19 @@ const annotationsOf = (
 
 // one markdown file as its item
 export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport => {
+  const person = obsidianReader(ports.newAnnotationId);
   let parts: Parts;
   try {
-    parts = partsOf(parseMdast(source.text).root);
+    const parsed = partsOf(parseMdast(source.text).root);
+    const before = person.read(parsed.before);
+    parts = { ...parsed, after: person.read(parsed.after), before };
   } catch (error) {
     if (error instanceof RangeError) {
       return { ok: false, reason: "too-deep" };
     }
     throw error;
   }
-  const person = obsidianReader(ports.newAnnotationId);
-  const before = person.read(parts.before);
-  const after = person.read(parts.after);
-  const values = sectionValues({ ...parts, after, before });
+  const values = sectionValues(parts);
   if (values === null) {
     return { ok: false, reason: "too-deep" };
   }

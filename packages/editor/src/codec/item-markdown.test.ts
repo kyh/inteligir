@@ -211,6 +211,15 @@ describe("Obsidian's spellings, through a real export and import", () => {
     expect(item.blocks.map(({ block }) => block.ref)).toStrictEqual(["ref"]);
   });
 
+  it("answers a file nested past what its spellings are read through as too deep", () => {
+    for (const depth of [3_000, 6_000, 12_000]) {
+      const text = `${"> ".repeat(depth)}x\n`;
+      expect(
+        importItem({ annotations: null, name: "Deep", text }, library.importPorts()),
+      ).toStrictEqual({ ok: false, reason: "too-deep" });
+    }
+  });
+
   it("writes the escape that keeps typed text text, and none where nothing would read", () => {
     expect(typedBody("x==1==y")).toBe("x\\==1==y\n");
     expect(typedBody("50%% and 60%%")).toBe("50\\%% and 60%%\n");
