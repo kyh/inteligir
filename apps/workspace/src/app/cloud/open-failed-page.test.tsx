@@ -3,6 +3,7 @@
 import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { V1_RPC_PATH, v1Contract } from "@repo/contract/cloud/v1";
+import { headingCollapseKeys, toggleHeadingCollapse } from "@repo/editor/heading-collapse";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -162,14 +163,14 @@ describe("signing out of a library that would not open", () => {
 
   it("lets go of what the page's own storage holds of the account", async () => {
     writePref(PREFS.libraryScope, { kind: "tag", tag: "field" });
-    localStorage.setItem("inteligir.collapsed-headings", '{"item-1":["a-fold"]}');
+    toggleHeadingCollapse("item-1", "a-fold");
     const reload = await openedOverARefusingKeychain(() => null);
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
     await vi.waitFor(() => {
       expect(reload).toHaveBeenCalledOnce();
     });
     expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "all" });
-    expect(localStorage.getItem("inteligir.collapsed-headings")).toBeNull();
+    expect([...headingCollapseKeys("item-1")]).toStrictEqual([]);
   });
 
   it("asks the cloud nothing when the shell held no credential to give back", async () => {

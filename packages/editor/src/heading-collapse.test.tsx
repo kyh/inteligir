@@ -141,10 +141,12 @@ describe("folds over a live document", () => {
 
   it("keeps none of a heading's words in the page's storage", () => {
     mountNote("notes/fold-private.md", [h2("Termination plan for Dana"), p("a body")]);
+    const written = stubStorage();
 
     fireEvent.click(chevronOf("Termination plan for Dana"));
     expect(hiddenBlocks()).toStrictEqual(["a body"]);
-    expect(localStorage.getItem("inteligir.collapsed-headings")).not.toMatch(/Termination/u);
+    expect(written.size).toBe(1);
+    expect([...written.values()].join("\n")).not.toMatch(/Termination/u);
   });
 
   it("drops the fold when the heading's text changes, since the text is its key", async () => {

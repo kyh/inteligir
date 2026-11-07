@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { headingCollapseKeys, toggleHeadingCollapse } from "@repo/editor/heading-collapse";
 import { createFakeCell } from "@repo/library-replica/test-support/fake-cell";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -115,14 +116,14 @@ describe("a session that ends under the open page", () => {
     );
     const { replica } = await opened(() => {});
     writePref(PREFS.libraryScope, { kind: "tag", tag: "field" });
-    localStorage.setItem("inteligir.collapsed-headings", '{"item-1":["a-fold"]}');
+    toggleHeadingCollapse("item-1", "a-fold");
     await replica.sync();
     expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "tag", tag: "field" });
 
     cell.signOut();
     await replica.sync();
     expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "all" });
-    expect(localStorage.getItem("inteligir.collapsed-headings")).toBeNull();
+    expect([...headingCollapseKeys("item-1")]).toStrictEqual([]);
     await replica.close();
   });
 });
@@ -136,10 +137,10 @@ describe("a tab that leaves its account", () => {
     );
     const { left, replica } = await opened(() => {});
     writePref(PREFS.libraryScope, { kind: "tag", tag: "field" });
-    localStorage.setItem("inteligir.collapsed-headings", '{"item-1":["a-fold"]}');
+    toggleHeadingCollapse("item-1", "a-fold");
     await left("signed-out");
     expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "all" });
-    expect(localStorage.getItem("inteligir.collapsed-headings")).toBeNull();
+    expect([...headingCollapseKeys("item-1")]).toStrictEqual([]);
     await replica.close();
   });
 });

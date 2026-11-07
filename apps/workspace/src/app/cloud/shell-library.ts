@@ -45,6 +45,7 @@ export type ShellOpening =
 
 // `/v1` as this Mac reaches it: the cloud's origin, the build on every request, and the credential
 // once a sign-in kept one
+/** @internal */
 export const macTransport = (config: ShellConfig, credential: string | null): ReplicaTransport => ({
   fetch: async (request) => {
     const headers = new Headers(request.headers);

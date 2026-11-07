@@ -273,7 +273,6 @@ describe("what the page's own storage holds of an account", () => {
     });
     expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "all" });
     expect([...headingCollapseKeys("item-1")]).toStrictEqual([]);
-    expect(localStorage.getItem("inteligir.collapsed-headings")).toBeNull();
     void library.replica.close();
     memory.close();
   });
@@ -284,7 +283,6 @@ describe("what the page's own storage holds of an account", () => {
     await library.left("signed-out");
     expect(reload).toHaveBeenCalledOnce();
     expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "all" });
-    expect(localStorage.getItem("inteligir.collapsed-headings")).toBeNull();
     void library.replica.close();
     memory.close();
   });
