@@ -2,7 +2,7 @@
   "name": "@repo/page-reader",
   "version": "0.1.0",
   "private": true,
-  "description": "A saved page read into an item: its facts and its article as the editor's own fixpoint, and as the library's article blocks, over a DOM the host hands it. One reading for every device that fills a link: the Mac's fill worker and the phone's page.",
+  "description": "A saved page read into an item: its facts and its article as the editor's own fixpoint, and as the library's article blocks, over a DOM the host hands it. One reading for everything that fills a link: the Worker's fill, the extension's worker and the phone's page.",
   "type": "module",
   "exports": {
     "./extract-page": "./src/extract-page.ts",
@@ -13,8 +13,7 @@
       "types": "./src/read-html-api.ts",
       "default": "./src/read-html.ts"
     },
-    "./test-support/corpus/*": "./src/test-support/corpus/*",
-    "./web-url": "./src/web-url.ts"
+    "./test-support/corpus/*": "./src/test-support/corpus/*"
   },
   "scripts": {
     "test": "vitest run",
