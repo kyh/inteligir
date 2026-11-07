@@ -14,7 +14,7 @@ import { placeQuotes } from "@repo/notes/annotations/place-quotes";
 import type { PendingQuote } from "@repo/notes/annotations/place-quotes";
 import type { FileKind } from "@repo/notes/items/item-kind";
 import type { LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
-import { ordsBetween } from "@repo/notes/library/block-order";
+import { placeInOrder } from "@repo/notes/library/block-order";
 import { canonicalJson } from "@repo/notes/library/canonical-json";
 import type { LibraryBlock, LibraryNode, LibrarySection } from "@repo/notes/library/library-nodes";
 import type { FlowSpan } from "@repo/notes/markdown/flow-spans";
@@ -352,8 +352,7 @@ const contentKey = (block: LibraryBlock): string => {
   return canonicalJson(content);
 };
 
-interface PieceChange {
-  readonly ops: LibraryOp[];
+interface PieceChange extends Lined {
   // the blocks the piece's text now reads as
   readonly blocks: readonly LibraryBlock[];
   readonly highlights: readonly ReadHighlight[];
@@ -375,24 +374,31 @@ const readPiece = (piece: EditedStretch, ports: EditPorts) => {
 
 interface Lined {
   readonly ops: LibraryOp[];
-  // each new block's order key where it keeps an old one's, null where an insert needs one
-  readonly keys: (string | null)[];
+  // the id each new block stands under, in order: the old one's it lines up with, else its own
+  readonly ids: readonly string[];
+  // the new blocks that line up with no old one
+  readonly inserts: readonly LibraryBlock[];
 }
 
 // the new blocks lined up with the old: an unchanged one is left be, a changed one put under the
-// old one's id, and what is left over dropped or inserted
+// old one's id, a block left over dropped, and one with no old one to line up with an insert
 const lineUp = (old: readonly ViewBlock[], fresh: readonly LibraryBlock[]): Lined => {
   const diff = diffLines(
     old.map((one) => contentKey(one.block)),
     fresh.map(contentKey),
   );
   const ops: LibraryOp[] = [];
-  const keys: (string | null)[] = fresh.map(() => null);
+  const ids = fresh.map((block) => block.id);
+  const standsAs = (at: number, was: ViewBlock | undefined): void => {
+    if (was !== undefined) {
+      ids[at] = was.block.id;
+    }
+  };
   let oldAt = 0;
   let freshAt = 0;
   const keep = (to: number): void => {
     for (; oldAt < to; oldAt += 1, freshAt += 1) {
-      keys[freshAt] = old[oldAt]?.ord ?? null;
+      standsAs(freshAt, old[oldAt]);
     }
   };
   for (const hunk of diff.hunks) {
@@ -403,7 +409,7 @@ const lineUp = (old: readonly ViewBlock[], fresh: readonly LibraryBlock[]): Line
       const now = fresh[hunk.sideStart + index];
       if (was !== undefined && now !== undefined) {
         ops.push({ baseHash: was.hash, block: { ...now, id: was.block.id }, op: "put" });
-        keys[hunk.sideStart + index] = was.ord;
+        standsAs(hunk.sideStart + index, was);
       }
     }
     for (const was of old.slice(hunk.baseStart + paired, hunk.baseEnd)) {
@@ -413,61 +419,53 @@ const lineUp = (old: readonly ViewBlock[], fresh: readonly LibraryBlock[]): Line
     freshAt = hunk.sideEnd;
   }
   keep(old.length);
-  return { keys, ops };
+  return { ids, inserts: fresh.filter((block, index) => ids[index] === block.id), ops };
 };
 
-// an insert for every new block with no key, each run minted between the keys around it
-const insertsOf = (
-  fresh: readonly LibraryBlock[],
-  keys: readonly (string | null)[],
-  bounds: { lower: string | null; upper: string | null },
-  section: LibrarySection,
-): LibraryOp[] => {
-  const ops: LibraryOp[] = [];
-  for (let index = 0; index < fresh.length; index += 1) {
-    if (keys[index] !== null) {
-      continue;
-    }
-    let end = index;
-    while (end < fresh.length && keys[end] === null) {
-      end += 1;
-    }
-    const before = index === 0 ? bounds.lower : (keys[index - 1] ?? null);
-    const after = end < fresh.length ? (keys[end] ?? null) : bounds.upper;
-    for (const [offset, ord] of ordsBetween(before, after, end - index).entries()) {
-      const block = fresh[index + offset];
-      if (block !== undefined) {
-        ops.push({ block, op: "insert", ord, section });
-      }
-    }
-    index = end;
-  }
-  return ops;
-};
-
-// the blocks an edited piece's text reads as, landed over the ones it replaced (a section that
-// held none gets them all, between no keys)
-const changeOf = (piece: EditedStretch, view: ItemView, ports: EditPorts): PieceChange => {
-  const { section } = piece;
+// the blocks an edited piece's text reads as, lined up with the ones it replaced
+const changeOf = (piece: EditedStretch, ports: EditPorts): PieceChange => {
   const { highlights, named } = readPiece(piece, ports);
-  const lined = lineUp(piece.blocks, named.blocks);
-  const ordered = view.blocks.filter((one) => one.section === section);
-  const [first] = piece.blocks;
-  const last = piece.blocks.at(-1);
-  const bounds =
-    first === undefined || last === undefined
-      ? { lower: null, upper: null }
-      : {
-          lower: ordered[ordered.indexOf(first) - 1]?.ord ?? null,
-          upper: ordered[ordered.indexOf(last) + 1]?.ord ?? null,
-        };
   return {
+    ...lineUp(piece.blocks, named.blocks),
     blocks: named.blocks,
     edit: piece.edited.edit,
     highlights,
-    ops: [...lined.ops, ...insertsOf(named.blocks, lined.keys, bounds, section)],
     refused: named.refused,
   };
+};
+
+// a section's new blocks in their places. Two devices can mint one key, so what stands either side
+// of a new block may hold one key and leave no room: `placeInOrder` moves one of them, as a save
+// from the editor does
+const placed = (
+  section: LibrarySection,
+  pieces: readonly Piece[],
+  changes: ReadonlyMap<Piece, PieceChange>,
+  view: ItemView,
+): LibraryOp[] => {
+  const order = pieces
+    .filter(isStretch)
+    .filter((piece) => piece.section === section)
+    .flatMap((piece) => changes.get(piece)?.ids ?? piece.blocks.map((one) => one.block.id));
+  const stands = new Set(order);
+  const current = new Map(
+    view.blocks
+      .filter((one) => one.section === section && stands.has(one.block.id))
+      .map((one) => [one.block.id, one.ord]),
+  );
+  const inserts = new Map(
+    [...changes.values()].flatMap((change) => change.inserts).map((block) => [block.id, block]),
+  );
+  return [...placeInOrder(order, current, new Map())].flatMap(([id, ord]): LibraryOp[] => {
+    const block = inserts.get(id);
+    if (block !== undefined) {
+      return [{ block, op: "insert", ord, section }];
+    }
+    const baseOrd = current.get(id);
+    return baseOrd === undefined || baseOrd === ord
+      ? []
+      : [{ baseOrd, blockId: id, op: "move", ord }];
+  });
 };
 
 // every edited piece landed; a highlight is dropped when the edited text lost either edge of it,
@@ -479,7 +477,8 @@ const changesOf = (
   ports: EditPorts,
 ): ViewChange | Unstorable => {
   const edited = pieces.filter(isEdited);
-  const changes = edited.map((piece) => changeOf(piece, view, ports));
+  const byPiece = new Map(edited.map((piece) => [piece, changeOf(piece, ports)] as const));
+  const changes = [...byPiece.values()];
   const refused = changes.find((change) => change.refused > 0);
   if (refused !== undefined) {
     return { edit: refused.edit, kind: "unstorable" };
@@ -488,11 +487,19 @@ const changesOf = (
   const lost = edited
     .flatMap((piece) => markerEdges(piece.blocks.map((one) => one.block)))
     .filter((edge) => !kept.has(edgeKey(edge)));
+  const adding = new Set(
+    edited
+      .filter((piece) => (byPiece.get(piece)?.inserts.length ?? 0) > 0)
+      .map((piece) => piece.section),
+  );
   return {
     dropped: [...new Set(lost.map((edge) => edge.id))].toSorted(),
     highlights: changes.flatMap((change) => change.highlights),
     kind: "changed",
-    ops: changes.flatMap((change) => change.ops),
+    ops: [
+      ...changes.flatMap((change) => change.ops),
+      ...[...adding].flatMap((section) => placed(section, pieces, byPiece, view)),
+    ],
   };
 };
 

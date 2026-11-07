@@ -237,6 +237,41 @@ describe("an edit made on the view", () => {
     expect(textOf(after)).toContain("and stays.\n\nA new paragraph.\n\nSecond");
   });
 
+  it("lands a new block between two blocks that hold one key, moving one of them", () => {
+    const blocks = storedOf("Before.\n\nAlpha.\n\nBeta.\n\nAfter.\n");
+    const [, alpha, beta] = [...blocks.values()];
+    if (alpha === undefined || beta === undefined) {
+      throw new Error("the item holds fewer blocks than it was written with");
+    }
+    // two devices that added after one block mint one key
+    blocks.set(beta.block.id, { ...beta, ord: alpha.ord });
+    const outcome = editItemView(
+      blocks,
+      [{ newText: "Alpha.\n\nBetween.", oldText: "Alpha." }],
+      portsWith(),
+    );
+    if (outcome.kind !== "changed") {
+      throw new Error(`the edit was refused: ${JSON.stringify(outcome)}`);
+    }
+    expect(outcome.ops.filter((op) => op.op === "move")).toHaveLength(1);
+    expect(textOf(landed(blocks, outcome.ops))).toBe(
+      "Before.\n\nAlpha.\n\nBetween.\n\nBeta.\n\nAfter.\n",
+    );
+  });
+
+  it("moves no block an edit that adds none had no need of", () => {
+    const blocks = storedOf("Alpha.\n\nBeta.\n\nAfter.\n");
+    const [alpha, beta] = [...blocks.values()];
+    if (alpha === undefined || beta === undefined) {
+      throw new Error("the item holds fewer blocks than it was written with");
+    }
+    blocks.set(beta.block.id, { ...beta, ord: alpha.ord });
+    const outcome = editItemView(blocks, [{ newText: "Later.", oldText: "After." }], portsWith());
+    expect(outcome.kind === "changed" ? outcome.ops.map((op) => op.op) : outcome).toStrictEqual([
+      "put",
+    ]);
+  });
+
   it("drops a block it deleted", () => {
     const blocks = storedOf(NOTE);
     const outcome = editItemView(blocks, [{ newText: "", oldText: "\n\nLast line." }], portsWith());
