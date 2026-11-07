@@ -287,6 +287,24 @@ describe("a tab saved", () => {
     await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
 
+  it("asks for the connection again when another save's refusal already ended it", async () => {
+    await handOver(MINTED);
+    const refusal = async (): Promise<never> => {
+      throw new ORPCError("UNAUTHORIZED");
+    };
+    const other = depsWith(fakeCloud({ save: refusal })).deps;
+    const cloud = fakeCloud({
+      save: async () => {
+        await saveTab(other, { tab: TAB });
+        return await refusal();
+      },
+    });
+    await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
+      kind: "refused",
+      reason: "signed-out",
+    });
+  });
+
   it("keeps the connection a connect handed over while its call under the old one was on its way", async () => {
     await handOver(MINTED);
     const cloud = fakeCloud({

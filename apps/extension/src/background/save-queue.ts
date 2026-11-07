@@ -93,12 +93,13 @@ export const keepSave = async (save: QueuedSave): Promise<void> => {
 };
 
 // the cloud no longer takes `deviceId`'s credential: the extension forgets it and what waited under
-// it, and answers true. A call still on its way when a connect replaced that credential answers for
-// the one it replaced, so the connection held now stays, and what the old one left waiting goes at
-// the next send, which sends nothing under another device's credential
+// it, and answers whether that left this browser unconnected. A call still on its way when a connect
+// replaced that credential answers for the one it replaced, so the connection held now stays, and
+// what the old one left waiting goes at the next send, which sends nothing under another device's
+// credential
 export const signedOut = async (deviceId: string): Promise<boolean> => {
   const held = await readConnection();
-  if (held?.deviceId !== deviceId) {
+  if (held !== null && held.deviceId !== deviceId) {
     return false;
   }
   await forgetConnection();
