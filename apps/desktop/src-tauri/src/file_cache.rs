@@ -360,6 +360,10 @@ pub fn http_client() -> reqwest::Result<reqwest::Client> {
 /// `GET /v1/blobs/<sha>` with the device's credential and build, as the outbox uploads one. The
 /// scheme answers a failure as a status, so it stays reqwest's and never crosses the bridge.
 pub async fn fetch(cloud: &CloudFiles, credential: &str, sha: &str) -> reqwest::Result<Fetched> {
+    // the credential goes wherever this path points, so nothing but a sha shapes it
+    if !is_sha(sha) {
+        return Ok(Fetched::Refused(reqwest::StatusCode::NOT_FOUND.as_u16()));
+    }
     let response = cloud
         .client
         .get(format!("{}/v1/blobs/{sha}", cloud.origin))
@@ -663,6 +667,16 @@ mod tests {
             lowered.contains(&"x-inteligir-build: 0.6.0+desktop".to_owned()),
             "{head:?}"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn a_miss_that_names_no_sha_never_reaches_the_cloud() -> Result<(), Box<dyn Error>> {
+        // nothing listens here once the listener is gone, so a request that went would fail
+        let origin = format!("http://{}", TcpListener::bind("127.0.0.1:0")?.local_addr()?);
+        let fetched =
+            tauri::async_runtime::block_on(fetch(&cloud_at(origin)?, "igd_secret", "../account"))?;
+        assert_eq!(fetched, Fetched::Refused(404));
         Ok(())
     }
 
