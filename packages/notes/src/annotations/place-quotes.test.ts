@@ -43,6 +43,34 @@ describe("where the markers land", () => {
     expect(placed.content).toBe("see %%i:h1:start%%https://x.y/?q=[^a-z]+b %%i:h1:end%%now\n");
   });
 
+  describe("in a cell of two lines", () => {
+    const cell = (text: string) => `| a | b |\n| - | - |\n| ${text} | x |\n`;
+
+    it("matches across the lines, each marker on its own line's bytes", () => {
+      const placed = placeOne(cell("the one<br/>two here"), "one two");
+      expect(placed.content).toBe(cell("the %%i:h1:start%%one<br/>two%%i:h1:end%% here"));
+      expect(annotationPassages(placed.content).get("h1")).toBe("one two");
+    });
+
+    it("finds no word the two lines would make", () => {
+      expect(placeOne(cell("one<br/>two"), "onetwo").missing).toStrictEqual(["h1"]);
+    });
+
+    it("places a quote of one line on that line", () => {
+      expect(placeOne(cell("one<br/>two"), "one").content).toBe(
+        cell("%%i:h1:start%%one%%i:h1:end%%<br/>two"),
+      );
+      expect(placeOne(cell("one<br/>two"), "two").content).toBe(
+        cell("one<br/>%%i:h1:start%%two%%i:h1:end%%"),
+      );
+    });
+
+    it("widens no edge past a line, as it widens none past a block", () => {
+      expect(placeOne(cell("one*<br/>two"), "one").missing).toStrictEqual(["h1"]);
+      expect(placeOne("one*\n\ntwo\n", "one").missing).toStrictEqual(["h1"]);
+    });
+  });
+
   it("widens an edge inside a word to the word", () => {
     expect(placeOne("hello world\n", "ello").content).toBe(
       "%%i:h1:start%%hello%%i:h1:end%% world\n",

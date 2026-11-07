@@ -97,6 +97,30 @@ describe("the text a person reads", () => {
     expect(projectPassages(`${spelled}\n`).text).toBe(read);
   });
 
+  it("reads a cell's lines as blocks a space apart", () => {
+    const projection = projectPassages("| a |\n| - |\n| one<br/>two |\n");
+    expect(projection.text).toBe("a one two ");
+    const { block, text } = projection;
+    expect(block[text.indexOf("one")]).not.toBe(block[text.indexOf("two")]);
+    expect(block[text.indexOf(" two")]).toBe(-1);
+  });
+
+  it.each([
+    ["outside a cell", "one<br/>two\n", "onetwo "],
+    ["in another spelling", "| a |\n| - |\n| one<br>two |\n", "a onetwo "],
+    [
+      "as text",
+      String.raw`| a |
+| - |
+| one\<br/>two |
+`,
+      "a one<br/>two ",
+    ],
+    ["in a link's label", "| a |\n| - |\n| [one<br/>two](https://x.y/z) |\n", "a onetwo "],
+  ])("reads a tag %s as no edge", (_name, source, read) => {
+    expect(projectPassages(source).text).toBe(read);
+  });
+
   it("reads an address on a line that is no label", () => {
     expect(projectPassages(`before https\\://a.bc after\nmore\n`).text).toBe(
       "before https://a.bc after more ",

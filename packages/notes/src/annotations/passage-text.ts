@@ -6,7 +6,8 @@
 // is one atomic unit. A text node whose value its source spells (plain, escaped, or across a
 // quote's or a list's line prefixes) maps character by character; any other inline (a link, a
 // strong or emphasis run, inline code, an html tag, a wiki link) is atomic: an edge inside it
-// widens to its edge. Code, math, frontmatter and a footnote's definition are not text.
+// widens to its edge, and the `<br/>` between a cell's lines is a block edge, as the editor reads
+// it. Code, math, frontmatter and a footnote's definition are not text.
 
 import { z } from "zod";
 import { leadingAlertMarker } from "../markdown/alert-marker";
@@ -328,6 +329,11 @@ const separate = (builder: Builder): void => {
   }
 };
 
+const nextBlock = (builder: Builder): void => {
+  separate(builder);
+  builder.blockIndex += 1;
+};
+
 const mark = (builder: Builder, ids: string, edge: "start" | "end"): void => {
   for (const id of splitMarkerIds(ids)) {
     const span = builder.markers.get(id) ?? { end: null, start: null };
@@ -479,8 +485,7 @@ const pushTextRun = (builder: Builder, text: TextContext, start: number, end: nu
   for (let index = start; index < end; index += 1) {
     if (text.structural.has(index)) {
       if (!inStructure) {
-        separate(builder);
-        builder.blockIndex += 1;
+        nextBlock(builder);
         inStructure = true;
       }
       continue;
@@ -606,14 +611,19 @@ const pushUnplaced = (
   }
 };
 
+// a child of the cell alone: the writer closes a mark at each of a cell's lines, and what a quote is
+// placed in is the writer's
+const isCellBreak = (block: MdNode, child: MdNode): boolean =>
+  block.type === "tableCell" && child.type === "html" && child.value === "<br/>";
+
 const walkPhrasing = (
   builder: Builder,
-  children: readonly MdNode[],
-  parent: { start: number; end: number },
+  block: MdNode,
+  span: { start: number; end: number },
 ): void => {
   let run: MdNode[] = [];
-  let runStart = parent.start;
-  for (const child of children) {
+  let runStart = span.start;
+  for (const child of block.children ?? []) {
     const bounds = offsetsOf(child);
     if (bounds === null) {
       run.push(child);
@@ -626,12 +636,14 @@ const walkPhrasing = (
     runStart = bounds.end;
     if (child.type === "text") {
       pushText(builder, child, bounds);
+    } else if (isCellBreak(block, child)) {
+      nextBlock(builder);
     } else {
       pushAtomic(builder, child, bounds, "prose");
     }
   }
   if (run.length > 0) {
-    pushUnplaced(builder, run, { end: parent.end, start: runStart });
+    pushUnplaced(builder, run, { end: span.end, start: runStart });
   }
 };
 
@@ -667,12 +679,11 @@ export const projectPassages = (source: string): PassageProjection => {
       return;
     }
     if (PHRASING_BLOCKS.has(node.type)) {
-      builder.blockIndex += 1;
-      separate(builder);
+      nextBlock(builder);
       const first = builder.characters.length;
       const bounds = offsetsOf(node);
       if (bounds !== null) {
-        walkPhrasing(builder, node.children ?? [], bounds);
+        walkPhrasing(builder, node, bounds);
       }
       if (atRoot && node.type === "heading" && (node.depth ?? 0) <= 2) {
         const heading = builder.characters.slice(first).join("").trim();
