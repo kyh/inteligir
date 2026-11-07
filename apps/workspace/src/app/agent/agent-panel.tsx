@@ -45,7 +45,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { ArrowLeftIcon, PlusIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { historyPages } from "../cloud/history-pages";
+import { everyChangeSet, historyPages } from "../cloud/history-pages";
 import { useReplica, useReplicaQueries, useWire } from "../cloud/library-context";
 import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { announceUndo } from "../panel/history-tab";
@@ -216,7 +216,7 @@ const Conversation = ({
   threadId: string;
   flushOpen: () => Promise<void>;
 }) => {
-  const { orpc } = useWire();
+  const { client, orpc } = useWire();
   const queryClient = useQueryClient();
   const replica = useReplica();
   const queries = useReplicaQueries();
@@ -296,8 +296,18 @@ const Conversation = ({
           undoSets(ids);
         };
   };
-  // offered once every page is read, so it takes back the whole conversation
+  // offered once every page is read, and read again at the press: a turn's set seals as the turn
+  // ends and the list on screen follows it, so that list can be a turn short of the conversation
   const whole = hasNextPage ? null : conversationUndo(changeSets);
+  const undoConversation = (): void => {
+    void (async () => {
+      try {
+        undoSets(conversationUndo(await everyChangeSet(client, { threadId })) ?? []);
+      } catch (error) {
+        toast.error(refusalText(error, "That couldn't be undone."));
+      }
+    })();
+  };
   const working = thread !== undefined && isWorking(thread.status);
   const underWay = thread !== undefined && isUnderWay(thread.status);
   return (
@@ -354,13 +364,7 @@ const Conversation = ({
           </Button>
         ) : null}
         {whole === null || underWay ? null : (
-          <Button
-            size="compact"
-            variant="ghost"
-            onClick={() => {
-              undoSets(whole);
-            }}
-          >
+          <Button size="compact" variant="ghost" onClick={undoConversation}>
             Undo this conversation
           </Button>
         )}

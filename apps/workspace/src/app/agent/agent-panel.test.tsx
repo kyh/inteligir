@@ -191,6 +191,56 @@ describe("the agent panel's conversation", () => {
     });
   });
 
+  it("takes back the turn the list on screen has yet to show", async () => {
+    let listed = [set("s1", 1)];
+    const { calls, library } = fakePageLibrary({
+      answer: ({ path }) =>
+        path === "library.history.list"
+          ? { changeSets: listed, cursor: null }
+          : { changeSetId: "u1", kept: [], refused: [], reverted: ["i1"] },
+      events: [
+        row(0, { text: "File these.", type: "user.message" }),
+        row(1, { reason: "done", turn: 1, type: "turn.ended" }),
+      ],
+      threads: [thread],
+    });
+    renderOnLibrary(panel(), library);
+    const whole = await screen.findByRole("button", { name: "Undo this conversation" });
+    listed = [set("s2", 2), set("s1", 1)];
+    fireEvent.click(whole);
+    await waitFor(() => {
+      expect(callsTo(calls, "library.history.undo")).toStrictEqual([
+        { changeSetIds: ["s2", "s1"] },
+      ]);
+    });
+  });
+
+  it("says so when the conversation's sets can't be read at the press", async () => {
+    const said = vi.spyOn(toast, "error");
+    let readable = true;
+    const { calls, library } = fakePageLibrary({
+      answer: ({ path }) => {
+        if (path === "library.history.list" && !readable) {
+          throw new Error("unreachable");
+        }
+        return { changeSets: [set("s1", 1)], cursor: null };
+      },
+      events: [
+        row(0, { text: "File these.", type: "user.message" }),
+        row(1, { reason: "done", turn: 1, type: "turn.ended" }),
+      ],
+      threads: [thread],
+    });
+    renderOnLibrary(panel(), library);
+    const whole = await screen.findByRole("button", { name: "Undo this conversation" });
+    readable = false;
+    fireEvent.click(whole);
+    await waitFor(() => {
+      expect(said).toHaveBeenCalledWith("That couldn't be undone.");
+    });
+    expect(callsTo(calls, "library.history.undo")).toStrictEqual([]);
+  });
+
   it.each([
     ["kept part of it", { kept: ["i1"], reverted: ["i2"] }, "success", /^Undone, but/u],
     ["kept all of it", { kept: ["i1"], reverted: [] }, "info", /^Nothing was undone/u],
