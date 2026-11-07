@@ -60,6 +60,10 @@ const page = (overrides: Partial<CapturedPage> = {}): CapturedPage => ({
   ...overrides,
 });
 
+const badRequest = async (): Promise<never> => {
+  throw new ORPCError("BAD_REQUEST");
+};
+
 let seq = 0;
 
 const depsWith = (
@@ -196,10 +200,7 @@ describe("a tab saved", () => {
   });
 
   it("lets go a save whose link the cloud refuses too, and says so", async () => {
-    const refusal = async () => {
-      throw new ORPCError("BAD_REQUEST");
-    };
-    const cloud = fakeCloud({ save: refusal, saveLink: refusal });
+    const cloud = fakeCloud({ save: badRequest, saveLink: badRequest });
     await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
       kind: "refused",
       reason: "failed",

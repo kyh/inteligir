@@ -3,7 +3,7 @@ import { browser } from "wxt/browser";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 
 import worker from "../entrypoints/background";
-import type { ExtensionRequest } from "../messages";
+import type { ExtensionRequest, Outcome } from "../messages";
 import { readConnection } from "./connection";
 import { keepSave, queuedSaves, SEND_ALARM } from "./save-queue";
 import { CONNECTION, handOver, MINTED } from "./test-support/fake-cloud";
@@ -38,10 +38,10 @@ afterEach(() => {
 });
 
 // what the worker answers one of its own pages
-const ask = async (request: ExtensionRequest): Promise<unknown> => {
+const ask = async (request: ExtensionRequest): Promise<Outcome | undefined> => {
   const page = { id: browser.runtime.id, url: browser.runtime.getURL("/welcome.html") };
-  const answers: unknown[] = [];
-  await fakeBrowser.runtime.onMessage.trigger(request, page, (answer: unknown) => {
+  const answers: Outcome[] = [];
+  void fakeBrowser.runtime.onMessage.trigger(request, page, (answer: Outcome) => {
     answers.push(answer);
   });
   await vi.waitFor(() => {

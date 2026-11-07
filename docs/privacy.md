@@ -238,8 +238,8 @@ The apps also hold to these, plainly:
   link your library holds unread (above): a link or a picture you save
   from the right-click menu, and a page the extension cannot read in your
   browser (the browser's own pages, the Web Store, a PDF, a page too large to
-  read there, or one it found no text in), which goes with its title and the
-  passage you selected. A picture a page drew itself, which has no address, is
+  read there or to send, or one it found no text in), which goes with its title
+  and the passage you selected. A picture a page drew itself, which has no address, is
   uploaded to your library as a file of its own. A save made while you are
   offline waits in the browser's storage for the extension as the page's
   address, title and the passage you selected, and is sent, for our cloud to
