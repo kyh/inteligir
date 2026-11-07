@@ -9,9 +9,9 @@ A saved page read into an item: its facts and its article.
   the html and the host's parse (`ParsePage`): linkedom on node
   (`linkedom-page.ts`), a browser's own `DOMParser` elsewhere; it imports no
   node module and no React (`oxlint.config.ts`) and dials nothing, since every
-  byte it reads its host fetched. Its answer's schema (`page-facts.ts`) is the
-  one each wire carries. Rejected: a reader per host, two spellings of one
-  item; and jsdom as a browser's stand-in in the suite, whose DOM makes
+  byte it reads its host fetched. The schema of its facts (`page-facts.ts`) is
+  the one the phone's bridge carries. Rejected: a reader per host, two spellings
+  of one item; and jsdom as a browser's stand-in in the suite, whose DOM makes
   defuddle keep a page's chrome where linkedom and a real browser do not.
   `packages/page-reader/src/extract-page.ts`.
 

@@ -115,6 +115,25 @@ describe("a tab saved", () => {
     await expect(queuedSaves()).resolves.toStrictEqual([]);
   });
 
+  it("keeps a video's description as its article, as every device reads it", async () => {
+    const url = "https://www.youtube.com/watch?v=abc123";
+    const video = [
+      "<!doctype html>",
+      '<html lang="en"><head><title>A talk</title>',
+      '<meta name="description" content="What the talk is about.">',
+      "</head><body><article>",
+      `<p>${"The words around the video. ".repeat(20)}</p>`,
+      "</article></body></html>",
+    ].join("\n");
+    const cloud = fakeCloud({});
+    await saveTab(depsWith(cloud, { captured: page({ html: video, url }) }).deps, {
+      tab: { ...TAB, url },
+    });
+    const article = JSON.stringify(cloud.saves[0]?.article);
+    expect(article).toContain("What the talk is about.");
+    expect(article).not.toContain("The words around the video.");
+  });
+
   it("says a page the library holds is already in it", async () => {
     const cloud = fakeCloud({ save: async () => savedAs("File over app", true) });
     await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toMatchObject({
