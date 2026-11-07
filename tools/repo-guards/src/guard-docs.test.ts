@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { REPO_ROOT, sourceOf, trackedFiles } from "./repo";
 
 const GUARD_DIR = "tools/repo-guards/src/";
+const SELF = `${GUARD_DIR}guard-docs.test.ts`;
 const README = "tools/repo-guards/README.md";
 const DOCS = [README, "tools/repo-guards/CLAUDE.md", "packages/contract/README.md"];
 const ANCHOR_GUARD = "dep-dag.test.ts";
@@ -28,11 +29,12 @@ const guardsOnDisk = (): string[] =>
     .filter((file) => file.startsWith(GUARD_DIR) && file.endsWith(".test.ts"))
     .map((file) => file.slice(GUARD_DIR.length));
 
-// sourceOf drops full-line comments, so a comment cannot keep a dead name alive
+// sourceOf drops full-line comments, so a comment cannot keep a dead name alive; this file names
+// its anchor table, so a hit here would keep that name alive once the table had gone
 const namesInSource = (): Set<string> =>
   new Set(
     trackedFiles()
-      .filter((file) => SOURCE_FILE.test(file))
+      .filter((file) => SOURCE_FILE.test(file) && file !== SELF)
       .flatMap((file) => sourceOf(file).match(SOURCE_NAME) ?? []),
   );
 
