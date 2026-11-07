@@ -382,7 +382,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   filed item stays where it is. The stub goes to Deleted read, so restoring it
   asks no reading that would only fold it again. Rejected: bases the consumer
   read (a reading nobody edited around would conflict with every save
-  meanwhile).
+  meanwhile); a link's own rule moving a filed item to the stub's folder (a
+  reading long after the save would refile the item and say nothing).
   `apps/web/src/worker/library/cell-fills.ts`, `cell-saves.ts`.
 
 - **AN IMPORT IS A CELL JOB RUN A PAGE AT A TIME, ITS PLAN IN ROWS.**
