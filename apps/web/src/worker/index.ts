@@ -114,7 +114,7 @@ const answer = async (request: Request, env: Env, ctx: ExecutionContext): Promis
   try {
     return await route(request, env, ctx);
   } catch (error) {
-    logUnhandled("worker", request, error);
+    logUnhandled(request, error);
     const { pathname } = new URL(request.url);
     return isRpc(pathname) ? rpcFault() : new Response("internal error", { status: 500 });
   }

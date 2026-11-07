@@ -107,11 +107,8 @@ export const ACCOUNT_PURGE_STEPS: readonly PurgeStep[] = [
   },
 ];
 
-export const purgeAccount = async (
-  scope: PurgeScope,
-  steps: readonly PurgeStep[] = ACCOUNT_PURGE_STEPS,
-): Promise<void> => {
-  for (const step of steps) {
+export const purgeAccount = async (scope: PurgeScope): Promise<void> => {
+  for (const step of ACCOUNT_PURGE_STEPS) {
     await step.run(scope);
   }
 };
