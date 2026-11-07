@@ -546,10 +546,9 @@ describe("an item open in the editor", () => {
     const { session } = await openOn(phone, id);
     await session.flush();
     const source = itemProperties(session);
-    expect(source.read(source.snapshot())).toStrictEqual({
-      kind: "valid",
-      properties: [{ key: "status", type: "text", value: "draft" }],
-    });
+    expect(source.read(source.snapshot())).toStrictEqual([
+      { key: "status", type: "text", value: "draft" },
+    ]);
     source.commit({ kind: "set", prop: { key: "status", type: "text", value: "done" } });
     source.commit({ kind: "add", prop: { key: "rating", type: "number", value: 4 } });
     await session.flush();
