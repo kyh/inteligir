@@ -1001,6 +1001,31 @@ describe("one file as its item", () => {
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
+  it.each([
+    ["between words", "see ![icon](https://x.cd/p.png) here"],
+    ["after words", "see ![icon](https://x.cd/p.png)"],
+    ["before words", "![icon](https://x.cd/p.png) here"],
+    ["beside another", "![one](https://x.cd/1.png)![two](https://x.cd/2.png)"],
+    ["a word from another", "![one](https://x.cd/1.png) and ![two](https://x.cd/2.png)"],
+    ["held by a mark", "see **![icon](https://x.cd/p.png)** here"],
+    ["beside the writer's own break", "see<br/>![icon](https://x.cd/p.png)<br/>here"],
+    ["that is a file's embed", "see ![[shot.png]] here"],
+    ["that is two files' embeds", "![[one.png]] and ![[two.png]]"],
+  ])("stands an image %s alone in its cell, and its bytes hold still", (_name, cell) => {
+    const item = imported(`| a |\n| - |\n| ${cell} |\n`);
+    expect(item.leftOut).toBe(0);
+    expect(JSON.stringify(item.blocks)).not.toContain('"source"');
+    const again = reimported(item);
+    expect(content(again)).toStrictEqual(content(item));
+    expect(exported(reimported(again)).text).toBe(exported(item).text);
+  });
+
+  it("keeps a break between a cell's words as the tag a person wrote", () => {
+    const item = imported("| a |\n| - |\n| one<br/>two |\n");
+    expect(JSON.stringify(item.blocks)).toContain('"source":"<br/>"');
+    expect(exported(item).text).toContain("| one<br/>two |");
+  });
+
   it("writes TeX's own double bar in a cell so it stays one", () => {
     const item = typedItem("note", [
       {

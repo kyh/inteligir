@@ -431,6 +431,16 @@ alone, and no walk narrows structurally.
   different bar). `packages/notes/src/markdown/line-scan.ts`,
   `packages/notes/src/markdown/md-plugins.ts`.
 
+- **AN IMAGE STANDS ALONE IN A TABLE CELL, AND A `<br/>` BESIDE ONE IS THAT
+  BOUNDARY.** The model's image is a block, so the read lifts one out of a
+  cell's line and the table writer joins the cell's blocks with `<br/>`; the
+  read drops that tag beside an image, so such a cell settles on its first
+  write. Anywhere else in a cell the tag stays what a person wrote. Rejected: an
+  inline image in a cell (a second image node for one place), and a writer that
+  drops the tag beside an image (it would filter Plate's private output).
+  Residual: two paragraphs in a cell read back as one line holding the tag.
+  `packages/editor/src/markdown/md-rules.ts`.
+
 ## The open item's merge
 
 - **THE MERGE'S LINE DIFF IS BOUNDED, AND A MERGE THAT KEPT MINE OVER AN

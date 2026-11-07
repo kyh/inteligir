@@ -66,7 +66,12 @@ export class RoundTripError extends Error {
 // fresh per call: Slate editors carry mutable state.
 export const headlessEditor = (): SlateEditor => createSlateEditor({ plugins: BASE_KIT });
 
-const letters = (s: string): string => s.replaceAll(/[^\p{L}\p{N}]+/gu, "").toLowerCase();
+// the tag the table writer joins a cell's blocks with spells no word of the note
+const letters = (s: string): string =>
+  s
+    .replaceAll("<br/>", "")
+    .replaceAll(/[^\p{L}\p{N}]+/gu, "")
+    .toLowerCase();
 
 const lineEndOffsets = (lines: readonly string[]): number[] => {
   const ends: number[] = [];

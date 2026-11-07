@@ -22,6 +22,7 @@ import type {
   MdLink,
   MdList,
   MdParagraph,
+  MdTableCell,
   MdTableRow,
   MdText,
   MdYaml,
@@ -300,6 +301,18 @@ const paragraphRule: WideMdRule = {
   },
   serialize: defaultParagraphSerialize,
 };
+
+// The table writer joins a cell's blocks with `<br/>`, and an image is a block of its own in a cell
+// wherever it stands, so that spelling beside one is the boundary the read finds anyway. Held as a
+// tag it stays in the paragraph beside the image, and each write adds one more.
+const withoutImageBoundaries = (cell: MdTableCell): MdTableCell => ({
+  ...cell,
+  children: cell.children.filter(
+    (child, index, siblings) =>
+      !(child.type === "opaqueInline" && child.value === "<br/>") ||
+      (siblings[index - 1]?.type !== "image" && siblings[index + 1]?.type !== "image"),
+  ),
+});
 
 // the blocks that are an item's own line: words, whichever block spelled them
 const ITEM_LINES: ReadonlySet<string> = new Set([KEYS.p, ...KEYS.heading]);
@@ -733,7 +746,12 @@ export const MD_RULES: MdRules = {
         return { children: cells, type: "tableRow" };
       };
       const element = defaultTableDeserialize(
-        { ...node, children: rows.map(padRow) },
+        {
+          ...node,
+          children: rows.map((row) =>
+            padRow({ ...row, children: row.children.map(withoutImageBoundaries) }),
+          ),
+        },
         deco,
         options,
       );
