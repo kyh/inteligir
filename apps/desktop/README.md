@@ -85,10 +85,11 @@ the bridge carries each:
 ## The credential is in the Keychain
 
 `src-tauri/src/credential.rs` keeps the credential and the account's id and
-email as one Keychain item under the bundle id, through keyring-core over `apple-native-keyring-store`, and nowhere else on
-disk. The page holds the credential in memory once it has it. On Linux, where
-the shell runs only under the scenario suite, keyring-core's sample store, a
-file in the app's data dir, stands in.
+email as one Keychain item under the bundle id, through keyring-core over
+`apple-native-keyring-store`, and nowhere else on disk. The page holds the
+credential in memory once it has it. On Linux, where the shell runs only under
+the scenario suite, keyring-core's sample store, a file in the app's data dir,
+stands in.
 
 ## The library's files ride the shell's scheme
 

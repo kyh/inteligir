@@ -131,7 +131,10 @@ mod tests {
         assert_eq!(credentials.read()?, None);
         credentials.keep(&signed_in())?;
         assert_eq!(credentials.read()?, Some(signed_in()));
-        let replaced = DeviceCredential { ..signed_in() };
+        let replaced = DeviceCredential {
+            credential: format!("igd_{}", "b".repeat(64)),
+            ..signed_in()
+        };
         credentials.keep(&replaced)?;
         assert_eq!(credentials.read()?, Some(replaced));
         credentials.forget()?;
