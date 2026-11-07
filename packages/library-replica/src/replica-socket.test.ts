@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createSocketHint, socketUrl } from "./replica-socket";
+import { deferred } from "./test-support/deferred";
 import { fakeClock } from "./test-support/fake-clock";
 import { fakeSockets } from "./test-support/fake-sockets";
 
@@ -107,5 +108,39 @@ describe("the account's socket, a hint", () => {
     clock.advance(120_000);
     await settled();
     expect(sockets).toHaveLength(2);
+  });
+
+  it("opens one socket however a close and a connect meet a ticket on its way", async () => {
+    const clock = fakeClock();
+    const { dial, sockets } = fakeSockets();
+    const tickets: ReturnType<typeof deferred>[] = [];
+    const hint = createSocketHint({
+      clock,
+      dial,
+      onFrame: () => {},
+      onOpen: () => {},
+      origin: "https://cell.test",
+      ticket: async () => {
+        const ticket = deferred();
+        tickets.push(ticket);
+        await ticket.promise;
+        return "a-ticket";
+      },
+    });
+    hint.connect();
+    hint.close();
+    hint.connect();
+    tickets[0]?.resolve();
+    await settled();
+    hint.connect();
+    await settled();
+    expect(tickets).toHaveLength(2);
+    for (const ticket of tickets) {
+      ticket.resolve();
+    }
+    await settled();
+    expect(sockets).toHaveLength(1);
+    hint.close();
+    expect(sockets[0]?.closed).toBe(true);
   });
 });

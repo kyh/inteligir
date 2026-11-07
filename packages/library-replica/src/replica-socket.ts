@@ -148,10 +148,10 @@ export const createSocketHint = (args: SocketHintArgs): SocketHint => {
     };
     dialling = true;
     const ticket = await args.ticket();
-    dialling = false;
     if (owner !== generation || !wanted) {
       return;
     }
+    dialling = false;
     if (ticket === null) {
       scheduleReconnect(owner, redial);
       return;
