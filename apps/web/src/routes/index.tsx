@@ -68,8 +68,8 @@ const Page = () => (
           Download for Mac
         </a>
         <span className="text-center text-xs text-foreground/60">
-          For Macs with Apple silicon. Saves from Chrome, Arc, Brave and Edge. The agent works with
-          a paid Claude plan or any ChatGPT plan.
+          For Macs with Apple silicon. Saves from Chrome, Arc, Brave and Edge. An account is
+          required, by invite for now, and its first 1 GB is free. The agent is built in.
         </span>
       </div>
       <footer className="flex justify-center pb-6">
