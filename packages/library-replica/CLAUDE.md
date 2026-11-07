@@ -52,7 +52,8 @@ and cited.
   `BLOB_MISSING` uploads again, a refusal no resend passes
   parks the row and the rows on its items or folders behind it, and a landing
   this copy cannot lay leaves the row to the pull. A folder name a sibling
-  holds is such a refusal, and so is a row its last resend left as it was: a
+  holds is such a refusal, and so is an address another item holds, in the cell's
+  own words, and a row its last resend left as it was: a
   parked row stops neither the pass nor the pull, and a folder's holds no other
   folder, so the person can rename the one in its way. A folder a row has yet to
   make holds what is filed in it, since its id names nothing at the cell; let go,

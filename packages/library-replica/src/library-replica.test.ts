@@ -1236,6 +1236,24 @@ describe("a change no resend can pass", () => {
   it("parks a write whose resends go out unchanged, and pulls all the same", async () => {
     const cell = createFakeCell();
     const phone = await openDevice(cell, "phone");
+    const url = "https://example.com/stuck";
+    const link = await phone.replica.saveLink({ folderId: null, tags: [], url });
+    await phone.replica.sync();
+    cell.unsettled.add(link.id);
+    await write(phone.replica, link.id, [
+      { base: url, field: "url", op: "set", value: `${url}/2` },
+    ]);
+    await phone.replica.sync();
+    expect(phone.replica.status()).toMatchObject({
+      failure: null,
+      parked: [{ itemIds: [link.id], reason: "Your library couldn't take this change." }],
+    });
+    expect(cell.item(link.id)?.fields.url).toBe(url);
+  });
+
+  it("parks a write to an address another item holds in the cell's words", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
     const held = await phone.replica.saveLink({
       folderId: null,
       tags: [],
@@ -1258,7 +1276,9 @@ describe("a change no resend can pass", () => {
     await phone.replica.sync();
     expect(phone.replica.status()).toMatchObject({
       failure: null,
-      parked: [{ itemIds: [other.id], reason: "Your library couldn't take this change." }],
+      parked: [
+        { itemIds: [other.id], reason: "Another item in your library already holds this link." },
+      ],
     });
     expect(cell.item(other.id)?.fields.url).toBe("https://example.com/other");
     expect(cell.item(held.id)?.fields.url).toBe("https://example.com/held");

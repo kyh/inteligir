@@ -102,6 +102,8 @@ export interface FakeCell {
   readonly forgetAnswers: () => void;
   // writes to these items are refused as too large
   readonly tooLarge: Set<string>;
+  // writes to these items meet a conflict no resend settles
+  readonly unsettled: Set<string>;
   // every call is refused as a revoked sign-in
   readonly signOut: () => void;
   // the change log's page and how many bodies an answer carries
@@ -215,6 +217,7 @@ export const createFakeCell = (): FakeCell => {
   const calls: string[] = [];
   const uploads: string[] = [];
   const tooLarge = new Set<string>();
+  const unsettled = new Set<string>();
 
   const record = (kind: ChangeKind, id: string, seq: number): void => {
     log.set(`${kind}:${id}`, { id, kind, seq });
@@ -353,6 +356,7 @@ export const createFakeCell = (): FakeCell => {
     if (holder !== null && item !== undefined) {
       throw new ConflictError({
         data: { current: [{ itemId: holder, kind: "item", seq: item.seq }] },
+        message: "Another item in your library already holds this link.",
       });
     }
   };
@@ -368,6 +372,11 @@ export const createFakeCell = (): FakeCell => {
     }
     if (tooLarge.has(input.itemId)) {
       throw new PayloadTooLargeError();
+    }
+    if (unsettled.has(input.itemId)) {
+      throw new ConflictError({
+        data: { current: [{ itemId: input.itemId, kind: "item", seq: item.seq }] },
+      });
     }
     needsBlobs(shasIn(JSON.stringify(input.ops)));
     const outcome = applyOps({ blocks: item.blocks, fields: item.fields }, input.ops);
@@ -804,6 +813,7 @@ export const createFakeCell = (): FakeCell => {
       epoch = `epoch-${String(generation)}`;
     },
     tooLarge,
+    unsettled,
     uploads,
   };
 };

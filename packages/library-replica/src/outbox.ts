@@ -492,6 +492,11 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       switch (error.code) {
         case "CONFLICT": {
           const { current } = error.data;
+          // another item holding the address this write leaves: no base answers that, so the
+          // cell's words are the person's
+          if (current.some((met) => met.kind === "item" && met.itemId !== op.itemId)) {
+            return null;
+          }
           return await (async () => {
             const outcome = await settleWrite(op, current, {
               merge: context.merge,

@@ -648,6 +648,45 @@ describe("the replica engine against the account's cell", () => {
   );
 
   it(
+    "parks a change to an address another item took in the cell's words, and it goes once that one does",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("url-held-write");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      const old = "https://example.com/old";
+      const taken = "https://example.com/taken";
+      const link = await phone.replica.saveLink({ folderId: null, tags: [], url: old });
+      await phone.replica.sync();
+      const holder = await laptop.replica.saveLink({ folderId: null, tags: [], url: taken });
+      await laptop.replica.sync();
+
+      await write(phone.replica, link.id, [{ base: old, field: "url", op: "set", value: taken }]);
+      await phone.replica.sync();
+
+      expect(phone.replica.status()).toMatchObject({
+        failure: null,
+        parked: [
+          {
+            itemIds: [link.id],
+            reason: "Another item in your library already holds this link.",
+          },
+        ],
+      });
+
+      await laptop.replica.deleteItems([holder.id]);
+      await laptop.replica.sync();
+      const [parked] = phone.replica.status().parked;
+      await phone.replica.retry(parked?.seq ?? 0);
+      await phone.replica.sync();
+
+      expect(phone.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
+      await laptop.replica.sync();
+      expect(laptop.replica.row(link.id)?.url).toBe(taken);
+    },
+  );
+
+  it(
     "keeps a card open through its fold, its unsaved words going on to the item at its address",
     { timeout: 30_000 },
     async () => {
