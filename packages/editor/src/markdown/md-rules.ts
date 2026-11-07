@@ -22,7 +22,6 @@ import type {
   MdLink,
   MdList,
   MdParagraph,
-  MdTableCell,
   MdTableRow,
   MdText,
   MdYaml,
@@ -302,17 +301,46 @@ const paragraphRule: WideMdRule = {
   serialize: defaultParagraphSerialize,
 };
 
-// The table writer joins a cell's blocks with `<br/>`, and an image is a block of its own in a cell
-// wherever it stands, so that spelling beside one is the boundary the read finds anyway. Held as a
-// tag it stays in the paragraph beside the image, and each write adds one more.
-const withoutImageBoundaries = (cell: MdTableCell): MdTableCell => ({
-  ...cell,
-  children: cell.children.filter(
-    (child, index, siblings) =>
-      !(child.type === "opaqueInline" && child.value === "<br/>") ||
-      (siblings[index - 1]?.type !== "image" && siblings[index + 1]?.type !== "image"),
-  ),
-});
+const isCellBreak = (node: Descendant): boolean =>
+  ElementApi.isElement(node) && node.type === OPAQUE_KEY && stringProp(node, "source") === "<br/>";
+
+const cellLines = (children: readonly Descendant[]): Descendant[][] => {
+  const lines: Descendant[][] = [[]];
+  for (const child of children) {
+    if (isCellBreak(child)) {
+      lines.push([]);
+    } else {
+      lines.at(-1)?.push(child);
+    }
+  }
+  return lines;
+};
+
+// The table writer joins a cell's blocks with `<br/>` and has no other word for its second line, so
+// the tag reads back as that boundary. A block lifted out of the line, an image, already stands
+// on one, so the empty line a tag beside it leaves is not the cell's.
+const cellBlocks = (blocks: readonly Descendant[]): Descendant[] =>
+  blocks.flatMap((block, index): Descendant[] => {
+    if (!ElementApi.isElement(block) || block.type !== KEYS.p) {
+      return [block];
+    }
+    const lines = cellLines(block.children);
+    const start = index > 0 && lines[0]?.length === 0 ? 1 : 0;
+    const end = index < blocks.length - 1 && lines.at(-1)?.length === 0 ? -1 : lines.length;
+    return lines
+      .slice(start, end)
+      .map((children) => ({ ...block, children: children.length > 0 ? children : [{ text: "" }] }));
+  });
+
+const withCellBlocks = (row: Descendant): Descendant =>
+  ElementApi.isElement(row)
+    ? {
+        ...row,
+        children: row.children.map((cell) =>
+          ElementApi.isElement(cell) ? { ...cell, children: cellBlocks(cell.children) } : cell,
+        ),
+      }
+    : row;
 
 // the blocks that are an item's own line: words, whichever block spelled them
 const ITEM_LINES: ReadonlySet<string> = new Set([KEYS.p, ...KEYS.heading]);
@@ -745,16 +773,8 @@ export const MD_RULES: MdRules = {
         }
         return { children: cells, type: "tableRow" };
       };
-      const element = defaultTableDeserialize(
-        {
-          ...node,
-          children: rows.map((row) =>
-            padRow({ ...row, children: row.children.map(withoutImageBoundaries) }),
-          ),
-        },
-        deco,
-        options,
-      );
+      const read = defaultTableDeserialize({ ...node, children: rows.map(padRow) }, deco, options);
+      const element = { ...read, children: read.children.map(withCellBlocks) };
       const align = node.align ?? [];
       return align.some((entry) => entry !== null) ? { ...element, align } : element;
     },

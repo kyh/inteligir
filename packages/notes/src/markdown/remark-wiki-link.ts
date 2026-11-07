@@ -1,7 +1,7 @@
 // own micromark constructs rather than an npm package: the published wiki-link packages are
 // years stale and lack embeds. `body` is the raw source between the brackets, verbatim but for a
-// table row's own `\|`; anchor/alias splitting is display-time only. a single `]` inside the body rejects the whole
-// construct, which then falls through to standard link parsing.
+// table row's own `\|`; anchor/alias splitting is display-time only. a single `]` inside the body
+// rejects the whole construct, which then falls through to standard link parsing.
 
 // remark-stringify's augmentation declares `Data.toMarkdownExtensions` (types-only).
 /// <reference types="remark-stringify" />

@@ -91,12 +91,12 @@ alone, and no walk narrows structurally.
   before one's first character keeps it text (`\@2026-08-22`, `\[^a]`), and the
   serializer writes that escape before typed text the next parse would read as
   one, so what a person types stays text. A `=== Label` line is one finished
-  text too: a label is plain words, a construct in one
-  leaves the whole group prose, and the writer escapes a label that would read
-  as one, a bare url among them, since what GFM reads past that escape is still
-  the line's text. Rejected: reading a construct in a label (a label is a
-  string, with no inline to hold it). Obsidian's spellings in a note hold to
-  the same rule (MARKDOWN IS A CODEC BESIDE THE LIBRARY).
+  text too: a label is plain words, a construct in one leaves the whole group
+  prose, and the writer escapes a label that would read as one, a bare url
+  among them, since what GFM reads past that escape is still the line's text.
+  Rejected: reading a construct in a label (a label is a string, with no inline
+  to hold it). Obsidian's spellings in a note hold to the same rule (MARKDOWN
+  IS A CODEC BESIDE THE LIBRARY).
   `packages/notes/src/markdown/text-escapes.ts`,
   `packages/notes/src/markdown/remark-inline-constructs.ts`,
   `packages/notes/src/markdown/remark-references.ts`,
@@ -332,10 +332,9 @@ alone, and no walk narrows structurally.
   down; a link or image with no address is its words or its source, so it
   takes no block with it, and one with a title is its source, which keeps the
   title (`packages/notes/src/markdown/remark-opaque.ts`). A list item is its
-  words: a list an item opens with
-  nests under an empty line, and any other block it opens with keeps its type
-  and stands outside the list where the item stood, a to-do's box on a line
-  above it. Rejected: Plate's list rule (it made every such block a `p`, which
+  words: a list an item opens with nests under an empty line, and any other
+  block it opens with keeps its type and stands outside the list where the item
+  stood, a to-do's box on a line above it. Rejected: Plate's list rule (it made every such block a `p`, which
   holds no address, fence or source, and laid a nested list over its parent's
   line). What follows a `$$` on its line leads the expression, since an
   equation holds no fence meta and a person who opens `$$ E = mc^2` wrote it
@@ -425,20 +424,24 @@ alone, and no walk narrows structurally.
   inline equation are read as source, so a row's `\|` reaches them: each drops
   it on the read, as gfm does for inline code, and writes a bare pipe that way,
   which is how Obsidian spells `[[Title\|alias]]`. TeX's own `\|` would read
-  back as a pipe, so in a cell it is written `\Vert`, the same bar. Rejected:
-  `\vert` for a bare pipe (it means nothing in `\begin{array}{c|c}` or
-  `\text{a|b}`), and escaping with no read (`|x|` would come back as `\|x\|`, a
-  different bar). `packages/notes/src/markdown/line-scan.ts`,
+  back as a pipe, so in a cell it is written `\Vert`, the same bar. A code
+  span's own `\|` has no spelling in a cell, and gfm's handler would write it
+  as a divider, so it gains a backslash and the row stands. Rejected: `\vert`
+  for a bare pipe (it means nothing in `\begin{array}{c|c}` or `\text{a|b}`),
+  and escaping with no read (`|x|` would come back as `\|x\|`, a different
+  bar). `packages/notes/src/markdown/line-scan.ts`,
   `packages/notes/src/markdown/md-plugins.ts`.
 
-- **AN IMAGE STANDS ALONE IN A TABLE CELL, AND A `<br/>` BESIDE ONE IS THAT
-  BOUNDARY.** The model's image is a block, so the read lifts one out of a
-  cell's line and the table writer joins the cell's blocks with `<br/>`; the
-  read drops that tag beside an image, so such a cell settles on its first
-  write. Anywhere else in a cell the tag stays what a person wrote. Rejected: an
-  inline image in a cell (a second image node for one place), and a writer that
-  drops the tag beside an image (it would filter Plate's private output).
-  Residual: two paragraphs in a cell read back as one line holding the tag.
+- **A `<br/>` IN A TABLE CELL IS THE BOUNDARY BETWEEN ITS BLOCKS.** The table
+  writer joins a cell's blocks with that tag and has no other word for a cell's
+  second line, so the read cuts a cell at it. An image is a block wherever it
+  stands in a cell, so a tag beside one is the edge it already has. A cell
+  settles on its first write, and its two lines stay two through an edit or a
+  highlight anywhere in the table. Only the writer's spelling is the boundary:
+  `<br>` stays the tag it is. Rejected: holding the tag as source (a re-read of
+  the table would turn a person's second line into a tag), an inline image in a
+  cell (a second image node for one place), and a writer that drops the tag
+  beside an image (it would filter Plate's private output).
   `packages/editor/src/markdown/md-rules.ts`.
 
 ## The open item's merge

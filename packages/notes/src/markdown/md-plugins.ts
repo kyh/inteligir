@@ -2,7 +2,7 @@
 // math before gfm; opaque last, over the finished tree and the complete set of stringify
 // extensions.
 
-import type { Break, ListItem, Nodes, ThematicBreak } from "mdast";
+import type { Break, InlineCode, ListItem, Nodes, ThematicBreak } from "mdast";
 import type {
   CompileContext,
   Extension as FromMarkdownExtension,
@@ -109,8 +109,8 @@ if (!inlineMathHandle || !exitInlineMath) {
   throw new Error("mdast-util-math ships no inline math handlers — pipeline cannot start");
 }
 
-// gfm carries inline code through a row and has no word for inline math, whose pipes would end the
-// cell. TeX's own `\|` reads back as a pipe here, so it goes as the same bar by its other name.
+// gfm has no word for inline math, whose pipes would end the cell. TeX's own `\|` reads back as a
+// pipe here, so it goes as the same bar by its other name.
 const inlineMathInRow: Handle = (node: InlineMath, parent, state, info) =>
   inlineMathHandle(
     state.stack.includes("tableCell")
@@ -134,12 +134,20 @@ const inlineMathFromRow: FromMarkdownExtension = {
   },
 };
 
+// gfm's own handler escapes a pipe a backslash stands before into `\\|`, a divider. No spelling keeps
+// that one backslash in a cell, so it gains a second, and the row stands.
+const inlineCodeInRow: Handle = (node: InlineCode, parent, state) => {
+  const written = defaultHandlers.inlineCode(node, parent, state);
+  return state.stack.includes("tableCell") ? escapeCellPipes(written, String.raw`\\\|`) : written;
+};
+
 // `-` bullets match Obsidian (remark's default is `*`). `resourceLink: true` bans the `<url>`
 // autolink form, so a link has one spelling: its bare literal (md-rules) or `[text](url)`.
 export const MD_STRINGIFY = {
   bullet: "-",
   handlers: {
     break: hardBreakAfterBareUrl,
+    inlineCode: inlineCodeInRow,
     inlineMath: inlineMathInRow,
     listItem: listItemEmptyTodoPlaceholder,
     thematicBreak: thematicBreakNeverFrontmatter,

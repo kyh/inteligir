@@ -864,6 +864,9 @@ describe("one file's `title:`", () => {
   });
 });
 
+// what the table writer spells an empty paragraph with, an empty cell's as a line's
+const EMPTY_CELL_LINE = "\u200B";
+
 describe("one file as its item", () => {
   it("reads the frontmatter into fields, and every other key as a typed property", () => {
     const item = imported(
@@ -1020,10 +1023,57 @@ describe("one file as its item", () => {
     expect(exported(reimported(again)).text).toBe(exported(item).text);
   });
 
-  it("keeps a break between a cell's words as the tag a person wrote", () => {
-    const item = imported("| a |\n| - |\n| one<br/>two |\n");
-    expect(JSON.stringify(item.blocks)).toContain('"source":"<br/>"');
-    expect(exported(item).text).toContain("| one<br/>two |");
+  it.each([
+    ["two words", "one<br/>two", ["one", "two"]],
+    ["a held mark's words", "**one<br/>two**", ["one", "two"]],
+    ["an empty line", "one<br/><br/>two", ["one", EMPTY_CELL_LINE, "two"]],
+    ["a cell's edges", "<br/>one<br/>", [EMPTY_CELL_LINE, "one", EMPTY_CELL_LINE]],
+    ["nothing but a break", "<br/>", [EMPTY_CELL_LINE, EMPTY_CELL_LINE]],
+  ])("reads a `<br/>` between %s as the cell's next line", (_name, cell, lines) => {
+    const item = imported(`| a |\n| - |\n| ${cell} |\n`);
+    expect(item.leftOut).toBe(0);
+    const written = JSON.stringify(item.blocks);
+    expect(written).not.toContain('"source"');
+    expect(
+      [...written.matchAll(/"text":"(?<text>[^"]*)"/gu)].map(([, text]) => text),
+    ).toStrictEqual(["a", ...lines]);
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it("keeps a tag in another spelling, or text spelling one, as it stands", () => {
+    const item = imported(String.raw`| a |
+| - |
+| one<br>two |
+| one\<br/>two |
+`);
+    expect(JSON.stringify(item.blocks)).toContain('"source":"<br>"');
+    expect(JSON.stringify(item.blocks)).toContain('"text":"one<br/>two"');
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it("writes a code span's own backslash before a pipe so the row stands", () => {
+    const item = typedItem("note", [
+      {
+        children: [
+          {
+            children: [
+              {
+                children: [{ children: [{ code: true, text: String.raw`a\|b` }], type: "p" }],
+                type: "td",
+              },
+              { children: [{ children: [{ text: "word" }], type: "p" }], type: "td" },
+            ],
+            type: "tr",
+          },
+        ],
+        id: "t",
+        type: "table",
+      },
+    ]);
+    expect(exported(item).text).toContain(String.raw`| ${"`"}a\\\|b${"`"} | word |`);
+    const again = reimported(item);
+    expect(JSON.stringify(again.blocks).match(/"type":"t[dh]"/gu)).toHaveLength(2);
+    expect(exported(again).text).toBe(exported(reimported(again)).text);
   });
 
   it("writes TeX's own double bar in a cell so it stays one", () => {

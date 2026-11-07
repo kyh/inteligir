@@ -8,6 +8,7 @@ import { blockHash } from "@repo/notes/library/block-hash";
 import { compareBlockPlaces } from "@repo/notes/library/block-order";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import { BLOCK_MAX_BYTES, LIST_MAX_INDENT } from "@repo/notes/library/library-nodes";
+import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 
 import { pretendLibrary, withoutId } from "../test-support/codec-ports";
 import { editItemView, placeItemQuotes } from "./item-edit";
@@ -691,6 +692,51 @@ describe("a link or an equation in a table cell", () => {
     const row = cellsOf(landed(blocks, placed.ops));
     expect(row).toContain(OTHER_ID);
     expect(row.match(/"type":"td"/gu)).toHaveLength(2);
+  });
+
+  describe("a person's two lines in a cell", () => {
+    const LINES = "| a | b |\n| - | - |\n| one<br/>two | some words here |\n";
+    const LINE_CELL = '"children":[{"text":"one"}],"type":"p"},{"children":[{"text":"two"}]';
+
+    it("stay two lines through an edit of the next cell", () => {
+      const blocks = storedOf(LINES);
+      const after = cellsOf(editedTo(blocks, "words", "changed"));
+      expect(after).toContain(LINE_CELL);
+      expect(after).not.toContain('"source"');
+    });
+
+    it("stay two lines through a quote placed in the next cell", () => {
+      const blocks = storedOf(LINES);
+      const placed = placeItemQuotes(blocks, [{ id: "q1", quote: "words" }], portsWith());
+      expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
+      expect(cellsOf(landed(blocks, placed.ops))).toContain(LINE_CELL);
+    });
+  });
+
+  it("keeps the row of a code span a person typed its own backslash and pipe in", () => {
+    const table: LibraryBlock = {
+      children: [
+        {
+          children: [
+            {
+              children: [{ children: [{ code: true, text: String.raw`a\|b` }], type: "p" }],
+              type: "td",
+            },
+            { children: [{ children: [{ text: "word" }], type: "p" }], type: "td" },
+          ],
+          type: "tr",
+        },
+      ],
+      id: "t",
+      type: "table",
+    };
+    const blocks = new Map<string, StoredBlock>([
+      ["t", { block: table, hash: blockHash(table), ord: "a0", section: "note" }],
+    ]);
+    const row = cellsOf(editedTo(blocks, "word", "changed"));
+    expect(row.match(/"type":"t[dh]"/gu)).toHaveLength(2);
+    expect(row).toContain('"code":true');
+    expect(row).toContain('"text":"changed"');
   });
 
   it("finds a quote by the pipes an equation in a cell shows", () => {

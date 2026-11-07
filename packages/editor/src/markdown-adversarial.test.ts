@@ -515,6 +515,7 @@ const CORPUS = {
   "tab-indented-code": "\tindented code\n",
   "tab-inline": "a\tb\n",
   "table-alignment": "| a | b | c |\n|:- | -:|:-:|\n| 1 | 2 | 3 |\n",
+  "table-code-span-backslash-pipe": "| `a\\\\\\|b` |\n| - |\n| x |\n",
   "table-code-span-pipe": "| `a|b` |\n| ----- |\n| x     |\n",
   "table-empty-cells": "| a |  |\n| - | - |\n|   | b |\n",
   "table-escaped-pipe": "| a\\|b |\n| ---- |\n| c    |\n",
@@ -535,6 +536,9 @@ const CORPUS = {
   "table-wiki-alias":
     "| [[Note\\|shown]] | b |\n| - | - |\n| ![[img.png\\|300]] | [[a\\\\\\|c]] |\n",
   "table-word-break": "| a |\n| - |\n| one<br/>two |\n",
+  "table-word-break-at-edges": "| a |\n| - |\n| <br/>one<br/> |\n",
+  "table-word-break-empty-line": "| a |\n| - |\n| one<br/><br/>two |\n",
+  "table-word-break-in-mark": "| a |\n| - |\n| **one<br/>two** |\n",
   "tabs-in-toggle": ":::toggle\n:::tabs\n=== A\nx\n:::\n:::\n",
   "tilde-fence": "~~~js\ncode\n~~~\n",
   "todo-capital-x": "- [X] done\n",
