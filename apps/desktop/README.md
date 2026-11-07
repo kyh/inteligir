@@ -212,8 +212,9 @@ glue (`tools/e2e/README.md`): they launch the checkout's unbundled debug shell
 (`pnpm turbo run build:shell --filter=@repo/desktop`) on a scratch home through
 `tauri-driver` and WebKitGTK's WebDriver, against a booted Worker reached
 through a relay the scenario can cut. `desktop-onboarding` signs in through the
-window, finds the account's replica file, relaunches into the library, and
-signs out, leaving no replica file; `desktop-shell` reads the library from the
+window, finds the account's replica file, relaunches into the library, signs
+out, leaving no replica file, and signs in again onto the library, not the
+Settings it left from; `desktop-shell` reads the library from the
 shell's replica, sees another device's write reach the open editor, draws a
 picture and a PDF over the files' scheme, is refused `window.open` and every
 permission, relaunches with the cloud cut and opens the item from the replica,

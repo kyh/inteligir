@@ -13,9 +13,10 @@ type HistoryFilter = { readonly itemId: string } | { readonly threadId: string }
 // not before it, so a press takes its place the moment it is made, however long that write takes
 export const UNDO_SCOPE = { id: "history-undo" };
 
-// A set goes back once, and the cell refuses a whole undo that names one already undone, so a press
-// that would name what waits in the queue is held down until it lands. Read from the queue itself,
-// so it holds for a press made on another surface, or before leaving this one and coming back.
+// A set goes back once, and the cell refuses a whole undo that names one already undone, so every
+// Undo is held down while anything waits in the queue, and a long conversation's undos join it a
+// batch at a time, so a press let in behind one could read ahead of the next. Read from the queue
+// itself, so it holds for a press made on another surface, or before leaving this one and returning.
 export const useUndoWaits = (): boolean =>
   useIsMutating({ predicate: ({ options }) => options.scope?.id === UNDO_SCOPE.id }) > 0;
 

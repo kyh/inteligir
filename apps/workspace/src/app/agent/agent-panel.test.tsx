@@ -2,6 +2,7 @@
 
 import { setTimeout as delay } from "node:timers/promises";
 import { createORPCErrorFromJson } from "@orpc/client";
+import { BULK_ITEMS_MAX } from "@repo/contract/cloud/library/library-wire";
 import { toast } from "@repo/ui/components/sonner";
 import { onlineManager } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
@@ -305,7 +306,11 @@ describe("the agent panel's conversation", () => {
       expect(callsTo(calls, "library.history.undo")).toStrictEqual([{ changeSetIds: ["s1"] }]);
     });
     expect(flushOpen).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole("button", { name: "Undo this conversation" }));
+    const whole = screen.getByRole("button", { name: "Undo this conversation" });
+    await waitFor(() => {
+      expect(heldDown(whole)).toBe(false);
+    });
+    fireEvent.click(whole);
     await waitFor(() => {
       expect(callsTo(calls, "library.history.undo")).toStrictEqual([
         { changeSetIds: ["s1"] },
@@ -430,46 +435,40 @@ describe("the agent panel's conversation", () => {
     expect(said).not.toHaveBeenCalled();
   });
 
-  it("waits behind an undo in flight, and takes back what that one left", async () => {
-    let listed = [set("s2", 2), set("s1", 1)];
-    const held = Promise.withResolvers<object>();
-    let undos = 0;
+  it("stays down behind an undo in flight, then takes back what that one left", async () => {
+    const answered = Promise.withResolvers<null>();
+    const cell = takesBackOnce([set("s2", 2), set("s1", 1)], async ({ path }) => {
+      if (path === "library.history.undo") {
+        await answered.promise;
+      }
+    });
     const { calls, library } = fakePageLibrary({
-      answer: async ({ path }) => {
-        if (path === "library.history.list") {
-          return { changeSets: listed, cursor: null };
-        }
-        undos += 1;
-        return undos === 1 ? await held.promise : UNDONE;
-      },
-      events: [
-        ...oneFinishedTurn,
-        row(2, { text: "And these.", type: "user.message" }),
-        row(3, { reason: "done", turn: 2, type: "turn.ended" }),
-      ],
+      answer: cell.answer,
+      events: twoFinishedTurns,
       threads: [thread],
     });
     renderOnLibrary(panel(), library);
-    await waitFor(() => {
-      expect(screen.getAllByRole("button", { name: "Undo this turn" })).toHaveLength(2);
-    });
-    fireEvent.click(screen.getAllByRole("button", { name: "Undo this turn" })[0] ?? document.body);
+    const { turn, whole } = await twoTurnsDrawn();
+    fireEvent.click(turn);
     await waitFor(() => {
       expect(callsTo(calls, "library.history.undo")).toStrictEqual([{ changeSetIds: ["s1"] }]);
     });
+    await waitFor(() => {
+      expect(heldDown(whole)).toBe(true);
+    });
     const reads = callsTo(calls, "library.history.list").length;
-    fireEvent.click(screen.getByRole("button", { name: "Undo this conversation" }));
+    fireEvent.click(whole);
     await act(async () => {
       await delay(0);
     });
     expect(callsTo(calls, "library.history.list")).toHaveLength(reads);
-    listed = [set("s2", 2), set("s1", 1, "u1")];
-    held.resolve(UNDONE);
+    answered.resolve(null);
     await waitFor(() => {
-      expect(callsTo(calls, "library.history.undo")).toStrictEqual([
-        { changeSetIds: ["s1"] },
-        { changeSetIds: ["s2"] },
-      ]);
+      expect(heldDown(whole)).toBe(false);
+    });
+    fireEvent.click(whole);
+    await waitFor(() => {
+      expect(cell.landed).toStrictEqual([["s1"], ["s2"]]);
     });
   });
 
@@ -530,7 +529,7 @@ describe("the agent panel's conversation", () => {
     expect(said).not.toHaveBeenCalled();
   });
 
-  describe("Undo this turn, while an undo waits", () => {
+  describe("every Undo, while an undo waits", () => {
     it("stays down offline, so a second press has nothing to be refused", async () => {
       const refused = vi.spyOn(toast, "error");
       const undone = vi.spyOn(toast, "success");
@@ -672,7 +671,7 @@ describe("the agent panel's conversation", () => {
       expect(refused).not.toHaveBeenCalled();
     });
 
-    it("queues from the press, however long the open item's write takes", async () => {
+    it("holds from the press, however long the open item's write takes", async () => {
       const refused = vi.spyOn(toast, "error");
       const written = Promise.withResolvers<null>();
       const flushOpen = vi.fn<() => Promise<void>>(async () => {
@@ -688,16 +687,52 @@ describe("the agent panel's conversation", () => {
       const { turn, whole } = await twoTurnsDrawn();
       fireEvent.click(turn);
       await waitFor(() => {
-        expect(heldDown(turn)).toBe(true);
+        expect(heldDown(whole)).toBe(true);
       });
+      expect(heldDown(turn)).toBe(true);
       fireEvent.click(whole);
       await act(async () => {
         await delay(0);
       });
       expect(callsTo(calls, "library.history.undo")).toStrictEqual([]);
       written.resolve(null);
-      await gone();
-      expect(cell.landed).toStrictEqual([["s1"], ["s2"]]);
+      await waitFor(() => {
+        expect(cell.landed).toStrictEqual([["s1"]]);
+      });
+      expect(refused).not.toHaveBeenCalled();
+    });
+
+    it("keeps a second press from a long conversation's undos until the last lands", async () => {
+      const refused = vi.spyOn(toast, "error");
+      const answered = Promise.withResolvers<null>();
+      const sets = Array.from({ length: BULK_ITEMS_MAX + 1 }, (_, at) =>
+        set(`s${String(at)}`, BULK_ITEMS_MAX + 1 - at),
+      );
+      const cell = takesBackOnce(sets, async ({ path }) => {
+        if (path === "library.history.undo") {
+          await answered.promise;
+        }
+      });
+      const { calls, library } = fakePageLibrary({
+        answer: cell.answer,
+        events: oneFinishedTurn,
+        threads: [thread],
+      });
+      renderOnLibrary(panel(), library);
+      const whole = await screen.findByRole("button", { name: "Undo this conversation" });
+      fireEvent.click(whole);
+      await waitFor(() => {
+        expect(callsTo(calls, "library.history.undo")).toHaveLength(1);
+      });
+      await waitFor(() => {
+        expect(heldDown(whole)).toBe(true);
+      });
+      fireEvent.click(whole);
+      answered.resolve(null);
+      await waitFor(() => {
+        expect(screen.queryByRole("button", { name: "Undo this conversation" })).toBeNull();
+      });
+      expect(cell.landed.map((batch) => batch.length)).toStrictEqual([BULK_ITEMS_MAX, 1]);
       expect(refused).not.toHaveBeenCalled();
     });
 
