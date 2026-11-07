@@ -66,15 +66,6 @@ and cited.
   `packages/library-replica/src/outbox.ts`, `outbox-settle.ts`,
   `outbox-ops.ts`.
 
-- **A CLOSED REPLICA REFUSES EVERY WRITE, IN THE PERSON'S WORDS.** A row and its
-  files are laid only while the replica is open, checked under the outbox's own
-  hold, which a wipe takes too, so a write is either past the check and removed
-  by the wipe or refused with `ReplicaClosedError`, whose message a screen can
-  say and whose type a caller that can keep the write reads
-  (`apps/mobile/src/items/share-save.ts`). Rejected: taking the write and
-  sending nothing (a row laid in a wiped database goes out under whoever signs
-  in next, since rows name no account). `packages/library-replica/src/outbox.ts`.
-
 - **THE SOCKET IS A HINT, AND THE MINUTE'S CHECK-IN THE FLOOR.** A pass runs as
   the socket opens, on a frame naming a head past the cursor, on a thread's
   stored event, on every write and every minute; the socket pings, drops a
@@ -105,3 +96,12 @@ and cited.
   in memory through its pause); a table of kept files (a second staging beside
   the rows' own). `packages/library-replica/src/outbox.ts`,
   `replica-commands.ts`, `library-replica.ts`.
+
+- **A CLOSED REPLICA REFUSES EVERY WRITE, IN THE PERSON'S WORDS.** A row and its
+  files are laid only while the replica is open, checked under the outbox's own
+  hold, which a wipe takes too, so a write is either past the check and removed
+  by the wipe or refused with `ReplicaClosedError`, whose message a screen can
+  say and whose type a caller that can keep the write reads
+  (`apps/mobile/src/items/share-save.ts`). Rejected: taking the write and
+  sending nothing (a row laid in a wiped database goes out under whoever signs
+  in next, since rows name no account). `packages/library-replica/src/outbox.ts`.
