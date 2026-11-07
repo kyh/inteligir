@@ -85,9 +85,10 @@ alone, and no walk narrows structurally.
   next parse would read as one, so what a person types stays text. A `=== Label`
   line is one finished text too: a label is plain words, a construct in one
   leaves the whole group prose, and the writer escapes a label that would read
-  as one. Rejected: reading a construct in a label (a label is a string, with
-  no inline to hold it). Obsidian's spellings in a note hold to the same rule
-  (MARKDOWN IS A CODEC BESIDE THE LIBRARY).
+  as one, a bare url among them, since what GFM reads past that escape is still
+  the line's text. Rejected: reading a construct in a label (a label is a
+  string, with no inline to hold it). Obsidian's spellings in a note hold to
+  the same rule (MARKDOWN IS A CODEC BESIDE THE LIBRARY).
   `packages/notes/src/markdown/text-escapes.ts`,
   `packages/notes/src/markdown/remark-inline-constructs.ts`,
   `packages/notes/src/markdown/remark-containers.ts`.

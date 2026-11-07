@@ -20,6 +20,7 @@ import type {
   PhrasingContent,
   Root,
   RootContent,
+  Text,
 } from "mdast";
 import type { Info, Options as ToMarkdownExtension, State } from "mdast-util-to-markdown";
 import type { Plugin, Processor, Transformer } from "unified";
@@ -174,10 +175,21 @@ const linesOf = (children: PhrasingContent[]): Line[] => {
   return lines;
 };
 
+// GFM reads a bare url out of finished text past the backslash that broke it (`./text-escapes`), and
+// what it reads there holds no place in the source, so that text is still the line's
+const writtenText = (node: PhrasingContent): Text | null => {
+  if (node.type === "text") {
+    return node;
+  }
+  const [only, ...rest] = node.type === "link" && node.position === undefined ? node.children : [];
+  return only?.type === "text" && rest.length === 0 ? only : null;
+};
+
 const markerOf = (line: Line): Marker | null => {
-  const [only, ...rest] = line.nodes;
-  return only?.type === "text" && rest.length === 0 && !escapedAt(only, 0)
-    ? markerFor(only.value)
+  const [first] = line.nodes;
+  const texts = line.nodes.flatMap((node) => writtenText(node) ?? []);
+  return first?.type === "text" && !escapedAt(first, 0) && texts.length === line.nodes.length
+    ? markerFor(texts.map(({ value }) => value).join(""))
     : null;
 };
 

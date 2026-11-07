@@ -721,6 +721,19 @@ describe("a tab's label", () => {
     expect(content(reimported(reimported(item)))).toStrictEqual(content(item));
   });
 
+  it.each([
+    [String.raw`https\://example.com`, "https://example.com"],
+    [String.raw`www\.example.com`, "www.example.com"],
+    [String.raw`me\@example.com`, "me@example.com"],
+    [String.raw`see https\://example.com here`, "see https://example.com here"],
+  ])("reads `=== %s`, a bare address a backslash keeps, as its label", (written, label) => {
+    const item = imported(`:::tabs\n=== First\none\n=== ${written}\ntwo\n:::\n`);
+    expect(types(item)).toStrictEqual(["tab_group"]);
+    expect(labels(item)).toStrictEqual(["First", label]);
+    expect(bodyOf(exported(item).text)).toContain(`=== ${written}\n`);
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
   it("writes plain words as they stand, and an escape only where a label needs one", () => {
     const first = imported(":::tabs\n=== Draft 2\none\n=== \\@2026-08-22\ntwo\n:::\n");
     expect(bodyOf(exported(first).text)).toBe(
@@ -728,14 +741,20 @@ describe("a tab's label", () => {
     );
   });
 
-  it.each(["@2026-08-22", "**x**", "[[Note]]", "`x`", "https://example.com"])(
-    "keeps `=== %s`, which is no plain words, as the lines of text it is",
-    (written) => {
-      const item = imported(`:::tabs\n=== ${written}\nbody\n:::\n`);
-      expect(item.blocks.map(({ block }) => block.type)).toStrictEqual(["p"]);
-      expect(content(reimported(item))).toStrictEqual(content(item));
-    },
-  );
+  it.each([
+    "@2026-08-22",
+    "**x**",
+    "[[Note]]",
+    "`x`",
+    "https://example.com",
+    "www.example.com",
+    "me@example.com",
+    String.raw`[a\*b](https://example.com/a*b)`,
+  ])("keeps `=== %s`, which is no plain words, as the lines of text it is", (written) => {
+    const item = imported(`:::tabs\n=== ${written}\nbody\n:::\n`);
+    expect(item.blocks.map(({ block }) => block.type)).toStrictEqual(["p"]);
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
 });
 
 describe("one file as its item", () => {
