@@ -18,7 +18,7 @@ const device = (id: string, name: string, current: boolean) => ({
   revokedAt: null,
 });
 
-const answer = ({ path }: CellCall): object => {
+const answer = ({ path }: CellCall) => {
   switch (path) {
     case "account.devices.list": {
       return {
