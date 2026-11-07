@@ -390,10 +390,10 @@ export const wipeSynced = function* wipeSynced(epoch: string | null): SqlPlan<vo
 export const landOwnRow = function* landOwnRow(
   row: LiveItemRow,
   blocks: { readonly written: readonly StoredBlock[]; readonly dropped: readonly string[] },
-): SqlPlan<boolean> {
+): SqlPlan<void> {
   const landed = yield* layLiveRow(row);
   if (!landed || (blocks.written.length === 0 && blocks.dropped.length === 0)) {
-    return landed;
+    return;
   }
   yield* dropBlocks(row.id, blocks.dropped);
   const state = yield* readItemState(row.id);
@@ -408,7 +408,6 @@ export const landOwnRow = function* landOwnRow(
   yield* storeBlocks(row.id, blockWritesOf(blocks.written, derived), row.seq);
   yield* storeDerived(row.id, derived);
   yield* storeSearchRow(row.id, derived.search);
-  return landed;
 };
 
 // items a delete landed for, until the pull brings their rows as the cell holds them

@@ -19,7 +19,7 @@ export interface ReplicaSql extends ReplicaStatements {
   readonly exclusive: <T>(work: (tx: ReplicaStatements) => Promise<T>) => Promise<T>;
 }
 
-// the time, and a timer the engine cancels: the outbox's backoff, the socket's keepalive and
+// the time, and a timer the engine cancels: the pass's retry, the socket's keepalive and
 // reconnect, and the minute's check-in
 export interface ReplicaClock {
   readonly now: () => number;

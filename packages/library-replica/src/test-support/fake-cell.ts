@@ -89,7 +89,6 @@ export interface FakeCell {
   readonly annotation: (id: string) => AnnotationRow | null;
   readonly folder: (id: string) => FolderRow | null;
   readonly head: () => number;
-  readonly epoch: () => string;
   // the library under a new epoch, its rows kept, as a restore leaves it
   readonly startOver: () => void;
   // each call, as `<device> <procedure>` (`library/write`), and each upload by sha
@@ -797,7 +796,6 @@ export const createFakeCell = (): FakeCell => {
         transport,
       };
     },
-    epoch: () => epoch,
     folder: (id) => folders.get(id) ?? null,
     forgetAnswers: () => {
       answers.clear();

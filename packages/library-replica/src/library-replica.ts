@@ -4,8 +4,9 @@
 // resumes, when a write is queued, when the socket says the library moved or opens, and on the
 // minute's check-in, so nothing it holds rests on the socket. A failure waits a doubling while
 // and goes again; a session's end stops the replica, which its host answers (a sign-out wipes it).
-// The screens read the listing from memory and an item, its highlights, a search and the
-// threads from SQL, each with this device's unsent writes laid over.
+// The screens read the listing from memory and an item and its highlights from SQL, each with
+// this device's unsent writes laid over; a search reads what landed, less what this device
+// deleted, and the threads as the cell sent them.
 
 import { createORPCClient, safe } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
