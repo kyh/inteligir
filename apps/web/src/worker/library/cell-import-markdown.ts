@@ -7,6 +7,7 @@
 // last every file no item names becomes an item of its own. Every run reads the zip where it lies
 // in R2, a range at a time.
 
+import { hexFromBytes } from "@repo/contract/cloud/bytes";
 import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
 import {
   importPathKind,
@@ -145,9 +146,6 @@ const ROWS = {
 
 const decoder = new TextDecoder();
 
-const hex = (digest: ArrayBuffer): string =>
-  [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-
 const folderIdOf = (scope: LandingScope, host: ImportHost, path: string): string | null =>
   path === "" ? null : (folderOfTarget(scope, { path }, host.library.ids.item) ?? null);
 
@@ -174,13 +172,13 @@ const keepEntryFile = async (
   let file: Parameters<typeof keepFile>[1];
   if (entry.size <= BUFFERED_MAX_BYTES) {
     const bytes = await readZipEntry(source, entry, BUFFERED_MAX_BYTES);
-    const sha = hex(await crypto.subtle.digest("SHA-256", bytes));
+    const sha = hexFromBytes(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
     file = { body: async () => await Promise.resolve(bytes), mime, sha, size: bytes.byteLength };
   } else {
     const digest = new crypto.DigestStream("SHA-256");
     const hashed = await openZipEntry(source, entry);
     await hashed.pipeTo(digest);
-    const sha = hex(await digest.digest);
+    const sha = hexFromBytes(new Uint8Array(await digest.digest));
     file = {
       body: async () => {
         const stored = await openZipEntry(source, entry);

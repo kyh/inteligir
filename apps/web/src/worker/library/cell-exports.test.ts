@@ -4,6 +4,7 @@
 // the same entries one run writes; failed once its runs keep being cut off, so another can start;
 // downloaded behind the credential, a range at a time; and let go after its seven days.
 
+import { hexFromBytes } from "@repo/contract/cloud/bytes";
 import { V1_EXPORTS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { evictDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
@@ -149,8 +150,7 @@ const sourceOf = (bytes: Uint8Array): ByteSource => ({
   size: bytes.length,
 });
 
-const hex = (digest: ArrayBuffer): string =>
-  [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+const hex = (digest: ArrayBuffer): string => hexFromBytes(new Uint8Array(digest));
 
 // what the zip holds, each file's digest by its path
 const entriesOf = async (zip: Uint8Array): Promise<Map<string, string>> => {

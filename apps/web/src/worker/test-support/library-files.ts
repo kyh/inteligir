@@ -2,6 +2,7 @@
 // and its row settled; an import of it started and run, by the cell's alarm or a run at a time;
 // and a folder zipped, an Obsidian vault in small among them.
 
+import { hexFromBytes } from "@repo/contract/cloud/bytes";
 import { runDurableObjectAlarm } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 
@@ -16,11 +17,8 @@ import { centralHeader, endRecords, writeZipEntry } from "../zip/zip-write";
 import type { ZipFile, ZipRecord } from "../zip/zip-write";
 import { cellOf, inCell } from "./library-cell";
 
-const hex = (digest: ArrayBuffer): string =>
-  [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-
 const shaOf = async (bytes: Uint8Array): Promise<string> =>
-  hex(await crypto.subtle.digest("SHA-256", bytes));
+  hexFromBytes(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
 
 // the file's sha once the library holds it
 export const uploadedFile = async (
