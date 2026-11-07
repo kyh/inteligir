@@ -81,8 +81,9 @@ src/
                        # split of a bare url too
     remark-references.ts  # a reference read as the link or image it names,
                        # and the definition it used gone
-    autolink-text.ts   # the link spelled bare by its own address, which the
-                       # writer and every reader of a footnote's call agree on
+    autolink-text.ts   # the link spelled bare where gfm reads it back in its
+                       # place, which the writer and every reader of a
+                       # footnote's call agree on
     remark-inline-constructs.ts, remark-opaque.ts, table-pipes.ts,
     line-scan.ts       # the rest of the dialect's own remark plugins
     flow-spans.ts      # where each block lands in the markdown a stringify

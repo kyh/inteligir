@@ -18,6 +18,12 @@ const breakAfter = (before: PhrasingContent): string =>
     MD_STRINGIFY,
   );
 
+const linkTo = (url: string): PhrasingContent => ({
+  children: [{ type: "text", value: url }],
+  type: "link",
+  url,
+});
+
 describe("MD_STRINGIFY hard break", () => {
   it("is a backslash after ordinary text", () => {
     expect(breakAfter({ type: "text", value: "line" })).toBe("line\\\nnext\n");
@@ -37,12 +43,13 @@ describe("MD_STRINGIFY hard break", () => {
     }
   });
 
+  it("is two trailing spaces after a link spelled bare", () => {
+    expect(breakAfter(linkTo("https://example.com"))).toBe("https://example.com  \nnext\n");
+  });
+
   it("stays a backslash after a url in link syntax", () => {
-    const link: PhrasingContent = {
-      children: [{ type: "text", value: "https://example.com" }],
-      type: "link",
-      url: "https://example.com",
-    };
-    expect(breakAfter(link)).toBe("[https://example.com](https://example.com)\\\nnext\n");
+    expect(breakAfter(linkTo("https://example.com/a!"))).toBe(
+      "[https://example.com/a!](https://example.com/a!)\\\nnext\n",
+    );
   });
 });

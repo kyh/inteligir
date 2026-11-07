@@ -56,7 +56,6 @@
     "./library/sql-value": "./src/library/sql-value.ts",
     "./library/uuid-v7": "./src/library/uuid-v7.ts",
     "./markdown/alert-marker": "./src/markdown/alert-marker.ts",
-    "./markdown/autolink-text": "./src/markdown/autolink-text.ts",
     "./markdown/fence-langs": "./src/markdown/fence-langs.ts",
     "./markdown/flow-spans": "./src/markdown/flow-spans.ts",
     "./markdown/frontmatter": "./src/markdown/frontmatter.ts",

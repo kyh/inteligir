@@ -11,11 +11,7 @@ import {
 } from "@platejs/markdown";
 import type {
   DeserializeMdOptions,
-  MDPhrasingContent,
   MdDecoration,
-  MdDelete,
-  MdEmphasis,
-  MdStrong,
   MdRules,
   MdCode,
   MdInlineMath,
@@ -30,7 +26,6 @@ import type {
 import { z } from "zod";
 
 import { LIST_MAX_INDENT } from "@repo/notes/library/library-nodes";
-import { isAutolinkText } from "@repo/notes/markdown/autolink-text";
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { isContainerContent } from "@repo/notes/markdown/remark-containers";
 import type {
@@ -188,8 +183,6 @@ const embedFromImage = (block: TElement): TElement => {
   const type = embedTypeForUrl(url);
   return type === null ? block : { children: [{ text: "" }], type, url };
 };
-
-const isMdText = (node: { type: string }): node is MdText => node.type === "text";
 
 const TABLE_ALIGN = z.array(z.enum(["center", "left", "right"]).nullable());
 
@@ -423,36 +416,8 @@ const listRule: WideMdRule = {
     listBlocks(node, 1, deco, options),
 };
 
-type MdMarkWrapper = MdDelete | MdEmphasis | MdStrong;
-
-const isMdMarkWrapper = (node: { type: string }): node is MdMarkWrapper =>
-  node.type === "emphasis" || node.type === "strong" || node.type === "delete";
-
-// a mark over the whole link text converts to wrappers around its one text node, and the literal
-// keeps them: `_https://x.cd_` re-parses as the same marked link.
-const autolinkLiteral = (node: { type: string }, url: string): MDPhrasingContent | null => {
-  if (isMdText(node)) {
-    return isAutolinkText(node.value, url)
-      ? ({ type: "opaqueInline", value: node.value } satisfies OpaqueInline)
-      : null;
-  }
-  if (!isMdMarkWrapper(node)) {
-    return null;
-  }
-  const [only, ...rest] = node.children;
-  const inner = only === undefined || rest.length > 0 ? null : autolinkLiteral(only, url);
-  return inner === null ? null : { ...node, children: [inner] };
-};
-
-// Plate's default lets mailto links reach mdast-util-to-markdown, whose formatLinkAsAutolink emits
-// `<a@b.cd>`, the angle form MD_STRINGIFY's resourceLink bans. A link a re-parse would read from
-// its literal bytes emits them; every other link stays `[text](url)` under resourceLink, which
-// alone would also force bare https into resource form, a round trip's loss: a bare url would be
-// saved back as `[url](url)`.
-// The literal is an opaque inline, not `html`: mdast-util-to-markdown turns the line break before
-// an html node into a space, since html opening a line could read as a flow block, and that joins
-// a url on its own line to the line above.
-// A title is words of the link's own, which Plate's default drops both ways and no literal can spell.
+// A title is words of the link's own, which Plate's default drops both ways. The writer's own link
+// handler chooses the spelling, since only it sees what stands beside the link.
 const linkRule: WideMdRule = {
   deserialize: (node: MdLink, deco: MdDecoration, options: DeserializeMdOptions): TElement => {
     const link = defaultLinkDeserialize(node, deco, options);
@@ -461,12 +426,8 @@ const linkRule: WideMdRule = {
   },
   serialize: (node: TLinkElement, options: SerializeMdOptions) => {
     const title = stringProp(node, "title");
-    if (title !== undefined) {
-      return { ...defaultLinkSerialize(node, options), title };
-    }
-    const [only, ...rest] = convertNodesSerialize(node.children, options);
-    const literal = only === undefined || rest.length > 0 ? null : autolinkLiteral(only, node.url);
-    return literal ?? defaultLinkSerialize(node, options);
+    const link = defaultLinkSerialize(node, options);
+    return title === undefined ? link : { ...link, title };
   },
 };
 

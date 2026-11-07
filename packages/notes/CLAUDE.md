@@ -200,7 +200,8 @@ root.
   `@repo/notes/markdown/remark-opaque`). A call reads the same with its
   definition out of view, as it is in an edit of its own line, since typed text
   that spells one has its `[` escaped and a bare link is the address it spells,
-  with no label for a call to stand in (`@repo/notes/markdown/autolink-text`).
+  with no label for a call to stand in
+  (`packages/notes/src/markdown/autolink-text.ts`).
   Rejected: a second, plain-markdown grammar for an import (it needed a bridge
   to say where the two disagreed), a node for a reference in the library (a
   second spelling of every link), handing an edit the item's definitions to
@@ -236,3 +237,21 @@ root.
   no rename breaks it. Every writer's bytes come from `serializeWikiBody`
   (`@repo/notes/markdown/remark-wiki-link`), and its null writes nothing.
   `packages/notes/src/knowledge/link-resolve.test.ts`.
+
+- **A LINK IS SPELLED BARE ONLY WHERE GFM READS IT BACK IN ITS PLACE.** A link
+  whose label is its own address writes no label, so a url written by hand stays
+  as typed. But gfm ends a literal short of trailing punctuation, runs it on to
+  the next space and wants no word before it, so the writer's link handler asks
+  gfm itself, over the literal and the bytes either side as they are about to be
+  written, and every other link keeps `[text](url)`, which always reads back.
+  What it answers for a tree the footnote hold and the passage projection hear
+  too (`isBareLink`), each by what it can see, so a link the writer labels is a
+  labelled link to them. A link touching a mark keeps its label, since the writer
+  may spell the character beside a mark as a reference, and a literal with no
+  space before the next link does too. Rejected: a copy of gfm's rules (it reads
+  a literal twice, in its tokenizer and over finished text, by two different
+  trails, and a copy of either drifts), deciding in the rule table (a rule sees
+  no neighbour) and a pass over the tree ahead of the write (only the write knows
+  what it will escape).
+  `packages/notes/src/markdown/autolink-text.ts`,
+  `packages/editor/src/markdown-bare-links.test.ts`.

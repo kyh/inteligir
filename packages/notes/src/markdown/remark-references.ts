@@ -11,7 +11,7 @@ import type { Definition, Nodes, Parent, PhrasingContent, Root, RootContent, Tex
 import type { Plugin, Transformer } from "unified";
 import { visit } from "unist-util-visit";
 
-import { isBareLink } from "./autolink-text";
+import { besideChild, isBareLink } from "./autolink-text";
 import type { Range } from "./line-scan";
 import { isMdastRoot } from "./mdast-nodes";
 import { escapedAt, textCutter } from "./text-escapes";
@@ -108,11 +108,14 @@ const heldCallsIn = (node: Text): PhrasingContent[] => {
 };
 
 const holdFootnoteCalls = (parent: Parent): void => {
-  parent.children = parent.children.flatMap((child): RootContent[] => {
+  parent.children = parent.children.flatMap((child, index, siblings): RootContent[] => {
     if (child.type === "text") {
       return heldCallsIn(child);
     }
-    if ("children" in child && !(child.type === "link" && isBareLink(child))) {
+    if (
+      "children" in child &&
+      !(child.type === "link" && isBareLink(child, besideChild(siblings, index)))
+    ) {
       holdFootnoteCalls(child);
     }
     return [child];

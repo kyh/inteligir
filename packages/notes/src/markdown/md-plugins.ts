@@ -20,6 +20,7 @@ import remarkMath from "remark-math";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
+import { bareAhead, writeLink } from "./autolink-text";
 import { escapeCellPipes, readCellPipes } from "./line-scan";
 import { remarkContainers } from "./remark-containers";
 import { remarkInlineConstructs } from "./remark-inline-constructs";
@@ -67,7 +68,14 @@ const hardBreakAfterBareUrl: Handle = (node: Break, parent, state, info) => {
   const spelled = defaultHandlers.break(node, parent, state, info);
   const siblings: readonly Nodes[] = parent?.children ?? [];
   const before = siblings[siblings.indexOf(node) - 1];
-  return spelled === "\\\n" && before !== undefined && endsWithBareUrl(before) ? "  \n" : spelled;
+  if (spelled !== "\\\n" || before === undefined) {
+    return spelled;
+  }
+  const bare =
+    before.type === "link"
+      ? bareAhead(before, parent, state, info) !== null
+      : endsWithBareUrl(before);
+  return bare ? "  \n" : spelled;
 };
 
 // options.handlers replace extension handlers wholesale, so the wrapper delegates to gfm's own.
@@ -142,13 +150,14 @@ const inlineCodeInRow: Handle = (node: InlineCode, parent, state) => {
 };
 
 // `-` bullets match Obsidian (remark's default is `*`). `resourceLink: true` bans the `<url>`
-// autolink form, so a link has one spelling: its bare literal (md-rules) or `[text](url)`.
+// autolink form, so a link has two spellings: its bare literal (`./autolink-text`) or `[text](url)`.
 export const MD_STRINGIFY = {
   bullet: "-",
   handlers: {
     break: hardBreakAfterBareUrl,
     inlineCode: inlineCodeInRow,
     inlineMath: inlineMathInRow,
+    link: writeLink,
     listItem: listItemEmptyTodoPlaceholder,
     thematicBreak: thematicBreakNeverFrontmatter,
   },

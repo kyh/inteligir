@@ -401,9 +401,17 @@ const noteBareUrl = (builder: Builder, bounds: { start: number; end: number }): 
   builder.urlTails.push({ end, start: bounds.end });
 };
 
-const placeWithin = (node: MdNode, place: TextPlace): TextPlace => {
+// a link gfm found in finished text has no offsets, and is the literal it was found as
+const besideBytes = (source: string, node: MdNode): { before: string; after: string } => {
+  const span = offsetsOf(node);
+  return span === null
+    ? { after: "", before: "" }
+    : { after: source.slice(span.end), before: source.charAt(span.start - 1) };
+};
+
+const placeWithin = (builder: Builder, node: MdNode, place: TextPlace): TextPlace => {
   if (node.type === "link") {
-    return isBareLink(node) ? "address" : "label";
+    return isBareLink(node, besideBytes(builder.source, node)) ? "address" : "label";
   }
   return node.type === "linkReference" ? "label" : place;
 };
@@ -443,7 +451,7 @@ const pushAtomic = (
   if (node.type === "link") {
     noteBareUrl(builder, offsetsOf(node) ?? bounds);
   }
-  const within = placeWithin(node, place);
+  const within = placeWithin(builder, node, place);
   for (const child of node.children ?? []) {
     pushAtomic(builder, child, bounds, within);
   }

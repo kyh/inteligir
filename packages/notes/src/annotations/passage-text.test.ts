@@ -82,6 +82,11 @@ describe("the text a person reads", () => {
     ["a www address", "www.x.y/?q=[^a-z]+b", "www.x.y/?q=[^a-z]+b"],
     ["an angled url", "<https://x.y/?q=[^a-z]+b>", "https://x.y/?q=[^a-z]+b"],
     ["a marked bare url", "_https://x.y/?q=[^a-z]+b_", "https://x.y/?q=[^a-z]+b"],
+    [
+      "a label the writer drops",
+      "[https://x.y/?q=[^a-z]+b](https://x.y/?q=[^a-z]+b)",
+      "https://x.y/?q=[^a-z]+b",
+    ],
   ])("reads %s whole, its text being its address", (_name, spelled, read) => {
     expect(projectPassages(`see ${spelled} now\n`).text).toBe(`see ${read} now `);
   });
@@ -92,6 +97,21 @@ describe("the text a person reads", () => {
       "its address and a title",
       '[https://x.y/[^a]b](https://x.y/[^a]b "words") now',
       "https://x.y/b now ",
+    ],
+    [
+      "an address no literal ends on",
+      "[https://x.y/[^a]b!](https://x.y/[^a]b!) now",
+      "https://x.y/b! now ",
+    ],
+    [
+      "an address a word touches",
+      "[https://x.y/[^a]b](https://x.y/[^a]b)c now",
+      "https://x.y/bc now ",
+    ],
+    [
+      "an address a word stands before",
+      "c[https://x.y/[^a]b](https://x.y/[^a]b) now",
+      "chttps://x.y/b now ",
     ],
   ])("reads a call in a label of %s as nothing", (_name, spelled, read) => {
     expect(projectPassages(`${spelled}\n`).text).toBe(read);
