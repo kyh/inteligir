@@ -26,7 +26,7 @@ and cited.
   epoch wipes the rows, keeps the outbox and pulls from nothing. A row held
   ahead of every block is a body still to come, and a write on a block it may
   hold, or on a base that moved, answers `waiting` until it lands, while a field
-  or a new block over its base goes. Residual: a queued write that outlives a
+  over its base or a new block goes. Residual: a queued write that outlives a
   reset, or a relaunch after its fold, lands as the whole body until the body
   comes. Rejected: bodies in the log (a page of long notes); dropping the outbox
   on a reset (the person's writes lost); a write judged over a body not here (no
