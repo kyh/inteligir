@@ -12,6 +12,7 @@ attribution header on each file.
 - `packages/editor` — note editor
 - `apps/mobile-editor` — the phone's editor page
 - `apps/web` — the site and the auth pages
+- `apps/extension` — the extension's popup and welcome page
 - `tools/ui-gallery` — the gallery (`pnpm dev:gallery`), which the orphan guard
   does not count as a consumer
 
@@ -45,9 +46,6 @@ components.json  shadcn config: base-rhea, zinc, the @fluid registry
   its own rows); title and description stay inside `DialogContent`.
 - `SidebarProvider` listens for no key: the app's own shortcut table owns the
   toggle, and the provider only shows the `shortcut` it is handed.
-- `dialog`'s `DialogPopup` is the bare popup — no card, no backdrop — with
-  `container`, `initialFocus` and `finalFocus` passthrough, for a non-modal
-  dialog that floats inside the region it serves (the ⌘K composer).
 - `sonner` uses `@repo/ui/lib/theme`, not `next-themes`.
 - `globals.css` keeps `@source "../**/*.{ts,tsx}"` so Tailwind sees this
   package through workspace imports.
@@ -64,9 +62,8 @@ Vendored files keep short attribution headers. License texts live under
 ## Theme seam
 
 `ThemeProvider` is controlled. Apps own persistence and pass `theme` plus
-`setTheme`. Current binders are `apps/web/src/components/theme-provider.tsx`
-and `apps/workspace/src/routes/__root.tsx`. Do not nest a third provider; its
-document-class effect races the others.
+`setTheme`, each binding it once at its root. Do not nest a second provider; its
+document-class effect races the first.
 
 ## Verification
 
