@@ -9,6 +9,7 @@ import type { ReplicaSql } from "@repo/library-replica/replica-ports";
 import { idSource, keepBoth, openDevice } from "@repo/library-replica/test-support/replica-harness";
 import { describe, expect, it } from "vitest";
 import type { KeptCredential } from "../credential/credential-codec";
+import { deferred } from "../test-support/async";
 import { memoryFolders } from "../test-support/memory-folders";
 import { composeRuntime, SIGNED_OUT_ELSEWHERE } from "./compose-runtime";
 import type { AppRuntime, CredentialStore, PhoneLibrary } from "./compose-runtime";
@@ -83,6 +84,7 @@ const runtimeOver = (
     readonly sql: ReplicaSql;
     readonly keys: ReturnType<typeof keychain>;
     readonly folders?: ReturnType<typeof memoryFolders>;
+    readonly fetch?: (request: Request) => Promise<Response>;
   },
 ) => {
   const network = cell.device("phone");
@@ -92,7 +94,7 @@ const runtimeOver = (
     cloudUrl: "https://cell.test",
     credentials: options.keys.store,
     dial: null,
-    fetch: async (request) => await network.transport.fetch(request),
+    fetch: options.fetch ?? (async (request) => await network.transport.fetch(request)),
     folders: options.folders ?? memoryFolders(),
     merge: keepBoth,
     newId: idSource(7),
@@ -333,6 +335,29 @@ describe("the phone's runtime", () => {
     expect(runtime.session.get()).toStrictEqual({ kind: "signed-out", notice: null });
     expect(keys.held()).toBeNull();
     expect(cell.calls).toContain("phone account/signOut");
+  });
+
+  it("signs out at once though a call on its way never answers", async () => {
+    const cell = createFakeCell();
+    const reached = deferred();
+    const { runtime } = runtimeOver(cell, {
+      fetch: async (request) => {
+        const calledOff = deferred();
+        request.signal.addEventListener("abort", calledOff.resolve);
+        reached.resolve();
+        await calledOff.promise;
+        throw new TypeError("the call was called off");
+      },
+      keys: keychain(KEPT),
+      sql: openNodeReplicaSql(":memory:"),
+    });
+    await runtime.start();
+    await reached.promise;
+
+    await expect(runtime.logout({ discardUnsent: true })).resolves.toStrictEqual({
+      kind: "signed-out",
+    });
+    expect(runtime.session.get().kind).toBe("signed-out");
   });
 
   it("stays signed in, working and the account's, when the phone cannot take its copy away", async () => {

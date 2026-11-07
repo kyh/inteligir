@@ -46,7 +46,7 @@ import {
   rowsNaming,
 } from "./replica-listing";
 import type { ReplicaItem, ReplicaListingRow } from "./replica-listing";
-import type { ReplicaDeps } from "./replica-ports";
+import type { ReplicaDeps, ReplicaTransport } from "./replica-ports";
 import { fetchBodies, pullChanges } from "./replica-pull";
 import type { FetchOutcome } from "./replica-pull";
 import {
@@ -195,7 +195,14 @@ const parkedOf = (rows: readonly OutboxRow[]): ParkedWrite[] =>
   );
 
 export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpening> => {
-  const { blobs, clock, sql, transport } = deps;
+  const { blobs, clock, sql } = deps;
+  // called off by a close, which waits for the running pass and so for the call it is in
+  const closing = new AbortController();
+  const transport: ReplicaTransport = {
+    fetch: async (request) =>
+      await deps.transport.fetch(new Request(request, { signal: closing.signal })),
+    origin: deps.transport.origin,
+  };
   const ensure = async () =>
     await sql.exclusive(async (tx) => await runPlanAsync(tx, ensureLibrarySchema("replica")));
   let verdict = await ensure();
@@ -519,6 +526,7 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
   const close = async (): Promise<void> => {
     halt();
     closed = true;
+    closing.abort();
     await running;
   };
 

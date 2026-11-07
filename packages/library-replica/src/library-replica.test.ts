@@ -1207,23 +1207,23 @@ describe("a change no resend can pass", () => {
   });
 });
 
-describe("a folder deleted before the cell hears of it", () => {
-  // a folder inside a folder inside a folder, landed, and a note filed in the deepest
-  const nested = async (cell: FakeCell, phone: TestDevice) => {
-    const top = phone.newId();
-    const middle = phone.newId();
-    const deepest = phone.newId();
-    await phone.replica.writeFolders([
-      { id: top, name: "Work", op: "create", parentId: null, sort: "a0" },
-      { id: middle, name: "Archive", op: "create", parentId: top, sort: "a0" },
-      { id: deepest, name: "2024", op: "create", parentId: middle, sort: "a0" },
-    ]);
-    await phone.replica.createNote({ blocks: [], folderId: deepest, tags: [], title: "Filed" });
-    await phone.replica.sync();
-    expect(cell.folder(deepest)).not.toBeNull();
-    return { deepest, middle, top };
-  };
+// a folder inside a folder inside a folder, landed, and a note filed in the deepest
+const nested = async (cell: FakeCell, phone: TestDevice) => {
+  const top = phone.newId();
+  const middle = phone.newId();
+  const deepest = phone.newId();
+  await phone.replica.writeFolders([
+    { id: top, name: "Work", op: "create", parentId: null, sort: "a0" },
+    { id: middle, name: "Archive", op: "create", parentId: top, sort: "a0" },
+    { id: deepest, name: "2024", op: "create", parentId: middle, sort: "a0" },
+  ]);
+  await phone.replica.createNote({ blocks: [], folderId: deepest, tags: [], title: "Filed" });
+  await phone.replica.sync();
+  expect(cell.folder(deepest)).not.toBeNull();
+  return { deepest, middle, top };
+};
 
+describe("a folder deleted before the cell hears of it", () => {
   it("takes the folders under it with it, its items unsorted, as the cell will", async () => {
     const cell = createFakeCell();
     const phone = await openDevice(cell, "phone");
@@ -1250,6 +1250,63 @@ describe("a folder deleted before the cell hears of it", () => {
     expect(phone.replica.status().unsent).toBe(0);
     expect(phone.replica.folders()).toStrictEqual([]);
     expect(phone.replica.scopes().unsorted).toBe(1);
+  });
+});
+
+// a network every call hangs on until the replica calls it off, as a dead link does
+const hungNetwork = (cell: FakeCell, name: string) => {
+  const network = cell.device(name);
+  const reached = deferred();
+  const device: FakeDevice = {
+    ...network,
+    transport: {
+      fetch: async (request) => {
+        const calledOff = deferred();
+        request.signal.addEventListener("abort", calledOff.resolve);
+        reached.resolve();
+        await calledOff.promise;
+        throw new TypeError("the call was called off");
+      },
+      origin: network.transport.origin,
+    },
+  };
+  return { device, reached: reached.promise };
+};
+
+describe("a close while a call is on its way", () => {
+  it("calls the call off, so a wipe waits on no network", async () => {
+    const cell = createFakeCell();
+    const hung = hungNetwork(cell, "phone");
+    const phone = await openDevice(cell, "phone", { network: hung.device });
+    await phone.replica.createNote({ blocks: [], folderId: null, tags: [], title: "Plans" });
+    const passing = phone.replica.sync();
+    await hung.reached;
+    await phone.replica.wipe();
+    await passing;
+    expect(phone.replica.status().unsent).toBe(0);
+  });
+
+  it("calls a file's upload off, keeping the row for the next launch", async () => {
+    const cell = createFakeCell();
+    const hung = hungNetwork(cell, "phone");
+    const phone = await openDevice(cell, "phone", { network: hung.device });
+    await phone.replica.createFile({
+      file: { bytes: PNG, mime: "image/png" },
+      folderId: null,
+      name: "a.png",
+      tags: [],
+    });
+    const passing = phone.replica.sync();
+    await hung.reached;
+    await phone.replica.close();
+    await passing;
+    const again = await openDevice(cell, "phone", {
+      blobs: phone.blobs,
+      network: cell.device("phone"),
+      sql: phone.sql,
+    });
+    await again.replica.sync();
+    expect(again.replica.status()).toMatchObject({ failure: null, unsent: 0 });
   });
 });
 

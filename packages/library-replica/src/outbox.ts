@@ -52,7 +52,7 @@ type LiveItemRow = z.infer<typeof liveItemRowSchema>;
 // a row whose every resend meets a library that moved again waits for the next pass; one the last
 // resend left as it was would meet the same answer there, so it parks
 const MAX_ROUNDS_PER_ROW = 3;
-// bounds one pass, so the pull after it is never starved and a close waits out few calls
+// bounds one pass, so the pull after it is never starved
 const MAX_ROWS_PER_PASS = 100;
 
 /** @internal */
@@ -128,7 +128,8 @@ const foldersOf = (op: Extract<OutboxOp, { kind: "folders" }>["ops"][number]): s
 const holdsOf = (op: OutboxOp): readonly string[] =>
   op.kind === "folders" ? op.ops.flatMap(foldersOf) : itemIdsOf(op);
 
-// oldest first; a row on an item a parked row writes, or one held behind such a row, waits
+// oldest first; a row on what a parked row writes, or on what one held behind such a row writes,
+// waits
 const nextToSend = (rows: readonly OutboxRow[]): OutboxRow | null => {
   const held = new Set<string>();
   for (const row of rows) {
