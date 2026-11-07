@@ -34,19 +34,25 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `apps/web/src/worker/wire/account-router.ts`, `apps/web/src/worker/device/devices.ts`,
   `apps/workspace/src/app/settings/account-section.tsx`.
 
-- **A CREDENTIAL THIS DEVICE DROPS IS REVOKED BY THIS DEVICE, best-effort, and
-  no unreachable cloud holds a sign-out open.** The phone's sign-out takes its
-  copy away first and only then revokes, unawaited, and a phone whose copy would
-  not go opens it again, still the account's; a sign-in it could not keep or
-  open lets that device go the same way. The Mac does the same from a library
-  that would not open, or a sign-in it could not keep, where the page waits
-  three seconds at most, since the reload after would drop the call. Rejected:
-  forgetting the credential alone (the row stays active against the
-  twenty-device cap, so repeated sign-ins lock the account out); revoking
-  before the wipe (a failed wipe left a library on a dead credential, whose
-  edits nothing could send). `apps/mobile/src/lib/compose-runtime.ts`,
+- **A CREDENTIAL THIS DEVICE DROPS LOCALLY IS REVOKED BY THIS DEVICE,
+  best-effort, and no unreachable cloud holds that sign-out open.** The phone's
+  sign-out takes its copy away first and only then revokes, unawaited, and a
+  phone whose copy would not go opens it again, still the account's; a sign-in
+  it could not keep or open lets that device go the same way. The Mac does the
+  same from a library that would not open, or a sign-in it could not keep,
+  where the page waits three seconds at most, since the reload after would drop
+  the call. Settings › Account on the Mac and in the tab goes the other way,
+  since a wire stands there and a tab holds no credential to drop: it signs out
+  over that wire first, so it needs a connection, and wipes once the cloud has
+  answered; a wipe that fails meets the cloud's refusal at the next call, which
+  ends the session as any revocation does. Rejected: forgetting the credential
+  alone (the row stays active against the twenty-device cap, so repeated
+  sign-ins lock the account out); revoking before the wipe on a local drop (a
+  failed wipe left a library on a dead credential, whose edits nothing could
+  send). `apps/mobile/src/lib/compose-runtime.ts`,
   `apps/mobile/src/login/login-store.ts`,
-  `apps/workspace/src/app/cloud/shell-library.ts`.
+  `apps/workspace/src/app/cloud/shell-library.ts`,
+  `apps/workspace/src/app/settings/account-section.tsx`.
 
 - **AN ACCOUNT IS DELETED FROM THE APP, THE PASSWORD ASKED AGAIN, THROUGH BETTER
   AUTH'S `deleteUser`** (owner decision: whoever lost their Mac deletes from any
