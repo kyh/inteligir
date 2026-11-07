@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { setTimeout as delay } from "node:timers/promises";
 import { toast } from "@repo/ui/components/sonner";
 import { onlineManager } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
@@ -366,7 +367,12 @@ describe("the agent panel's conversation", () => {
     await waitFor(() => {
       expect(callsTo(calls, "library.history.undo")).toStrictEqual([{ changeSetIds: ["s1"] }]);
     });
+    const reads = callsTo(calls, "library.history.list").length;
     fireEvent.click(screen.getByRole("button", { name: "Undo this conversation" }));
+    await act(async () => {
+      await delay(0);
+    });
+    expect(callsTo(calls, "library.history.list")).toHaveLength(reads);
     listed = [set("s2", 2), set("s1", 1, "u1")];
     held.resolve(UNDONE);
     await waitFor(() => {
