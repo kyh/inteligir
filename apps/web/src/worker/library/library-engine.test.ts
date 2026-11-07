@@ -817,10 +817,10 @@ describe("change sets and undo", () => {
       landedValue(
         createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
-      // the person's set stays open while the library's own write seals as it lands, then the
-      // person takes the item back within the same set
+      // the person's set stays open while a reading's write seals as it lands, then the person
+      // takes the item back within the same set
       const typed = paragraph("a", "typed by the person");
-      const later = paragraph("a", "a later system write");
+      const later = paragraph("a", "a later reading");
       const again = paragraph("a", "the person again");
       clock.now = start + 1000;
       put(person(), A, typed);

@@ -689,7 +689,8 @@ const writeExport = async (host: ImportHost, due: DueJob, limits: ExportLimits):
   }
 };
 
-// an export past its seven days: its zip leaves R2, and the job says it went
+// an export past its seven days, or one a newer zip let go: its zip leaves R2, and the job says
+// it went
 const expireExport = async (host: ImportHost, job: DueJob): Promise<void> => {
   const id = exportIdOf(job);
   try {
