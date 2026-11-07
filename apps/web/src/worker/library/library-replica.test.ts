@@ -752,6 +752,48 @@ describe("the replica engine against the account's cell", () => {
   );
 
   it(
+    "leaves a held item in its folder through a save from no folder, and moves it only to a folder named",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("fold-folder");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      const url = "https://example.com/article";
+      const reading = await folderMade(laptop, "0190ffff-0000-7000-8000-000000000041", "Reading");
+      const later = await folderMade(laptop, "0190ffff-0000-7000-8000-000000000042", "Later");
+      const { id } = await laptop.replica.saveLink({ folderId: reading, tags: [], url });
+      await laptop.replica.sync();
+      await phone.replica.sync();
+      const foldersAfterSend = async () => {
+        await phone.replica.sync();
+        expect(phone.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
+        await laptop.replica.sync();
+        return [laptop.replica.row(id)?.folderId, phone.replica.row(id)?.folderId];
+      };
+
+      const again = await phone.replica.saveLink({ folderId: null, tags: ["kept"], url });
+      expect(again).toMatchObject({ folded: true, id });
+      await expect(foldersAfterSend()).resolves.toStrictEqual([reading, reading]);
+      expect(laptop.replica.row(id)?.tags).toContain("kept");
+
+      await phone.replica.savePage({
+        article: [{ block: paragraph("a1", "read here"), ord: "a0" }],
+        cover: null,
+        facts: { author: null, description: null, lang: null, published: null, site: null },
+        folderId: null,
+        selection: null,
+        tags: [],
+        title: "The article",
+        url,
+      });
+      await expect(foldersAfterSend()).resolves.toStrictEqual([reading, reading]);
+
+      await phone.replica.saveLink({ folderId: later, tags: [], url });
+      await expect(foldersAfterSend()).resolves.toStrictEqual([later, later]);
+    },
+  );
+
+  it(
     "answers a card's id as the item it folded onto, for a screen that still holds it",
     { timeout: 30_000 },
     async () => {

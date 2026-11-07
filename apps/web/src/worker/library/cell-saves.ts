@@ -347,8 +347,10 @@ const heldSelection = (
   return { add: [bareHighlight(scope, highlight)], ops: quoteOps(held, codec, ops, [highlight]) };
 };
 
-// a url to read later: the item that holds it gains the tags, the note, the folder and the
-// passage the person had selected, placed in its text where it stands; else an unread stub lands
+// a url to read later: the item that holds it gains the tags, the note and the passage the person
+// had selected, placed in its text where it stands, and moves only to a folder the save names,
+// since no folder says where the screen stood and nothing of where the item belongs; else an
+// unread stub lands
 export const saveLink = (
   scope: LandingScope,
   actor: CellActor,
@@ -364,7 +366,7 @@ export const saveLink = (
   }
   const ops: LibraryOp[] = [
     ...tagsOp(held.fields, input.tags ?? []),
-    ...(folderId === undefined || folderId === held.fields.folderId
+    ...(folderId === undefined || folderId === null || folderId === held.fields.folderId
       ? []
       : [{ base: held.fields.folderId, field: "folderId", op: "set", value: folderId } as const]),
     ...(note === null ? [] : appendedNote(held, note.blocks)),

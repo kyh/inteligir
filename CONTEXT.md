@@ -246,7 +246,7 @@ link, an image, a PDF or any other file alike
 (`@repo/library-replica/library-replica`'s listing). Not docs: a doc is a file
 classification of the import and export.
 
-**Unsorted** — the rail's row: every item filed in no folder. A save lands
+**Unsorted** — the rail's row: every item filed in no folder. A new save lands
 there when the screen shows no folder.
 
 **Highlights** — a selection marked with ⌘⇧H or Highlight in the toolbar, with

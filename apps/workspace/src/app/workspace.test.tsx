@@ -169,32 +169,43 @@ describe("an open item's title", () => {
 });
 
 describe("what the editor asks of the page", () => {
-  it("makes a note in the folder of the item an open card folded onto", async () => {
-    const cell = createFakeCell();
-    const mac = await openDevice(cell, "mac");
-    const folderId = mac.newId();
-    await mac.replica.writeFolders([
-      { id: folderId, name: "Reading", op: "create", parentId: null, sort: "a0" },
-    ]);
-    const url = "https://example.com/article";
-    await mac.replica.saveLink({ folderId, tags: [], url });
-    await mac.replica.sync();
-    const { replica } = await openDevice(cell, "browser");
-    const card = await replica.saveLink({ folderId: null, tags: [], url });
-    await replica.sync();
-    const { library } = fakePageLibrary({ answer: () => ({}) });
-    const router = createAppRouter(
-      createMemoryHistory({ initialEntries: [`/library?item=${card.id}`] }),
-      { library: { ...library, replica }, queryClient: createPageQueryClient() },
-    );
-    render(<RouterProvider router={router} />);
-    await screen.findByRole("textbox", { name: "Title" });
+  it.each([
+    { landsIn: "held", saved: "no folder" },
+    { landsIn: "named", saved: "a folder of its own" },
+  ] as const)(
+    "makes a note from an open card that folded from $saved in the $landsIn folder",
+    async ({ landsIn }) => {
+      const cell = createFakeCell();
+      const mac = await openDevice(cell, "mac");
+      const folders = { held: mac.newId(), named: mac.newId() };
+      await mac.replica.writeFolders([
+        { id: folders.held, name: "Reading", op: "create", parentId: null, sort: "a0" },
+        { id: folders.named, name: "Later", op: "create", parentId: null, sort: "a1" },
+      ]);
+      const url = "https://example.com/article";
+      await mac.replica.saveLink({ folderId: folders.held, tags: [], url });
+      await mac.replica.sync();
+      const { replica } = await openDevice(cell, "browser");
+      const card = await replica.saveLink({
+        folderId: landsIn === "held" ? null : folders.named,
+        tags: [],
+        url,
+      });
+      await replica.sync();
+      const { library } = fakePageLibrary({ answer: () => ({}) });
+      const router = createAppRouter(
+        createMemoryHistory({ initialEntries: [`/library?item=${card.id}`] }),
+        { library: { ...library, replica }, queryClient: createPageQueryClient() },
+      );
+      render(<RouterProvider router={router} />);
+      await screen.findByRole("textbox", { name: "Title" });
 
-    const id = await getEditorHostActions().items.createNote({ blocks: [], title: "Extract" });
+      const id = await getEditorHostActions().items.createNote({ blocks: [], title: "Extract" });
 
-    expect(replica.row(id)?.fields.folderId).toBe(folderId);
-    await replica.close();
-  });
+      expect(replica.row(id)?.fields.folderId).toBe(folders[landsIn]);
+      await replica.close();
+    },
+  );
 
   it("quotes a passage asked about in the agent's composer, which takes the keyboard", async () => {
     const replica = await pageOverANote();

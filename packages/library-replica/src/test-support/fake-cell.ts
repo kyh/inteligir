@@ -439,9 +439,14 @@ export const createFakeCell = (): FakeCell => {
     }
   };
 
-  // a save onto the item holding its address: its tags join the item's, its note goes after the
-  // item's own
-  const foldOnto = (id: string, tags: readonly string[], note: string | undefined) => {
+  // a save onto the item holding its address: the item stands in `folderId`, its tags join the
+  // item's, its note goes after the item's own
+  const foldOnto = (
+    id: string,
+    folderId: string | null,
+    tags: readonly string[],
+    note: string | undefined,
+  ) => {
     const item = held(id);
     const merged = [...new Set([...item.fields.tags, ...tags])];
     const last = orderedBlocks(item.blocks).findLast((stored) => stored.section === "note");
@@ -449,7 +454,7 @@ export const createFakeCell = (): FakeCell => {
       ...item.blocks,
       ...noteBlocks(`${id}-${String(head + 1)}`, note, last?.ord ?? null),
     ]);
-    return { folded: true, ...land(id, { ...item.fields, tags: merged }, blocks) };
+    return { folded: true, ...land(id, { ...item.fields, folderId, tags: merged }, blocks) };
   };
 
   // the live sibling a folder would share a name with, which the cell answers a CONFLICT naming
@@ -632,7 +637,9 @@ export const createFakeCell = (): FakeCell => {
             needsBlobs(input.coverSha === null ? [] : [input.coverSha]);
             const holder = holderOf(input.url);
             if (holder !== null) {
-              return foldOnto(holder, input.tags, input.note);
+              // a page's folder only where the item has none
+              const folderId = held(holder).fields.folderId ?? input.folderId;
+              return foldOnto(holder, folderId, input.tags, input.note);
             }
             made(input.id);
             return {
@@ -654,15 +661,17 @@ export const createFakeCell = (): FakeCell => {
         saveLink: os.library.items.saveLink.handler(({ input }) =>
           once(input.opId, z.object({ folded: z.boolean() }).and(landedSchema), () => {
             const holder = holderOf(input.url);
-            if (holder !== null) {
-              return foldOnto(holder, input.tags ?? [], input.note);
-            }
-            const id = input.id ?? "01900000-0000-7000-8000-cell00000000";
-            made(id);
             const folderId =
               input.folder !== undefined && input.folder !== null && "id" in input.folder
                 ? input.folder.id
                 : null;
+            if (holder !== null) {
+              // a link moves the item only to a folder it names
+              const landsIn = folderId ?? held(holder).fields.folderId;
+              return foldOnto(holder, landsIn, input.tags ?? [], input.note);
+            }
+            const id = input.id ?? "01900000-0000-7000-8000-cell00000000";
+            made(id);
             return {
               folded: false,
               ...land(

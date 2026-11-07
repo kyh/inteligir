@@ -259,8 +259,9 @@ const itemsContract = {
     .output(saved),
 
   // a url to read later: it lands at once, unread, and the cloud reads the page, placing the
-  // passage the person had selected once it holds the page's text; an `id` another item holds is a
-  // conflict naming it
+  // passage the person had selected once it holds the page's text; an item already at the url moves
+  // only to a folder this names, so `folder` null takes nothing out of one; an `id` another item
+  // holds is a conflict naming it
   saveLink: signedBase
     .errors({
       [ConflictError.code]: ConflictError,
