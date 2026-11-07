@@ -351,13 +351,13 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   note past 1 MiB is left out (reading costs about 11 s of CPU a MiB,
   measured), and so is an entry or bookmark past a plan row (`fitsImportRow`,
   since a row the platform refuses would stop the import). Pass one puts every
-  file in the library, the plan is made once,
-  then the notes and the files no live item names land in one change set. A
-  note whose id or address a live item holds is counted, and one whose item
-  sits in Deleted brings that item back as it stands. Rejected: one run per
-  import (an alarm's 30 s of CPU); counting a run in its catch (the platform's
-  kill skips it); a fresh item beside one in Deleted (its highlights' ids are
-  the library's). `apps/web/src/worker/library/cell-imports.ts`,
+  file in the library, the plan is made once, then the notes and the files no
+  live item names land in one change set. A note whose id or address a live
+  item holds is counted, and one whose item sits in Deleted brings that item
+  back as it stands. Rejected: one run per import (an alarm's 30 s of CPU);
+  counting a run in its catch (the platform's kill skips it); a fresh item
+  beside one in Deleted (its highlights' ids are the library's).
+  `apps/web/src/worker/library/cell-imports.ts`,
   `apps/web/src/worker/library/cell-import-markdown.ts`.
 
 - **AN EXPORT IS A ZIP THE CELL WRITES INTO R2 OVER MANY ALARM RUNS, AND LETS
