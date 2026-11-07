@@ -67,18 +67,6 @@ describe("the site's markdown", () => {
     expect(markdown.length).toBeGreaterThan(MIN_CHARS);
   });
 
-  // the pages a person reads say library and item, never the engine's words (AGENTS.md)
-  it.each([
-    ["home", homeMarkdown],
-    ["about", aboutMarkdown],
-    ["contact", contactMarkdown],
-  ])("%s says neither vault nor an engine word", (_page, markdown) => {
-    const prose = markdown.replaceAll(/\]\([^)]*\)/gu, "]");
-    expect(prose).not.toMatch(/\bvaults?\b/iu);
-    expect(prose).not.toMatch(/\b(?:git|commits?|remotes?|repos?|repository|terminal)\b/iu);
-    expect(prose).not.toMatch(/\b(?:CLI|PATH|MCP)\b/u);
-  });
-
   it.each([
     ["home", homeMarkdown],
     ["about", aboutMarkdown],
@@ -112,13 +100,6 @@ describe("the site's markdown", () => {
     ["llms.txt", llmsTxt],
   ])("%s links the library", (_page, markdown) => {
     expect(markdown).toContain(`(${siteConfig.url}/library)`);
-  });
-
-  it("keeps llms.txt free of the engine's words", () => {
-    const prose = llmsTxt.replaceAll(/\]\([^)]*\)/gu, "]");
-    expect(prose).not.toMatch(/\bvaults?\b/iu);
-    expect(prose).not.toMatch(/\b(?:git|commits?|remotes?|repos?|repository|terminal)\b/iu);
-    expect(prose).not.toMatch(/\b(?:CLI|PATH|MCP)\b/u);
   });
 
   it("shapes llms.txt per llmstxt.org with when-to-use guidance", () => {

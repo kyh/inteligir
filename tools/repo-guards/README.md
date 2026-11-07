@@ -78,7 +78,7 @@ One per file; its header and its failure message state the rule in full.
 - `privacy-routes.test.ts`: every cloud `/v1/` route has a row in `docs/privacy.md`, and every row a route.
 - `decisions-index.test.ts`: `AGENTS.md` § Decisions indexes every nested `CLAUDE.md`, and the root one is `@AGENTS.md`.
 - `tests-beside-source.test.ts`: no tracked path sits in a `__tests__` folder; a suite is beside its module, shared test code in `test-support/`.
-- `product-words.test.ts`: a surface's quoted sentences and JSX text say no engine word, or the file is an `ALLOWED` row.
+- `product-words.test.ts`: a surface's quoted sentences, templates and JSX text and the legal pages say no engine word, or the file is an `ALLOWED` row.
 - `icon-buttons.test.ts`: every icon-size `Button` carries a label, and no `Tooltip` wraps one.
 - `guard-docs.test.ts`: this list is the guards on disk, and a name the guards' docs cite is one the source holds.
 - `worker-preview.test.ts`: the Preview workflow's script, run against a stub of GitHub and Cloudflare: it reads back only the bot's comment, every page of the environment PRs share, and reports a Preview gone only once it is.

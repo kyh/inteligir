@@ -297,13 +297,12 @@ runs it bare.
   about a behaviour that changed or went away; a release's notes are that
   section.
 - **Product surfaces speak the user's words.** The window, the browser tab, the
-  phone, the browser extension, onboarding, the consent page, the starter
-  library, the site and the changelog (outside an earlier release's
-  `### On the command line` heading) never say git, commit, remote, repo,
-  terminal, CLI, PATH or MCP, and call the whole of it the library and what is
-  in it items; "note" stays the name of what the person writes, and an MCP
-  server is a connector. The
-  built-in agent's instructions and code keep their words
+  phone, the browser extension, onboarding, the consent page, the site and the
+  changelog (outside an earlier release's `### On the command line` heading)
+  never say git, commit, remote, repo, terminal, CLI, PATH or MCP, and call the
+  whole of it the library and what is in it items; "note" stays the name of
+  what the person writes, and an MCP server is a connector. The built-in
+  agent's instructions and code keep their words
   (`tools/repo-guards/src/product-words.test.ts`).
 - **No `any`, no non-null `!`, no type assertions** (lint-enforced, no escape
   comment; `as const` and `satisfies` are fine): parse at the boundary or
