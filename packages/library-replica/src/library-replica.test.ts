@@ -619,7 +619,7 @@ describe("the replica's pull", () => {
       .listing({ deleted: false, limit: 10, offset: 0, sort: "title" })
       .items.map((row) => row.title);
     expect(titles).toStrictEqual(["a", "b", "c", "d", "e"]);
-    expect(phone.replica.status()).toMatchObject({ cursor: cell.head(), head: cell.head() });
+    expect(phone.replica.status().cursor).toBe(cell.head());
   });
 
   it("fetches the open item's body first, then the newest", async () => {
@@ -647,7 +647,6 @@ describe("the replica's pull", () => {
     await expect(phone.replica.item(oldest ?? "")).resolves.toMatchObject({ bodyHeld: true });
     await expect(phone.replica.item(middle ?? "")).resolves.toMatchObject({ bodyHeld: true });
     await expect(phone.replica.item(newest ?? "")).resolves.toMatchObject({ bodyHeld: true });
-    expect(phone.replica.status().bodies).toStrictEqual({ fetched: 3, total: 3 });
   });
 
   it("lists a pulled row before its body arrives, under the card the cell sent", async () => {

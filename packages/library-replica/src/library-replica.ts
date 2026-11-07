@@ -103,11 +103,8 @@ export interface ReplicaStatus {
   // counts only once it is parked, since the write that names it is the change
   readonly unsent: number;
   readonly parked: readonly ParkedWrite[];
-  // the bodies this pass fetched, of all it wants
-  readonly bodies: { readonly fetched: number; readonly total: number };
-  // where the pull stands in the change log, and the newest head heard
+  // where the pull stands in the change log
   readonly cursor: number;
-  readonly head: number;
 }
 
 // what moved: the kinds of row and their ids (an item's, a folder's, a thread's, a file's sha),
@@ -234,10 +231,8 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
   const live = (): boolean => !closed;
 
   let status: ReplicaStatus = {
-    bodies: { fetched: 0, total: 0 },
     cursor: 0,
     failure: null,
-    head: 0,
     parked: [],
     syncing: false,
     unsent: 0,
@@ -340,7 +335,7 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
     await readAll(outbox.rows());
   });
   const held = await runPlanAsync(sql, readSyncState());
-  setStatus({ cursor: held.cursor, head: held.head });
+  setStatus({ cursor: held.cursor });
   outboxStatus(outbox.rows());
 
   // ---- the passes ----
@@ -375,17 +370,8 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
       return pulled;
     }
     const state = await runPlanAsync(sql, readSyncState());
-    setStatus({ cursor: state.cursor, head: Math.max(status.head, state.head) });
-    const bodies = await fetchBodies({
-      client,
-      focused: () => focused,
-      landed,
-      live,
-      progress: (progress) => {
-        setStatus({ bodies: progress });
-      },
-      sql,
-    });
+    setStatus({ cursor: state.cursor });
+    const bodies = await fetchBodies({ client, focused: () => focused, landed, live, sql });
     if (bodies.kind !== "done") {
       return bodies;
     }
@@ -461,7 +447,6 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
   const onFrame = (frame: LibrarySocketFrame): void => {
     if (frame.type === "library") {
       if (frame.head > status.cursor) {
-        setStatus({ head: Math.max(status.head, frame.head) });
         kick();
       }
       return;
@@ -641,7 +626,7 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
         await readAll(outbox.rows());
       });
       outboxStatus(outbox.rows());
-      setStatus({ cursor: 0, head: 0 });
+      setStatus({ cursor: 0 });
       const nothing = touchedNothing();
       emit({ ids: nothing.ids, kinds: nothing.kinds, overlapped: nothing.overlapped, reset: true });
     },

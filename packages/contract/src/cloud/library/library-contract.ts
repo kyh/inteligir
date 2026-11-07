@@ -105,7 +105,6 @@ const syncContract = {
         z.object({
           changes: z.array(libraryChangeSchema),
           epoch: epochSchema,
-          head: seqSchema,
           kind: z.literal("changes"),
           more: z.boolean(),
           upto: seqSchema,

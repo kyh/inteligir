@@ -27,10 +27,8 @@ const holder = (initial: boolean) => {
 };
 
 const status = (over: Partial<ReplicaStatus>): ReplicaStatus => ({
-  bodies: { fetched: 0, total: 0 },
   cursor: 0,
   failure: null,
-  head: 0,
   parked: [],
   syncing: false,
   unsent: 0,

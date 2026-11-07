@@ -701,7 +701,7 @@ describe("the library's procedures", () => {
       expect(
         sql.exec("SELECT event_id FROM thread_events WHERE thread_id = ?", older).toArray(),
       ).toStrictEqual([]);
-      const after = await library.sync.pull({ cursor: before.head, epoch: before.epoch });
+      const after = await library.sync.pull({ cursor: before.upto, epoch: before.epoch });
       expect(after.kind === "changes" ? after.changes : []).toStrictEqual(
         expect.arrayContaining([
           expect.objectContaining({ id: older, kind: "thread", row: null }),

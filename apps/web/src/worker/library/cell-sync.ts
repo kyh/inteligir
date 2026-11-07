@@ -48,7 +48,6 @@ export type PullAnswer =
       readonly kind: "changes";
       readonly changes: LibraryChange[];
       readonly epoch: string;
-      readonly head: number;
       readonly more: boolean;
       readonly upto: number;
     }
@@ -215,7 +214,6 @@ export const pullChanges = (
   return {
     changes: page.changes.map((entry) => changeOf(sql, entry)),
     epoch,
-    head: libraryHead(sql),
     kind: "changes",
     more: page.more,
     upto: page.upto,

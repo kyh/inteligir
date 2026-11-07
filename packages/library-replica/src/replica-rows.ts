@@ -46,12 +46,10 @@ const runEach = function* runEach(statements: readonly SqlStatement[]): SqlPlan<
 
 // ---- where the pull stands ----
 
-// the library the rows came from, the cursor the last page ended at, and the newest head heard,
-// from a pull or the socket
+// the library the rows came from, and the cursor the last page ended at
 export interface SyncState {
   readonly epoch: string | null;
   readonly cursor: number;
-  readonly head: number;
 }
 
 const counterSchema = z.number().int().nonnegative();
@@ -65,7 +63,6 @@ export const readSyncState = function* readSyncState(): SqlPlan<SyncState> {
   return {
     cursor: counterOf(yield* readMeta("cursor")),
     epoch: epoch === null ? null : epochSchema.parse(epoch),
-    head: counterOf(yield* readMeta("head")),
   };
 };
 
@@ -74,7 +71,6 @@ export const writeSyncState = function* writeSyncState(state: SyncState): SqlPla
     yield* writeMeta("epoch", state.epoch);
   }
   yield* writeMeta("cursor", state.cursor);
-  yield* writeMeta("head", state.head);
 };
 
 // ---- what a page touched ----
@@ -355,8 +351,8 @@ export const wipeSynced = function* wipeSynced(epoch: string | null): SqlPlan<vo
   for (const table of SYNCED_TABLES) {
     yield run(`DELETE FROM ${table}`);
   }
-  yield run("DELETE FROM meta WHERE k IN ('epoch', 'cursor', 'head')");
-  yield* writeSyncState({ cursor: 0, epoch, head: 0 });
+  yield run("DELETE FROM meta WHERE k IN ('epoch', 'cursor')");
+  yield* writeSyncState({ cursor: 0, epoch });
 };
 
 // ---- this device's own landings ----

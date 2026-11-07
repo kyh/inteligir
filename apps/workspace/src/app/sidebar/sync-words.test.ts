@@ -4,10 +4,8 @@ import { describe, expect, it } from "vitest";
 import { syncWords } from "./sync-words";
 
 const CAUGHT_UP: ReplicaStatus = {
-  bodies: { fetched: 0, total: 0 },
   cursor: 4,
   failure: null,
-  head: 4,
   parked: [],
   syncing: false,
   unsent: 0,

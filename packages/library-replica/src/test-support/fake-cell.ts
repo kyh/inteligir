@@ -715,7 +715,6 @@ export const createFakeCell = (): FakeCell => {
           return {
             changes: taken.map(changeOf),
             epoch,
-            head,
             kind: "changes" as const,
             more,
             upto: more ? (taken.at(-1)?.seq ?? input.cursor) : head,
