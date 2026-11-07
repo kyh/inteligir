@@ -19,6 +19,13 @@ const land = async (path: string) => {
   return router.state;
 };
 
+const LEAVING_THIS_SITE = [
+  "https://evil.example/steal",
+  "//evil.example/steal",
+  "/\\evil.example/steal",
+  "/.//evil.example/steal",
+];
+
 const drawn = async (path: string): Promise<string> => {
   const router = createRouter({
     history: createMemoryHistory({ initialEntries: [path] }),
@@ -76,5 +83,32 @@ describe("signing up on the way to a page that needs a session", () => {
     expect(signedInLanding(way)).toBe(way);
     expect(signedInLanding()).toBe(SIGNED_IN_HOME);
     expect(signedInLanding("//evil.example/steal")).toBe(SIGNED_IN_HOME);
+  });
+});
+
+describe("resetting a password on the way to a page that needs a session", () => {
+  const way = "/connect/authorize?client_id=c1&state=s1";
+  const wayBack = encodeURIComponent(way);
+
+  it("carries the way back from sign-in to the reset request, and back again", async () => {
+    const signIn = await drawn(`/app/sign-in?next=${wayBack}`);
+    expect(signIn).toContain(`href="/app/forgot-password?next=${wayBack}"`);
+    const forgot = await drawn(`/app/forgot-password?next=${wayBack}`);
+    expect(forgot).toContain(`href="/app/sign-in?next=${wayBack}"`);
+  });
+
+  it("names no way back when none was asked for", async () => {
+    await expect(drawn("/app/sign-in")).resolves.toContain('href="/app/forgot-password"');
+    await expect(drawn("/app/forgot-password")).resolves.toContain('href="/app/sign-in"');
+  });
+
+  it.each(LEAVING_THIS_SITE)("carries no way back to %s", async (stranger) => {
+    const search = `?next=${encodeURIComponent(stranger)}`;
+    const signIn = await drawn(`/app/sign-in${search}`);
+    expect(signIn).toContain('href="/app/forgot-password"');
+    expect(signIn).not.toContain("evil.example");
+    const forgot = await drawn(`/app/forgot-password${search}`);
+    expect(forgot).toContain('href="/app/sign-in"');
+    expect(forgot).not.toContain("evil.example");
   });
 });

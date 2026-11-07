@@ -60,6 +60,7 @@ const SignInPage = () => {
         </Button>
         <Link
           to="/app/forgot-password"
+          search={{ next }}
           className="text-center text-xs text-muted-foreground underline underline-offset-4"
         >
           Forgot your password?

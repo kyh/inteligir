@@ -709,8 +709,10 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 - **A SIGN-IN OR SIGN-UP LANDS IN THE LIBRARY UNLESS SOMETHING ASKED IT BACK, AND
   THE SITE LINKS THE LIBRARY.** `signedInLanding` follows a `next` the
   open-redirect guard passes, else `/library`, by a document load, since the
-  site's router holds neither that page nor the consent page; sign-in and
-  sign-up hand `next` to each other. One link, in the site's header and on
+  site's router holds neither that page nor the consent page; sign-in, sign-up
+  and the reset pages hand `next` on, the reset through its mail's link, each
+  page's search parsed by the same guard so none holds an off-site one. One
+  link, in the site's header and on
   Devices, serves someone signed in and someone not, since the page sends a
   signed-out tab to sign in and back; its document answers `noindex`, as the
   account pages do, since that link hands a crawler an empty shell. Rejected:

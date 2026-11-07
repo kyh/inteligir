@@ -10,11 +10,13 @@ import { Button } from "@repo/ui/components/button";
 
 import { AuthError, AuthField, AuthShell, fieldValue, useAuthSubmit } from "#components/auth-shell";
 import { authClient, authErrorMessage } from "#lib/auth-client";
+import { authPageSearchSchema } from "#lib/next-path";
 
 // Better Auth's GET leg lands a live link here with ?token= and a spent or expired one with
-// ?error=. Each field catches on its own: a key the schema leaves out keeps its raw value in the
-// route's search, so a malformed one must come back as undefined to read as a dead link.
-const resetSearchSchema = z.object({
+// ?error=, beside the way back the request named. Each field catches on its own: a key the schema
+// leaves out keeps its raw value in the route's search, so a malformed one must come back as
+// undefined to read as a dead link.
+const resetSearchSchema = authPageSearchSchema.extend({
   // oxlint-disable-next-line unicorn/no-useless-undefined, promise/valid-params, promise/prefer-await-to-then -- zod's catch, not a promise's: it takes the fallback positionally and undefined IS the fallback
   error: z.catch(z.string().optional(), undefined),
   // oxlint-disable-next-line unicorn/no-useless-undefined, promise/valid-params, promise/prefer-await-to-then -- zod's catch, not a promise's: it takes the fallback positionally and undefined IS the fallback
@@ -28,11 +30,14 @@ type ResetView = { readonly kind: "form"; readonly token: string } | SettledView
 const linkView = ({ error, token }: z.infer<typeof resetSearchSchema>): ResetView =>
   token === undefined || error !== undefined ? { kind: "dead" } : { kind: "form", token };
 
-const SignInLink = ({ label }: { label: string }) => (
-  <Link to="/app/sign-in" className="underline underline-offset-4">
-    {label}
-  </Link>
-);
+const SignInLink = ({ label }: { label: string }) => {
+  const { next } = Route.useSearch();
+  return (
+    <Link to="/app/sign-in" search={{ next }} className="underline underline-offset-4">
+      {label}
+    </Link>
+  );
+};
 
 const ResetForm = ({
   token,
@@ -109,19 +114,22 @@ const PasswordChanged = () => (
   </AuthShell>
 );
 
-const DeadLink = () => (
-  <AuthShell
-    title="This link is invalid or has expired"
-    subtitle="A reset link works once, and only for a while."
-    footer={<SignInLink label="Back to sign in" />}
-  >
-    <p className="text-center text-sm">
-      <Link to="/app/forgot-password" className="underline underline-offset-4">
-        Send a new link
-      </Link>
-    </p>
-  </AuthShell>
-);
+const DeadLink = () => {
+  const { next } = Route.useSearch();
+  return (
+    <AuthShell
+      title="This link is invalid or has expired"
+      subtitle="A reset link works once, and only for a while."
+      footer={<SignInLink label="Back to sign in" />}
+    >
+      <p className="text-center text-sm">
+        <Link to="/app/forgot-password" search={{ next }} className="underline underline-offset-4">
+          Send a new link
+        </Link>
+      </p>
+    </AuthShell>
+  );
+};
 
 const ResetPasswordPage = () => {
   const search = Route.useSearch();

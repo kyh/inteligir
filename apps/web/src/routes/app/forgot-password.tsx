@@ -1,18 +1,19 @@
 import { useState } from "react";
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { Button } from "@repo/ui/components/button";
 
 import { AuthError, AuthField, AuthShell, fieldValue, useAuthSubmit } from "#components/auth-shell";
 import { authClient, authErrorMessage } from "#lib/auth-client";
+import { authPageSearchSchema, resetLanding } from "#lib/next-path";
 
 const ForgotPasswordPage = () => {
-  const router = useRouter();
+  const { next } = Route.useSearch();
   const [sent, setSent] = useState(false);
   const { error, onSubmit, pending } = useAuthSubmit(async (form) => {
     const { error: failure } = await authClient.requestPasswordReset({
       email: fieldValue(form, "email"),
-      redirectTo: router.buildLocation({ to: "/app/reset-password" }).href,
+      redirectTo: resetLanding(next),
     });
     if (failure !== null) {
       return authErrorMessage(failure);
@@ -26,7 +27,7 @@ const ForgotPasswordPage = () => {
       title="Reset your password"
       subtitle="We'll email you a link to choose a new one."
       footer={
-        <Link to="/app/sign-in" className="underline underline-offset-4">
+        <Link to="/app/sign-in" search={{ next }} className="underline underline-offset-4">
           Back to sign in
         </Link>
       }
@@ -56,4 +57,7 @@ const ForgotPasswordPage = () => {
   );
 };
 
-export const Route = createFileRoute("/app/forgot-password")({ component: ForgotPasswordPage });
+export const Route = createFileRoute("/app/forgot-password")({
+  validateSearch: authPageSearchSchema,
+  component: ForgotPasswordPage,
+});

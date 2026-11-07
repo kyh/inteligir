@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
 
-import { authPageSearchSchema, internalNextPath, signedInLanding } from "./next-path";
+import { authPageSearchSchema, internalNextPath, resetLanding, signedInLanding } from "./next-path";
 
 describe("the sign-in return path", () => {
   it("carries a same-document path's query through unchanged", () => {
@@ -51,4 +51,25 @@ describe("where a sign-in or a sign-up lands", () => {
     expect(signedInLanding(authPageSearchSchema.parse({}).next)).toBe(LIBRARY_PAGE_PATH);
     expect(signedInLanding("//evil.example/steal")).toBe(LIBRARY_PAGE_PATH);
   });
+});
+
+describe("a reset's landing", () => {
+  it("is the reset page when nothing asked to come back", () => {
+    expect(resetLanding()).toBe("/app/reset-password");
+  });
+
+  it("carries the way back through the mail, whole", () => {
+    const way = "/connect/authorize?client_id=c1&state=s1";
+    const landing = resetLanding(way);
+    expect(landing).toBe(`/app/reset-password?next=${encodeURIComponent(way)}`);
+    const { searchParams } = new URL(landing, "http://x.test");
+    expect(authPageSearchSchema.parse({ next: searchParams.get("next") }).next).toBe(way);
+  });
+
+  it.each(["https://evil.example/steal", "//evil.example/steal", "/.//evil.example/steal"])(
+    "carries no way back to %s",
+    (stranger) => {
+      expect(resetLanding(stranger)).toBe("/app/reset-password");
+    },
+  );
 });
