@@ -290,7 +290,8 @@ and end them, and the account's deletion revokes every one.
   client. Its URL carries a live single-use token, so the route is
   `ssr: false`, answers `Cache-Control: no-store` and sets a `no-referrer`
   meta (`src/routes/app/reset-password.tsx`). It works with no app installed,
-  since an email client opens a browser.
+  since an email client opens a browser. A `next` the person came with rides
+  the request, the mail's link and the page's links back to sign-in.
 - **A device signs in with the account's own email and password**
   (`src/worker/device/login.ts`, the Obsidian Sync model). `account.signIn`
   verifies the email and password through `auth.api.signInEmail`, mints the `igd_…` credential

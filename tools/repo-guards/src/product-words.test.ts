@@ -2,41 +2,46 @@
 // items, and no surface names the engine (git, commit, remote, repo, terminal, CLI, PATH, MCP;
 // AGENTS.md § Rules that matter).
 // detection is textual and a lower bound: it reads the quoted literals
-// that hold a space, with a template's `${…}` set aside and its own literals read too, and a .tsx
-// file's lines of JSX text, which is where the window's, the phone's and the shell's sentences
-// live.
+// that hold a space, with a template's `${…}` set aside and its own literals read too, every line
+// of a template that runs over several, which is how the site's pages are written, a .tsx file's
+// lines of JSX text, which is where the window's, the phone's and the shell's sentences live, and
+// the legal pages' prose.
 
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { REPO_ROOT, sourceOf, workspaceFiles, workspaces } from "./repo";
 
-// the workspaces whose src/ a person reads, besides the shell's Rust
+// the workspaces whose src/ holds words a person reads, besides the shell's Rust: @repo/web for the
+// site and the Worker's mail, consent page and refusals, @repo/contract, @repo/library-replica and
+// @repo/notes for the refusals and notices they hand a surface to show. tools/ui-gallery is not one:
+// it is never deployed, so no person reads its sample words
 const SURFACES = [
-  "@repo/workspace",
-  "@repo/mobile",
-  "@repo/mobile-editor",
+  "@repo/agent-panel",
+  "@repo/contract",
   "@repo/editor",
   "@repo/extension",
+  "@repo/library-replica",
+  "@repo/mobile",
+  "@repo/mobile-editor",
+  "@repo/notes",
   "@repo/ui",
+  "@repo/web",
+  "@repo/workspace",
 ] as const;
 
 const RUST_UI_DIR = "apps/desktop/src-tauri/src";
 
-// the sentences spelled outside a surface's workspace: @repo/notes's for every surface to show (a
-// name's refusal, a file's refusal), and the consent route's, the refusals the consent page shows a
-// person
-const SENTENCE_MODULES = [
-  "packages/notes/src/items/item-kind.ts",
-  "apps/web/src/worker/connector/consent-route.ts",
-] as const;
-
-// the pages the Worker writes as HTML itself, whose text is read as JSX text is: the consent page an
-// assistant sends the person to
-const HTML_PAGES = ["apps/web/src/worker/connector/consent-page.ts"] as const;
+// the site serves these from the doc itself
+const LEGAL_PAGES = ["docs/privacy.md", "docs/terms.md"] as const;
 
 // a file that may say a word, and why: a row that no longer matches anything is stale
-const ALLOWED: ReadonlyMap<string, string> = new Map<string, string>();
+const ALLOWED: ReadonlyMap<string, string> = new Map<string, string>([
+  [
+    "apps/web/src/worker/agent/agent-prompt.ts",
+    "the built-in agent's instructions keep their words (AGENTS.md § Rules that matter)",
+  ],
+]);
 
 interface Word {
   name: string;
@@ -195,6 +200,25 @@ const scanLines = (file: string, lines: readonly string[], jsx: boolean): Hit[] 
   return hits;
 };
 
+// a template over several lines is read here, since no one line of it holds both its backticks
+const longTemplateHits = (file: string, lines: readonly string[]): Hit[] => {
+  const source = lines.join("\n");
+  return [...source.matchAll(TEMPLATE)].flatMap((match) => {
+    const rows = splitTemplate(match.groups?.body ?? "").text.split("\n");
+    const first = source.slice(0, match.index).split("\n").length;
+    return rows.length === 1
+      ? []
+      : rows.flatMap((row, offset) =>
+          hitsIn(file, row).map((hit) => ({ ...hit, line: first + offset })),
+        );
+  });
+};
+
+const scanScript = (file: string, lines: readonly string[], jsx: boolean): Hit[] => [
+  ...scanLines(file, lines, jsx),
+  ...longTemplateHits(file, lines),
+];
+
 // sourceOf drops whole-line comments but keeps every other line, so a hit's number is the file's
 const scriptHits = (file: string): Hit[] => {
   const kept = new Set(sourceOf(file).split("\n"));
@@ -202,8 +226,19 @@ const scriptHits = (file: string): Hit[] => {
     .readFileSync(path.join(REPO_ROOT, file), "utf-8")
     .split("\n")
     .map((line) => (kept.has(line) ? line : ""));
-  return scanLines(file, lines, file.endsWith(".tsx") || HTML_PAGES.some((page) => page === file));
+  return scanScript(file, lines, file.endsWith(".tsx"));
 };
+
+// a link's target is an address no one reads as a sentence
+const LINK_TARGET = /\]\([^)]*\)/gu;
+
+const markdownHits = (file: string): Hit[] =>
+  fs
+    .readFileSync(path.join(REPO_ROOT, file), "utf-8")
+    .split("\n")
+    .flatMap((line, index) =>
+      hitsIn(file, line.replaceAll(LINK_TARGET, "]")).map((hit) => ({ ...hit, line: index + 1 })),
+    );
 
 // a Rust file's tests sit in its trailing `#[cfg(test)]` module, read by no one but cargo
 const rustHits = (file: string): Hit[] => {
@@ -223,11 +258,13 @@ const surfaceFiles = (): string[] => {
     .readdirSync(path.join(REPO_ROOT, RUST_UI_DIR))
     .filter((name) => name.endsWith(".rs"))
     .map((name) => `${RUST_UI_DIR}/${name}`);
-  return [...scripts, ...SENTENCE_MODULES, ...HTML_PAGES, ...rust].toSorted();
+  return [...scripts, ...rust].toSorted();
 };
 
-const allHits = (): Hit[] =>
-  surfaceFiles().flatMap((file) => (file.endsWith(".rs") ? rustHits(file) : scriptHits(file)));
+const allHits = (): Hit[] => [
+  ...surfaceFiles().flatMap((file) => (file.endsWith(".rs") ? rustHits(file) : scriptHits(file))),
+  ...LEGAL_PAGES.flatMap((file) => markdownHits(file)),
+];
 
 describe("product surfaces speak the person's words", () => {
   it("the detector finds each shape it reads", () => {
@@ -247,9 +284,13 @@ describe("product surfaces speak the person's words", () => {
       ["  <b>Saved</b> to your vault&rsquo;s top", "JSX text after a tag, with an entity", true],
       ['  "Uses this Mac\'s git credentials."', "an engine word", false],
       ['  "Run it from the CLI first"', "an uppercase engine word", false],
+      ["const page = `# Home\n\nYour vault is kept.\n`;", "a template's later line", false],
+      [`\`## \${name}\n\n- **Saved** to the \${x} repo (for now)\n\``, "a page's markdown", false],
     ];
     const blind = planted.flatMap(([line, what, jsx]) =>
-      scanLines("planted", [line], jsx).length === 0 ? [`BLIND DETECTOR  ${what}: ${line}`] : [],
+      scanScript("planted", line.split("\n"), jsx).length === 0
+        ? [`BLIND DETECTOR  ${what}: ${line}`]
+        : [],
     );
     const quiet: [string, boolean][] = [
       ['queryKey: ["vault", "status"],', false],
@@ -258,9 +299,10 @@ describe("product surfaces speak the person's words", () => {
       ['            "[desktop] {} is not a recent-vaults list; starting over",', false],
       ['label: "Folder path",', false],
       [`  const url = \`https://example.com/\${path}\`; // the vault's door`, false],
+      [`const page = \`# Home\n\n\${vault.name} is kept.\n\`;`, false],
     ];
     const noisy = quiet.flatMap(([line, jsx]) =>
-      scanLines("planted", [line], jsx).length > 0 ? [`FALSE HIT  ${line}`] : [],
+      scanScript("planted", line.split("\n"), jsx).length > 0 ? [`FALSE HIT  ${line}`] : [],
     );
     expect([...blind, ...noisy], `\n${[...blind, ...noisy].join("\n")}\n`).toStrictEqual([]);
   });

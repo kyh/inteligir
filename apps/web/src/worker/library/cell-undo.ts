@@ -3,7 +3,8 @@
 // item someone changed since stays whole and is named. An item whose way back a rule refuses (its
 // url now another live item's, a file gone, the quota) is named apart and the rest land, and its
 // set stays undoable, since room or the address can come back; when nothing lands the rule's
-// refusal is the answer.
+// refusal is the answer. A set of which only kept items remain stays undoable too, since the edit
+// since can go, and when no set moved no write of its own is made.
 
 import { compareText } from "@repo/notes/library/block-order";
 import { revertChangeSets } from "@repo/notes/library/revert-change";
@@ -23,7 +24,8 @@ import type { CellRefusal } from "./cell-refusal";
 import { readItemNow, sealChangeSet } from "./change-sets";
 
 export interface UndoAnswer {
-  readonly changeSetId: string;
+  // null: no item went back and no set was undone, so no undo was made
+  readonly changeSetId: string | null;
   readonly kept: readonly string[];
   readonly refused: readonly string[];
   readonly reverted: readonly string[];
@@ -116,6 +118,15 @@ const changesOf = (sql: SqlStatements, setId: string): Map<string, ItemChange> =
   return changes;
 };
 
+// the undo's own set, named on each set it settled
+const markUndone = (scope: LandingScope, settled: readonly { readonly id: string }[]): string => {
+  const undoSet = scope.set();
+  for (const set of settled) {
+    scope.storage.run("UPDATE change_sets SET undone_by = ? WHERE id = ?", [undoSet.id, set.id]);
+  }
+  return undoSet.id;
+};
+
 export const undoChangeSets = (
   scope: LandingScope,
   changeSetIds: readonly string[],
@@ -188,18 +199,17 @@ export const undoChangeSets = (
       refused.set(itemId, error.refusal);
     }
   }
-  const settled = ordered.filter((set) => ![...set.items.keys()].some((id) => refused.has(id)));
+  const settled = ordered.filter(
+    (set) => !verdict.leftWhole.has(set.id) && ![...set.items.keys()].some((id) => refused.has(id)),
+  );
   const [first] = refused.values();
-  if (first !== undefined && reverted.length === 0 && settled.length === 0) {
+  const moved = reverted.length > 0 || settled.length > 0;
+  if (first !== undefined && !moved) {
     refuse(first);
   }
-  const undoSet = scope.set();
-  for (const set of settled) {
-    storage.run("UPDATE change_sets SET undone_by = ? WHERE id = ?", [undoSet.id, set.id]);
-  }
   return {
-    changeSetId: undoSet.id,
-    kept: [...kept].filter((id) => !reverted.includes(id) && !refused.has(id)).toSorted(),
+    changeSetId: moved ? markUndone(scope, settled) : null,
+    kept: [...kept].filter((id) => !refused.has(id)).toSorted(),
     refused: [...refused.keys()].toSorted(),
     reverted: reverted.toSorted(),
   };

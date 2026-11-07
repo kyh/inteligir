@@ -76,3 +76,35 @@ describe("the page the emailed reset link lands on", () => {
     expect(html).not.toContain('name="confirm"');
   });
 });
+
+describe("the way back a reset carries", () => {
+  const way = "/connect/authorize?client_id=c1&state=s1";
+  const wayBack = encodeURIComponent(way);
+
+  it("leads a live link's way out back to sign-in, without its token", async () => {
+    const html = await drawnPage(`/app/reset-password?token=live-token-1234&next=${wayBack}`);
+    expect(html).toContain(`href="/app/sign-in?next=${wayBack}"`);
+  });
+
+  it("leads both of a dead link's ways out onward", async () => {
+    const html = await drawnPage(`/app/reset-password?error=INVALID_TOKEN&next=${wayBack}`);
+    expect(html).toContain(`href="/app/sign-in?next=${wayBack}"`);
+    expect(html).toContain(`href="/app/forgot-password?next=${wayBack}"`);
+  });
+
+  it.each([
+    "https://evil.example/steal",
+    "//evil.example/steal",
+    "/\\evil.example/steal",
+    "/.//evil.example/steal",
+  ])("sends nobody on to %s", async (stranger) => {
+    const next = encodeURIComponent(stranger);
+    const live = await drawnPage(`/app/reset-password?token=live-token-1234&next=${next}`);
+    expect(live).toContain('href="/app/sign-in"');
+    expect(live).not.toContain("evil.example");
+    const dead = await drawnPage(`/app/reset-password?error=INVALID_TOKEN&next=${next}`);
+    expect(dead).toContain('href="/app/sign-in"');
+    expect(dead).toContain('href="/app/forgot-password"');
+    expect(dead).not.toContain("evil.example");
+  });
+});

@@ -29,10 +29,13 @@ const STATUS_WORDS = {
 
 export const statusWords = (status: ThreadStatus): string => STATUS_WORDS[status];
 
-// the agent is at work or about to be, which Stop ends; a turn waiting on the person is under way
-// too, but its approval card is what answers it
+// the agent is at work or about to be
 export const isWorking = (status: ThreadStatus): boolean =>
   status === "running" || status === "queued";
+
+// a turn is open, a turn waiting on the person among them: Stop ends it, turning down what it
+// asked, and Undo waits for it, since its change set seals only as it ends
+export const isUnderWay = (status: ThreadStatus): boolean => status !== "idle";
 
 export interface ThreadEntry {
   readonly eventId: string;

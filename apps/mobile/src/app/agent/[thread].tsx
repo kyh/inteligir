@@ -20,6 +20,7 @@ import {
   callRefusalWords,
   EMPTY_WORDS,
   endingWords,
+  isUnderWay,
   isWorking,
   sendRefusalWords,
   statusWords,
@@ -155,6 +156,7 @@ const Conversation = ({ threadId }: { threadId: string }) => {
   const respond = useMutation(queries.library.agent.respond.mutationOptions());
   const cancel = useMutation(queries.library.agent.cancel.mutationOptions());
   const working = thread !== undefined && isWorking(thread.status);
+  const underWay = thread !== undefined && isUnderWay(thread.status);
   const state = thread === undefined ? "" : statusWords(thread.status);
   const failure = respond.error ?? cancel.error;
   return (
@@ -176,7 +178,7 @@ const Conversation = ({ threadId }: { threadId: string }) => {
       ))}
       <View className="flex-row flex-wrap items-center gap-4">
         {state === "" ? null : <Text className="text-13 text-muted-foreground">{state}</Text>}
-        {working ? (
+        {underWay ? (
           <TextButton
             fontSize={14}
             label="Stop"

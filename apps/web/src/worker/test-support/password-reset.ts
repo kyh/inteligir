@@ -47,10 +47,11 @@ export const answerToReset = async (
   email: string,
   testEnv: Env,
   ctx: ExecutionContext,
+  redirectTo: string = RESET_PAGE_PATH,
 ): Promise<Response> =>
   await worker.fetch(
     new Request(`${ORIGIN}/api/auth/request-password-reset`, {
-      body: JSON.stringify({ email, redirectTo: RESET_PAGE_PATH }),
+      body: JSON.stringify({ email, redirectTo }),
       headers: { "content-type": "application/json", origin: ORIGIN },
       method: "POST",
     }),
@@ -59,9 +60,13 @@ export const answerToReset = async (
   );
 
 // the answer, once whatever it left to the runtime has run
-export const requestReset = async (email: string, testEnv: Env): Promise<Response> => {
+export const requestReset = async (
+  email: string,
+  testEnv: Env,
+  redirectTo?: string,
+): Promise<Response> => {
   const ctx = createExecutionContext();
-  const response = await answerToReset(email, testEnv, ctx);
+  const response = await answerToReset(email, testEnv, ctx, redirectTo);
   await waitOnExecutionContext(ctx);
   return response;
 };

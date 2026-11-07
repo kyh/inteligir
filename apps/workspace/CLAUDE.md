@@ -238,7 +238,8 @@ is parsed in `src/shell/shell-commands.ts`.
 - **A BULK VERB RUNS IN CHUNKS, UNDER ONE TOAST WITH STOP.** A move or a tag of
   many items goes through the outbox fifty at a time and a purge through the
   cell's own in its route's chunks, sequentially; a chunk that fails stops the
-  run and says how far it got, and the closing sentence says only what landed
+  run and says how far it got, the closing sentence says only what landed, and
+  a run where none landed says that in place of a count
   (`apps/workspace/src/app/library/bulk-actions.ts`). A delete of more than
   fifty asks first; any delete toasts its Undo.
 
@@ -269,8 +270,9 @@ is parsed in `src/shell/shell-commands.ts`.
   "Show this version" reads the item as a set left it, and Undo takes a whole
   set back in a change set of its own, after the open item's unsaved edit is
   written, so the undo meets the item as the person sees it and a line changed
-  since is kept; a set a rule held back stays undoable and says so. History is
-  the cell's, so it waits for a connection.
+  since is kept; a set a rule held back, and one of which only kept items
+  remain, stays undoable and says so, in one sentence the History tab and the
+  agent's panel both say. History is the cell's, so it waits for a connection.
   `apps/workspace/src/app/panel/history-tab.tsx`,
   `apps/workspace/src/app/cloud/history-pages.ts`.
 
@@ -288,8 +290,11 @@ is parsed in `src/shell/shell-commands.ts`.
   unsaved edit is written: the sets are read from every page the cell answers,
   the whole conversation's Undo offered once all are in and sent in as few
   undos as the cell takes, and asked again as each turn ends, since a turn's
-  set seals with it. Rejected: an agent the device runs (a runtime and a
-  model credential on every device); a socket of the page's own to the conversation's
+  set seals with it. While a turn is open, a turn waiting on an approval among
+  them, every device draws Stop, which turns down what it asked and ends the
+  answer, and the page no Undo of the conversation, since the open turn's set
+  is out of its reach. Rejected: an agent the device runs (a runtime and a model
+  credential on every device); a socket of the page's own to the conversation's
   object; one page of sets (a long conversation's oldest turns lost their
   Undo). `apps/workspace/src/app/agent/agent-panel.tsx`, over
   `packages/agent-panel/src/thread-entries.ts`, `thread-undo.ts`.

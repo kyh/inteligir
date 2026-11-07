@@ -265,7 +265,24 @@ describe(revertItemChange, () => {
       versionsOf(anchoredItem),
       { h1: entry },
     );
-    expect(anchored).toStrictEqual({ kind: "unchanged" });
+    expect(anchored).toStrictEqual({ kind: "keep", reason: "edited-since" });
+  });
+
+  it("keeps an item whose only change was a highlight someone answered since", () => {
+    const x = itemOf([paragraph("a", "one")]);
+    const entry = { createdAt: 1, text: "", updatedAt: 1 };
+    const answered = { ...entry, text: "the answer", updatedAt: 2 };
+    const verdict = revert(changeOf(x, x, { after: { h1: entry } }), x, versionsOf(x), {
+      h1: answered,
+    });
+    expect(verdict).toStrictEqual({ kind: "keep", reason: "edited-since" });
+  });
+
+  it("has nothing to take back of a highlight someone deleted since", () => {
+    const x = itemOf([paragraph("a", "one")]);
+    const entry = { createdAt: 1, text: "", updatedAt: 1 };
+    const verdict = revert(changeOf(x, x, { after: { h1: entry } }), x, versionsOf(x));
+    expect(verdict).toStrictEqual({ kind: "unchanged" });
   });
 });
 
@@ -372,6 +389,94 @@ describe(revertChangeSets, () => {
     expect(olderAlone.kept).toStrictEqual([
       { itemId: "item", reason: "edited-since", setId: "older" },
     ]);
+  });
+
+  describe("a set nothing of which goes back", () => {
+    const x = itemOf([paragraph("a", "one")]);
+    const made = landed(x, [
+      { baseHash: heldHash(x, "a"), block: paragraph("a", "two"), op: "put" },
+    ]);
+    const since = landed(made, [
+      { baseHash: heldHash(made, "a"), block: paragraph("a", "three"), op: "put" },
+    ]);
+    const blockAt = versionsOf(x, made, since);
+    const change = changeOf(x, made);
+
+    it("is left whole when what it changed was changed since", () => {
+      const undone = revertChangeSets({
+        at: AT,
+        blockAt,
+        now: new Map([["item", { annotations: {}, state: since }]]),
+        sets: [{ id: "set", items: new Map([["item", change]]) }],
+      });
+      expect(undone.items.size).toBe(0);
+      expect([...undone.leftWhole]).toStrictEqual(["set"]);
+    });
+
+    it("is not left whole once anything of it went back, or when nothing was kept", () => {
+      const partly = revertChangeSets({
+        at: AT,
+        blockAt,
+        now: new Map([
+          ["kept", { annotations: {}, state: since }],
+          ["back", { annotations: {}, state: made }],
+        ]),
+        sets: [
+          {
+            id: "set",
+            items: new Map([
+              ["kept", change],
+              ["back", change],
+            ]),
+          },
+        ],
+      });
+      expect(partly.kept.map((one) => one.itemId)).toStrictEqual(["kept"]);
+      expect([...partly.leftWhole]).toStrictEqual([]);
+      const alreadyBack = revertChangeSets({
+        at: AT,
+        blockAt,
+        now: new Map([["item", { annotations: {}, state: x }]]),
+        sets: [{ id: "set", items: new Map([["item", change]]) }],
+      });
+      expect(alreadyBack.kept).toStrictEqual([]);
+      expect([...alreadyBack.leftWhole]).toStrictEqual([]);
+    });
+
+    it("is left whole beside a newer set that took back the same item", () => {
+      const newest = landed(since, [
+        { baseHash: heldHash(since, "a"), block: paragraph("a", "four"), op: "put" },
+      ]);
+      const undone = revertChangeSets({
+        at: AT,
+        blockAt: versionsOf(x, made, since, newest),
+        now: new Map([["item", { annotations: {}, state: newest }]]),
+        sets: [
+          { id: "newer", items: new Map([["item", changeOf(since, newest)]]) },
+          { id: "older", items: new Map([["item", change]]) },
+        ],
+      });
+      expect(undone.items.get("item")?.now.state).toStrictEqual(since);
+      expect(undone.kept).toStrictEqual([
+        { itemId: "item", reason: "edited-since", setId: "older" },
+      ]);
+      expect([...undone.leftWhole]).toStrictEqual(["older"]);
+    });
+  });
+
+  it("names an item that went back but for a highlight someone answered since", () => {
+    const x = itemOf([paragraph("a", "one")]);
+    const y = landed(x, [{ baseHash: heldHash(x, "a"), block: paragraph("a", "two"), op: "put" }]);
+    const entry = { createdAt: 1, text: "", updatedAt: 1 };
+    const undone = revertChangeSets({
+      at: AT,
+      blockAt: versionsOf(x, y),
+      now: new Map([["item", { annotations: { h1: { ...entry, text: "the answer" } }, state: y }]]),
+      sets: [{ id: "set", items: new Map([["item", changeOf(x, y, { after: { h1: entry } })]]) }],
+    });
+    expect(undone.items.get("item")?.now.state).toStrictEqual(x);
+    expect(undone.kept).toStrictEqual([{ itemId: "item", reason: "edited-since", setId: "set" }]);
+    expect([...undone.leftWhole]).toStrictEqual([]);
   });
 });
 

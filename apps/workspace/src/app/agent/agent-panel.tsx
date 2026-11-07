@@ -12,6 +12,7 @@ import {
   callRefusalWords,
   EMPTY_WORDS,
   endingWords,
+  isUnderWay,
   isWorking,
   readsOnly,
   sendRefusalWords,
@@ -47,7 +48,7 @@ import { useEffect, useRef, useState } from "react";
 import { historyPages } from "../cloud/history-pages";
 import { useReplica, useReplicaQueries, useWire } from "../cloud/library-context";
 import { refusalText } from "@repo/contract/cloud/refusal-text";
-import { undoSentence } from "../panel/history-tab";
+import { announceUndo } from "../panel/history-tab";
 import { relativeTimeLabel, useNow } from "../relative-time";
 
 export interface AgentPanelProps {
@@ -272,17 +273,19 @@ const Conversation = ({
       await flushOpen();
       const kept: string[] = [];
       const refused: string[] = [];
+      const reverted: string[] = [];
       for (const batch of undoBatches(ids)) {
         try {
           const answer = await undo.mutateAsync({ changeSetIds: batch });
           kept.push(...answer.kept);
           refused.push(...answer.refused);
+          reverted.push(...answer.reverted);
         } catch {
           // the undo's own onError said why; the batches after it are not sent
           return;
         }
       }
-      toast.success(undoSentence({ kept, refused }));
+      announceUndo({ kept, refused, reverted });
     })();
   };
   const undoTurn = (turn: number): (() => void) | null => {
@@ -296,6 +299,7 @@ const Conversation = ({
   // offered once every page is read, so it takes back the whole conversation
   const whole = hasNextPage ? null : conversationUndo(changeSets);
   const working = thread !== undefined && isWorking(thread.status);
+  const underWay = thread !== undefined && isUnderWay(thread.status);
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3" data-thread={threadId}>
       {blocks.map((block, index) =>
@@ -338,7 +342,7 @@ const Conversation = ({
         {thread === undefined || statusWords(thread.status) === "" ? null : (
           <span className="text-caption text-muted-foreground">{statusWords(thread.status)}</span>
         )}
-        {working ? (
+        {underWay ? (
           <Button
             size="compact"
             variant="ghost"
@@ -349,7 +353,7 @@ const Conversation = ({
             Stop
           </Button>
         ) : null}
-        {whole === null || working ? null : (
+        {whole === null || underWay ? null : (
           <Button
             size="compact"
             variant="ghost"

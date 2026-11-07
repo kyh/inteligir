@@ -115,7 +115,7 @@ export interface StrayRemoval {
 export const landedSchema = z.object({ item: liveItemRowSchema });
 const purgedSchema = z.object({ missing: z.array(z.string()), purged: z.array(z.string()) });
 const undoSchema = z.object({
-  changeSetId: z.string(),
+  changeSetId: z.string().nullable(),
   kept: z.array(z.string()),
   refused: z.array(z.string()),
   reverted: z.array(z.string()),

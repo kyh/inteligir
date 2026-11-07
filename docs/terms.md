@@ -313,8 +313,8 @@ communications from us electronically (by email or notices posted on the Site).
 These electronic communications satisfy any legal requirement for written
 notice.
 
-10.5 **Accessibility.** Inteligir is committed to making the Site accessible to
-all users, including individuals with disabilities. We endeavor to conform to
+10.5 **Accessibility.** Inteligir works to make the Site accessible to all
+users, including individuals with disabilities. We endeavor to conform to
 the Web Content Accessibility Guidelines (WCAG) 2.1, Level AA, as published by
 the World Wide Web Consortium (W3C). If you experience any difficulty accessing
 or navigating the Site, or if you have suggestions for improving accessibility,

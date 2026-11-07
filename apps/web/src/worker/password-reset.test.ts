@@ -106,6 +106,47 @@ describe("password reset", () => {
     expect(ownsPath(landing.pathname)).toBe(false);
   });
 
+  it("carries a way back through the mail to the reset page", async () => {
+    await signUpUser("way-back@example.com");
+    const { EMAIL, sent } = recordingEmail();
+    const way = "/connect/authorize?client_id=c1&state=s1";
+    const page = `${RESET_PAGE_PATH}?next=${encodeURIComponent(way)}`;
+    await drained(requestReset("way-back@example.com", envWith(EMAIL), page));
+
+    const landing = await followGetLeg(extractResetLink(firstEmail(sent)));
+    expect(landing.origin).toBe(ORIGIN);
+    expect(landing.pathname).toBe(RESET_PAGE_PATH);
+    expect(landing.searchParams.get("next")).toBe(way);
+    expect(landing.searchParams.get("token")).toMatch(/^[A-Za-z0-9]+$/u);
+  });
+
+  it("sends no mail that would land off this site", async () => {
+    await signUpUser("off-site@example.com");
+    const { EMAIL, sent } = recordingEmail();
+
+    for (const stranger of [
+      "https://evil.example/app/reset-password",
+      "//evil.example/app/reset-password",
+      "/\\evil.example/app/reset-password",
+    ]) {
+      const response = await requestReset("off-site@example.com", envWith(EMAIL), stranger);
+      expect(response.status, stranger).toBe(403);
+    }
+    expect(sent).toHaveLength(0);
+  });
+
+  it("lands a link rewritten to leave this site nowhere", async () => {
+    await signUpUser("rewritten@example.com");
+    const { EMAIL, sent } = recordingEmail();
+    await drained(requestReset("rewritten@example.com", envWith(EMAIL)));
+    const link = new URL(extractResetLink(firstEmail(sent)));
+    link.searchParams.set("callbackURL", "https://evil.example/app/reset-password");
+
+    const response = await drained(exports.default.fetch(link, { redirect: "manual" }));
+    expect(response.status).toBe(403);
+    expect(response.headers.get("location")).toBeNull();
+  });
+
   it("refuses a new password outside the contract's bounds, which Better Auth is configured with", async () => {
     await signUpUser("bounds@example.com");
     for (const newPassword of [

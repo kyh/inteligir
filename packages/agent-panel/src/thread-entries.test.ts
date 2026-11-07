@@ -7,6 +7,7 @@ import {
   answerWords,
   approvalWords,
   endingWords,
+  isUnderWay,
   isWorking,
   sendRefusalWords,
   statusWords,
@@ -195,5 +196,12 @@ describe("a thread's state", () => {
     expect(isWorking("running")).toBe(true);
     expect(isWorking("queued")).toBe(true);
     expect(isWorking("awaiting_approval")).toBe(false);
+  });
+
+  it("holds a turn waiting on the person as under way, which Stop ends", () => {
+    expect(isUnderWay("running")).toBe(true);
+    expect(isUnderWay("queued")).toBe(true);
+    expect(isUnderWay("awaiting_approval")).toBe(true);
+    expect(isUnderWay("idle")).toBe(false);
   });
 });

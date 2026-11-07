@@ -439,9 +439,10 @@ const historyContract = {
       }),
     ),
 
-  // newest first, in one change set of its own; an item a later edit overlaps is kept whole, and
-  // one a rule refuses is named under `refused`, its set left to undo again. When nothing lands the
-  // rule's own error is the answer
+  // newest first, in one change set of its own; an item a later edit overlaps is named under
+  // `kept`, and one a rule refuses under `refused`, its set left to undo again. A set of which
+  // only kept items remain stays undoable too, and `changeSetId` is null when no item went back
+  // and no set was undone. When a rule held back all that could land, its own error is the answer
   undo: signedBase
     .errors({
       [AlreadyUndoneError.code]: AlreadyUndoneError,
@@ -454,7 +455,7 @@ const historyContract = {
     .input(z.strictObject({ changeSetIds: z.array(idSchema).min(1).max(BULK_ITEMS_MAX), opId }))
     .output(
       z.object({
-        changeSetId: idSchema,
+        changeSetId: idSchema.nullable(),
         kept: z.array(idSchema),
         refused: z.array(idSchema),
         reverted: z.array(idSchema),

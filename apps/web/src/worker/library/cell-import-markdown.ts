@@ -83,7 +83,7 @@ const PAGE_FILES = 100;
 const ALL = { from: 0, limit: 1_000_000 } as const;
 
 const NOT_A_ZIP =
-  "This file isn't a zip of notes. Choose a .zip of a folder of Markdown files, or of an Obsidian vault.";
+  "This file isn't a zip of notes. Choose a .zip of a folder of Markdown files, or of an Obsidian folder.";
 
 const zipEntrySchema = z.object({
   compressedSize: z.number(),

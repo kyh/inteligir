@@ -264,7 +264,7 @@ The apps also hold to these, plainly:
   network by how it is spelled. A page it cannot read then, offline included,
   is saved as its address, which our cloud reads once it arrives.
 - **Importing.** The file you choose to import (a Raindrop CSV, or a zip of
-  notes such as an Obsidian vault) is uploaded to your library, read there and
+  notes such as an Obsidian folder) is uploaded to your library, read there and
   deleted once the import ends. Each imported link is then filled in as above.
 - **Exporting your library.** An export of your library is a zip our
   cloud writes in your account's own storage, which your devices download; it
