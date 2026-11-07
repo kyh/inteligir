@@ -231,22 +231,21 @@ export class AgentThreadDO extends DurableObject<Env> {
   // ---- what the cell asks ----
 
   // a turn handed in: kept once by its op id, and the work woken
-  async send(request: DeliveryRequest): Promise<{ readonly accepted: boolean }> {
+  async send(request: DeliveryRequest): Promise<void> {
     await this.lifecycle.start();
     const delivery = deliveryRequestSchema.parse(request);
     if (this.#purged || delivery.threadId !== threadNameOf(this.ctx.id.name).threadId) {
-      return { accepted: false };
+      return;
     }
-    const accepted = acceptDelivery(this.#host(), delivery, await rulesHashOf(delivery.rules));
+    acceptDelivery(this.#host(), delivery, await rulesHashOf(delivery.rules));
     await this.#wake();
-    return { accepted };
   }
 
   // the person's answer to a call waiting on them, decided once
-  async respond(request: RespondRequest): Promise<{ readonly decided: boolean }> {
+  async respond(request: RespondRequest): Promise<void> {
     await this.lifecycle.start();
     if (this.#purged) {
-      return { decided: false };
+      return;
     }
     const answer = respondRequestSchema.parse(request);
     const decided = await decideCall(this.#host(), {
@@ -258,18 +257,16 @@ export class AgentThreadDO extends DurableObject<Env> {
     if (decided) {
       await this.#wake();
     }
-    return { decided };
   }
 
   // the turn stopped: marked durably, its stream cut, its calls answered by the next step
-  async cancel(request: { readonly turn: number }): Promise<{ readonly open: boolean }> {
+  async cancel(request: { readonly turn: number }): Promise<void> {
     await this.lifecycle.start();
     if (this.#purged) {
-      return { open: false };
+      return;
     }
-    const open = requestCancel(this.#host(), z.number().int().positive().parse(request.turn));
+    requestCancel(this.#host(), z.number().int().positive().parse(request.turn));
     await this.#wake();
-    return { open };
   }
 
   // everything the conversation keeps, gone

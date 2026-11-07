@@ -25,6 +25,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import type { AgentEvent, TurnEndReason } from "@repo/contract/cloud/library/agent-events";
 import { TOOL_RESULT_SUMMARY_MAX } from "@repo/contract/cloud/library/agent-events";
+import { sha256Hex } from "@repo/contract/cloud/bytes";
 import type { SqlPort, SqlStatements } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
@@ -38,7 +39,6 @@ import {
   logDroppedThinking,
   replyBlocksOf,
   requestMessages,
-  sha256Hex,
   storedDefinition,
   transcriptMessage,
 } from "./thread-request";
@@ -265,12 +265,11 @@ const transcriptOf = (sql: SqlStatements): StoredMessage[] =>
 const append = (
   sql: SqlStatements,
   row: { readonly turn: number; readonly role: string; readonly content: string },
-  source: string,
 ): void => {
   sql.run(
-    `INSERT INTO transcript (seq, turn, role, content, source)
-     VALUES ((SELECT coalesce(max(seq), 0) + 1 FROM transcript), ?, ?, ?, ?)`,
-    [row.turn, row.role, row.content, source],
+    `INSERT INTO transcript (seq, turn, role, content)
+     VALUES ((SELECT coalesce(max(seq), 0) + 1 FROM transcript), ?, ?, ?)`,
+    [row.turn, row.role, row.content],
   );
 };
 
@@ -287,17 +286,15 @@ const enqueue = (sql: SqlStatements, turn: number, entries: readonly PushEntry[]
 
 const eventEntry = (event: AgentEvent): PushEntry => ({ event, kind: "event" });
 
+// why a turn ended, and what more the reason leaves out
+interface TurnEnding {
+  readonly reason: TurnEndReason;
+  readonly detail: string | null;
+}
+
 // the turn over: its row ended and the cell told why, which seals it there
-const endTurn = (
-  sql: SqlStatements,
-  turn: number,
-  ending: { readonly reason: TurnEndReason; readonly detail: string | null; readonly at: number },
-): void => {
-  sql.run(
-    `UPDATE turns SET status = 'ended', ended_at = ?, end_reason = ?, end_detail = ?
-     WHERE turn = ? AND status != 'ended'`,
-    [ending.at, ending.reason, ending.detail, turn],
-  );
+const endTurn = (sql: SqlStatements, turn: number, ending: TurnEnding): void => {
+  sql.run("UPDATE turns SET status = 'ended' WHERE turn = ? AND status != 'ended'", [turn]);
   const ended: AgentEvent = { reason: ending.reason, turn, type: "turn.ended" };
   if (ending.detail !== null) {
     ended.detail = ending.detail.slice(0, 200);
@@ -348,37 +345,18 @@ export const drainOutbox = async (host: ThreadHost): Promise<"drained" | "later"
 
 // ---- a turn handed in ----
 
-// the turn the cell delivered, kept once by its op id; false for one it holds already
+// the turn the cell delivered, kept once by its op id
 export const acceptDelivery = (
   host: ThreadHost,
   request: DeliveryRequest,
   rulesHash: string | null,
-): boolean =>
-  host.sql.transaction(() => {
-    if (metaOf(host.sql, "thread") === null) {
-      setMeta(host.sql, "thread", request.threadId);
-    }
-    const held = host.sql.all("SELECT 1 FROM turns WHERE op_id = ? OR turn = ?", [
-      request.opId,
-      request.turn,
-    ]);
-    if (held.length > 0) {
-      return false;
-    }
-    host.sql.run(
-      `INSERT INTO turns (turn, op_id, content, rules, rules_hash, status, created_at)
-       VALUES (?, ?, ?, ?, ?, 'running', ?)`,
-      [
-        request.turn,
-        request.opId,
-        JSON.stringify(request.content),
-        request.rules,
-        rulesHash,
-        host.now(),
-      ],
-    );
-    return true;
-  });
+): void => {
+  host.sql.run(
+    `INSERT INTO turns (turn, op_id, content, rules, rules_hash, status)
+     VALUES (?, ?, ?, ?, ?, 'running') ON CONFLICT DO NOTHING`,
+    [request.turn, request.opId, JSON.stringify(request.content), request.rules, rulesHash],
+  );
+};
 
 export const rulesHashOf = async (rules: string | null): Promise<string | null> =>
   rules === null ? null : await sha256Hex(rules);
@@ -445,7 +423,7 @@ const startTurn = async (host: ThreadHost, turn: OpenTurn): Promise<void> => {
         markRulesOwed(host.sql);
       }
     }
-    append(host.sql, { content: turn.content, role: "user", turn: turn.turn }, "person");
+    append(host.sql, { content: turn.content, role: "user", turn: turn.turn });
     host.sql.run("UPDATE turns SET started = 1 WHERE turn = ?", [turn.turn]);
   });
 };
@@ -567,7 +545,7 @@ const capRowSchema = z.object({ max_tokens: z.number() });
 // the cap the step's first call went out with, or null for a step not yet sent
 const firstCapAt = (sql: SqlStatements, turn: number, step: number): number | null => {
   const [raw] = sql.all(
-    `SELECT max_tokens FROM model_calls WHERE turn = ? AND step = ? AND max_tokens > 0
+    `SELECT max_tokens FROM model_calls WHERE turn = ? AND step = ? AND max_tokens IS NOT NULL
      ORDER BY attempt LIMIT 1`,
     [turn, step],
   );
@@ -588,24 +566,15 @@ const cutDeadCalls = (host: ThreadHost): void => {
   if (cut.length === 0) {
     return;
   }
-  const now = host.now();
   sql.transaction(() => {
     for (const call of cut) {
-      sql.run("UPDATE model_calls SET status = 'cut', ended_at = ? WHERE call_id = ?", [
-        now,
-        call.call_id,
-      ]);
+      sql.run("UPDATE model_calls SET status = 'cut' WHERE call_id = ?", [call.call_id]);
       enqueue(sql, call.turn, [{ callId: call.call_id, kind: "call", outcome: "cut" }]);
     }
   });
 };
 
 // what a stop reason ends a turn with; `tool_use` ends none
-interface TurnEnding {
-  readonly reason: TurnEndReason;
-  readonly detail: string | null;
-}
-
 const endingOf = (message: BetaMessage): TurnEnding => {
   switch (message.stop_reason) {
     case "end_turn": {
@@ -673,13 +642,11 @@ const landReply = (
   },
 ): void => {
   const { message } = call;
-  const now = host.now();
   const blocks = replyBlocksOf(message.content);
   host.sql.transaction(() => {
     host.sql.run(
-      `UPDATE model_calls SET status = 'done', ended_at = ?, usage = ?, stop_reason = ?
-       WHERE call_id = ?`,
-      [now, JSON.stringify(message.usage), message.stop_reason, call.callId],
+      "UPDATE model_calls SET status = 'done', ended_at = ?, usage = ? WHERE call_id = ?",
+      [host.now(), JSON.stringify(message.usage), call.callId],
     );
     const entries: PushEntry[] = [
       {
@@ -693,7 +660,6 @@ const landReply = (
     if (blocks === null) {
       enqueue(host.sql, turn.turn, entries);
       endTurn(host.sql, turn.turn, {
-        at: now,
         detail: "a reply this build cannot replay",
         reason: "failed",
       });
@@ -704,31 +670,27 @@ const landReply = (
       // and the turn ends with the decline's category
       // (platform.claude.com/docs/en/build-with-claude/refusals-and-fallback)
       enqueue(host.sql, turn.turn, entries);
-      endTurn(host.sql, turn.turn, { ...endingOf(message), at: now });
+      endTurn(host.sql, turn.turn, endingOf(message));
       return;
     }
     if (blocks.length > 0) {
       if (call.rules !== null) {
-        append(
-          host.sql,
-          {
-            content: JSON.stringify([{ text: call.rules, type: "text" }]),
-            role: "system",
-            turn: turn.turn,
-          },
-          "rules",
-        );
+        append(host.sql, {
+          content: JSON.stringify([{ text: call.rules, type: "text" }]),
+          role: "system",
+          turn: turn.turn,
+        });
         if (turn.rulesHash === null) {
           host.sql.run("DELETE FROM meta WHERE k = 'rules_hash'", []);
         } else {
           setMeta(host.sql, "rules_hash", turn.rulesHash);
         }
       }
-      append(
-        host.sql,
-        { content: JSON.stringify(message.content), role: "assistant", turn: turn.turn },
-        "model",
-      );
+      append(host.sql, {
+        content: JSON.stringify(message.content),
+        role: "assistant",
+        turn: turn.turn,
+      });
       host.sql.run(
         "UPDATE model_calls SET covered_seq = (SELECT max(seq) FROM transcript) WHERE call_id = ?",
         [call.callId],
@@ -744,26 +706,22 @@ const landReply = (
       return;
     }
     if (uses.length > 0) {
-      append(
-        host.sql,
-        {
-          content: JSON.stringify(
-            uses.map((use) => ({
-              content: CUT_OFF,
-              is_error: true,
-              tool_use_id: use.id,
-              type: "tool_result",
-            })),
-          ),
-          role: "user",
-          turn: turn.turn,
-        },
-        "tools",
-      );
+      append(host.sql, {
+        content: JSON.stringify(
+          uses.map((use) => ({
+            content: CUT_OFF,
+            is_error: true,
+            tool_use_id: use.id,
+            type: "tool_result",
+          })),
+        ),
+        role: "user",
+        turn: turn.turn,
+      });
       entries.push(...uses.map((use) => resultEvent(use.id, CUT_OFF, true)));
     }
     enqueue(host.sql, turn.turn, entries);
-    endTurn(host.sql, turn.turn, { ...endingOf(message), at: now });
+    endTurn(host.sql, turn.turn, endingOf(message));
   });
 };
 
@@ -788,22 +746,15 @@ const failedCall = async (
     readonly stopped: boolean;
   },
 ): Promise<StepResult> => {
-  const now = host.now();
   const { error } = call;
   const status = isApiError(error) ? error.status : undefined;
   const outcome = status === undefined ? "cut" : "free";
   const settle = (state: "cancelled" | "failed", ending: TurnEndReason | null): void => {
     host.sql.transaction(() => {
-      host.sql.run("UPDATE model_calls SET status = ?, ended_at = ?, error = ? WHERE call_id = ?", [
-        state,
-        now,
-        error.message.slice(0, 1000),
-        call.callId,
-      ]);
+      host.sql.run("UPDATE model_calls SET status = ? WHERE call_id = ?", [state, call.callId]);
       enqueue(host.sql, turn.turn, [{ callId: call.callId, kind: "call", outcome }]);
       if (ending !== null) {
         endTurn(host.sql, turn.turn, {
-          at: now,
           detail: status === undefined ? null : `status ${String(status)}`,
           reason: ending,
         });
@@ -832,7 +783,7 @@ const failedCall = async (
   }
   settle("failed", null);
   const after = isApiError(error) ? retryAfterMs(error) : 0;
-  await host.jobs.driveAt(now + Math.min(RETRY_AFTER_MAX_MS, Math.max(wait, after)));
+  await host.jobs.driveAt(host.now() + Math.min(RETRY_AFTER_MAX_MS, Math.max(wait, after)));
   return "later";
 };
 
@@ -848,22 +799,32 @@ const sendPreview = async (host: ThreadHost, turn: number, text: string): Promis
   }
 };
 
+// which try of its step a call is
+interface CallTry {
+  readonly callId: string;
+  readonly turn: number;
+  readonly step: number;
+  readonly attempt: number;
+}
+
+// a try that never went out, counted so the next one takes an id of its own
+const recordUnsent = (
+  host: ThreadHost,
+  call: CallTry,
+  status: "cancelled" | "failed" | "refused",
+): void => {
+  host.sql.run(
+    "INSERT INTO model_calls (call_id, turn, step, attempt, status, isolate) VALUES (?, ?, ?, ?, ?, ?)",
+    [call.callId, call.turn, call.step, call.attempt, status, host.isolate],
+  );
+};
+
 // a call stopped before it went out: nothing sent, its reservation let go, and the stop settled by
 // the next step
-const unsentCall = (
-  host: ThreadHost,
-  turn: OpenTurn,
-  call: { readonly callId: string; readonly step: number; readonly attempt: number },
-): StepResult => {
-  const now = host.now();
+const unsentCall = (host: ThreadHost, call: CallTry): StepResult => {
   host.sql.transaction(() => {
-    host.sql.run(
-      `INSERT INTO model_calls (call_id, turn, step, attempt, status, isolate, request_sha,
-         max_tokens, started_at, ended_at)
-       VALUES (?, ?, ?, ?, 'cancelled', ?, '', 0, ?, ?)`,
-      [call.callId, turn.turn, call.step, call.attempt, host.isolate, now, now],
-    );
-    enqueue(host.sql, turn.turn, [{ callId: call.callId, kind: "call", outcome: "free" }]);
+    recordUnsent(host, call, "cancelled");
+    enqueue(host.sql, call.turn, [{ callId: call.callId, kind: "call", outcome: "free" }]);
   });
   return "continue";
 };
@@ -875,13 +836,13 @@ const reserveAndSend = async (
   signal: AbortSignal,
 ): Promise<StepResult> => {
   const { sql } = host;
-  const now = host.now();
   const { definition, sinceSeq } = definitionInForce(sql);
   const step = transcript.filter(
     (message) => message.role === "assistant" && message.turn === turn.turn,
   ).length;
   const tries = triesAt(sql, turn.turn, step);
   const callId = `${host.threadId}:${String(turn.turn)}:${String(step)}:${String(tries.tries)}`;
+  const callTry: CallTry = { attempt: tries.tries, callId, step, turn: turn.turn };
   // a step sent again keeps the cap it was first sent with, so its bytes are the same
   const resend = firstCapAt(sql, turn.turn, step);
   const rules = pendingRules(sql, turn, step);
@@ -901,9 +862,9 @@ const reserveAndSend = async (
   } catch (error) {
     console.warn({ event: "agent-reserve-failed", ...callFailureFields(error) });
     if (signal.aborted) {
-      return unsentCall(host, turn, { attempt: tries.tries, callId, step });
+      return unsentCall(host, callTry);
     }
-    await host.jobs.driveAt(now + CELL_AGAIN_MS);
+    await host.jobs.driveAt(host.now() + CELL_AGAIN_MS);
     return "later";
   }
   if (!reserved.ok) {
@@ -912,20 +873,15 @@ const reserveAndSend = async (
       return "purged";
     }
     sql.transaction(() => {
-      endTurn(sql, turn.turn, { at: now, detail: "the turn was closed", reason: "failed" });
+      endTurn(sql, turn.turn, { detail: "the turn was closed", reason: "failed" });
     });
     return "continue";
   }
   const reservation = reserved.value;
   if (reservation.kind === "refused") {
     sql.transaction(() => {
-      sql.run(
-        `INSERT INTO model_calls (call_id, turn, step, attempt, status, isolate, request_sha,
-           max_tokens, started_at, ended_at)
-         VALUES (?, ?, ?, ?, 'refused', ?, '', 0, ?, ?)`,
-        [callId, turn.turn, step, tries.tries, host.isolate, now, now],
-      );
-      endTurn(sql, turn.turn, { at: now, detail: null, reason: "budget" });
+      recordUnsent(host, callTry, "refused");
+      endTurn(sql, turn.turn, { detail: null, reason: "budget" });
     });
     return "continue";
   }
@@ -934,12 +890,21 @@ const reserveAndSend = async (
   // the last await before the request goes: a stop that landed while the call was reserved or its
   // request hashed sends nothing
   if (signal.aborted) {
-    return unsentCall(host, turn, { attempt: tries.tries, callId, step });
+    return unsentCall(host, callTry);
+  }
+  const client = host.client();
+  if (client === null) {
+    sql.transaction(() => {
+      recordUnsent(host, callTry, "failed");
+      enqueue(sql, turn.turn, [{ callId, kind: "call", outcome: "free" }]);
+      endTurn(sql, turn.turn, { detail: null, reason: "unavailable" });
+    });
+    return "continue";
   }
   sql.run(
     `INSERT INTO model_calls (call_id, turn, step, attempt, status, isolate, request_sha,
-       max_tokens, covered_seq, started_at)
-     VALUES (?, ?, ?, ?, 'streaming', ?, ?, ?, ?, ?)`,
+       max_tokens, covered_seq)
+     VALUES (?, ?, ?, ?, 'streaming', ?, ?, ?, ?)`,
     [
       callId,
       turn.turn,
@@ -949,21 +914,8 @@ const reserveAndSend = async (
       requestSha,
       reservation.maxTokens,
       coveredSeq,
-      now,
     ],
   );
-  const client = host.client();
-  if (client === null) {
-    sql.transaction(() => {
-      sql.run("UPDATE model_calls SET status = 'failed', ended_at = ? WHERE call_id = ?", [
-        now,
-        callId,
-      ]);
-      enqueue(sql, turn.turn, [{ callId, kind: "call", outcome: "free" }]);
-      endTurn(sql, turn.turn, { at: now, detail: null, reason: "unavailable" });
-    });
-    return "continue";
-  }
   let message: BetaMessage;
   try {
     const stream = client.beta.messages.stream(body, { signal });
@@ -1039,9 +991,8 @@ const finishTool = (
 ): void => {
   host.sql.transaction(() => {
     host.sql.run(
-      `UPDATE tool_calls SET status = 'done', result = ?, is_error = ?, ended_at = ?
-       WHERE tool_use_id = ?`,
-      [answer.content, answer.isError ? 1 : 0, host.now(), answer.toolUseId],
+      "UPDATE tool_calls SET status = 'done', result = ?, is_error = ? WHERE tool_use_id = ?",
+      [answer.content, answer.isError ? 1 : 0, answer.toolUseId],
     );
     enqueue(host.sql, turn, [resultEvent(answer.toolUseId, answer.content, answer.isError)]);
   });
@@ -1068,16 +1019,6 @@ const toolRound = async (
 ): Promise<StepResult> => {
   const { sql } = host;
   const uses = reply.content.flatMap((block) => (block.type === "tool_use" ? [block] : []));
-  if (uses.length === 0) {
-    sql.transaction(() => {
-      endTurn(sql, turn.turn, {
-        at: host.now(),
-        detail: "a reply named no tool",
-        reason: "failed",
-      });
-    });
-    return "continue";
-  }
   const asked: string[] = [];
   const until = host.now() + APPROVAL_LIMIT_MS;
   sql.transaction(() => {
@@ -1133,9 +1074,8 @@ const toolRound = async (
       return "continue";
     }
     sql.run(
-      `UPDATE tool_calls SET status = 'running', attempts = attempts + 1, started_at = ?
-       WHERE tool_use_id = ?`,
-      [host.now(), row.tool_use_id],
+      "UPDATE tool_calls SET status = 'running', attempts = attempts + 1 WHERE tool_use_id = ?",
+      [row.tool_use_id],
     );
     let answer: CellAnswer<ToolAnswer>;
     try {
@@ -1167,11 +1107,7 @@ const toolRound = async (
     return "paused";
   }
   sql.transaction(() => {
-    append(
-      sql,
-      { content: JSON.stringify(rows.map(resultBlock)), role: "user", turn: turn.turn },
-      "tools",
-    );
+    append(sql, { content: JSON.stringify(rows.map(resultBlock)), role: "user", turn: turn.turn });
     sql.run("UPDATE turns SET status = 'running' WHERE turn = ? AND status != 'ended'", [
       turn.turn,
     ]);
@@ -1207,10 +1143,11 @@ export const decideCall = async (
     if (row?.status !== "awaiting_approval" || row.decision !== null) {
       return false;
     }
-    host.sql.run(
-      "UPDATE tool_calls SET decision = ?, decided_by = ?, reason = ? WHERE tool_use_id = ?",
-      [answer.approved ? "approved" : "denied", answer.by, answer.reason, answer.toolUseId],
-    );
+    host.sql.run("UPDATE tool_calls SET decision = ?, reason = ? WHERE tool_use_id = ?", [
+      answer.approved ? "approved" : "denied",
+      answer.reason,
+      answer.toolUseId,
+    ]);
     host.sql.run(
       "UPDATE turns SET status = 'running' WHERE turn = ? AND status = 'awaiting_approval'",
       [row.turn],
@@ -1232,19 +1169,12 @@ export const decideCall = async (
 };
 
 // the turn marked stopped, durably, and its stream cut; the next step settles it
-export const requestCancel = (host: ThreadHost, turn: number): boolean => {
-  const open = host.sql.transaction(() => {
-    const held = host.sql.all("SELECT 1 FROM turns WHERE turn = ? AND status != 'ended'", [turn]);
-    host.sql.run("UPDATE turns SET cancel_requested = 1 WHERE turn = ? AND status != 'ended'", [
-      turn,
-    ]);
-    return held.length > 0;
-  });
+export const requestCancel = (host: ThreadHost, turn: number): void => {
+  host.sql.run("UPDATE turns SET cancel_requested = 1 WHERE turn = ? AND status != 'ended'", [
+    turn,
+  ]);
   host.calls.get(turn)?.abort.abort(new Error("The person stopped this turn."));
-  return open;
 };
-
-const pendingRowSchema = z.object({ status: z.string(), tool_use_id: z.string() });
 
 // a stopped turn still answers every call its last reply made, so the next request is valid: what
 // ran keeps its result, and the rest, the calls that waited on the person among them, did not run
@@ -1254,7 +1184,6 @@ const settleCancel = async (
   last: StoredMessage | undefined,
 ): Promise<void> => {
   const { sql } = host;
-  const now = host.now();
   const waited: string[] = [];
   sql.transaction(() => {
     if (last?.role === "assistant" && last.turn === turn.turn) {
@@ -1285,25 +1214,14 @@ const settleCancel = async (
           type: "tool_result" as const,
         };
       });
-      for (const raw of sql.all("SELECT tool_use_id, status FROM tool_calls WHERE msg_seq = ?", [
-        last.seq,
-      ])) {
-        const row = pendingRowSchema.parse(raw);
-        if (row.status !== "done") {
-          sql.run(
-            `UPDATE tool_calls SET status = 'done', decision = coalesce(decision, 'denied'),
-               decided_by = coalesce(decided_by, 'cancel'), result = ?, is_error = 1, ended_at = ?
-             WHERE tool_use_id = ?`,
-            [STOPPED, now, row.tool_use_id],
-          );
-        }
-      }
-      if (results.length > 0) {
-        append(sql, { content: JSON.stringify(results), role: "user", turn: turn.turn }, "cancel");
-      }
+      sql.run(
+        "UPDATE tool_calls SET status = 'done', result = ?, is_error = 1 WHERE msg_seq = ? AND status != 'done'",
+        [STOPPED, last.seq],
+      );
+      append(sql, { content: JSON.stringify(results), role: "user", turn: turn.turn });
       enqueue(sql, turn.turn, entries);
     }
-    endTurn(sql, turn.turn, { at: now, detail: null, reason: "cancelled" });
+    endTurn(sql, turn.turn, { detail: null, reason: "cancelled" });
   });
   for (const toolUseId of waited) {
     await host.jobs.dropApproval(toolUseId);

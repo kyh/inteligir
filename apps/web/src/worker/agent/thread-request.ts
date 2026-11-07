@@ -28,6 +28,7 @@ import type {
   BetaTextBlockParam,
   BetaTool,
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
+import { sha256Hex } from "@repo/contract/cloud/bytes";
 import { z } from "zod";
 
 import { AGENT_SYSTEM_PROMPT } from "./agent-prompt";
@@ -196,11 +197,6 @@ export const deployedDefinition = (): ThreadDefinition => ({
   tools: AGENT_TOOL_DEFINITIONS,
 });
 
-export const sha256Hex = async (text: string): Promise<string> => {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-};
-
 // the definition as its row keeps it, and the hash a deploy's definition is told apart by
 export const frozenDefinition = async (
   definition: ThreadDefinition,
@@ -320,11 +316,9 @@ export const agentRequest = (
 
 // every replayed thinking block the API dropped, logged by where it sat: a fallback model reads
 // none of Opus 5.5's, which is no bug, and every other drop is one
-export const logDroppedThinking = (threadId: string, message: BetaMessage): number => {
-  let dropped = 0;
+export const logDroppedThinking = (threadId: string, message: BetaMessage): void => {
   for (const entry of message.input_transformations ?? []) {
     if (entry.type === "thinking_dropped" && entry.reason !== "model_binding_mismatch") {
-      dropped += 1;
       console.error({
         event: "agent-thinking-dropped",
         path: entry.path,
@@ -333,7 +327,6 @@ export const logDroppedThinking = (threadId: string, message: BetaMessage): numb
       });
     }
   }
-  return dropped;
 };
 
 // ---- what a request costs to send, as the cell prices a reservation ----

@@ -15,6 +15,7 @@ import { call, getRouter, ORPCError, Procedure, walkProcedureContractsSync } fro
 import type { AnyProcedure, AnyRouter, Context, ProcedureClientInterceptor } from "@orpc/server";
 import type { AnySchema, ErrorMap } from "@orpc/contract";
 import type { BetaTool } from "@anthropic-ai/sdk/resources/beta/messages/messages";
+import { sha256Hex } from "@repo/contract/cloud/bytes";
 import { PAGE_MAX } from "@repo/contract/cloud/library/library-wire";
 import { z } from "zod";
 
@@ -175,22 +176,11 @@ const procedureAt = (router: AnyRouter, path: readonly string[]): AnyProcedure |
   return found instanceof Procedure ? found : null;
 };
 
-const HEX = /^[0-9a-f]{64}$/u;
-
 // the op id a call's write keeps, a UUID read off the hash of `agent:<threadId>:<toolUseId>`, so
 // the same call lands once however often it is run
 /** @internal */
 export const agentOpId = async (threadId: string, toolUseId: string): Promise<string> => {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(`agent:${threadId}:${toolUseId}`),
-  );
-  const hex = [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-  if (!HEX.test(hex)) {
-    throw new Error("a SHA-256 digest is 32 bytes");
-  }
+  const hex = await sha256Hex(`agent:${threadId}:${toolUseId}`);
   // version 8 (RFC 9562 § 5.8) and the RFC's variant over the hash's own bits
   const variant = ((Number.parseInt(hex.slice(16, 17), 16) % 4) + 8).toString(16);
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-8${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;

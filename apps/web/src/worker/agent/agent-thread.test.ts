@@ -51,8 +51,8 @@ const TURN_MS = 30_000;
 
 const callSchema = z.object({
   call_id: z.string(),
-  max_tokens: z.number(),
-  request_sha: z.string(),
+  max_tokens: z.number().nullable(),
+  request_sha: z.string().nullable(),
   status: z.string(),
   step: z.number(),
   turn: z.number(),
@@ -193,7 +193,7 @@ const expectRepliesAskedAsKept = async (account: AgentAccount, threadId: string)
     const body = agentRequest(
       storedDefinition(inForce),
       requestMessages(messages.slice(0, at), inForce.since_seq),
-      call.max_tokens,
+      call.max_tokens ?? 0,
     );
     await expect(sha256(JSON.stringify(body)), `reply ${String(index)}`).resolves.toBe(
       call.request_sha,
@@ -681,12 +681,14 @@ describe("a conversation's object", () => {
       );
       expect(tool).toStrictEqual({ attempts: 1, is_error: 0 });
       // a second answer decides nothing
-      const decided = await threadOf(account.accountId, sent.threadId).respond({
+      await threadOf(account.accountId, sent.threadId).respond({
         approved: false,
         reason: null,
         toolUseId: z.object({ toolUseId: z.string() }).parse(asked?.event).toolUseId,
       });
-      expect(decided).toStrictEqual({ decided: false });
+      await expect(
+        threadRows(account.accountId, sent.threadId, "SELECT decision FROM tool_calls"),
+      ).resolves.toStrictEqual([{ decision: "approved" }]);
     },
   );
 
@@ -954,7 +956,6 @@ describe("a conversation's loop, stepped", () => {
       const account = agentAccount();
       const threadId = crypto.randomUUID();
       let stepped: ThreadHost | null = null;
-      const cancels: boolean[] = [];
       await inSteppedThread(
         account,
         threadId,
@@ -972,7 +973,7 @@ describe("a conversation's loop, stepped", () => {
             agentReserve: async (request) => {
               const answer = await real.agentReserve(request);
               if (stepped !== null) {
-                cancels.push(requestCancel(stepped, request.turn));
+                requestCancel(stepped, request.turn);
               }
               return answer;
             },
@@ -980,9 +981,10 @@ describe("a conversation's loop, stepped", () => {
           }),
         },
       );
-      expect(cancels).toStrictEqual([true]);
       const calls = await callsOf(account, threadId);
-      expect(calls.map((call) => [call.status, call.max_tokens])).toStrictEqual([["cancelled", 0]]);
+      expect(calls.map((call) => [call.status, call.max_tokens])).toStrictEqual([
+        ["cancelled", null],
+      ]);
       await expect(endingsOf(account, threadId)).resolves.toStrictEqual([{ reason: "cancelled" }]);
       const roles = await threadRows(account.accountId, threadId, "SELECT role FROM transcript");
       expect(roles).toStrictEqual([{ role: "user" }]);

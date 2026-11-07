@@ -178,7 +178,7 @@ describe("a conversation's request", () => {
         },
       ],
     };
-    expect(logDroppedThinking("thread-1", dropped)).toBe(1);
+    logDroppedThinking("thread-1", dropped);
     expect(logged).toHaveBeenCalledWith({
       event: "agent-thinking-dropped",
       path: "messages.1.content.0",

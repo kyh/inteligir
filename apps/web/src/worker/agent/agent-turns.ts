@@ -266,20 +266,20 @@ const landRows = async (cell: AgentCell, work: (scope: LandingScope) => void): P
 };
 
 // the open turn handed to its thread's object, and stopped there when the person stopped it; the
-// job stays for the alarm until both landed. False when the object could not be reached
-const deliverTurn = async (cell: AgentCell, threadId: string): Promise<boolean> => {
+// job stays for the alarm until both landed
+const deliverTurn = async (cell: AgentCell, threadId: string): Promise<void> => {
   const read = cell.library.read((sql) => {
     const turn = openTurnOf(sql, threadId);
     return turn === null ? null : { rules: filingRules(sql), turn };
   });
   if (!read.ok) {
-    return false;
+    return;
   }
   if (read.value === null) {
     await landRows(cell, (scope) => {
       dropJob(scope.storage, deliverJob(threadId).id);
     });
-    return true;
+    return;
   }
   const { rules, turn } = read.value;
   const stub = threadStub(cell.exports, cell.accountId, threadId);
@@ -299,7 +299,7 @@ const deliverTurn = async (cell: AgentCell, threadId: string): Promise<boolean> 
     await landRows(cell, (scope) => {
       deferJob(scope.storage, deliverJob(threadId).id, scope.now + DELIVER_AGAIN_MS);
     });
-    return false;
+    return;
   }
   await landRows(cell, (scope) => {
     // a stop asked for meanwhile is delivered by the job it asked for
@@ -307,7 +307,6 @@ const deliverTurn = async (cell: AgentCell, threadId: string): Promise<boolean> 
       dropJob(scope.storage, deliverJob(threadId).id);
     }
   });
-  return true;
 };
 
 // ---- sending ----
