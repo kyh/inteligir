@@ -21,6 +21,7 @@ import { uuidV7 } from "@repo/notes/library/uuid-v7";
 import { z } from "zod";
 
 import type { LeaveGuard } from "./leave-guard";
+import { keepSession } from "./session-keeper";
 import { createCloudWire } from "./v1";
 import type { CloudWire } from "./v1";
 
@@ -152,6 +153,9 @@ export const openPageLibrary = async (
   if (opening.kind === "unsupported") {
     return { kind: "unsupported" };
   }
+  keepSession(pageClock, async () => {
+    await readSession(origin);
+  });
   return {
     kind: "ready",
     library: {

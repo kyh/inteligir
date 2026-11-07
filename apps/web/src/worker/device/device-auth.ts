@@ -69,7 +69,9 @@ const verifyDeviceCredentialValue = async (
   return touched ?? null;
 };
 
-// the igd_ prefix routes the bearer: a session token never reaches this table and a device credential never reaches Better Auth
+// the one verifier a bearer meets: the Authorization header alone picks it (`../wire/v1-principal`),
+// so a device credential never reaches Better Auth, and a token without the igd_ prefix is refused
+// before its hash and the read, so a session token never reaches this table
 export const verifyDeviceCredential = async (
   db: Db,
   authorization: string | null,

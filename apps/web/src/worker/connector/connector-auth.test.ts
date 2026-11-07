@@ -4,16 +4,18 @@
 
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
+import { CONNECTOR_PATH } from "@repo/contract/cloud/connector";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import type { V1Client } from "@repo/contract/cloud/v1";
 import { env } from "cloudflare:workers";
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { createDb } from "../db/client";
-import { connectorAuth } from "./connector-auth";
-import { rateLimit } from "../db/schema";
-import { CALLER_IP_HEADER, callerRateKey, deviceRateKey } from "../rate-limit";
+import { connectorAuth, isConnectorPath } from "./connector-auth";
+import { rateLimit, session } from "../db/schema";
+import { CALLER_IP_HEADER, callerRateKey, grantRateKey } from "../rate-limit";
 import {
   deviceHeaders,
   drained,
@@ -105,6 +107,13 @@ describe("the connector's sign-in", () => {
     expect(rebound.status).toBe(403);
   });
 
+  it("owns its own path and its metadata, and nothing under either", () => {
+    expect(isConnectorPath(CONNECTOR_PATH)).toBe(true);
+    expect(isConnectorPath(`/.well-known/oauth-protected-resource${CONNECTOR_PATH}`)).toBe(true);
+    expect(isConnectorPath(`${CONNECTOR_PATH}/`)).toBe(false);
+    expect(isConnectorPath(`${CONNECTOR_PATH}/anything`)).toBe(false);
+  });
+
   it("takes no device credential: the connector is an assistant's door alone", async () => {
     const { cookie } = await signUpUser("connector-device@example.test");
     const device = await loginDevice(cookie, "Laptop");
@@ -141,6 +150,24 @@ describe("the connector's sign-in", () => {
       "frame-ancestors 'none'",
     );
     expect(shown.response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("leaves a session due to slide as it found it, having no cookie to send with it", async () => {
+    const { cookie } = await signUpUser("connector-slide@example.test");
+    const userId = await userIdOf(cookie);
+    const db = createDb(env.DB);
+    const due = new Date(Date.now() + 5 * 86_400_000);
+    await db.update(session).set({ expiresAt: due }).where(eq(session.userId, userId));
+
+    const { challenge } = await pkcePair();
+    await showConsent(cookie, authorizeUrl(await registerClient(), challenge));
+
+    const row = await db
+      .select({ expiresAt: session.expiresAt })
+      .from(session)
+      .where(eq(session.userId, userId))
+      .get();
+    expect(row?.expiresAt.getTime()).toBe(due.getTime());
   });
 
   it("hands the client a code bound to its challenge, and a token minted for this connector alone", async () => {
@@ -326,7 +353,7 @@ describe("the connector's budgets", () => {
       .insert(rateLimit)
       .values({
         id: crypto.randomUUID(),
-        key: deviceRateKey("connector", grant?.grantId ?? ""),
+        key: grantRateKey(grant?.grantId ?? ""),
         ...spent,
       })
       .onConflictDoUpdate({ set: spent, target: rateLimit.key });

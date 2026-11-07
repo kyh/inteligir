@@ -55,10 +55,10 @@ import { runImports } from "./cell-imports";
 import { openCellSchema } from "./cell-schema";
 import {
   acceptSocket,
+  CELL_SOCKET_PATH,
   holderFromHeader,
   pingLibraryMoved,
   severHolder,
-  SOCKET_HOLDER_HEADER,
   socketHolder,
   tellSockets,
 } from "./cell-sockets";
@@ -73,6 +73,7 @@ import {
   isNamedPrincipal,
   PRINCIPAL_HEADER,
   principalFromHeader,
+  SOCKET_HOLDER_HEADER,
 } from "./library-principal";
 import type { NamedPrincipal, Principal } from "./library-principal";
 import { libraryRouter } from "./library-router";
@@ -118,7 +119,10 @@ export class LibraryDO extends DurableObject<Env> {
     if (pathname === CONNECTOR_PATH) {
       return await this.#serveConnector(request);
     }
-    return this.#acceptSocket(request);
+    if (pathname === CELL_SOCKET_PATH) {
+      return this.#acceptSocket(request);
+    }
+    return plainText(404, "not found");
   }
 
   // the principal the Worker stamped, held to this cell's own account: only the Worker reaches a
@@ -209,11 +213,10 @@ export class LibraryDO extends DurableObject<Env> {
     // a frame is no request: a newer app must not lose its socket over one this build predates
   }
 
-  // oxlint-disable-next-line eslint/class-methods-use-this -- DurableObject declares this hook as an instance method
   override webSocketError(socket: WebSocket, cause: unknown): void {
     console.warn({
       event: "library-socket-error",
-      holder: socketHolder(socket)?.kind ?? null,
+      holder: socketHolder(this.ctx, socket)?.kind ?? null,
       ...errorFields(cause),
     });
   }

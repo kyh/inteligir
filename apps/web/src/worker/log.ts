@@ -34,12 +34,11 @@ export const errorFields = (cause: unknown): ErrorFields => {
 // Every expected failure is already a response, so a throw is a bug or an outage; without this
 // line workerd's own 500 leaves nothing in `wrangler tail`. Workers Logs indexes the fields of a
 // logged object. The search string is dropped: a query string may carry a path or token.
-export const logUnhandled = (surface: string, request: Request, cause: unknown): void => {
+export const logUnhandled = (request: Request, cause: unknown): void => {
   console.error({
     event: "unhandled-error",
     method: request.method,
     path: new URL(request.url).pathname,
-    surface,
     ...errorFields(cause),
   });
 };

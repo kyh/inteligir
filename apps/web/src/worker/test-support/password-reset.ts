@@ -2,7 +2,7 @@
 // cannot run here (it needs the owner's sending domain), so a request that must observe the send
 // goes through `worker.fetch` with the recording EMAIL binding.
 
-import { createExecutionContext } from "cloudflare:test";
+import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
 import { expect } from "vitest";
 
@@ -20,10 +20,12 @@ interface EmailRecorder {
   sent: RecordedEmail[];
 }
 
-export const recordingEmail = (): EmailRecorder => {
+// each mail is recorded once `gate` settles, so a test can hold it mid-send
+export const recordingEmail = (gate: Promise<void> = Promise.resolve()): EmailRecorder => {
   const sent: RecordedEmail[] = [];
   const EMAIL: SendEmail = {
     send: async (message: EmailMessage | EmailMessageBuilder): Promise<EmailSendResult> => {
+      await gate;
       if (!("subject" in message)) {
         throw new Error("unexpected raw EmailMessage send");
       }
@@ -41,7 +43,11 @@ export const envWith = (EMAIL: SendEmail): Env => ({ ...env, EMAIL, RESET_FROM_A
 
 // worker.fetch rather than exports.default.fetch: it is the only way to swap in the recording EMAIL
 // binding
-export const requestReset = async (email: string, testEnv: Env): Promise<Response> =>
+export const answerToReset = async (
+  email: string,
+  testEnv: Env,
+  ctx: ExecutionContext,
+): Promise<Response> =>
   await worker.fetch(
     new Request(`${ORIGIN}/api/auth/request-password-reset`, {
       body: JSON.stringify({ email, redirectTo: RESET_PAGE_PATH }),
@@ -49,8 +55,16 @@ export const requestReset = async (email: string, testEnv: Env): Promise<Respons
       method: "POST",
     }),
     testEnv,
-    createExecutionContext(),
+    ctx,
   );
+
+// the answer, once whatever it left to the runtime has run
+export const requestReset = async (email: string, testEnv: Env): Promise<Response> => {
+  const ctx = createExecutionContext();
+  const response = await answerToReset(email, testEnv, ctx);
+  await waitOnExecutionContext(ctx);
+  return response;
+};
 
 export const firstEmail = (sent: RecordedEmail[]): RecordedEmail => {
   const [first] = sent;

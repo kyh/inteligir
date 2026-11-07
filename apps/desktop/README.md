@@ -39,7 +39,7 @@ the build) and for the credential a sign-in kept
 - **A credential** opens the replica engine (`@repo/library-replica`) over the
   shell's SQLite, its staged files in the shell, and every `/v1` call to the
   cloud's origin with the credential as its bearer and the build in its
-  header. The Worker answers CORS for the app's origin alone
+  header. The Worker answers CORS for the app's exact origin
   (`apps/web/src/worker/cors.ts`); the socket opens on a ticket the credential
   mints.
 

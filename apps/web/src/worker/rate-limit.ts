@@ -1,11 +1,13 @@
+import { getIP } from "better-auth/api";
 import { inArray, sql } from "drizzle-orm";
 import type { Db } from "./db/client";
 import { rateLimit } from "./db/schema";
 
 // Fixed windows over Better Auth's own rate_limit table, which Better Auth prunes on its own
 // writes: a row whose last request is older than its longest window goes, the Worker's included.
-// Unauthenticated callers are keyed on their address, verified devices on the device and an
-// assistant on its grant; the kill switch is read here, not per caller.
+// Unauthenticated callers are keyed on their address, `/v1`'s holders on the device or browser
+// session that signed in, and an assistant on its grant; the kill switch is read here, not per
+// caller.
 
 /** @internal */
 export interface RateWindow {
@@ -46,25 +48,30 @@ const allowInWindow = async (
   return settled === undefined || settled.count <= window.max;
 };
 
-// named here because eviction must spend the same spellings the routes do; the table has no foreign key
-const DEVICE_RATE_KEY_PREFIXES = {
+// what `holderIdOf` keys: named here because eviction must spend the same spellings the routes do;
+// the table has no foreign key
+const HOLDER_RATE_KEY_PREFIXES = {
   accountDelete: "account-delete:",
   blobs: "blobs:",
-  connector: "connector:",
   rpc: "rpc:",
 } as const;
 
-type DeviceRateFamily = keyof typeof DEVICE_RATE_KEY_PREFIXES;
+type HolderRateFamily = keyof typeof HOLDER_RATE_KEY_PREFIXES;
 
 /** @internal */
-export const deviceRateKey = (family: DeviceRateFamily, deviceId: string): string =>
-  `${DEVICE_RATE_KEY_PREFIXES[family]}${deviceId}`;
+export const holderRateKey = (family: HolderRateFamily, holderId: string): string =>
+  `${HOLDER_RATE_KEY_PREFIXES[family]}${holderId}`;
+
+/** @internal */
+export const grantRateKey = (grantId: string): string => `connector:${grantId}`;
 
 // Better Auth's prune reaches a row only after its window lapsed, and only when one of Better
-// Auth's own windows rolls over; a revoked device's budget names nobody, so it goes at once
+// Auth's own windows rolls over; a revoked device's budget names nobody, so it goes at once. A
+// session's and a grant's wait for the prune: a session also ends by lapsing, which nothing
+// announces, and a revoked grant's token may answer for a minute more and write its row again
 export const forgetDeviceBudgets = async (db: Db, deviceIds: readonly string[]): Promise<void> => {
   const keys = deviceIds.flatMap((deviceId) =>
-    Object.values(DEVICE_RATE_KEY_PREFIXES).map((prefix) => `${prefix}${deviceId}`),
+    Object.values(HOLDER_RATE_KEY_PREFIXES).map((prefix) => `${prefix}${deviceId}`),
   );
   if (keys.length === 0) {
     return;
@@ -83,13 +90,18 @@ const CALLER_RATE_KEY_PREFIXES = {
 type CallerRateFamily = keyof typeof CALLER_RATE_KEY_PREFIXES;
 
 // the one address Cloudflare's edge writes itself; x-forwarded-for carries whatever the caller put
-// ahead of the edge's hop. Better Auth's limiter reads it too (./auth/auth.ts), so every window
-// keyed on a caller names the same caller.
+// ahead of the edge's hop
+/** @internal */
 export const CALLER_IP_HEADER = "cf-connecting-ip";
+
+// how a caller is told from a request here and in Better Auth's limiter (./auth/auth.ts), so every
+// window names the same caller: `getIP` masks an IPv6 address to its /64, which one host holds
+// whole and could otherwise walk for a fresh window on every request
+export const CALLER_ADDRESS = { ipAddressHeaders: [CALLER_IP_HEADER] };
 
 /** @internal */
 export const callerRateKey = (family: CallerRateFamily, request: Request): string =>
-  `${CALLER_RATE_KEY_PREFIXES[family]}${request.headers.get(CALLER_IP_HEADER) ?? "unknown"}`;
+  `${CALLER_RATE_KEY_PREFIXES[family]}${getIP(request, { advanced: { ipAddress: CALLER_ADDRESS } }) ?? "unknown"}`;
 
 // every window the Worker spends, in one table so the guard reads each against AUTH_RATE_WINDOW_SECONDS
 /** @internal */
@@ -113,7 +125,7 @@ export const RATE_WINDOWS = {
   // a week away pulls a thousand changes a page and its bodies four MB an answer while its outbox
   // drains a write a call, which a few hundred calls cover, so a ceiling past that is a loop
   rpc: { max: 1200, windowMs: 60_000 },
-} as const satisfies Record<CallerRateFamily | DeviceRateFamily, RateWindow>;
+} as const satisfies Record<CallerRateFamily | HolderRateFamily | "connector", RateWindow>;
 
 export const spendCallerBudget = async (
   env: Env,
@@ -123,10 +135,13 @@ export const spendCallerBudget = async (
 ): Promise<boolean> =>
   await allowInWindow(env, db, callerRateKey(family, request), RATE_WINDOWS[family]);
 
-export const spendDeviceBudget = async (
+export const spendHolderBudget = async (
   env: Env,
   db: Db,
-  family: DeviceRateFamily,
-  deviceId: string,
+  family: HolderRateFamily,
+  holderId: string,
 ): Promise<boolean> =>
-  await allowInWindow(env, db, deviceRateKey(family, deviceId), RATE_WINDOWS[family]);
+  await allowInWindow(env, db, holderRateKey(family, holderId), RATE_WINDOWS[family]);
+
+export const spendGrantBudget = async (env: Env, db: Db, grantId: string): Promise<boolean> =>
+  await allowInWindow(env, db, grantRateKey(grantId), RATE_WINDOWS.connector);

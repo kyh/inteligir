@@ -7,7 +7,7 @@ import {
 } from "@repo/contract/cloud/device/device-schema";
 import { createDb } from "../db/client";
 import { authTables } from "../db/schema";
-import { AUTH_RATE_WINDOW_SECONDS, CALLER_IP_HEADER } from "../rate-limit";
+import { AUTH_RATE_WINDOW_SECONDS, CALLER_ADDRESS } from "../rate-limit";
 import { libraryCell } from "../library/library-cell";
 import { severSockets } from "../library/socket-routes";
 import { sendResetEmail } from "./reset-email";
@@ -17,19 +17,22 @@ import { sendResetEmail } from "./reset-email";
 
 // The HTTP router's alone: auth.api still calls each. The site calls sign-in, get-session and the
 // reset pair, and the invite gate forwards sign-up; a route no client calls is surface with no
-// user. Sign-out stays, since ending a session is never a risk. Deletion's one door is
-// `account.delete` (../device/account.ts), which asks the password again, where Better Auth's own
-// route settles for a fresh session.
+// user. Sign-out stays, since ending a session is never a risk. So does `/callback/:id`, which an
+// exact list cannot name and which, with no social provider, has nothing to sign in with. Deletion's
+// one door is `account.delete` (../device/account.ts), which asks the password again, where Better
+// Auth's own route settles for a fresh session.
 const DISABLED_PATHS = [
   "/account-info",
   "/change-email",
   "/change-password",
   "/delete-user",
   "/delete-user/callback",
+  "/error",
   "/get-access-token",
   "/link-social",
   "/list-accounts",
   "/list-sessions",
+  "/ok",
   "/refresh-token",
   "/revoke-other-sessions",
   "/revoke-session",
@@ -43,17 +46,19 @@ const DISABLED_PATHS = [
   "/verify-password",
 ];
 
-const buildAuth = (
-  env: Env,
-  exports: Cloudflare.Exports,
-  baseURL: string,
-  disableSignUp: boolean,
-) =>
+const buildAuth = (env: Env, ctx: ExecutionContext, baseURL: string, disableSignUp: boolean) =>
   betterAuth({
     advanced: {
+      // past the answer: an unknown address sends no reset mail, so a request that waited on one
+      // would say by its time which addresses hold an account
+      backgroundTasks: {
+        handler: (task) => {
+          ctx.waitUntil(task);
+        },
+      },
       // the default reads x-forwarded-for and, finding more than one hop there, keys every such
       // caller into one bucket per path
-      ipAddress: { ipAddressHeaders: [CALLER_IP_HEADER] },
+      ipAddress: CALLER_ADDRESS,
     },
     baseURL,
     database: drizzleAdapter(createDb(env.DB), { provider: "sqlite", schema: authTables }),
@@ -64,7 +69,7 @@ const buildAuth = (
       session: {
         delete: {
           after: async (ended) => {
-            await severSockets(exports, ended.userId, { id: ended.id, kind: "session" });
+            await severSockets(ctx.exports, ended.userId, { id: ended.id, kind: "session" });
           },
         },
       },
@@ -104,18 +109,26 @@ const buildAuth = (
         // retry. The library cell runs the account's purge, in its order, its credentials last
         // (../library/account-purge.ts).
         beforeDelete: async (user) => {
-          await libraryCell(exports, user.id).purge(user.email);
+          await libraryCell(ctx.exports, user.id).purge(user.email);
         },
         enabled: true,
       },
     },
   });
 
-export const createAuth = (env: Env, exports: Cloudflare.Exports, baseURL: string) =>
-  buildAuth(env, exports, baseURL, true);
+export const createAuth = (env: Env, ctx: ExecutionContext, baseURL: string) =>
+  buildAuth(env, ctx, baseURL, true);
+
+// the session a request's cookie names, for a route of the Worker's own: it answers with no cookie
+// of Better Auth's, so a row slid here would outlive the cookie that names it
+export const readSession = async (env: Env, ctx: ExecutionContext, request: Request) =>
+  await createAuth(env, ctx, new URL(request.url).origin).api.getSession({
+    headers: request.headers,
+    query: { disableRefresh: true },
+  });
 
 // Better Auth reads disableSignUp off the instance options with no per-call override, so the
 // invite gate's two doors (./invite.ts, ../device/sign-up.ts) need this second instance; the flag
 // also shuts auth.api.signUpEmail.
-export const createSignUpAuth = (env: Env, exports: Cloudflare.Exports, baseURL: string) =>
-  buildAuth(env, exports, baseURL, false);
+export const createSignUpAuth = (env: Env, ctx: ExecutionContext, baseURL: string) =>
+  buildAuth(env, ctx, baseURL, false);

@@ -57,15 +57,21 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 
 - **THE ACCOUNT'S SOCKETS ARE ITS LIBRARY CELL'S, EACH TAGGED WITH THE HOLDER
   THE WORKER VERIFIED.** The cell accepts each hibernating socket under the
-  device or browser session the Worker stamps on the upgrade, the one call
-  fetch carries; a committed write sends every socket the head. Every client's
-  socket opens on `/v1/socket` with a minute's HMAC ticket a `/v1` call
-  minted, since a browser's sends no header, its holder checked in D1 again;
-  that check is the upgrade's alone, so a device's revocation and every
-  session's end (a sign-out, a password reset) close that holder's sockets.
+  device or browser session the Worker stamps on the upgrade, on one exact path
+  only `socket-routes.ts` forwards to; every other forwarded call has any holder
+  header dropped, and a path the cell does not know is a 404, so no other
+  credential reaches that door. A committed write sends every socket the head.
+  Every client's socket opens on `/v1/socket` with a minute's HMAC ticket a
+  `/v1` call minted, since a browser's sends no header, its holder checked in D1
+  again; that check is the upgrade's alone, read before the cell accepts and
+  once more after, since a sever closes only sockets already accepted, so a
+  device's revocation and every session's end (a sign-out, a password reset)
+  close that holder's sockets, a revocation's sever coming first after its
+  update, since a retry meets a row already revoked.
   Rejected: a socket object beside the cell (every ping crossing to it); the
   bearer in the URL (it outlives a minute in any log); a bearer on the upgrade
-  for the clients that can send one (a second door to keep).
+  for the clients that can send one (a second door to keep); the upgrade as the
+  cell's default answer (any path it did not match became a socket).
   `apps/web/src/worker/library/cell-sockets.ts`, `socket-ticket.ts`,
   `socket-routes.ts`.
 
@@ -104,8 +110,9 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   Worker parses every answer through its row's output schema, which strips
   what the row did not declare, and a client reads only the fields it names; a
   refusal is narrowed by its code, one a build does not know is no verdict on
-  its credential, and an error no row declares is a fault to retry. Requests
-  stay `z.strictObject`, since only the newest Worker reads them. A shape
+  its credential, and an error no row declares is a fault to retry, but for
+  `BAD_REQUEST`, which says the call can never land as it is. Requests stay
+  `z.strictObject`, since only the newest Worker reads them. A shape
   retires only once the floor passes every build reading it, and a field that
   changes what a row MEANS reaches only clients declaring it. Rejected: a wire
   final at birth behind strict readers (every addition a new row); per-row
@@ -276,7 +283,10 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 - **A FILE'S BYTES ARE R2'S, ADDRESSED BY THEIR SHA, AND R2 CHECKS IT.** A
   `PUT /v1/blobs/<sha>` takes room in the cell at the length it declares, at
   most 100 MB, streams into `BLOBS` with `sha256`, so R2 keeps nothing that
-  hashes otherwise, and settles the row at the size R2 holds. A read hands R2
+  hashes otherwise, and settles the row at the size R2 holds. Only R2's own
+  checksum refusal answers 400, which a device parks for good; any other failed
+  put answers 500, which it sends again on its doubling wait, since R2 said
+  nothing of the bytes. A read hands R2
   the request's range and preconditions: 206 from `object.range` for any single
   range, one spanning the file included, 416 for one past the end, a
   multi-part ask whole, 304 and 412; every file but a PDF is served under a
@@ -668,3 +678,14 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `apps/web/src/worker/library/library-rules.ts`,
   `apps/web/src/worker/agent/thread-loop.ts`,
   `packages/editor/src/codec/import-plan.ts`.
+
+- **ONLY BETTER AUTH'S OWN READ SLIDES A SESSION, AND A TAB MAKES IT ON THE
+  HOUR.** A session's row and its cookie slide together or not at all, and only
+  `/api/auth/get-session` answers the browser with that cookie, so a read of the
+  Worker's own (`/v1`, the consent page) passes `disableRefresh`, and a tab left
+  open reads its session hourly, its other calls renewing nothing. Rejected: a
+  slide on `/v1` (the row outlives the cookie, and an open tab is signed out at
+  seven days with its row standing); forwarding `Set-Cookie` on every `/v1`
+  answer (each door, a file's immutable read among them, carrying a header none
+  of them owns). `apps/web/src/worker/auth/auth.ts`,
+  `apps/workspace/src/app/cloud/session-keeper.ts`.

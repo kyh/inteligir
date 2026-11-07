@@ -5,7 +5,7 @@
 // verify is refused, never retried as a cookie, and a cookie counts only on a request this site's
 // own page made, which a browser marks and no other page can forge.
 
-import { createAuth } from "../auth/auth";
+import { readSession } from "../auth/auth";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";
 import type { AppPrincipal } from "../library/library-principal";
@@ -32,9 +32,7 @@ const verifyPrincipal = async (
   if (!fromOwnPage(request)) {
     return null;
   }
-  const signedIn = await createAuth(env, ctx.exports, new URL(request.url).origin).api.getSession({
-    headers: request.headers,
-  });
+  const signedIn = await readSession(env, ctx, request);
   return signedIn === null
     ? null
     : {

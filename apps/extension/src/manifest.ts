@@ -1,8 +1,8 @@
 // the extension's MV3 manifest, one function of its flavor: the dev build the e2e and a checkout
 // load, the store zip, and the unpacked store build a release check loads. Only the store zip lacks
-// the key, so the dev and unpacked builds carry the committed id, the one origin the cloud answers
-// CORS for and the one id its connect page hands a credential to. wxt.config.ts hands it to WXT
-// and refuses a build whose manifest.json says anything else.
+// the key, so the dev and unpacked builds carry the committed id, one origin to the cloud's CORS
+// and the one id its connect page hands a credential to. wxt.config.ts hands it to WXT and refuses
+// a build whose manifest.json says anything else.
 
 import { EXTENSION_PUBLIC_KEY } from "@repo/contract/cloud/extension/extension-identity";
 import { CONNECT_EXTENSION_PATH } from "@repo/contract/cloud/extension/extension-connect";

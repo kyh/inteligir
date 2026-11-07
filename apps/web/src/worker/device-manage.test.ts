@@ -2,7 +2,8 @@
 // Settings › Account lists and revokes the account's devices with that.
 
 import { SOCKET_REVOKED_CLOSE_CODE } from "@repo/contract/cloud/library/library-socket";
-import { describe, expect, it } from "vitest";
+import { env } from "cloudflare:workers";
+import { describe, expect, it, vi } from "vitest";
 import {
   deviceHeaders,
   loginDevice,
@@ -66,6 +67,33 @@ describe("a device managing its account's devices", () => {
     await expect(lost.refusalOf(lost.account.devices.list())).resolves.toMatchObject(UNAUTHORIZED);
     const { devices } = await as(mac.credential).account.devices.list();
     expect(devices.find((row) => row.id === phone.deviceId)?.revokedAt).not.toBeNull();
+  });
+
+  it("closes a revoked sibling's live socket even when its budgets can't be dropped", async () => {
+    const { cookie } = await signUpUser("manage-revoke-fault@example.test");
+    const mac = await loginDevice(cookie, "Mac");
+    const phone = await loginDevice(cookie, "Lost Phone");
+    const socket = await openSocket(phone.credential);
+    // oxlint-disable-next-line promise/avoid-new -- the close code arrives as a socket event, which only a promise can hand to an await
+    const closed = new Promise<number>((resolve) => {
+      socket.socket.addEventListener("close", (close) => {
+        resolve(close.code);
+      });
+    });
+    const prepare = env.DB.prepare.bind(env.DB);
+    const faulty = vi.spyOn(env.DB, "prepare").mockImplementation((query) => {
+      if (query.startsWith('delete from "rate_limit"')) {
+        throw new Error("D1 went away");
+      }
+      return prepare(query);
+    });
+
+    await expect(
+      as(mac.credential).account.devices.revoke({ deviceId: phone.deviceId }),
+    ).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+    faulty.mockRestore();
+
+    await expect(closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
   });
 
   it("answers another account's device as not found, and leaves it signed in", async () => {

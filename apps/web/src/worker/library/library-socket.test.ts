@@ -8,7 +8,7 @@ import {
 import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
 import { evictDurableObject, listDurableObjectIds } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import {
@@ -21,6 +21,7 @@ import {
   userIdOf,
   v1Link,
 } from "../test-support/cloud-helpers";
+import { CONNECTOR_URL, connectAssistant, workerFetch } from "../test-support/connector-session";
 import { issueToken } from "../test-support/password-reset";
 import {
   cellOf,
@@ -33,8 +34,9 @@ import {
 } from "../test-support/library-cell";
 import { ACCOUNT_PURGE_STEPS } from "./account-purge";
 import { openCellLibrary, settleCommit } from "./cell-library";
-import { SOCKET_HOLDER_HEADER } from "./cell-sockets";
+import { CELL_SOCKET_PATH } from "./cell-sockets";
 import { libraryCellName } from "./library-cell";
+import { forwardAsPrincipal, SOCKET_HOLDER_HEADER } from "./library-principal";
 import { mintSocketTicket } from "./socket-ticket";
 
 interface OpenSocket {
@@ -223,6 +225,79 @@ describe("the account's socket", () => {
     await expect(closedWithin(opened, 300)).resolves.toBe("open");
     await cellOf(accountId).sever({ id: laptop.deviceId, kind: "device" });
     await expect(opened.closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
+  });
+
+  it("closes a socket whose device was revoked while its upgrade was on the way", async () => {
+    const { login, ticket } = await signedInDevice("socket-race@example.test");
+    await v1Link(deviceHeaders(login.credential)).account.signOut();
+    // the upgrade's own check read the device before the revocation, whose sever then found no
+    // socket to close
+    const prepare = env.DB.prepare.bind(env.DB);
+    const staleRead = vi
+      .spyOn(env.DB, "prepare")
+      .mockImplementationOnce((query) =>
+        prepare(query.replace('"device"."revoked_at" is null', "1 = 1")),
+      );
+    const opened = await openWithTicket(ticket);
+    staleRead.mockRestore();
+    await expect(opened.closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
+  });
+
+  it("opens for no assistant's token, on any path under the connector, under any holder", async () => {
+    const { cookie } = await signUpUser("socket-connector@example.test");
+    const accountId = await userIdOf(cookie);
+    const login = await loginDevice(cookie, "Laptop");
+    const assistant = await connectAssistant(cookie, { readOnly: true });
+    const response = await workerFetch(`${CONNECTOR_URL}/anything`, {
+      headers: {
+        authorization: `Bearer ${assistant.access_token}`,
+        [SOCKET_HOLDER_HEADER]: `device:${login.deviceId}`,
+        upgrade: "websocket",
+      },
+    });
+    await response.arrayBuffer();
+    expect(response.webSocket).toBeNull();
+    expect(response.status).toBe(404);
+    await expect(inCell(cellOf(accountId), (state) => state.getWebSockets().length)).resolves.toBe(
+      0,
+    );
+  });
+
+  it("is taken by the cell on its own path alone", async () => {
+    const accountId = crypto.randomUUID();
+    const headers = { [SOCKET_HOLDER_HEADER]: "device:laptop-1", upgrade: "websocket" };
+    for (const path of ["/connector/anything", "/socket/anything", "/"]) {
+      const answer = await drained(
+        cellOf(accountId).fetch(`https://cell.test${path}`, { headers }),
+      );
+      expect(answer.status).toBe(404);
+    }
+    await expect(inCell(cellOf(accountId), (state) => state.getWebSockets().length)).resolves.toBe(
+      0,
+    );
+  });
+
+  it("takes no holder from a call forwarded under a principal", async () => {
+    const accountId = crypto.randomUUID();
+    const answer = await drained(
+      forwardAsPrincipal(
+        exports,
+        new Request(`https://cell.test${CELL_SOCKET_PATH}`, {
+          headers: { [SOCKET_HOLDER_HEADER]: "device:laptop-1", upgrade: "websocket" },
+        }),
+        {
+          accountId,
+          actor: {
+            clientId: "client-1",
+            clientName: "Claude",
+            grantId: "grant-1",
+            kind: "assistant",
+          },
+          scopes: ["library:read"],
+        },
+      ),
+    );
+    expect(answer.status).toBe(400);
   });
 
   it("closes a tab's socket once the app signs its session out", async () => {

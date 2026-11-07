@@ -5,7 +5,7 @@
 import { hexFromBytes } from "@repo/contract/cloud/bytes";
 import { BLOB_MAX_BYTES, V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { env, exports } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   buildHeaders,
@@ -18,6 +18,7 @@ import {
   userIdOf,
 } from "../test-support/cloud-helpers";
 import { cellOf, inCell } from "../test-support/library-cell";
+import { R2_FAULTS } from "../test-support/library-files";
 import { blobKey } from "./cell-blobs";
 import { addFileBytes } from "./cell-quota";
 import { cellStorageOf } from "./cell-storage";
@@ -97,6 +98,17 @@ describe("a file's bytes", () => {
     // the room it held is let go: the right bytes land after
     const { bytes, sha: actual } = await fileOf("the bytes the address names");
     await expect(put(auth, actual, bytes)).resolves.toBe(201);
+  });
+
+  it.each(R2_FAULTS)("answers a fault of R2's as no verdict on the bytes: %s", async (_, fault) => {
+    const { accountId, auth } = await signedIn(`blob-fault-${crypto.randomUUID()}@example.test`);
+    const { bytes, sha } = await fileOf(TEN);
+    const storage = vi.spyOn(env.BLOBS, "put").mockRejectedValueOnce(fault);
+    await expect(put(auth, sha, bytes)).resolves.toBe(500);
+    storage.mockRestore();
+    await expect(env.BLOBS.head(blobKey(accountId, sha))).resolves.toBeNull();
+    // the room it held is let go: the same bytes land after
+    await expect(put(auth, sha, bytes)).resolves.toBe(201);
   });
 
   it("refuses an upload with no length, one past the cap, and one past the library's room", async () => {

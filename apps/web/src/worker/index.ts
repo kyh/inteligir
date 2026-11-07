@@ -30,10 +30,6 @@ export { AgentThreadDO } from "./agent/agent-thread";
 /** @public */
 export { LibraryDO } from "./library/library-do";
 
-// CORS for two origins alone, the Mac app's page, which its shell serves, and the browser
-// extension's (./cors.ts): every other page is this Worker's own, and a reflected allow-origin
-// beside a cookie-bearing auth surface would be worse than none.
-
 // ./server.ts splits on these, so a route added below must be reachable through one or it never arrives
 const OWNED_PREFIXES = ["/api/", "/v1/"] as const;
 
@@ -99,7 +95,7 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
   }
 
   if (url.pathname.startsWith("/api/auth/")) {
-    return await createAuth(env, ctx.exports, url.origin).handler(request);
+    return await createAuth(env, ctx, url.origin).handler(request);
   }
 
   // the site's sign-up form, which its own page posts and which ships in the same deploy
@@ -114,7 +110,7 @@ const answer = async (request: Request, env: Env, ctx: ExecutionContext): Promis
   try {
     return await route(request, env, ctx);
   } catch (error) {
-    logUnhandled("worker", request, error);
+    logUnhandled(request, error);
     const { pathname } = new URL(request.url);
     return isRpc(pathname) ? rpcFault() : new Response("internal error", { status: 500 });
   }

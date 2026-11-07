@@ -7,7 +7,7 @@ import { inArray } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { createDb } from "./db/client";
 import { rateLimit } from "./db/schema";
-import { deviceRateKey } from "./rate-limit";
+import { holderRateKey } from "./rate-limit";
 import {
   deviceHeaders,
   loginDevice,
@@ -38,8 +38,8 @@ const rowsOf = async (keys: readonly string[]) =>
   await createDb(env.DB).select().from(rateLimit).where(inArray(rateLimit.key, keys)).all();
 
 const budgetKeys = (deviceId: string): string[] => [
-  deviceRateKey("rpc", deviceId),
-  deviceRateKey("blobs", deviceId),
+  holderRateKey("rpc", deviceId),
+  holderRateKey("blobs", deviceId),
 ];
 
 // Better Auth's prune reaches a row only once its window lapsed; a device that is gone names

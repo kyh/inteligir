@@ -70,12 +70,12 @@ src/
     zip/             The zip codec imports read and exports write
     db/              Drizzle schema + client for the D1 auth database
     rate-limit.ts    The D1 fixed window every throttled route spends
-    types/           The highlight.js and page reader stubs that keep the DOM
-                     lib out (below)
+    types/           The highlight.js stub that keeps the DOM lib out (below),
+                     and the type of a suite's `?raw` import
     *.test.ts        suites run inside workerd (@cloudflare/vitest-plugin:
                      real D1 + DO)
     test-support/    Their shared harness: the schema setup, the client
-                     helpers, a pack builder and the test env's types
+                     helpers and the test env's types
 ```
 
 `src/worker/` compiles without `lib.dom` on purpose: workerd and the DOM both
@@ -175,7 +175,7 @@ hash compare against D1 — never cached, so revocation is immediate; its
 (`LAST_SEEN_RESOLUTION_MS`), so a verify is one read. The
 VERIFIED credential's userId — never a path or a body — names the state it
 reaches: the socket upgrade to that user's own library cell, `LibraryDO`
-named `library:<userId>` (the one forwarded request, carrying the verified
+named `library:<userId>` (on the cell's own socket path, carrying the verified
 holder; a revoke and a deletion call the cell by RPC), and the account
 deletion reads D1 directly. `/v1/rpc` answers every refusal, an unhandled
 fault included, in its own protocol, and `/v1/blobs`, `/v1/exports` and the
@@ -229,7 +229,7 @@ and end them, and the account's deletion revokes every one.
 
 ## Auth
 
-- `src/worker/auth/auth.ts::createAuth(env, baseURL)` builds a **per-request**
+- `src/worker/auth/auth.ts::createAuth(env, ctx, baseURL)` builds a **per-request**
   Better Auth instance (D1 is a runtime binding, not a module singleton;
   `baseURL` is the request origin, so localhost/preview/prod all work with no
   config). No plugins: a browser holds Better Auth's session cookie and
@@ -238,9 +238,13 @@ and end them, and the account's deletion revokes every one.
   calls (the site uses sign-in, `get-session`, the reset pair and, through the
   invite gate, sign-up). That includes its own `/delete-user`, so
   `account.delete` is the one way to delete an account;
-  `auth.api.deleteUser` behind it is unaffected, as the list gates only HTTP. Better Auth reads
+  `auth.api.deleteUser` behind it is unaffected, as the list gates only HTTP.
+  Only `/callback/:id` stays open: an exact list cannot name it, and with no
+  social provider it has nothing to sign in with. Better Auth reads
   `BETTER_AUTH_TRUSTED_ORIGINS` itself, should an origin other than the
-  request's ever need trusting.
+  request's ever need trusting. `readSession` is a route of the Worker's own
+  reading a session, which never slides it: only `/api/auth/get-session` answers
+  with the cookie a slid row needs.
 - **Sign-up is invite-gated by a Worker route in front of Better Auth**
   (`src/worker/auth/invite.ts`). `POST /api/sign-up` parses its body with
   `signUpRequestSchema` (`@repo/contract/cloud/account/account-schema`, which the
@@ -293,9 +297,9 @@ and end them, and the account's deletion revokes every one.
   credential is revoked from `/app/devices` or from Settings › Account on any
   signed-in device or the library's tab: `account.devices.list` and
   `account.devices.revoke` take a session or a live device credential of the
-  same account (`src/worker/wire/account-router.ts`), the `igd_` prefix
-  deciding which, so a device credential never reaches Better Auth and a
-  revoked one is refused rather than tried as a session.
+  same account (`src/worker/wire/account-router.ts`), an `Authorization`
+  header deciding which, so a device credential never reaches Better Auth and
+  a revoked one is refused rather than tried as a session.
 - **A signing-out device revokes itself** (`account.signOut`, which revokes
   the device a credential names, and ends the session a browser tab signs out
   with). It is the dashboard's revoke — the row's `revoked_at`, the device's
@@ -313,17 +317,22 @@ and end them, and the account's deletion revokes every one.
   they are under the cap, which is the burst it exists to stop. Every window
   keyed on an address, Better Auth's included, reads `cf-connecting-ip`
   (`CALLER_IP_HEADER`), the one address the edge writes itself, never
-  `x-forwarded-for`. `/api/auth/get-session` spends no window: a session read
+  `x-forwarded-for`, and counts an IPv6 address by its /64 (`CALLER_ADDRESS`),
+  which one host holds whole. `/api/auth/get-session` spends no window: a session read
   is no password oracle, and every route guard and hover preload makes one. A
   read that fails is unknown to the route guards, never signed out
   (`src/lib/auth-client.ts`), and `/app/devices` shows it, like a device list
   that failed to load, as its message and a retry
   (`src/routes/app/devices.tsx`). `/v1/rpc` and `/v1/blobs` spend the same
-  table keyed on the DEVICE, never the address: a stolen credential moves
-  between addresses, and the device row is what `/app/devices` revokes. Each
-  family is its own, so a drained budget never takes another down. Revocation and account deletion drop the rows. Better Auth prunes the shared table on its own writes, every row past
-  its 60s window with it, so every Worker window is declared in `RATE_WINDOWS`
-  and a guard holds each to 60s or less.
+  table keyed on the HOLDER, the device or the browser session, never the
+  address: a stolen credential moves between addresses, and the device row is
+  what `/app/devices` revokes. The connector spends it keyed on the assistant's
+  grant. Each family is its own, so a drained budget never takes another down.
+  Revoking a device and deleting the account drop that device's rows; a
+  session's and a grant's wait for the prune. Better Auth prunes the shared
+  table on its own writes, every row past its 60s window with it, so every
+  Worker window is declared in `RATE_WINDOWS` and a guard holds each to 60s or
+  less.
 - **CORS for two origins alone** (`src/worker/cors.ts`): the Mac app's page,
   which its shell serves on `tauri://localhost`, and the browser extension's
   worker, each on the routes it calls and by its exact origin, never a

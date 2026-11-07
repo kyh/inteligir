@@ -3,13 +3,11 @@
 
 import { z } from "zod";
 
-// the prefix routes a bearer to the device table without asking better auth, so a session
-// token and a device credential cannot shadow each other
+// a bearer without the prefix is refused before its hash and the D1 read; the Authorization
+// header, not the prefix, is what says a request's credential is a device's
 export const DEVICE_CREDENTIAL_PREFIX = "igd_";
 export const DEVICE_CREDENTIAL_PATTERN = /^igd_[0-9a-f]{64}$/u;
 
-// exported: a sign-in screen bounds its field with it, so a name the screen takes is never refused
-// here as a shape error
 /** @internal */
 export const DEVICE_NAME_MAX_LENGTH = 64;
 

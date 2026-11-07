@@ -3,7 +3,7 @@ import type { DeviceLoginResponse } from "@repo/contract/cloud/device/device-sch
 import { APIError } from "better-auth/api";
 import { z } from "zod";
 import type { createSignUpAuth } from "../auth/auth";
-import { claimInvite, INVITE_REFUSED, releaseInvite } from "../auth/invite";
+import { claimInvite, releaseInvite } from "../auth/invite";
 import type { Db } from "../db/client";
 import { mintDeviceCredential } from "./login";
 
@@ -13,38 +13,22 @@ import { mintDeviceCredential } from "./login";
 
 type SignUpAuth = ReturnType<typeof createSignUpAuth>;
 
-type SignUpFailure = "invite-refused" | "account-exists" | "bad-request";
+type SignUpFailure = "invite-refused" | "account-exists";
 
 export type SignUpResult =
   | { readonly signedUp: true; readonly response: DeviceLoginResponse }
-  | { readonly signedUp: false; readonly failure: SignUpFailure; readonly message: string };
-
-const refuseSignUp = (failure: SignUpFailure, message: string): SignUpResult => ({
-  failure,
-  message,
-  signedUp: false,
-});
+  | { readonly signedUp: false; readonly failure: SignUpFailure };
 
 const apiErrorBodySchema = z.object({ code: z.string() });
 
-// Better Auth's refusal of this account, or null for a fault the route answers as internal
-const refusalOf = (error: APIError): SignUpResult | null => {
+// Better Auth's one refusal of this account: the request's schema holds the same bounds, so
+// anything else it raises is a store's fault, which the route answers as internal
+const isAccountExists = (error: APIError): boolean => {
   const body = apiErrorBodySchema.safeParse(error.body);
   // USER_ALREADY_EXISTS, and the _USE_ANOTHER_EMAIL spelling signUpEmail raises today
-  if (
-    error.statusCode === 422 &&
-    body.success &&
-    body.data.code.startsWith("USER_ALREADY_EXISTS")
-  ) {
-    return refuseSignUp(
-      "account-exists",
-      "An account with this email already exists. Sign in instead.",
-    );
-  }
-  if (error.statusCode === 400) {
-    return refuseSignUp("bad-request", error.message);
-  }
-  return null;
+  return (
+    error.statusCode === 422 && body.success && body.data.code.startsWith("USER_ALREADY_EXISTS")
+  );
 };
 
 export const signUpDevice = async (
@@ -53,7 +37,7 @@ export const signUpDevice = async (
   args: DeviceSignUpRequest,
 ): Promise<SignUpResult> => {
   if (!(await claimInvite(db, args.inviteCode, args.email))) {
-    return refuseSignUp("invite-refused", INVITE_REFUSED);
+    return { failure: "invite-refused", signedUp: false };
   }
   let signedUp: { token: string | null; user: { id: string; email: string } };
   try {
@@ -63,11 +47,10 @@ export const signUpDevice = async (
   } catch (error) {
     // no account came of it, so the code goes back whatever the reason
     await releaseInvite(db, args.inviteCode, args.email);
-    const refusal = error instanceof APIError ? refusalOf(error) : null;
-    if (refusal === null) {
-      throw error;
+    if (error instanceof APIError && isAccountExists(error)) {
+      return { failure: "account-exists", signedUp: false };
     }
-    return refusal;
+    throw error;
   }
   const minted = await mintDeviceCredential(db, {
     deviceName: args.deviceName,

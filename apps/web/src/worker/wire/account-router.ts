@@ -10,7 +10,7 @@ import {
   UnauthorizedError,
   V1_ERROR_STATUS_MAP,
 } from "@repo/contract/cloud/v1/errors";
-import { ORPCError, implement, onError } from "@orpc/server";
+import { implement, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { RequestLimitHandlerPlugin } from "@orpc/server/plugins";
 import { V1_RPC_PATH, v1Contract } from "@repo/contract/cloud/v1";
@@ -28,7 +28,7 @@ import { signUpDevice } from "../device/sign-up";
 import type { AppPrincipal } from "../library/library-principal";
 import { severSockets } from "../library/socket-routes";
 import { mintSocketTicket } from "../library/socket-ticket";
-import { spendCallerBudget, spendDeviceBudget } from "../rate-limit";
+import { spendCallerBudget, spendHolderBudget } from "../rate-limit";
 import { logRpcFailure } from "./rpc-log";
 import { holderIdOf } from "./v1-principal";
 
@@ -49,7 +49,7 @@ const signedIn = os.middleware(async ({ context, next }) => {
     throw new UnauthorizedError();
   }
   const db = createDb(context.env.DB);
-  if (!(await spendDeviceBudget(context.env, db, "rpc", holderIdOf(principal)))) {
+  if (!(await spendHolderBudget(context.env, db, "rpc", holderIdOf(principal)))) {
     throw new TooManyRequestsError();
   }
   return await next({ context: { db, signedIn: principal } });
@@ -107,10 +107,10 @@ const accountRouter = os.router({
     }),
   delete: os.delete.use(signedIn).handler(async ({ context, errors, input }) => {
     const { db, env, signedIn: principal } = context;
-    if (!(await spendDeviceBudget(env, db, "accountDelete", holderIdOf(principal)))) {
+    if (!(await spendHolderBudget(env, db, "accountDelete", holderIdOf(principal)))) {
       throw errors.TOO_MANY_REQUESTS();
     }
-    const deletion = await deleteAccountWithPassword(env, context.ctx.exports, db, {
+    const deletion = await deleteAccountWithPassword(env, context.ctx, db, {
       origin: originOf(context.request),
       password: input.password,
       userId: principal.accountId,
@@ -149,11 +149,7 @@ const accountRouter = os.router({
     if (!(await spendCallerBudget(env, db, "login", request))) {
       throw errors.TOO_MANY_REQUESTS();
     }
-    const result = await loginDevice(
-      db,
-      createAuth(env, context.ctx.exports, originOf(request)),
-      input,
-    );
+    const result = await loginDevice(db, createAuth(env, context.ctx, originOf(request)), input);
     if (!result.loggedIn) {
       throw result.failure === "device-limit"
         ? errors.DEVICE_LIMIT()
@@ -182,24 +178,13 @@ const accountRouter = os.router({
     }
     const result = await signUpDevice(
       db,
-      createSignUpAuth(env, context.ctx.exports, originOf(request)),
+      createSignUpAuth(env, context.ctx, originOf(request)),
       input,
     );
     if (result.signedUp) {
       return result.response;
     }
-    switch (result.failure) {
-      case "invite-refused": {
-        throw errors.FORBIDDEN();
-      }
-      case "account-exists": {
-        throw errors.ACCOUNT_EXISTS();
-      }
-      case "bad-request": {
-        throw new ORPCError("BAD_REQUEST", { message: result.message });
-      }
-      // no default
-    }
+    throw result.failure === "invite-refused" ? errors.FORBIDDEN() : errors.ACCOUNT_EXISTS();
   }),
   // a minute's ticket the account's socket opens with (`/v1/socket`), naming this credential
   socketTicket: os.socketTicket.use(signedIn).handler(async ({ context }) => {

@@ -16,7 +16,7 @@ import { isBelowFloor } from "../client-floor";
 import { createDb } from "../db/client";
 import { errorFields } from "../log";
 import { declaredLength, plainText } from "../plain-http";
-import { spendDeviceBudget } from "../rate-limit";
+import { spendHolderBudget } from "../rate-limit";
 import { holderIdOf, lazyPrincipal } from "../wire/v1-principal";
 import { blobKey } from "./cell-blobs";
 import type { CellRefusal } from "./cell-refusal";
@@ -200,6 +200,11 @@ const refusalAnswer = (refusal: Pick<CellRefusal, "kind">): Response => {
   }
 };
 
+// R2's BadDigest (https://developers.cloudflare.com/r2/api/error-codes/), bytes that do not hash to
+// the sha asked for; every other failure of a put says nothing of them. The runtime throws a plain
+// Error whose message ends in R2's code, whatever `code` its types name
+const badDigestSchema = z.object({ message: z.string().endsWith("(10037)") });
+
 const writeBlob = async (
   request: Request,
   env: Env,
@@ -233,10 +238,17 @@ const writeBlob = async (
       sha256: sha,
     });
   } catch (error) {
-    // R2 kept nothing: the settle finds nothing under the key and lets the room go
-    console.warn({ event: "blob-upload-refused", ...errorFields(error) });
+    const refused = badDigestSchema.safeParse(error).success;
+    console.warn({
+      event: refused ? "blob-upload-refused" : "blob-upload-failed",
+      ...errorFields(error),
+    });
+    // a settle finds what R2 kept under the key, and lets the room go if that is nothing
     await cell.settleBlob(sha);
-    return plainText(400, "The file's bytes don't match the address they were sent to.");
+    // a device parks a refusal for good and sends a fault again, on its doubling wait
+    return refused
+      ? plainText(400, "The file's bytes don't match the address they were sent to.")
+      : plainText(500, "This file couldn't be stored just now. Try again.");
   }
   const settled = await cell.settleBlob(sha);
   if (!settled.ok) {
@@ -268,7 +280,7 @@ export const handleBlobRoute = async (
   if (principal === null) {
     return plainText(401, "You're signed out. Sign in again.");
   }
-  if (!(await spendDeviceBudget(env, createDb(env.DB), "blobs", holderIdOf(principal)))) {
+  if (!(await spendHolderBudget(env, createDb(env.DB), "blobs", holderIdOf(principal)))) {
     return plainText(429, "Too many requests. Try again in a minute.");
   }
   return request.method === "PUT"

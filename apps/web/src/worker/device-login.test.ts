@@ -24,6 +24,7 @@ import {
 import { createDb } from "./db/client";
 import { account, device, session, user } from "./db/schema";
 import { LAST_SEEN_RESOLUTION_MS } from "./device/device-auth";
+import { CALLER_IP_HEADER } from "./rate-limit";
 import type { z } from "zod";
 
 type DeviceLoginRequest = z.infer<typeof deviceLoginRequestSchema>;
@@ -40,8 +41,11 @@ const reaches = async (credential: string): Promise<boolean> => {
   }
 };
 
-const refusalOfSignIn = async (request: DeviceLoginRequest) => {
-  const link = anonymous();
+const refusalOfSignIn = async (
+  request: DeviceLoginRequest,
+  headers: Record<string, string> = {},
+) => {
+  const link = v1Link({ ...buildHeaders(), ...headers });
   return await link.refusalOf(link.account.signIn(request));
 };
 
@@ -389,6 +393,27 @@ describe("the sign-in window", () => {
         defined: true,
         status: 429,
       });
+    },
+  );
+
+  it(
+    "counts every address of an IPv6 /64 as one caller, and the next /64 as another",
+    { timeout: 60_000 },
+    async () => {
+      const email = "login-window-v6@example.test";
+      await signUpUser(email);
+      const guess = { deviceName: "Guesser", email, password: "not-the-password" };
+      const from = async (address: string) =>
+        await refusalOfSignIn(guess, { [CALLER_IP_HEADER]: address });
+      for (let host = 1; host <= 10; host += 1) {
+        await expect(from(`2001:db8:a:b::${host.toString(16)}`)).resolves.toMatchObject(
+          INVALID_CREDENTIALS,
+        );
+      }
+      await expect(from("2001:db8:a:b:ffff:ffff:ffff:ffff")).resolves.toMatchObject({
+        code: "TOO_MANY_REQUESTS",
+      });
+      await expect(from("2001:db8:a:c::1")).resolves.toMatchObject(INVALID_CREDENTIALS);
     },
   );
 });

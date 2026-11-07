@@ -134,11 +134,14 @@ as:
     Signing a device in, creating an account, redeeming an invite, an assistant
     registering itself to connect, and every Better Auth route but the session
     read count attempts per caller address in D1's `rate_limit` table: a row
-    holds the address beside the route it counts, a count and a timestamp.
+    holds the address, an IPv6 address cut to its first 64 bits, beside the
+    route it counts, a count and a timestamp.
     Before sign-in the address is all our cloud knows about a caller, and a
     login with no throttle is a password oracle. Once signed in, a device's
     reads and writes of your library, and its attempts to delete the
-    account, are counted the same way under the device's id, never an address.
+    account, are counted the same way under the device's id, never an address,
+    a browser tab's under its session's id, and a connected assistant's calls
+    under the id of the access you gave it.
   - **The app's version, on every request to our cloud.** The Mac app, the
     phone app and the browser extension say which version they are, and which
     of the three, on each request they send our cloud, so it can stop answering a version too old to sync with
@@ -377,11 +380,12 @@ Specifically, in our cloud:
 - Device rows (including revoked ones) persist as the dashboard's audit trail
   until account deletion. A device's throttling counters are deleted when it is
   revoked.
-- Throttling rows keyed on an address, not an account, cannot be found by
-  account deletion. Better Auth deletes every row whose timestamp is over a
-  minute old whenever one of its own limits opens a fresh window, so a row
-  outlives its minute only until the next such request from anyone; nothing
-  sweeps the table on a timer.
+- Throttling rows keyed on an address, a browser session or an assistant's
+  access, not an account, cannot be found by account deletion, and neither a
+  session ending nor an assistant's removal deletes its own. Better Auth deletes
+  every row whose timestamp is over a minute old whenever one of its own limits
+  opens a fresh window, so a row outlives its minute only until the next such
+  request from anyone; nothing sweeps the table on a timer.
 - A password-reset link's row (its token and your account's id) is deleted when
   the link is used. One never used stops working after an hour and is swept the
   next time anyone opens a reset link; account deletion does not look for it,
@@ -579,9 +583,10 @@ account row itself goes:
    All six steps run BEFORE that, so a step that fails aborts the deletion and
    leaves the account able to ask again; every step is idempotent, so asking again
    resumes. Each of your devices erases its copy the next time our cloud refuses it
-   (see [Retention](#retention)). The throttling rows keyed on an address and an unused
-   reset link's row are not found by it (see [Retention](#retention)), and
-   Cloudflare's request log lapses on its own.
+   (see [Retention](#retention)). The throttling rows keyed on an address, a
+   browser session or an assistant's access, and an unused reset link's row, are
+   not found by it (see [Retention](#retention)), and Cloudflare's request log
+   lapses on its own.
 
 ## Other sites and services
 
@@ -1022,11 +1027,11 @@ sign-in, session and password-reset calls, which go to Better Auth under
 
 | Route          | What it carries                                                                                                                                                                                                                                                                                                     | What authenticates it                                                                                                                           |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/v1/rpc`      | Every call the apps make to read and change your library (items, their text, highlights, folders, tags, history and your messages to the agent) and your account (signing in, your devices, the assistants you connected, deleting the account), each one request with its contents in the body, never the address. | Your password or invite code to sign in or up; otherwise the device's credential or your signed-in browser session, within a per-device budget. |
-| `/v1/blobs`    | Your library's files (images, PDFs and any other file you save), each sent once and read back by a fingerprint of its contents, never its name; a file whose contents do not match its fingerprint, or that the library has no room for, is not kept.                                                               | The device's credential or your signed-in browser session, within a per-device budget.                                                          |
-| `/v1/exports`  | A zip of your whole library, written when you ask for an export, downloaded whole or a part at a time, and deleted seven days after it was written or once a newer export is ready.                                                                                                                                 | The device's credential or your signed-in browser session, within a per-device budget.                                                          |
+| `/v1/rpc`      | Every call the apps make to read and change your library (items, their text, highlights, folders, tags, history and your messages to the agent) and your account (signing in, your devices, the assistants you connected, deleting the account), each one request with its contents in the body, never the address. | Your password or invite code to sign in or up; otherwise the device's credential or your signed-in browser session, within a budget of its own. |
+| `/v1/blobs`    | Your library's files (images, PDFs and any other file you save), each sent once and read back by a fingerprint of its contents, never its name; a file whose contents do not match its fingerprint, or that the library has no room for, is not kept.                                                               | The device's credential or your signed-in browser session, within a budget of its own.                                                          |
+| `/v1/exports`  | A zip of your whole library, written when you ask for an export, downloaded whole or a part at a time, and deleted seven days after it was written or once a newer export is ready.                                                                                                                                 | The device's credential or your signed-in browser session, within a budget of its own.                                                          |
 | `/api/sign-up` | Your email, name, password and invite code, once, to create the account on the website.                                                                                                                                                                                                                             | The invite code; attempts are throttled per caller address.                                                                                     |
-| `/v1/socket`   | A live connection that says only that your library changed, and how far it has come.                                                                                                                                                                                                                                | A one-minute pass your signed-in device or browser session asked for, its sign-in checked again.                                                |
+| `/v1/socket`   | A live connection to your own signed-in devices that says your library changed and how far it has come, and carries a conversation with the built-in agent as it happens: each thing the agent does and its reply as it is written.                                                                                 | A one-minute pass your signed-in device or browser session asked for, its sign-in checked again.                                                |
 
 Everything else the app reaches is someone else's:
 

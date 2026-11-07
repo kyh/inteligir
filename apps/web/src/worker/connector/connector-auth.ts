@@ -184,5 +184,4 @@ export const isAuthorizationServerPath = (pathname: string): boolean =>
 // the connector and its RFC 9728 document, which its resource server answers
 export const isConnectorPath = (pathname: string): boolean =>
   pathname === CONNECTOR_PATH ||
-  pathname.startsWith(`${CONNECTOR_PATH}/`) ||
   pathname === `/.well-known/oauth-protected-resource${CONNECTOR_PATH}`;

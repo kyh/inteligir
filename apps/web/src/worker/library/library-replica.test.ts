@@ -9,8 +9,8 @@ import type { LibraryReplica } from "@repo/library-replica/library-replica";
 import type { BlockMerge, StagedBlobs } from "@repo/library-replica/replica-ports";
 import type { LibraryOp } from "@repo/notes/library/block-ops";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
-import { exports } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { env, exports } from "cloudflare:workers";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   deviceHeaders,
@@ -20,6 +20,7 @@ import {
   userIdOf,
 } from "../test-support/cloud-helpers";
 import { cellOf, inCell } from "../test-support/library-cell";
+import { R2_FAULTS } from "../test-support/library-files";
 import { remoteReplicaSql } from "../test-support/remote-replica-sql";
 
 const textOf = (block: LibraryBlock): string =>
@@ -260,6 +261,30 @@ describe("the replica engine against the account's cell", () => {
       expect(phone.replica.status().unsent).toBe(0);
       await laptop.replica.sync();
       expect(laptop.replica.row(file.id)).toMatchObject({ kind: "image" });
+    },
+  );
+
+  it.each(R2_FAULTS)(
+    "keeps a file R2 could not store to send again, and parks nothing: %s",
+    { timeout: 30_000 },
+    async (_, fault) => {
+      const { cookie } = await account("r2-fault");
+      const phone = await deviceOn(cookie, "Phone");
+      const storage = vi.spyOn(env.BLOBS, "put").mockRejectedValue(fault);
+      const file = await phone.replica.createFile({
+        file: { bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47, 9]), mime: "image/png" },
+        folderId: null,
+        name: "receipt.png",
+        tags: [],
+      });
+      await phone.replica.sync();
+      expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 1 });
+      expect(phone.replica.status().failure).toMatchObject({ kind: "unreachable" });
+
+      storage.mockRestore();
+      await phone.replica.sync();
+      expect(phone.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
+      expect(phone.replica.row(file.id)).toMatchObject({ kind: "image", unsent: false });
     },
   );
 

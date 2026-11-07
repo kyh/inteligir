@@ -14,6 +14,7 @@ import type { CellActor } from "./cell-actor";
 import { libraryCell } from "./library-cell";
 
 export const PRINCIPAL_HEADER = "x-library-principal";
+export const SOCKET_HOLDER_HEADER = "x-library-socket-holder";
 
 // what a credential may do with the library: `library` reads and changes it, and `library:read`,
 // which only an assistant's grant can hold, reads it alone
@@ -105,9 +106,17 @@ export const changesLibrary = (principal: Principal): boolean =>
 export const principalHeaderValue = (principal: NamedPrincipal): string =>
   encodeURIComponent(JSON.stringify(principalSchema.parse(principal)));
 
-// what the cell is handed in place of what the caller sent: any identity header the request
-// brought, and its credentials, which the cell never reads
-const FORWARD_DROPS = [PRINCIPAL_HEADER, "authorization", "cookie"] as const;
+// what the cell is never handed: any identity header the request brought, since the Worker stamps
+// its own, and its credentials, which the cell never reads
+const FORWARD_DROPS = [PRINCIPAL_HEADER, SOCKET_HOLDER_HEADER, "authorization", "cookie"] as const;
+
+export const headersForCell = (request: Request): Headers => {
+  const headers = new Headers(request.headers);
+  for (const name of FORWARD_DROPS) {
+    headers.delete(name);
+  }
+  return headers;
+};
 
 // a call forwarded whole into the account's cell, carrying the principal the Worker verified and
 // nothing the caller sent in its place: an app's on `/v1/rpc` and an assistant's on the connector
@@ -116,10 +125,7 @@ export const forwardAsPrincipal = async (
   request: Request,
   principal: NamedPrincipal,
 ): Promise<Response> => {
-  const headers = new Headers(request.headers);
-  for (const name of FORWARD_DROPS) {
-    headers.delete(name);
-  }
+  const headers = headersForCell(request);
   headers.set(PRINCIPAL_HEADER, principalHeaderValue(principal));
   return await libraryCell(exports, principal.accountId).fetch(new Request(request, { headers }));
 };

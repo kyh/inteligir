@@ -17,6 +17,15 @@ import { centralHeader, endRecords, writeZipEntry } from "../zip/zip-write";
 import type { ZipFile, ZipRecord } from "../zip/zip-write";
 import { cellOf, inCell } from "./library-cell";
 
+// what a put can meet that says nothing of its bytes, as the runtime throws it
+// (https://developers.cloudflare.com/r2/api/error-codes/), each with the name a test reads
+export const R2_FAULTS = [
+  ["an internal error", new Error("put: We encountered an internal error. (10001)")],
+  ["an outage", new Error("put: The service is temporarily unavailable. (10043)")],
+  ["two devices writing one key", new Error("put: Reduce your concurrent request rate. (10058)")],
+  ["a body that broke off", new TypeError("Network connection lost.")],
+] as const;
+
 const shaOf = async (bytes: Uint8Array): Promise<string> =>
   hexFromBytes(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
 

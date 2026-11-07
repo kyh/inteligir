@@ -17,7 +17,7 @@ import type { OAuthResourceHandler } from "@cloudflare/workers-oauth-provider";
 import { createDb } from "../db/client";
 import { forwardAsPrincipal, LIBRARY_SCOPES } from "../library/library-principal";
 import type { ConnectorPrincipal } from "../library/library-principal";
-import { spendDeviceBudget } from "../rate-limit";
+import { spendGrantBudget } from "../rate-limit";
 import { connectorAuth, READ_SCOPE } from "./connector-auth";
 import type { TokenProps } from "./connector-auth";
 
@@ -43,7 +43,7 @@ const forwardToCell: OAuthResourceHandler<Env, TokenProps> = {
     if (auth.clientId === undefined) {
       throw new Error("a token the authorization server minted names its client");
     }
-    if (!(await spendDeviceBudget(env, createDb(env.DB), "connector", props.grantId))) {
+    if (!(await spendGrantBudget(env, createDb(env.DB), props.grantId))) {
       return tooManyCalls();
     }
     const principal: ConnectorPrincipal = {

@@ -6,7 +6,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "./db/client";
 import { inviteCode, rateLimit, session, user } from "./db/schema";
-import { deviceRateKey } from "./rate-limit";
+import { holderRateKey } from "./rate-limit";
 import {
   buildHeaders,
   deviceHeaders,
@@ -204,7 +204,7 @@ describe("the deletion's per-device budget", () => {
     const spent = { count: 1_000_000, lastRequest: Date.now() };
     await createDb(env.DB)
       .insert(rateLimit)
-      .values({ id: crypto.randomUUID(), key: deviceRateKey("accountDelete", deviceId), ...spent })
+      .values({ id: crypto.randomUUID(), key: holderRateKey("accountDelete", deviceId), ...spent })
       .onConflictDoUpdate({ set: spent, target: rateLimit.key });
 
     await expect(refusalOfDelete(deviceHeaders(credential), PASSWORD)).resolves.toMatchObject({

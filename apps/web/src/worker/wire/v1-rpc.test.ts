@@ -2,7 +2,7 @@
 // it stamps on what it forwards, one account's cell out of another's reach, and the status every
 // refusal answers under.
 
-import { env } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -10,11 +10,13 @@ import { createDb } from "../db/client";
 import { device, inviteCode, rateLimit, session, user } from "../db/schema";
 import { accountBlobPrefix, blobKey } from "../library/cell-blobs";
 import { PRINCIPAL_HEADER, principalHeaderValue } from "../library/library-principal";
-import { deviceRateKey } from "../rate-limit";
+import { holderRateKey } from "../rate-limit";
 import {
   buildHeaders,
   deviceHeaders,
+  drained,
   loginDevice,
+  ORIGIN,
   PASSWORD,
   sessionHeaders,
   signUpUser,
@@ -22,6 +24,8 @@ import {
   v1Link,
 } from "../test-support/cloud-helpers";
 import { cellOf, clockAt, engineIn, inCell } from "../test-support/library-cell";
+
+const DAY_MS = 86_400_000;
 
 // an account signed in on a laptop: its credential's link, its session cookie and its id
 const signedUp = async (email: string) => {
@@ -101,6 +105,31 @@ describe("the one wire's door", () => {
       code: "UNAUTHORIZED",
       status: 401,
     });
+  });
+
+  it("slides a browser's session only on the read its cookie can follow", async () => {
+    const { accountId, cookie } = await signedUp("session-slide@example.test");
+    const db = createDb(env.DB);
+    const expiresAt = async (): Promise<number | undefined> => {
+      const row = await db
+        .select({ expiresAt: session.expiresAt })
+        .from(session)
+        .where(eq(session.userId, accountId))
+        .get();
+      return row?.expiresAt.getTime();
+    };
+    // Better Auth's default: a session slides once a day of its seven has passed
+    const due = new Date(Date.now() + 5 * DAY_MS);
+    await db.update(session).set({ expiresAt: due }).where(eq(session.userId, accountId));
+
+    await v1Link(sessionHeaders(cookie)).account.devices.list();
+    await expect(expiresAt()).resolves.toBe(due.getTime());
+
+    const read = await drained(
+      exports.default.fetch(`${ORIGIN}/api/auth/get-session`, { headers: { cookie } }),
+    );
+    expect(read.headers.getSetCookie().join("\n")).toContain("session_token");
+    await expect(expiresAt()).resolves.toBeGreaterThan(due.getTime());
   });
 
   it("forwards the principal its credential verified and drops the one a request brought", async () => {
@@ -332,7 +361,7 @@ describe("every refusal's status", () => {
       const spent = devices.map(({ deviceId }) => ({
         count: 1200,
         id: crypto.randomUUID(),
-        key: deviceRateKey("rpc", deviceId),
+        key: holderRateKey("rpc", deviceId),
         lastRequest: Date.now(),
       }));
       await createDb(env.DB).insert(rateLimit).values(spent).onConflictDoNothing();

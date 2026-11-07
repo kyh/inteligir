@@ -4,7 +4,6 @@
 // every row declares, so an RPCLink client narrows it as it narrows a procedure's own.
 
 import {
-  AccountGoneError,
   ClientOutdatedError,
   TooManyRequestsError,
   UnauthorizedError,
@@ -12,15 +11,13 @@ import {
 } from "@repo/contract/cloud/v1/errors";
 import { ORPCError, reconcileORPCError, RPCSerializer } from "@orpc/server";
 
-// the refusals every signed row declares
 const TRANSPORT_ERRORS = {
-  [AccountGoneError.code]: AccountGoneError,
   [ClientOutdatedError.code]: ClientOutdatedError,
   [TooManyRequestsError.code]: TooManyRequestsError,
   [UnauthorizedError.code]: UnauthorizedError,
 };
 
-export type TransportRefusal = keyof typeof TRANSPORT_ERRORS;
+type TransportRefusal = keyof typeof TRANSPORT_ERRORS;
 
 const serializer = new RPCSerializer();
 
