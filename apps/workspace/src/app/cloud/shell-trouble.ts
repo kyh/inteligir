@@ -24,7 +24,6 @@ export const shellTroubleText = (cause: unknown, fallback: string): string => {
     case "bridge":
     case "invalid":
     case "missing":
-    case "network":
     case "signed-out":
     case "transaction-gone": {
       return fallback;

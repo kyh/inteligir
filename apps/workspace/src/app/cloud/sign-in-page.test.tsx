@@ -3,7 +3,10 @@
 import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { DEVICE_NAME_MAX_LENGTH } from "@repo/contract/cloud/device/device-schema";
-import type { deviceLoginRequestSchema } from "@repo/contract/cloud/device/device-schema";
+import type {
+  DeviceLoginResponse,
+  deviceLoginRequestSchema,
+} from "@repo/contract/cloud/device/device-schema";
 import { V1_RPC_PATH, v1Contract } from "@repo/contract/cloud/v1";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -25,12 +28,12 @@ const CONFIG: ShellConfig = {
   filesOrigin: "inteligir-files://localhost",
   version: "0.6.0",
 };
-const ANSWER: KeptCredential = {
+const KEPT: KeptCredential = {
   credential: `igd_${"c".repeat(64)}`,
-  deviceId: "device-7",
   email: "owner@example.com",
   userId: "user-1",
 };
+const ANSWER: DeviceLoginResponse = { ...KEPT, deviceId: "device-7" };
 const KEYCHAIN_SENTENCE =
   "Your Mac's Keychain didn't let Inteligir in. Unlock it, or choose Allow when your Mac asks, then try again.";
 
@@ -104,7 +107,7 @@ describe("the Mac's sign-in", () => {
     await vi.waitFor(() => {
       expect(signedIn).toHaveBeenCalledOnce();
     });
-    expect(kept).toStrictEqual([ANSWER]);
+    expect(kept).toStrictEqual([KEPT]);
     expect(asked.signIn.map((request) => request.deviceName)).toStrictEqual([
       LONG_NAME.slice(0, DEVICE_NAME_MAX_LENGTH),
     ]);

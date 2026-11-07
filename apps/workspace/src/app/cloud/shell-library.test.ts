@@ -28,7 +28,6 @@ const CONFIG: ShellConfig = {
 };
 const KEPT: KeptCredential = {
   credential: `igd_${"a".repeat(64)}`,
-  deviceId: "device-1",
   email: "owner@example.com",
   userId: "user-1",
 };

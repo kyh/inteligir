@@ -14,10 +14,9 @@ export const shellConfigSchema = z.strictObject({
 });
 export type ShellConfig = z.infer<typeof shellConfigSchema>;
 
-// the sign-in's whole answer, kept in the Keychain: the credential, its device and its account
+// what a sign-in keeps in the Keychain: the credential and its account
 export const keptCredentialSchema = z.strictObject({
   credential: z.string().regex(DEVICE_CREDENTIAL_PATTERN),
-  deviceId: z.string().min(1),
   email: z.string().min(1),
   userId: z.string().min(1),
 });

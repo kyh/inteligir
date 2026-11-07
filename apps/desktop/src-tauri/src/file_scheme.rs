@@ -176,6 +176,7 @@ pub async fn answer(
 
 #[cfg(test)]
 mod tests {
+    use std::error::Error;
     use std::io::{BufRead, BufReader, Read, Write};
     use std::net::TcpListener;
     use std::path::Path;
@@ -332,7 +333,7 @@ mod tests {
     }
 
     #[test]
-    fn a_miss_is_fetched_with_the_bearer_kept_and_then_a_hit() -> ShellResult<()> {
+    fn a_miss_is_fetched_with_the_bearer_kept_and_then_a_hit() -> Result<(), Box<dyn Error>> {
         let dir = tempfile::tempdir()?;
         let files = files_in(dir.path());
         let body: &'static [u8] = b"%PDF-1.4 a page";

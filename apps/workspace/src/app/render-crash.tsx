@@ -24,7 +24,7 @@ const unsentWords = (unsent: number): string => {
 export const RenderCrash = ({ error, reset }: ErrorComponentProps) => {
   const { unsent } = useReplicaStatus();
   return (
-    <div className="flex min-h-dvh items-center justify-center p-6">
+    <div className="flex min-h-dvh items-center justify-center p-6" data-tauri-drag-region>
       <div className="max-w-lg space-y-3">
         <h1 className="text-title font-medium">Something went wrong showing your library.</h1>
         <p className="text-subtitle text-muted-foreground">{unsentWords(unsent)}</p>

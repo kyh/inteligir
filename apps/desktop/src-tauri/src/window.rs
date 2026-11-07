@@ -58,7 +58,7 @@ fn hide_on_close(window: &WebviewWindow) {
     });
 }
 
-pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
+pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let opens = Arc::new(ExternalOpens::new());
     let navigating = (app.clone(), Arc::clone(&opens));
     let opening = (app.clone(), opens);
@@ -120,28 +120,26 @@ pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
                 }
             }
         });
-    // no title bar: the traffic lights sit over the page's top-left corner, which the page reserves
-    // (`title-bar.ts`), and its drag strip is a `data-tauri-drag-region`
+    // no title bar: the traffic lights sit over the page's top-left corner, and the page keeps it
+    // clear and draws what drags the window (`apps/workspace/src/app/title-bar.ts`)
     #[cfg(target_os = "macos")]
     let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true)
         .traffic_light_position(tauri::LogicalPosition::new(16.0, 12.0));
-    let window = builder.build()?;
-    hide_on_close(&window);
-    Ok(window)
+    hide_on_close(&builder.build()?);
+    Ok(())
 }
 
-/// Brings the window forward, or makes it again if it is gone.
+/// Brings the window forward. A second launch can land before setup has made it, and the first
+/// page load shows it then.
 pub fn show(app: &AppHandle) {
-    let shown = match app.get_webview_window(MAIN) {
-        Some(window) => window
+    if let Some(window) = app.get_webview_window(MAIN)
+        && let Err(error) = window
             .unminimize()
             .and_then(|()| window.show())
-            .and_then(|()| window.set_focus()),
-        None => create(app).map(|_| ()),
-    };
-    if let Err(error) = shown {
+            .and_then(|()| window.set_focus())
+    {
         eprintln!("[desktop] could not bring the window forward: {error}");
     }
 }

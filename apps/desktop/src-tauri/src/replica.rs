@@ -53,16 +53,11 @@ struct Open {
     steps: Sender<Step>,
 }
 
-struct Inner {
+pub struct Replica {
     connection: Arc<Mutex<Option<Connection>>>,
     open: Mutex<Option<Open>>,
     next_token: AtomicU64,
     idle_limit: Duration,
-}
-
-#[derive(Clone)]
-pub struct Replica {
-    inner: Arc<Inner>,
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -196,12 +191,10 @@ fn hold_transaction(
 impl Replica {
     pub fn new(idle_limit: Duration) -> Self {
         Self {
-            inner: Arc::new(Inner {
-                connection: Arc::new(Mutex::new(None)),
-                open: Mutex::new(None),
-                next_token: AtomicU64::new(1),
-                idle_limit,
-            }),
+            connection: Arc::new(Mutex::new(None)),
+            open: Mutex::new(None),
+            next_token: AtomicU64::new(1),
+            idle_limit,
         }
     }
 
@@ -212,19 +205,19 @@ impl Replica {
             std::fs::create_dir_all(dir)?;
         }
         let connection = open_held(path)?;
-        *lock(&self.inner.connection) = Some(connection);
+        *lock(&self.connection) = Some(connection);
         Ok(())
     }
 
     /// Lets the file go, as a sign-out does; what it held stays on disk until it is removed.
     pub fn close(&self) {
         self.abandon();
-        lock(&self.inner.connection).take();
+        lock(&self.connection).take();
     }
 
     /// Rolls back the open transaction, if any: its page went away.
     pub fn abandon(&self) {
-        lock(&self.inner.open).take();
+        lock(&self.open).take();
     }
 
     fn alone<T>(
@@ -232,7 +225,7 @@ impl Replica {
         work: impl FnOnce(&Connection, &Statement) -> ShellResult<T>,
         statement: &Statement,
     ) -> ShellResult<T> {
-        let mut guard = lock(&self.inner.connection);
+        let mut guard = lock(&self.connection);
         let connection = guard.as_mut().ok_or(ShellError::SignedOut)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let value = work(&transaction, statement)?;
@@ -255,10 +248,10 @@ impl Replica {
     pub fn begin(&self) -> ShellResult<u64> {
         let (steps, received) = mpsc::channel();
         let (began, beginning) = mpsc::channel();
-        let connection = Arc::clone(&self.inner.connection);
-        let idle_limit = self.inner.idle_limit;
-        let token = self.inner.next_token.fetch_add(1, Ordering::Relaxed);
-        lock(&self.inner.open).replace(Open { token, steps });
+        let connection = Arc::clone(&self.connection);
+        let idle_limit = self.idle_limit;
+        let token = self.next_token.fetch_add(1, Ordering::Relaxed);
+        lock(&self.open).replace(Open { token, steps });
         std::thread::spawn(move || hold_transaction(&connection, &received, &began, idle_limit));
         match beginning.recv() {
             Ok(Ok(())) => Ok(token),
@@ -271,7 +264,7 @@ impl Replica {
     }
 
     fn forget_token(&self, token: u64) -> Option<Sender<Step>> {
-        let mut open = lock(&self.inner.open);
+        let mut open = lock(&self.open);
         if open.as_ref().is_some_and(|held| held.token == token) {
             return open.take().map(|held| held.steps);
         }
@@ -279,7 +272,7 @@ impl Replica {
     }
 
     fn sender(&self, token: u64) -> ShellResult<Sender<Step>> {
-        lock(&self.inner.open)
+        lock(&self.open)
             .as_ref()
             .filter(|held| held.token == token)
             .map(|held| held.steps.clone())
@@ -477,9 +470,10 @@ mod tests {
     #[test]
     fn a_statement_alone_waits_out_a_running_transaction() -> ShellResult<()> {
         let (_dir, replica) = opened(TRANSACTION_IDLE_LIMIT)?;
+        let replica = Arc::new(replica);
         let token = replica.begin()?;
         replica.run_in(token, insert("one"))?;
-        let reader = replica.clone();
+        let reader = Arc::clone(&replica);
         let read = std::thread::spawn(move || bodies(&reader));
         std::thread::sleep(Duration::from_millis(100));
         assert!(

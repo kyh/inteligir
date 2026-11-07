@@ -163,8 +163,9 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const [session, setSession] = useState<ItemSession | null>(null);
   const hostRef = useRef<PageEditorHost | null>(null);
   const filesRef = useRef<HTMLInputElement | null>(null);
-  // the rail opens and closes itself; the window's chord asks it to
+  // the window's chord asks the rail, which below the breakpoint opens a sheet instead
   const railRef = useRef<SidebarActions | null>(null);
+  const [railOpen, setRailOpen] = useState(true);
 
   // the selection as it changes, which the panel's Info follows
   const selected = useStore(selection.store, (state) => state.selected);
@@ -570,6 +571,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       <div className="h-dvh" inert={covered}>
         <SidebarProvider
           className="h-full"
+          open={railOpen}
+          onOpenChange={setRailOpen}
           actionsRef={railRef}
           shortcut={bindingFor("toggle-rail", modifier)}
           width={`${String(readPref(PREFS.sidebarWidth))}px`}
@@ -640,6 +643,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
               <SidebarInset className="relative bg-surface">
                 {openItem === null ? (
                   <LibraryView
+                    railOpen={railOpen}
                     scope={scope}
                     title={scopeTitle(scope, folders)}
                     page={page}
@@ -674,6 +678,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                   />
                 ) : (
                   <ItemView
+                    railOpen={railOpen}
                     itemId={openItem}
                     onBack={() => {
                       open(null);

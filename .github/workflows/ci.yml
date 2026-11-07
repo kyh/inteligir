@@ -89,9 +89,9 @@ jobs:
         # is the one CI runs; the shell scenarios hold the one display one at a time
         run: xvfb-run -a pnpm e2e --no-skip --lanes 2
 
-  # the app ships only as a macOS arm64 .app: the shell compiles its macOS code (the Keychain's
-  # store, the window's own) and its suites meet APFS and a tmpdir behind a symlink only here;
-  # typecheck, lint, knip, format and build read no platform, so the check job alone runs them
+  # the app ships only as a macOS arm64 .app: the shell's macOS code (the Keychain's store, the
+  # window's own) compiles and runs only here; typecheck, lint, knip, format and build read no
+  # platform, so the check job alone runs them
   test-macos:
     runs-on: macos-latest
     # a backstop: neither the suites nor the Tauri pack carry a deadline of their own, and a cold

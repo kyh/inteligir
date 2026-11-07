@@ -4,10 +4,10 @@
 //! the shell runs only under the scenario suite, keyring-core's sample store in a file under the
 //! app's data dir stands in for it.
 //!
-//! The record is the whole answer the sign-in gave (the credential, its device and the account it
-//! names), so the page knows whose library it opens before any call. Its item is the bundle id's,
-//! so Keychain Access names the app it belongs to, and a debug build, an app of its own
-//! (`tauri.local.conf.json`), never reads or overwrites the release's.
+//! The record is the credential and the account the sign-in named, so the page knows whose library
+//! it opens before any call. Its item is the bundle id's, so Keychain Access names the app it
+//! belongs to, and a debug build, an app of its own (`tauri.local.conf.json`), never reads or
+//! overwrites the release's.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -24,7 +24,6 @@ const ACCOUNT: &str = "device";
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DeviceCredential {
     pub credential: String,
-    pub device_id: String,
     pub email: String,
     pub user_id: String,
 }
@@ -121,7 +120,6 @@ mod tests {
     fn signed_in() -> DeviceCredential {
         DeviceCredential {
             credential: format!("igd_{}", "a".repeat(64)),
-            device_id: "device-1".to_owned(),
             email: "owner@example.com".to_owned(),
             user_id: "user-1".to_owned(),
         }
@@ -134,7 +132,7 @@ mod tests {
         credentials.keep(&signed_in())?;
         assert_eq!(credentials.read()?, Some(signed_in()));
         let replaced = DeviceCredential {
-            device_id: "device-2".to_owned(),
+            credential: format!("igd_{}", "b".repeat(64)),
             ..signed_in()
         };
         credentials.keep(&replaced)?;
@@ -149,10 +147,13 @@ mod tests {
     #[test]
     fn a_record_this_build_does_not_read_is_signed_out() -> ShellResult<()> {
         let credentials = mocked()?;
-        credentials
-            .entry()?
-            .set_password("{\"credential\":\"igd_x\"}")?;
-        assert_eq!(credentials.read()?, None);
+        for record in [
+            r#"{"credential":"igd_x"}"#,
+            r#"{"credential":"igd_x","email":"a@b.c","userId":"u","unknown":"field"}"#,
+        ] {
+            credentials.entry()?.set_password(record)?;
+            assert_eq!(credentials.read()?, None, "{record}");
+        }
         Ok(())
     }
 

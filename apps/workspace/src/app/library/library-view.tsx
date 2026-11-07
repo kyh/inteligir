@@ -22,6 +22,7 @@ import { ArrowDownUpIcon, PlusIcon } from "lucide-react";
 import { TIDY_LABEL } from "@repo/agent-panel/tidy-library";
 import { LIBRARY_SORTS } from "../prefs";
 import type { LibrarySort } from "../prefs";
+import { TopBar } from "../top-bar";
 import { formatCount } from "./item-labels";
 import type { LibraryGridActions } from "./item-menu";
 import { KindChips } from "./kind-chips";
@@ -48,6 +49,7 @@ interface LibraryAdd {
 }
 
 export interface LibraryViewProps {
+  readonly railOpen: boolean;
   readonly scope: LibraryScope;
   readonly title: string;
   // undefined until the replica's listing has been read once
@@ -173,6 +175,7 @@ const SortMenu = ({
 );
 
 export const LibraryView = ({
+  railOpen,
   scope,
   title,
   page,
@@ -198,7 +201,7 @@ export const LibraryView = ({
   }
   return (
     <div className="flex h-full min-h-0 flex-col" data-library-scope={scope.kind}>
-      <header className="flex h-12 shrink-0 items-center gap-2 px-4">
+      <TopBar railOpen={railOpen} className="px-4">
         <h1 className="m-0 truncate text-title font-medium">{title}</h1>
         <span className="text-body text-muted-foreground tabular-nums">
           {formatCount(page.total)}
@@ -223,7 +226,7 @@ export const LibraryView = ({
             <AddMenu add={add} />
           )}
         </div>
-      </header>
+      </TopBar>
       <KindChips counts={page.kindCounts} kind={kind} onKindChange={onKindChange} />
       {page.total === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-1 p-8 text-center">
