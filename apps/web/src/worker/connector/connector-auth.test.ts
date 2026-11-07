@@ -145,6 +145,8 @@ describe("the connector's sign-in", () => {
     expect(shown.html).toContain("&#60;img src=x onerror=&#34;alert(1)&#34;&#62;");
     expect(shown.html).not.toContain("<img");
     expect(shown.html).toContain("connector-escape@example.test");
+    expect(shown.html).toContain("Disconnect it in Settings › Account › Connected assistants");
+    expect(shown.html).not.toContain("30 days");
     // the redirect goes to an app on this machine, which the page warns of
     expect(shown.html).toContain("This sends access to an app on this computer.");
     expect(shown.response.headers.get("x-frame-options")).toBe("DENY");
