@@ -5,16 +5,12 @@
 import { MarkdownPlugin } from "@platejs/markdown";
 
 import { MD_REMARK_PLUGINS } from "@repo/notes/markdown/md-plugins";
-import { PICKER_INPUT_TYPES } from "@repo/editor/combobox-input";
 import { MD_RULES } from "@repo/editor/markdown/md-rules";
 import { mdToSlate } from "@repo/editor/markdown/md-to-slate";
 
 export const MarkdownKit = [
   MarkdownPlugin.configure({
     options: {
-      // combobox trigger elements are UI state; an autosave mid-combobox must skip them rather
-      // than hit the serializer's "Unreachable code" fallback.
-      disallowedNodes: [...PICKER_INPUT_TYPES],
       remarkPlugins: MD_REMARK_PLUGINS,
       rules: MD_RULES,
     },

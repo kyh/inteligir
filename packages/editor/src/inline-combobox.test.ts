@@ -1,5 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { MockInstance } from "vitest";
+import { describe, expect, it } from "vitest";
 import { ElementApi, KEYS, createSlateEditor } from "platejs";
 import type { TElement } from "platejs";
 
@@ -10,10 +9,8 @@ import {
   racedComboboxText,
   reconcileInsertionCaret,
 } from "@repo/editor/combobox-input";
-import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { serializeNote } from "@repo/editor/markdown/markdown-doc";
-import { WIKI_INPUT_KEY } from "@repo/editor/wiki/wiki-input-key";
 
 const makeEditor = (text: string) =>
   createSlateEditor({
@@ -218,35 +215,5 @@ describe("reconcileInsertionCaret (the first-commit caret quirk)", () => {
     expect(reconcileInsertionCaret("de", "d", 1)).toBeNull();
     expect(reconcileInsertionCaret("abc", "aXbYc", 1)).toBeNull();
     expect(reconcileInsertionCaret("", "d", null)).toBeNull();
-  });
-});
-
-describe("combobox trigger nodes are excluded from serialization", () => {
-  let warn: MockInstance<typeof console.warn>;
-  beforeEach(() => {
-    warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-  });
-  afterEach(() => {
-    warn.mockRestore();
-  });
-
-  it("serializing mid-combobox drops the trigger node, keeps the text, never warns", () => {
-    // the two-char triggers leave their first char in the text: the serializer escapes a `[`, and
-    // a `{` is prose.
-    for (const trigger of [
-      { expected: "before after\n", keys: ["/"], type: KEYS.slashInput },
-      { expected: "before \\[after\n", keys: ["[", "["], type: WIKI_INPUT_KEY },
-      { expected: "before {after\n", keys: ["{", "{"], type: FORMULA_INPUT_KEY },
-    ]) {
-      const editor = makeEditor("before after");
-      editor.tf.select({ offset: 7, path: [0, 0] });
-      for (const key of trigger.keys) {
-        editor.tf.insertText(key);
-      }
-      expect(findByType(editor, trigger.type)).not.toBeNull();
-      const md = out(editor);
-      expect(md).toBe(trigger.expected);
-      expect(warn).not.toHaveBeenCalled();
-    }
   });
 });

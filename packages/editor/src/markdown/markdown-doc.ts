@@ -1,5 +1,6 @@
-// Idempotent pipeline: once roundTrip(raw) === raw, re-serializing is stable, so a rich save is
-// a minimal diff. Unmodelled constructs become opaque nodes rather than a refusal.
+// Idempotent pipeline: once roundTrip(raw) === raw, re-serializing is stable, so what the codec
+// exports reads back as the same bytes. Unmodelled constructs become opaque nodes rather than a
+// refusal.
 // Plate's deserializeMd is banned (`@repo/editor/kits/markdown-kit` says why).
 
 import { ElementApi, createSlateEditor } from "platejs";
@@ -26,7 +27,7 @@ type RoundTripFailure =
   // the pipeline threw, or answered a document the editor cannot hold
   | { kind: "pipeline-error" };
 
-// `normalizes`: the first save restyles markup and keeps every letter and line.
+// `normalizes`: the first write restyles markup and keeps every letter and line.
 /** @internal */
 export type DocAnalysis = { kind: "canonical" } | { kind: "normalizes" } | RoundTripFailure;
 
@@ -77,9 +78,9 @@ const lineEndOffsets = (lines: readonly string[]): number[] => {
   return ends;
 };
 
-// A save may restyle markup or split a line (two date chips become two paragraphs), but joining
+// A write may restyle markup or split a line (two date chips become two paragraphs), but joining
 // two lines changes what the note says without losing a letter: `[[A]]\n[[B]]` as `[[A]][[B]]`.
-// So every offset where a source line's letters end must still end a saved line.
+// So every offset where a source line's letters end must still end a written line.
 const keepsText = (source: string, saved: string): boolean => {
   const sourceLines = source.split("\n").map(letters);
   const savedLines = saved.split("\n").map(letters);
@@ -110,8 +111,8 @@ const convert = (md: string): Converted => {
 
 type Serialized = { ok: true; out: string } | { ok: false; reason: RoundTripFailure };
 
-// The one way a value becomes bytes, the live save's and an extract's as well as the codec's: the
-// rules expect the pre-pass to have run, and Plate's own serializeMd skips it.
+// The one way a value becomes bytes: the rules expect the pre-pass to have run, and Plate's own
+// serializeMd skips it.
 export const serializeNote = (editor: SlateEditor, value: Value = editor.children): string =>
   serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY, value: pruneForMarkdown(value) });
 
@@ -194,7 +195,7 @@ export const analyzeMarkdown = (md: string): DocAnalysis => {
   if (out.trimEnd() === md.trimEnd() && fixpoint.at === out) {
     return { kind: "canonical" };
   }
-  // rich saves pass-1 bytes and each later save advances the chain, so the whole chain must keep the text.
+  // a write leaves pass-1 bytes and each later one advances the chain, so the whole chain must keep the text.
   return keepsText(md, out) && keepsText(md, fixpoint.at)
     ? { kind: "normalizes" }
     : { kind: "roundtrip-loss" };
@@ -227,8 +228,8 @@ export const roundTrip = (md: string): string => {
 /** @internal */
 export const toCanonical = (md: string): string => `${roundTrip(md).trimEnd()}\n`;
 
-// an imported page (the fill's article) written as the editor's own fixpoint: the bytes a rich
-// save of it would write, so the item opens rich and its first edit is a minimal diff.
+// an imported page (the fill's article) written as the editor's own fixpoint: the bytes its
+// blocks export as.
 export interface ImportedDoc {
   markdown: string;
   // the share of the source's letters and digits the fixpoint still holds, which the caller weighs

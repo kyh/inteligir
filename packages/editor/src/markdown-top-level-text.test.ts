@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { analyzeMarkdown, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 
 // No rule in the table yields a text at the root, so the conversion is stubbed to break that
-// invariant: the gate must refuse the note rather than hand Slate a root it cannot hold.
+// invariant: analysis must refuse the note rather than hand Slate a root it cannot hold.
 vi.mock(import("@platejs/markdown"), async (importOriginal) => ({
   ...(await importOriginal()),
   mdastToSlate: () => [{ text: "stray" }],

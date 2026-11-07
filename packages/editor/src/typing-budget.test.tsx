@@ -105,13 +105,11 @@ const CARET_BUDGET: readonly BudgetRow[] = [
   ROOT_DECORATIONS,
   SELECTOR_SUBSCRIPTIONS,
 ];
-// The save serializes the copy `pruneForMarkdown` keeps per top-level block, never the editor's own
-// blocks, so its walk never reaches the watched one: the settle-to-parse ratio holds its cost.
 const SETTLE_BUDGET: readonly BudgetRow[] = [
   {
     module: "formulas/formula-recompute.ts",
     name: "formulaEntries",
-    why: "a pill may name any other pill in the note, so the recompute behind the save reads them all",
+    why: "a pill may name any other pill in the note, so the recompute after a pause reads them all",
   },
 ];
 
@@ -453,7 +451,7 @@ describe(`typing in a ${String(LONG_LINES)}-line note`, () => {
   });
 });
 
-describe("the save behind a settle", () => {
+describe("the codec's serializer", () => {
   // patches/@platejs__core@53.3.15.patch: the serializer asks the type of every mark rule on every
   // text node, most of them marks no plugin registers, and unpatched each such answer resolves one
   it("resolves no plugin for a mark the editor does not register", () => {

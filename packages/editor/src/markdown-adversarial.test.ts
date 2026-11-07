@@ -4,7 +4,7 @@ import { analyzeMarkdown, roundTrip } from "@repo/editor/markdown/markdown-doc";
 
 // Invariants: (a) analyzeMarkdown never throws; (b) canonical ⇒ roundTrip is
 // byte-stable modulo trailing whitespace; (c) roundTrip output re-parses and is a
-// fixpoint; (d) canonical ⇒ no letters invented or lost; (e) the gate refuses conversion ⟺
+// fixpoint; (d) canonical ⇒ no letters invented or lost; (e) analysis refuses conversion ⟺
 // roundTrip throws. Fix the pipeline, never relax an invariant.
 
 type ViolationKind =
@@ -13,7 +13,7 @@ type ViolationKind =
   | "c-not-idempotent"
   | "c-output-does-not-reparse"
   | "d-canonical-content-loss"
-  | "e-gate-roundtrip-disagree";
+  | "e-analysis-roundtrip-disagree";
 
 // `signature` is the dedupe key across inputs
 interface Violation {
@@ -40,13 +40,13 @@ const firstDiff = (a: string, b: string): string => {
 
 type Analysis = ReturnType<typeof analyzeMarkdown>;
 
-// a lossy round trip still converts: the gate refuses it without roundTrip throwing
+// a lossy round trip still converts: analysis refuses it without roundTrip throwing
 const refusesConversion = (analysis: Analysis): boolean =>
   analysis.kind !== "canonical" &&
   analysis.kind !== "normalizes" &&
   analysis.kind !== "roundtrip-loss";
 
-// (e): the gate and roundTrip must agree on whether the doc is convertible
+// (e): analysis and roundTrip must agree on whether the doc is convertible
 const gateViolations = (
   md: string,
   analysis: Analysis,
@@ -56,17 +56,17 @@ const gateViolations = (
   const found: Violation[] = [];
   if (!refusesConversion(analysis) && out === null) {
     found.push({
-      detail: `gate ${analysis.kind} but roundTrip threw: ${clip(String(rtError))}`,
+      detail: `analysis ${analysis.kind} but roundTrip threw: ${clip(String(rtError))}`,
       input: md,
-      kind: "e-gate-roundtrip-disagree",
+      kind: "e-analysis-roundtrip-disagree",
       signature: `e|throw|${anonymize(String(rtError))}`,
     });
   }
   if (refusesConversion(analysis) && out !== null) {
     found.push({
-      detail: `gate ${analysis.kind} but roundTrip succeeded`,
+      detail: `analysis ${analysis.kind} but roundTrip succeeded`,
       input: md,
-      kind: "e-gate-roundtrip-disagree",
+      kind: "e-analysis-roundtrip-disagree",
       signature: `e|ok|${analysis.kind}`,
     });
   }
@@ -514,11 +514,11 @@ const fuzzDocs = (count: number): [string, string][] => {
 };
 
 describe("adversarial round-trip hunt", () => {
-  it("handcrafted corpus upholds the gate invariants", { timeout: 90_000 }, () => {
+  it("handcrafted corpus upholds the invariants", { timeout: 90_000 }, () => {
     expect(report(Object.entries(CORPUS))).toStrictEqual([]);
   });
 
-  it("seeded fuzz corpus upholds the gate invariants", { timeout: 120_000 }, () => {
+  it("seeded fuzz corpus upholds the invariants", { timeout: 120_000 }, () => {
     expect(report(fuzzDocs(140))).toStrictEqual([]);
   });
 

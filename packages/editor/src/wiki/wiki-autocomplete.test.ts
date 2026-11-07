@@ -59,12 +59,6 @@ describe("[[ trigger", () => {
     openWikiPicker(editor);
     expect(editor.api.string([0])).toContain("see [");
   });
-
-  it("a mid-picker autosave serializes without the trigger element", () => {
-    const editor = makeEditor("see ");
-    openWikiPicker(editor);
-    expect(out(editor)).toBe("see \\[\n");
-  });
 });
 
 describe("picker completion", () => {

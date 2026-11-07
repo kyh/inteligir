@@ -47,7 +47,7 @@ const REPO_DOCS = {
 const EXPECTED = {
   // wrapped paragraphs → soft-break churn
   "README.md": "formattable",
-  // the sample notes are pre-canonicalized so a first edit is a minimal diff, not a reflow.
+  // the sample notes are pre-canonicalized.
   "empty.md": "canonical",
   "welcome.md": "canonical",
   "tasks.md": "canonical",

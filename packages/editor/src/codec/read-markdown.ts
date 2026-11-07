@@ -1,5 +1,4 @@
-// Markdown read into the editor's value the way a person's first rich save would leave it: an
-// embed of a file (`![[shot.png|300]]`) made the image the rule table reads `![|300](path)` as,
+// Markdown read into the editor's value as its own export would read back: an embed of a file (`![[shot.png|300]]`) made the image the rule table reads `![|300](path)` as,
 // so the parse lifts it into a block of its own as it lifts every markdown image, then the value
 // written and read again until its bytes hold still, so a file a person wrote by hand reads as the
 // value its own export reads back as.
@@ -16,7 +15,7 @@ import type { ReadPorts } from "./read-blocks";
 import { leaf } from "./slate-leaves";
 
 // how many times a value is written and read again before it holds still: a churn-class
-// construct settles on its first save, the slowest the editor's fixtures know on its second
+// construct settles on its first write, the slowest the editor's fixtures know on its second
 const SETTLE_PASSES = 2;
 
 export const elementsOf = (nodes: readonly Descendant[]): TElement[] =>
@@ -49,7 +48,7 @@ export const embedFiles = (nodes: readonly Descendant[], ports: ReadPorts): Desc
     return { ...node, children: embedFiles(node.children, ports) };
   });
 
-// a value as a rich save of it would leave it
+// a value as writing it and reading it back would leave it
 export const settled = (value: TElement[]): TElement[] => {
   if (value.length === 0) {
     return value;

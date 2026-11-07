@@ -60,7 +60,7 @@ const EXAMPLES = readdirSync(SKILLS_DIR, { withFileTypes: true })
     ),
   );
 
-// one rich save: the note parsed into the editor and serialized back, as the autosave does.
+// one write: the note parsed into the codec's value and serialized back.
 const saveOnce = (md: string): string => {
   const parsed = parseMarkdown(md);
   if (!parsed.ok) {

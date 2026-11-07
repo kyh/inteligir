@@ -232,25 +232,11 @@ const prunedElement = (element: TElement): TElement => {
   return { ...element, children: kept.length > 0 ? kept : [{ text: "" }] };
 };
 
-// An edit replaces the top-level blocks it touched and keeps every other by identity, so a save
-// prunes only those.
-const prunedByBlock = new WeakMap<TElement, TElement>();
-
-const prunedBlock = (block: TElement): TElement => {
-  const cached = prunedByBlock.get(block);
-  if (cached !== undefined) {
-    return cached;
-  }
-  const pruned = prunedElement(block);
-  prunedByBlock.set(block, pruned);
-  return pruned;
-};
-
 // A pre-pass over the whole value rather than a paragraph rule's, since an empty equation sits in
 // a heading or a list item as readily: it leaves before any text run is converted, so its
 // neighbours join into one run rather than two whose marks collide (`**a****b**`), and an element
 // it alone filled keeps an empty text instead of a blank line the next parse drops.
-export const pruneForMarkdown = (value: Value): Value => value.map(prunedBlock);
+export const pruneForMarkdown = (value: Value): Value => value.map((block) => prunedElement(block));
 
 const withoutEdgeBreak = (children: Descendant[], edge: "first" | "last"): Descendant[] => {
   const index = edge === "first" ? 0 : children.length - 1;
@@ -587,7 +573,7 @@ export const MD_RULES: MdRules = {
 
   // Ragged rows are padded into real empty cells: mdast-util-gfm-table pads only in the emitted
   // string, so pass 1 writes empty cells that re-parse to ZWSP placeholders and the fixpoint
-  // lands on pass 3. Plate's default drops mdast `align`, so a rich save would strip a `:-:`
+  // lands on pass 3. Plate's default drops mdast `align`, so a write would strip a `:-:`
   // delimiter row; align rides on the Slate node instead.
   table: {
     deserialize: (node, deco, options) => {
