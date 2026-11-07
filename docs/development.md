@@ -170,9 +170,8 @@ is one build —
 the workspace is a plain SPA served as files, so the suite drives the same
 bytes and the same policy a user gets. So a green `verify` is not a green CI;
 run `pnpm e2e` too before claiming one. A second job runs on macOS, where the
-app ships: `pnpm test` again, since the shell's macOS code compiles and APFS
-and a tmpdir behind a symlink exist only there, and `pnpm smoke:desktop` on an
-ad-hoc pack
+app ships: `pnpm test` again, since the shell's macOS code compiles and runs
+only there, and `pnpm smoke:desktop` on an ad-hoc pack
 (`INTELIGIR_PACK_UNSIGNED=1`). Each step CI adds on top of `pnpm verify`
 carries the reason `verify` cannot run it as a comment beside it in
 `.github/workflows/ci.yml`.
