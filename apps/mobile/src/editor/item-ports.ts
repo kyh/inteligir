@@ -8,6 +8,7 @@
 // library's page writes them all. Pure: the screen binds it to the open item's replica, and the
 // suite drives it over a real one.
 
+import { base64FromBytes, bytesFromBase64 } from "@repo/contract/cloud/bytes";
 import type { RequestPayload, RequestResult } from "@repo/editor-bridge/protocol";
 import type { LibraryReplica, ReplicaItem } from "@repo/library-replica/library-replica";
 import type { FileCache } from "../files/file-cache";
@@ -20,17 +21,6 @@ const heldOf = (item: ReplicaItem): HeldItem => ({
   bodyHeld: item.bodyHeld,
   fields: item.fields,
 });
-
-const bytesOf = (base64: string): Uint8Array<ArrayBuffer> =>
-  Uint8Array.from(atob(base64), (character) => character.codePointAt(0) ?? 0);
-
-const base64Of = (bytes: Uint8Array): string => {
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCodePoint(byte);
-  }
-  return btoa(binary);
-};
 
 const writeItem = async (
   replica: LibraryReplica,
@@ -93,7 +83,7 @@ export const createItemPorts = (args: {
       return { item: item === null ? null : heldOf(item) };
     },
     keepFile: async ({ base64, mediaType }) =>
-      await replica.keepFile({ bytes: bytesOf(base64), mime: mediaType }),
+      await replica.keepFile({ bytes: bytesFromBase64(base64), mime: mediaType }),
     linkTargets: async () => {
       const page = replica.listing({
         deleted: false,
@@ -119,7 +109,7 @@ export const createItemPorts = (args: {
     readFile: async ({ sha }) => {
       const file = await files.heldFile(sha);
       return {
-        file: file === null ? null : { base64: base64Of(file.bytes), mediaType: file.mime },
+        file: file === null ? null : { base64: base64FromBytes(file.bytes), mediaType: file.mime },
       };
     },
     writeItem: async (payload) => await writeItem(replica, payload),

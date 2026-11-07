@@ -22,7 +22,6 @@ export interface HeadlessPageHostArgs {
   // the page's own address: a frame from any other document is dropped
   pageUrl: string;
   mintNonce: () => string;
-  jobTimeoutMs?: number;
   setTimer?: (ms: number, run: () => void) => () => void;
 }
 
@@ -66,7 +65,6 @@ const defaultTimer = (ms: number, run: () => void): (() => void) => {
 };
 
 export const createHeadlessPageHost = (args: HeadlessPageHostArgs): HeadlessPageHost => {
-  const jobTimeoutMs = args.jobTimeoutMs ?? JOB_TIMEOUT_MS;
   const setTimer = args.setTimer ?? defaultTimer;
   const jobs = new Map<number, Job>();
   let view: ReaderView | null = null;
@@ -115,9 +113,9 @@ export const createHeadlessPageHost = (args: HeadlessPageHostArgs): HeadlessPage
     const id = nextId;
     nextId += 1;
     const entry: Job = {
-      cancelTimer: setTimer(jobTimeoutMs, () => {
+      cancelTimer: setTimer(JOB_TIMEOUT_MS, () => {
         jobs.delete(id);
-        reject(new Error(`the headless page did not answer within ${String(jobTimeoutMs)}ms`));
+        reject(new Error(`the headless page did not answer within ${String(JOB_TIMEOUT_MS)}ms`));
         reload();
       }),
       id,

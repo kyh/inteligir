@@ -63,7 +63,6 @@ export interface ComposeRuntimeArgs {
   readonly merge: BlockMerge;
   readonly sha256Hex: (bytes: Uint8Array<ArrayBuffer>) => Promise<string>;
   readonly shrinkCover: FileCachePorts["shrink"];
-  readonly cacheBytes?: number;
 }
 
 // the account's library as this phone holds it, while signed in
@@ -149,7 +148,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   const filesOver = (db: ReplicaSql, credential: string): FileCache => {
     const transport = transportFor(credential);
     return createFileCache({
-      capBytes: args.cacheBytes ?? CACHE_BYTES,
+      capBytes: CACHE_BYTES,
       download: async (sha) => await downloadBlob(transport, args.sha256Hex, sha),
       folders: args.folders,
       now: args.clock.now,
