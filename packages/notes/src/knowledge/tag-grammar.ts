@@ -9,7 +9,7 @@ export interface InlineTagSpan {
 }
 
 // the name is letter-first (so `#123` and hex colors miss); one source string, so the inline
-// grammar and the name a rename accepts cannot drift.
+// grammar and `isTagName` cannot drift.
 const TAG_NAME_SOURCE = String.raw`\p{L}[\p{L}\p{N}_-]*(?:\/[\p{L}\p{N}_-]+)*`;
 // `#` must not follow a word char, `#` or `/` (so `C#`, `##h` and url fragments miss).
 // stateful `g` flag: use matchAll.

@@ -1,58 +1,41 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  isUuidWikiAlias,
-  parseWikiBody,
-  parseWikiBodyRange,
-  serializeWikiBody,
-} from "./remark-wiki-link";
+import { isUuidWikiAlias, parseWikiBody, serializeWikiBody } from "./remark-wiki-link";
 
-describe("parseWikiBodyRange — escapes and tight-# anchors", () => {
+describe("parseWikiBody — escapes and tight-# anchors", () => {
   it("splits a tight # into the anchor", () => {
-    expect(parseWikiBodyRange("Note#Heading")).toStrictEqual({
-      anchor: "Heading",
-      target: "Note",
-      targetRange: { end: 4, start: 0 },
-    });
+    expect(parseWikiBody("Note#Heading")).toStrictEqual({ anchor: "Heading", target: "Note" });
   });
 
   it("a space-surrounded # is title text", () => {
-    expect(parseWikiBodyRange("A # B")).toStrictEqual({
-      target: "A # B",
-      targetRange: { end: 5, start: 0 },
-    });
+    expect(parseWikiBody("A # B")).toStrictEqual({ target: "A # B" });
   });
 
   it("a one-sided # is title text (C# Notes)", () => {
-    expect(parseWikiBodyRange("C# Notes")).toStrictEqual({
-      target: "C# Notes",
-      targetRange: { end: 8, start: 0 },
-    });
+    expect(parseWikiBody("C# Notes")).toStrictEqual({ target: "C# Notes" });
   });
 
   it("position 0 is an anchor regardless (pure-anchor link)", () => {
-    expect(parseWikiBodyRange("#sec")).toStrictEqual({ anchor: "sec", target: "" });
+    expect(parseWikiBody("#sec")).toStrictEqual({ anchor: "sec", target: "" });
   });
 
   it("an escaped # stays in the title, unescaped for resolution", () => {
-    const parsed = parseWikiBodyRange("My \\#1 Note");
+    const parsed = parseWikiBody("My \\#1 Note");
     expect(parsed.target).toBe("My #1 Note");
     expect(parsed.anchor).toBeUndefined();
-    // the range maps the raw slice, escapes included, which is what a rename rewrites
-    expect(parsed.targetRange).toStrictEqual({ end: 11, start: 0 });
   });
 
   it("an escaped backslash unescapes", () => {
-    expect(parseWikiBodyRange("Note\\\\").target).toBe("Note\\");
+    expect(parseWikiBody("Note\\\\").target).toBe("Note\\");
   });
 
   it("a trailing # is title text (nothing tight after it)", () => {
-    expect(parseWikiBodyRange("a#").target).toBe("a#");
+    expect(parseWikiBody("a#").target).toBe("a#");
   });
 
   it("alias still splits at the last pipe", () => {
-    expect(parseWikiBodyRange("A|B|c").target).toBe("A|B");
-    expect(parseWikiBodyRange("A|B|c").alias).toBe("c");
+    expect(parseWikiBody("A|B|c").target).toBe("A|B");
+    expect(parseWikiBody("A|B|c").alias).toBe("c");
   });
 });
 

@@ -69,7 +69,7 @@ import {
   WIKI_LINK_KEY,
 } from "@repo/editor/dialect-node-keys";
 import { embedTypeForUrl } from "@repo/editor/lib/embed-url";
-import { leadingAlertMarker } from "@repo/editor/markdown/alert-marker";
+import { leadingAlertMarker } from "@repo/notes/markdown/alert-marker";
 import { stringProp } from "@repo/editor/node-props";
 import {
   wikiBodyOf,

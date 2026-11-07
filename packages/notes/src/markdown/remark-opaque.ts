@@ -88,8 +88,6 @@ const HELD_AS_SOURCE: Record<GrammarNodeType, boolean> = {
 const isGrammarNodeType = (type: string): type is GrammarNodeType =>
   Object.hasOwn(HELD_AS_SOURCE, type);
 
-// exported for the knowledge scan, which reads this grammar's bare tree: a link inside one of these
-// is the editor's string, not its link, so rename byte-surgery must not splice into it.
 const isOpaqueSource = (node: Nodes): boolean =>
   isGrammarNodeType(node.type) && HELD_AS_SOURCE[node.type];
 

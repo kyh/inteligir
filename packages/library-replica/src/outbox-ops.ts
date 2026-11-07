@@ -15,11 +15,14 @@ import {
 } from "@repo/contract/cloud/library/library-wire";
 import { ANNOTATION_QUOTE_MAX } from "@repo/notes/annotations/store-schema";
 import { blockHash } from "@repo/notes/library/block-hash";
-import { blockHashSchema, libraryOpSchema } from "@repo/notes/library/block-ops";
+import {
+  blockHashSchema,
+  libraryOpSchema,
+  sameList,
+  sameOptionalJson,
+} from "@repo/notes/library/block-ops";
 import type { LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
 import { ordSchema } from "@repo/notes/library/block-order";
-import { sameJson } from "@repo/notes/library/canonical-json";
-import type { JsonValue } from "@repo/notes/library/canonical-json";
 import { libraryItemFieldsSchema } from "@repo/notes/library/library-item";
 import {
   blockIdSchema,
@@ -313,12 +316,6 @@ const compactBlock = (blockId: string, ops: readonly BlockOp[]): readonly BlockO
   return run === null ? null : runOps(blockId, run);
 };
 
-const sameList = (a: readonly string[], b: readonly string[]): boolean =>
-  a.length === b.length && a.every((entry, index) => entry === b[index]);
-
-const sameOptional = (a: JsonValue | undefined, b: JsonValue | undefined): boolean =>
-  a === undefined || b === undefined ? a === b : sameJson(a, b);
-
 // whether each op of one field's run was computed from the value the op before it wrote
 const followsOn = (before: FieldOp, op: FieldOp): boolean => {
   switch (op.op) {
@@ -330,7 +327,7 @@ const followsOn = (before: FieldOp, op: FieldOp): boolean => {
       return before.op === op.op && sameList(op.base, before.value);
     }
     case "property": {
-      return before.op === "property" && sameOptional(op.base, before.value);
+      return before.op === "property" && sameOptionalJson(op.base, before.value);
     }
     // no default
   }
@@ -353,7 +350,7 @@ const spanOf = (first: FieldOp, last: FieldOp): FieldOp[] => {
         : [];
     }
     case "property": {
-      if (first.op !== "property" || sameOptional(first.base, last.value)) {
+      if (first.op !== "property" || sameOptionalJson(first.base, last.value)) {
         return [];
       }
       const { base, ...rest } = first;

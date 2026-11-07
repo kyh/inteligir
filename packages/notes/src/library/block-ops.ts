@@ -66,7 +66,13 @@ const moveOpSchema = z.strictObject({
 
 const FIELDS = libraryItemFieldsSchema.shape;
 
-type ScalarField = Exclude<keyof LibraryItemFields, "aliases" | "properties" | "tags">;
+export type ScalarField = Exclude<keyof LibraryItemFields, "aliases" | "properties" | "tags">;
+
+const isScalarField = (field: keyof LibraryItemFields): field is ScalarField =>
+  field !== "aliases" && field !== "properties" && field !== "tags";
+
+// read off the schema, so a field it gains is one an undo restores
+export const SCALAR_FIELDS = libraryItemFieldsSchema.keyof().options.filter(isScalarField);
 
 const setOf = <F extends ScalarField>(field: F) =>
   z.strictObject({
@@ -158,7 +164,8 @@ const listKey = (op: "aliases" | "tags") => (entry: string) =>
   op === "tags" ? entry.toLowerCase() : entry;
 
 // three-way over a list kept as a set: `current`, less what `base` had and `value` dropped, plus
-// what `value` added, in the order it added them
+// what `value` added, in the order it added them. An entry `value` spells anew under a key `base`
+// held takes that spelling where it stands; one `value` left as `base` spelled it stays as it is
 export const mergeListField = (
   op: "aliases" | "tags",
   current: readonly string[],
@@ -166,10 +173,16 @@ export const mergeListField = (
   value: readonly string[],
 ): string[] => {
   const keyOf = listKey(op);
-  const kept = new Set(value.map(keyOf));
+  const kept = new Map(value.map((entry) => [keyOf(entry), entry]));
   const had = new Set(base.map(keyOf));
   const removed = new Set([...had].filter((key) => !kept.has(key)));
-  const merged = current.filter((entry) => !removed.has(keyOf(entry)));
+  const written = new Set(value);
+  const respelled = new Set(base.filter((entry) => !written.has(entry)).map(keyOf));
+  const spelled = (entry: string): string => {
+    const key = keyOf(entry);
+    return respelled.has(key) ? (kept.get(key) ?? entry) : entry;
+  };
+  const merged = [...new Set(current.filter((entry) => !removed.has(keyOf(entry))).map(spelled))];
   const present = new Set(merged.map(keyOf));
   for (const entry of value) {
     const key = keyOf(entry);
@@ -181,13 +194,13 @@ export const mergeListField = (
   return merged;
 };
 
-const sameList = (a: readonly string[], b: readonly string[]): boolean =>
+export const sameList = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((entry, index) => entry === b[index]);
 
 const propertyAt = (fields: LibraryItemFields, key: string): JsonValue | undefined =>
   Object.hasOwn(fields.properties, key) ? fields.properties[key] : undefined;
 
-const sameOptionalJson = (a: JsonValue | undefined, b: JsonValue | undefined): boolean =>
+export const sameOptionalJson = (a: JsonValue | undefined, b: JsonValue | undefined): boolean =>
   a === undefined || b === undefined ? a === b : sameJson(a, b);
 
 type BlockOp = Extract<LibraryOp, { op: "insert" | "put" | "drop" | "move" }>;

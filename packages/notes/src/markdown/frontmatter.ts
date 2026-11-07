@@ -152,16 +152,8 @@ export const yamlStringEntries = (yamlText: string, key: string): string[] => {
   return entries;
 };
 
-// where the scalar stands: an entry of a flow list (`[a, b]`), or a block value of its own
-// (`key: value`), where a comma or a bracket inside the value splits nothing
-export type YamlScalarContext = "flow" | "block";
-
-// a flow indicator would split a flow list, and a spelling yaml reads as something else (`true`,
-// `2026`, `#x`) would change the value's type
-const plainReadsAsItself = (value: string, context: YamlScalarContext): boolean => {
-  if (context === "flow" && /[,[\]{}]/u.test(value)) {
-    return false;
-  }
+// a spelling yaml reads as something else (`true`, `2026`, `#x`) would change the value's type
+const plainReadsAsItself = (value: string): boolean => {
   try {
     return parseYaml(value) === value;
   } catch {
@@ -169,23 +161,9 @@ const plainReadsAsItself = (value: string, context: YamlScalarContext): boolean 
   }
 };
 
-type YamlScalarStyle = "plain" | "single" | "double";
-
-// a value spelled in the style its scalar was written in, so a splice restyles nothing; a plain
-// scalar that cannot hold it plainly is double-quoted instead.
-export const yamlScalarText = (
-  value: string,
-  style: YamlScalarStyle,
-  context: YamlScalarContext = "flow",
-): string => {
-  if (style === "single") {
-    return `'${value.replaceAll("'", "''")}'`;
-  }
-  if (style === "plain" && plainReadsAsItself(value, context)) {
-    return value;
-  }
-  return JSON.stringify(value);
-};
+// a block value (`key: value`), plain when it reads back as itself and double-quoted otherwise
+export const yamlScalarText = (value: string): string =>
+  plainReadsAsItself(value) ? value : JSON.stringify(value);
 
 export const typeNewProperty = (key: string, rawValue: string): TypedProperty => {
   if (rawValue.trim() === "") {

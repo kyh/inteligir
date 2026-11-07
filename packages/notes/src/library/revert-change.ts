@@ -1,21 +1,25 @@
 // Takes one change set's change to an item back while keeping every change made since: the change
-// run backwards three ways, in the orientation `@repo/notes/text/revert-edit` takes a file back
-// in — the set's after as the base, the item now as mine, the set's before as theirs — block by
-// block, field by field and highlight by highlight. A block the set changed and someone changed
-// again keeps the item whole and names it; Undo never takes an item half back. Snapshots in, ops
-// out: the caller lands them through the same guarded apply every write takes.
+// run backwards three ways, the set's after as the base, the item now as mine and the set's before
+// as theirs, block by block, field by field and highlight by highlight. A block the set changed
+// and someone changed again keeps the item whole and names it; Undo never takes an item half back.
+// Snapshots in, ops out: the caller lands them through the same guarded apply every write takes.
 
 import { annotationEntriesOf, sameAnnotationEntry } from "../annotations/store-schema";
 import type { AnnotationStore } from "../annotations/store-schema";
 import { revertAnnotationEntries } from "../annotations/revert-entries";
 import { diff3 } from "../text/diff3";
-import { applyOps, libraryOpSchema, orderedBlocks } from "./block-ops";
-import type { ItemState, LibraryOp, StoredBlock } from "./block-ops";
+import {
+  applyOps,
+  libraryOpSchema,
+  orderedBlocks,
+  SCALAR_FIELDS,
+  sameList,
+  sameOptionalJson,
+} from "./block-ops";
+import type { ItemState, LibraryOp, ScalarField, StoredBlock } from "./block-ops";
 import { compareBlockPlaces, placeInOrder } from "./block-order";
 import { sameJson } from "./canonical-json";
-import type { JsonValue } from "./canonical-json";
 import { deriveItem } from "./derive-item";
-import { FILL_OWNED_FIELDS, libraryItemFieldsSchema } from "./library-item";
 import type { LibraryItemFields } from "./library-item";
 import { LIBRARY_SECTIONS } from "./library-nodes";
 import type { LibraryBlock, LibrarySection } from "./library-nodes";
@@ -35,11 +39,19 @@ export interface ItemSnapshot {
   readonly annotations: AnnotationStore;
 }
 
-// what a change set did to one item: `before` null when the set made it
-export interface ItemChange {
-  readonly before: ItemSnapshot | null;
-  readonly after: ItemSnapshot;
+// a fill's own change set for an item, which is the record of what it wrote there
+export interface FillChange {
+  readonly before: LibraryItemFields;
+  readonly after: LibraryItemFields;
 }
+
+// what a change set did to one item: `before` null when the set made it, with every fill of the
+// item since
+export type ItemChange =
+  | { readonly before: ItemSnapshot; readonly after: ItemSnapshot }
+  | { readonly before: null; readonly after: ItemSnapshot; readonly fills: readonly FillChange[] };
+
+type MadeItem = Extract<ItemChange, { before: null }>;
 
 // the item as it is now; null once it was purged
 export interface ItemNow {
@@ -89,36 +101,6 @@ export interface ItemRevertInput {
 const UNCHANGED: ItemRevert = { kind: "unchanged" };
 const EDITED_SINCE: ItemRevert = { kind: "keep", reason: "edited-since" };
 
-type ScalarField = Exclude<keyof LibraryItemFields, "aliases" | "properties" | "tags">;
-
-const SCALAR_FIELDS = [
-  "author",
-  "copySha",
-  "coverSha",
-  "deletedAt",
-  "description",
-  "fetchError",
-  "fetchState",
-  "fetchedAt",
-  "folderId",
-  "kind",
-  "lang",
-  "originalName",
-  "originalSha",
-  "pinnedAt",
-  "published",
-  "savedAt",
-  "site",
-  "title",
-  "url",
-] as const satisfies readonly ScalarField[];
-
-const sameList = (a: readonly string[], b: readonly string[]): boolean =>
-  a.length === b.length && a.every((entry, index) => entry === b[index]);
-
-const optionalJson = (a: JsonValue | undefined, b: JsonValue | undefined): boolean =>
-  a === undefined || b === undefined ? a === b : sameJson(a, b);
-
 // a field's op from two readings of that one field; the parse ties the values to the field's own
 // type, which TypeScript cannot follow through a loop over every field
 const setOp = (
@@ -156,10 +138,10 @@ const fieldOps = (
     const was = Object.hasOwn(before.properties, key) ? before.properties[key] : undefined;
     const made = Object.hasOwn(after.properties, key) ? after.properties[key] : undefined;
     const is = Object.hasOwn(now.properties, key) ? now.properties[key] : undefined;
-    if (optionalJson(was, made) || optionalJson(is, was)) {
+    if (sameOptionalJson(was, made) || sameOptionalJson(is, was)) {
       continue;
     }
-    if (!optionalJson(is, made)) {
+    if (!sameOptionalJson(is, made)) {
       return null;
     }
     ops.push({ base: is, key, op: "property", value: was });
@@ -306,11 +288,6 @@ const orderOps = (
   return ops;
 };
 
-const FILL_OWNED = new Set<string>(FILL_OWNED_FIELDS);
-const PERSON_FIELDS = libraryItemFieldsSchema
-  .keyof()
-  .options.filter((field) => !FILL_OWNED.has(field));
-
 const sameNoteBlocks = (
   after: readonly ManifestEntry[],
   now: readonly ManifestEntry[],
@@ -333,25 +310,36 @@ const sameAnnotations = (a: AnnotationStore, b: AnnotationStore): boolean => {
   );
 };
 
-// the parts of an item only a person writes: every field a fill does not own, the note section's
-// blocks and the highlights
-const personTouched = (after: ItemSnapshot, now: ItemNow): boolean =>
-  !(
-    PERSON_FIELDS.every((field) => sameJson(after.fields[field], now.state.fields[field])) &&
+// whether anyone but a fill changed the item since the set: a field holds what the set left or
+// what a fill wrote there, read off the fill's own change, since one field can be either's (a fill
+// names an unread link, and a person renames it). A fill's lists are a fold's, carrying a person's
+// tags over, so those count, as the note section's blocks and the highlights do
+const personTouched = ({ after, fills }: MadeItem, now: ItemNow): boolean => {
+  const { fields } = now.state;
+  const fillWrote = (field: ScalarField): boolean =>
+    fills.some(
+      (fill) => fill.after[field] === fields[field] && fill.before[field] !== fill.after[field],
+    );
+  return !(
+    SCALAR_FIELDS.every((field) => fields[field] === after.fields[field] || fillWrote(field)) &&
+    sameList(fields.tags, after.fields.tags) &&
+    sameList(fields.aliases, after.fields.aliases) &&
+    sameJson(fields.properties, after.fields.properties) &&
     sameNoteBlocks(after.manifest, snapshotOf(now).manifest) &&
     sameAnnotations(after.annotations, now.annotations)
   );
+};
 
 // an item the set made goes to Deleted, unless a person has touched it since: a fill reading its
 // page since is not a reason to keep it
-const revertCreated = (input: ItemRevertInput, now: ItemNow | null): ItemRevert => {
+const revertCreated = (change: MadeItem, now: ItemNow | null, at: number): ItemRevert => {
   if (now?.state.fields.deletedAt !== null) {
     return UNCHANGED;
   }
-  if (personTouched(input.change.after, now)) {
+  if (personTouched(change, now)) {
     return EDITED_SINCE;
   }
-  const ops = [setOp("deletedAt", null, input.at)];
+  const ops = [setOp("deletedAt", null, at)];
   const landed = applyOps(now.state, ops);
   return landed.kind === "applied"
     ? { annotations: null, keptAnnotations: false, kind: "revert", ops, state: landed.state }
@@ -395,7 +383,7 @@ const revertExisting = (input: ItemRevertInput, before: ItemSnapshot, now: ItemN
     return UNCHANGED;
   }
   return {
-    annotations: highlights.kind === "reverted" ? (highlights.store ?? {}) : null,
+    annotations: highlights.kind === "reverted" ? highlights.store : null,
     keptAnnotations: highlights.kept,
     kind: "revert",
     ops: changed ? ops : [],
@@ -405,14 +393,14 @@ const revertExisting = (input: ItemRevertInput, before: ItemSnapshot, now: ItemN
 
 /** @internal */
 export const revertItemChange = (input: ItemRevertInput): ItemRevert => {
-  const { before } = input.change;
-  if (before === null) {
-    return revertCreated(input, input.now);
+  const { change, now } = input;
+  if (change.before === null) {
+    return revertCreated(change, now, input.at);
   }
-  if (input.now === null) {
+  if (now === null) {
     return { kind: "keep", reason: "purged" };
   }
-  return revertExisting(input, before, input.now);
+  return revertExisting(input, change.before, now);
 };
 
 // one change set as an undo reads it: what it did to each item it touched

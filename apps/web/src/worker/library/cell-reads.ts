@@ -13,8 +13,11 @@ import type {
 } from "@repo/contract/cloud/library/library-wire";
 import { itemView, viewPage } from "@repo/editor/codec/item-view";
 import type { ViewPage } from "@repo/editor/codec/item-view";
-import { TYPED_QUERY } from "@repo/notes/knowledge/search-query";
-import { bodyPrefilters, excerptAround, findTextOffsets } from "@repo/notes/knowledge/text-matches";
+import {
+  excerptAround,
+  findTextOffsets,
+  isPrintableAscii,
+} from "@repo/notes/knowledge/text-matches";
 import { ITEM_KINDS } from "@repo/notes/items/item-kind";
 import type { ItemKind } from "@repo/notes/items/item-kind";
 import { compareText } from "@repo/notes/library/block-order";
@@ -242,7 +245,7 @@ const lineExcerpt = (text: string, query: string): string | null => {
   for (const line of text.split("\n")) {
     const [match] = findTextOffsets(line, query, { caseSensitive: false, wholeWord: false });
     if (match !== undefined) {
-      const excerpt = excerptAround(line, { column: match.offset, length: match.length, line: 1 });
+      const excerpt = excerptAround(line, match);
       return `${excerpt.before}${excerpt.text}${excerpt.after}`;
     }
   }
@@ -255,10 +258,10 @@ const lineExcerpt = (text: string, query: string): string | null => {
 // on one line has such a scan, since SQLite folds ascii case alone and a match lives in one line
 const searchHits = (sql: SqlStatements, query: string): Map<string, string> => {
   const hits = new Map<string, string>();
-  for (const hit of runPlan(sql, searchLibrary(query, SEARCH_CANDIDATES, TYPED_QUERY))) {
+  for (const hit of runPlan(sql, searchLibrary(query, SEARCH_CANDIDATES))) {
     hits.set(hit.itemId, hit.snippet);
   }
-  if (bodyPrefilters([query]) === null || query.includes("\n")) {
+  if (!isPrintableAscii(query)) {
     return hits;
   }
   let after: string | null = null;
@@ -383,11 +386,11 @@ export const readItemView = (sql: SqlStatements, codec: CellCodec, input: ReadIn
       .map((row) => targetRowSchema.parse(row).target_id),
   );
   out.delete(input.id);
-  const sources = [
+  const into = new Set([
     ...runPlan(sql, linksTo(input.id)),
     ...(item.urlKey === null ? [] : runPlan(sql, linksToUrl(item.urlKey))),
-  ];
-  const into = new Set(sources.map((link) => link.sourceId).filter((id) => id !== input.id));
+  ]);
+  into.delete(input.id);
   const [counted] = sql.all(
     `SELECT count(*) AS count FROM annotations
      WHERE item_id = ? AND parent_id IS NULL AND deleted_at IS NULL`,

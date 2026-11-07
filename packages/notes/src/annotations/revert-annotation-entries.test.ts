@@ -17,9 +17,9 @@ const NO_MARKERS: ReadonlySet<string> = new Set();
 
 const revert = (input: Partial<AnnotationEntriesRevertInput>) =>
   revertAnnotationEntries({
-    after: null,
-    before: null,
-    current: null,
+    after: {},
+    before: {},
+    current: {},
     markerIds: NO_MARKERS,
     ...input,
   });
@@ -28,11 +28,11 @@ describe(revertAnnotationEntries, () => {
   const mine = entry("Why Friday?");
   const agents = entry("Consider Thursday", { source: "agent" });
 
-  it("removes an entry the change added, and a store left empty goes", () => {
+  it("removes an entry the change added", () => {
     expect(revert({ after: { a1: agents }, current: { a1: agents } })).toStrictEqual({
       kept: false,
       kind: "reverted",
-      store: null,
+      store: {},
     });
   });
 
@@ -67,16 +67,10 @@ describe(revertAnnotationEntries, () => {
     ).toStrictEqual({ kept: true, kind: "reverted", store: { a1: agents, u1: answer } });
   });
 
-  it("keeps an entry the change added while a marker still anchors it, or none can be read", () => {
+  it("keeps an entry the change added while a marker still anchors it", () => {
     expect(
       revert({ after: { a1: agents }, current: { a1: agents }, markerIds: new Set(["a1"]) }),
     ).toStrictEqual({ kept: true, kind: "unchanged" });
-    expect(
-      revert({ after: { a1: agents }, current: { a1: agents }, markerIds: null }),
-    ).toStrictEqual({
-      kept: true,
-      kind: "unchanged",
-    });
   });
 
   it("keeps an entry the change added and someone edited since", () => {
@@ -126,12 +120,8 @@ describe(revertAnnotationEntries, () => {
       kind: "reverted",
       store: { c1: mine, r1: reply, u1: later },
     });
-    expect(back.kind === "reverted" && Object.keys(back.store ?? {})).toStrictEqual([
-      "u1",
-      "c1",
-      "r1",
-    ]);
-    expect(revert({ after: null, before: { c1: mine }, current: null })).toStrictEqual({
+    expect(back.kind === "reverted" && Object.keys(back.store)).toStrictEqual(["u1", "c1", "r1"]);
+    expect(revert({ before: { c1: mine } })).toStrictEqual({
       kept: false,
       kind: "reverted",
       store: { c1: mine },

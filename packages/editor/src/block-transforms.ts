@@ -5,7 +5,7 @@ import type { Path, TElement, TRange } from "platejs";
 import type { PlateEditor } from "platejs/react";
 
 import { wrapBlockInToggle } from "@repo/editor/kits/toggle-kit";
-import { leadingAlertMarker } from "@repo/editor/markdown/alert-marker";
+import { leadingAlertMarker } from "@repo/notes/markdown/alert-marker";
 import { stringProp } from "@repo/editor/node-props";
 
 // Callers name rows by id, never by label: a label lookup made renaming a menu entry a silent behaviour change.

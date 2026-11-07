@@ -26,7 +26,6 @@ import {
   searchRowOf,
   storeBlocks,
   readLiveItems,
-  storeItem,
   storeItemBody,
   storeItemRow,
   storeTombstone,
@@ -51,8 +50,26 @@ const library = (): WasmSqlPort => {
 
 const exec = <T>(port: WasmSqlPort, plan: SqlPlan<T>): T => transactPlan(port, plan);
 
-const offer = (port: WasmSqlPort, id: string, state: ItemState, seq: number) =>
-  exec(port, storeItem({ id, seq, state, updatedAt: 1_700_000_000_000 + seq }));
+// a row, then its body under it, as a replica lays an item; null when the row held is as new or newer
+const offer = (port: WasmSqlPort, id: string, state: ItemState, seq: number) => {
+  const derived = deriveItem(state.fields, state.blocks);
+  const landed = exec(
+    port,
+    storeItemRow({
+      card: derived.card,
+      fields: state.fields,
+      id,
+      seq,
+      updatedAt: 1_700_000_000_000 + seq,
+      urlKey: derived.urlKey,
+    }),
+  );
+  if (!landed) {
+    return null;
+  }
+  exec(port, storeItemBody({ blocks: orderedBlocks(state.blocks), id, seq }));
+  return derived;
+};
 
 const put = (port: WasmSqlPort, id: string, state: ItemState, seq = 1) => {
   const derived = offer(port, id, state, seq);
@@ -122,7 +139,7 @@ describe("items", () => {
     expect(
       port.all("SELECT tag, origin FROM item_tags WHERE item_id = ?", ["item-1"]),
     ).toStrictEqual([{ origin: "field", tag: "fresh" }]);
-    expect(exec(port, linksTo("target")).map((link) => link.sourceId)).toStrictEqual(["item-1"]);
+    expect(exec(port, linksTo("target"))).toStrictEqual(["item-1"]);
   });
 
   it("lays a row before its body, and the body only under the row at the body's own sequence", () => {
@@ -357,9 +374,6 @@ describe("search", () => {
       "titled",
       "body",
     ]);
-    expect(exec(port, searchLibrary("tool", 10, { typing: false }))).toStrictEqual([
-      expect.objectContaining({ itemId: "body", snippet: expect.stringContaining("tools") }),
-    ]);
   });
 
   it("cuts an item's index row under a Durable Object's row limit", { timeout: 30_000 }, () => {
@@ -421,7 +435,7 @@ describe(literalMatches, () => {
 });
 
 describe("links", () => {
-  it("answers backlinks by id, Linked from by address, and dangling links by title", () => {
+  it("answers backlinks by id and Linked from by address, and holds no row for a link to no item", () => {
     const port = library();
     put(
       port,
@@ -441,9 +455,13 @@ describe("links", () => {
         },
       ]),
     );
-    expect(exec(port, linksTo("target")).map((link) => link.sourceId)).toStrictEqual(["source"]);
-    expect(exec(port, linksToUrl("example.com/t"))).toStrictEqual([
-      expect.objectContaining({ blockId: "u", kind: "url", sourceId: "source" }),
+    expect(exec(port, linksTo("target"))).toStrictEqual(["source"]);
+    expect(exec(port, linksToUrl("example.com/t"))).toStrictEqual(["source"]);
+    expect(
+      port.all("SELECT target_id, target_key FROM links ORDER BY target_key", []),
+    ).toStrictEqual([
+      { target_id: "target", target_key: null },
+      { target_id: null, target_key: "example.com/t" },
     ]);
   });
 });

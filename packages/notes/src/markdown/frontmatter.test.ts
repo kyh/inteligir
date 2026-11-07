@@ -21,10 +21,9 @@ describe("the frontmatter block is the one the scan reads", () => {
 });
 
 describe(yamlScalarText, () => {
-  it("keeps a comma plain in a block value and quotes it in a flow list", () => {
-    expect(yamlScalarText("a, b", "plain", "block")).toBe("a, b");
-    expect(yamlScalarText("a, b", "plain")).toBe('"a, b"');
-    expect(yamlScalarText("a: b", "plain", "block")).toBe('"a: b"');
-    expect(yamlScalarText("[x]", "plain", "block")).toBe('"[x]"');
+  it("stays plain while it reads back as itself, and quotes otherwise", () => {
+    expect(yamlScalarText("a, b")).toBe("a, b");
+    expect(yamlScalarText("a: b")).toBe('"a: b"');
+    expect(yamlScalarText("[x]")).toBe('"[x]"');
   });
 });

@@ -14,21 +14,14 @@ export interface AnnotationThread {
   anchored: boolean;
 }
 
-export interface AnnotationFold {
-  annotations: AnnotationThread[];
-  orphanMarkers: string[];
-  // parent chain never reaches a root (dangling or cyclic parentId)
-  strayIds: string[];
-}
-
-// markerIds null = doc unparseable: every annotation reports anchored and no orphan markers are
-// claimed, since either claim would be a guess. Its order is the document's (the caller lists each
-// id where its first marker sits), so anchored roots read top to bottom and the unanchored follow
-// by `createdAt`.
+// markerIds null = the item's body is not held: every thread reports anchored, since the claim
+// would be a guess. Its order is the document's (the caller lists each id where its first marker
+// sits), so anchored roots read top to bottom and the unanchored follow by `createdAt`. A reply
+// whose chain never reaches a root is in no thread.
 export const foldAnnotations = (
   store: AnnotationStore,
   markerIds: ReadonlySet<string> | null,
-): AnnotationFold => {
+): AnnotationThread[] => {
   const childIds = new Map<string, string[]>();
   const rootIds: string[] = [];
   for (const [id, entry] of Object.entries(store)) {
@@ -60,30 +53,24 @@ export const foldAnnotations = (
     return byCreation(a, b);
   };
 
-  const reached = new Set<string>();
-  const annotations: AnnotationThread[] = [];
+  const threads: AnnotationThread[] = [];
   for (const rootId of rootIds.toSorted(inDocumentOrder)) {
     const root = store[rootId];
     if (root === undefined) {
       continue;
     }
-    reached.add(rootId);
     const replies: AnnotationReply[] = [];
     const stack = (childIds.get(rootId) ?? []).toSorted(byCreation).toReversed();
     while (stack.length > 0) {
       const id = stack.pop();
-      if (id === undefined || reached.has(id)) {
+      const entry = id === undefined ? undefined : store[id];
+      if (id === undefined || entry === undefined) {
         continue;
       }
-      const entry = store[id];
-      if (entry === undefined) {
-        continue;
-      }
-      reached.add(id);
       replies.push({ entry, id });
       stack.push(...(childIds.get(id) ?? []).toSorted(byCreation).toReversed());
     }
-    annotations.push({
+    threads.push({
       anchored: markerIds === null ? true : markerIds.has(rootId),
       id: rootId,
       replies,
@@ -91,8 +78,5 @@ export const foldAnnotations = (
     });
   }
 
-  const strayIds = Object.keys(store).filter((id) => !reached.has(id));
-  const orphanMarkers =
-    markerIds === null ? [] : [...markerIds].filter((id) => store[id] === undefined).toSorted();
-  return { annotations, orphanMarkers, strayIds };
+  return threads;
 };

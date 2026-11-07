@@ -8,6 +8,7 @@ import {
   annotationSourceLabel,
   mintAnnotationId,
   parseAnnotationStore,
+  sameAnnotationEntry,
   serializeAnnotationStore,
 } from "./store-schema";
 import type { AnnotationEntry, AnnotationStore } from "./store-schema";
@@ -35,13 +36,25 @@ const STORE: AnnotationStore = {
 };
 
 describe("annotation store schema", () => {
-  it("round-trips unknown fields and insertion order", () => {
-    // the fixture is the assertion: an unsorted root pair and a foreign field after the known ones
-    // is exactly what a round-trip has to give back.
+  it("reads two entries as one whatever order their fields come in, and any field's change apart", () => {
+    const entry = { createdAt: AT, quote: "q", source: "user", text: "t", updatedAt: AT } as const;
+    const reordered = {
+      updatedAt: AT,
+      text: "t",
+      source: "user",
+      quote: "q",
+      createdAt: AT,
+    } as const;
+    expect(sameAnnotationEntry(entry, reordered)).toBe(true);
+    expect(sameAnnotationEntry(entry, { ...reordered, parentId: "p" })).toBe(false);
+    expect(sameAnnotationEntry(entry, { ...reordered, quote: "other" })).toBe(false);
+  });
+
+  it("round-trips insertion order", () => {
     const raw = `${JSON.stringify(
       {
-        z: { text: "t", createdAt: AT, updatedAt: AT, foreignOnly: { deep: true } },
-        a: { text: "u", createdAt: AT, updatedAt: AT, imageUrl: "assets/legacy.png" },
+        z: { text: "t", createdAt: AT, updatedAt: AT },
+        a: { text: "u", createdAt: AT, updatedAt: AT },
       },
       null,
       2,
@@ -78,15 +91,13 @@ describe("annotation store schema", () => {
 });
 
 describe(foldAnnotations, () => {
-  it("builds threads with replies in parent-chain order and flags both orphan directions", () => {
-    const folded = foldAnnotations(STORE, new Set(["c1", "ghost"]));
-    expect(folded.annotations.map((annotation) => annotation.id)).toStrictEqual(["c1", "b9"]);
-    const [c1] = folded.annotations;
+  it("builds threads with replies in parent-chain order", () => {
+    const threads = foldAnnotations(STORE, new Set(["c1", "ghost"]));
+    expect(threads.map((thread) => thread.id)).toStrictEqual(["c1", "b9"]);
+    const [c1] = threads;
     expect(c1?.replies.map((reply) => reply.id)).toStrictEqual(["c1-r1", "c1-r2"]);
     expect(c1?.anchored).toBe(true);
-    expect(folded.annotations[1]?.anchored).toBe(false);
-    expect(folded.orphanMarkers).toStrictEqual(["ghost"]);
-    expect(folded.strayIds).toStrictEqual([]);
+    expect(threads[1]?.anchored).toBe(false);
   });
 
   it("lists anchored roots in the order their markers open, then the unanchored by creation", () => {
@@ -97,26 +108,29 @@ describe(foldAnnotations, () => {
       bottom: { createdAt: AT, text: "", updatedAt: AT },
     };
     const source = "%%i:top:start%%a%%i:top:end%% then %%i:bottom:start%%b%%i:bottom:end%%\n";
-    expect(
-      foldAnnotations(store, markerRootIds(source)).annotations.map((annotation) => annotation.id),
-    ).toStrictEqual(["top", "bottom", "early", "late"]);
+    expect(foldAnnotations(store, markerRootIds(source)).map((thread) => thread.id)).toStrictEqual([
+      "top",
+      "bottom",
+      "early",
+      "late",
+    ]);
   });
 
-  it("surfaces dangling and cyclic chains as strays", () => {
+  it("leaves dangling and cyclic chains out of every thread", () => {
     const broken: AnnotationStore = {
       ...STORE,
       dangling: { createdAt: AT, parentId: "gone", text: "x", updatedAt: AT },
       loopA: { createdAt: AT, parentId: "loopB", text: "x", updatedAt: AT },
       loopB: { createdAt: AT, parentId: "loopA", text: "x", updatedAt: AT },
     };
-    const folded = foldAnnotations(broken, new Set(["c1"]));
-    expect(folded.strayIds.toSorted()).toStrictEqual(["dangling", "loopA", "loopB"]);
+    const threads = foldAnnotations(broken, new Set(["c1"]));
+    expect(
+      threads.flatMap((thread) => [thread.id, ...thread.replies.map(({ id }) => id)]),
+    ).toStrictEqual(["c1", "c1-r1", "c1-r2", "b9"]);
   });
 
-  it("claims nothing about markers when the doc was unparseable", () => {
-    const folded = foldAnnotations(STORE, null);
-    expect(folded.orphanMarkers).toStrictEqual([]);
-    expect(folded.annotations.every((annotation) => annotation.anchored)).toBe(true);
+  it("reports every thread anchored while the body is not held", () => {
+    expect(foldAnnotations(STORE, null).every((thread) => thread.anchored)).toBe(true);
   });
 });
 

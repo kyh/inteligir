@@ -2,7 +2,7 @@
   "name": "@repo/notes",
   "version": "0.1.0",
   "private": true,
-  "description": "Pure, platform-agnostic domain core. ZERO node/react/fs/dom deps, so the same code runs in the Worker's library cell and in every device's replica. `src/knowledge/` is the link graph, search and projection engine over a library; `src/markdown/` is the one markdown scan it reads, plus frontmatter and the dialect's own constructs. No I/O, no clock, no crypto — the caller injects them.",
+  "description": "Pure, platform-agnostic domain core. ZERO node/react/fs/dom deps, so the same code runs in the Worker's library cell and in every device's replica. `src/library/` is the library model: an item as fields and blocks, its ops, its undo and its one SQL schema; `src/knowledge/` is links, tags and search over its rows; `src/markdown/` is the dialect's one grammar. No I/O, no clock, no crypto — the caller injects them.",
   "type": "module",
   "exports": {
     "./annotations/annotation-threads": "./src/annotations/annotation-threads.ts",
@@ -53,6 +53,7 @@
     "./library/revert-change": "./src/library/revert-change.ts",
     "./library/sql-value": "./src/library/sql-value.ts",
     "./library/uuid-v7": "./src/library/uuid-v7.ts",
+    "./markdown/alert-marker": "./src/markdown/alert-marker.ts",
     "./markdown/fence-langs": "./src/markdown/fence-langs.ts",
     "./markdown/flow-spans": "./src/markdown/flow-spans.ts",
     "./markdown/frontmatter": "./src/markdown/frontmatter.ts",

@@ -1,18 +1,15 @@
 // An item's facts as a markdown file's frontmatter says them, which an import reads into the
 // item's fields (`@repo/editor/codec/item-fields`). YAML-bearing, so the contract never loads it.
 
-import { noteIdOfProperties } from "../markdown/frontmatter";
 import type { ParsedProperties, TypedProperty } from "../markdown/frontmatter";
 import { isItemKind } from "./item-kind";
 import type { ItemKey, ItemKind } from "./item-kind";
 import { parseItemTime } from "./item-time";
-import { isWebUrl, urlHost, urlKey } from "./item-url";
+import { isWebUrl } from "./item-url";
 
 export interface ItemFacts {
   kind: ItemKind;
   url: string | null;
-  urlKey: string | null;
-  host: string | null;
   site: string | null;
   author: string | null;
   published: string | null;
@@ -20,8 +17,6 @@ export interface ItemFacts {
   fetchError: string | null;
   savedMs: number | null;
   fetchedMs: number | null;
-  // noteIdOfProperties(parsed) !== null
-  hasId: boolean;
 }
 
 const NOTE_FACTS: ItemFacts = {
@@ -29,14 +24,11 @@ const NOTE_FACTS: ItemFacts = {
   description: null,
   fetchError: null,
   fetchedMs: null,
-  hasId: false,
-  host: null,
   kind: "note",
   published: null,
   savedMs: null,
   site: null,
   url: null,
-  urlKey: null,
 };
 
 const SITE_MAX = 80;
@@ -111,13 +103,10 @@ export const readItemFacts = (parsed: ParsedProperties | null): ItemFacts => {
     description: textOf(propertyOf(properties, "description")),
     fetchError: textOf(propertyOf(properties, "fetch-error")),
     fetchedMs: timeOf(propertyOf(properties, "fetched")),
-    hasId: noteIdOfProperties(parsed) !== null,
-    host: url === null ? null : urlHost(url),
     kind: kindOf(propertyOf(properties, "kind")),
     published: publishedOf(propertyOf(properties, "published")),
     savedMs: timeOf(propertyOf(properties, "saved")),
     site: site === null ? null : clip(site, SITE_MAX),
     url,
-    urlKey: url === null ? null : urlKey(url),
   };
 };

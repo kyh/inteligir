@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ElementApi, KEYS, TextApi } from "platejs";
 import type { Value } from "platejs";
 
-import { ALERT_VARIANTS } from "@repo/editor/markdown/alert-marker";
+import { ALERT_VARIANTS } from "@repo/notes/markdown/alert-marker";
 import { ALERT_VARIANT_KEY, stripAlertMarkers } from "@repo/editor/static-note";
 
 const quote = (...lines: string[]): Value => [

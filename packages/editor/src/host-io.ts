@@ -13,11 +13,6 @@ export interface LinkTarget {
   readonly title: string;
 }
 
-// an item as the `[[` picker ranks it, under the name the resolver files it by
-export interface PickerTarget extends LinkTarget {
-  readonly path: string;
-}
-
 // The resolver over the items the host feeds, so a link the editor draws reaches the item the
 // library holds by that id or that title. Identity changes when the items refresh, so a link
 // re-renders on that alone.
@@ -25,7 +20,7 @@ export interface LinkResolver {
   // the item a `[[…]]` names: by the id it carries (`alias`), else by the title it is written with
   resolveWikiTarget: (target: string, alias?: string) => string | null;
   // what the `[[` picker lists, in the host's order
-  targets: readonly PickerTarget[];
+  targets: readonly LinkTarget[];
   // the name an item goes by now, the one its card shows, so a link that names it by id shows it
   // as it is; null for an item the host does not feed
   titleOf: (itemId: string) => string | null;

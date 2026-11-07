@@ -327,9 +327,10 @@ alone, and no walk narrows structurally.
   source (the tab's staged bytes, then `/v1/blobs`; the Mac's scheme; the
   phone's cache over the bridge). A media block holds `{sha}` (a file its
   `name`) or a web `{url}`, its type the Blob's. A link reaches an item only by
-  `[[…]]`; a markdown url resolves by path only in an import. Rejected: paths a
-  host maps to items (two titles share one); `mime` on the block (a second copy
-  of the file's type). `packages/editor/src/host-io.ts`,
+  `[[…]]`, by its id or by `titleKey`, the key the cell resolves a title by; a
+  markdown url resolves by path only in an import. Rejected: paths a host maps
+  to items (two titles share one); `mime` on the block (a second copy of the
+  file's type). `packages/editor/src/host-io.ts`,
   `packages/editor/src/nodes/library-file.ts`.
 
 - **A FILE PASTED OR DROPPED INTO A NOTE IS KEPT BEFORE ITS BLOCK IS WRITTEN.**

@@ -137,8 +137,9 @@ note as `.md`, and WIDER than what a link may leave off: `.md` alone, so a
 **note** — an item of kind `note`, the text a person writes. An imported doc
 whose `kind:` is missing or unknown is one, its filename its title, with no
 slug layer.
-Every item's name follows one rule, `@repo/notes/knowledge/note-name`, whatever
-its kind: a name may not hold `[` or `]`, which would end a link to it.
+The name an export files an item under follows one rule,
+`@repo/notes/items/item-name`, whatever its kind: it may not hold `[` or `]`,
+which would end a link to it.
 
 **line** — a line's content EXCLUDES its terminator, whichever flavor (`\r\n`,
 `\r`, `\n`), stated once in `@repo/notes`' `text/source-lines`. A second reading
@@ -202,9 +203,10 @@ person's message. Tidy my library files and tags by them. Not the repo's
 `saveLink`, a refresh, an import's): the cell asks the fill queue, and the
 Worker's consumer reads the page with `@repo/page-reader` and lands only its
 `article` blocks and the fill-owned fields (`site`, `author`, `published`,
-`description`, the cover, `fetchedAt`, or `fetchError` when the page could not
-be read); it calls no model and never writes `url` or `savedAt`
-(`apps/web/src/worker/fill/`). An item's `fetchState` says where it stands:
+`description`, the cover, the original file of an address that answered with
+one, `fetchedAt`, or `fetchError` when the page could not be read), and a title
+in place of the address an unread item goes by; it calls no model and never
+writes `url` or `savedAt` (`apps/web/src/worker/fill/`). An item's `fetchState` says where it stands:
 `pending`, `filled` or `failed`. A page the phone's share sheet hands over is
 read on the phone and saved read, never a fill (`apps/mobile/src/items/share-save.ts`).
 

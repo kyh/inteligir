@@ -20,7 +20,7 @@ workspace.
 ```
 src/
   iso-date.ts          # a Date → local `YYYY-MM-DD`, the only date text shared
-  library/             # the library model: what the cell and both replicas share
+  library/             # the library model: what the cell and every replica share
     library-nodes.ts   # the persisted node set, strict zod over Plate's own
                        # node props, checked at the cell's boundary
     library-item.ts    # an item's fields, one column each, capped to a row
@@ -30,8 +30,8 @@ src/
                        # keys, a block's hash, one spelling of a JSON value
     derive-item.ts     # title, card, text, links, tags, the url's key and
                        # anchored highlights, from the fields and the blocks
-    revert-change.ts   # a change set taken back three ways, in
-                       # revert-edit's orientation, newest set first
+    revert-change.ts   # a change set taken back three ways, the set's after
+                       # as the base, newest set first
     library-schema.ts  # the ONE DDL, versioned by `meta.schema`
     library-sql.ts     # the ports, plans as generators, statement chunking
     sql-value.ts       # a SQL value and row as zod, a leaf node loads as it
@@ -54,10 +54,9 @@ src/
                        # FTS5 match
     text-matches.ts    # literal occurrences in a text, for the find bar and
                        # the cell's excerpts
-    doc-file.ts, note-name.ts, asset-name.ts, folder-path.ts  # what a
-                       # markdown file is, a name's validity, a file's free
-                       # name, and the folder tree's path helpers, which the
-                       # import and the export read a zip by
+    doc-file.ts, asset-name.ts, folder-path.ts  # what a markdown file is,
+                       # a file's free name, and the folder tree's path
+                       # helpers, which the import and the export read a zip by
   markdown/            # the dialect's one grammar
     md-plugins.ts      # the EDITOR's plugin list, owned here so the codec,
                        # an import and the editor read one grammar
@@ -85,8 +84,9 @@ src/
     parsed-offsets.ts  # the one rebase every parse here runs: micromark
                        # counts from past a leading BOM, so without it every
                        # offset on a BOM note cuts one byte early
-    mdast-nodes.ts     # the mdast NARROWING boundary: a walk asks it what a
-                       # node is, never discriminates structurally
+    mdast-nodes.ts     # narrows a transform's bare `Node` input to the root
+    alert-marker.ts    # GitHub's alert grammar, which the editor and quote
+                       # placement read a quote through
     fence-langs.ts     # ONE spelling of every dialect fence — the rule table
                        # reads it, and the skills guard holds the skills to it
     frontmatter.ts     # the ONE header fence every reader cuts at (BOM and
@@ -117,9 +117,10 @@ src/
                        # CONFLICT settles through; bounded by an edit budget,
                        # past which the changed span is one hunk
     source-lines.ts    # where a line ends, whichever terminator, stated once
+    safe-decode.ts     # a url part percent-decoded, a bad escape left as written
   test-support/        # the seeded generator every property replays, SQLite's
                        # wasm behind a Durable Object's refusals, and the
-                       # marker oracles the placement properties read
+                       # marker, name and line-revert oracles the suites read
 ```
 
 ## Invariants
@@ -135,10 +136,12 @@ src/
 
 ## Seams
 
-- `SqlPort` / `AsyncSqlPort` (`library/library-sql.ts`): one statement per
-  call and `transaction(work)`; the cell binds `ctx.storage.sql` and
-  `transactionSync`, a replica its driver. A plan (`library-queries.ts`) runs
-  on either through `runPlan` or `runPlanAsync`.
+- `SqlPort` / `AsyncSqlStatements` (`library/library-sql.ts`): one statement
+  per call. The cell binds `ctx.storage.sql` to `SqlPort`, with
+  `transactionSync` as its `transaction(work)`; a replica binds its driver to
+  `AsyncSqlStatements`, and its transaction is `ReplicaSql.exclusive`
+  (`@repo/library-replica`). A plan (`library-queries.ts`) runs on either
+  through `runPlan` or `runPlanAsync`.
 
 ## Testing
 
@@ -148,8 +151,8 @@ the basename buckets among them) and the search policy; `src/text/` pins the
 diff3 merge; `src/library/` runs its SQL on SQLite's own wasm build behind a
 port that refuses what a Durable Object refuses
 (`src/test-support/wasm-sql-port.ts`), and its properties (rebases commute,
-undo restores, revert-edit's orientation, chunking under both caps) draw from
-the one seeded generator. The suites run under a 512MB heap ceiling
+undo restores, undo agrees with its line oracle, chunking under both caps) draw
+from the one seeded generator. The suites run under a 512MB heap ceiling
 (`vitest.config.ts`), so an allocation that grows with a note's size, like a
 diff trace that copies the whole frontier every round, fails here rather than
 passing on a default heap.

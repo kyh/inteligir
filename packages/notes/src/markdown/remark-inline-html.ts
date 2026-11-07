@@ -1,7 +1,7 @@
 // htmlFlow is disabled: its type-6 and type-7 branches swallow every line up to a blank one, so a
 // `<div>x</div>` would eat the `:::` closing the container it sits in. Every tag is htmlText inside
 // a paragraph, then, and a tag and the closer that ends it among the same siblings fold into one
-// node while the tree compiles, so the knowledge scan pairs them exactly as the editor does: a
+// node while the tree compiles, so the bare parse pairs them exactly as the editor does: a
 // bare `<u>` is the underline mark, any other pair one element the editor carries as its source.
 // A tag nothing closes stays the `html` node it was.
 

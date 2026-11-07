@@ -1,4 +1,4 @@
-// Both engines execute this one policy. Stopwords are dropped, not OR-ed in (a
+// The one search policy. Stopwords are dropped, not OR-ed in (a
 // note would match on `i` alone); a query left with nothing keeps its tokens as
 // a conjunction, since an empty match expression is every item in the library.
 // The prefix term is the last raw token, not the last surviving one: a term
@@ -6,19 +6,16 @@
 
 import { stemmer } from "stemmer";
 
-// the fold matches fts5's unicode61 (`remove_diacritics 2` in the sql store): the stem
-// is computed here and folded there, so an unfolded token would index `acción` where
-// the store indexes `accion` and a query would reach one engine only
+// the fold matches fts5's unicode61 (`remove_diacritics 2` in library-schema): the stem is
+// computed here and the tokenizer folds it there, so `acción` and `accion` have to stem alike
 const foldDiacritics = (text: string): string => text.normalize("NFD").replaceAll(/\p{Mn}+/gu, "");
 
 export const tokenize = (text: string): string[] =>
   foldDiacritics(text.toLowerCase()).match(/[\p{L}\p{N}_]+/gu) ?? [];
 
-// the fields both engines rank a doc by; the formulas around them differ by design (bm25 has an
-// idf, the pure index a capped tf), the weights do not
 export const SEARCH_FIELD_WEIGHTS = { body: 1, headings: 4, meta: 2, title: 10 } as const;
 
-// `stemmer` is imported here and nowhere else, so the engines and the snippet cut cannot diverge
+// `stemmer` is imported here and nowhere else, so the index and the snippet cut cannot diverge
 export const stemToken = (token: string): string => stemmer(token);
 
 // a shadow indexed beside the literal text, never a replacement: a prefix run
@@ -37,15 +34,6 @@ export interface SearchQueryPlan {
   terms: readonly SearchQueryTerm[];
   match: "all" | "any";
 }
-
-// `typing`: the query is a box still being typed into, so its last word also matches as a
-// prefix. a probe of finished words (Related's title words) is not, and `plan` must not
-// reach `planet`.
-export interface SearchQueryOptions {
-  typing: boolean;
-}
-
-export const TYPED_QUERY: SearchQueryOptions = { typing: true };
 
 // at or below, the query is a lookup and every term is required; above, a sentence the ranking decides
 const CONJUNCTION_MAX_TERMS = 2;
@@ -74,10 +62,8 @@ const STOPWORDS = new Set(
 
 const isStopword = (token: string): boolean => STOPWORDS.has(token);
 
-export const planSearchQuery = (
-  query: string,
-  options: SearchQueryOptions = TYPED_QUERY,
-): readonly SearchQueryPlan[] => {
+// a query is a box still being typed into, so its last word also matches as a prefix
+export const planSearchQuery = (query: string): readonly SearchQueryPlan[] => {
   const raw = tokenize(query);
   const typing = raw.at(-1);
   if (typing === undefined) {
@@ -87,7 +73,7 @@ export const planSearchQuery = (
   const unique = [...new Set(raw)];
   const content = unique.filter((token) => !isStopword(token));
   const terms = (content.length > 0 ? content : unique).map((token) => ({
-    prefix: options.typing && token === typing,
+    prefix: token === typing,
     stem: stemToken(token),
     token,
   }));

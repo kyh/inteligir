@@ -8,7 +8,7 @@ import type { ItemState, LibraryOp } from "./block-ops";
 import { ITEM_FIELD_CAPS } from "./library-item";
 import type { LibraryBlock } from "./library-nodes";
 import { revertChangeSets, revertItemChange, snapshotOf } from "./revert-change";
-import type { ItemChange, ItemRevert } from "./revert-change";
+import type { FillChange, ItemChange, ItemRevert } from "./revert-change";
 import {
   itemOf,
   landed,
@@ -26,10 +26,17 @@ const changeOf = (
   before: ItemState | null,
   after: ItemState,
   annotations: { before?: AnnotationStore; after?: AnnotationStore } = {},
-): ItemChange => ({
-  after: snapshotOf({ annotations: annotations.after ?? {}, state: after }),
-  before:
-    before === null ? null : snapshotOf({ annotations: annotations.before ?? {}, state: before }),
+  fills: readonly FillChange[] = [],
+): ItemChange => {
+  const made = snapshotOf({ annotations: annotations.after ?? {}, state: after });
+  return before === null
+    ? { after: made, before: null, fills }
+    : { after: made, before: snapshotOf({ annotations: annotations.before ?? {}, state: before }) };
+};
+
+const fillOf = (before: ItemState, after: ItemState): FillChange => ({
+  after: after.fields,
+  before: before.fields,
 });
 
 const versionsOf = (...states: readonly ItemState[]) => {
@@ -145,6 +152,12 @@ describe(revertItemChange, () => {
     });
   });
 
+  it("takes a tag's new spelling back", () => {
+    const x = itemOf([], noteFields({ tags: ["Foo"] }));
+    const y = landed(x, [{ base: ["Foo"], op: "tags", value: ["foo"] }]);
+    expect(stateOf(revert(changeOf(x, y), y, versionsOf(x, y))).fields.tags).toStrictEqual(["Foo"]);
+  });
+
   it("moves an item it made to Deleted unless a person touched it since", () => {
     const made = itemOf(
       [paragraph("a", "stub")],
@@ -153,18 +166,66 @@ describe(revertItemChange, () => {
     const change = changeOf(null, made);
     const deleted = stateOf(revert(change, made, versionsOf(made)));
     expect(deleted.fields.deletedAt).toBe(AT);
-    // a fill reading the page since is not a person's touch
-    const filled = landed(made, [
-      { base: "pending", field: "fetchState", op: "set", value: "filled" },
-      { block: paragraph("art", "the page"), op: "insert", ord: "a0", section: "article" },
-    ]);
-    expect(stateOf(revert(change, filled, versionsOf(made, filled))).fields.deletedAt).toBe(AT);
     const retitled = landed(made, [{ base: "A note", field: "title", op: "set", value: "Mine" }]);
     expect(revert(change, retitled, versionsOf(made))).toStrictEqual({
       kind: "keep",
       reason: "edited-since",
     });
     expect(revert(change, null, versionsOf(made))).toStrictEqual({ kind: "unchanged" });
+  });
+
+  describe("an item it made that a fill read since", () => {
+    const EDITED: ItemRevert = { kind: "keep", reason: "edited-since" };
+    const made = itemOf(
+      [paragraph("a", "stub")],
+      noteFields({ fetchState: "pending", kind: "link" }),
+    );
+    const read: readonly LibraryOp[] = [
+      { base: "pending", field: "fetchState", op: "set", value: "filled" },
+      { base: null, field: "originalName", op: "set", value: "page.pdf" },
+      { block: paragraph("art", "the page"), op: "insert", ord: "a0", section: "article" },
+    ];
+    const named: readonly LibraryOp[] = [
+      ...read,
+      { base: "A note", field: "title", op: "set", value: "The page" },
+    ];
+
+    it("still goes to Deleted, whatever the fill wrote", () => {
+      const filled = landed(made, named);
+      const change = changeOf(null, made, {}, [fillOf(made, filled)]);
+      expect(stateOf(revert(change, filled, versionsOf(made, filled))).fields.deletedAt).toBe(AT);
+    });
+
+    it("stays once a person changes what the fill wrote", () => {
+      const filled = landed(made, named);
+      const renamed = landed(filled, [
+        { base: "The page", field: "title", op: "set", value: "Mine" },
+      ]);
+      const change = changeOf(null, made, {}, [fillOf(made, filled)]);
+      expect(revert(change, renamed, versionsOf(made, filled))).toStrictEqual(EDITED);
+    });
+
+    it("stays when a person's name came first and the fill only left it there", () => {
+      const renamed = landed(made, [{ base: "A note", field: "title", op: "set", value: "Mine" }]);
+      const filled = landed(renamed, read);
+      const change = changeOf(null, made, {}, [fillOf(renamed, filled)]);
+      expect(revert(change, filled, versionsOf(made, filled))).toStrictEqual(EDITED);
+    });
+
+    it("stays when a fold carried a person's tags onto it", () => {
+      const folded = landed(made, [...read, { base: [], op: "tags", value: ["later"] }]);
+      const change = changeOf(null, made, {}, [fillOf(made, folded)]);
+      expect(revert(change, folded, versionsOf(made, folded))).toStrictEqual(EDITED);
+    });
+
+    it("goes when the set itself wrote a name the fill has since replaced", () => {
+      const filled = landed(made, named);
+      const renamed = landed(filled, [
+        { base: "The page", field: "title", op: "set", value: "Mine" },
+      ]);
+      const change = changeOf(null, renamed, {}, [fillOf(made, filled)]);
+      expect(stateOf(revert(change, renamed, versionsOf(renamed))).fields.deletedAt).toBe(AT);
+    });
   });
 
   it("brings back an item the set deleted, and cannot bring back one purged since", () => {

@@ -1,9 +1,9 @@
-// The library's SQL runs on three engines: the cell's Durable Object, whose `sql.exec` is
-// synchronous and whose transaction is `transactionSync`, and the two device replicas, whose
-// drivers are asynchronous. A query is written once as a plan, a generator that yields one
-// statement at a time and is handed back each statement's rows, so a host drives it with
-// `runPlan` over a synchronous port or `runPlanAsync` over an asynchronous one. A port runs exactly
-// one statement per call, never a BEGIN or a SAVEPOINT: a transaction is its `transaction(work)`.
+// The library's SQL runs on the cell's Durable Object, whose `sql.exec` is synchronous and whose
+// transaction is `transactionSync`, and on every replica's driver, which is asynchronous. A query
+// is written once as a plan, a generator that yields one statement at a time and is handed back
+// each statement's rows, so a host drives it with `runPlan` over a synchronous port or
+// `runPlanAsync` over an asynchronous one. A port runs exactly one statement per call, never a
+// BEGIN or a SAVEPOINT: a transaction is the host's to open.
 
 import type { z } from "zod";
 

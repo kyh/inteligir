@@ -1,4 +1,4 @@
-// The one schema of the library's SQLite, which the cell and both device replicas create alike:
+// The one schema of the library's SQLite, which the cell and every replica create alike:
 // the synced tables every engine holds, and the cell's own or a replica's beside them. Its version is the
 // `schema` row of `meta`, never SQLite's own version pragma, which a Durable Object refuses
 // (https://developers.cloudflare.com/durable-objects/best-practices/rules-of-durable-objects/).
@@ -9,7 +9,6 @@ import { z } from "zod";
 
 import { ANNOTATION_SOURCES } from "../annotations/store-schema";
 import { ITEM_KINDS } from "../items/item-kind";
-import { LIBRARY_LINK_KINDS } from "./derive-item";
 import { FETCH_STATES } from "./library-item";
 import { LIBRARY_SECTIONS } from "./library-nodes";
 import { all, run } from "./library-sql";
@@ -147,13 +146,8 @@ const SYNCED_DDL = [
   `CREATE INDEX IF NOT EXISTS item_tags_tag ON item_tags (tag)`,
   `CREATE TABLE IF NOT EXISTS links (
     source_id TEXT NOT NULL,
-    block_id TEXT NOT NULL,
     target_id TEXT,
-    target_key TEXT,
-    heading TEXT,
-    block_ref TEXT,
-    kind TEXT NOT NULL CHECK (kind IN (${oneOf(LIBRARY_LINK_KINDS)})),
-    section TEXT NOT NULL CHECK (section IN (${oneOf(LIBRARY_SECTIONS)}))
+    target_key TEXT
   ) STRICT`,
   `CREATE INDEX IF NOT EXISTS links_source ON links (source_id)`,
   `CREATE INDEX IF NOT EXISTS links_target ON links (target_id)`,

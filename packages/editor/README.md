@@ -113,9 +113,9 @@ src/
   a recording or a file card in a note, drawn from an object URL of the page's
   own), `keepFile` (a file pasted or dropped into the text, kept by its sha
   ahead of the write that names it), the cap `fileMaxBytes` and whether a file
-  card may save a file (`savesFiles`); and the link resolver store (the
-  knowledge index's own `buildResolver` over the items the host feeds, the
-  `[[` picker's rows and `titleOf`, subscribed to rather than read, because it
+  card may save a file (`savesFiles`); and the link resolver store (a title's
+  key and an id over the items the host feeds, the `[[` picker's rows and
+  `titleOf`, subscribed to rather than read, because it
   moves with the library while the actions never do). Its `EditorHostActions`
   are what the editor asks the shell for (Ask agent and a `#tag` chip's
   `showTag`, an annotation's create, edit and open, and the note an extract or

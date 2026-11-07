@@ -28,8 +28,8 @@ The premises every change builds from, each with its reason:
 - **Each account's library is one SQLite Durable Object, its only writer, and
   the source every replica pulls from**, because one writer per account needs
   no merge between servers, one change log with one counter is all a device
-  follows to catch up, and the cell and both device replicas run the same
-  SQLite and the same full-text search.
+  follows to catch up, and the cell and every replica run the same SQLite and
+  the same full-text search.
 - **An account is required, and its first 1 GB is free.** The library lives in
   the cloud and every device holds a replica, because the cell is the one
   place the Mac, the phone, the browser tab, the extension and every agent

@@ -10,8 +10,8 @@ and write by, and the rules of search, links and tags.
 Pure and platform-neutral: no node, react or ui import and no `crypto` global
 (lint-enforced), and every platform capability (the SQL driver, the clock,
 random bytes and fresh ids) is injected.
-`markdown/mdast-nodes.ts` is the mdast NARROWING boundary: a walk asks it what a
-node is rather than discriminating structurally at each visit.
+`markdown/mdast-nodes.ts` narrows a transform's bare `Node` input to the mdast
+root.
 
 ## Library
 
@@ -35,17 +35,19 @@ node is rather than discriminating structurally at each visit.
   `deriveItem` reads the card (an empty
   title falls back to the first heading, then the first line; the outline
   keeps the first h1 to h3, as the editor's contents do, each cut to a line),
-  the index text (every heading ranks), the links by id, title key or url key,
-  and each block's anchored highlights. Rejected: syncing derived rows (two
-  derivations would drift), a frontmatter block (its keys are columns).
+  the index text (every heading ranks), the links by id or url key, and each
+  block's anchored highlights. The card alone rides its row, so a replica draws
+  an item before its body arrives. Rejected: syncing the other derived rows
+  (two derivations would drift), a frontmatter block (its keys are columns).
   `packages/notes/src/library/derive-item.ts`.
 
 - **A BLOCK IS GUARDED BY ITS HASH, ITS PLACE BY ITS KEY, A FIELD BY ITS
   VALUE.** `@repo/notes/library/block-ops`: insert, put, drop, move and the
   field patches each name their base; a batch lands whole or answers every
   conflict, an op already true is satisfied, a list field merges as a set, so
-  two devices tagging at once both land, and a batch whose landed fields break
-  a cap (a merge past the list's length) lands none and answers `invalid`.
+  two devices tagging at once both land, a tag respelled takes its new spelling
+  where it stands, and a batch whose landed fields break a cap (a merge past
+  the list's length) lands none and answers `invalid`.
   The hash is SHA-256 over canonical JSON (`@noble/hashes`, synchronous for
   the cell's transaction) cut to 128 bits. Rejected: one version per item
   (two blocks would conflict) and the platform's crypto (async in a Durable
@@ -61,17 +63,21 @@ node is rather than discriminating structurally at each visit.
   renumberings conflict) and interleaving the sections (a fill's keys would
   thread through the person's).
 
-- **UNDO RUNS A CHANGE SET BACKWARDS IN REVERT-EDIT'S ORIENTATION, BLOCK FOR
-  LINE.** `@repo/notes/library/revert-change`: the set's after is the base,
+- **UNDO RUNS A CHANGE SET BACKWARDS AS A THREE-WAY MERGE, BLOCK FOR LINE.**
+  `@repo/notes/library/revert-change`: the set's after is the base,
   the item now is mine, its before is theirs; the order merges by diff3 over
   block ids, fields revert one by one, highlights entry by entry, and an
   overlap keeps the item whole and named. An item the set made goes to Deleted
-  unless a person's part changed since (a fill is not a person). Sets undo
-  newest first. Unlike revert-edit, a block keeps its identity across a move,
-  so a block moved, edited and then deleted stays deleted.
+  unless a person's part changed since (a fill is not a person), told by each
+  fill's own change set: a field still holds what the set left or what a fill
+  wrote there. Sets undo newest first. Unlike the line oracle the suites hold it
+  to (`packages/notes/src/test-support/revert-edit.ts`), a block keeps its
+  identity across a move, so a block moved, edited and then deleted stays
+  deleted. Rejected: a list of the fields a fill owns (it drifts from what a
+  fill writes, and a title is a fill's on an unread link and a person's after).
   `packages/notes/src/library/revert-change.test.ts`.
 
-- **THE LIBRARY'S SQL IS ONE SCHEMA AND ONE SET OF PLANS FOR THREE ENGINES.**
+- **THE LIBRARY'S SQL IS ONE SCHEMA AND ONE SET OF PLANS FOR EVERY ENGINE.**
   `@repo/notes/library/library-schema` versions STRICT tables, a replica's
   outbox among them, by a `meta.schema` row, a mismatch starting the engine
   over, and holds a replica to SQLite 3.37 (a Durable Object refuses
@@ -138,7 +144,7 @@ node is rather than discriminating structurally at each visit.
 - **Stemming is a SHADOW of the indexed text, never a rewrite of it.** Each of
   the four literal columns (title, headings, meta, body) has a stem shadow at
   equal bm25 weight, and `@repo/notes/knowledge/search-query` owns the one
-  policy both engines run. Every term asks both halves, and that OR is the exact
+  policy every index runs. Every term asks both halves, and that OR is the exact
   tier: a doc holding the literal word scores about twice a stem-only hit.
   Rejected: FTS5's `porter` tokenizer (it stems the index, so a prefix query for
   a half-typed word stops retrieving, 86 of 1,555 labelled prefixes, and it puts
@@ -179,10 +185,12 @@ node is rather than discriminating structurally at each visit.
   against). `packages/editor/src/codec/import-plan.ts`.
 
 - **A WIKI LINK NAMES WHAT THE RESOLVER ANSWERS TO, AND ONE FUNCTION BESIDE THE
-  PARSER WRITES IT.** `.md` is the one extension a link leaves off
-  (`wikiLinkName` in `@repo/notes/knowledge/doc-file`), and the resolver keys
-  that name, so a `.txt` note links as `[[todo.txt]]`. Rejected: dropping every
-  doc extension (it loses Obsidian's reading and the pinned resolver). An
+  PARSER WRITES IT.** `.md` is the one extension a file's link leaves off
+  (`wikiLinkName` in `@repo/notes/knowledge/doc-file`), and `buildResolver`,
+  which an import and an export read a zip's links by, keys that name, so a
+  `.txt` note links as `[[todo.txt]]`. Past the zip there are no files: the cell
+  and the editor reach an item by its id or by `titleKey`. Rejected: dropping
+  every doc extension (it loses Obsidian's reading and the pinned resolver). An
   export spells a link by `wikiTargetForPath`
   (`@repo/notes/knowledge/link-resolve`: the name when it resolves back, else
   the path), and the `[[` picker links an item by its id, with its title, so

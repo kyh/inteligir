@@ -1,6 +1,6 @@
 // Not FTS5's snippet(): it cuts one column by that column's own match offsets,
 // and a stem-only hit lands in `body_stems`, so asking the literal column hands
-// back the note's opening words. Both engines cut here, over the literal text.
+// back the note's opening words. So the cut is here, over the literal text.
 
 import { clipSnippet } from "../text/clip-text";
 import { stemToken, tokenize } from "./search-query";
@@ -14,7 +14,7 @@ export const SEARCH_EXCERPT_SCAN_CHARS = 64 * 1024;
 // source-lines' terminators, found one at a time so a scan that stops early splits nothing more
 const LINE_TERMINATOR = /\r\n|\r|\n/gu;
 
-// stems on both sides and honours prefix, matching how the engines matched the term; the literal
+// stems on both sides and honours prefix, matching how the index matched the term; the literal
 // token answers first because it is the common hit and costs no stemming
 const lineMatches = (line: string, terms: readonly SearchQueryTerm[]): boolean => {
   for (const token of tokenize(line)) {

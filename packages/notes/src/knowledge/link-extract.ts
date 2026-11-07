@@ -5,18 +5,11 @@
 
 import { TAGS_KEY, yamlStringEntries } from "../markdown/frontmatter";
 import type { ParsedProperties } from "../markdown/frontmatter";
+import { safeDecode } from "../text/safe-decode";
 import { isTagName } from "./tag-grammar";
 
 // anything with a scheme (`https:`, `mailto:`, `C:\…` alike) or protocol-relative `//` is external
 const SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*:/u;
-
-const safeDecode = (urlPath: string): string => {
-  try {
-    return decodeURIComponent(urlPath);
-  } catch {
-    return urlPath;
-  }
-};
 
 // the path an md url names, percent-decoded and its anchor left off; null for an external or
 // same-note url

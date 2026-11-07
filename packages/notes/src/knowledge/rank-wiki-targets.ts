@@ -1,9 +1,5 @@
-import { wikiLinkName } from "./doc-file";
-
 export interface RankableWikiTarget {
-  readonly path: string;
   readonly title: string;
-  readonly aliases?: readonly string[] | undefined;
 }
 
 const fold = (text: string): string =>
@@ -23,34 +19,21 @@ const hasWordStart = (text: string, word: string): boolean => {
   return false;
 };
 
-// Lower ranks first. A hit in the name a picked link spells beats the title, which beats an
-// alias; every typed word starting a word of those names beats a hit mid-word, and a hit in the
-// folder part of the path only qualifies the row.
+// Lower ranks first: the title starting with what was typed, every typed word starting a word of
+// it, then a hit mid-word.
 const tierOf = (
   target: RankableWikiTarget,
   needle: string,
   words: readonly string[],
 ): number | null => {
-  const name = fold(wikiLinkName(target.path));
   const title = fold(target.title);
-  const aliases = (target.aliases ?? []).map(fold);
-  if (name.startsWith(needle)) {
+  if (title.startsWith(needle)) {
     return 0;
   }
-  if (title.startsWith(needle)) {
+  if (words.every((word) => hasWordStart(title, word))) {
     return 1;
   }
-  if (aliases.some((alias) => alias.startsWith(needle))) {
-    return 2;
-  }
-  const names = [name, title, ...aliases];
-  if (words.every((word) => names.some((text) => hasWordStart(text, word)))) {
-    return 3;
-  }
-  if ([fold(target.path), title, ...aliases].some((text) => text.includes(needle))) {
-    return 4;
-  }
-  return null;
+  return title.includes(needle) ? 2 : null;
 };
 
 // Every target the query matches, case- and accent-blind, best first; a tie keeps the listing's

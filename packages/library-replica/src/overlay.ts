@@ -8,14 +8,12 @@ import type { AnnotationEntry, AnnotationStore } from "@repo/notes/annotations/s
 import { fileKindOf } from "@repo/notes/items/item-kind";
 import { blockHash } from "@repo/notes/library/block-hash";
 import { mergeListField } from "@repo/notes/library/block-ops";
-import type { ItemState, LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
+import type { ItemState, LibraryOp, ScalarField, StoredBlock } from "@repo/notes/library/block-ops";
 import { blankFields } from "@repo/notes/library/library-item";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
 
 import type { OutboxOp, WriteOp } from "./outbox-ops";
-
-type ScalarField = Exclude<keyof LibraryItemFields, "aliases" | "properties" | "tags">;
 
 const withField = <F extends ScalarField>(
   fields: LibraryItemFields,
