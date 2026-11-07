@@ -336,6 +336,23 @@ describe("what the page's own storage holds, as the Mac opens on it", () => {
     expect([...headingCollapseKeys("item-1")]).toStrictEqual([]);
   });
 
+  it("stays through a Keychain that would not answer, which says no one left", async () => {
+    await openedAs(KEPT);
+    remembered();
+    mockShell(
+      configReply,
+      reply(APP_COMMANDS.credential.restore)(
+        // oxlint-disable-next-line prefer-promise-reject-errors -- the shell rejects with its serialized error, a plain object, which is what this stands in for
+        async () => await Promise.reject({ kind: "keychain", message: "User interaction denied" }),
+      ),
+    );
+    await expect(openShellLibrary(createShellLeaveGuard(), () => {})).rejects.toMatchObject({
+      kind: "keychain",
+    });
+    expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "tag", tag: "field" });
+    expect([...headingCollapseKeys("item-1")]).toStrictEqual(["a-fold"]);
+  });
+
   it("names its account by the opaque id alone", async () => {
     await openedAs(KEPT);
     expect(JSON.stringify({ ...window.localStorage })).toContain(KEPT.userId);

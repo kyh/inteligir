@@ -70,7 +70,7 @@ export const PREFS = {
   sidebarWidth: pref("inteligir.sidebar-width", railWidth, 260),
   // the document's own `spellcheck`, which every field inherits unless it sets its own
   spellcheck: pref("inteligir.spellcheck", flag, true),
-  // whose `account-storage.ts` is: an account's opaque id, since nothing here needs its address
+  // the account `account-storage.ts` holds for: its opaque id, as nothing here needs its address
   storageAccount: unsetPref("inteligir.storage-account", z.string()),
   theme: pref("inteligir.theme", themeName, "system"),
 };
