@@ -106,7 +106,7 @@ const blankFields = (savedAt: number): LibraryItemFields => ({
 
 // the item a make lands as, as near as the device can tell before the cell answers: a saved
 // link's note, which the cell reads from markdown, shows once it lands
-const madeBy = (op: Extract<OutboxOp, { input: { id: string } }>): ItemState => {
+export const madeBy = (op: Extract<OutboxOp, { input: { id: string } }>): ItemState => {
   switch (op.kind) {
     case "create": {
       const { input } = op;

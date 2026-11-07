@@ -10,7 +10,6 @@
 
 import { isDefinedError, safe } from "@orpc/client";
 import type { V1Client } from "@repo/contract/cloud/v1";
-import { blockHash } from "@repo/notes/library/block-hash";
 import type { StoredBlock } from "@repo/notes/library/block-ops";
 import { sameJson } from "@repo/notes/library/canonical-json";
 import { readItem, readItemState } from "@repo/notes/library/library-queries";
@@ -27,7 +26,7 @@ import { deleteAllRows, deleteRow, insertRow, readRows, saveRow } from "./outbox
 import type { OutboxRow } from "./outbox-rows";
 import { settleFolders, settleWrite } from "./outbox-settle";
 import type { Settled } from "./outbox-settle";
-import { layRow } from "./overlay";
+import { layRow, madeBy } from "./overlay";
 import { serialLock } from "./serial-lock";
 import type {
   BlockMerge,
@@ -168,12 +167,6 @@ const touchedItems = (ids: readonly string[]): Touched => {
   }
   return touched;
 };
-
-const stored = (placed: {
-  readonly block: StoredBlock["block"];
-  readonly ord: string;
-  readonly section: StoredBlock["section"];
-}): StoredBlock => ({ ...placed, hash: blockHash(placed.block) });
 
 // the blocks a write lands as the cell does: each one it inserts, puts or moves, as the item this
 // replica holds is with the write laid over, and each it drops
@@ -359,12 +352,12 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     row: OutboxRow,
     madeAs: string,
     item: LiveItemRow,
-    blocksOf: () => SqlPlan<{ readonly written: StoredBlock[]; readonly dropped: string[] }>,
+    written: readonly StoredBlock[],
   ): Promise<SendOutcome> =>
     await land(
       row,
       function* landed() {
-        yield* landOwnRow(item, yield* blocksOf());
+        yield* landOwnRow(item, { dropped: [], written });
       },
       touchedItems([item.id]),
       madeAs === item.id ? null : { from: madeAs, to: item.id },
@@ -522,19 +515,8 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     }
     if (error === null) {
       const folded = "folded" in answer && answer.folded === true;
-      return await landMake(row, op.input.id, answer.item, function* blocksOfMake() {
-        yield* [];
-        if (op.kind === "create") {
-          return { dropped: [], written: op.input.blocks.map(stored) };
-        }
-        if (op.kind === "save" && !folded) {
-          return {
-            dropped: [],
-            written: op.input.article.map((placed) => stored({ ...placed, section: "article" })),
-          };
-        }
-        return { dropped: [], written: [] };
-      });
+      const written = folded ? [] : [...madeBy(op).blocks.values()];
+      return await landMake(row, op.input.id, answer.item, written);
     }
     return await refused(row, error, async () => {
       if (!isDefinedError(error)) {
