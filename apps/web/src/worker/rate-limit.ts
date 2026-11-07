@@ -85,6 +85,7 @@ type CallerRateFamily = keyof typeof CALLER_RATE_KEY_PREFIXES;
 
 // the one address Cloudflare's edge writes itself; x-forwarded-for carries whatever the caller put
 // ahead of the edge's hop
+/** @internal */
 export const CALLER_IP_HEADER = "cf-connecting-ip";
 
 // how a caller is told from a request here and in Better Auth's limiter (./auth/auth.ts), so every
