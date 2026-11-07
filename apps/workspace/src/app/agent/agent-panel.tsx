@@ -41,12 +41,7 @@ import { Button } from "@repo/ui/components/button";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
-import {
-  useInfiniteQuery,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, PlusIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
