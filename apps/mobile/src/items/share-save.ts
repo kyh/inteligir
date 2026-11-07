@@ -24,7 +24,6 @@ import { fieldLine, savedFacts } from "@repo/notes/items/saved-facts";
 import type { PageFetch } from "./page-fetch";
 import { createPhoneSaves } from "./phone-saves";
 import type { SavedItem, SaveTarget } from "./phone-saves";
-import { unreadLink } from "./share-payload";
 import type { SharedLink, SharedSave } from "./share-payload";
 
 export interface ShareReadPorts {
@@ -84,33 +83,27 @@ const movedAddress = async (
 };
 
 // A page that did not answer, an answer that is no page, a reader that broke or a reading with no
-// article is left unread. The cloud names a moved page when it reads it, and its fold carries a
-// note and no title, so the words stay the note; it never reaches private space, so a link there
-// keeps the name its words give it
+// article is left unread, for the cloud to read
 const readSharedPage = async (
   ports: ShareReadPorts,
   replica: LibraryReplica,
   shared: SharedLink,
   target: SaveTarget,
 ): Promise<SharedRead> => {
-  const reachesPrivate = namesPrivateSpace(shared.url);
+  const unread: SharedRead = { kind: "link", link: shared };
   const fetched = await ports.fetch({
     accept: PAGE_ACCEPT,
     maxBytes: FILL_LIMITS.htmlBytes,
     overflow: "truncate",
     // a redirect reaches private space only from an address that names it itself
-    reachesPrivate,
+    reachesPrivate: namesPrivateSpace(shared.url),
     url: shared.url,
   });
   if (!fetched.ok) {
-    return { kind: "link", link: unreadLink(shared) };
+    return unread;
   }
   const landed = fetched.page.url;
   const moved = urlKey(landed) !== urlKey(shared.url);
-  const unread: SharedRead = {
-    kind: "link",
-    link: moved && !reachesPrivate ? shared : unreadLink(shared),
-  };
   if (!isPage(fetched.page)) {
     return unread;
   }

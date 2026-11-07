@@ -166,12 +166,16 @@ how it ships.
   redirects to its sign-in would be saved at the sign-in's address); handing
   every moved address to the fill (app share links are short links, and a site
   that blocks data centres would end unread though the phone had read it).
-  Words shared beside the link are never lost: they are the item's note, or
-  an unread link's title when they are short enough to name it, since the
-  cloud keeps a title it is given and a page read names itself
-  (`apps/mobile/src/items/share-payload.ts`). A moved address left unread keeps
-  them as its note, since a page answered it and a fold carries a note and no
-  title.
+  Words shared beside the link are the item's note on every path, since every
+  save and every fold carries a note and a fold carries no title
+  (`apps/mobile/src/items/share-payload.ts`); an unread link is named by its
+  address or by the title the share sheet gave. Residual: an app that hands a
+  page's name as text leaves a note repeating the title once the cloud reads
+  it, redundant and not lost, since only the phone's own read knows the title
+  to compare. Rejected: short words naming an unread link (an item that already
+  holds the address takes no title, so they would be lost there); a fold moving
+  a stub's title into the note (a second path to remember what the note already
+  carries).
   A page keeps its address to the last character, since it comes over as
   nothing but that address; text takes its link and its note from
   `apps/mobile/src/items/link-in-text.ts`, every spelling of the link out and
