@@ -591,17 +591,21 @@ describe("a page's reading, landed", () => {
   });
 });
 
-const undoSave = async (library: ReturnType<typeof libraryIn>, itemId: string) => {
+const madeSetOf = async (library: ReturnType<typeof libraryIn>, itemId: string) => {
   const { changeSets } = await library.history.list({ itemId });
   const made = changeSets.find((set) => set.items.some((item) => item.created));
   if (made === undefined) {
     throw new Error("no change set made the item");
   }
-  return await library.history.undo({ changeSetIds: [made.id] });
+  return made.id;
 };
+
+const undoSave = async (library: ReturnType<typeof libraryIn>, itemId: string) =>
+  await library.history.undo({ changeSetIds: [await madeSetOf(library, itemId)] });
 
 describe("Undo of a saved link, once its page is read", () => {
   const PHONE = { deviceId: "phone", kind: "person", label: "You on phone" } as const;
+  const HOUR = 3_600_000;
 
   it("takes a link the reading named to Deleted, a fill being no person", async () => {
     const accountId = newAccountId();
@@ -690,50 +694,78 @@ describe("Undo of a saved link, once its page is read", () => {
     });
   });
 
-  it("keeps a link a fold carried a person's tags onto", async () => {
+  interface Carried {
+    readonly folder?: { readonly path: string };
+    readonly note?: string;
+    readonly tags?: string[];
+  }
+
+  const CARRIED: readonly (readonly [string, Carried])[] = [
+    ["a folder", { folder: { path: "Reading" } }],
+    ["a note", { note: "For Tuesday." }],
+    ["tags", { tags: ["later"] }],
+  ];
+
+  // a link read, then `gap` later one whose redirects end at it, saved with `carried` and folded on
+  const foldedSave = async (
+    state: DurableObjectState,
+    accountId: string,
+    gap: number,
+    carried: Carried,
+  ) => {
+    const clock = clockAt();
+    const engine = engineIn(state, clock);
+    const library = libraryIn(state, accountId, engine);
+    const url = "https://pages.example/final";
+    const short = "https://short.example/y";
+    const holder = await library.items.saveLink({ url });
+    engine.landReading(read({ itemId: holder.item.id, url }, [paragraph("h", "Held.")]));
+    clock.now += gap;
+    const stub = await library.items.saveLink({ ...carried, url: short });
+    engine.landReading(
+      read({ itemId: stub.item.id, url: short }, [paragraph("f", "Folded.")], { finalUrl: url }),
+    );
+    return { holderId: holder.item.id, library, stubId: stub.item.id };
+  };
+
+  it.each(CARRIED)("keeps a link a fold of a later save carried %s onto", async (_, carried) => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const library = libraryIn(state, accountId);
-      const engine = openCellLibrary(state, env);
-      const url = "https://pages.example/final";
-      const holder = await library.items.saveLink({ url });
-      engine.landReading(read({ itemId: holder.item.id, url }, [paragraph("h", "Held.")]));
-      const short = "https://short.example/y";
-      const stub = await library.items.saveLink({ tags: ["later"], url: short });
-      engine.landReading(
-        read({ itemId: stub.item.id, url: short }, [paragraph("f", "Folded.")], { finalUrl: url }),
-      );
-      expect(stateOf(state, holder.item.id)?.fields.tags).toStrictEqual(["later"]);
-      await expect(undoSave(library, holder.item.id)).resolves.toMatchObject({
-        kept: [holder.item.id],
+      const { holderId, library } = await foldedSave(state, accountId, HOUR, carried);
+      await expect(undoSave(library, holderId)).resolves.toMatchObject({
+        kept: [holderId],
         reverted: [],
       });
+      expect(stateOf(state, holderId)?.fields.deletedAt).toBeNull();
     });
   });
 
-  it("keeps a link a fold carried a person's folder onto", async () => {
+  it.each(CARRIED)("takes a link to Deleted when its own burst carried %s", async (_, carried) => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
-      const library = libraryIn(state, accountId);
-      const engine = openCellLibrary(state, env);
-      const url = "https://pages.example/final";
-      const holder = await library.items.saveLink({ url });
-      engine.landReading(read({ itemId: holder.item.id, url }, [paragraph("h", "Held.")]));
-      const short = "https://short.example/z";
-      const stub = await library.items.saveLink({ folder: { path: "Reading" }, url: short });
-      engine.landReading(
-        read({ itemId: stub.item.id, url: short }, [paragraph("f", "Folded.")], { finalUrl: url }),
-      );
-      const { folderId } = stub.item.fields;
-      expect(folderId).not.toBeNull();
-      expect(stateOf(state, holder.item.id)?.fields.folderId).toBe(folderId);
-      await expect(undoSave(library, holder.item.id)).resolves.toMatchObject({
-        kept: [holder.item.id],
-        reverted: [],
+      const { holderId, library } = await foldedSave(state, accountId, 0, carried);
+      await expect(undoSave(library, holderId)).resolves.toMatchObject({
+        kept: [],
+        reverted: [holderId],
       });
-      expect(stateOf(state, holder.item.id)?.fields).toMatchObject({ deletedAt: null, folderId });
+      expect(stateOf(state, holderId)?.fields.deletedAt).not.toBeNull();
     });
   });
+
+  it.each(CARRIED)(
+    "takes a link to Deleted when the later save that carried %s goes back with it",
+    async (_, carried) => {
+      const accountId = newAccountId();
+      await inCell(cellOf(accountId), async (state) => {
+        const { holderId, library, stubId } = await foldedSave(state, accountId, HOUR, carried);
+        const changeSetIds = [await madeSetOf(library, holderId), await madeSetOf(library, stubId)];
+        await expect(library.history.undo({ changeSetIds })).resolves.toMatchObject({
+          kept: [],
+          reverted: [holderId],
+        });
+      });
+    },
+  );
 });
 
 describe("a reading's ask", () => {

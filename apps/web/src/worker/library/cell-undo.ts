@@ -8,7 +8,12 @@
 
 import { compareText } from "@repo/notes/library/block-order";
 import { revertChangeSets } from "@repo/notes/library/revert-change";
-import type { FillChange, ItemChange, ItemNow } from "@repo/notes/library/revert-change";
+import type {
+  FillChange,
+  ItemChange,
+  ItemNow,
+  ItemSnapshot,
+} from "@repo/notes/library/revert-change";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { chunkStatement } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
@@ -81,7 +86,47 @@ const fillsOf = (sql: SqlStatements, itemId: string): FillChange[] =>
       };
     });
 
-const changesOf = (sql: SqlStatements, setId: string): Map<string, ItemChange> => {
+const foldRowSchema = z.object({
+  after_annotations: z.string(),
+  after_fields: z.string(),
+  after_manifest: z.string(),
+  stub_set: z.string(),
+});
+
+// where each fold of a stub one of `undoing` made left the item: a fold is the one fill whose set
+// holds a second item, the stub it carried over
+const foldsOf = (
+  sql: SqlStatements,
+  itemId: string,
+  undoing: ReadonlySet<string>,
+): ItemSnapshot[] =>
+  sql
+    .all(
+      `SELECT items.after_fields, items.after_manifest, items.after_annotations,
+         made.change_set_id AS stub_set
+       FROM change_set_items items
+       JOIN change_sets sets ON sets.id = items.change_set_id
+       JOIN change_set_items stub
+         ON stub.change_set_id = items.change_set_id AND stub.item_id != items.item_id
+       JOIN change_set_items made ON made.item_id = stub.item_id AND made.created = 1
+       WHERE items.item_id = ? AND sets.actor = 'fill' AND items.after_fields IS NOT NULL`,
+      [itemId],
+    )
+    .map((raw) => foldRowSchema.parse(raw))
+    .filter((row) => undoing.has(row.stub_set))
+    .map((row) =>
+      readSnapshot(sql, itemId, {
+        annotations: row.after_annotations,
+        fields: row.after_fields,
+        manifest: row.after_manifest,
+      }),
+    );
+
+const changesOf = (
+  sql: SqlStatements,
+  setId: string,
+  undoing: ReadonlySet<string>,
+): Map<string, ItemChange> => {
   const changes = new Map<string, ItemChange>();
   for (const raw of sql.all(
     `SELECT item_id, before_fields, before_manifest, before_annotations, after_fields,
@@ -104,7 +149,12 @@ const changesOf = (sql: SqlStatements, setId: string): Map<string, ItemChange> =
     changes.set(
       row.item_id,
       row.before_fields === null || row.before_manifest === null || row.before_annotations === null
-        ? { after, before: null, fills: fillsOf(sql, row.item_id) }
+        ? {
+            after,
+            before: null,
+            fills: fillsOf(sql, row.item_id),
+            folds: foldsOf(sql, row.item_id, undoing),
+          }
         : {
             after,
             before: readSnapshot(sql, row.item_id, {
@@ -148,7 +198,11 @@ export const undoChangeSets = (
     }
   }
   const newestFirst = sets.toSorted((a, b) => b.opened_at - a.opened_at || compareText(b.id, a.id));
-  const ordered = newestFirst.map((set) => ({ id: set.id, items: changesOf(storage, set.id) }));
+  const undoing = new Set(changeSetIds);
+  const ordered = newestFirst.map((set) => ({
+    id: set.id,
+    items: changesOf(storage, set.id, undoing),
+  }));
   const items = new Map<string, ItemNow | null>();
   const blocks = new Map<string, LibraryBlock>();
   for (const set of ordered) {
