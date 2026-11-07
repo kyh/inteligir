@@ -80,6 +80,14 @@ describe(deriveItem, () => {
     ]);
   });
 
+  it("gives each block its text and the highlights it anchors", () => {
+    const derived = deriveItem(noteFields(), itemOf([linked]).blocks);
+    expect(derived.blocks.get("p2")).toStrictEqual({
+      annotationIds: ["h1", "h2"],
+      text: "See Other and Not Yet, the site #Work/plans marked",
+    });
+  });
+
   it("names an untitled item by its first heading, else its first line", () => {
     const heading: LibraryBlock = { children: [{ text: "Plans\nfor May" }], id: "h", type: "h2" };
     expect(
