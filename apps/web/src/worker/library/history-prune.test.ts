@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   cellOf,
   clockAt,
+  createItem,
   engineIn,
   hashOf,
   inCell,
@@ -11,9 +12,9 @@ import {
   paragraph,
   person,
   placed,
-  SYSTEM,
 } from "../test-support/library-cell";
 import type { CellActor } from "./cell-actor";
+import { FILL_ACTOR } from "./cell-fills";
 import { revisionsToDrop } from "./history-prune";
 
 const DAY = 24 * 60 * 60_000;
@@ -60,15 +61,19 @@ describe("the prune job", () => {
       const itemId = crypto.randomUUID();
       let block = paragraph("a", "version 0");
       landedValue(
-        library.create(SYSTEM, { blocks: placed([block]), fields: noteFields(), id: itemId }),
+        createItem(library, FILL_ACTOR, {
+          blocks: placed([block]),
+          fields: noteFields(),
+          id: itemId,
+        }),
       );
-      // a revision a write (the library's own writes seal as they land): 130 of them, the first
-      // 30 two months back, a few hours apart, then one a minute today
+      // a revision a write (a reading's writes seal as they land): 130 of them, the first 30 two
+      // months back, a few hours apart, then one a minute today
       for (let index = 1; index <= 130; index += 1) {
         clock.now = index <= 30 ? NOW - 60 * DAY + index * 3_600_000 : NOW - (131 - index) * 60_000;
         const next = paragraph("a", `version ${String(index)}`);
         landedValue(
-          library.write(SYSTEM, {
+          library.write(FILL_ACTOR, {
             itemId,
             ops: [{ baseHash: hashOf(block), block: next, op: "put" }],
           }),
@@ -120,14 +125,18 @@ describe("the prune job", () => {
         block = next;
       };
       landedValue(
-        library.create(SYSTEM, { blocks: placed([block]), fields: noteFields(), id: itemId }),
+        createItem(library, FILL_ACTOR, {
+          blocks: placed([block]),
+          fields: noteFields(),
+          id: itemId,
+        }),
       );
-      // two months back the person's set wrote, the library wrote over it, and the person took
-      // the item back: the person's set holds two revisions of it, the day's last among them
+      // two months back the person's set wrote, a reading wrote over it, and the person took the
+      // item back: the person's set holds two revisions of it, the day's last among them
       clock.now += 1000;
       put(person(), "typed");
       clock.now += 1000;
-      put(SYSTEM, "the library's");
+      put(FILL_ACTOR, "the reading's");
       clock.now += 1000;
       put(person(), "typed again");
       clock.now += 60_000;
@@ -135,7 +144,7 @@ describe("the prune job", () => {
       // then the newest 100, today
       for (let index = 1; index <= 100; index += 1) {
         clock.now = NOW - (101 - index) * 60_000;
-        put(SYSTEM, `today ${String(index)}`);
+        put(FILL_ACTOR, `today ${String(index)}`);
       }
       clock.now = NOW;
       library.runDueJobs((job, cause) => {
@@ -153,7 +162,7 @@ describe("the prune job", () => {
           NOW - DAY,
         )
         .toArray();
-      // the person's set keeps its entry by its later revision; the library's two sets of that
+      // the person's set keeps its entry by its later revision; the reading's two sets of that
       // day lost theirs with their only revisions
       expect(entries).toStrictEqual([{ actor: "person", revisions: 1 }]);
     });

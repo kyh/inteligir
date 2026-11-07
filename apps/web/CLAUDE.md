@@ -194,12 +194,13 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 - **EACH ACCOUNT'S LIBRARY IS ONE SQLITE DURABLE OBJECT, `LibraryDO`, REACHED
   ONLY THROUGH `ctx.exports` UNDER A NAME A VERIFIED CREDENTIAL OR ITS OWN CELL
   GIVES.** Naming an object creates it, so `library:<userId>` comes from a
-  credential the Worker verified, or from a fill message, which only the
-  account's cell writes, from its own `ctx.id.name`, onto a queue only this
-  Worker produces to, and a conversation's `agent-thread:<accountId>:<threadId>`
-  from its cell alone, for a thread its rows hold; `cloudflare.config.ts`
-  declares `LibraryDO` and `AgentThreadDO` in `exports` with SQLite storage and
-  binds no namespace; `ThreadSyncDO`, `RepoCell` and `Registry` are each a
+  credential the Worker verified, from a fill message, which only the account's
+  cell writes, from its own `ctx.id.name`, onto a queue only this Worker
+  produces to, or from a conversation's own name, which names its cell back,
+  and a conversation's `agent-thread:<accountId>:<threadId>` from its cell
+  alone, for a thread its rows hold; `cloudflare.config.ts` declares `LibraryDO`
+  and `AgentThreadDO` in `exports` with SQLite storage and binds no namespace;
+  `ThreadSyncDO`, `RepoCell` and `Registry` are each a
   `state: "deleted"` tombstone, kept until a deploy's answer lets it go
   (`docs/releasing.md` § 5). The schema opens under
   `blockConcurrencyWhile`; one of another version wipes the cell under a new
@@ -279,9 +280,11 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   the request's range and preconditions: 206 from `object.range` for any single
   range, one spanning the file included, 416 for one past the end, a
   multi-part ask whole, 304 and 412; every file but a PDF is served under a
-  script-less sandbox. Rejected: a byte-range parser of our own (R2 parses the
-  header); a signed URL (a credential in a logged address).
-  `apps/web/src/worker/library/blob-routes.ts`.
+  script-less sandbox. A file's row is the cell's alone: a device asks for a
+  file by the sha an item's row names, and takes its type from the answer.
+  Rejected: a byte-range parser of our own (R2 parses the header); a signed
+  URL (a credential in a logged address); a file's row synced to every device
+  (nothing there reads it). `apps/web/src/worker/library/blob-routes.ts`.
 
 - **THE WORKER'S PROGRAM HAS NO DOM, SO A DEPENDENCY'S TYPES THAT REFERENCE IT
   ARE MAPPED TO A STUB.** The codec's code-block kit reaches highlight.js,
@@ -299,9 +302,9 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 
 - **A SAVED PAGE OF A URL THE LIBRARY HOLDS FOLDS ONTO ITS ITEM, ITS ARTICLE
   REPLACING THE ITEM'S AND THE ITEM'S HIGHLIGHTS PLACED AGAIN.** One url, one
-  item (R22): a device's read lands its article in place of the item's, leaves
-  the person's note alone, sets the facts the fill owns and adds its tags, and
-  in the same write places every highlight that keeps a quote by that quote,
+  item: a device's read lands its article in place of the item's, leaves
+  the person's note alone, sets the item's fields as a reading does and adds
+  its tags, and in the same write places every highlight that keeps a quote by that quote,
   since the markers went with the old article; one the note holds stays where
   it is, a selection the item keeps adds nothing, and a read with no article
   leaves the item's. Rejected: keeping the first article (a resave never shows
@@ -314,9 +317,11 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   sent again by the alarm a minute on. The consumer reads a page only while its
   item still waits, asks again a page a later try may pass (30 s, doubling,
   three retries), and the dead-letter queue's consumer says the failure, so no
-  link waits unread for good. Rejected: sending inside the write (a reading
-  asked for a write that rolled back); fetching on the cell's alarm (a page's
-  seconds of CPU hold every write). `apps/web/src/worker/library/cell-fills.ts`,
+  link waits unread for good. A link in Deleted asks nothing, and the restore or
+  undo that brings it back still waiting asks again. Rejected: sending inside
+  the write (a reading asked for a write that rolled back); fetching on the
+  cell's alarm (a page's seconds of CPU hold every write).
+  `apps/web/src/worker/library/cell-fills.ts`,
   `apps/web/src/worker/fill/fill-consumer.ts`.
 
 - **THE CLOUD'S FETCH IS THE PLATFORM'S, EACH HOP JUDGED BY HOW ITS ADDRESS IS
@@ -341,9 +346,12 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   address, and never touches the note; an item deleted, read or readdressed
   meanwhile lands nothing, so a message met twice lands once. A page whose
   redirects end at another live item's address folds onto it, the stub's tags
-  and note with it. Rejected: bases the consumer read (a reading nobody edited
-  around would conflict with every save meanwhile).
-  `apps/web/src/worker/library/cell-fills.ts`.
+  and note with it, and a fold sets the fields by the same rule, one function
+  a device's save calls too. The stub goes to Deleted read, so restoring it
+  asks no reading that would only fold it again. Rejected: bases the consumer
+  read (a reading nobody edited around would conflict with every save
+  meanwhile).
+  `apps/web/src/worker/library/cell-fills.ts`, `cell-saves.ts`.
 
 - **AN IMPORT IS A CELL JOB RUN A PAGE AT A TIME, ITS PLAN IN ROWS.**
   `library.imports.start` names a file the device uploaded, and each alarm run
@@ -365,9 +373,12 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   entries' records, the parts' etags and the bytes past its last 8 MiB part, so
   a run the platform ends is written again from there. A link is spelled from
   the items filed under the keys it tries, which a seeded property holds equal
-  to the whole plan's resolver. Rejected: one run per export (a large
-  library's CPU outruns the alarm's 30 s); an R2 lifecycle rule (by prefix
-  only); fflate (no ZIP64 writer) and zip.js (timers and a worker pool).
+  to the whole plan's resolver. A zip counts toward no quota, so an account
+  keeps one: a newer zip ready lets the older go at the alarm's next run, and a
+  failed export leaves it. Rejected: one run per export (a large library's CPU
+  outruns the alarm's 30 s); an R2 lifecycle rule (by prefix only); answering
+  an unchanged library with its ready zip (one keystroke moves the head); fflate
+  (no ZIP64 writer) and zip.js (timers and a worker pool).
   `apps/web/src/worker/library/cell-exports.ts`, `cell-export-rows.ts`,
   `packages/notes/src/knowledge/link-resolve.test.ts`.
 
@@ -380,15 +391,21 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   thumbnail made in the cell (its CPU holds every write). `apps/web/src/worker/fill/read-page.ts`,
   `packages/notes/src/items/link-fill.ts`.
 
-- **A FILE NO ITEM HAS NAMED IS LET GO ONCE NOTHING WILL, AND ONE AN ITEM NAMED
-  STAYS.** A file's row that lands waits a day under an `unnamed` job, which an
-  item naming it drops; an import that ends however it ended lets its files
-  go, a reading that lands nowhere hands its cover to the alarm's next run,
-  and none goes while an import runs, whose plan may name it. Once named, a
-  revision may hold it, so it stays. Rejected: releasing by `refs` alone (a
-  file only history holds would go); a sweep of rows with no refs (the same).
-  `apps/web/src/worker/library/cell-blobs.ts`, `cell-imports.ts`,
-  `cell-fills.ts`.
+- **A FILE IS LET GO ONCE NOTHING NAMES IT OR WILL.** A file stays while an
+  item names it or any item's history does, and `history_blobs` keeps which
+  files each fields part and block version names, so the ask is one lookup. A
+  file that lands, or that an item stops naming, waits a day under an `unnamed`
+  job, which an item naming it drops; a purge, or a prune dropping the last
+  history naming it, hands it to the alarm's next run, since Delete forever
+  frees room at once; an import that ends however it ended lets its files go, a
+  reading that lands nowhere hands its cover to the alarm's next run, and none
+  goes while an import runs or an export writes, whose plans may name it.
+  Rejected: releasing by `refs` alone (a file only history holds would go); a
+  sweep of rows with no refs (the same); searching history's JSON for the sha
+  (a read of every part per file, whose CPU holds every write); releasing
+  inside the purge (it cannot wait out a running import).
+  `apps/web/src/worker/library/cell-blobs.ts`, `cell-parts.ts`,
+  `history-prune.ts`, `cell-imports.ts`, `cell-fills.ts`.
 
 - **THE CONNECTOR'S OAUTH IS `@cloudflare/workers-oauth-provider`'S, ON KV,
   NAMED FROM ONE ORIGIN PER DEPLOYMENT** (owner decision). The provider owns

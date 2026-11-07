@@ -14,6 +14,7 @@ import { canonicalJson, utf8ByteLength } from "@repo/notes/library/canonical-jso
 import { libraryItemFieldsSchema } from "@repo/notes/library/library-item";
 import {
   blockIdSchema,
+  collectFileShas,
   libraryBlockSchema,
   librarySectionSchema,
 } from "@repo/notes/library/library-nodes";
@@ -22,6 +23,8 @@ import { chunkStatement, LibraryRowError } from "@repo/notes/library/library-sql
 import type { SqlStatements } from "@repo/notes/library/library-sql";
 import type { ItemNow, ItemSnapshot, ManifestEntry } from "@repo/notes/library/revert-change";
 import { z } from "zod";
+
+import { fieldFilesOf, keepHistoryFiles } from "./cell-blobs";
 
 // a manifest of about 15,000 blocks, and as many highlights as fit beside them
 const MANIFEST_MAX_BYTES = 1_000_000;
@@ -43,6 +46,8 @@ export interface EncodedParts {
   readonly fields: EncodedPart;
   readonly manifest: EncodedPart;
   readonly annotations: EncodedPart;
+  // the files the fields name
+  readonly files: readonly string[];
 }
 
 // one block's line: its id, hash, order key and section
@@ -84,6 +89,7 @@ const storeJson = (store: AnnotationStore): string =>
 export const encodeParts = (now: ItemNow): EncodedParts => ({
   annotations: encode(storeJson(now.annotations)),
   fields: encode(canonicalJson(now.state.fields)),
+  files: fieldFilesOf(now.state.fields),
   manifest: encode(
     JSON.stringify(
       manifestOf(now.state).map((entry) => [entry.blockId, entry.hash, entry.ord, entry.section]),
@@ -104,6 +110,7 @@ export const storeParts = (sql: SqlStatements, itemId: string, parts: EncodedPar
   for (const part of [parts.fields, parts.manifest, parts.annotations]) {
     sql.run(INSERT_PART, [itemId, part.hash, part.json]);
   }
+  keepHistoryFiles(sql, itemId, parts.fields.hash, parts.files);
   return {
     annotations: parts.annotations.hash,
     fields: parts.fields.hash,
@@ -182,6 +189,11 @@ export const keepSuperseded = (
     tail: " ON CONFLICT DO NOTHING",
   })) {
     sql.run(statement.sql, statement.params);
+  }
+  for (const stored of blocks) {
+    const files = new Set<string>();
+    collectFileShas(stored.block, files);
+    keepHistoryFiles(sql, itemId, stored.hash, [...files]);
   }
 };
 

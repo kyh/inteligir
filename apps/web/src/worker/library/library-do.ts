@@ -1,10 +1,10 @@
 // The account's library cell: one SQLite Durable Object per account, the only writer of its
 // library and the source every replica pulls from. It holds the library's tables, its history and
 // jobs, and the account's live sockets; its rules are the engine's (`./library-engine`). The
-// Worker reaches it by `ctx.exports.LibraryDO` under a name only a verified credential gives
-// (`./library-cell`); fetch carries what stays a request and its response, a client's library call
-// and the socket upgrade, and every other call is RPC. Nothing a later event needs is kept in
-// memory, and the cell sets no timer: its one alarm runs the `jobs` table.
+// Worker reaches it by `ctx.exports.LibraryDO`, under a name a verified credential or the cell
+// itself gave (`./library-cell`); fetch carries what stays a request and its response, a client's
+// library call and the socket upgrade, and every other call is RPC. Nothing a later event needs is
+// kept in memory, and the cell sets no timer: its one alarm runs the `jobs` table.
 
 import {
   SOCKET_KEEPALIVE_PING,

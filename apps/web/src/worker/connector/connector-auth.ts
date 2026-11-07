@@ -17,7 +17,7 @@ import type {
 import { z } from "zod";
 
 import { createDb } from "../db/client";
-import { LIBRARY_SCOPES } from "../library/library-principal";
+import { credentialIdSchema, LIBRARY_SCOPES } from "../library/library-principal";
 import { spendCallerBudget } from "../rate-limit";
 
 // the person's own page, which signs them in and asks; the provider advertises it and refuses a
@@ -49,7 +49,7 @@ const grantPropsSchema = z.strictObject({
 // an access token's: its grant's, and the grant it was minted under, which the token alone does not
 // say and every call's change set and budget are keyed on
 const tokenPropsSchema = grantPropsSchema.extend({
-  grantId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/u),
+  grantId: credentialIdSchema,
 });
 
 export type TokenProps = z.infer<typeof tokenPropsSchema>;

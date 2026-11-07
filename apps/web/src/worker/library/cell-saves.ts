@@ -1,5 +1,5 @@
-// Saving a web address: one url, one item (rule R22). A save of an address a live item holds
-// folds onto that item, adding what it brings, and only an address no live item holds makes one.
+// Saving a web address: one url, one item. A save of an address a live item holds folds onto that
+// item, adding what it brings, and only an address no live item holds makes one.
 // A page a device read itself (the extension, the share sheet) lands read, its article replacing
 // the item's and the item's highlights placed again in it by their quotes, since the markers the
 // old article held went with it; a read that found no article leaves the item's. One saved to
@@ -10,6 +10,7 @@ import { blockHash } from "@repo/notes/library/block-hash";
 import { applyOps } from "@repo/notes/library/block-ops";
 import type { ItemState, LibraryOp } from "@repo/notes/library/block-ops";
 import { compareText, ordsBetween } from "@repo/notes/library/block-order";
+import { blankFields } from "@repo/notes/library/library-item";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { readItemState } from "@repo/notes/library/library-queries";
@@ -26,7 +27,7 @@ import type { FolderTarget } from "./cell-folders";
 import type { CellIds } from "./cell-ids";
 import { urlHolder } from "./cell-landing";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
-import { bareHighlight, blankFields, landNew, noteBlocksOf, placeQuotes } from "./cell-items";
+import { bareHighlight, landNew, noteBlocksOf, placeQuotes, tagKey } from "./cell-items";
 import type { PlacedBlock, PlacingQuote } from "./cell-items";
 import { refuse } from "./cell-refusal";
 import { landWrite } from "./cell-writes";
@@ -45,8 +46,6 @@ const heldItem = (scope: LandingScope, url: string): HeldItem | null => {
   const state = holder === null ? null : runPlan(scope.storage, readItemState(holder.id));
   return holder === null || state === null ? null : { ...state, id: holder.id };
 };
-
-const tagKey = (tag: string): string => tag.toLowerCase();
 
 // the item's tags with the save's added, as a list op merges them
 const tagsOp = (fields: LibraryItemFields, tags: readonly string[]): LibraryOp[] => {
@@ -90,41 +89,70 @@ export type ReadPage = Pick<
   "article" | "coverSha" | "facts" | "folderId" | "tags" | "title"
 >;
 
-const articleOf = (input: ReadPage): PlacedBlock[] =>
+const articleOf = (input: Pick<ReadPage, "article">): PlacedBlock[] =>
   input.article.map(({ block, ord }) => ({ block, ord, section: "article" }));
 
-// a field op that changes something; one whose value is its base is left out
-const changes = (op: LibraryOp): boolean => op.op !== "set" || op.base !== op.value;
+// the ops that put a page's article in place of the item's; a page that held none leaves the
+// item's
+export const articleOps = (state: ItemState, page: Pick<ReadPage, "article">): LibraryOp[] =>
+  page.article.length === 0
+    ? []
+    : [
+        ...[...state.blocks.values()]
+          .filter((stored) => stored.section === "article")
+          .map((stored): LibraryOp => ({
+            baseHash: stored.hash,
+            blockId: stored.block.id,
+            op: "drop",
+          })),
+        ...articleOf(page).map((placed): LibraryOp => ({ ...placed, op: "insert" })),
+      ];
 
-// the read page's facts over the item's: what the fill owns, the page's title for a stub never
-// read (its own was the address's placeholder), and the page's cover where it brought one
-const factOps = (state: ItemState, input: ReadPage, now: number): LibraryOp[] => {
-  const { fields } = state;
-  const { facts } = input;
-  const title = fields.fetchState === "filled" || input.title === "" ? fields.title : input.title;
-  const ops: LibraryOp[] = [
-    { base: fields.author, field: "author", op: "set", value: facts.author },
-    { base: fields.description, field: "description", op: "set", value: facts.description },
-    { base: fields.lang, field: "lang", op: "set", value: facts.lang },
-    { base: fields.published, field: "published", op: "set", value: facts.published },
-    { base: fields.site, field: "site", op: "set", value: facts.site },
-    {
-      base: fields.coverSha,
-      field: "coverSha",
-      op: "set",
-      value: input.coverSha ?? fields.coverSha,
-    },
-    { base: fields.fetchError, field: "fetchError", op: "set", value: null },
-    { base: fields.fetchState, field: "fetchState", op: "set", value: "filled" },
-    { base: fields.fetchedAt, field: "fetchedAt", op: "set", value: now },
-    {
-      base: fields.folderId,
-      field: "folderId",
-      op: "set",
-      value: fields.folderId ?? input.folderId,
-    },
-    { base: fields.title, field: "title", op: "set", value: title },
-  ];
+// the ops that place `quotes` where the item's text holds them once `ops` land
+export const quoteOps = (
+  state: ItemState,
+  codec: CellCodec,
+  ops: readonly LibraryOp[],
+  quotes: readonly PlacingQuote[],
+): readonly LibraryOp[] => {
+  const read = quotes.length === 0 ? null : applyOps(state, ops);
+  return read?.kind === "applied" ? placeQuotes(read.state, codec, quotes).ops : [];
+};
+
+// a field op that changes something; one whose value is its base is left out
+export const changes = (op: LibraryOp): boolean => op.op !== "set" || op.base !== op.value;
+
+const FACT_FIELDS = ["author", "description", "lang", "published", "site"] as const;
+
+// the fields a read page sets, however it reached the item: what it said of itself where it said
+// anything (a value it did not give never removes one an import gave), its cover where it brought
+// one, the reading's own state, and its title (empty when it gave none) only over the address the
+// item is still named by
+export const readOps = (fields: LibraryItemFields, now: number): LibraryOp[] => [
+  { base: fields.fetchError, field: "fetchError", op: "set", value: null },
+  { base: fields.fetchState, field: "fetchState", op: "set", value: "filled" },
+  { base: fields.fetchedAt, field: "fetchedAt", op: "set", value: now },
+];
+
+export const pageFieldOps = (
+  fields: LibraryItemFields,
+  page: Pick<ReadPage, "coverSha" | "facts" | "title">,
+  now: number,
+): LibraryOp[] => {
+  const ops: LibraryOp[] = [];
+  for (const field of FACT_FIELDS) {
+    const value = page.facts[field];
+    if (value !== null) {
+      ops.push({ base: fields[field], field, op: "set", value });
+    }
+  }
+  if (page.coverSha !== null) {
+    ops.push({ base: fields.coverSha, field: "coverSha", op: "set", value: page.coverSha });
+  }
+  ops.push(...readOps(fields, now));
+  if (page.title !== "" && fields.url !== null && fields.title === itemNameFromUrl(fields.url)) {
+    ops.push({ base: fields.title, field: "title", op: "set", value: page.title });
+  }
   return ops.filter(changes);
 };
 
@@ -197,8 +225,9 @@ const appendedNote = (
 };
 
 // a page onto the item holding its address: its article replaces the item's, unless the read
-// found none, and the item's highlights are placed again in it; its facts land where the fill
-// owns them, its tags join the item's, and a note it brings goes after the item's own
+// found none, and the item's highlights are placed again in it; its fields land as a reading's do,
+// its folder only where the item has none, its tags join the item's, and a note it brings goes
+// after the item's own
 export const foldPage = (
   scope: LandingScope,
   actor: CellActor,
@@ -209,34 +238,24 @@ export const foldPage = (
   highlight: Highlight = null,
   note: readonly { readonly block: LibraryBlock }[] = [],
 ): LiveItemRow => {
-  const replacing = input.article.length > 0;
   const ops: LibraryOp[] = [
-    ...(replacing
-      ? [
-          ...[...held.blocks.values()]
-            .filter((stored) => stored.section === "article")
-            .map((stored): LibraryOp => ({
-              baseHash: stored.hash,
-              blockId: stored.block.id,
-              op: "drop",
-            })),
-          ...articleOf(input).map((placed): LibraryOp => ({ ...placed, op: "insert" })),
-        ]
+    ...articleOps(held, input),
+    ...pageFieldOps(held.fields, input, scope.now),
+    ...(held.fields.folderId === null && input.folderId !== null
+      ? [{ base: null, field: "folderId", op: "set", value: input.folderId } as const]
       : []),
-    ...factOps(held, input, scope.now),
     ...tagsOp(held.fields, input.tags),
     ...appendedNote(held, note),
   ];
   // a highlight whose markers the note holds stays where it is (`placeQuotes`)
-  const quotes = [...(replacing ? quotesOf(rows) : []), ...(highlight === null ? [] : [highlight])];
-  const read = quotes.length === 0 ? null : applyOps(held, ops);
-  if (read?.kind === "applied") {
-    ops.push(...placeQuotes(read.state, codec, quotes).ops);
-  }
+  const quotes = [
+    ...(input.article.length > 0 ? quotesOf(rows) : []),
+    ...(highlight === null ? [] : [highlight]),
+  ];
   return landWrite(scope, actor, {
     annotations: highlight === null ? [] : [bareHighlight(scope, highlight)],
     itemId: held.id,
-    ops,
+    ops: [...ops, ...quoteOps(held, codec, ops, quotes)],
   });
 };
 
@@ -322,11 +341,7 @@ const heldSelection = (
     return { add: [], ops: [] };
   }
   const highlight = { id: ids.annotation(), quote: selection };
-  const placing = applyOps(held, ops);
-  return {
-    add: [bareHighlight(scope, highlight)],
-    ops: placing.kind === "applied" ? placeQuotes(placing.state, codec, [highlight]).ops : [],
-  };
+  return { add: [bareHighlight(scope, highlight)], ops: quoteOps(held, codec, ops, [highlight]) };
 };
 
 // a url to read later: the item that holds it gains the tags, the note, the folder and the

@@ -9,6 +9,7 @@ import { recordChanges } from "@repo/notes/library/library-queries";
 import { AGENT_TURN_PHASES } from "@repo/notes/library/library-schema";
 import { runPlan } from "@repo/notes/library/library-sql";
 import type { SqlRow, SqlStatements } from "@repo/notes/library/library-sql";
+import { jsonTextSchema } from "@repo/notes/library/sql-value";
 import { z } from "zod";
 
 import type { CellActor } from "../library/cell-actor";
@@ -33,16 +34,7 @@ const turnMessageSchema = z.object({
 
 export type TurnMessage = z.infer<typeof turnMessageSchema>;
 
-const JSON_TEXT = z.string().transform((text, context) => {
-  try {
-    return z.json().parse(JSON.parse(text));
-  } catch {
-    context.addIssue({ code: "custom", message: "is not JSON" });
-    return z.NEVER;
-  }
-});
-
-const messageText = JSON_TEXT.pipe(turnMessageSchema);
+const messageText = jsonTextSchema.pipe(turnMessageSchema);
 
 // ---- threads ----
 

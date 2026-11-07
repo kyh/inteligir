@@ -31,6 +31,7 @@ import {
 } from "@repo/notes/library/library-queries";
 import { all, chunkStatement, LibraryRowError, run } from "@repo/notes/library/library-sql";
 import type { SqlPlan, SqlRow, SqlStatement } from "@repo/notes/library/library-sql";
+import { jsonTextSchema } from "@repo/notes/library/sql-value";
 import { z } from "zod";
 
 type LibraryChange = z.infer<typeof libraryChangeSchema>;
@@ -107,7 +108,6 @@ const ITEM_TABLES = [
   "DELETE FROM links WHERE source_id = ?",
   "DELETE FROM item_tags WHERE item_id = ?",
   "DELETE FROM annotations WHERE item_id = ?",
-  "DELETE FROM item_blobs WHERE item_id = ?",
   "DELETE FROM body_wants WHERE item_id = ?",
 ] as const;
 
@@ -260,23 +260,6 @@ const applyAnnotation = function* applyAnnotation(
   touch(touched, "annotation", row.itemId);
 };
 
-const applyBlob = function* applyBlob(
-  change: Extract<LibraryChange, { kind: "blob" }>,
-  touched: Touched,
-): SqlPlan<void> {
-  const { row } = change;
-  // a file never changes under its sha; which items hold it is the cell's to count
-  yield row === null
-    ? run("DELETE FROM blobs WHERE sha256 = ?", [change.id])
-    : run(
-        `INSERT INTO blobs (sha256, bytes, mime, w, h, refs) VALUES (?, ?, ?, ?, ?, 0)
-       ON CONFLICT (sha256) DO UPDATE SET bytes = excluded.bytes, mime = excluded.mime,
-         w = excluded.w, h = excluded.h`,
-        [row.sha, row.bytes, row.mime, row.w, row.h],
-      );
-  touch(touched, "blob", change.id);
-};
-
 const applyThread = function* applyThread(
   change: Extract<LibraryChange, { kind: "thread" }>,
   touched: Touched,
@@ -339,10 +322,6 @@ export const applyChange = function* applyChange(
       yield* applyAnnotation(change, touched);
       return;
     }
-    case "blob": {
-      yield* applyBlob(change, touched);
-      return;
-    }
     case "thread": {
       yield* applyThread(change, touched);
       return;
@@ -365,8 +344,6 @@ const SYNCED_TABLES = [
   "item_tags",
   "links",
   "annotations",
-  "blobs",
-  "item_blobs",
   "search_fts",
   "threads",
   "thread_events",
@@ -634,20 +611,11 @@ export const readThreads = function* readThreads(): SqlPlan<ThreadRow[]> {
   });
 };
 
-const eventJsonSchema = z.string().transform((text, context) => {
-  try {
-    return z.json().parse(JSON.parse(text));
-  } catch {
-    context.addIssue({ code: "custom", message: "is not JSON" });
-    return z.NEVER;
-  }
-});
-
 const threadEventSqlSchema = z.object({
   at: z.number(),
   event_id: z.string(),
   idx: z.number(),
-  json: eventJsonSchema,
+  json: jsonTextSchema,
   seq: z.number(),
   thread_id: z.string(),
   type: z.string(),

@@ -11,6 +11,7 @@ import type { ViewPorts } from "@repo/editor/codec/item-view";
 import type { FileKind } from "@repo/notes/items/item-kind";
 import { itemCardSchema, titleKey } from "@repo/notes/library/derive-item";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
+import { jsonTextSchema } from "@repo/notes/library/sql-value";
 import { isUuidWikiAlias } from "@repo/notes/markdown/remark-wiki-link";
 import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
 import { z } from "zod";
@@ -22,22 +23,13 @@ const titleRowSchema = z.object({ aliases: z.string(), id: z.string(), title: z.
 const mimeRowSchema = z.object({ mime: z.string() });
 const namesSchema = z.array(z.string());
 
-const JSON_TEXT = z.string().transform((text, context) => {
-  try {
-    return z.json().parse(JSON.parse(text));
-  } catch {
-    context.addIssue({ code: "custom", message: "is not JSON" });
-    return z.NEVER;
-  }
-});
-
 // an item's name as a link to it is written: its card's title, which falls back to its first
 // heading or line; null for an id no item holds
 const titleOf = (sql: SqlStatements, itemId: string): string | null => {
   const [raw] = sql.all("SELECT card FROM items WHERE id = ? AND purged = 0", [itemId]);
   return raw === undefined
     ? null
-    : JSON_TEXT.pipe(itemCardSchema).parse(cardRowSchema.parse(raw).card).title;
+    : jsonTextSchema.pipe(itemCardSchema).parse(cardRowSchema.parse(raw).card).title;
 };
 
 // what kind of file a type uploaded as is; a type no viewer reads is a plain file
@@ -77,7 +69,7 @@ const titleIndex = (sql: SqlStatements): Map<string, string | null> => {
   )) {
     const row = titleRowSchema.parse(raw);
     file(row.title, row.id);
-    for (const alias of JSON_TEXT.pipe(namesSchema).parse(row.aliases)) {
+    for (const alias of jsonTextSchema.pipe(namesSchema).parse(row.aliases)) {
       file(alias, row.id);
     }
   }

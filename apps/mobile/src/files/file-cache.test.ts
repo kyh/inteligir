@@ -33,8 +33,8 @@ const phoneSql = async (): Promise<ReplicaSql> => {
 // a note whose body embeds `sha`, the person's own, so its picture is pinned
 const embedIn = async (sql: ReplicaSql, sha: string): Promise<void> => {
   await sql.run(
-    `INSERT INTO items (id, kind, title, saved_at, updated_at, seq, schema, fetch_state, aliases, properties, tags, card, purged)
-     VALUES ('n1', 'note', 'Trip', 1, 1, 1, 1, 'none', '[]', '{}', '[]', '{"outline":[],"preview":"","title":"Trip","words":0}', 0)`,
+    `INSERT INTO items (id, kind, title, saved_at, updated_at, seq, fetch_state, aliases, properties, tags, card, purged)
+     VALUES ('n1', 'note', 'Trip', 1, 1, 1, 'none', '[]', '{}', '[]', '{"outline":[],"preview":"","title":"Trip","words":0}', 0)`,
     [],
   );
   await sql.run(

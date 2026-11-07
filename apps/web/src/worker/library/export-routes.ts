@@ -2,7 +2,7 @@
 // the Worker's own credential check, as a file is (`./blob-routes`): only the account's own
 // export is reachable, since its key is read from the account the credential verified, never from
 // the request, and R2 answers a range, so a download that broke resumes. An export not yet
-// written, or let go after its seven days, is not there.
+// written, or let go, is not there.
 
 import { V1_EXPORTS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { z } from "zod";
@@ -22,7 +22,7 @@ const exportIdSchema = z.uuid();
 export const isExportPath = (pathname: string): boolean =>
   pathname.startsWith(`${V1_EXPORTS_PATH}/`);
 
-const MISSING = "That export isn't ready, or it was let go seven days after it was written.";
+const MISSING = "That export isn't ready, or it was let go.";
 
 // the name a download is saved under: the library, and the day the zip was written
 const savedName = (uploaded: string | null): string => {

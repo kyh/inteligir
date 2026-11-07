@@ -54,7 +54,7 @@ const rowOf = (raw: SqlRow): FolderRow => {
   };
 };
 
-const readFolder = (sql: SqlStatements, id: string): FolderRow | null => {
+export const readFolder = (sql: SqlStatements, id: string): FolderRow | null => {
   const [raw] = sql.all(`SELECT ${COLUMNS} FROM folders WHERE id = ?`, [id]);
   return raw === undefined ? null : rowOf(raw);
 };

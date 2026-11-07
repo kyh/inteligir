@@ -43,6 +43,7 @@ import { useEffect, useRef, useState } from "react";
 import { historyPages } from "../cloud/history-pages";
 import { useReplica, useReplicaQueries, useWire } from "../cloud/library-context";
 import { refusalText } from "@repo/contract/cloud/refusal-text";
+import { undoSentence } from "../panel/history-tab";
 import { relativeTimeLabel, useNow } from "../relative-time";
 
 export interface AgentPanelProps {
@@ -273,15 +274,19 @@ const Conversation = ({
   const undoSets = (ids: readonly string[]): void => {
     void (async () => {
       await flushOpen();
+      const kept: string[] = [];
+      const refused: string[] = [];
       for (const batch of undoBatches(ids)) {
         try {
-          await undo.mutateAsync({ changeSetIds: batch });
+          const answer = await undo.mutateAsync({ changeSetIds: batch });
+          kept.push(...answer.kept);
+          refused.push(...answer.refused);
         } catch {
           // the undo's own onError said why; the batches after it are not sent
           return;
         }
       }
-      toast.success("Undone.");
+      toast.success(undoSentence({ kept, refused }));
     })();
   };
   const undoTurn = (turn: number): (() => void) | null => {

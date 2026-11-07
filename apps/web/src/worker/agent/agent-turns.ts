@@ -18,6 +18,7 @@ import { THREAD_STATUSES, threadEventRowSchema } from "@repo/contract/cloud/libr
 import { ORPCError } from "@orpc/server";
 import type { agentViewContextSchema } from "@repo/contract/cloud/library/library-wire";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
+import { jsonTextSchema } from "@repo/notes/library/sql-value";
 import { z } from "zod";
 
 import type { CellActor } from "../library/cell-actor";
@@ -823,7 +824,7 @@ const runAgentJob = async (
   cell: AgentCell,
   job: DueJob<(typeof AGENT_JOBS)[number]>,
 ): Promise<void> => {
-  const { threadId } = jobPayloadSchema.parse(JSON.parse(job.payload));
+  const { threadId } = jsonTextSchema.pipe(jobPayloadSchema).parse(job.payload);
   await (job.kind === "agent-deliver" ? deliverTurn(cell, threadId) : watchTurn(cell, threadId));
 };
 

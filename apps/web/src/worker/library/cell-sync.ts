@@ -14,10 +14,11 @@ import { readBlocks, readChanges, readItem, readMeta } from "@repo/notes/library
 import type { ChangeEntry } from "@repo/notes/library/library-queries";
 import { LibraryRowError, runPlan } from "@repo/notes/library/library-sql";
 import type { SqlRow, SqlStatements } from "@repo/notes/library/library-sql";
+import { jsonTextSchema } from "@repo/notes/library/sql-value";
 import { z } from "zod";
 
 import { annotationWireRow, readAnnotationRow } from "./cell-annotations";
-import { readBlobRow } from "./cell-blobs";
+import { readFolder } from "./cell-folders";
 
 type LibraryChange = z.infer<typeof libraryChangeSchema>;
 type StoredBlockRow = z.infer<typeof storedBlockSchema>;
@@ -53,15 +54,6 @@ export type PullAnswer =
       readonly upto: number;
     }
   | { readonly kind: "reset"; readonly epoch: string };
-
-const folderRowSchema = z.object({
-  deleted_at: z.number().nullable(),
-  id: z.string(),
-  name: z.string(),
-  parent_id: z.string().nullable(),
-  seq: z.number(),
-  sort: z.string(),
-});
 
 const threadSqlSchema = z.object({
   created_at: z.number(),
@@ -105,25 +97,6 @@ const itemRowOf = (
       };
 };
 
-const folderRowOf = (sql: SqlStatements, id: string) => {
-  const [raw] = sql.all(
-    "SELECT id, parent_id, name, sort, deleted_at, seq FROM folders WHERE id = ?",
-    [id],
-  );
-  if (raw === undefined) {
-    return null;
-  }
-  const row = folderRowSchema.parse(raw);
-  return {
-    deletedAt: row.deleted_at,
-    id: row.id,
-    name: row.name,
-    parentId: row.parent_id,
-    seq: row.seq,
-    sort: row.sort,
-  };
-};
-
 export const THREAD_COLUMNS = "id, title, status, created_at, updated_at, seq";
 
 export const threadRowFrom = (raw: SqlRow): ThreadRow => {
@@ -143,22 +116,13 @@ const threadRowOf = (sql: SqlStatements, id: string): ThreadRow | null => {
   return raw === undefined ? null : threadRowFrom(raw);
 };
 
-const eventJsonSchema = z.string().transform((text, context) => {
-  try {
-    return z.json().parse(JSON.parse(text));
-  } catch {
-    context.addIssue({ code: "custom", message: "is not JSON" });
-    return z.NEVER;
-  }
-});
-
 export const THREAD_EVENT_COLUMNS = "event_id, thread_id, idx, type, json, at, seq";
 
 export const threadEventRowFrom = (raw: SqlRow): ThreadEventRow => {
   const row = threadEventSqlSchema.parse(raw);
   return {
     at: row.at,
-    event: eventJsonSchema.parse(row.json),
+    event: jsonTextSchema.parse(row.json),
     eventId: row.event_id,
     idx: row.idx,
     seq: row.seq,
@@ -181,14 +145,11 @@ const changeOf = (sql: SqlStatements, entry: ChangeEntry): LibraryChange => {
       return { id, kind: "item", row: entry.gone ? null : itemRowOf(sql, id), seq };
     }
     case "folder": {
-      return { id, kind: "folder", row: entry.gone ? null : folderRowOf(sql, id), seq };
+      return { id, kind: "folder", row: entry.gone ? null : readFolder(sql, id), seq };
     }
     case "annotation": {
       const row = entry.gone ? null : readAnnotationRow(sql, id);
       return { id, kind: "annotation", row: row === null ? null : annotationWireRow(row), seq };
-    }
-    case "blob": {
-      return { id, kind: "blob", row: entry.gone ? null : readBlobRow(sql, id), seq };
     }
     case "thread": {
       return { id, kind: "thread", row: entry.gone ? null : threadRowOf(sql, id), seq };

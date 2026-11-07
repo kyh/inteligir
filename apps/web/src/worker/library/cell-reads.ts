@@ -15,6 +15,7 @@ import { itemView, viewPage } from "@repo/editor/codec/item-view";
 import type { ViewPage } from "@repo/editor/codec/item-view";
 import { TYPED_QUERY } from "@repo/notes/knowledge/search-query";
 import { bodyPrefilters, excerptAround, findTextOffsets } from "@repo/notes/knowledge/text-matches";
+import { ITEM_KINDS } from "@repo/notes/items/item-kind";
 import type { ItemKind } from "@repo/notes/items/item-kind";
 import { compareText } from "@repo/notes/library/block-order";
 import { itemCardSchema } from "@repo/notes/library/derive-item";
@@ -34,6 +35,7 @@ import {
 import type { LiteralMatch } from "@repo/notes/library/library-queries";
 import { chunkStatement, runPlan } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
+import { jsonTextSchema } from "@repo/notes/library/sql-value";
 import { z } from "zod";
 
 import type { CellCodec } from "./cell-codec";
@@ -50,15 +52,6 @@ type ChangeSet = z.infer<typeof changeSetSchema>;
 export type ResponseFormat = "concise" | "detailed";
 
 export const isoOf = (ms: number): string => new Date(ms).toISOString();
-
-const JSON_TEXT = z.string().transform((text, context) => {
-  try {
-    return z.json().parse(JSON.parse(text));
-  } catch {
-    context.addIssue({ code: "custom", message: "is not JSON" });
-    return z.NEVER;
-  }
-});
 
 // ---- pages ----
 
@@ -89,7 +82,7 @@ const listingRowSchema = z.object({
   deleted_at: z.number().nullable(),
   folder_id: z.string().nullable(),
   id: z.string(),
-  kind: z.enum(["note", "link", "video", "audio", "image", "pdf", "file"]),
+  kind: z.enum(ITEM_KINDS),
   pinned_at: z.number().nullable(),
   saved_at: z.number(),
   site: z.string().nullable(),
@@ -118,11 +111,11 @@ const listingOf = (sql: SqlStatements): LibraryIndex<ItemListing> => {
     [],
   )) {
     const row = listingRowSchema.parse(raw);
-    const card = JSON_TEXT.pipe(itemCardSchema).parse(row.card);
+    const card = jsonTextSchema.pipe(itemCardSchema).parse(row.card);
     index.upsert({
       card,
       deletedAt: row.deleted_at,
-      fieldTags: JSON_TEXT.pipe(namesSchema).parse(row.tags),
+      fieldTags: jsonTextSchema.pipe(namesSchema).parse(row.tags),
       folderId: row.folder_id,
       id: row.id,
       kind: row.kind,
@@ -346,7 +339,7 @@ const linkedItems = (sql: SqlStatements, ids: ReadonlySet<string>) => {
   })) {
     for (const raw of sql.all(statement.sql, statement.params)) {
       const row = titleRowSchema.parse(raw);
-      found.push({ id: row.id, title: JSON_TEXT.pipe(itemCardSchema).parse(row.card).title });
+      found.push({ id: row.id, title: jsonTextSchema.pipe(itemCardSchema).parse(row.card).title });
     }
   }
   return found
@@ -540,7 +533,7 @@ export const listHighlights = (sql: SqlStatements, input: HighlightsInput) => {
       createdAt: isoOfSeconds(row.created_at),
       id: row.id,
       itemId: row.item_id,
-      itemTitle: JSON_TEXT.pipe(itemCardSchema).parse(row.card).title,
+      itemTitle: jsonTextSchema.pipe(itemCardSchema).parse(row.card).title,
       placed: isPlaced(sql, row.item_id, row.id),
       quote: row.quote,
       replies: replies.get(row.id) ?? [],

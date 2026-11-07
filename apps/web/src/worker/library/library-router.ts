@@ -3,7 +3,7 @@
 // principal the Worker verified resolves to. Every write lands through the engine in one
 // transaction, joins its actor's change set, and is settled after it commits (the sockets told,
 // the alarm set); every refusal answers as the error its row declares
-// (`@repo/contract/cloud/v1-errors`). The built-in agent's turns are `../agent/agent-turns`'.
+// (`@repo/contract/cloud/v1/errors`). The built-in agent's turns are `../agent/agent-turns`'.
 
 import {
   AccountGoneError,
@@ -22,6 +22,7 @@ import {
   importJobSchema,
   liveItemRowSchema,
 } from "@repo/contract/cloud/library/library-wire";
+import { blankFields } from "@repo/notes/library/library-item";
 import { ORPCError, implement } from "@orpc/server";
 import { z } from "zod";
 
@@ -43,7 +44,6 @@ import { importJobView, latestImportJob, readImportJob } from "./cell-import-job
 import { cancelImport, startImport } from "./cell-imports";
 import {
   addHighlight,
-  blankFields,
   createFile,
   createNote,
   editItem,
@@ -97,6 +97,7 @@ const refusalError = (refusal: CellRefusal): Error => {
     case "url-held": {
       return new ConflictError({
         data: { current: [{ itemId: refusal.itemId, kind: "item", seq: refusal.seq }] },
+        message: "Another item in your library already holds this link.",
       });
     }
     case "too-large": {
@@ -449,9 +450,13 @@ export const libraryRouter = os.router({
       const actor = context.actor();
       const { changed, missing } = await committed(
         context,
-        context.library.land(actor, { answer: changedSchema, opId: input.opId }, (scope) =>
-          setDeleted(scope, actor, { deleted: false, ids: input.ids }),
-        ),
+        context.library.land(actor, { answer: changedSchema, opId: input.opId }, (scope) => {
+          const restored = setDeleted(scope, actor, { deleted: false, ids: input.ids });
+          for (const item of restored.landed) {
+            askReading(scope, actor, item);
+          }
+          return restored;
+        }),
       );
       return { missing, restored: changed };
     }),

@@ -18,6 +18,7 @@ import {
 } from "@repo/notes/library/library-queries";
 import { LibraryRowError, runPlan } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
+import { jsonTextSchema } from "@repo/notes/library/sql-value";
 import { z } from "zod";
 
 import { fillLandedSchema } from "../fill/fill-landing";
@@ -31,7 +32,6 @@ import {
   dropItemBlobs,
   endRemoval,
   hurryUnnamed,
-  itemBlobShas,
   refuseUpload,
   releaseUnnamed,
   releaseUpload,
@@ -40,12 +40,11 @@ import {
 } from "./cell-blobs";
 import type { StoredObject, UploadRequest, UploadRoom } from "./cell-blobs";
 import { cellCodec } from "./cell-codec";
+import { exportsWriting } from "./cell-export-rows";
 import { claimFills, FILL_ACTOR, fillWaits, landFill, readingFiles, sentFills } from "./cell-fills";
 import type { ClaimedFill } from "./cell-fills";
 import type { CellIds } from "./cell-ids";
 import { importsRunning } from "./cell-import-jobs";
-import { landNew } from "./cell-items";
-import type { NewItem } from "./cell-items";
 import { dueJobs, ensureJob, nextJobAt, retryJob, scheduleJob } from "./cell-jobs";
 import type { DueJob } from "./cell-jobs";
 import type { LandingScope } from "./cell-landing";
@@ -70,11 +69,7 @@ export interface LibraryEngineDeps {
   readonly bytesCap: number;
 }
 
-// a write's key in the op ledger, beside what it carries
-type Keyed<T> = T & { readonly opId?: string | undefined };
-
-export type CreateItemInput = Keyed<NewItem>;
-export type WriteItemInput = Keyed<ItemWrite>;
+export type WriteItemInput = ItemWrite & { readonly opId?: string | undefined };
 
 // what a write asks of the engine around its work: its key in the op ledger, and the schema its
 // answer is read through, as it lands and as the ledger kept it
@@ -122,6 +117,7 @@ const purgedSchema = z.object({ missing: z.array(z.string()), purged: z.array(z.
 const undoSchema = z.object({
   changeSetId: z.string(),
   kept: z.array(z.string()),
+  refused: z.array(z.string()),
   reverted: z.array(z.string()),
 });
 
@@ -129,21 +125,12 @@ const answerRowSchema = z.object({ answer: z.string() });
 const deletedAtSchema = z.number().int().nonnegative();
 const revisionRowSchema = z.object({ fields: z.string(), manifest: z.string() });
 
-const JSON_TEXT = z.string().transform((text, context) => {
-  try {
-    return z.json().parse(JSON.parse(text));
-  } catch {
-    context.addIssue({ code: "custom", message: "is not JSON" });
-    return z.NEVER;
-  }
-});
-
 const PAYLOADS = {
-  prune: JSON_TEXT.pipe(z.object({ after: z.string().nullable() })),
-  seal: JSON_TEXT.pipe(z.object({ changeSetId: z.string() })),
-  stray: JSON_TEXT.pipe(z.object({ sha: z.string() })),
-  unnamed: JSON_TEXT.pipe(z.object({ sha: z.string() })),
-  upload: JSON_TEXT.pipe(z.object({ sha: z.string() })),
+  prune: jsonTextSchema.pipe(z.object({ after: z.string().nullable() })),
+  seal: jsonTextSchema.pipe(z.object({ changeSetId: z.string() })),
+  stray: jsonTextSchema.pipe(z.object({ sha: z.string() })),
+  unnamed: jsonTextSchema.pipe(z.object({ sha: z.string() })),
+  upload: jsonTextSchema.pipe(z.object({ sha: z.string() })),
 };
 
 // the jobs a run settles inside one transaction each; a stray's removal waits on R2, so the cell
@@ -151,8 +138,9 @@ const PAYLOADS = {
 const STORAGE_JOBS = ["seal", "prune", "upload", "unnamed"] as const;
 
 const PRUNE_AGAIN_MS = 1000;
-// a file no item named is asked about again this long after, while an import may yet name it
-const IMPORT_AGAIN_MS = 10 * 60_000;
+// a file no item names is asked about again this long after, while an import or an export may
+// yet name it
+const PLAN_AGAIN_MS = 10 * 60_000;
 
 // what a write took on its first landing: the library's next sequence number and its actor's set
 interface Taken {
@@ -178,7 +166,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     const [prior] = storage.all("SELECT answer FROM applied_ops WHERE op_id = ?", [opId]);
     return prior === undefined
       ? null
-      : answer.parse(JSON_TEXT.parse(answerRowSchema.parse(prior).answer));
+      : answer.parse(jsonTextSchema.parse(answerRowSchema.parse(prior).answer));
   };
 
   // one write: refused once the account is being deleted, answered from its op's record when it
@@ -217,10 +205,11 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
           sealChangeSet(storage, joined.id, now);
         }
         if (request.opId !== undefined) {
-          storage.run(
-            "INSERT INTO applied_ops (op_id, change_set_id, answer, at) VALUES (?, ?, ?, ?)",
-            [request.opId, joined?.id ?? null, JSON.stringify(value), now],
-          );
+          storage.run("INSERT INTO applied_ops (op_id, answer, at) VALUES (?, ?, ?)", [
+            request.opId,
+            JSON.stringify(value),
+            now,
+          ]);
           ensureJob(storage, PRUNE_JOB, now + PRUNE_EVERY_MS);
         }
         return { head: taken.seq, ok: true, value };
@@ -249,18 +238,14 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     work: (scope: LandingScope) => Built<z.input<S>>,
   ): CellResult<z.output<S>> => transact({ ...request, openSet: noSet }, work);
 
-  const create = (actor: CellActor, input: CreateItemInput) =>
-    land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
-      item: landNew(scope, actor, input),
-    }));
-
   const write = (actor: CellActor, input: WriteItemInput) =>
     land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
       item: landWrite(scope, actor, input),
     }));
 
-  // emptying Deleted: the item keeps its id and sequence as a tombstone, and its body, highlights
-  // and history go; it joins no set, since nothing can take it back
+  // emptying Deleted: the item keeps its id and sequence as a tombstone, its body, highlights and
+  // history go, and the alarm lets go the files nothing else names; it joins no set, since nothing
+  // can take it back
   const purgeItems = (input: PurgeItemsInput) =>
     transact({ answer: purgedSchema, openSet: noSet, opId: input.opId }, (scope) => {
       const purged: string[] = [];
@@ -273,12 +258,10 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         }
         const seq = scope.seq();
         const highlights = [...readAnnotationRows(storage, id).keys()];
-        const shas = itemBlobShas(storage, id);
         runPlan(
           storage,
           storeTombstone({ deletedAt: item.fields.deletedAt, id, seq, updatedAt: scope.now }),
         );
-        dropItemBlobs(storage, id, shas);
         for (const table of [
           "revisions",
           "snapshot_parts",
@@ -287,6 +270,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         ] as const) {
           storage.run(`DELETE FROM ${table} WHERE item_id = ?`, [id]);
         }
+        dropItemBlobs(storage, id, scope.now);
         runPlan(
           storage,
           recordChanges([
@@ -314,9 +298,12 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       (scope) => undoChangeSets(scope, input.changeSetIds),
     );
 
-  // an agent's turn or an import closes its own set; false when it was closed already
-  const closeChangeSet = (changeSetId: string): boolean =>
-    storage.transaction(() => sealChangeSet(storage, changeSetId, deps.now()));
+  // an import closes its own set
+  const closeChangeSet = (changeSetId: string): void => {
+    storage.transaction(() => {
+      sealChangeSet(storage, changeSetId, deps.now());
+    });
+  };
 
   // room for a file a device is about to upload
   const reserve = (request: UploadRequest): CellResult<UploadRoom> =>
@@ -334,14 +321,9 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   ): CellResult<UploadSettlement> => {
     const result = transact(
       { answer: z.object({ settled: z.boolean() }), openSet: noSet, opId: undefined },
-      (scope) => {
-        const settled = settleUpload(storage, bytesCap, { removalsSeen, sha, stored }, scope.now);
-        if (settled.landed) {
-          const seq = scope.seq();
-          runPlan(storage, recordChanges([{ gone: false, id: sha, kind: "blob", seq }]));
-        }
-        return { settled: settled.settled };
-      },
+      (scope) => ({
+        settled: settleUpload(storage, bytesCap, { removalsSeen, sha, stored }, scope.now),
+      }),
     );
     if (!result.ok && result.refusal.kind === "quota") {
       storage.transaction(() => {
@@ -469,10 +451,10 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       }
       case "unnamed": {
         const { sha } = PAYLOADS.unnamed.parse(job.payload);
-        if (importsRunning(storage)) {
-          awaitNameAgain(storage, sha, now + IMPORT_AGAIN_MS);
+        if (importsRunning(storage) || exportsWriting(storage)) {
+          awaitNameAgain(storage, sha, now + PLAN_AGAIN_MS);
         } else {
-          releaseUnnamed(storage, [sha], { now, seq: () => runPlan(storage, nextHead()) });
+          releaseUnnamed(storage, [sha], now);
         }
         break;
       }
@@ -523,7 +505,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     bodies,
     claimDueFills,
     closeChangeSet,
-    create,
     deletedAt,
     endStrayRemovals,
     fillWanted,
@@ -533,7 +514,9 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     land,
     landApart,
     landReading,
-    nextJobAt: () => nextJobAt(storage),
+    // once the deletion began no job runs, so one a failed step left would fire the alarm for good;
+    // the deletion's retry wipes it
+    nextJobAt: () => (deletedAt() === null ? nextJobAt(storage) : null),
     pull,
     purgeItems,
     read,

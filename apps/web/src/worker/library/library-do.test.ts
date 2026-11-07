@@ -12,6 +12,7 @@ import { connectAssistant } from "../test-support/connector-session";
 import {
   cellOf,
   clockAt,
+  createItem,
   engineIn,
   inCell,
   landedValue,
@@ -21,13 +22,15 @@ import {
   person,
   placed,
   refusalOf,
-  SYSTEM,
 } from "../test-support/library-cell";
 import { threadHolds, threadOf } from "../test-support/agent-turns";
 import { ACCOUNT_PURGE_STEPS } from "./account-purge";
 import { accountBlobPrefix, blobKey } from "./cell-blobs";
+import { FILL_ACTOR } from "./cell-fills";
+import { scheduleJob } from "./cell-jobs";
 import { openCellLibrary, scheduleAlarm, settleCommit } from "./cell-library";
 import type { CellRefusal } from "./cell-refusal";
+import { cellStorageOf } from "./cell-storage";
 import { cellAccountId } from "./library-cell";
 import { PRINCIPAL_HEADER, principalHeaderValue } from "./library-principal";
 import type { NamedPrincipal } from "./library-principal";
@@ -66,7 +69,7 @@ describe("the library cell", () => {
     const theirs = cellOf();
     await inCell(mine, (state) => {
       landedValue(
-        engineIn(state, clockAt()).create(SYSTEM, {
+        createItem(engineIn(state, clockAt()), FILL_ACTOR, {
           blocks: placed([paragraph("a", "mine")]),
           fields: noteFields(),
           id: crypto.randomUUID(),
@@ -135,7 +138,7 @@ describe("the library cell", () => {
     await inCell(stub, async (state) => {
       const library = engineIn(state, clockAt(written));
       landedValue(
-        library.create(person(), {
+        createItem(library, person(), {
           blocks: placed([paragraph("a", "typed a while ago")]),
           fields: noteFields(),
           id: crypto.randomUUID(),
@@ -159,7 +162,7 @@ describe("the library cell", () => {
     const itemId = crypto.randomUUID();
     const alarm = await inCell(stub, async (state) => {
       const library = openCellLibrary(state, env);
-      const result = library.create(person(), {
+      const result = createItem(library, person(), {
         blocks: placed([paragraph("a", "before the eviction")]),
         fields: noteFields(),
         id: itemId,
@@ -188,7 +191,7 @@ describe("the library cell", () => {
     const before = await inCell(stub, (state) => {
       const library = engineIn(state, clockAt());
       landedValue(
-        library.create(SYSTEM, {
+        createItem(library, FILL_ACTOR, {
           blocks: placed([paragraph("a", "an older build's")]),
           fields: noteFields(),
           id: crypto.randomUUID(),
@@ -227,7 +230,7 @@ describe("the library cell", () => {
       httpMetadata: { contentType: "image/png" },
     });
     await expect(stub.settleBlob(SHA)).resolves.toStrictEqual({
-      head: 1,
+      head: null,
       ok: true,
       value: { settled: true },
     });
@@ -316,7 +319,7 @@ describe("deleting the account from its cell", () => {
     const seen = new Map<string, Seen>();
     await inCell(cellOf(accountId), async (state) => {
       landedValue(
-        engineIn(state, clockAt()).create(SYSTEM, {
+        createItem(engineIn(state, clockAt()), FILL_ACTOR, {
           blocks: placed([paragraph("a", "gone with the account")]),
           fields: noteFields(),
           id: crypto.randomUUID(),
@@ -348,7 +351,8 @@ describe("deleting the account from its cell", () => {
     const gone = { kind: "gone" };
     const before = { alarm: expect.any(Number), devices: 1, files: 1, grants: 1, items: 1 };
     expect(Object.fromEntries(seen)).toStrictEqual({
-      agent: { ...before, read: gone, threads: 0 },
+      // a thread's purge settles through the cell, which keeps no alarm past the tombstone
+      agent: { ...before, alarm: null, read: gone, threads: 0 },
       credentials: {
         alarm: null,
         devices: 0,
@@ -404,6 +408,28 @@ describe("deleting the account from its cell", () => {
       refusal: { kind: "gone" },
     });
     await expect(env.BLOBS.head(key)).resolves.toBeNull();
+  });
+
+  it("keeps no alarm for a job a failed step left behind, once the deletion began", async () => {
+    const accountId = newAccountId();
+    const stub = cellOf(accountId);
+    await inCell(stub, async (state) => {
+      const [tombstone] = ACCOUNT_PURGE_STEPS;
+      await tombstone?.run({
+        accountId,
+        ctx: state,
+        email: "never-signed-up@example.test",
+        env,
+      });
+      scheduleJob(
+        cellStorageOf(state.storage),
+        { id: "agent-watch:left", kind: "agent-watch", payload: "{}" },
+        Date.now(),
+      );
+      await state.storage.setAlarm(Date.now() + 60_000);
+      await scheduleAlarm(state, openCellLibrary(state, env));
+      await expect(state.storage.getAlarm()).resolves.toBeNull();
+    });
   });
 
   it("runs again from the top after a step failed, as Better Auth retries the deletion", async () => {

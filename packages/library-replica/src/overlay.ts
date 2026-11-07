@@ -9,6 +9,7 @@ import { fileKindOf } from "@repo/notes/items/item-kind";
 import { blockHash } from "@repo/notes/library/block-hash";
 import { mergeListField } from "@repo/notes/library/block-ops";
 import type { ItemState, LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
+import { blankFields } from "@repo/notes/library/library-item";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
 
@@ -76,33 +77,6 @@ const layLibraryOp = (state: ItemState, op: LibraryOp, bases: WriteOp["bases"]):
     // no default
   }
 };
-
-// an item's fields before its writer sets any, as the cell's are: a note saved at `savedAt`,
-// filed nowhere
-const blankFields = (savedAt: number): LibraryItemFields => ({
-  aliases: [],
-  author: null,
-  copySha: null,
-  coverSha: null,
-  deletedAt: null,
-  description: null,
-  fetchError: null,
-  fetchState: "none",
-  fetchedAt: null,
-  folderId: null,
-  kind: "note",
-  lang: null,
-  originalName: null,
-  originalSha: null,
-  pinnedAt: null,
-  properties: {},
-  published: null,
-  savedAt,
-  site: null,
-  tags: [],
-  title: "",
-  url: null,
-});
 
 // the item a make lands as, as near as the device can tell before the cell answers: a saved
 // link's note, which the cell reads from markdown, shows once it lands

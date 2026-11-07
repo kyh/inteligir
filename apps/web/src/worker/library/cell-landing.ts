@@ -24,7 +24,7 @@ import { z } from "zod";
 
 import { annotationGrowth, annotationStoreOf, storeAnnotationRows } from "./cell-annotations";
 import type { AnnotationRows, AnnotationsLanded } from "./cell-annotations";
-import { blobRefsOf, missingBlobs, storeItemBlobs } from "./cell-blobs";
+import { itemFilesOf, missingBlobs, storeItemBlobs } from "./cell-blobs";
 import { encodeParts, keepSuperseded, partsFit } from "./cell-parts";
 import { holdRoomFor } from "./cell-quota";
 import { refuse } from "./cell-refusal";
@@ -32,7 +32,7 @@ import type { CellStorage } from "./cell-storage";
 import { touchItem } from "./change-sets";
 import type { OpenSet } from "./change-sets";
 
-// an item's text, all its blocks' together (the spec's cap); a block's own is the vocabulary's
+// an item's text, all its blocks' together; a block's own is the vocabulary's
 export const ITEM_TEXT_MAX_BYTES = 8 * 1024 * 1024;
 
 // an item as a replica pulls it
@@ -109,6 +109,38 @@ const diffBlocks = (
   return { dropped, growth, superseded, written };
 };
 
+// the words a field holds, which grow the library as a block does. A stamp, a state, a place, a sha
+// and a failed reading's sentence are left out: they swap one short value for another, and a full
+// library must still take a delete, a move, a pin and the end of a reading
+const fieldBytes = ({
+  aliases,
+  author,
+  description,
+  lang,
+  originalName,
+  properties,
+  published,
+  site,
+  tags,
+  title,
+  url,
+}: LibraryItemFields): number =>
+  utf8ByteLength(
+    canonicalJson({
+      aliases,
+      author,
+      description,
+      lang,
+      originalName,
+      properties,
+      published,
+      site,
+      tags,
+      title,
+      url,
+    }),
+  );
+
 const urlHolderSchema = z.object({ id: z.string(), seq: z.number() });
 
 // the other live item holding a url key, if one does
@@ -135,7 +167,7 @@ const sameShas = (a: readonly string[], b: readonly string[]): boolean => {
 // change
 interface Checked {
   readonly derived: ReturnType<typeof deriveItem>;
-  readonly refs: ReturnType<typeof blobRefsOf>;
+  readonly shas: readonly string[];
   readonly priorShas: readonly string[];
   readonly blocks: BlockDiff;
 }
@@ -161,11 +193,11 @@ const checkLanding = (scope: LandingScope, landing: Landing): Checked => {
       refuse({ itemId: holder.id, kind: "url-held", seq: holder.seq });
     }
   }
-  const refs = blobRefsOf(after);
-  const priorShas = before === null ? [] : blobRefsOf(before.state).map((ref) => ref.sha);
+  const shas = itemFilesOf(after);
+  const priorShas = before === null ? [] : itemFilesOf(before.state);
   const missing = missingBlobs(
     storage,
-    refs.map((ref) => ref.sha).filter((sha) => !priorShas.includes(sha)),
+    shas.filter((sha) => !priorShas.includes(sha)),
   );
   if (missing.length > 0) {
     refuse({ kind: "blob-missing", shas: missing });
@@ -174,16 +206,19 @@ const checkLanding = (scope: LandingScope, landing: Landing): Checked => {
   holdRoomFor(
     storage,
     scope.bytesCap,
-    blocks.growth + annotationGrowth(before?.rows ?? new Map(), landing.annotations),
+    blocks.growth +
+      fieldBytes(after.fields) -
+      (before === null ? 0 : fieldBytes(before.state.fields)) +
+      annotationGrowth(before?.rows ?? new Map(), landing.annotations),
   );
-  return { blocks, derived, priorShas, refs };
+  return { blocks, derived, priorShas, shas };
 };
 
 // the row the item lands as; refuses a change no rule admits, before anything is written
 export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => {
   const { storage } = scope;
   const { after, before, itemId } = landing;
-  const { blocks, derived, priorShas, refs } = checkLanding(scope, landing);
+  const { blocks, derived, priorShas, shas } = checkLanding(scope, landing);
   const seq = scope.seq();
   const set = scope.set();
   touchItem(
@@ -224,9 +259,8 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
       runPlan(storage, storeSearchRow(itemId, derived.search));
     }
   }
-  const named = refs.map((ref) => ref.sha);
-  if (before === null || !sameShas(priorShas, named)) {
-    storeItemBlobs(storage, itemId, refs);
+  if (before === null || !sameShas(priorShas, shas)) {
+    storeItemBlobs(storage, itemId, shas, scope.now);
   }
   storeAnnotationRows(storage, landing.annotations, seq);
   runPlan(

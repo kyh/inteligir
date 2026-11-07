@@ -2,15 +2,16 @@
 // name only a file the library already holds, and the file's row lands once the bytes do. A device
 // asks for room before it uploads, the cell holds it against the quota, and once the upload is in
 // R2 the cell reads its size there and lands the row; room held past an hour with no upload is let
-// go by the alarm, and so is what such an upload, or one the cell refused, left in R2. A file no
-// item has named yet is let go once nothing will: when the import that kept it ends, at the alarm's
-// next run after the reading that kept it lands nowhere, and by the alarm a day after it landed
-// otherwise, but never while an import runs, whose plan may name it. Once an item names it, a
-// revision may too, so it stays.
+// go by the alarm, and so is what such an upload, or one the cell refused, left in R2. A file stays
+// while an item names it or any item's history does (`history_blobs`), and once nothing does or
+// will it is let go: when the import that kept it ends, at the alarm's next run after the reading
+// that kept it lands nowhere or the last history naming it went, and by the alarm a day after it
+// landed or an item stopped naming it otherwise, but never while an import runs or an export
+// writes, whose plans may name it.
 
 import type { ItemState } from "@repo/notes/library/block-ops";
-import { readMeta, recordChanges, writeMeta } from "@repo/notes/library/library-queries";
-import type { BlobRole } from "@repo/notes/library/library-schema";
+import type { LibraryItemFields } from "@repo/notes/library/library-item";
+import { readMeta, writeMeta } from "@repo/notes/library/library-queries";
 import { collectFileShas } from "@repo/notes/library/library-nodes";
 import { chunkStatement, runPlan } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
@@ -25,33 +26,17 @@ export const blobKey = (accountId: string, sha: string): string => `acct/${accou
 // everything R2 holds for one account, which its deletion empties
 export const accountBlobPrefix = (accountId: string): string => `acct/${accountId}/`;
 
-export interface BlobRef {
-  readonly sha: string;
-  readonly role: BlobRole;
-}
+export const fieldFilesOf = ({ copySha, coverSha, originalSha }: LibraryItemFields): string[] =>
+  [originalSha, coverSha, copySha].filter((sha) => sha !== null);
 
 // every file an item names: its original, cover and page copy by field, and each image, video or
 // file its body embeds
-export const blobRefsOf = (state: ItemState): BlobRef[] => {
-  const refs: BlobRef[] = [];
-  const { copySha, coverSha, originalSha } = state.fields;
-  if (originalSha !== null) {
-    refs.push({ role: "original", sha: originalSha });
-  }
-  if (coverSha !== null) {
-    refs.push({ role: "cover", sha: coverSha });
-  }
-  if (copySha !== null) {
-    refs.push({ role: "copy", sha: copySha });
-  }
-  const embedded = new Set<string>();
+export const itemFilesOf = (state: ItemState): string[] => {
+  const shas = new Set(fieldFilesOf(state.fields));
   for (const stored of state.blocks.values()) {
-    collectFileShas(stored.block, embedded);
+    collectFileShas(stored.block, shas);
   }
-  for (const sha of embedded) {
-    refs.push({ role: "embed", sha });
-  }
-  return refs;
+  return [...shas];
 };
 
 const shaRowSchema = z.object({ sha256: z.string() });
@@ -93,12 +78,27 @@ const recountRefs = (sql: SqlStatements, shas: readonly string[]): void => {
   }
 };
 
-export const itemBlobShas = (sql: SqlStatements, itemId: string): string[] =>
-  sql
-    .all("SELECT sha256 FROM item_blobs WHERE item_id = ?", [itemId])
-    .map((row) => shaRowSchema.parse(row).sha256);
+// ---- files history names ----
 
-// ---- files no item has named ----
+// what a fields part or a block version of the item names, kept with it
+export const keepHistoryFiles = (
+  sql: SqlStatements,
+  itemId: string,
+  hash: string,
+  shas: readonly string[],
+): void => {
+  for (const statement of chunkStatement({
+    each: "(?, ?, ?)",
+    head: "INSERT INTO history_blobs (item_id, hash, sha256) VALUES ",
+    rows: [...new Set(shas)].map((sha) => [itemId, hash, sha]),
+    separator: ", ",
+    tail: " ON CONFLICT DO NOTHING",
+  })) {
+    sql.run(statement.sql, statement.params);
+  }
+};
+
+// ---- files nothing names ----
 
 // how long a file no item names waits for one, longer than any device's upload and its write
 const UNNAMED_HOLD_MS = 24 * 60 * 60_000;
@@ -108,14 +108,36 @@ const unnamedJobId = (sha: string): string => `unnamed:${sha}`;
 const unnamedJob = (sha: string) =>
   ({ id: unnamedJobId(sha), kind: "unnamed", payload: JSON.stringify({ sha }) }) as const;
 
-// a file just landed waits for an item to name it
-const awaitName = (storage: CellStorage, sha: string, now: number): void => {
-  scheduleJob(storage, unnamedJob(sha), now + UNNAMED_HOLD_MS);
+// a file just landed, or one an item just stopped naming, waits for an item to name it
+const awaitName = (sql: SqlStatements, sha: string, now: number): void => {
+  scheduleJob(sql, unnamedJob(sha), now + UNNAMED_HOLD_MS);
 };
 
-// the alarm asks again later about a file something may still name (an import running)
-export const awaitNameAgain = (storage: CellStorage, sha: string, at: number): void => {
-  scheduleJob(storage, unnamedJob(sha), at);
+// the alarm asks about a file at `at`: now once its last name went, later while something may
+// still name it
+export const awaitNameAgain = (sql: SqlStatements, sha: string, at: number): void => {
+  scheduleJob(sql, unnamedJob(sha), at);
+};
+
+// parts and block versions of the item history let go: the alarm's next run asks about what they
+// named
+export const dropHistoryFiles = (
+  sql: SqlStatements,
+  itemId: string,
+  hashes: readonly string[],
+  now: number,
+): void => {
+  const shas = hashes.flatMap((hash) =>
+    sql
+      .all("DELETE FROM history_blobs WHERE item_id = ? AND hash = ? RETURNING sha256", [
+        itemId,
+        hash,
+      ])
+      .map((row) => shaRowSchema.parse(row).sha256),
+  );
+  for (const sha of new Set(shas)) {
+    awaitNameAgain(sql, sha, now);
+  }
 };
 
 // files that may name nothing now, asked about at the alarm's next run rather than at their day's
@@ -139,54 +161,54 @@ const named = (sql: SqlStatements, shas: readonly string[]): void => {
   }
 };
 
+const deleteItemBlobs = (sql: SqlStatements, itemId: string): string[] =>
+  sql
+    .all("DELETE FROM item_blobs WHERE item_id = ? RETURNING sha256", [itemId])
+    .map((row) => shaRowSchema.parse(row).sha256);
+
 export const storeItemBlobs = (
   sql: SqlStatements,
   itemId: string,
-  refs: readonly BlobRef[],
+  shas: readonly string[],
+  now: number,
 ): void => {
-  named(
-    sql,
-    refs.map((ref) => ref.sha),
-  );
-  const before = itemBlobShas(sql, itemId);
-  sql.run("DELETE FROM item_blobs WHERE item_id = ?", [itemId]);
+  named(sql, shas);
+  const before = deleteItemBlobs(sql, itemId);
   for (const statement of chunkStatement({
-    each: "(?, ?, ?)",
-    head: "INSERT INTO item_blobs (item_id, sha256, role) VALUES ",
-    rows: refs.map((ref) => [itemId, ref.sha, ref.role]),
+    each: "(?, ?)",
+    head: "INSERT INTO item_blobs (item_id, sha256) VALUES ",
+    rows: shas.map((sha) => [itemId, sha]),
     separator: ", ",
-    tail: " ON CONFLICT DO NOTHING",
+    tail: "",
   })) {
     sql.run(statement.sql, statement.params);
   }
-  recountRefs(sql, [...before, ...refs.map((ref) => ref.sha)]);
-};
-
-export const dropItemBlobs = (
-  sql: SqlStatements,
-  itemId: string,
-  shas: readonly string[],
-): void => {
-  sql.run("DELETE FROM item_blobs WHERE item_id = ?", [itemId]);
-  recountRefs(sql, shas);
-};
-
-const blobRowSchema = z.object({
-  bytes: z.number().int().nonnegative(),
-  h: z.number().int().positive().nullable(),
-  mime: z.string(),
-  sha256: z.string(),
-  w: z.number().int().positive().nullable(),
-});
-
-// a pulled file row, as the wire names its fields
-export const readBlobRow = (sql: SqlStatements, sha: string) => {
-  const [raw] = sql.all("SELECT sha256, bytes, mime, w, h FROM blobs WHERE sha256 = ?", [sha]);
-  if (raw === undefined) {
-    return null;
+  recountRefs(sql, [...before, ...shas]);
+  for (const sha of before) {
+    if (!shas.includes(sha)) {
+      awaitName(sql, sha, now);
+    }
   }
-  const row = blobRowSchema.parse(raw);
-  return { bytes: row.bytes, h: row.h, mime: row.mime, sha: row.sha256, w: row.w };
+};
+
+// a purged item: the files it and its history named are asked about at the alarm's next run, which
+// an import or an export may put off
+export const dropItemBlobs = (sql: SqlStatements, itemId: string, now: number): void => {
+  const shas = deleteItemBlobs(sql, itemId);
+  const history = sql
+    .all("DELETE FROM history_blobs WHERE item_id = ? RETURNING sha256", [itemId])
+    .map((row) => shaRowSchema.parse(row).sha256);
+  recountRefs(sql, shas);
+  for (const sha of new Set([...shas, ...history])) {
+    awaitNameAgain(sql, sha, now);
+  }
+};
+
+const blobRowSchema = z.object({ bytes: z.number().int().nonnegative(), mime: z.string() });
+
+export const readBlobRow = (sql: SqlStatements, sha: string) => {
+  const [raw] = sql.all("SELECT bytes, mime FROM blobs WHERE sha256 = ?", [sha]);
+  return raw === undefined ? null : blobRowSchema.parse(raw);
 };
 
 // ---- uploads ----
@@ -228,10 +250,9 @@ export const reserveUpload = (
   const growth = request.bytes - (prior?.bytes ?? 0);
   holdRoomFor(storage, bytesCap, growth);
   storage.run(
-    `INSERT INTO blob_uploads (sha256, bytes, mime, reserved_at) VALUES (?, ?, ?, ?)
-     ON CONFLICT (sha256) DO UPDATE SET bytes = excluded.bytes, mime = excluded.mime,
-       reserved_at = excluded.reserved_at`,
-    [request.sha, request.bytes, request.mime, now],
+    `INSERT INTO blob_uploads (sha256, bytes, mime) VALUES (?, ?, ?)
+     ON CONFLICT (sha256) DO UPDATE SET bytes = excluded.bytes, mime = excluded.mime`,
+    [request.sha, request.bytes, request.mime],
   );
   addFileBytes(storage, growth);
   scheduleJob(
@@ -301,30 +322,29 @@ export const refuseUpload = (storage: CellStorage, sha: string, now: number): vo
 
 const releasableSchema = z.object({ bytes: z.number().int().nonnegative(), refs: z.number() });
 
-// a file no item has ever named, let go: its row leaves the library and every replica at `seq`,
-// its bytes leave the quota, and what R2 holds of it is a stray the alarm takes out; a file an item
-// names, or once named, which a revision may hold, stays
+// a file nothing names, let go: its row leaves the library, its bytes leave the quota, and what R2
+// holds of it is a stray the alarm takes out; a file an item or any item's history names stays
 export const releaseUnnamed = (
   storage: CellStorage,
   shas: readonly string[],
-  at: { readonly seq: () => number; readonly now: number },
+  now: number,
 ): void => {
   for (const sha of new Set(shas)) {
     const [raw] = storage.all(
       `SELECT bytes, refs FROM blobs WHERE sha256 = ?
-         AND EXISTS (SELECT 1 FROM jobs WHERE id = ?)`,
-      [sha, unnamedJobId(sha)],
+         AND EXISTS (SELECT 1 FROM jobs WHERE id = ?)
+         AND NOT EXISTS (SELECT 1 FROM history_blobs WHERE sha256 = ?)`,
+      [sha, unnamedJobId(sha), sha],
     );
     dropJob(storage, unnamedJobId(sha));
     const row = raw === undefined ? null : releasableSchema.parse(raw);
     if (row?.refs === 0) {
       storage.run("DELETE FROM blobs WHERE sha256 = ?", [sha]);
       addFileBytes(storage, -row.bytes);
-      runPlan(storage, recordChanges([{ gone: true, id: sha, kind: "blob", seq: at.seq() }]));
       ensureJob(
         storage,
         { id: strayJobId(sha), kind: "stray", payload: JSON.stringify({ sha }) },
-        at.now,
+        now,
       );
     }
   }
@@ -352,16 +372,10 @@ export interface StoredObject {
   readonly mime: string;
 }
 
-// `landed` when the file's row is new, which moves the library's head
-export interface UploadSettled {
-  readonly settled: boolean;
-  readonly landed: boolean;
-}
-
 // the file's row lands at the size R2 holds; an upload whose room was let go meanwhile is taken
 // in again if it still fits. `removalsSeen` is `blobRemovals` as it stood before R2 was read: a
 // stray's removal waiting, or one ended since, may have taken what R2 showed, so the device
-// uploads again into the room it holds
+// uploads again into the room it holds. False when no file row holds the sha
 export const settleUpload = (
   storage: CellStorage,
   bytesCap: number,
@@ -371,31 +385,32 @@ export const settleUpload = (
     readonly removalsSeen: number;
   },
   now: number,
-): UploadSettled => {
+): boolean => {
   const { removalsSeen, sha, stored } = upload;
   if (heldShas(storage, [sha]).size > 0) {
-    return { landed: false, settled: true };
+    return true;
   }
   if (strayPending(storage, sha) || blobRemovals(storage) !== removalsSeen) {
-    return { landed: false, settled: false };
+    return false;
   }
   const held = heldUpload(storage, sha);
   if (stored === null) {
     if (held !== null) {
       releaseHeld(storage, sha, held.bytes);
     }
-    return { landed: false, settled: false };
+    return false;
   }
   const reserved = held?.bytes ?? 0;
   holdRoomFor(storage, bytesCap, stored.bytes - reserved);
   if (held !== null) {
     releaseHeld(storage, sha, reserved);
   }
-  storage.run(
-    "INSERT INTO blobs (sha256, bytes, mime, w, h, refs) VALUES (?, ?, ?, NULL, NULL, 0)",
-    [sha, stored.bytes, held?.mime ?? stored.mime],
-  );
+  storage.run("INSERT INTO blobs (sha256, bytes, mime, refs) VALUES (?, ?, ?, 0)", [
+    sha,
+    stored.bytes,
+    held?.mime ?? stored.mime,
+  ]);
   addFileBytes(storage, stored.bytes);
   awaitName(storage, sha, now);
-  return { landed: true, settled: true };
+  return true;
 };

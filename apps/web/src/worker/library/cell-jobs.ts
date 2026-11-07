@@ -1,6 +1,6 @@
 // The cell's one alarm runs what the `jobs` table holds: a change set to seal once its actor goes
-// quiet, the daily prune of history, an upload whose room was held too long, a file no item named
-// in its first day, a stray file to take out of R2, a page's reading to send to the fill queue, an
+// quiet, the daily prune of history, an upload whose room was held too long, a file nothing may
+// name any more, a stray file to take out of R2, a page's reading to send to the fill queue, an
 // import's next page, an export to write and one to let go, and the built-in agent's turns: one to
 // hand to its conversation's object, and one whose object has gone quiet to ask after. A job is a
 // row, so it survives eviction and a missed alarm; the alarm is set to the earliest due one, and
@@ -33,9 +33,6 @@ export interface DueJob<K extends JobKind = JobKind> {
   readonly attempts: number;
 }
 
-// a job waiting for its turn; a run that fails tries again later, as `attempts` counts
-const JOB_STATE = "waiting";
-
 // a job asked for at `nextAt`; one already waiting is asked for again, its count of failed runs
 // started over
 export const scheduleJob = (
@@ -44,10 +41,10 @@ export const scheduleJob = (
   nextAt: number,
 ): void => {
   sql.run(
-    `INSERT INTO jobs (id, kind, state, payload, attempts, next_at) VALUES (?, ?, ?, ?, 0, ?)
+    `INSERT INTO jobs (id, kind, payload, attempts, next_at) VALUES (?, ?, ?, 0, ?)
      ON CONFLICT (id) DO UPDATE SET payload = excluded.payload, next_at = excluded.next_at,
        attempts = 0`,
-    [job.id, job.kind, JOB_STATE, job.payload, nextAt],
+    [job.id, job.kind, job.payload, nextAt],
   );
 };
 
@@ -58,9 +55,9 @@ export const ensureJob = (
   nextAt: number,
 ): void => {
   sql.run(
-    `INSERT INTO jobs (id, kind, state, payload, attempts, next_at) VALUES (?, ?, ?, ?, 0, ?)
+    `INSERT INTO jobs (id, kind, payload, attempts, next_at) VALUES (?, ?, ?, 0, ?)
      ON CONFLICT (id) DO NOTHING`,
-    [job.id, job.kind, JOB_STATE, job.payload, nextAt],
+    [job.id, job.kind, job.payload, nextAt],
   );
 };
 

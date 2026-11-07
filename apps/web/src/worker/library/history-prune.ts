@@ -1,13 +1,14 @@
-// What history keeps (owner decision 8): an item's newest 100 revisions; past those, everything
-// from the last 30 days, and before that the day's last revision for each day. A set's entry for an
-// item goes with the last of the set's revisions of it, so the set can no longer undo that item,
-// and then whatever part or block version nothing kept still names goes too. The job sweeps the
-// library a page of items per alarm run, its place kept in its payload, and once a day.
+// What history keeps: an item's newest 100 revisions; past those, everything from the last 30
+// days, and before that the day's last revision for each day. A set's entry for an item goes with
+// the last of the set's revisions of it, so the set can no longer undo that item, and then whatever
+// part or block version nothing kept still names goes too. The job sweeps the library a page of
+// items per alarm run, its place kept in its payload, and once a day.
 
 import { chunkStatement } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
+import { dropHistoryFiles } from "./cell-blobs";
 import { readManifest } from "./cell-parts";
 
 const DAY_MS = 24 * 60 * 60_000;
@@ -69,8 +70,9 @@ const deleteIn = (
   }
 };
 
-// the parts and block versions no revision and no change set of the item still names
-const collectGarbage = (sql: SqlStatements, itemId: string): void => {
+// the parts and block versions no revision and no change set of the item still names, and what
+// they alone held of the library's files
+const collectGarbage = (sql: SqlStatements, itemId: string, now: number): void => {
   const named = new Set<string>();
   const manifests = new Set<string>();
   for (const raw of sql.all("SELECT fields, manifest FROM revisions WHERE item_id = ?", [itemId])) {
@@ -104,13 +106,9 @@ const collectGarbage = (sql: SqlStatements, itemId: string): void => {
   }
   const parts = sql
     .all("SELECT hash FROM snapshot_parts WHERE item_id = ?", [itemId])
-    .map((row) => hashRowSchema.parse(row).hash);
-  deleteIn(
-    sql,
-    "DELETE FROM snapshot_parts WHERE item_id = ? AND hash IN (",
-    [itemId],
-    parts.filter((hash) => !named.has(hash)),
-  );
+    .map((row) => hashRowSchema.parse(row).hash)
+    .filter((hash) => !named.has(hash));
+  deleteIn(sql, "DELETE FROM snapshot_parts WHERE item_id = ? AND hash IN (", [itemId], parts);
   const blocks = new Set<string>();
   for (const manifest of manifests) {
     for (const entry of readManifest(sql, itemId, manifest)) {
@@ -119,13 +117,10 @@ const collectGarbage = (sql: SqlStatements, itemId: string): void => {
   }
   const versions = sql
     .all("SELECT hash FROM block_versions WHERE item_id = ?", [itemId])
-    .map((row) => hashRowSchema.parse(row).hash);
-  deleteIn(
-    sql,
-    "DELETE FROM block_versions WHERE item_id = ? AND hash IN (",
-    [itemId],
-    versions.filter((hash) => !blocks.has(hash)),
-  );
+    .map((row) => hashRowSchema.parse(row).hash)
+    .filter((hash) => !blocks.has(hash));
+  deleteIn(sql, "DELETE FROM block_versions WHERE item_id = ? AND hash IN (", [itemId], versions);
+  dropHistoryFiles(sql, itemId, [...parts, ...versions], now);
 };
 
 const pruneItemHistory = (sql: SqlStatements, itemId: string, now: number): void => {
@@ -143,7 +138,7 @@ const pruneItemHistory = (sql: SqlStatements, itemId: string, now: number): void
       );
     }
   }
-  collectGarbage(sql, itemId);
+  collectGarbage(sql, itemId, now);
 };
 
 const itemRowSchema = z.object({ item_id: z.string() });

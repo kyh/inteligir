@@ -12,15 +12,16 @@ import {
   agentCellIn,
   cellOf,
   clockAt,
+  createItem,
   engineIn,
   inCell,
   landedValue,
   noteFields,
   paragraph,
-  SYSTEM,
 } from "../test-support/library-cell";
 import type { Clock } from "../test-support/library-cell";
 import { uuidV7 } from "@repo/notes/library/uuid-v7";
+import { FILL_ACTOR } from "./cell-fills";
 import { addFileBytes } from "./cell-quota";
 import { cellStorageOf } from "./cell-storage";
 import { cellActorOf } from "./library-principal";
@@ -186,6 +187,31 @@ describe("the library's procedures", () => {
     });
   });
 
+  it("folds a device's read by the reading's own rule, keeping a fact it left out and a title the person gave", async () => {
+    await inCell(cellOf(), async (state) => {
+      const library = clientIn(state, clockAt());
+      const url = "https://example.com/saved-later";
+      const stub = await library.items.saveLink({ title: "My name for it", url });
+      const facts = { author: null, description: null, lang: null, published: null, site: null };
+      await library.items.save({
+        ...pageSave(url),
+        facts: { ...facts, author: "A. Writer" },
+      });
+      await library.items.save({
+        ...pageSave(url),
+        facts: { ...facts, site: "Pages" },
+        title: "The page's own title",
+      });
+      const read = await library.items.read({ id: stub.item.id });
+      expect(read.fields).toMatchObject({
+        author: "A. Writer",
+        fetchState: "filled",
+        site: "Pages",
+        title: "My name for it",
+      });
+    });
+  });
+
   it("keeps a link's selection as a highlight: waiting on a stub, placed in an item that holds its text", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
@@ -242,7 +268,7 @@ describe("the library's procedures", () => {
 
       // a page whose read failed, asked for again: it waits for the cloud, its failure forgotten
       const { item: failed } = landedValue(
-        engineIn(state, clockAt()).create(SYSTEM, {
+        createItem(engineIn(state, clockAt()), FILL_ACTOR, {
           blocks: [],
           fields: noteFields({
             fetchError: "The site refused the read.",
@@ -644,6 +670,52 @@ describe("the library's procedures", () => {
           }),
         ),
       ).resolves.toMatchObject({ code: "QUOTA", defined: true });
+      await expect(
+        refusalOf(library.items.organize({ addTags: ["reading"], ids: [item.id] })),
+      ).resolves.toMatchObject({ code: "QUOTA", defined: true });
+    });
+  });
+
+  it("answers an undo the library has no room for as its row declares", async () => {
+    await inCell(cellOf(), async (state) => {
+      const clock = clockAt();
+      const library = clientIn(state, clock);
+      const passage = "A passage long enough to cut.";
+      const { item } = await library.items.createNote({ markdown: passage });
+      clock.now += 120_000;
+      const { seq } = await library.items.read({ id: item.id });
+      await library.items.edit({
+        baseSeq: seq,
+        edits: [{ newText: "Cut.", oldText: passage }],
+        id: item.id,
+      });
+      const { changeSets } = await library.history.list({ itemId: item.id });
+      addFileBytes(cellStorageOf(state.storage), GiB);
+      await expect(
+        refusalOf(library.history.undo({ changeSetIds: [changeSets[0]?.id ?? ""] })),
+      ).resolves.toMatchObject({ code: "QUOTA", defined: true });
+    });
+  });
+
+  it("answers an undo another item's link holds back in words that say so", async () => {
+    await inCell(cellOf(), async (state) => {
+      const clock = clockAt();
+      const library = clientIn(state, clock);
+      const url = "https://pages.example/held";
+      const { item } = await library.items.saveLink({ url });
+      clock.now += 120_000;
+      await library.items.delete({ ids: [item.id] });
+      clock.now += 120_000;
+      const { changeSets } = await library.history.list({ itemId: item.id });
+      const holder = await library.items.saveLink({ url });
+      await expect(
+        library.history.undo({ changeSetIds: [changeSets[0]?.id ?? ""] }),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+        data: { current: [{ itemId: holder.item.id, kind: "item" }] },
+        defined: true,
+        message: "Another item in your library already holds this link.",
+      });
     });
   });
 

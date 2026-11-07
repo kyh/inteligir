@@ -7,7 +7,7 @@
 import { V1_EXPORTS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { evictDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
-import { assert, describe, expect, it } from "vitest";
+import { assert, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { libraryIn, pngOf } from "../fill/test-support/fill-cell";
 import {
@@ -34,6 +34,7 @@ import type { ByteSource } from "../zip/zip-read";
 import { EXPORT_KEEP_MS, EXPORT_LIMITS, exportKey, runExports } from "./cell-exports";
 import type { ExportLimits } from "./cell-exports";
 import { openCellLibrary } from "./cell-library";
+import type { LibraryEngine } from "./library-engine";
 
 const LINK = "https://pages.example/reading";
 
@@ -130,6 +131,45 @@ const exported = async (
   throw new Error("the export was never written");
 };
 
+// the account's deletion overtaking a run: the tombstone lands as R2 answers `at`, the last await
+// before the run ends the export
+const overtakeAt = (library: LibraryEngine, at: "complete" | "head"): void => {
+  const blobs = env.BLOBS;
+  const create = blobs.createMultipartUpload.bind(blobs);
+  const head = blobs.head.bind(blobs);
+  const resume = blobs.resumeMultipartUpload.bind(blobs);
+  const overtaken = (upload: R2MultipartUpload): R2MultipartUpload => ({
+    abort: async () => {
+      await upload.abort();
+    },
+    complete: async (parts) => {
+      if (at === "complete") {
+        library.tombstone();
+      }
+      return await upload.complete(parts);
+    },
+    key: upload.key,
+    uploadId: upload.uploadId,
+    uploadPart: async (number, value, options) => await upload.uploadPart(number, value, options),
+  });
+  vi.spyOn(blobs, "createMultipartUpload").mockImplementation(async (key, options) =>
+    overtaken(await create(key, options)),
+  );
+  vi.spyOn(blobs, "resumeMultipartUpload").mockImplementation((key, id) =>
+    overtaken(resume(key, id)),
+  );
+  vi.spyOn(blobs, "head").mockImplementation(async (key) => {
+    const object = await head(key);
+    if (at === "head" && key.endsWith(".zip")) {
+      library.tombstone();
+    }
+    return object;
+  });
+  onTestFinished(() => {
+    vi.restoreAllMocks();
+  });
+};
+
 const zipIn = async (accountId: string, id: string): Promise<Uint8Array> => {
   const object = await env.BLOBS.get(exportKey(accountId, id));
   return new Uint8Array((await object?.arrayBuffer()) ?? new ArrayBuffer(0));
@@ -182,6 +222,7 @@ const summaryOf = async (accountId: string) =>
       items: read
         .map((item) => ({
           article: textOf(item.id, "article"),
+          cover: sql.exec("SELECT cover_sha FROM items WHERE id = ?", item.id).one().cover_sha,
           fields: {
             author: item.fields.author,
             kind: item.fields.kind,
@@ -190,12 +231,9 @@ const summaryOf = async (accountId: string) =>
             url: item.fields.url,
           },
           files: sql
-            .exec(
-              "SELECT role, sha256 FROM item_blobs WHERE item_id = ? ORDER BY role, sha256",
-              item.id,
-            )
+            .exec("SELECT sha256 FROM item_blobs WHERE item_id = ? ORDER BY sha256", item.id)
             .toArray()
-            .map((row) => [row.role, row.sha256]),
+            .map((row) => row.sha256),
           // every item another links names by its title, whatever its id in this library
           links: [...titleById].flatMap(([id, title]) =>
             id !== item.id && JSON.stringify(item).includes(id) ? [title] : [],
@@ -243,7 +281,7 @@ describe("an export", () => {
       // the fixture holds what a faithful round trip must carry
       const link = before.items.find((item) => item.title === "A page worth reading");
       expect(link?.article).toHaveLength(2);
-      expect(link?.files.map(([role]) => role)).toStrictEqual(["cover"]);
+      expect(link?.files).toStrictEqual([link?.cover]);
       expect(before.highlights).toHaveLength(2);
       await expect(summaryOf(into)).resolves.toStrictEqual(before);
     },
@@ -365,6 +403,73 @@ describe("an export", () => {
       await expect(env.BLOBS.head(exportKey(accountId, written.id))).resolves.toBeNull();
       const after = await drained(exports.default.fetch(url, { headers: auth }));
       expect(after.status).toBe(404);
+    },
+  );
+
+  it(
+    "is let go at the alarm's next run once a newer one is ready",
+    { timeout: 30_000 },
+    async () => {
+      const accountId = newAccountId();
+      await withLibrary(accountId);
+      const { export: older } = await exported(accountId);
+      const { export: newer } = await exported(accountId);
+      expect(newer.id).not.toBe(older.id);
+      await inCell(cellOf(accountId), async (state) => {
+        await runExports(jobHostIn(state, accountId));
+        const client = libraryIn(state, accountId);
+        await expect(client.exports.get({ id: older.id })).resolves.toMatchObject({
+          export: { state: "expired" },
+        });
+        await expect(client.exports.get({ id: newer.id })).resolves.toMatchObject({
+          export: { state: "ready" },
+        });
+      });
+      await expect(env.BLOBS.head(exportKey(accountId, older.id))).resolves.toBeNull();
+      await expect(env.BLOBS.head(exportKey(accountId, newer.id))).resolves.not.toBeNull();
+    },
+  );
+
+  it("stays while the next one fails", { timeout: 30_000 }, async () => {
+    const accountId = newAccountId();
+    await withLibrary(accountId);
+    const { export: kept } = await exported(accountId);
+    await inCell(cellOf(accountId), async (state) => {
+      const { export: next } = await libraryIn(state, accountId).exports.start({});
+      state.storage.sql.exec("UPDATE jobs SET attempts = 3 WHERE id = ?", `export:${next.id}`);
+      await runExports(jobHostIn(state, accountId));
+      await runExports(jobHostIn(state, accountId));
+      const client = libraryIn(state, accountId);
+      await expect(client.exports.get({ id: next.id })).resolves.toMatchObject({
+        export: { state: "failed" },
+      });
+      await expect(client.exports.get({ id: kept.id })).resolves.toMatchObject({
+        export: { state: "ready" },
+      });
+    });
+    await expect(env.BLOBS.head(exportKey(accountId, kept.id))).resolves.not.toBeNull();
+  });
+
+  it.each(["complete", "head"] as const)(
+    "leaves no zip behind when the account's deletion overtakes the %s of its last run",
+    async (at) => {
+      const accountId = newAccountId();
+      await withLibrary(accountId);
+      await inCell(cellOf(accountId), async (state) => {
+        const { export: started } = await libraryIn(state, accountId).exports.start({});
+        const key = exportKey(accountId, started.id);
+        if (at === "head") {
+          // a zip an earlier run completed before the platform ended it
+          await env.BLOBS.put(key, "a zip");
+        }
+        const library = openCellLibrary(state, env);
+        overtakeAt(library, at);
+        for (let runs = 0; runs < 20 && library.deletedAt() === null; runs += 1) {
+          await runExports(jobHostIn(state, accountId, library));
+        }
+        expect(library.deletedAt()).not.toBeNull();
+        await expect(env.BLOBS.get(key)).resolves.toBeNull();
+      });
     },
   );
 });

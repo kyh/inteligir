@@ -17,8 +17,9 @@ One library cell per account, a replica on every device, and the agents that
 reach it.
 
 **library cell** — one account's whole library: a SQLite Durable Object,
-`LibraryDO`, named `library:<userId>` only from a verified credential, in the
-Worker (`apps/web/src/worker/library/library-do.ts`). It holds the items,
+`LibraryDO`, in the Worker (`apps/web/src/worker/library/library-do.ts`), named
+`library:<userId>` only from a verified credential, or from what the cell itself
+gave out: a fill message or a conversation's name. It holds the items,
 their **blocks**, folders, tags, links, highlights, threads, the change log,
 History and the account's live sockets, and it is the library's only writer: every `/v1` library call and every **connector** call
 is forwarded to it. R2 holds the bytes it names by hash, and D1 only the
@@ -34,8 +35,8 @@ credential: the cell never sees one.
 
 **change set** — the unit of History and of undo. Every write lands in one,
 which records each item it touched before and after, its actor (the person,
-the agent, an assistant, an import, a fill, an undo or the system) and when it
-opened and sealed. A device's typing seals after 15 s of quiet or 60 s in all;
+the agent, an assistant, an import, a fill or an undo) and when it opened and
+sealed. A device's typing seals after 15 s of quiet or 60 s in all;
 a **turn** is one set; a **connected assistant**'s writes are one set per
 grant, sealed after 10 idle minutes. Undo reverts sets three-way, newest
 first, and keeps every later edit; an undo is a set of its own. The cell keeps
@@ -273,7 +274,8 @@ back. Not the editor's own undo (⌘Z), which lives and dies with the open item.
 this conversation" under a conversation: `library.history.undo` over the
 CHANGE SETS named, in a change set of its own, so an undo is itself in History.
 A block changed since stays, and an item whose later edits overlap the set's is
-kept whole and named.
+kept whole and named. An item a rule holds back (a full library, an address
+another item holds now) is named apart, and its set can be undone again.
 
 **Deleted** — the rail's row: the items deleted, each restorable, and "Empty
 Deleted…", which removes them for good.

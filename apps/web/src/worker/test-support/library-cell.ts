@@ -14,13 +14,15 @@ import { turnActorOf } from "../agent/agent-turns";
 import type { AgentCell } from "../agent/agent-turns";
 import type { CellActor } from "../library/cell-actor";
 import { cellIds } from "../library/cell-ids";
+import { landNew } from "../library/cell-items";
+import type { NewItem } from "../library/cell-items";
 import { settleCommit } from "../library/cell-library";
 import { tellSockets } from "../library/cell-sockets";
 import type { CellResult } from "../library/cell-refusal";
 import { cellStorageOf } from "../library/cell-storage";
 import { cellAccountId, libraryCellName } from "../library/library-cell";
 import type { LibraryDO } from "../library/library-do";
-import { openLibraryEngine } from "../library/library-engine";
+import { landedSchema, openLibraryEngine } from "../library/library-engine";
 import type { LibraryEngine } from "../library/library-engine";
 import { libraryRouter } from "../library/library-router";
 
@@ -98,7 +100,15 @@ export const person = (deviceId = "laptop"): CellActor => ({
   label: `You on ${deviceId}`,
 });
 
-export const SYSTEM: CellActor = { kind: "system", label: "Library" };
+// a new item, landed as the library's own procedures land one
+export const createItem = (
+  library: LibraryEngine,
+  actor: CellActor,
+  input: NewItem & { readonly opId?: string },
+) =>
+  library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
+    item: landNew(scope, actor, input),
+  }));
 
 export const noteFields = (overrides: Partial<LibraryItemFields> = {}): LibraryItemFields => ({
   aliases: [],

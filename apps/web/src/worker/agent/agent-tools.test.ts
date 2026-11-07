@@ -11,19 +11,20 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { isLibraryTool } from "../connector/library-tools";
+import { FILL_ACTOR } from "../library/cell-fills";
 import { openCellLibrary } from "../library/cell-library";
 import { principalFromHeader } from "../library/library-principal";
 import { libraryRouter } from "../library/library-router";
 import {
   agentCellIn,
   cellOf,
+  createItem,
   inCell,
   landedValue,
   noteFields,
   paragraph,
   person,
   placed,
-  SYSTEM,
 } from "../test-support/library-cell";
 import {
   AGENT_RESULT_MAX_CHARS,
@@ -86,7 +87,7 @@ describe("the built-in agent's tools", () => {
         const library = openCellLibrary(state, env);
         for (let index = 0; index < 60; index += 1) {
           landedValue(
-            library.create(SYSTEM, {
+            createItem(library, FILL_ACTOR, {
               blocks: placed([paragraph("a", words(80, `body${String(index)}x`))]),
               fields: noteFields({
                 description: words(60, "about"),
@@ -99,7 +100,7 @@ describe("the built-in agent's tools", () => {
         }
         const longId = crypto.randomUUID();
         landedValue(
-          library.create(SYSTEM, {
+          createItem(library, FILL_ACTOR, {
             blocks: placed(
               Array.from({ length: 400 }, (_, index) =>
                 paragraph(`p${String(index)}`, words(60, `line${String(index)}x`)),

@@ -260,7 +260,8 @@ The apps also hold to these, plainly:
   deleted once the import ends. Each imported link is then filled in as above.
 - **Exporting your library.** An export of your library is a zip our
   cloud writes in your account's own storage, which your devices download; it
-  is deleted seven days after it was written, or with your account.
+  is deleted seven days after it was written, once a newer export is ready, or
+  with your account.
 - **Your voice.** Neither the Mac app nor the phone app ever opens the
   microphone. Dictation is your operating system's own — on a Mac, press fn
   twice; on the phone, the keyboard's microphone key — which types into the app
@@ -367,8 +368,11 @@ we may either delete it, anonymize it, or isolate it from further processing.
 Specifically, in our cloud:
 
 - Your library keeps each item's newest 100 versions, every version from the
-  last 30 days, and before that the last version of each day, until the account
-  is deleted. Deleting an item moves it to Deleted, not out of its history.
+  last 30 days, and before that the last version of each day, until the item is
+  deleted for good or the account is deleted. Deleting an item moves it to
+  Deleted, not out of its history; emptying Deleted, or Delete forever, removes
+  the item's text, highlights and history at once, and each of its files once no
+  other item and no other item's history shows it.
 - Device rows (including revoked ones) persist as the dashboard's audit trail
   until account deletion. A device's throttling counters are deleted when it is
   revoked.
@@ -612,8 +616,8 @@ These are the edges of that protection, stated plainly:
   passcode. Revoke it from Settings › Account on a Mac: it erases its
   copy the next time it goes online, but a phone that never does keeps it.
 - **Deleting an item does not delete its history**: its versions stay in your
-  library's history, as [Retention](#retention) says, until the account is
-  deleted. There is no purge.
+  library's history, as [Retention](#retention) says, until you delete the item
+  for good or delete the account.
 - **An image or file you paste, drop or save is kept as the file it was**, on
   every device and in the browser alike, with any location or camera details it
   carries, a picture pasted into a note's text on the phone included; only a
@@ -1019,7 +1023,7 @@ sign-in, session and password-reset calls, which go to Better Auth under
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/v1/rpc`      | Every call the apps make to read and change your library (items, their text, highlights, folders, tags, history and your messages to the agent) and your account (signing in, your devices, the assistants you connected, deleting the account), each one request with its contents in the body, never the address. | Your password or invite code to sign in or up; otherwise the device's credential or your signed-in browser session, within a per-device budget. |
 | `/v1/blobs`    | Your library's files (images, PDFs, the page copies an import brought and any other file you save), each sent once and read back by a fingerprint of its contents, never its name; a file whose contents do not match its fingerprint, or that the library has no room for, is not kept.                            | The device's credential or your signed-in browser session, within a per-device budget.                                                          |
-| `/v1/exports`  | A zip of your whole library, written when you ask for an export, downloaded whole or a part at a time, and deleted seven days after it was written.                                                                                                                                                                 | The device's credential or your signed-in browser session, within a per-device budget.                                                          |
+| `/v1/exports`  | A zip of your whole library, written when you ask for an export, downloaded whole or a part at a time, and deleted seven days after it was written or once a newer export is ready.                                                                                                                                 | The device's credential or your signed-in browser session, within a per-device budget.                                                          |
 | `/api/sign-up` | Your email, name, password and invite code, once, to create the account on the website.                                                                                                                                                                                                                             | The invite code; attempts are throttled per caller address.                                                                                     |
 | `/v1/socket`   | A live connection that says only that your library changed, and how far it has come.                                                                                                                                                                                                                                | A one-minute pass your signed-in device or browser session asked for, its sign-in checked again.                                                |
 

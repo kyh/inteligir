@@ -310,6 +310,7 @@ const itemsContract = {
     .errors({
       [NotFoundError.code]: NotFoundError,
       [PayloadTooLargeError.code]: PayloadTooLargeError,
+      [QuotaError.code]: QuotaError,
     })
     .input(
       z
@@ -430,17 +431,24 @@ const historyContract = {
       }),
     ),
 
-  // newest first, in one change set of its own; an item a later edit overlaps is kept whole
+  // newest first, in one change set of its own; an item a later edit overlaps is kept whole, and
+  // one a rule refuses is named under `refused`, its set left to undo again. When nothing lands the
+  // rule's own error is the answer
   undo: signedBase
     .errors({
       [AlreadyUndoneError.code]: AlreadyUndoneError,
+      [BlobMissingError.code]: BlobMissingError,
+      [ConflictError.code]: ConflictError,
       [NotFoundError.code]: NotFoundError,
+      [PayloadTooLargeError.code]: PayloadTooLargeError,
+      [QuotaError.code]: QuotaError,
     })
     .input(z.strictObject({ changeSetIds: z.array(idSchema).min(1).max(BULK_ITEMS_MAX), opId }))
     .output(
       z.object({
         changeSetId: idSchema,
         kept: z.array(idSchema),
+        refused: z.array(idSchema),
         reverted: z.array(idSchema),
       }),
     ),
@@ -474,7 +482,7 @@ const importsContract = {
 };
 
 // the whole library as a zip of markdown, written by the cell and downloaded from
-// `/v1/exports/<id>` until it is let go, seven days on
+// `/v1/exports/<id>` until it is let go, seven days on or once a newer one is ready
 const exportsContract = {
   start: signedBase.input(z.strictObject({ opId })).output(z.object({ export: exportJobSchema })),
 

@@ -1,7 +1,9 @@
 // Undo takes change sets back in one write of its own: newest set first, each item run backwards
 // by `@repo/notes/library/revert-change` against the item as the newer sets' undo left it, so an
 // item someone changed since stays whole and is named. An item whose way back a rule refuses (its
-// url now another live item's, a file gone, the quota) is kept and named too, and the rest land.
+// url now another live item's, a file gone, the quota) is named apart and the rest land, and its
+// set stays undoable, since room or the address can come back; when nothing lands the rule's
+// refusal is the answer.
 
 import { compareText } from "@repo/notes/library/block-order";
 import { revertChangeSets } from "@repo/notes/library/revert-change";
@@ -12,15 +14,18 @@ import type { SqlStatements } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
 import { readAnnotationRows, restoreAnnotationStore } from "./cell-annotations";
+import { askFill } from "./cell-fills";
 import { landItem } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";
 import { blockContents, readSnapshot } from "./cell-parts";
 import { refuse, RefusedWriteError } from "./cell-refusal";
+import type { CellRefusal } from "./cell-refusal";
 import { readItemNow, sealChangeSet } from "./change-sets";
 
 export interface UndoAnswer {
   readonly changeSetId: string;
   readonly kept: readonly string[];
+  readonly refused: readonly string[];
   readonly reverted: readonly string[];
 }
 
@@ -131,6 +136,7 @@ export const undoChangeSets = (
   });
   const kept = new Set(verdict.kept.map((entry) => entry.itemId));
   const reverted: string[] = [];
+  const refused = new Map<string, CellRefusal>();
   for (const [itemId, undo] of verdict.items) {
     const current = items.get(itemId) ?? null;
     if (current === null) {
@@ -139,7 +145,7 @@ export const undoChangeSets = (
     }
     const rows = readAnnotationRows(storage, itemId);
     try {
-      landItem(scope, {
+      const landed = landItem(scope, {
         after: undo.now.state,
         annotations: restoreAnnotationStore(rows, undo.now.annotations, {
           itemId,
@@ -148,22 +154,30 @@ export const undoChangeSets = (
         before: { rows, state: current.state },
         itemId,
       });
+      // no turn to hold it for: the built-in agent has no undo
+      askFill(scope, landed);
       reverted.push(itemId);
     } catch (error) {
       // a rule refused this item's way back before anything of it was written
       if (!(error instanceof RefusedWriteError)) {
         throw error;
       }
-      kept.add(itemId);
+      refused.set(itemId, error.refusal);
     }
   }
+  const settled = ordered.filter((set) => ![...set.items.keys()].some((id) => refused.has(id)));
+  const [first] = refused.values();
+  if (first !== undefined && reverted.length === 0 && settled.length === 0) {
+    refuse(first);
+  }
   const undoSet = scope.set();
-  for (const set of sets) {
+  for (const set of settled) {
     storage.run("UPDATE change_sets SET undone_by = ? WHERE id = ?", [undoSet.id, set.id]);
   }
   return {
     changeSetId: undoSet.id,
-    kept: [...kept].filter((id) => !reverted.includes(id)).toSorted(),
+    kept: [...kept].filter((id) => !reverted.includes(id) && !refused.has(id)).toSorted(),
+    refused: [...refused.keys()].toSorted(),
     reverted: reverted.toSorted(),
   };
 };

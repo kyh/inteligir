@@ -6,17 +6,16 @@
 // The consumer reads the page and hands it back (`../fill/fill-consumer`), and it lands here as a
 // change set of its own: only the article and the facts a fill owns, so the person's note and
 // fields are never touched, and only on an item still waiting for that reading at that address,
-// so a message met twice lands once. One url, one item (R22): a page whose redirects end at an
+// so a message met twice lands once. One url, one item: a page whose redirects end at an
 // address another live item holds folds onto that item, unless the stub keeps highlights of its
 // own, which its own text must hold.
 
 import type { LibraryOp, ItemState } from "@repo/notes/library/block-ops";
-import { applyOps } from "@repo/notes/library/block-ops";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import { readItemState } from "@repo/notes/library/library-queries";
 import { runPlan } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
-import { itemNameFromUrl } from "@repo/notes/items/item-name";
+import { jsonTextSchema } from "@repo/notes/library/sql-value";
 import { kindForUrl, urlKey } from "@repo/notes/items/item-url";
 import { z } from "zod";
 
@@ -25,12 +24,19 @@ import type { CellActor } from "./cell-actor";
 import { readAnnotationRows } from "./cell-annotations";
 import { hurryUnnamed } from "./cell-blobs";
 import type { CellCodec } from "./cell-codec";
-import { placeQuotes } from "./cell-items";
 import { deferJob, dueJobs, scheduleJob } from "./cell-jobs";
 import type { DueJob } from "./cell-jobs";
 import { urlHolder } from "./cell-landing";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
-import { foldPage, quotesOf } from "./cell-saves";
+import {
+  articleOps,
+  changes,
+  foldPage,
+  pageFieldOps,
+  quoteOps,
+  quotesOf,
+  readOps,
+} from "./cell-saves";
 import { landWrite } from "./cell-writes";
 
 // who a page's reading is by, in History's words
@@ -82,10 +88,14 @@ const waitsForFill = (
   item: LiveItemRow,
 ): item is LiveItemRow & {
   readonly fields: LiveItemRow["fields"] & { readonly url: string };
-} => item.fields.fetchState === "pending" && item.fields.url !== null;
+} =>
+  item.fields.fetchState === "pending" &&
+  item.fields.url !== null &&
+  item.fields.deletedAt === null;
 
 // the reading of an item a write left waiting for one: a link saved to read later, one refreshed,
-// one an import brought
+// one an import brought, one back from Deleted. A deleted item asks nothing, since the queue would
+// let the reading go, and its way back asks again
 export const askFill = (
   scope: LandingScope,
   item: LiveItemRow,
@@ -154,7 +164,7 @@ export interface ClaimedFill {
 // again by the alarm and two commits in flight do not both send one
 export const claimFills = (sql: SqlStatements, now: number): ClaimedFill[] =>
   dueJobs(sql, now, ["fill"]).flatMap((job) => {
-    const { heldBy, ...request } = requestSchema.parse(JSON.parse(job.payload));
+    const { heldBy, ...request } = jsonTextSchema.pipe(requestSchema).parse(job.payload);
     if (heldBy !== null && !turnSealed(sql, heldBy)) {
       deferJob(sql, job.id, now + HELD_MS);
       return [];
@@ -175,67 +185,31 @@ export const sentFills = (sql: SqlStatements, claimed: readonly ClaimedFill[]): 
   }
 };
 
-// what a page says of itself, each set only where it said anything
-const FACT_FIELDS = ["author", "description", "lang", "published", "site"] as const;
+const pageOf = (landing: Extract<FillLanding, { kind: "read" }>) => ({
+  article: landing.article,
+  coverSha: landing.coverSha,
+  facts: landing.facts,
+  title: landing.title ?? "",
+});
 
-const changes = (op: LibraryOp): boolean => op.op !== "set" || op.base !== op.value;
-
-// the fields a reading sets: what the page said of itself where it said anything (a value it did
-// not give never removes one an import gave), its cover, the reading's own state, and a title in
-// place of the address the item was named by while unread
+// the fields a reading sets: a read page's, and the kind its address or its player shows it to be
 const readFieldOps = (
   fields: LibraryItemFields,
   landing: Extract<FillLanding, { kind: "read" }>,
   now: number,
 ): LibraryOp[] => {
-  const { facts } = landing;
-  const placeholder = fields.url !== null && fields.title === itemNameFromUrl(fields.url);
   const upgraded = kindForUrl(landing.finalUrl);
   const kind =
     fields.kind === "link"
       ? (landing.playable ?? (upgraded === "link" ? fields.kind : upgraded))
       : fields.kind;
-  const ops: LibraryOp[] = [];
-  for (const field of FACT_FIELDS) {
-    const value = facts[field];
-    if (value !== null) {
-      ops.push({ base: fields[field], field, op: "set", value });
-    }
-  }
-  if (landing.coverSha !== null) {
-    ops.push({ base: fields.coverSha, field: "coverSha", op: "set", value: landing.coverSha });
-  }
-  ops.push(
-    { base: fields.kind, field: "kind", op: "set", value: kind },
-    { base: fields.fetchError, field: "fetchError", op: "set", value: null },
-    { base: fields.fetchState, field: "fetchState", op: "set", value: "filled" },
-    { base: fields.fetchedAt, field: "fetchedAt", op: "set", value: now },
-  );
-  if (placeholder && landing.title !== null) {
-    ops.push({ base: fields.title, field: "title", op: "set", value: landing.title });
-  }
-  return ops.filter(changes);
+  return [
+    ...pageFieldOps(fields, pageOf(landing), now),
+    ...(kind === fields.kind
+      ? []
+      : [{ base: fields.kind, field: "kind", op: "set", value: kind } as const]),
+  ];
 };
-
-// the item's article replaced by the page's, unless the page held none, which leaves the item's
-const articleOps = (state: ItemState, landing: Extract<FillLanding, { kind: "read" }>) =>
-  landing.article.length === 0
-    ? []
-    : [
-        ...[...state.blocks.values()]
-          .filter((stored) => stored.section === "article")
-          .map((stored): LibraryOp => ({
-            baseHash: stored.hash,
-            blockId: stored.block.id,
-            op: "drop",
-          })),
-        ...landing.article.map(({ block, ord }): LibraryOp => ({
-          block,
-          op: "insert",
-          ord,
-          section: "article",
-        })),
-      ];
 
 // the page read into the item, its highlights placed again in the article by their quotes, since
 // the markers the old article held went with it; one the note holds stays where it is
@@ -251,16 +225,16 @@ const landRead = (
   ];
   const quotes =
     landing.article.length === 0 ? [] : quotesOf(readAnnotationRows(scope.storage, item.id));
-  const read = quotes.length === 0 ? null : applyOps(item.state, ops);
-  if (read?.kind === "applied") {
-    ops.push(...placeQuotes(read.state, codec, quotes).ops);
-  }
-  landWrite(scope, FILL_ACTOR, { itemId: item.id, ops });
+  landWrite(scope, FILL_ACTOR, {
+    itemId: item.id,
+    ops: [...ops, ...quoteOps(item.state, codec, ops, quotes)],
+  });
 };
 
 // a stub whose page turned out to be another item's: the page lands on that item as a save of it
-// would, the stub's tags and note go with it, and the stub goes to Deleted, where it can be
-// restored. The fold is one change set of the fill's, both items in it
+// would, the stub's tags and note go with it, and the stub goes to Deleted read, where it can be
+// restored and stays, since one still waiting would be asked again and fold again. The fold is
+// one change set of the fill's, both items in it
 const foldOnto = (
   scope: LandingScope,
   codec: CellCodec,
@@ -278,21 +252,16 @@ const foldOnto = (
     codec,
     { ...held, id: holderId },
     readAnnotationRows(scope.storage, holderId),
-    {
-      article: landing.article,
-      coverSha: landing.coverSha,
-      facts: landing.facts,
-      folderId: null,
-      title: landing.title ?? "",
-      tags: stub.state.fields.tags,
-    },
+    { ...pageOf(landing), folderId: null, tags: stub.state.fields.tags },
     null,
     [...stub.state.blocks.values()].filter((stored) => stored.section === "note"),
   );
-  landWrite(scope, FILL_ACTOR, {
-    itemId: stub.id,
-    ops: [{ base: stub.state.fields.deletedAt, field: "deletedAt", op: "set", value: scope.now }],
-  });
+  const { fields } = stub.state;
+  const ops: LibraryOp[] = [
+    { base: fields.deletedAt, field: "deletedAt", op: "set", value: scope.now },
+    ...readOps(fields, scope.now),
+  ];
+  landWrite(scope, FILL_ACTOR, { itemId: stub.id, ops: ops.filter(changes) });
 };
 
 // whether the item still waits for this reading: live, unread, at the address it was asked at
@@ -365,9 +334,7 @@ export const landFill = (
           op: "set",
           value: landing.originalName,
         },
-        { base: fields.fetchError, field: "fetchError", op: "set", value: null },
-        { base: fields.fetchState, field: "fetchState", op: "set", value: "filled" },
-        { base: fields.fetchedAt, field: "fetchedAt", op: "set", value: scope.now },
+        ...readOps(fields, scope.now),
       ];
       landWrite(scope, FILL_ACTOR, { itemId: item.id, ops: ops.filter(changes) });
       return { kind: "filled" };
