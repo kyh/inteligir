@@ -1,8 +1,14 @@
 // @vitest-environment jsdom
 
+import { implement } from "@orpc/server";
+import { RPCHandler } from "@orpc/server/fetch";
+import { V1_RPC_PATH, v1Contract } from "@repo/contract/cloud/v1";
+import { headingCollapseKeys, toggleHeadingCollapse } from "@repo/editor/heading-collapse";
 import { createFakeCell } from "@repo/library-replica/test-support/fake-cell";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { PREFS, readPref, writePref } from "../prefs";
+import { forgetAccountStorage } from "./account-storage";
 import { createLeaveGuard } from "./leave-guard";
 import { openPageLibrary, pageClock } from "./page-library";
 import { SESSION_READ_MS } from "./session-keeper";
@@ -10,10 +16,16 @@ import { SESSION_READ_MS } from "./session-keeper";
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  forgetAccountStorage();
 });
 
 const ORIGIN = "https://cell.test";
 const SIGNED_IN = { user: { email: "owner@example.com", name: "Owner" } };
+
+const remembered = (): void => {
+  writePref(PREFS.libraryScope, { kind: "tag", tag: "field" });
+  toggleHeadingCollapse("item-1", "a-fold");
+};
 
 const opened = async (onSessionEnd: () => void) => {
   const opening = await openPageLibrary(ORIGIN, {
@@ -81,6 +93,30 @@ describe("reading the session the tab opens on", () => {
       }),
     ).rejects.toThrow("the session read answered 503");
   });
+
+  it("lets go of what the page's own storage holds, the session having ended with no tab open", async () => {
+    vi.stubGlobal("fetch", async () => await Promise.resolve(Response.json(null)));
+    remembered();
+    await openPageLibrary(ORIGIN, {
+      leave: createLeaveGuard(new EventTarget()),
+      onSessionEnd: () => {},
+    });
+    expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "all" });
+    expect([...headingCollapseKeys("item-1")]).toStrictEqual([]);
+  });
+
+  it("keeps it through a fault of the site's, which says no session ended", async () => {
+    vi.stubGlobal("fetch", async () => await Promise.resolve(new Response(null, { status: 503 })));
+    remembered();
+    await expect(
+      openPageLibrary(ORIGIN, {
+        leave: createLeaveGuard(new EventTarget()),
+        onSessionEnd: () => {},
+      }),
+    ).rejects.toThrow("the session read answered 503");
+    expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "tag", tag: "field" });
+    expect([...headingCollapseKeys("item-1")]).toStrictEqual(["a-fold"]);
+  });
 });
 
 describe("a session that ends under the open page", () => {
@@ -103,6 +139,70 @@ describe("a session that ends under the open page", () => {
     // what moves after, a write queued as the page goes, is no second end
     await replica.saveLink({ folderId: null, tags: [], url: "https://example.com/" });
     expect(onSessionEnd).toHaveBeenCalledOnce();
+    await replica.close();
+  });
+
+  it("takes what the page's own storage holds of the account with it", async () => {
+    const cell = createFakeCell();
+    const { transport } = cell.device("tab");
+    vi.stubGlobal("fetch", async (input: Request | string) =>
+      input instanceof Request ? await transport.fetch(input) : Response.json(SIGNED_IN),
+    );
+    const { replica } = await opened(() => {});
+    remembered();
+    await replica.sync();
+    expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "tag", tag: "field" });
+
+    cell.signOut();
+    await replica.sync();
+    expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "all" });
+    expect([...headingCollapseKeys("item-1")]).toStrictEqual([]);
+    await replica.close();
+  });
+
+  it("keeps it below the build floor, where the session stands", async () => {
+    const os = implement(v1Contract);
+    const cloud = new RPCHandler({
+      library: {
+        sync: {
+          pull: os.library.sync.pull.handler(({ errors }) => {
+            throw errors.CLIENT_OUTDATED();
+          }),
+        },
+      },
+    });
+    vi.stubGlobal("fetch", async (input: Request | string) => {
+      if (!(input instanceof Request)) {
+        return Response.json(SIGNED_IN);
+      }
+      const { response } = await cloud.handle(input, { prefix: V1_RPC_PATH });
+      return response ?? new Response(null, { status: 404 });
+    });
+    const onSessionEnd = vi.fn<() => void>();
+    const { replica } = await opened(onSessionEnd);
+    remembered();
+
+    await replica.sync();
+    expect(replica.status().failure).toStrictEqual({ end: "outdated", kind: "session" });
+    expect(onSessionEnd).toHaveBeenCalledOnce();
+    expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "tag", tag: "field" });
+    expect([...headingCollapseKeys("item-1")]).toStrictEqual(["a-fold"]);
+    await replica.close();
+  });
+});
+
+describe("a tab that leaves its account", () => {
+  it("takes what the page's own storage holds of the account with it", async () => {
+    const cell = createFakeCell();
+    const { transport } = cell.device("tab");
+    vi.stubGlobal("fetch", async (input: Request | string) =>
+      input instanceof Request ? await transport.fetch(input) : Response.json(SIGNED_IN),
+    );
+    const { left, replica } = await opened(() => {});
+    remembered();
+    await left("signed-out");
+    expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "all" });
+    expect([...headingCollapseKeys("item-1")]).toStrictEqual([]);
     await replica.close();
   });
 });

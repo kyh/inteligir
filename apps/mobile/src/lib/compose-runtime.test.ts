@@ -78,6 +78,17 @@ const stillClock = {
   now: () => 1_700_000_200_000,
 };
 
+const httpCache = () => {
+  const cache = {
+    clears: 0,
+    clear: async () => {
+      cache.clears += 1;
+      await Promise.resolve();
+    },
+  };
+  return cache;
+};
+
 const runtimeOver = (
   cell: FakeCell,
   options: {
@@ -85,11 +96,13 @@ const runtimeOver = (
     readonly keys: ReturnType<typeof keychain>;
     readonly folders?: ReturnType<typeof memoryFolders>;
     readonly fetch?: (request: Request) => Promise<Response>;
+    readonly clearHttpCache?: () => Promise<void>;
   },
 ) => {
   const network = cell.device("phone");
   const runtime = composeRuntime({
     build: { platform: "mobile", version: "1.0.0" },
+    clearHttpCache: options.clearHttpCache ?? httpCache().clear,
     clock: stillClock,
     cloudUrl: "https://cell.test",
     credentials: options.keys.store,
@@ -396,6 +409,67 @@ describe("the phone's runtime", () => {
       });
     expect(keys.held()).toBeNull();
     await expect(sql.all("SELECT id FROM items", [])).resolves.toStrictEqual([]);
+  });
+
+  describe("the system's HTTP cache, which keeps what the phone's fetches read", () => {
+    it("is emptied by a sign-out, and left alone by a relaunch", async () => {
+      const cache = httpCache();
+      const { runtime } = runtimeOver(createFakeCell(), {
+        clearHttpCache: cache.clear,
+        keys: keychain(KEPT),
+        sql: openNodeReplicaSql(":memory:"),
+      });
+      await runtime.start();
+      expect(cache.clears).toBe(0);
+
+      await expect(runtime.logout()).resolves.toStrictEqual({ kind: "signed-out" });
+      expect(cache.clears).toBe(1);
+    });
+
+    it("is emptied when the cloud ends the sign-in", async () => {
+      const cell = createFakeCell();
+      const cache = httpCache();
+      const { runtime } = runtimeOver(cell, {
+        clearHttpCache: cache.clear,
+        keys: keychain(KEPT),
+        sql: openNodeReplicaSql(":memory:"),
+      });
+      await runtime.start();
+
+      cell.signOut();
+      await signedIn(runtime).replica.sync();
+      await expect.poll(() => cache.clears).toBe(1);
+    });
+
+    it("is emptied by a sign-in, which may follow another account's", async () => {
+      const cache = httpCache();
+      const { runtime } = runtimeOver(createFakeCell(), {
+        clearHttpCache: cache.clear,
+        keys: keychain(),
+        sql: openNodeReplicaSql(":memory:"),
+      });
+      await runtime.start();
+      await runtime.login.login(SIGN_IN);
+      expect(cache.clears).toBe(1);
+    });
+
+    it("holds a sign-out open when it would not empty, as a copy that would not go does", async () => {
+      const keys = keychain(KEPT);
+      const { runtime } = runtimeOver(createFakeCell(), {
+        clearHttpCache: async () => {
+          await Promise.reject(new Error("the disk is full"));
+        },
+        keys,
+        sql: openNodeReplicaSql(":memory:"),
+      });
+      await runtime.start();
+
+      await expect(runtime.logout()).resolves.toStrictEqual({
+        kind: "failed",
+        message: "the disk is full",
+      });
+      expect(keys.held()).toBe(KEPT);
+    });
   });
 
   it("asks before a sign-out discards unsent changes, and lets the device go when told", async () => {

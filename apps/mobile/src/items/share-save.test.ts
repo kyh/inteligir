@@ -5,7 +5,9 @@ import type { FakeCell } from "@repo/library-replica/test-support/fake-cell";
 import { openDevice, paragraph, textOf } from "@repo/library-replica/test-support/replica-harness";
 import { describe, expect, it } from "vitest";
 import type { PageFetch } from "./page-fetch";
+import { deferred } from "../test-support/async";
 import { sharedSaveOf } from "./share-payload";
+import type { SharedSave } from "./share-payload";
 import { saveShared } from "./share-save";
 
 const URL = "https://stephango.com/file-over-app";
@@ -64,6 +66,45 @@ const phone = async () => {
   };
   return { cell, device, newBlockId };
 };
+
+describe("a share under a sign-out", () => {
+  it.each([
+    ["a page it read", { kind: "link", note: null, title: null, url: URL }],
+    ["a thought", { kind: "text", text: "Look at this" }],
+  ] satisfies [string, SharedSave][])(
+    "says the library left and lays nothing when %s lands after the wipe",
+    async (_case, shared) => {
+      const { cell, device, newBlockId } = await phone();
+      await device.replica.sync();
+      const reading = deferred();
+      const saving = saveShared(
+        {
+          newBlockId,
+          ports: {
+            fetch: async (request) => {
+              await reading.promise;
+              return await servingPage(request);
+            },
+            read: async () => await Promise.resolve(READ),
+          },
+          replica: device.replica,
+        },
+        shared,
+      );
+      await device.replica.wipe();
+      reading.resolve();
+      await expect(saving).resolves.toStrictEqual({ kind: "left" });
+      expect(device.blobs.held()).toStrictEqual([]);
+      const next = await openDevice(cell, "phone", {
+        blobs: device.blobs,
+        network: device.network,
+        sql: device.sql,
+      });
+      expect(next.replica.status().unsent).toBe(0);
+      await next.replica.close();
+    },
+  );
+});
 
 describe("a share, saved", () => {
   it("reads a shared page on the phone and saves it read, its facts and article with it", async () => {

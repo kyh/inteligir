@@ -51,6 +51,9 @@ export const phoneRuntime = async (
   let held: Kept | null = options.kept ?? null;
   const runtime = composeRuntime({
     build: PHONE_BUILD,
+    clearHttpCache: async () => {
+      await Promise.resolve();
+    },
     clock: {
       after: (ms, run) => {
         const timer = setTimeout(run, ms);

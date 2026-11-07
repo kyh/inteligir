@@ -32,7 +32,6 @@ use crate::updater::Updates;
 
 /// SIGTERM and SIGINT quit as Quit does, the page's last edit written and a ready update installed:
 /// a `kill`, launchd at shutdown and Ctrl-C under `tauri dev` all take the ordinary way out.
-#[cfg(unix)]
 fn quit_on_signals(app: &tauri::AppHandle) {
     use signal_hook::consts::{SIGINT, SIGTERM};
     use signal_hook::iterator::Signals;
@@ -132,7 +131,7 @@ pub fn run() {
                     let response = file_scheme::answer(
                         account.files(),
                         &app.state::<CloudFiles>(),
-                        account.bearer(),
+                        account.fetching_as(),
                         &request,
                     )
                     .await;
@@ -164,7 +163,6 @@ pub fn run() {
         .on_menu_event(|app, event| menu::on_event(app, &event))
         .setup(move |app| {
             manage_account(app, &version)?;
-            #[cfg(unix)]
             quit_on_signals(app.handle());
             menu::rebuild(app.handle());
             tray::create(app.handle());

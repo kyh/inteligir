@@ -65,9 +65,11 @@ a bullet is written and cited.
   and nowhere else on disk, and hands the page when it opens; the page sends it
   as the bearer of every `/v1` call, the socket opening on the short-lived
   ticket it mints. Leaving the account forgets the credential, the account's
-  replica file and its files, and a credential the cloud no longer takes leaves
-  it too. On Linux, where the shell runs only under the scenario suite,
-  keyring-core's sample store in a file stands in. Rejected: the shell as the
+  replica file and its files, the page dropping what its own storage remembers
+  of the account (`apps/workspace/src/app/cloud/account-storage.ts`), and a
+  credential the cloud no longer takes leaves it too. On Linux, where the shell
+  runs only under the scenario suite, keyring-core's sample store in a file
+  stands in. Rejected: the shell as the
   page's proxy so the page never holds it (a scheme handler carries neither the
   socket's upgrade nor a streamed body: the browser's path rebuilt in Rust); the
   credential in WebKit's storage (a file, where the Keychain is the store macOS
@@ -117,11 +119,13 @@ a bullet is written and cited.
   read evicted first; a staged file, which the outbox has yet to upload, sits
   in the data dir, never evicted, until its upload moves it into the cache;
   each file's type, the one the page staged it as or the cloud served, moves
-  with it. Every file but a PDF is served under a script-less sandbox, as the
-  cloud serves it; a PDF keeps WebKit's viewer under a policy that runs no
-  script and that only the app's page may frame. Rejected: the cloud's route
-  straight from the page (an `<img>` carries no bearer, and offline it draws
-  nothing); the asset protocol over a scope of the disk (no fetch on a miss).
+  with it. A sign-out moves the cache's generation, so a fetch begun before it
+  keeps nothing and answers as a miss signed out. Every file but a PDF is
+  served under a script-less sandbox, as the cloud serves it; a PDF keeps
+  WebKit's viewer under a policy that runs no script and that only the app's
+  page may frame. Rejected: the cloud's route straight from the page (an
+  `<img>` carries no bearer, and offline it draws nothing); the asset protocol
+  over a scope of the disk (no fetch on a miss).
   Residual: WebKitGTK's player loads nothing from a custom scheme, so a
   recording's playback is the owner's check on a Mac (`docs/releasing.md`).
   `apps/desktop/src-tauri/src/file_scheme.rs`, `file_cache.rs`.

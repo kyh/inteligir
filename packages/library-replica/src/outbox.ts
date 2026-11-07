@@ -61,6 +61,16 @@ const KEPT_CHANGING = "Your library kept changing while this device saved. It wi
 const ADDRESS_HELD =
   "Another item already holds this address. Delete it and try again, or let this change go.";
 
+// A write the closed replica refused: the account it wrote for has left this device, or is
+// leaving, so a row laid now would sit in the wiped database for whoever signs in next. Its message
+// is the person's; a caller that can hold the write for the next sign-in reads its type.
+export class ReplicaClosedError extends Error {
+  constructor() {
+    super("This device is signed out of your library, so this wasn't saved.");
+    this.name = "ReplicaClosedError";
+  }
+}
+
 export interface OutboxContext {
   readonly sql: ReplicaSql;
   readonly client: V1Client;
@@ -107,8 +117,9 @@ export interface StagedBytes {
 export interface Outbox {
   readonly load: () => Promise<void>;
   readonly rows: () => readonly OutboxRow[];
-  // durable before it resolves, its files staged first; a write joins the item's last row while
-  // that one is still queued, and a row a join leaves changing nothing goes
+  // durable before it resolves, its files staged first, and refused once the replica closed; a
+  // write joins the item's last row while that one is still queued, and a row a join leaves
+  // changing nothing goes
   readonly enqueue: (op: OutboxOp, files: readonly StagedBytes[]) => Promise<void>;
   readonly drain: () => Promise<DrainOutcome>;
   // a parked row goes again
@@ -689,6 +700,10 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     enqueue: async (given, files) => {
       const createdAt = context.clock.now();
       await hold(async () => {
+        // under the hold, which a wipe takes too: a write past this check is one the wipe removes
+        if (!context.live()) {
+          throw new ReplicaClosedError();
+        }
         for (const file of files) {
           await blobs.put(file.sha, file.bytes, file.mime);
         }

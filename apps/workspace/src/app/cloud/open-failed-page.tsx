@@ -2,7 +2,8 @@
 // person's words and offers the ways on. In the Mac's window the shell failed (a Keychain that
 // refused or is locked, a replica file that would not open, a config it could not give), so the
 // ways on are Try again, a reload, and Sign out, which lets go of this Mac's credential, its copy
-// of the library and its files, and opens on the sign-in. The library itself stays in the account.
+// of the library and its files, gives the device back, and opens on the sign-in. The library itself
+// stays in the account.
 // In the tab the site or the connection failed, and a tab holds nothing to let go: Try again alone.
 
 import { Button } from "@repo/ui/components/button";
@@ -10,7 +11,7 @@ import { QueryClientProvider, useMutation } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
-import { shellCredential } from "../../shell/shell-commands";
+import { signOutUnopened } from "./shell-library";
 import { shellTroubleText, signOutTroubleText } from "./shell-trouble";
 
 const HEADING = "Your library didn't open";
@@ -33,9 +34,7 @@ const OpenFailedFrame = ({ said, children }: { said: string; children: ReactNode
 
 const OpenFailed = ({ cause, reload }: { cause: unknown; reload: () => void }) => {
   const signOut = useMutation({
-    mutationFn: async () => {
-      await shellCredential.forget();
-    },
+    mutationFn: signOutUnopened,
     // the shell's own work, which needs no connection
     networkMode: "always",
     onSuccess: reload,

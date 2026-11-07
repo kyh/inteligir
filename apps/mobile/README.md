@@ -21,9 +21,10 @@ src/
   lib/          the composition root (compose-runtime.ts, platform-free; app-runtime.ts,
                 its binding to the device), the replica's SQL over expo-sqlite and over
                 node's sqlite, phone-db.ts's own tables, the /v1 transport, the screens'
-                hooks over the library, backup-exclusion.ts over modules/backup-exclusion,
-                the one native module this app carries, and palette.ts, the colors a
-                prop takes as a value, with theme.ts's useTheme over the system's scheme
+                hooks over the library, backup-exclusion.ts and http-cache.ts over the
+                modules of those names, the native modules this app carries, and
+                palette.ts, the colors a prop takes as a value, with theme.ts's useTheme
+                over the system's scheme
   credential/   the device credential at rest, in the Keychain (expo-secure-store)
   login/        signing this phone in to an account
   files/        the library's files by their hash: pinned in Documents or cached, with

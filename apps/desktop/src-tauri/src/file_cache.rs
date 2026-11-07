@@ -5,12 +5,13 @@
 //! beside it (`<sha>.type`), the one the page staged it as or the cloud served it as, and moves
 //! with it. Both are read by the page through the shell's own scheme (`file_scheme.rs`); a file
 //! neither holds is fetched from `/v1/blobs/<sha>` with the device's credential, checked against
-//! its sha and kept.
+//! its sha and kept, unless a sign-out came between the fetch and its landing.
 
 use std::fmt::Write as _;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -26,6 +27,14 @@ pub const CACHE_LIMIT_BYTES: u64 = 5 * 1024 * 1024 * 1024;
 pub struct Held {
     pub bytes: Vec<u8>,
     pub content_type: String,
+}
+
+/// What became of a fetched file.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Landing {
+    Kept,
+    /// The account that asked for it left this Mac while it came, so it lands nowhere.
+    AccountLeft,
 }
 
 /// A file this Mac holds: where it is, what it is and how long.
@@ -116,6 +125,13 @@ fn remove_if_there(path: &Path) -> io::Result<()> {
     }
 }
 
+pub fn remove_dir_if_there(dir: &Path) -> io::Result<()> {
+    match fs::remove_dir_all(dir) {
+        Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),
+        _ => Ok(()),
+    }
+}
+
 /// Written whole beside the destination and renamed over it, so a crash mid-write leaves the old
 /// file or the new one, never half of either.
 fn write_whole(path: &Path, bytes: &[u8]) -> io::Result<()> {
@@ -153,6 +169,8 @@ struct Folders {
     limit: u64,
     // one writer at a time, so an eviction never counts a file another write is renaming in
     writing: Mutex<()>,
+    // moved by a clear under the writer's lock, so a fetch that began before it lands nothing
+    generation: AtomicU64,
 }
 
 /// Cheap to clone, every clone the same folders and the same writer's lock: the scheme hands one to
@@ -170,6 +188,7 @@ impl FileCache {
                 cache_dir,
                 limit,
                 writing: Mutex::new(()),
+                generation: AtomicU64::new(0),
             }),
         }
     }
@@ -179,6 +198,11 @@ impl FileCache {
             .writing
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// What a fetch hands `keep` back: it lands only if no clear came between.
+    pub fn generation(&self) -> u64 {
+        self.folders.generation.load(Ordering::SeqCst)
     }
 
     fn staged_path(&self, sha: &str) -> PathBuf {
@@ -239,21 +263,16 @@ impl FileCache {
     /// Every staged file, as a wipe of the outbox drops them.
     pub fn clear_staged(&self) -> ShellResult<()> {
         let _writing = self.write_lock();
-        match fs::remove_dir_all(&self.folders.staged_dir) {
-            Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error.into()),
-            _ => Ok(()),
-        }
+        Ok(remove_dir_if_there(&self.folders.staged_dir)?)
     }
 
     /// Everything this Mac holds of the library's files, as a sign-out leaves nothing of the
-    /// account behind.
+    /// account behind, a fetch still on its way included.
     pub fn clear(&self) -> ShellResult<()> {
-        self.clear_staged()?;
         let _writing = self.write_lock();
-        match fs::remove_dir_all(&self.folders.cache_dir) {
-            Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error.into()),
-            _ => Ok(()),
-        }
+        self.folders.generation.fetch_add(1, Ordering::SeqCst);
+        remove_dir_if_there(&self.folders.staged_dir)?;
+        Ok(remove_dir_if_there(&self.folders.cache_dir)?)
     }
 
     /// Where the file is if this Mac holds it, staged first; finding a cached one counts as its
@@ -283,8 +302,9 @@ impl FileCache {
         }))
     }
 
-    /// A file fetched from the cloud, kept once it hashes to its sha, then the limit enforced.
-    pub fn keep(&self, sha: &str, held: &Held) -> ShellResult<()> {
+    /// A file fetched from the cloud under the generation `since`, kept once it hashes to its sha
+    /// and while no clear came between, then the limit enforced.
+    pub fn keep(&self, sha: &str, held: &Held, since: u64) -> ShellResult<Landing> {
         let sha = checked(sha)?;
         if sha_of(&held.bytes) != sha {
             return Err(ShellError::Invalid(format!(
@@ -292,10 +312,13 @@ impl FileCache {
             )));
         }
         let _writing = self.write_lock();
+        if self.generation() != since {
+            return Ok(Landing::AccountLeft);
+        }
         write_whole(&self.type_path(sha), held.content_type.as_bytes())?;
         write_whole(&self.cached_path(sha), &held.bytes)?;
         self.evict()?;
-        Ok(())
+        Ok(Landing::Kept)
     }
 
     /// The least recently read files go until the rest fit the limit; the staged ones are
@@ -339,11 +362,18 @@ pub enum Fetched {
     Refused(u16),
 }
 
-/// Where a miss is fetched from, and as whom.
+/// Where a miss is fetched from.
 pub struct CloudFiles {
     pub client: reqwest::Client,
     pub origin: String,
     pub build: String,
+}
+
+/// Whom a miss is fetched as: the signed-in account's credential, and the cache's generation it
+/// was read under.
+pub struct FetchAs {
+    pub bearer: String,
+    pub since: u64,
 }
 
 /// The client a miss is fetched with, over the crypto provider the updater's plugin installs too
@@ -455,13 +485,18 @@ mod tests {
         (sha_of(text.as_bytes()), held)
     }
 
+    /// A file kept as a fetch that began just now keeps it.
+    fn kept(cache: &FileCache, sha: &str, held: &Held) -> ShellResult<Landing> {
+        cache.keep(sha, held, cache.generation())
+    }
+
     #[test]
     fn a_kept_file_is_a_hit_with_its_type() -> ShellResult<()> {
         let dir = tempfile::tempdir()?;
         let cache = cache_in(dir.path(), CACHE_LIMIT_BYTES);
         let (sha, held) = file("a picture");
         assert_eq!(whole(&cache, &sha)?, None);
-        cache.keep(&sha, &held)?;
+        kept(&cache, &sha, &held)?;
         assert_eq!(whole(&cache, &sha)?, Some(held));
         Ok(())
     }
@@ -473,7 +508,7 @@ mod tests {
         let (sha, _) = file("one");
         let (_, other) = file("two");
         assert!(matches!(
-            cache.keep(&sha, &other),
+            kept(&cache, &sha, &other),
             Err(ShellError::Invalid(_))
         ));
         assert!(matches!(
@@ -496,14 +531,14 @@ mod tests {
         let (first, first_file) = file("file one!");
         let (second, second_file) = file("file two!");
         let (third, third_file) = file("file 3!!!");
-        cache.keep(&first, &first_file)?;
+        kept(&cache, &first, &first_file)?;
         std::thread::sleep(Duration::from_millis(20));
-        cache.keep(&second, &second_file)?;
+        kept(&cache, &second, &second_file)?;
         std::thread::sleep(Duration::from_millis(20));
         // read, so the first is newer than the second
         assert!(whole(&cache, &first)?.is_some());
         std::thread::sleep(Duration::from_millis(20));
-        cache.keep(&third, &third_file)?;
+        kept(&cache, &third, &third_file)?;
         assert!(whole(&cache, &first)?.is_some());
         assert_eq!(whole(&cache, &second)?, None);
         assert!(whole(&cache, &third)?.is_some());
@@ -518,7 +553,7 @@ mod tests {
         cache.stage(&sha, &held.bytes, &held.content_type)?;
         // a fetched file meets a limit of nothing and goes at once; the staged one stays
         let (other, other_file) = file("fetched");
-        cache.keep(&other, &other_file)?;
+        kept(&cache, &other, &other_file)?;
         assert_eq!(whole(&cache, &other)?, None);
         assert_eq!(cache.staged(&sha)?, Some(held.bytes.clone()));
         assert_eq!(
@@ -556,16 +591,32 @@ mod tests {
         let dir = tempfile::tempdir()?;
         let cache = cache_in(dir.path(), CACHE_LIMIT_BYTES);
         let (staged, staged_file) = file("staged");
-        let (kept, kept_file) = file("kept");
+        let (fetched, fetched_file) = file("kept");
         cache.stage(&staged, &staged_file.bytes, &staged_file.content_type)?;
-        cache.keep(&kept, &kept_file)?;
+        kept(&cache, &fetched, &fetched_file)?;
         cache.clear_staged()?;
         assert_eq!(cache.staged(&staged)?, None);
-        assert!(whole(&cache, &kept)?.is_some());
+        assert!(whole(&cache, &fetched)?.is_some());
         cache.clear()?;
-        assert_eq!(whole(&cache, &kept)?, None);
+        assert_eq!(whole(&cache, &fetched)?, None);
         // a second clear finds nothing to clear
         cache.clear()?;
+        Ok(())
+    }
+
+    #[test]
+    fn a_file_fetched_before_a_clear_lands_nothing() -> ShellResult<()> {
+        let dir = tempfile::tempdir()?;
+        let cache = cache_in(dir.path(), CACHE_LIMIT_BYTES);
+        let (sha, held) = file("on its way");
+        let since = cache.generation();
+        cache.clear()?;
+        assert_eq!(cache.keep(&sha, &held, since)?, Landing::AccountLeft);
+        assert_eq!(whole(&cache, &sha)?, None);
+        assert!(!dir.path().join("cache").exists());
+        // the next fetch, under the generation the clear left, lands
+        assert_eq!(kept(&cache, &sha, &held)?, Landing::Kept);
+        assert!(whole(&cache, &sha)?.is_some());
         Ok(())
     }
 
@@ -574,7 +625,7 @@ mod tests {
         let dir = tempfile::tempdir()?;
         let cache = cache_in(dir.path(), CACHE_LIMIT_BYTES);
         let (sha, held) = file("0123456789");
-        cache.keep(&sha, &held)?;
+        kept(&cache, &sha, &held)?;
         let located = cache.locate(&sha)?.ok_or(ShellError::Missing)?;
         assert_eq!(located.len, 10);
         assert_eq!(located.read(Some((2, 4)))?, b"234".to_vec());

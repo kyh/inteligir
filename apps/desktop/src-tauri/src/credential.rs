@@ -104,6 +104,20 @@ impl Credentials {
             Err(error) => Err(error.into()),
         }
     }
+
+    /// The mock store's next write refuses, as a locked Keychain does.
+    #[cfg(test)]
+    pub fn refuse_next_write(&self) -> ShellResult<()> {
+        let entry = self.entry()?;
+        let mock: Option<&keyring_core::mock::Cred> = entry.as_any().downcast_ref();
+        let Some(mock) = mock else {
+            return Err(ShellError::Invalid("not the mock's credential".to_owned()));
+        };
+        mock.set_error(keyring_core::Error::NoStorageAccess(Box::from(
+            "the Keychain is locked",
+        )));
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -160,14 +174,7 @@ mod tests {
     #[test]
     fn a_store_that_refuses_is_said() -> ShellResult<()> {
         let credentials = mocked()?;
-        let entry = credentials.entry()?;
-        let mock: Option<&keyring_core::mock::Cred> = entry.as_any().downcast_ref();
-        let Some(mock) = mock else {
-            return Err(ShellError::Invalid("not the mock's credential".to_owned()));
-        };
-        mock.set_error(keyring_core::Error::NoStorageAccess(Box::from(
-            "the Keychain is locked",
-        )));
+        credentials.refuse_next_write()?;
         assert!(matches!(
             credentials.keep(&signed_in()),
             Err(ShellError::Keychain(_))

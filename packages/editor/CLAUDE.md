@@ -368,6 +368,16 @@ alone, and no walk narrows structurally.
   its pause (a quit in the pause lost them); a card opening a blob of the
   page's origin (it could run script). `packages/editor/src/kits/image-kit.tsx`.
 
+- **A FOLD IS THE DEVICE'S VIEW STATE, AND HOLDS NONE OF THE LIBRARY'S WORDS.**
+  Which headings an item has folded sits in the page's local storage, each by a
+  hash of its rank, text and ordinal, since that storage is out of the phone's
+  wipe and in its device backup. The Mac and the tab drop it on leaving the
+  account (`apps/workspace/src/app/cloud/account-storage.ts`). Rejected: a fold
+  in the replica (it is one device's view, and every fold a write); the heading's
+  text as the key (it stayed on the phone after a sign-out). Residual: the
+  phone's page keeps the ids and hashes, which name nothing, past a sign-out.
+  `packages/editor/src/heading-collapse.tsx`.
+
 ## The open item's merge
 
 - **THE MERGE'S LINE DIFF IS BOUNDED, AND A MERGE THAT KEPT MINE OVER AN

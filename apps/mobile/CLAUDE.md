@@ -74,8 +74,10 @@ how it ships.
   BACKUP.** Both download again or are sent from here (owner decision), so
   `apps/mobile/modules/backup-exclusion` keeps them out of the iCloud backup
   (`apps/mobile/src/files/expo-file-folders.ts`). A sign-in, a sign-out and a
-  revocation wipe the rows and every file; the boot keeps them, and a kept
-  credential over an empty database pulls the library afresh.
+  revocation wipe the rows, every file and the system's HTTP cache
+  (`apps/mobile/modules/http-cache`), which the Worker's `no-store` keeps a
+  file's bytes out of but not a page a share read; the boot keeps them, and a
+  kept credential over an empty database pulls the library afresh.
 
 - **A FILE'S BYTES ARE KEPT BY ITS HASH, FETCHED ONCE: PINNED, OR CACHED AND
   DROPPED OLDEST FIRST.** A file is downloaded once however many screens ask
@@ -160,7 +162,8 @@ how it ships.
   cloud keeps a title it is given and a page read names itself
   (`apps/mobile/src/items/share-payload.ts`).
   It opens the item and only then lets the share go, so a signed-out share
-  waits (`apps/mobile/src/items/share-inbox.tsx`), and a share made while one
+  waits, and so does one a sign-out caught mid-read, which the closed replica
+  refuses (`apps/mobile/src/items/share-inbox.tsx`), and a share made while one
   settles is settled after it (`apps/mobile/src/items/share-queue.ts`).
   Rejected: expo-sharing (experimental receive, no page title); an extension
   that saves.

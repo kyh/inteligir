@@ -5,7 +5,7 @@ import { runPlanAsync } from "@repo/notes/library/library-sql";
 import { mulberry32, pick } from "@repo/notes/test-support/seeded-random";
 import { assert, describe, expect, it, vi } from "vitest";
 
-import { fileSha } from "./library-replica";
+import { fileSha, ReplicaClosedError } from "./library-replica";
 import { openMemorySql } from "./memory-sql";
 import type { MemorySql } from "./memory-sql";
 import { STAGED_FILE_GONE } from "./outbox";
@@ -877,6 +877,65 @@ describe("what the screens read", () => {
     expect(phone.replica.scopes().total).toBe(0);
     expect(phone.replica.status()).toMatchObject({ cursor: 0, unsent: 0 });
     expect(phone.blobs.held()).toStrictEqual([]);
+  });
+});
+
+describe("a write after the replica closed", () => {
+  it("is refused in words, and leaves nothing for whoever opens this database next", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    await phone.replica.wipe();
+
+    const saved = phone.replica.savePage({
+      article: [],
+      cover: { bytes: PNG, mime: "image/png" },
+      facts: { author: null, description: null, lang: null, published: null, site: null },
+      folderId: null,
+      selection: null,
+      tags: [],
+      title: "Shared before the sign-out",
+      url: "https://example.com/shared",
+    });
+
+    await expect(saved).rejects.toBeInstanceOf(ReplicaClosedError);
+    await expect(saved).rejects.toThrow("signed out");
+    expect(phone.blobs.held()).toStrictEqual([]);
+    const next = await openDevice(cell, "phone", {
+      blobs: phone.blobs,
+      network: phone.network,
+      sql: phone.sql,
+    });
+    expect(next.replica.status().unsent).toBe(0);
+    await next.replica.sync();
+    expect(cell.calls).not.toContain("phone library/items/save");
+  });
+
+  it("goes on through a write already under way, which the wipe then takes", async () => {
+    const cell = createFakeCell();
+    const landing = deferred();
+    const scratch = await openDevice(cell, "scratch");
+    const blobs = {
+      ...scratch.blobs,
+      put: async () => {
+        await landing.promise;
+      },
+    };
+    const phone = await openDevice(cell, "phone", { blobs });
+    phone.network.setOffline(true);
+    const making = phone.replica.createFile({
+      file: { bytes: PNG, mime: "image/png" },
+      folderId: null,
+      name: "a.png",
+      tags: [],
+    });
+    await nextTurn();
+    const wiping = phone.replica.wipe();
+    landing.resolve();
+    await making;
+    await wiping;
+    expect(phone.replica.status().unsent).toBe(0);
+    const next = await openDevice(cell, "phone", { network: phone.network, sql: phone.sql });
+    expect(next.replica.status().unsent).toBe(0);
   });
 });
 

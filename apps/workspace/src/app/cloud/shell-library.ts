@@ -9,7 +9,11 @@
 // Its calls go to the cloud's origin across origins (the Worker answers CORS for the app's), each
 // carrying the credential and the build, since the Worker meets every install at its build floor.
 
+import { createORPCClient } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
 import { clientBuildValue, CLIENT_BUILD_HEADER } from "@repo/contract/cloud/client-build";
+import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
+import type { V1Client } from "@repo/contract/cloud/v1";
 import { toast } from "@repo/ui/components/sonner";
 import { replicaMerge } from "@repo/editor/stale-write";
 import type { SessionEnd } from "@repo/library-replica/call-outcome";
@@ -17,6 +21,7 @@ import { openLibraryReplica } from "@repo/library-replica/library-replica";
 import type { ReplicaTransport } from "@repo/library-replica/replica-ports";
 
 import type { KeptCredential, ShellConfig } from "../../shell/shell-config";
+import { forgetAccountStorage } from "./account-storage";
 import {
   shellConfig,
   shellCredential,
@@ -40,6 +45,7 @@ export type ShellOpening =
 
 // `/v1` as this Mac reaches it: the cloud's origin, the build on every request, and the credential
 // once a sign-in kept one
+/** @internal */
 export const macTransport = (config: ShellConfig, credential: string | null): ReplicaTransport => ({
   fetch: async (request) => {
     const headers = new Headers(request.headers);
@@ -54,6 +60,38 @@ export const macTransport = (config: ShellConfig, credential: string | null): Re
   },
   origin: config.cloudOrigin,
 });
+
+// the cloud's account calls as this Mac makes them before any library is open
+export const macClient = (config: ShellConfig, credential: string | null): V1Client => {
+  const transport = macTransport(config, credential);
+  return createORPCClient<V1Client>(
+    new RPCLink({
+      fetch: async (url, init) => await transport.fetch(new Request(url, init)),
+      origin: transport.origin,
+      url: V1_RPC_PATH,
+    }),
+  );
+};
+
+// a page that goes on to reload would drop the call, so it waits, and this long at most, so an
+// unreachable cloud holds no sign-out open
+const GIVE_BACK_WAIT_MS = 3000;
+
+// the account's device slot back for a credential this Mac dropped, best-effort: one the cloud did
+// not take leaves the device list naming this Mac, to remove
+export const giveBackDevice = async (config: ShellConfig, credential: string): Promise<void> => {
+  const patience = new AbortController();
+  const timer = setTimeout(() => {
+    patience.abort();
+  }, GIVE_BACK_WAIT_MS);
+  try {
+    await macClient(config, credential).account.signOut(undefined, { signal: patience.signal });
+  } catch {
+    // the sign-out goes on without it
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
 // The Mac's outbox is on disk, so nothing asks before the page goes; what a holder keeps in memory
 // it writes when the shell says it is about to quit or restart, and the page answers once all of
@@ -81,14 +119,21 @@ export const createShellLeaveGuard = (): LeaveGuard => {
   };
 };
 
-// this Mac leaves its account: the shell lets go of the credential, the replica's file and every
-// file of the account, and the page opens again on the sign-in. A sign-out, the replica and every
-// wire call may each ask, and share the one leaving; only one that failed goes again
+// the shell lets go of the credential, the replica's file and every file of the account, then the
+// page of what its own storage holds; answers the credential let go
+const forgetThisMac = async (): Promise<KeptCredential | null> => {
+  const kept = await shellCredential.forget();
+  forgetAccountStorage();
+  return kept;
+};
+
+// this Mac leaves its account, and the page opens again on the sign-in. A sign-out, the replica
+// and every wire call may each ask, and share the one leaving; only one that failed goes again
 const leaveAccount = (reload: () => void): (() => Promise<void>) => {
   let leaving: Promise<void> | null = null;
   const leave = async (): Promise<void> => {
     try {
-      await shellCredential.forget();
+      await forgetThisMac();
     } catch (error) {
       leaving = null;
       throw error;
@@ -99,6 +144,20 @@ const leaveAccount = (reload: () => void): (() => Promise<void>) => {
     leaving ??= leave();
     await leaving;
   };
+};
+
+// this Mac leaves an account whose library never opened, so no wire stands to sign out over: the
+// copy goes first, then the device, under the credential the shell let go
+export const signOutUnopened = async (): Promise<void> => {
+  const kept = await forgetThisMac();
+  if (kept === null) {
+    return;
+  }
+  try {
+    await giveBackDevice(await shellConfig(), kept.credential);
+  } catch {
+    // a shell that gave no config: the sign-out goes on without it
+  }
 };
 
 // `reload` opens the page again from the start: the library, or the sign-in once signed out

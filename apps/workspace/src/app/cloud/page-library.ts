@@ -21,6 +21,7 @@ import type {
 import { uuidV7 } from "@repo/notes/library/uuid-v7";
 import { z } from "zod";
 
+import { forgetAccountStorage } from "./account-storage";
 import type { LeaveGuard } from "./leave-guard";
 import { keepSession } from "./session-keeper";
 import { createCloudWire, watchSessionEnd } from "./v1";
@@ -143,6 +144,8 @@ export const openPageLibrary = async (
 ): Promise<PageOpening> => {
   const account = await readSession(origin);
   if (account === null) {
+    // a session ends with no tab open too, so nothing else saw it go
+    forgetAccountStorage();
     return { kind: "signed-out" };
   }
   const transport: ReplicaTransport = { fetch: async (request) => await fetch(request), origin };
@@ -162,7 +165,14 @@ export const openPageLibrary = async (
   keepSession(pageClock, async () => {
     await readSession(origin);
   });
-  watchSessionEnd(opening.replica, onSessionEnd);
+  // below the build floor the tab keeps its session, and with it what it remembers
+  const sessionEnded = (end: SessionEnd): void => {
+    if (end !== "outdated") {
+      forgetAccountStorage();
+    }
+    onSessionEnd(end);
+  };
+  watchSessionEnd(opening.replica, sessionEnded);
   return {
     kind: "ready",
     library: {
@@ -171,6 +181,7 @@ export const openPageLibrary = async (
       fileUrl,
       leave,
       left: async (reason) => {
+        forgetAccountStorage();
         leave.drop();
         window.location.assign(reason === "deleted" ? "/" : SIGN_IN_PATH);
         await Promise.resolve();
@@ -180,7 +191,7 @@ export const openPageLibrary = async (
       readFile: async (sha) =>
         staged.file(sha) ?? (await fileAt(`${origin}${fileUrl(sha)}`, transport.fetch)),
       replica: opening.replica,
-      wire: createCloudWire(transport, onSessionEnd),
+      wire: createCloudWire(transport, sessionEnded),
     },
   };
 };

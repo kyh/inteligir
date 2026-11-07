@@ -50,7 +50,7 @@ pub async fn credential_keep(app: AppHandle, credential: DeviceCredential) -> Sh
 }
 
 #[tauri::command]
-pub async fn credential_forget(app: AppHandle) -> ShellResult<()> {
+pub async fn credential_forget(app: AppHandle) -> ShellResult<Option<DeviceCredential>> {
     blocking(app, Account::forget).await
 }
 

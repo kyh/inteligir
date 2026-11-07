@@ -13,6 +13,7 @@ name = "inteligir_desktop"
 tauri-build = { version = "2.7", features = ["isolation"] }
 
 [dependencies]
+nix = { version = "0.31", features = ["hostname"] }
 # the network the file cache fetches a miss over, the same client and TLS the updater's plugin
 # links, so the shell carries one HTTP stack and one crypto provider
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
@@ -21,6 +22,7 @@ rustls = { version = "0.23", default-features = false, features = ["ring"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+signal-hook = "0.3"
 tauri = { version = "2.12", features = ["image-png", "isolation", "tray-icon"] }
 tauri-plugin-dialog = "2.8"
 tauri-plugin-opener = "2.7"
@@ -37,10 +39,6 @@ apple-native-keyring-store = { version = "1", features = ["keychain"] }
 # sample store, in a file under the app's data dir, stands in for it there
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 keyring-core = { version = "1", features = ["sample"] }
-
-[target.'cfg(unix)'.dependencies]
-nix = { version = "0.31", features = ["hostname"] }
-signal-hook = "0.3"
 
 [dev-dependencies]
 tempfile = "3"

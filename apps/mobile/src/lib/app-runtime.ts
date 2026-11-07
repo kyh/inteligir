@@ -28,6 +28,7 @@ import { getCloudUrl } from "./cloud-url";
 import { composeRuntime } from "./compose-runtime";
 import type { AppRuntime, LogoutOutcome, PhoneSession } from "./compose-runtime";
 import { openExpoReplicaSql } from "./expo-replica-sql";
+import { clearHttpCache } from "./http-cache";
 
 // the version app.config.js read from the package. a build that carries none says 0.0.0, which
 // the cloud refuses as too old rather than letting a build it cannot place through
@@ -85,6 +86,7 @@ let runtime: AppRuntime | null = null;
 const build = (): AppRuntime => {
   const rt = composeRuntime({
     build: { platform: "mobile", version: appVersion() },
+    clearHttpCache,
     clock: {
       after: (ms, run) => {
         const timer = setTimeout(run, ms);

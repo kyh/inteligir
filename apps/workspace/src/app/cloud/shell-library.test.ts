@@ -4,6 +4,7 @@ import { implement } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { CLIENT_BUILD_HEADER } from "@repo/contract/cloud/client-build";
 import { V1_RPC_PATH, v1Contract } from "@repo/contract/cloud/v1";
+import { headingCollapseKeys, toggleHeadingCollapse } from "@repo/editor/heading-collapse";
 import { openMemorySql } from "@repo/library-replica/memory-sql";
 import { toast } from "@repo/ui/components/sonner";
 import { emit } from "@tauri-apps/api/event";
@@ -12,6 +13,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { APP_COMMANDS, LEAVING_EVENT } from "../../shell/ipc-contract";
 import type { KeptCredential, ShellConfig } from "../../shell/shell-config";
 import { clearShell, mockShell, replicaReplies, reply } from "../../shell/test-support/mock-shell";
+import { PREFS, readPref, writePref } from "../prefs";
 import { createShellLeaveGuard, macTransport, openShellLibrary } from "./shell-library";
 
 afterEach(() => {
@@ -251,6 +253,36 @@ describe("a credential the cloud no longer takes", () => {
       expect(reload).toHaveBeenCalledOnce();
     });
     expect(forget).toHaveBeenCalledOnce();
+    void library.replica.close();
+    memory.close();
+  });
+});
+
+const remembered = (): void => {
+  writePref(PREFS.libraryScope, { kind: "tag", tag: "field" });
+  toggleHeadingCollapse("item-1", "a-fold");
+};
+
+describe("what the page's own storage holds of an account", () => {
+  it("goes with a credential the cloud no longer takes", async () => {
+    const { library, memory, reload } = await openedRefused("UNAUTHORIZED");
+    remembered();
+    await library.replica.sync();
+    await vi.waitFor(() => {
+      expect(reload).toHaveBeenCalledOnce();
+    });
+    expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "all" });
+    expect([...headingCollapseKeys("item-1")]).toStrictEqual([]);
+    void library.replica.close();
+    memory.close();
+  });
+
+  it("goes with a sign-out from Settings", async () => {
+    const { library, memory, reload } = await openedRefused("UNAUTHORIZED");
+    remembered();
+    await library.left("signed-out");
+    expect(reload).toHaveBeenCalledOnce();
+    expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "all" });
     void library.replica.close();
     memory.close();
   });

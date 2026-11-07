@@ -34,16 +34,19 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `apps/web/src/worker/wire/account-router.ts`, `apps/web/src/worker/device/devices.ts`,
   `apps/workspace/src/app/settings/account-section.tsx`.
 
-- **A CREDENTIAL THIS DEVICE DROPS IS REVOKED BY THIS DEVICE, best-effort and
-  never waited on.** The phone's sign-out takes its copy away first and only
-  then revokes, unawaited, so an unreachable cloud holds no sign-out open and a
-  phone whose copy would not go opens it again, still the account's; a sign-in
-  it could not keep or open lets that device go the same way. Rejected:
+- **A CREDENTIAL THIS DEVICE DROPS IS REVOKED BY THIS DEVICE, best-effort, and
+  no unreachable cloud holds a sign-out open.** The phone's sign-out takes its
+  copy away first and only then revokes, unawaited, and a phone whose copy would
+  not go opens it again, still the account's; a sign-in it could not keep or
+  open lets that device go the same way. The Mac does the same from a library
+  that would not open, or a sign-in it could not keep, where the page waits
+  three seconds at most, since the reload after would drop the call. Rejected:
   forgetting the credential alone (the row stays active against the
   twenty-device cap, so repeated sign-ins lock the account out); revoking
   before the wipe (a failed wipe left a library on a dead credential, whose
   edits nothing could send). `apps/mobile/src/lib/compose-runtime.ts`,
-  `apps/mobile/src/login/login-store.ts`.
+  `apps/mobile/src/login/login-store.ts`,
+  `apps/workspace/src/app/cloud/shell-library.ts`.
 
 - **AN ACCOUNT IS DELETED FROM THE APP, THE PASSWORD ASKED AGAIN, THROUGH BETTER
   AUTH'S `deleteUser`** (owner decision: whoever lost their Mac deletes from any
@@ -291,7 +294,10 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   the request's range and preconditions: 206 from `object.range` for any single
   range, one spanning the file included, 416 for one past the end, a
   multi-part ask whole, 304 and 412; every file but a PDF is served under a
-  script-less sandbox. A file's row is the cell's alone: a device asks for a
+  script-less sandbox. A device's read answers `no-store`, a file and an export
+  alike, since it keeps what it reads where a sign-out empties it, and an HTTP
+  cache under it would hold those bytes and the bearer past that; a tab's
+  answers immutable. A file's row is the cell's alone: a device asks for a
   file by the sha an item's row names, and takes its type from the answer.
   Rejected: a byte-range parser of our own (R2 parses the header); a signed
   URL (a credential in a logged address); a file's row synced to every device
