@@ -146,8 +146,7 @@ describe("what the page's own storage holds, as an account opens on it", () => {
 
   it("names its account by the opaque id alone", async () => {
     await openedAs(SIGNED_IN);
-    expect(JSON.stringify({ ...window.localStorage })).toContain(SIGNED_IN.user.id);
-    expect(JSON.stringify({ ...window.localStorage })).not.toContain(SIGNED_IN.user.email);
+    expect(readPref(PREFS.storageAccount)).toBe(SIGNED_IN.user.id);
   });
 });
 

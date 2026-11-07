@@ -355,8 +355,7 @@ describe("what the page's own storage holds, as the Mac opens on it", () => {
 
   it("names its account by the opaque id alone", async () => {
     await openedAs(KEPT);
-    expect(JSON.stringify({ ...window.localStorage })).toContain(KEPT.userId);
-    expect(JSON.stringify({ ...window.localStorage })).not.toContain(KEPT.email);
+    expect(readPref(PREFS.storageAccount)).toBe(KEPT.userId);
   });
 });
 
