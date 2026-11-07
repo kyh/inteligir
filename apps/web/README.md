@@ -264,9 +264,10 @@ and end them, and the account's deletion revokes every one.
 - **The site's pages ask for a session in the route, and remember the way
   back.** `/app/devices` is `ssr: false`; its `beforeLoad` sends a signed-out
   visit to `/app/sign-in?next=<the page>`, and its loader does the same when
-  the list answers `UNAUTHORIZED`. Sign-in follows `next` through
-  `internalNextPath` (`src/lib/next-path.ts`, the open-redirect guard), else
-  lands on `SIGNED_IN_HOME`, as sign-up and bare `/app` do. The list loads in
+  the list answers `UNAUTHORIZED`. Sign-in and sign-up follow `next` through
+  `internalNextPath` (`src/lib/next-path.ts`, the open-redirect guard), each
+  handing it to the other, else land in the library, `SIGNED_IN_HOME`, as bare
+  `/app` does, each by a document load. The list loads in
   the route's loader through `account.devices` on the session's cookie, and a
   refusal is said in its declared words (`refusalText`), so a failure is the
   route's error view with a retry, never a page stuck on Loading. The auth forms submit

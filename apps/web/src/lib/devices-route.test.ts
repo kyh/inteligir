@@ -35,5 +35,6 @@ describe("the devices page's failed load", () => {
     expect(html).toContain("Too many requests.");
     expect(html).toContain('role="alert"');
     expect(html).toMatch(/<button[^>]*>.*Try again.*<\/button>/su);
+    expect(html).toMatch(/<a\b[^>]*href="\/library"[^>]*>Open your library<\/a>/u);
   });
 });

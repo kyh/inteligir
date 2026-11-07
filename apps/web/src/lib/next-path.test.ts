@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { internalNextPath } from "./next-path";
+
+import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
+
+import { internalNextPath, returnSearchSchema, signedInLanding } from "./next-path";
 
 describe("the sign-in return path", () => {
   it("carries a same-document path's query through unchanged", () => {
@@ -35,5 +38,17 @@ describe("the sign-in return path", () => {
     ]) {
       expect(internalNextPath(value), String(value)).toBeNull();
     }
+  });
+});
+
+describe("where a sign-in or a sign-up lands", () => {
+  it("follows a way back that stays on this origin", () => {
+    const consent = "/connect/authorize?client_id=claude#top";
+    expect(signedInLanding(consent)).toBe(consent);
+  });
+
+  it("lands in the library with no way back, or one that leaves this origin", () => {
+    expect(signedInLanding(returnSearchSchema.parse({}).next)).toBe(LIBRARY_PAGE_PATH);
+    expect(signedInLanding("//evil.example/steal")).toBe(LIBRARY_PAGE_PATH);
   });
 });

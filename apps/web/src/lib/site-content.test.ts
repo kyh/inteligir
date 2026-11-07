@@ -106,6 +106,13 @@ describe("the site's markdown", () => {
     expect(contactMarkdown).toContain(siteConfig.contact.email);
   });
 
+  it.each([
+    ["home", homeMarkdown],
+    ["llms.txt", llmsTxt],
+  ])("%s links the library", (_page, markdown) => {
+    expect(markdown).toContain(`(${siteConfig.url}/library)`);
+  });
+
   it("keeps llms.txt free of the engine's words", () => {
     const prose = llmsTxt.replaceAll(/\]\([^)]*\)/gu, "]");
     expect(prose).not.toMatch(/\bvaults?\b/iu);
@@ -155,6 +162,15 @@ describe("what a page says about the product", () => {
     );
     expect(text).toContain("The agent is built in.");
   });
+
+  it.each(["/", "/about", "/contact", "/privacy", "/terms"])(
+    "%s offers the way into the library",
+    async (path) => {
+      await expect(renderedDocument(path)).resolves.toMatch(
+        /<a\b[^>]*href="\/library"[^>]*>Open your library<\/a>/u,
+      );
+    },
+  );
 
   it.each(Object.values(PAGES).map((page) => [page.path, page.description] as const))(
     "%s describes itself in the product's terms",

@@ -44,7 +44,7 @@ const assertDocumentPolicy = async (origin: string): Promise<void> => {
 
 export const browserSmoke: Scenario = {
   description:
-    "the library's page served by the built Worker at /library under its own policy, a signed-out tab sent to the site's sign-in and back, the replica pulled into the tab, an item opened and edited into the cell, the palette chord safe over the editor, and a clean console after a settle window",
+    "the library's page served by the built Worker at /library under its own policy, a signed-out tab sent to the site's sign-in and back, a bare sign-in landing in the library, the replica pulled into the tab, an item opened and edited into the cell, the palette chord safe over the editor, and a clean console after a settle window",
   name: "browser-smoke",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -76,6 +76,9 @@ export const browserSmoke: Scenario = {
     );
     const back = new URL(await fresh(["get", "url"])).searchParams.get("next");
     expect(back === `${LIBRARY_PAGE_PATH}/settings`, `the sign-in comes back to ${String(back)}`);
+
+    ctx.log("a sign-in nothing asked to come back from lands in the library");
+    await fresh.signInBare(worker);
     await fresh.close();
 
     ctx.log("the signed-in tab pulled the library: the seeded item's card is in the grid");

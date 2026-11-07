@@ -608,3 +608,14 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   cap); the id from the link (a link could name another extension).
   `apps/web/src/routes/connect/extension.tsx`,
   `apps/web/src/worker/wire/account-router.ts`.
+
+- **A SIGN-IN OR SIGN-UP LANDS IN THE LIBRARY UNLESS SOMETHING ASKED IT BACK, AND
+  THE SITE LINKS THE LIBRARY.** `signedInLanding` follows a `next` the
+  open-redirect guard passes, else `/library`, by a document load, since the
+  site's router holds neither that page nor the consent page; sign-in and
+  sign-up hand `next` to each other. One link, in the site's header and on
+  Devices, serves someone signed in and someone not, since the page sends a
+  signed-out tab to sign in and back. Rejected: Devices as the landing (a person
+  with only a browser never reached their library); a sign-out passing its own
+  `next` (the landing is already the library).
+  `apps/web/src/lib/next-path.ts`, `apps/web/src/components/library-link.tsx`.

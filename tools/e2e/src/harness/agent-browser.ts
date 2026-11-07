@@ -22,6 +22,8 @@ interface ScenarioBrowserControls {
   // back to the library's page, and returns once the page's rail and `ready` mounted. Sign-in is the
   // page's first run: there is nothing to choose before it.
   openLibrary: (worker: CloudWorker, options?: OpenLibraryOptions) => Promise<void>;
+  // the same sign-in with nothing asking to come back, which lands in the library
+  signInBare: (worker: CloudWorker) => Promise<void>;
   close: () => Promise<void>;
 }
 
@@ -257,24 +259,27 @@ export const createScenarioBrowser = (
   launch: ScenarioBrowserOptions = {},
 ): ScenarioBrowser => {
   const run = agentBrowserSession(label, launch.launchFlags);
+  const signIn = async (signInUrl: string): Promise<void> => {
+    await run(["open", signInUrl], 60_000);
+    await run(["wait", "#email"], 60_000);
+    await run(["fill", "#email", OWNER.email]);
+    await run(["fill", "#password", OWNER.password]);
+    await run(["click", 'button[type="submit"]']);
+    await run(["wait", LIBRARY_RAIL], 90_000);
+  };
   const controls: ScenarioBrowserControls = {
     close: async () => {
       await closeQuietly(run);
     },
     openLibrary: async (worker, options = {}) => {
       const next = `${LIBRARY_PAGE_PATH}${options.path ?? ""}`;
-      await run(
-        ["open", `${worker.origin}/app/sign-in?${new URLSearchParams({ next }).toString()}`],
-        60_000,
-      );
-      await run(["wait", "#email"], 60_000);
-      await run(["fill", "#email", OWNER.email]);
-      await run(["fill", "#password", OWNER.password]);
-      await run(["click", 'button[type="submit"]']);
-      await run(["wait", LIBRARY_RAIL], 90_000);
+      await signIn(`${worker.origin}/app/sign-in?${new URLSearchParams({ next }).toString()}`);
       if (options.ready !== undefined) {
         await run(["wait", options.ready], 90_000);
       }
+    },
+    signInBare: async (worker) => {
+      await signIn(`${worker.origin}/app/sign-in`);
     },
   };
   return Object.assign(run, controls);
