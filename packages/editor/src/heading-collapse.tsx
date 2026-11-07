@@ -111,15 +111,16 @@ export const toggleHeadingCollapse = (itemId: string, key: string): void => {
   foldsStore.setState((folds) => new Map(folds).set(itemId, keys), true);
 };
 
-// every item's folds go: the account they belong to left this device
+// every item's folds go: the account they belong to left this device. Storage first: a mounted
+// editor reads it again the moment the store moves
 export const forgetHeadingFolds = (): void => {
-  restored.clear();
-  foldsStore.setState(new Map(), true);
   try {
     localStorage.removeItem(STORAGE_KEY);
   } catch {
     // storage unavailable
   }
+  restored.clear();
+  foldsStore.setState(new Map(), true);
 };
 
 const NO_FOLDS: ReadonlySet<string> = new Set();

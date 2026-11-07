@@ -139,6 +139,21 @@ describe("folds over a live document", () => {
     expect(hiddenBlocks()).toStrictEqual(["inside", "a body"]);
   });
 
+  it("opens the open item's folds when the account leaves, memory and storage alike", () => {
+    mountNote("notes/fold-forgotten.md", [h2("A"), p("a body")]);
+    const written = stubStorage();
+
+    fireEvent.click(chevronOf("A"));
+    expect(hiddenBlocks()).toStrictEqual(["a body"]);
+
+    act(() => {
+      forgetHeadingFolds();
+    });
+    expect(hiddenBlocks()).toStrictEqual([]);
+    expect([...headingCollapseKeys("notes/fold-forgotten.md")]).toStrictEqual([]);
+    expect(written.size).toBe(0);
+  });
+
   it("keeps none of a heading's words in the page's storage", () => {
     mountNote("notes/fold-private.md", [h2("Termination plan for Dana"), p("a body")]);
     const written = stubStorage();
