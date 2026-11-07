@@ -65,6 +65,8 @@ and cited.
   make holds what is filed in it, since its id names nothing at the cell; let go,
   it takes the ops on it along and what was filed in it lands unfiled, in the one
   transaction, while a folder that stands files what comes whatever parked on it.
+  A make let go takes the writes on its item along in that transaction, the words
+  going with the card, and a delete or a restore of it lets its id go.
   A make the cell folds onto the item at its address takes the writes naming it
   along, in its landing's
   transaction, and a block they name there settles as any other; a delete or a
@@ -75,7 +77,7 @@ and cited.
   refused write; a whole-item retry (two devices' edits to different blocks would
   meet); stopping the pass on a row that cannot change (every later write and the
   pull wait on it, with nothing for the person to answer); parking a row on a
-  folded id (its text shows nowhere and no resend can pass); filing past a folder
+  folded or let-go id (its text shows nowhere and no resend can pass); filing past a folder
   the cell has yet to hold (a note lands with an id no folder takes, a link parks
   not-found); a delete following
   the card to the item it met (an older item binned for a duplicate).

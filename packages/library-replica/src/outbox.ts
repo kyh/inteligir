@@ -26,10 +26,11 @@ import {
   foldersFiledIn,
   foldersMadeBy,
   itemIdsOf,
+  itemsMadeBy,
   repointedOp,
   shasNamed,
   stagedOf,
-  unfiledOp,
+  unmadeOp,
 } from "./outbox-ops";
 import type { OutboxOp, WriteOp } from "./outbox-ops";
 import { deleteAllRows, deleteRow, insertRow, readRows, saveRow } from "./outbox-rows";
@@ -774,21 +775,22 @@ export const createOutbox = (context: OutboxContext): Outbox => {
         if (row?.state !== "parked") {
           return null;
         }
-        // a folder let go is an id the cell will never hold, so nothing queued may go on naming it
-        const gone = new Set(foldersMadeBy(row.op));
+        // a folder or an item let go is an id the cell will never hold, so nothing queued may go on
+        // naming it: a write on an item that never lands parks with no text to show for it
+        const gone = new Set([...foldersMadeBy(row.op), ...itemsMadeBy(row.op)]);
         const named = (op: OutboxOp): boolean =>
           [...holdsOf(op), ...foldersFiledIn(op)].some((id) => gone.has(id));
-        const unfiled = rows
+        const followed = rows
           .filter((held) => held.seq !== seq && named(held.op))
-          .map((held) => ({ held, op: unfiledOp(held.op, gone) }));
+          .map((held) => ({ held, op: unmadeOp(held.op, gone) }));
         await sql.exclusive(async (tx) => {
           await runPlanAsync(tx, deleteRow(seq));
-          await runPlanAsync(tx, saveRewritten(unfiled));
+          await runPlanAsync(tx, saveRewritten(followed));
         });
         forget(seq);
-        await adopt(unfiled);
+        await adopt(followed);
         await release(row.op);
-        return touchedItems([row.op, ...unfiled.map(({ held }) => held.op)].flatMap(itemIdsOf));
+        return touchedItems([row.op, ...followed.map(({ held }) => held.op)].flatMap(itemIdsOf));
       });
       if (touched !== null) {
         touched.kinds.add("folder");

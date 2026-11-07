@@ -171,6 +171,15 @@ export const itemIdsOf = (op: OutboxOp): readonly string[] => {
   }
 };
 
+// a delete or a restore with the ids `gone` let go, null once it names nothing else
+const withoutIds = (
+  op: Extract<OutboxOp, { kind: "delete" | "restore" }>,
+  gone: ReadonlySet<string>,
+): OutboxOp | null => {
+  const ids = op.ids.filter((id) => !gone.has(id));
+  return ids.length === 0 ? null : { ...op, ids };
+};
+
 // a row's op once the make `from` folded onto the item `to`. A write is the person's words, which go
 // on to `to`. A delete or a restore named the card, which the fold took away already, and asks
 // nothing of `to`, an older item with notes of its own: it lets `from` go, and is null once it names
@@ -182,8 +191,7 @@ export const repointedOp = (op: OutboxOp, from: string, to: string): OutboxOp | 
     }
     case "delete":
     case "restore": {
-      const ids = op.ids.filter((id) => id !== from);
-      return ids.length === 0 ? null : { ...op, ids };
+      return withoutIds(op, new Set([from]));
     }
     case "create":
     case "saveLink":
@@ -196,6 +204,10 @@ export const repointedOp = (op: OutboxOp, from: string, to: string): OutboxOp | 
     // no default
   }
 };
+
+// the item a row makes, which the cell holds nothing of until it lands
+export const itemsMadeBy = (op: OutboxOp): readonly string[] =>
+  "input" in op ? [op.input.id] : [];
 
 // the folders a row makes, which the cell holds nothing of until it lands
 export const foldersMadeBy = (op: OutboxOp): readonly string[] =>
@@ -547,12 +559,15 @@ export const coalesceWrites = (queued: WriteOp, next: WriteOp): WriteOp => ({
   ],
 });
 
-// a row's op once the folders `gone` will never exist: what it files there lands unfiled, an op on
-// one of them goes, and null is a row left asking nothing
-export const unfiledOp = (op: OutboxOp, gone: ReadonlySet<string>): OutboxOp | null => {
+// a row's op once the folders and the items `gone` will never exist: what it files there lands
+// unfiled, an op on one of them goes, and null is a row left asking nothing
+export const unmadeOp = (op: OutboxOp, gone: ReadonlySet<string>): OutboxOp | null => {
   const standing = (id: string | null): string | null => (id !== null && gone.has(id) ? null : id);
   switch (op.kind) {
     case "write": {
+      if (gone.has(op.itemId)) {
+        return null;
+      }
       const ops = compactOps(
         op.ops.map((libraryOp) =>
           libraryOp.op === "set" && libraryOp.field === "folderId"
@@ -587,9 +602,11 @@ export const unfiledOp = (op: OutboxOp, gone: ReadonlySet<string>): OutboxOp | n
         );
       return ops.length === 0 ? null : { ...op, ops };
     }
-    case "keep":
     case "delete":
     case "restore": {
+      return withoutIds(op, gone);
+    }
+    case "keep": {
       return op;
     }
     // no default

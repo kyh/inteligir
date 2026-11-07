@@ -711,6 +711,48 @@ describe("the replica engine against the account's cell", () => {
   );
 
   it(
+    "takes what was written on a parked make along when it is let go, leaving nothing to park",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("parked-make");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      const folderId = await folderMade(laptop, "0190ffff-0000-7000-8000-000000000051", "Going");
+      await laptop.replica.sync();
+      await phone.replica.sync();
+      await laptop.replica.writeFolders([{ id: folderId, op: "delete" }]);
+      await laptop.replica.sync();
+
+      const card = await phone.replica.saveLink({
+        folderId,
+        tags: [],
+        url: "https://example.com/article",
+      });
+      await write(phone.replica, card.id, [
+        { block: paragraph("n1", "my words"), op: "insert", ord: "a0", section: "note" },
+      ]);
+      const other = await phone.replica.createNote({
+        blocks: [],
+        folderId: null,
+        tags: [],
+        title: "Going too",
+      });
+      await phone.replica.deleteItems([card.id, other.id]);
+      await phone.replica.sync();
+      expect(phone.replica.status().parked).toMatchObject([{ itemIds: [card.id] }]);
+      const [parked] = phone.replica.status().parked;
+
+      await phone.replica.discard(parked?.seq ?? 0);
+      await phone.replica.sync();
+
+      expect(phone.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
+      await expect(phone.replica.item(card.id)).resolves.toBeNull();
+      expect(phone.replica.row(other.id)?.deletedAt).not.toBeNull();
+      expect(phone.asked.filter((path) => path === "/v1/rpc/library/write")).toHaveLength(0);
+    },
+  );
+
+  it(
     "parks a change to an address another item took in the cell's words, and it goes once that one does",
     { timeout: 30_000 },
     async () => {
