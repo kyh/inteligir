@@ -145,10 +145,6 @@ const openInShell = async (target: Root): Promise<void> => {
       );
       break;
     }
-    case "unsupported": {
-      target.render(TOO_OLD);
-      break;
-    }
     case "ready": {
       mount(opening.library, createHashHistory(), "/");
       break;

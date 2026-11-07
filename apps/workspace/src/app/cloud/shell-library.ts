@@ -36,9 +36,7 @@ const OUTDATED =
 export type ShellOpening =
   | { readonly kind: "ready"; readonly library: PageLibrary }
   // no credential kept: the first run, the sign-in
-  | { readonly kind: "signed-out"; readonly config: ShellConfig }
-  // the shell's SQLite is older than the library's schema needs, which a build of this app never is
-  | { readonly kind: "unsupported" };
+  | { readonly kind: "signed-out"; readonly config: ShellConfig };
 
 // `/v1` as this Mac reaches it: the cloud's origin, the build on every request, and the credential
 // once a sign-in kept one
@@ -123,8 +121,9 @@ export const openShellLibrary = async (
     sql: shellReplicaSql(),
     transport,
   });
+  // the shell compiles its SQLite in, so no build meets this; if one did, the window says it failed
   if (opening.kind === "unsupported") {
-    return { kind: "unsupported" };
+    throw new Error(`the shell's SQLite is ${opening.sqliteVersion}`);
   }
   const left = leaveAccount(reload);
   // a credential the cloud no longer takes (revoked elsewhere, the account deleted) can send
