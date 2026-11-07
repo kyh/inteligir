@@ -258,6 +258,12 @@ const summaryOf = async (accountId: string) =>
     };
   });
 
+const setRules = async (accountId: string, rules: string): Promise<void> => {
+  await inCell(cellOf(accountId), async (state) => {
+    await libraryIn(state, accountId).agent.setRules({ rules });
+  });
+};
+
 // a zip read into the account, to the job's end
 const imported = async (accountId: string, zip: Uint8Array) => {
   const started = await startImport(accountId, { bytes: zip, mime: "application/zip" }, "markdown");
@@ -468,7 +474,7 @@ describe("an export", () => {
   );
 
   it(
-    "writes the person's filing rules at its root, which a later import reads as a note",
+    "writes the person's filing rules at its root, which another library's import reads as a note",
     { timeout: 30_000 },
     async () => {
       const from = newAccountId();
@@ -495,6 +501,47 @@ describe("an export", () => {
     },
   );
 
+  it(
+    "reads the rules it wrote back into their library as nothing new, however often",
+    { timeout: 30_000 },
+    async () => {
+      const accountId = newAccountId();
+      const rules = "File recipes under Cooking.\n";
+      await withLibrary(accountId);
+      await setRules(accountId, rules);
+      const before = await summaryOf(accountId);
+      const { export: written } = await exported(accountId);
+      await expect(imported(accountId, await zipIn(accountId, written.id))).resolves.toMatchObject({
+        added: 0,
+        alreadySaved: before.items.length + 1,
+        state: "done",
+      });
+      await expect(
+        imported(accountId, await zipOf({ "AGENTS.md": encoder.encode(rules) })),
+      ).resolves.toMatchObject({ added: 0, alreadySaved: 1, state: "done" });
+      await expect(summaryOf(accountId)).resolves.toStrictEqual(before);
+    },
+  );
+
+  it("lands as a note a root AGENTS.md that says anything but the library's rules", async () => {
+    const accountId = newAccountId();
+    await setRules(accountId, "File recipes under Cooking.\n");
+    const differs = "File recipes under Baking.\n";
+    await imported(accountId, await zipOf({ "AGENTS.md": encoder.encode(differs) }));
+    await imported(
+      accountId,
+      await zipOf({ "Notes/AGENTS.md": encoder.encode("File recipes under Cooking.\n") }),
+    );
+    await inCell(cellOf(accountId), async (state) => {
+      const client = libraryIn(state, accountId);
+      await expect(client.agent.rules()).resolves.toStrictEqual({
+        rules: "File recipes under Cooking.\n",
+      });
+      const { items } = await client.items.list({});
+      expect(items.map((item) => item.title)).toStrictEqual(["AGENTS", "AGENTS"]);
+    });
+  });
+
   it("writes no file for filing rules the person cleared, which an import would land as a note", async () => {
     const accountId = newAccountId();
     await withLibrary(accountId);
@@ -518,12 +565,12 @@ describe("an export", () => {
   it("gives the filing rules the root name, and a note of that title the next", async () => {
     const accountId = newAccountId();
     await imported(accountId, await zipOf({ "AGENTS.md": encoder.encode("A note of my own.\n") }));
-    await inCell(cellOf(accountId), async (state) => {
-      await libraryIn(state, accountId).agent.setRules({ rules: "File recipes under Cooking.\n" });
-    });
+    await setRules(accountId, "File recipes under Cooking.\n");
     const { export: written } = await exported(accountId);
     const zip = await zipIn(accountId, written.id);
-    expect(await pathsIn(zip)).toStrictEqual(expect.arrayContaining(["AGENTS.md", "AGENTS 2.md"]));
+    await expect(pathsIn(zip)).resolves.toStrictEqual(
+      expect.arrayContaining(["AGENTS.md", "AGENTS 2.md"]),
+    );
 
     const into = newAccountId();
     await imported(into, zip);
@@ -534,11 +581,6 @@ describe("an export", () => {
   });
 
   it("writes the filing rules its plan found, whatever the person changes as it is written", async () => {
-    const setRules = async (accountId: string, rules: string) => {
-      await inCell(cellOf(accountId), async (state) => {
-        await libraryIn(state, accountId).agent.setRules({ rules });
-      });
-    };
     const late = newAccountId();
     await imported(late, await zipOf({ "AGENTS.md": encoder.encode("A note of my own.\n") }));
     const { export: first } = await exported(late, EXPORT_LIMITS, async (run) => {

@@ -1,7 +1,8 @@
 // The person's filing rules: one meta row of their own prose, which every turn of the built-in
 // agent sends after the person's message whenever it is new to the conversation
 // (`../agent/turn-message.ts`). Only the person writes it, from Settings
-// (`library.agent.setRules`); an export writes it out, and an import reads that file as a note.
+// (`library.agent.setRules`); an export writes it out, and an import passes over that file while
+// it says what the row says, and reads it as a note otherwise.
 
 import { readMeta, writeMeta } from "@repo/notes/library/library-queries";
 import { runPlan } from "@repo/notes/library/library-sql";
