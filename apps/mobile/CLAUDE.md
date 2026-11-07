@@ -192,8 +192,11 @@ how it ships.
   A page keeps its address to the last character, since it comes over as
   nothing but that address; text takes its link and its note from
   `apps/mobile/src/items/link-in-text.ts`, every spelling of the link out and
-  its lines kept. Rejected: expo-share-intent's `webUrl` for text (its search
-  stops at a bracket, a comma or an accented letter, so the wrong page is read);
+  its lines kept, so text holding a link is a link share whatever the
+  extension's search found, and is read on the phone as any other. Rejected:
+  expo-share-intent's `webUrl` for text (its search stops at a bracket, a comma
+  or an accented letter, so the wrong page is read, and finds nothing straight
+  after a bracket or a colon, so no page is);
   trimming a sentence's marks off every share (the real last character of
   `…/Oklahoma!`); reading a link up to the first space (a language with no
   spaces runs its sentence on from the link, and an emoji sits right after one).

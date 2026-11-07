@@ -184,6 +184,14 @@ describe("a link inside text", () => {
     expect(linkInText("no link here")).toBeNull();
     expect(linkInText("https://)")).toBeNull();
   });
+
+  it("reads past what only starts like a link to the first that is one", () => {
+    expect(linkInText("Start with https://, then see https://example.com/a")).toStrictEqual({
+      rest: "Start with https://, then see",
+      url: "https://example.com/a",
+    });
+    expect(linkInText("https://) and http://. and no more")).toBeNull();
+  });
 });
 
 describe("a link taken out of text", () => {

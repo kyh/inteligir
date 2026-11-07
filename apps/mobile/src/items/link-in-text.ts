@@ -170,10 +170,11 @@ export const withoutLink = (text: string, url: string): string => {
 };
 
 export const linkInText = (text: string): { url: string; rest: string } | null => {
-  const [found] = text.matchAll(LINK_IN_TEXT);
-  if (found === undefined) {
-    return null;
+  for (const found of text.matchAll(LINK_IN_TEXT)) {
+    const url = linkOf(found[0]);
+    if (isWebUrl(url)) {
+      return { rest: withoutLink(text, url), url };
+    }
   }
-  const url = linkOf(found[0]);
-  return isWebUrl(url) ? { rest: withoutLink(text, url), url } : null;
+  return null;
 };
