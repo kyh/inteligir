@@ -171,15 +171,19 @@ export const itemIdsOf = (op: OutboxOp): readonly string[] => {
   }
 };
 
-// a row's op with the item `from` named as `to`: a make folded onto the item already at its address
-export const repointedOp = (op: OutboxOp, from: string, to: string): OutboxOp => {
+// a row's op once the make `from` folded onto the item `to`. A write is the person's words, which go
+// on to `to`. A delete or a restore named the card, which the fold took away already, and asks
+// nothing of `to`, an older item with notes of its own: it lets `from` go, and is null once it names
+// nothing else
+export const repointedOp = (op: OutboxOp, from: string, to: string): OutboxOp | null => {
   switch (op.kind) {
     case "write": {
       return op.itemId === from ? { ...op, itemId: to } : op;
     }
     case "delete":
     case "restore": {
-      return { ...op, ids: [...new Set(op.ids.map((id) => (id === from ? to : id)))] };
+      const ids = op.ids.filter((id) => id !== from);
+      return ids.length === 0 ? null : { ...op, ids };
     }
     case "create":
     case "saveLink":

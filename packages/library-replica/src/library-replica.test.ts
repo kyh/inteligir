@@ -1554,7 +1554,7 @@ describe("a save the cell folds onto another item", () => {
     expect(cellText(cell, holder, "n1")).toBe("my note");
   });
 
-  it("carries a delete queued behind the save to the item holding the address", async () => {
+  it("drops a delete queued behind the save, leaving the item holding the address live", async () => {
     const cell = createFakeCell();
     const phone = await openDevice(cell, "phone");
     const { card, holder } = await savedOnBoth(cell, phone);
@@ -1562,7 +1562,21 @@ describe("a save the cell folds onto another item", () => {
     phone.network.setOffline(false);
     await phone.replica.sync();
     expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
-    expect(cell.item(holder)?.fields.deletedAt).not.toBeNull();
+    expect(cell.item(holder)?.fields.deletedAt).toBeNull();
+    expect(cell.calls).not.toContain("phone library/items/delete");
+  });
+
+  it("drops a restore of the card with the delete it undid", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const { card, holder } = await savedOnBoth(cell, phone);
+    await phone.replica.deleteItems([card]);
+    await phone.replica.restoreItems([card]);
+    phone.network.setOffline(false);
+    await phone.replica.sync();
+    expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
+    expect(cell.item(holder)?.fields.deletedAt).toBeNull();
+    expect(cell.calls).not.toContain("phone library/items/restore");
   });
 
   it("lands two offline saves of one address and what was written on each as one item", async () => {

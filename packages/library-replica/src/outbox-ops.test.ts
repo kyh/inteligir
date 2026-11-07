@@ -7,7 +7,13 @@ import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { mulberry32, pick } from "@repo/notes/test-support/seeded-random";
 import { describe, expect, it } from "vitest";
 
-import { coalesceWrites, compactAnnotations, compactOps, shasNamed } from "./outbox-ops";
+import {
+  coalesceWrites,
+  compactAnnotations,
+  compactOps,
+  repointedOp,
+  shasNamed,
+} from "./outbox-ops";
 import type { WriteOp } from "./outbox-ops";
 import { paragraph } from "./test-support/replica-harness";
 
@@ -272,4 +278,29 @@ describe(shasNamed, () => {
       shasNamed({ kind: "keep", staged: [{ mime: "image/png", sha: "c".repeat(64) }] }).size,
     ).toBe(0);
   });
+});
+
+describe(repointedOp, () => {
+  it("takes a write on the folded make to the item it landed on", () => {
+    const write: WriteOp = {
+      annotations: [],
+      bases: {},
+      itemId: "card",
+      kind: "write",
+      ops: [],
+      staged: [],
+    };
+    expect(repointedOp(write, "card", "holder")).toStrictEqual({ ...write, itemId: "holder" });
+  });
+
+  it.each(["delete", "restore"] as const)(
+    "lets the folded make go from a %s, asking nothing of the item it landed on",
+    (kind) => {
+      expect(repointedOp({ ids: ["card", "other"], kind }, "card", "holder")).toStrictEqual({
+        ids: ["other"],
+        kind,
+      });
+      expect(repointedOp({ ids: ["card"], kind }, "card", "holder")).toBeNull();
+    },
+  );
 });

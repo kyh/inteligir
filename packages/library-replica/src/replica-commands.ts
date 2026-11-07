@@ -21,6 +21,7 @@ import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import { runPlanAsync } from "@repo/notes/library/library-sql";
 import type { z } from "zod";
 
+import type { FoldedMakes } from "./folded-makes";
 import { basesOf, outboxOpSchema } from "./outbox-ops";
 import type { OutboxOp, StagedFile } from "./outbox-ops";
 import type { Outbox, StagedBytes } from "./outbox";
@@ -108,6 +109,7 @@ export interface Made {
 export interface CommandContext {
   readonly sql: ReplicaSql;
   readonly outbox: Outbox;
+  readonly folded: FoldedMakes;
   readonly clock: ReplicaClock;
   readonly newId: NewId;
   // a row was queued: the replica sends it as soon as it can
@@ -161,7 +163,7 @@ const staging = (file: NewFile): Staging => {
 };
 
 export const createCommands = (context: CommandContext): ReplicaCommands => {
-  const { clock, newId, outbox, sql } = context;
+  const { clock, folded, newId, outbox, sql } = context;
   // one command at a time, so each checks the item the one before it left
   const serial = serialLock();
 
@@ -275,8 +277,9 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
         return holder === null ? { folded: false, id } : { folded: true, id: holder };
       }),
 
-    write: async (itemId, input) =>
+    write: async (asked, input) =>
       await serial(async () => {
+        const itemId = folded.landedAs(asked);
         const item = await runPlanAsync(
           sql,
           readReplicaItem(itemId, rowsNaming(outbox.rows(), itemId)),

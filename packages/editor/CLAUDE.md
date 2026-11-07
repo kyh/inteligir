@@ -334,7 +334,9 @@ alone, and no walk narrows structurally.
   first read that fails says so and offers another, each in the person's words.
   A file still being kept counts as unsaved and a leave waits for it, since the
   block that names it is in no value until it is, while what the value holds
-  goes at once.
+  goes at once. A card that folds stays open under its id, which the replica
+  answers as the item it landed on, and that item lands as any change from
+  elsewhere (A FOLDED MAKE'S ID, in `packages/library-replica/CLAUDE.md`).
   A block keeps its section wherever it stands, and a new one is the note's, so
   a read of the page never takes what the person typed under it, which reads
   above the article when the item opens again. Rejected: the value mirrored

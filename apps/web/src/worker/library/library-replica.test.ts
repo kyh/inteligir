@@ -4,9 +4,12 @@
 // loads no sqlite-wasm (`../test-support/remote-replica-sql.ts`); everything else is the engine
 // as it ships.
 
+import { createItemSession } from "@repo/editor/item/item-session";
+import { headlessEditor } from "@repo/editor/markdown/markdown-doc";
 import { openLibraryReplica } from "@repo/library-replica/library-replica";
 import type { LibraryReplica } from "@repo/library-replica/library-replica";
-import type { BlockMerge, StagedBlobs } from "@repo/library-replica/replica-ports";
+import type { BlockMerge, ReplicaSql, StagedBlobs } from "@repo/library-replica/replica-ports";
+import { deferred } from "@repo/library-replica/test-support/deferred";
 import type { LibraryOp } from "@repo/notes/library/block-ops";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { env, exports } from "cloudflare:workers";
@@ -66,6 +69,12 @@ const stagedInMemory = (): StagedBlobs & {
   };
 };
 
+// a read a suite has stopped with its answer in hand, as a slow disk would leave it
+interface HeldRead {
+  readonly reached: Promise<void>;
+  readonly release: () => void;
+}
+
 interface Device {
   readonly replica: LibraryReplica;
   readonly blobs: ReturnType<typeof stagedInMemory>;
@@ -73,7 +82,40 @@ interface Device {
   readonly asked: string[];
   // the next answer is lost after the Worker acted on its request
   readonly loseAnswer: () => void;
+  // the next read of this statement waits, its answer in hand, until the suite lets it go
+  readonly holdRead: (statement: string) => HeldRead;
 }
+
+// a database whose reads a suite can stop one at a time
+const holdableSql = (sql: ReplicaSql) => {
+  let held: { readonly statement: string; readonly stop: () => Promise<void> } | null = null;
+  return {
+    holdRead: (statement: string): HeldRead => {
+      const reached = deferred();
+      const released = deferred();
+      held = {
+        statement,
+        stop: async () => {
+          reached.resolve();
+          await released.promise;
+        },
+      };
+      return { reached: reached.promise, release: released.resolve };
+    },
+    sql: {
+      ...sql,
+      all: async (statement, params) => {
+        const rows = await sql.all(statement, params);
+        const stopped = held;
+        if (stopped !== null && statement.includes(stopped.statement)) {
+          held = null;
+          await stopped.stop();
+        }
+        return rows;
+      },
+    } satisfies ReplicaSql,
+  };
+};
 
 let devices = 0;
 
@@ -87,6 +129,7 @@ const deviceOn = async (cookie: string, name: string): Promise<Device> => {
   let minted = 0;
   const prefix = devices.toString(16).padStart(4, "0");
   const blobs = stagedInMemory();
+  const { holdRead, sql } = holdableSql(remoteReplicaSql(`${name}-${crypto.randomUUID()}`));
   const opening = await openLibraryReplica({
     blobs,
     clock: { after: () => () => {}, now: () => Date.now() },
@@ -96,7 +139,7 @@ const deviceOn = async (cookie: string, name: string): Promise<Device> => {
       minted += 1;
       return `0190${prefix}-0000-7000-8000-${minted.toString(16).padStart(12, "0")}`;
     },
-    sql: remoteReplicaSql(`${name}-${crypto.randomUUID()}`),
+    sql,
     transport: {
       fetch: async (request) => {
         asked.push(new URL(request.url).pathname);
@@ -121,6 +164,7 @@ const deviceOn = async (cookie: string, name: string): Promise<Device> => {
   return {
     asked,
     blobs,
+    holdRead,
     loseAnswer: () => {
       lose = true;
     },
@@ -178,6 +222,47 @@ const sharedNote = async (laptop: Device, phone: Device): Promise<string> => {
   await laptop.replica.sync();
   await phone.replica.sync();
   return id;
+};
+
+// the device's editor over an item, as a host opens it, each pause ended by the suite's hand
+const openOn = async (device: Device, itemId: string) => {
+  const editor = headlessEditor();
+  let pause: (() => void) | null = null;
+  const session = createItemSession(itemId, editor, {
+    after: (_ms, run) => {
+      pause = run;
+      return () => {
+        pause = null;
+      };
+    },
+    notifyOverlap: () => {},
+    store: device.replica,
+  });
+  await session.start();
+  return {
+    // what the session makes of a change it has heard, written or read
+    caughtUp: async () => {
+      await session.read();
+    },
+    editor,
+    endPause: () => {
+      pause?.();
+    },
+    session,
+    words: () => JSON.stringify(editor.children),
+  };
+};
+
+// a link two devices saved apart: the phone's card still to go, the laptop's landed with a note
+const heldAddress = async (phone: Device, laptop: Device) => {
+  const url = "https://example.com/article";
+  const card = await phone.replica.saveLink({ folderId: null, tags: [], url });
+  const holder = await laptop.replica.saveLink({ folderId: null, tags: [], url });
+  await write(laptop.replica, holder.id, [
+    { block: paragraph("kept", "months of notes"), op: "insert", ord: "a0", section: "note" },
+  ]);
+  await laptop.replica.sync();
+  return { card, holder };
 };
 
 describe("the replica engine against the account's cell", () => {
@@ -415,6 +500,142 @@ describe("the replica engine against the account's cell", () => {
       await expect(textIn(phone.replica, holder.id, "n1")).resolves.toBe("my note");
       await laptop.replica.sync();
       await expect(textIn(laptop.replica, holder.id, "n1")).resolves.toBe("my note");
+    },
+  );
+
+  it(
+    "keeps a card open through its fold, its unsaved words going on to the item at its address",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("fold-open");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      const { card, holder } = await heldAddress(phone, laptop);
+      const open = await openOn(phone, card.id);
+
+      open.editor.tf.insertNodes(paragraph("n1", "written"), { at: [0] });
+      open.session.edited();
+      open.endPause();
+      await open.caughtUp();
+      open.editor.tf.insertText(" and typing", { at: { offset: 7, path: [0, 0] } });
+      open.session.edited();
+      await phone.replica.sync();
+      await open.caughtUp();
+
+      expect(open.session.status()).toMatchObject({ kind: "open", unsaved: true });
+      expect(open.words()).toContain("written and typing");
+      expect(open.words()).toContain("months of notes");
+
+      open.endPause();
+      await open.caughtUp();
+      await phone.replica.sync();
+      expect(open.session.status()).toMatchObject({ kind: "open", unsaved: false });
+      expect(phone.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
+      await laptop.replica.sync();
+      await expect(textIn(laptop.replica, holder.id, "n1")).resolves.toBe("written and typing");
+      await expect(textIn(laptop.replica, holder.id, "kept")).resolves.toBe("months of notes");
+    },
+  );
+
+  it(
+    "answers a card's id as the item it folded onto, for a screen that still holds it",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("fold-id");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      const { card, holder } = await heldAddress(phone, laptop);
+      const heard: boolean[] = [];
+      phone.replica.onChange((change) => {
+        heard.push(change.ids.has(card.id));
+      });
+      await phone.replica.sync();
+
+      await expect(phone.replica.item(card.id)).resolves.toMatchObject({ id: holder.id });
+      expect(phone.replica.row(card.id)).toBeNull();
+
+      heard.length = 0;
+      await write(laptop.replica, holder.id, [
+        await putText(laptop.replica, holder.id, "kept", "moved on"),
+      ]);
+      await laptop.replica.sync();
+      await phone.replica.sync();
+      expect(heard).toContain(true);
+      await expect(textIn(phone.replica, card.id, "kept")).resolves.toBe("moved on");
+    },
+  );
+
+  it(
+    "lands a write past its check on the item the card folded onto, parking nothing",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("fold-race");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      const { card, holder } = await heldAddress(phone, laptop);
+
+      const check = phone.holdRead("SELECT item_id FROM body_wants");
+      const writing = phone.replica.write(card.id, {
+        ops: [{ block: paragraph("n1", "just in"), op: "insert", ord: "a1", section: "note" }],
+      });
+      await check.reached;
+      await phone.replica.sync();
+      check.release();
+      await expect(writing).resolves.toMatchObject({ kind: "queued" });
+      await phone.replica.sync();
+
+      expect(phone.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
+      await laptop.replica.sync();
+      await expect(textIn(laptop.replica, holder.id, "n1")).resolves.toBe("just in");
+    },
+  );
+
+  it(
+    "drops a delete of a card that folded, leaving the item at its address where it is",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("fold-delete");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      const { card, holder } = await heldAddress(phone, laptop);
+      await write(phone.replica, card.id, [
+        { block: paragraph("n1", "my note"), op: "insert", ord: "a1", section: "note" },
+      ]);
+      const other = await phone.replica.createNote({
+        blocks: [],
+        folderId: null,
+        tags: [],
+        title: "Going too",
+      });
+      await phone.replica.deleteItems([card.id, other.id]);
+      await phone.replica.sync();
+
+      expect(phone.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
+      expect(phone.replica.row(holder.id)?.deletedAt).toBeNull();
+      expect(phone.replica.row(other.id)?.deletedAt).not.toBeNull();
+      await laptop.replica.sync();
+      expect(laptop.replica.row(holder.id)?.deletedAt).toBeNull();
+      expect(laptop.replica.row(other.id)?.deletedAt).not.toBeNull();
+      await expect(textIn(laptop.replica, holder.id, "n1")).resolves.toBe("my note");
+      await expect(textIn(laptop.replica, holder.id, "kept")).resolves.toBe("months of notes");
+    },
+  );
+
+  it(
+    "goes no further with a delete a screen asks of a card already folded",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("fold-late-delete");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      const { card, holder } = await heldAddress(phone, laptop);
+      await phone.replica.sync();
+
+      await phone.replica.deleteItems([card.id]);
+      expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
+      await phone.replica.sync();
+      expect(phone.replica.row(holder.id)?.deletedAt).toBeNull();
+      expect(phone.asked.filter((path) => path.endsWith("/items/delete"))).toHaveLength(0);
     },
   );
 
