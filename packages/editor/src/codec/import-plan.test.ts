@@ -565,6 +565,7 @@ describe("export, then import, gives the library back", () => {
     const bytes = new Map(
       files.flatMap((file) => (file.kind === "bytes" ? [[file.path, file.sha] as const] : [])),
     );
+    expect([...bytes.keys()]).toStrictEqual(["assets/kept.bin"]);
     expect(readFolder(texts, bytes).items.map((item) => item.fields)).toMatchObject([
       { kind: "file", originalSha: sha },
     ]);

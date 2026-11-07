@@ -167,9 +167,9 @@ root.
   and an unclaimed one lands in the folder above it. What an operating system
   leaves (`isOsLitterPath`) is passed over first, there too, since unpacking
   and zipping an export again puts it in those folders; a file a person saved
-  under such a name is written under a name of its bytes instead, and a folder
-  under that name and ` (folder)`, so an export writes nothing it would pass
-  over. Every mark of an export is read from the zip's root, and a Mac's
+  under such a name is written under the item's title as its original and a
+  name of its bytes as a block's file, and a folder under that name and
+  ` (folder)`, so an export writes nothing it would pass over. Every mark of an export is read from the zip's root, and a Mac's
   Compress of the unpacked folder puts all of it under that folder, so an import
   first takes off a sole top folder that every path but what an operating system
   left shares, when it holds a highlights' store or `assets/`
