@@ -226,14 +226,19 @@ export const dropImportRuns = (sql: SqlStatements, id: string): void => {
 // and stop the whole import, where an entry that long is one left out
 const IMPORT_ROW_MAX_BYTES = 1_900_000;
 
-export const fitsImportRow = (value: unknown): boolean =>
-  utf8ByteLength(JSON.stringify(value)) <= IMPORT_ROW_MAX_BYTES;
+interface ImportRow {
+  readonly idx: number;
+  readonly value: unknown;
+}
+
+export const fitsImportRow = (row: ImportRow): boolean =>
+  utf8ByteLength(JSON.stringify(row.value)) <= IMPORT_ROW_MAX_BYTES;
 
 export const putImportRows = (
   sql: SqlStatements,
   jobId: string,
   kind: string,
-  rows: readonly { readonly idx: number; readonly value: unknown }[],
+  rows: readonly ImportRow[],
 ): void => {
   for (const statement of chunkStatement({
     each: "(?, ?, ?, ?)",

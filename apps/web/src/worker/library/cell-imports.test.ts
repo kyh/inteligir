@@ -7,6 +7,7 @@ import { evictDurableObject } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 import { RAINDROP_EXPORT } from "@repo/notes/imports/test-support/raindrop-export";
+import type { JsonValue } from "@repo/notes/library/canonical-json";
 import { libraryIn } from "../fill/test-support/fill-cell";
 import {
   ended,
@@ -53,14 +54,17 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // past a Durable Object's 2 MB row, under what an item's text holds
 const PAST_A_ROW = 3 * 1024 * 1024;
 
-const blocksIn = (accountId: string) =>
-  inCell(cellOf(accountId), (state) =>
-    state.storage.sql
-      .exec("SELECT json FROM blocks")
-      .toArray()
-      .map((row) => String(row.json))
-      .join("\n"),
+const blocksIn = async (accountId: string) =>
+  await inCell(cellOf(accountId), (state) =>
+    JSON.stringify(state.storage.sql.exec("SELECT json FROM blocks").toArray()),
   );
+
+const importedZip = async (files: Readonly<Record<string, Uint8Array>>) => {
+  const accountId = newAccountId();
+  const started = await startImport(accountId, await zip(files), "markdown");
+  await runToEnd(accountId, started.jobId);
+  return { job: await jobOf(accountId, started.jobId), stored: await blocksIn(accountId) };
+};
 
 const items = (state: DurableObjectState) =>
   state.storage.sql
@@ -244,7 +248,7 @@ describe("a zip's highlights", () => {
   const ROOT = { createdAt: 1, quote: "marked words", source: "user", text: "", updatedAt: 1 };
   const REPLY = { createdAt: 2, parentId: "m-root", source: "user", text: "why", updatedAt: 2 };
 
-  const imported = async (store: Readonly<Record<string, unknown>>) => {
+  const imported = async (store: Readonly<Record<string, JsonValue>>) => {
     const accountId = newAccountId();
     const started = await startImport(
       accountId,
@@ -312,16 +316,9 @@ describe("a zip's highlights", () => {
 describe("what a zip's note left out", () => {
   const ID = "0195f3a0-5c1e-7000-8000-0000000000f1";
 
-  const imported = async (files: Readonly<Record<string, Uint8Array>>) => {
-    const accountId = newAccountId();
-    const started = await startImport(accountId, await zip(files), "markdown");
-    await runToEnd(accountId, started.jobId);
-    return { job: await jobOf(accountId, started.jobId), stored: await blocksIn(accountId) };
-  };
-
   it("counts a block past what an item holds, and lands the note around it", async () => {
     const fence = `\`\`\`inteligir-html\n${"x".repeat(600 * 1024)}\n\`\`\`\n`;
-    const { job, stored } = await imported({
+    const { job, stored } = await importedZip({
       "Big.md": encoder.encode(`The words around it.\n\n${fence}`),
     });
     expect(job).toMatchObject({ added: 1, unreadable: 1 });
@@ -329,7 +326,7 @@ describe("what a zip's note left out", () => {
   });
 
   it("counts a highlights' store past reading, and lands the note", async () => {
-    const { job, stored } = await imported({
+    const { job, stored } = await importedZip({
       "Marked.md": encoder.encode(`---\nid: ${ID}\n---\nSome words.\n`),
       [`.inteligir/annotations/${ID}.json`]: encoder.encode("{ not json"),
     });
@@ -364,7 +361,7 @@ describe("what a zip's note left out", () => {
     ["highlights' store", `.inteligir/annotations/${ID}.json`, `"${"x".repeat(PAST_A_ROW)}"`],
     ["frontmatter", "Long.md", `---\nauthor: ${"x".repeat(PAST_A_ROW)}\n---\nWords.\n`],
   ])("counts %s past what a plan row holds, and reads the rest", async (_, path, text) => {
-    const { job, stored } = await imported({
+    const { job, stored } = await importedZip({
       "Whole.md": encoder.encode("A whole note.\n"),
       [path]: encoder.encode(text),
     });
@@ -373,7 +370,7 @@ describe("what a zip's note left out", () => {
   });
 
   it("counts nothing for a link with no address, whose words stay", async () => {
-    const { job, stored } = await imported({
+    const { job, stored } = await importedZip({
       "Bare.md": encoder.encode("One [word]() and the rest.\n"),
     });
     expect(job).toMatchObject({ added: 1, unreadable: 0 });

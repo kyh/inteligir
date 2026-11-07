@@ -333,8 +333,8 @@ describe("the library's procedures", () => {
       const library = clientIn(state, clockAt());
       const { item } = await library.items.createNote({ markdown: "One." });
       const fence = `\`\`\`inteligir-html\n${"x".repeat(BLOCK_MAX_BYTES)}\n\`\`\`\n`;
-      const edit = () =>
-        library.items.edit({
+      const edit = async () =>
+        await library.items.edit({
           baseSeq: item.seq,
           edits: [{ newText: fence, oldText: "One." }],
           id: item.id,

@@ -201,6 +201,10 @@ export interface ExportDocPorts {
 const contentAddressed = (dir: string, sha: string, extension: string): string =>
   joinPath(dir, contentAddressedName(sha, extension));
 
+// a path an import would read as a note or pass over gives way to a folder of the file's bytes
+const readable = (sha: string, path: string): string =>
+  importPathKind(path) === "file" ? path : bytesFolderPath(sha, basenamePath(path));
+
 // every file an item holds, given one place per sha and role, in the places an import reads
 const filePlaces = (ports: ExportDocPorts, title: string) => {
   const { mediaType, store } = ports;
@@ -213,9 +217,6 @@ const filePlaces = (ports: ExportDocPorts, title: string) => {
     store.place(key, { path, sha });
     return path;
   };
-  // a path an import would read as a note or pass over gives way to a folder of the file's bytes
-  const readable = (sha: string, path: string): string =>
-    importPathKind(path) === "file" ? path : bytesFolderPath(sha, basenamePath(path));
   // an asset by its own name, under a folder of its bytes when another file holds that name
   const named = (sha: string, name: string): string => {
     const plain = joinPath(DEFAULT_ATTACHMENTS_FOLDER, name);

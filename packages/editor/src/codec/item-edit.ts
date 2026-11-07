@@ -437,7 +437,7 @@ const changeOf = (piece: EditedStretch, ports: EditPorts): PieceChange => {
 // a section's new blocks in their places. Two devices can mint one key, so what stands either side
 // of a new block may hold one key and leave no room: `placeInOrder` moves one of them, as a save
 // from the editor does
-const placed = (
+const placementOf = (
   section: LibrarySection,
   pieces: readonly Piece[],
   changes: ReadonlyMap<Piece, PieceChange>,
@@ -498,7 +498,7 @@ const changesOf = (
     kind: "changed",
     ops: [
       ...changes.flatMap((change) => change.ops),
-      ...[...adding].flatMap((section) => placed(section, pieces, byPiece, view)),
+      ...[...adding].flatMap((section) => placementOf(section, pieces, byPiece, view)),
     ],
   };
 };

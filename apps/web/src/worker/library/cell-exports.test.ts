@@ -321,11 +321,13 @@ describe("an export", () => {
       await expect(summaryOf(into)).resolves.toStrictEqual(await summaryOf(from));
       const names = await inCell(cellOf(into), (state) =>
         state.storage.sql
-          .exec("SELECT original_name AS name FROM items WHERE original_name IS NOT NULL")
+          .exec(
+            "SELECT original_name AS name FROM items WHERE original_name IS NOT NULL ORDER BY name",
+          )
           .toArray()
           .map((row) => row.name),
       );
-      expect(names.toSorted()).toStrictEqual([".env", ".hidden.png", "notes.txt", "readme.md"]);
+      expect(names).toStrictEqual([".env", ".hidden.png", "notes.txt", "readme.md"]);
     },
   );
 

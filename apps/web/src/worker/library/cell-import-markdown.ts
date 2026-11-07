@@ -217,8 +217,8 @@ const keepEntryFile = async (
     : { kind: "unreadable" };
 };
 
-const rowOf = (value: Entry): EntryRead =>
-  fitsImportRow(value) ? { kind: "row", value } : { kind: "unreadable" };
+const rowOf = (entry: ZipEntry, value: Entry): EntryRead =>
+  fitsImportRow({ idx: entry.index, value }) ? { kind: "row", value } : { kind: "unreadable" };
 
 const readEntry = async (
   host: ImportHost,
@@ -233,11 +233,11 @@ const readEntry = async (
     case "doc": {
       const text = await textOf(source, entry, ITEM_TEXT_MAX_BYTES);
       const front = text.slice(0, frontmatterEnd(text) ?? 0);
-      return rowOf({ kind, path: entry.path, text: front, zip: entry });
+      return rowOf(entry, { kind, path: entry.path, text: front, zip: entry });
     }
     case "rules":
     case "store": {
-      return rowOf({
+      return rowOf(entry, {
         kind,
         path: entry.path,
         text: await textOf(source, entry, ITEM_TEXT_MAX_BYTES),

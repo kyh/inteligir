@@ -98,7 +98,7 @@ const readExport = async (host: ImportHost, job: ImportJob): Promise<StepOutcome
   const plan = planRaindropImport(parse.rows, host.now());
   const rows = plan.items
     .map((item, idx) => ({ idx, value: plannedOf(item) }))
-    .filter((row) => fitsImportRow(row.value));
+    .filter(fitsImportRow);
   const written = apart(host.library, (scope) => {
     putImportRows(scope.storage, job.id, ROW, rows);
     advanceImport(scope.storage, job.id, {
