@@ -5,7 +5,7 @@
 
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { accessSync, constants, existsSync, readdirSync, statSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -31,8 +31,8 @@ const SINGLE_INSTANCE_SOCKET = "/tmp/com_inteligir_desktop_si.sock";
 const PAGE_LOADED = "[desktop] window loaded /library/";
 const BOOT_TIMEOUT_MS = 60_000;
 const EXIT_TIMEOUT_MS = 30_000;
-// what the hardened runtime may never be asked for here (NAT17): the shell runs no JIT, loads no
-// unsigned code and, unsandboxed, needs no network grant
+// what the hardened runtime may never be asked for here: the shell runs no JIT, loads no unsigned
+// code and, unsandboxed, needs no network grant
 const REFUSED_ENTITLEMENTS = [
   "com.apple.security.cs.allow-jit",
   "com.apple.security.cs.allow-unsigned-executable-memory",
@@ -53,6 +53,15 @@ const filesUnder = (dir: string): string[] =>
     .filter((entry) => entry.isFile())
     .map((entry) => path.relative(dir, path.join(entry.parentPath, entry.name)));
 
+const isExecutable = (file: string): boolean => {
+  try {
+    accessSync(file, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 // what the pack carries: the shell alone in MacOS, and nothing to run among its resources
 const checkPackContents = (): void => {
   if (!existsSync(appBinary)) {
@@ -65,10 +74,11 @@ const checkPackContents = (): void => {
   if (!existsSync(rustNotices) || statSync(rustNotices).size === 0) {
     fail(`the bundle carries no notices for the crates it links (${rustNotices})`);
   }
-  const resources = filesUnder(path.join(appDir, "Contents", "Resources"));
-  const runnable = resources.filter((file) => /(?:^|\/)(?:node|git|server)(?:\/|$)/u.test(file));
+  const resourcesDir = path.join(appDir, "Contents", "Resources");
+  const resources = filesUnder(resourcesDir);
+  const runnable = resources.filter((file) => isExecutable(path.join(resourcesDir, file)));
   if (runnable.length > 0) {
-    fail(`the bundle still carries a runtime: ${runnable.slice(0, 5).join(", ")}`);
+    fail(`the bundle carries something runnable: ${runnable.slice(0, 5).join(", ")}`);
   }
   log(
     `the bundle carries the shell and ${String(resources.length)} resources, none of them runnable`,
