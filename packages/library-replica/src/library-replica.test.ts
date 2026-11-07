@@ -1418,6 +1418,22 @@ describe("a restore the cell refuses", () => {
     expect(phone.replica.row(deleted)?.deletedAt).toBeNull();
   });
 
+  it("keeps the new op id it parked under across a relaunch", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const { deleted, holder } = await savedAgain(phone);
+    await phone.replica.restoreItems([deleted]);
+    await phone.replica.sync();
+    await phone.replica.deleteItems([holder]);
+    await phone.replica.sync();
+
+    const again = await relaunch(cell, "phone", phone);
+    await again.replica.retry(again.replica.status().parked[0]?.seq ?? 0);
+    await again.replica.sync();
+    expect(again.replica.status()).toMatchObject({ parked: [], unsent: 0 });
+    expect(cell.item(deleted)?.fields.deletedAt).toBeNull();
+  });
+
   it("restores what it can and parks only the item whose address is held", async () => {
     const cell = createFakeCell();
     const phone = await openDevice(cell, "phone");
