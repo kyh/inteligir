@@ -120,7 +120,6 @@ mod tests {
     fn signed_in() -> DeviceCredential {
         DeviceCredential {
             credential: format!("igd_{}", "b".repeat(64)),
-            device_id: "device-1".to_owned(),
             email: "owner@example.com".to_owned(),
             user_id: "user-1".to_owned(),
         }

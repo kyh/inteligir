@@ -58,7 +58,6 @@ const keepSignIn = async (config: ShellConfig, answer: DeviceLoginResponse): Pro
     await shellCredential.keep({
       credential: {
         credential: answer.credential,
-        deviceId: answer.deviceId,
         email: answer.email,
         userId: answer.userId,
       },
