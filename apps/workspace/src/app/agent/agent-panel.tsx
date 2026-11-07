@@ -7,16 +7,20 @@
 import { composerPlaceholder, sendInput } from "@repo/agent-panel/agent-send";
 import type { AgentViewContext } from "@repo/agent-panel/agent-send";
 import {
-  agentRefusalWords,
+  answerWords,
   approvalQuestion,
+  callRefusalWords,
+  EMPTY_WORDS,
   endingWords,
   isWorking,
   readsOnly,
+  sendRefusalWords,
   statusWords,
   threadBlocks,
   threadEntries,
   toolWords,
   waitingApprovals,
+  workWords,
 } from "@repo/agent-panel/thread-entries";
 import type { ThreadBlock, ThreadEntry, ToolUse } from "@repo/agent-panel/thread-entries";
 import { previewOf } from "@repo/agent-panel/thread-previews";
@@ -91,11 +95,7 @@ const EntryRow = ({
       return null;
     }
     case "approval.answered": {
-      return (
-        <p className="m-0 text-caption text-muted-foreground">
-          {event.result === "allow" ? "Allowed." : "Declined."}
-        </p>
-      );
+      return <p className="m-0 text-caption text-muted-foreground">{answerWords(event.result)}</p>;
     }
     case "turn.ended": {
       const words = endingWords(event.reason);
@@ -136,11 +136,7 @@ const WorkBlock = ({
 }) => (
   <Thinking
     label={block.notes.at(-1)?.text ?? "Working"}
-    doneLabel={
-      block.uses.length === 0
-        ? "Thought it through"
-        : `Worked through ${plural(block.uses.length, "step")}`
-    }
+    doneLabel={workWords(block.uses.length)}
     working={live}
     data-agent-work
   >
@@ -161,11 +157,7 @@ const ThreadList = ({ onThread }: { onThread: (threadId: string | null) => void 
   const threads = useQuery(useReplicaQueries().threads()).data ?? [];
   const nowMs = useNow();
   if (threads.length === 0) {
-    return (
-      <p className="m-0 px-3 py-2 text-body text-muted-foreground">
-        Ask the agent to file, tag, find or summarize what you have saved.
-      </p>
-    );
+    return <p className="m-0 px-3 py-2 text-body text-muted-foreground">{EMPTY_WORDS}</p>;
   }
   return (
     <ul className="m-0 flex list-none flex-col p-1" aria-label="Conversations">
@@ -209,7 +201,7 @@ const useLivePreview = (threadId: string | null): string | null => {
 };
 
 const onRefused = (cause: unknown): void => {
-  toast.error(refusalText(cause, "The agent couldn't be reached."));
+  toast.error(callRefusalWords(cause));
 };
 
 const Conversation = ({
@@ -387,9 +379,7 @@ const Composer = ({
   const send = useMutation(
     orpc.library.agent.send.mutationOptions({
       onError: (cause) => {
-        toast.error(
-          agentRefusalWords(cause, nowMs) ?? refusalText(cause, "The agent couldn't be reached."),
-        );
+        toast.error(sendRefusalWords(cause, nowMs));
       },
       onSuccess: (answer) => {
         setText("");
