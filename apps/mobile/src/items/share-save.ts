@@ -65,19 +65,14 @@ const readSharedPage = async (
   shared: Extract<SharedSave, { kind: "link" }>,
   target: SaveTarget,
 ): Promise<PageInput | null> => {
-  let fetched: Awaited<ReturnType<PageFetch>>;
-  try {
-    fetched = await ports.fetch({
-      accept: PAGE_ACCEPT,
-      maxBytes: FILL_LIMITS.htmlBytes,
-      overflow: "truncate",
-      // a redirect reaches private space only from an address that names it itself
-      reachesPrivate: namesPrivateSpace(shared.url),
-      url: shared.url,
-    });
-  } catch {
-    return null;
-  }
+  const fetched = await ports.fetch({
+    accept: PAGE_ACCEPT,
+    maxBytes: FILL_LIMITS.htmlBytes,
+    overflow: "truncate",
+    // a redirect reaches private space only from an address that names it itself
+    reachesPrivate: namesPrivateSpace(shared.url),
+    url: shared.url,
+  });
   if (!fetched.ok || !isPageType(fetched.page.mediaType)) {
     return null;
   }

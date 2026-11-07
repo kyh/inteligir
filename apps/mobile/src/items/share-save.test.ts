@@ -39,7 +39,7 @@ const servingPage: PageFetch = async (request) =>
     },
   });
 
-const offline: PageFetch = async () => await Promise.reject(new TypeError("the phone is offline"));
+const offline: PageFetch = async () => await Promise.resolve({ ok: false });
 
 // a PNG's signature and IHDR, which name its size whatever the rest of the file holds
 const pngOf = (width: number, height: number): Uint8Array<ArrayBuffer> => {
