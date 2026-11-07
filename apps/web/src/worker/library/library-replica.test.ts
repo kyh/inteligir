@@ -265,6 +265,57 @@ const heldAddress = async (phone: Device, laptop: Device) => {
   return { card, holder };
 };
 
+const folderMade = async (device: Device, id: string, name: string): Promise<string> => {
+  await device.replica.writeFolders([{ id, name, op: "create", parentId: null, sort: "a0" }]);
+  return id;
+};
+
+// a folder parked for a name a sibling holds, and everything a person files in it meanwhile
+const filedInParkedFolder = async (phone: Device, laptop: Device) => {
+  const moved = await sharedNote(laptop, phone);
+  const sibling = await folderMade(phone, "0190ffff-0000-7000-8000-000000000011", "Reading");
+  await phone.replica.sync();
+  const folderId = await folderMade(phone, "0190ffff-0000-7000-8000-000000000012", "reading");
+  const child = "0190ffff-0000-7000-8000-000000000013";
+  await phone.replica.writeFolders([
+    { id: child, name: "Inside", op: "create", parentId: folderId, sort: "a0" },
+  ]);
+  const note = await phone.replica.createNote({
+    blocks: [],
+    folderId,
+    tags: [],
+    title: "Filed note",
+  });
+  const link = await phone.replica.saveLink({
+    folderId,
+    tags: [],
+    url: "https://example.com/filed-link",
+  });
+  const file = await phone.replica.createFile({
+    file: { bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47, 4]), mime: "image/png" },
+    folderId,
+    name: "filed.png",
+    tags: [],
+  });
+  const page = await phone.replica.savePage({
+    article: [{ block: paragraph("a1", "read here"), ord: "a0" }],
+    cover: null,
+    facts: { author: null, description: null, lang: null, published: null, site: null },
+    folderId,
+    selection: null,
+    tags: [],
+    title: "Filed page",
+    url: "https://example.com/filed-page",
+  });
+  await write(phone.replica, moved, [
+    { base: null, field: "folderId", op: "set", value: folderId },
+  ]);
+  await phone.replica.writeFolders([
+    { base: "reading", id: folderId, name: "reading list", op: "rename" },
+  ]);
+  return { child, folderId, items: [note.id, link.id, file.id, page.id, moved], sibling };
+};
+
 describe("the replica engine against the account's cell", () => {
   it("lists a make before it lands as the cell lands it", { timeout: 30_000 }, async () => {
     const { cookie } = await account("made");
@@ -500,6 +551,99 @@ describe("the replica engine against the account's cell", () => {
       await expect(textIn(phone.replica, holder.id, "n1")).resolves.toBe("my note");
       await laptop.replica.sync();
       await expect(textIn(laptop.replica, holder.id, "n1")).resolves.toBe("my note");
+    },
+  );
+
+  it(
+    "holds what is filed in a parked folder behind it, and files it there once it lands",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("parked-filed");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      const { child, folderId, items, sibling } = await filedInParkedFolder(phone, laptop);
+      await phone.replica.sync();
+
+      expect(phone.replica.status()).toMatchObject({ failure: null, unsent: 8 });
+      expect(phone.replica.status().parked).toHaveLength(1);
+      await laptop.replica.sync();
+      const [moved] = items.slice(-1);
+      expect(items.slice(0, -1).map((id) => laptop.replica.row(id))).toStrictEqual([
+        null,
+        null,
+        null,
+        null,
+      ]);
+      expect(laptop.replica.row(moved ?? "")?.folderId).toBeNull();
+
+      await phone.replica.writeFolders([
+        { base: "Reading", id: sibling, name: "Read", op: "rename" },
+      ]);
+      await phone.replica.sync();
+      const [parked] = phone.replica.status().parked;
+      await phone.replica.retry(parked?.seq ?? 0);
+      await phone.replica.sync();
+
+      expect(phone.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
+      await laptop.replica.sync();
+      expect(items.map((id) => laptop.replica.row(id)?.folderId)).toStrictEqual(
+        items.map(() => folderId),
+      );
+      expect(laptop.replica.folders().find((held) => held.id === child)?.parentId).toBe(folderId);
+    },
+  );
+
+  it(
+    "lands what was filed in a folder the person lets go unfiled, parking nothing",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("parked-gone");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      const { child, folderId, items } = await filedInParkedFolder(phone, laptop);
+      await phone.replica.sync();
+      const [parked] = phone.replica.status().parked;
+
+      await phone.replica.discard(parked?.seq ?? 0);
+      expect(items.map((id) => phone.replica.row(id)?.folderId)).toStrictEqual(
+        items.map(() => null),
+      );
+      await phone.replica.sync();
+
+      expect(phone.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
+      await laptop.replica.sync();
+      expect(items.map((id) => laptop.replica.row(id)?.folderId)).toStrictEqual(
+        items.map(() => null),
+      );
+      expect(laptop.replica.folders().some((held) => held.id === folderId)).toBe(false);
+      expect(laptop.replica.folders().find((held) => held.id === child)?.parentId).toBeNull();
+    },
+  );
+
+  it(
+    "keeps sending what is filed in a folder whose rename parked, since that folder stands",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("parked-rename");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      await folderMade(phone, "0190ffff-0000-7000-8000-000000000021", "Reading");
+      const folderId = await folderMade(phone, "0190ffff-0000-7000-8000-000000000022", "Later");
+      await phone.replica.sync();
+      await phone.replica.writeFolders([
+        { base: "Later", id: folderId, name: "reading", op: "rename" },
+      ]);
+      const note = await phone.replica.createNote({
+        blocks: [],
+        folderId,
+        tags: [],
+        title: "Filed note",
+      });
+      await phone.replica.sync();
+
+      expect(phone.replica.status().parked).toHaveLength(1);
+      await laptop.replica.sync();
+      expect(laptop.replica.row(note.id)?.folderId).toBe(folderId);
     },
   );
 
