@@ -176,7 +176,8 @@ is parsed in `src/shell/shell-commands.ts`.
 - **THE OPEN ITEM RIDES THE URL, AND SETTINGS COVERS A WORKSPACE THAT STAYS
   MOUNTED.** `?item=<id>` is the open item (after the hash on the Mac): every open is a history entry, so
   the browser's Back leaves the item and Forward reopens it, and a link or a
-  reload opens it, once the replica holds it. Settings is a layer in the
+  reload opens it, once the replica holds it (a card that folded answers only
+  for the run that made it, A FOLDED MAKE'S ID). Settings is a layer in the
   pathless `_workspace` layout: the covered workspace is `inert`, its
   `GLOBAL_SHORTCUTS` listener detached, and the way in flushes the open item.
   Rejected: a back/forward stack of the page's own (the tab has the browser's);

@@ -84,23 +84,28 @@ and cited.
   `packages/library-replica/src/outbox.ts`, `outbox-settle.ts`,
   `outbox-ops.ts`.
 
-- **A FOLDED MAKE'S ID ANSWERS AS THE ITEM IT LANDED ON FOR AS LONG AS A SCREEN
-  CAN HOLD IT.** An item's read, its highlights, a write and the change feed take
+- **A FOLDED MAKE'S ID ANSWERS AS THE ITEM IT LANDED ON FOR THE REST OF THE
+  RUN.** An item's read, its highlights, a write and the change feed take
   the id a make was queued under to the item the cell folded it onto, so a screen
   open on the card stays open through the fold, its unsaved words going on to that
   item and a write past its check landing there. A write landing on that item
   while its body is still to come lays no block, since a part would read as all
   of it and take the open card's blocks away; the body brings them. No table keeps
-  this, since no screen outlives the run, and the listing knows nothing of it, since a selection
-  still naming the card must not reach the older item: `row` answers no row, and a
-  delete asked by that id goes nowhere, so a screen acts on what it shows through
-  its item read, by the id that answered and the fields it holds. Residual: a call
-  only the cell answers that no item read names, History or the agent's view of the
-  open item, names the old id until the item opens again.
+  this, since only a url naming the card outlives the run, and the listing knows
+  nothing of it, since a selection still naming the card must not reach the older
+  item: `row` answers no row, and a delete asked by that id goes nowhere, so a
+  screen acts on what it shows through its item read, by the id that answered and
+  the fields it holds. Residuals: a call only the cell answers that no item read
+  names, History or the agent's view of the open item, names the old id until the
+  item opens again; a reload on a url naming a card that folded says the item
+  isn't on this device, though it stands at its holder's id in the grid.
   Rejected: the session following the id alone (the item view, the phone's screen
   and its page read that id too, and the screen drops its page on an item it
   cannot read); a move in every host (a bridge event and a route per surface for
-  what one map answers). `packages/library-replica/src/folded-makes.ts`,
+  what one map answers); the url moved to the landed id (an item's editor is keyed
+  by its id, so the move closes a session in the middle of an edit, one waiting on
+  a body with nowhere to write it); a table of folds (a second store for one reload
+  of one url). `packages/library-replica/src/folded-makes.ts`,
   `library-replica.ts`.
 
 - **THE SOCKET IS A HINT, AND THE MINUTE'S CHECK-IN THE FLOOR.** A pass runs as

@@ -3,7 +3,7 @@
 // screen reads the replica and writes through its outbox; what only the cell answers goes as a
 // call that needs a connection. A link or a file pasted or dropped where no field takes it is
 // saved where the grid's scope saves. The open item rides the url (`?item=<id>`), so a reload, Back and a
-// link all open it.
+// link all open it, but for a card that folded, whose id answers only for the run that made it.
 
 import { viewContextOf } from "@repo/agent-panel/agent-send";
 import type { AgentViewContext } from "@repo/agent-panel/agent-send";

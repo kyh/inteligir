@@ -1,6 +1,7 @@
 // The makes the cell folded onto the item already at their address, by the id each was queued
 // under. A screen opened on a card still holds that id, so an item's read, a write and the change
-// feed answer it as the item it landed on. No screen outlives the run, so no table keeps them.
+// feed answer it as the item it landed on. They last the run: only a url naming a card outlives
+// it, and a reload there says the item isn't on this device, which a table would be kept to spare.
 
 export interface FoldedMakes {
   readonly add: (from: string, to: string) => void;
