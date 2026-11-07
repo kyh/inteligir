@@ -9,10 +9,11 @@ import { isWebUrl, urlKey } from "@repo/notes/items/item-url";
 
 // letters of any script, numbers, the ASCII an address spells and the full-width brackets it can
 // hold. A quote, an emoji, a dash or a full-width stop never sits inside a link someone typed, and
-// a language with no spaces runs its sentence straight on from the link, so each ends it; ’ may
-// (smart punctuation types it for an apostrophe), so it ends a link only as its last mark
+// a language with no spaces runs its sentence straight on from the link, so each ends it; an
+// apostrophe may (' pasted, ’ as smart punctuation types it), so it ends a link only as its last
+// mark
 const LINK_IN_TEXT =
-  /https?:\/\/[\p{L}\p{N}\p{M}!#$%&()*+,\-./:;=?@[\\\]^_{|}~’（）［］｛｝【】〈〉《》]+/giu;
+  /https?:\/\/[\p{L}\p{N}\p{M}!#$%&'()*+,\-./:;=?@[\\\]^_{|}~’（）［］｛｝【】〈〉《》]+/giu;
 const SENTENCE_PUNCTUATION = new Set([
   "*",
   ".",
@@ -22,6 +23,7 @@ const SENTENCE_PUNCTUATION = new Set([
   "!",
   "?",
   "…",
+  "'",
   "’",
   "。",
   "、",
@@ -125,7 +127,8 @@ const seamOf = (before: string, after: string): string => {
 const restAround = (before: string, after: string): string => {
   const marks = marksAt(after);
   const next = after.slice(marks.length);
-  let head = before;
+  // markdown's emphasis opens where the words before the link end
+  let head = marks.includes("*") ? before.replace(/\*+$/u, "") : before;
   let closers = [...marks].filter((ch) => OPENER_OF.has(ch));
   const markdown = /\[(?<label>[^\]]*)\]\($/u.exec(head);
   if (markdown !== null && closers[0] === ")") {
@@ -133,8 +136,8 @@ const restAround = (before: string, after: string): string => {
     closers = closers.slice(1);
   }
   head = withoutOpenersOf(head, closers);
-  // ’ can be among the marks, which took it for the sentence's; any other quote closes after them,
-  // and the marks past it are the link's too
+  // an apostrophe can be among the marks, which took it for the sentence's; any other quote closes
+  // after them, and the marks past it are the link's too
   const quote = QUOTE_CLOSER_OF.get(head.at(-1) ?? "");
   if (quote !== undefined && (marks.includes(quote) || next.startsWith(quote))) {
     return restAround(head.slice(0, -1), marks.includes(quote) ? next : next.slice(quote.length));

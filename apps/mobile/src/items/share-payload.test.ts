@@ -75,6 +75,12 @@ describe("what a share asks the phone to save", () => {
     ['see "https://example.com/z" now', "https://example.com/z", "see now"],
     ["see “https://example.com/z” now", "https://example.com/z", "see now"],
     ["see 'https://example.com/z' now", "https://example.com/z", "see now"],
+    [
+      "Read https://en.wikipedia.org/wiki/Murphy's_law tonight",
+      "https://en.wikipedia.org/wiki/Murphy's_law",
+      "Read tonight",
+    ],
+    ["see **https://example.com/z** now", "https://example.com/z", "see now"],
     ["see ‘https://example.com/z’ now", "https://example.com/z", "see now"],
     ['read "https://example.com/z".', "https://example.com/z", "read"],
     ["read “https://example.com/z”.", "https://example.com/z", "read"],
