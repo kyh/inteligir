@@ -196,8 +196,10 @@ facilitated by cookies and other technologies. The Service uses only these:
   no cookies.
 - **Functionality / performance.** Our website keeps your choice of light or
   dark theme in your browser's web storage (local storage), first-party, and
-  never sends it to us; the apps keep their own settings and layout on your
-  device, with your account's id, so that one account's never reach the next.
+  never sends it to us; your library in a browser tab keeps its settings and
+  layout there too, and the apps keep theirs on your device. The tab and the Mac
+  app keep your account's id beside them, so that what one account was viewing
+  never opens for the next.
 - **Analytics, advertising and social media.** We do not use analytics,
   advertising or social media cookies, or any similar technology, on our website
   or in the apps.

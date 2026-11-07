@@ -124,11 +124,11 @@ a bullet is written and cited.
   lands nothing and is refused as signed out, as the row naming it would be.
   Every file but a PDF is served under a script-less sandbox, as the cloud
   serves it; a PDF keeps WebKit's viewer under a policy that runs no script and
-  that only the app's page may frame. Rejected: the cloud's route straight from the page (an
-  `<img>` carries no bearer, and offline it draws nothing); the asset protocol
-  over a scope of the disk (no fetch on a miss); the page's wipe ahead of the
-  shell's forget at a session's end (what a sign-out leaves behind would rest
-  on the page, and a wipe that hangs would hold the leave).
+  that only the app's page may frame. Rejected: the cloud's route straight from
+  the page (an `<img>` carries no bearer, and offline it draws nothing); the
+  asset protocol over a scope of the disk (no fetch on a miss); the page's wipe
+  ahead of the shell's forget at a session's end (what a sign-out leaves behind
+  would rest on the page, and a wipe that hangs would hold the leave).
   Residual: WebKitGTK's player loads nothing from a custom scheme, so a
   recording's playback is the owner's check on a Mac (`docs/releasing.md`).
   `apps/desktop/src-tauri/src/file_scheme.rs`, `file_cache.rs`.
