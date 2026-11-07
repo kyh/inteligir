@@ -48,9 +48,9 @@ and the agent files and tags everything waiting, following filing rules you writ
 ## Your library, on every device
 
 Your library is kept in your account in our cloud, and every Mac and iPhone you sign in on keeps a
-copy of all of it. That copy opens, reads and searches with no connection, and what you change goes
-out when you're back online. In a browser, [your library](${libraryUrl}) opens whenever you're
-online.
+copy of every item's text and of each picture, PDF or file you open. That copy opens, reads and
+searches with no connection, and what you change goes out when you're back online. In a browser,
+[your library](${libraryUrl}) opens whenever you're online.
 
 Export writes everything to a zip whenever you want it, your notes as markdown files beside every
 file you saved. Your Raindrop bookmarks come in from a backup with their collections, tags and
@@ -88,8 +88,8 @@ collaborator would, in the open, with every change reversible. It is made for kn
 ## What makes it different
 
 - **One library on every device.** Every saved link, picture, PDF and note is kept in your account,
-  and each Mac and iPhone you sign in on keeps a copy that works with no connection. Export writes
-  all of it to a zip whenever you want it.
+  and each Mac and iPhone you sign in on keeps a copy of every item's text and of each file you open,
+  which work with no connection. Export writes all of it to a zip whenever you want it.
 - **Saving is instant and free.** The extension or iPhone that saves a page reads it when it can, our
   cloud reads it otherwise, and neither calls a model. The agent files, tags and summarizes only when
   you ask.
@@ -146,8 +146,9 @@ export const llmsTxt = `# ${name}
 > on, with a built-in AI agent that files, tags, summarizes and edits it with them.
 
 An account is required, and its first 1 GB is free; creating one takes an invite code. The library
-is kept in the account, in ${name}'s cloud. Each Mac and iPhone keeps a copy that reads and searches
-with no connection, and a browser tab at ${libraryUrl} shows it online. ${name} saves from Chrome,
+is kept in the account, in ${name}'s cloud. Each Mac and iPhone keeps a copy of every item's text and
+of each file opened on it, which reads and searches with no connection, and a browser tab at
+${libraryUrl} shows it online. ${name} saves from Chrome,
 Arc, Brave and Edge through its browser extension, by pasting or dragging onto the window, and from
 the iPhone share sheet, and keeps any file up to 100 MB. The extension or iPhone that saves a page
 reads it when it can, ${name}'s cloud reads it otherwise, and neither calls a model. The agent runs
