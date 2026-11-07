@@ -497,24 +497,17 @@ const pushAligned = (builder: Builder, text: TextContext): void => {
   }
 };
 
-const textContext = (
-  builder: Builder,
-  node: MdNode,
-  aligned: Aligned,
-  start: number,
-): TextContext => {
-  const value = node.value ?? "";
-  return {
-    aligned,
-    escapes: escapesOf(node),
-    structural: structuralIndexes(value, builder.source, start, builder.leads.get(node) ?? 0),
-    value,
-  };
-};
+const textContext = (node: MdNode, aligned: Aligned, structural: Set<number>): TextContext => ({
+  aligned,
+  escapes: escapesOf(node),
+  structural,
+  value: node.value ?? "",
+});
 
 const pushText = (builder: Builder, node: MdNode, bounds: { start: number; end: number }): void => {
   const { source } = builder;
-  const aligned = alignText(node.value ?? "", source, { ...bounds, whole: true });
+  const value = node.value ?? "";
+  const aligned = alignText(value, source, { ...bounds, whole: true });
   if (aligned === null) {
     for (const offset of [bounds.start, bounds.end - 1]) {
       if (DELIMITERS.has(source[offset] ?? "")) {
@@ -524,7 +517,9 @@ const pushText = (builder: Builder, node: MdNode, bounds: { start: number; end: 
     pushAtomic(builder, node, bounds, false);
     return;
   }
-  pushAligned(builder, textContext(builder, node, aligned, bounds.start));
+  const lead = builder.leads.get(node) ?? 0;
+  const structural = structuralIndexes(value, source, bounds.start, lead);
+  pushAligned(builder, textContext(node, aligned, structural));
 };
 
 // what a node the parse made with no offsets reads as: a text's value, or a bare url's
@@ -541,9 +536,17 @@ const runText = (node: MdNode): string | null => {
 // the furthest a run's bytes are searched for past where the run may start
 const RUN_SEARCH_LIMIT = 64;
 
+// the part of a run's structural indexes that falls in one of its nodes, by that node's own
+const structuralIn = (structural: ReadonlySet<number>, offset: number, length: number) =>
+  new Set(
+    [...structural].filter((at) => at >= offset && at < offset + length).map((at) => at - offset),
+  );
+
 // nodes the parse made after it counted (a bare url read out of an escaped or tightly packed text)
 // carry no offsets; together they spell what one text once did, so that value is found in the
-// bytes between their neighbours and shared out among them. A run found nowhere shows nothing
+// bytes between their neighbours and shared out among them, and read as that one text's lines, as
+// the transform reads a marker: an address in a label stands on the label's line, and the line is
+// grammar whichever node holds which of it. A run found nowhere shows nothing
 const pushUnplaced = (
   builder: Builder,
   run: readonly MdNode[],
@@ -561,6 +564,9 @@ const pushUnplaced = (
     if (aligned === null) {
       continue;
     }
+    const [head] = run;
+    const lead = head === undefined ? 0 : (builder.leads.get(head) ?? 0);
+    const structural = structuralIndexes(value, builder.source, start, lead);
     let offset = 0;
     for (const [index, node] of run.entries()) {
       const { length } = texts[index] ?? "";
@@ -568,11 +574,12 @@ const pushUnplaced = (
         from: aligned.from.slice(offset, offset + length),
         to: aligned.to.slice(offset, offset + length),
       };
+      const own = structuralIn(structural, offset, length);
       offset += length;
       const bounds = { end: part.to.at(-1) ?? start, start: part.from[0] ?? start };
       if (node.type === "text") {
-        pushAligned(builder, textContext(builder, node, part, bounds.start));
-      } else {
+        pushAligned(builder, textContext(node, part, own));
+      } else if (own.size === 0) {
         pushAtomic(builder, node, bounds, false);
       }
     }

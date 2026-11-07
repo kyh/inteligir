@@ -652,6 +652,38 @@ describe("a highlight placed by its quote", () => {
     expect(after.match(/%%i:q1:start%%/gu)).toHaveLength(1);
   });
 
+  describe("a tab's label holding an address", () => {
+    const groupOf = (label: string): string =>
+      `:::tabs\n=== ${label}\nbody here now\n\n=== Second\nmore\n:::\n`;
+
+    it.each([
+      [String.raw`https\://x.cd docs`, "docs"],
+      [String.raw`https\://x.cd`, "https://x.cd"],
+      [String.raw`https\://x.cd`, "https://x.cd body"],
+      [String.raw`www\.x.cd site`, "site"],
+      [String.raw`a\@b.cd team`, "team"],
+    ])("finds no quote in `%s`, and leaves the group be", (label, quote) => {
+      const blocks = storedOf(groupOf(label));
+      expect(placeItemQuotes(blocks, [{ id: "q1", quote }], portsWith())).toMatchObject({
+        missing: ["q1"],
+        ops: [],
+        placed: [],
+      });
+    });
+
+    it("places a quote the label also spells in the body beneath it", () => {
+      const label = String.raw`see https\://a.bc/d now`;
+      const blocks = storedOf(groupOf(label));
+      const placed = placeItemQuotes(blocks, [{ id: "q1", quote: "now" }], portsWith());
+      expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
+      const after = landed(blocks, placed.ops);
+      expect([...after.values()].map(({ block }) => block.type)).toStrictEqual(["tab_group"]);
+      expect(textOf(after)).toBe(
+        `:::tabs\n=== ${label}\nbody here %%i:q1:start%%now%%i:q1:end%%\n\n=== Second\nmore\n:::\n`,
+      );
+    });
+  });
+
   it("names a quote no passage matches", () => {
     const placed = placeItemQuotes(
       storedOf(NOTE),

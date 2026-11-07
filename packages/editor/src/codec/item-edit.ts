@@ -609,8 +609,9 @@ export const placeItemQuotes = (
         ports,
       );
       if (!next.ok) {
-        // the markers change no nesting and touch no section line, and the text around them is
-        // the view of stored blocks, which nest no deeper than the vocabulary allows
+        // the markers go only in reading text, so they change no nesting and touch no line a
+        // section or a container stands on, and the text around them is the view of stored
+        // blocks, which nest no deeper than the vocabulary allows
         throw new Error(`a section's own text did not read back once highlighted (${next.reason})`);
       }
       ({ pieces } = next);

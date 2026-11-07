@@ -55,6 +55,27 @@ describe("the text a person reads", () => {
     expect(projectPassages("before\n\\:::toggle\nafter\n").text).toBe("before after ");
   });
 
+  it.each([
+    ["a url", String.raw`https\://a.bc`],
+    ["a url and a word", String.raw`https\://a.bc docs`],
+    ["a www address and a word", String.raw`www\.a.bc site`],
+    ["an email address and a word", String.raw`a\@b.cd team`],
+    ["an address between words", String.raw`see https\://a.bc/d now`],
+  ])(
+    "leaves out a tab's label holding %s, which the transform reads as one line",
+    (_name, label) => {
+      expect(
+        projectPassages(`:::tabs\n=== ${label}\nbody here\n=== Second\nmore\n:::\n`).text,
+      ).toBe("body here more ");
+    },
+  );
+
+  it("reads an address on a line that is no label", () => {
+    expect(projectPassages(`before https\\://a.bc after\nmore\n`).text).toBe(
+      "before https://a.bc after more ",
+    );
+  });
+
   it("maps each character to the bytes that spell it", () => {
     const content = "a \\* b &amp; c\n";
     const projection = projectPassages(content);
