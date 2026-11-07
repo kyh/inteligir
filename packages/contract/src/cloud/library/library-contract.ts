@@ -240,6 +240,8 @@ const itemsContract = {
         }),
         folderId: idSchema.nullable(),
         id: newIdSchema,
+        // the person's words saved with the page, as markdown, kept in the item's note
+        note: z.string().max(MARKDOWN_MAX).optional(),
         opId,
         savedAt: FIELDS.savedAt,
         // the passage the person had selected, kept as a highlight

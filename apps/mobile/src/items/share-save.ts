@@ -2,8 +2,9 @@
 // extension reads the page it is on, and saved through `items.save` with its facts, its article
 // and its cover, so the library holds it read from the first moment; a page this phone cannot read
 // now (offline, no page at the address, a reader that broke) is saved as its link, which the
-// cloud's fill reads once it lands. Text alone is a thought. The page is fetched by the phone
-// itself, each redirect judged by its spelling, and read by the reader in the headless page.
+// cloud's fill reads once it lands. Either way the words shared beside it are kept. Text alone is
+// a thought. The page is fetched by the phone itself, each redirect judged by its spelling, and
+// read by the reader in the headless page.
 // Platform-free: the scenario suite runs it under node over the reader's own code.
 
 import { base64FromBytes } from "@repo/contract/cloud/bytes";
@@ -16,6 +17,7 @@ import { fieldLine, savedFacts } from "@repo/notes/items/saved-facts";
 import type { PageFetch } from "./page-fetch";
 import { createPhoneSaves } from "./phone-saves";
 import type { SavedItem, SaveTarget } from "./phone-saves";
+import { unreadLink } from "./share-payload";
 import type { SharedSave } from "./share-payload";
 
 export interface ShareReadPorts {
@@ -104,16 +106,19 @@ const readSharedPage = async (
   if (answer.kind !== "read" || (answer.rung === null && answer.facts.title === null)) {
     return null;
   }
-  return {
+  const title = fieldLine(answer.facts.title) ?? fieldLine(shared.title) ?? "";
+  const page: PageInput = {
     article: answer.article,
     cover: await coverOf(ports, shared.url, answer.facts.images),
     facts: savedFacts(answer.facts),
     folderId: target.folderId,
     selection: null,
     tags: [],
-    title: fieldLine(answer.facts.title) ?? fieldLine(shared.title) ?? "",
+    title,
     url: shared.url,
   };
+  // words that only say the page's own title again add nothing to its note
+  return shared.note === null || shared.note === title ? page : { ...page, note: shared.note };
 };
 
 // a share saved however it can be: read here, else as its link, else as text; null for a share
@@ -132,7 +137,7 @@ export const saveShared = async (
     case "link": {
       const page = await readSharedPage(args.ports, shared, target);
       if (page === null) {
-        return await saves.saveLink(shared, target);
+        return await saves.saveLink(unreadLink(shared), target);
       }
       const made: Made = await args.replica.savePage(page);
       return { kind: "saved", made };

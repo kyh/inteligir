@@ -142,6 +142,14 @@ const placed = (block: LibraryBlock, ord: string, section: LibrarySection): Stor
   section,
 });
 
+// a save's words as the one paragraph the real cell's codec would read them into
+const noteBlocks = (id: string, note: string | undefined): [string, StoredBlock][] => {
+  const blockId = `${id}-note`;
+  return note === undefined
+    ? []
+    : [[blockId, placed({ children: [{ text: note }], id: blockId, type: "p" }, "n0", "note")]];
+};
+
 // every sha the blocks a write carries name their bytes by
 const SHA_KEY_RE = /"sha":"(?<sha>[0-9a-f]{64})"/gu;
 const shasIn = (json: string): Set<string> =>
@@ -581,12 +589,13 @@ export const createFakeCell = (): FakeCell => {
                   title: input.title,
                   url: input.url,
                 },
-                new Map(
-                  input.article.map((block) => [
+                new Map([
+                  ...input.article.map((block): [string, StoredBlock] => [
                     block.block.id,
                     placed(block.block, block.ord, "article"),
                   ]),
-                ),
+                  ...noteBlocks(input.id, input.note),
+                ]),
               ),
             };
           }),
@@ -616,7 +625,7 @@ export const createFakeCell = (): FakeCell => {
                   title: input.title ?? input.url,
                   url: input.url,
                 },
-                new Map(),
+                new Map(noteBlocks(id, input.note)),
               ),
             };
           }),

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { redirectSystemPath } from "../app/+native-intent";
-import { isShareHandoff, sharedSaveOf } from "./share-payload";
+import { isShareHandoff, sharedSaveOf, unreadLink } from "./share-payload";
 
 const URL = "https://stephango.com/file-over-app";
 
@@ -18,11 +18,11 @@ describe("what a share asks the phone to save", () => {
     ).toStrictEqual({ kind: "link", note: null, title: "File over app", url: URL });
   });
 
-  it("takes short text that came with a link as its title, and longer text as its note", () => {
+  it("keeps the text that came with a link as its note, and names an unread link by short text", () => {
     expect(sharedSaveOf({ meta: null, text: "File over app", webUrl: URL })).toStrictEqual({
       kind: "link",
-      note: null,
-      title: "File over app",
+      note: "File over app",
+      title: null,
       url: URL,
     });
     const long = "Read this before the meeting.\nIt explains why we keep everything in files.";
@@ -32,6 +32,18 @@ describe("what a share asks the phone to save", () => {
       title: null,
       url: URL,
     });
+    expect(
+      unreadLink({ kind: "link", note: "File over app", title: null, url: URL }),
+    ).toStrictEqual({ kind: "link", note: null, title: "File over app", url: URL });
+    const words = { kind: "link", note: long, title: null, url: URL } as const;
+    expect(unreadLink(words)).toStrictEqual(words);
+    const titled = {
+      kind: "link",
+      note: "For Tuesday.",
+      title: "File over app",
+      url: URL,
+    } as const;
+    expect(unreadLink(titled)).toStrictEqual(titled);
   });
 
   it("takes every spelling of the shared link out of its text, and makes no title of a link", () => {

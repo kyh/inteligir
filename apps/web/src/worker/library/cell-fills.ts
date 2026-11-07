@@ -287,7 +287,10 @@ const foldOnto = (
       tags: stub.state.fields.tags,
     },
     null,
-    [...stub.state.blocks.values()].filter((stored) => stored.section === "note"),
+    {
+      blocks: [...stub.state.blocks.values()].filter((stored) => stored.section === "note"),
+      highlights: [],
+    },
   );
   landWrite(scope, FILL_ACTOR, {
     itemId: stub.id,

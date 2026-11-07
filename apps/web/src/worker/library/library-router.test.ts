@@ -74,7 +74,12 @@ const FACTS = { author: null, description: null, lang: null, published: null, si
 
 const pageSave = (
   url: string,
-  overrides: { article?: LibraryBlock[]; selection?: string | null; tags?: string[] } = {},
+  overrides: {
+    article?: LibraryBlock[];
+    note?: string;
+    selection?: string | null;
+    tags?: string[];
+  } = {},
 ) => ({
   article: articleOf(
     overrides.article ?? [paragraph("p1", "The quick brown fox jumps over the lazy dog.")],
@@ -83,6 +88,7 @@ const pageSave = (
   facts: { ...FACTS, site: "example.com" },
   folderId: null,
   id: newId(),
+  ...(overrides.note === undefined ? {} : { note: overrides.note }),
   savedAt: Date.UTC(2026, 9, 1),
   selection: overrides.selection ?? null,
   tags: overrides.tags ?? [],
@@ -143,6 +149,32 @@ describe("the library's procedures", () => {
       expect(read.fields.tags).toStrictEqual(["animals", "dogs"]);
       expect(read.fields.fetchState).toBe("filled");
       expect(read.view.markdown).toContain(":::article");
+    });
+  });
+
+  it("keeps the words a page was saved with as its note, a new item's and after a held item's own", async () => {
+    await inCell(cellOf(), async (state) => {
+      const library = clientIn(state, clockAt());
+      const url = "https://example.com/words";
+      const first = await library.items.save(
+        pageSave(url, { note: "For ==Tuesday==, before the call." }),
+      );
+      expect(first.folded).toBe(false);
+      const made = await library.items.read({ id: first.item.id });
+      expect(made.view.markdown).toContain("For ");
+      expect(made.view.markdown).toContain("Tuesday");
+      expect(made.view.markdown).toContain(":::article");
+      const { highlights } = await library.annotations.list({ itemId: first.item.id });
+      expect(highlights).toStrictEqual([expect.objectContaining({ quote: "Tuesday" })]);
+
+      const again = await library.items.save(pageSave(url, { note: "And for ==Friday==." }));
+      expect(again).toMatchObject({ folded: true, item: { id: first.item.id } });
+      const folded = await library.items.read({ id: first.item.id });
+      expect(folded.view.markdown.indexOf("Tuesday")).toBeLessThan(
+        folded.view.markdown.indexOf("Friday"),
+      );
+      const held = await library.annotations.list({ itemId: first.item.id });
+      expect(held.highlights.map(({ quote }) => quote)).toStrictEqual(["Tuesday", "Friday"]);
     });
   });
 

@@ -140,6 +140,10 @@ how it ships.
   (`apps/mobile/src/items/page-fetch.ts`), reads it in the headless page and
   saves it read, cover and all; a page it cannot read now is saved as its
   link, which the cloud's fill reads (`apps/mobile/src/items/share-save.ts`).
+  Words shared beside the link are never lost: they are the item's note, or
+  an unread link's title when they are short enough to name it, since the
+  cloud keeps a title it is given and a page read names itself
+  (`apps/mobile/src/items/share-payload.ts`).
   It opens the item and only then lets the share go, so a signed-out share
   waits (`apps/mobile/src/items/share-inbox.tsx`), and a share made while one
   settles is settled after it (`apps/mobile/src/items/share-queue.ts`).

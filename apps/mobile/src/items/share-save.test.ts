@@ -1,8 +1,10 @@
 import type { FillAnswer, FillJob } from "@repo/editor-bridge/protocol";
 import { createFakeCell } from "@repo/library-replica/test-support/fake-cell";
-import { openDevice, paragraph } from "@repo/library-replica/test-support/replica-harness";
+import type { FakeCell } from "@repo/library-replica/test-support/fake-cell";
+import { openDevice, paragraph, textOf } from "@repo/library-replica/test-support/replica-harness";
 import { describe, expect, it } from "vitest";
 import type { PageFetch } from "./page-fetch";
+import { sharedSaveOf } from "./share-payload";
 import { saveShared } from "./share-save";
 
 const URL = "https://stephango.com/file-over-app";
@@ -39,6 +41,11 @@ const servingPage: PageFetch = async (request) =>
   });
 
 const offline: PageFetch = async () => await Promise.reject(new TypeError("the phone is offline"));
+
+const noteOf = (cell: FakeCell, id: string): string[] =>
+  [...(cell.item(id)?.blocks.values() ?? [])]
+    .filter(({ section }) => section === "note")
+    .map(({ block }) => textOf(block));
 
 const phone = async () => {
   const cell = createFakeCell();
@@ -82,6 +89,37 @@ describe("a share, saved", () => {
     expect(cell.calls).toContain("phone library/items/save");
   });
 
+  it("keeps the words shared beside a page it reads as the item's note", async () => {
+    const { cell, device, newBlockId } = await phone();
+    const saved = await saveShared(
+      {
+        newBlockId,
+        ports: { fetch: servingPage, read: async () => await Promise.resolve(READ) },
+        replica: device.replica,
+      },
+      sharedSaveOf({ meta: null, text: `Look at this ${URL}`, webUrl: URL }),
+    );
+    await device.replica.sync();
+    expect(cell.calls).toContain("phone library/items/save");
+    const id = saved?.kind === "saved" ? saved.made.id : "";
+    expect(cell.item(id)?.fields.title).toBe("File over app");
+    expect(noteOf(cell, id)).toStrictEqual(["Look at this"]);
+  });
+
+  it("adds no note of words that only say the page's own title again", async () => {
+    const { cell, device, newBlockId } = await phone();
+    const saved = await saveShared(
+      {
+        newBlockId,
+        ports: { fetch: servingPage, read: async () => await Promise.resolve(READ) },
+        replica: device.replica,
+      },
+      sharedSaveOf({ meta: null, text: `File over app\n${URL}`, webUrl: URL }),
+    );
+    await device.replica.sync();
+    expect(noteOf(cell, saved?.kind === "saved" ? saved.made.id : "")).toStrictEqual([]);
+  });
+
   it("saves the link for the cloud to read when the phone cannot read it now", async () => {
     const { cell, device, newBlockId } = await phone();
     const saved = await saveShared(
@@ -95,6 +133,26 @@ describe("a share, saved", () => {
     expect(saved?.kind).toBe("saved");
     await device.replica.sync();
     expect(cell.calls).toContain("phone library/items/saveLink");
+    expect(noteOf(cell, saved?.kind === "saved" ? saved.made.id : "")).toStrictEqual([
+      "For Tuesday.",
+    ]);
+  });
+
+  it("names an unread link by short words shared beside it, whichever came with its title", async () => {
+    const { cell, device, newBlockId } = await phone();
+    const args = {
+      newBlockId,
+      ports: { fetch: offline, read: async () => await Promise.resolve(READ) },
+      replica: device.replica,
+    };
+    const named = await saveShared(
+      args,
+      sharedSaveOf({ meta: null, text: `Look at this ${URL}`, webUrl: URL }),
+    );
+    await device.replica.sync();
+    const id = named?.kind === "saved" ? named.made.id : "";
+    expect(cell.item(id)?.fields.title).toBe("Look at this");
+    expect(noteOf(cell, id)).toStrictEqual([]);
   });
 
   it("keeps shared text as a thought, and saves nothing for a share that held none", async () => {
