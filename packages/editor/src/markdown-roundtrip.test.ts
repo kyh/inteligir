@@ -31,9 +31,9 @@ describe("canonical fixtures (byte-stable)", () => {
   });
 });
 
-// their round-trip drops letters (a `$$latex` meta line, entity decoding, the
-// "mailto" spelling), so analysis calls them roundtrip-loss
-const CHURN_DROPS_LETTERS = new Set(["math-meta", "entities", "mailto-resource"]);
+// their round-trip drops letters (entity decoding, the "mailto" spelling), so analysis calls
+// them roundtrip-loss
+const CHURN_DROPS_LETTERS = new Set(["entities", "mailto-resource"]);
 
 describe("churn fixtures (idempotent normalization)", () => {
   const stems = list("churn")
