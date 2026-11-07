@@ -51,7 +51,7 @@ import {
 import { ArrowLeftIcon, PlusIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { everyChangeSet, historyPages, UNDO_SCOPE } from "../cloud/history-pages";
+import { everyChangeSet, historyPages, UNDO_SCOPE, useUndoWaits } from "../cloud/history-pages";
 import { useReplica, useReplicaQueries, useWire } from "../cloud/library-context";
 import { retryUnlessRefused } from "../cloud/v1";
 import { refusalText } from "@repo/contract/cloud/refusal-text";
@@ -76,9 +76,11 @@ export interface AgentPanelProps {
 const EntryRow = ({
   entry,
   undo,
+  undoWaits,
 }: {
   entry: ThreadEntry;
   undo: (turn: number) => (() => void) | null;
+  undoWaits: boolean;
 }) => {
   const { event } = entry;
   switch (event.type) {
@@ -116,7 +118,7 @@ const EntryRow = ({
         <div className="flex items-center gap-2" data-turn-ended={event.turn}>
           {words === "" ? null : <p className="m-0 text-caption text-muted-foreground">{words}</p>}
           {run === null ? null : (
-            <Button size="compact" variant="ghost" onClick={run}>
+            <Button size="compact" variant="ghost" disabled={undoWaits} onClick={run}>
               Undo this turn
             </Button>
           )}
@@ -268,6 +270,7 @@ const Conversation = ({
       onError: (cause) => {
         toast.error(refusalText(cause, "That couldn't be undone."));
       },
+      onMutate: flushOpen,
       // refused too: an open list hears nothing of what another device took back, so a refusal can
       // be the first it learns of it
       onSettled: async () => {
@@ -276,10 +279,10 @@ const Conversation = ({
       scope: UNDO_SCOPE,
     }),
   );
+  const undoWaits = useUndoWaits();
   const changeSets = changeSetsOf(sets.data?.pages ?? []);
   const undoSets = (ids: readonly string[]): void => {
     void (async () => {
-      await flushOpen();
       const kept: string[] = [];
       const refused: string[] = [];
       const reverted: string[] = [];
@@ -341,7 +344,7 @@ const Conversation = ({
         block.kind === "work" ? (
           <WorkBlock key={block.key} block={block} live={working && index === blocks.length - 1} />
         ) : (
-          <EntryRow key={block.key} entry={block.entry} undo={undoTurn} />
+          <EntryRow key={block.key} entry={block.entry} undo={undoTurn} undoWaits={undoWaits} />
         ),
       )}
       {preview === null ? null : <StreamingText text={preview} streaming data-agent-preview />}

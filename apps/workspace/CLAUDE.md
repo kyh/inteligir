@@ -289,7 +289,14 @@ is parsed in `src/shell/shell-commands.ts`.
   agent's panel both say. An undo reads the list again however it ended, since
   an open list hears nothing of what another device took back and a refusal can
   be the first it learns of it. History is the cell's, so it waits for a
-  connection.
+  connection. Every undo waits in one queue, joined at the press with the open
+  item's write inside it, so the queue is the order of the presses, and while
+  anything waits in it History's Undo and Undo this turn stay down, whichever
+  surface pressed it and through leaving and coming back, since a set goes back
+  once and the cell refuses a whole undo that names one already undone.
+  Rejected: holding each button by its own undo (a press from another surface,
+  or before leaving, left it live to a refusal); writing the open item before
+  joining the queue (a file still being kept let a later press overtake it).
   `apps/workspace/src/app/panel/history-tab.tsx`,
   `apps/workspace/src/app/cloud/history-pages.ts`.
 
@@ -308,7 +315,8 @@ is parsed in `src/shell/shell-commands.ts`.
   the whole conversation's Undo offered once all are in and sent in as few
   undos as the cell takes, and asked again as each turn ends, since a turn's
   set seals with it. Its press reads them once more, behind any undo in flight,
-  and when none is left to take back it sends nothing and says so. While a turn
+  so it stays live while one waits, and when none is left to take back it sends
+  nothing and says so. While a turn
   is open, a turn waiting on an approval among them, every device draws Stop,
   which turns down what it asked and ends the answer, and the page no Undo of
   the conversation, since the open turn's set is out of its reach. Rejected: an

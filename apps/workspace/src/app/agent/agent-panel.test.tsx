@@ -7,8 +7,10 @@ import { onlineManager } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 import { NEEDS_CONNECTION, PausedWrites } from "../cloud/needs-connection";
+import { HistoryTab } from "../panel/history-tab";
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
 import type { CellCall, ThreadEventRow, ThreadRow } from "../test-support/fake-page-library";
 import { AgentPanel } from "./agent-panel";
@@ -120,6 +122,73 @@ const READ_RETRIES_MS = 7000;
 const passTime = async (ms: number): Promise<void> => {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(ms);
+  });
+};
+
+const twoFinishedTurns = [
+  ...oneFinishedTurn,
+  row(2, { text: "And these.", type: "user.message" }),
+  row(3, { reason: "done", turn: 2, type: "turn.ended" }),
+];
+
+const undoInput = z.object({ changeSetIds: z.array(z.string()) });
+
+// the cell's own rule, as cell-undo.ts keeps it: a set goes back once, an undo naming one already
+// undone is refused whole, and with no connection a call meets no answer. `hold` keeps a call from
+// being answered until the suite says
+const takesBackOnce = (
+  sets: readonly ReturnType<typeof set>[],
+  hold: (call: CellCall) => Promise<void> = async () => {
+    await Promise.resolve();
+  },
+) => {
+  const undone = new Set<string>();
+  const landed: string[][] = [];
+  const answer = async (call: CellCall): Promise<object> => {
+    if (!onlineManager.isOnline()) {
+      throw new TypeError("Failed to fetch");
+    }
+    await hold(call);
+    if (call.path === "library.history.list") {
+      return {
+        changeSets: sets.map((held) => (undone.has(held.id) ? { ...held, undoneBy: "u1" } : held)),
+        cursor: null,
+      };
+    }
+    const { changeSetIds } = undoInput.parse(call.input);
+    if (changeSetIds.some((id) => undone.has(id))) {
+      throw createORPCErrorFromJson({
+        code: "ALREADY_UNDONE",
+        data: undefined,
+        defined: true,
+        message: ALREADY_UNDONE,
+      });
+    }
+    for (const id of changeSetIds) {
+      undone.add(id);
+    }
+    landed.push(changeSetIds);
+    return UNDONE;
+  };
+  return { answer, landed };
+};
+
+const heldDown = (button: HTMLElement | undefined): boolean =>
+  button?.hasAttribute("disabled") === true;
+
+const twoTurnsDrawn = async () => {
+  await waitFor(() => {
+    expect(screen.getAllByRole("button", { name: "Undo this turn" })).toHaveLength(2);
+  });
+  return {
+    turn: screen.getAllByRole("button", { name: "Undo this turn" })[0] ?? document.body,
+    whole: screen.getByRole("button", { name: "Undo this conversation" }),
+  };
+};
+
+const gone = async (): Promise<void> => {
+  await waitFor(() => {
+    expect(screen.queryByRole("button", { name: "Undo this turn" })).toBeNull();
   });
 };
 
@@ -459,6 +528,212 @@ describe("the agent panel's conversation", () => {
     });
     expect(callsTo(calls, "library.history.undo")).toHaveLength(1);
     expect(said).not.toHaveBeenCalled();
+  });
+
+  describe("Undo this turn, while an undo waits", () => {
+    it("stays down offline, so a second press has nothing to be refused", async () => {
+      const refused = vi.spyOn(toast, "error");
+      const undone = vi.spyOn(toast, "success");
+      const cell = takesBackOnce([set("s1", 1)]);
+      const { library } = fakePageLibrary({
+        answer: cell.answer,
+        events: oneFinishedTurn,
+        threads: [thread],
+      });
+      renderOnLibrary(panel(), library);
+      const turn = await screen.findByRole("button", { name: "Undo this turn" });
+      setOnline(false);
+      fireEvent.click(turn);
+      await waitFor(() => {
+        expect(heldDown(turn)).toBe(true);
+      });
+      fireEvent.click(turn);
+      setOnline(true);
+      await gone();
+      await waitFor(() => {
+        expect(undone).toHaveBeenCalledWith("Undone.");
+      });
+      expect(cell.landed).toStrictEqual([["s1"]]);
+      expect(refused).not.toHaveBeenCalled();
+    });
+
+    it("stays down online until the undo is answered and the list read again", async () => {
+      const refused = vi.spyOn(toast, "error");
+      const answered = Promise.withResolvers<null>();
+      const reread = Promise.withResolvers<null>();
+      let pressed = false;
+      const cell = takesBackOnce([set("s1", 1)], async ({ path }) => {
+        if (pressed) {
+          await (path === "library.history.undo" ? answered : reread).promise;
+        }
+      });
+      const { library } = fakePageLibrary({
+        answer: cell.answer,
+        events: oneFinishedTurn,
+        threads: [thread],
+      });
+      renderOnLibrary(panel(), library);
+      const turn = await screen.findByRole("button", { name: "Undo this turn" });
+      pressed = true;
+      fireEvent.click(turn);
+      await waitFor(() => {
+        expect(heldDown(turn)).toBe(true);
+      });
+      fireEvent.click(turn);
+      answered.resolve(null);
+      await waitFor(() => {
+        expect(cell.landed).toStrictEqual([["s1"]]);
+      });
+      await act(async () => {
+        await delay(0);
+      });
+      expect(heldDown(turn)).toBe(true);
+      fireEvent.click(turn);
+      reread.resolve(null);
+      await gone();
+      expect(cell.landed).toStrictEqual([["s1"]]);
+      expect(refused).not.toHaveBeenCalled();
+    });
+
+    it("stays down through leaving the conversation and coming back", async () => {
+      const refused = vi.spyOn(toast, "error");
+      const cell = takesBackOnce([set("s1", 1)]);
+      const { library } = fakePageLibrary({
+        answer: cell.answer,
+        events: oneFinishedTurn,
+        threads: [thread],
+      });
+      renderOnLibrary(<Moving to={null} />, library);
+      const turn = await screen.findByRole("button", { name: "Undo this turn" });
+      setOnline(false);
+      fireEvent.click(turn);
+      const move = screen.getByRole("button", { name: "Move" });
+      fireEvent.click(move);
+      expect(screen.queryByRole("button", { name: "Undo this turn" })).toBeNull();
+      fireEvent.click(move);
+      const back = await screen.findByRole("button", { name: "Undo this turn" });
+      await waitFor(() => {
+        expect(heldDown(back)).toBe(true);
+      });
+      fireEvent.click(back);
+      setOnline(true);
+      await gone();
+      expect(cell.landed).toStrictEqual([["s1"]]);
+      expect(refused).not.toHaveBeenCalled();
+    });
+
+    it("stays down behind a conversation press offline, which then lands whole", async () => {
+      const refused = vi.spyOn(toast, "error");
+      const cell = takesBackOnce([set("s2", 2), set("s1", 1)]);
+      const { library } = fakePageLibrary({
+        answer: cell.answer,
+        events: twoFinishedTurns,
+        threads: [thread],
+      });
+      renderOnLibrary(panel(), library);
+      const { turn, whole } = await twoTurnsDrawn();
+      setOnline(false);
+      fireEvent.click(whole);
+      await waitFor(() => {
+        expect(heldDown(turn)).toBe(true);
+      });
+      fireEvent.click(turn);
+      setOnline(true);
+      await gone();
+      expect(cell.landed).toStrictEqual([["s2", "s1"]]);
+      expect(refused).not.toHaveBeenCalled();
+    });
+
+    it("stays down while a conversation press reads online, which then lands whole", async () => {
+      const refused = vi.spyOn(toast, "error");
+      const read = Promise.withResolvers<null>();
+      let pressed = false;
+      const cell = takesBackOnce([set("s2", 2), set("s1", 1)], async ({ path }) => {
+        if (pressed && path === "library.history.list") {
+          await read.promise;
+        }
+      });
+      const { library } = fakePageLibrary({
+        answer: cell.answer,
+        events: twoFinishedTurns,
+        threads: [thread],
+      });
+      renderOnLibrary(panel(), library);
+      const { turn, whole } = await twoTurnsDrawn();
+      pressed = true;
+      fireEvent.click(whole);
+      await waitFor(() => {
+        expect(heldDown(turn)).toBe(true);
+      });
+      fireEvent.click(turn);
+      read.resolve(null);
+      await gone();
+      expect(cell.landed).toStrictEqual([["s2", "s1"]]);
+      expect(refused).not.toHaveBeenCalled();
+    });
+
+    it("queues from the press, however long the open item's write takes", async () => {
+      const refused = vi.spyOn(toast, "error");
+      const written = Promise.withResolvers<null>();
+      const flushOpen = vi.fn<() => Promise<void>>(async () => {
+        await written.promise;
+      });
+      const cell = takesBackOnce([set("s2", 2), set("s1", 1)]);
+      const { calls, library } = fakePageLibrary({
+        answer: cell.answer,
+        events: twoFinishedTurns,
+        threads: [thread],
+      });
+      renderOnLibrary(panel(flushOpen), library);
+      const { turn, whole } = await twoTurnsDrawn();
+      fireEvent.click(turn);
+      await waitFor(() => {
+        expect(heldDown(turn)).toBe(true);
+      });
+      fireEvent.click(whole);
+      await act(async () => {
+        await delay(0);
+      });
+      expect(callsTo(calls, "library.history.undo")).toStrictEqual([]);
+      written.resolve(null);
+      await gone();
+      expect(cell.landed).toStrictEqual([["s1"], ["s2"]]);
+      expect(refused).not.toHaveBeenCalled();
+    });
+
+    it("holds History's Undo too, which could name the same set", async () => {
+      const refused = vi.spyOn(toast, "error");
+      const cell = takesBackOnce([set("s2", 2), set("s1", 1)]);
+      const { library } = fakePageLibrary({
+        answer: cell.answer,
+        events: twoFinishedTurns,
+        threads: [thread],
+      });
+      renderOnLibrary(
+        <>
+          <HistoryTab
+            itemId={THREAD}
+            flushOpen={async () => {
+              await Promise.resolve();
+            }}
+          />
+          {panel()}
+        </>,
+        library,
+      );
+      const { whole } = await twoTurnsDrawn();
+      const [history] = await screen.findAllByRole("button", { name: "Undo" });
+      setOnline(false);
+      fireEvent.click(whole);
+      await waitFor(() => {
+        expect(heldDown(history)).toBe(true);
+      });
+      fireEvent.click(history ?? document.body);
+      setOnline(true);
+      await gone();
+      expect(cell.landed).toStrictEqual([["s2", "s1"]]);
+      expect(refused).not.toHaveBeenCalled();
+    });
   });
 
   it("reads the list again when an undo is refused, so what another device took back goes", async () => {

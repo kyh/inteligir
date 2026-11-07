@@ -3,13 +3,21 @@
 // turns reaches every set the cell keeps. One item's sets, or one conversation's.
 
 import { changeSetsOf } from "@repo/agent-panel/thread-undo";
+import { useIsMutating } from "@tanstack/react-query";
 
 import type { CloudWire } from "./v1";
 
 type HistoryFilter = { readonly itemId: string } | { readonly threadId: string };
 
-// one undo after another, in the order they were asked
+// one undo after another, in the order they were asked: each writes the open item in its onMutate,
+// not before it, so a press takes its place the moment it is made, however long that write takes
 export const UNDO_SCOPE = { id: "history-undo" };
+
+// A set goes back once, and the cell refuses a whole undo that names one already undone, so a press
+// that would name what waits in the queue is held down until it lands. Read from the queue itself,
+// so it holds for a press made on another surface, or before leaving this one and coming back.
+export const useUndoWaits = (): boolean =>
+  useIsMutating({ predicate: ({ options }) => options.scope?.id === UNDO_SCOPE.id }) > 0;
 
 export const historyPages = (orpc: CloudWire["orpc"], filter: HistoryFilter) =>
   orpc.library.history.list.infiniteOptions({
