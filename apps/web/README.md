@@ -312,7 +312,8 @@ and end them, and the account's deletion revokes every one.
   they are under the cap, which is the burst it exists to stop. Every window
   keyed on an address, Better Auth's included, reads `cf-connecting-ip`
   (`CALLER_IP_HEADER`), the one address the edge writes itself, never
-  `x-forwarded-for`. `/api/auth/get-session` spends no window: a session read
+  `x-forwarded-for`, and counts an IPv6 address by its /64 (`CALLER_ADDRESS`),
+  which one host holds whole. `/api/auth/get-session` spends no window: a session read
   is no password oracle, and every route guard and hover preload makes one. A
   read that fails is unknown to the route guards, never signed out
   (`src/lib/auth-client.ts`), and `/app/devices` shows it, like a device list

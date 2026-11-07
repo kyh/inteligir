@@ -134,7 +134,8 @@ as:
     Signing a device in, creating an account, redeeming an invite, an assistant
     registering itself to connect, and every Better Auth route but the session
     read count attempts per caller address in D1's `rate_limit` table: a row
-    holds the address beside the route it counts, a count and a timestamp.
+    holds the address, an IPv6 address cut to its first 64 bits, beside the
+    route it counts, a count and a timestamp.
     Before sign-in the address is all our cloud knows about a caller, and a
     login with no throttle is a password oracle. Once signed in, a device's
     reads and writes of your library, and its attempts to delete the

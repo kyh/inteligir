@@ -1,3 +1,4 @@
+import { getIP } from "better-auth/api";
 import { inArray, sql } from "drizzle-orm";
 import type { Db } from "./db/client";
 import { rateLimit } from "./db/schema";
@@ -83,13 +84,17 @@ const CALLER_RATE_KEY_PREFIXES = {
 type CallerRateFamily = keyof typeof CALLER_RATE_KEY_PREFIXES;
 
 // the one address Cloudflare's edge writes itself; x-forwarded-for carries whatever the caller put
-// ahead of the edge's hop. Better Auth's limiter reads it too (./auth/auth.ts), so every window
-// keyed on a caller names the same caller.
+// ahead of the edge's hop
 export const CALLER_IP_HEADER = "cf-connecting-ip";
+
+// how a caller is told from a request here and in Better Auth's limiter (./auth/auth.ts), so every
+// window names the same caller: `getIP` masks an IPv6 address to its /64, which one host holds
+// whole and could otherwise walk for a fresh window on every request
+export const CALLER_ADDRESS = { ipAddressHeaders: [CALLER_IP_HEADER] };
 
 /** @internal */
 export const callerRateKey = (family: CallerRateFamily, request: Request): string =>
-  `${CALLER_RATE_KEY_PREFIXES[family]}${request.headers.get(CALLER_IP_HEADER) ?? "unknown"}`;
+  `${CALLER_RATE_KEY_PREFIXES[family]}${getIP(request, { advanced: { ipAddress: CALLER_ADDRESS } }) ?? "unknown"}`;
 
 // every window the Worker spends, in one table so the guard reads each against AUTH_RATE_WINDOW_SECONDS
 /** @internal */

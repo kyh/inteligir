@@ -7,7 +7,7 @@ import {
 } from "@repo/contract/cloud/device/device-schema";
 import { createDb } from "../db/client";
 import { authTables } from "../db/schema";
-import { AUTH_RATE_WINDOW_SECONDS, CALLER_IP_HEADER } from "../rate-limit";
+import { AUTH_RATE_WINDOW_SECONDS, CALLER_ADDRESS } from "../rate-limit";
 import { libraryCell } from "../library/library-cell";
 import { severSockets } from "../library/socket-routes";
 import { sendResetEmail } from "./reset-email";
@@ -53,7 +53,7 @@ const buildAuth = (
     advanced: {
       // the default reads x-forwarded-for and, finding more than one hop there, keys every such
       // caller into one bucket per path
-      ipAddress: { ipAddressHeaders: [CALLER_IP_HEADER] },
+      ipAddress: CALLER_ADDRESS,
     },
     baseURL,
     database: drizzleAdapter(createDb(env.DB), { provider: "sqlite", schema: authTables }),
