@@ -4,6 +4,7 @@
 // the same entries one run writes; failed once its runs keep being cut off, so another can start;
 // downloaded behind the credential, a range at a time; and let go after its seven days.
 
+import { hexFromBytes } from "@repo/contract/cloud/bytes";
 import { V1_EXPORTS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { evictDurableObject } from "cloudflare:test";
 import { env, exports } from "cloudflare:workers";
@@ -28,15 +29,24 @@ import {
   OBSIDIAN_VAULT,
   zipOf,
 } from "../test-support/library-files";
-import { cellOf, inCell, newAccountId, paragraph } from "../test-support/library-cell";
+import {
+  cellOf,
+  inCell,
+  landedValue,
+  newAccountId,
+  paragraph,
+  person,
+} from "../test-support/library-cell";
 import { readZipEntries, readZipEntry } from "../zip/zip-read";
 import type { ByteSource } from "../zip/zip-read";
 import { EXPORT_KEEP_MS, EXPORT_LIMITS, exportKey, runExports } from "./cell-exports";
 import type { ExportLimits } from "./cell-exports";
-import { openCellLibrary } from "./cell-library";
+import { openCellLibrary, sendFills } from "./cell-library";
 import type { LibraryEngine } from "./library-engine";
 
 const LINK = "https://pages.example/reading";
+
+const encoder = new TextEncoder();
 
 // an account holding the small Obsidian vault, imported, beside a saved link the cloud read: its article,
 // its cover, and a highlight placed in the article
@@ -180,8 +190,7 @@ const sourceOf = (bytes: Uint8Array): ByteSource => ({
   size: bytes.length,
 });
 
-const hex = (digest: ArrayBuffer): string =>
-  [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+const hex = (digest: ArrayBuffer): string => hexFromBytes(new Uint8Array(digest));
 
 // what the zip holds, each file's digest by its path
 const entriesOf = async (zip: Uint8Array): Promise<Map<string, string>> => {
@@ -245,6 +254,13 @@ const summaryOf = async (accountId: string) =>
     };
   });
 
+// a zip read into the account, to the job's end
+const imported = async (accountId: string, zip: Uint8Array) => {
+  const started = await startImport(accountId, { bytes: zip, mime: "application/zip" }, "markdown");
+  await runImportToEnd(accountId, started.jobId);
+  return await importJobOf(accountId, started.jobId);
+};
+
 describe("an export", () => {
   // each test below builds a whole library and zips it: under a second alone, but past 5 s when
   // the full verify runs four suites at once, so each states its own timeout
@@ -284,6 +300,171 @@ describe("an export", () => {
       expect(link?.files).toStrictEqual([link?.cover]);
       expect(before.highlights).toHaveLength(2);
       await expect(summaryOf(into)).resolves.toStrictEqual(before);
+    },
+  );
+
+  it(
+    "keeps a file under any name, one that reads as a note or that a dot hides among them",
+    { timeout: 30_000 },
+    async () => {
+      const from = newAccountId();
+      await inCell(cellOf(from), async (state) => {
+        const library = openCellLibrary(state, env);
+        const client = libraryIn(state, from, library);
+        const note = await client.items.createNote({ markdown: "A note.", title: "Holder" });
+        for (const [name, mime] of [
+          ["notes.txt", "text/plain"],
+          ["readme.md", "text/markdown"],
+          [".env", "application/octet-stream"],
+          [".hidden.png", "image/png"],
+        ] as const) {
+          const bytes = encoder.encode(`the bytes of ${name}`);
+          const sha = await uploadedFile(library, from, { bytes, mime });
+          await client.items.createFile({
+            folderId: null,
+            id: library.ids.item(),
+            name,
+            savedAt: Date.UTC(2026, 9, 1),
+            sha,
+            tags: [],
+          });
+        }
+        const sha = await uploadedFile(library, from, {
+          bytes: encoder.encode("embedded in a note"),
+          mime: "text/plain",
+        });
+        landedValue(
+          library.write(person(), {
+            itemId: note.item.id,
+            ops: [
+              {
+                block: { children: [{ text: "" }], id: "card", name: "log.txt", sha, type: "file" },
+                op: "insert",
+                ord: "a5",
+                section: "note",
+              },
+            ],
+          }),
+        );
+      });
+      const { export: written } = await exported(from);
+      const zip = await zipIn(from, written.id);
+      const into = newAccountId();
+      await expect(imported(into, zip)).resolves.toMatchObject({
+        added: 5,
+        skipped: 0,
+        state: "done",
+        unreadable: 0,
+      });
+      await expect(summaryOf(into)).resolves.toStrictEqual(await summaryOf(from));
+      const names = await inCell(cellOf(into), (state) =>
+        state.storage.sql
+          .exec(
+            "SELECT original_name AS name FROM items WHERE original_name IS NOT NULL ORDER BY name",
+          )
+          .toArray()
+          .map((row) => row.name),
+      );
+      expect(names).toStrictEqual([".env", ".hidden.png", "notes.txt", "readme.md"]);
+    },
+  );
+
+  it(
+    "reads back into the library it came from as nothing new, its files no new items",
+    { timeout: 30_000 },
+    async () => {
+      const accountId = newAccountId();
+      await withLibrary(accountId);
+      const before = await summaryOf(accountId);
+      const { export: written } = await exported(accountId);
+      const job = await imported(accountId, await zipIn(accountId, written.id));
+      expect(job).toMatchObject({
+        added: 0,
+        alreadySaved: before.items.length,
+        state: "done",
+        unreadable: 0,
+      });
+      await expect(summaryOf(accountId)).resolves.toStrictEqual(before);
+    },
+  );
+
+  it(
+    "brings back what sits in Deleted, as Restore would, and Undo sends it there again",
+    { timeout: 30_000 },
+    async () => {
+      const accountId = newAccountId();
+      await withLibrary(accountId);
+      const before = await summaryOf(accountId);
+      const { export: written } = await exported(accountId);
+      await inCell(cellOf(accountId), async (state) => {
+        const client = libraryIn(state, accountId);
+        const { items } = await client.items.list({});
+        await client.items.delete({ ids: items.map((item) => item.id) });
+      });
+      const job = await imported(accountId, await zipIn(accountId, written.id));
+      expect(job).toMatchObject({
+        added: before.items.length,
+        alreadySaved: 0,
+        state: "done",
+        unreadable: 0,
+      });
+      await expect(summaryOf(accountId)).resolves.toStrictEqual(before);
+      await inCell(cellOf(accountId), async (state) => {
+        const client = libraryIn(state, accountId);
+        await client.history.undo({ changeSetIds: [job.changeSetId ?? ""] });
+        await expect(client.items.list({})).resolves.toMatchObject({ items: [] });
+      });
+    },
+  );
+
+  it("asks the reading of a link it brings back still waiting", { timeout: 30_000 }, async () => {
+    const accountId = newAccountId();
+    const itemId = await inCell(cellOf(accountId), async (state) => {
+      const engine = openCellLibrary(state, env);
+      const client = libraryIn(state, accountId, engine);
+      const saved = await client.items.saveLink({ url: "https://pages.example/waiting" });
+      await sendFills(state, env, engine);
+      return saved.item.id;
+    });
+    const { export: written } = await exported(accountId);
+    await inCell(cellOf(accountId), async (state) => {
+      await libraryIn(state, accountId).items.delete({ ids: [itemId] });
+    });
+    const sent = vi.spyOn(env.FILLS, "sendBatch");
+    onTestFinished(() => {
+      sent.mockRestore();
+    });
+    const job = await imported(accountId, await zipIn(accountId, written.id));
+    expect(job).toMatchObject({ added: 1, state: "done", unreadable: 0 });
+    expect(sent).toHaveBeenCalledExactlyOnceWith([
+      expect.objectContaining({ body: expect.objectContaining({ itemId }) }),
+    ]);
+  });
+
+  it(
+    "leaves in Deleted an item whose address a live item holds now",
+    { timeout: 30_000 },
+    async () => {
+      const accountId = newAccountId();
+      await withLibrary(accountId);
+      const { export: written } = await exported(accountId);
+      const holder = await inCell(cellOf(accountId), async (state) => {
+        const client = libraryIn(state, accountId);
+        const { items } = await client.items.list({});
+        await client.items.delete({
+          ids: items.filter((item) => item.url === LINK).map((item) => item.id),
+        });
+        const saved = await client.items.saveLink({ url: LINK });
+        return saved.item.id;
+      });
+      const job = await imported(accountId, await zipIn(accountId, written.id));
+      expect(job).toMatchObject({ added: 0, state: "done", unreadable: 0 });
+      await inCell(cellOf(accountId), async (state) => {
+        const { items } = await libraryIn(state, accountId).items.list({});
+        expect(items.filter((item) => item.url === LINK).map((item) => item.id)).toStrictEqual([
+          holder,
+        ]);
+      });
     },
   );
 

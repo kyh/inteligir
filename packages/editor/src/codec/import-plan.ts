@@ -1,19 +1,24 @@
 // A folder of markdown, this app's export or an Obsidian vault, read into the library in two
 // passes, so a job can run the second a page at a time and resume. Pass one plans from every path
-// and every doc's frontmatter: each folder, each doc's item and id, every file's bytes, and every
-// highlights' store. Pass two reads one doc at a time against the whole plan, resolving its links
+// and every doc's frontmatter: each doc's item and id, every file's bytes, and every highlights'
+// store. Pass two reads one doc at a time against the whole plan, resolving its links
 // by the resolver's tiers (path, name, alias, then the `[[Title|uuid]]` id,
-// `@repo/notes/knowledge/link-resolve`). Last, every file no doc embedded becomes an item of its
+// `@repo/notes/knowledge/link-resolve`). Last, every file no item names becomes an item of its
 // own, so a bare file is a card of its own. Obsidian's settings (`.obsidian/`) and
 // every other dot-folder are skipped, the folder's filing rules (`AGENTS.md` at its root) are kept
 // apart from every item, and a `.canvas` or a `.base` is always an item, never an attachment.
 
 import { annotationsStoreItemId } from "@repo/notes/annotations/store-schema";
-import { COVERS_DIR, fileKindOf, LIBRARY_RULES_PATH, PAGES_DIR } from "@repo/notes/items/item-kind";
+import {
+  COVERS_DIR,
+  fileKindOf,
+  isBytesFolderPath,
+  LIBRARY_RULES_PATH,
+} from "@repo/notes/items/item-kind";
 import type { FileKind } from "@repo/notes/items/item-kind";
 import { urlKey } from "@repo/notes/items/item-url";
 import { docStem, isDocPath, isDotEntryPath } from "@repo/notes/knowledge/doc-file";
-import { frontmatterAliases, mdLinkTarget } from "@repo/notes/knowledge/link-extract";
+import { mdLinkTarget } from "@repo/notes/knowledge/link-extract";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import type { TargetResolver } from "@repo/notes/knowledge/link-resolve";
 import {
@@ -23,7 +28,7 @@ import {
   normalizePath,
   relativePath,
 } from "@repo/notes/knowledge/folder-path";
-import { frontmatterYaml, parseProperties } from "@repo/notes/markdown/frontmatter";
+import { frontmatterYaml } from "@repo/notes/markdown/frontmatter";
 import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 import { readFrontmatter } from "./item-fields";
@@ -42,6 +47,9 @@ export const importPathKind = (raw: string): ImportPathKind => {
   if (annotationsStoreItemId(path) !== null) {
     return "store";
   }
+  if (isBytesFolderPath(path)) {
+    return "file";
+  }
   if (path === "" || isDotEntryPath(path)) {
     return "skipped";
   }
@@ -59,21 +67,15 @@ export type ImportEntry =
   | { readonly kind: "store"; readonly path: string; readonly text: string }
   | { readonly kind: "file"; readonly path: string; readonly sha: string };
 
-/** @internal */
-export interface PlannedFolder {
-  readonly id: string;
-  readonly parentId: string | null;
-  readonly name: string;
-  readonly path: string;
-}
-
 export interface PlannedDoc {
   readonly path: string;
   readonly itemId: string;
   readonly title: string;
-  readonly folderId: string | null;
-  // the `id:` its frontmatter carries, which its store and other docs' `[[Title|uuid]]` key by
+  // the `id:` its frontmatter carries, which other docs' `[[Title|uuid]]` key by
   readonly fileId: string | null;
+  // the id of the highlights' store it reads: a highlight's id is the library's, so of the docs
+  // that carry one `id:` only the first takes the store, and a copy keeps its text
+  readonly storeId: string | null;
   readonly aliases: readonly string[];
   // the url key its frontmatter names, by which the cell folds two saves of one page into one item
   readonly urlKey: string | null;
@@ -87,7 +89,6 @@ interface PlannedFile {
 
 // pass one's answer, plain data a resumable job keeps between its pages
 export interface ImportPlan {
-  readonly folders: readonly PlannedFolder[];
   readonly docs: readonly PlannedDoc[];
   readonly files: readonly PlannedFile[];
   // the docs' highlight stores, each by the frontmatter id it is keyed by
@@ -98,40 +99,9 @@ export interface ImportPlan {
 
 export interface PlanIds {
   readonly newItemId: () => string;
-  readonly newFolderId: () => string;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
-
-interface FolderTable {
-  readonly folders: PlannedFolder[];
-  readonly idOf: (dir: string) => string | null;
-}
-
-// a folder for every directory an item sits in, and every directory above one; a directory a
-// table before this one made keeps its folder
-const folderTable = (
-  newFolderId: () => string,
-  known: ReadonlyMap<string, string> = new Map(),
-): FolderTable => {
-  const folders: PlannedFolder[] = [];
-  const ids = new Map(known);
-  const idOf = (dir: string): string | null => {
-    if (dir === "") {
-      return null;
-    }
-    const held = ids.get(dir);
-    if (held !== undefined) {
-      return held;
-    }
-    const parentId = idOf(dirnamePath(dir));
-    const id = newFolderId();
-    ids.set(dir, id);
-    folders.push({ id, name: basenamePath(dir), parentId, path: dir });
-    return id;
-  };
-  return { folders, idOf };
-};
 
 interface DocFront {
   readonly fileId: string | null;
@@ -144,7 +114,7 @@ const docFront = (path: string, text: string): DocFront => {
   const yaml = frontmatterYaml(text);
   const read = readFrontmatter(yaml, docStem(path), 0);
   return {
-    aliases: frontmatterAliases(parseProperties(yaml ?? "")),
+    aliases: read.fields.aliases,
     fileId: read.id,
     title: read.fields.title,
     urlKey: read.fields.url === null ? null : urlKey(read.fields.url),
@@ -154,11 +124,11 @@ const docFront = (path: string, text: string): DocFront => {
 // pass one: every path planned, an item id minted for each doc (its own uuid kept when it has an
 // unused one), and the resolver every doc's links are read through
 export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): ImportPlan => {
-  const table = folderTable(ids.newFolderId);
   const docs: PlannedDoc[] = [];
   const files: PlannedFile[] = [];
   const stores: { key: string; text: string }[] = [];
   const usedIds = new Set<string>();
+  const storeIds = new Set<string>();
   let rules: string | null = null;
   for (const entry of entries) {
     const path = normalizePath(entry.path);
@@ -175,7 +145,9 @@ export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): Impor
         break;
       }
       case "file": {
-        files.push({ kind: fileKindOf(path) ?? "file", path, sha: entry.sha });
+        // a name's leading dot hides it, and says nothing of what the file is
+        const name = basenamePath(path).replace(/^\.+/u, "");
+        files.push({ kind: fileKindOf(name) ?? "file", path, sha: entry.sha });
         break;
       }
       case "doc": {
@@ -184,12 +156,16 @@ export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): Impor
           front.fileId !== null && UUID_RE.test(front.fileId) ? front.fileId.toLowerCase() : null;
         const itemId = own !== null && !usedIds.has(own) ? own : ids.newItemId();
         usedIds.add(itemId);
+        const storeId = front.fileId !== null && !storeIds.has(front.fileId) ? front.fileId : null;
+        if (storeId !== null) {
+          storeIds.add(storeId);
+        }
         docs.push({
           aliases: front.aliases,
           fileId: front.fileId,
-          folderId: table.idOf(dirnamePath(path)),
           itemId,
           path,
+          storeId,
           title: front.title,
           urlKey: front.urlKey,
         });
@@ -198,12 +174,11 @@ export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): Impor
       // no default
     }
   }
-  return { docs, files, folders: table.folders, rules, stores };
+  return { docs, files, rules, stores };
 };
 
 // a plan opened for pass two: its lookups and its resolver, built once for every doc it reads
 export interface PlanReader {
-  readonly plan: ImportPlan;
   readonly resolver: TargetResolver;
   readonly docs: ReadonlyMap<string, PlannedDoc>;
   readonly files: ReadonlyMap<string, PlannedFile>;
@@ -213,7 +188,6 @@ export interface PlanReader {
 export const openPlan = (plan: ImportPlan): PlanReader => ({
   docs: new Map(plan.docs.map((doc) => [doc.path, doc])),
   files: new Map(plan.files.map((file) => [file.path, file])),
-  plan,
   resolver: buildResolver(
     [...plan.docs.map((doc) => doc.path), ...plan.files.map((file) => file.path)],
     plan.docs.flatMap((doc) => doc.aliases.map((alias): [string, string] => [alias, doc.path])),
@@ -233,8 +207,6 @@ export interface ReadPassPorts {
 interface ImportedDoc {
   readonly doc: PlannedDoc;
   readonly item: ImportedItem;
-  // the files the doc embeds or links, which pass three keeps as attachments
-  readonly files: ReadonlySet<string>;
 }
 
 export type DocImport =
@@ -249,14 +221,12 @@ export const importPlannedDoc = (
   ports: ReadPassPorts,
 ): DocImport => {
   const { docs, files } = reader;
-  const used = new Set<string>();
   const fromDir = dirnamePath(doc.path);
   const fileAt = (path: string): FoundFile | null => {
     const file = files.get(path);
     if (file === undefined) {
       return null;
     }
-    used.add(file.sha);
     return {
       kind: file.kind,
       name: basenamePath(path),
@@ -284,7 +254,7 @@ export const importPlannedDoc = (
   };
   const read = importItem(
     {
-      annotations: doc.fileId === null ? null : (reader.stores.get(doc.fileId) ?? null),
+      annotations: doc.storeId === null ? null : (reader.stores.get(doc.storeId) ?? null),
       name: docStem(doc.path),
       text,
     },
@@ -297,33 +267,26 @@ export const importPlannedDoc = (
     },
   );
   return read.ok
-    ? { ok: true, read: { doc, files: used, item: read.item } }
+    ? { ok: true, read: { doc, item: read.item } }
     : { ok: false, path: doc.path, reason: read.reason };
 };
 
 interface PlannedFileItem {
   readonly itemId: string;
-  readonly path: string;
-  readonly folderId: string | null;
+  // the folder's path in the zip, "" at its root
+  readonly folderPath: string;
   readonly fields: ImportedFields;
 }
 
-export interface FileItems {
-  readonly items: readonly PlannedFileItem[];
-  // the folders the file items sit in that no doc's did
-  readonly folders: readonly PlannedFolder[];
-}
-
-// what pass two read of the files: those a doc embedded or linked, and those a doc held as its own
-// original (a wrapper of a file item, as an export writes one)
+// what the library's items name of the files once pass two has run: every file, and those an item
+// holds as its own original (a wrapper of a file item, as an export writes one)
 export interface ReadFiles {
   readonly attached: ReadonlySet<string>;
   readonly originals: ReadonlySet<string>;
 }
 
-// a cover or a page copy, where an export puts them
-const structural = (path: string): boolean =>
-  path.startsWith(`${COVERS_DIR}/`) || path.startsWith(`${PAGES_DIR}/`);
+// a cover, where an export puts one
+const isCoverPath = (path: string): boolean => path.startsWith(`${COVERS_DIR}/`);
 
 const fileItemFields = (file: PlannedFile, now: number): ImportedFields => {
   const extension = extnamePath(file.path);
@@ -331,7 +294,6 @@ const fileItemFields = (file: PlannedFile, now: number): ImportedFields => {
   return {
     aliases: [],
     author: null,
-    copySha: null,
     coverSha: file.kind === "image" ? file.sha : null,
     description: null,
     fetchError: null,
@@ -352,27 +314,23 @@ const fileItemFields = (file: PlannedFile, now: number): ImportedFields => {
   };
 };
 
-// pass three: every file no doc embedded or linked, and every `.canvas` and `.base` no doc held as
-// its original, an item of its own in its folder; a cover or a page copy no item holds is no card,
-// since it is part of an item
+// pass three: every file no item names, and every `.canvas` and `.base` no item holds as its
+// original, an item of its own in its folder; a cover no item holds is no card, since it is part
+// of an item
 export const planFileItems = (
   plan: ImportPlan,
   read: ReadFiles,
   ids: PlanIds,
   now: number,
-): FileItems => {
-  const known = new Map(plan.folders.map((folder) => [folder.path, folder.id]));
-  const table = folderTable(ids.newFolderId, known);
+): PlannedFileItem[] => {
   const ownItem = (file: PlannedFile): boolean =>
-    !structural(file.path) &&
+    !isCoverPath(file.path) &&
     !read.originals.has(file.sha) &&
     (!read.attached.has(file.sha) ||
       ITEM_ONLY_EXTENSIONS.has(extnamePath(file.path).toLowerCase()));
-  const items = plan.files.filter(ownItem).map((file) => ({
+  return plan.files.filter(ownItem).map((file) => ({
     fields: fileItemFields(file, now),
-    folderId: table.idOf(dirnamePath(file.path)),
+    folderPath: dirnamePath(file.path),
     itemId: ids.newItemId(),
-    path: file.path,
   }));
-  return { folders: table.folders, items };
 };

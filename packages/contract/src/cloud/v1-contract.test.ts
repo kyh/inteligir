@@ -357,7 +357,6 @@ describe("the library's wire", () => {
       fields: {
         aliases: [],
         author: null,
-        copySha: null,
         coverSha: null,
         deletedAt: null,
         description: null,

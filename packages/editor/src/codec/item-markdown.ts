@@ -2,21 +2,18 @@
 // (`item-fields.ts`), its body the dialect, the page a fill read inside `:::article` after the
 // person's note, and its highlights the markers in the body beside the item's
 // `.inteligir/annotations/<id>.json`. The files an item holds whole sit where an export puts
-// them: a saved link's cover the body's first embed under `assets/covers/`, its page
-// copy the last line's `[Copy of the page]` link, a file item's original its first embed of its
-// kind. A read link's file with no `:::article` reads its whole body as the page, which Read the
-// page again replaces.
+// them: a saved link's cover the body's first embed under `assets/covers/`, a file item's
+// original its first embed of its kind.
 
 import type { Root, RootContent } from "mdast";
-import { ElementApi } from "platejs";
-import type { Descendant, TElement } from "platejs";
+import type { TElement } from "platejs";
 
 import {
   parseAnnotationStore,
   serializeAnnotationStore,
 } from "@repo/notes/annotations/store-schema";
 import type { AnnotationStore } from "@repo/notes/annotations/store-schema";
-import { COVERS_DIR, PAGES_DIR, URL_ITEM_KINDS } from "@repo/notes/items/item-kind";
+import { COVERS_DIR, URL_ITEM_KINDS } from "@repo/notes/items/item-kind";
 import type { ItemKind } from "@repo/notes/items/item-kind";
 import { orderedBlocks } from "@repo/notes/library/block-ops";
 import type { StoredBlock } from "@repo/notes/library/block-ops";
@@ -34,11 +31,10 @@ import { stringProp } from "@repo/editor/node-props";
 import { readFrontmatter, writeFrontmatter } from "./item-fields";
 import type { FileFields } from "./item-fields";
 import { nameDrafts } from "./name-blocks";
-import type { RefusedBlock } from "./name-blocks";
 import { readBlocks } from "./read-blocks";
 import { elementsOf, embedFiles, settled } from "./read-markdown";
 import type { LibraryFile, Reached, ReadHighlight } from "./read-blocks";
-import { isText, leaf } from "./slate-leaves";
+import { leaf } from "./slate-leaves";
 import { writeBlocks } from "./write-blocks";
 import type { WritePorts } from "./write-blocks";
 
@@ -76,21 +72,17 @@ interface PlacedBlock {
 export type ImportedFields = Omit<LibraryItemFields, "deletedAt" | "folderId">;
 
 export interface ImportedItem {
-  // the `id:` the file carried, which other files' `[[Title|uuid]]` and its store key by
-  readonly fileId: string | null;
   readonly fields: ImportedFields;
   readonly blocks: readonly PlacedBlock[];
   readonly annotations: AnnotationStore;
-  readonly refused: readonly RefusedBlock[];
-  // why the highlights' store could not be read; its highlights were left out
-  readonly annotationsError: string | null;
+  // what the file held that the item cannot: each block no store takes, and a highlights' store
+  // past reading
+  readonly leftOut: number;
 }
 
 export type ItemImport =
   | { readonly ok: true; readonly item: ImportedItem }
   | { readonly ok: false; readonly reason: "too-deep" };
-
-const COPY_LINK_TEXT = "Copy of the page";
 
 interface Parts {
   readonly yaml: string | null;
@@ -117,31 +109,11 @@ const partsOf = (root: Root): Parts => {
   return { after, article, before, yaml };
 };
 
-const isElement = (node: Descendant): node is TElement => ElementApi.isElement(node);
-
 // a lone image block's address: the parse lifts every markdown image into a block of its own
 const imageUrl = (block: TElement | undefined): string | null =>
   block?.type === "img" ? (stringProp(block, "url") ?? null) : null;
 
-// a paragraph holding only `[Copy of the page](…)`
-const copyLinkUrl = (block: TElement | undefined): string | null => {
-  const inner =
-    block?.type === "p"
-      ? block.children.filter((child) => !isText(child) || child.text.trim() !== "")
-      : [];
-  const [link, ...rest] = inner;
-  if (link === undefined || rest.length > 0 || !isElement(link) || link.type !== "a") {
-    return null;
-  }
-  const [label, ...more] = link.children;
-  return more.length === 0 && label !== undefined && isText(label) && label.text === COPY_LINK_TEXT
-    ? (stringProp(link, "url") ?? null)
-    : null;
-};
-
 const under = (dir: string, path: string): boolean => path.startsWith(`${dir}/`);
-
-const isUrlKind = (kind: ItemKind): boolean => URL_ITEM_KINDS.some((url) => url === kind);
 
 const originalKind = (kind: ItemKind): boolean =>
   !URL_ITEM_KINDS.some((url) => url === kind) && kind !== "note";
@@ -150,27 +122,20 @@ interface HeldFiles {
   cover: string | null;
   // the original's bytes and the name it was found under
   original: { readonly sha: string; readonly name: string } | null;
-  copy: string | null;
 }
 
 // the body's structural files taken out of it: what an export puts there, read back
 const takeHeldFiles = (
-  sections: { first: TElement[]; last: TElement[]; all: TElement[][] },
+  sections: { first: TElement[]; all: TElement[][] },
   kind: ItemKind,
   ports: ImportPorts,
 ): HeldFiles => {
-  const held: HeldFiles = { copy: null, cover: null, original: null };
+  const held: HeldFiles = { cover: null, original: null };
   const firstUrl = imageUrl(sections.first[0]);
   const cover = firstUrl === null ? null : ports.file(firstUrl);
   if (cover?.kind === "image" && under(COVERS_DIR, cover.place)) {
     held.cover = cover.sha;
     sections.first.shift();
-  }
-  const lastUrl = copyLinkUrl(sections.last.at(-1));
-  const copy = lastUrl === null ? null : ports.file(lastUrl);
-  if (copy !== null && under(PAGES_DIR, copy.place) && copy.place.toLowerCase().endsWith(".html")) {
-    held.copy = copy.sha;
-    sections.last.pop();
   }
   if (!originalKind(kind)) {
     return held;
@@ -215,7 +180,6 @@ const highlightEntries = (highlights: readonly ReadHighlight[], now: number): An
 
 const fieldsWith = (fields: FileFields, held: HeldFiles): ImportedFields => ({
   ...fields,
-  copySha: held.copy,
   coverSha: held.cover ?? (fields.kind === "image" ? (held.original?.sha ?? null) : null),
   originalName: held.original?.name ?? null,
   originalSha: held.original?.sha ?? null,
@@ -243,7 +207,7 @@ const sectionValues = (parts: Parts): SectionValues | null => {
 
 interface ReadAnnotations {
   readonly annotations: AnnotationStore;
-  readonly error: string | null;
+  readonly unreadable: boolean;
 }
 
 // the store the file's highlights were kept in, and the bare highlights its `==x==` made
@@ -256,7 +220,7 @@ const annotationsOf = (
   const kept = store?.ok === true ? store.store : {};
   return {
     annotations: { ...kept, ...highlightEntries(highlights, now) },
-    error: store?.ok === false ? store.error : null,
+    unreadable: store?.ok === false,
   };
 };
 
@@ -277,16 +241,13 @@ export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport =
   }
   const front = readFrontmatter(parts.yaml, source.name, ports.now);
   const { after, article, before } = values;
-  const order = [before, article, after].filter((blocks) => blocks.length > 0);
+  const sections = [before, article, after];
   const held = takeHeldFiles(
-    { all: [before, article, after], first: order[0] ?? before, last: order.at(-1) ?? before },
+    { all: sections, first: sections.find((blocks) => blocks.length > 0) ?? before },
     front.fields.kind,
     ports,
   );
-  // a read link from before the article section: its body is the page
-  const readPage =
-    parts.article === null && isUrlKind(front.fields.kind) && front.fields.fetchState === "filled";
-  const note = readPage ? [] : [...before, ...after];
+  const note = [...before, ...after];
   if (front.invalidYaml !== null) {
     note.unshift(yamlBlock(front.invalidYaml));
   }
@@ -296,18 +257,16 @@ export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport =
   };
   const read = (value: TElement[]): TElement[] => settled(elementsOf(embedFiles(value, readPorts)));
   const noteRead = readBlocks(read(note), readPorts, ports);
-  const pageRead = readBlocks(read(readPage ? before : article), readPorts, null);
+  const pageRead = readBlocks(read(article), readPorts, null);
   const noteBlocks = nameDrafts(noteRead.blocks, ports.newBlockId);
   const pageBlocks = nameDrafts(pageRead.blocks, ports.newBlockId);
   const highlights = annotationsOf(source.annotations, noteRead.highlights, ports.now);
   return {
     item: {
       annotations: highlights.annotations,
-      annotationsError: highlights.error,
       blocks: [...placed(noteBlocks.blocks, "note"), ...placed(pageBlocks.blocks, "article")],
       fields: fieldsWith(front.fields, held),
-      fileId: front.id,
-      refused: [...noteBlocks.refused, ...pageBlocks.refused],
+      leftOut: noteBlocks.refused + pageBlocks.refused + (highlights.unreadable ? 1 : 0),
     },
     ok: true,
   };
@@ -319,7 +278,6 @@ const PAGE_PORTS = { image: (): null => null, wiki: (): null => null };
 
 export interface ArticleBlocks {
   readonly blocks: readonly PlacedBlock[];
-  readonly refused: readonly RefusedBlock[];
 }
 
 // a page a fill read (the reader's canonical markdown) as its item's article section, keys minted
@@ -331,7 +289,7 @@ export const articleBlocks = (markdown: string, newBlockId: () => string): Artic
   }
   const drafts = readBlocks(settled(elementsOf(converted.nodes)), PAGE_PORTS, null);
   const named = nameDrafts(drafts.blocks, newBlockId);
-  return { blocks: placed(named.blocks, "article"), refused: named.refused };
+  return { blocks: placed(named.blocks, "article") };
 };
 
 export interface ExportItem {
@@ -344,7 +302,7 @@ export interface ExportItem {
 // a file the item holds whole, by its role: an original by the name it was saved under too, null
 // where none came with it
 export type HeldFile =
-  | { readonly role: "cover" | "copy"; readonly sha: string }
+  | { readonly role: "cover"; readonly sha: string }
   | { readonly role: "original"; readonly sha: string; readonly name: string | null };
 
 export interface ExportPorts extends WritePorts {
@@ -363,11 +321,6 @@ const heldImage = (url: string): TElement => ({
   children: [leaf("", {})],
   type: "img",
   url,
-});
-
-const heldCopy = (url: string): TElement => ({
-  children: [{ children: [leaf(COPY_LINK_TEXT, {})], type: "a", url }],
-  type: "p",
 });
 
 // one item as one markdown file; `title` is written into the frontmatter when the file's name
@@ -395,16 +348,10 @@ export const exportItem = (
       ),
     );
   }
-  // a read link's note beside no page keeps the section, so the note does not read back as the page
-  const keepsSection =
-    article.length > 0 ||
-    (note.length > 0 && isUrlKind(fields.kind) && fields.fetchState === "filled");
-  const body: TElement[] = keepsSection
-    ? [...head, ...note, { children: article, type: ARTICLE_SECTION_KEY }]
-    : [...head, ...note];
-  if (fields.copySha !== null) {
-    body.push(heldCopy(ports.held({ role: "copy", sha: fields.copySha })));
-  }
+  const body: TElement[] =
+    article.length > 0
+      ? [...head, ...note, { children: article, type: ARTICLE_SECTION_KEY }]
+      : [...head, ...note];
   const markdown = body.length === 0 ? "" : `${serializeNote(headlessEditor(), body).trimEnd()}\n`;
   const yaml = writeFrontmatter(fields, item.id, title);
   const separator = markdown === "" ? "" : "\n";

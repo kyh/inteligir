@@ -1,9 +1,10 @@
 // the reader over a committed corpus of synthetic pages: what a page says about itself in the
 // precedence page-meta.ts names, the article rules, the dialect escapes, and the body ladder's
-// promise that every article is already the editor's own fixpoint, over linkedom, the DOM the Mac's
-// fill worker and the phone's runtime under node parse with. The phone's page parses with its
-// WebView's own DOMParser, which tools/e2e/src/scenarios/phone-editor-page.ts drives in a real
-// browser against this same reading (jsdom's DOM is no stand-in: defuddle picks the whole body).
+// promise that every article is already the editor's own fixpoint, over linkedom, the DOM the
+// Worker's fill, the extension's worker and the phone's runtime under node parse with. The phone's
+// page parses with its WebView's own DOMParser, which tools/e2e/src/scenarios/phone-editor-page.ts
+// drives in a real browser against this same reading (jsdom's DOM is no stand-in: defuddle picks
+// the whole body).
 
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
@@ -110,6 +111,13 @@ describe("page meta", () => {
     );
     expect(facts.site).toBe("VidTube");
     expect(facts.author).toBe("Crumb Kitchen");
+  });
+
+  it("takes no in-page anchor for a picture", () => {
+    const html = `<html><head><meta property="og:image" content="#top"></head><body></body></html>`;
+    expect(
+      extractPage({ html, prefer: "article", url: PAGE_URL }, parsePage).facts.images,
+    ).toStrictEqual([]);
   });
 
   it("drops a script url among the images", () => {
@@ -310,7 +318,6 @@ describe("the article as blocks", () => {
       counter(),
     );
     const { article } = extractPage({ html, prefer: "article", url: PAGE_URL }, parsePage);
-    expect(read.article.refused).toStrictEqual([]);
     expect(read.article.blocks.every((placed) => placed.section === "article")).toBe(true);
     expect(read.article.blocks.map((placed) => placed.block.id)).toStrictEqual(
       read.article.blocks.map((_, index) => `page${String(index + 1)}`),

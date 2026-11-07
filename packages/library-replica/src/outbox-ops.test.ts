@@ -14,7 +14,6 @@ import { paragraph } from "./test-support/replica-harness";
 const FIELDS: LibraryItemFields = {
   aliases: [],
   author: null,
-  copySha: null,
   coverSha: null,
   deletedAt: null,
   description: null,

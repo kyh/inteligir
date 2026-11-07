@@ -5,6 +5,7 @@
 // loses nor repeats one.
 
 import type { importJobSchema } from "@repo/contract/cloud/library/library-wire";
+import { utf8ByteLength } from "@repo/notes/library/canonical-json";
 import { IMPORT_PHASES, IMPORT_SOURCES, IMPORT_STATES } from "@repo/notes/library/library-schema";
 import { chunkStatement } from "@repo/notes/library/library-sql";
 import type { SqlRow, SqlStatements } from "@repo/notes/library/library-sql";
@@ -221,11 +222,24 @@ export const dropImportRuns = (sql: SqlStatements, id: string): void => {
 
 // ---- the plan ----
 
+// a plan row's JSON, with room under a SQLite Durable Object's 2 MB row for the columns beside it
+// (https://developers.cloudflare.com/durable-objects/platform/limits/): one past it would throw
+// and stop the whole import, where an entry that long is one left out
+const IMPORT_ROW_MAX_BYTES = 1_900_000;
+
+interface ImportRow {
+  readonly idx: number;
+  readonly value: unknown;
+}
+
+export const fitsImportRow = (row: ImportRow): boolean =>
+  utf8ByteLength(JSON.stringify(row.value)) <= IMPORT_ROW_MAX_BYTES;
+
 export const putImportRows = (
   sql: SqlStatements,
   jobId: string,
   kind: string,
-  rows: readonly { readonly idx: number; readonly value: unknown }[],
+  rows: readonly ImportRow[],
 ): void => {
   for (const statement of chunkStatement({
     each: "(?, ?, ?, ?)",

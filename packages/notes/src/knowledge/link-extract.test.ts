@@ -1,7 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { frontmatterAliases, mdLinkTarget } from "./link-extract";
+import { frontmatterAliases, mdLinkTarget, mdLinkUrl } from "./link-extract";
 import { parseProperties } from "../markdown/frontmatter";
+
+describe(mdLinkUrl, () => {
+  it("writes a path `mdLinkTarget` reads back as itself", () => {
+    for (const path of [
+      "assets/Invoice #12.pdf",
+      "assets/a%20b.pdf",
+      "assets/100%.pdf",
+      "a b.md",
+    ]) {
+      expect(mdLinkTarget(mdLinkUrl(path)), path).toBe(path);
+    }
+  });
+});
 
 describe(mdLinkTarget, () => {
   it("names the path an md url points at, percent-decoded, its anchor left off", () => {

@@ -26,11 +26,11 @@ export const blobKey = (accountId: string, sha: string): string => `acct/${accou
 // everything R2 holds for one account, which its deletion empties
 export const accountBlobPrefix = (accountId: string): string => `acct/${accountId}/`;
 
-export const fieldFilesOf = ({ copySha, coverSha, originalSha }: LibraryItemFields): string[] =>
-  [originalSha, coverSha, copySha].filter((sha) => sha !== null);
+export const fieldFilesOf = ({ coverSha, originalSha }: LibraryItemFields): string[] =>
+  [originalSha, coverSha].filter((sha) => sha !== null);
 
-// every file an item names: its original, cover and page copy by field, and each image, video or
-// file its body embeds
+// every file an item names: its original and cover by field, and each image, video or file its
+// body embeds
 export const itemFilesOf = (state: ItemState): string[] => {
   const shas = new Set(fieldFilesOf(state.fields));
   for (const stored of state.blocks.values()) {

@@ -124,8 +124,7 @@ Decisions says how a bullet is written and cited.
 
 - **NO COPY OF THE PAGE: AN ITEM KEEPS WHAT THE EXTENSION READ, AND OPEN
   ORIGINAL OPENS THE PAGE.** `items.save` carries the article, the facts, a
-  cover and the passage, never a copy; a `copySha` comes only with an import,
-  which an export writes back out. Rejected: Keep a copy on `items.save` (no
+  cover and the passage, never a copy. Rejected: Keep a copy on `items.save` (no
   device opens a copy, so it would upload bytes nobody reads; a single-file
   copy needs every stylesheet, font and picture the page names, which an
   `activeTab` extension with no host cannot fetch across origins; the frozen

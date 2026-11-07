@@ -11,6 +11,7 @@ import { WIKI_EMBED_KEY } from "@repo/editor/dialect-node-keys";
 import { headlessEditor, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { mdToSlate } from "@repo/editor/markdown/md-to-slate";
 import { wikiFieldsOf, wikiPartsOf } from "@repo/editor/wiki/wiki-node";
+import { mdLinkUrl } from "@repo/notes/knowledge/link-extract";
 
 import type { ReadPorts } from "./read-blocks";
 import { leaf } from "./slate-leaves";
@@ -33,7 +34,7 @@ const embedImage = (node: TElement, ports: ReadPorts): Descendant => {
     caption: [leaf(width, {})],
     children: [leaf("", {})],
     type: "img",
-    url: reached.file.path,
+    url: mdLinkUrl(reached.file.path),
   };
 };
 

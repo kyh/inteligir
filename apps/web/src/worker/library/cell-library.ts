@@ -5,6 +5,8 @@
 // file's removal from R2 and a reading's send. The router the cell serves and a test running
 // inside the cell open it the same way.
 
+import { UNKNOWN_FILE_TYPE } from "@repo/notes/items/item-kind";
+
 import { errorFields } from "../log";
 import { blobKey } from "./cell-blobs";
 import type { ClaimedFill } from "./cell-fills";
@@ -117,7 +119,7 @@ export const settleStored = async (
       ? null
       : {
           bytes: object.size,
-          mime: object.httpMetadata?.contentType ?? "application/octet-stream",
+          mime: object.httpMetadata?.contentType ?? UNKNOWN_FILE_TYPE,
         };
   const settled = library.settle(sha, stored, removalsSeen);
   if (!settled.ok && settled.refusal.kind === "gone") {

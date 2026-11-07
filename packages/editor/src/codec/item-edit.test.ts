@@ -7,6 +7,7 @@ import type { ItemState, StoredBlock } from "@repo/notes/library/block-ops";
 import { blockHash } from "@repo/notes/library/block-hash";
 import { compareBlockPlaces } from "@repo/notes/library/block-order";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
+import { BLOCK_MAX_BYTES } from "@repo/notes/library/library-nodes";
 
 import { pretendLibrary, withoutId } from "../test-support/codec-ports";
 import { editItemView, placeItemQuotes } from "./item-edit";
@@ -67,7 +68,6 @@ const landed = (
   const fields: LibraryItemFields = {
     aliases: [],
     author: null,
-    copySha: null,
     coverSha: null,
     deletedAt: null,
     description: null,
@@ -116,6 +116,20 @@ const NOTE = [
 describe("the agent's view of an item", () => {
   it("writes a link with its item's live title and id", () => {
     expect(textOf(storedOf(NOTE))).toContain(`[[Other note|${OTHER_ID}]]`);
+  });
+
+  it("turns down text no block can store, naming the edit, and leaves the block it would replace", () => {
+    const fence = `\`\`\`inteligir-html\n${"x".repeat(BLOCK_MAX_BYTES)}\n\`\`\`\n`;
+    expect(
+      editItemView(
+        storedOf("One.\n\nTwo.\n"),
+        [
+          { newText: "Still one.", oldText: "One." },
+          { newText: fence, oldText: "Two." },
+        ],
+        portsWith(),
+      ),
+    ).toStrictEqual({ kind: "refused", refusal: { edit: 1, kind: "unstorable" } });
   });
 
   it("places every block where its group's text reads back as it", { timeout: 90_000 }, () => {
@@ -220,6 +234,41 @@ describe("an edit made on the view", () => {
       .map((stored) => JSON.stringify(stored.block.children).slice(0, 30));
     expect(order[2]).toContain("A new paragraph.");
     expect(textOf(after)).toContain("and stays.\n\nA new paragraph.\n\nSecond");
+  });
+
+  it("lands a new block between two blocks that hold one key, moving one of them", () => {
+    const blocks = storedOf("Before.\n\nAlpha.\n\nBeta.\n\nAfter.\n");
+    const [, alpha, beta] = [...blocks.values()];
+    if (alpha === undefined || beta === undefined) {
+      throw new Error("the item holds fewer blocks than it was written with");
+    }
+    // two devices that added after one block mint one key
+    blocks.set(beta.block.id, { ...beta, ord: alpha.ord });
+    const outcome = editItemView(
+      blocks,
+      [{ newText: "Alpha.\n\nBetween.", oldText: "Alpha." }],
+      portsWith(),
+    );
+    if (outcome.kind !== "changed") {
+      throw new Error(`the edit was refused: ${JSON.stringify(outcome)}`);
+    }
+    expect(outcome.ops.filter((op) => op.op === "move")).toHaveLength(1);
+    expect(textOf(landed(blocks, outcome.ops))).toBe(
+      "Before.\n\nAlpha.\n\nBetween.\n\nBeta.\n\nAfter.\n",
+    );
+  });
+
+  it("moves no block an edit that adds none had no need of", () => {
+    const blocks = storedOf("Alpha.\n\nBeta.\n\nAfter.\n");
+    const [alpha, beta] = [...blocks.values()];
+    if (alpha === undefined || beta === undefined) {
+      throw new Error("the item holds fewer blocks than it was written with");
+    }
+    blocks.set(beta.block.id, { ...beta, ord: alpha.ord });
+    const outcome = editItemView(blocks, [{ newText: "Later.", oldText: "After." }], portsWith());
+    expect(outcome.kind === "changed" ? outcome.ops.map((op) => op.op) : outcome).toStrictEqual([
+      "put",
+    ]);
   });
 
   it("drops a block it deleted", () => {

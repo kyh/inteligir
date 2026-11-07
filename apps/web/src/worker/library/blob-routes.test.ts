@@ -2,6 +2,7 @@
 // range and by revalidation, under the policy its kind is served with, and out of every other
 // account's reach.
 
+import { hexFromBytes } from "@repo/contract/cloud/bytes";
 import { BLOB_MAX_BYTES, V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
@@ -21,10 +22,8 @@ import { blobKey } from "./cell-blobs";
 import { addFileBytes } from "./cell-quota";
 import { cellStorageOf } from "./cell-storage";
 
-const sha256Hex = async (bytes: Uint8Array): Promise<string> => {
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
-  return [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-};
+const sha256Hex = async (bytes: Uint8Array): Promise<string> =>
+  hexFromBytes(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
 
 const fileOf = async (text: string) => {
   const bytes = new TextEncoder().encode(text);
@@ -198,14 +197,14 @@ describe("a file's bytes", () => {
     expect(mismatch.status).toBe(412);
   });
 
-  it("serves a page copy under a sandbox with no script, and a PDF under its viewer's policy", async () => {
+  it("serves an html file under a sandbox with no script, and a PDF under its viewer's policy", async () => {
     const { auth } = await signedIn("blob-policies@example.test");
     const page = await fileOf("<html><script>alert(1)</script></html>");
     await put(auth, page.sha, page.bytes, "text/html; charset=utf-8");
-    const copy = await drained(exports.default.fetch(urlOf(page.sha), { headers: auth }));
-    expect(copy.headers.get("content-security-policy")).toContain("sandbox");
-    expect(copy.headers.get("content-security-policy")).not.toContain("script-src");
-    expect(copy.headers.get("referrer-policy")).toBe("no-referrer");
+    const html = await drained(exports.default.fetch(urlOf(page.sha), { headers: auth }));
+    expect(html.headers.get("content-security-policy")).toContain("sandbox");
+    expect(html.headers.get("content-security-policy")).not.toContain("script-src");
+    expect(html.headers.get("referrer-policy")).toBe("no-referrer");
 
     const pdf = await fileOf("%PDF-1.7");
     await put(auth, pdf.sha, pdf.bytes, "application/pdf");

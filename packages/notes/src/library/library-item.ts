@@ -71,7 +71,6 @@ const properties = z
 export const libraryItemFieldsSchema = z.strictObject({
   aliases: listOf(text),
   author: text.nullable(),
-  copySha: sha256.nullable(),
   coverSha: sha256.nullable(),
   deletedAt: instant.nullable(),
   description: z.string().min(1).max(ITEM_FIELD_CAPS.description).nullable(),
@@ -107,7 +106,6 @@ export type PropertyValue = LibraryItemFields["properties"][string];
 export const blankFields = (savedAt: number): LibraryItemFields => ({
   aliases: [],
   author: null,
-  copySha: null,
   coverSha: null,
   deletedAt: null,
   description: null,

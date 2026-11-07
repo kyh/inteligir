@@ -1,10 +1,9 @@
 // Drafts named and held to the vocabulary: each top-level block takes a fresh id and the
 // vocabulary's parse, and one past the block cap (a pasted log, a dump in one fence) is cut into
 // blocks of its own type, between its children or, for one long run of text, between its lines.
-// What still cannot be stored (a rich block's source past the cap) is refused by name, its text
-// kept in the answer so an import can say what it left out.
+// What still cannot be stored (a rich block's source past the cap) is counted, so an import can
+// say it left something out and an edit can turn down the text.
 
-import { NodeApi } from "platejs";
 import type { Descendant, TElement } from "platejs";
 
 import { canonicalJson, utf8ByteLength } from "@repo/notes/library/canonical-json";
@@ -15,15 +14,10 @@ import { libraryJsonOf, namedBlockJson } from "./read-blocks";
 import type { DraftBlock } from "./read-blocks";
 import { isText, leaf, marksOf } from "./slate-leaves";
 
-export interface RefusedBlock {
-  // what the block said, as text
-  readonly text: string;
-  readonly reason: string;
-}
-
 export interface NamedBlocks {
   readonly blocks: readonly LibraryBlock[];
-  readonly refused: readonly RefusedBlock[];
+  // the drafts no block can store
+  readonly refused: number;
 }
 
 // room a cut leaves for the block's own props and its id, under the cap
@@ -88,18 +82,13 @@ const cutElement = (element: TElement): TElement[] => {
   return parts;
 };
 
-const refusalOf = (element: TElement, reason: string): RefusedBlock => ({
-  reason,
-  text: NodeApi.string(element),
-});
-
 // every draft named and parsed; one past the cap cut first, its `ref` kept by its first part
 export const nameDrafts = (
   drafts: readonly DraftBlock[],
   newBlockId: () => string,
 ): NamedBlocks => {
   const blocks: LibraryBlock[] = [];
-  const refused: RefusedBlock[] = [];
+  let refused = 0;
   for (const draft of drafts) {
     const parts = bytesOf(draft.element) > CUT_BUDGET ? cutElement(draft.element) : [draft.element];
     for (const [index, element] of parts.entries()) {
@@ -108,7 +97,7 @@ export const nameDrafts = (
       if (parsed.success) {
         blocks.push(parsed.data);
       } else {
-        refused.push(refusalOf(element, parsed.error.issues[0]?.message ?? "not storable"));
+        refused += 1;
       }
     }
   }

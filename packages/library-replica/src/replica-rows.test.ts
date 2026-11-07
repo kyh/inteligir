@@ -22,7 +22,6 @@ const IDS = [
 const FIELDS = {
   aliases: [],
   author: null,
-  copySha: null,
   coverSha: null,
   deletedAt: null,
   description: null,

@@ -240,7 +240,6 @@ describe("items", () => {
     const fields: LibraryItemFields = {
       aliases: fullList((index) => `${String(index)}${escaped.repeat(caps.line - 4)}`),
       author: line(wide),
-      copySha: "c".repeat(64),
       coverSha: "d".repeat(64),
       deletedAt: null,
       description: wide.repeat(caps.description),

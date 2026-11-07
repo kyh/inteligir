@@ -4,11 +4,11 @@
 // filing rules, and putting every file in the library under its sha; then the plan is made once,
 // every note's item and id minted and kept, an address or an id the library holds already standing
 // for its item. Later runs land a page of notes at a time, each read whole against the plan, and
-// last every file no note embedded becomes an item of its own. Every run reads the zip where it
-// lies in R2, a range at a time.
+// last every file no item names becomes an item of its own. Every run reads the zip where it lies
+// in R2, a range at a time.
 
+import { hexFromBytes } from "@repo/contract/cloud/bytes";
 import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
-import { importMediaType } from "./import-media-types";
 import {
   importPathKind,
   importPlannedDoc,
@@ -16,8 +16,15 @@ import {
   planFileItems,
   planImport,
 } from "@repo/editor/codec/import-plan";
-import type { ImportEntry, ImportPlan, PlannedDoc } from "@repo/editor/codec/import-plan";
+import type {
+  ImportEntry,
+  ImportPlan,
+  PlannedDoc,
+  ReadFiles,
+} from "@repo/editor/codec/import-plan";
+import { mediaTypeOfName, UNKNOWN_FILE_TYPE } from "@repo/notes/items/item-kind";
 import { urlKey } from "@repo/notes/items/item-url";
+import { dirnamePath } from "@repo/notes/knowledge/folder-path";
 import { libraryItemFieldsSchema } from "@repo/notes/library/library-item";
 import { readItem } from "@repo/notes/library/library-queries";
 import { runPlan } from "@repo/notes/library/library-sql";
@@ -35,16 +42,25 @@ import {
   apart,
   DONE,
   failed,
+  FILE_GONE,
   importActor,
   keepFile,
+  landingOutcome,
   LIBRARY_FULL,
   MORE,
+  passOver,
   PAGE_MS,
 } from "./cell-import-host";
 import type { ImportHost, StepOutcome } from "./cell-import-host";
-import { advanceImport, dropImportRows, importRows, putImportRows } from "./cell-import-jobs";
-import type { ImportJob } from "./cell-import-jobs";
-import { landNew, storeAdds } from "./cell-items";
+import {
+  advanceImport,
+  dropImportRows,
+  fitsImportRow,
+  importRows,
+  putImportRows,
+} from "./cell-import-jobs";
+import type { ImportJob, ImportStep } from "./cell-import-jobs";
+import { landNew, setDeleted, storeAdds } from "./cell-items";
 import { ITEM_TEXT_MAX_BYTES, urlHolder } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";
 import type { CellStorage } from "./cell-storage";
@@ -69,7 +85,6 @@ const ALL = { from: 0, limit: 1_000_000 } as const;
 
 const NOT_A_ZIP =
   "This file isn't a zip of notes. Choose a .zip of a folder of Markdown files, or of an Obsidian vault.";
-const FILE_GONE = "The file to import is no longer in the library. Choose it again.";
 
 const zipEntrySchema = z.object({
   compressedSize: z.number(),
@@ -94,26 +109,19 @@ type Entry = z.infer<typeof entrySchema>;
 const plannedDocSchema = z.object({
   aliases: z.array(z.string()),
   fileId: z.string().nullable(),
-  folderId: z.string().nullable(),
   itemId: z.string(),
   path: z.string(),
+  storeId: z.string().nullable(),
   title: z.string(),
   urlKey: z.string().nullable(),
 });
 
 const docRowSchema = z.object({
   doc: plannedDocSchema,
-  // an item the library holds already stands for the note: its address or its id is the library's
-  held: z.boolean(),
+  standing: z.enum(["held", "deleted", "new"]),
   zip: zipEntrySchema,
 });
-
-const folderRowSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  parentId: z.string().nullable(),
-  path: z.string(),
-});
+type DocRow = z.infer<typeof docRowSchema>;
 
 const fileRowSchema = z.object({
   kind: z.enum(["image", "pdf", "video", "audio", "file"]),
@@ -123,12 +131,9 @@ const fileRowSchema = z.object({
 
 const storeRowSchema = z.object({ key: z.string(), text: z.string() });
 
-// what a landed note read of the files: the ones it embeds or links, and its own original
-const usedRowSchema = z.object({ attached: z.array(z.string()), original: z.string().nullable() });
-
 const fileItemRowSchema = z.object({
   fields: libraryItemFieldsSchema.omit({ deletedAt: true, folderId: true }),
-  folderPath: z.string().nullable(),
+  folderPath: z.string(),
   itemId: z.string(),
 });
 
@@ -137,27 +142,13 @@ const ROWS = {
   entry: "entry",
   file: "file",
   fileItem: "file-item",
-  folder: "folder",
   store: "store",
-  used: "used",
 } as const;
 
 const decoder = new TextDecoder();
 
-const hex = (digest: ArrayBuffer): string =>
-  [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-
-// a folder's path of the zip as the library's: each name cut to what a folder holds
-const libraryPath = (path: string): string =>
-  path
-    .split("/")
-    .map((name) => name.trim().slice(0, 255))
-    .join("/");
-
-const folderIdOf = (scope: LandingScope, host: ImportHost, path: string | null): string | null =>
-  path === null || path === ""
-    ? null
-    : (folderOfTarget(scope, { path: libraryPath(path) }, host.library.ids.item) ?? null);
+const folderIdOf = (scope: LandingScope, host: ImportHost, path: string): string | null =>
+  path === "" ? null : (folderOfTarget(scope, { path }, host.library.ids.item) ?? null);
 
 // ---- the first runs: the zip's paths ----
 
@@ -178,17 +169,17 @@ const keepEntryFile = async (
   if (entry.size > BLOB_MAX_BYTES) {
     return { kind: "unreadable" };
   }
-  const mime = importMediaType(entry.path) ?? "application/octet-stream";
+  const mime = mediaTypeOfName(entry.path) ?? UNKNOWN_FILE_TYPE;
   let file: Parameters<typeof keepFile>[1];
   if (entry.size <= BUFFERED_MAX_BYTES) {
     const bytes = await readZipEntry(source, entry, BUFFERED_MAX_BYTES);
-    const sha = hex(await crypto.subtle.digest("SHA-256", bytes));
+    const sha = hexFromBytes(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
     file = { body: async () => await Promise.resolve(bytes), mime, sha, size: bytes.byteLength };
   } else {
     const digest = new crypto.DigestStream("SHA-256");
     const hashed = await openZipEntry(source, entry);
     await hashed.pipeTo(digest);
-    const sha = hex(await digest.digest);
+    const sha = hexFromBytes(new Uint8Array(await digest.digest));
     file = {
       body: async () => {
         const stored = await openZipEntry(source, entry);
@@ -208,6 +199,9 @@ const keepEntryFile = async (
     : { kind: "unreadable" };
 };
 
+const rowOf = (entry: ZipEntry, value: Entry): EntryRead =>
+  fitsImportRow({ idx: entry.index, value }) ? { kind: "row", value } : { kind: "unreadable" };
+
 const readEntry = async (
   host: ImportHost,
   source: ByteSource,
@@ -221,14 +215,15 @@ const readEntry = async (
     case "doc": {
       const text = await textOf(source, entry, ITEM_TEXT_MAX_BYTES);
       const front = text.slice(0, frontmatterEnd(text) ?? 0);
-      return { kind: "row", value: { kind, path: entry.path, text: front, zip: entry } };
+      return rowOf(entry, { kind, path: entry.path, text: front, zip: entry });
     }
     case "rules":
     case "store": {
-      return {
-        kind: "row",
-        value: { kind, path: entry.path, text: await textOf(source, entry, ITEM_TEXT_MAX_BYTES) },
-      };
+      return rowOf(entry, {
+        kind,
+        path: entry.path,
+        text: await textOf(source, entry, ITEM_TEXT_MAX_BYTES),
+      });
     }
     case "file": {
       return await keepEntryFile(host, source, entry);
@@ -266,23 +261,28 @@ const importEntryOf = (entry: Entry): ImportEntry =>
     ? { kind: "file", path: entry.path, sha: entry.sha }
     : { kind: entry.kind, path: entry.path, text: entry.text };
 
-// a note as the plan lands it: one whose id or address a live item holds is that item, and one
-// whose id a purged item kept takes a fresh id, since the library never reuses one
+// a note as the plan lands it: one whose id or address a live item holds is that item (`held`);
+// one whose id an item in Deleted holds is that item, come back as it stands (`deleted`), since
+// its highlights' ids are the library's and no copy could take them; and one whose id a purged item
+// kept takes a fresh id (`new`), since the library never reuses one
 interface SettledDoc {
   readonly doc: PlannedDoc;
-  readonly held: boolean;
+  readonly standing: DocRow["standing"];
 }
 
 const settledDoc = (sql: CellStorage, doc: PlannedDoc, newId: () => string): SettledDoc => {
   const item = runPlan(sql, readItem(doc.itemId));
-  if (item?.kind === "live") {
-    return { doc, held: true };
+  if (item?.kind === "live" && item.fields.deletedAt === null) {
+    return { doc, standing: "held" };
   }
   const holder = doc.urlKey === null ? null : urlHolder(sql, doc.urlKey, null);
   if (holder !== null) {
-    return { doc: { ...doc, itemId: holder.id }, held: true };
+    return { doc: { ...doc, itemId: holder.id }, standing: "held" };
   }
-  return { doc: item === null ? doc : { ...doc, itemId: newId() }, held: false };
+  if (item?.kind === "live") {
+    return { doc, standing: "deleted" };
+  }
+  return { doc: item === null ? doc : { ...doc, itemId: newId() }, standing: "new" };
 };
 
 const writePlan = (scope: LandingScope, host: ImportHost, job: ImportJob): void => {
@@ -291,10 +291,7 @@ const writePlan = (scope: LandingScope, host: ImportHost, job: ImportJob): void 
   const zips = new Map(
     entries.flatMap((entry) => (entry.kind === "doc" ? [[entry.path, entry.zip] as const] : [])),
   );
-  const plan = planImport(entries.map(importEntryOf), {
-    newFolderId: host.library.ids.item,
-    newItemId: host.library.ids.item,
-  });
+  const plan = planImport(entries.map(importEntryOf), { newItemId: host.library.ids.item });
   putImportRows(
     sql,
     job.id,
@@ -305,12 +302,6 @@ const writePlan = (scope: LandingScope, host: ImportHost, job: ImportJob): void 
         ? []
         : [{ idx, value: { ...settledDoc(sql, doc, host.library.ids.item), zip } }];
     }),
-  );
-  putImportRows(
-    sql,
-    job.id,
-    ROWS.folder,
-    plan.folders.map((value, idx) => ({ idx, value })),
   );
   putImportRows(
     sql,
@@ -393,24 +384,20 @@ const readPaths = async (
     : DONE;
 };
 
-// ---- the plan's runs: the notes, then the files no note embedded ----
+// ---- the plan's runs: the notes, then the files no item names ----
 
 interface LoadedPlan {
   readonly plan: ImportPlan;
-  readonly docs: readonly z.infer<typeof docRowSchema>[];
-  readonly folderPaths: ReadonlyMap<string, string>;
+  readonly docs: readonly DocRow[];
 }
 
 const loadPlan = (sql: SqlStatements, jobId: string): LoadedPlan => {
   const docs = importRows(sql, jobId, ROWS.doc, ALL, docRowSchema).map((row) => row.value);
-  const folders = importRows(sql, jobId, ROWS.folder, ALL, folderRowSchema).map((row) => row.value);
   return {
     docs,
-    folderPaths: new Map(folders.map((folder) => [folder.id, folder.path])),
     plan: {
       docs: docs.map((row) => row.doc),
       files: importRows(sql, jobId, ROWS.file, ALL, fileRowSchema).map((row) => row.value),
-      folders,
       rules: null,
       stores: importRows(sql, jobId, ROWS.store, ALL, storeRowSchema).map((row) => row.value),
     },
@@ -419,12 +406,34 @@ const loadPlan = (sql: SqlStatements, jobId: string): LoadedPlan => {
 
 const LANDED = z.object({ held: z.boolean(), highlights: z.number() });
 
+const CAME_BACK = z.object({ back: z.boolean() });
+
+// a note whose item sits in Deleted: the item back, as Restore brings it back and asking the
+// reading of a link still waiting, unless a live item took its address since the plan was made
+const restoreDoc = (
+  scope: LandingScope,
+  job: ImportJob,
+  itemId: string,
+  idx: number,
+): z.input<typeof CAME_BACK> => {
+  const restored = setDeleted(scope, importActor(job), { deleted: false, ids: [itemId] });
+  for (const item of restored.landed) {
+    askFill(scope, item);
+  }
+  const back = restored.changed.length > 0;
+  advanceImport(scope.storage, job.id, {
+    changeSetId: back ? scope.set().id : undefined,
+    counts: back ? { added: 1 } : { alreadySaved: 1 },
+    cursor: idx + 1,
+  });
+  return { back };
+};
+
 const landDoc = (
   scope: LandingScope,
   host: ImportHost,
   job: ImportJob,
   read: Extract<ReturnType<typeof importPlannedDoc>, { ok: true }>["read"],
-  folderPath: string | null,
 ): z.input<typeof LANDED> => {
   const { item, doc } = read;
   const key = item.fields.url === null ? null : urlKey(item.fields.url);
@@ -438,7 +447,11 @@ const landDoc = (
   const landed = landNew(scope, importActor(job), {
     annotations,
     blocks: item.blocks,
-    fields: { ...item.fields, deletedAt: null, folderId: folderIdOf(scope, host, folderPath) },
+    fields: {
+      ...item.fields,
+      deletedAt: null,
+      folderId: folderIdOf(scope, host, dirnamePath(doc.path)),
+    },
     id: doc.itemId,
   });
   askFill(scope, landed);
@@ -460,14 +473,20 @@ const docOutcome = async (
     return DONE;
   }
   const { library } = host;
-  const skip = (counts: Parameters<typeof advanceImport>[2]["counts"]): StepOutcome | null =>
-    apart(library, (scope) => {
-      advanceImport(scope.storage, job.id, { counts, cursor: idx + 1 });
-    })
-      ? null
-      : DONE;
-  if (row.held) {
+  const skip = (counts: ImportStep["counts"]): StepOutcome | null =>
+    passOver(library, job, idx, counts);
+  if (row.standing === "held") {
     return skip({ alreadySaved: 1 });
+  }
+  if (row.standing === "deleted") {
+    return landingOutcome(
+      library,
+      job,
+      idx,
+      library.land(importActor(job), { answer: CAME_BACK, opId: undefined }, (scope) =>
+        restoreDoc(scope, job, row.doc.itemId, idx),
+      ),
+    );
   }
   if (row.zip.size > NOTE_MAX_BYTES) {
     return skip({ unreadable: 1 });
@@ -489,67 +508,69 @@ const docOutcome = async (
   if (!read.ok) {
     return skip({ unreadable: 1 });
   }
-  const folderPath =
-    row.doc.folderId === null ? null : (context.loaded.folderPaths.get(row.doc.folderId) ?? null);
-  const landed = library.land(importActor(job), { answer: LANDED, opId: undefined }, (scope) => {
-    const result = landDoc(scope, host, job, read.read, folderPath);
-    putImportRows(scope.storage, job.id, ROWS.used, [
-      {
-        idx,
-        value: { attached: [...read.read.files], original: read.read.item.fields.originalSha },
-      },
-    ]);
-    advanceImport(scope.storage, job.id, {
-      changeSetId: result.held ? undefined : scope.set().id,
-      counts: result.held ? { alreadySaved: 1 } : { added: 1, highlights: result.highlights },
-      cursor: idx + 1,
-    });
-    return result;
-  });
-  if (landed.ok) {
-    return null;
-  }
-  if (landed.refusal.kind === "gone") {
-    return DONE;
-  }
-  return landed.refusal.kind === "quota" ? failed(LIBRARY_FULL) : skip({ unreadable: 1 });
+  return landingOutcome(
+    library,
+    job,
+    idx,
+    library.land(importActor(job), { answer: LANDED, opId: undefined }, (scope) => {
+      const result = landDoc(scope, host, job, read.read);
+      advanceImport(scope.storage, job.id, {
+        changeSetId: result.held ? undefined : scope.set().id,
+        counts: result.held
+          ? { alreadySaved: 1 }
+          : {
+              added: 1,
+              highlights: result.highlights,
+              unreadable: read.read.item.leftOut,
+            },
+        cursor: idx + 1,
+      });
+      return result;
+    }),
+  );
 };
 
-// the files no note embedded, planned once every note has landed, each an item of its own
+const namedFileSchema = z.object({ original_sha: z.string().nullable(), sha256: z.string() });
+
+// what live items name of the plan's files once its notes have landed: the notes it read, those
+// the library held already and those back from Deleted alike, none of which it need read for this
+const namedFiles = (sql: SqlStatements, jobId: string): ReadFiles => {
+  const named = sql
+    .all(
+      `SELECT DISTINCT item_blobs.sha256, items.original_sha
+         FROM item_blobs JOIN items ON items.id = item_blobs.item_id
+        WHERE items.deleted_at IS NULL AND items.purged = 0 AND item_blobs.sha256 IN
+          (SELECT json_extract(json, '$.sha') FROM import_rows WHERE job_id = ? AND kind = ?)`,
+      [jobId, ROWS.file],
+    )
+    .map((row) => namedFileSchema.parse(row));
+  return {
+    attached: new Set(named.map((row) => row.sha256)),
+    originals: new Set(
+      named.flatMap((row) => (row.original_sha === row.sha256 ? [row.sha256] : [])),
+    ),
+  };
+};
+
+// the files no item names, planned once every note has landed, each an item of its own
 const planFiles = (scope: LandingScope, host: ImportHost, job: ImportJob, loaded: LoadedPlan) => {
   const sql = scope.storage;
-  const used = importRows(sql, job.id, ROWS.used, ALL, usedRowSchema).map((row) => row.value);
   const items = planFileItems(
     loaded.plan,
-    {
-      attached: new Set(used.flatMap((row) => row.attached)),
-      originals: new Set(used.flatMap((row) => (row.original === null ? [] : [row.original]))),
-    },
-    { newFolderId: host.library.ids.item, newItemId: host.library.ids.item },
+    namedFiles(sql, job.id),
+    { newItemId: host.library.ids.item },
     host.now(),
   );
-  const paths = new Map([
-    ...loaded.folderPaths,
-    ...items.folders.map((folder) => [folder.id, folder.path] as const),
-  ]);
   putImportRows(
     sql,
     job.id,
     ROWS.fileItem,
-    items.items.map((item, idx) => ({
-      idx,
-      value: {
-        fields: item.fields,
-        folderPath: item.folderId === null ? null : (paths.get(item.folderId) ?? null),
-        itemId: item.itemId,
-      },
-    })),
+    items.map((value, idx) => ({ idx, value })),
   );
-  dropImportRows(sql, job.id, ROWS.used);
   advanceImport(sql, job.id, {
     cursor: 0,
     phase: "files",
-    total: loaded.docs.length + items.items.length,
+    total: loaded.docs.length + items.length,
   });
 };
 
@@ -571,8 +592,11 @@ const landDocs = async (
   let landedBytes = 0;
   for (let idx = job.cursor; idx < end; idx += 1) {
     const row = loaded.value.docs[idx];
-    // what landing the note will read, none for one held already or left out for its size
-    const size = row === undefined || row.held || row.zip.size > NOTE_MAX_BYTES ? 0 : row.zip.size;
+    // what landing the note will read, none for one the library holds or left out for its size
+    const size =
+      row === undefined || row.standing !== "new" || row.zip.size > NOTE_MAX_BYTES
+        ? 0
+        : row.zip.size;
     if (landedBytes > 0 && landedBytes + size > LAND_PAGE_BYTES) {
       return MORE;
     }
@@ -636,16 +660,9 @@ const landFiles = (host: ImportHost, job: ImportJob): StepOutcome => {
         return { held };
       },
     );
-    if (!landed.ok) {
-      if (landed.refusal.kind === "gone") {
-        return DONE;
-      }
-      if (landed.refusal.kind === "quota") {
-        return failed(LIBRARY_FULL);
-      }
-      apart(library, (scope) => {
-        advanceImport(scope.storage, job.id, { counts: { unreadable: 1 }, cursor: idx + 1 });
-      });
+    const outcome = landingOutcome(library, job, idx, landed);
+    if (outcome !== null) {
+      return outcome;
     }
   }
   // a page short of a whole one was the last

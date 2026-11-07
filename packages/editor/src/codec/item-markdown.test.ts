@@ -66,14 +66,14 @@ const content = (item: ImportedItem) => ({
   annotations: item.annotations,
   blocks: item.blocks.map((placed) => ({ ...placed, block: withoutId(placed.block) })),
   fields: item.fields,
-  refused: item.refused,
+  leftOut: item.leftOut,
 });
 
 describe("import(export(v)) is v, ids aside", () => {
   it.each(fixtures())("$name", (fixture) => {
     const first = imported(fixture.text);
     expect(content(reimported(first))).toStrictEqual(content(first));
-    expect(first.refused).toStrictEqual([]);
+    expect(first.leftOut).toBe(0);
   });
 
   // the editor's own seeded documents: all seeds in one test, as its round-trip property runs them
@@ -157,7 +157,6 @@ describe("one file as its item", () => {
         "",
       ].join("\n"),
     );
-    expect(item.fileId).toBe("0195f3a0-5c1e-7000-8000-0000000000f1");
     expect(item.fields).toMatchObject({
       fetchState: "pending",
       kind: "link",
@@ -233,7 +232,7 @@ describe("one file as its item", () => {
         () => line,
       );
       const item = imported(`\`\`\`\n${lines.join("\n")}\n\`\`\`\n`);
-      expect(item.refused).toStrictEqual([]);
+      expect(item.leftOut).toBe(0);
       expect(item.blocks.length).toBeGreaterThan(1);
       expect(new Set(item.blocks.map(({ block }) => block.type))).toStrictEqual(
         new Set(["code_block"]),
@@ -259,7 +258,29 @@ describe("one file as its item", () => {
     expect(pieces.filter((piece) => /\p{Cs}/u.test(piece))).toStrictEqual([]);
   });
 
-  it("reads the highlights' markers and their store, and says why a store could not be read", () => {
+  it("keeps the words of a link and the source of an image that name no address", () => {
+    const item = imported(
+      "Before [words]() after.\n\n- ![seen]()\n- [listed]()\n\n> [quoted](<>)\n\n| a |\n| - |\n| [cell]() |\n",
+    );
+    expect(item.leftOut).toBe(0);
+    const stored = JSON.stringify(item.blocks);
+    for (const kept of ["Before ", "words", " after.", "![seen]()", "listed", "quoted", "cell"]) {
+      expect(stored).toContain(kept);
+    }
+    expect(stored).not.toContain('"type":"a"');
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it("counts what it left out: a block no item can hold, a store it cannot read", () => {
+    const fence = `\`\`\`inteligir-html\n${"x".repeat(BLOCK_MAX_BYTES)}\n\`\`\`\n`;
+    const text = `Kept.\n\n${fence}`;
+    const item = imported(text);
+    expect(item.leftOut).toBe(1);
+    expect(JSON.stringify(item.blocks)).toContain("Kept.");
+    expect(imported("Some text.\n", "{ not json").leftOut).toBe(1);
+  });
+
+  it("reads the highlights' markers and their store", () => {
     const text = "Some %%i:h1:start%%marked words%%i:h1:end%% here.\n";
     const store = JSON.stringify({
       h1: { createdAt: 1, quote: "marked words", source: "user", text: "why", updatedAt: 1 },
@@ -267,8 +288,6 @@ describe("one file as its item", () => {
     const item = imported(text, store);
     expect(Object.keys(item.annotations)).toStrictEqual(["h1"]);
     expect(JSON.stringify(item.blocks)).toContain('"type":"annotationMarker"');
-    const broken = imported(text, "{ not json");
-    expect(broken.annotations).toStrictEqual({});
-    expect(broken.annotationsError).not.toBeNull();
+    expect(imported(text, "{ not json").annotations).toStrictEqual({});
   });
 });

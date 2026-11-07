@@ -222,11 +222,6 @@ folds onto the item holding its key. Not what an item's url holds: that is
 `cleanUrl`, which drops only the userinfo and the tracking parameters, and
 the key is a derived row, never a field.
 
-**page copy** — a single-file, script-free HTML snapshot of a saved page: an
-item's `copySha`, which only an import brings. Its bytes are served under a
-script-less sandbox of their own (`apps/web/src/worker/library/blob-routes.ts`).
-Not the article text, which every fill writes into the item itself.
-
 ## The words the user sees
 
 The product never says git, commit, remote, repo, terminal, CLI, PATH or MCP,

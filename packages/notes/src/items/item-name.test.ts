@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { checkNoteName } from "../test-support/note-name";
-import { itemNameFromTitle, itemNameFromUrl, itemStem } from "./item-name";
+import { itemNameFromTitle, itemNameFromUrl } from "./item-name";
 import { mulberry32, pick } from "../test-support/seeded-random";
 
 describe(itemNameFromTitle, () => {
@@ -41,7 +41,7 @@ describe(itemNameFromTitle, () => {
   });
 });
 
-describe("itemNameFromUrl and itemStem", () => {
+describe(itemNameFromUrl, () => {
   it.each([
     ["https://stephango.com/file-over-app", "stephango.com - file over app"],
     ["https://www.example.com/", "example.com"],
@@ -50,16 +50,6 @@ describe("itemNameFromUrl and itemStem", () => {
     ["https://example.com/a/b/?q=1#x", "example.com - b"],
   ])("%s → %j", (url, expected) => {
     expect(itemNameFromUrl(url)).toBe(expected);
-  });
-
-  it("takes the title first, the address next, and Untitled last", () => {
-    expect(itemStem("Title", "https://x.com")).toBe("Title");
-    expect(itemStem(null, "https://stephango.com/file-over-app")).toBe(
-      "stephango.com - file over app",
-    );
-    expect(itemStem("***", "https://a.com/x")).toBe("a.com - x");
-    expect(itemStem(null, null)).toBe("Untitled");
-    expect(itemStem("", null)).toBe("Untitled");
   });
 });
 

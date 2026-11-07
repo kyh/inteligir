@@ -104,12 +104,13 @@ root.
   THEM.** An import, and the codec reading a file back, take a link's, a
   video's or a note's facts from its frontmatter (`kind`, `url`, `site`,
   `author`, `published`, `saved`, `fetched`, `fetch-error`, `description`,
-  beside `id`, `tags` and `aliases`) through `readItemFacts`
+  `lang`, beside `id`, `tags` and `aliases`) through `readItemFacts`
   (`@repo/notes/items/item-frontmatter`), into the item's fields: a missing or
   unknown `kind` is a note, and an export writes a note none. The filename is
-  the title (`itemNameFromTitle` in `@repo/notes/items/item-name`). Rejected:
-  a `title:` key (two names that drift); a frontmatter block kept in the item
-  (its keys are the item's fields).
+  the title (`itemNameFromTitle` in `@repo/notes/items/item-name`), and a
+  `title:` key is written only for a title the file's stem cannot carry, one
+  its name mended or numbered, so an export reads back as the item. Rejected:
+  a frontmatter block kept in the item (its keys are the item's fields).
 
 - **A URL HAS ONE KEY, COMPUTED WITHOUT THE PLATFORM'S URL.**
   `@repo/notes/items/item-url` parses by the RFC 3986 appendix-B regex. The key
@@ -158,7 +159,9 @@ root.
   private `.md` rule in a reader (it leaves out every `.txt` note and disagrees
   on a name once it is not lowercase). What any other file is in the library
   is `fileKindOf` (`@repo/notes/items/item-kind`), and what a doc is as an item
-  is its `kind`: one answer each, for every reader.
+  is its `kind`: one answer each, for every reader. A kept file whose own name
+  would read as a doc or a dot-entry stands in `assets/<16 hex>/`, its bytes'
+  folder (`bytesFolderPath`), which an import reads as a file by that shape.
 
 - **THE DIALECT'S GRAMMAR IS THE EDITOR'S OWN, AND IT IS TOTAL.** Every reader
   of markdown, the codec, an import and the editor alike, parses through one
@@ -177,12 +180,15 @@ root.
   import reads a link's or an image's url through `mdLinkTarget`
   (`@repo/notes/knowledge/link-extract`) and resolves it with `buildResolver`
   beside the file that wrote it, so a folder's relative links and pictures
-  become links by id and files by sha. Past the import nothing is a path: the
+  become links by id and files by sha, and a file's path written as a url, by
+  an export or an import's `![[…]]`, goes through `mdLinkUrl`, its inverse, so
+  a `#` or `%` in a name reads back. Past the import nothing is a path: the
   editor reaches an item by `[[…]]` through the resolver its host feeds with
   the library's items (`packages/editor/src/link-resolver-feed.ts`) and a file
   by its sha, and only an http(s) url reaches the browser. Rejected: resolving
   a live note's relative url (no library item has a path to resolve it
-  against). `packages/editor/src/codec/import-plan.ts`.
+  against).
+  `packages/editor/src/codec/import-plan.ts`.
 
 - **A WIKI LINK NAMES WHAT THE RESOLVER ANSWERS TO, AND ONE FUNCTION BESIDE THE
   PARSER WRITES IT.** `.md` is the one extension a file's link leaves off

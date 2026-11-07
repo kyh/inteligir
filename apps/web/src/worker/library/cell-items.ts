@@ -8,7 +8,7 @@ import type { annotationOpSchema } from "@repo/contract/cloud/library/library-wi
 import type { EditOutcome } from "@repo/editor/codec/item-edit";
 import { editItemView, placeItemQuotes } from "@repo/editor/codec/item-edit";
 import { importItem } from "@repo/editor/codec/item-markdown";
-import type { AnnotationStore } from "@repo/notes/annotations/store-schema";
+import type { AnnotationEntry, AnnotationStore } from "@repo/notes/annotations/store-schema";
 import { fileKindOf } from "@repo/notes/items/item-kind";
 import { blockHash } from "@repo/notes/library/block-hash";
 import type { ItemState, LibraryOp } from "@repo/notes/library/block-ops";
@@ -75,26 +75,36 @@ export const bareHighlight = (
   text: "",
 });
 
-// a store an import read, as the adds that make its rows; a root that kept no quote has no passage
-// to anchor, so it is no highlight
-export const storeAdds = (store: AnnotationStore): AddOp[] =>
-  Object.entries(store).flatMap(([id, entry]): AddOp[] => {
-    const parentId = entry.parentId ?? null;
-    const quote = parentId === null ? (entry.quote ?? null) : null;
-    return parentId === null && quote === null
-      ? []
-      : [
-          {
-            createdAt: entry.createdAt,
-            id,
-            occurrence: null,
-            op: "add",
-            parentId,
-            quote,
-            text: entry.text,
-          },
-        ];
+// a store an import read, as the adds that make its rows, every root ahead of the replies that
+// answer it, since a store is in id order and an add needs its parent held; a root that kept no
+// quote has no passage to anchor, so it is no highlight, and a reply to none has nothing to answer
+export const storeAdds = (store: AnnotationStore): AddOp[] => {
+  const entries = Object.entries(store);
+  const addOf = (
+    id: string,
+    entry: AnnotationEntry,
+    parent: Pick<AddOp, "parentId" | "quote">,
+  ): AddOp => ({
+    ...parent,
+    createdAt: entry.createdAt,
+    id,
+    occurrence: null,
+    op: "add",
+    text: entry.text,
   });
+  const roots = entries.flatMap(([id, { parentId, quote, ...entry }]) =>
+    parentId === undefined && quote !== undefined
+      ? [addOf(id, entry, { parentId: null, quote })]
+      : [],
+  );
+  const held = new Set(roots.map((root) => root.id));
+  const replies = entries.flatMap(([id, entry]) =>
+    entry.parentId !== undefined && held.has(entry.parentId)
+      ? [addOf(id, entry, { parentId: entry.parentId, quote: null })]
+      : [],
+  );
+  return [...roots, ...replies];
+};
 
 // an item the write makes, with its blocks and highlights; an id the library holds already is a
 // conflict naming that item
@@ -137,7 +147,7 @@ export const noteBlocksOf = (
     { annotations: null, name: "", text: markdown },
     codec.importing(scope.now),
   );
-  if (!read.ok) {
+  if (!read.ok || read.item.leftOut > 0) {
     return refuse({ kind: "too-large" });
   }
   return {
@@ -167,7 +177,7 @@ export const createNote = (
     { annotations: null, name: input.title ?? "", text: input.markdown },
     codec.importing(scope.now),
   );
-  if (!read.ok) {
+  if (!read.ok || read.item.leftOut > 0) {
     return refuse({ kind: "too-large" });
   }
   const imported = read.item.fields;

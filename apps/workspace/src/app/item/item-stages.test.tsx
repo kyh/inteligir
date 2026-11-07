@@ -16,7 +16,6 @@ const BLOB_ADDRESS = "blob:https://library.test/0199a4c2";
 const fields = (patch: Partial<LibraryItemFields>): LibraryItemFields => ({
   aliases: [],
   author: null,
-  copySha: null,
   coverSha: null,
   deletedAt: null,
   description: null,

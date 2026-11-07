@@ -264,10 +264,15 @@ const captionOf = (node: TElement): TText[] => {
     : [];
 };
 
-// an image's alt as its caption, an Obsidian `|width` at its end read off it
+// an image's alt as its caption, an Obsidian `|width` at its end read off it; one with no address
+// is no image the vocabulary holds, so it stays the source it was written as
 const readImage = (node: TElement, reading: Reading): TElement => {
   const url = stringProp(node, "url") ?? "";
   const caption = captionOf(node);
+  if (url === "") {
+    const alt = caption.map((part) => part.text).join("");
+    return { children: [opaqueOf(`![${alt}]()`)], type: "p" };
+  }
   const lastIndex = caption.length - 1;
   const last = caption[lastIndex];
   const width = last === undefined ? null : widthIn(last.text);
@@ -310,6 +315,10 @@ const LITERAL_TYPES = new Set(["a", "code_block", "code_line"]);
 const readNode = (node: Descendant, scope: Scope, reading: Reading): Descendant[] => {
   if (isText(node)) {
     return readText(node, scope, reading);
+  }
+  // a link with no address reaches nothing, and the vocabulary holds none, so it is its words
+  if (node.type === "a" && (stringProp(node, "url") ?? "") === "") {
+    return node.children.flatMap((child) => readNode(child, scope, reading));
   }
   const mapped = readVoid(node, reading);
   if (mapped !== null) {

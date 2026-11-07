@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { blockHash } from "@repo/notes/library/block-hash";
 import type { StoredBlock } from "@repo/notes/library/block-ops";
+import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
+import { collectFileShas } from "@repo/notes/library/library-nodes";
 import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
 
 import { CODEC_NOW, withoutId } from "../test-support/codec-ports";
+import { mediaTypeOfName } from "@repo/notes/items/item-kind";
+import { basenamePath, dirnamePath } from "@repo/notes/knowledge/folder-path";
 import { wikiFilingKeys, wikiTargetKeys } from "@repo/notes/knowledge/link-resolve";
 
 import {
@@ -15,7 +19,7 @@ import {
   planExportDoc,
   rulesFile,
 } from "./export-plan";
-import type { ExportFile, ExportStore, PlannedExportDoc } from "./export-plan";
+import type { ExportFile, ExportFolder, ExportStore, PlannedExportDoc } from "./export-plan";
 import {
   importPathKind,
   importPlannedDoc,
@@ -23,7 +27,7 @@ import {
   planFileItems,
   planImport,
 } from "./import-plan";
-import type { ImportEntry, PlanIds, PlannedFolder } from "./import-plan";
+import type { ImportEntry, PlanIds } from "./import-plan";
 import type { ExportItem, ImportedFields } from "./item-markdown";
 
 const PROJECT_ID = "0195f3a0-5c1e-7000-8000-00000000000a";
@@ -88,9 +92,11 @@ const OBSIDIAN_VAULT = {
     "",
     "![](assets/covers/0123456789abcdef.jpg)",
     "",
+    ":::article",
+    "",
     "The page says %%i:h1:start%%a passage%%i:h1:end%% here, with #hashtag text.",
     "",
-    "[Copy of the page](assets/pages/0123456789abcdef.html)",
+    ":::",
     "",
   ].join("\n"),
 } satisfies Record<string, string>;
@@ -106,7 +112,6 @@ const BINARIES = new Map(
   [
     "assets/shot.png",
     "assets/covers/0123456789abcdef.jpg",
-    "assets/pages/0123456789abcdef.html",
     "board.canvas",
     "Untitled.base",
     "orphan.pdf",
@@ -117,16 +122,8 @@ const BINARIES = new Map(
 );
 
 // each pretend file's media type, by the extension it was found under
-const MEDIA_TYPES = new Map([
-  [".html", "text/html"],
-  [".jpg", "image/jpeg"],
-  [".pdf", "application/pdf"],
-  [".png", "image/png"],
-]);
-const mediaTypeOf = (sha: string): string | null => {
-  const path = [...BINARIES].find(([, held]) => held === sha)?.[0] ?? "";
-  return MEDIA_TYPES.get(path.slice(path.lastIndexOf("."))) ?? null;
-};
+const mediaTypeOf = (sha: string): string | null =>
+  mediaTypeOfName([...BINARIES].find(([, held]) => held === sha)?.[0] ?? "");
 
 const counters = (): PlanIds & { newBlockId: () => string; newAnnotationId: () => string } => {
   let next = 0;
@@ -138,7 +135,6 @@ const counters = (): PlanIds & { newBlockId: () => string; newAnnotationId: () =
   return {
     newAnnotationId: mint("hl"),
     newBlockId: mint("b"),
-    newFolderId: mint("folder-"),
     newItemId: () => {
       uuid += 1;
       return `0195f3a0-5c1e-7000-9000-${String(uuid).padStart(12, "0")}`;
@@ -148,7 +144,7 @@ const counters = (): PlanIds & { newBlockId: () => string; newAnnotationId: () =
 
 interface LibraryItem {
   readonly itemId: string;
-  readonly folderPath: string | null;
+  readonly folderPath: string;
   readonly fields: ImportedFields;
   readonly blocks: readonly { block: LibraryBlock; ord: string; section: "note" | "article" }[];
   readonly annotations: ExportItem["annotations"];
@@ -156,11 +152,24 @@ interface LibraryItem {
 
 interface ReadLibrary {
   readonly items: LibraryItem[];
-  readonly folders: PlannedFolder[];
-  readonly folderPaths: Map<string, string>;
+  readonly folders: ExportFolder[];
   readonly skipped: string[];
   readonly rules: string | null;
 }
+
+// the folder each item sits in and every folder above it, as the cell makes them, each by its path
+const foldersOf = (items: readonly LibraryItem[]): ExportFolder[] => {
+  const paths = new Set<string>();
+  for (const item of items) {
+    for (let path = item.folderPath; path !== ""; path = dirnamePath(path)) {
+      paths.add(path);
+    }
+  }
+  return [...paths].map((path) => {
+    const parent = dirnamePath(path);
+    return { id: path, name: basenamePath(path), parentId: parent === "" ? null : parent };
+  });
+};
 
 // the three passes over a folder's files, as an import job runs them
 const readFolder = (
@@ -186,41 +195,35 @@ const readFolder = (
   const attached = new Set<string>();
   const originals = new Set<string>();
   const items: LibraryItem[] = [];
-  const folderPaths = new Map(plan.folders.map((folder) => [folder.id, folder.path]));
   for (const doc of plan.docs) {
     const read = importPlannedDoc(reader, doc, files[doc.path] ?? "", { ...ids, now: CODEC_NOW });
     if (!read.ok) {
       throw new Error(`${read.path}: ${read.reason}`);
     }
-    for (const sha of read.read.files) {
-      attached.add(sha);
+    const { coverSha, originalSha } = read.read.item.fields;
+    for (const sha of [coverSha, originalSha]) {
+      if (sha !== null) {
+        attached.add(sha);
+      }
     }
-    if (read.read.item.fields.originalSha !== null) {
-      originals.add(read.read.item.fields.originalSha);
+    for (const { block } of read.read.item.blocks) {
+      collectFileShas(block, attached);
+    }
+    if (originalSha !== null) {
+      originals.add(originalSha);
     }
     items.push({
       annotations: read.read.item.annotations,
       blocks: read.read.item.blocks,
       fields: read.read.item.fields,
-      folderPath: doc.folderId === null ? null : (folderPaths.get(doc.folderId) ?? null),
+      folderPath: dirnamePath(doc.path),
       itemId: doc.itemId,
     });
   }
-  const fileItems = planFileItems(plan, { attached, originals }, ids, CODEC_NOW);
-  const folders = [...plan.folders, ...fileItems.folders];
-  for (const folder of fileItems.folders) {
-    folderPaths.set(folder.id, folder.path);
+  for (const item of planFileItems(plan, { attached, originals }, ids, CODEC_NOW)) {
+    items.push({ ...item, annotations: {}, blocks: [] });
   }
-  for (const item of fileItems.items) {
-    items.push({
-      annotations: {},
-      blocks: [],
-      fields: item.fields,
-      folderPath: item.folderId === null ? null : (folderPaths.get(item.folderId) ?? null),
-      itemId: item.itemId,
-    });
-  }
-  return { folderPaths, folders, items, rules: plan.rules, skipped };
+  return { folders: foldersOf(items), items, rules: plan.rules, skipped };
 };
 
 const byTitle = (library: ReadLibrary, title: string): LibraryItem => {
@@ -283,15 +286,9 @@ describe("an Obsidian vault read into the library", () => {
   it("files every item in its folder", () => {
     expect(daily.folderPath).toBe("Notes");
     expect(project.folderPath).toBe("Projects");
-    expect(byTitle(library, "orphan").folderPath).toBeNull();
+    expect(byTitle(library, "orphan").folderPath).toBe("");
     // a file alone in a folder of its own sits under the folder its parent already is
     expect(byTitle(library, "spec").folderPath).toBe("Projects/Specs");
-    const projects = library.folders.find((folder) => folder.path === "Projects");
-    expect(library.folders.filter((folder) => folder.path === "Projects")).toHaveLength(1);
-    expect(library.folders.find((folder) => folder.path === "Projects/Specs")).toMatchObject({
-      name: "Specs",
-      parentId: projects?.id,
-    });
   });
 
   it("resolves links by path, name, alias and id, a block ref beside them", () => {
@@ -336,6 +333,18 @@ describe("an Obsidian vault read into the library", () => {
     expect(textOf(daily)).toContain(" under #log and #log/today.");
   });
 
+  it("plans no more aliases than an item holds", () => {
+    const aliases = Array.from(
+      { length: ITEM_FIELD_CAPS.listEntries + 1 },
+      (_, index) => `- a${String(index)}`,
+    );
+    const plan = planImport(
+      [{ kind: "doc", path: "Many.md", text: `---\naliases:\n${aliases.join("\n")}\n---\n` }],
+      counters(),
+    );
+    expect(plan.docs[0]?.aliases).toHaveLength(ITEM_FIELD_CAPS.listEntries);
+  });
+
   it("embeds an image with its width and a canvas as a file, and keeps the canvas an item", () => {
     const media = daily.blocks.flatMap(({ block }) =>
       block.type === "img" || block.type === "file" ? [block] : [],
@@ -355,6 +364,13 @@ describe("an Obsidian vault read into the library", () => {
     });
   });
 
+  it.each(["a%20b.png", "100%.png", "a b.png"])("embeds %s as the bytes it names", (name) => {
+    const sha = shaOf(name);
+    const { items } = readFolder({ "Note.md": `![[${name}]]\n` }, new Map([[name, sha]]));
+    expect(items.map((item) => item.fields.title)).toStrictEqual(["Note"]);
+    expect(items[0]?.blocks.map(({ block }) => block)).toMatchObject([{ sha, type: "img" }]);
+  });
+
   it("keeps a property no field reads, and the item's own id", () => {
     expect(project.itemId).toBe(PROJECT_ID);
     expect(project.fields).toMatchObject({
@@ -364,10 +380,9 @@ describe("an Obsidian vault read into the library", () => {
     });
   });
 
-  it("reads a saved link from before the article section: its cover, its copy, its page", () => {
+  it("reads a saved link: its cover and its page", () => {
     const page = byTitle(library, "Read later");
     expect(page.fields).toMatchObject({
-      copySha: shaOf("assets/pages/0123456789abcdef.html"),
       coverSha: shaOf("assets/covers/0123456789abcdef.jpg"),
       fetchState: "filled",
     });
@@ -405,10 +420,7 @@ const exportInSteps = (library: ReadLibrary, items: readonly ExportItem[]): Expo
   for (const item of items) {
     const { aliases, folderId, title } = item.fields;
     const dir = folderId === null ? "" : (folders.get(folderId) ?? "");
-    planned.set(item.id, {
-      ...planExportDoc({ aliases, folderId, id: item.id, title }, dir, store),
-      aliases,
-    });
+    planned.set(item.id, { ...planExportDoc(title, dir, store), aliases });
   }
   const target = (itemId: string): string | null => {
     const doc = planned.get(itemId);
@@ -435,7 +447,6 @@ const exportInSteps = (library: ReadLibrary, items: readonly ExportItem[]): Expo
 };
 
 const exportOf = (library: ReadLibrary): ExportFile[] => {
-  const folderIds = new Map(library.folders.map((folder) => [folder.path, folder.id]));
   const items = library.items.map((item): ExportItem => ({
     annotations: item.annotations,
     blocks: new Map(
@@ -447,7 +458,7 @@ const exportOf = (library: ReadLibrary): ExportFile[] => {
     fields: {
       ...item.fields,
       deletedAt: null,
-      folderId: item.folderPath === null ? null : (folderIds.get(item.folderPath) ?? null),
+      folderId: item.folderPath === "" ? null : item.folderPath,
     },
     id: item.itemId,
   }));
@@ -481,8 +492,8 @@ describe("export, then import, gives the library back", () => {
         file.kind === "bytes" ? [[file.path, file.sha]] : [],
       ),
     );
-    // every file under the name it was saved under, so a canvas still opens as one; a cover, a
-    // page copy and an image a note embeds by its bytes alone, under their bytes' own names
+    // every file under the name it was saved under, so a canvas still opens as one; a cover and
+    // an image a note embeds by its bytes alone, under their bytes' own names
     expect([...bytes.keys()].toSorted()).toStrictEqual(
       [
         "assets/Q3 report.docx",
@@ -491,12 +502,46 @@ describe("export, then import, gives the library back", () => {
         "assets/orphan.pdf",
         "assets/spec.pdf",
         byBytes("assets/covers", "assets/covers/0123456789abcdef.jpg", "jpg"),
-        byBytes("assets/pages", "assets/pages/0123456789abcdef.html", "html"),
         byBytes("assets", "assets/shot.png", "png"),
       ].toSorted(),
     );
     const second = readFolder(texts, bytes);
     expect(contentOf(second)).toStrictEqual(contentOf(first));
     expect(second.rules).toBe(first.rules);
+  });
+
+  it.each(["Invoice #12.pdf", "a%20b.pdf", "100%.pdf"])(
+    "keeps %s one item with its bytes",
+    (name) => {
+      const sha = shaOf(name);
+      const files = exportOf(readFolder({}, new Map([[name, sha]])));
+      const texts = Object.fromEntries(
+        files.flatMap((file) => (file.kind === "text" ? [[file.path, file.text]] : [])),
+      );
+      const bytes = new Map(
+        files.flatMap((file) => (file.kind === "bytes" ? [[file.path, file.sha] as const] : [])),
+      );
+      const { items } = readFolder(texts, bytes);
+      expect(items.map((item) => item.fields)).toMatchObject([
+        { kind: "pdf", originalName: name, originalSha: sha },
+      ]);
+    },
+  );
+
+  it("keeps the title of an item whose file took another spelling", () => {
+    const first = readFolder(
+      {
+        "a.md": "---\ntitle: Home\n---\nThe first.\n",
+        "b.md": "---\ntitle: Home\n---\nThe second.\n",
+        "c.md": "---\ntitle: AGENTS\n---\nNot the filing rules.\n",
+      },
+      new Map(),
+    );
+    const texts = Object.fromEntries(
+      exportOf(first).flatMap((file) => (file.kind === "text" ? [[file.path, file.text]] : [])),
+    );
+    expect(Object.keys(texts).toSorted()).toStrictEqual(["AGENTS 2.md", "Home 2.md", "Home.md"]);
+    const titles = readFolder(texts, new Map()).items.map((item) => item.fields.title);
+    expect(titles.toSorted()).toStrictEqual(["AGENTS", "Home", "Home"]);
   });
 });

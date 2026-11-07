@@ -5,6 +5,7 @@
 // placed), the zip's entries' records, the uploaded parts' etags by their numbers, and the zip's
 // bytes past its last whole part.
 
+import { base64FromBytes, bytesFromBase64 } from "@repo/contract/cloud/bytes";
 import type { ExportStore } from "@repo/editor/codec/export-plan";
 import { chunkStatement } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
@@ -118,32 +119,12 @@ export const dropExportRows = (sql: SqlStatements, exportId: string): void => {
 
 // the bytes past the zip's last whole part, in chunks whose base64 stays under a row's 2 MB
 const TAIL_CHUNK = MiB;
-// the bytes one call spells as a string's code units, well inside a call's arguments
-const SPELL_CHUNK = 0x80_00;
-
-const toBase64 = (bytes: Uint8Array): string => {
-  let binary = "";
-  for (let at = 0; at < bytes.length; at += SPELL_CHUNK) {
-    binary += String.fromCodePoint(...bytes.subarray(at, at + SPELL_CHUNK));
-  }
-  return btoa(binary);
-};
-
-const fromBase64 = (text: string): Uint8Array => {
-  const binary = atob(text);
-  const bytes = new Uint8Array(binary.length);
-  for (let at = 0; at < binary.length; at += 1) {
-    bytes[at] = binary.codePointAt(at) ?? 0;
-  }
-  return bytes;
-};
-
 const tailSchema = z.object({ base64: z.string() });
 
 export const readTail = (sql: SqlStatements, exportId: string): Uint8Array[] =>
   sql
     .all("SELECT base64 FROM export_tail WHERE export_id = ? ORDER BY idx", [exportId])
-    .map((raw) => fromBase64(tailSchema.parse(raw).base64));
+    .map((raw) => bytesFromBase64(tailSchema.parse(raw).base64));
 
 export const writeTail = (sql: SqlStatements, exportId: string, tail: Uint8Array): void => {
   sql.run("DELETE FROM export_tail WHERE export_id = ?", [exportId]);
@@ -151,7 +132,7 @@ export const writeTail = (sql: SqlStatements, exportId: string, tail: Uint8Array
     sql.run("INSERT INTO export_tail (export_id, idx, base64) VALUES (?, ?, ?)", [
       exportId,
       at / TAIL_CHUNK,
-      toBase64(tail.subarray(at, at + TAIL_CHUNK)),
+      base64FromBytes(tail.subarray(at, at + TAIL_CHUNK)),
     ]);
   }
 };

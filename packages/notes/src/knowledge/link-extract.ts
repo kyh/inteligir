@@ -21,6 +21,10 @@ export const mdLinkTarget = (url: string): string | null => {
   return safeDecode(hash === -1 ? url : url.slice(0, hash));
 };
 
+// a path as an md url `mdLinkTarget` reads back as that path
+export const mdLinkUrl = (path: string): string =>
+  path.replaceAll("%", "%25").replaceAll("#", "%23");
+
 // A list or one bare string, as Obsidian accepts, a leading `#` left off; a value outside the tag
 // grammar (`reading list`, a quoted `2026`) is no tag, since no inline `#` could address it.
 export const frontmatterTags = (yaml: string): string[] =>

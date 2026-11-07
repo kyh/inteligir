@@ -127,10 +127,6 @@ export const itemNameFromUrl = (url: string): string => {
   return named ?? itemNameFromTitle(host) ?? UNTITLED;
 };
 
-export const itemStem = (title: string | null, url: string | null): string =>
-  (title === null ? null : itemNameFromTitle(title)) ??
-  (url === null ? UNTITLED : itemNameFromUrl(url));
-
 // the files a link may answer with in place of a page, by the type its bytes sniff as
 const ORIGINAL_EXTENSIONS = {
   "application/pdf": "pdf",

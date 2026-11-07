@@ -38,7 +38,7 @@ import type { AgentCell } from "../agent/agent-turns";
 import { libraryTools } from "../connector/library-tools";
 import { cellCodec } from "./cell-codec";
 import { askFill, askFillAfterTurn } from "./cell-fills";
-import { exportJobView, readExportJob, startExport } from "./cell-exports";
+import { readExportJob, startExport } from "./cell-exports";
 import { writeFolders } from "./cell-folders";
 import { importJobView, latestImportJob, readImportJob } from "./cell-import-jobs";
 import { cancelImport, startImport } from "./cell-imports";
@@ -83,6 +83,8 @@ export interface CellContext {
   readonly settle: <T>(result: CellResult<T>) => Promise<CellResult<T>>;
 }
 
+const EDIT_UNSTORABLE = "That edit holds a block the library can't keep.";
+
 const refusalError = (refusal: CellRefusal): Error => {
   switch (refusal.kind) {
     case "gone": {
@@ -115,7 +117,9 @@ const refusalError = (refusal: CellRefusal): Error => {
       });
     }
     case "edit-refused": {
-      return new EditRefusedError({ data: refusal.refusal });
+      return refusal.refusal.reason === "unstorable"
+        ? new EditRefusedError({ data: refusal.refusal, message: EDIT_UNSTORABLE })
+        : new EditRefusedError({ data: refusal.refusal });
     }
     case "bad-cursor": {
       return new ORPCError("BAD_REQUEST", {
@@ -264,14 +268,14 @@ export const libraryRouter = os.router({
       if (job === null) {
         throw new NotFoundError();
       }
-      return { export: exportJobView(job) };
+      return { export: job };
     }),
     start: os.exports.start.handler(async ({ context, input }) => {
       const { library } = context;
       return await committed(
         context,
         library.landApart({ answer: exportAnswer, opId: input.opId }, (scope) => ({
-          export: exportJobView(startExport(scope, library.ids)),
+          export: startExport(scope, library.ids),
         })),
       );
     }),

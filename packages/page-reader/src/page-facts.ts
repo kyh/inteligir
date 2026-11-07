@@ -1,6 +1,6 @@
 // what a page says about itself and what the reader made of its text, as a wire carries them: the
-// Mac's fill worker answers its server thread with it, and the phone's page answers the phone. zod
-// alone, so a host that only carries the answer loads no DOM and no extractor.
+// phone's page answers the phone with it. zod alone, so a host that only carries the answer loads
+// no DOM and no extractor.
 
 import { z } from "zod";
 

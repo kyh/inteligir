@@ -6,7 +6,9 @@
 import { evictDurableObject } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
+import { FOLDER_NAME_MAX } from "@repo/contract/cloud/library/library-wire";
 import { RAINDROP_EXPORT } from "@repo/notes/imports/test-support/raindrop-export";
+import type { JsonValue } from "@repo/notes/library/canonical-json";
 import { libraryIn } from "../fill/test-support/fill-cell";
 import {
   ended,
@@ -50,6 +52,20 @@ const noteOf = (title: string, bytes: number): Uint8Array =>
   encoder.encode(`# ${title}\n\n${"A line of plain words in a long note.\n\n".repeat(bytes / 40)}`);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+// past a Durable Object's 2 MB row, under what an item's text holds
+const PAST_A_ROW = 3 * 1024 * 1024;
+
+const blocksIn = async (accountId: string) =>
+  await inCell(cellOf(accountId), (state) =>
+    JSON.stringify(state.storage.sql.exec("SELECT json FROM blocks").toArray()),
+  );
+
+const importedZip = async (files: Readonly<Record<string, Uint8Array>>) => {
+  const accountId = newAccountId();
+  const started = await startImport(accountId, await zip(files), "markdown");
+  await runToEnd(accountId, started.jobId);
+  return { job: await jobOf(accountId, started.jobId), stored: await blocksIn(accountId) };
+};
 
 const items = (state: DurableObjectState) =>
   state.storage.sql
@@ -140,6 +156,46 @@ describe("a Raindrop import", () => {
     expect(count).toStrictEqual({ keys: 230, n: 230 });
   });
 
+  it("leaves out a row past what a plan row holds, and lands the rest", async () => {
+    const accountId = newAccountId();
+    const started = await startImport(
+      accountId,
+      csv(
+        [
+          "id,title,note,excerpt,url,folder,tags,created,cover,highlights,favorite",
+          `1,Long,${"n".repeat(PAST_A_ROW)},,https://example.com/long,,,,,,`,
+          "2,Short,,,https://example.com/short,,,,,,",
+        ].join("\n"),
+      ),
+      "raindrop",
+      true,
+    );
+    await runAlarmsUntil(cellOf(accountId), ended(accountId, started.jobId));
+    await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
+      added: 1,
+      state: "done",
+      unreadable: 1,
+    });
+  });
+
+  it("keeps a collection's name as Raindrop spelled it, cut to what a folder holds", async () => {
+    const accountId = newAccountId();
+    const started = await startImport(
+      accountId,
+      csv(`title,url,folder\nA,https://example.com/a,R&D: Notes/${"n".repeat(300)}\n`),
+      "raindrop",
+      true,
+    );
+    await runAlarmsUntil(cellOf(accountId), ended(accountId, started.jobId));
+    await inCell(cellOf(accountId), async (state) => {
+      const { folders } = await libraryIn(state, accountId).organize.outline();
+      expect(folders.map((folder) => folder.name).toSorted()).toStrictEqual([
+        "R&D: Notes",
+        "n".repeat(FOLDER_NAME_MAX),
+      ]);
+    });
+  });
+
   it("stops on a file that is no Raindrop export, saying how", async () => {
     const accountId = newAccountId();
     const started = await startImport(accountId, csv("just,some\nwords,here\n"), "raindrop");
@@ -200,6 +256,144 @@ describe("a zip of notes", () => {
       message: expect.stringContaining("isn't a zip of notes"),
       state: "failed",
     });
+  });
+});
+
+describe("a zip's highlights", () => {
+  const ID = "0195f3a0-5c1e-7000-8000-0000000000f1";
+  const NOTE = encoder.encode(
+    `---\nid: ${ID}\n---\nSome %%i:m-root:start%%marked words%%i:m-root:end%% here.\n`,
+  );
+  const ROOT = { createdAt: 1, quote: "marked words", source: "user", text: "", updatedAt: 1 };
+  const REPLY = { createdAt: 2, parentId: "m-root", source: "user", text: "why", updatedAt: 2 };
+
+  const imported = async (store: Readonly<Record<string, JsonValue>>) => {
+    const accountId = newAccountId();
+    const started = await startImport(
+      accountId,
+      await zip({
+        "Marked.md": NOTE,
+        [`.inteligir/annotations/${ID}.json`]: encoder.encode(JSON.stringify(store)),
+      }),
+      "markdown",
+    );
+    await runToEnd(accountId, started.jobId);
+    const rows = await inCell(cellOf(accountId), (state) =>
+      state.storage.sql
+        .exec("SELECT id, parent_id FROM annotations ORDER BY id")
+        .toArray()
+        .map((row) => [row.id, row.parent_id]),
+    );
+    return { job: await jobOf(accountId, started.jobId), rows };
+  };
+
+  it("land once for a note copied beside its original, and the copy lands too", async () => {
+    const accountId = newAccountId();
+    const started = await startImport(
+      accountId,
+      await zip({
+        "Marked copy.md": NOTE,
+        "Marked.md": NOTE,
+        [`.inteligir/annotations/${ID}.json`]: encoder.encode(JSON.stringify({ "m-root": ROOT })),
+      }),
+      "markdown",
+    );
+    await runToEnd(accountId, started.jobId);
+    await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
+      added: 2,
+      highlights: 1,
+      unreadable: 0,
+    });
+  });
+
+  it("land a reply the store holds ahead of its root", async () => {
+    const { job, rows } = await imported({ "c-reply": REPLY, "m-root": ROOT });
+    expect(job).toMatchObject({ added: 1, highlights: 1, unreadable: 0 });
+    expect(rows).toStrictEqual([
+      ["c-reply", "m-root"],
+      ["m-root", null],
+    ]);
+  });
+
+  it("leave out a reply no root of the store answers, and keep the note", async () => {
+    const { job, rows } = await imported({
+      "a-stray": { ...REPLY, parentId: "gone" },
+      "b-nested": { ...REPLY, parentId: "c-reply" },
+      "c-reply": REPLY,
+      "d-bare": { ...REPLY, parentId: "e-unquoted" },
+      "e-unquoted": { createdAt: 1, text: "", updatedAt: 1 },
+      "m-root": ROOT,
+    });
+    expect(job).toMatchObject({ added: 1, highlights: 1, unreadable: 0 });
+    expect(rows).toStrictEqual([
+      ["c-reply", "m-root"],
+      ["m-root", null],
+    ]);
+  });
+});
+
+describe("what a zip's note left out", () => {
+  const ID = "0195f3a0-5c1e-7000-8000-0000000000f1";
+
+  it("counts a block past what an item holds, and lands the note around it", async () => {
+    const fence = `\`\`\`inteligir-html\n${"x".repeat(600 * 1024)}\n\`\`\`\n`;
+    const { job, stored } = await importedZip({
+      "Big.md": encoder.encode(`The words around it.\n\n${fence}`),
+    });
+    expect(job).toMatchObject({ added: 1, unreadable: 1 });
+    expect(stored).toContain("The words around it.");
+  });
+
+  it("counts a highlights' store past reading, and lands the note", async () => {
+    const { job, stored } = await importedZip({
+      "Marked.md": encoder.encode(`---\nid: ${ID}\n---\nSome words.\n`),
+      [`.inteligir/annotations/${ID}.json`]: encoder.encode("{ not json"),
+    });
+    expect(job).toMatchObject({ added: 1, unreadable: 1 });
+    expect(stored).toContain("Some words.");
+  });
+
+  it("counts an entry whose deflated bytes are damaged, and reads the rest", async () => {
+    const accountId = newAccountId();
+    const file = await zip({
+      "Bad.md": encoder.encode("A damaged note.\n"),
+      "Good.md": encoder.encode("A whole note.\n"),
+      "bad.txt": encoder.encode("A damaged file.\n"),
+    });
+    for (const name of ["Bad.md", "bad.txt"]) {
+      // a deflate block's first byte, after the local header and its name, set to a block type
+      // deflate does not have
+      file.bytes[Buffer.from(file.bytes).indexOf(name) + name.length] = 0xff;
+    }
+    const started = await startImport(accountId, file, "markdown");
+    await runToEnd(accountId, started.jobId);
+    await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
+      added: 1,
+      state: "done",
+      unreadable: 2,
+    });
+    await expect(blocksIn(accountId)).resolves.toContain("A whole note.");
+  });
+
+  it.each([
+    ["filing rules", "AGENTS.md", "x".repeat(PAST_A_ROW)],
+    ["highlights' store", `.inteligir/annotations/${ID}.json`, `"${"x".repeat(PAST_A_ROW)}"`],
+    ["frontmatter", "Long.md", `---\nauthor: ${"x".repeat(PAST_A_ROW)}\n---\nWords.\n`],
+  ])("counts %s past what a plan row holds, and reads the rest", async (_, path, text) => {
+    const { job, stored } = await importedZip({
+      "Whole.md": encoder.encode("A whole note.\n"),
+      [path]: encoder.encode(text),
+    });
+    expect(job).toMatchObject({ added: 1, state: "done", unreadable: 1 });
+    expect(stored).toContain("A whole note.");
+  });
+
+  it("counts nothing for a link with no address, whose words stay", async () => {
+    const { job, stored } = await importedZip({
+      "Bare.md": encoder.encode("One [word]() and the rest.\n"),
+    });
+    expect(job).toMatchObject({ added: 1, unreadable: 0 });
+    expect(stored).toContain("the rest.");
   });
 });
 
