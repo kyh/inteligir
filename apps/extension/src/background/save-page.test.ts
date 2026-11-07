@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { browser } from "wxt/browser";
+import type { Browser } from "wxt/browser";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 
 import type { CapturedPage } from "../capture/captured-page";
@@ -182,17 +183,20 @@ describe("a tab saved", () => {
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
   });
 
-  it("is kept in the queue before its first call goes", async () => {
+  it("is kept in the queue, the alarm standing, before its first call goes", async () => {
     let queuedAtCall: number | null = null;
+    let alarmAtCall: Browser.alarms.Alarm | undefined;
     const cloud = fakeCloud({
       save: async () => {
         const queued = await queuedSaves();
         queuedAtCall = queued.length;
+        alarmAtCall = await browser.alarms.get(SEND_ALARM);
         return savedAs("File over app");
       },
     });
     await saveTab(depsWith(cloud).deps, { tab: TAB });
     expect(queuedAtCall).toBe(1);
+    expect(alarmAtCall).toBeDefined();
   });
 
   it("ends the connection, and asks for it again, once the cloud says the credential is gone", async () => {

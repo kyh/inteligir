@@ -38,13 +38,14 @@ Decisions says how a bullet is written and cited.
 - **A SAVE IS QUEUED BEFORE ITS FIRST CALL, AS ITS ADDRESS, TITLE AND PASSAGE,
   AND AN ALARM SENDS WHAT WAITS.** One `storage.local` key a save, so two at
   once never write over each other; a save the cloud did not answer is sent
-  again as `items.saveLink` under its own ids, every 30 s by an alarm made
-  again at every start while one waits, and the popup says "Saved when you're
-  back online". A first try whose worker stopped mid-call is resent only once
-  past the longest it can run (its cover fetches and two calls, each to its
-  deadline), since a link landing under its op id first would stand in for its
-  page. A waiting save the cloud refuses as too old a build waits for the
-  browser's update, which `storage.local` outlives; any other refusal lets it
+  again as `items.saveLink` under its own ids, every 30 s by an alarm made as
+  the save is kept and again at every start, the browser's included, while one
+  waits, and the popup says "Saved when you're back online". A first try whose
+  worker stopped mid-call is resent only once past the longest it can run (its
+  cover fetches and two calls, each to its deadline), since a link landing
+  under its op id first would stand in for its page. A waiting save the cloud
+  refuses as too old a build waits for the browser's update, which
+  `storage.local` outlives; any other refusal lets it
   go, a full library too, which only the person can empty; a revoked
   credential forgets the connection and every save made under it, unless a
   connect replaced it while the call was on its way, since that refusal

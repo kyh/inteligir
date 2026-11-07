@@ -3,8 +3,8 @@
 // it keeps the address, the title and the passage the person had selected, never the page: what
 // the queue sends is a link to read, which the cloud's fill reads once it lands and places the
 // passage in (`items.saveLink`). One key a save, so two saves at once never write over each
-// other; an alarm, since the worker dies 30 s after its last event and a timer with it, made again
-// at every start, since an update or a restart can clear one.
+// other; an alarm, since the worker dies 30 s after its last event and a timer with it, made as a
+// save is kept and again at every start, since an update or a restart can clear one.
 
 import { browser } from "wxt/browser";
 import { z } from "zod";
@@ -44,10 +44,6 @@ const queuedSaveSchema = z.strictObject({
 export type QueuedSave = z.infer<typeof queuedSaveSchema>;
 
 const keyOf = (save: Pick<QueuedSave, "opId">): string => `${KEY_PREFIX}${save.opId}`;
-
-export const keepSave = async (save: QueuedSave): Promise<void> => {
-  await browser.storage.local.set({ [keyOf(save)]: save });
-};
 
 export const dropSave = async (save: Pick<QueuedSave, "opId">): Promise<void> => {
   await browser.storage.local.remove(keyOf(save));
@@ -90,6 +86,12 @@ export const ensureSendAlarm = async (): Promise<void> => {
   }
 };
 
+// the alarm is made with the record, since a worker stopped mid-try says nothing more of it
+export const keepSave = async (save: QueuedSave): Promise<void> => {
+  await browser.storage.local.set({ [keyOf(save)]: save });
+  await ensureSendAlarm();
+};
+
 // the cloud no longer takes `deviceId`'s credential: the extension forgets it and what waited under
 // it, and answers true. A call still on its way when a connect replaced that credential answers for
 // the one it replaced, so the connection held now stays, and what the old one left waiting goes at
@@ -108,7 +110,6 @@ export const signedOut = async (deviceId: string): Promise<boolean> => {
 // a try that went unanswered: the save waits for the alarm
 export const markWaiting = async (save: QueuedSave, now: number): Promise<void> => {
   await keepSave({ ...save, waitingSince: now });
-  await ensureSendAlarm();
 };
 
 // a waiting save as the link it is sent as: its passage and its title only where it has one

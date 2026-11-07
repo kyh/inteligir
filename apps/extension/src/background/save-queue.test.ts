@@ -7,14 +7,7 @@ import { COVER_DEADLINE_MS, COVER_TRIES } from "./capture-tab";
 import { CALL_DEADLINE_MS } from "./cloud";
 import { readConnection } from "./connection";
 import type { Connection } from "./connection";
-import {
-  ensureSendAlarm,
-  keepSave,
-  markWaiting,
-  queuedSaves,
-  SEND_ALARM,
-  sendQueued,
-} from "./save-queue";
+import { keepSave, markWaiting, queuedSaves, SEND_ALARM, sendQueued } from "./save-queue";
 import type { QueuedSave } from "./save-queue";
 import { CONNECTION, fakeCloud, handOver, MINTED, NEXT } from "./test-support/fake-cloud";
 
@@ -54,9 +47,13 @@ describe("a save that waits", () => {
     await expect(browser.alarms.get(SEND_ALARM)).resolves.toMatchObject({ periodInMinutes: 0.5 });
   });
 
+  it("holds the alarm from the moment it is kept, so a first try whose worker stopped is sent", async () => {
+    await keepSave(waiting({ waitingSince: null }));
+    await expect(browser.alarms.get(SEND_ALARM)).resolves.toMatchObject({ periodInMinutes: 0.5 });
+  });
+
   it("is sent as its link, the passage with it, and goes, and the alarm with the last of them", async () => {
     await keepSave(waiting());
-    await ensureSendAlarm();
     const cloud = fakeCloud({});
     await sendQueued(depsWith(cloud).deps);
     expect(cloud.links).toStrictEqual([

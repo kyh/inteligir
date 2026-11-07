@@ -219,6 +219,10 @@ export default defineBackground({
     browser.runtime.onInstalled.addListener((details) => {
       void installed(details.reason);
     });
+    // the one event that wakes the worker as the browser starts, which a cleared alarm cannot
+    browser.runtime.onStartup.addListener(() => {
+      void sendQueued(sendDeps);
+    });
     void starting();
   },
   type: "module",
