@@ -621,6 +621,37 @@ describe("the replica engine against the account's cell", () => {
   );
 
   it(
+    "files an item behind a folder made after its last change, which it would otherwise go ahead of",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("parked-joined");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      const moved = await sharedNote(laptop, phone);
+      await folderMade(phone, "0190ffff-0000-7000-8000-000000000031", "Reading");
+      await phone.replica.sync();
+      await write(phone.replica, moved, [await putText(phone.replica, moved, "p1", "edited")]);
+      const folderId = await folderMade(phone, "0190ffff-0000-7000-8000-000000000032", "reading");
+      await write(phone.replica, moved, [
+        { base: null, field: "folderId", op: "set", value: folderId },
+      ]);
+      await phone.replica.sync();
+
+      expect(phone.replica.status().parked).toHaveLength(1);
+      await laptop.replica.sync();
+      await expect(textIn(laptop.replica, moved, "p1")).resolves.toBe("edited");
+      expect(laptop.replica.row(moved)?.folderId).toBeNull();
+
+      const [parked] = phone.replica.status().parked;
+      await phone.replica.discard(parked?.seq ?? 0);
+      await phone.replica.sync();
+      expect(phone.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
+      await laptop.replica.sync();
+      expect(laptop.replica.row(moved)?.folderId).toBeNull();
+    },
+  );
+
+  it(
     "keeps sending what is filed in a folder whose rename parked, since that folder stands",
     { timeout: 30_000 },
     async () => {

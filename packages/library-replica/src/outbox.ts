@@ -159,6 +159,14 @@ const nextToSend = (rows: readonly OutboxRow[]): OutboxRow | null => {
   return null;
 };
 
+// a write joined to `row` would file past the row behind it that makes the folder, and go first
+const filesAheadOf = (op: WriteOp, row: OutboxRow, rows: readonly OutboxRow[]): boolean => {
+  const filed = foldersFiledIn(op);
+  return rows.some(
+    (behind) => behind.seq > row.seq && foldersMadeBy(behind.op).some((id) => filed.includes(id)),
+  );
+};
+
 // a queued row as another row's end left it, null where that leaves it asking nothing
 interface Rewritten {
   readonly held: OutboxRow;
@@ -348,10 +356,10 @@ export const createOutbox = (context: OutboxContext): Outbox => {
         });
       }
       forget(row.seq);
-      await adopt(followed);
       if (fold !== null) {
         folded.add(fold.from, fold.to);
       }
+      await adopt(followed);
       await release(row.op);
     });
     for (const id of itemIdsOf(row.op)) {
@@ -660,7 +668,8 @@ export const createOutbox = (context: OutboxContext): Outbox => {
   };
 
   // a write joins the last row naming its item, a delete or a restore of several included, so it
-  // joins only a write nothing on its item has queued behind, and only one no pin has sent
+  // joins only a write nothing on its item has queued behind, only one no pin has sent, and only one
+  // it would not carry ahead of a folder it files in
   const queue = async (
     given: OutboxOp,
     files: readonly StagedBytes[],
@@ -674,7 +683,12 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       op.kind === "write"
         ? rows.findLast((row) => itemIdsOf(row.op).includes(op.itemId))
         : undefined;
-    if (op.kind !== "write" || last?.state !== "queued" || last.op.kind !== "write") {
+    if (
+      op.kind !== "write" ||
+      last?.state !== "queued" ||
+      last.op.kind !== "write" ||
+      filesAheadOf(op, last, rows)
+    ) {
       const row = await sql.exclusive(
         async (tx) => await runPlanAsync(tx, insertRow({ createdAt, op, opId: context.newId() })),
       );

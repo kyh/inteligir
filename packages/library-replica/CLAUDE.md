@@ -46,8 +46,9 @@ and cited.
 
 - **THE OUTBOX SENDS OLDEST FIRST UNDER AN OP ID PINNED BEFORE IT FIRST GOES.**
   A write joins the item's last row while it waits, compacted onto the first
-  bases; one change to the outbox runs at a time, so a pin sends what a join
-  left, and a staged file goes once no row names it. A `CONFLICT` settles
+  bases, unless a row behind that one makes a folder it files in; one change to
+  the outbox runs at a time, so a pin sends what a join left, and a staged file
+  goes once no row names it. A `CONFLICT` settles
   through the merge, whose overlap the change it emits names (`overlapped`), a
   `BLOB_MISSING` uploads again, a refusal no resend passes
   parks the row and the rows on its items or folders behind it, and a landing
