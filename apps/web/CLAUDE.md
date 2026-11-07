@@ -311,9 +311,11 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   sent again by the alarm a minute on. The consumer reads a page only while its
   item still waits, asks again a page a later try may pass (30 s, doubling,
   three retries), and the dead-letter queue's consumer says the failure, so no
-  link waits unread for good. Rejected: sending inside the write (a reading
-  asked for a write that rolled back); fetching on the cell's alarm (a page's
-  seconds of CPU hold every write). `apps/web/src/worker/library/cell-fills.ts`,
+  link waits unread for good. A link in Deleted asks nothing, and the restore or
+  undo that brings it back still waiting asks again. Rejected: sending inside
+  the write (a reading asked for a write that rolled back); fetching on the
+  cell's alarm (a page's seconds of CPU hold every write).
+  `apps/web/src/worker/library/cell-fills.ts`,
   `apps/web/src/worker/fill/fill-consumer.ts`.
 
 - **THE CLOUD'S FETCH IS THE PLATFORM'S, EACH HOP JUDGED BY HOW ITS ADDRESS IS

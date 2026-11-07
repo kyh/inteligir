@@ -81,10 +81,14 @@ const waitsForFill = (
   item: LiveItemRow,
 ): item is LiveItemRow & {
   readonly fields: LiveItemRow["fields"] & { readonly url: string };
-} => item.fields.fetchState === "pending" && item.fields.url !== null;
+} =>
+  item.fields.fetchState === "pending" &&
+  item.fields.url !== null &&
+  item.fields.deletedAt === null;
 
 // the reading of an item a write left waiting for one: a link saved to read later, one refreshed,
-// one an import brought
+// one an import brought, one back from Deleted. A deleted item asks nothing, since the queue would
+// let the reading go, and its way back asks again
 export const askFill = (
   scope: LandingScope,
   item: LiveItemRow,

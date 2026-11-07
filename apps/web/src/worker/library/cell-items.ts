@@ -434,9 +434,10 @@ export const setDeleted = (
   scope: LandingScope,
   actor: CellActor,
   input: { readonly ids: readonly string[]; readonly deleted: boolean },
-): BulkAnswer => {
+): BulkAnswer & { readonly landed: readonly LiveItemRow[] } => {
   const changed: string[] = [];
   const missing: string[] = [];
+  const landed: LiveItemRow[] = [];
   for (const itemId of new Set(input.ids)) {
     const item = runPlan(scope.storage, readItem(itemId));
     if (item?.kind !== "live") {
@@ -449,10 +450,12 @@ export const setDeleted = (
       continue;
     }
     try {
-      landWrite(scope, actor, {
-        itemId,
-        ops: [{ base, field: "deletedAt", op: "set", value: input.deleted ? scope.now : null }],
-      });
+      landed.push(
+        landWrite(scope, actor, {
+          itemId,
+          ops: [{ base, field: "deletedAt", op: "set", value: input.deleted ? scope.now : null }],
+        }),
+      );
       changed.push(itemId);
     } catch (error) {
       // checked before anything of the item was written: its address is another live item's
@@ -462,7 +465,7 @@ export const setDeleted = (
       missing.push(itemId);
     }
   }
-  return { changed, missing };
+  return { changed, landed, missing };
 };
 
 // a url item's page read again: it waits, pending, for the cloud to read it; an item with no

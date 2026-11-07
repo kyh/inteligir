@@ -12,6 +12,7 @@ import type { SqlStatements } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
 import { readAnnotationRows, restoreAnnotationStore } from "./cell-annotations";
+import { askFill } from "./cell-fills";
 import { landItem } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";
 import { blockContents, readSnapshot } from "./cell-parts";
@@ -139,7 +140,7 @@ export const undoChangeSets = (
     }
     const rows = readAnnotationRows(storage, itemId);
     try {
-      landItem(scope, {
+      const landed = landItem(scope, {
         after: undo.now.state,
         annotations: restoreAnnotationStore(rows, undo.now.annotations, {
           itemId,
@@ -148,6 +149,8 @@ export const undoChangeSets = (
         before: { rows, state: current.state },
         itemId,
       });
+      // no turn to hold it for: the built-in agent has no undo
+      askFill(scope, landed);
       reverted.push(itemId);
     } catch (error) {
       // a rule refused this item's way back before anything of it was written

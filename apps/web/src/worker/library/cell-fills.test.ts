@@ -276,6 +276,71 @@ describe("a page's reading, landed", () => {
     });
   });
 
+  it("asks for the reading again when a link still waiting comes back from Deleted", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const engine = openCellLibrary(state, env);
+      const library = libraryIn(state, accountId, engine);
+      const url = "https://pages.example/restored";
+      const saved = await library.items.saveLink({ url });
+      await sendFills(state, env, engine);
+      await library.items.delete({ ids: [saved.item.id] });
+      expect(fillJobs(state)).toStrictEqual([]);
+      // the queue's message met a deleted item, so it was acked with nothing landed
+      await library.items.restore({ ids: [saved.item.id] });
+      expect(fillJobs(state)).toStrictEqual([
+        expect.objectContaining({ id: `fill:${saved.item.id}` }),
+      ]);
+    });
+  });
+
+  it("asks for the reading again when an undo brings a link still waiting back", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const clock = clockAt(Date.now());
+      const engine = engineIn(state, clock);
+      const library = libraryIn(state, accountId, engine);
+      const saved = await library.items.saveLink({ url: "https://pages.example/undone" });
+      await sendFills(state, env, engine);
+      clock.now += 120_000;
+      await library.items.delete({ ids: [saved.item.id] });
+      clock.now += 120_000;
+      engine.runDueJobs(() => {});
+      const { changeSets } = await library.history.list({ itemId: saved.item.id });
+      const [deleted] = changeSets;
+      await library.history.undo({ changeSetIds: [deleted?.id ?? ""] });
+      expect(stateOf(state, saved.item.id)?.fields.deletedAt).toBeNull();
+      expect(fillJobs(state)).toStrictEqual([
+        expect.objectContaining({ id: `fill:${saved.item.id}` }),
+      ]);
+    });
+  });
+
+  it("asks nothing for a link that stays in Deleted, or one already read", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const engine = openCellLibrary(state, env);
+      const library = libraryIn(state, accountId, engine);
+      const url = "https://pages.example/read";
+      const saved = await library.items.saveLink({ url });
+      engine.landReading(read({ itemId: saved.item.id, url }, [paragraph("p", "Read.")]));
+      await sendFills(state, env, engine);
+      await library.items.delete({ ids: [saved.item.id] });
+      await library.items.refresh({ id: saved.item.id });
+      expect(fillJobs(state)).toStrictEqual([]);
+      const other = await library.items.saveLink({ url: "https://pages.example/other-read" });
+      engine.landReading(
+        read({ itemId: other.item.id, url: "https://pages.example/other-read" }, [
+          paragraph("q", "Read too."),
+        ]),
+      );
+      await sendFills(state, env, engine);
+      await library.items.delete({ ids: [other.item.id] });
+      await library.items.restore({ ids: [other.item.id] });
+      expect(fillJobs(state)).toStrictEqual([]);
+    });
+  });
+
   it("lands nothing on an item that no longer waits for the reading", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {
