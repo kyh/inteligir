@@ -7,6 +7,7 @@
 import { z } from "zod";
 
 import type { PageFacts } from "./page-facts";
+import { resolveWebUrl } from "./web-url";
 
 // the extractor's reading, the fallback for each key
 export interface ExtractedMeta {
@@ -45,18 +46,6 @@ const oneLine = (raw: string | null | undefined, max: number): string | null => 
   const cut = text.slice(0, max);
   const space = cut.lastIndexOf(" ");
   return (space > max * 0.6 ? cut.slice(0, space) : cut).trimEnd();
-};
-
-const webUrl = (raw: string | null | undefined, base: string): string | null => {
-  if (raw === null || raw === undefined || raw.trim() === "") {
-    return null;
-  }
-  try {
-    const url = new URL(raw.trim(), base);
-    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
-  } catch {
-    return null;
-  }
 };
 
 const DATE_PREFIX = /^(?<date>\d{4}-\d{2}-\d{2})(?:$|[T ])/u;
@@ -231,7 +220,8 @@ export interface HeadReading {
 
 export const readHead = (document: Document, pageUrl: string): HeadReading => {
   const base =
-    webUrl(document.querySelector("base[href]")?.getAttribute("href"), pageUrl) ?? pageUrl;
+    resolveWebUrl(document.querySelector("base[href]")?.getAttribute("href") ?? "", pageUrl) ??
+    pageUrl;
   const ld = jsonLdNodes(document);
   return {
     author: firstText(
@@ -257,10 +247,10 @@ export const readHead = (document: Document, pageUrl: string): HeadReading => {
       ...ld.flatMap(ldImages),
     ],
     lang: document.documentElement.getAttribute("lang"),
-    oembed: webUrl(
+    oembed: resolveWebUrl(
       document
         .querySelector('link[rel~="alternate"][type="application/json+oembed"]')
-        ?.getAttribute("href"),
+        ?.getAttribute("href") ?? "",
       base,
     ),
     published: firstText(
@@ -293,7 +283,7 @@ export const pageFactsOf = (head: HeadReading, extracted: ExtractedMeta): PageFa
   // the extractor falls back to the domain, which the card already shows as the host
   const extractedSite = extracted.site === extracted.domain ? null : extracted.site;
   const images = [...head.images, extracted.image]
-    .map((raw) => webUrl(raw, head.base))
+    .map((raw) => resolveWebUrl(raw ?? "", head.base))
     .filter((url): url is string => url !== null);
   return {
     author: oneLine(firstText(head.author, extracted.author), AUTHOR_MAX),

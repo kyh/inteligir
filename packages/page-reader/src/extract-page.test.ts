@@ -3,8 +3,8 @@
 // promise that every article is already the editor's own fixpoint, over linkedom, the DOM the
 // Worker's fill, the extension's worker and the phone's runtime under node parse with. The phone's
 // page parses with its WebView's own DOMParser, which tools/e2e/src/scenarios/phone-editor-page.ts
-// drives in a real
-// browser against this same reading (jsdom's DOM is no stand-in: defuddle picks the whole body).
+// drives in a real browser against this same reading (jsdom's DOM is no stand-in: defuddle picks
+// the whole body).
 
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
@@ -111,6 +111,13 @@ describe("page meta", () => {
     );
     expect(facts.site).toBe("VidTube");
     expect(facts.author).toBe("Crumb Kitchen");
+  });
+
+  it("takes no in-page anchor for a picture", () => {
+    const html = `<html><head><meta property="og:image" content="#top"></head><body></body></html>`;
+    expect(
+      extractPage({ html, prefer: "article", url: PAGE_URL }, parsePage).facts.images,
+    ).toStrictEqual([]);
   });
 
   it("drops a script url among the images", () => {

@@ -8,6 +8,7 @@ import { RICH_FENCE_LANGS } from "@repo/notes/markdown/fence-langs";
 import TurndownService from "turndown";
 
 import type { Rung } from "./page-facts";
+import { resolveWebUrl } from "./web-url";
 
 // the rungs turndown writes; the text rung is a walk of its own (plainText)
 type MarkupRung = Exclude<Rung, "text">;
@@ -123,9 +124,6 @@ const fencedCode = (pre: HTMLElement): string => {
   return `\n\n${fence}${codeLanguage(pre)}\n${code}\n${fence}\n\n`;
 };
 
-const webHref = (raw: string | null): string | null =>
-  raw !== null && /^https?:\/\//iu.test(raw) ? raw : null;
-
 // a link destination with nothing in it the dialect could read as anything else
 const destination = (url: string): string => url.replaceAll(/[\s<>()\\]/gu, encodeURIComponent);
 
@@ -164,7 +162,7 @@ const serviceFor = (rung: MarkupRung): TurndownService => {
   service.addRule("link", {
     filter: (node) => node.nodeName === "A",
     replacement: (content, node) => {
-      const href = webHref(node.getAttribute("href"));
+      const href = resolveWebUrl(node.getAttribute("href") ?? "");
       if (href === null || content.trim() === "") {
         return content;
       }
@@ -175,7 +173,7 @@ const serviceFor = (rung: MarkupRung): TurndownService => {
   service.addRule("image", {
     filter: "img",
     replacement: (_content, node) => {
-      const src = webHref(node.getAttribute("src"));
+      const src = resolveWebUrl(node.getAttribute("src") ?? "");
       const alt = escapeText((node.getAttribute("alt") ?? "").replaceAll(/\s+/gu, " ").trim());
       if (rung !== "rich" || src === null) {
         return alt;
