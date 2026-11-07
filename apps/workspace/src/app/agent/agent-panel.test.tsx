@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { setTimeout as delay } from "node:timers/promises";
+import { createORPCErrorFromJson } from "@orpc/client";
 import { toast } from "@repo/ui/components/sonner";
 import { onlineManager } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
@@ -83,6 +84,8 @@ const oneFinishedTurn = [
 ];
 
 const UNDONE = { changeSetId: "u1", kept: [], refused: [], reverted: ["i1"] };
+
+const ALREADY_UNDONE = "That change was already undone.";
 
 // the panel on THREAD, until "Move" takes it to `to`, and back
 const Moving = ({ to }: { to: string | null }) => {
@@ -456,6 +459,37 @@ describe("the agent panel's conversation", () => {
     });
     expect(callsTo(calls, "library.history.undo")).toHaveLength(1);
     expect(said).not.toHaveBeenCalled();
+  });
+
+  it("reads the list again when an undo is refused, so what another device took back goes", async () => {
+    const said = vi.spyOn(toast, "error");
+    let listed = [set("s1", 1)];
+    const { library } = fakePageLibrary({
+      answer: ({ path }) => {
+        if (path === "library.history.list") {
+          return { changeSets: listed, cursor: null };
+        }
+        throw createORPCErrorFromJson({
+          code: "ALREADY_UNDONE",
+          data: undefined,
+          defined: true,
+          message: ALREADY_UNDONE,
+        });
+      },
+      events: oneFinishedTurn,
+      threads: [thread],
+    });
+    renderOnLibrary(panel(), library);
+    const turn = await screen.findByRole("button", { name: "Undo this turn" });
+    listed = [set("s1", 1, "u9")];
+    fireEvent.click(turn);
+    await waitFor(() => {
+      expect(said).toHaveBeenCalledWith(ALREADY_UNDONE);
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Undo this turn" })).toBeNull();
+    });
+    expect(screen.queryByRole("button", { name: "Undo this conversation" })).toBeNull();
   });
 
   it.each([

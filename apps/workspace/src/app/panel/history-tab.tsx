@@ -126,9 +126,13 @@ export const HistoryTab = ({
       onError: (cause) => {
         toast.error(refusalText(cause, "That change couldn't be undone."));
       },
-      onSuccess: async (answer) => {
-        announceUndo(answer);
+      // refused too: an open list hears nothing of what another device took back, so a refusal can
+      // be the first it learns of it
+      onSettled: async () => {
         await queryClient.invalidateQueries({ queryKey: orpc.library.history.key() });
+      },
+      onSuccess: (answer) => {
+        announceUndo(answer);
       },
       scope: UNDO_SCOPE,
     }),

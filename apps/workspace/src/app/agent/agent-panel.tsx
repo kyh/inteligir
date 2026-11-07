@@ -268,7 +268,9 @@ const Conversation = ({
       onError: (cause) => {
         toast.error(refusalText(cause, "That couldn't be undone."));
       },
-      onSuccess: async () => {
+      // refused too: an open list hears nothing of what another device took back, so a refusal can
+      // be the first it learns of it
+      onSettled: async () => {
         await queryClient.invalidateQueries({ queryKey: orpc.library.history.key() });
       },
       scope: UNDO_SCOPE,

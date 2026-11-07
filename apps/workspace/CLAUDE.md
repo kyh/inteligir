@@ -276,7 +276,10 @@ is parsed in `src/shell/shell-commands.ts`.
   written, so the undo meets the item as the person sees it and a line changed
   since is kept; a set a rule held back, and one of which only kept items
   remain, stays undoable and says so, in one sentence the History tab and the
-  agent's panel both say. History is the cell's, so it waits for a connection.
+  agent's panel both say. An undo reads the list again however it ended, since
+  an open list hears nothing of what another device took back and a refusal can
+  be the first it learns of it. History is the cell's, so it waits for a
+  connection.
   `apps/workspace/src/app/panel/history-tab.tsx`,
   `apps/workspace/src/app/cloud/history-pages.ts`.
 
