@@ -13,6 +13,7 @@ import type { FakeCell } from "@repo/library-replica/test-support/fake-cell";
 import { openDevice, paragraph } from "@repo/library-replica/test-support/replica-harness";
 import type { TestDevice } from "@repo/library-replica/test-support/replica-harness";
 import type { LibraryOp } from "@repo/notes/library/block-ops";
+import { BLOCK_MAX_BYTES } from "@repo/notes/library/library-nodes";
 import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
 
 import { itemView } from "@repo/editor/codec/item-view";
@@ -22,7 +23,14 @@ import { replicaMerge } from "@repo/editor/stale-write";
 
 import { readElement } from "./item-diff";
 import { itemProperties } from "./item-properties";
-import { createItemSession, ITEM_IDLE_MS, KEPT_CHANGING } from "./item-session";
+import {
+  BLOCK_HELD_BACK,
+  createItemSession,
+  ITEM_IDLE_MS,
+  ITEM_UNREAD,
+  ITEM_UNSAVED,
+  KEPT_CHANGING,
+} from "./item-session";
 import type { ItemSession, ItemStore, ItemStoreChange } from "./item-session";
 
 const code = (id: string, lines: readonly string[]): LibraryBlock => ({
@@ -309,13 +317,12 @@ describe("an item open in the editor", () => {
     expect(editorText(editor, 0)).toBe("one, the phone's\ntwo");
   });
 
-  it("lays another device's edit to another block into the open editor, outside its undo", async () => {
+  it("lays another device's edit to another block into the open editor, which no undo takes back", async () => {
     const { cell, mac, phone } = await devices();
     const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), paragraph("p2", "x")]);
     const { editor, session } = await openOn(phone, id);
     editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
     session.edited();
-    const undos = editor.history.undos.length;
     const onMac = await mac.replica.item(id);
     const held = onMac?.blocks[1];
     await mac.replica.write(id, {
@@ -326,10 +333,118 @@ describe("an item open in the editor", () => {
     await session.flush();
     expect(editorText(editor, 0)).toBe("first!");
     expect(editorText(editor, 1)).toBe("from the Mac");
-    expect(editor.history.undos).toHaveLength(undos);
+    editor.undo();
+    expect(editorText(editor, 1)).toBe("from the Mac");
     await phone.replica.sync();
     expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
     expect(cellBlock(cell, id, "p2")).toStrictEqual(paragraph("p2", "from the Mac"));
+  });
+
+  it("starts the undo over when a block lands above the last edit, which leaves others whole", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [
+      paragraph("p1", "keep this sentence"),
+      paragraph("p2", "typed here"),
+    ]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("XYZ", { at: { offset: 5, path: [1, 0] } });
+    session.edited();
+    await pause(phone, session);
+    await mac.replica.write(id, {
+      ops: [{ block: paragraph("p0", "above"), op: "insert", ord: "Zz", section: "note" }],
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    await session.flush();
+    expect(editorText(editor, 0)).toBe("above");
+    editor.undo();
+    expect([editorText(editor, 1), editorText(editor, 2)]).toStrictEqual([
+      "keep this sentence",
+      "typedXYZ here",
+    ]);
+    session.edited();
+    await pause(phone, session);
+    await phone.replica.sync();
+    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "keep this sentence"));
+  });
+
+  it("starts the undo over when a block above the last edit goes, and goes on recording", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [
+      paragraph("p1", "first"),
+      paragraph("p2", "typed here"),
+    ]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("XYZ", { at: { offset: 5, path: [1, 0] } });
+    session.edited();
+    await pause(phone, session);
+    const onMac = await mac.replica.item(id);
+    await mac.replica.write(id, {
+      ops: [{ baseHash: onMac?.blocks[0]?.hash ?? "", blockId: "p1", op: "drop" }],
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    await session.flush();
+    expect(() => {
+      editor.undo();
+    }).not.toThrow();
+    expect(editorText(editor, 0)).toBe("typedXYZ here");
+    editor.tf.insertText("!", { at: { offset: 0, path: [0, 0] } });
+    expect(editorText(editor, 0)).toBe("!typedXYZ here");
+    editor.undo();
+    expect(editorText(editor, 0)).toBe("typedXYZ here");
+  });
+
+  it("starts the undo over when the block under the last edit is laid in anew", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "a long first line")]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("!", { at: { offset: 2, path: [0, 0] } });
+    session.edited();
+    await pause(phone, session);
+    await phone.replica.sync();
+    await mac.replica.sync();
+    const onMac = await mac.replica.item(id);
+    await mac.replica.write(id, {
+      ops: [{ baseHash: onMac?.blocks[0]?.hash ?? "", block: paragraph("p1", "short"), op: "put" }],
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    await session.flush();
+    expect(editorText(editor, 0)).toBe("short");
+    expect(() => {
+      editor.undo();
+    }).not.toThrow();
+    expect(editorText(editor, 0)).toBe("short");
+  });
+
+  it("drops what a redo would replay when a landing moves the blocks under it", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "typed here")]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("XYZ", { at: { offset: 5, path: [0, 0] } });
+    editor.undo();
+    await mac.replica.write(id, {
+      ops: [{ block: paragraph("p0", "above"), op: "insert", ord: "Zz", section: "note" }],
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    await session.flush();
+    editor.redo();
+    expect([editorText(editor, 0), editorText(editor, 1)]).toStrictEqual(["above", "typed here"]);
+  });
+
+  it("keeps the undo through its own write coming back", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+    session.edited();
+    await pause(phone, session);
+    await phone.replica.sync();
+    await session.flush();
+    editor.undo();
+    expect(editorText(editor, 0)).toBe("first");
   });
 
   it("keeps its blocks while a replica that started over holds the row ahead of the body", async () => {
@@ -431,10 +546,9 @@ describe("an item open in the editor", () => {
     const { session } = await openOn(phone, id);
     await session.flush();
     const source = itemProperties(session);
-    expect(source.read(source.snapshot())).toStrictEqual({
-      kind: "valid",
-      properties: [{ key: "status", type: "text", value: "draft" }],
-    });
+    expect(source.read(source.snapshot())).toStrictEqual([
+      { key: "status", type: "text", value: "draft" },
+    ]);
     source.commit({ kind: "set", prop: { key: "status", type: "text", value: "done" } });
     source.commit({ kind: "add", prop: { key: "rating", type: "number", value: 4 } });
     await session.flush();
@@ -496,6 +610,241 @@ describe("an item open in the editor", () => {
     expect(session.status()).toMatchObject({ failure: null, unsaved: false });
     await phone.replica.sync();
     expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
+  });
+
+  it("files what the person types under a saved page's article in the note", async () => {
+    const { cell, mac, phone } = await devices();
+    const { id } = await mac.replica.createNote({
+      blocks: [{ block: paragraph("a1", "the page"), ord: "a0", section: "article" }],
+      folderId: null,
+      tags: [],
+      title: "Saved",
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertNodes({ children: [{ text: "mine" }], type: "p" }, { at: [1] });
+    session.edited();
+    await pause(phone, session);
+    await phone.replica.sync();
+    const held = [...(cell.item(id)?.blocks.values() ?? [])];
+    expect(held.map(({ section }) => section).toSorted()).toStrictEqual(["article", "note"]);
+    expect(held.find(({ section }) => section === "note")?.block.children).toStrictEqual([
+      { text: "mine" },
+    ]);
+  });
+
+  it("files an article block it dropped back in the article when an undo restores it", async () => {
+    const { cell, mac, phone } = await devices();
+    const { id } = await mac.replica.createNote({
+      blocks: [
+        { block: paragraph("a1", "the page"), ord: "a0", section: "article" },
+        { block: paragraph("a2", "goes on"), ord: "a1", section: "article" },
+      ],
+      folderId: null,
+      tags: [],
+      title: "Saved",
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.removeNodes({ at: [1] });
+    session.edited();
+    await pause(phone, session);
+    editor.undo();
+    session.edited();
+    await pause(phone, session);
+    await phone.replica.sync();
+    expect(cell.item(id)?.blocks.get("a2")?.section).toBe("article");
+  });
+
+  it("files text still unwritten in the note when a page's article lands above it", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, []);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("mine", { at: { offset: 0, path: [0, 0] } });
+    session.edited();
+    await mac.replica.write(id, {
+      ops: [{ block: paragraph("a1", "the page"), op: "insert", ord: "a0", section: "article" }],
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    await pause(phone, session);
+    await phone.replica.sync();
+    const held = [...(cell.item(id)?.blocks.values() ?? [])];
+    expect(held.find(({ section }) => section === "note")?.block.children).toStrictEqual([
+      { text: "mine" },
+    ]);
+    expect(cellBlock(cell, id, "a1")).toStrictEqual(paragraph("a1", "the page"));
+  });
+
+  it("says a block no write can store and holds it unsaved, until it can be written", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), paragraph("p2", "x")]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("y".repeat(BLOCK_MAX_BYTES), { at: { offset: 1, path: [1, 0] } });
+    session.edited();
+    await pause(phone, session);
+    expect(session.status()).toMatchObject({ failure: BLOCK_HELD_BACK, unsaved: true });
+    await session.flush();
+    expect(session.status()).toMatchObject({ failure: BLOCK_HELD_BACK, unsaved: true });
+    editor.undo();
+    session.edited();
+    await pause(phone, session);
+    expect(session.status()).toMatchObject({ failure: null, unsaved: false });
+    await phone.replica.sync();
+    expect(cellBlock(cell, id, "p2")).toStrictEqual(paragraph("p2", "x"));
+  });
+
+  it("writes the blocks it can beside the one it holds back", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), paragraph("p2", "x")]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+    editor.tf.insertText("y".repeat(BLOCK_MAX_BYTES), { at: { offset: 1, path: [1, 0] } });
+    session.edited();
+    await pause(phone, session);
+    expect(session.status()).toMatchObject({ failure: BLOCK_HELD_BACK, unsaved: true });
+    await phone.replica.sync();
+    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
+    expect(cellBlock(cell, id, "p2")).toStrictEqual(paragraph("p2", "x"));
+  });
+
+  it("keeps a block it holds back on screen when another device changes that block", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("y".repeat(BLOCK_MAX_BYTES), { at: { offset: 5, path: [0, 0] } });
+    session.edited();
+    await pause(phone, session);
+    const onMac = await mac.replica.item(id);
+    await mac.replica.write(id, {
+      ops: [
+        {
+          baseHash: onMac?.blocks[0]?.hash ?? "",
+          block: paragraph("p1", "the Mac's"),
+          op: "put",
+        },
+      ],
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    await session.flush();
+    expect(NodeApi.string(editor.children[0] ?? { text: "" }).startsWith("firsty")).toBe(true);
+    expect(session.status()).toMatchObject({ failure: BLOCK_HELD_BACK, unsaved: true });
+  });
+
+  it("keeps an edit unsaved and goes again after a pause when the store rejects the write", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    let rejections = 1;
+    const failing: ItemStore = {
+      item: phone.replica.item,
+      onChange: phone.replica.onChange,
+      write: async (itemId, input) => {
+        if (rejections > 0) {
+          rejections -= 1;
+          throw new Error("SQLITE_FULL: database or disk is full");
+        }
+        return await phone.replica.write(itemId, input);
+      },
+    };
+    const { editor, session } = await openOn(phone, id, failing);
+    editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+    session.edited();
+    await session.flush();
+    expect(session.status()).toMatchObject({ failure: ITEM_UNSAVED, unsaved: true });
+    await pause(phone, session);
+    expect(session.status()).toMatchObject({ failure: null, unsaved: false });
+    await phone.replica.sync();
+    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
+  });
+
+  it("answers a flush unsaved for as long as the store rejects the write", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    const refusing: ItemStore = {
+      item: phone.replica.item,
+      onChange: phone.replica.onChange,
+      write: async () => {
+        await Promise.resolve();
+        throw new Error("the page gave up waiting for the phone");
+      },
+    };
+    const { editor, session } = await openOn(phone, id, refusing);
+    editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+    session.edited();
+    await session.flush();
+    await session.flush();
+    expect(session.status()).toMatchObject({ failure: ITEM_UNSAVED, unsaved: true });
+    await session.close();
+    expect(session.status()).toMatchObject({ failure: ITEM_UNSAVED, unsaved: true });
+  });
+
+  it("says a field patch the item cannot hold, and still writes the blocks beside it", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+    await session.patch([{ key: "k".repeat(1001), op: "property", value: "v" }]);
+    expect(session.status()).toMatchObject({
+      failure: "This item can't hold these properties.",
+      unsaved: false,
+    });
+    await phone.replica.sync();
+    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
+    expect(cell.item(id)?.fields.properties).toStrictEqual({});
+  });
+
+  it("says a field patch the item cannot hold when nothing else is left to write", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    const { session } = await openOn(phone, id);
+    await session.patch([{ key: "k".repeat(1001), op: "property", value: "v" }]);
+    expect(session.status()).toMatchObject({
+      failure: "This item can't hold these properties.",
+      unsaved: false,
+    });
+  });
+
+  it("goes on writing after a surface it told throws", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+    session.edited();
+    const stop = session.subscribe(() => {
+      throw new Error("the surface broke");
+    });
+    await expect(session.flush()).rejects.toThrow("the surface broke");
+    stop();
+    editor.tf.insertText("?", { at: { offset: 6, path: [0, 0] } });
+    session.edited();
+    await session.flush();
+    await phone.replica.sync();
+    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!?"));
+  });
+
+  it("says a first read that failed, and opens the item when asked again", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    let rejections = 1;
+    const failing: ItemStore = {
+      item: async (itemId) => {
+        if (rejections > 0) {
+          rejections -= 1;
+          throw new Error("the page gave up waiting for the phone");
+        }
+        return await phone.replica.item(itemId);
+      },
+      onChange: phone.replica.onChange,
+      write: phone.replica.write,
+    };
+    const { editor, session } = await openOn(phone, id, failing);
+    expect(session.status()).toStrictEqual({ failure: ITEM_UNREAD, kind: "unread" });
+    await session.read();
+    expect(session.status()).toMatchObject({ failure: null, kind: "open" });
+    expect(editorText(editor, 0)).toBe("first");
   });
 
   it("opens with no undo reaching what the editor held before the item", async () => {

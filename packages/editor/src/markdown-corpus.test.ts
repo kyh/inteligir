@@ -47,7 +47,7 @@ const REPO_DOCS = {
 const EXPECTED = {
   // wrapped paragraphs → soft-break churn
   "README.md": "formattable",
-  // the sample notes are pre-canonicalized so a first edit is a minimal diff, not a reflow.
+  // the sample notes are pre-canonicalized.
   "empty.md": "canonical",
   "welcome.md": "canonical",
   "tasks.md": "canonical",
@@ -58,8 +58,6 @@ const EXPECTED = {
   "kitchen-sink.md": "canonical",
   // the angle autolink saves bare; the stray `{`, `<50ms` and the html stay
   "legacy-web-clip.md": "formattable",
-  "frontmatter-note.md": "canonical",
-  "private-note.md": "canonical",
   "tagged.md": "canonical",
   "components-playground.md": "canonical",
   "math-and-diagrams.md": "canonical",

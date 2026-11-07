@@ -11,7 +11,7 @@ import { useLinkResolver } from "@repo/editor/host";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import { useOpenItemId } from "@repo/editor/open-item";
 import { EmbedChip, StaticNote } from "@repo/editor/static-note";
-import { decideTransclusion } from "@repo/editor/transclusion-guard";
+import { decideTransclusion, embeddedPart, EMBED_PART_GONE } from "@repo/editor/transclusion-guard";
 import { wikiLabelOf } from "@repo/editor/wiki/wiki-node";
 import type { WikiNodeFields } from "@repo/editor/wiki/wiki-node";
 
@@ -60,11 +60,25 @@ const useTargetContent = (itemId: string | null): TargetContent => {
   return state;
 };
 
+const EmbeddedBlocks = ({
+  blocks,
+  link,
+}: {
+  blocks: readonly TElement[];
+  link: WikiNodeFields;
+}) => {
+  const part = embeddedPart(blocks, link);
+  return part === null ? (
+    <span className="text-muted-foreground italic">{EMBED_PART_GONE}</span>
+  ) : (
+    <StaticNote blocks={part} />
+  );
+};
+
 const Transclusion = ({ link }: { link: WikiNodeFields }) => {
   const { resolveWikiTarget, titleOf } = useLinkResolver();
   const openItemId = useOpenItemId();
-  const resolved =
-    link.title === "" ? null : resolveWikiTarget(link.title, link.itemId ?? link.alias);
+  const resolved = resolveWikiTarget(link.title, link.itemId ?? link.alias);
   const decision = decideTransclusion(openItemId, resolved);
   const content = useTargetContent(decision.kind === "render" ? decision.itemId : null);
 
@@ -103,7 +117,7 @@ const Transclusion = ({ link }: { link: WikiNodeFields }) => {
         {content.status === "loading" ? (
           <span className="text-muted-foreground italic">Loading…</span>
         ) : (
-          <StaticNote blocks={content.blocks} />
+          <EmbeddedBlocks blocks={content.blocks} link={link} />
         )}
       </span>
     </span>

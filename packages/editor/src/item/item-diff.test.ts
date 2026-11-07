@@ -9,6 +9,9 @@ import type { LibraryBlock, LibraryNode, LibrarySection } from "@repo/notes/libr
 import { landed, noteFields, paragraph } from "@repo/notes/test-support/library-items";
 import { mulberry32 } from "@repo/notes/test-support/seeded-random";
 
+import { WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
+import { wikiNodeOfBody } from "@repo/editor/wiki/wiki-node";
+
 import { diffValue, readElement } from "./item-diff";
 import { elementOf } from "./item-session";
 
@@ -118,13 +121,89 @@ describe("an item's value as the ops it writes", () => {
     const value = valueOf(item).with(0, { children: [{ text: "x" }], id: "n0", type: "nope" });
     const diff = diffValue(item.blocks, value);
     expect(diff.ops).toStrictEqual([]);
-    expect(diff.heldBack).toMatchObject([{ index: 0 }]);
+    expect(diff.heldBack).toStrictEqual(["n0"]);
   });
 
-  it("files a block typed after the article's first block in the article", () => {
+  it.each(["#Rollback", "#^r1", "#Rollback|the plan"])(
+    "stores a link to a place in its own item, [[%s]]",
+    (body) => {
+      const item = itemOf(1, 0);
+      const link = wikiNodeOfBody(WIKI_LINK_KEY, body);
+      const value = [{ children: [{ text: "see " }, link, { text: "" }], id: "n0", type: "p" }];
+      const diff = diffValue(item.blocks, value);
+      expect(diff.heldBack).toStrictEqual([]);
+      expect(diff.ops).toMatchObject([{ op: "put" }]);
+    },
+  );
+
+  it.each(["|the plan", " "])(
+    "keeps a body that reaches nothing, [[%s]], as its source",
+    (body) => {
+      const item = itemOf(1, 0);
+      const value = [
+        {
+          children: [{ text: "" }, wikiNodeOfBody(WIKI_LINK_KEY, body), { text: "" }],
+          id: "n0",
+          type: "p",
+        },
+      ];
+      const diff = diffValue(item.blocks, value);
+      expect(diff.heldBack).toStrictEqual([]);
+      expect(diff.ops).toMatchObject([
+        {
+          block: { children: [{ source: `[[${body}]]`, type: "opaque" }] },
+          op: "put",
+        },
+      ]);
+    },
+  );
+
+  it("reads a block around a picker still open in it, whose query nobody has written yet", () => {
+    const item = itemOf(1, 0);
+    const picking: TElement = {
+      children: [{ text: "n 0 [" }, { children: [{ text: "" }], type: "wiki_input" }, { text: "" }],
+      id: "n0",
+      type: "p",
+    };
+    const diff = diffValue(item.blocks, [picking]);
+    expect(diff.heldBack).toStrictEqual([]);
+    expect(diff.ops).toMatchObject([{ block: paragraph("n0", "n 0 ["), op: "put" }]);
+  });
+
+  it("files a block typed below the article in the note, so a read never takes it", () => {
     const item = itemOf(1, 2);
-    const value = valueOf(item).toSpliced(2, 0, elementOf(paragraph("late", "late")));
-    expect(writtenAs(item, value).blocks.get("late")?.section).toBe("article");
+    const value = [...valueOf(item), elementOf(paragraph("late", "late"))];
+    const written = writtenAs(item, value);
+    expect(written.blocks.get("late")?.section).toBe("note");
+    expect(idsOf(written)).toStrictEqual(["n0", "late", "a0", "a1"]);
+    expect(diffValue(written.blocks, value).ops).toStrictEqual([]);
+    const read = landed(
+      written,
+      [...written.blocks.values()].flatMap((held) =>
+        held.section === "article"
+          ? [{ baseHash: held.hash, blockId: held.block.id, op: "drop" as const }]
+          : [],
+      ),
+    );
+    expect(idsOf(read)).toStrictEqual(["n0", "late"]);
+  });
+
+  it("files a block typed inside the article in the note", () => {
+    const item = itemOf(0, 2);
+    const value = valueOf(item).toSpliced(1, 0, elementOf(paragraph("mid", "mid")));
+    expect(writtenAs(item, value).blocks.get("mid")?.section).toBe("note");
+  });
+
+  it("keeps a block's section wherever it is dragged, writing it as no new block", () => {
+    const item = itemOf(2, 2);
+    const [n0, n1, a0, a1] = valueOf(item);
+    if (n0 === undefined || n1 === undefined || a0 === undefined || a1 === undefined) {
+      throw new Error("the item holds four blocks");
+    }
+    const { ops } = diffValue(item.blocks, [a1, n1, a0, n0]);
+    expect(ops.map((op) => op.op).filter((op) => op !== "move")).toStrictEqual([]);
+    const written = writtenAs(item, [a1, n1, a0, n0]);
+    expect(idsOf(written)).toStrictEqual(["n1", "n0", "a1", "a0"]);
   });
 
   it("moves a dragged block alone, keeping every other block's key", () => {
@@ -136,7 +215,7 @@ describe("an item's value as the ops it writes", () => {
     expect(ops).toMatchObject([{ blockId: "n0", op: "move" }]);
   });
 
-  it.each(SEEDS)("lands any edit as the value it made (seed %i)", (seed) => {
+  it.each(SEEDS)("lands any edit as the value it made, section by section (seed %i)", (seed) => {
     const rand = mulberry32(seed);
     const item = itemOf(1 + Math.floor(rand() * 6), Math.floor(rand() * 4));
     let value = valueOf(item);
@@ -145,9 +224,12 @@ describe("an item's value as the ops it writes", () => {
       value = editOnce(rand, value, `new${String(step)}`);
     }
     const after = writtenAs(item, value);
-    expect(orderedBlocks(after.blocks).map((stored) => stored.block)).toStrictEqual(
-      blocksOf(value),
-    );
+    const inSection = (section: LibrarySection): LibraryBlock[] =>
+      blocksOf(value).filter((block) => after.blocks.get(block.id)?.section === section);
+    expect(orderedBlocks(after.blocks).map((stored) => stored.block)).toStrictEqual([
+      ...inSection("note"),
+      ...inSection("article"),
+    ]);
     expect(diffValue(after.blocks, value).ops).toStrictEqual([]);
   });
 

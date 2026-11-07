@@ -28,7 +28,6 @@ import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 import { isImeComposing } from "@repo/ui/lib/ime";
-import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { platformShortcutModifier, spellHotkey } from "@repo/ui/lib/hotkey-spelling";
 
 import { editorShortcutFor } from "@repo/editor/editor-shortcuts";
@@ -94,9 +93,8 @@ const FindBarPlugin = createTPlatePlugin<PluginConfig<"findBar", FindBarOptions>
   },
 });
 
-// The element the bar hangs under, registered by whatever surface draws the Find button; the
-// editor never reaches the shell, so the shell hands it the anchor. Null while no such button is
-// on screen (zen hides it), and the bar falls back to the note column's corner.
+// The element the bar hangs under: the item view's slot above the note, since the editor never
+// reaches the shell, so the shell hands it over. Null only before that view first commits.
 const anchorStore = createStore<HTMLElement | null>()(() => null);
 
 export const setFindBarAnchor = (element: HTMLElement | null): void => {
@@ -479,21 +477,6 @@ const OpenFindBar = () => {
     </>
   );
 
-  // The bar hangs under the Find button when a surface has one, and falls back to the note
-  // column's corner when none is on screen (zen). Absolute, not fixed: inside the note column,
-  // never over the panel beside it.
-  if (anchor === null) {
-    return (
-      <div
-        className={cn(
-          "absolute top-16 right-6 z-40 flex flex-col gap-1 rounded-md px-2 py-1 print:hidden",
-          surfaceClasses(3),
-        )}
-      >
-        {body}
-      </div>
-    );
-  }
   return (
     <Popover
       open

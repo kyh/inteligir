@@ -37,6 +37,7 @@ import {
 import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
 import { ItemView } from "./item/item-view";
+import { leaveItem } from "./item/leave-item";
 import { installPageEditorHost } from "./item/page-editor-host";
 import type { PageEditorHost } from "./item/page-editor-host";
 import { runBulk } from "./library/bulk-actions";
@@ -112,7 +113,7 @@ const findOnceOpen = (session: ItemSession, { itemId, query }: PendingFind): voi
   // answers whether the session is past opening, and lands the bar if it opened the item
   const landed = (): boolean => {
     const status = session.status();
-    if (status.kind === "opening") {
+    if (status.kind === "opening" || status.kind === "unread") {
       return false;
     }
     const editor = getLiveEditor(itemId);
@@ -171,8 +172,9 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
 
   const open = (itemId: string | null): void => {
     void (async () => {
-      await sessionRef.current?.flush();
-      onOpenItem(itemId);
+      if (await leaveItem(sessionRef.current, confirm)) {
+        onOpenItem(itemId);
+      }
     })();
   };
 
@@ -207,7 +209,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   });
   const hostShowsTag = useEffectEvent((tag: string) => {
     storeScope({ kind: "tag", tag });
-    onOpenItem(null);
+    open(null);
   });
   useEffect(() => {
     const host = installPageEditorHost({

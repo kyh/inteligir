@@ -114,7 +114,7 @@ const lastPathSegment = (url: string): string => {
   return path.split("/").findLast((segment) => segment !== "") ?? "";
 };
 
-const UNTITLED = "Untitled";
+export const UNTITLED = "Untitled";
 
 // `<host> - <its last path segment, humanized>`, or the host alone
 export const itemNameFromUrl = (url: string): string => {

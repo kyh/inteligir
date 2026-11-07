@@ -62,8 +62,10 @@ alone, and no walk narrows structurally.
   (nothing in Plate consumes a hue).
 
 - **NOTES SPEAK THE INTELIGIR DIALECT**: `[[Title]]` / `[[Title#H]]` /
-  `[[Title|alias]]` / `[[Title|uuid]]` wiki links (the last pipe starts the
-  alias), `{{source|display|meta}}` formula pills, `%%i:id:start/end%%`
+  `[[#H]]` / `[[Title|alias]]` / `[[Title|uuid]]` wiki links (the last pipe
+  starts the alias, an anchor alone stays in its own item, a link by id may hold
+  no title while its item has none, and a body that reaches nothing is kept as
+  its source), `{{source|display|meta}}` formula pills, `%%i:id:start/end%%`
   annotation markers, `@2026-08-22` date chips, `<u>…</u>` underline, GitHub
   alerts (`> [!NOTE]` … `> [!CAUTION]`) as THE callout, `inteligir-chart` /
   `inteligir-canvas` / `inteligir-html` fences, the `:::tabs`, `:::toggle` and
@@ -105,8 +107,10 @@ alone, and no walk narrows structurally.
   (`packages/editor/src/item/item-properties.ts`). The panel reads whatever
   source it is handed (`packages/editor/src/properties/property-source.ts`),
   and an item's own fields (its title, tags, folder and pin) are Info's, so no
-  key has two editors. Rejected: a frontmatter block in an item (its keys are
-  columns).
+  key has two editors. Only a file has frontmatter: a `---` fence that opens a
+  paste, an agent's text or a page is that text's own lines, read as a YAML code
+  block (`packages/editor/src/markdown/md-rules.ts`). Rejected: a frontmatter
+  block in an item (its keys are columns).
 
 - **THE PLATE SLASH MENU IS THE INSERTION SURFACE, AND THE TOUCH TOOLBAR IS ITS
   SOFT-KEYBOARD TWIN.** Slash rows are grouped data: each row's markdown
@@ -174,9 +178,11 @@ alone, and no walk narrows structurally.
 - **AN EMBED IS ONE LEVEL OF STATIC RENDER, AND EVERY VOID HAS A STATIC ROW.**
   An embed inside an embed stays a chip, the nesting stop, so the only cycle
   left to refuse is a note embedding itself
-  (`packages/editor/src/transclusion-guard.ts`). PlateStatic's default element
-  draws a void empty or throws, so the static table holds a row for every void
-  (`packages/editor/src/transclusion.tsx`).
+  (`packages/editor/src/transclusion-guard.ts`). An embed of a heading draws
+  its section, to the next heading of its level or above, an embed of a block
+  that block, and an anchor gone says so rather than drawing all of the item.
+  PlateStatic's default element draws a void empty or throws, so the static
+  table holds a row for every void (`packages/editor/src/transclusion.tsx`).
 
 - **A SAVE KEEPS EVERY LINE BREAK.** The rule table keeps the leading `"\n"`
   (a soft break after an inline node) that Plate's default text rule drops. A
@@ -315,13 +321,28 @@ alone, and no walk narrows structurally.
   id names, the ids inside one the editor's alone, and 800 ms after the last
   keystroke the ops of what changed since the blocks last acknowledged go to the
   outbox, decided by hash; a field patch goes at once, under its base. A change
-  from elsewhere is laid in outside the undo, a block both sides changed merged
-  by `mergeBlocks` (`packages/editor/src/stale-write.ts`), which the replica
-  runs on a CONFLICT too. Each item gets its own editor and session, drawn once
-  its blocks are in (`packages/editor/src/item/item-editor.tsx`). Rejected: the
-  value mirrored into React state (a render per keystroke); a whole-item write
-  (two devices' edits to different blocks would meet); one editor handed from
-  item to item (a closing write would diff the next one's blocks).
+  from elsewhere is laid in outside the undo and starts it over, since an undo
+  replays each edit at the path it was recorded at, a block both sides changed
+  merged by `mergeBlocks` (`packages/editor/src/stale-write.ts`), which the
+  replica runs on a CONFLICT too. Each item gets its own editor and session,
+  drawn once its blocks are in (`packages/editor/src/item/item-editor.tsx`). A
+  block no write can store stays as the person left it and counts as a failure
+  and as unsaved, so the surface says so on every host and each host holds the
+  leave;
+  a picker open in a block is read around, since its query is nobody's writing.
+  A write the store rejects stays unsaved and goes again after a pause, and a
+  first read that fails says so and offers another, each in the person's words.
+  A file still being kept counts as unsaved and a leave waits for it, since the
+  block that names it is in no value until it is, while what the value holds
+  goes at once.
+  A block keeps its section wherever it stands, and a new one is the note's, so
+  a read of the page never takes what the person typed under it, which reads
+  above the article when the item opens again. Rejected: the value mirrored
+  into React state (a render per keystroke); a whole-item write (two devices'
+  edits to different blocks would meet); one editor handed from item to item
+  (a closing write would diff the next one's blocks); a section by where a block
+  stands (a read deleted what was typed below the article); rebasing the undo
+  through a landing (each recorded batch would be transformed against it).
   `packages/editor/src/item/item-session.ts`, `item-diff.ts`.
 
 - **THE EDITOR'S HOST SPEAKS THE LIBRARY: AN ITEM BY ITS ID, A FILE BY ITS

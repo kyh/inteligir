@@ -3,12 +3,14 @@
 // surface holds no copy of the value: a change only tells the session the value moved. Each item
 // gets an editor and a session of its own, so the last write of the item left behind diffs that
 // item's value and never the next one's, and the editor is drawn only once the item's blocks are
-// in it, so nothing is typed into a value the item then replaces. A formula's display follows the
-// pills it names, and the desktop draws the outline beside the text.
+// in it, so nothing is typed into a value the item then replaces. Why an edit is not saved stays
+// in view above the text, on every host. A formula's display follows the pills it names, and the
+// desktop draws the outline beside the text.
 
 import { useEffect, useEffectEvent, useState, useSyncExternalStore } from "react";
 import { Plate, useEditorRef, usePlateEditor } from "platejs/react";
 
+import { Button } from "@repo/ui/components/button";
 import { cn } from "@repo/ui/lib/cn";
 
 import { Editor, EditorContainer, editorColumnPx } from "@repo/editor/editor-chrome";
@@ -86,6 +88,23 @@ const ItemSurface = ({ itemId, ports, onSession }: ItemEditorProps) => {
       </p>
     );
   }
+  if (status.kind === "unread") {
+    return (
+      <div className={cn(editorColumnPx(profile), "flex flex-col items-start gap-2 pt-4")}>
+        <p role="alert" className="text-body text-destructive">
+          {status.failure}
+        </p>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            void session.read();
+          }}
+        >
+          Try again
+        </Button>
+      </div>
+    );
+  }
   if (status.kind === "opening") {
     return null;
   }
@@ -95,6 +114,17 @@ const ItemSurface = ({ itemId, ports, onSession }: ItemEditorProps) => {
   };
   return (
     <OpenItemProvider itemId={itemId}>
+      {status.failure === null ? null : (
+        <p
+          role="alert"
+          className={cn(
+            editorColumnPx(profile),
+            "sticky top-[env(safe-area-inset-top)] z-10 bg-background py-2 text-body text-destructive",
+          )}
+        >
+          {status.failure}
+        </p>
+      )}
       <Plate editor={editor} onValueChange={handleValueChange}>
         <EditorContainer>
           <Editor placeholder={WRITE_PLACEHOLDER} spellCheck={false} />

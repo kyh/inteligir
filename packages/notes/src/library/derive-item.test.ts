@@ -32,6 +32,31 @@ describe(deriveItem, () => {
     ]);
   });
 
+  it("reads a link to a place in its own item as its heading's words and no link between items", () => {
+    const own: LibraryBlock = {
+      children: [
+        { text: "See " },
+        { children: leaf, heading: "Rollback", itemId: null, title: "", type: "wikiLink" },
+      ],
+      id: "p3",
+      type: "p",
+    };
+    const derived = deriveItem(noteFields(), itemOf([own]).blocks);
+    expect(derived.links).toStrictEqual([]);
+    expect(derived.card.preview).toBe("See Rollback");
+  });
+
+  it("reads a link to an untitled item by its id alone", () => {
+    const untitled: LibraryBlock = {
+      children: [{ children: leaf, itemId: "item-2", title: "", type: "wikiLink" }],
+      id: "p4",
+      type: "p",
+    };
+    expect(deriveItem(noteFields(), itemOf([untitled]).blocks).links).toMatchObject([
+      { targetId: "item-2", targetKey: null },
+    ]);
+  });
+
   it("joins the field's tags and the body's chips, each origin once, case folded", () => {
     const derived = deriveItem(
       noteFields({ tags: ["work/plans", "Read"] }),

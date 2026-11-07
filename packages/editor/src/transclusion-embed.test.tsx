@@ -7,6 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 
+import { EMBED_PART_GONE } from "@repo/editor/transclusion-guard";
+
 import { EditorHarness } from "./test-support/editor-harness";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
@@ -47,11 +49,27 @@ const TARGET: readonly LibraryBlock[] = [
   },
 ];
 
-const embedOf = (title: string): Value => [
+const SECTIONS: readonly LibraryBlock[] = [
+  { children: [{ text: "Intro" }], id: "s0", type: "h1" },
+  { children: [{ text: "Before it." }], id: "s1", type: "p" },
+  { children: [{ text: "Roll Back" }], id: "s2", type: "h2" },
+  { children: [{ text: "In the section." }], id: "s3", ref: "step", type: "p" },
+  { children: [{ text: "Deeper" }], id: "s4", type: "h3" },
+  { children: [{ text: "Still in it." }], id: "s5", type: "p" },
+  { children: [{ text: "Next" }], id: "s6", type: "h2" },
+  { children: [{ text: "After it." }], id: "s7", type: "p" },
+];
+
+interface Anchor {
+  readonly blockRef?: string;
+  readonly heading?: string;
+}
+
+const embedOf = (title: string, anchor: Anchor): Value => [
   {
     children: [
       { text: "" },
-      { children: VOID, itemId: null, title, type: "wikiEmbed" },
+      { ...anchor, children: VOID, itemId: null, title, type: "wikiEmbed" },
       { text: "" },
     ],
     type: "p",
@@ -78,6 +96,7 @@ afterAll(() => {
 const mountEmbed = (
   blocks: (itemId: string) => readonly LibraryBlock[] | null,
   title = "Target",
+  anchor: Anchor = {},
 ) => {
   const host = installFakeEditorHost({
     files: new Map([[SHA, new Blob([new Uint8Array([1])], { type: "image/png" })]]),
@@ -88,7 +107,7 @@ const mountEmbed = (
       { id: OTHER_ID, title: "Other" },
     ],
   });
-  render(<EditorHarness itemId={HUB_ID} value={embedOf(title)} />);
+  render(<EditorHarness itemId={HUB_ID} value={embedOf(title, anchor)} />);
   return host;
 };
 
@@ -154,6 +173,52 @@ describe("an embedded item's blocks", () => {
   });
 });
 
+const sections = (id: string) => (id === TARGET_ID ? SECTIONS : null);
+
+describe("an embed of part of an item", () => {
+  it("draws one heading's section, up to a heading of the same level", async () => {
+    mountEmbed(sections, "Target", { heading: "Roll Back" });
+
+    await expect(screen.findByText("In the section.")).resolves.toBeTruthy();
+    expect(screen.getByText("Still in it.")).toBeTruthy();
+    expect(screen.queryByText("Before it.")).toBeNull();
+    expect(screen.queryByText("After it.")).toBeNull();
+  });
+
+  it("ends a section at a heading above it", async () => {
+    mountEmbed(sections, "Target", { heading: "Deeper" });
+
+    await expect(screen.findByText("Still in it.")).resolves.toBeTruthy();
+    expect(screen.queryByText("After it.")).toBeNull();
+    expect(screen.queryByText("In the section.")).toBeNull();
+  });
+
+  it("forgives a heading's case and spacing", async () => {
+    mountEmbed(sections, "Target", { heading: "rollback" });
+
+    await expect(screen.findByText("In the section.")).resolves.toBeTruthy();
+    expect(screen.queryByText("Before it.")).toBeNull();
+  });
+
+  it("draws one block by its ref", async () => {
+    mountEmbed(sections, "Target", { blockRef: "step" });
+
+    await expect(screen.findByText("In the section.")).resolves.toBeTruthy();
+    expect(screen.queryByText("Still in it.")).toBeNull();
+    expect(screen.queryByText("Roll Back")).toBeNull();
+  });
+
+  it.each<Anchor>([{ heading: "Nowhere" }, { blockRef: "nowhere" }])(
+    "says so when %j is gone, and draws nothing else",
+    async (anchor) => {
+      mountEmbed(sections, "Target", anchor);
+
+      await expect(screen.findByText(EMBED_PART_GONE)).resolves.toBeTruthy();
+      expect(screen.queryByText("Before it.")).toBeNull();
+    },
+  );
+});
+
 describe("an embedded item's links", () => {
   it("open a linked item in the app, by its id", async () => {
     const { calls } = mountEmbed(only(TARGET_ID));
@@ -174,5 +239,60 @@ describe("an embedded item's links", () => {
     await screen.findByText("4");
     fireEvent.click(screen.getByRole("button", { name: "Target" }));
     expect(calls).toContainEqual({ action: "openItem", args: [TARGET_ID] });
+  });
+});
+
+const linkOf = (
+  fields: { readonly itemId: string | null; readonly title: string; readonly heading?: string },
+  type: "wikiLink" | "wikiEmbed" = "wikiLink",
+): Value => [
+  { children: [{ text: "" }, { ...fields, children: VOID, type }, { text: "" }], type: "p" },
+];
+
+// the target goes by `title`, which is empty for an item not named yet
+const mountLink = (value: Value, title = "") => {
+  const host = installFakeEditorHost({
+    itemBlocks: only(TARGET_ID),
+    linkTargets: [
+      { id: HUB_ID, title: "Hub" },
+      { id: TARGET_ID, title },
+    ],
+  });
+  render(<EditorHarness itemId={HUB_ID} value={value} />);
+  return host;
+};
+
+describe("a link written to an item with no title", () => {
+  it("is called Untitled, and opens its item", async () => {
+    const { calls } = mountLink(linkOf({ itemId: TARGET_ID, title: "" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Untitled" }));
+    expect(calls).toContainEqual({ action: "openItem", args: [TARGET_ID] });
+  });
+
+  it("goes by the name its item takes, and opens it", async () => {
+    const { calls } = mountLink(linkOf({ itemId: TARGET_ID, title: "" }), "Named since");
+    fireEvent.click(await screen.findByRole("button", { name: "Named since" }));
+    expect(calls).toContainEqual({ action: "openItem", args: [TARGET_ID] });
+  });
+
+  it("embeds its item", async () => {
+    mountLink(linkOf({ itemId: TARGET_ID, title: "" }, "wikiEmbed"));
+    await expect(screen.findByText("4")).resolves.toBeTruthy();
+  });
+
+  it("offers nothing to create once its item is gone, since it has no name to create", async () => {
+    const { calls } = mountLink(linkOf({ itemId: OTHER_ID, title: "" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Untitled" }));
+    expect(screen.queryByText("Create")).toBeNull();
+    expect(calls).toStrictEqual([]);
+  });
+});
+
+describe("a link to a place in its own item", () => {
+  it("opens nothing and offers nothing to create", async () => {
+    const { calls } = mountLink(linkOf({ heading: "Rollback", itemId: null, title: "" }));
+    fireEvent.click(await screen.findByRole("button", { name: "#Rollback" }));
+    expect(screen.queryByText("Create")).toBeNull();
+    expect(calls).toStrictEqual([]);
   });
 });

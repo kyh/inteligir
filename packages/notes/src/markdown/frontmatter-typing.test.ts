@@ -96,7 +96,7 @@ describe("parseProperties — typing rules", () => {
     if (nested?.type !== "unsupported") {
       throw new Error("expected unsupported");
     }
-    expect(nested.rawYaml).toBe("a: 1\n  b: 2");
+    expect(nested.raw).toBe("a: 1\n  b: 2");
   });
 
   it("preserves key order", () => {

@@ -39,7 +39,8 @@ const openItem = (itemId: string): void => {
   getEditorHostIo().openItem(itemId);
 };
 
-// a link with no title points at the open note (`[[#sec]]`): nothing to resolve or create
+// a link by id reaches its item whatever title it was written with, and an anchor alone
+// (`[[#sec]]`) reaches none; with no title there is nothing to create
 const WikiChip = ({ link }: { link: WikiNodeFields }) => {
   const { resolveWikiTarget, titleOf } = useLinkResolver();
   const [createOpen, setCreateOpen] = useState(false);
@@ -52,8 +53,11 @@ const WikiChip = ({ link }: { link: WikiNodeFields }) => {
   // a link to an item by its id shows the name the item goes by now
   const live = link.itemId === null ? null : titleOf(link.itemId);
   const label = wikiLabelOf(live === null ? link : { ...link, title: live });
-  const resolved =
-    link.title === "" ? null : resolveWikiTarget(link.title, link.itemId ?? link.alias);
+  const resolved = resolveWikiTarget(link.title, link.itemId ?? link.alias);
+  const nameOf = (itemId: string): string => {
+    const name = titleOf(itemId);
+    return name === null || name === "" ? label : name;
+  };
 
   const readPreview = async (itemId: string): Promise<void> => {
     try {
@@ -95,14 +99,11 @@ const WikiChip = ({ link }: { link: WikiNodeFields }) => {
   const onClick = (e: MouseEvent) => {
     e.preventDefault();
     closePreview();
-    if (link.title === "") {
-      return;
-    }
     if (resolved !== null) {
       openItem(resolved);
-      return;
+    } else if (link.title !== "") {
+      setCreateOpen(true);
     }
-    setCreateOpen(true);
   };
 
   // no `title` on a previewable chip: the OS tooltip would land on top of the hover card
@@ -118,7 +119,7 @@ const WikiChip = ({ link }: { link: WikiNodeFields }) => {
     </button>
   );
 
-  if (link.title === "") {
+  if (resolved === null && link.title === "") {
     return chip;
   }
 
@@ -141,7 +142,7 @@ const WikiChip = ({ link }: { link: WikiNodeFields }) => {
                   openItem(resolved);
                 }}
               >
-                {titleOf(resolved) ?? label}
+                {nameOf(resolved)}
               </button>
               <div className="px-3 pb-3 text-body whitespace-pre-wrap select-text">
                 <PreviewBody text={previewText} />

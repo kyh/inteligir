@@ -113,6 +113,9 @@ const answerFromLibrary =
       case "readFile": {
         return ok({ file: files.get(request.payload.sha) ?? null });
       }
+      case "highlightIds": {
+        return ok({ ids: [] });
+      }
       case "addHighlight":
       case "noteHighlight": {
         return ok({ queued: items.has(request.payload.itemId) });

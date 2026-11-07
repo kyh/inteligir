@@ -1,5 +1,5 @@
 // The persisted vocabulary spelled for the rule table (`md-rules.ts`), which already writes the
-// vocabulary's own nodes, so an item leaves as the bytes a rich save would write. What this pass
+// vocabulary's own nodes, so an item leaves in the editor's own spelling. What this pass
 // spells is what the library holds by id and the dialect names by words: a link's target as the
 // caller spells it (a file's shortest name in an export, the item's live title in the agent's
 // view, with its id after the pipe only there), a file the library holds by its bytes at the path

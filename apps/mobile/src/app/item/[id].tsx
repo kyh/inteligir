@@ -124,7 +124,7 @@ const ItemScreen = () => {
         leave();
         return;
       }
-      Alert.alert("Leave without saving?", `Your last edits couldn't be saved: ${page.saveError}`, [
+      Alert.alert("Leave without saving?", page.saveError, [
         { style: "cancel", text: "Stay" },
         { onPress: leave, style: "destructive", text: "Discard edits" },
       ]);

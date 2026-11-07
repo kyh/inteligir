@@ -1,6 +1,5 @@
 export interface Debouncer {
   schedule: () => void;
-  flush: () => void;
   cancel: () => void;
 }
 
@@ -17,13 +16,6 @@ export const createDebouncer = (fn: () => void, delayMs: number): Debouncer => {
   return {
     cancel(): void {
       clear();
-    },
-    flush(): void {
-      if (timer === null) {
-        return;
-      }
-      clear();
-      fn();
     },
     schedule(): void {
       clear();

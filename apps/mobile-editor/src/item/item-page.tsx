@@ -1,15 +1,15 @@
 // The page in its item mode: one item's editor, by its id, over the phone's replica on the other end
 // of the bridge. The page draws the item's blocks with the desktop's editor through the touch kit,
-// writes what changed as ops after a pause, says whether anything is unsaved, and opens a linked
-// item through the native stack.
+// writes what changed as ops after a pause, says why a write failed, and opens a linked item
+// through the native stack.
 
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { EditorProfileProvider } from "@repo/editor/editor-profile";
-import { mergeConflictLine } from "@repo/editor/note/vanished-prompt";
 import { ItemEditor } from "@repo/editor/item/item-editor";
 import type { ItemSession, ItemSessionPorts } from "@repo/editor/item/item-session";
+import { mergeConflictLine } from "@repo/editor/item/merge-conflict-line";
 import type { ItemInit } from "@repo/editor-bridge/protocol";
 import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { Toaster, toast } from "@repo/ui/components/sonner";
@@ -33,25 +33,19 @@ const keepSystemTheme = (): void => {
   /* empty */
 };
 
-// what the native screen shows of the item: whether an edit is unsaved, and why a write failed
+// what the native screen asks about before it lets the item go: why a write failed
 const useEditorState = (bridge: PageBridge, session: ItemSession | null): void => {
   useEffect(() => {
     if (session === null) {
       return;
     }
-    let last = "";
+    let last: string | null = null;
     const publish = (): void => {
       const status = session.status();
-      const dirty = status.kind === "open" && status.unsaved;
       const failure = status.kind === "open" ? status.failure : null;
-      const key = `${String(dirty)}:${failure ?? ""}`;
-      if (key !== last) {
-        last = key;
-        bridge.emit({
-          dirty,
-          saveError: failure,
-          type: "editorState",
-        });
+      if (failure !== last) {
+        last = failure;
+        bridge.emit({ saveError: failure, type: "editorState" });
       }
     };
     return session.subscribe(publish);
@@ -119,7 +113,7 @@ export const mountItemPage = ({
   const ports: ItemSessionPorts = {
     after,
     notifyOverlap: (title) => {
-      toast.warning(mergeConflictLine(title === "" ? "This item" : title));
+      toast.warning(mergeConflictLine(title));
     },
     store: bridgeItemStore(bridge),
   };

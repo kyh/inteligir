@@ -131,7 +131,7 @@ const standInText = (element: LibraryElement): string | null => {
   }
   switch (element.type) {
     case "wikiLink": {
-      return element.alias ?? element.title;
+      return element.alias ?? (element.title || (element.heading ?? ""));
     }
     case "date": {
       return element.date;

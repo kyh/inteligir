@@ -123,7 +123,8 @@ how it ships.
 
 - **A PHONE HIGHLIGHT IS THE EDITOR'S, AND THE SHEET WRITES ITS ENTRIES** (owner
   decision: the phone annotates and replies). The page's highlight and its note
-  reach the replica as the library's page sends them
+  reach the replica as the library's page sends them, and its passages tint by
+  the ids it asks the replica for as the item moves
   (`apps/mobile/src/editor/item-ports.ts`); the sheet adds a bare highlight's
   note, a reply and a delete as entries signed `user`
   (`apps/mobile/src/annotations/annotation-edits.ts`), and a card shows the

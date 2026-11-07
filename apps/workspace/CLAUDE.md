@@ -79,7 +79,9 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   sight, a tab going out of sight writes the open item's edit at once, and while
   the replica or the open item holds anything unsent the browser asks before the
   tab closes, reloads or leaves, its listener there only then; a session that
-  ended asks nothing, since nothing can go. Rejected: suspending the replica
+  ended asks nothing, since nothing can go. An open item that will not write
+  asks before the page leaves it, saying why, in the tab and on the Mac
+  (`apps/workspace/src/app/item/leave-item.ts`). Rejected: suspending the replica
   out of sight as the phone does (its outbox is on disk, the tab's is not); a
   listener always armed (it bars the back-forward cache).
   `apps/workspace/src/app/cloud/leave-guard.ts`, `apps/workspace/src/main.tsx`.

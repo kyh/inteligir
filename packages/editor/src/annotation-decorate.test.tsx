@@ -39,6 +39,7 @@ describe("annotation range decoration", () => {
   beforeEach(() => {
     setAnnotationMeta(NOTE_ID, {
       knownIds: new Set(["abc", "y", "x", "mid", "c1"]),
+      notedIds: new Set(),
     });
   });
   afterEach(() => {

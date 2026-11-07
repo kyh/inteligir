@@ -65,12 +65,14 @@ end that receives it.
   while the phone can reach no copy),
   `keepFile` (a file pasted into the text, kept by the phone's replica and
   answered with its sha),
-  `addHighlight` and `noteHighlight` (a highlight the editor marked and its
-  note, each answered as queued), `createNote` (a note of blocks an extract
+  `highlightIds` (the highlights the item holds, which its marked passages
+  tint by, asked again when the item moves), `addHighlight` and
+  `noteHighlight` (a highlight the editor marked and its note, each answered
+  as queued), `createNote` (a note of blocks an extract
   moved, or a link's new note, made in the open item's folder and answered
   with its id) — and events:
-  `editorState` (dirty and why a write failed, sent only when either changes,
-  which the screen asks about before letting the item go), `showAnnotations`
+  `editorState` (why a write failed, sent only when that changes, which the
+  screen asks about before letting the item go), `showAnnotations`
   (the highlights a tap on a marked passage names), `openItem` (the page has
   written what it holds and asks the stack to open the item a link names),
   `flushed`.

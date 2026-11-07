@@ -1,5 +1,4 @@
-// Rule dispatch: deserialize routes by mdast type, serialize by the Slate node's plugin key —
-// hence the yaml/frontmatter split.
+// Rule dispatch: deserialize routes by mdast type, serialize by the Slate node's plugin key.
 
 import type { AlignType } from "mdast";
 import { ElementApi, KEYS, NodeApi, TextApi } from "platejs";
@@ -60,7 +59,6 @@ import {
   CHART_BLOCK_KEY,
   ANNOTATION_MARKER_KEY,
   FORMULA_PILL_KEY,
-  FRONTMATTER_KEY,
   HTML_BLOCK_KEY,
   OPAQUE_KEY,
   TAB_GROUP_KEY,
@@ -71,17 +69,20 @@ import {
 import { embedTypeForUrl } from "@repo/editor/lib/embed-url";
 import { leadingAlertMarker } from "@repo/notes/markdown/alert-marker";
 import { stringProp } from "@repo/editor/node-props";
-import {
-  wikiBodyOf,
-  wikiFieldsOf,
-  wikiFieldsOfBody,
-  wikiLabelOf,
-  wikiNode,
-} from "@repo/editor/wiki/wiki-node";
+import { wikiBodyOf, wikiFieldsOf, wikiLabelOf, wikiNodeOfBody } from "@repo/editor/wiki/wiki-node";
 import type { WikiNodeType } from "@repo/editor/wiki/wiki-node";
 
 const ensureBlocks = (children: Descendant[]): Descendant[] =>
   children.length > 0 ? children : [{ children: [{ text: "" }], type: "p" }];
+
+// YAML no field reads, kept as a code block where the person can see and mend it
+export const yamlCodeBlock = (yaml: string): TElement => ({
+  children: yaml
+    .split(/\r?\n/u)
+    .map((line) => ({ children: [{ text: line }], type: KEYS.codeLine })),
+  lang: "yaml",
+  type: KEYS.codeBlock,
+});
 
 // fail fast if a @platejs/markdown bump reshapes defaultRules.
 const defaultCodeBlock = defaultRules.code_block;
@@ -231,25 +232,11 @@ const prunedElement = (element: TElement): TElement => {
   return { ...element, children: kept.length > 0 ? kept : [{ text: "" }] };
 };
 
-// An edit replaces the top-level blocks it touched and keeps every other by identity, so a save
-// prunes only those.
-const prunedByBlock = new WeakMap<TElement, TElement>();
-
-const prunedBlock = (block: TElement): TElement => {
-  const cached = prunedByBlock.get(block);
-  if (cached !== undefined) {
-    return cached;
-  }
-  const pruned = prunedElement(block);
-  prunedByBlock.set(block, pruned);
-  return pruned;
-};
-
 // A pre-pass over the whole value rather than a paragraph rule's, since an empty equation sits in
 // a heading or a list item as readily: it leaves before any text run is converted, so its
 // neighbours join into one run rather than two whose marks collide (`**a****b**`), and an element
 // it alone filled keeps an empty text instead of a blank line the next parse drops.
-export const pruneForMarkdown = (value: Value): Value => value.map(prunedBlock);
+export const pruneForMarkdown = (value: Value): Value => value.map((block) => prunedElement(block));
 
 const withoutEdgeBreak = (children: Descendant[], edge: "first" | "last"): Descendant[] => {
   const index = edge === "first" ? 0 : children.length - 1;
@@ -376,8 +363,7 @@ const articleSectionRule: WideMdRule = {
 // written; a node whose title no body can carry writes its words as text, which loses the link but
 // never the words
 const wikiRule = (type: WikiNodeType): WideMdRule => ({
-  deserialize: (node: WikiLink | WikiEmbed): TElement =>
-    wikiNode(type, wikiFieldsOfBody(node.body)),
+  deserialize: (node: WikiLink | WikiEmbed): TElement => wikiNodeOfBody(type, node.body),
   serialize: (node: TElement): WikiLink | WikiEmbed | MdText => {
     const fields = wikiFieldsOf(node);
     const body = wikiBodyOf(fields);
@@ -518,13 +504,6 @@ export const MD_RULES: MdRules = {
     },
   },
 
-  [FRONTMATTER_KEY]: {
-    serialize: (node: TElement): MdYaml => ({
-      type: "yaml",
-      value: stringProp(node, "value") ?? "",
-    }),
-  },
-
   [HTML_BLOCK_KEY]: {
     serialize: (node: TElement): MdCode => ({
       lang: HTML_LANG,
@@ -594,7 +573,7 @@ export const MD_RULES: MdRules = {
 
   // Ragged rows are padded into real empty cells: mdast-util-gfm-table pads only in the emitted
   // string, so pass 1 writes empty cells that re-parse to ZWSP placeholders and the fixpoint
-  // lands on pass 3. Plate's default drops mdast `align`, so a rich save would strip a `:-:`
+  // lands on pass 3. Plate's default drops mdast `align`, so a write would strip a `:-:`
   // delimiter row; align rides on the Slate node instead.
   table: {
     deserialize: (node, deco, options) => {
@@ -654,13 +633,10 @@ export const MD_RULES: MdRules = {
 
   [WIKI_LINK_KEY]: wikiRule(WIKI_LINK_KEY),
 
-  // Plate maps mdast `yaml` in its type table but ships no rule; without this and the
-  // `frontmatter` serialize rule above, frontmatter is parsed then dropped.
+  // Plate maps mdast `yaml` in its type table but ships no rule, so a fence with none is dropped.
+  // Only a file has frontmatter, read off its mdast before this runs: a fence that opens a paste,
+  // an agent's text or a page is that text's own lines.
   yaml: {
-    deserialize: (node: MdYaml): TElement => ({
-      children: [{ text: "" }],
-      type: FRONTMATTER_KEY,
-      value: node.value,
-    }),
+    deserialize: (node: MdYaml): TElement => yamlCodeBlock(node.value),
   },
 };

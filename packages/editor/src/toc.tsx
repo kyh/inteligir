@@ -1,5 +1,5 @@
-// built off the editor's heading nodes, not @platejs/toc: the scroll container is the
-// workspace <main>, not a PlateContainer.
+// built off the editor's heading nodes, not @platejs/toc: the scroll container is the host's
+// `[data-editor-scroller]`, not a PlateContainer.
 
 import { useEffect, useRef, useState } from "react";
 import { ElementApi, KEYS, NodeApi } from "platejs";
@@ -136,8 +136,7 @@ const sameHeadings = (a: readonly HeadingItem[], b: readonly HeadingItem[]): boo
   });
 };
 
-// under this the rail is a floating dash beside a note that needs no map; ⌘⇧O still reaches
-// every heading
+// under this the rail is a floating dash beside a note that needs no map
 const TOC_MIN_HEADINGS = 3;
 
 const RUN = "[data-slate-chunk]";

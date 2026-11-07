@@ -16,7 +16,7 @@ describe(canonicalizeImported, () => {
     expect(settled(md)).toStrictEqual({ kept: 1, markdown: md });
   });
 
-  it("writes a page in the editor's own spelling, a fixpoint the gate calls canonical", () => {
+  it("writes a page in the editor's own spelling, a fixpoint analysis calls canonical", () => {
     const imported = settled("Title\n=====\n\n* one\n* two\n\n\n");
     expect(imported.markdown).toBe("# Title\n\n- one\n- two\n");
     expect(imported.kept).toBe(1);

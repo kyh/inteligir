@@ -3,7 +3,9 @@
 // The item surface as a host mounts it: one editor and one session per item, drawn only once the
 // item's blocks are in, over a store held in memory whose reads and writes a case can hold.
 
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { setTimeout as delay } from "node:timers/promises";
+
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { SlateEditor } from "platejs";
 import type * as PlateReact from "platejs/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -11,6 +13,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { blockHash } from "@repo/notes/library/block-hash";
 import { applyOps, orderedBlocks } from "@repo/notes/library/block-ops";
 import type { ItemState } from "@repo/notes/library/block-ops";
+import { BLOCK_MAX_BYTES } from "@repo/notes/library/library-nodes";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { noteFields } from "@repo/notes/test-support/library-items";
 
@@ -19,6 +22,7 @@ import type { Deferred } from "@repo/editor/deferred";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 import { ItemEditor, MISSING_ITEM } from "./item-editor";
+import { BLOCK_HELD_BACK, ITEM_UNREAD } from "./item-session";
 import type { HeldItem, ItemSession, ItemSessionPorts, ItemStore } from "./item-session";
 
 // every editor the surface makes, in the order it makes them, so a case can type into one
@@ -32,8 +36,9 @@ vi.mock("platejs/react", async (importOriginal) => {
   const actual = await importOriginal<typeof PlateReact>();
   return {
     ...actual,
-    usePlateEditor: (...args: Parameters<typeof PlateReact.usePlateEditor>) => {
-      const editor = actual.usePlateEditor(...args);
+    // with Plate's ids on as the app runs it: Plate turns its id plugin off under NODE_ENV=test
+    usePlateEditor: (...[options, deps]: Parameters<typeof PlateReact.usePlateEditor>) => {
+      const editor = actual.usePlateEditor({ ...options, nodeId: true }, deps);
       if (editor !== null && !made.editors.includes(editor)) {
         made.editors.push(editor);
       }
@@ -211,10 +216,154 @@ describe("an item's surface", () => {
     expect(editable()).not.toBeNull();
   });
 
+  it("says beside the text why an edit is not saved, until it is", async () => {
+    const items = new Map([[A, itemOf("A", paragraph("a1", "A one"))]]);
+    const { store } = memoryStore(items);
+    render(<Host itemId={A} ports={portsOver(store)} />);
+    await expect(screen.findByText("A one")).resolves.toBeDefined();
+    const editor = made.editors.at(-1);
+    const session = lastSession();
+    act(() => {
+      editor?.tf.insertText("y".repeat(BLOCK_MAX_BYTES), { at: { offset: 5, path: [0, 0] } });
+    });
+    await act(async () => {
+      await session.flush();
+    });
+    expect(screen.getByRole("alert").textContent).toBe(BLOCK_HELD_BACK);
+    act(() => {
+      editor?.undo();
+    });
+    await act(async () => {
+      await session.flush();
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("says a first read that failed, and offers to read the item again", async () => {
+    const items = new Map([[A, itemOf("A", paragraph("a1", "the item's text"))]]);
+    const { held, store } = memoryStore(items);
+    const read = deferred<null>();
+    held.read = read;
+    render(<Host itemId={A} ports={portsOver(store)} />);
+    read.reject(new Error("the page gave up waiting for the phone"));
+    await expect(screen.findByText(ITEM_UNREAD)).resolves.toBeDefined();
+    expect(editable()).toBeNull();
+    held.read = null;
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await expect(screen.findByText("the item's text")).resolves.toBeDefined();
+    expect(screen.queryByText(ITEM_UNREAD)).toBeNull();
+  });
+
   it("says an item this device does not hold is not here, with no editor to type into", async () => {
     const { store } = memoryStore(new Map());
     render(<Host itemId={A} ports={portsOver(store)} />);
     await expect(screen.findByText(MISSING_ITEM)).resolves.toBeDefined();
     expect(editable()).toBeNull();
+  });
+});
+
+const SHA = "a".repeat(64);
+
+// the item open with a picture pasted into it, its bytes not yet kept
+const pasteHeld = async (items: Map<string, ItemState>) => {
+  const kept = deferred<{ readonly sha: string }>();
+  installFakeEditorHost({ keepFile: async () => await kept.promise });
+  const view = render(<Host itemId={A} ports={portsOver(memoryStore(items).store)} />);
+  await screen.findByText("A one");
+  const editor = made.editors.at(-1);
+  const target = editable();
+  if (editor === undefined || !(target instanceof HTMLElement)) {
+    throw new Error("the surface drew no editor");
+  }
+  editor.tf.select(editor.api.end([0]));
+  fireEvent.paste(target, {
+    clipboardData: {
+      files: [new File([new Uint8Array([1])], "shot.png", { type: "image/png" })],
+      getData: () => "",
+      types: ["Files"],
+    },
+  });
+  return { kept, view };
+};
+
+const storedShas = (items: Map<string, ItemState>): readonly unknown[] =>
+  [...(items.get(A)?.blocks.values() ?? [])].flatMap(({ block }) =>
+    block.type === "img" ? [block.sha] : [],
+  );
+
+describe("a file still being kept in an open item", () => {
+  // jsdom has no object URLs, and no isContentEditable, without which slate hands no paste on
+  beforeAll(() => {
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: () => "blob:kept" });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: () => {} });
+    Object.defineProperty(HTMLElement.prototype, "isContentEditable", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.closest('[contenteditable="true"]') !== null;
+      },
+    });
+  });
+
+  afterAll(() => {
+    Reflect.deleteProperty(URL, "createObjectURL");
+    Reflect.deleteProperty(URL, "revokeObjectURL");
+    Reflect.deleteProperty(HTMLElement.prototype, "isContentEditable");
+    installFakeEditorHost();
+  });
+
+  it("counts as unsaved, and a leave waits to write the block that names it", async () => {
+    const items = new Map([[A, itemOf("A", paragraph("a1", "A one"))]]);
+    const { kept } = await pasteHeld(items);
+    const session = lastSession();
+    expect(session.status()).toMatchObject({ kind: "open", unsaved: true });
+
+    let left = false;
+    const leaving = (async () => {
+      await session.flush();
+      left = true;
+    })();
+    await act(async () => {
+      await delay(0);
+    });
+    expect(left).toBe(false);
+
+    kept.resolve({ sha: SHA });
+    await act(async () => {
+      await leaving;
+    });
+
+    expect(storedShas(items)).toStrictEqual([SHA]);
+  });
+
+  it("lets what was typed go at once, ahead of the block a leave waits for", async () => {
+    const items = new Map([[A, itemOf("A", paragraph("a1", "A one"))]]);
+    const { kept } = await pasteHeld(items);
+    const session = lastSession();
+    made.editors.at(-1)?.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+
+    const leaving = session.flush();
+    await act(async () => {
+      await delay(0);
+    });
+    expect(textsOf(items.get(A))).toContain("A one!");
+    expect(storedShas(items)).toStrictEqual([]);
+
+    kept.resolve({ sha: SHA });
+    await act(async () => {
+      await leaving;
+    });
+    expect(storedShas(items)).toStrictEqual([SHA]);
+  });
+
+  it("is written when the surface closed before it was kept", async () => {
+    const items = new Map([[A, itemOf("A", paragraph("a1", "A one"))]]);
+    const { kept, view } = await pasteHeld(items);
+
+    view.unmount();
+    kept.resolve({ sha: SHA });
+
+    await waitFor(() => {
+      expect(storedShas(items)).toStrictEqual([SHA]);
+    });
   });
 });

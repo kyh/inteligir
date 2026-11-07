@@ -26,6 +26,38 @@ describe("a block as its markdown", () => {
     expect(roundTrip(block)).toStrictEqual(block);
   });
 
+  it("spells a link to a place in its own item as it was written", () => {
+    const block: LibraryBlock = {
+      children: [
+        { text: "see " },
+        {
+          children: [{ text: "" }],
+          heading: "Rollback",
+          itemId: null,
+          title: "",
+          type: "wikiLink",
+        },
+        { text: " and " },
+        { blockRef: "r1", children: [{ text: "" }], itemId: null, title: "", type: "wikiEmbed" },
+      ],
+      id: "p1",
+      type: "p",
+    };
+    expect(blockMarkdown(block)).toBe("see [[#Rollback]] and ![[#^r1]]\n");
+    expect(roundTrip(block)).toStrictEqual(block);
+  });
+
+  it("reads back a link to an item with no title by its id, so a merge can read its block", () => {
+    const block: LibraryBlock = {
+      children: [{ children: [{ text: "" }], itemId: TARGET, title: "", type: "wikiLink" }],
+      id: "p1",
+      type: "p",
+    };
+    expect(blockMarkdown(block)).toBe(`[[|${TARGET}]]\n`);
+    expect(roundTrip(block)).toStrictEqual(block);
+    expect(faithfulMarkdown(block, filesIn([block]))).toBe(`[[|${TARGET}]]\n`);
+  });
+
   it("writes a file the library holds at its sha, and reads it back as those bytes", () => {
     const image: LibraryBlock = { children: [{ text: "" }], id: "i1", sha: SHA, type: "img" };
     const file: LibraryBlock = {

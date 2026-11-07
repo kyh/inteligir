@@ -11,7 +11,6 @@ import { annotationIdsByBlock, blockHoldsAnnotationMarkers } from "./annotation-
 import { useAnnotationMeta } from "./annotation-store";
 
 const NO_IDS: readonly string[] = [];
-const NONE_NOTED: ReadonlySet<string> = new Set();
 
 // A range spanning blocks draws its dot beside the block it starts in, not the one it ends in.
 // Subscribed rather than read in render: an edit elsewhere can orphan an edge here without
@@ -25,7 +24,7 @@ const AnnotationGutterBlock = (props: PlateElementProps) => {
     { equalityFn: shallow },
   );
   const itemId = useOpenItemId();
-  const { notedIds = NONE_NOTED } = useAnnotationMeta(itemId);
+  const { notedIds } = useAnnotationMeta(itemId);
   const noted = ids.filter((id) => notedIds.has(id));
 
   // the wrapper stays while the block holds markers, so a note landing on a highlight adds a dot

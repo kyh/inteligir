@@ -321,30 +321,48 @@ const htmlBlock = z.strictObject({
   value: z.string(),
 });
 
+// a link reaches its target by id or by title, and an anchor with neither names a heading or a
+// block of the item it stands in (`[[#Rollback]]`)
+const reachesTarget = (value: {
+  blockRef?: string | undefined;
+  heading?: string | undefined;
+  itemId: string | null;
+  title: string;
+}): boolean =>
+  value.title !== "" ||
+  value.itemId !== null ||
+  value.heading !== undefined ||
+  value.blockRef !== undefined;
+const REACHES_TARGET = { error: "names no item, title or anchor" };
+
 // a link by the target's id, so a rename rewrites nothing: the title is what the writer saw, and
 // a null id is a link to a title no item holds yet, which resolves when one appears
-const wikiLink = z.strictObject({
-  alias: z.string().min(1).optional(),
-  blockRef: blockIdSchema.optional(),
-  children: voidChildren,
-  heading: z.string().min(1).optional(),
-  itemId: z.string().min(1).nullable(),
-  title: z.string().min(1),
-  type: z.literal("wikiLink"),
-});
+const wikiLink = z
+  .strictObject({
+    alias: z.string().min(1).optional(),
+    blockRef: blockIdSchema.optional(),
+    children: voidChildren,
+    heading: z.string().min(1).optional(),
+    itemId: z.string().min(1).nullable(),
+    title: z.string(),
+    type: z.literal("wikiLink"),
+  })
+  .refine(reachesTarget, REACHES_TARGET);
 
 // an embed shows its target whole, one heading's section of it, or one block of it; like a link it
 // names its target by id with the title the writer saw, a null id waiting for an item of that
 // title, and an alias is what the writer put after its last pipe (Obsidian's width of an image)
-const wikiEmbed = z.strictObject({
-  alias: z.string().min(1).optional(),
-  blockRef: blockIdSchema.optional(),
-  children: voidChildren,
-  heading: z.string().min(1).optional(),
-  itemId: z.string().min(1).nullable(),
-  title: z.string().min(1),
-  type: z.literal("wikiEmbed"),
-});
+const wikiEmbed = z
+  .strictObject({
+    alias: z.string().min(1).optional(),
+    blockRef: blockIdSchema.optional(),
+    children: voidChildren,
+    heading: z.string().min(1).optional(),
+    itemId: z.string().min(1).nullable(),
+    title: z.string(),
+    type: z.literal("wikiEmbed"),
+  })
+  .refine(reachesTarget, REACHES_TARGET);
 
 const date = z.strictObject({ children: voidChildren, date: isoDate, type: z.literal("date") });
 

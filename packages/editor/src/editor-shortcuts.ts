@@ -31,7 +31,7 @@ export type EditorShortcutAction =
   | "toggle-numbered-list"
   | "toggle-bulleted-list";
 
-// `hotkey` is is-hotkey's spelling; the palette's shortcuts page spells it for the platform.
+// `hotkey` is is-hotkey's spelling, which a tooltip spells for the platform.
 export interface EditorShortcut<Action extends string = EditorShortcutAction> {
   readonly hotkey: string;
   readonly action: Action;

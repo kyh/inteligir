@@ -152,8 +152,8 @@ const TurnIntoTrigger = ({ children }: { children: ReactNode }) => (
   </DropdownMenuTrigger>
 );
 
-// the tooltip is the table's label and chord, so it cannot disagree with the palette's page;
-// a mark with no chord still needs a name on the button
+// the tooltip is the table's label and chord, so it cannot disagree with what runs; a mark with
+// no chord still needs a name on the button
 const markTitle = (nodeType: string): string => {
   const row = nodeType === KEYS.code ? CODE_MARK_SHORTCUT : markShortcut(nodeType);
   if (row !== null) {

@@ -32,8 +32,8 @@ describe("canonical fixtures (byte-stable)", () => {
 });
 
 // their round-trip drops letters (a `$$latex` meta line, entity decoding, the
-// "mailto" spelling), so they open Raw as roundtrip-loss
-const CHURN_NOT_RICH_SAFE = new Set(["math-meta", "entities", "mailto-resource"]);
+// "mailto" spelling), so analysis calls them roundtrip-loss
+const CHURN_DROPS_LETTERS = new Set(["math-meta", "entities", "mailto-resource"]);
 
 describe("churn fixtures (idempotent normalization)", () => {
   const stems = list("churn")
@@ -47,7 +47,7 @@ describe("churn fixtures (idempotent normalization)", () => {
     expect(out.trimEnd()).toBe(expected.trimEnd());
     expect(roundTrip(out)).toBe(out);
     expect(analyzeMarkdown(input).kind).toBe(
-      CHURN_NOT_RICH_SAFE.has(stem) ? "roundtrip-loss" : "normalizes",
+      CHURN_DROPS_LETTERS.has(stem) ? "roundtrip-loss" : "normalizes",
     );
     expect(analyzeMarkdown(toCanonical(input)).kind).toBe("canonical");
   });
@@ -63,13 +63,13 @@ describe("a callout in an older spelling", () => {
 });
 
 describe(analyzeMarkdown, () => {
-  it("treats empty / whitespace-only docs as canonical and rich-safe", () => {
+  it("treats empty / whitespace-only docs as canonical", () => {
     for (const doc of ["", "\n\n", "   "]) {
       expect(analyzeMarkdown(doc)).toStrictEqual({ kind: "canonical" });
     }
   });
 
-  it("accepts formatting-only differences as rich-safe but not canonical", () => {
+  it("accepts formatting-only differences as normalizing, not canonical", () => {
     const md = "* one\n* two\n\n***\n\nbody\n";
     expect(analyzeMarkdown(md)).toStrictEqual({ kind: "normalizes" });
   });

@@ -8,7 +8,6 @@ import { ColumnKit } from "@repo/editor/kits/column-kit";
 import { DateKit } from "@repo/editor/kits/date-kit";
 import { EmbedKit } from "@repo/editor/kits/embed-kit";
 import { FloatingToolbarKit } from "@repo/editor/kits/floating-toolbar-kit";
-import { FrontmatterKit } from "@repo/editor/kits/frontmatter-kit";
 import { ImageKit } from "@repo/editor/kits/image-kit";
 import { LinkKit } from "@repo/editor/kits/link-kit";
 import { ListKit } from "@repo/editor/kits/list-kit";
@@ -48,7 +47,6 @@ export const CONTENT_KIT = [
   ...DateKit,
   ...MathKit,
   ...OpaqueKit,
-  ...FrontmatterKit,
   ...WikiLinkKit,
   ...InlineConstructsKit,
   ...RichBlocksKit,

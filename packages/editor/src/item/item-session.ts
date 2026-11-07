@@ -3,12 +3,14 @@
 // of the value of its own. A pause in typing writes what changed since the blocks it last
 // acknowledged (`item-diff.ts`) through the store, which queues it for the cell; a field patch
 // writes at once. A change that lands from elsewhere is laid into the value with the editor's own
-// transforms and outside its undo history: a block only one side changed takes that side, one
-// both changed is merged three ways (`@repo/editor/stale-write`), and an edit outlives a drop
-// either way round. A write the store refuses on a base that moved under it settles the same way
-// and goes again, and a merge that kept this device's lines over another's change to the same ones
-// is said, whether this session or the replica's outbox made it. Construction is inert: nothing
-// reads, subscribes or schedules until `start()`.
+// transforms, outside its undo history, which starts over: a block only one side changed takes
+// that side, one both changed is merged three ways (`@repo/editor/stale-write`), and an edit
+// outlives a drop either way round. A write the store refuses on a base that moved under it
+// settles the same way and goes again, and a merge that kept this device's lines over another's
+// change to the same ones is said, whether this session or the replica's outbox made it. A block
+// no write can store stays in the editor as the person left it, counted unsaved and said, so a
+// host holds the leave.
+// Construction is inert: nothing reads, subscribes or schedules until `start()`.
 
 import { NodeApi, TextApi } from "platejs";
 import type { Point, SlateEditor, TElement } from "platejs";
@@ -16,11 +18,11 @@ import type { Point, SlateEditor, TElement } from "platejs";
 import { applyOps, libraryOpSchema, orderedBlocks } from "@repo/notes/library/block-ops";
 import type { ItemState, LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
-import type { LibraryBlock } from "@repo/notes/library/library-nodes";
+import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
 
+import { watchFileKeeps } from "@repo/editor/file-keeps";
 import { blockId } from "@repo/editor/node-props";
 import { mergeBlocks } from "@repo/editor/stale-write";
-import type { BlockSides, MergedBlock } from "@repo/editor/stale-write";
 
 import { diffValue, readElement } from "./item-diff";
 import type { ElementReads } from "./item-diff";
@@ -70,31 +72,32 @@ export interface ItemSessionPorts {
   // a timer the session cancels: the pause that writes
   readonly after: (ms: number, run: () => void) => () => void;
   // a merge kept this device's lines where another device changed the same ones: the host says
-  // so of the item by its title, as a note's merge is said (`mergeConflictLine`)
+  // so of the item by its title (`mergeConflictLine`)
   readonly notifyOverlap: (title: string) => void;
-  readonly merge?: (sides: BlockSides) => MergedBlock;
-  readonly idleMs?: number;
 }
 
 export type ItemSessionStatus =
   | { readonly kind: "opening" }
   // the device holds no such item: it was deleted, or never reached this device
   | { readonly kind: "missing" }
+  // its first read failed, in the person's words: `read` asks again
+  | { readonly kind: "unread"; readonly failure: string }
   | {
       readonly kind: "open";
       // the item's fields with this session's patches laid over
       readonly fields: LibraryItemFields;
       // an edit the store has not queued yet
       readonly unsaved: boolean;
-      // the blocks no write can store, which stay as they were last written
-      readonly heldBack: number;
-      // why the last write or landing failed, null once one went through
+      // why an edit is not saved, in the person's words: the last write or landing failed, or a
+      // block here is one no write can store; null once neither holds
       readonly failure: string | null;
     };
 
 export interface ItemSession {
   // reads the item into the editor and follows it
   readonly start: () => Promise<void>;
+  // reads the item again, into the editor or under what it holds
+  readonly read: () => Promise<void>;
   // the editor's value moved: the host's change callback
   readonly edited: () => void;
   // writes what is unsaved now, as leaving the item does
@@ -113,6 +116,13 @@ export const ITEM_IDLE_MS = 800;
 const SETTLE_TRIES = 3;
 /** @internal */
 export const KEPT_CHANGING = "This item kept changing elsewhere while it saved. It will try again.";
+/** @internal */
+export const BLOCK_HELD_BACK =
+  "Part of this item can't be saved. Shorten or change it, or leaving loses what changed there.";
+/** @internal */
+export const ITEM_UNSAVED = "This item couldn't be saved just now. It will try again.";
+/** @internal */
+export const ITEM_UNREAD = "This item couldn't be read just now.";
 
 // a stored block as the element the editor holds
 /** @internal */
@@ -139,9 +149,6 @@ const rebased = (op: FieldOp, fields: LibraryItemFields): FieldOp => {
   const { base: _stale, ...rest } = op;
   return current === undefined ? rest : { ...rest, base: current };
 };
-
-const messageOf = (cause: unknown): string =>
-  cause instanceof Error ? cause.message : String(cause);
 
 // what a block's place in the editor becomes when an item lands under an open edit
 type Decision =
@@ -170,7 +177,8 @@ interface Landing {
   readonly mine: ReadonlyMap<string, ReadBlock>;
   readonly touched: ReadonlySet<string>;
   readonly movedHere: ReadonlySet<string>;
-  readonly merge: (sides: BlockSides) => MergedBlock;
+  // the blocks this editor holds that no write can store, and so no merge can read
+  readonly heldBack: ReadonlySet<string | null>;
   readonly overlapped: Set<string>;
 }
 
@@ -179,11 +187,11 @@ const landingOf = (
   item: HeldItem,
   value: readonly TElement[],
   reads: ElementReads,
-  merge: (sides: BlockSides) => MergedBlock,
 ): Landing => {
   const touched = new Set<string>();
   const movedHere = new Set<string>();
-  for (const op of diffValue(base.blocks, value, reads).ops) {
+  const diff = diffValue(base.blocks, value, reads);
+  for (const op of diff.ops) {
     if (op.op === "move") {
       movedHere.add(op.blockId);
     } else if (op.op === "drop") {
@@ -199,15 +207,23 @@ const landingOf = (
       mine.set(read.block.id, read);
     }
   }
-  return { base, merge, mine, movedHere, overlapped: new Set(), theirs: stateOf(item), touched };
+  return {
+    base,
+    heldBack: new Set(diff.heldBack),
+    mine,
+    movedHere,
+    overlapped: new Set(),
+    theirs: stateOf(item),
+    touched,
+  };
 };
 
-// a block only one side changed takes that side, one both changed is merged, and an edit outlives
-// a drop either way round
+// a block only one side changed takes that side, one both changed is merged, an edit outlives a
+// drop either way round, and one held back stays, since it is the one copy of what the person wrote
 const decide = (landing: Landing, id: string): Decision => {
   const was = landing.base.blocks.get(id);
   const now = landing.theirs.blocks.get(id);
-  if (was?.hash === now?.hash) {
+  if (was?.hash === now?.hash || landing.heldBack.has(id)) {
     return KEEP;
   }
   const ours = landing.mine.get(id);
@@ -221,7 +237,7 @@ const decide = (landing: Landing, id: string): Decision => {
   if (!changedHere || ours === undefined || was === undefined) {
     return { block: now.block, kind: "take" };
   }
-  const merged = landing.merge({ base: was.block, mine: ours.block, theirs: now.block });
+  const merged = mergeBlocks({ base: was.block, mine: ours.block, theirs: now.block });
   if (merged.overlapped) {
     landing.overlapped.add(id);
   }
@@ -286,19 +302,19 @@ export const createItemSession = (
   editor: SlateEditor,
   ports: ItemSessionPorts,
 ): ItemSession => {
-  const merge = ports.merge ?? mergeBlocks;
-  const idleMs = ports.idleMs ?? ITEM_IDLE_MS;
   const reads: ElementReads = new WeakMap();
+  const dropped = new Map<string, LibrarySection>();
   const listeners = new Set<() => void>();
   let acked: ItemState | null = null;
   let pendingFields: FieldOp[] = [];
-  let heldBack = 0;
+  let holdsBack = false;
   let failure: string | null = null;
   // an edit the tries ran out on: no write has queued it yet
   let behind = false;
   let missing = false;
   let seen: SlateEditor["children"] | null = null;
   let cancelIdle: (() => void) | null = null;
+  const keeping = new Set<Promise<void>>();
   let unsubscribe: (() => void) | null = null;
   let following = false;
   let queue: Promise<void> = Promise.resolve();
@@ -308,15 +324,19 @@ export const createItemSession = (
     if (missing) {
       snapshot = { kind: "missing" };
     } else if (acked === null) {
-      snapshot = { kind: "opening" };
+      snapshot = failure === null ? { kind: "opening" } : { failure, kind: "unread" };
     } else {
       const laid = pendingFields.length === 0 ? null : applyOps(acked, pendingFields);
       snapshot = {
-        failure,
+        failure: failure ?? (holdsBack ? BLOCK_HELD_BACK : null),
         fields: laid?.kind === "applied" ? laid.state.fields : acked.fields,
-        heldBack,
         kind: "open",
-        unsaved: cancelIdle !== null || pendingFields.length > 0 || behind,
+        unsaved:
+          cancelIdle !== null ||
+          pendingFields.length > 0 ||
+          behind ||
+          holdsBack ||
+          keeping.size > 0,
       };
     }
     for (const listener of listeners) {
@@ -324,18 +344,13 @@ export const createItemSession = (
     }
   };
 
-  // one write or one landing at a time, in the order they were asked for; a failure is said in
-  // the status and the next write tries again
+  // one write or one read at a time, in the order they were asked for; one that throws says so to
+  // the caller that asked, and the next still runs
   const serial = async (work: () => Promise<void>): Promise<void> => {
     const previous = queue;
     const run = (async () => {
-      await previous;
-      try {
-        await work();
-      } catch (error) {
-        failure = messageOf(error);
-        publish();
-      }
+      await Promise.allSettled([previous]);
+      await work();
     })();
     queue = run;
     await run;
@@ -345,6 +360,11 @@ export const createItemSession = (
     editor.tf.withoutSaving(() => {
       editor.tf.withoutNormalizing(change);
     });
+  };
+
+  const startHistoryOver = (): void => {
+    editor.history.undos = [];
+    editor.history.redos = [];
   };
 
   // a selection's point by the block it stands in, so a block laid in from elsewhere keeps the
@@ -413,7 +433,7 @@ export const createItemSession = (
       return;
     }
     const value = editor.children;
-    const landing = landingOf(base, item, value, reads, merge);
+    const landing = landingOf(base, item, value, reads);
     const target = valueAfter(landing, value);
     const { selection } = editor;
     const anchor = selection === null ? null : heldPoint(selection.anchor);
@@ -421,6 +441,11 @@ export const createItemSession = (
     withoutHistory(() => {
       layOut(target);
     });
+    // an undo replays each edit at the path and offset it was recorded at, which no longer name
+    // what it changed; rebasing them would mean transforming every batch through the landing
+    if (editor.children !== value) {
+      startHistoryOver();
+    }
     const anchorAt = pointIn(anchor);
     const focusAt = pointIn(focus);
     if (anchorAt !== null && focusAt !== null) {
@@ -437,7 +462,7 @@ export const createItemSession = (
   // the pause that writes, from now: `run` is the flush it ends in
   const arm = (run: () => void): void => {
     cancelIdle?.();
-    cancelIdle = ports.after(idleMs, () => {
+    cancelIdle = ports.after(ITEM_IDLE_MS, () => {
       cancelIdle = null;
       run();
     });
@@ -445,17 +470,19 @@ export const createItemSession = (
 
   // whether the tries ran out on an item that kept moving, which leaves the edit unsaved
   const write = async (): Promise<"done" | "ran-out"> => {
+    // a patch the item refused is gone, and that stays said through the blocks written after it
+    let refused: string | null = null;
     for (let attempt = 0; attempt < SETTLE_TRIES && !missing; attempt += 1) {
       const base = acked;
       if (base === null) {
         return "done";
       }
-      const diff = diffValue(base.blocks, editor.children, reads);
-      heldBack = diff.heldBack.length;
+      const diff = diffValue(base.blocks, editor.children, reads, dropped);
+      holdsBack = diff.heldBack.length > 0;
       const sentFields = pendingFields;
       const ops = [...diff.ops, ...sentFields];
       if (ops.length === 0) {
-        failure = null;
+        failure = refused;
         behind = false;
         return "done";
       }
@@ -464,8 +491,14 @@ export const createItemSession = (
         case "queued":
         case "unchanged": {
           pendingFields = pendingFields.slice(sentFields.length);
-          failure = null;
+          failure = refused;
           behind = false;
+          for (const op of diff.ops) {
+            const held = op.op === "drop" ? base.blocks.get(op.blockId) : undefined;
+            if (held !== undefined) {
+              dropped.set(held.block.id, held.section);
+            }
+          }
           const landed = applyOps(base, ops);
           if (landed.kind === "applied") {
             acked = landed.state;
@@ -487,7 +520,8 @@ export const createItemSession = (
         case "invalid": {
           // the fields the patch leaves break the item's caps: the patch goes, the blocks stay
           pendingFields = pendingFields.slice(sentFields.length);
-          failure = `the item cannot hold these ${outcome.fields.join(", ")}`;
+          refused = `This item can't hold these ${outcome.fields.join(", ")}.`;
+          failure = refused;
           break;
         }
         case "missing": {
@@ -504,23 +538,55 @@ export const createItemSession = (
     return "ran-out";
   };
 
-  const flush = async (): Promise<void> => {
+  const writeOrSay = async (): Promise<"done" | "ran-out"> => {
+    try {
+      return await write();
+    } catch {
+      failure = ITEM_UNSAVED;
+      behind = true;
+      return "ran-out";
+    }
+  };
+
+  const writeNow = async (): Promise<void> => {
     cancelIdle?.();
     cancelIdle = null;
     await serial(async () => {
-      // an edit the tries ran out on goes again after the next pause while the item is open, and
-      // the status says why meanwhile
-      if ((await write()) === "ran-out" && following) {
+      // an edit the tries ran out on, or a write the store rejected, goes again after the next
+      // pause while the item is open, and the status says why meanwhile
+      if ((await writeOrSay()) === "ran-out" && following) {
         arm(() => {
-          void flush();
+          void writeNow();
         });
       }
       publish();
     });
   };
 
+  const followFileKeep = async (keep: Promise<void>): Promise<void> => {
+    keeping.add(keep);
+    publish();
+    await Promise.allSettled([keep]);
+    keeping.delete(keep);
+    publish();
+  };
+  // what the value holds goes at once, however long a file takes, and a file being kept goes behind
+  // it: its block is in no value until it is, which can be after that first write read the value
+  const flush = async (): Promise<void> => {
+    let filesOut = keeping.size > 0;
+    await writeNow();
+    while (filesOut || keeping.size > 0) {
+      await Promise.allSettled(keeping);
+      filesOut = false;
+      await writeNow();
+    }
+  };
+
   const land = async (overlappedThere: boolean): Promise<void> => {
     const item = await ports.store.item(itemId);
+    if (failure === ITEM_UNREAD) {
+      failure = null;
+    }
     missing = item === null;
     // a body the replica no longer holds (it started over) is pulled again, and no block of it
     // was removed meanwhile
@@ -535,6 +601,7 @@ export const createItemSession = (
   // blocks is opening, until a change brings what was still to come
   const open = async (): Promise<void> => {
     const item = await ports.store.item(itemId);
+    failure = null;
     missing = item === null;
     if (item === null || !item.bodyHeld) {
       publish();
@@ -547,10 +614,22 @@ export const createItemSession = (
     });
     // the value is the item's now, so no undo reaches what the editor held before it, as Plate's
     // own reset clears
-    editor.history.undos = [];
-    editor.history.redos = [];
+    startHistoryOver();
     seen = editor.children;
     publish();
+  };
+
+  // the item as the store holds it now; a read that fails is said, and the next change or a
+  // person's retry reads again
+  const read = async (overlappedThere = false): Promise<void> => {
+    await serial(async () => {
+      try {
+        await (acked === null ? open() : land(overlappedThere));
+      } catch {
+        failure = ITEM_UNREAD;
+        publish();
+      }
+    });
   };
 
   const start = async (): Promise<void> => {
@@ -558,17 +637,15 @@ export const createItemSession = (
       return;
     }
     following = true;
+    watchFileKeeps(editor, (keep) => {
+      void followFileKeep(keep);
+    });
     unsubscribe = ports.store.onChange((change) => {
       if (following && (change.reset || change.ids.has(itemId))) {
-        const overlapped = change.overlapped.has(itemId);
-        void serial(async () => {
-          await (acked === null ? open() : land(overlapped));
-        });
+        void read(change.overlapped.has(itemId));
       }
     });
-    await serial(async () => {
-      await (acked === null ? open() : land(false));
-    });
+    await read();
   };
 
   const edited = (): void => {
@@ -578,7 +655,7 @@ export const createItemSession = (
     seen = editor.children;
     const idle = cancelIdle === null;
     arm(() => {
-      void flush();
+      void writeNow();
     });
     if (idle) {
       publish();
@@ -588,7 +665,7 @@ export const createItemSession = (
   const patch = async (ops: readonly FieldOp[]): Promise<void> => {
     pendingFields = [...pendingFields, ...ops];
     publish();
-    await flush();
+    await writeNow();
   };
 
   // stops following at once, so a start that comes before the write ends (React's second mount)
@@ -608,6 +685,9 @@ export const createItemSession = (
     edited,
     flush,
     patch,
+    read: async () => {
+      await read();
+    },
     start,
     status: () => snapshot,
     subscribe: (listener) => {

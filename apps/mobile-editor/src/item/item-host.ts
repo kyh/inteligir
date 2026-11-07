@@ -6,11 +6,12 @@
 // cache, which fetches it from the cloud the first time, and one pasted into the text is kept by
 // the phone's replica, which sends it up ahead of the write that names it. A highlight the editor
 // marks is written to the item as its bare entry beside the markers the item's next write carries,
-// its note the same way, and a tap on a marked passage opens the phone's sheet of its highlights,
-// as the library's page does; a note the editor makes (an extract, a link's Create) the phone
-// makes in the item's folder. The page hands no file on to the system: its WebView opens nothing
-// but web links.
+// its note the same way, a marked passage tints by the entries the phone answers it holds, and a
+// tap on one opens the phone's sheet of its highlights, as the library's page does; a note the
+// editor makes (an extract, a link's Create) the phone makes in the item's folder. The page hands
+// no file on to the system: its WebView opens nothing but web links.
 
+import { setAnnotationMeta } from "@repo/editor/annotations/annotation-store";
 import { installEditorHost } from "@repo/editor/host-io";
 import type { EditorHostIo } from "@repo/editor/host-io";
 import type { ItemSession, ItemStore } from "@repo/editor/item/item-session";
@@ -55,6 +56,32 @@ const nothingToDo = (): void => {
   /* an item page has no agent of its own */
 };
 
+// one read at a time, the last move it missed asked once it ends; a read that fails waits for the
+// next move
+const oneReadAtATime = (read: () => Promise<void>): (() => Promise<void>) => {
+  let reading = false;
+  let readAgain = false;
+  const run = async (): Promise<void> => {
+    if (reading) {
+      readAgain = true;
+      return;
+    }
+    reading = true;
+    try {
+      await read();
+    } catch {
+      // the next move asks again
+    } finally {
+      reading = false;
+    }
+    if (readAgain) {
+      readAgain = false;
+      await run();
+    }
+  };
+  return run;
+};
+
 export interface ItemPageHost {
   // the session the page's editor follows, once it mounts
   readonly attach: (session: ItemSession | null) => void;
@@ -67,30 +94,20 @@ export const installItemPageHost = (bridge: PageBridge, init: ItemInit): ItemPag
   let session: ItemSession | null = null;
 
   // the items a link can name, by id and by title, and the names they go by now, read again as
-  // the library moves; a link shows the title it was written with until the phone answers, and one
-  // read at a time runs, the last move it missed asked once it ends
-  let reading = false;
-  let readAgain = false;
-  const readTargets = async (): Promise<void> => {
-    if (reading) {
-      readAgain = true;
-      return;
-    }
-    reading = true;
-    try {
-      const { targets } = await bridge.request("linkTargets", {});
-      feed.setTargets(targets);
-    } catch {
-      // the next move asks again
-    } finally {
-      reading = false;
-    }
-    if (readAgain) {
-      readAgain = false;
-      await readTargets();
-    }
-  };
+  // the library moves; a link shows the title it was written with until the phone answers
+  const readTargets = oneReadAtATime(async () => {
+    const { targets } = await bridge.request("linkTargets", {});
+    feed.setTargets(targets);
+  });
   void readTargets();
+
+  // the highlights the item holds, read again as it moves. The touch page draws no gutter, so
+  // nothing reads which of them carry a note
+  const readHighlights = oneReadAtATime(async () => {
+    const { ids } = await bridge.request("highlightIds", { itemId });
+    setAnnotationMeta(itemId, { knownIds: new Set(ids), notedIds: new Set() });
+  });
+  void readHighlights();
 
   // the stack opens the linked item by its id, once what this page holds is written
   const open = (linked: string): void => {
@@ -176,6 +193,9 @@ export const installItemPageHost = (bridge: PageBridge, init: ItemInit): ItemPag
       // another item moved, or every one: a link's target may be among them
       if (event.reset || event.ids.some((id) => id !== itemId)) {
         void readTargets();
+      }
+      if (event.reset || event.ids.includes(itemId)) {
+        void readHighlights();
       }
       return;
     }

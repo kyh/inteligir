@@ -10,24 +10,24 @@ import { blockFromMarkdown, faithfulMarkdown, filesIn, renamedBlock } from "./co
 
 // a block two writers changed, as the replica hands it over: `base` as this device's write was
 // computed from it, `mine` as it wrote it, `theirs` as the cell holds it now
-export interface BlockSides {
+interface BlockSides {
   readonly base: LibraryBlock;
   readonly mine: LibraryBlock;
   readonly theirs: LibraryBlock;
 }
 
 // a block both sides changed, merged: `overlapped` where both changed the same lines and mine
-// were kept over theirs, which the person is told of, as a note's merge says so
-export interface MergedBlock {
+// were kept over theirs, which the person is told of
+interface MergedBlock {
   readonly block: LibraryBlock;
   readonly overlapped: boolean;
 }
 
 // a block both sides changed, merged as the editor lays a change from elsewhere in, and as the
-// replica settles a CONFLICT (`replicaMerge`): the lines each side changed
-// both land and an overlap keeps mine, as a note's merge does; a side whose markdown does not read
-// back as itself, or a merge that reads back as no one block, keeps mine whole over theirs, an
-// overlap too. The answer keeps theirs' id, and the `ref` whichever side moved it.
+// replica settles a CONFLICT (`replicaMerge`): the lines each side changed both land and an
+// overlap keeps mine; a side whose markdown does not read back as itself, or a merge that reads
+// back as no one block, keeps mine whole over theirs, an overlap too. The answer keeps theirs' id,
+// and the `ref` whichever side moved it.
 export const mergeBlocks = ({ base, mine, theirs }: BlockSides): MergedBlock => {
   const ref = mine.ref === base.ref ? theirs.ref : mine.ref;
   const kept = (block: LibraryBlock, overlapped: boolean): MergedBlock => ({

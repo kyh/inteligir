@@ -3,8 +3,8 @@
 // WebView's own DOMParser on the phone), the head is read before defuddle strips it, defuddle finds
 // the readable content (with no network: `useAsync` off and a fetch that refuses), and the article
 // is written down the body ladder, rich to plain, the first rung whose fixpoint keeps at least 97%
-// of its letters winning. The fixpoint is the editor's own, so an item opens rich and its first
-// edit is a minimal diff.
+// of its letters winning. The fixpoint is the editor's own, so its blocks export as those same
+// bytes.
 
 import Defuddle from "defuddle";
 

@@ -2,8 +2,8 @@
 
 A saved page read into an item: what the page says about itself (its title,
 site, author, date, description, cover candidates and oEmbed link) and its
-article, written as the editor's own fixpoint, so an item opens rich and its
-first edit is a minimal diff.
+article, written as the editor's own fixpoint, so its blocks export as those
+same bytes.
 
 ## Why it exists
 

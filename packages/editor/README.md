@@ -40,13 +40,13 @@ src/
                        # serializer runs, the markdown wiring, the rich-block lock
   nodes/               # every node type as a Base (headless) + React pair
   item/                # an item edited by its id: its editor, its session's
-                       # ops over the host's store, the block diff and its
-                       # properties
-  note/                # the line a merge that kept this device's lines says
+                       # ops over the host's store, the block diff, its
+                       # properties and the line a merge that kept this device's
+                       # lines says
   annotations/         # annotation markers, ranges, gutter, store
   formulas/            # `{{…}}` pills: the `{{` picker, entry, editing, recompute
   wiki/                # `[[…]]` links: the `[[` picker, the chip, insertion, keys
-  properties/          # the typed frontmatter panel
+  properties/          # the panel of an item's typed properties
   lib/                 # debounce, the one door a diagram's markup becomes
                        # nodes through, embed and url helpers
   test-support/        # the fake editor host, for any suite that mounts the
@@ -71,6 +71,7 @@ src/
   under `src/test-support/fixtures/roundtrip/` is the contract: `canonical/` must
   survive untouched and `churn/` pins the one normalization each input gets
   (`*.in.md` → `*.out.md`). There is no `raw/`: every input parses.
+  `frontmatter/` holds whole files, which only the codec reads: a body has none.
 - **Never hand-edit or format a fixture.** Their bytes are the assertion —
   trailing spaces, indentation, line endings. oxfmt ignores the directory;
   editors must too. Generate them through the `roundTrip` pipeline itself.
