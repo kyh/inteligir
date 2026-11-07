@@ -604,6 +604,14 @@ describe("a reference and its definition", () => {
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
+  it("keeps a held definition that opens a toggle, whatever its label escapes, a definition", () => {
+    const item = imported(":::toggle\n\n[a\\]b]: https://example.com\n\nBody.\n:::\n");
+    expect(bodyOf(exported(item).text)).toBe(
+      ":::toggle\n\n[a\\]b]: https://example.com\n\nBody.\n:::\n",
+    );
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
   it("keeps a container a definition opens a container", () => {
     const item = imported(":::toggle\n\n[orphan]: https://example.com\n\nBody.\n:::\n");
     expect(types(item)).toStrictEqual(["toggle"]);

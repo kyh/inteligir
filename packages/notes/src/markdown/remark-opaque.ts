@@ -91,8 +91,9 @@ const HELD_AS_SOURCE: Record<GrammarNodeType, boolean> = {
   yaml: false,
 };
 
-const DEFINITION_SOURCE_RE = /^\[(?!\^)[^\]\n]+\]:/u;
-const FOOTNOTE_SOURCE_RE = /^\[\^[^\]\n]+\]:/u;
+const LABEL = String.raw`(?:[^\]\\\n]|\\.)+`;
+const DEFINITION_SOURCE_RE = new RegExp(String.raw`^\[(?!\^)${LABEL}\]:`, "u");
+const FOOTNOTE_SOURCE_RE = new RegExp(String.raw`^\[\^${LABEL}\]:`, "u");
 
 const holdsSource = (node: Nodes | undefined, source: RegExp): boolean => {
   if (node?.type !== "paragraph") {
