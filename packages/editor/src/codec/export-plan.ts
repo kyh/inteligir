@@ -21,7 +21,7 @@ import {
   extensionOfMediaType,
   LIBRARY_RULES_PATH,
 } from "@repo/notes/items/item-kind";
-import { itemNameFromTitle } from "@repo/notes/items/item-name";
+import { itemNameFromTitle, UNTITLED } from "@repo/notes/items/item-name";
 import { DEFAULT_ATTACHMENTS_FOLDER, freeAssetPathWhere } from "@repo/notes/knowledge/asset-name";
 import { docStem, freePath, freePathFrom, isOsLitterPath } from "@repo/notes/knowledge/doc-file";
 import { mdLinkUrl } from "@repo/notes/knowledge/link-extract";
@@ -66,7 +66,6 @@ export interface PlannedExportDoc {
 const extensionOf = (mediaType: string | null): string =>
   (mediaType === null ? null : extensionOfMediaType(mediaType)) ?? "bin";
 
-const UNTITLED = "Untitled";
 const FOLDER_DEPTH_MAX = 64;
 const DOC_EXTENSION = ".md";
 

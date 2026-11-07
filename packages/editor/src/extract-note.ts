@@ -8,6 +8,7 @@
 import { KEYS, NodeApi, PathApi } from "platejs";
 import type { Path, SlateEditor, TElement } from "platejs";
 
+import { UNTITLED } from "@repo/notes/items/item-name";
 import { ordsBetween } from "@repo/notes/library/block-order";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { toast } from "@repo/ui/components/sonner";
@@ -22,7 +23,6 @@ import { readElement } from "./item/item-diff";
 
 const HEADING_TYPES = new Set<string>([KEYS.h1, KEYS.h2, KEYS.h3, KEYS.h4, KEYS.h5, KEYS.h6]);
 const TITLE_MAX_CHARS = 80;
-const FALLBACK_TITLE = "Untitled";
 
 // the first heading among the blocks, else the first line of the first one
 /** @internal */
@@ -30,7 +30,7 @@ export const extractionTitle = (blocks: readonly TElement[]): string => {
   const source = blocks.find((block) => HEADING_TYPES.has(block.type)) ?? blocks[0];
   const line = source === undefined ? "" : (NodeApi.string(source).split("\n")[0] ?? "");
   const title = line.slice(0, TITLE_MAX_CHARS).trim();
-  return title === "" ? FALLBACK_TITLE : title;
+  return title === "" ? UNTITLED : title;
 };
 
 // the top-level blocks the selection touches: a partly selected list leaves as a whole

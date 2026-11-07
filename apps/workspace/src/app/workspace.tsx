@@ -16,6 +16,7 @@ import { getLiveEditor } from "@repo/editor/live-editor";
 import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import { keptFileType } from "@repo/notes/items/item-kind";
 import type { ItemKind } from "@repo/notes/items/item-kind";
+import { UNTITLED } from "@repo/notes/items/item-name";
 import { isWebUrl } from "@repo/notes/items/item-url";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Sidebar } from "@repo/ui/components/sidebar";
@@ -330,7 +331,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
         blocks: [],
         folderId: saveFolderOf(scope),
         tags: saveTagsOf(scope),
-        title: "Untitled",
+        title: UNTITLED,
       });
       open(made.id);
     })();
