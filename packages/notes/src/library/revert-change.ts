@@ -408,7 +408,7 @@ const revertExisting = (input: ItemRevertInput, before: ItemSnapshot, now: ItemN
     return UNCHANGED;
   }
   return {
-    annotations: highlights.kind === "reverted" ? (highlights.store ?? {}) : null,
+    annotations: highlights.kind === "reverted" ? highlights.store : null,
     keptAnnotations: highlights.kept,
     kind: "revert",
     ops: changed ? ops : [],

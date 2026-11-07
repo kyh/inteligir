@@ -35,13 +35,11 @@ const STORE: AnnotationStore = {
 };
 
 describe("annotation store schema", () => {
-  it("round-trips unknown fields and insertion order", () => {
-    // the fixture is the assertion: an unsorted root pair and a foreign field after the known ones
-    // is exactly what a round-trip has to give back.
+  it("round-trips insertion order", () => {
     const raw = `${JSON.stringify(
       {
-        z: { text: "t", createdAt: AT, updatedAt: AT, foreignOnly: { deep: true } },
-        a: { text: "u", createdAt: AT, updatedAt: AT, imageUrl: "assets/legacy.png" },
+        z: { text: "t", createdAt: AT, updatedAt: AT },
+        a: { text: "u", createdAt: AT, updatedAt: AT },
       },
       null,
       2,

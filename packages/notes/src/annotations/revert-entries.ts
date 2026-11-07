@@ -1,27 +1,22 @@
-// Takes one writer's change to an annotation store back entry by entry, never as text: a line merge
-// over the store's json can leave it unparseable. An entry is the unit, so a thread someone
-// answered since stays whole while the writer's untouched ones go. Stores in, the store to
-// write out: the caller reads the three versions and lands it through its own compare-and-swap.
+// Takes one change to an item's highlights back entry by entry, so a thread someone answered since
+// stays whole while the change's untouched ones go. Three stores in, the store to land out.
 
 import { annotationEntriesOf, sameAnnotationEntry } from "./store-schema";
 import type { AnnotationEntry, AnnotationStore } from "./store-schema";
 
 export interface AnnotationEntriesRevertInput {
-  // null: no store at that point
-  readonly before: AnnotationStore | null;
-  readonly after: AnnotationStore | null;
-  readonly current: AnnotationStore | null;
-  // every id a marker in the store's note carries once the note's own revert has landed; null
-  // when the note does not parse, so no marker can be called gone
-  readonly markerIds: ReadonlySet<string> | null;
+  readonly before: AnnotationStore;
+  readonly after: AnnotationStore;
+  readonly current: AnnotationStore;
+  // every id a marker in the item carries once the item's own revert has landed
+  readonly markerIds: ReadonlySet<string>;
 }
 
 // `kept`: an entry the change made or edited is left as it is now, because it was edited,
 // answered or anchored since, or its thread is gone.
 export type AnnotationEntriesRevert =
   | { readonly kind: "unchanged"; readonly kept: boolean }
-  // `store` null: no entry is left, so the store goes
-  | { readonly kind: "reverted"; readonly store: AnnotationStore | null; readonly kept: boolean };
+  | { readonly kind: "reverted"; readonly store: AnnotationStore; readonly kept: boolean };
 
 type Entries = ReadonlyMap<string, AnnotationEntry>;
 
@@ -37,7 +32,7 @@ const movesOf = (
   before: Entries,
   after: Entries,
   current: Entries,
-  markerIds: ReadonlySet<string> | null,
+  markerIds: ReadonlySet<string>,
 ): Moves => {
   const moves: Moves = { kept: false, removed: new Set(), restored: new Map() };
   for (const id of new Set([...before.keys(), ...after.keys()])) {
@@ -52,7 +47,7 @@ const movesOf = (
       moves.kept ||= was !== undefined || now !== undefined;
     } else if (was !== undefined) {
       moves.restored.set(id, was);
-    } else if (markerIds === null || markerIds.has(id)) {
+    } else if (markerIds.has(id)) {
       moves.kept = true;
     } else {
       moves.removed.add(id);
@@ -92,7 +87,7 @@ const dropStranded = (current: Entries, moves: Moves): boolean => {
 
 // the store's order is its thread order: what is there now keeps its place, and an entry brought
 // back follows it
-const storeAfter = (current: Entries, moves: Moves): AnnotationStore | null => {
+const storeAfter = (current: Entries, moves: Moves): AnnotationStore => {
   const ordered: [string, AnnotationEntry][] = [];
   for (const [id, entry] of current) {
     if (!moves.removed.has(id)) {
@@ -104,7 +99,7 @@ const storeAfter = (current: Entries, moves: Moves): AnnotationStore | null => {
       ordered.push([id, entry]);
     }
   }
-  return ordered.length === 0 ? null : Object.fromEntries(ordered);
+  return Object.fromEntries(ordered);
 };
 
 // An entry the change added goes when it is still as the change left it, nothing stands under it

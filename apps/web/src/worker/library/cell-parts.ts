@@ -60,8 +60,8 @@ const manifestOf = (state: ItemState): ManifestEntry[] =>
     section: stored.section,
   }));
 
-// a highlight store in one spelling, so two equal stores share a part: ids in order, each entry's
-// fields in the order the store's schema declares them
+// a highlight store in one spelling, so two equal stores share a part: ids and each entry's fields
+// in order
 const storeJson = (store: AnnotationStore): string =>
   JSON.stringify(
     Object.fromEntries(

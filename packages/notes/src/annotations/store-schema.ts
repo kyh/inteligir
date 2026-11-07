@@ -82,10 +82,7 @@ export const clipQuote = (text: string): string => {
   return `${folded.slice(0, end).trimEnd()}${QUOTE_ELLIPSIS}`;
 };
 
-// looseObject: fields from an external writer this version never heard of must survive a rewrite.
-// zod emits parsed keys in declaration order, so this is the store's on-disk field order;
-// sorting it rewrites every exported annotation file.
-export const annotationEntrySchema = z.looseObject({
+export const annotationEntrySchema = z.object({
   // "" is a bare highlight
   text: z.string(),
   // roots only: the passage's plain text when the highlight was made
@@ -99,20 +96,26 @@ export const annotationEntrySchema = z.looseObject({
 });
 export type AnnotationEntry = z.infer<typeof annotationEntrySchema>;
 
-// a zod parse emits declared fields in one order, so equal entries stringify equally; an unknown
-// field in another order reads as an edit, which only ever keeps an entry
+// field by field: a parsed entry and one built from a row spell the same fields in different orders
 export const sameAnnotationEntry = (
   a: AnnotationEntry | undefined,
   b: AnnotationEntry | undefined,
 ): boolean =>
-  a === undefined || b === undefined ? a === b : JSON.stringify(a) === JSON.stringify(b);
+  a === undefined || b === undefined
+    ? a === b
+    : a.text === b.text &&
+      a.quote === b.quote &&
+      a.createdAt === b.createdAt &&
+      a.updatedAt === b.updatedAt &&
+      a.source === b.source &&
+      a.parentId === b.parentId;
 
 export const annotationStoreSchema = z.record(annotationIdSchema, annotationEntrySchema);
 export type AnnotationStore = z.infer<typeof annotationStoreSchema>;
 
 // a Map, not the record: `__proto__` is a legal annotation id
-export const annotationEntriesOf = (store: AnnotationStore | null): Map<string, AnnotationEntry> =>
-  new Map(Object.entries(store ?? {}));
+export const annotationEntriesOf = (store: AnnotationStore): Map<string, AnnotationEntry> =>
+  new Map(Object.entries(store));
 
 export type AnnotationStoreParse =
   | { ok: true; store: AnnotationStore }
