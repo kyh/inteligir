@@ -154,10 +154,15 @@ how it ships.
   (`apps/mobile/src/app/+native-intent.ts`, which never throws). The signed-in
   app fetches the page itself, judging each redirect by its spelling
   (`apps/mobile/src/items/page-fetch.ts`), reads it in the headless page and
-  saves it read, cover and all; a page it cannot read now, an answer that is a
-  file whatever it was served as (`isPage`, the fill's own rule), or a page it
-  read no text from, is saved as its link, which the cloud's fill reads
-  (`apps/mobile/src/items/share-save.ts`).
+  saves it read, cover and all; a page it cannot read now, an address that
+  moved, an answer that is a file whatever it was served as (`isPage`, the
+  fill's own rule), or a page it read no text from, is saved as its link, which
+  the cloud's fill reads (`apps/mobile/src/items/share-save.ts`). An address
+  moved when a redirect changed its `urlKey`, since a save keys on the address
+  it is given and only the fill folds a link onto the item holding where it
+  ended and takes that address's kind. Rejected: the final address on
+  `items.save` (a second fold, and a page that redirects to its sign-in would
+  be saved at the sign-in's address).
   Words shared beside the link are never lost: they are the item's note, or
   an unread link's title when they are short enough to name it, since the
   cloud keeps a title it is given and a page read names itself

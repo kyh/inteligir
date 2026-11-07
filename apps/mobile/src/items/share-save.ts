@@ -1,8 +1,9 @@
 // A share from another app, saved: a page the share sheet hands over is read on this phone, as the
 // extension reads the page it is on, and saved through `items.save` with its facts, its article
 // and its cover, so the library holds it read from the first moment; a page this phone cannot read
-// now (offline, no page at the address, a reader that broke) or read no text from is saved as its
-// link, which the cloud's fill reads once it lands. Either way the words shared beside it are kept.
+// now (offline, no page at the address, a reader that broke), a link that leads elsewhere, or a
+// page it read no text from is saved as its link, which the cloud's fill reads once it lands.
+// Either way the words shared beside it are kept.
 // Text alone is a thought. The page is fetched by the phone itself, each redirect judged by its
 // spelling, and read by the reader in the headless page.
 // Platform-free: the scenario suite runs it under node over the reader's own code.
@@ -12,6 +13,7 @@ import type { FillAnswer, FillJob } from "@repo/editor-bridge/protocol";
 import { ReplicaClosedError } from "@repo/library-replica/library-replica";
 import type { LibraryReplica, Made, PageInput } from "@repo/library-replica/library-replica";
 import { namesPrivateSpace } from "@repo/notes/items/host-names";
+import { urlKey } from "@repo/notes/items/item-url";
 import {
   coverPicture,
   deviceKeepsReading,
@@ -66,7 +68,9 @@ const coverOf = async (
 };
 
 // what this phone read of a shared page, or null when the cloud's fill is to read it: a page that
-// did not answer, an answer that is no page, a reader that broke, or a reading with no article
+// did not answer, an address that moved, an answer that is no page, a reader that broke, or a
+// reading with no article. A save keys on the address it is given, so only the fill, which sees
+// where a link ended, folds it onto the item already there and takes that address's kind
 const readSharedPage = async (
   ports: ShareReadPorts,
   shared: Extract<SharedSave, { kind: "link" }>,
@@ -80,7 +84,7 @@ const readSharedPage = async (
     reachesPrivate: namesPrivateSpace(shared.url),
     url: shared.url,
   });
-  if (!fetched.ok || !isPage(fetched.page)) {
+  if (!fetched.ok || urlKey(fetched.page.url) !== urlKey(shared.url) || !isPage(fetched.page)) {
     return null;
   }
   let answer: FillAnswer;

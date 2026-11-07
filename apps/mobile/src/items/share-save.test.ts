@@ -4,6 +4,7 @@ import { createFakeCell } from "@repo/library-replica/test-support/fake-cell";
 import type { FakeCell } from "@repo/library-replica/test-support/fake-cell";
 import { openDevice, paragraph, textOf } from "@repo/library-replica/test-support/replica-harness";
 import { describe, expect, it } from "vitest";
+import { createPageFetch } from "./page-fetch";
 import type { PageFetch } from "./page-fetch";
 import { deferred } from "../test-support/async";
 import { sharedSaveOf } from "./share-payload";
@@ -40,6 +41,18 @@ const servingPage: PageFetch = async (request) =>
   });
 
 const offline: PageFetch = async () => await Promise.resolve({ ok: false });
+
+// the phone's own fetch, over a web where one address redirects to a page
+const redirecting = (from: string, to: string): PageFetch =>
+  createPageFetch(
+    async (url) =>
+      await Promise.resolve(
+        url === from
+          ? new Response(null, { headers: { location: to }, status: 301 })
+          : new Response("<h1>File over app</h1>", { headers: { "content-type": "text/html" } }),
+      ),
+    { acceptLanguage: "en-US", userAgent: "inteligir-test" },
+  );
 
 // a PNG's signature and IHDR, which name its size whatever the rest of the file holds
 const pngOf = (width: number, height: number): Uint8Array<ArrayBuffer> => {
@@ -212,6 +225,52 @@ describe("a share, saved", () => {
       expect(cell.calls).not.toContain("phone library/items/save");
     },
   );
+
+  it("hands an address that moved to the cloud, which alone folds it and names its kind", async () => {
+    const { cell, device, newBlockId } = await phone();
+    const jobs: FillJob[] = [];
+    const short = "https://bit.ly/x";
+    const saved = await saveShared(
+      {
+        newBlockId,
+        ports: {
+          fetch: redirecting(short, URL),
+          read: async (job) => {
+            jobs.push(job);
+            return await Promise.resolve(READ);
+          },
+        },
+        replica: device.replica,
+      },
+      sharedSaveOf({ meta: null, text: `Look at this ${short}`, webUrl: short }),
+    );
+    await device.replica.sync();
+    expect(jobs).toStrictEqual([]);
+    expect(cell.calls).toContain("phone library/items/saveLink");
+    expect(cell.calls).not.toContain("phone library/items/save");
+    const id = saved?.kind === "saved" ? saved.made.id : "";
+    expect(cell.item(id)?.fields).toMatchObject({ title: "Look at this", url: short });
+  });
+
+  it("reads an address that only changed its spelling on the way, as itself", async () => {
+    const { cell, device, newBlockId } = await phone();
+    const bare = "https://stephango.com/file-over-app/";
+    const www = "https://www.stephango.com/file-over-app";
+    const saved = await saveShared(
+      {
+        newBlockId,
+        ports: {
+          fetch: redirecting(bare, www),
+          read: async () => await Promise.resolve(READ),
+        },
+        replica: device.replica,
+      },
+      { kind: "link", note: null, title: null, url: bare },
+    );
+    await device.replica.sync();
+    expect(cell.calls).toContain("phone library/items/save");
+    expect(cell.item(saved?.kind === "saved" ? saved.made.id : "")?.fields.url).toBe(bare);
+  });
 
   it("keeps the words shared beside a page it reads as the item's note", async () => {
     const { cell, device, newBlockId } = await phone();
