@@ -647,6 +647,33 @@ describe("the replica's pull", () => {
     expect(verdict.kind).toBe("current");
   });
 
+  it("lets its staged files go before the schema, so a start-over cut short starts again", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    phone.network.setOffline(true);
+    await phone.replica.createFile({
+      file: { bytes: PNG, mime: "image/png" },
+      folderId: null,
+      name: "a.png",
+      tags: [],
+    });
+    await phone.replica.close();
+    await phone.sql.run("UPDATE meta SET v = ? WHERE k = 'schema'", ["an older build's"]);
+    const reopen = async (blobs: TestDevice["blobs"]) =>
+      await openDevice(cell, "phone", { blobs, network: phone.network, sql: phone.sql });
+
+    await expect(
+      reopen({
+        ...phone.blobs,
+        clear: async () => {
+          await Promise.reject(new Error("the disk went away"));
+        },
+      }),
+    ).rejects.toThrow("the disk went away");
+    await reopen(phone.blobs);
+    expect(phone.blobs.held()).toStrictEqual([]);
+  });
+
   it("stops on a revoked sign-in and says so, until it is started again", async () => {
     const cell = createFakeCell();
     const phone = await openDevice(cell, "phone");
@@ -1125,16 +1152,16 @@ describe("a change no resend can pass", () => {
   });
 });
 
+const noted = (blockId: string, text: string, ord = "a0"): LibraryOp => ({
+  block: paragraph(blockId, text),
+  op: "insert",
+  ord,
+  section: "note",
+});
+
 describe("a save the cell folds onto another item", () => {
   const ADDRESS = "https://example.com/article";
   const WRITE = "/v1/rpc/library/write";
-
-  const noted = (blockId: string, text: string, ord = "a0"): LibraryOp => ({
-    block: paragraph(blockId, text),
-    op: "insert",
-    ord,
-    section: "note",
-  });
 
   // the address saved on the Mac while the phone, offline, has already made a card of its own
   const savedOnBoth = async (cell: FakeCell, phone: TestDevice) => {

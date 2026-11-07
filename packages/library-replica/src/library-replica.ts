@@ -200,10 +200,11 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
     await sql.exclusive(async (tx) => await runPlanAsync(tx, ensureLibrarySchema("replica")));
   let verdict = await ensure();
   if (verdict.kind === "mismatch") {
+    // before the drop: once that commits, the next open finds an empty database and clears nothing
+    await blobs.clear();
     await sql.exclusive(async (tx) => {
       await runPlanAsync(tx, dropEverything());
     });
-    await blobs.clear();
     verdict = await ensure();
   }
   if (verdict.kind === "unsupported") {

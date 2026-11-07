@@ -321,9 +321,10 @@ export const createFileCache = (ports: FileCachePorts): FileCache => {
   };
 
   const staged: StagedBlobs = {
+    // the folder alone: a start-over runs this over a file that may hold no phone_staged, and a
+    // type with no bytes beside it is never read
     clear: async () => {
       await folders.clear("staged");
-      await sql.run("DELETE FROM phone_staged", []);
     },
     // the type first: the bytes are what makes the file found, so it is never found untyped
     put: async (sha, bytes, mime) => {

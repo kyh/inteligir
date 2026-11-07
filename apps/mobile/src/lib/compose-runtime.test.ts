@@ -79,7 +79,11 @@ const stillClock = {
 
 const runtimeOver = (
   cell: FakeCell,
-  options: { readonly sql: ReplicaSql; readonly keys: ReturnType<typeof keychain> },
+  options: {
+    readonly sql: ReplicaSql;
+    readonly keys: ReturnType<typeof keychain>;
+    readonly folders?: ReturnType<typeof memoryFolders>;
+  },
 ) => {
   const network = cell.device("phone");
   const runtime = composeRuntime({
@@ -89,7 +93,7 @@ const runtimeOver = (
     credentials: options.keys.store,
     dial: null,
     fetch: async (request) => await network.transport.fetch(request),
-    folders: memoryFolders(),
+    folders: options.folders ?? memoryFolders(),
     merge: keepBoth,
     newId: idSource(7),
     openSql: async () => await Promise.resolve(options.sql),
@@ -206,6 +210,67 @@ describe("the phone's runtime", () => {
     const again = runtimeOver(cell, { keys: keychain(KEPT), sql });
     again.network.setOffline(true);
     await again.runtime.start();
+    expect(titles(signedIn(again.runtime))).toStrictEqual(["Plans"]);
+  });
+
+  it("starts over on a file of another schema version, its unsent files with it", async () => {
+    const cell = createFakeCell();
+    await noteOnTheMac(cell, "Plans");
+    const sql = openNodeReplicaSql(":memory:");
+    const folders = memoryFolders();
+    const first = runtimeOver(cell, { folders, keys: keychain(KEPT), sql });
+    await first.runtime.start();
+    first.network.setOffline(true);
+    await signedIn(first.runtime).replica.createFile({
+      file: { bytes: new Uint8Array([1, 2, 3]), mime: "image/png" },
+      folderId: null,
+      name: "a.png",
+      tags: [],
+    });
+    expect(folders.held("staged")).toHaveLength(1);
+    await signedIn(first.runtime).replica.close();
+    await sql.run("UPDATE meta SET v = ? WHERE k = 'schema'", ["an older build's"]);
+
+    const again = runtimeOver(cell, { folders, keys: keychain(KEPT), sql });
+    await again.runtime.start();
+    const library = signedIn(again.runtime);
+    expect(library.replica.status().unsent).toBe(0);
+    expect(folders.held("staged")).toStrictEqual([]);
+    await library.replica.sync();
+    expect(titles(library)).toStrictEqual(["Plans"]);
+  });
+
+  it("signs in over a file of another schema version", async () => {
+    const cell = createFakeCell();
+    await noteOnTheMac(cell, "Plans");
+    const sql = openNodeReplicaSql(":memory:");
+    const first = runtimeOver(cell, { keys: keychain(KEPT), sql });
+    await first.runtime.start();
+    await signedIn(first.runtime).replica.close();
+    await sql.run("UPDATE meta SET v = ? WHERE k = 'schema'", ["an older build's"]);
+
+    const { runtime } = runtimeOver(cell, { keys: keychain(), sql });
+    await runtime.start();
+    await runtime.login.login(SIGN_IN);
+    expect(runtime.login.get()).toStrictEqual({ kind: "idle" });
+    await signedIn(runtime).replica.sync();
+    expect(titles(signedIn(runtime))).toStrictEqual(["Plans"]);
+  });
+
+  it("starts over on a file that holds none of the phone's own tables", async () => {
+    const cell = createFakeCell();
+    await noteOnTheMac(cell, "Plans");
+    const sql = openNodeReplicaSql(":memory:");
+    const first = runtimeOver(cell, { keys: keychain(KEPT), sql });
+    await first.runtime.start();
+    await signedIn(first.runtime).replica.close();
+    await sql.run("DROP TABLE phone_staged", []);
+    await sql.run("DROP TABLE phone_files", []);
+    await sql.run("UPDATE meta SET v = ? WHERE k = 'schema'", ["an older build's"]);
+
+    const again = runtimeOver(cell, { keys: keychain(KEPT), sql });
+    await again.runtime.start();
+    await signedIn(again.runtime).replica.sync();
     expect(titles(signedIn(again.runtime))).toStrictEqual(["Plans"]);
   });
 

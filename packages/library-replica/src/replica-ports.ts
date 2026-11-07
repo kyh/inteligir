@@ -55,6 +55,7 @@ export interface StagedBlobs {
   // null when the device no longer holds them
   readonly read: (sha: string) => Promise<Uint8Array<ArrayBuffer> | null>;
   readonly remove: (sha: string) => Promise<void>;
+  // over a database of any shape: the engine calls it when it starts one over
   readonly clear: () => Promise<void>;
 }
 
