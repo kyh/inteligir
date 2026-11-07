@@ -7,6 +7,7 @@
 
 import { viewContextOf } from "@repo/agent-panel/agent-send";
 import type { AgentViewContext } from "@repo/agent-panel/agent-send";
+import { BULK_ITEMS_MAX } from "@repo/contract/cloud/library/library-wire";
 import { listedScope } from "@repo/domain/library-scope";
 import type { LibraryScope } from "@repo/domain/library-scope";
 import { jumpToFindMatch } from "@repo/editor/find-bar";
@@ -53,7 +54,6 @@ import {
   deleteFolder,
   moveItems,
   pinItems,
-  purgeItems,
   renameFolder,
   tagItems,
 } from "./library/library-verbs";
@@ -470,15 +470,16 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       ) {
         return;
       }
-      try {
-        const purged = await purgeItems(
-          purgeCall.mutateAsync,
-          rows.map((row) => row.id),
-        );
-        toast.success(`Deleted ${plural(purged, "item")} forever.`);
-      } catch (error) {
-        toast.error(refusalText(error, "Deleted couldn't be emptied. Try again."));
-      }
+      await runBulk({
+        chunk: BULK_ITEMS_MAX,
+        done: (count) => `Deleted ${plural(count, "item")} forever.`,
+        items: rows.map((row) => row.id),
+        run: async (ids) => {
+          const { purged } = await purgeCall.mutateAsync({ ids: [...ids] });
+          return purged.length;
+        },
+        verb: "Deleting",
+      });
     })();
   };
 

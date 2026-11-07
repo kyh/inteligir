@@ -232,9 +232,10 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
 
 - **A BULK VERB RUNS IN CHUNKS, UNDER ONE TOAST WITH STOP.** A move or a tag of
   many items goes through the outbox fifty at a time and a purge through the
-  cell's own in its route's chunks, sequentially, and the closing sentence says
-  only what landed (`apps/workspace/src/app/library/bulk-actions.ts`). A delete
-  of more than fifty asks first; any delete toasts its Undo.
+  cell's own in its route's chunks, sequentially; a chunk that fails stops the
+  run and says how far it got, and the closing sentence says only what landed
+  (`apps/workspace/src/app/library/bulk-actions.ts`). A delete of more than
+  fifty asks first; any delete toasts its Undo.
 
 - **A SAVE FROM THE WINDOW IS A PASTE OR A DROP THAT NO FIELD CLAIMED.** A paste
   lands where nothing takes text, a drop where no field or editor took it; a

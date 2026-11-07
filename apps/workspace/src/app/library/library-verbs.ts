@@ -5,7 +5,6 @@
 // and written once more over what it reads now. Emptying Deleted is the cell's alone: a purge has
 // no overlay to show, so it goes as a call that needs a connection.
 
-import { BULK_ITEMS_MAX } from "@repo/contract/cloud/library/library-wire";
 import type { LibraryReplica } from "@repo/library-replica/library-replica";
 import type { LibraryOp } from "@repo/notes/library/block-ops";
 import { mergeListField } from "@repo/notes/library/block-ops";
@@ -117,28 +116,6 @@ export const retitleItem = async (
   await patchItem(replica, itemId, (fields) =>
     fields.title === title ? [] : [{ base: fields.title, field: "title", op: "set", value: title }],
   );
-
-const chunked = <T>(items: readonly T[]): T[][] => {
-  const out: T[][] = [];
-  for (let start = 0; start < items.length; start += BULK_ITEMS_MAX) {
-    out.push(items.slice(start, start + BULK_ITEMS_MAX));
-  }
-  return out;
-};
-
-// emptying Deleted: the bodies and highlights go for good, and each id stays as a tombstone; the
-// chunks the route takes go one after another, through the page's own call of the cell's purge
-export const purgeItems = async (
-  purge: (input: { ids: string[] }) => Promise<{ purged: readonly string[] }>,
-  itemIds: readonly string[],
-): Promise<number> => {
-  let purged = 0;
-  for (const ids of chunked(itemIds)) {
-    const answer = await purge({ ids });
-    purged += answer.purged.length;
-  }
-  return purged;
-};
 
 // a folder made under `parentId`, after its last sibling, with an id this device mints
 export const createFolder = async (
