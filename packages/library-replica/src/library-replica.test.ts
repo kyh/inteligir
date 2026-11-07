@@ -9,6 +9,7 @@ import { fileSha } from "./library-replica";
 import { openMemorySql } from "./memory-sql";
 import type { MemorySql } from "./memory-sql";
 import { STAGED_FILE_GONE } from "./outbox";
+import type { WriteOp } from "./outbox-ops";
 import type { LibraryReplica } from "./library-replica";
 import type { BlockMerge, ReplicaTransport } from "./replica-ports";
 import { deferred, nextTurn } from "./test-support/deferred";
@@ -170,6 +171,7 @@ const heldNetwork = (cell: FakeCell, name: string): HeldNetwork => {
 };
 
 const PULL = "/v1/rpc/library/sync/pull";
+const BODIES = "/v1/rpc/library/sync/bodies";
 
 describe("the replica's outbox", () => {
   it("keeps offline writes across a relaunch and lands them in order once the cell answers", async () => {
@@ -1604,6 +1606,74 @@ describe("a save the cell folds onto another item", () => {
     await again.replica.sync();
     expect(again.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
     expect(cellText(cell, holder, "n1")).toBe("my note");
+  });
+
+  it("reads the highlights of the item a screen open on the card landed on", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const { card, holder } = await savedOnBoth(cell, phone);
+    phone.network.setOffline(false);
+    await phone.replica.sync();
+
+    const added: WriteOp["annotations"][number] = {
+      createdAt: 1,
+      id: "h1",
+      occurrence: null,
+      op: "add",
+      parentId: null,
+      quote: "a passage",
+      text: "",
+    };
+    await phone.replica.write(holder, { annotations: [added], ops: [] });
+
+    await expect(phone.replica.annotations(card)).resolves.toHaveProperty("h1");
+  });
+
+  it("says a merge on the item to a screen still open on the card", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone", { merge: keepMine });
+    const { card, holder } = await savedOnBoth(cell, phone);
+    const laptop = await openDevice(cell, "laptop");
+    await laptop.replica.sync();
+    await write(laptop.replica, holder, [noted("n1", "the laptop's")]);
+    await laptop.replica.sync();
+    phone.network.setOffline(false);
+    await phone.replica.sync();
+    const overlapped: string[] = [];
+    phone.replica.onChange((change) => {
+      overlapped.push(...change.overlapped);
+    });
+
+    await write(laptop.replica, holder, [
+      await putText(laptop.replica, holder, "n1", "the laptop's again"),
+    ]);
+    await laptop.replica.sync();
+    await write(phone.replica, card, [await putText(phone.replica, card, "n1", "the phone's")]);
+    await phone.replica.sync();
+
+    expect(overlapped).toContain(card);
+  });
+
+  it("fetches the body of the item an open card landed on ahead of a newer one", async () => {
+    const cell = createFakeCell();
+    const network = heldNetwork(cell, "phone");
+    const phone = await openDevice(cell, "phone", { network: network.device });
+    const { card, holder } = await savedOnBoth(cell, phone);
+    cell.setBodiesPerAnswer(0);
+    phone.network.setOffline(false);
+    await phone.replica.sync();
+    await landedNote(cell, await openDevice(cell, "laptop"));
+    cell.setBodiesPerAnswer(1);
+    phone.replica.focus(card);
+
+    const first = network.hold(BODIES);
+    const syncing = phone.replica.sync();
+    await first.reached;
+    network.refused.add(BODIES);
+    first.release();
+    await syncing;
+
+    await expect(phone.replica.item(card)).resolves.toMatchObject({ bodyHeld: true, id: holder });
   });
 
   it("drops a delete queued behind the save, leaving the item holding the address live", async () => {

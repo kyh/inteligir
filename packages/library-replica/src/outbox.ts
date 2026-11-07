@@ -849,7 +849,6 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       await hold(async () => {
         rows = [];
         uploaded.clear();
-        folded.clear();
         await sql.exclusive(async (tx) => {
           await runPlanAsync(tx, deleteAllRows());
         });

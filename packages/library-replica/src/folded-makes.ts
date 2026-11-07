@@ -4,7 +4,6 @@
 
 export interface FoldedMakes {
   readonly add: (from: string, to: string) => void;
-  readonly clear: () => void;
   // the item an id names now
   readonly landedAs: (itemId: string) => string;
   // these items' ids, and every id a make folded onto them went by
@@ -16,9 +15,6 @@ export const createFoldedMakes = (): FoldedMakes => {
   return {
     add: (from, to) => {
       folds.set(from, to);
-    },
-    clear: () => {
-      folds.clear();
     },
     landedAs: (itemId) => folds.get(itemId) ?? itemId,
     namesOf: (ids) => {
