@@ -120,8 +120,8 @@ pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
                 }
             }
         });
-    // no title bar: the traffic lights sit over the page's top-left corner, which the page reserves
-    // (`title-bar.ts`), and its drag strip is a `data-tauri-drag-region`
+    // no title bar: the traffic lights sit over the page's top-left corner, and the page keeps it
+    // clear and draws what drags the window (`apps/workspace/src/app/title-bar.ts`)
     #[cfg(target_os = "macos")]
     let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)

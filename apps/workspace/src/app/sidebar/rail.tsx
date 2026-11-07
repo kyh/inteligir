@@ -45,6 +45,7 @@ import { useState } from "react";
 import { useReplicaQueries } from "../cloud/library-context";
 import { formatCount } from "../library/item-labels";
 import { PREFS, usePref } from "../prefs";
+import { TitleBarDragStrip } from "../top-bar";
 import { folderPaths } from "./folder-paths";
 import { SyncLine } from "./sync-line";
 
@@ -236,6 +237,7 @@ export const Rail = ({
   return (
     <>
       <SidebarHeader>
+        <TitleBarDragStrip />
         <div className="flex items-center gap-1 pr-1.5">
           <p className="m-0 min-w-0 flex-1 truncate px-2 text-subtitle font-medium">Library</p>
           <Button

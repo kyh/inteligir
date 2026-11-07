@@ -22,6 +22,7 @@ import { useReplica, useReplicaQueries } from "../cloud/library-context";
 import { isTextEntryTarget } from "../global-shortcuts";
 import { libraryShortcutFor } from "../library/library-keys";
 import { retitleItem } from "../library/library-verbs";
+import { TopBar } from "../top-bar";
 import { FileStage, PendingNotice, SourceHeader } from "./item-stages";
 
 const after = (ms: number, run: () => void): (() => void) => {
@@ -32,6 +33,7 @@ const after = (ms: number, run: () => void): (() => void) => {
 };
 
 export interface ItemViewProps {
+  readonly underTrafficLights: boolean;
   readonly itemId: string;
   readonly onBack: () => void;
   readonly onTogglePanel: () => void;
@@ -71,7 +73,13 @@ const TitleField = ({ itemId, title }: { itemId: string; title: string }) => {
   );
 };
 
-export const ItemView = ({ itemId, onBack, onTogglePanel, onSession }: ItemViewProps) => {
+export const ItemView = ({
+  underTrafficLights,
+  itemId,
+  onBack,
+  onTogglePanel,
+  onSession,
+}: ItemViewProps) => {
   const replica = useReplica();
   const queries = useReplicaQueries();
   const item = useQuery(queries.item(itemId));
@@ -119,7 +127,7 @@ export const ItemView = ({ itemId, onBack, onTogglePanel, onSession }: ItemViewP
   return (
     // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- the view's own Escape, which every control inside it hands up unless it holds the key itself
     <div className="flex h-full min-h-0 flex-col" data-item-id={itemId} onKeyDown={onKeyDown}>
-      <header className="flex h-12 shrink-0 items-center gap-2 px-3">
+      <TopBar underTrafficLights={underTrafficLights} className="px-3">
         <Button
           variant="ghost"
           size="icon-compact"
@@ -141,7 +149,7 @@ export const ItemView = ({ itemId, onBack, onTogglePanel, onSession }: ItemViewP
         >
           <PanelRightIcon />
         </Button>
-      </header>
+      </TopBar>
       {/* where the editor's find bar (⌘F) draws, over the item's text */}
       <div ref={setFindBarAnchor} className="relative" />
       {/* the editor's scroller: a far jump, the outline and WebKit's missing scroll anchor are

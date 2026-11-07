@@ -63,6 +63,7 @@ import { Panel } from "./panel/panel";
 import type { PanelTab } from "./panel/panel";
 import { PREFS, readPref, usePref, writePref } from "./prefs";
 import { Rail } from "./sidebar/rail";
+import { hasInsetTitleBar } from "./title-bar";
 
 export interface WorkspaceProps {
   readonly openItem: string | null;
@@ -158,8 +159,10 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const [session, setSession] = useState<ItemSession | null>(null);
   const hostRef = useRef<PageEditorHost | null>(null);
   const filesRef = useRef<HTMLInputElement | null>(null);
-  // the rail opens and closes itself; the window's chord asks it to
+  // the window's chord asks the rail, which below the breakpoint opens a sheet instead
   const railRef = useRef<SidebarActions | null>(null);
+  const [railOpen, setRailOpen] = useState(true);
+  const underTrafficLights = hasInsetTitleBar() && !railOpen;
 
   // the selection as it changes, which the panel's Info follows
   const selected = useStore(selection.store, (state) => state.selected);
@@ -554,6 +557,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       <div className="h-dvh" inert={covered}>
         <SidebarProvider
           className="h-full"
+          open={railOpen}
+          onOpenChange={setRailOpen}
           actionsRef={railRef}
           shortcut={bindingFor("toggle-rail", modifier)}
           width={`${String(readPref(PREFS.sidebarWidth))}px`}
@@ -624,6 +629,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
               <SidebarInset className="relative bg-surface">
                 {openItem === null ? (
                   <LibraryView
+                    underTrafficLights={underTrafficLights}
                     scope={scope}
                     title={scopeTitle(scope, folders)}
                     page={page}
@@ -658,6 +664,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                   />
                 ) : (
                   <ItemView
+                    underTrafficLights={underTrafficLights}
                     itemId={openItem}
                     onBack={() => {
                       open(null);

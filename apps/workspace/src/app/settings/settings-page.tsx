@@ -15,6 +15,7 @@ import {
   EDITOR_MEASURES,
   EDITOR_SIZES,
 } from "../appearance-options";
+import { TitleBarDragStrip } from "../top-bar";
 import { AccountSection } from "./account-section";
 import { ImportExportSection } from "./import-export-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
@@ -97,6 +98,7 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => (
       className="flex w-48 shrink-0 flex-col gap-0.5 border-r border-border p-3"
       aria-label="Settings"
     >
+      <TitleBarDragStrip />
       <Button variant="ghost" size="compact" className="mb-2 justify-start" onClick={onBack}>
         <ArrowLeftIcon />
         Library

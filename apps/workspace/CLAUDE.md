@@ -290,6 +290,17 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   outbox sends it). `apps/workspace/src/app/item/page-editor-host.ts`,
   `apps/workspace/src/app/cloud/page-library.ts`.
 
+- **THE MAC'S WINDOW HAS NO TITLE BAR, SO THE PAGE DRAWS WHAT ONE DOES.** Under
+  the macOS shell the traffic lights sit over the page's top-left corner
+  (`apps/desktop/src-tauri/src/window.rs`). The rail and Settings each open on a
+  childless strip that keeps the corner clear and drags the window; the top bar
+  over the grid or an open item moves clear of the lights while the rail is
+  closed, and drags by its own background, the one thing left to drag by then.
+  A tab and the shell on Linux have a title bar of their own and reserve
+  nothing. Rejected: the system's title bar (a bar above the page's own top
+  bar). `apps/workspace/src/app/title-bar.ts`,
+  `apps/workspace/src/app/top-bar.tsx`.
+
 ## Repo guards, vendoring and tooling
 
 - **A WORKSPACE TEST THAT LOGS A console.error FAILS.** React reports a setState
