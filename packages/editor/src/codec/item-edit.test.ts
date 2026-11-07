@@ -7,6 +7,7 @@ import type { ItemState, StoredBlock } from "@repo/notes/library/block-ops";
 import { blockHash } from "@repo/notes/library/block-hash";
 import { compareBlockPlaces } from "@repo/notes/library/block-order";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
+import { BLOCK_MAX_BYTES } from "@repo/notes/library/library-nodes";
 
 import { pretendLibrary, withoutId } from "../test-support/codec-ports";
 import { editItemView, placeItemQuotes } from "./item-edit";
@@ -116,6 +117,20 @@ const NOTE = [
 describe("the agent's view of an item", () => {
   it("writes a link with its item's live title and id", () => {
     expect(textOf(storedOf(NOTE))).toContain(`[[Other note|${OTHER_ID}]]`);
+  });
+
+  it("turns down text no block can store, naming the edit, and leaves the block it would replace", () => {
+    const fence = `\`\`\`inteligir-html\n${"x".repeat(BLOCK_MAX_BYTES)}\n\`\`\`\n`;
+    expect(
+      editItemView(
+        storedOf("One.\n\nTwo.\n"),
+        [
+          { newText: "Still one.", oldText: "One." },
+          { newText: fence, oldText: "Two." },
+        ],
+        portsWith(),
+      ),
+    ).toStrictEqual({ kind: "refused", refusal: { edit: 1, kind: "unstorable" } });
   });
 
   it("places every block where its group's text reads back as it", { timeout: 90_000 }, () => {

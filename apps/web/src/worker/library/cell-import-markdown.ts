@@ -539,7 +539,13 @@ const docOutcome = async (
       const result = landDoc(scope, host, job, read.read, folderPath);
       advanceImport(scope.storage, job.id, {
         changeSetId: result.held ? undefined : scope.set().id,
-        counts: result.held ? { alreadySaved: 1 } : { added: 1, highlights: result.highlights },
+        counts: result.held
+          ? { alreadySaved: 1 }
+          : {
+              added: 1,
+              highlights: result.highlights,
+              unreadable: read.read.item.leftOut,
+            },
         cursor: idx + 1,
       });
       return result;

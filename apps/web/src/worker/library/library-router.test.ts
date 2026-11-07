@@ -3,6 +3,7 @@
 // as the error its row declares.
 
 import { ordsBetween } from "@repo/notes/library/block-order";
+import { BLOCK_MAX_BYTES } from "@repo/notes/library/library-nodes";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { createRouterClient } from "@orpc/server";
 import { env } from "cloudflare:workers";
@@ -324,6 +325,31 @@ describe("the library's procedures", () => {
         code: "UNPROCESSABLE_CONTENT",
         data: { edit: 0, reason: "too-deep" },
       });
+    });
+  });
+
+  it("refuses text no block can store, and keeps what stood there", async () => {
+    await inCell(cellOf(), async (state) => {
+      const library = clientIn(state, clockAt());
+      const { item } = await library.items.createNote({ markdown: "One." });
+      const fence = `\`\`\`inteligir-html\n${"x".repeat(BLOCK_MAX_BYTES)}\n\`\`\`\n`;
+      const edit = () =>
+        library.items.edit({
+          baseSeq: item.seq,
+          edits: [{ newText: fence, oldText: "One." }],
+          id: item.id,
+        });
+      await expect(refusalOf(edit())).resolves.toMatchObject({
+        code: "UNPROCESSABLE_CONTENT",
+        data: { edit: 0, reason: "unstorable" },
+      });
+      await expect(edit()).rejects.toThrow("That edit holds a block the library can't keep.");
+      await expect(library.items.read({ id: item.id })).resolves.toMatchObject({
+        view: { markdown: "One.\n" },
+      });
+      await expect(
+        refusalOf(library.items.createNote({ markdown: `Kept.\n\n${fence}` })),
+      ).resolves.toMatchObject({ code: "PAYLOAD_TOO_LARGE" });
     });
   });
 

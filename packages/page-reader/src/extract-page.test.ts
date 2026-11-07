@@ -310,7 +310,6 @@ describe("the article as blocks", () => {
       counter(),
     );
     const { article } = extractPage({ html, prefer: "article", url: PAGE_URL }, parsePage);
-    expect(read.article.refused).toStrictEqual([]);
     expect(read.article.blocks.every((placed) => placed.section === "article")).toBe(true);
     expect(read.article.blocks.map((placed) => placed.block.id)).toStrictEqual(
       read.article.blocks.map((_, index) => `page${String(index + 1)}`),

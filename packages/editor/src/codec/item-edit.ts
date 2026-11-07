@@ -4,9 +4,9 @@
 // other block keeps its id, its place and its highlights' markers. The blocks read again keep the
 // ids of the old ones they line up with (unchanged ones change nothing), a highlight one of whose
 // marker edges the new text no longer holds is named in the answer, and a link the agent kept or
-// wrote by title still names its item. Text that nests deeper than the editor reads refuses the
-// edit, so no block it spans is lost. A highlight placed away from the editor (`placeQuotes`)
-// lands the same way.
+// wrote by title still names its item. Text that nests deeper than the editor reads, or that no
+// block can store, refuses the edit, so no block it spans is lost. A highlight placed away from the
+// editor (`placeQuotes`) lands the same way.
 
 import type { TElement } from "platejs";
 
@@ -29,7 +29,6 @@ import { mdToSlate } from "@repo/editor/markdown/md-to-slate";
 import { itemView, viewFileAt } from "./item-view";
 import type { ItemView, ViewBlock, ViewPorts } from "./item-view";
 import { nameDrafts } from "./name-blocks";
-import type { RefusedBlock } from "./name-blocks";
 import { readBlocks } from "./read-blocks";
 import type { LibraryFile, ReadHighlight, ReadPorts, Reached } from "./read-blocks";
 import { elementsOf, embedFiles, settled } from "./read-markdown";
@@ -57,7 +56,14 @@ type EditRefusal =
   | { readonly kind: "empty"; readonly edit: number }
   | { readonly kind: "missing"; readonly edit: number }
   | { readonly kind: "ambiguous"; readonly edit: number; readonly count: number }
-  | { readonly kind: CutFailure; readonly edit: number };
+  | { readonly kind: CutFailure; readonly edit: number }
+  | Unstorable;
+
+// new text that reads as a block no store takes: `edit` is the last one to touch it
+interface Unstorable {
+  readonly kind: "unstorable";
+  readonly edit: number;
+}
 
 interface ViewChange {
   readonly kind: "changed";
@@ -66,8 +72,6 @@ interface ViewChange {
   readonly dropped: readonly string[];
   // bare highlights an `==x==` in the new text made, for the caller to store
   readonly highlights: readonly ReadHighlight[];
-  // what the new text held that no block can store
-  readonly refused: readonly RefusedBlock[];
 }
 
 export type EditOutcome = ViewChange | { readonly kind: "refused"; readonly refusal: EditRefusal };
@@ -82,11 +86,16 @@ interface Stretch {
   readonly section: LibrarySection;
   // the editor's value an edited stretch's text reads as, read when the edit cut it; null for a
   // stretch no edit changed
-  readonly value: TElement[] | null;
+  readonly edited: Edited | null;
+}
+
+interface Edited {
+  readonly edit: number;
+  readonly value: TElement[];
 }
 
 interface EditedStretch extends Stretch {
-  readonly value: TElement[];
+  readonly edited: Edited;
 }
 
 interface SectionLine {
@@ -101,7 +110,8 @@ type Piece = Stretch | SectionLine;
 
 const isStretch = (piece: Piece): piece is Stretch => piece.kind !== "line";
 
-const isEdited = (piece: Piece): piece is EditedStretch => isStretch(piece) && piece.value !== null;
+const isEdited = (piece: Piece): piece is EditedStretch =>
+  isStretch(piece) && piece.edited !== null;
 
 const piecesOf = (view: ItemView): Piece[] => {
   const pieces: Piece[] = [];
@@ -118,7 +128,7 @@ const piecesOf = (view: ItemView): Piece[] => {
     } else if (view.article !== null && holds(view.article.close)) {
       pieces.push({ after: null, before: "article", kind: "line", text });
     } else {
-      pieces.push({ blocks: [], kind: "gap", section, text, value: null });
+      pieces.push({ blocks: [], edited: null, kind: "gap", section, text });
     }
     cursor = to;
   };
@@ -135,10 +145,10 @@ const piecesOf = (view: ItemView): Piece[] => {
     ({ section } = first);
     pieces.push({
       blocks,
+      edited: null,
       kind: "blocks",
       section,
       text: view.markdown.slice(first.start, first.end),
-      value: null,
     });
     cursor = first.end;
   }
@@ -155,6 +165,7 @@ const occurrences = (text: string, needle: string): number[] => {
 };
 
 interface Range {
+  readonly edit: number;
   readonly start: number;
   readonly end: number;
   readonly text: string;
@@ -176,7 +187,7 @@ const valueOf = (text: string): TElement[] | null => {
 
 // the edited text of a run of pieces cut at each section line it still holds once, each stretch
 // between two lines one edited piece in its own section, read as it is cut
-const cutAtLines = (run: readonly Piece[], text: string): Cut => {
+const cutAtLines = (run: readonly Piece[], text: string, edit: number): Cut => {
   const out: Piece[] = [];
   let cursor = 0;
   let blocks: ViewBlock[] = [];
@@ -193,7 +204,7 @@ const cutAtLines = (run: readonly Piece[], text: string): Cut => {
     if (value === null) {
       return "too-deep";
     }
-    out.push({ blocks, kind: "blocks", section: at, text: part, value });
+    out.push({ blocks, edited: { edit, value }, kind: "blocks", section: at, text: part });
     blocks = [];
     return "cut";
   };
@@ -254,7 +265,7 @@ const replaceRange = (pieces: readonly Piece[], range: Range): Cut => {
   const run = pieces.slice(first, last + 1);
   const whole = run.map((piece) => piece.text).join("");
   const text = whole.slice(0, range.start - from) + range.text + whole.slice(range.end - from);
-  const cut = cutAtLines(run, text);
+  const cut = cutAtLines(run, text, range.edit);
   return cut.ok
     ? { ok: true, pieces: [...pieces.slice(0, first), ...cut.pieces, ...pieces.slice(last + 1)] }
     : cut;
@@ -346,14 +357,16 @@ interface PieceChange {
   // the blocks the piece's text now reads as
   readonly blocks: readonly LibraryBlock[];
   readonly highlights: readonly ReadHighlight[];
-  readonly refused: readonly RefusedBlock[];
+  readonly edit: number;
+  // the blocks the text held that no store takes
+  readonly refused: number;
 }
 
 // an edited piece's value as the blocks it reads as, in its section
 const readPiece = (piece: EditedStretch, ports: EditPorts) => {
   const read = readPortsFor(piece.blocks, ports);
   const drafts = readBlocks(
-    settled(elementsOf(embedFiles(piece.value, read))),
+    settled(elementsOf(embedFiles(piece.edited.value, read))),
     read,
     piece.section === "note" ? ports : null,
   );
@@ -450,6 +463,7 @@ const changeOf = (piece: EditedStretch, view: ItemView, ports: EditPorts): Piece
         };
   return {
     blocks: named.blocks,
+    edit: piece.edited.edit,
     highlights,
     ops: [...lined.ops, ...insertsOf(named.blocks, lined.keys, bounds, section)],
     refused: named.refused,
@@ -457,10 +471,19 @@ const changeOf = (piece: EditedStretch, view: ItemView, ports: EditPorts): Piece
 };
 
 // every edited piece landed; a highlight is dropped when the edited text lost either edge of it,
-// wherever in the edited text the edge went, so a highlight left unpaired is named too
-const changesOf = (pieces: readonly Piece[], view: ItemView, ports: EditPorts): ViewChange => {
+// wherever in the edited text the edge went, so a highlight left unpaired is named too. Text no
+// block can store lands nothing, since the old block would go with no new one in its place
+const changesOf = (
+  pieces: readonly Piece[],
+  view: ItemView,
+  ports: EditPorts,
+): ViewChange | Unstorable => {
   const edited = pieces.filter(isEdited);
   const changes = edited.map((piece) => changeOf(piece, view, ports));
+  const refused = changes.find((change) => change.refused > 0);
+  if (refused !== undefined) {
+    return { edit: refused.edit, kind: "unstorable" };
+  }
   const kept = new Set(changes.flatMap((change) => markerEdges(change.blocks)).map(edgeKey));
   const lost = edited
     .flatMap((piece) => markerEdges(piece.blocks.map((one) => one.block)))
@@ -470,7 +493,6 @@ const changesOf = (pieces: readonly Piece[], view: ItemView, ports: EditPorts): 
     highlights: changes.flatMap((change) => change.highlights),
     kind: "changed",
     ops: changes.flatMap((change) => change.ops),
-    refused: changes.flatMap((change) => change.refused),
   };
 };
 
@@ -496,6 +518,7 @@ export const editItemView = (
       return { kind: "refused", refusal: { count: found.length, edit: index, kind: "ambiguous" } };
     }
     const next = replaceRange(pieces, {
+      edit: index,
       end: start + edit.oldText.length,
       start,
       text: edit.newText,
@@ -505,7 +528,8 @@ export const editItemView = (
     }
     ({ pieces } = next);
   }
-  return changesOf(pieces, view, ports);
+  const change = changesOf(pieces, view, ports);
+  return change.kind === "changed" ? change : { kind: "refused", refusal: change };
 };
 
 export interface PlacedQuotes extends ViewChange {
@@ -559,6 +583,7 @@ export const placeItemQuotes = (
     }
     if (placing.content !== before) {
       const next = replaceRange(pieces, {
+        edit: 0,
         end: offset + before.length - suffix,
         start: offset + prefix,
         text: placing.content.slice(prefix, placing.content.length - suffix),
@@ -571,5 +596,10 @@ export const placeItemQuotes = (
       ({ pieces } = next);
     }
   }
-  return { ...changesOf(pieces, view, ports), missing: waiting.map((quote) => quote.id), placed };
+  const change = changesOf(pieces, view, ports);
+  if (change.kind !== "changed") {
+    // markers go only in reading text, which a block past its cap is cut along
+    throw new Error("a section's own text did not store once highlighted");
+  }
+  return { ...change, missing: waiting.map((quote) => quote.id), placed };
 };

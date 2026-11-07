@@ -305,12 +305,12 @@ export const conflictCurrentSchema = z.discriminatedUnion("kind", [
 ]);
 
 // why an agent's edit cannot land: an `old_text` that is empty, stands nowhere or stands more than
-// once, or a change to the lines the article opens and closes on, or nesting deeper than the
-// editor reads; `edit` is its index in the request
+// once, a change to the lines the article opens and closes on, nesting deeper than the editor
+// reads, or text no block can store; `edit` is its index in the request
 export const editRefusalSchema = z.object({
   count: z.number().int().positive().optional(),
   edit: z.number().int().nonnegative(),
-  reason: z.enum(["empty", "missing", "ambiguous", "section", "too-deep"]),
+  reason: z.enum(["empty", "missing", "ambiguous", "section", "too-deep", "unstorable"]),
 });
 
 // ---- what an agent reads ----

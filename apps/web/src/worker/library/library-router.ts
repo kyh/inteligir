@@ -83,6 +83,8 @@ export interface CellContext {
   readonly settle: <T>(result: CellResult<T>) => Promise<CellResult<T>>;
 }
 
+const EDIT_UNSTORABLE = "That edit holds a block the library can't keep.";
+
 const refusalError = (refusal: CellRefusal): Error => {
   switch (refusal.kind) {
     case "gone": {
@@ -114,7 +116,9 @@ const refusalError = (refusal: CellRefusal): Error => {
       });
     }
     case "edit-refused": {
-      return new EditRefusedError({ data: refusal.refusal });
+      return refusal.refusal.reason === "unstorable"
+        ? new EditRefusedError({ data: refusal.refusal, message: EDIT_UNSTORABLE })
+        : new EditRefusedError({ data: refusal.refusal });
     }
     case "bad-cursor": {
       return new ORPCError("BAD_REQUEST", {

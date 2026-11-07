@@ -172,7 +172,7 @@ export const noteBlocksOf = (
     { annotations: null, name: "", text: markdown },
     codec.importing(scope.now),
   );
-  if (!read.ok) {
+  if (!read.ok || read.item.leftOut > 0) {
     return refuse({ kind: "too-large" });
   }
   return {
@@ -202,7 +202,7 @@ export const createNote = (
     { annotations: null, name: input.title ?? "", text: input.markdown },
     codec.importing(scope.now),
   );
-  if (!read.ok) {
+  if (!read.ok || read.item.leftOut > 0) {
     return refuse({ kind: "too-large" });
   }
   const imported = read.item.fields;

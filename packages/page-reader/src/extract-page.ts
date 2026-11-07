@@ -230,7 +230,7 @@ export const extractPage = (args: PageArgs, parsePage: ParsePage): ExtractedPage
   };
 };
 
-const NO_ARTICLE: ArticleBlocks = { blocks: [], refused: [] };
+const NO_ARTICLE: ArticleBlocks = { blocks: [] };
 
 // the same reading, its article as the library's blocks: the fixpoint the ladder wrote, read by the
 // editor's codec as a page (no dialect link or Obsidian spelling reads in it), its ids the host's

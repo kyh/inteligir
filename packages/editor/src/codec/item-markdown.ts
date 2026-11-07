@@ -34,7 +34,6 @@ import { stringProp } from "@repo/editor/node-props";
 import { readFrontmatter, writeFrontmatter } from "./item-fields";
 import type { FileFields } from "./item-fields";
 import { nameDrafts } from "./name-blocks";
-import type { RefusedBlock } from "./name-blocks";
 import { readBlocks } from "./read-blocks";
 import { elementsOf, embedFiles, settled } from "./read-markdown";
 import type { LibraryFile, Reached, ReadHighlight } from "./read-blocks";
@@ -76,14 +75,12 @@ interface PlacedBlock {
 export type ImportedFields = Omit<LibraryItemFields, "deletedAt" | "folderId">;
 
 export interface ImportedItem {
-  // the `id:` the file carried, which other files' `[[Title|uuid]]` and its store key by
-  readonly fileId: string | null;
   readonly fields: ImportedFields;
   readonly blocks: readonly PlacedBlock[];
   readonly annotations: AnnotationStore;
-  readonly refused: readonly RefusedBlock[];
-  // why the highlights' store could not be read; its highlights were left out
-  readonly annotationsError: string | null;
+  // what the file held that the item cannot: each block no store takes, and a highlights' store
+  // past reading
+  readonly leftOut: number;
 }
 
 export type ItemImport =
@@ -243,7 +240,7 @@ const sectionValues = (parts: Parts): SectionValues | null => {
 
 interface ReadAnnotations {
   readonly annotations: AnnotationStore;
-  readonly error: string | null;
+  readonly unreadable: boolean;
 }
 
 // the store the file's highlights were kept in, and the bare highlights its `==x==` made
@@ -256,7 +253,7 @@ const annotationsOf = (
   const kept = store?.ok === true ? store.store : {};
   return {
     annotations: { ...kept, ...highlightEntries(highlights, now) },
-    error: store?.ok === false ? store.error : null,
+    unreadable: store?.ok === false,
   };
 };
 
@@ -303,11 +300,9 @@ export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport =
   return {
     item: {
       annotations: highlights.annotations,
-      annotationsError: highlights.error,
       blocks: [...placed(noteBlocks.blocks, "note"), ...placed(pageBlocks.blocks, "article")],
       fields: fieldsWith(front.fields, held),
-      fileId: front.id,
-      refused: [...noteBlocks.refused, ...pageBlocks.refused],
+      leftOut: noteBlocks.refused + pageBlocks.refused + (highlights.unreadable ? 1 : 0),
     },
     ok: true,
   };
@@ -319,7 +314,6 @@ const PAGE_PORTS = { image: (): null => null, wiki: (): null => null };
 
 export interface ArticleBlocks {
   readonly blocks: readonly PlacedBlock[];
-  readonly refused: readonly RefusedBlock[];
 }
 
 // a page a fill read (the reader's canonical markdown) as its item's article section, keys minted
@@ -331,7 +325,7 @@ export const articleBlocks = (markdown: string, newBlockId: () => string): Artic
   }
   const drafts = readBlocks(settled(elementsOf(converted.nodes)), PAGE_PORTS, null);
   const named = nameDrafts(drafts.blocks, newBlockId);
-  return { blocks: placed(named.blocks, "article"), refused: named.refused };
+  return { blocks: placed(named.blocks, "article") };
 };
 
 export interface ExportItem {

@@ -51,6 +51,15 @@ const noteOf = (title: string, bytes: number): Uint8Array =>
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+const blocksIn = (accountId: string) =>
+  inCell(cellOf(accountId), (state) =>
+    state.storage.sql
+      .exec("SELECT json FROM blocks")
+      .toArray()
+      .map((row) => String(row.json))
+      .join("\n"),
+  );
+
 const items = (state: DurableObjectState) =>
   state.storage.sql
     .exec("SELECT id, title, url, folder_id, tags, fetch_state, kind FROM items ORDER BY title")
@@ -254,6 +263,43 @@ describe("a zip's highlights", () => {
       ["c-reply", "m-root"],
       ["m-root", null],
     ]);
+  });
+});
+
+describe("what a zip's note left out", () => {
+  const ID = "0195f3a0-5c1e-7000-8000-0000000000f1";
+
+  const imported = async (files: Readonly<Record<string, Uint8Array>>) => {
+    const accountId = newAccountId();
+    const started = await startImport(accountId, await zip(files), "markdown");
+    await runToEnd(accountId, started.jobId);
+    return { job: await jobOf(accountId, started.jobId), stored: await blocksIn(accountId) };
+  };
+
+  it("counts a block past what an item holds, and lands the note around it", async () => {
+    const fence = `\`\`\`inteligir-html\n${"x".repeat(600 * 1024)}\n\`\`\`\n`;
+    const { job, stored } = await imported({
+      "Big.md": encoder.encode(`The words around it.\n\n${fence}`),
+    });
+    expect(job).toMatchObject({ added: 1, unreadable: 1 });
+    expect(stored).toContain("The words around it.");
+  });
+
+  it("counts a highlights' store past reading, and lands the note", async () => {
+    const { job, stored } = await imported({
+      "Marked.md": encoder.encode(`---\nid: ${ID}\n---\nSome words.\n`),
+      [`.inteligir/annotations/${ID}.json`]: encoder.encode("{ not json"),
+    });
+    expect(job).toMatchObject({ added: 1, unreadable: 1 });
+    expect(stored).toContain("Some words.");
+  });
+
+  it("counts nothing for a link with no address, whose words stay", async () => {
+    const { job, stored } = await imported({
+      "Bare.md": encoder.encode("One [word]() and the rest.\n"),
+    });
+    expect(job).toMatchObject({ added: 1, unreadable: 0 });
+    expect(stored).toContain("the rest.");
   });
 });
 
