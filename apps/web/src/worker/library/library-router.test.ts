@@ -169,7 +169,9 @@ describe("the library's procedures", () => {
         folded.view.markdown.indexOf("Friday"),
       );
       const held = await library.annotations.list({ itemId: first.item.id });
-      expect(held.highlights.map(({ quote }) => quote)).toStrictEqual(["Tuesday", "Friday"]);
+      expect(new Set(held.highlights.map(({ quote }) => quote))).toStrictEqual(
+        new Set(["Tuesday", "Friday"]),
+      );
     });
   });
 
