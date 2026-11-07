@@ -29,8 +29,7 @@ describe(readItemFacts, () => {
     expect(factsOf("---\nurl: ftp://a.com\n---\n").url).toBeNull();
     const note = factsOf("---\nurl: https://a.com/x?utm_source=y\n---\n");
     expect(note.kind).toBe("note");
-    expect(note.urlKey).toBe("a.com/x");
-    expect(note.host).toBe("a.com");
+    expect(note.url).toBe("https://a.com/x?utm_source=y");
   });
 
   it("reads authors, dates and numbers as written, clipped", () => {

@@ -256,17 +256,14 @@ export const readFrontmatter = (
   };
 };
 
-const keyLine = (key: string, value: string): string =>
-  `${key}: ${yamlScalarText(value, "plain", "block")}`;
+const keyLine = (key: string, value: string): string => `${key}: ${yamlScalarText(value)}`;
 
 // a property's key and value as YAML spells any JSON
 const valueLines = (key: string, value: PropertyValue): string =>
   stringify({ [key]: value }).replace(/\n$/u, "");
 
 const listLines = (key: string, values: readonly string[]): string[] =>
-  values.length === 0
-    ? []
-    : [`${key}:`, ...values.map((value) => `  - ${yamlScalarText(value, "plain", "block")}`)];
+  values.length === 0 ? [] : [`${key}:`, ...values.map((value) => `  - ${yamlScalarText(value)}`)];
 
 // an instant as a file's frontmatter spells one, its milliseconds kept only when it has any
 const instant = (ms: number): string =>

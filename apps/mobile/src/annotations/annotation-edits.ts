@@ -79,5 +79,5 @@ export const threadsOf = (store: AnnotationStore, item: ReplicaItem): Annotation
   const markers = new Set(
     [...deriveItem(item.fields, blocks).blocks.values()].flatMap((block) => block.annotationIds),
   );
-  return foldAnnotations(store, item.bodyHeld ? markers : null).annotations;
+  return foldAnnotations(store, item.bodyHeld ? markers : null);
 };
