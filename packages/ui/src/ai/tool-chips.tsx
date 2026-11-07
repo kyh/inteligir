@@ -3,17 +3,16 @@
 
 import { Children, createContext, useContext, useMemo, useState } from "react";
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
-import { ChevronDownIcon, FileIcon, PenIcon, TerminalIcon } from "lucide-react";
+import { ChevronDownIcon, FileIcon, PenIcon } from "lucide-react";
 
 import { Collapse } from "@repo/ui/lib/collapse";
 import { cn } from "@repo/ui/lib/cn";
 
-type ToolIcon = "read" | "run" | "think" | "write";
+type ToolIcon = "read" | "think" | "write";
 
 // the think mark is the straight four-point star the thinking trace draws; lucide's sparkle bows
 const ICONS = {
   read: <FileIcon size={13} />,
-  run: <TerminalIcon size={13} />,
   think: (
     <svg aria-hidden width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
       <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z" />

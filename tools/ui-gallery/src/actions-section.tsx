@@ -143,7 +143,7 @@ export const ActionsSection = () => (
           <DropdownMenuLabel>This note</DropdownMenuLabel>
           <DropdownMenuItem>
             <ArchiveIcon />
-            Move to trash
+            Move to Deleted
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem>

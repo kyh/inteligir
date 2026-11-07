@@ -19,17 +19,16 @@ import {
   SidebarMenuItem,
 } from "@repo/ui/components/sidebar-menu";
 import { Button } from "@repo/ui/components/button";
-import { EllipsisIcon, PlusIcon, SearchIcon, SettingsIcon } from "lucide-react";
+import { ChevronDownIcon, EllipsisIcon, PlusIcon, SearchIcon, SettingsIcon } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
 
 import { useState } from "react";
 import { Demo, GallerySection } from "./gallery-chrome";
 
-const SIDEBAR_NOTES = ["Release checklist", "Weekly review", "Kitchen Sink"];
+const SIDEBAR_FOLDERS = ["Reading list", "Work", "Travel"];
 
-// the group's label is its switch here, as it is in the product
 const SidebarDemo = () => {
-  const [view, setView] = useState<"Recent" | "Files">("Recent");
+  const [open, setOpen] = useState(true);
   return (
     <div className="h-[260px] w-full overflow-hidden rounded-lg border border-line">
       <SidebarProvider className="h-full min-h-0" width="12rem" style={{ minHeight: "100%" }}>
@@ -47,35 +46,43 @@ const SidebarDemo = () => {
           <SidebarContent>
             <SidebarGroup>
               <SidebarGroupLabel
+                aria-expanded={open}
                 onClick={() => {
-                  setView((current) => (current === "Recent" ? "Files" : "Recent"));
+                  setOpen(!open);
                 }}
               >
-                {view}
+                Folders
+                <ChevronDownIcon
+                  size={12}
+                  strokeWidth={1.5}
+                  className={open ? "shrink-0" : "shrink-0 -rotate-90"}
+                />
               </SidebarGroupLabel>
               <SidebarGroupActions>
-                <SidebarGroupAction aria-label="New note">
+                <SidebarGroupAction aria-label="New folder">
                   <PlusIcon />
                 </SidebarGroupAction>
               </SidebarGroupActions>
-              <SidebarMenu aria-label="Notes">
-                {SIDEBAR_NOTES.map((note, index) => (
-                  <SidebarMenuItem key={note}>
-                    <SidebarMenuButton isActive={index === 0} className="pr-8">
-                      {note}
-                    </SidebarMenuButton>
-                    <SidebarMenuAction showOnHover aria-label={`Actions for ${note}`}>
-                      <EllipsisIcon />
-                    </SidebarMenuAction>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
+              {open ? (
+                <SidebarMenu aria-label="Folders">
+                  {SIDEBAR_FOLDERS.map((folder, index) => (
+                    <SidebarMenuItem key={folder}>
+                      <SidebarMenuButton isActive={index === 0} className="pr-8">
+                        {folder}
+                      </SidebarMenuButton>
+                      <SidebarMenuAction showOnHover aria-label={`Actions for ${folder}`}>
+                        <EllipsisIcon />
+                      </SidebarMenuAction>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              ) : null}
             </SidebarGroup>
           </SidebarContent>
           <SidebarFooter>
             <div className="flex items-center gap-1 pr-1.5">
               <span className="min-w-0 flex-1 truncate px-2 text-xs text-muted-foreground">
-                Local only
+                Up to date
               </span>
               <Button variant="ghost" size="icon-compact" className="size-6" aria-label="Settings">
                 <SettingsIcon />
@@ -85,7 +92,7 @@ const SidebarDemo = () => {
         </Sidebar>
         <SidebarInset className="bg-surface">
           <div className="flex items-center gap-2 border-b border-line p-2">
-            <span className="text-sm text-muted-foreground">Release checklist</span>
+            <span className="text-sm text-muted-foreground">Reading list</span>
           </div>
           <p className="p-3 text-sm text-muted-foreground">The content the rail sits beside.</p>
         </SidebarInset>
@@ -98,22 +105,22 @@ export const NavigationSection = () => (
   <GallerySection id="navigation" title="Navigation">
     <Demo
       name="Tabs · TabsList · TabsTrigger · TabsContent"
-      purpose="A panel's tabs: a flat row of labels under one sliding underline, Base UI's Tabs. The pill switch above is for a fixed region's views."
+      purpose="A panel's tabs: a flat row of labels under one sliding underline, Base UI's Tabs."
       stack
     >
       <div className="w-full max-w-sm rounded-lg border border-line">
-        <Tabs defaultValue="actions">
+        <Tabs defaultValue="info">
           <div className="flex h-9 items-center border-b border-line px-1.5">
             <TabsList aria-label="Panel tabs">
-              <TabsTrigger value="actions">Actions</TabsTrigger>
-              <TabsTrigger value="annotations">Annotations</TabsTrigger>
+              <TabsTrigger value="info">Info</TabsTrigger>
+              <TabsTrigger value="highlights">Highlights</TabsTrigger>
               <TabsTrigger value="history">History</TabsTrigger>
             </TabsList>
           </div>
-          <TabsContent value="actions">
-            <p className="p-3 text-sm text-muted-foreground">Two actions on this note.</p>
+          <TabsContent value="info">
+            <p className="p-3 text-sm text-muted-foreground">Saved from stephango.com.</p>
           </TabsContent>
-          <TabsContent value="annotations">
+          <TabsContent value="highlights">
             <p className="p-3 text-sm text-muted-foreground">One highlight with a note.</p>
           </TabsContent>
           <TabsContent value="history">

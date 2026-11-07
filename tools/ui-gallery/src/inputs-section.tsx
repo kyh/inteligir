@@ -11,12 +11,12 @@ import { Demo, DemoCase, GallerySection } from "./gallery-chrome";
 
 const noop = (): void => undefined;
 
-type Transport = "http" | "stdio" | "oauth";
+type EditorFont = "sans" | "serif" | "mono";
 
 export const InputsSection = () => {
   const [checked, setChecked] = useState(true);
   const [enabled, setEnabled] = useState(true);
-  const [transport, setTransport] = useState<Transport>("http");
+  const [font, setFont] = useState<EditorFont>("sans");
   const [message, setMessage] = useState("");
   const [sent, setSent] = useState<string | null>(null);
 
@@ -74,10 +74,10 @@ export const InputsSection = () => {
         purpose="One of a few choices, all on screen at once; one tab stop, the arrows move it."
       >
         <DemoCase label="live">
-          <RadioGroup aria-label="Transport" value={transport} onValueChange={setTransport}>
-            <RadioGroupItem value="http">URL</RadioGroupItem>
-            <RadioGroupItem value="stdio">Command</RadioGroupItem>
-            <RadioGroupItem value="oauth">OAuth</RadioGroupItem>
+          <RadioGroup aria-label="Font" value={font} onValueChange={setFont}>
+            <RadioGroupItem value="sans">Sans</RadioGroupItem>
+            <RadioGroupItem value="serif">Serif</RadioGroupItem>
+            <RadioGroupItem value="mono">Mono</RadioGroupItem>
           </RadioGroup>
         </DemoCase>
         <DemoCase label="disabled">
