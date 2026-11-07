@@ -24,7 +24,7 @@ import { CAPTURE_DEADLINE_MS, COVER_TRIES } from "./capture-tab";
 import { failureOf } from "./cloud";
 import type { Cloud, Saved } from "./cloud";
 import type { Connection } from "./connection";
-import { dropSave, keepSave, linkOf, markWaiting } from "./save-queue";
+import { dropSave, keepSave, linkOf, markWaiting, signedOut } from "./save-queue";
 import type { QueuedSave } from "./save-queue";
 
 export interface SaveDeps {
@@ -34,7 +34,6 @@ export interface SaveDeps {
   readonly capture: (tabId: number) => Promise<CapturedPage | null>;
   // a cover candidate's bytes, or null for one this browser could not read
   readonly fetchCover: (url: string) => Promise<Uint8Array<ArrayBuffer> | null>;
-  readonly signedOut: () => Promise<void>;
   readonly now: () => number;
   readonly randomBytes: (length: number) => Uint8Array;
   readonly newBlockId: () => string;
@@ -57,6 +56,11 @@ const savedOutcome = (saved: Saved): Outcome => ({
   title: saved.item.fields.title,
 });
 
+// a credential the cloud no longer takes, said as how it ended: a connect may have replaced it while
+// the call was on its way, which leaves this browser connected, so nothing asks to connect again
+const refusedSignedOut = async (deviceId: string): Promise<Outcome> =>
+  refused((await signedOut(deviceId)) ? "signed-out" : "failed");
+
 // how a call that did not land ends the save it made
 const settleFailure = async (
   deps: SaveDeps,
@@ -70,8 +74,8 @@ const settleFailure = async (
       return { kind: "queued" };
     }
     case "signed-out": {
-      await deps.signedOut();
-      return refused("signed-out");
+      await dropSave(queued);
+      return await refusedSignedOut(queued.deviceId);
     }
     case "refused": {
       await dropSave(queued);
@@ -271,8 +275,7 @@ export const savePicture = async (
   } catch (error) {
     const failure = failureOf(error);
     if (failure.kind === "signed-out") {
-      await deps.signedOut();
-      return refused("signed-out");
+      return await refusedSignedOut(connection.deviceId);
     }
     return refused(failure.kind === "refused" ? failure.reason : "needs-connection");
   }

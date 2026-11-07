@@ -16,27 +16,20 @@ import { DEV_CLOUD_ORIGIN, flavorOfMode } from "../manifest";
 import { showOutcome, showSaving } from "../background/badge";
 import { captureTab, fetchCover } from "../background/capture-tab";
 import { cloudOf } from "../background/cloud";
-import { forgetConnection, readConnection } from "../background/connection";
+import { readConnection } from "../background/connection";
 import type { Connection } from "../background/connection";
 import { connectPageListener, ownPagesListener } from "../background/listeners";
 import { MENU_ITEMS, menuAction } from "../background/menus";
 import type { MenuContext } from "../background/menus";
 import { saveAddress, savePicture, saveTab } from "../background/save-page";
 import type { SaveDeps, TabFacts } from "../background/save-page";
-import { ensureSendAlarm, forgetQueue, SEND_ALARM, sendQueued } from "../background/save-queue";
+import { ensureSendAlarm, SEND_ALARM, sendQueued, signedOut } from "../background/save-queue";
 
 // src/entrypoints/welcome, which WXT writes at this path
 const WELCOME_PAGE = "/welcome.html" satisfies PublicPath;
 
 const cloudFor = (connection: Connection) =>
   cloudOf(connection, browser.runtime.getManifest().version);
-
-// the credential is no longer the account's: the extension forgets it and what waited under it
-const signedOut = async (): Promise<void> => {
-  await forgetQueue();
-  await forgetConnection();
-  await ensureSendAlarm();
-};
 
 const saveDeps: SaveDeps = {
   capture: captureTab,
@@ -46,14 +39,12 @@ const saveDeps: SaveDeps = {
   newBlockId: () => crypto.randomUUID(),
   now: () => Date.now(),
   randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
-  signedOut,
 };
 
 const sendDeps = {
   cloud: cloudFor,
   connection: readConnection,
   now: () => Date.now(),
-  signedOut,
 };
 
 // the cloud this build connects to before it holds a connection: the production site, or for the
@@ -120,9 +111,9 @@ const answer = async (request: ExtensionRequest): Promise<Outcome> => {
     }
     case "disconnect": {
       const connection = await readConnection();
-      await signedOut();
-      // best effort, never waited on by what the page shows
       if (connection !== null) {
+        await signedOut(connection.deviceId);
+        // best effort, never waited on by what the page shows
         void revokeQuietly(connection);
       }
       return await status();

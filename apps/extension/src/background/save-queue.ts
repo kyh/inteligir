@@ -12,6 +12,7 @@ import { z } from "zod";
 import { COVER_DEADLINE_MS, COVER_TRIES } from "./capture-tab";
 import { CALL_DEADLINE_MS, failureOf } from "./cloud";
 import type { CallFailure, Cloud, LinkSave } from "./cloud";
+import { forgetConnection, readConnection } from "./connection";
 import type { Connection } from "./connection";
 
 const KEY_PREFIX = "save:";
@@ -71,7 +72,7 @@ export const queuedSaves = async (): Promise<QueuedSave[]> => {
   return saves.toSorted((a, b) => a.savedAt - b.savedAt);
 };
 
-export const forgetQueue = async (): Promise<void> => {
+const forgetQueue = async (): Promise<void> => {
   const saves = await queuedSaves();
   await browser.storage.local.remove(saves.map(keyOf));
 };
@@ -87,6 +88,21 @@ export const ensureSendAlarm = async (): Promise<void> => {
   if (!waiting && alarm !== undefined) {
     await browser.alarms.clear(SEND_ALARM);
   }
+};
+
+// the cloud no longer takes `deviceId`'s credential: the extension forgets it and what waited under
+// it, and answers true. A call still on its way when a connect replaced that credential answers for
+// the one it replaced, so the connection held now stays, and what the old one left waiting goes at
+// the next send, which sends nothing under another device's credential
+export const signedOut = async (deviceId: string): Promise<boolean> => {
+  const held = await readConnection();
+  if (held?.deviceId !== deviceId) {
+    return false;
+  }
+  await forgetConnection();
+  await forgetQueue();
+  await ensureSendAlarm();
+  return true;
 };
 
 // a try that went unanswered: the save waits for the alarm
@@ -110,8 +126,6 @@ export const linkOf = (save: QueuedSave): LinkSave => {
 export interface SendDeps {
   readonly connection: () => Promise<Connection | null>;
   readonly cloud: (connection: Connection) => Cloud;
-  // the connection's credential is no longer the account's: forget it and every save made under it
-  readonly signedOut: () => Promise<void>;
   readonly now: () => number;
 }
 
@@ -144,7 +158,7 @@ export const sendQueued = async (deps: SendDeps): Promise<void> => {
         break;
       }
       if (failure.kind === "signed-out") {
-        await deps.signedOut();
+        await signedOut(save.deviceId);
         break;
       }
       await dropSave(save);
