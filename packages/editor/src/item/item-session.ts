@@ -17,7 +17,7 @@ import type { Point, SlateEditor, TElement } from "platejs";
 import { applyOps, libraryOpSchema, orderedBlocks } from "@repo/notes/library/block-ops";
 import type { ItemState, LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
-import type { LibraryBlock } from "@repo/notes/library/library-nodes";
+import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
 
 import { blockId } from "@repo/editor/node-props";
 import { mergeBlocks } from "@repo/editor/stale-write";
@@ -304,6 +304,7 @@ export const createItemSession = (
   const merge = ports.merge ?? mergeBlocks;
   const idleMs = ports.idleMs ?? ITEM_IDLE_MS;
   const reads: ElementReads = new WeakMap();
+  const dropped = new Map<string, LibrarySection>();
   const listeners = new Set<() => void>();
   let acked: ItemState | null = null;
   let pendingFields: FieldOp[] = [];
@@ -464,7 +465,7 @@ export const createItemSession = (
       if (base === null) {
         return "done";
       }
-      const diff = diffValue(base.blocks, editor.children, reads);
+      const diff = diffValue(base.blocks, editor.children, reads, dropped);
       holdsBack = diff.heldBack.length > 0;
       const sentFields = pendingFields;
       const ops = [...diff.ops, ...sentFields];
@@ -480,6 +481,12 @@ export const createItemSession = (
           pendingFields = pendingFields.slice(sentFields.length);
           failure = null;
           behind = false;
+          for (const op of diff.ops) {
+            const held = op.op === "drop" ? base.blocks.get(op.blockId) : undefined;
+            if (held !== undefined) {
+              dropped.set(held.block.id, held.section);
+            }
+          }
           const landed = applyOps(base, ops);
           if (landed.kind === "applied") {
             acked = landed.state;

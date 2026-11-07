@@ -499,6 +499,72 @@ describe("an item open in the editor", () => {
     expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
   });
 
+  it("files what the person types under a saved page's article in the note", async () => {
+    const { cell, mac, phone } = await devices();
+    const { id } = await mac.replica.createNote({
+      blocks: [{ block: paragraph("a1", "the page"), ord: "a0", section: "article" }],
+      folderId: null,
+      tags: [],
+      title: "Saved",
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertNodes({ children: [{ text: "mine" }], type: "p" }, { at: [1] });
+    session.edited();
+    await pause(phone, session);
+    await phone.replica.sync();
+    const held = [...(cell.item(id)?.blocks.values() ?? [])];
+    expect(held.map(({ section }) => section).toSorted()).toStrictEqual(["article", "note"]);
+    expect(held.find(({ section }) => section === "note")?.block.children).toStrictEqual([
+      { text: "mine" },
+    ]);
+  });
+
+  it("files an article block it dropped back in the article when an undo restores it", async () => {
+    const { cell, mac, phone } = await devices();
+    const { id } = await mac.replica.createNote({
+      blocks: [
+        { block: paragraph("a1", "the page"), ord: "a0", section: "article" },
+        { block: paragraph("a2", "goes on"), ord: "a1", section: "article" },
+      ],
+      folderId: null,
+      tags: [],
+      title: "Saved",
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.removeNodes({ at: [1] });
+    session.edited();
+    await pause(phone, session);
+    editor.undo();
+    session.edited();
+    await pause(phone, session);
+    await phone.replica.sync();
+    expect(cell.item(id)?.blocks.get("a2")?.section).toBe("article");
+  });
+
+  it("files text still unwritten in the note when a page's article lands above it", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, []);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("mine", { at: { offset: 0, path: [0, 0] } });
+    session.edited();
+    await mac.replica.write(id, {
+      ops: [{ block: paragraph("a1", "the page"), op: "insert", ord: "a0", section: "article" }],
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    await pause(phone, session);
+    await phone.replica.sync();
+    const held = [...(cell.item(id)?.blocks.values() ?? [])];
+    expect(held.find(({ section }) => section === "note")?.block.children).toStrictEqual([
+      { text: "mine" },
+    ]);
+    expect(cellBlock(cell, id, "a1")).toStrictEqual(paragraph("a1", "the page"));
+  });
+
   it("says a block no write can store and holds it unsaved, until it can be written", async () => {
     const { cell, mac, phone } = await devices();
     const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), paragraph("p2", "x")]);

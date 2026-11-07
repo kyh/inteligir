@@ -321,10 +321,14 @@ alone, and no walk narrows structurally.
   write can store stays as the person left it and counts as a failure and as
   unsaved, so the surface says so on every host and each host holds the leave;
   a picker open in a block is read around, since its query is nobody's writing.
-  Rejected: the value mirrored into React state (a render per keystroke); a
-  whole-item write (two devices' edits to different blocks would meet); one
-  editor handed from item to item (a closing write would diff the next one's
-  blocks). `packages/editor/src/item/item-session.ts`, `item-diff.ts`.
+  A block keeps its section wherever it stands, and a new one is the note's, so
+  a read of the page never takes what the person typed under it, which reads
+  above the article when the item opens again. Rejected: the value mirrored
+  into React state (a render per keystroke); a whole-item write (two devices'
+  edits to different blocks would meet); one editor handed from item to item
+  (a closing write would diff the next one's blocks); a section by where a block
+  stands (a read deleted what was typed below the article).
+  `packages/editor/src/item/item-session.ts`, `item-diff.ts`.
 
 - **THE EDITOR'S HOST SPEAKS THE LIBRARY: AN ITEM BY ITS ID, A FILE BY ITS
   SHA.** `openItem`, `readItemBlocks` and `onItemsChanged` take item ids, the
