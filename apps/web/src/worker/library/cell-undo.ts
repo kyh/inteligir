@@ -5,7 +5,7 @@
 
 import { compareText } from "@repo/notes/library/block-order";
 import { revertChangeSets } from "@repo/notes/library/revert-change";
-import type { ItemChange, ItemNow } from "@repo/notes/library/revert-change";
+import type { FillChange, ItemChange, ItemNow } from "@repo/notes/library/revert-change";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { chunkStatement } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
@@ -14,7 +14,7 @@ import { z } from "zod";
 import { readAnnotationRows, restoreAnnotationStore } from "./cell-annotations";
 import { landItem } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";
-import { blockContents, readSnapshot } from "./cell-parts";
+import { blockContents, readFieldsPart, readSnapshot } from "./cell-parts";
 import { refuse, RefusedWriteError } from "./cell-refusal";
 import { readItemNow, sealChangeSet } from "./change-sets";
 
@@ -55,6 +55,25 @@ const loadSets = (sql: SqlStatements, ids: readonly string[]) => {
   return rows;
 };
 
+const fillRowSchema = z.object({ after_fields: z.string(), before_fields: z.string() });
+
+const fillsOf = (sql: SqlStatements, itemId: string): FillChange[] =>
+  sql
+    .all(
+      `SELECT items.before_fields, items.after_fields
+       FROM change_set_items items JOIN change_sets sets ON sets.id = items.change_set_id
+       WHERE items.item_id = ? AND sets.actor = 'fill'
+         AND items.before_fields IS NOT NULL AND items.after_fields IS NOT NULL`,
+      [itemId],
+    )
+    .map((raw) => {
+      const row = fillRowSchema.parse(raw);
+      return {
+        after: readFieldsPart(sql, itemId, row.after_fields),
+        before: readFieldsPart(sql, itemId, row.before_fields),
+      };
+    });
+
 const changesOf = (sql: SqlStatements, setId: string): Map<string, ItemChange> => {
   const changes = new Map<string, ItemChange>();
   for (const raw of sql.all(
@@ -75,15 +94,19 @@ const changesOf = (sql: SqlStatements, setId: string): Map<string, ItemChange> =
       fields: row.after_fields,
       manifest: row.after_manifest,
     });
-    const before =
+    changes.set(
+      row.item_id,
       row.before_fields === null || row.before_manifest === null || row.before_annotations === null
-        ? null
-        : readSnapshot(sql, row.item_id, {
-            annotations: row.before_annotations,
-            fields: row.before_fields,
-            manifest: row.before_manifest,
-          });
-    changes.set(row.item_id, { after, before });
+        ? { after, before: null, fills: fillsOf(sql, row.item_id) }
+        : {
+            after,
+            before: readSnapshot(sql, row.item_id, {
+              annotations: row.before_annotations,
+              fields: row.before_fields,
+              manifest: row.before_manifest,
+            }),
+          },
+    );
   }
   return changes;
 };

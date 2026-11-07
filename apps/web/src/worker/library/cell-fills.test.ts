@@ -324,6 +324,127 @@ describe("a page's reading, landed", () => {
   });
 });
 
+const undoSave = async (library: ReturnType<typeof libraryIn>, itemId: string) => {
+  const { changeSets } = await library.history.list({ itemId });
+  const made = changeSets.find((set) => set.items.some((item) => item.created));
+  if (made === undefined) {
+    throw new Error("no change set made the item");
+  }
+  return await library.history.undo({ changeSetIds: [made.id] });
+};
+
+describe("Undo of a saved link, once its page is read", () => {
+  const PHONE = { deviceId: "phone", kind: "person", label: "You on phone" } as const;
+
+  it("takes a link the reading named to Deleted, a fill being no person", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const library = libraryIn(state, accountId);
+      const url = "https://pages.example/named";
+      const { item } = await library.items.saveLink({ url });
+      openCellLibrary(state, env).landReading(
+        read({ itemId: item.id, url }, [paragraph("p1", "The article.")]),
+      );
+      expect(stateOf(state, item.id)?.fields.title).toBe("The page's own title");
+      await expect(undoSave(library, item.id)).resolves.toMatchObject({
+        kept: [],
+        reverted: [item.id],
+      });
+      expect(stateOf(state, item.id)?.fields.deletedAt).not.toBeNull();
+    });
+  });
+
+  it("takes a link that answered with a file to Deleted", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const library = libraryIn(state, accountId);
+      const engine = openCellLibrary(state, env);
+      const url = "https://pages.example/figure.png";
+      const originalSha = await uploadedFile(engine, accountId, {
+        bytes: pngOf(800, 600),
+        mime: "image/png",
+      });
+      const { item } = await library.items.saveLink({ url });
+      engine.landReading({
+        fileKind: "image",
+        itemId: item.id,
+        kind: "file",
+        originalName: "figure.png",
+        originalSha,
+        url,
+      });
+      expect(stateOf(state, item.id)?.fields.originalSha).toBe(originalSha);
+      await expect(undoSave(library, item.id)).resolves.toMatchObject({
+        kept: [],
+        reverted: [item.id],
+      });
+      expect(stateOf(state, item.id)?.fields.deletedAt).not.toBeNull();
+    });
+  });
+
+  it("keeps a link renamed once the reading named it", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const library = libraryIn(state, accountId);
+      const engine = openCellLibrary(state, env);
+      const url = "https://pages.example/renamed";
+      const { item } = await library.items.saveLink({ url });
+      engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]));
+      const renamed = engine.write(PHONE, {
+        itemId: item.id,
+        ops: [{ base: "The page's own title", field: "title", op: "set", value: "Mine" }],
+      });
+      expect(renamed.ok).toBe(true);
+      await expect(undoSave(library, item.id)).resolves.toMatchObject({
+        kept: [item.id],
+        reverted: [],
+      });
+      expect(stateOf(state, item.id)?.fields).toMatchObject({ deletedAt: null, title: "Mine" });
+    });
+  });
+
+  it("keeps a link renamed while it waited, the reading leaving that name", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const library = libraryIn(state, accountId);
+      const engine = openCellLibrary(state, env);
+      const url = "https://pages.example/waited";
+      const { item } = await library.items.saveLink({ url });
+      const renamed = engine.write(PHONE, {
+        itemId: item.id,
+        ops: [{ base: item.fields.title, field: "title", op: "set", value: "Mine" }],
+      });
+      expect(renamed.ok).toBe(true);
+      engine.landReading(read({ itemId: item.id, url }, [paragraph("p1", "The article.")]));
+      await expect(undoSave(library, item.id)).resolves.toMatchObject({
+        kept: [item.id],
+        reverted: [],
+      });
+    });
+  });
+
+  it("keeps a link a fold carried a person's tags onto", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const library = libraryIn(state, accountId);
+      const engine = openCellLibrary(state, env);
+      const url = "https://pages.example/final";
+      const holder = await library.items.saveLink({ url });
+      engine.landReading(read({ itemId: holder.item.id, url }, [paragraph("h", "Held.")]));
+      const short = "https://short.example/y";
+      const stub = await library.items.saveLink({ tags: ["later"], url: short });
+      engine.landReading(
+        read({ itemId: stub.item.id, url: short }, [paragraph("f", "Folded.")], { finalUrl: url }),
+      );
+      expect(stateOf(state, holder.item.id)?.fields.tags).toStrictEqual(["later"]);
+      await expect(undoSave(library, holder.item.id)).resolves.toMatchObject({
+        kept: [holder.item.id],
+        reverted: [],
+      });
+    });
+  });
+});
+
 describe("a reading's ask", () => {
   it("is a job row the write lands, claimed a minute at a time until the queue takes it", async () => {
     const accountId = newAccountId();

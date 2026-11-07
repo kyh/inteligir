@@ -102,19 +102,3 @@ export const libraryItemFieldsSchema = z.strictObject({
 export type LibraryItemFields = z.infer<typeof libraryItemFieldsSchema>;
 export type LibraryItemField = keyof LibraryItemFields;
 export type PropertyValue = LibraryItemFields["properties"][string];
-
-// the fields a fill writes, and Refresh replaces; every other field is the person's (or an
-// agent's, on the person's behalf)
-export const FILL_OWNED_FIELDS = [
-  "author",
-  "copySha",
-  "coverSha",
-  "description",
-  "fetchError",
-  "fetchState",
-  "fetchedAt",
-  "kind",
-  "lang",
-  "published",
-  "site",
-] as const satisfies readonly (keyof LibraryItemFields)[];

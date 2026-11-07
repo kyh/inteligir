@@ -66,9 +66,12 @@ node is rather than discriminating structurally at each visit.
   the item now is mine, its before is theirs; the order merges by diff3 over
   block ids, fields revert one by one, highlights entry by entry, and an
   overlap keeps the item whole and named. An item the set made goes to Deleted
-  unless a person's part changed since (a fill is not a person). Sets undo
-  newest first. Unlike revert-edit, a block keeps its identity across a move,
-  so a block moved, edited and then deleted stays deleted.
+  unless a person's part changed since (a fill is not a person), told by each
+  fill's own change set: a field still holds what the set left or what a fill
+  wrote there. Sets undo newest first. Unlike revert-edit, a block keeps its
+  identity across a move, so a block moved, edited and then deleted stays
+  deleted. Rejected: a list of the fields a fill owns (it drifts from what a
+  fill writes, and a title is a fill's on an unread link and a person's after).
   `packages/notes/src/library/revert-change.test.ts`.
 
 - **THE LIBRARY'S SQL IS ONE SCHEMA AND ONE SET OF PLANS FOR THREE ENGINES.**
