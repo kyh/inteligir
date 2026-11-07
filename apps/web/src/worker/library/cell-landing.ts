@@ -109,6 +109,38 @@ const diffBlocks = (
   return { dropped, growth, superseded, written };
 };
 
+// the words a field holds, which grow the library as a block does. A stamp, a state, a place, a sha
+// and a failed reading's sentence are left out: they swap one short value for another, and a full
+// library must still take a delete, a move, a pin and the end of a reading
+const fieldBytes = ({
+  aliases,
+  author,
+  description,
+  lang,
+  originalName,
+  properties,
+  published,
+  site,
+  tags,
+  title,
+  url,
+}: LibraryItemFields): number =>
+  utf8ByteLength(
+    canonicalJson({
+      aliases,
+      author,
+      description,
+      lang,
+      originalName,
+      properties,
+      published,
+      site,
+      tags,
+      title,
+      url,
+    }),
+  );
+
 const urlHolderSchema = z.object({ id: z.string(), seq: z.number() });
 
 // the other live item holding a url key, if one does
@@ -174,7 +206,10 @@ const checkLanding = (scope: LandingScope, landing: Landing): Checked => {
   holdRoomFor(
     storage,
     scope.bytesCap,
-    blocks.growth + annotationGrowth(before?.rows ?? new Map(), landing.annotations),
+    blocks.growth +
+      fieldBytes(after.fields) -
+      (before === null ? 0 : fieldBytes(before.state.fields)) +
+      annotationGrowth(before?.rows ?? new Map(), landing.annotations),
   );
   return { blocks, derived, priorShas, refs };
 };

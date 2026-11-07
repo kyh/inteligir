@@ -669,6 +669,9 @@ describe("the library's procedures", () => {
           }),
         ),
       ).resolves.toMatchObject({ code: "QUOTA", defined: true });
+      await expect(
+        refusalOf(library.items.organize({ addTags: ["reading"], ids: [item.id] })),
+      ).resolves.toMatchObject({ code: "QUOTA", defined: true });
     });
   });
 

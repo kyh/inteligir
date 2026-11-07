@@ -203,6 +203,53 @@ describe("a write to the library cell", () => {
     });
   });
 
+  it("counts the words a field holds toward the cap, new items included", async () => {
+    await inCell(cellOf(), (state) => {
+      const roomy = engineIn(state, clockAt());
+      const itemId = newItemId();
+      landedValue(roomy.create(SYSTEM, { blocks: placed([A]), fields: noteFields(), id: itemId }));
+      const bytesCap = state.storage.sql.databaseSize + 1024;
+      const library = engineIn(state, clockAt(), bytesCap);
+      const long = "y".repeat(8 * 1024);
+      const refusedProperty = library.write(SYSTEM, {
+        itemId,
+        ops: [{ key: "notes", op: "property", value: long }],
+      });
+      expect(refusalOf(refusedProperty)).toMatchObject({ bytesCap, kind: "quota" });
+      const refusedDescription = library.write(SYSTEM, {
+        itemId,
+        ops: [{ base: null, field: "description", op: "set", value: long }],
+      });
+      expect(refusalOf(refusedDescription)).toMatchObject({ kind: "quota" });
+      const refusedNew = library.create(SYSTEM, {
+        blocks: placed([]),
+        fields: noteFields({ properties: { notes: long } }),
+        id: newItemId(),
+      });
+      expect(refusalOf(refusedNew)).toMatchObject({ kind: "quota" });
+    });
+  });
+
+  it("keeps a full library tidy: stamps, places and a shorter field land past the cap", async () => {
+    await inCell(cellOf(), (state) => {
+      const roomy = engineIn(state, clockAt());
+      const itemId = newItemId();
+      const title = "a title long enough to shorten";
+      landedValue(
+        roomy.create(SYSTEM, { blocks: placed([A]), fields: noteFields({ title }), id: itemId }),
+      );
+      const library = engineIn(state, clockAt(), 1);
+      const landing = (ops: readonly LibraryOp[]) =>
+        landedValue(library.write(SYSTEM, { itemId, ops }));
+      landing([{ base: title, field: "title", op: "set", value: "shorter" }]);
+      landing([{ base: null, field: "pinnedAt", op: "set", value: 5 }]);
+      landing([{ base: null, field: "folderId", op: "set", value: "folder" }]);
+      landing([{ base: "none", field: "fetchState", op: "set", value: "failed" }]);
+      landing([{ base: null, field: "fetchError", op: "set", value: "The page would not load." }]);
+      landing([{ base: null, field: "deletedAt", op: "set", value: 7 }]);
+    });
+  });
+
   it("refuses a write naming a file the library does not hold, and lands it once the file is in", async () => {
     await inCell(cellOf(), (state) => {
       const library = engineIn(state, clockAt());

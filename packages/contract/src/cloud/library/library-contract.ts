@@ -310,6 +310,7 @@ const itemsContract = {
     .errors({
       [NotFoundError.code]: NotFoundError,
       [PayloadTooLargeError.code]: PayloadTooLargeError,
+      [QuotaError.code]: QuotaError,
     })
     .input(
       z
