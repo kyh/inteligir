@@ -49,6 +49,13 @@ const DISABLED_PATHS = [
 const buildAuth = (env: Env, ctx: ExecutionContext, baseURL: string, disableSignUp: boolean) =>
   betterAuth({
     advanced: {
+      // past the answer: an unknown address sends no reset mail, so a request that waited on one
+      // would say by its time which addresses hold an account
+      backgroundTasks: {
+        handler: (task) => {
+          ctx.waitUntil(task);
+        },
+      },
       // the default reads x-forwarded-for and, finding more than one hop there, keys every such
       // caller into one bucket per path
       ipAddress: CALLER_ADDRESS,
@@ -80,11 +87,8 @@ const buildAuth = (env: Env, ctx: ExecutionContext, baseURL: string, disableSign
       revokeSessionsOnPasswordReset: true,
       // the forgot-password page requests with redirectTo /app/reset-password, so the URL's GET leg
       // lands on the site's route (apps/web/src/routes/app/reset-password.tsx)
-      // left to the runtime rather than awaited: an unknown address sends nothing, so a request
-      // that waited on the mail would say by its time which addresses hold an account
       sendResetPassword: async ({ user, url }) => {
-        ctx.waitUntil(sendResetEmail(env, user.email, url));
-        await Promise.resolve();
+        await sendResetEmail(env, user.email, url);
       },
     },
     // D1 storage: the default in-memory store is per isolate, so the limit multiplies across isolates and resets on recycle
