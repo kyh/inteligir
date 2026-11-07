@@ -114,6 +114,8 @@ Inteligir is now a library of everything you save: links, articles, videos, imag
 - **An equation keeps the text on its `$$` line.** `$$ E = mc^2` keeps that text as the expression's first line.
 - **An empty bullet keeps the list nested under it.** Both come back from an export, and a bullet that opens straight on another list, like `- - a`, reads the same way.
 - **A table cell keeps its second line and its bars.** A `<br/>` in a cell reads as the cell's next line, so a cell's two lines stay two through an export, an import, an agent's edit and a highlight, and an image in a cell stands on its own line. `<br>` stays a tag: write `<br/>` for a new line in a cell. A code span with a backslash right before a `|` no longer splits its row: the backslash doubles on export, so `a\|b` comes back as `a\\|b`; drop the extra one if you need the exact text. `\|` inside an equation in a table reads as a single bar, as it does in any table: write `\Vert` for a double bar.
+- **A link keeps its address through an export.** A link to an address that ends in punctuation, such as `https://en.wikipedia.org/wiki/Oklahoma!`, or with a word straight after it, comes back whole on import. It's written out with its label, so you may see `[address](address)` where the link used to stand bare.
+- **Text inside an HTML tag keeps its backslashes.** `\*` in a tag stays a star through an export instead of turning the words around it italic. A star or bracket you typed inside a tag now shows a backslash in the export, as it does anywhere else in a note.
 
 ## 0.6.0 — 2026-09-27
 
