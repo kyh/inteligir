@@ -104,7 +104,7 @@ through the Service or otherwise includes:
     library in our cloud, which keeps it with every earlier version, each change
     named for the device or the assistant that made it and the built-in agent's
     for the conversation that made them. Your library is reachable only with a
-    credential from your own account, and holds about 1 GB, history included: a
+    credential from your own account, and holds about 1 GB, history included. A
     full one still opens and downloads everywhere, but takes no new changes:
     the device that made one says so, and the change is not in your library
     until you send it again once there is room. A file over 100 MB is never
@@ -168,8 +168,8 @@ as:
   or anything you wrote: the apps' calls carry those in the request's body, a
   file's address holds a fingerprint of its contents, which identifies that
   exact file, and an export's holds its id. Our cloud's own error lines give
-  that address, or the name of the call that failed, with the opening of the
-  error's message, which can quote what the call was given.
+  that address, or the name of what failed, with the opening of the error's
+  message, which can quote what it was given.
 
 For more information concerning our automatic collection of data, please see the
 [Tracking & Other Technologies](#tracking--other-technologies) section below.
@@ -246,12 +246,12 @@ The apps also hold to these, plainly:
   from the right-click menu, and a page the extension cannot read in your
   browser (the Web Store, a PDF, a page too large to read there or to send, or
   one it found no text in), which goes with its title and the passage you
-  selected. The browser's own pages are never saved: the extension says it
-  can't save them and sends nothing. A picture a page drew itself, which has no
-  address, is uploaded to your library as a file of its own. A save made while
-  you are offline waits in the browser's storage for the extension as the
-  page's address, title and the passage you selected, and is sent, for our cloud
-  to read, once you are back online.
+  selected. A page with no web address, such as the browser's own pages, is
+  never saved: the extension says it can't save it and sends nothing. A picture
+  a page drew itself, which has no address, is uploaded to your library as a
+  file of its own. A save made while you are offline waits in the browser's
+  storage for the extension as the page's address, title and the passage you
+  selected, and is sent, for our cloud to read, once you are back online.
 - **Sharing from your iPhone.** Sharing a page to Inteligir has the phone fetch
   that page once, from the phone, and save what it read, its address, title,
   text and cover, into your library, like any other edit on the phone; text you
@@ -461,12 +461,12 @@ and email delivery). Specifically:
   your own Durable Objects hold your library, your devices' live connections
   and each conversation with the built-in agent; its R2 storage holds your
   files and exports, under your account's own prefix; its Queues hold each
-  link your library asked our cloud to read, as your account's id, the item's
-  and its address, until our cloud has read it or recorded that it could not;
-  its AI Gateway
-  passes each request the built-in agent makes to Anthropic, and is asked to
-  keep only its metadata (the model, how many tokens, its status and how long
-  it took), never what it carries; its email sending delivers your
+  link your library asked our cloud to read, as your account's id, the item's,
+  its address and the address of any cover the save knew of, until our cloud
+  has read it or recorded that it could not; its AI Gateway passes each request
+  the built-in agent makes to Anthropic, and is asked to keep only its metadata
+  (the model, how many tokens, its status and how long it took), never what it
+  carries; its email sending delivers your
   password-reset emails; and it keeps the request log described above.
 - **Anthropic** answers the built-in agent's questions for us, on our account,
   not yours. What you ask it, what you were looking at, and everything it
@@ -625,9 +625,9 @@ name your account, your files and exports under your account's own prefix in
 R2, and each assistant's grant and tokens under your account in KV. A few things
 are not filed that way: the throttling rows, an unused reset link's row, what an
 assistant registered, a link waiting in the Queue for our cloud to read it,
-which has your account's id beside it, and Cloudflare's request log. Your
-password and each device credential are kept only as hashes, and the apps talk
-to our cloud over HTTPS.
+which has your account's id beside it, and Cloudflare's own logs of each request
+and of each call the built-in agent makes. Your password and each device
+credential are kept only as hashes, and the apps talk to our cloud over HTTPS.
 
 These are the edges of that protection, stated plainly:
 

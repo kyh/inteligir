@@ -77,7 +77,7 @@ describe("the guards' docs", () => {
     expect(
       dead,
       `These docs cite a name no source holds.\n` +
-        `  rule: a table or constant named beside a guard is one a reader can open\n` +
+        `  rule: a table, constant or wire code a doc names is one a reader can open\n` +
         `  fix: repoint the citation at the live name, or delete it with what it named\n` +
         `${dead.join("\n")}\n`,
     ).toStrictEqual([]);
