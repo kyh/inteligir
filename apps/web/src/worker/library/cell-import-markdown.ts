@@ -4,8 +4,8 @@
 // filing rules, and putting every file in the library under its sha; then the plan is made once,
 // every note's item and id minted and kept, an address or an id the library holds already standing
 // for its item. Later runs land a page of notes at a time, each read whole against the plan, and
-// last every file no note embedded becomes an item of its own. Every run reads the zip where it
-// lies in R2, a range at a time.
+// last every file no item names becomes an item of its own. Every run reads the zip where it lies
+// in R2, a range at a time.
 
 import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
 import { importMediaType } from "./import-media-types";
@@ -16,7 +16,12 @@ import {
   planFileItems,
   planImport,
 } from "@repo/editor/codec/import-plan";
-import type { ImportEntry, ImportPlan, PlannedDoc } from "@repo/editor/codec/import-plan";
+import type {
+  ImportEntry,
+  ImportPlan,
+  PlannedDoc,
+  ReadFiles,
+} from "@repo/editor/codec/import-plan";
 import { urlKey } from "@repo/notes/items/item-url";
 import { libraryItemFieldsSchema } from "@repo/notes/library/library-item";
 import { readItem } from "@repo/notes/library/library-queries";
@@ -44,9 +49,10 @@ import {
 import type { ImportHost, StepOutcome } from "./cell-import-host";
 import { advanceImport, dropImportRows, importRows, putImportRows } from "./cell-import-jobs";
 import type { ImportJob } from "./cell-import-jobs";
-import { landNew, storeAdds } from "./cell-items";
+import { landNew, setDeleted, storeAdds } from "./cell-items";
 import { ITEM_TEXT_MAX_BYTES, urlHolder } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";
+import type { CellResult } from "./cell-refusal";
 import type { CellStorage } from "./cell-storage";
 import { adoptImportedRules } from "./library-rules";
 
@@ -103,10 +109,10 @@ const plannedDocSchema = z.object({
 
 const docRowSchema = z.object({
   doc: plannedDocSchema,
-  // an item the library holds already stands for the note: its address or its id is the library's
-  held: z.boolean(),
+  standing: z.enum(["held", "deleted", "new"]),
   zip: zipEntrySchema,
 });
+type DocRow = z.infer<typeof docRowSchema>;
 
 const folderRowSchema = z.object({
   id: z.string(),
@@ -123,9 +129,6 @@ const fileRowSchema = z.object({
 
 const storeRowSchema = z.object({ key: z.string(), text: z.string() });
 
-// what a landed note read of the files: the ones it embeds or links, and its own original
-const usedRowSchema = z.object({ attached: z.array(z.string()), original: z.string().nullable() });
-
 const fileItemRowSchema = z.object({
   fields: libraryItemFieldsSchema.omit({ deletedAt: true, folderId: true }),
   folderPath: z.string().nullable(),
@@ -139,7 +142,6 @@ const ROWS = {
   fileItem: "file-item",
   folder: "folder",
   store: "store",
-  used: "used",
 } as const;
 
 const decoder = new TextDecoder();
@@ -266,23 +268,28 @@ const importEntryOf = (entry: Entry): ImportEntry =>
     ? { kind: "file", path: entry.path, sha: entry.sha }
     : { kind: entry.kind, path: entry.path, text: entry.text };
 
-// a note as the plan lands it: one whose id or address a live item holds is that item, and one
-// whose id a purged item kept takes a fresh id, since the library never reuses one
+// a note as the plan lands it: one whose id or address a live item holds is that item (`held`);
+// one whose id an item in Deleted holds is that item, come back as it stands (`deleted`), since
+// its highlights' ids are the library's and no copy could take them; and one whose id a purged item
+// kept takes a fresh id (`new`), since the library never reuses one
 interface SettledDoc {
   readonly doc: PlannedDoc;
-  readonly held: boolean;
+  readonly standing: DocRow["standing"];
 }
 
 const settledDoc = (sql: CellStorage, doc: PlannedDoc, newId: () => string): SettledDoc => {
   const item = runPlan(sql, readItem(doc.itemId));
-  if (item?.kind === "live") {
-    return { doc, held: true };
+  if (item?.kind === "live" && item.fields.deletedAt === null) {
+    return { doc, standing: "held" };
   }
   const holder = doc.urlKey === null ? null : urlHolder(sql, doc.urlKey, null);
   if (holder !== null) {
-    return { doc: { ...doc, itemId: holder.id }, held: true };
+    return { doc: { ...doc, itemId: holder.id }, standing: "held" };
   }
-  return { doc: item === null ? doc : { ...doc, itemId: newId() }, held: false };
+  if (item?.kind === "live") {
+    return { doc, standing: "deleted" };
+  }
+  return { doc: item === null ? doc : { ...doc, itemId: newId() }, standing: "new" };
 };
 
 const writePlan = (scope: LandingScope, host: ImportHost, job: ImportJob): void => {
@@ -393,11 +400,11 @@ const readPaths = async (
     : DONE;
 };
 
-// ---- the plan's runs: the notes, then the files no note embedded ----
+// ---- the plan's runs: the notes, then the files no item names ----
 
 interface LoadedPlan {
   readonly plan: ImportPlan;
-  readonly docs: readonly z.infer<typeof docRowSchema>[];
+  readonly docs: readonly DocRow[];
   readonly folderPaths: ReadonlyMap<string, string>;
 }
 
@@ -418,6 +425,26 @@ const loadPlan = (sql: SqlStatements, jobId: string): LoadedPlan => {
 };
 
 const LANDED = z.object({ held: z.boolean(), highlights: z.number() });
+
+const CAME_BACK = z.object({ back: z.boolean() });
+
+// a note whose item sits in Deleted: the item back, as Restore brings it back, unless a live item
+// took its address since the plan was made
+const restoreDoc = (
+  scope: LandingScope,
+  job: ImportJob,
+  itemId: string,
+  idx: number,
+): z.input<typeof CAME_BACK> => {
+  const back =
+    setDeleted(scope, importActor(job), { deleted: false, ids: [itemId] }).changed.length > 0;
+  advanceImport(scope.storage, job.id, {
+    changeSetId: back ? scope.set().id : undefined,
+    counts: back ? { added: 1 } : { alreadySaved: 1 },
+    cursor: idx + 1,
+  });
+  return { back };
+};
 
 const landDoc = (
   scope: LandingScope,
@@ -466,8 +493,24 @@ const docOutcome = async (
     })
       ? null
       : DONE;
-  if (row.held) {
+  const settle = (landed: CellResult<unknown>): StepOutcome | null => {
+    if (landed.ok) {
+      return null;
+    }
+    if (landed.refusal.kind === "gone") {
+      return DONE;
+    }
+    return landed.refusal.kind === "quota" ? failed(LIBRARY_FULL) : skip({ unreadable: 1 });
+  };
+  if (row.standing === "held") {
     return skip({ alreadySaved: 1 });
+  }
+  if (row.standing === "deleted") {
+    return settle(
+      library.land(importActor(job), { answer: CAME_BACK, opId: undefined }, (scope) =>
+        restoreDoc(scope, job, row.doc.itemId, idx),
+      ),
+    );
   }
   if (row.zip.size > NOTE_MAX_BYTES) {
     return skip({ unreadable: 1 });
@@ -491,40 +534,45 @@ const docOutcome = async (
   }
   const folderPath =
     row.doc.folderId === null ? null : (context.loaded.folderPaths.get(row.doc.folderId) ?? null);
-  const landed = library.land(importActor(job), { answer: LANDED, opId: undefined }, (scope) => {
-    const result = landDoc(scope, host, job, read.read, folderPath);
-    putImportRows(scope.storage, job.id, ROWS.used, [
-      {
-        idx,
-        value: { attached: [...read.read.files], original: read.read.item.fields.originalSha },
-      },
-    ]);
-    advanceImport(scope.storage, job.id, {
-      changeSetId: result.held ? undefined : scope.set().id,
-      counts: result.held ? { alreadySaved: 1 } : { added: 1, highlights: result.highlights },
-      cursor: idx + 1,
-    });
-    return result;
-  });
-  if (landed.ok) {
-    return null;
-  }
-  if (landed.refusal.kind === "gone") {
-    return DONE;
-  }
-  return landed.refusal.kind === "quota" ? failed(LIBRARY_FULL) : skip({ unreadable: 1 });
+  return settle(
+    library.land(importActor(job), { answer: LANDED, opId: undefined }, (scope) => {
+      const result = landDoc(scope, host, job, read.read, folderPath);
+      advanceImport(scope.storage, job.id, {
+        changeSetId: result.held ? undefined : scope.set().id,
+        counts: result.held ? { alreadySaved: 1 } : { added: 1, highlights: result.highlights },
+        cursor: idx + 1,
+      });
+      return result;
+    }),
+  );
 };
 
-// the files no note embedded, planned once every note has landed, each an item of its own
+const namedFileSchema = z.object({ role: z.string(), sha256: z.string() });
+
+// what live items name of the plan's files once its notes have landed: the notes it read, those
+// the library held already and those back from Deleted alike, none of which it need read for this
+const namedFiles = (sql: SqlStatements, jobId: string): ReadFiles => {
+  const named = sql
+    .all(
+      `SELECT DISTINCT item_blobs.sha256, item_blobs.role
+         FROM item_blobs JOIN items ON items.id = item_blobs.item_id
+        WHERE items.deleted_at IS NULL AND items.purged = 0 AND item_blobs.sha256 IN
+          (SELECT json_extract(json, '$.sha') FROM import_rows WHERE job_id = ? AND kind = ?)`,
+      [jobId, ROWS.file],
+    )
+    .map((row) => namedFileSchema.parse(row));
+  return {
+    attached: new Set(named.map((row) => row.sha256)),
+    originals: new Set(named.flatMap((row) => (row.role === "original" ? [row.sha256] : []))),
+  };
+};
+
+// the files no item names, planned once every note has landed, each an item of its own
 const planFiles = (scope: LandingScope, host: ImportHost, job: ImportJob, loaded: LoadedPlan) => {
   const sql = scope.storage;
-  const used = importRows(sql, job.id, ROWS.used, ALL, usedRowSchema).map((row) => row.value);
   const items = planFileItems(
     loaded.plan,
-    {
-      attached: new Set(used.flatMap((row) => row.attached)),
-      originals: new Set(used.flatMap((row) => (row.original === null ? [] : [row.original]))),
-    },
+    namedFiles(sql, job.id),
     { newFolderId: host.library.ids.item, newItemId: host.library.ids.item },
     host.now(),
   );
@@ -545,7 +593,6 @@ const planFiles = (scope: LandingScope, host: ImportHost, job: ImportJob, loaded
       },
     })),
   );
-  dropImportRows(sql, job.id, ROWS.used);
   advanceImport(sql, job.id, {
     cursor: 0,
     phase: "files",
@@ -571,8 +618,11 @@ const landDocs = async (
   let landedBytes = 0;
   for (let idx = job.cursor; idx < end; idx += 1) {
     const row = loaded.value.docs[idx];
-    // what landing the note will read, none for one held already or left out for its size
-    const size = row === undefined || row.held || row.zip.size > NOTE_MAX_BYTES ? 0 : row.zip.size;
+    // what landing the note will read, none for one the library holds or left out for its size
+    const size =
+      row === undefined || row.standing !== "new" || row.zip.size > NOTE_MAX_BYTES
+        ? 0
+        : row.zip.size;
     if (landedBytes > 0 && landedBytes + size > LAND_PAGE_BYTES) {
       return MORE;
     }

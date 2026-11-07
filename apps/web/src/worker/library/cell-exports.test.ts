@@ -207,6 +207,13 @@ const summaryOf = async (accountId: string) =>
     };
   });
 
+// a zip read into the account, to the job's end
+const imported = async (accountId: string, zip: Uint8Array) => {
+  const started = await startImport(accountId, { bytes: zip, mime: "application/zip" }, "markdown");
+  await runImportToEnd(accountId, started.jobId);
+  return await importJobOf(accountId, started.jobId);
+};
+
 describe("an export", () => {
   // each test below builds a whole library and zips it: under a second alone, but past 5 s when
   // the full verify runs four suites at once, so each states its own timeout
@@ -246,6 +253,81 @@ describe("an export", () => {
       expect(link?.files.map(([role]) => role)).toStrictEqual(["cover"]);
       expect(before.highlights).toHaveLength(2);
       await expect(summaryOf(into)).resolves.toStrictEqual(before);
+    },
+  );
+
+  it(
+    "reads back into the library it came from as nothing new, its files no new items",
+    { timeout: 30_000 },
+    async () => {
+      const accountId = newAccountId();
+      await withLibrary(accountId);
+      const before = await summaryOf(accountId);
+      const { export: written } = await exported(accountId);
+      const job = await imported(accountId, await zipIn(accountId, written.id));
+      expect(job).toMatchObject({
+        added: 0,
+        alreadySaved: before.items.length,
+        state: "done",
+        unreadable: 0,
+      });
+      await expect(summaryOf(accountId)).resolves.toStrictEqual(before);
+    },
+  );
+
+  it(
+    "brings back what sits in Deleted, as Restore would, and Undo sends it there again",
+    { timeout: 30_000 },
+    async () => {
+      const accountId = newAccountId();
+      await withLibrary(accountId);
+      const before = await summaryOf(accountId);
+      const { export: written } = await exported(accountId);
+      await inCell(cellOf(accountId), async (state) => {
+        const client = libraryIn(state, accountId);
+        const { items } = await client.items.list({});
+        await client.items.delete({ ids: items.map((item) => item.id) });
+      });
+      const job = await imported(accountId, await zipIn(accountId, written.id));
+      expect(job).toMatchObject({
+        added: before.items.length,
+        alreadySaved: 0,
+        state: "done",
+        unreadable: 0,
+      });
+      await expect(summaryOf(accountId)).resolves.toStrictEqual(before);
+      await inCell(cellOf(accountId), async (state) => {
+        const client = libraryIn(state, accountId);
+        await client.history.undo({ changeSetIds: [job.changeSetId ?? ""] });
+        await expect(client.items.list({})).resolves.toMatchObject({ items: [] });
+      });
+    },
+  );
+
+  it(
+    "leaves in Deleted an item whose address a live item holds now",
+    { timeout: 30_000 },
+    async () => {
+      const accountId = newAccountId();
+      await withLibrary(accountId);
+      const { export: written } = await exported(accountId);
+      const holder = await inCell(cellOf(accountId), async (state) => {
+        const client = libraryIn(state, accountId);
+        const { items } = await client.items.list({});
+        await client.items.delete({
+          ids: items.filter((item) => item.url === LINK).map((item) => item.id),
+        });
+        const saved = await client.items.saveLink({ url: LINK });
+        return saved.item.id;
+      });
+      const job = await imported(accountId, await zipIn(accountId, written.id));
+      expect(job).toMatchObject({ added: 0, state: "done", unreadable: 0 });
+      await inCell(cellOf(accountId), async (state) => {
+        const { items } = await libraryIn(state, accountId).items.list({});
+        expect(items.filter((item) => item.url === LINK).map((item) => item.id)).toStrictEqual([
+          holder,
+        ]);
+      });
     },
   );
 

@@ -3,7 +3,7 @@
 // and every doc's frontmatter: each folder, each doc's item and id, every file's bytes, and every
 // highlights' store. Pass two reads one doc at a time against the whole plan, resolving its links
 // by the resolver's tiers (path, name, alias, then the `[[Title|uuid]]` id,
-// `@repo/notes/knowledge/link-resolve`). Last, every file no doc embedded becomes an item of its
+// `@repo/notes/knowledge/link-resolve`). Last, every file no item names becomes an item of its
 // own, so a bare file is a card of its own. Obsidian's settings (`.obsidian/`) and
 // every other dot-folder are skipped, the folder's filing rules (`AGENTS.md` at its root) are kept
 // apart from every item, and a `.canvas` or a `.base` is always an item, never an attachment.
@@ -233,8 +233,6 @@ export interface ReadPassPorts {
 interface ImportedDoc {
   readonly doc: PlannedDoc;
   readonly item: ImportedItem;
-  // the files the doc embeds or links, which pass three keeps as attachments
-  readonly files: ReadonlySet<string>;
 }
 
 export type DocImport =
@@ -249,14 +247,12 @@ export const importPlannedDoc = (
   ports: ReadPassPorts,
 ): DocImport => {
   const { docs, files } = reader;
-  const used = new Set<string>();
   const fromDir = dirnamePath(doc.path);
   const fileAt = (path: string): FoundFile | null => {
     const file = files.get(path);
     if (file === undefined) {
       return null;
     }
-    used.add(file.sha);
     return {
       kind: file.kind,
       name: basenamePath(path),
@@ -297,7 +293,7 @@ export const importPlannedDoc = (
     },
   );
   return read.ok
-    ? { ok: true, read: { doc, files: used, item: read.item } }
+    ? { ok: true, read: { doc, item: read.item } }
     : { ok: false, path: doc.path, reason: read.reason };
 };
 
@@ -314,8 +310,8 @@ export interface FileItems {
   readonly folders: readonly PlannedFolder[];
 }
 
-// what pass two read of the files: those a doc embedded or linked, and those a doc held as its own
-// original (a wrapper of a file item, as an export writes one)
+// what the library's items name of the files once pass two has run: every file, and those an item
+// holds as its own original (a wrapper of a file item, as an export writes one)
 export interface ReadFiles {
   readonly attached: ReadonlySet<string>;
   readonly originals: ReadonlySet<string>;
@@ -352,8 +348,8 @@ const fileItemFields = (file: PlannedFile, now: number): ImportedFields => {
   };
 };
 
-// pass three: every file no doc embedded or linked, and every `.canvas` and `.base` no doc held as
-// its original, an item of its own in its folder; a cover or a page copy no item holds is no card,
+// pass three: every file no item names, and every `.canvas` and `.base` no item holds as its
+// original, an item of its own in its folder; a cover or a page copy no item holds is no card,
 // since it is part of an item
 export const planFileItems = (
   plan: ImportPlan,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { blockHash } from "@repo/notes/library/block-hash";
 import type { StoredBlock } from "@repo/notes/library/block-ops";
+import { collectFileShas } from "@repo/notes/library/library-nodes";
 import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
 
 import { CODEC_NOW, withoutId } from "../test-support/codec-ports";
@@ -192,11 +193,17 @@ const readFolder = (
     if (!read.ok) {
       throw new Error(`${read.path}: ${read.reason}`);
     }
-    for (const sha of read.read.files) {
-      attached.add(sha);
+    const { coverSha, copySha, originalSha } = read.read.item.fields;
+    for (const sha of [coverSha, copySha, originalSha]) {
+      if (sha !== null) {
+        attached.add(sha);
+      }
     }
-    if (read.read.item.fields.originalSha !== null) {
-      originals.add(read.read.item.fields.originalSha);
+    for (const { block } of read.read.item.blocks) {
+      collectFileShas(block, attached);
+    }
+    if (originalSha !== null) {
+      originals.add(originalSha);
     }
     items.push({
       annotations: read.read.item.annotations,
