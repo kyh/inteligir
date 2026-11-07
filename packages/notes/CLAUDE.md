@@ -44,8 +44,9 @@ node is rather than discriminating structurally at each visit.
   VALUE.** `@repo/notes/library/block-ops`: insert, put, drop, move and the
   field patches each name their base; a batch lands whole or answers every
   conflict, an op already true is satisfied, a list field merges as a set, so
-  two devices tagging at once both land, and a batch whose landed fields break
-  a cap (a merge past the list's length) lands none and answers `invalid`.
+  two devices tagging at once both land, a tag respelled takes its new spelling
+  where it stands, and a batch whose landed fields break a cap (a merge past
+  the list's length) lands none and answers `invalid`.
   The hash is SHA-256 over canonical JSON (`@noble/hashes`, synchronous for
   the cell's transaction) cut to 128 bits. Rejected: one version per item
   (two blocks would conflict) and the platform's crypto (async in a Durable

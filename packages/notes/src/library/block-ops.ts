@@ -158,7 +158,8 @@ const listKey = (op: "aliases" | "tags") => (entry: string) =>
   op === "tags" ? entry.toLowerCase() : entry;
 
 // three-way over a list kept as a set: `current`, less what `base` had and `value` dropped, plus
-// what `value` added, in the order it added them
+// what `value` added, in the order it added them. An entry `value` spells anew under a key `base`
+// held takes that spelling where it stands; one `value` left as `base` spelled it stays as it is
 export const mergeListField = (
   op: "aliases" | "tags",
   current: readonly string[],
@@ -166,10 +167,16 @@ export const mergeListField = (
   value: readonly string[],
 ): string[] => {
   const keyOf = listKey(op);
-  const kept = new Set(value.map(keyOf));
+  const kept = new Map(value.map((entry) => [keyOf(entry), entry]));
   const had = new Set(base.map(keyOf));
   const removed = new Set([...had].filter((key) => !kept.has(key)));
-  const merged = current.filter((entry) => !removed.has(keyOf(entry)));
+  const written = new Set(value);
+  const respelled = new Set(base.filter((entry) => !written.has(entry)).map(keyOf));
+  const spelled = (entry: string): string => {
+    const key = keyOf(entry);
+    return respelled.has(key) ? (kept.get(key) ?? entry) : entry;
+  };
+  const merged = [...new Set(current.filter((entry) => !removed.has(keyOf(entry))).map(spelled))];
   const present = new Set(merged.map(keyOf));
   for (const entry of value) {
     const key = keyOf(entry);

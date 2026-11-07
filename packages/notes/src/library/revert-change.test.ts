@@ -152,6 +152,12 @@ describe(revertItemChange, () => {
     });
   });
 
+  it("takes a tag's new spelling back", () => {
+    const x = itemOf([], noteFields({ tags: ["Foo"] }));
+    const y = landed(x, [{ base: ["Foo"], op: "tags", value: ["foo"] }]);
+    expect(stateOf(revert(changeOf(x, y), y, versionsOf(x, y))).fields.tags).toStrictEqual(["Foo"]);
+  });
+
   it("moves an item it made to Deleted unless a person touched it since", () => {
     const made = itemOf(
       [paragraph("a", "stub")],

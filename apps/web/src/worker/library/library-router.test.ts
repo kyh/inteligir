@@ -359,6 +359,22 @@ describe("the library's procedures", () => {
     });
   });
 
+  it("respells a tag taken out and put back in one change", async () => {
+    await inCell(cellOf(), async (state) => {
+      const library = clientIn(state, clockAt());
+      const { item } = await library.items.createNote({ markdown: "One." });
+      await library.items.organize({ addTags: ["Foo", "bar"], ids: [item.id] });
+      const respelled = await library.items.organize({
+        addTags: ["foo"],
+        ids: [item.id],
+        removeTags: ["Foo"],
+      });
+      expect(respelled.items[0]?.tags).toStrictEqual(["foo", "bar"]);
+      const { tags } = await library.organize.outline();
+      expect(tags.map(({ tag }) => tag).toSorted()).toStrictEqual(["bar", "foo"]);
+    });
+  });
+
   it("files items into a folder by its path, making what is missing, and by its id", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());
