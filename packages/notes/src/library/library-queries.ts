@@ -162,7 +162,6 @@ const ITEM_TABLES_BY_ID = [
   "DELETE FROM links WHERE source_id = ?",
   "DELETE FROM item_tags WHERE item_id = ?",
   "DELETE FROM annotations WHERE item_id = ?",
-  "DELETE FROM item_blobs WHERE item_id = ?",
 ] as const;
 
 const DELETE_SEARCH_ROW =
@@ -186,8 +185,9 @@ export interface TombstoneWrite {
   readonly seq: number;
 }
 
-// a purged item: its id, sequence and deletion stay forever, and everything it held goes; whether
-// it landed, since a row newer than the tombstone keeps everything it holds
+// a purged item: its id, sequence and deletion stay forever, and everything it held goes but the
+// files it named, which the cell counts for itself; whether it landed, since a row newer than the
+// tombstone keeps everything it holds
 export const storeTombstone = function* storeTombstone(write: TombstoneWrite): SqlPlan<boolean> {
   const landed = yield all(UPSERT_TOMBSTONE, [
     write.id,

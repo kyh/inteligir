@@ -107,7 +107,6 @@ const ITEM_TABLES = [
   "DELETE FROM links WHERE source_id = ?",
   "DELETE FROM item_tags WHERE item_id = ?",
   "DELETE FROM annotations WHERE item_id = ?",
-  "DELETE FROM item_blobs WHERE item_id = ?",
   "DELETE FROM body_wants WHERE item_id = ?",
 ] as const;
 
@@ -366,11 +365,9 @@ const SYNCED_TABLES = [
   "links",
   "annotations",
   "blobs",
-  "item_blobs",
   "search_fts",
   "threads",
   "thread_events",
-  "changes",
   "body_wants",
 ] as const;
 

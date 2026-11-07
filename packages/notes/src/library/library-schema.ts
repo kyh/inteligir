@@ -186,12 +186,6 @@ const SYNCED_DDL = [
     h INTEGER,
     refs INTEGER NOT NULL
   ) STRICT, WITHOUT ROWID`,
-  `CREATE TABLE IF NOT EXISTS item_blobs (
-    item_id TEXT NOT NULL,
-    sha256 TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN (${oneOf(BLOB_ROLES)})),
-    PRIMARY KEY (item_id, sha256, role)
-  ) STRICT, WITHOUT ROWID`,
   SEARCH_DDL,
   `CREATE TABLE IF NOT EXISTS threads (
     id TEXT PRIMARY KEY,
@@ -211,18 +205,11 @@ const SYNCED_DDL = [
     seq INTEGER NOT NULL
   ) STRICT`,
   `CREATE INDEX IF NOT EXISTS thread_events_thread ON thread_events (thread_id, idx)`,
-  `CREATE TABLE IF NOT EXISTS changes (
-    kind TEXT NOT NULL CHECK (kind IN (${oneOf(LIBRARY_CHANGE_KINDS)})),
-    id TEXT NOT NULL,
-    seq INTEGER NOT NULL,
-    gone INTEGER NOT NULL DEFAULT 0 CHECK (gone IN (0, 1)),
-    PRIMARY KEY (kind, id)
-  ) STRICT, WITHOUT ROWID`,
-  `CREATE INDEX IF NOT EXISTS changes_seq ON changes (seq)`,
 ] as const;
 
-// the cell's alone: History, the op ledger, the uploads it holds room for, the built-in agent,
-// imports and exports, and the jobs its alarm runs. A change set's item names its before and after
+// the cell's alone: the change log a replica pulls from, which items name each file, History, the
+// op ledger, the uploads it holds room for, the built-in agent, imports and exports, and the jobs
+// its alarm runs. A change set's item names its before and after
 // by part: an item's fields, its manifest (each block's id, hash, order key and section) and its
 // highlights are each kept once per item under their content hash (`snapshot_parts`), so a
 // revision that changed one block stores one new manifest and nothing else, and no row nears a
@@ -231,6 +218,20 @@ const SYNCED_DDL = [
 // write replaces or drops keeps its content in `block_versions`, which the prune job sweeps of what
 // no part names.
 const CELL_DDL = [
+  `CREATE TABLE IF NOT EXISTS changes (
+    kind TEXT NOT NULL CHECK (kind IN (${oneOf(LIBRARY_CHANGE_KINDS)})),
+    id TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    gone INTEGER NOT NULL DEFAULT 0 CHECK (gone IN (0, 1)),
+    PRIMARY KEY (kind, id)
+  ) STRICT, WITHOUT ROWID`,
+  `CREATE INDEX IF NOT EXISTS changes_seq ON changes (seq)`,
+  `CREATE TABLE IF NOT EXISTS item_blobs (
+    item_id TEXT NOT NULL,
+    sha256 TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN (${oneOf(BLOB_ROLES)})),
+    PRIMARY KEY (item_id, sha256, role)
+  ) STRICT, WITHOUT ROWID`,
   `CREATE TABLE IF NOT EXISTS change_sets (
     id TEXT PRIMARY KEY,
     actor TEXT NOT NULL
