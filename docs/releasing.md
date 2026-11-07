@@ -574,7 +574,11 @@ account whose library holds about 2,000 items gives the timing check its load.
   page's note keeps the two other lines on their own lines. Share
   `これ見て https://en.wikipedia.org/wiki/Oklahoma。次の文`. Passing: the item
   reads the state and its note is `これ見て 次の文`, which also proves the link's
-  pattern on the phone's own engine, since vitest runs V8.
+  pattern on the phone's own engine, since vitest runs V8. From Notes, share
+  `the post (https://en.wikipedia.org/wiki/Oklahoma) says it well`, then
+  `[the state](https://en.wikipedia.org/wiki/Oklahoma)`. Passing: online, each
+  opens read at once with no "Waiting to be read", its notes "the post says it
+  well" and "the state".
 - **New note with no words.** New note, then go back without typing. Passing:
   the Library row, its long-press sheet and the item's screen title read
   Untitled. Type a line and go back. Passing: they read that line. Phone
