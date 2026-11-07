@@ -56,6 +56,9 @@ export const escapedAt = (node: Text, index: number): boolean => {
   return escapes[low] === index;
 };
 
+const textHolding = (value: string, escapes: number[]): Text =>
+  escapes.length === 0 ? { type: "text", value } : { data: { escapes }, type: "text", value };
+
 // cuts of one text node taken left to right, each carrying the escapes inside it; one pass over
 // the escapes however many cuts, since a paragraph is cut at every line
 export const textCutter = (node: Text): ((start: number, end: number) => Text) => {
@@ -73,11 +76,16 @@ export const textCutter = (node: Text): ((start: number, end: number) => Text) =
         inside.push(at - start);
       }
     }
-    return inside.length === 0
-      ? { type: "text", value }
-      : { data: { escapes: inside }, type: "text", value };
+    return textHolding(value, inside);
   };
 };
+
+// two neighbouring texts as one, each escape still on the character it wrote
+export const joinedText = (left: Text, right: Text): Text =>
+  textHolding(left.value + right.value, [
+    ...(left.data?.escapes ?? []),
+    ...(right.data?.escapes ?? []).map((at) => at + left.value.length),
+  ]);
 
 // GFM takes the space after a todo's checkbox off the item's first text only as its paragraph
 // closes, so the escapes noted while that text was read each stand one too far along

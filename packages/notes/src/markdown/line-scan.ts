@@ -11,6 +11,16 @@ export const isEscapedAt = (line: string, index: number): boolean => {
   return backslashes % 2 === 1;
 };
 
+// a pipe with no backslash before it would end a table cell; one with its escape already stays
+export const escapeBarePipes = (raw: string): string => {
+  let escaped = "";
+  for (let i = 0; i < raw.length; i += 1) {
+    const ch = raw[i];
+    escaped += ch === "|" && !isEscapedAt(raw, i) ? "\\|" : ch;
+  }
+  return escaped;
+};
+
 // a backtick run pairs with the next run of the same length (CommonMark).
 export const codeSpanRanges = (line: string): Range[] => {
   const runs: Range[] = [];

@@ -17,6 +17,73 @@ import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { parseMdast } from "@repo/notes/markdown/parse";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
+const LIST_PROPS = new Set([
+  "checked",
+  "indent",
+  "listRestartPolite",
+  "listStart",
+  "listStyleType",
+]);
+
+// each block's type and the list props it holds, as a paste lands them
+const listPropsOf = (md: string): string[][] => {
+  const parsed = parseMarkdown(md);
+  assert(parsed.ok);
+  return parsed.value.map((block) => [
+    block.type,
+    ...Object.keys(block)
+      .filter((key) => LIST_PROPS.has(key))
+      .toSorted(),
+  ]);
+};
+
+describe("a block a list item opens with", () => {
+  it.each([
+    ["an embed", "- ![](https://a.b/c.png)\n", "media_embed"],
+    ["an image", "- ![alt](https://a.b/c.png)\n", "img"],
+    ["a fence", "- ```\n  code\n  ```\n", "code_block"],
+    ["a quote", "- > words\n", "blockquote"],
+  ])("lands %s as a paste and an import both hold it, out of the list", (_name, md, type) => {
+    expect(listPropsOf(md)).toStrictEqual([[type]]);
+  });
+
+  it("lands a web image a read page lists as the embed it is", () => {
+    const ids = ["b1", "b2"].values();
+    const page = articleBlocks(
+      "-   ![](https://a.b/c.png)\n-   words\n",
+      () => ids.next().value ?? "",
+    );
+    expect(page?.blocks.map(({ block }) => block)).toMatchObject([
+      { type: "media_embed", url: "https://a.b/c.png" },
+      { listStyleType: "disc", type: "p" },
+    ]);
+  });
+
+  it("gives a to-do's box its own line above what the item held", () => {
+    expect(listPropsOf("- [x] ![](https://a.b/c.png)\n")).toStrictEqual([
+      ["p", "checked", "indent", "listStyleType"],
+      ["media_embed"],
+    ]);
+  });
+
+  it("restarts a list's numbers on its first line, past a block it opened with", () => {
+    expect(listPropsOf("3. ![](https://a.b/c.png) words\n4. more\n")).toStrictEqual([
+      ["media_embed"],
+      ["p", "indent", "listRestartPolite", "listStart", "listStyleType"],
+      ["p", "indent", "listStart", "listStyleType"],
+    ]);
+  });
+});
+
+describe("a pipe in a table cell", () => {
+  it.each([
+    ["a pill's decoded source", String.raw`{{a\\|b}}`],
+    ["a tag's own bytes", String.raw`<a title="x\|y">z</a>`],
+  ])("keeps %s in its cell with its backslash", (_name, cell) => {
+    expect(roundTrip(`| a |\n| - |\n| ${cell} |\n`)).toContain(`| ${cell} |`);
+  });
+});
+
 describe("owned parse", () => {
   it("keeps a tag that cannot pair as its own bytes, where MDX would refuse the file", () => {
     const unpaired = [

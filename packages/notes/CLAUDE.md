@@ -178,8 +178,14 @@ root.
   closer as the tree compiles (`@repo/notes/markdown/remark-inline-html`), as
   the editor pairs it, or stays an `html` literal. An escape stays on the text
   it wrote even where GFM splits that text for a bare url
-  (`@repo/notes/markdown/text-escapes`). Rejected: a second, plain-markdown
-  grammar for an import (it needed a bridge to say where the two disagreed).
+  (`@repo/notes/markdown/text-escapes`). A reference reads as the link or image
+  it names and a definition one used goes, so every reader after the parse
+  meets a link; a definition nothing used stays its line, and a footnote's call
+  and definition stay theirs, as source, so one takes no paragraph with it
+  (`@repo/notes/markdown/remark-references`,
+  `@repo/notes/markdown/remark-opaque`). Rejected: a second, plain-markdown
+  grammar for an import (it needed a bridge to say where the two disagreed) and
+  a node for a reference in the library (a second spelling of every link).
   `packages/notes/src/markdown/total-grammar.test.ts`.
 
 - **AN MD URL HAS ONE READING, AND ONLY AN IMPORT RESOLVES ONE BY PATH.** An

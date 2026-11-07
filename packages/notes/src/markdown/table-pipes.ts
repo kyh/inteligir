@@ -5,7 +5,7 @@
 import type { Nodes } from "mdast";
 
 import { parseBare } from "./bare-parse";
-import { codeSpanRanges, inAnyRange, isEscapedAt } from "./line-scan";
+import { codeSpanRanges, escapeBarePipes, inAnyRange, isEscapedAt } from "./line-scan";
 import type { Range } from "./line-scan";
 
 const FORMULA_SPAN_RE = /\{\{[^{}\n]*\}\}/gu;
@@ -37,15 +37,6 @@ const pillsToEscape = (line: string): Range[] => {
     return [];
   }
   return pillRanges.filter((pill) => hasBarePipe(line.slice(pill.start, pill.end), []));
-};
-
-const escapePill = (raw: string): string => {
-  let escaped = "";
-  for (let i = 0; i < raw.length; i += 1) {
-    const ch = raw[i];
-    escaped += ch === "|" && !isEscapedAt(raw, i) ? "\\|" : ch;
-  }
-  return escaped;
 };
 
 const overlaps = (a: Range, b: Range): boolean => a.start < b.end && b.start < a.end;
@@ -111,7 +102,7 @@ export const escapePillPipesInTables = (md: string): string => {
   let out = "";
   let cursor = 0;
   for (const pill of edits) {
-    out += md.slice(cursor, pill.start) + escapePill(md.slice(pill.start, pill.end));
+    out += md.slice(cursor, pill.start) + escapeBarePipes(md.slice(pill.start, pill.end));
     cursor = pill.end;
   }
   return out + md.slice(cursor);

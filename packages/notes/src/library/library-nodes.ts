@@ -260,6 +260,8 @@ const link = z.strictObject({
   get children(): z.ZodArray<typeof libraryNodeSchema> {
     return z.array(libraryNodeSchema);
   },
+  // markdown's link title, as an image keeps its own
+  title: z.string().optional(),
   type: z.literal("a"),
   url: z.string().min(1),
 });

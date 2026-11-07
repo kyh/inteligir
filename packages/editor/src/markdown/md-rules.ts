@@ -19,6 +19,8 @@ import type {
   MdRules,
   MdCode,
   MdInlineMath,
+  MdLink,
+  MdList,
   MdParagraph,
   MdTableRow,
   MdText,
@@ -104,9 +106,16 @@ const defaultTableSerialize = defaultTable?.serialize;
 if (!defaultTableDeserialize || !defaultTableSerialize) {
   throw new Error("@platejs/markdown defaultRules.table is missing — pipeline cannot start");
 }
-const defaultLinkSerialize = defaultRules.a?.serialize;
-if (!defaultLinkSerialize) {
+const defaultLink = defaultRules.a;
+const defaultLinkDeserialize = defaultLink?.deserialize;
+const defaultLinkSerialize = defaultLink?.serialize;
+if (!defaultLinkDeserialize || !defaultLinkSerialize) {
   throw new Error("@platejs/markdown defaultRules.a is missing — pipeline cannot start");
+}
+const defaultEquation = defaultRules.equation;
+const defaultEquationDeserialize = defaultEquation?.deserialize;
+if (!defaultEquationDeserialize) {
+  throw new Error("@platejs/markdown defaultRules.equation is missing — pipeline cannot start");
 }
 const defaultParagraph = defaultRules.p;
 const defaultParagraphDeserialize = defaultParagraph?.deserialize;
@@ -219,6 +228,21 @@ const isEmptyInlineEquation = (node: Descendant): boolean =>
   node.type === "inline_equation" &&
   (stringProp(node, "texExpression") ?? "") === "";
 
+// what follows a `$$` on its line is the fence's meta to remark-math, and Plate's default drops it,
+// though a person who opens with `$$ E = mc^2` wrote the expression's first line there
+const equationRule: NonNullable<MdRules["equation"]> = {
+  ...defaultEquation,
+  deserialize: (node, deco, options) =>
+    defaultEquationDeserialize(
+      {
+        ...node,
+        value: [node.meta ?? "", node.value].filter((lines) => lines !== "").join("\n"),
+      },
+      deco,
+      options,
+    ),
+};
+
 const inlineEquationRule: WideMdRule = {
   serialize: (node: TElement): MdInlineMath | undefined =>
     isEmptyInlineEquation(node)
@@ -276,6 +300,79 @@ const paragraphRule: WideMdRule = {
   serialize: defaultParagraphSerialize,
 };
 
+// the blocks that are an item's own line: words, whichever block spelled them
+const ITEM_LINES: ReadonlySet<string> = new Set([KEYS.p, ...KEYS.heading]);
+
+const isItemLine = (block: TElement): boolean => ITEM_LINES.has(block.type);
+
+const elementsIn = (nodes: readonly Descendant[]): TElement[] =>
+  nodes.flatMap((node) => (ElementApi.isElement(node) ? [node] : []));
+
+const emptyLine = (): TElement => ({ children: [{ text: "" }], type: KEYS.p });
+
+// Plate's rule makes whatever an item opens with a `p`, an image aside, which keeps a text's words
+// and leaves an embed's address, a fence's lines and a chart's source on a paragraph that holds
+// none of them. Only words are an item here: any other block stands where the item stood, outside
+// the list, with a to-do's box on a line of its own above it. A list an item opens with is that
+// item's empty line and what nests under it, as the writer spells them.
+const listBlocks = (
+  list: MdList,
+  indent: number,
+  deco: MdDecoration,
+  options: DeserializeMdOptions,
+): TElement[] => {
+  const ordered = list.ordered === true;
+  const first = list.start ?? 1;
+  // a to-do turns the items after it into to-dos too: the flat list draws one style per run
+  let listStyleType: string = ordered ? KEYS.ol : KEYS.ul;
+  return list.children.flatMap((item, index): TElement[] => {
+    const { checked } = item;
+    const todo = checked !== null && checked !== undefined;
+    if (todo) {
+      listStyleType = KEYS.listTodo;
+    }
+    const [opener, ...after] = item.children;
+    const [head, rest] = opener?.type === "list" ? [undefined, item.children] : [opener, after];
+    const opened =
+      head === undefined
+        ? [emptyLine()]
+        : elementsIn(convertChildrenDeserialize([head], deco, options));
+    const blocks = todo && !opened.some(isItemLine) ? [emptyLine(), ...opened] : opened;
+    const firstLine = blocks.find(isItemLine);
+    const number = first + index;
+    const placed = blocks.map((block): TElement => {
+      if (!isItemLine(block)) {
+        return block;
+      }
+      const element: TElement = { ...block, indent, listStyleType, type: KEYS.p };
+      if (todo) {
+        element.checked = checked;
+      }
+      if (ordered) {
+        element.listStart = number;
+        if (index === 0 && block === firstLine && number > 1) {
+          element.listRestartPolite = number;
+        }
+      }
+      return element;
+    });
+    const nested = rest.flatMap((child): TElement[] =>
+      child.type === "list"
+        ? listBlocks(child, indent + 1, deco, options)
+        : elementsIn(convertChildrenDeserialize([child], deco, options)).map((block) => ({
+            ...block,
+            indent: indent + 1,
+          })),
+    );
+    return [...placed, ...nested];
+  });
+};
+
+const listRule: WideMdRule = {
+  deserialize: (node: MdList, deco: MdDecoration, options: DeserializeMdOptions): TElement[] =>
+    listBlocks(node, 1, deco, options),
+};
+
 // text a re-parse reads back as this same link: a bare url, a www literal (gfm prefixes its url
 // with `http://`), or a gfm email
 const isAutolinkText = (text: string, url: string): boolean =>
@@ -312,8 +409,18 @@ const autolinkLiteral = (node: { type: string }, url: string): MDPhrasingContent
 // The literal is an opaque inline, not `html`: mdast-util-to-markdown turns the line break before
 // an html node into a space, since html opening a line could read as a flow block, and that joins
 // a url on its own line to the line above.
+// A title is words of the link's own, which Plate's default drops both ways and no literal can spell.
 const linkRule: WideMdRule = {
+  deserialize: (node: MdLink, deco: MdDecoration, options: DeserializeMdOptions): TElement => {
+    const link = defaultLinkDeserialize(node, deco, options);
+    const title = node.title ?? "";
+    return title === "" ? link : { ...link, title };
+  },
   serialize: (node: TLinkElement, options: SerializeMdOptions) => {
+    const title = stringProp(node, "title");
+    if (title !== undefined) {
+      return { ...defaultLinkSerialize(node, options), title };
+    }
     const [only, ...rest] = convertNodesSerialize(node.children, options);
     const literal = only === undefined || rest.length > 0 ? null : autolinkLiteral(only, node.url);
     return literal ?? defaultLinkSerialize(node, options);
@@ -531,7 +638,11 @@ export const MD_RULES: MdRules = {
     }),
   },
 
+  equation: equationRule,
+
   inline_equation: inlineEquationRule,
+
+  list: listRule,
 
   media_embed: embedRule,
 

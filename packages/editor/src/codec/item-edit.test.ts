@@ -391,6 +391,33 @@ describe("an edit made on the view", () => {
     ]);
   });
 
+  it("keeps an escape an edit writes on a line beside a `:::` line as the person's text", () => {
+    const blocks = storedOf(":::toggle\nbody here\n:::\n");
+    const outcome = editItemView(
+      blocks,
+      [{ newText: "first line\n\\==x== literal", oldText: "body here" }],
+      portsWith(),
+    );
+    if (outcome.kind !== "changed") {
+      throw new Error(outcome.refusal.kind);
+    }
+    expect(outcome.highlights).toStrictEqual([]);
+    expect(JSON.stringify(outcome.ops)).toContain("==x== literal");
+  });
+
+  it("lands a web image an edit writes in a list as the embed it is", () => {
+    const blocks = storedOf("One.\n\nTwo.\n");
+    const outcome = editItemView(
+      blocks,
+      [{ newText: "- ![](https://a.b/c.png)", oldText: "Two." }],
+      portsWith(),
+    );
+    if (outcome.kind !== "changed") {
+      throw new Error(outcome.refusal.kind);
+    }
+    expect(JSON.stringify(outcome.ops)).toContain('"url":"https://a.b/c.png"');
+  });
+
   it("reads the spellings an edit writes in the note, the last edit's alone", () => {
     const blocks = storedOf(NOTE);
     const outcome = editItemView(
@@ -571,6 +598,19 @@ describe("a highlight placed by its quote", () => {
     const after = landed(blocks, placed.ops);
     expect(textOf(after)).toContain("The page has %%i:q1:start%%shared words%%i:q1:end%% in it.");
     expect([...after.values()].map((stored) => withoutId(stored.block))).toHaveLength(3);
+  });
+
+  it("finds no quote in a footnote's definition, whose source holds no marker", () => {
+    const blocks = storedOf("One[^a].\n\nTwo.\n\n[^a]: the source words\n\n    and more body\n");
+    const placed = placeItemQuotes(
+      blocks,
+      [
+        { id: "q1", quote: "source words" },
+        { id: "q2", quote: "more body" },
+      ],
+      portsWith(),
+    );
+    expect(placed).toMatchObject({ missing: ["q1", "q2"], ops: [], placed: [] });
   });
 
   it("leaves a quote whose markers the note holds where it stands", () => {

@@ -79,6 +79,8 @@ src/
                        # wrote, so a pill, a date, an annotation marker or a
                        # `:::` line spelled with one stays text, past GFM's
                        # split of a bare url too
+    remark-references.ts  # a reference read as the link or image it names,
+                       # and the definition it used gone
     remark-inline-constructs.ts, remark-opaque.ts, table-pipes.ts,
     line-scan.ts       # the rest of the dialect's own remark plugins
     flow-spans.ts      # where each block lands in the markdown a stringify

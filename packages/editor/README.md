@@ -84,12 +84,13 @@ src/
   (`@repo/notes/markdown/remark-inline-html`), so every file the codec reads
   becomes blocks, settled through the serializer as it comes in. Constructs
   with no editor node — a tag that cannot pair, any pair but a bare `<u>`, raw
-  HTML — are opaque inline nodes (`@repo/notes/markdown/remark-opaque`): shown
-  as inert literal text and written back byte-for-byte, and `{` is prose. Only
-  a nesting deeper than the conversion holds is refused (an import leaves the
-  file out, an agent's edit is turned down), so nothing is written over it; a
-  round trip that never settles or would lose a letter is a rule or serializer
-  bug, which the fixtures and `analyzeMarkdown` (`RoundTripFailure` in
+  HTML, a footnote, a definition nothing used — are opaque inline nodes
+  (`@repo/notes/markdown/remark-opaque`): shown as inert literal text and
+  written back byte-for-byte, and `{` is prose. Only a nesting deeper than the
+  conversion holds is refused (an import leaves the file out, an agent's edit
+  is turned down), so nothing is written over it; a round trip that never
+  settles or would lose a letter is a rule or serializer bug, which the
+  fixtures and `analyzeMarkdown` (`RoundTripFailure` in
   `markdown/markdown-doc.ts`) name.
 - **Typing walks a long note only through its budget.**
   `typing-budget.test.tsx` types into a generated 10k-line note opened in the

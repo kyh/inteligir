@@ -1,14 +1,16 @@
 // a construct the slate model has no node for is held as a string and serialized back verbatim;
 // without one, a tag deserializes to escaped text and the first save mangles `<Foo>` into
-// `\<Foo>`. With htmlFlow disabled every such construct is phrasing, so the string is inline. An
-// element's value is re-serialized, not sliced from source: a slice spanning lines inside a
+// `\<Foo>`. With htmlFlow disabled such a construct is phrasing and the string inline; a definition
+// or a footnote's is the one that stands in a flow, so its string sits in a paragraph of its own.
+// An element's value is re-serialized, not sliced from source: a slice spanning lines inside a
 // blockquote would capture the `> ` markers and the stringifier would add a second set.
 
-import type { Node, Nodes } from "mdast";
-import type { Options as ToMarkdownOptions } from "mdast-util-to-markdown";
+import type { Node, Nodes, Parents } from "mdast";
+import type { Options as ToMarkdownOptions, State } from "mdast-util-to-markdown";
 import type { Plugin, Processor } from "unified";
 import { toMarkdown } from "mdast-util-to-markdown";
 
+import { escapeBarePipes } from "./line-scan";
 import { isMdastRoot } from "./mdast-nodes";
 
 export interface OpaqueInline extends Node {
@@ -48,11 +50,12 @@ const HELD_AS_SOURCE: Record<GrammarNodeType, boolean> = {
   columnGroup: false,
   annotationMarker: false,
   date: false,
-  definition: false,
+  // one no reference used (`./remark-references`)
+  definition: true,
   delete: false,
   emphasis: false,
-  footnoteDefinition: false,
-  footnoteReference: false,
+  footnoteDefinition: true,
+  footnoteReference: true,
   formulaPill: false,
   heading: false,
   // a tag nothing pairs
@@ -60,11 +63,13 @@ const HELD_AS_SOURCE: Record<GrammarNodeType, boolean> = {
   // a pair of tags the editor has no mark for
   htmlElement: true,
   image: false,
-  imageReference: false,
+  // `./remark-references` reads every reference; one it missed would keep its words here
+  imageReference: true,
   inlineCode: false,
   inlineMath: false,
   link: false,
-  linkReference: false,
+  // as `imageReference`
+  linkReference: true,
   list: false,
   listItem: false,
   math: false,
@@ -86,6 +91,26 @@ const HELD_AS_SOURCE: Record<GrammarNodeType, boolean> = {
   yaml: false,
 };
 
+const LABEL = String.raw`(?:[^\]\\\n]|\\.)+`;
+const DEFINITION_SOURCE_RE = new RegExp(String.raw`^\[(?!\^)${LABEL}\]:`, "u");
+const FOOTNOTE_SOURCE_RE = new RegExp(String.raw`^\[\^${LABEL}\]:`, "u");
+
+const holdsSource = (node: Nodes | undefined, source: RegExp): boolean => {
+  if (node?.type !== "paragraph") {
+    return false;
+  }
+  const [only, ...rest] = node.children;
+  return only?.type === "opaqueInline" && rest.length === 0 && source.test(only.value);
+};
+
+// a paragraph that is a definition or a footnote's held as source, which the writer spaces as the
+// construct its next read finds
+export const isHeldDefinition = (node: Nodes | undefined): boolean =>
+  holdsSource(node, DEFINITION_SOURCE_RE);
+
+export const isHeldFootnote = (node: Nodes | undefined): boolean =>
+  holdsSource(node, FOOTNOTE_SOURCE_RE);
+
 const isGrammarNodeType = (type: string): type is GrammarNodeType =>
   Object.hasOwn(HELD_AS_SOURCE, type);
 
@@ -96,11 +121,17 @@ const isOpaqueSource = (node: Nodes): boolean =>
 const render = (node: Nodes, options: ToMarkdownOptions): string =>
   toMarkdown(node, options).replace(/\n$/u, "");
 
-const toOpaque = (node: Nodes, options: ToMarkdownOptions): OpaqueInline | null => {
+const toOpaque = (node: Nodes, options: ToMarkdownOptions): Nodes | null => {
   if (!isOpaqueSource(node)) {
     return null;
   }
-  return { type: "opaqueInline", value: node.type === "html" ? node.value : render(node, options) };
+  const opaque: OpaqueInline = {
+    type: "opaqueInline",
+    value: node.type === "html" ? node.value : render(node, options),
+  };
+  return node.type === "definition" || node.type === "footnoteDefinition"
+    ? { children: [opaque], type: "paragraph" }
+    : opaque;
 };
 
 // top-down: an opaque node is rendered from its original subtree and not descended into.
@@ -119,9 +150,17 @@ const makeOpaque = (node: Nodes, options: ToMarkdownOptions): void => {
   }
 };
 
+// gfm-table has unescaped a text's pipes by the time a spelling is read from it, and a tag's
+// children render with no table around them, so the cell's escape is written back here. A tag's
+// bytes may already hold that escape, which a pill's decoded raw never does, so a pill's writer
+// escapes every pipe and this one only a bare pipe: neither rule serves the other
 const opaqueToMarkdown: ToMarkdownOptions = {
   handlers: {
-    opaqueInline: Object.assign((node: OpaqueInline) => node.value, { peek: () => "<" }),
+    opaqueInline: Object.assign(
+      (node: OpaqueInline, _parent: Parents | undefined, state: State) =>
+        state.stack.includes("tableCell") ? escapeBarePipes(node.value) : node.value,
+      { peek: () => "<" },
+    ),
   },
 };
 

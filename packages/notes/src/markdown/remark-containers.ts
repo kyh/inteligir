@@ -20,13 +20,15 @@ import type {
   PhrasingContent,
   Root,
   RootContent,
+  Text,
 } from "mdast";
 import type { Info, Options as ToMarkdownExtension, State } from "mdast-util-to-markdown";
 import type { Plugin, Processor, Transformer } from "unified";
 
 import { splitLinesKeepingTerminators } from "../text/source-lines";
 import { isMdastRoot } from "./mdast-nodes";
-import { escapedAt, textCutter } from "./text-escapes";
+import { isHeldDefinition, isHeldFootnote } from "./remark-opaque";
+import { escapedAt, joinedText, textCutter } from "./text-escapes";
 
 export type ContainerContent = BlockContent | DefinitionContent;
 
@@ -87,7 +89,8 @@ const COLUMNS_LINE = ":::columns";
 const COLUMN_LINE = ":::column";
 const CLOSE_LINE = ":::";
 const WIDTH = String.raw`\d+(?:\.\d+)?%`;
-const PANEL_RE = /^=== (?<label>.+)$/u;
+const PANEL_MARK = "=== ";
+const PANEL_RE = new RegExp(`^${PANEL_MARK}(?<label>.+)$`, "u");
 const COLUMN_RE = new RegExp(`^${COLUMN_LINE}(?: (?<width>${WIDTH}))?$`, "u");
 
 type Opened = "article" | "columns" | "tabs" | "toggle";
@@ -172,20 +175,30 @@ const linesOf = (children: PhrasingContent[]): Line[] => {
   return lines;
 };
 
+// GFM reads a bare url out of finished text past the backslash that broke it (`./text-escapes`), and
+// what it reads there holds no place in the source, so that text is still the line's
+const writtenText = (node: PhrasingContent): Text | null => {
+  if (node.type === "text") {
+    return node;
+  }
+  const [only, ...rest] = node.type === "link" && node.position === undefined ? node.children : [];
+  return only?.type === "text" && rest.length === 0 ? only : null;
+};
+
 const markerOf = (line: Line): Marker | null => {
-  const [only, ...rest] = line.nodes;
-  return only?.type === "text" && rest.length === 0 && !escapedAt(only, 0)
-    ? markerFor(only.value)
+  const [first] = line.nodes;
+  const texts = line.nodes.flatMap((node) => writtenText(node) ?? []);
+  return first?.type === "text" && !escapedAt(first, 0) && texts.length === line.nodes.length
+    ? markerFor(texts.map(({ value }) => value).join(""))
     : null;
 };
 
-// a merged line keeps no escapes: no marker is read from the paragraphs this builds
 const paragraphOf = (lines: readonly Line[]): Paragraph => {
   const children: PhrasingContent[] = [];
   const push = (node: PhrasingContent): void => {
     const last = children.at(-1);
     if (node.type === "text" && last?.type === "text") {
-      children[children.length - 1] = { type: "text", value: last.value + node.value };
+      children[children.length - 1] = joinedText(last, node);
       return;
     }
     children.push(node);
@@ -621,15 +634,10 @@ const rewriteTree = (node: Root | RootContent): void => {
 };
 
 // a marker line runs on into the paragraph one of these leaves open, so a blank line ends it first
-const ABSORBS_NEXT_LINE: ReadonlySet<string> = new Set([
-  "blockquote",
-  "footnoteDefinition",
-  "list",
-  "table",
-]);
+const ABSORBS_NEXT_LINE: ReadonlySet<string> = new Set(["blockquote", "list", "table"]);
 
 const blankBeforeMarker = (last: ContainerContent | undefined): string =>
-  last !== undefined && ABSORBS_NEXT_LINE.has(last.type) ? "\n" : "";
+  last !== undefined && (ABSORBS_NEXT_LINE.has(last.type) || isHeldFootnote(last)) ? "\n" : "";
 
 const emptyFirstItem = (list: List): boolean => {
   const [item] = list.children;
@@ -640,7 +648,7 @@ const emptyFirstItem = (list: List): boolean => {
 // a block that cannot interrupt a paragraph would be read as more of the marker line's text, and
 // a `---` rule under it as the setext underline that makes the marker a heading
 const blankAfterMarker = (first: ContainerContent | undefined): string => {
-  if (first?.type === "definition" || first?.type === "thematicBreak") {
+  if (first?.type === "thematicBreak" || isHeldDefinition(first)) {
     return "\n";
   }
   if (first?.type === "list") {
@@ -665,9 +673,18 @@ const fenced = (
   return `${marker}\n${blankAfterMarker(body.children[0])}${inner}\n${blankBeforeMarker(body.children.at(-1))}${CLOSE_LINE}`;
 };
 
+// a marker is read from one finished text, so its label is written as text is: anything the next
+// parse would read as a construct takes the escape that keeps the line whole
+const panelLine = (label: string, state: State): string => {
+  const exit = state.enter("phrasing");
+  const written = state.safe(label, { after: "\n", before: PANEL_MARK });
+  exit();
+  return `${PANEL_MARK}${written}`;
+};
+
 const panelToMarkdown = (panel: TabPanel, state: State, info: Info): string => {
   const inner = state.containerFlow(panel, info);
-  const marker = `=== ${panel.label}`;
+  const marker = panelLine(panel.label, state);
   return inner === "" ? marker : `${marker}\n${blankAfterMarker(panel.children[0])}${inner}`;
 };
 
