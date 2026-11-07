@@ -478,7 +478,16 @@ export const landOwnFolders = function* landOwnFolders(
         break;
       }
       case "delete": {
-        yield run("UPDATE folders SET deleted_at = ? WHERE id = ?", [at, op.id]);
+        yield run(
+          `WITH RECURSIVE gone (id) AS (
+             SELECT ?
+             UNION
+             SELECT folders.id FROM folders JOIN gone ON folders.parent_id = gone.id
+             WHERE folders.deleted_at IS NULL
+           )
+           UPDATE folders SET deleted_at = ? WHERE id IN (SELECT id FROM gone)`,
+          [op.id, at],
+        );
         break;
       }
       // no default

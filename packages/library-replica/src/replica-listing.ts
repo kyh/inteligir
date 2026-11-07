@@ -299,6 +299,7 @@ export const readAllListingRows = function* readAllListingRows(
 
 type FolderOp = Extract<OutboxOp, { kind: "folders" }>["ops"][number];
 
+// one op laid down as the cell lands it, which takes a deleted folder's subtree with it
 const layFolderOp = (folders: Map<string, ListingFolder>, op: FolderOp): void => {
   switch (op.op) {
     case "create": {
@@ -322,7 +323,16 @@ const layFolderOp = (folders: Map<string, ListingFolder>, op: FolderOp): void =>
       return;
     }
     case "delete": {
-      folders.delete(op.id);
+      // an array's iterator reads the entries pushed while it runs, so each folder's children follow
+      const gone = [op.id];
+      for (const id of gone) {
+        folders.delete(id);
+        gone.push(
+          ...[...folders.values()]
+            .filter((folder) => folder.parentId === id)
+            .map((folder) => folder.id),
+        );
+      }
     }
     // no default
   }

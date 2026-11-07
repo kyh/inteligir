@@ -1207,6 +1207,52 @@ describe("a change no resend can pass", () => {
   });
 });
 
+describe("a folder deleted before the cell hears of it", () => {
+  // a folder inside a folder inside a folder, landed, and a note filed in the deepest
+  const nested = async (cell: FakeCell, phone: TestDevice) => {
+    const top = phone.newId();
+    const middle = phone.newId();
+    const deepest = phone.newId();
+    await phone.replica.writeFolders([
+      { id: top, name: "Work", op: "create", parentId: null, sort: "a0" },
+      { id: middle, name: "Archive", op: "create", parentId: top, sort: "a0" },
+      { id: deepest, name: "2024", op: "create", parentId: middle, sort: "a0" },
+    ]);
+    await phone.replica.createNote({ blocks: [], folderId: deepest, tags: [], title: "Filed" });
+    await phone.replica.sync();
+    expect(cell.folder(deepest)).not.toBeNull();
+    return { deepest, middle, top };
+  };
+
+  it("takes the folders under it with it, its items unsorted, as the cell will", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const { top } = await nested(cell, phone);
+    expect(phone.replica.scopes().unsorted).toBe(0);
+    phone.network.setOffline(true);
+    await phone.replica.writeFolders([{ id: top, op: "delete" }]);
+
+    expect(phone.replica.folders()).toStrictEqual([]);
+    expect(phone.replica.scopes().unsorted).toBe(1);
+  });
+
+  it("leaves the same tree once the cell has it, before the pull brings its rows", async () => {
+    const cell = createFakeCell();
+    const network = heldNetwork(cell, "phone");
+    const phone = await openDevice(cell, "phone", { network: network.device });
+    const { deepest, middle, top } = await nested(cell, phone);
+    await phone.replica.writeFolders([{ id: top, op: "delete" }]);
+    network.refused.add(PULL);
+    await phone.replica.sync();
+
+    expect(cell.folder(middle)?.deletedAt).not.toBeNull();
+    expect(cell.folder(deepest)?.deletedAt).not.toBeNull();
+    expect(phone.replica.status().unsent).toBe(0);
+    expect(phone.replica.folders()).toStrictEqual([]);
+    expect(phone.replica.scopes().unsorted).toBe(1);
+  });
+});
+
 describe("a restore the cell refuses", () => {
   const ADDRESS = "https://example.com/article";
   const ADDRESS_HELD =

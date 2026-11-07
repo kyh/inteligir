@@ -453,6 +453,16 @@ export const createFakeCell = (): FakeCell => {
     );
   };
 
+  const deleteUnder = (parentId: string): void => {
+    for (const folder of folders.values()) {
+      if (folder.parentId === parentId && folder.deletedAt === null) {
+        folders.set(folder.id, { ...folder, deletedAt: NOW, seq: head });
+        record("folder", folder.id, head);
+        deleteUnder(folder.id);
+      }
+    }
+  };
+
   const folderWrite = (ops: readonly FolderOp[]) => {
     const conflicts: ConflictCurrent[] = [];
     for (const op of ops) {
@@ -476,6 +486,9 @@ export const createFakeCell = (): FakeCell => {
       if (next !== null) {
         folders.set(op.id, next);
         record("folder", op.id, head);
+      }
+      if (op.op === "delete") {
+        deleteUnder(op.id);
       }
     }
     return { seq: head };
