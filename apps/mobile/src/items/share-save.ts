@@ -62,11 +62,6 @@ const coverOf = async (
   return null;
 };
 
-// what this phone made of a shared page: the page it read, or the link the cloud's fill is to read
-type SharedRead =
-  | { readonly kind: "page"; readonly page: PageInput }
-  | { readonly kind: "link"; readonly link: SharedLink };
-
 // whether an item can take a page this phone read after a move: one the cloud has yet to read, or
 // could not, and that holds no article, since Read the page again leaves the article on an item
 // that waits; a body still to come may hold one
@@ -102,15 +97,15 @@ const movedAddress = async (
   return namesItsKind || (await replica.holderOf(landed)) !== null ? landed : shared;
 };
 
-// A page that did not answer, an answer that is no page, a reader that broke or a reading with no
-// article is left unread, for the cloud to read
+// the page this phone read of a share; null leaves the share its link: a page that did not answer,
+// an answer that is no page, a move the item at the shared address takes as its link, a reader that
+// broke or a reading with no article
 const readSharedPage = async (
   ports: ShareReadPorts,
   replica: LibraryReplica,
   shared: SharedLink,
   target: SaveTarget,
-): Promise<SharedRead> => {
-  const unread: SharedRead = { kind: "link", link: shared };
+): Promise<PageInput | null> => {
   const fetched = await ports.fetch({
     accept: PAGE_ACCEPT,
     from: shared.url,
@@ -119,13 +114,13 @@ const readSharedPage = async (
     url: shared.url,
   });
   if (!fetched.ok || !isPage(fetched.page)) {
-    return unread;
+    return null;
   }
   const landed = fetched.page.url;
   const moved = urlKey(landed) !== urlKey(shared.url);
   const url = moved ? await movedAddress(replica, shared.url, landed) : shared.url;
   if (url === null) {
-    return unread;
+    return null;
   }
   let answer: FillAnswer;
   try {
@@ -136,10 +131,10 @@ const readSharedPage = async (
       url: landed,
     });
   } catch {
-    return unread;
+    return null;
   }
   if (answer.kind !== "read" || !deviceKeepsReading(answer.article)) {
-    return unread;
+    return null;
   }
   const readTitle = fieldLine(answer.facts.title);
   // a move that stayed at the shared address may have ended at a wall, which names itself
@@ -157,7 +152,7 @@ const readSharedPage = async (
   };
   // words that only say the page's own title again add nothing to its note
   const note = shared.note === title ? null : shared.note;
-  return { kind: "page", page: note === null ? page : { ...page, note } };
+  return note === null ? page : { ...page, note };
 };
 
 // what became of a share: saved, refused, or its library gone under it, a sign-out landing while
@@ -179,11 +174,11 @@ export const saveShared = async (
   try {
     switch (shared.kind) {
       case "link": {
-        const read = await readSharedPage(args.ports, args.replica, shared, target);
-        if (read.kind === "link") {
-          return await saves.saveLink(read.link, target);
+        const page = await readSharedPage(args.ports, args.replica, shared, target);
+        if (page === null) {
+          return await saves.saveLink(shared, target);
         }
-        const made: Made = await args.replica.savePage(read.page);
+        const made: Made = await args.replica.savePage(page);
         return { kind: "saved", made };
       }
       case "text": {
