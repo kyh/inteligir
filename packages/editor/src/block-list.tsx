@@ -1,5 +1,4 @@
 // Plate models lists as indented blocks, so this wrapper draws the marker.
-// Must stay workspace-free: list-kit imports it.
 
 import { isOrderedList } from "@platejs/list";
 import { useTodoListElement, useTodoListElementState } from "@platejs/list/react";

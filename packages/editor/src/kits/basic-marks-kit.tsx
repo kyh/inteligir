@@ -22,7 +22,7 @@ import { KEYS } from "platejs";
 import { semanticLeaf } from "@repo/editor/kits/kit-utils";
 import { markPluginShortcuts } from "@repo/editor/mark-shortcuts";
 
-// chords come from MARK_SHORTCUTS, never Plate's own defaults, so the page that lists them is true
+// chords come from MARK_SHORTCUTS, never Plate's own defaults, so the tooltip that names one is true
 export const BasicMarksKit = [
   BoldPlugin.configure({
     inputRules: [BoldRules.markdown(), MarkComboRules.markdown({ variant: "boldItalic" })],

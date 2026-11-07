@@ -27,8 +27,9 @@ nobody, and git keeps it. A single export beside a drawn component is a reasoned
   and drifts on scroll. Base UI is reached only through `@repo/ui` (bar
   `inline-combobox.tsx`); a missing primitive lands there first, with a gallery
   demo. Selection-anchored surfaces take a virtual anchor
-  (`annotations/annotation-kit.tsx`, `block-menu.tsx`), the find bar the top
-  bar's Find (`setFindBarAnchor` in `packages/editor/src/find-bar.tsx`); the
+  (`annotations/annotation-kit.tsx`, `block-menu.tsx`), the find bar the item
+  view's slot above the note (`setFindBarAnchor` in
+  `packages/editor/src/find-bar.tsx`); the
   wiki-link preview is a HoverCard, since Popover has no hover
   (`packages/editor/src/wiki/wiki-chip.tsx`); Quick Look is a `Dialog`
   (`apps/workspace/src/app/library/quick-look.tsx`). The one exception is the
