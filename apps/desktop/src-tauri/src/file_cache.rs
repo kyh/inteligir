@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 
 use crate::error::{ShellError, ShellResult};
 
-/// About 5 GB of fetched files (spec §6), whatever the staged ones take.
+/// About 5 GB of fetched files, whatever the staged ones take.
 pub const CACHE_LIMIT_BYTES: u64 = 5 * 1024 * 1024 * 1024;
 
 /// A file's bytes and the type the cloud served it as.
