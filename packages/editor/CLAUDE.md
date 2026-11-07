@@ -326,6 +326,8 @@ alone, and no walk narrows structurally.
   a picker open in a block is read around, since its query is nobody's writing.
   A write the store rejects stays unsaved and goes again after a pause, and a
   first read that fails says so and offers another, each in the person's words.
+  A file still being kept counts as unsaved and a leave waits for it, since the
+  block that names it is in no value until it is.
   A block keeps its section wherever it stands, and a new one is the note's, so
   a read of the page never takes what the person typed under it, which reads
   above the article when the item opens again. Rejected: the value mirrored

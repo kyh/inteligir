@@ -3,6 +3,8 @@
 // The item surface as a host mounts it: one editor and one session per item, drawn only once the
 // item's blocks are in, over a store held in memory whose reads and writes a case can hold.
 
+import { setTimeout as delay } from "node:timers/promises";
+
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { SlateEditor } from "platejs";
 import type * as PlateReact from "platejs/react";
@@ -34,8 +36,9 @@ vi.mock("platejs/react", async (importOriginal) => {
   const actual = await importOriginal<typeof PlateReact>();
   return {
     ...actual,
-    usePlateEditor: (...args: Parameters<typeof PlateReact.usePlateEditor>) => {
-      const editor = actual.usePlateEditor(...args);
+    // with Plate's ids on as the app runs it: Plate turns its id plugin off under NODE_ENV=test
+    usePlateEditor: (...[options, deps]: Parameters<typeof PlateReact.usePlateEditor>) => {
+      const editor = actual.usePlateEditor({ ...options, nodeId: true }, deps);
       if (editor !== null && !made.editors.includes(editor)) {
         made.editors.push(editor);
       }
@@ -256,5 +259,91 @@ describe("an item's surface", () => {
     render(<Host itemId={A} ports={portsOver(store)} />);
     await expect(screen.findByText(MISSING_ITEM)).resolves.toBeDefined();
     expect(editable()).toBeNull();
+  });
+});
+
+const SHA = "a".repeat(64);
+
+// the item open with a picture pasted into it, its bytes not yet kept
+const pasteHeld = async (items: Map<string, ItemState>) => {
+  const kept = deferred<{ readonly sha: string }>();
+  installFakeEditorHost({ keepFile: async () => await kept.promise });
+  const view = render(<Host itemId={A} ports={portsOver(memoryStore(items).store)} />);
+  await screen.findByText("A one");
+  const editor = made.editors.at(-1);
+  const target = editable();
+  if (editor === undefined || !(target instanceof HTMLElement)) {
+    throw new Error("the surface drew no editor");
+  }
+  editor.tf.select(editor.api.end([0]));
+  fireEvent.paste(target, {
+    clipboardData: {
+      files: [new File([new Uint8Array([1])], "shot.png", { type: "image/png" })],
+      getData: () => "",
+      types: ["Files"],
+    },
+  });
+  return { kept, view };
+};
+
+const storedShas = (items: Map<string, ItemState>): readonly unknown[] =>
+  [...(items.get(A)?.blocks.values() ?? [])].flatMap(({ block }) =>
+    block.type === "img" ? [block.sha] : [],
+  );
+
+describe("a file still being kept in an open item", () => {
+  // jsdom has no object URLs, and no isContentEditable, without which slate hands no paste on
+  beforeAll(() => {
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: () => "blob:kept" });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: () => {} });
+    Object.defineProperty(HTMLElement.prototype, "isContentEditable", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.closest('[contenteditable="true"]') !== null;
+      },
+    });
+  });
+
+  afterAll(() => {
+    Reflect.deleteProperty(URL, "createObjectURL");
+    Reflect.deleteProperty(URL, "revokeObjectURL");
+    Reflect.deleteProperty(HTMLElement.prototype, "isContentEditable");
+    installFakeEditorHost();
+  });
+
+  it("counts as unsaved, and a leave waits to write the block that names it", async () => {
+    const items = new Map([[A, itemOf("A", paragraph("a1", "A one"))]]);
+    const { kept } = await pasteHeld(items);
+    const session = lastSession();
+    expect(session.status()).toMatchObject({ kind: "open", unsaved: true });
+
+    let left = false;
+    const leaving = (async () => {
+      await session.flush();
+      left = true;
+    })();
+    await act(async () => {
+      await delay(0);
+    });
+    expect(left).toBe(false);
+
+    kept.resolve({ sha: SHA });
+    await act(async () => {
+      await leaving;
+    });
+
+    expect(storedShas(items)).toStrictEqual([SHA]);
+  });
+
+  it("is written when the surface closed before it was kept", async () => {
+    const items = new Map([[A, itemOf("A", paragraph("a1", "A one"))]]);
+    const { kept, view } = await pasteHeld(items);
+
+    view.unmount();
+    kept.resolve({ sha: SHA });
+
+    await waitFor(() => {
+      expect(storedShas(items)).toStrictEqual([SHA]);
+    });
   });
 });

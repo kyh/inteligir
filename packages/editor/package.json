@@ -30,6 +30,7 @@
     "./editor-shortcuts": "./src/editor-shortcuts.ts",
     "./embed-url-dialog": "./src/embed-url-dialog.tsx",
     "./extract-note": "./src/extract-note.ts",
+    "./file-keeps": "./src/file-keeps.ts",
     "./find-bar": "./src/find-bar.tsx",
     "./formulas/formula-autocomplete": "./src/formulas/formula-autocomplete.tsx",
     "./formulas/formula-edit": "./src/formulas/formula-edit.tsx",

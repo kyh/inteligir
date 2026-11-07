@@ -5,10 +5,11 @@
 // writes at once. A change that lands from elsewhere is laid into the value with the editor's own
 // transforms, outside its undo history, which starts over: a block only one side changed takes
 // that side, one both changed is merged three ways (`@repo/editor/stale-write`), and an edit
-// outlives a drop either way round. A write the store refuses on a base that moved under it settles the same way
-// and goes again, and a merge that kept this device's lines over another's change to the same ones
-// is said, whether this session or the replica's outbox made it. A block no write can store stays
-// in the editor as the person left it, counted unsaved and said, so a host holds the leave.
+// outlives a drop either way round. A write the store refuses on a base that moved under it
+// settles the same way and goes again, and a merge that kept this device's lines over another's
+// change to the same ones is said, whether this session or the replica's outbox made it. A block
+// no write can store stays in the editor as the person left it, counted unsaved and said, so a
+// host holds the leave.
 // Construction is inert: nothing reads, subscribes or schedules until `start()`.
 
 import { NodeApi, TextApi } from "platejs";
@@ -19,6 +20,7 @@ import type { ItemState, LibraryOp, StoredBlock } from "@repo/notes/library/bloc
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
 
+import { watchFileKeeps } from "@repo/editor/file-keeps";
 import { blockId } from "@repo/editor/node-props";
 import { mergeBlocks } from "@repo/editor/stale-write";
 import type { BlockSides, MergedBlock } from "@repo/editor/stale-write";
@@ -320,6 +322,7 @@ export const createItemSession = (
   let missing = false;
   let seen: SlateEditor["children"] | null = null;
   let cancelIdle: (() => void) | null = null;
+  const keeping = new Set<Promise<void>>();
   let unsubscribe: (() => void) | null = null;
   let following = false;
   let queue: Promise<void> = Promise.resolve();
@@ -336,7 +339,12 @@ export const createItemSession = (
         failure: failure ?? (holdsBack ? BLOCK_HELD_BACK : null),
         fields: laid?.kind === "applied" ? laid.state.fields : acked.fields,
         kind: "open",
-        unsaved: cancelIdle !== null || pendingFields.length > 0 || behind || holdsBack,
+        unsaved:
+          cancelIdle !== null ||
+          pendingFields.length > 0 ||
+          behind ||
+          holdsBack ||
+          keeping.size > 0,
       };
     }
     for (const listener of listeners) {
@@ -547,7 +555,7 @@ export const createItemSession = (
     }
   };
 
-  const flush = async (): Promise<void> => {
+  const writeNow = async (): Promise<void> => {
     cancelIdle?.();
     cancelIdle = null;
     await serial(async () => {
@@ -555,11 +563,26 @@ export const createItemSession = (
       // pause while the item is open, and the status says why meanwhile
       if ((await writeOrSay()) === "ran-out" && following) {
         arm(() => {
-          void flush();
+          void writeNow();
         });
       }
       publish();
     });
+  };
+
+  const followFileKeep = async (keep: Promise<void>): Promise<void> => {
+    keeping.add(keep);
+    publish();
+    await Promise.allSettled([keep]);
+    keeping.delete(keep);
+    publish();
+  };
+  // leaving waits for a file still being kept, whose block is in no value until it is
+  const flush = async (): Promise<void> => {
+    while (keeping.size > 0) {
+      await Promise.allSettled(keeping);
+    }
+    await writeNow();
   };
 
   const land = async (overlappedThere: boolean): Promise<void> => {
@@ -617,6 +640,9 @@ export const createItemSession = (
       return;
     }
     following = true;
+    watchFileKeeps(editor, (keep) => {
+      void followFileKeep(keep);
+    });
     unsubscribe = ports.store.onChange((change) => {
       if (following && (change.reset || change.ids.has(itemId))) {
         void read(change.overlapped.has(itemId));
@@ -632,7 +658,7 @@ export const createItemSession = (
     seen = editor.children;
     const idle = cancelIdle === null;
     arm(() => {
-      void flush();
+      void writeNow();
     });
     if (idle) {
       publish();
@@ -642,7 +668,7 @@ export const createItemSession = (
   const patch = async (ops: readonly FieldOp[]): Promise<void> => {
     pendingFields = [...pendingFields, ...ops];
     publish();
-    await flush();
+    await writeNow();
   };
 
   // stops following at once, so a start that comes before the write ends (React's second mount)

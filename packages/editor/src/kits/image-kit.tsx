@@ -13,6 +13,7 @@ import { createPlatePlugin } from "platejs/react";
 import { keptFileType } from "@repo/notes/items/item-kind";
 import { toast } from "@repo/ui/components/sonner";
 
+import { announceFileKeep } from "@repo/editor/file-keeps";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import type { EditorHostIo } from "@repo/editor/host-io";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
@@ -64,7 +65,7 @@ const keepOne = async (io: EditorHostIo, file: File): Promise<{ readonly sha: st
 // each file in turn, kept and then placed: the first where the paste or the drop landed, each
 // later one right after the block placed before it, both followed as the text moves while the
 // bytes are read, so the files keep their order and the caret rests past the last one
-const keepFiles = async (
+const placeFiles = async (
   editor: SlateEditor,
   files: readonly File[],
   at: TRange | null,
@@ -102,6 +103,10 @@ const keepFiles = async (
   }
 };
 
+const keepFiles = (editor: SlateEditor, files: readonly File[], at: TRange | null): void => {
+  announceFileKeep(editor, placeFiles(editor, files, at));
+};
+
 // a separate plugin on the base half's key (headless/image-base.ts): DOM paste/drop handlers exist
 // only on React plugins.
 export const ImageKit = [
@@ -118,7 +123,7 @@ export const ImageKit = [
             return false;
           }
           event.preventDefault();
-          void keepFiles(editor, files, editor.api.findEventRange(event) ?? editor.selection);
+          keepFiles(editor, files, editor.api.findEventRange(event) ?? editor.selection);
           return true;
         },
         onPaste: ({ editor, event }) => {
@@ -127,7 +132,7 @@ export const ImageKit = [
             return false;
           }
           event.preventDefault();
-          void keepFiles(editor, files, editor.selection);
+          keepFiles(editor, files, editor.selection);
           return true;
         },
       },

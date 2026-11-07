@@ -21,7 +21,6 @@ export const decideTransclusion = (
   return { itemId: resolved, kind: "render" };
 };
 
-/** @internal */
 export const EMBED_PART_GONE = "That part isn't in this item any more.";
 
 const HEADING_LEVEL = new Map([
