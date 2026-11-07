@@ -10,7 +10,7 @@ import { createDb } from "../db/client";
 import { device, inviteCode, rateLimit, session, user } from "../db/schema";
 import { accountBlobPrefix, blobKey } from "../library/cell-blobs";
 import { PRINCIPAL_HEADER, principalHeaderValue } from "../library/library-principal";
-import { deviceRateKey } from "../rate-limit";
+import { holderRateKey } from "../rate-limit";
 import {
   buildHeaders,
   deviceHeaders,
@@ -361,7 +361,7 @@ describe("every refusal's status", () => {
       const spent = devices.map(({ deviceId }) => ({
         count: 1200,
         id: crypto.randomUUID(),
-        key: deviceRateKey("rpc", deviceId),
+        key: holderRateKey("rpc", deviceId),
         lastRequest: Date.now(),
       }));
       await createDb(env.DB).insert(rateLimit).values(spent).onConflictDoNothing();

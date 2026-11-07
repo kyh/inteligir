@@ -10,7 +10,7 @@ import type { AppPrincipal } from "../library/library-principal";
 import { V1_LIBRARY_RPC_PATH } from "../library/library-rpc";
 import { isBelowFloor } from "../client-floor";
 import { createDb } from "../db/client";
-import { spendDeviceBudget } from "../rate-limit";
+import { spendHolderBudget } from "../rate-limit";
 import { serveAccountRpc } from "./account-router";
 import { rpcRefusal } from "./rpc-refusal";
 import { holderIdOf, lazyPrincipal } from "./v1-principal";
@@ -25,7 +25,7 @@ const forwardLibraryCall = async (
   if (verified === null) {
     return await rpcRefusal("UNAUTHORIZED");
   }
-  if (!(await spendDeviceBudget(env, createDb(env.DB), "rpc", holderIdOf(verified)))) {
+  if (!(await spendHolderBudget(env, createDb(env.DB), "rpc", holderIdOf(verified)))) {
     return await rpcRefusal("TOO_MANY_REQUESTS");
   }
   return await forwardAsPrincipal(ctx.exports, request, verified);

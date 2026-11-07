@@ -321,11 +321,15 @@ and end them, and the account's deletion revokes every one.
   (`src/lib/auth-client.ts`), and `/app/devices` shows it, like a device list
   that failed to load, as its message and a retry
   (`src/routes/app/devices.tsx`). `/v1/rpc` and `/v1/blobs` spend the same
-  table keyed on the DEVICE, never the address: a stolen credential moves
-  between addresses, and the device row is what `/app/devices` revokes. Each
-  family is its own, so a drained budget never takes another down. Revocation and account deletion drop the rows. Better Auth prunes the shared table on its own writes, every row past
-  its 60s window with it, so every Worker window is declared in `RATE_WINDOWS`
-  and a guard holds each to 60s or less.
+  table keyed on the HOLDER, the device or the browser session, never the
+  address: a stolen credential moves between addresses, and the device row is
+  what `/app/devices` revokes. The connector spends it keyed on the assistant's
+  grant. Each family is its own, so a drained budget never takes another down.
+  Revoking a device and deleting the account drop that device's rows; a
+  session's and a grant's wait for the prune. Better Auth prunes the shared
+  table on its own writes, every row past its 60s window with it, so every
+  Worker window is declared in `RATE_WINDOWS` and a guard holds each to 60s or
+  less.
 - **CORS for two origins alone** (`src/worker/cors.ts`): the Mac app's page,
   which its shell serves on `tauri://localhost`, and the browser extension's
   worker, each on the routes it calls and by its exact origin, never a

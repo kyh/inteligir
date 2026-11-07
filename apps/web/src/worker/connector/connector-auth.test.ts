@@ -15,7 +15,7 @@ import { z } from "zod";
 import { createDb } from "../db/client";
 import { connectorAuth, isConnectorPath } from "./connector-auth";
 import { rateLimit, session } from "../db/schema";
-import { CALLER_IP_HEADER, callerRateKey, deviceRateKey } from "../rate-limit";
+import { CALLER_IP_HEADER, callerRateKey, grantRateKey } from "../rate-limit";
 import {
   deviceHeaders,
   drained,
@@ -353,7 +353,7 @@ describe("the connector's budgets", () => {
       .insert(rateLimit)
       .values({
         id: crypto.randomUUID(),
-        key: deviceRateKey("connector", grant?.grantId ?? ""),
+        key: grantRateKey(grant?.grantId ?? ""),
         ...spent,
       })
       .onConflictDoUpdate({ set: spent, target: rateLimit.key });

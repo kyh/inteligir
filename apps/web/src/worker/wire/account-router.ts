@@ -28,7 +28,7 @@ import { signUpDevice } from "../device/sign-up";
 import type { AppPrincipal } from "../library/library-principal";
 import { severSockets } from "../library/socket-routes";
 import { mintSocketTicket } from "../library/socket-ticket";
-import { spendCallerBudget, spendDeviceBudget } from "../rate-limit";
+import { spendCallerBudget, spendHolderBudget } from "../rate-limit";
 import { logRpcFailure } from "./rpc-log";
 import { holderIdOf } from "./v1-principal";
 
@@ -49,7 +49,7 @@ const signedIn = os.middleware(async ({ context, next }) => {
     throw new UnauthorizedError();
   }
   const db = createDb(context.env.DB);
-  if (!(await spendDeviceBudget(context.env, db, "rpc", holderIdOf(principal)))) {
+  if (!(await spendHolderBudget(context.env, db, "rpc", holderIdOf(principal)))) {
     throw new TooManyRequestsError();
   }
   return await next({ context: { db, signedIn: principal } });
@@ -107,7 +107,7 @@ const accountRouter = os.router({
     }),
   delete: os.delete.use(signedIn).handler(async ({ context, errors, input }) => {
     const { db, env, signedIn: principal } = context;
-    if (!(await spendDeviceBudget(env, db, "accountDelete", holderIdOf(principal)))) {
+    if (!(await spendHolderBudget(env, db, "accountDelete", holderIdOf(principal)))) {
       throw errors.TOO_MANY_REQUESTS();
     }
     const deletion = await deleteAccountWithPassword(env, context.ctx, db, {

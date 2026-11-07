@@ -139,7 +139,9 @@ as:
     Before sign-in the address is all our cloud knows about a caller, and a
     login with no throttle is a password oracle. Once signed in, a device's
     reads and writes of your library, and its attempts to delete the
-    account, are counted the same way under the device's id, never an address.
+    account, are counted the same way under the device's id, never an address,
+    a browser tab's under its session's id, and a connected assistant's calls
+    under the id of the access you gave it.
   - **The app's version, on every request to our cloud.** The Mac app, the
     phone app and the browser extension say which version they are, and which
     of the three, on each request they send our cloud, so it can stop answering a version too old to sync with
@@ -373,11 +375,12 @@ Specifically, in our cloud:
 - Device rows (including revoked ones) persist as the dashboard's audit trail
   until account deletion. A device's throttling counters are deleted when it is
   revoked.
-- Throttling rows keyed on an address, not an account, cannot be found by
-  account deletion. Better Auth deletes every row whose timestamp is over a
-  minute old whenever one of its own limits opens a fresh window, so a row
-  outlives its minute only until the next such request from anyone; nothing
-  sweeps the table on a timer.
+- Throttling rows keyed on an address, a browser session or an assistant's
+  access, not an account, cannot be found by account deletion, and neither a
+  session ending nor an assistant's removal deletes its own. Better Auth deletes
+  every row whose timestamp is over a minute old whenever one of its own limits
+  opens a fresh window, so a row outlives its minute only until the next such
+  request from anyone; nothing sweeps the table on a timer.
 - A password-reset link's row (its token and your account's id) is deleted when
   the link is used. One never used stops working after an hour and is swept the
   next time anyone opens a reset link; account deletion does not look for it,
@@ -575,9 +578,10 @@ account row itself goes:
    All six steps run BEFORE that, so a step that fails aborts the deletion and
    leaves the account able to ask again; every step is idempotent, so asking again
    resumes. Each of your devices erases its copy the next time our cloud refuses it
-   (see [Retention](#retention)). The throttling rows keyed on an address and an unused
-   reset link's row are not found by it (see [Retention](#retention)), and
-   Cloudflare's request log lapses on its own.
+   (see [Retention](#retention)). The throttling rows keyed on an address, a
+   browser session or an assistant's access, and an unused reset link's row, are
+   not found by it (see [Retention](#retention)), and Cloudflare's request log
+   lapses on its own.
 
 ## Other sites and services
 
