@@ -427,9 +427,11 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   only here. The read-only registrar holds the
   GET rows; each server is stateless, its tools/list private to the client,
   and it advertises no `listChanged`, since a grant's tools never change and a
-  `subscriptions/listen` would hold the cell open. Rejected: a session object
-  per client (state nothing needs); a registrar per request (it rebuilds the
-  same schemas); a device credential here (the door is an assistant's).
+  `subscriptions/listen` would hold the cell open. A JSON-RPC batch is refused,
+  so a budget slot is one call. Rejected: a session object per client (state
+  nothing needs); a registrar per request (it rebuilds the same schemas); a
+  device credential here (the door is an assistant's); a slot per message of a
+  batch (the Worker would read every body to count it).
   `apps/web/src/worker/connector/connector-route.ts`, `connector-server.ts`,
   `apps/web/src/worker/library/library-principal.ts`.
 

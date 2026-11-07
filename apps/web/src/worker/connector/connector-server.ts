@@ -8,14 +8,19 @@
 // for the full grant's thirteen tools and 1 ms for the read-only six, warm, and 20 to 27 ms for the
 // first in a fresh isolate (measured in node, on V8; workerd's clock stands still under CPU, so a
 // preview's Worker profile is the measure there). 2025-era clients are answered statelessly, a
-// request at a time, as 2026-07-28 ones are. The built-in agent reaches the same procedures in the
-// cell, by no server (`../agent/agent-tools`).
+// request at a time, as 2026-07-28 ones are, and a JSON-RPC batch is refused. The built-in agent
+// reaches the same procedures in the cell, by no server (`../agent/agent-tools`).
 
 import { McpRegistrar } from "@orpc/mcp";
 import type { AnyProcedureContract } from "@orpc/contract";
 import { getOpenAPIMeta } from "@orpc/openapi";
 import { onError } from "@orpc/server";
-import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
+import {
+  createMcpHandler,
+  INVALID_REQUEST,
+  JSONRPC_VERSION,
+  McpServer,
+} from "@modelcontextprotocol/server";
 import type { AuthInfo, McpHttpHandler } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
@@ -90,8 +95,43 @@ export const authInfoOf = (principal: ConnectorPrincipal): AuthInfo => ({
   token: "",
 });
 
-export const createConnectorHandler = (cell: ConnectorCell): McpHttpHandler =>
-  createMcpHandler(
+// a body whose first character is `[` is a batch, which the first bytes settle: the handler reads
+// the body itself, and one at its cap is no body to read twice. Past the cap it is the handler's to
+// refuse, since all the while the unread clone buffers what this read
+const opensBatch = async (request: Request): Promise<boolean> => {
+  const reader = request.clone().body?.getReader();
+  if (reader === undefined) {
+    return false;
+  }
+  const decoder = new TextDecoder();
+  let opening = "";
+  let received = 0;
+  while (opening.length === 0 && received <= CONNECTOR_MAX_BODY_BYTES) {
+    const chunk: ReadableStreamReadResult<unknown> = await reader.read();
+    if (!(chunk.value instanceof Uint8Array)) {
+      break;
+    }
+    received += chunk.value.byteLength;
+    opening = decoder.decode(chunk.value, { stream: true }).trimStart();
+  }
+  await reader.cancel();
+  return opening.startsWith("[");
+};
+
+// the Worker spends a grant's budget on the request, so the handler running each message of a batch
+// would make one slot a hundred calls; no revision since 2025-03-26 has batches
+const batchRefused = (): Response =>
+  Response.json(
+    {
+      error: { code: INVALID_REQUEST, message: "Send one JSON-RPC message a request." },
+      id: null,
+      jsonrpc: JSONRPC_VERSION,
+    },
+    { status: 400 },
+  );
+
+export const createConnectorHandler = (cell: ConnectorCell): McpHttpHandler => {
+  const handler = createMcpHandler(
     async ({ authInfo }) => {
       const principal = connectorPrincipalOf(authInfo);
       const server = new McpServer(SERVER_INFO, {
@@ -108,3 +148,9 @@ export const createConnectorHandler = (cell: ConnectorCell): McpHttpHandler =>
     },
     { legacy: "stateless", maxRequestBodySize: CONNECTOR_MAX_BODY_BYTES },
   );
+  return {
+    ...handler,
+    fetch: async (request, options) =>
+      (await opensBatch(request)) ? batchRefused() : await handler.fetch(request, options),
+  };
+};

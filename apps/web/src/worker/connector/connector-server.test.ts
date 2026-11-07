@@ -55,6 +55,14 @@ const structured = async <TSchema extends z.ZodType>(
 const noteSchema = z.object({ item: z.object({ id: z.string() }) });
 const readSchema = z.object({ seq: z.number(), view: z.object({ markdown: z.string() }) });
 
+// a tool call as it rides the wire, for what no client's own API sends
+const createNoteCall = (id: number) => ({
+  id,
+  jsonrpc: "2.0",
+  method: "tools/call",
+  params: { arguments: { markdown: `Note ${String(id)}.` }, name: "create_note" },
+});
+
 const assistantFor = async (email: string, readOnly = false): Promise<Client> => {
   const { cookie } = await signUpUser(email);
   const minted = await connectAssistant(cookie, { readOnly });
@@ -173,6 +181,34 @@ describe("the connector's tools", () => {
       data: { current: [{ itemId: item.id, kind: "item" }] },
       defined: true,
     });
+    await client.close();
+  });
+
+  it("takes one message a request, so a grant's budget counts every call", async () => {
+    const { cookie } = await signUpUser("tools-batch@example.test");
+    const minted = await connectAssistant(cookie);
+    const batch = JSON.stringify([createNoteCall(1), createNoteCall(2)]);
+    for (const body of [batch, ` \n${batch}`]) {
+      const refused = await workerFetch(CONNECTOR_URL, {
+        body,
+        headers: {
+          accept: "application/json, text/event-stream",
+          authorization: `Bearer ${minted.access_token}`,
+          "content-type": "application/json",
+        },
+        method: "POST",
+      });
+      const refusal = await refused.text();
+      expect(refused.status, refusal).toBe(400);
+      expect(JSON.parse(refusal)).toMatchObject({ error: { code: -32_600 }, id: null });
+    }
+
+    const client = await connectorClient(minted.access_token);
+    const found = await structured(client, z.object({ hits: z.array(z.unknown()) }), {
+      arguments: { query: "Note" },
+      name: "search_library",
+    });
+    expect(found.hits).toStrictEqual([]);
     await client.close();
   });
 
