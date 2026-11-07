@@ -25,9 +25,10 @@ import { GALLERY_DIR } from "./ui-package";
 const DECLARED_EDGES = new Map<string, readonly string[]>(
   Object.entries({
     // the built-in agent's panel as every device reads it: `/v1`'s thread rows and events
-    // (@repo/contract) and the library's scopes a view context names (@repo/domain); each device
-    // draws it, so no UI edge
-    "@repo/agent-panel": ["@repo/contract", "@repo/domain"],
+    // (@repo/contract), the library's scopes a view context names (@repo/domain) and the address
+    // an approval shows as the library would read it (@repo/notes); each device draws it, so no UI
+    // edge
+    "@repo/agent-panel": ["@repo/contract", "@repo/domain", "@repo/notes"],
     // a leaf: content (markdown served to agents), imported as files.
     "@repo/agent-skills": [],
     // the @repo/notes edge is the parser-free model the contract validates against (the library's

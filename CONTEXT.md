@@ -108,9 +108,9 @@ Account shows. Not the **built-in agent**, though both call the same tools.
 Object for each **thread** (`apps/web/src/worker/agent/agent-thread.ts`),
 calling Claude through AI Gateway. It changes the library only through the
 account's cell, by the procedures the **connector** serves, run as the
-agent's; it has no shell, files or web of its own, deleting is the one call
-that asks the person first, and it runs on our bill, within the account's
-allowance. Not a **connected assistant**.
+agent's; it has no shell, files or web of its own, deleting and saving a link
+are the calls that ask the person first, and it runs on our bill, within the
+account's allowance. Not a **connected assistant**.
 
 **turn** — one message to the **built-in agent** and the work it does until
 Claude ends it, the person stops it, or the allowance does; waiting on an

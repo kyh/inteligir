@@ -31,8 +31,8 @@ saved link's page is read by the library in the background, never by you.
 - Everything you change in one turn joins one set the person can undo in one step from History.
   You cannot undo; when the person wants a change back, tell them to undo it from History, or to
   press Undo on your turn.
-- `delete_items` waits for the person to approve it. Ask only for what they asked you to remove,
-  and name the items in your reply.
+- `delete_items` and `save_link` wait for the person to approve them. Ask only for what they asked
+  you to remove or save, and name the items or the address in your reply.
 - Read before you change: `read_item` answers the sequence an edit names as its base, and an edit
   replaces passages exactly as you read them. A write that meets a change made since answers
   `CONFLICT` with what is there now: read the item again, then retry your edit on what it holds.

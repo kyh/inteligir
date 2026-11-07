@@ -206,9 +206,10 @@ The apps also hold to these, plainly:
   when you follow it.
 - **Saving a link — from our cloud, to that site.** A link that reaches your
   library without its page (one you pasted or saved on the Mac, in a browser
-  tab or on the phone, one an assistant you connected or the built-in agent
-  saved, one imported, one refreshed, one the browser extension sent as its
-  address) is fetched once by our cloud, from Cloudflare's network, to fill in
+  tab or on the phone, one an assistant you connected saved, one the built-in
+  agent saved once you allowed it, seeing the whole address, one imported, one
+  refreshed, one the browser extension sent as its address) is fetched once by
+  our cloud, from Cloudflare's network, to fill in
   its title, site, description, cover image and readable text. It also fetches
   the cover image the page names. For YouTube, Vimeo, X, TikTok, Spotify and
   SoundCloud it asks that site's own oEmbed address (with X's `dnt=true`), for

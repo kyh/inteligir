@@ -479,13 +479,29 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `apps/web/src/worker/agent/agent-tools.ts`.
 
 - **AN APPROVAL WAITS ON THE PERSON TEN MINUTES IN THE THREAD'S OWN ROWS, AND A
-  CANCEL DENIES BEFORE IT STOPS.** `delete_items` is journaled awaiting the
-  person under a Lifecycle job that denies at ten minutes; an answer decides
-  once; a cancel marks the turn durably, cuts the model call whether it is
-  still being reserved or already streaming, and answers every open call
-  `is_error`, so the next request is valid. Rejected: a tool that waits in
-  memory (it dies with an eviction); the platform's `auto` judgment (not the
-  person). `apps/web/src/worker/agent/agent-thread.ts`, `thread-loop.ts`.
+  CANCEL DENIES BEFORE IT STOPS.** `delete_items` and `save_link` are journaled
+  awaiting the person under a Lifecycle job that denies at ten minutes; an
+  answer decides once; a cancel marks the turn durably, cuts the model call
+  whether it is still being reserved or already streaming, and answers every
+  open call `is_error`, so the next request is valid. Rejected: a tool that
+  waits in memory (it dies with an eviction); the platform's `auto` judgment
+  (not the person). `apps/web/src/worker/agent/agent-thread.ts`,
+  `thread-loop.ts`.
+
+- **SAVING A LINK IS THE AGENT'S ONE WAY OUT OF THE LIBRARY, AND THE PERSON
+  SEES THE WHOLE ADDRESS BEFORE IT GOES** (owner decision). The cloud reads a
+  saved page, so a link's address reaches that site, and a saved page the agent
+  read can ask it to carry the person's words there; `save_link` asks first, and
+  its card shows the address as the library would read it, the host named
+  beside it, since the model's own reply is what such a page writes. Nothing a
+  device draws is the same door: the page, the Mac and the phone's editor page
+  each draw no remote image, frame or media (`library-page.ts`,
+  `apps/desktop/src-tauri/tauri.conf.json`, `apps/mobile-editor/index.html`).
+  Rejected: holding the read until the person confirms it after the turn (a
+  second gate beside the one approvals are); trusting the prompt's rule against
+  following a page (a request sent cannot be undone).
+  `apps/web/src/worker/agent/library-agent.ts`,
+  `packages/agent-panel/src/thread-entries.ts`.
 
 - **EVERY TURN IS COUNTED BEFORE IT STARTS AND EVERY CALL RESERVED BEFORE IT
   GOES** (owner decision: about fifty free turns a month, a day's share first).

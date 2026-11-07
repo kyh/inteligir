@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   agentRefusalWords,
+  approvalWords,
   endingWords,
   isWorking,
   statusWords,
@@ -28,12 +29,23 @@ const row = (idx: number, event: z.infer<typeof threadEventRowSchema>["event"]) 
 });
 
 const asked = {
-  input: { ids: [] },
+  input: { ids: ["item-1"] },
   name: "delete_items",
   toolUseId: "t1",
   type: "approval.asked",
   until: 9,
 };
+
+// the approval waiting on a call of `name` with `input`
+const askedFor = (name: string, input: z.infer<ReturnType<typeof z.json>>) => {
+  const [approval] = waitingApprovals(threadEntries([row(0, { ...asked, input, name })]));
+  if (approval === undefined) {
+    throw new Error("no approval is waiting");
+  }
+  return approval;
+};
+
+const noTitles = (): null => null;
 
 describe("a thread's entries", () => {
   it("reads the stored events in order and skips one this build cannot parse", () => {
@@ -48,13 +60,62 @@ describe("a thread's entries", () => {
   it("names the approval still waiting by the event that asked, until it is answered", () => {
     const waiting = threadEntries([row(0, asked)]);
     expect(waitingApprovals(waiting)).toStrictEqual([
-      { eventId: `${THREAD}:1:0`, name: "delete_items", until: 9 },
+      { ask: { ids: ["item-1"], kind: "delete" }, eventId: `${THREAD}:1:0`, until: 9 },
     ]);
     const answered = threadEntries([
       row(0, asked),
       row(1, { by: "person", result: "allow", toolUseId: "t1", type: "approval.answered" }),
     ]);
     expect(waitingApprovals(answered)).toStrictEqual([]);
+  });
+
+  it("says how many items a delete would move, naming those this device holds", () => {
+    const titles = new Map([
+      ["a", "Trip plan"],
+      ["b", "Recipes"],
+    ]);
+    const titleOf = (id: string): string | null => titles.get(id) ?? null;
+    const three = askedFor("delete_items", { ids: ["a", "b", "not-here-yet"] });
+    expect(approvalWords(three, titleOf)).toStrictEqual({
+      detail: "Trip plan, Recipes and 1 more",
+      question: "The agent wants to move 3 items to Deleted. You can restore them from there.",
+    });
+    expect(approvalWords(askedFor("delete_items", { ids: ["a"] }), titleOf)).toStrictEqual({
+      detail: "Trip plan",
+      question: "The agent wants to move an item to Deleted. You can restore it from there.",
+    });
+    expect(approvalWords(three, noTitles).detail).toBeNull();
+  });
+
+  it("counts an id the call names twice once, and names a long delete's first titles", () => {
+    expect(
+      approvalWords(askedFor("delete_items", { ids: ["a", "a"] }), noTitles).question,
+    ).toContain("an item");
+    const ids = Array.from({ length: 100 }, (_, index) => String(index));
+    const { detail, question } = approvalWords(askedFor("delete_items", { ids }), (id) => `#${id}`);
+    expect(question).toContain("100 items");
+    expect(detail).toBe("#0, #1, #2, #3, #4, #5, #6, #7, #8, #9 and 90 more");
+  });
+
+  it("shows the whole address a save would send a site, as the library would read it", () => {
+    const approval = askedFor("save_link", {
+      url: "https://good.example@collector.example/?d=my%20private%20note&utm_source=x",
+    });
+    expect(approvalWords(approval, noTitles)).toStrictEqual({
+      detail: "https://collector.example/?d=my%20private%20note",
+      question:
+        "The agent wants to save a link from collector.example. Reading its page shows that site this whole address.",
+    });
+  });
+
+  it("says only the tool's name for a call it cannot read, which the cell refuses too", () => {
+    expect(approvalWords(askedFor("save_link", { url: "not a link" }), noTitles)).toStrictEqual({
+      detail: null,
+      question: "The agent wants to: saved a link.",
+    });
+    expect(approvalWords(askedFor("a_later_tool", {}), noTitles).question).toBe(
+      "The agent wants to: used the library.",
+    );
   });
 
   it("says a tool and an ending in the person's words", () => {

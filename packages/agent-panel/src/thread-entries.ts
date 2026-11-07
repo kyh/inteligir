@@ -11,6 +11,7 @@ import type {
   THREAD_STATUSES,
   threadEventRowSchema,
 } from "@repo/contract/cloud/library/library-wire";
+import { cleanUrl, urlHost } from "@repo/notes/items/item-url";
 import { z } from "zod";
 import { isOrpcError } from "@repo/contract/cloud/v1/errors";
 
@@ -45,10 +46,32 @@ export const threadEntries = (rows: readonly ThreadEventRow[]): ThreadEntry[] =>
       return parsed.success ? [{ at: row.at, event: parsed.data, eventId: row.eventId }] : [];
     });
 
+// what a call waiting on the person would do, read off its input: the items a delete would move,
+// the address a save would reach as the library would read it, or for a call this build cannot
+// read, whose input the cell refuses too, only its tool
+type ApprovalAsk =
+  | { readonly kind: "delete"; readonly ids: readonly string[] }
+  | { readonly kind: "save"; readonly host: string; readonly url: string }
+  | { readonly kind: "other"; readonly name: string };
+
+const deleteInputSchema = z.object({ ids: z.array(z.string()).min(1) });
+const saveInputSchema = z.object({ url: z.string() });
+
+const askOf = ({ input, name }: Extract<AgentEvent, { type: "approval.asked" }>): ApprovalAsk => {
+  const deleting = name === "delete_items" ? deleteInputSchema.safeParse(input) : null;
+  if (deleting?.success === true) {
+    return { ids: [...new Set(deleting.data.ids)], kind: "delete" };
+  }
+  const saving = name === "save_link" ? saveInputSchema.safeParse(input) : null;
+  const url = saving?.success === true ? cleanUrl(saving.data.url) : null;
+  const host = url === null ? null : urlHost(url);
+  return url === null || host === null ? { kind: "other", name } : { host, kind: "save", url };
+};
+
 // an approval the person has not answered: the `approval.asked` event `respond` names
 export interface WaitingApproval {
+  readonly ask: ApprovalAsk;
   readonly eventId: string;
-  readonly name: string;
   readonly until: number;
 }
 
@@ -58,7 +81,7 @@ export const waitingApprovals = (entries: readonly ThreadEntry[]): WaitingApprov
   );
   return entries.flatMap(({ event, eventId }) =>
     event.type === "approval.asked" && !answered.has(event.toolUseId)
-      ? [{ eventId, name: event.name, until: event.until }]
+      ? [{ ask: askOf(event), eventId, until: event.until }]
       : [],
   );
 };
@@ -81,11 +104,61 @@ const TOOL_WORDS = new Map([
 
 export const toolWords = (name: string): string => TOOL_WORDS.get(name) ?? "Used the library";
 
-// what an approval asks, in a sentence
-export const approvalQuestion = (approval: WaitingApproval): string =>
-  approval.name === "delete_items"
-    ? "The agent wants to move items to Deleted. You can restore them from there."
-    : `The agent wants to: ${toolWords(approval.name).toLowerCase()}.`;
+// the most of a delete's items a card names; the rest it counts
+const TITLES_SHOWN = 10;
+
+// the first of a delete's items this device holds a title for, and how many that leaves unnamed
+const namedItems = (
+  ids: readonly string[],
+  titleOf: (id: string) => string | null,
+): string | null => {
+  const titles = ids.slice(0, TITLES_SHOWN).flatMap((id) => {
+    const title = titleOf(id);
+    return title === null || title === "" ? [] : [title];
+  });
+  if (titles.length === 0) {
+    return null;
+  }
+  const rest = ids.length - titles.length;
+  return rest === 0 ? titles.join(", ") : `${titles.join(", ")} and ${String(rest)} more`;
+};
+
+// what a card asks, and what it shows the person before they answer: the one gate on a call a
+// hostile page may have prompted, so it says what the call would do, never what the agent says of it
+interface ApprovalWords {
+  readonly question: string;
+  readonly detail: string | null;
+}
+
+export const approvalWords = (
+  { ask }: WaitingApproval,
+  titleOf: (id: string) => string | null,
+): ApprovalWords => {
+  switch (ask.kind) {
+    case "delete": {
+      const one = ask.ids.length === 1;
+      return {
+        detail: namedItems(ask.ids, titleOf),
+        question: one
+          ? "The agent wants to move an item to Deleted. You can restore it from there."
+          : `The agent wants to move ${String(ask.ids.length)} items to Deleted. You can restore them from there.`,
+      };
+    }
+    case "save": {
+      return {
+        detail: ask.url,
+        question: `The agent wants to save a link from ${ask.host}. Reading its page shows that site this whole address.`,
+      };
+    }
+    case "other": {
+      return {
+        detail: null,
+        question: `The agent wants to: ${toolWords(ask.name).toLowerCase()}.`,
+      };
+    }
+    // no default
+  }
+};
 
 const ENDINGS = {
   budget: "Stopped: the agent reached what it may spend on one turn or one day.",
