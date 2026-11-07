@@ -260,6 +260,19 @@ const summaryOf = async (accountId: string) =>
     };
   });
 
+// the zip unpacked and zipped again as a Mac's Compress does, every path under the unpacked folder
+const compressedAgain = async (zip: Uint8Array): Promise<Uint8Array> => {
+  const source = sourceOf(zip);
+  const entries = await readZipEntries(source);
+  const files = await Promise.all(
+    entries.map(async (entry): Promise<[string, Uint8Array]> => [
+      `Library 2026-11-07/${entry.path}`,
+      await readZipEntry(source, entry, 64 * 1024 * 1024),
+    ]),
+  );
+  return await zipOf(Object.fromEntries(files));
+};
+
 const setRules = async (accountId: string, rules: string): Promise<void> => {
   await inCell(cellOf(accountId), async (state) => {
     await libraryIn(state, accountId).agent.setRules({ rules });
@@ -307,6 +320,21 @@ describe("an export", () => {
       expect(link?.files).toStrictEqual([link?.cover]);
       expect(before.highlights).toHaveLength(2);
       await expect(summaryOf(into)).resolves.toStrictEqual(before);
+    },
+  );
+
+  it(
+    "reads back as the same library once it is unpacked and compressed again",
+    { timeout: 30_000 },
+    async () => {
+      const from = newAccountId();
+      await withLibrary(from);
+      const { export: written } = await exported(from);
+      const into = newAccountId();
+      await expect(
+        imported(into, await compressedAgain(await zipIn(from, written.id))),
+      ).resolves.toMatchObject({ state: "done", unreadable: 0 });
+      await expect(summaryOf(into)).resolves.toStrictEqual(await summaryOf(from));
     },
   );
 
@@ -547,6 +575,13 @@ describe("an export", () => {
       await expect(
         imported(accountId, await zipOf({ "AGENTS.md": encoder.encode(rules) })),
       ).resolves.toMatchObject({ added: 0, alreadySaved: 1, state: "done" });
+      await expect(
+        imported(accountId, await compressedAgain(await zipIn(accountId, written.id))),
+      ).resolves.toMatchObject({
+        added: 0,
+        alreadySaved: before.items.length + 1,
+        state: "done",
+      });
       await expect(summaryOf(accountId)).resolves.toStrictEqual(before);
     },
   );

@@ -167,7 +167,12 @@ root.
   and zipping an export again puts it in those folders; a file a person saved
   under such a name is written under a name of its bytes instead, and a folder
   under that name and ` (folder)`, so an export writes nothing it would pass
-  over.
+  over. Every mark of an export is read from the zip's root, and a Mac's
+  Compress of the unpacked folder puts all of it under that folder, so an import
+  first takes off a sole top folder that every path but what an operating system
+  left shares, when it holds a highlights' store or `assets/`
+  (`packages/editor/src/codec/import-plan.ts`). Rejected: taking off any sole
+  top folder (an Obsidian vault's is a folder the person named).
 
 - **THE DIALECT'S GRAMMAR IS THE EDITOR'S OWN, AND IT IS TOTAL.** Every reader
   of markdown, the codec, an import and the editor alike, parses through one
