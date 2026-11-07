@@ -14,39 +14,33 @@ export type GlobalShortcutAction =
 interface ShortcutRow {
   readonly key: string;
   readonly action: GlobalShortcutAction;
-  readonly label: string;
 }
 
-// the platform's command modifier; a row claims shift explicitly, so an unshifted row never
-// fires on a shifted chord
+// the platform's command modifier, which never fires on a shifted chord
 interface ModShortcut extends ShortcutRow {
   readonly bare?: never;
-  readonly shift?: true;
 }
 
 // one unmodified key, which types a character wherever text is entered, so it answers only
 // outside a field
 interface BareShortcut extends ShortcutRow {
   readonly bare: true;
-  readonly shift?: never;
 }
 
 export type GlobalShortcut = ModShortcut | BareShortcut;
 
 export const GLOBAL_SHORTCUTS: readonly GlobalShortcut[] = [
-  { action: "open-agent", key: "k", label: "Ask the agent" },
-  { action: "open-palette", key: "p", label: "Search" },
-  { action: "open-settings", key: ",", label: "Settings" },
+  { action: "open-agent", key: "k" },
+  { action: "open-palette", key: "p" },
+  { action: "open-settings", key: "," },
   // bare: ⌘[ and ⌘] are the browser's history keys
-  { action: "toggle-rail", bare: true, key: "[", label: "Toggle sidebar" },
-  { action: "toggle-panel", bare: true, key: "]", label: "Toggle panel" },
+  { action: "toggle-rail", bare: true, key: "[" },
+  { action: "toggle-panel", bare: true, key: "]" },
 ];
 
 // is-hotkey's spelling, so a global row and an editor row compare as one chord
 export const globalShortcutHotkey = (shortcut: GlobalShortcut): string =>
-  shortcut.bare === true
-    ? shortcut.key
-    : `mod+${shortcut.shift === true ? "shift+" : ""}${shortcut.key}`;
+  shortcut.bare === true ? shortcut.key : `mod+${shortcut.key}`;
 
 const hotkeyFor = (action: GlobalShortcutAction): string | null => {
   const row = GLOBAL_SHORTCUTS.find((shortcut) => shortcut.action === action);
@@ -69,7 +63,7 @@ export const isTextEntryTarget = (target: EventTarget | null): boolean =>
     target instanceof HTMLTextAreaElement ||
     target instanceof HTMLSelectElement);
 
-// alt disqualifies outright; shift only matches the row that claims it.
+// alt disqualifies outright, and shift under the modifier, which no row claims
 const globalShortcutFor = (
   event: KeyboardEvent,
   modifier: ShortcutModifier,
@@ -88,16 +82,11 @@ const globalShortcutFor = (
   }
   const claimed = modifier === "meta" ? event.metaKey : event.ctrlKey;
   const foreign = modifier === "meta" ? event.ctrlKey : event.metaKey;
-  if (!claimed || foreign) {
+  if (!claimed || foreign || event.shiftKey) {
     return null;
   }
   return (
-    GLOBAL_SHORTCUTS.find(
-      (shortcut) =>
-        shortcut.bare !== true &&
-        shortcut.key === key &&
-        (shortcut.shift === true) === event.shiftKey,
-    ) ?? null
+    GLOBAL_SHORTCUTS.find((shortcut) => shortcut.bare !== true && shortcut.key === key) ?? null
   );
 };
 

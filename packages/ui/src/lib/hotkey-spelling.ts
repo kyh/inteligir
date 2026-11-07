@@ -1,5 +1,5 @@
-// One spelling for a chord on screen: the editor's toolbar, the palette's shortcuts page and
-// the rail's hints all read the same is-hotkey string and spell it for the keyboard in use.
+// One spelling for a chord on screen: the editor's toolbar, the palette's rows and the rail's
+// hints all read the same is-hotkey string and spell it for the keyboard in use.
 
 export type ShortcutModifier = "meta" | "ctrl";
 

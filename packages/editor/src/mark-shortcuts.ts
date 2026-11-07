@@ -1,7 +1,7 @@
 // The chords Plate's mark plugins toggle on. The marks kit BUILDS each plugin's `shortcuts`
 // config from these rows, so this table is what runs, not a description of it; the toolbar's
-// tooltips and the palette's shortcuts page read the same rows. Inline code is not here: its
-// chord is EDITOR_SHORTCUTS' `toggle-code-mark`, which also refuses inside a code block.
+// tooltips read the same rows. Inline code is not here: its chord is EDITOR_SHORTCUTS'
+// `toggle-code-mark`, which also refuses inside a code block.
 
 import { KEYS } from "platejs";
 

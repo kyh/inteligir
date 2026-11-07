@@ -1,7 +1,5 @@
-// The library's bindings, the sixth table: the grid's own keys, the item view's way back, and the
-// window's paste. A row is spelled from here wherever it is drawn (the shortcuts page, a tooltip),
-// so the listener and the label never disagree. `where` is whose listener reads the row: the
-// grid's element, the item view's root, or the window.
+// The library's bindings: the grid's own keys, the item view's way back, and the window's paste.
+// `where` is whose listener reads the row: the grid's element, the item view's root, or the window.
 
 import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { isImeComposing } from "@repo/ui/lib/ime";
@@ -34,46 +32,42 @@ export interface LibraryShortcut {
   readonly mod?: true;
   readonly shift?: true;
   readonly where: LibraryShortcutWhere;
-  readonly label: string;
 }
 
 /** @internal */
 export const LIBRARY_SHORTCUTS: readonly LibraryShortcut[] = [
-  { action: "move-left", key: "left", label: "Previous item", where: "grid" },
-  { action: "move-right", key: "right", label: "Next item", where: "grid" },
-  { action: "move-up", key: "up", label: "Item above", where: "grid" },
-  { action: "move-down", key: "down", label: "Item below", where: "grid" },
+  { action: "move-left", key: "left", where: "grid" },
+  { action: "move-right", key: "right", where: "grid" },
+  { action: "move-up", key: "up", where: "grid" },
+  { action: "move-down", key: "down", where: "grid" },
   {
     action: "extend-left",
     key: "left",
-    label: "Extend selection left",
     shift: true,
     where: "grid",
   },
   {
     action: "extend-right",
     key: "right",
-    label: "Extend selection right",
     shift: true,
     where: "grid",
   },
-  { action: "extend-up", key: "up", label: "Extend selection up", shift: true, where: "grid" },
+  { action: "extend-up", key: "up", shift: true, where: "grid" },
   {
     action: "extend-down",
     key: "down",
-    label: "Extend selection down",
     shift: true,
     where: "grid",
   },
-  { action: "move-first", key: "home", label: "First item", where: "grid" },
-  { action: "move-last", key: "end", label: "Last item", where: "grid" },
-  { action: "open-item", key: "enter", label: "Open item", where: "grid" },
-  { action: "quick-look", key: "space", label: "Quick Look", where: "grid" },
-  { action: "clear-selection", key: "escape", label: "Clear selection", where: "grid" },
-  { action: "select-all", key: "a", label: "Select all", mod: true, where: "grid" },
-  { action: "delete-selection", key: "backspace", label: "Delete", mod: true, where: "grid" },
-  { action: "back-to-library", key: "escape", label: "Back to library", where: "item" },
-  { action: "save-clipboard", key: "v", label: "Save what was copied", mod: true, where: "window" },
+  { action: "move-first", key: "home", where: "grid" },
+  { action: "move-last", key: "end", where: "grid" },
+  { action: "open-item", key: "enter", where: "grid" },
+  { action: "quick-look", key: "space", where: "grid" },
+  { action: "clear-selection", key: "escape", where: "grid" },
+  { action: "select-all", key: "a", mod: true, where: "grid" },
+  { action: "delete-selection", key: "backspace", mod: true, where: "grid" },
+  { action: "back-to-library", key: "escape", where: "item" },
+  { action: "save-clipboard", key: "v", mod: true, where: "window" },
 ];
 
 // the DOM's name for each key the table spells
