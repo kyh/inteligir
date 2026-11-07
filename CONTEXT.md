@@ -34,8 +34,8 @@ credential: the cell never sees one.
 
 **change set** — the unit of History and of undo. Every write lands in one,
 which records each item it touched before and after, its actor (the person,
-the agent, an assistant, an import, a fill, an undo or the system) and when it
-opened and sealed. A device's typing seals after 15 s of quiet or 60 s in all;
+the agent, an assistant, an import, a fill or an undo) and when it opened and
+sealed. A device's typing seals after 15 s of quiet or 60 s in all;
 a **turn** is one set; a **connected assistant**'s writes are one set per
 grant, sealed after 10 idle minutes. Undo reverts sets three-way, newest
 first, and keeps every later edit; an undo is a set of its own. The cell keeps

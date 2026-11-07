@@ -17,10 +17,10 @@ import {
   landedValue,
   noteFields,
   paragraph,
-  SYSTEM,
 } from "../test-support/library-cell";
 import type { Clock } from "../test-support/library-cell";
 import { uuidV7 } from "@repo/notes/library/uuid-v7";
+import { FILL_ACTOR } from "./cell-fills";
 import { addFileBytes } from "./cell-quota";
 import { cellStorageOf } from "./cell-storage";
 import { cellActorOf } from "./library-principal";
@@ -267,7 +267,7 @@ describe("the library's procedures", () => {
 
       // a page whose read failed, asked for again: it waits for the cloud, its failure forgotten
       const { item: failed } = landedValue(
-        engineIn(state, clockAt()).create(SYSTEM, {
+        engineIn(state, clockAt()).create(FILL_ACTOR, {
           blocks: [],
           fields: noteFields({
             fetchError: "The site refused the read.",

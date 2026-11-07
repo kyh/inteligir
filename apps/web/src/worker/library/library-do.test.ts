@@ -21,11 +21,11 @@ import {
   person,
   placed,
   refusalOf,
-  SYSTEM,
 } from "../test-support/library-cell";
 import { threadHolds, threadOf } from "../test-support/agent-turns";
 import { ACCOUNT_PURGE_STEPS } from "./account-purge";
 import { accountBlobPrefix, blobKey } from "./cell-blobs";
+import { FILL_ACTOR } from "./cell-fills";
 import { scheduleJob } from "./cell-jobs";
 import { openCellLibrary, scheduleAlarm, settleCommit } from "./cell-library";
 import type { CellRefusal } from "./cell-refusal";
@@ -68,7 +68,7 @@ describe("the library cell", () => {
     const theirs = cellOf();
     await inCell(mine, (state) => {
       landedValue(
-        engineIn(state, clockAt()).create(SYSTEM, {
+        engineIn(state, clockAt()).create(FILL_ACTOR, {
           blocks: placed([paragraph("a", "mine")]),
           fields: noteFields(),
           id: crypto.randomUUID(),
@@ -190,7 +190,7 @@ describe("the library cell", () => {
     const before = await inCell(stub, (state) => {
       const library = engineIn(state, clockAt());
       landedValue(
-        library.create(SYSTEM, {
+        library.create(FILL_ACTOR, {
           blocks: placed([paragraph("a", "an older build's")]),
           fields: noteFields(),
           id: crypto.randomUUID(),
@@ -318,7 +318,7 @@ describe("deleting the account from its cell", () => {
     const seen = new Map<string, Seen>();
     await inCell(cellOf(accountId), async (state) => {
       landedValue(
-        engineIn(state, clockAt()).create(SYSTEM, {
+        engineIn(state, clockAt()).create(FILL_ACTOR, {
           blocks: placed([paragraph("a", "gone with the account")]),
           fields: noteFields(),
           id: crypto.randomUUID(),

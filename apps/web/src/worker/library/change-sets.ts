@@ -66,8 +66,7 @@ const keysOf = (actor: CellActor): ActorKeys => {
     case "import": {
       return { ...NO_KEYS, actorId: actor.jobId };
     }
-    case "fill":
-    case "system": {
+    case "fill": {
       return NO_KEYS;
     }
     // no default

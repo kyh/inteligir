@@ -15,9 +15,9 @@ import {
   person,
   placed,
   refusalOf,
-  SYSTEM,
 } from "../test-support/library-cell";
 import type { CellActor } from "./cell-actor";
+import { FILL_ACTOR } from "./cell-fills";
 import { ITEM_TEXT_MAX_BYTES } from "./cell-landing";
 import { z } from "zod";
 
@@ -157,7 +157,7 @@ describe("a write to the library cell", () => {
         paragraph(`p${String(index)}`, `line ${String(index)}`),
       );
       landedValue(
-        library.create(SYSTEM, { blocks: placed(blocks), fields: noteFields(), id: itemId }),
+        library.create(FILL_ACTOR, { blocks: placed(blocks), fields: noteFields(), id: itemId }),
       );
       expect(landedValue(library.bodies([itemId])).bodies[0]?.blocks).toHaveLength(2000);
     });
@@ -170,7 +170,7 @@ describe("a write to the library cell", () => {
       const line = "x".repeat(500 * 1024);
       const blocks = Array.from({ length: 17 }, (_, index) => paragraph(`p${String(index)}`, line));
       expect(17 * line.length).toBeGreaterThan(ITEM_TEXT_MAX_BYTES);
-      const refused = library.create(SYSTEM, {
+      const refused = library.create(FILL_ACTOR, {
         blocks: placed(blocks),
         fields: noteFields(),
         id: newItemId(),
@@ -184,11 +184,13 @@ describe("a write to the library cell", () => {
     await inCell(cellOf(), (state) => {
       const roomy = engineIn(state, clockAt());
       const itemId = newItemId();
-      landedValue(roomy.create(SYSTEM, { blocks: placed([A]), fields: noteFields(), id: itemId }));
+      landedValue(
+        roomy.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
+      );
       const bytesCap = state.storage.sql.databaseSize + 64 * 1024;
       const library = engineIn(state, clockAt(), bytesCap);
       const big = paragraph("big", "y".repeat(200 * 1024));
-      const refused = library.write(SYSTEM, {
+      const refused = library.write(FILL_ACTOR, {
         itemId,
         ops: [{ block: big, op: "insert", ord: "a5", section: "note" }],
       });
@@ -198,7 +200,10 @@ describe("a write to the library cell", () => {
         kind: "quota",
       });
       landedValue(
-        library.write(SYSTEM, { itemId, ops: [{ baseHash: hashOf(A), blockId: "a", op: "drop" }] }),
+        library.write(FILL_ACTOR, {
+          itemId,
+          ops: [{ baseHash: hashOf(A), blockId: "a", op: "drop" }],
+        }),
       );
     });
   });
@@ -207,21 +212,23 @@ describe("a write to the library cell", () => {
     await inCell(cellOf(), (state) => {
       const roomy = engineIn(state, clockAt());
       const itemId = newItemId();
-      landedValue(roomy.create(SYSTEM, { blocks: placed([A]), fields: noteFields(), id: itemId }));
+      landedValue(
+        roomy.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
+      );
       const bytesCap = state.storage.sql.databaseSize + 1024;
       const library = engineIn(state, clockAt(), bytesCap);
       const long = "y".repeat(8 * 1024);
-      const refusedProperty = library.write(SYSTEM, {
+      const refusedProperty = library.write(FILL_ACTOR, {
         itemId,
         ops: [{ key: "notes", op: "property", value: long }],
       });
       expect(refusalOf(refusedProperty)).toMatchObject({ bytesCap, kind: "quota" });
-      const refusedDescription = library.write(SYSTEM, {
+      const refusedDescription = library.write(FILL_ACTOR, {
         itemId,
         ops: [{ base: null, field: "description", op: "set", value: long }],
       });
       expect(refusalOf(refusedDescription)).toMatchObject({ kind: "quota" });
-      const refusedNew = library.create(SYSTEM, {
+      const refusedNew = library.create(FILL_ACTOR, {
         blocks: placed([]),
         fields: noteFields({ properties: { notes: long } }),
         id: newItemId(),
@@ -236,11 +243,15 @@ describe("a write to the library cell", () => {
       const itemId = newItemId();
       const title = "a title long enough to shorten";
       landedValue(
-        roomy.create(SYSTEM, { blocks: placed([A]), fields: noteFields({ title }), id: itemId }),
+        roomy.create(FILL_ACTOR, {
+          blocks: placed([A]),
+          fields: noteFields({ title }),
+          id: itemId,
+        }),
       );
       const library = engineIn(state, clockAt(), 1);
       const landing = (ops: readonly LibraryOp[]) =>
-        landedValue(library.write(SYSTEM, { itemId, ops }));
+        landedValue(library.write(FILL_ACTOR, { itemId, ops }));
       landing([{ base: title, field: "title", op: "set", value: "shorter" }]);
       landing([{ base: null, field: "pinnedAt", op: "set", value: 5 }]);
       landing([{ base: null, field: "folderId", op: "set", value: "folder" }]);
@@ -255,7 +266,7 @@ describe("a write to the library cell", () => {
       const library = engineIn(state, clockAt());
       const itemId = newItemId();
       landedValue(
-        library.create(SYSTEM, { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        library.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
       const sha = "a".repeat(64);
       const image = {
@@ -270,7 +281,7 @@ describe("a write to the library cell", () => {
         ord: "a5",
         section: "note",
       } satisfies LibraryOp;
-      expect(refusalOf(library.write(SYSTEM, { itemId, ops: [insert] }))).toStrictEqual({
+      expect(refusalOf(library.write(FILL_ACTOR, { itemId, ops: [insert] }))).toStrictEqual({
         kind: "blob-missing",
         shas: [sha],
       });
@@ -279,7 +290,7 @@ describe("a write to the library cell", () => {
       });
       const settled = library.settle(sha, { bytes: 10, mime: "image/png" }, library.blobRemovals());
       expect(settled.ok && settled.head).toBe(2);
-      landedValue(library.write(SYSTEM, { itemId, ops: [insert] }));
+      landedValue(library.write(FILL_ACTOR, { itemId, ops: [insert] }));
       expect(landedValue(library.reserve({ bytes: 10, mime: "image/png", sha }))).toStrictEqual({
         held: true,
       });
@@ -451,7 +462,7 @@ describe("pulling the library", () => {
       const library = engineIn(state, clockAt());
       const ids = Array.from({ length: 30 }, () => newItemId());
       for (const id of ids) {
-        landedValue(library.create(SYSTEM, { blocks: placed([A]), fields: noteFields(), id }));
+        landedValue(library.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id }));
       }
       const first = landedValue(library.pull({ cursor: 0, epoch: null }));
       if (first.kind !== "changes") {
@@ -472,7 +483,7 @@ describe("pulling the library", () => {
     await inCell(cellOf(), (state) => {
       const library = engineIn(state, clockAt());
       landedValue(
-        library.create(SYSTEM, { blocks: placed([A]), fields: noteFields(), id: newItemId() }),
+        library.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: newItemId() }),
       );
       const fresh = landedValue(library.pull({ cursor: 0, epoch: null }));
       expect(landedValue(library.pull({ cursor: 1, epoch: "another-library" }))).toStrictEqual({
@@ -494,8 +505,12 @@ describe("pulling the library", () => {
       );
       const one = newItemId();
       const two = newItemId();
-      landedValue(library.create(SYSTEM, { blocks: placed(big), fields: noteFields(), id: one }));
-      landedValue(library.create(SYSTEM, { blocks: placed(big), fields: noteFields(), id: two }));
+      landedValue(
+        library.create(FILL_ACTOR, { blocks: placed(big), fields: noteFields(), id: one }),
+      );
+      landedValue(
+        library.create(FILL_ACTOR, { blocks: placed(big), fields: noteFields(), id: two }),
+      );
       const missing = newItemId();
       // past about 4 MB the rest waits for the next ask, the first body whatever its size
       const answer = landedValue(library.bodies([missing, one, two, one]));
@@ -585,9 +600,11 @@ describe("change sets and undo", () => {
       const library = engineIn(state, clock);
       const kept = newItemId();
       const undone = newItemId();
-      landedValue(library.create(SYSTEM, { blocks: placed([A]), fields: noteFields(), id: kept }));
       landedValue(
-        library.create(SYSTEM, { blocks: placed([A]), fields: noteFields(), id: undone }),
+        library.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: kept }),
+      );
+      landedValue(
+        library.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: undone }),
       );
       const edit = paragraph("a", "the laptop's edit");
       for (const itemId of [kept, undone]) {
@@ -647,7 +664,11 @@ describe("change sets and undo", () => {
         const roomy = engineIn(state, clock);
         const itemId = newItemId();
         landedValue(
-          roomy.create(SYSTEM, { blocks: placed([A, passage]), fields: noteFields(), id: itemId }),
+          roomy.create(FILL_ACTOR, {
+            blocks: placed([A, passage]),
+            fields: noteFields(),
+            id: itemId,
+          }),
         );
         landedValue(
           roomy.write(person("laptop"), {
@@ -678,9 +699,11 @@ describe("change sets and undo", () => {
         const cut = newItemId();
         const added = newItemId();
         landedValue(
-          roomy.create(SYSTEM, { blocks: placed([A, passage]), fields: noteFields(), id: cut }),
+          roomy.create(FILL_ACTOR, { blocks: placed([A, passage]), fields: noteFields(), id: cut }),
         );
-        landedValue(roomy.create(SYSTEM, { blocks: placed([A]), fields: noteFields(), id: added }));
+        landedValue(
+          roomy.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: added }),
+        );
         landedValue(
           roomy.write(person("laptop"), {
             itemId: cut,
@@ -717,7 +740,7 @@ describe("change sets and undo", () => {
         const gone = newItemId();
         const holder = newItemId();
         landedValue(
-          library.create(SYSTEM, { blocks: placed([]), fields: noteFields({ url }), id: gone }),
+          library.create(FILL_ACTOR, { blocks: placed([]), fields: noteFields({ url }), id: gone }),
         );
         landedValue(
           library.write(person("laptop"), {
@@ -727,7 +750,11 @@ describe("change sets and undo", () => {
         );
         const setId = laptopSet(state);
         landedValue(
-          library.create(SYSTEM, { blocks: placed([]), fields: noteFields({ url }), id: holder }),
+          library.create(FILL_ACTOR, {
+            blocks: placed([]),
+            fields: noteFields({ url }),
+            id: holder,
+          }),
         );
         expect(refusalOf(library.undo(person("laptop"), { changeSetIds: [setId] }))).toMatchObject({
           itemId: holder,
@@ -735,7 +762,7 @@ describe("change sets and undo", () => {
         });
         expect(undoneBy(state, setId)).toBeNull();
         landedValue(
-          library.write(SYSTEM, {
+          library.write(FILL_ACTOR, {
             itemId: holder,
             ops: [{ base: null, field: "deletedAt", op: "set", value: clock.now }],
           }),
@@ -759,7 +786,7 @@ describe("change sets and undo", () => {
         );
       };
       landedValue(
-        library.create(SYSTEM, { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        library.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
       // the person's set stays open while the library's own write seals as it lands, then the
       // person takes the item back within the same set
@@ -769,7 +796,7 @@ describe("change sets and undo", () => {
       clock.now = start + 1000;
       put(person(), A, typed);
       clock.now = start + 2000;
-      put(SYSTEM, typed, later);
+      put(FILL_ACTOR, typed, later);
       clock.now = start + 3000;
       put(person(), later, again);
       clock.now = start + 62_000;
@@ -814,10 +841,10 @@ describe("change sets and undo", () => {
       const library = engineIn(state, clock);
       const itemId = newItemId();
       landedValue(
-        library.create(SYSTEM, { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        library.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
       landedValue(
-        library.write(SYSTEM, {
+        library.write(FILL_ACTOR, {
           annotations: [
             {
               createdAt: 1,

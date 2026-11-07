@@ -98,8 +98,6 @@ export const person = (deviceId = "laptop"): CellActor => ({
   label: `You on ${deviceId}`,
 });
 
-export const SYSTEM: CellActor = { kind: "system", label: "Library" };
-
 export const noteFields = (overrides: Partial<LibraryItemFields> = {}): LibraryItemFields => ({
   aliases: [],
   author: null,

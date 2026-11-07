@@ -17,7 +17,7 @@ import type { SqlPlan, SqlRow } from "./library-sql";
 
 // bump on any change below, and on any change to the JSON a replica's outbox row holds
 // (`@repo/library-replica`), which no build reads in another's shape
-export const LIBRARY_SCHEMA_VERSION = 10;
+export const LIBRARY_SCHEMA_VERSION = 11;
 
 // STRICT tables are SQLite 3.37; a replica's engine is checked against it at open. The cell's is
 // the platform's own, and a Durable Object refuses sqlite_version() ("not authorized to use
@@ -41,7 +41,7 @@ const TAG_ORIGINS = ["field", "inline"] as const;
 const BLOB_ROLES = ["original", "cover", "thumb", "copy", "embed"] as const;
 export type BlobRole = (typeof BLOB_ROLES)[number];
 // who a change set is by: the person, the built-in agent, a connected assistant, an import, the
-// cloud reading a page, an undo, or the library itself (a dangling link resolving)
+// cloud reading a page, or an undo
 export const CHANGE_SET_ACTORS = [
   "person",
   "agent",
@@ -49,7 +49,6 @@ export const CHANGE_SET_ACTORS = [
   "import",
   "fill",
   "undo",
-  "system",
 ] as const;
 
 // where a thread's open turn stands: running, or waiting on the person's approval of a call
