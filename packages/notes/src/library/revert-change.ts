@@ -380,7 +380,7 @@ const revertExisting = (input: ItemRevertInput, before: ItemSnapshot, now: ItemN
   const changed =
     landed.touched.blocks.size > 0 || landed.touched.dropped.size > 0 || landed.touched.fields;
   if (!changed && highlights.kind === "unchanged") {
-    return UNCHANGED;
+    return highlights.kept ? EDITED_SINCE : UNCHANGED;
   }
   return {
     annotations: highlights.kind === "reverted" ? highlights.store : null,
@@ -433,17 +433,18 @@ interface KeptChange {
 
 export interface ChangeSetsRevert {
   readonly items: ReadonlyMap<string, ItemUndo>;
-  // an item a set changed that someone changed since: left whole, and named
+  // an item a set changed that someone changed since, or a highlight on it answered, edited or
+  // anchored since: left as it is, and named
   readonly kept: readonly KeptChange[];
-  // a set left a highlight that was answered, edited or anchored since
-  readonly keptAnnotations: boolean;
+  // the sets of which something was kept and nothing goes back
+  readonly leftWhole: ReadonlySet<string>;
 }
 
 // several sets undone as one, newest first, each against the item as the newer ones left it
 export const revertChangeSets = (input: ChangeSetsRevertInput): ChangeSetsRevert => {
   const items = new Map<string, ItemUndo>();
   const kept: KeptChange[] = [];
-  let keptAnnotations = false;
+  const takenBack = new Set<string>();
   for (const set of input.sets) {
     for (const [itemId, change] of set.items) {
       const undone = items.get(itemId);
@@ -452,7 +453,10 @@ export const revertChangeSets = (input: ChangeSetsRevertInput): ChangeSetsRevert
       if (verdict.kind === "keep") {
         kept.push({ itemId, reason: verdict.reason, setId: set.id });
       } else if (verdict.kind === "revert") {
-        keptAnnotations ||= verdict.keptAnnotations;
+        takenBack.add(set.id);
+        if (verdict.keptAnnotations) {
+          kept.push({ itemId, reason: "edited-since", setId: set.id });
+        }
         items.set(itemId, {
           now: {
             annotations: verdict.annotations ?? now?.annotations ?? {},
@@ -463,5 +467,6 @@ export const revertChangeSets = (input: ChangeSetsRevertInput): ChangeSetsRevert
       }
     }
   }
-  return { items, kept, keptAnnotations };
+  const leftWhole = new Set(kept.map(({ setId }) => setId).filter((id) => !takenBack.has(id)));
+  return { items, kept, leftWhole };
 };

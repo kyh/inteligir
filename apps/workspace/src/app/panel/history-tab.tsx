@@ -29,15 +29,37 @@ interface ShownRevision {
   readonly label: string;
 }
 
+interface UndoAnswer {
+  readonly kept: readonly string[];
+  readonly refused: readonly string[];
+  readonly reverted: readonly string[];
+}
+
+const NOTHING_UNDONE =
+  "Nothing was undone. Changes made since were kept where they overlapped, so you can undo this again.";
+
 // what an undo's answer says: what it took back, what a later change kept as it is, and what a
 // rule held back, which Undo can still take
-export const undoSentence = (answer: { kept: readonly string[]; refused: readonly string[] }) => {
+export const undoSentence = (answer: UndoAnswer) => {
   if (answer.refused.length > 0) {
     return "Partly undone. Some items couldn't come back yet, so you can undo this again.";
   }
-  return answer.kept.length === 0
-    ? "Undone."
+  if (answer.kept.length === 0) {
+    return "Undone.";
+  }
+  return answer.reverted.length === 0
+    ? NOTHING_UNDONE
     : "Undone, but changes made since were kept where they overlapped.";
+};
+
+// an undo that took nothing back is no success
+export const announceUndo = (answer: UndoAnswer): void => {
+  const sentence = undoSentence(answer);
+  if (sentence === NOTHING_UNDONE) {
+    toast.info(sentence);
+  } else {
+    toast.success(sentence);
+  }
 };
 
 const RevisionDialog = ({
@@ -104,7 +126,7 @@ export const HistoryTab = ({
         toast.error(refusalText(cause, "That change couldn't be undone."));
       },
       onSuccess: async (answer) => {
-        toast.success(undoSentence(answer));
+        announceUndo(answer);
         await queryClient.invalidateQueries({ queryKey: orpc.library.history.key() });
       },
       // one undo after another, in the order they were asked

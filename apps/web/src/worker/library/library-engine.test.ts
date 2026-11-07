@@ -676,6 +676,105 @@ describe("change sets and undo", () => {
     });
   });
 
+  describe("an undo that takes nothing back", () => {
+    it("leaves the set undoable, opens no set of its own, and lands once the edit since is gone", async () => {
+      await inCell(cellOf(), (state) => {
+        const clock = clockAt();
+        const library = engineIn(state, clock);
+        const itemId = newItemId();
+        landedValue(
+          createItem(library, FILL_ACTOR, {
+            blocks: placed([A]),
+            fields: noteFields(),
+            id: itemId,
+          }),
+        );
+        const edit = paragraph("a", "the laptop's edit");
+        const later = paragraph("a", "the phone's edit");
+        landedValue(
+          library.write(person("laptop"), {
+            itemId,
+            ops: [{ baseHash: hashOf(A), block: edit, op: "put" }],
+          }),
+        );
+        const setId = laptopSet(state);
+        clock.now += 120_000;
+        landedValue(
+          library.write(person("phone"), {
+            itemId,
+            ops: [{ baseHash: hashOf(edit), block: later, op: "put" }],
+          }),
+        );
+        const sets = setCount(state);
+
+        const answer = landedValue(library.undo(person("laptop"), { changeSetIds: [setId] }));
+        expect(answer).toStrictEqual({
+          changeSetId: null,
+          kept: [itemId],
+          refused: [],
+          reverted: [],
+        });
+        expect(undoneBy(state, setId)).toBeNull();
+        expect(setCount(state)).toBe(sets);
+
+        landedValue(
+          library.write(person("phone"), {
+            itemId,
+            ops: [{ baseHash: hashOf(later), block: edit, op: "put" }],
+          }),
+        );
+        const again = landedValue(library.undo(person("laptop"), { changeSetIds: [setId] }));
+        expect(again).toMatchObject({ kept: [], reverted: [itemId] });
+        expect(undoneBy(state, setId)).toBe(again.changeSetId);
+      });
+    });
+
+    it("marks only the sets that took something back when one undo names several", async () => {
+      await inCell(cellOf(), (state) => {
+        const clock = clockAt();
+        const library = engineIn(state, clock);
+        const [held, back] = [newItemId(), newItemId()];
+        for (const id of [held, back]) {
+          landedValue(
+            createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id }),
+          );
+        }
+        const edit = paragraph("a", "an edit");
+        landedValue(
+          library.write(person("laptop"), {
+            itemId: held,
+            ops: [{ baseHash: hashOf(A), block: edit, op: "put" }],
+          }),
+        );
+        const heldSet = laptopSet(state);
+        clock.now += 120_000;
+        landedValue(
+          library.write(person("tablet"), {
+            itemId: held,
+            ops: [{ baseHash: hashOf(edit), block: paragraph("a", "edited again"), op: "put" }],
+          }),
+        );
+        landedValue(
+          library.write(person("phone"), {
+            itemId: back,
+            ops: [{ baseHash: hashOf(A), block: edit, op: "put" }],
+          }),
+        );
+        const backSet = z
+          .string()
+          .parse(
+            state.storage.sql.exec("SELECT id FROM change_sets WHERE device_id = 'phone'").one().id,
+          );
+        const answer = landedValue(
+          library.undo(person("laptop"), { changeSetIds: [heldSet, backSet] }),
+        );
+        expect(answer).toMatchObject({ kept: [held], refused: [], reverted: [back] });
+        expect(undoneBy(state, backSet)).toBe(answer.changeSetId);
+        expect(undoneBy(state, heldSet)).toBeNull();
+      });
+    });
+  });
+
   describe("an undo a rule refuses", () => {
     const passage = paragraph("long", "x".repeat(4096));
 

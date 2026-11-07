@@ -1,12 +1,16 @@
 // @vitest-environment jsdom
 
+import { toast } from "@repo/ui/components/sonner";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
 import { HistoryTab } from "./history-tab";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 const ITEM = "0199a4c2-0000-7000-8000-0000000000b1";
 
@@ -36,7 +40,7 @@ describe("an item's History", () => {
             ? { changeSets: [set("s1", "Typed in Plans")], cursor: null }
             : { changeSets: [set("s2", "Renamed Plans")], cursor: "1" };
         }
-        return { changeSetId: "u1", kept: [], reverted: [ITEM] };
+        return { changeSetId: "u1", kept: [], refused: [], reverted: [ITEM] };
       },
     });
     renderOnLibrary(<HistoryTab itemId={ITEM} flushOpen={flushOpen} />, library);
@@ -55,5 +59,30 @@ describe("an item's History", () => {
       ]);
     });
     expect(flushOpen).toHaveBeenCalledOnce();
+  });
+
+  it("says so when a later change kept everything, and offers the set again", async () => {
+    const info = vi.spyOn(toast, "info");
+    const success = vi.spyOn(toast, "success");
+    const { library } = fakePageLibrary({
+      answer: ({ path }) =>
+        path === "library.history.list"
+          ? { changeSets: [set("s1", "Renamed Plans")], cursor: null }
+          : { changeSetId: null, kept: [ITEM], refused: [], reverted: [] },
+    });
+    renderOnLibrary(
+      <HistoryTab
+        itemId={ITEM}
+        flushOpen={async () => {
+          await Promise.resolve();
+        }}
+      />,
+      library,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
+    await waitFor(() => {
+      expect(info).toHaveBeenCalledWith(expect.stringMatching(/^Nothing was undone/u));
+    });
+    expect(success).not.toHaveBeenCalled();
   });
 });

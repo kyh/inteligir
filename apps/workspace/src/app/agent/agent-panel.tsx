@@ -47,7 +47,7 @@ import { useEffect, useRef, useState } from "react";
 import { historyPages } from "../cloud/history-pages";
 import { useReplica, useReplicaQueries, useWire } from "../cloud/library-context";
 import { refusalText } from "@repo/contract/cloud/refusal-text";
-import { undoSentence } from "../panel/history-tab";
+import { announceUndo } from "../panel/history-tab";
 import { relativeTimeLabel, useNow } from "../relative-time";
 
 export interface AgentPanelProps {
@@ -272,17 +272,19 @@ const Conversation = ({
       await flushOpen();
       const kept: string[] = [];
       const refused: string[] = [];
+      const reverted: string[] = [];
       for (const batch of undoBatches(ids)) {
         try {
           const answer = await undo.mutateAsync({ changeSetIds: batch });
           kept.push(...answer.kept);
           refused.push(...answer.refused);
+          reverted.push(...answer.reverted);
         } catch {
           // the undo's own onError said why; the batches after it are not sent
           return;
         }
       }
-      toast.success(undoSentence({ kept, refused }));
+      announceUndo({ kept, refused, reverted });
     })();
   };
   const undoTurn = (turn: number): (() => void) | null => {

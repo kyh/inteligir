@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { toast } from "@repo/ui/components/sonner";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -8,7 +9,10 @@ import type { CellCall, ThreadEventRow, ThreadRow } from "../test-support/fake-p
 import { AgentPanel } from "./agent-panel";
 import { TIDY_LABEL, TIDY_VIEW_CONTEXT, tidyMessage } from "@repo/agent-panel/tidy-library";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 const THREAD = "0199a4c2-0000-7000-8000-00000000000a";
 const AT = 1_793_000_000_000;
@@ -128,7 +132,7 @@ describe("the agent panel's conversation", () => {
             ? { changeSets: [set("s1", 1)], cursor: null }
             : { changeSets: [set("s2", 2)], cursor: "1" };
         }
-        return { changeSetId: "u1", kept: [], reverted: [] };
+        return { changeSetId: "u1", kept: [], refused: [], reverted: ["i1"] };
       },
       events: [
         row(0, { text: "File these.", type: "user.message" }),
@@ -154,6 +158,29 @@ describe("the agent panel's conversation", () => {
         { changeSetIds: ["s1"] },
         { changeSetIds: ["s2", "s1"] },
       ]);
+    });
+  });
+
+  it.each([
+    ["kept part of it", { kept: ["i1"], reverted: ["i2"] }, "success", /^Undone, but/u],
+    ["kept all of it", { kept: ["i1"], reverted: [] }, "info", /^Nothing was undone/u],
+  ] as const)("says when a later change %s", async (_case, answer, kind, words) => {
+    const said = vi.spyOn(toast, kind);
+    const { library } = fakePageLibrary({
+      answer: ({ path }) =>
+        path === "library.history.list"
+          ? { changeSets: [set("s1", 1)], cursor: null }
+          : { changeSetId: null, refused: [], ...answer },
+      events: [
+        row(0, { text: "File these.", type: "user.message" }),
+        row(1, { reason: "done", turn: 1, type: "turn.ended" }),
+      ],
+      threads: [thread],
+    });
+    renderOnLibrary(panel(), library);
+    fireEvent.click(await screen.findByRole("button", { name: "Undo this turn" }));
+    await waitFor(() => {
+      expect(said).toHaveBeenCalledWith(expect.stringMatching(words));
     });
   });
 

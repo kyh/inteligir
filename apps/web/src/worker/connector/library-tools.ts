@@ -61,7 +61,7 @@ export const libraryTools = {
     undo: history.undo.meta(
       openapi({
         description:
-          "Undoes change sets, newest first, in a change set of its own. An item edited since in the same places is kept as it is, and the answer names it. An item a rule holds back, such as a full library, is named under refused, and its set can be undone again.",
+          "Undoes change sets, newest first, in a change set of its own. An item edited since in the same places is kept as it is, and the answer names it; a set nothing of which went back can be undone again, and an answer with nothing gone back names no change set. An item a rule holds back, such as a full library, is named under refused, and its set can be undone again.",
         method: "POST",
         operationId: "undo_change",
         summary: "Undo a change",
