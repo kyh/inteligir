@@ -109,6 +109,7 @@ const plannedDocSchema = z.object({
   folderId: z.string().nullable(),
   itemId: z.string(),
   path: z.string(),
+  storeId: z.string().nullable(),
   title: z.string(),
   urlKey: z.string().nullable(),
 });

@@ -264,6 +264,25 @@ describe("a zip's highlights", () => {
     return { job: await jobOf(accountId, started.jobId), rows };
   };
 
+  it("land once for a note copied beside its original, and the copy lands too", async () => {
+    const accountId = newAccountId();
+    const started = await startImport(
+      accountId,
+      await zip({
+        "Marked copy.md": NOTE,
+        "Marked.md": NOTE,
+        [`.inteligir/annotations/${ID}.json`]: encoder.encode(JSON.stringify({ "m-root": ROOT })),
+      }),
+      "markdown",
+    );
+    await runToEnd(accountId, started.jobId);
+    await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
+      added: 2,
+      highlights: 1,
+      unreadable: 0,
+    });
+  });
+
   it("land a reply the store holds ahead of its root", async () => {
     const { job, rows } = await imported({ "c-reply": REPLY, "m-root": ROOT });
     expect(job).toMatchObject({ added: 1, highlights: 1, unreadable: 0 });

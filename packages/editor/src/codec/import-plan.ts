@@ -81,8 +81,11 @@ export interface PlannedDoc {
   readonly itemId: string;
   readonly title: string;
   readonly folderId: string | null;
-  // the `id:` its frontmatter carries, which its store and other docs' `[[Title|uuid]]` key by
+  // the `id:` its frontmatter carries, which other docs' `[[Title|uuid]]` key by
   readonly fileId: string | null;
+  // the id of the highlights' store it reads: a highlight's id is the library's, so of the docs
+  // that carry one `id:` only the first takes the store, and a copy keeps its text
+  readonly storeId: string | null;
   readonly aliases: readonly string[];
   // the url key its frontmatter names, by which the cell folds two saves of one page into one item
   readonly urlKey: string | null;
@@ -168,6 +171,7 @@ export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): Impor
   const files: PlannedFile[] = [];
   const stores: { key: string; text: string }[] = [];
   const usedIds = new Set<string>();
+  const storeIds = new Set<string>();
   let rules: string | null = null;
   for (const entry of entries) {
     const path = normalizePath(entry.path);
@@ -195,12 +199,17 @@ export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): Impor
           front.fileId !== null && UUID_RE.test(front.fileId) ? front.fileId.toLowerCase() : null;
         const itemId = own !== null && !usedIds.has(own) ? own : ids.newItemId();
         usedIds.add(itemId);
+        const storeId = front.fileId !== null && !storeIds.has(front.fileId) ? front.fileId : null;
+        if (storeId !== null) {
+          storeIds.add(storeId);
+        }
         docs.push({
           aliases: front.aliases,
           fileId: front.fileId,
           folderId: table.idOf(dirnamePath(path)),
           itemId,
           path,
+          storeId,
           title: front.title,
           urlKey: front.urlKey,
         });
@@ -291,7 +300,7 @@ export const importPlannedDoc = (
   };
   const read = importItem(
     {
-      annotations: doc.fileId === null ? null : (reader.stores.get(doc.fileId) ?? null),
+      annotations: doc.storeId === null ? null : (reader.stores.get(doc.storeId) ?? null),
       name: docStem(doc.path),
       text,
     },
