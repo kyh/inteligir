@@ -18,7 +18,7 @@ import {
 } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { historyPages } from "../cloud/history-pages";
+import { historyPages, UNDO_SCOPE } from "../cloud/history-pages";
 import { useReplica, useWire } from "../cloud/library-context";
 import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { CellAnswer } from "../cloud/needs-connection";
@@ -130,8 +130,7 @@ export const HistoryTab = ({
         announceUndo(answer);
         await queryClient.invalidateQueries({ queryKey: orpc.library.history.key() });
       },
-      // one undo after another, in the order they were asked
-      scope: { id: "history-undo" },
+      scope: UNDO_SCOPE,
     }),
   );
   return (

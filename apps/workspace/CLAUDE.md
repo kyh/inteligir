@@ -57,8 +57,10 @@ is parsed in `src/shell/shell-commands.ts`.
   screen's fallback, never an error's own words. The one retry rule never
   retries a declared refusal, so no screen turns retries off itself. A write
   whose order matters shares a `scope`, and refetches in its own callbacks,
-  awaited, only the family it moved. Rejected: a call outside TanStack (it fails
-  at once offline); a note per button (a menu's verb has none).
+  awaited, only the family it moved. A read a press must act on is a mutation
+  too, so it waits under that notice and in that scope, retried as a query is.
+  Rejected: a call outside TanStack (it fails at once offline); a note per
+  button (a menu's verb has none).
   `apps/workspace/src/app/cloud/v1.ts`,
   `apps/workspace/src/app/cloud/needs-connection.tsx`, over
   `packages/contract/src/cloud/refusal-text.ts`, which the phone says too.
@@ -292,13 +294,17 @@ is parsed in `src/shell/shell-commands.ts`.
   unsaved edit is written: the sets are read from every page the cell answers,
   the whole conversation's Undo offered once all are in and sent in as few
   undos as the cell takes, and asked again as each turn ends, since a turn's
-  set seals with it. While a turn is open, a turn waiting on an approval among
+  set seals with it. Its press reads them once more, behind any undo in flight,
+  and says so and sends nothing when none is left to take back. While a turn is
+  open, a turn waiting on an approval among
   them, every device draws Stop, which turns down what it asked and ends the
   answer, and the page no Undo of the conversation, since the open turn's set
   is out of its reach. Rejected: an agent the device runs (a runtime and a model
   credential on every device); a socket of the page's own to the conversation's
   object; one page of sets (a long conversation's oldest turns lost their
-  Undo). `apps/workspace/src/app/agent/agent-panel.tsx`, over
+  Undo); the list on screen at the press (it can be a turn short of the cell,
+  or hold what another device took back).
+  `apps/workspace/src/app/agent/agent-panel.tsx`, over
   `packages/agent-panel/src/thread-entries.ts`, `thread-undo.ts`.
 
 - **TIDY MY LIBRARY IS A REQUEST FROM UNSORTED, AND THE FILING RULES ARE THE

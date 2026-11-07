@@ -45,8 +45,9 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { ArrowLeftIcon, PlusIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { everyChangeSet, historyPages } from "../cloud/history-pages";
+import { everyChangeSet, historyPages, UNDO_SCOPE } from "../cloud/history-pages";
 import { useReplica, useReplicaQueries, useWire } from "../cloud/library-context";
+import { retryUnlessRefused } from "../cloud/v1";
 import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { announceUndo } from "../panel/history-tab";
 import { relativeTimeLabel, useNow } from "../relative-time";
@@ -264,7 +265,7 @@ const Conversation = ({
       onSuccess: async () => {
         await queryClient.invalidateQueries({ queryKey: orpc.library.history.key() });
       },
-      scope: { id: "history-undo" },
+      scope: UNDO_SCOPE,
     }),
   );
   const changeSets = changeSetsOf(sets.data?.pages ?? []);
@@ -296,18 +297,30 @@ const Conversation = ({
           undoSets(ids);
         };
   };
-  // offered once every page is read, and read again at the press: a turn's set seals as the turn
-  // ends and the list on screen follows it, so that list can be a turn short of the conversation
+  // offered once every page is read
   const whole = hasNextPage ? null : conversationUndo(changeSets);
-  const undoConversation = (): void => {
-    void (async () => {
-      try {
-        undoSets(conversationUndo(await everyChangeSet(client, { threadId })) ?? []);
-      } catch (error) {
-        toast.error(refusalText(error, "That couldn't be undone."));
+  // read again at the press: a turn's set seals as the turn ends and the list on screen follows it,
+  // so that list can be a turn short of the conversation, or hold what another device took back. A
+  // mutation though it writes nothing, so the press waits offline under the root's notice and
+  // behind an undo in flight; its thread is a variable, since one that waits takes each render's
+  // options and the panel may be on another conversation by the time it goes
+  const undoConversation = useMutation({
+    mutationFn: async (pressedIn: string) => await everyChangeSet(client, { threadId: pressedIn }),
+    onError: (cause) => {
+      toast.error(refusalText(cause, "That couldn't be undone."));
+    },
+    onSuccess: async (read) => {
+      const ids = conversationUndo(read);
+      if (ids !== null) {
+        undoSets(ids);
+        return;
       }
-    })();
-  };
+      toast.info("There's nothing left to undo in this conversation.");
+      await queryClient.invalidateQueries({ queryKey: orpc.library.history.key() });
+    },
+    retry: retryUnlessRefused,
+    scope: UNDO_SCOPE,
+  });
   const working = thread !== undefined && isWorking(thread.status);
   const underWay = thread !== undefined && isUnderWay(thread.status);
   return (
@@ -364,7 +377,14 @@ const Conversation = ({
           </Button>
         ) : null}
         {whole === null || underWay ? null : (
-          <Button size="compact" variant="ghost" onClick={undoConversation}>
+          <Button
+            size="compact"
+            variant="ghost"
+            disabled={undoConversation.isPending}
+            onClick={() => {
+              undoConversation.mutate(threadId);
+            }}
+          >
             Undo this conversation
           </Button>
         )}

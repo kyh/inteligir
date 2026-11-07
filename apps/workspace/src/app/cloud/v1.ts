@@ -73,7 +73,6 @@ export const createCloudWire = (
 // a refusal the procedure declared answers the same however often it is asked, so only a call that
 // met no answer goes again
 const QUERY_RETRIES = 3;
-/** @internal */
 export const retryUnlessRefused = (failures: number, cause: unknown): boolean =>
   !isDefinedError(cause) && failures < QUERY_RETRIES;
 
