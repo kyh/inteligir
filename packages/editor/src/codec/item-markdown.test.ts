@@ -1024,12 +1024,12 @@ describe("one file as its item", () => {
   });
 
   it.each([
-    ["two words", "one<br/>two", ["one", "two"]],
-    ["a held mark's words", "**one<br/>two**", ["one", "two"]],
-    ["an empty line", "one<br/><br/>two", ["one", EMPTY_CELL_LINE, "two"]],
-    ["a cell's edges", "<br/>one<br/>", [EMPTY_CELL_LINE, "one", EMPTY_CELL_LINE]],
-    ["nothing but a break", "<br/>", [EMPTY_CELL_LINE, EMPTY_CELL_LINE]],
-  ])("reads a `<br/>` between %s as the cell's next line", (_name, cell, lines) => {
+    ["one<br/>two", ["one", "two"]],
+    ["**one<br/>two**", ["one", "two"]],
+    ["one<br/><br/>two", ["one", EMPTY_CELL_LINE, "two"]],
+    ["<br/>one<br/>", [EMPTY_CELL_LINE, "one", EMPTY_CELL_LINE]],
+    ["<br/>", [EMPTY_CELL_LINE, EMPTY_CELL_LINE]],
+  ])("reads the breaks in `%s` as the cell's lines", (cell, lines) => {
     const item = imported(`| a |\n| - |\n| ${cell} |\n`);
     expect(item.leftOut).toBe(0);
     const written = JSON.stringify(item.blocks);
