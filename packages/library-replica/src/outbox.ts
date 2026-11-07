@@ -3,8 +3,8 @@
 // on. A row is pinned before it first goes, so a resend after a lost answer is the same call
 // under the same op id, which the cell answers once; the files it names go to `/v1/blobs` first. A
 // CONFLICT settles through the block merge and goes again; a refusal no resend passes parks the
-// row for the person, holding the rows on its item behind it while every other item goes on; no
-// answer stops the pass with every row kept. The outbox's changes run one at a time, each over
+// row for the person, holding the rows on its items or folders behind it while everything else
+// goes on; no answer stops the pass with every row kept. The outbox's changes run one at a time, each over
 // the rows as the one before it left them, so a write that joins a row and the pass that pins it
 // never decide on two different rows.
 
@@ -12,13 +12,14 @@ import { isDefinedError, safe } from "@orpc/client";
 import type { V1Client } from "@repo/contract/cloud/v1";
 import { blockHash } from "@repo/notes/library/block-hash";
 import type { StoredBlock } from "@repo/notes/library/block-ops";
+import { sameJson } from "@repo/notes/library/canonical-json";
 import { readItemState } from "@repo/notes/library/library-queries";
 import { runPlanAsync } from "@repo/notes/library/library-sql";
 import type { SqlPlan } from "@repo/notes/library/library-sql";
 import type { liveItemRowSchema } from "@repo/contract/cloud/library/library-wire";
 import type { z } from "zod";
 
-import { sharedFailure, uploadBlob } from "./call-outcome";
+import { CHANGE_REFUSED, sharedFailure, uploadBlob } from "./call-outcome";
 import type { CallFailure } from "./call-outcome";
 import { coalesceWrites, itemIdsOf, shasNamed, stagedOf } from "./outbox-ops";
 import type { OutboxOp, WriteOp } from "./outbox-ops";
@@ -48,7 +49,8 @@ import type { Touched } from "./replica-rows";
 
 type LiveItemRow = z.infer<typeof liveItemRowSchema>;
 
-// a row whose every resend meets a library that moved again waits for the next pass
+// a row whose every resend meets a library that moved again waits for the next pass; one the last
+// resend left as it was would meet the same answer there, so it parks
 const MAX_ROUNDS_PER_ROW = 3;
 // bounds one pass, so the pull after it is never starved and a close waits out few calls
 const MAX_ROWS_PER_PASS = 100;
@@ -109,9 +111,14 @@ export interface Outbox {
   readonly wipe: () => Promise<void>;
 }
 
-// what a row holds a later row behind: the items it writes, and the folder tree for a folder write
+// the folders one folder op needs as it left them: its own, and the one it goes under
+const foldersOf = (op: Extract<OutboxOp, { kind: "folders" }>["ops"][number]): string[] =>
+  (op.op === "create" || op.op === "move") && op.parentId !== null ? [op.id, op.parentId] : [op.id];
+
+// what a row holds a later row behind: the items or the folders it writes, so a refused folder
+// leaves the person free to rename the one in its way
 const holdsOf = (op: OutboxOp): readonly string[] =>
-  op.kind === "folders" ? ["#folders"] : itemIdsOf(op);
+  op.kind === "folders" ? op.ops.flatMap(foldersOf) : itemIdsOf(op);
 
 // oldest first; a row on an item a parked row writes, or one held behind such a row, waits
 const nextToSend = (rows: readonly OutboxRow[]): OutboxRow | null => {
@@ -369,9 +376,6 @@ export const createOutbox = (context: OutboxContext): Outbox => {
           uploaded.add(sha);
           break;
         }
-        case "again": {
-          return { kind: "again" };
-        }
         case "refused": {
           return await park(row, outcome.reason);
         }
@@ -536,16 +540,15 @@ export const createOutbox = (context: OutboxContext): Outbox => {
         touched,
       );
     }
-    return await refused(row, error, async () =>
-      isDefinedError(error) && error.code === "CONFLICT"
-        ? await settled(
-            row,
-            settleFolders(op.ops, error.data.current),
-            (ops) => ({ kind: "folders", ops }),
-            [],
-          )
-        : null,
-    );
+    return await refused(row, error, async () => {
+      if (!isDefinedError(error) || error.code !== "CONFLICT") {
+        return null;
+      }
+      const outcome = settleFolders(op.ops, error.data.current);
+      return outcome.kind === "refused"
+        ? await park(row, outcome.reason)
+        : await settled(row, outcome, (ops) => ({ kind: "folders", ops }), []);
+    });
   };
 
   // pinned before it first goes, so every resend is the call that went: the row as it stands once
@@ -629,7 +632,8 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     },
 
     drain: async () => {
-      const rounds = new Map<number, number>();
+      // how often this pass has sent each row, and what it held the last time it went
+      const rounds = new Map<number, { readonly count: number; readonly op: OutboxOp }>();
       for (let sent = 0; sent < MAX_ROWS_PER_PASS; sent += 1) {
         if (!context.live()) {
           return { kind: "closed" };
@@ -638,11 +642,16 @@ export const createOutbox = (context: OutboxContext): Outbox => {
         if (row === null) {
           return { kind: "caught-up" };
         }
-        const round = (rounds.get(row.seq) ?? 0) + 1;
-        rounds.set(row.seq, round);
-        if (round > MAX_ROUNDS_PER_ROW) {
-          return { failure: { kind: "unreachable", message: KEPT_CHANGING }, kind: "stopped" };
+        const last = rounds.get(row.seq);
+        const count = (last?.count ?? 0) + 1;
+        if (last !== undefined && count > MAX_ROUNDS_PER_ROW) {
+          if (!sameJson(last.op, row.op)) {
+            return { failure: { kind: "unreachable", message: KEPT_CHANGING }, kind: "stopped" };
+          }
+          await park(row, CHANGE_REFUSED);
+          continue;
         }
+        rounds.set(row.seq, { count, op: row.op });
         const outcome = await send(row);
         if (outcome.kind === "stopped" || outcome.kind === "closed") {
           return outcome;

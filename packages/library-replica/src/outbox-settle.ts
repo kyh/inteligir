@@ -35,6 +35,14 @@ export type Settled<T> =
   | { readonly kind: "resend"; readonly op: T }
   | { readonly kind: "satisfied" };
 
+// a folder write settled: `refused` where the cell would answer it the same until another folder
+// changes, which only the person can bring about
+type SettledFolders = Settled<FolderOp[]> | { readonly kind: "refused"; readonly reason: string };
+
+const FOLDER_NAME_HELD =
+  "A folder here already has this name. Rename that one and try again, or let this change go.";
+const FOLDER_PLACE_REFUSED = "This folder can't go there.";
+
 // a write settled: `overlapped` where a block both sides changed kept this device's lines over the
 // other device's change to the same ones
 export type SettledWrite =
@@ -394,11 +402,13 @@ const settleFolderOp = (op: FolderOp, met: ReadonlyMap<string, FolderCurrent>): 
   }
 };
 
-// a folder write the cell met other folders for: each op computed again over the folder it met
+// a folder write the cell met other folders for: each op computed again over the folder it met.
+// One that comes out as it went met what no base can answer: the sibling holding its name, or, for
+// a move, a place under the folder itself
 export const settleFolders = (
   ops: readonly FolderOp[],
   currents: readonly ConflictCurrent[],
-): Settled<FolderOp[]> => {
+): SettledFolders => {
   const met = new Map<string, FolderCurrent>();
   for (const current of currents) {
     if (current.kind === "folder") {
@@ -409,5 +419,12 @@ export const settleFolders = (
     const again = settleFolderOp(op, met);
     return again === null ? [] : [again];
   });
-  return settled.length === 0 ? { kind: "satisfied" } : { kind: "resend", op: settled };
+  if (settled.length === 0) {
+    return { kind: "satisfied" };
+  }
+  if (sameJson(settled, ops)) {
+    const moved = ops.some((op) => op.op === "move");
+    return { kind: "refused", reason: moved ? FOLDER_PLACE_REFUSED : FOLDER_NAME_HELD };
+  }
+  return { kind: "resend", op: settled };
 };

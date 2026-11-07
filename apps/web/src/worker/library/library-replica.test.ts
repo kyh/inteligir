@@ -296,4 +296,50 @@ describe("the replica engine against the account's cell", () => {
       await expect(textIn(phone.replica, id, "p1")).resolves.toBe("the laptop's / the phone's");
     },
   );
+
+  it(
+    "parks a folder a sibling holds the name of, and goes on with every other write and the pull",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("namesake");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      const id = await sharedNote(laptop, phone);
+      const newFolder = async (name: string, minted: string): Promise<string> => {
+        await phone.replica.writeFolders([
+          { id: minted, name, op: "create", parentId: null, sort: "a0" },
+        ]);
+        return minted;
+      };
+      const sibling = await newFolder("Reading", "0190ffff-0000-7000-8000-000000000001");
+      await phone.replica.sync();
+      await newFolder("reading", "0190ffff-0000-7000-8000-000000000002");
+      await write(phone.replica, id, [await putText(phone.replica, id, "p1", "goes on")]);
+      await write(laptop.replica, id, [await putText(laptop.replica, id, "p2", "comes in")]);
+      await laptop.replica.sync();
+      await phone.replica.sync();
+
+      expect(phone.replica.status()).toMatchObject({ failure: null, unsent: 1 });
+      const [parked] = phone.replica.status().parked;
+      expect(parked?.reason).toContain("already has this name");
+      await expect(textIn(phone.replica, id, "p2")).resolves.toBe("comes in");
+      await laptop.replica.sync();
+      await expect(textIn(laptop.replica, id, "p1")).resolves.toBe("goes on");
+
+      await phone.replica.writeFolders([
+        { base: "Reading", id: sibling, name: "Read", op: "rename" },
+      ]);
+      await phone.replica.sync();
+      await phone.replica.retry(parked?.seq ?? 0);
+      await phone.replica.sync();
+      expect(phone.replica.status()).toMatchObject({ parked: [], unsent: 0 });
+      await laptop.replica.sync();
+      expect(
+        laptop.replica
+          .folders()
+          .map((folder) => folder.name)
+          .toSorted(),
+      ).toStrictEqual(["Read", "reading"]);
+    },
+  );
 });

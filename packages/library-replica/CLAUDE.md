@@ -45,9 +45,14 @@ and cited.
   left, and a staged file goes once no row names it. A `CONFLICT` settles
   through the merge, whose overlap the change it emits names (`overlapped`), a
   `BLOB_MISSING` uploads again, a refusal no resend passes
-  parks the row and its items' rows behind it, and a landing this copy cannot
-  lay leaves the row to the pull. Rejected: dropping a refused write; a
-  whole-item retry (two devices' edits to different blocks would meet).
+  parks the row and the rows on its items or folders behind it, and a landing
+  this copy cannot lay leaves the row to the pull. A folder name a sibling
+  holds is such a refusal, and so is a row its last resend left as it was: a
+  parked row stops neither the pass nor the pull, and a folder's holds no other
+  folder, so the person can rename the one in its way. Rejected: dropping a
+  refused write; a whole-item retry (two devices' edits to different blocks
+  would meet); stopping the pass on a row that cannot change (every later write
+  and the pull wait on it, with nothing for the person to answer).
   `packages/library-replica/src/outbox.ts`, `outbox-settle.ts`,
   `outbox-ops.ts`.
 

@@ -36,7 +36,7 @@ import { urlKey } from "@repo/notes/items/item-url";
 import { blockHash } from "@repo/notes/library/block-hash";
 import { applyOps, orderedBlocks } from "@repo/notes/library/block-ops";
 import type { LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
-import { deriveItem } from "@repo/notes/library/derive-item";
+import { deriveItem, titleKey } from "@repo/notes/library/derive-item";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
 import { z } from "zod";
@@ -345,6 +345,29 @@ export const createFakeCell = (): FakeCell => {
     };
   };
 
+  // the live item at an address, which a save folds onto
+  const holderOf = (url: string): string | null => {
+    const key = urlKey(url);
+    for (const [id, item] of items) {
+      const { deletedAt, url: address } = item.fields;
+      if (key !== null && deletedAt === null && address !== null && urlKey(address) === key) {
+        return id;
+      }
+    }
+    return null;
+  };
+
+  // a write refused for leaving its item live at an address another live item holds
+  const addressHeld = (itemId: string, fields: LibraryItemFields): void => {
+    const holder = fields.url === null || fields.deletedAt !== null ? null : holderOf(fields.url);
+    const item = holder === null || holder === itemId ? undefined : items.get(holder);
+    if (holder !== null && item !== undefined) {
+      throw new ConflictError({
+        data: { current: [{ itemId: holder, kind: "item", seq: item.seq }] },
+      });
+    }
+  };
+
   const write = (input: {
     readonly itemId: string;
     readonly ops: readonly LibraryOp[];
@@ -373,6 +396,7 @@ export const createFakeCell = (): FakeCell => {
     if (outcome.kind !== "applied") {
       throw new Error("a write met a conflict it did not answer");
     }
+    addressHeld(input.itemId, outcome.state.fields);
     const { touched } = outcome;
     // every op already true, a resend's after its answer was let go: the item as it stands
     if (
@@ -403,22 +427,28 @@ export const createFakeCell = (): FakeCell => {
     }
   };
 
-  // the live item at an address, which a save folds onto
-  const holderOf = (url: string): string | null => {
-    const key = urlKey(url);
-    for (const [id, item] of items) {
-      const { deletedAt, url: address } = item.fields;
-      if (key !== null && deletedAt === null && address !== null && urlKey(address) === key) {
-        return id;
-      }
-    }
-    return null;
-  };
-
   const foldTags = (id: string, tags: readonly string[]) => {
     const item = held(id);
     const merged = [...new Set([...item.fields.tags, ...tags])];
     return { folded: true, ...land(id, { ...item.fields, tags: merged }, item.blocks) };
+  };
+
+  // the live sibling a folder would share a name with, which the cell answers a CONFLICT naming
+  const namesakeOf = (op: FolderOp, folder: FolderRow | null): FolderRow | null => {
+    const parentId = op.op === "create" || op.op === "move" ? op.parentId : folder?.parentId;
+    const name = op.op === "create" || op.op === "rename" ? op.name : folder?.name;
+    if (op.op === "delete" || name === undefined) {
+      return null;
+    }
+    return (
+      [...folders.values()].find(
+        (sibling) =>
+          sibling.id !== op.id &&
+          sibling.deletedAt === null &&
+          sibling.parentId === parentId &&
+          titleKey(sibling.name) === titleKey(name),
+      ) ?? null
+    );
   };
 
   const folderWrite = (ops: readonly FolderOp[]) => {
@@ -430,8 +460,11 @@ export const createFakeCell = (): FakeCell => {
         (op.op !== "create" && folder === null) ||
         (op.op === "rename" && folder?.name !== op.base) ||
         (op.op === "move" && folder?.parentId !== op.baseParentId);
+      const namesake = namesakeOf(op, folder);
       if (moved) {
         conflicts.push({ current: folder, id: op.id, kind: "folder" });
+      } else if (namesake !== null) {
+        conflicts.push({ current: namesake, id: namesake.id, kind: "folder" });
       }
     }
     throwConflicts(conflicts);

@@ -19,6 +19,7 @@ export type CallFailure =
   | { readonly kind: "malformed"; readonly message: string };
 
 export const UNREACHABLE = "Your library can't be reached right now.";
+export const CHANGE_REFUSED = "Your library couldn't take this change.";
 
 const SESSION_ENDS: ReadonlyMap<string, SessionEnd> = new Map([
   ["UNAUTHORIZED", "signed-out"],
@@ -39,13 +40,12 @@ export const sharedFailure = (error: Error): CallFailure | null => {
     return error.code === "TOO_MANY_REQUESTS" ? { kind: "busy" } : null;
   }
   return error.code === "BAD_REQUEST"
-    ? { kind: "malformed", message: "Your library couldn't take this change." }
+    ? { kind: "malformed", message: CHANGE_REFUSED }
     : { kind: "unreachable", message: UNREACHABLE };
 };
 
 export type UploadOutcome =
   | { readonly kind: "stored" }
-  | { readonly kind: "again" }
   | { readonly kind: "refused"; readonly reason: string }
   | { readonly kind: "failed"; readonly failure: CallFailure };
 
@@ -82,10 +82,6 @@ export const uploadBlob = async (
   }
   if (response.status === 201 || response.status === 204) {
     return { kind: "stored" };
-  }
-  // a removal of these bytes raced the upload: the room still stands, so the file goes again
-  if (response.status === 503) {
-    return { kind: "again" };
   }
   const reason = UPLOAD_REFUSALS.get(response.status);
   if (reason !== undefined) {
