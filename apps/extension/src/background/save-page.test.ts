@@ -171,6 +171,61 @@ describe("a tab saved", () => {
     ]);
   });
 
+  it("is saved as its link when the cloud will not take its reading as a call", async () => {
+    for (const code of ["BAD_REQUEST", "PAYLOAD_TOO_LARGE"]) {
+      const cloud = fakeCloud({
+        save: async () => {
+          throw new ORPCError(code);
+        },
+      });
+      await expect(saveTab(depsWith(cloud).deps, { tab: TAB }), code).resolves.toMatchObject({
+        created: true,
+        kind: "saved",
+      });
+      const [save] = cloud.saves;
+      expect(cloud.links, code).toStrictEqual([
+        expect.objectContaining({
+          id: save?.id,
+          opId: save?.opId,
+          selection: PASSAGE,
+          url: URL_SAVED,
+        }),
+      ]);
+      await expect(queuedSaves()).resolves.toStrictEqual([]);
+    }
+  });
+
+  it("lets go a save whose link the cloud refuses too, and says so", async () => {
+    const refusal = async () => {
+      throw new ORPCError("BAD_REQUEST");
+    };
+    const cloud = fakeCloud({ save: refusal, saveLink: refusal });
+    await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
+      kind: "refused",
+      reason: "failed",
+    });
+    expect(cloud.links).toHaveLength(1);
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
+  });
+
+  it("sends no link past a refusal the link would meet as well", async () => {
+    for (const [code, reason] of [
+      ["QUOTA", "library-full"],
+      ["CLIENT_OUTDATED", "update-extension"],
+    ] as const) {
+      const cloud = fakeCloud({
+        save: async () => {
+          throw new ORPCError(code);
+        },
+      });
+      await expect(saveTab(depsWith(cloud).deps, { tab: TAB }), code).resolves.toStrictEqual({
+        kind: "refused",
+        reason,
+      });
+      expect(cloud.links, code).toStrictEqual([]);
+    }
+  });
+
   it("waits, as its address, title and passage alone, when the cloud does not answer", async () => {
     const cloud = fakeCloud({
       save: async () => {

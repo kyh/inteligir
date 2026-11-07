@@ -19,8 +19,8 @@ const KEY_PREFIX = "save:";
 export const SEND_ALARM = "send-saves";
 // how often a waiting save is tried again
 const RETRY_MINUTES = 0.5;
-// the longest a first try runs (./save-page): every cover candidate it fetches, each to its
-// deadline, then the cover's put and the save, each to theirs
+// the longest a first try's page takes to land (./save-page): every cover candidate it fetches,
+// each to its deadline, then the cover's put and the save, each to theirs
 const FIRST_TRY_MS = COVER_TRIES * COVER_DEADLINE_MS + 2 * CALL_DEADLINE_MS;
 // a save whose first try never said how it went is sent again once that try is past its longest,
 // since its worker was stopped mid-call; a resend sooner could land the link under the save's op id

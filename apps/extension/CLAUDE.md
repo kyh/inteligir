@@ -30,9 +30,11 @@ Decisions says how a bullet is written and cited.
   facts, a cover it could read, put by its sha, and the passage selected. A
   page it cannot script, or read no text from, is saved as its link, the
   passage with it, for the cloud's fill, since an item saved read is never
-  filled. Rejected: an offscreen document for `DOMParser` (a second context and
-  a permission, for the DOM linkedom already gives the cloud's fill); the
-  reader injected into the page (a megabyte parsed into every saved page).
+  filled, and so is one whose reading the cloud refuses as a call, since the
+  address may land where the reading could not. Rejected: an offscreen
+  document for `DOMParser` (a second context and a permission, for the DOM
+  linkedom already gives the cloud's fill); the reader injected into the page
+  (a megabyte parsed into every saved page).
   `apps/extension/src/background/save-page.ts`,
   `apps/extension/src/capture/serialize-page.ts`.
 

@@ -1,11 +1,11 @@
 // A save from this browser: the tab read here, over the page as the person sees it, and saved
 // through `items.save` with its facts, its article, its cover and the passage the person had
 // selected, so the library holds it read from the first moment; a page the browser will not let
-// it script (its own pages, the Web Store, the PDF viewer), one past the capture's cap, or one it
-// read no text from, is saved as its link, for the cloud's fill to read. Every save is queued
-// before its first call (./save-queue), and one the cloud did not answer is sent again as its link.
-// A link or a picture a right-click names is saved by its address, and a picture a page drew from
-// its own bytes as a file of its own.
+// it script (its own pages, the Web Store, the PDF viewer), one past the capture's cap, one it read
+// no text from, or one whose reading the cloud refuses as a call, is saved as its link, for the
+// cloud's fill to read. Every save is queued before its first call (./save-queue), and one the
+// cloud did not answer is sent again as its link. A link or a picture a right-click names is saved
+// by its address, and a picture a page drew from its own bytes as a file of its own.
 
 import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
 import { ANNOTATION_QUOTE_MAX } from "@repo/notes/annotations/store-schema";
@@ -98,6 +98,15 @@ const readCapture = (deps: SaveDeps, html: string, url: string): ExtractedPageBl
   } catch {
     return null;
   }
+};
+
+// a reading the cloud will not take as a call, such as a list past the blocks one write holds: its
+// address may still land, where a full library or a build too old would be refused the link too
+const refusesReading = (cause: unknown): boolean => {
+  const failure = failureOf(cause);
+  return (
+    failure.kind === "refused" && (failure.reason === "failed" || failure.reason === "too-large")
+  );
 };
 
 // the first candidate this browser can read that is a picture of a cover's size, kept by its sha;
@@ -212,19 +221,26 @@ export const saveTab = async (deps: SaveDeps, args: TabSave): Promise<Outcome> =
     if (read === null) {
       return await cloud.saveLink(linkOf(queued));
     }
-    return await cloud.save({
-      article: read.article.blocks.map(({ block, ord }) => ({ block, ord })),
-      coverSha: await keepCover(deps, cloud, queued.url, read.facts.images),
-      facts: savedFacts(read.facts),
-      folderId: null,
-      id: queued.id,
-      opId: queued.opId,
-      savedAt: queued.savedAt,
-      selection: queued.selection,
-      tags: [],
-      title: fieldLine(read.facts.title) ?? queued.title,
-      url: queued.url,
-    });
+    try {
+      return await cloud.save({
+        article: read.article.blocks.map(({ block, ord }) => ({ block, ord })),
+        coverSha: await keepCover(deps, cloud, queued.url, read.facts.images),
+        facts: savedFacts(read.facts),
+        folderId: null,
+        id: queued.id,
+        opId: queued.opId,
+        savedAt: queued.savedAt,
+        selection: queued.selection,
+        tags: [],
+        title: fieldLine(read.facts.title) ?? queued.title,
+        url: queued.url,
+      });
+    } catch (error) {
+      if (refusesReading(error)) {
+        return await cloud.saveLink(linkOf(queued));
+      }
+      throw error;
+    }
   });
 };
 
