@@ -15,6 +15,7 @@ import { getLiveEditor } from "@repo/editor/live-editor";
 import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import { keptFileType } from "@repo/notes/items/item-kind";
 import type { ItemKind } from "@repo/notes/items/item-kind";
+import { isWebUrl } from "@repo/notes/items/item-url";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Sidebar } from "@repo/ui/components/sidebar";
 import { SidebarInset, SidebarProvider } from "@repo/ui/components/sidebar-core";
@@ -329,11 +330,18 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const saveLinks = (links: readonly CapturedLink[]): void => {
     void (async () => {
       const made = [];
-      for (const link of links) {
-        const into = { folderId: saveFolderOf(scope), tags: saveTagsOf(scope), url: link.url };
-        made.push(
-          await replica.saveLink(link.title === null ? into : { ...into, title: link.title }),
+      try {
+        for (const link of links) {
+          const into = { folderId: saveFolderOf(scope), tags: saveTagsOf(scope), url: link.url };
+          made.push(
+            await replica.saveLink(link.title === null ? into : { ...into, title: link.title }),
+          );
+        }
+      } catch {
+        toast.error(
+          links.length === 1 ? "That link couldn't be saved." : "Not every link could be saved.",
         );
+        return;
       }
       const [only, ...more] = made;
       if (only === undefined) {
@@ -393,6 +401,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       initial: "",
       label: "The page's address",
       onSubmit: saveLink,
+      refuse: (address) =>
+        isWebUrl(address) ? null : "Type the whole address, starting with https://",
       title: "Save a link",
     });
   };
