@@ -1,10 +1,11 @@
 // A save from this browser: the tab read here, over the page as the person sees it, and saved
 // through `items.save` with its facts, its article, its cover and the passage the person had
 // selected, so the library holds it read from the first moment; a page the browser will not let
-// it script (its own pages, the Web Store, the PDF viewer), or one past the capture's cap, is saved
-// as its link, for the cloud's fill to read. Every save is queued before its first call (./save-queue),
-// and one the cloud did not answer is sent again as its link. A link or a picture a right-click
-// names is saved by its address, and a picture a page drew from its own bytes as a file of its own.
+// it script (its own pages, the Web Store, the PDF viewer), one past the capture's cap, or one it
+// read no text from, is saved as its link, for the cloud's fill to read. Every save is queued
+// before its first call (./save-queue), and one the cloud did not answer is sent again as its link.
+// A link or a picture a right-click names is saved by its address, and a picture a page drew from
+// its own bytes as a file of its own.
 
 import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
 import { ANNOTATION_QUOTE_MAX } from "@repo/notes/annotations/store-schema";
@@ -85,16 +86,15 @@ const settleFailure = async (
   }
 };
 
-// the page as the library's read item, or null when the reader found nothing to keep (no text and
-// no name), which the cloud then reads from the address itself
+// the page as the library's read item, or null when it held no text the reader could keep (a shell
+// its scripts have yet to draw, words in shadow roots a clone leaves behind): an item saved read is
+// never filled, so the cloud reads this one from its address
 const readCapture = (deps: SaveDeps, html: string, url: string): ExtractedPageBlocks | null => {
   const kind = kindForUrl(url);
   const prefer = kind === "video" || kind === "audio" ? "description" : "article";
   try {
     const read = readHtml({ html, prefer, url }, deps.newBlockId);
-    return read.rung === null && read.facts.title === null && read.facts.description === null
-      ? null
-      : read;
+    return read.article.blocks.length > 0 ? read : null;
   } catch {
     return null;
   }

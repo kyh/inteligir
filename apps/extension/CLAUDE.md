@@ -28,11 +28,12 @@ Decisions says how a bullet is written and cited.
   none. The worker reads the clone with `@repo/page-reader` over linkedom, the
   host with no DOM of its own, and calls `items.save` with the article, the
   facts, a cover it could read, put by its sha, and the passage selected. A
-  page it cannot script or read is saved as its link, the passage with it, for
-  the cloud's fill. Rejected: an offscreen document for `DOMParser` (a second
-  context and a permission, for the DOM linkedom already gives the cloud's
-  fill); the reader injected into the page (a megabyte parsed into every saved
-  page). `apps/extension/src/background/save-page.ts`,
+  page it cannot script, or read no text from, is saved as its link, the
+  passage with it, for the cloud's fill, since an item saved read is never
+  filled. Rejected: an offscreen document for `DOMParser` (a second context and
+  a permission, for the DOM linkedom already gives the cloud's fill); the
+  reader injected into the page (a megabyte parsed into every saved page).
+  `apps/extension/src/background/save-page.ts`,
   `apps/extension/src/capture/serialize-page.ts`.
 
 - **A SAVE IS QUEUED BEFORE ITS FIRST CALL, AS ITS ADDRESS, TITLE AND PASSAGE,

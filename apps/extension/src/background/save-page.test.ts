@@ -154,6 +154,23 @@ describe("a tab saved", () => {
     ]);
   });
 
+  it("is saved as its link, for the cloud to read, when it held no text the reader could keep", async () => {
+    const shell = [
+      "<!doctype html>",
+      '<html lang="en"><head><title>A shell</title>',
+      '<meta name="description" content="A page its scripts have yet to draw.">',
+      '</head><body><div id="root"></div></body></html>',
+    ].join("\n");
+    const cloud = fakeCloud({});
+    await saveTab(depsWith(cloud, { captured: page({ html: shell, title: "A shell" }) }).deps, {
+      tab: TAB,
+    });
+    expect(cloud.saves).toStrictEqual([]);
+    expect(cloud.links).toStrictEqual([
+      expect.objectContaining({ selection: PASSAGE, title: "A shell", url: URL_SAVED }),
+    ]);
+  });
+
   it("waits, as its address, title and passage alone, when the cloud does not answer", async () => {
     const cloud = fakeCloud({
       save: async () => {
