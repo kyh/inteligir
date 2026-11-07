@@ -87,7 +87,9 @@ src/
   HTML, a footnote, a definition nothing used, a title on a link or image with
   no address — are opaque inline nodes
   (`@repo/notes/markdown/remark-opaque`): shown as inert literal text and
-  written back byte-for-byte, and `{` is prose. Only a nesting deeper than the
+  written back as their source, which the read re-serialized (a tag keeps its
+  bytes, a footnote's `_em_` is held as `*em*`), and `{` is prose. Only a
+  nesting deeper than the
   conversion or the writer holds is refused, a list past `LIST_MAX_INDENT`
   among it (an import leaves the file out, an agent's edit is turned down, a
   paste lands as plain text), so nothing is written over it and every item
