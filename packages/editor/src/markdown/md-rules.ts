@@ -234,7 +234,10 @@ const equationRule: NonNullable<MdRules["equation"]> = {
   ...defaultEquation,
   deserialize: (node, deco, options) =>
     defaultEquationDeserialize(
-      { ...node, value: (node.meta ?? "") === "" ? node.value : `${node.meta}\n${node.value}` },
+      {
+        ...node,
+        value: [node.meta ?? "", node.value].filter((lines) => lines !== "").join("\n"),
+      },
       deco,
       options,
     ),

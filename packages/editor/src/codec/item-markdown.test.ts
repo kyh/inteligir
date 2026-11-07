@@ -637,6 +637,12 @@ describe("an equation's fence line", () => {
     expect(bodyOf(exported(item).text)).toBe("$$\nE = mc^2\n+ x\n$$\n");
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
+
+  it("is the whole expression of a fence with nothing under it", () => {
+    const item = imported("$$ E = mc^2\n$$\n");
+    expect(bodyOf(exported(item).text)).toBe("$$\nE = mc^2\n$$\n");
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
 });
 
 describe("a footnote", () => {
