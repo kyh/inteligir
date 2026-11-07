@@ -383,6 +383,52 @@ describe("today's markdown imports losslessly", () => {
   });
 });
 
+describe("a tab's label", () => {
+  const labels = (item: ImportedItem): string[] =>
+    item.blocks.flatMap(({ block }) =>
+      block.type === "tab_group"
+        ? block.children.flatMap((panel) =>
+            "label" in panel && typeof panel.label === "string" ? [panel.label] : [],
+          )
+        : [],
+    );
+
+  it.each([
+    [String.raw`\@2026-08-22`, "@2026-08-22"],
+    [String.raw`Due \@2026-08-22`, "Due @2026-08-22"],
+    [String.raw`\{{1+1}}`, "{{1+1}}"],
+    [String.raw`\%%i:abc:start%%`, "%%i:abc:start%%"],
+    [String.raw`\*\*x\*\*`, "**x**"],
+    [String.raw`\[\[Note]]`, "[[Note]]"],
+    [String.raw`\`x\``, "`x`"],
+    ["&lt;b&gt;", "<b>"],
+    [String.raw`a\\`, "a\\"],
+    ["Plain words", "Plain words"],
+  ])("reads `=== %s` back as the label it spells", (written, label) => {
+    const item = imported(`:::tabs\n=== First\none\n=== ${written}\ntwo\n:::\n`);
+    expect(item.blocks.map(({ block }) => block.type)).toStrictEqual(["tab_group"]);
+    expect(labels(item)).toStrictEqual(["First", label]);
+    expect(content(reimported(item))).toStrictEqual(content(item));
+    expect(content(reimported(reimported(item)))).toStrictEqual(content(item));
+  });
+
+  it("writes plain words as they stand, and an escape only where a label needs one", () => {
+    const first = imported(":::tabs\n=== Draft 2\none\n=== \\@2026-08-22\ntwo\n:::\n");
+    expect(bodyOf(exported(first).text)).toBe(
+      ":::tabs\n=== Draft 2\none\n\n=== \\@2026-08-22\ntwo\n:::\n",
+    );
+  });
+
+  it.each(["@2026-08-22", "**x**", "[[Note]]", "`x`", "https://example.com"])(
+    "keeps `=== %s`, which is no plain words, as the lines of text it is",
+    (written) => {
+      const item = imported(`:::tabs\n=== ${written}\nbody\n:::\n`);
+      expect(item.blocks.map(({ block }) => block.type)).toStrictEqual(["p"]);
+      expect(content(reimported(item))).toStrictEqual(content(item));
+    },
+  );
+});
+
 describe("one file as its item", () => {
   it("reads the frontmatter into fields, and every other key as a typed property", () => {
     const item = imported(

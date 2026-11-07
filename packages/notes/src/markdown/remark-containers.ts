@@ -87,7 +87,8 @@ const COLUMNS_LINE = ":::columns";
 const COLUMN_LINE = ":::column";
 const CLOSE_LINE = ":::";
 const WIDTH = String.raw`\d+(?:\.\d+)?%`;
-const PANEL_RE = /^=== (?<label>.+)$/u;
+const PANEL_MARK = "=== ";
+const PANEL_RE = new RegExp(`^${PANEL_MARK}(?<label>.+)$`, "u");
 const COLUMN_RE = new RegExp(`^${COLUMN_LINE}(?: (?<width>${WIDTH}))?$`, "u");
 
 type Opened = "article" | "columns" | "tabs" | "toggle";
@@ -664,9 +665,18 @@ const fenced = (
   return `${marker}\n${blankAfterMarker(body.children[0])}${inner}\n${blankBeforeMarker(body.children.at(-1))}${CLOSE_LINE}`;
 };
 
+// a marker is read from one finished text, so its label is written as text is: anything the next
+// parse would read as a construct takes the escape that keeps the line whole
+const panelLine = (label: string, state: State): string => {
+  const exit = state.enter("phrasing");
+  const written = state.safe(label, { after: "\n", before: PANEL_MARK });
+  exit();
+  return `${PANEL_MARK}${written}`;
+};
+
 const panelToMarkdown = (panel: TabPanel, state: State, info: Info): string => {
   const inner = state.containerFlow(panel, info);
-  const marker = `=== ${panel.label}`;
+  const marker = panelLine(panel.label, state);
   return inner === "" ? marker : `${marker}\n${blankAfterMarker(panel.children[0])}${inner}`;
 };
 

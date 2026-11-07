@@ -147,8 +147,9 @@ What changed.
 ```
 
 The first thing inside `:::tabs` must be a `=== Label` line; content before it keeps the whole
-block as plain text. Panels hold ordinary markdown. Reach for a table instead when the reader needs
-to see all panels at once.
+block as plain text. A label is plain words: a date, a link, `**bold**` or a pill in one keeps the
+whole block as plain text too, and a backslash keeps such text a label (`=== \@2026-08-22`). Panels
+hold ordinary markdown. Reach for a table instead when the reader needs to see all panels at once.
 
 ### Toggles
 
