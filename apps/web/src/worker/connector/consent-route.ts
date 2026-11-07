@@ -9,7 +9,7 @@ import { AuthorizationError, CimdFetchError } from "@cloudflare/workers-oauth-pr
 import type { OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 import { z } from "zod";
 
-import { createAuth } from "../auth/auth";
+import { readSession } from "../auth/auth";
 import { CONSENT_PAGE_POLICY, consentPage, refusalPage } from "./consent-page";
 import { connectorAuth, READ_SCOPE } from "./connector-auth";
 import type { ConnectorAuth, GrantMetadata } from "./connector-auth";
@@ -110,9 +110,7 @@ export const handleConsent = async (
     return new Response(null, { headers: { allow: "GET, POST" }, status: 405 });
   }
   const url = new URL(request.url);
-  const signedIn = await createAuth(env, ctx, url.origin).api.getSession({
-    headers: request.headers,
-  });
+  const signedIn = await readSession(env, ctx, request);
   if (signedIn === null) {
     return request.method === "GET"
       ? signInFirst(url)

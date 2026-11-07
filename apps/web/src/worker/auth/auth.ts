@@ -112,6 +112,14 @@ const buildAuth = (env: Env, ctx: ExecutionContext, baseURL: string, disableSign
 export const createAuth = (env: Env, ctx: ExecutionContext, baseURL: string) =>
   buildAuth(env, ctx, baseURL, true);
 
+// the session a request's cookie names, for a route of the Worker's own: it answers with no cookie
+// of Better Auth's, so a row slid here would outlive the cookie that names it
+export const readSession = async (env: Env, ctx: ExecutionContext, request: Request) =>
+  await createAuth(env, ctx, new URL(request.url).origin).api.getSession({
+    headers: request.headers,
+    query: { disableRefresh: true },
+  });
+
 // Better Auth reads disableSignUp off the instance options with no per-call override, so the
 // invite gate's two doors (./invite.ts, ../device/sign-up.ts) need this second instance; the flag
 // also shuts auth.api.signUpEmail.

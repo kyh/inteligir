@@ -617,3 +617,14 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   cap); the id from the link (a link could name another extension).
   `apps/web/src/routes/connect/extension.tsx`,
   `apps/web/src/worker/wire/account-router.ts`.
+
+- **ONLY BETTER AUTH'S OWN READ SLIDES A SESSION, AND A TAB MAKES IT ON THE
+  HOUR.** A session's row and its cookie slide together or not at all, and only
+  `/api/auth/get-session` answers the browser with that cookie, so a read of the
+  Worker's own (`/v1`, the consent page) passes `disableRefresh`, and a tab left
+  open reads its session hourly, its other calls renewing nothing. Rejected: a
+  slide on `/v1` (the row outlives the cookie, and an open tab is signed out at
+  seven days with its row standing); forwarding `Set-Cookie` on every `/v1`
+  answer (each door, a file's immutable read among them, carrying a header none
+  of them owns). `apps/web/src/worker/auth/auth.ts`,
+  `apps/workspace/src/app/cloud/session-keeper.ts`.

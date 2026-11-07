@@ -239,7 +239,9 @@ and end them, and the account's deletion revokes every one.
   `account.delete` is the one way to delete an account;
   `auth.api.deleteUser` behind it is unaffected, as the list gates only HTTP. Better Auth reads
   `BETTER_AUTH_TRUSTED_ORIGINS` itself, should an origin other than the
-  request's ever need trusting.
+  request's ever need trusting. `readSession` is a route of the Worker's own
+  reading a session, which never slides it: only `/api/auth/get-session` answers
+  with the cookie a slid row needs.
 - **Sign-up is invite-gated by a Worker route in front of Better Auth**
   (`src/worker/auth/invite.ts`). `POST /api/sign-up` parses its body with
   `signUpRequestSchema` (`@repo/contract/cloud/account/account-schema`, which the
