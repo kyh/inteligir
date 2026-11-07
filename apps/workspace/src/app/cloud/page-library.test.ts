@@ -24,6 +24,31 @@ const opened = async (onSessionEnd: () => void) => {
   return opening.library;
 };
 
+describe("reading the session the tab opens on", () => {
+  it.each([
+    ["names no session", async () => await Promise.resolve(Response.json(null))],
+    ["was refused as over", async () => await Promise.resolve(new Response(null, { status: 401 }))],
+  ])("goes to the site's sign-in when the site's answer %s", async (_case, answer) => {
+    vi.stubGlobal("fetch", answer);
+    await expect(
+      openPageLibrary(ORIGIN, {
+        leave: createLeaveGuard(new EventTarget()),
+        onSessionEnd: () => {},
+      }),
+    ).resolves.toStrictEqual({ kind: "signed-out" });
+  });
+
+  it("never reads a fault of the site's as signed out", async () => {
+    vi.stubGlobal("fetch", async () => await Promise.resolve(new Response(null, { status: 503 })));
+    await expect(
+      openPageLibrary(ORIGIN, {
+        leave: createLeaveGuard(new EventTarget()),
+        onSessionEnd: () => {},
+      }),
+    ).rejects.toThrow("the session read answered 503");
+  });
+});
+
 describe("a session that ends under the open page", () => {
   it("sends the tab to sign in when the replica is the one that meets it", async () => {
     const cell = createFakeCell();

@@ -26,12 +26,15 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   the session the site's sign-in left, then the replica engine
   (`@repo/library-replica`) on in-memory SQLite, pulled whole on every load:
   every screen reads the replica, every write goes through its outbox and is
-  laid over what the screens read until the cell takes it, and a tab with no
-  session goes to the site's sign-in, which brings it back. Its calls are the
+  laid over what the screens read until the cell takes it, a tab with no
+  session goes to the site's sign-in, which brings it back, and a tab that could
+  not find out says it didn't open and offers Try again. Its calls are the
   apps' `/v1` over the session cookie, the Worker's own origin. Rejected: a
   server on the device (a second writer beside the cell); the replica in OPFS
-  (one tab would hold it, and the Mac's replica is the shell's, in Rust).
-  `apps/workspace/src/app/cloud/page-library.ts`, `apps/workspace/src/main.tsx`.
+  (one tab would hold it, and the Mac's replica is the shell's, in Rust); a
+  fault of the site's read as signed out (a password asked of someone signed
+  in). `apps/workspace/src/app/cloud/page-library.ts`,
+  `apps/workspace/src/main.tsx`.
 
 - **THE QUERY CLIENT IS THE ROUTER'S.** One `QueryClient` is made with the
   router and handed to it as context, its provider the router's `Wrap`, so a

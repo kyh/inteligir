@@ -14,8 +14,8 @@ import type { Root } from "react-dom/client";
 
 import { createLeaveGuard, replicaHolds } from "./app/cloud/leave-guard";
 import { openPageLibrary, signInHref } from "./app/cloud/page-library";
-import type { PageLibrary } from "./app/cloud/page-library";
-import { OpenFailedPage } from "./app/cloud/open-failed-page";
+import type { PageLibrary, PageOpening } from "./app/cloud/page-library";
+import { OpenFailedPage, TabOpenFailedPage } from "./app/cloud/open-failed-page";
 import { createShellLeaveGuard, openShellLibrary } from "./app/cloud/shell-library";
 import type { ShellOpening } from "./app/cloud/shell-library";
 import { SignInPage } from "./app/cloud/sign-in-page";
@@ -67,7 +67,22 @@ const openInTab = async (target: Root): Promise<void> => {
     leave.drop();
     window.location.assign(signInHref(window.location));
   };
-  const opening = await openPageLibrary(window.location.origin, { leave, onSessionEnd: goSignIn });
+  let opening: PageOpening;
+  try {
+    opening = await openPageLibrary(window.location.origin, { leave, onSessionEnd: goSignIn });
+  } catch {
+    // nothing is drawn yet, so no boundary would catch it: the tab says it didn't open instead
+    target.render(
+      <StrictMode>
+        <TabOpenFailedPage
+          reload={() => {
+            window.location.reload();
+          }}
+        />
+      </StrictMode>,
+    );
+    return;
+  }
   switch (opening.kind) {
     case "signed-out": {
       goSignIn();

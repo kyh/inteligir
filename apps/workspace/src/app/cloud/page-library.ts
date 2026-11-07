@@ -122,10 +122,15 @@ export const fileAt = async (
   return await response.blob();
 };
 
+// who this cookie signs in, or null when the site says no one; a fault of the site's says neither,
+// so it rejects rather than send a signed-in person to sign in again
 const readSession = async (origin: string): Promise<SignedIn | null> => {
   const response = await fetch(`${origin}/api/auth/get-session`, { credentials: "same-origin" });
-  if (!response.ok) {
+  if (response.status === 401) {
     return null;
+  }
+  if (!response.ok) {
+    throw new Error(`the session read answered ${String(response.status)}`);
   }
   return sessionSchema.parse(await response.json())?.user ?? null;
 };
