@@ -8,6 +8,7 @@ import {
   deviceKeepsReading,
   fillKeepsReading,
   FILL_LIMITS,
+  isPage,
   preferredText,
 } from "./link-fill";
 
@@ -33,6 +34,24 @@ describe("a cover candidate", () => {
     expect(coverPicture(pngOf(edge, edge))).toStrictEqual({ mime: "image/png" });
     expect(coverPicture(pngOf(edge + 1, edge + 1))).toBeNull();
     expect(coverPicture(pngOf(30_000, 30_000))).toBeNull();
+  });
+});
+
+describe("an answer", () => {
+  const html = new TextEncoder().encode("<!doctype html><p>a page</p>");
+  const pdf = new TextEncoder().encode("%PDF-1.7\n");
+
+  it("is a page by the type it declared, and none reads as one", () => {
+    expect(isPage({ bytes: html, mediaType: "text/html" })).toBe(true);
+    expect(isPage({ bytes: html, mediaType: "application/xhtml+xml" })).toBe(true);
+    expect(isPage({ bytes: html, mediaType: null })).toBe(true);
+    expect(isPage({ bytes: html, mediaType: "application/json" })).toBe(false);
+  });
+
+  it("is a file when its first bytes say so, whatever it was served as", () => {
+    expect(isPage({ bytes: pdf, mediaType: null })).toBe(false);
+    expect(isPage({ bytes: pdf, mediaType: "text/html" })).toBe(false);
+    expect(isPage({ bytes: pngOf(1200, 630), mediaType: "text/html" })).toBe(false);
   });
 });
 

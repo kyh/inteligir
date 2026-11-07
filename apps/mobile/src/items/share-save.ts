@@ -16,7 +16,7 @@ import {
   coverPicture,
   deviceKeepsReading,
   FILL_LIMITS,
-  isPageType,
+  isPage,
   preferredText,
 } from "@repo/notes/items/link-fill";
 import { fieldLine, savedFacts } from "@repo/notes/items/saved-facts";
@@ -80,7 +80,7 @@ const readSharedPage = async (
     reachesPrivate: namesPrivateSpace(shared.url),
     url: shared.url,
   });
-  if (!fetched.ok || !isPageType(fetched.page.mediaType)) {
+  if (!fetched.ok || !isPage(fetched.page)) {
     return null;
   }
   let answer: FillAnswer;

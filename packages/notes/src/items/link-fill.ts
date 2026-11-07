@@ -50,9 +50,16 @@ export const coverPicture = (bytes: Uint8Array): { readonly mime: string } | nul
     : { mime: sniffed.mediaType };
 };
 
-// whether an answer is a page the reader reads, by the type it declared (none reads as one)
-export const isPageType = (mediaType: string | null): boolean =>
-  mediaType === null || mediaType === "text/html" || mediaType === "application/xhtml+xml";
+// whether an answer is a page the reader reads: a file says so in its first bytes, whatever it was
+// served as, and otherwise the type it declared decides (none reads as one)
+export const isPage = (answer: {
+  readonly bytes: Uint8Array;
+  readonly mediaType: string | null;
+}): boolean =>
+  sniffMedia(answer.bytes) === null &&
+  (answer.mediaType === null ||
+    answer.mediaType === "text/html" ||
+    answer.mediaType === "application/xhtml+xml");
 
 // a link that answered with a video or a sound is kept as its link, read as that kind
 export const playableKindOf = (mediaType: string | null): "video" | "audio" | null => {

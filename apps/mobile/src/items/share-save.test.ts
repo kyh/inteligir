@@ -51,6 +51,8 @@ const pngOf = (width: number, height: number): Uint8Array<ArrayBuffer> => {
   return head;
 };
 
+const PDF = new TextEncoder().encode("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n");
+
 const noteOf = (cell: FakeCell, id: string): string[] =>
   [...(cell.item(id)?.blocks.values() ?? [])]
     .filter(({ section }) => section === "note")
@@ -175,6 +177,41 @@ describe("a share, saved", () => {
     expect(cell.calls).toContain("phone library/items/saveLink");
     expect(cell.calls).not.toContain("phone library/items/save");
   });
+
+  it.each([
+    ["a PDF that declared no type", PDF, null],
+    ["a PDF served as a page", PDF, "text/html"],
+    ["a picture that declared no type", pngOf(1200, 630), null],
+  ])(
+    "saves the link for the cloud to keep the file when the answer is %s",
+    async (_, bytes, type) => {
+      const { cell, device, newBlockId } = await phone();
+      const jobs: FillJob[] = [];
+      const saved = await saveShared(
+        {
+          newBlockId,
+          ports: {
+            fetch: async (request) =>
+              await Promise.resolve({
+                ok: true,
+                page: { bytes, charset: null, mediaType: type, url: request.url },
+              }),
+            read: async (job) => {
+              jobs.push(job);
+              return await Promise.resolve(READ);
+            },
+          },
+          replica: device.replica,
+        },
+        { kind: "link", note: null, title: null, url: URL },
+      );
+      expect(saved?.kind).toBe("saved");
+      await device.replica.sync();
+      expect(jobs).toStrictEqual([]);
+      expect(cell.calls).toContain("phone library/items/saveLink");
+      expect(cell.calls).not.toContain("phone library/items/save");
+    },
+  );
 
   it("keeps the words shared beside a page it reads as the item's note", async () => {
     const { cell, device, newBlockId } = await phone();

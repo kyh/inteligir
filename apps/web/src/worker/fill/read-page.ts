@@ -19,7 +19,7 @@ import {
   coverPicture,
   FILL_LIMITS,
   fillKeepsReading,
-  isPageType,
+  isPage,
   playableKindOf,
   preferredText,
 } from "@repo/notes/items/link-fill";
@@ -218,7 +218,5 @@ export const readPage = async (ports: ReadPorts, job: FillJob): Promise<PageRead
       : failed(job, failure.sentence);
   }
   const { page } = fetched;
-  return sniffMedia(page.bytes) !== null || !isPageType(page.mediaType)
-    ? await fileRead(ports, job, page)
-    : await pageRead(ports, job, page);
+  return isPage(page) ? await pageRead(ports, job, page) : await fileRead(ports, job, page);
 };
