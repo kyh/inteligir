@@ -42,10 +42,13 @@ import {
   apart,
   DONE,
   failed,
+  FILE_GONE,
   importActor,
   keepFile,
+  landingOutcome,
   LIBRARY_FULL,
   MORE,
+  passOver,
   PAGE_MS,
 } from "./cell-import-host";
 import type { ImportHost, StepOutcome } from "./cell-import-host";
@@ -56,11 +59,10 @@ import {
   importRows,
   putImportRows,
 } from "./cell-import-jobs";
-import type { ImportJob } from "./cell-import-jobs";
+import type { ImportJob, ImportStep } from "./cell-import-jobs";
 import { landNew, setDeleted, storeAdds } from "./cell-items";
 import { ITEM_TEXT_MAX_BYTES, urlHolder } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";
-import type { CellResult } from "./cell-refusal";
 import type { CellStorage } from "./cell-storage";
 import { adoptImportedRules } from "./library-rules";
 
@@ -83,7 +85,6 @@ const ALL = { from: 0, limit: 1_000_000 } as const;
 
 const NOT_A_ZIP =
   "This file isn't a zip of notes. Choose a .zip of a folder of Markdown files, or of an Obsidian vault.";
-const FILE_GONE = "The file to import is no longer in the library. Choose it again.";
 
 const zipEntrySchema = z.object({
   compressedSize: z.number(),
@@ -469,26 +470,16 @@ const docOutcome = async (
     return DONE;
   }
   const { library } = host;
-  const skip = (counts: Parameters<typeof advanceImport>[2]["counts"]): StepOutcome | null =>
-    apart(library, (scope) => {
-      advanceImport(scope.storage, job.id, { counts, cursor: idx + 1 });
-    })
-      ? null
-      : DONE;
-  const settle = (landed: CellResult<unknown>): StepOutcome | null => {
-    if (landed.ok) {
-      return null;
-    }
-    if (landed.refusal.kind === "gone") {
-      return DONE;
-    }
-    return landed.refusal.kind === "quota" ? failed(LIBRARY_FULL) : skip({ unreadable: 1 });
-  };
+  const skip = (counts: ImportStep["counts"]): StepOutcome | null =>
+    passOver(library, job, idx, counts);
   if (row.standing === "held") {
     return skip({ alreadySaved: 1 });
   }
   if (row.standing === "deleted") {
-    return settle(
+    return landingOutcome(
+      library,
+      job,
+      idx,
       library.land(importActor(job), { answer: CAME_BACK, opId: undefined }, (scope) =>
         restoreDoc(scope, job, row.doc.itemId, idx),
       ),
@@ -514,7 +505,10 @@ const docOutcome = async (
   if (!read.ok) {
     return skip({ unreadable: 1 });
   }
-  return settle(
+  return landingOutcome(
+    library,
+    job,
+    idx,
     library.land(importActor(job), { answer: LANDED, opId: undefined }, (scope) => {
       const result = landDoc(scope, host, job, read.read);
       advanceImport(scope.storage, job.id, {
@@ -661,16 +655,9 @@ const landFiles = (host: ImportHost, job: ImportJob): StepOutcome => {
         return { held };
       },
     );
-    if (!landed.ok) {
-      if (landed.refusal.kind === "gone") {
-        return DONE;
-      }
-      if (landed.refusal.kind === "quota") {
-        return failed(LIBRARY_FULL);
-      }
-      apart(library, (scope) => {
-        advanceImport(scope.storage, job.id, { counts: { unreadable: 1 }, cursor: idx + 1 });
-      });
+    const outcome = landingOutcome(library, job, idx, landed);
+    if (outcome !== null) {
+      return outcome;
     }
   }
   // a page short of a whole one was the last

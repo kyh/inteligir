@@ -20,7 +20,16 @@ import { blobKey } from "./cell-blobs";
 import { cellCodec } from "./cell-codec";
 import { askFill } from "./cell-fills";
 import { folderOfTarget } from "./cell-folders";
-import { apart, DONE, failed, importActor, LIBRARY_FULL, MORE, PAGE_MS } from "./cell-import-host";
+import {
+  apart,
+  DONE,
+  failed,
+  FILE_GONE,
+  importActor,
+  landingOutcome,
+  MORE,
+  PAGE_MS,
+} from "./cell-import-host";
 import type { ImportHost, StepOutcome } from "./cell-import-host";
 import { advanceImport, fitsImportRow, importRows, putImportRows } from "./cell-import-jobs";
 import type { ImportJob } from "./cell-import-jobs";
@@ -49,7 +58,7 @@ const UNREADABLE: Readonly<Record<"not-csv" | "no-url-column" | "empty", string>
 const readExport = async (host: ImportHost, job: ImportJob): Promise<StepOutcome> => {
   const object = await host.env.BLOBS.get(blobKey(host.accountId, job.sha));
   if (object === null) {
-    return failed("The file to import is no longer in the library. Choose it again.");
+    return failed(FILE_GONE);
   }
   const parse = parseRaindropCsv(await object.text());
   if (!parse.ok) {
@@ -157,16 +166,9 @@ const landPage = (host: ImportHost, job: ImportJob, startedAt: number): StepOutc
       });
       return result;
     });
-    if (!landed.ok) {
-      if (landed.refusal.kind === "gone") {
-        return DONE;
-      }
-      if (landed.refusal.kind === "quota") {
-        return failed(LIBRARY_FULL);
-      }
-      apart(library, (scope) => {
-        advanceImport(scope.storage, job.id, { counts: { unreadable: 1 }, cursor: idx + 1 });
-      });
+    const outcome = landingOutcome(library, job, idx, landed);
+    if (outcome !== null) {
+      return outcome;
     }
     if (host.now() - startedAt > PAGE_MS) {
       return MORE;

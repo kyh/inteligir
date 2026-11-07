@@ -7,9 +7,11 @@ import { z } from "zod";
 
 import type { CellActor } from "./cell-actor";
 import { blobKey } from "./cell-blobs";
-import type { ImportJob } from "./cell-import-jobs";
+import { advanceImport } from "./cell-import-jobs";
+import type { ImportJob, ImportStep } from "./cell-import-jobs";
 import type { LandingScope } from "./cell-landing";
 import { settleStored } from "./cell-library";
+import type { CellResult } from "./cell-refusal";
 import type { LibraryEngine } from "./library-engine";
 
 export interface ImportHost {
@@ -38,6 +40,8 @@ export const failed = (message: string): StepOutcome => ({ kind: "failed", messa
 // waiting, never its CPU, which the bytes and the count keep well inside an alarm's 30 s
 export const PAGE_MS = 10_000;
 
+export const FILE_GONE = "The file to import is no longer in the library. Choose it again.";
+
 export const LIBRARY_FULL =
   "Your library is full, so the import stopped. Free some room and import again.";
 
@@ -60,6 +64,39 @@ export const apart = (library: LibraryEngine, work: (scope: LandingScope) => voi
     work(scope);
     return {};
   }).ok;
+
+// an entry passed over, counted and the cursor moved past it: null carries the run on, and the
+// account going ends it
+export const passOver = (
+  library: LibraryEngine,
+  job: ImportJob,
+  idx: number,
+  counts: ImportStep["counts"],
+): StepOutcome | null =>
+  apart(library, (scope) => {
+    advanceImport(scope.storage, job.id, { counts, cursor: idx + 1 });
+  })
+    ? null
+    : DONE;
+
+// what a landing came to: null carries the run on, the account going ends it, a full library
+// stops the job, and any other refusal leaves the entry out as unreadable
+export const landingOutcome = (
+  library: LibraryEngine,
+  job: ImportJob,
+  idx: number,
+  landed: CellResult<unknown>,
+): StepOutcome | null => {
+  if (landed.ok) {
+    return null;
+  }
+  if (landed.refusal.kind === "gone") {
+    return DONE;
+  }
+  return landed.refusal.kind === "quota"
+    ? failed(LIBRARY_FULL)
+    : passOver(library, job, idx, { unreadable: 1 });
+};
 
 // a file the import brings, put in the library as a device's upload is: room asked at its size,
 // the bytes put in R2 under their sha, which R2 checks, and the row settled at what R2 holds;
