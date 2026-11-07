@@ -405,8 +405,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   `apps/web/cloudflare.config.ts`.
 
 - **THE CONSENT PAGE IS THE WORKER'S, AT `/connect/authorize`, OVER THE SITE'S
-  SESSION.** It reads Better Auth's session, or sends the person to sign in
-  and back, the sign-in returning by a document load since the site's router
+  SESSION.** It reads Better Auth's session, or sends the person to sign in or
+  sign up and back, either returning by a document load since the site's router
   holds no such page; the provider parses the request, binds the form to the
   browser by a cookie and keeps the request server-side until the answer, so
   the form carries the account it named and an Allow from any other session is
@@ -417,7 +417,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   (the provider's helpers take the raw request, and the page would carry the
   site's bundle); remembering an approval (every connect asks).
   `apps/web/src/worker/connector/consent-route.ts`, `consent-page.ts`,
-  `apps/web/src/routes/app/sign-in.tsx`.
+  `apps/web/src/routes/app/sign-in.tsx`, `sign-up.tsx`.
 
 - **THE CONNECTOR IS SERVED IN THE ACCOUNT'S CELL, A FRESH SERVER A REQUEST
   OVER ONE OF TWO REGISTRARS, ITS PRINCIPAL AN ASSISTANT'S.** The Worker

@@ -1,20 +1,12 @@
 import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
-import { z } from "zod";
 
 import { Button } from "@repo/ui/components/button";
 
 import { AuthError, AuthField, AuthShell, fieldValue, useAuthSubmit } from "#components/auth-shell";
 import { authClient, authErrorMessage } from "#lib/auth-client";
-import { internalNextPath, SIGNED_IN_HOME } from "#lib/next-path";
+import { authPageSearchSchema, signedInLanding } from "#lib/next-path";
 import { currentSession, ssrWhenSignedOut } from "#lib/session-guard";
 import { siteConfig } from "#lib/site-config";
-
-// a malformed `next` is dropped, not refused, so a bad link still reaches the form;
-// internalNextPath is what decides a well-formed one may be followed
-const signInSearchSchema = z.object({
-  // oxlint-disable-next-line unicorn/no-useless-undefined, promise/valid-params, promise/prefer-await-to-then -- zod's catch, not a promise's: it takes the fallback positionally and undefined IS the fallback
-  next: z.catch(z.string().min(1).optional(), undefined),
-});
 
 const SignInPage = () => {
   const router = useRouter();
@@ -27,9 +19,7 @@ const SignInPage = () => {
     if (failure !== null) {
       return authErrorMessage(failure);
     }
-    // a way back may be a page the Worker answers before this router (an assistant's consent
-    // page), so the sign-in loads the document it returns to
-    await router.navigate({ href: internalNextPath(next) ?? SIGNED_IN_HOME, reloadDocument: true });
+    await router.navigate({ href: signedInLanding(next), reloadDocument: true });
     return null;
   });
 
@@ -40,7 +30,7 @@ const SignInPage = () => {
       footer={
         <>
           No account?{" "}
-          <Link to="/app/sign-up" className="underline underline-offset-4">
+          <Link to="/app/sign-up" search={{ next }} className="underline underline-offset-4">
             Sign up
           </Link>
         </>
@@ -81,15 +71,11 @@ const SignInPage = () => {
 
 export const Route = createFileRoute("/app/sign-in")({
   ssr: ssrWhenSignedOut,
-  validateSearch: signInSearchSchema,
+  validateSearch: authPageSearchSchema,
   beforeLoad: async ({ search }) => {
     const session = await currentSession();
     if (session.kind === "signed-in") {
-      redirect({
-        href: internalNextPath(search.next) ?? SIGNED_IN_HOME,
-        reloadDocument: true,
-        throw: true,
-      });
+      redirect({ href: signedInLanding(search.next), reloadDocument: true, throw: true });
     }
   },
   component: SignInPage,
