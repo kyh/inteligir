@@ -659,6 +659,46 @@ describe("a footnote's call, its definition in another block", () => {
   });
 });
 
+describe("a bare link whose address spells a call", () => {
+  const ADDRESS = "https://x.y/?q=[^a-z]+b";
+  const paragraph: LibraryBlock = {
+    children: [
+      { text: "see " },
+      { children: [{ text: ADDRESS }], type: "a", url: ADDRESS },
+      { text: " now and then" },
+    ],
+    id: "p",
+    type: "p",
+  };
+  const stored = (): Map<string, StoredBlock> =>
+    new Map([["p", { block: paragraph, hash: blockHash(paragraph), ord: "a0", section: "note" }]]);
+  const linkIn = (blocks: Map<string, StoredBlock>): unknown => {
+    const block = blocks.values().next().value?.block;
+    return block !== undefined && "children" in block ? block.children[1] : null;
+  };
+  const untouched = { children: [{ text: ADDRESS }], type: "a", url: ADDRESS };
+
+  it("stands untouched through an edit elsewhere in its paragraph", () => {
+    const after = editedTo(stored(), "then", "later");
+    expect(linkIn(after)).toStrictEqual(untouched);
+    expect(textOf(after)).toBe(`see ${ADDRESS} now and later\n`);
+  });
+
+  it("stands untouched through a quote placed elsewhere in its paragraph", () => {
+    const blocks = stored();
+    const placed = placeItemQuotes(blocks, [{ id: "q1", quote: "then" }], portsWith());
+    expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
+    const after = landed(blocks, placed.ops);
+    expect(linkIn(after)).toStrictEqual(untouched);
+    expect(textOf(after)).toBe(`see ${ADDRESS} now and %%i:q1:start%%then%%i:q1:end%%\n`);
+  });
+
+  it("places a quote of its own text", () => {
+    const placed = placeItemQuotes(stored(), [{ id: "q1", quote: ADDRESS }], portsWith());
+    expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
+  });
+});
+
 describe("a link or an equation in a table cell", () => {
   it.each([
     ["a link", "| a | b |\n| - | - |\n| [[Other note]] | word |\n"],

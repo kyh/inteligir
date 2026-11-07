@@ -77,6 +77,26 @@ describe("the text a person reads", () => {
     expect(projectPassages(String.raw`One[\^a] word.`).text).toBe("One[^a] word. ");
   });
 
+  it.each([
+    ["a bare url", "https://x.y/?q=[^a-z]+b", "https://x.y/?q=[^a-z]+b"],
+    ["a www address", "www.x.y/?q=[^a-z]+b", "www.x.y/?q=[^a-z]+b"],
+    ["an angled url", "<https://x.y/?q=[^a-z]+b>", "https://x.y/?q=[^a-z]+b"],
+    ["a marked bare url", "_https://x.y/?q=[^a-z]+b_", "https://x.y/?q=[^a-z]+b"],
+  ])("reads %s whole, its text being its address", (_name, spelled, read) => {
+    expect(projectPassages(`see ${spelled} now\n`).text).toBe(`see ${read} now `);
+  });
+
+  it.each([
+    ["words of its own", "[see [^a] here](https://x.y/z) now", "see here now "],
+    [
+      "its address and a title",
+      '[https://x.y/[^a]b](https://x.y/[^a]b "words") now',
+      "https://x.y/b now ",
+    ],
+  ])("reads a call in a label of %s as nothing", (_name, spelled, read) => {
+    expect(projectPassages(`${spelled}\n`).text).toBe(read);
+  });
+
   it("reads an address on a line that is no label", () => {
     expect(projectPassages(`before https\\://a.bc after\nmore\n`).text).toBe(
       "before https://a.bc after more ",

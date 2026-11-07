@@ -37,6 +37,12 @@ describe("where the markers land", () => {
     );
   });
 
+  it("finds a quote of a bare url whose address spells a call", () => {
+    const placed = placeOne("see https://x.y/?q=[^a-z]+b now\n", "https://x.y/?q=[^a-z]+b");
+    expect(placed.missing).toStrictEqual([]);
+    expect(placed.content).toBe("see %%i:h1:start%%https://x.y/?q=[^a-z]+b %%i:h1:end%%now\n");
+  });
+
   it("widens an edge inside a word to the word", () => {
     expect(placeOne("hello world\n", "ello").content).toBe(
       "%%i:h1:start%%hello%%i:h1:end%% world\n",

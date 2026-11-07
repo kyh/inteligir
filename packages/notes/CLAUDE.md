@@ -197,11 +197,14 @@ root.
   (`@repo/notes/markdown/remark-references`,
   `@repo/notes/markdown/remark-opaque`). A call reads the same with its
   definition out of view, as it is in an edit of its own line, since typed text
-  that spells one has its `[` escaped. Rejected: a second, plain-markdown
-  grammar for an import (it needed a bridge to say where the two disagreed), a
-  node for a reference in the library (a second spelling of every link), and
-  handing an edit the item's definitions to parse beside (every reader of a
-  stretch would need them, and a paste holds none).
+  that spells one has its `[` escaped and a bare link is the address it spells,
+  with no label for a call to stand in (`@repo/notes/markdown/autolink-text`).
+  Rejected: a second, plain-markdown grammar for an import (it needed a bridge
+  to say where the two disagreed), a node for a reference in the library (a
+  second spelling of every link), handing an edit the item's definitions to
+  parse beside (every reader of a stretch would need them, and a paste holds
+  none), and holding a call in a bare link's text (an edit beside the link
+  would respell it).
   `packages/notes/src/markdown/total-grammar.test.ts`.
 
 - **AN MD URL HAS ONE READING, AND ONLY AN IMPORT RESOLVES ONE BY PATH.** An

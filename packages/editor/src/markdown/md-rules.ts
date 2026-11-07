@@ -30,6 +30,7 @@ import type {
 import { z } from "zod";
 
 import { LIST_MAX_INDENT } from "@repo/notes/library/library-nodes";
+import { isAutolinkText } from "@repo/notes/markdown/autolink-text";
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { isContainerContent } from "@repo/notes/markdown/remark-containers";
 import type {
@@ -186,13 +187,6 @@ const embedFromImage = (block: TElement): TElement => {
   const type = embedTypeForUrl(url);
   return type === null ? block : { children: [{ text: "" }], type, url };
 };
-
-const BARE_AUTOLINK_PROTOCOL_RE = /^https?:\/\//iu;
-const WWW_AUTOLINK_RE = /^www\./iu;
-
-// mirrors micromark-extension-gfm-autolink-literal's email tokenizer, so a match emitted as raw
-// bytes re-parses as the same autolink.
-const GFM_EMAIL_RE = /^[+\-.\w]+@(?=[^@]*\.[\dA-Za-z])(?:[-_\dA-Za-z]|\.(?=[\dA-Za-z]))*[A-Za-z]$/u;
 
 const isMdText = (node: { type: string }): node is MdText => node.type === "text";
 
@@ -422,13 +416,6 @@ const listRule: WideMdRule = {
   deserialize: (node: MdList, deco: MdDecoration, options: DeserializeMdOptions): TElement[] =>
     listBlocks(node, 1, deco, options),
 };
-
-// text a re-parse reads back as this same link: a bare url, a www literal (gfm prefixes its url
-// with `http://`), or a gfm email
-const isAutolinkText = (text: string, url: string): boolean =>
-  (text === url && BARE_AUTOLINK_PROTOCOL_RE.test(url)) ||
-  (url === `http://${text}` && WWW_AUTOLINK_RE.test(text)) ||
-  (`mailto:${text}` === url && GFM_EMAIL_RE.test(text));
 
 type MdMarkWrapper = MdDelete | MdEmphasis | MdStrong;
 

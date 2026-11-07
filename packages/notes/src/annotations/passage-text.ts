@@ -10,6 +10,7 @@
 
 import { z } from "zod";
 import { leadingAlertMarker } from "../markdown/alert-marker";
+import { isBareLink } from "../markdown/autolink-text";
 import { parseBare } from "../markdown/bare-parse";
 import { isContainerLine } from "../markdown/remark-containers";
 import {
@@ -32,6 +33,8 @@ interface MdNode {
   value?: string;
   body?: string;
   depth?: number;
+  url?: string;
+  title?: string | null | undefined;
   // unknown: each node kind's data has its own shape, read through TEXT_DATA
   data?: unknown;
 }
@@ -120,9 +123,12 @@ interface Found {
   segment: Segment;
 }
 
+// what a text stands in: a label reads no date, and a bare link's text is its address, no call
+type TextPlace = "prose" | "label" | "address";
+
 // the constructs of one text's value in order; an escaped first character keeps one text, and an
 // overlapping match loses to the earlier one, as the transform decides
-const segmentsOf = (value: string, escapes: ReadonlySet<number>, inLink: boolean): Segment[] => {
+const segmentsOf = (value: string, escapes: ReadonlySet<number>, place: TextPlace): Segment[] => {
   const found: Found[] = [];
   for (const match of value.matchAll(FORMULA_RE)) {
     if (!escapes.has(match.index)) {
@@ -147,7 +153,7 @@ const segmentsOf = (value: string, escapes: ReadonlySet<number>, inLink: boolean
       });
     }
   }
-  if (!inLink) {
+  if (place === "prose") {
     for (const match of value.matchAll(DATE_CHIP_RE)) {
       const day = match.groups?.value;
       if (day !== undefined && !escapes.has(match.index)) {
@@ -160,8 +166,10 @@ const segmentsOf = (value: string, escapes: ReadonlySet<number>, inLink: boolean
       }
     }
   }
-  for (const { end, start } of footnoteCallsIn(value, (index) => escapes.has(index))) {
-    found.push({ end, segment: { end, kind: "unit", start, text: "" }, start });
+  if (place !== "address") {
+    for (const { end, start } of footnoteCallsIn(value, (index) => escapes.has(index))) {
+      found.push({ end, segment: { end, kind: "unit", start, text: "" }, start });
+    }
   }
   found.sort((a, b) => a.start - b.start);
   const segments: Segment[] = [];
@@ -383,12 +391,19 @@ const noteBareUrl = (builder: Builder, bounds: { start: number; end: number }): 
   builder.urlTails.push({ end, start: bounds.end });
 };
 
+const placeWithin = (node: MdNode, place: TextPlace): TextPlace => {
+  if (node.type === "link") {
+    return isBareLink(node) ? "address" : "label";
+  }
+  return node.type === "linkReference" ? "label" : place;
+};
+
 // a node read as one unit: every character it shows spans the node's bytes
 const pushAtomic = (
   builder: Builder,
   node: MdNode,
   bounds: { start: number; end: number },
-  inLink: boolean,
+  place: TextPlace,
 ): void => {
   if (node.type === "text") {
     const own = offsetsOf(node);
@@ -396,7 +411,7 @@ const pushAtomic = (
       noteMarkerBytes(builder, own);
     }
     const value = node.value ?? "";
-    for (const segment of segmentsOf(value, escapesOf(node), inLink)) {
+    for (const segment of segmentsOf(value, escapesOf(node), place)) {
       if (segment.kind === "marker") {
         mark(builder, segment.ids, segment.edge);
         continue;
@@ -418,9 +433,9 @@ const pushAtomic = (
   if (node.type === "link") {
     noteBareUrl(builder, offsetsOf(node) ?? bounds);
   }
-  const linked = inLink || node.type === "link" || node.type === "linkReference";
+  const within = placeWithin(node, place);
   for (const child of node.children ?? []) {
-    pushAtomic(builder, child, bounds, linked);
+    pushAtomic(builder, child, bounds, within);
   }
 };
 
@@ -486,7 +501,7 @@ const pushAligned = (builder: Builder, text: TextContext): void => {
   if (first !== undefined && last !== undefined) {
     noteMarkerBytes(builder, { end: last, start: first });
   }
-  for (const segment of segmentsOf(text.value, text.escapes, false)) {
+  for (const segment of segmentsOf(text.value, text.escapes, "prose")) {
     if (segment.kind === "marker") {
       mark(builder, segment.ids, segment.edge);
     } else if (segment.kind === "unit") {
@@ -518,7 +533,7 @@ const pushText = (builder: Builder, node: MdNode, bounds: { start: number; end: 
         builder.delimiters.add(offset);
       }
     }
-    pushAtomic(builder, node, bounds, false);
+    pushAtomic(builder, node, bounds, "prose");
     return;
   }
   const lead = builder.leads.get(node) ?? 0;
@@ -584,7 +599,7 @@ const pushUnplaced = (
       if (node.type === "text") {
         pushAligned(builder, textContext(node, part, own));
       } else if (own.size === 0) {
-        pushAtomic(builder, node, bounds, false);
+        pushAtomic(builder, node, bounds, "prose");
       }
     }
     return;
@@ -612,7 +627,7 @@ const walkPhrasing = (
     if (child.type === "text") {
       pushText(builder, child, bounds);
     } else {
-      pushAtomic(builder, child, bounds, false);
+      pushAtomic(builder, child, bounds, "prose");
     }
   }
   if (run.length > 0) {
