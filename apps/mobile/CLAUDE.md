@@ -152,7 +152,8 @@ how it ships.
   a page, a link or text, never a photo or a file) writes the share into the
   App Group and opens the app at its handoff address
   (`apps/mobile/src/app/+native-intent.ts`, which never throws). The signed-in
-  app fetches the page itself, judging each redirect by its spelling
+  app fetches the page itself, judging each redirect by its spelling, a step
+  into private space only from an address there
   (`apps/mobile/src/items/page-fetch.ts`), reads it in the headless page and
   saves it read, cover and all; a page it cannot read now, an answer that is a
   file whatever it was served as (`isPage`, the fill's own rule), or a page it

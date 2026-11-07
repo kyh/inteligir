@@ -11,7 +11,6 @@ import { base64FromBytes } from "@repo/contract/cloud/bytes";
 import type { FillAnswer, FillJob } from "@repo/editor-bridge/protocol";
 import { ReplicaClosedError } from "@repo/library-replica/library-replica";
 import type { LibraryReplica, Made, PageInput } from "@repo/library-replica/library-replica";
-import { namesPrivateSpace } from "@repo/notes/items/host-names";
 import { kindForUrl, urlKey } from "@repo/notes/items/item-url";
 import {
   coverPicture,
@@ -37,21 +36,18 @@ const PAGE_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q
 const COVER_ACCEPT = "image/webp,image/png,image/jpeg,image/gif;q=0.8,*/*;q=0.5";
 
 // the first candidate that is really a picture of a cover's size, kept whole as the site served it;
-// a page in private space may name a cover there, a public one never
+// the fetch judges each by the page that named it, which is where the walk ended
 const coverOf = async (
   ports: ShareReadPorts,
   pageUrl: string,
   candidates: readonly string[],
 ): Promise<PageInput["cover"]> => {
   for (const url of new Set(candidates)) {
-    if (!namesPrivateSpace(pageUrl) && namesPrivateSpace(url)) {
-      continue;
-    }
     const fetched = await ports.fetch({
       accept: COVER_ACCEPT,
+      from: pageUrl,
       maxBytes: FILL_LIMITS.coverBytes,
       overflow: "refuse",
-      reachesPrivate: namesPrivateSpace(pageUrl),
       url,
     });
     if (!fetched.ok) {
@@ -117,10 +113,9 @@ const readSharedPage = async (
   const unread: SharedRead = { kind: "link", link: shared };
   const fetched = await ports.fetch({
     accept: PAGE_ACCEPT,
+    from: shared.url,
     maxBytes: FILL_LIMITS.htmlBytes,
     overflow: "truncate",
-    // a redirect reaches private space only from an address that names it itself
-    reachesPrivate: namesPrivateSpace(shared.url),
     url: shared.url,
   });
   if (!fetched.ok || !isPage(fetched.page)) {
@@ -152,7 +147,7 @@ const readSharedPage = async (
     (moved && url === shared.url ? (shared.title ?? readTitle) : (readTitle ?? shared.title)) ?? "";
   const page: PageInput = {
     article: answer.article,
-    cover: await coverOf(ports, shared.url, answer.facts.images),
+    cover: await coverOf(ports, landed, answer.facts.images),
     facts: savedFacts(answer.facts),
     folderId: target.folderId,
     selection: null,

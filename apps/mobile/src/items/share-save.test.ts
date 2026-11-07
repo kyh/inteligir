@@ -62,6 +62,29 @@ const redirecting = (from: string, to: string): PageFetch =>
     { acceptLanguage: "en-US", userAgent: "inteligir-test" },
   );
 
+// the phone's own fetch over a web of redirects, which keeps what it was asked
+const walking = (hops: ReadonlyMap<string, string>) => {
+  const asked: string[] = [];
+  const fetch = createPageFetch(
+    async (url) => {
+      asked.push(url);
+      const location = hops.get(url);
+      return await Promise.resolve(
+        location === undefined
+          ? new Response("<h1>File over app</h1>", { headers: { "content-type": "text/html" } })
+          : new Response(null, { headers: { location }, status: 302 }),
+      );
+    },
+    { acceptLanguage: "en-US", userAgent: "inteligir-test" },
+  );
+  return { asked, fetch };
+};
+
+const coverNamed = (url: string): FillAnswer => ({
+  ...READ,
+  facts: { ...READ.facts, images: [url] },
+});
+
 // a PNG's signature and IHDR, which name its size whatever the rest of the file holds
 const pngOf = (width: number, height: number): Uint8Array<ArrayBuffer> => {
   const head = new Uint8Array(24);
@@ -139,6 +162,54 @@ describe("a share under a sign-out", () => {
       await next.replica.close();
     },
   );
+});
+
+describe("a share's walk through private space", () => {
+  const PRIVATE = "http://go/x";
+  const PUBLIC = "https://public.example.com/a";
+  const ROUTER = "http://10.0.0.5/admin";
+  const CAMERA = "http://10.0.0.5/cam.png";
+
+  it.each([
+    [
+      "from private space through a public page",
+      PRIVATE,
+      new Map([
+        [PRIVATE, PUBLIC],
+        [PUBLIC, ROUTER],
+      ]),
+      [PRIVATE, PUBLIC],
+    ],
+    ["from a public page", PUBLIC, new Map([[PUBLIC, ROUTER]]), [PUBLIC]],
+  ])("takes no step into private space %s", async (_case, start, hops, reached) => {
+    const { device, newBlockId } = await phone();
+    const { asked, fetch } = walking(hops);
+    await saveShared(
+      { newBlockId, ports: portsOf(fetch), replica: device.replica },
+      { kind: "link", note: null, title: null, url: start },
+    );
+    expect(asked).toStrictEqual(reached);
+  });
+
+  it("walks from private space on through private space, and asks a cover there", async () => {
+    const { device, newBlockId } = await phone();
+    const { asked, fetch } = walking(new Map([[PRIVATE, ROUTER]]));
+    await saveShared(
+      { newBlockId, ports: portsOf(fetch, coverNamed(CAMERA)), replica: device.replica },
+      { kind: "link", note: null, title: null, url: PRIVATE },
+    );
+    expect(asked).toStrictEqual([PRIVATE, ROUTER, CAMERA]);
+  });
+
+  it("asks no cover in private space of a public page a private address led to", async () => {
+    const { device, newBlockId } = await phone();
+    const { asked, fetch } = walking(new Map([[PRIVATE, PUBLIC]]));
+    await saveShared(
+      { newBlockId, ports: portsOf(fetch, coverNamed(CAMERA)), replica: device.replica },
+      { kind: "link", note: null, title: null, url: PRIVATE },
+    );
+    expect(asked).toStrictEqual([PRIVATE, PUBLIC]);
+  });
 });
 
 describe("a share whose address moved", () => {
