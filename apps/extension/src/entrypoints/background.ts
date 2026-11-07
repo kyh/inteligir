@@ -188,8 +188,8 @@ const installed = async (reason: string): Promise<void> => {
   }
 };
 
-// every start: the credential and the queue kept from the capture script WXT injects, and the
-// alarm made again while a save waits, since an update or a restart can clear it
+// every start: the credential and the queue kept from the capture script the worker injects, and
+// the alarm made again while a save waits, since an update or a restart can clear it
 const starting = async (): Promise<void> => {
   await browser.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
   await ensureSendAlarm();

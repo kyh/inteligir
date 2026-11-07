@@ -57,7 +57,7 @@ const Headline = ({ outcome, status }: { outcome: Outcome | null; status: Status
   );
 };
 
-// the tab the popup opened over and what saving it answered, with where the library is
+// what saving the tab answered, with where the library is
 interface OpenedSave {
   answer: Outcome;
   status: Status | null;
@@ -65,7 +65,6 @@ interface OpenedSave {
 
 const statusOf = (outcome: Outcome): Status | null => (outcome.kind === "status" ? outcome : null);
 
-// null when there is no tab to save
 const saveOpenedTab = async (
   activeTabId: PopupProps["activeTabId"],
   ask: PopupProps["ask"],
