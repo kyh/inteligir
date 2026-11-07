@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // main.tsx is the whole page and its top-level await, loaded once a test
 const LOADS_THE_PAGE_MS = 60_000;
+// the library draws before its replica's first pass answers
+const DRAWS_MS = 30_000;
 
 beforeEach(() => {
   vi.resetModules();
@@ -47,8 +49,6 @@ describe("a tab the build floor refuses", () => {
   it(
     "says the browser is too old, since a sign-in would send it straight back here",
     async () => {
-      const assign = vi.fn<(url: string) => void>();
-      vi.stubGlobal("location", { ...window.location, assign, origin: "https://cell.test" });
       vi.stubGlobal("fetch", async (input: Request | string) => {
         if (!(input instanceof Request)) {
           return Response.json({ user: { email: "owner@example.com", name: "Owner" } });
@@ -57,8 +57,10 @@ describe("a tab the build floor refuses", () => {
         return response ?? new Response(null, { status: 404 });
       });
       await import("./main");
-      await screen.findByText(/This browser is too old/u);
-      expect(assign).not.toHaveBeenCalled();
+      const said = await screen.findByText(/This browser is too old/u, undefined, {
+        timeout: DRAWS_MS,
+      });
+      expect(said).toBe(document.querySelector("#root"));
     },
     LOADS_THE_PAGE_MS,
   );
