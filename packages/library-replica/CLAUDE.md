@@ -49,10 +49,13 @@ and cited.
   this copy cannot lay leaves the row to the pull. A folder name a sibling
   holds is such a refusal, and so is a row its last resend left as it was: a
   parked row stops neither the pass nor the pull, and a folder's holds no other
-  folder, so the person can rename the one in its way. Rejected: dropping a
-  refused write; a whole-item retry (two devices' edits to different blocks
-  would meet); stopping the pass on a row that cannot change (every later write
-  and the pull wait on it, with nothing for the person to answer).
+  folder, so the person can rename the one in its way. A make the cell folds
+  onto the item at its address takes the rows naming it along, in its landing's
+  transaction, and a block they name there settles as any other. Rejected:
+  dropping a refused write; a whole-item retry (two devices' edits to different
+  blocks would meet); stopping the pass on a row that cannot change (every later
+  write and the pull wait on it, with nothing for the person to answer); parking
+  a row on a folded id (its text shows nowhere and no resend can pass).
   `packages/library-replica/src/outbox.ts`, `outbox-settle.ts`,
   `outbox-ops.ts`.
 

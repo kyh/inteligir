@@ -175,6 +175,28 @@ export const itemIdsOf = (op: OutboxOp): readonly string[] => {
   return id === null ? [] : [id];
 };
 
+// a row's op with the item `from` named as `to`: a make folded onto the item already at its address
+export const repointedOp = (op: OutboxOp, from: string, to: string): OutboxOp => {
+  switch (op.kind) {
+    case "write": {
+      return op.itemId === from ? { ...op, itemId: to } : op;
+    }
+    case "delete":
+    case "restore": {
+      return { ...op, ids: [...new Set(op.ids.map((id) => (id === from ? to : id)))] };
+    }
+    case "create":
+    case "saveLink":
+    case "save":
+    case "createFile":
+    case "keep":
+    case "folders": {
+      return op;
+    }
+    // no default
+  }
+};
+
 export const stagedOf = (op: OutboxOp): readonly StagedFile[] =>
   op.kind === "write" ||
   op.kind === "create" ||

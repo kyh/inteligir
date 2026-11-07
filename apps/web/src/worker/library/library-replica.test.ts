@@ -342,4 +342,28 @@ describe("the replica engine against the account's cell", () => {
       ).toStrictEqual(["Read", "reading"]);
     },
   );
+
+  it(
+    "lands what was written on a saved card on the item the cell folded the save onto",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("fold");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      const url = "https://example.com/article";
+      const card = await phone.replica.saveLink({ folderId: null, tags: [], url });
+      const holder = await laptop.replica.saveLink({ folderId: null, tags: [], url });
+      await laptop.replica.sync();
+      await write(phone.replica, card.id, [
+        { block: paragraph("n1", "my note"), op: "insert", ord: "a0", section: "note" },
+      ]);
+      await phone.replica.sync();
+
+      expect(phone.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
+      expect(phone.replica.row(card.id)).toBeNull();
+      await expect(textIn(phone.replica, holder.id, "n1")).resolves.toBe("my note");
+      await laptop.replica.sync();
+      await expect(textIn(laptop.replica, holder.id, "n1")).resolves.toBe("my note");
+    },
+  );
 });

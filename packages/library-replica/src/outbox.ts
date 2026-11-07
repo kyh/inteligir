@@ -21,7 +21,7 @@ import type { z } from "zod";
 
 import { CHANGE_REFUSED, sharedFailure, uploadBlob } from "./call-outcome";
 import type { CallFailure } from "./call-outcome";
-import { coalesceWrites, itemIdsOf, shasNamed, stagedOf } from "./outbox-ops";
+import { coalesceWrites, itemIdsOf, repointedOp, shasNamed, stagedOf } from "./outbox-ops";
 import type { OutboxOp, WriteOp } from "./outbox-ops";
 import { deleteAllRows, deleteRow, insertRow, readRows, saveRow } from "./outbox-rows";
 import type { OutboxRow } from "./outbox-rows";
@@ -89,6 +89,12 @@ type SendOutcome =
   | { readonly kind: "parked" }
   | { readonly kind: "stopped"; readonly failure: CallFailure }
   | { readonly kind: "closed" };
+
+// a make the cell folded onto the item already at its address, which never takes the make's own id
+interface Folded {
+  readonly from: string;
+  readonly to: string;
+}
 
 // a file a row stages, put on the device with the row that names it
 export interface StagedBytes {
@@ -277,24 +283,41 @@ export const createOutbox = (context: OutboxContext): Outbox => {
   // the row is retired in the transaction that lays what it landed. The cell holds the write
   // either way, so a landing this device cannot lay over the rows it holds (a row whose newer
   // change is still to come in its way) retires the row alone, and the pull after lays what the
-  // cell holds: a row is never sent again for what only this device's copy refused
+  // cell holds: a row is never sent again for what only this device's copy refused. A make the
+  // cell folded takes the rows naming it along, since the id they name will never exist
   const land = async (
     row: OutboxRow,
     work: () => SqlPlan<void>,
     touched: Touched,
+    folded: Folded | null = null,
   ): Promise<SendOutcome> => {
     await hold(async () => {
+      const moved =
+        folded === null
+          ? []
+          : rows
+              .filter((held) => held.seq !== row.seq && itemIdsOf(held.op).includes(folded.from))
+              .map((held) => ({ ...held, op: repointedOp(held.op, folded.from, folded.to) }));
+      const retire = function* retire(): SqlPlan<void> {
+        yield* deleteRow(row.seq);
+        for (const held of moved) {
+          yield* saveRow(held);
+        }
+      };
       try {
         await sql.exclusive(async (tx) => {
-          await runPlanAsync(tx, deleteRow(row.seq));
+          await runPlanAsync(tx, retire());
           await runPlanAsync(tx, work());
         });
       } catch {
         await sql.exclusive(async (tx) => {
-          await runPlanAsync(tx, deleteRow(row.seq));
+          await runPlanAsync(tx, retire());
         });
       }
       forget(row.seq);
+      for (const held of moved) {
+        replace(held);
+      }
       await release(row.op);
     });
     for (const id of itemIdsOf(row.op)) {
@@ -305,8 +328,9 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     return { kind: "landed" };
   };
 
-  const landItem = async (
+  const landMake = async (
     row: OutboxRow,
+    madeAs: string,
     item: LiveItemRow,
     blocksOf: () => SqlPlan<{ readonly written: StoredBlock[]; readonly dropped: string[] }>,
   ): Promise<SendOutcome> =>
@@ -316,6 +340,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
         yield* landOwnRow(item, yield* blocksOf());
       },
       touchedItems([item.id]),
+      madeAs === item.id ? null : { from: madeAs, to: item.id },
     );
 
   const settled = async <T>(
@@ -476,7 +501,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     }
     if (error === null) {
       const folded = "folded" in answer && answer.folded === true;
-      return await landItem(row, answer.item, function* blocksOfMake() {
+      return await landMake(row, op.input.id, answer.item, function* blocksOfMake() {
         yield* [];
         if (op.kind === "create") {
           return { dropped: [], written: op.input.blocks.map(stored) };
