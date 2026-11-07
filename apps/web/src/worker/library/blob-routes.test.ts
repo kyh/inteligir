@@ -104,8 +104,9 @@ describe("a file's bytes", () => {
   it.each(R2_FAULTS)("answers a fault of R2's as no verdict on the bytes: %s", async (_, fault) => {
     const { accountId, auth } = await signedIn(`blob-fault-${crypto.randomUUID()}@example.test`);
     const { bytes, sha } = await fileOf(TEN);
-    vi.spyOn(env.BLOBS, "put").mockRejectedValueOnce(fault);
+    const storage = vi.spyOn(env.BLOBS, "put").mockRejectedValueOnce(fault);
     await expect(put(auth, sha, bytes)).resolves.toBe(500);
+    storage.mockRestore();
     await expect(env.BLOBS.head(blobKey(accountId, sha))).resolves.toBeNull();
     // the room it held is let go: the same bytes land after
     await expect(put(auth, sha, bytes)).resolves.toBe(201);

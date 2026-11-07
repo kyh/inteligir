@@ -72,7 +72,7 @@ describe("password reset", () => {
     expect(sent).toHaveLength(1);
   });
 
-  it("answers a known email before its mail has gone, so the time says no more than the body", async () => {
+  it("answers a known email before its mail has gone", async () => {
     await signUpUser("timing@example.com");
     const held: (() => void)[] = [];
     // oxlint-disable-next-line promise/avoid-new -- the test says when the mail goes, which only a promise can hold

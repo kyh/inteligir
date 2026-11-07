@@ -232,11 +232,14 @@ describe("the account's socket", () => {
     // the upgrade's own check read the device before the revocation, whose sever then found no
     // socket to close
     const prepare = env.DB.prepare.bind(env.DB);
-    vi.spyOn(env.DB, "prepare").mockImplementationOnce((query) =>
-      prepare(query.replace('"device"."revoked_at" is null', "1 = 1")),
-    );
+    const staleRead = vi
+      .spyOn(env.DB, "prepare")
+      .mockImplementationOnce((query) =>
+        prepare(query.replace('"device"."revoked_at" is null', "1 = 1")),
+      );
     const opened = await openWithTicket(ticket);
-    await expect(closedWithin(opened, 300)).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
+    staleRead.mockRestore();
+    await expect(opened.closed).resolves.toBe(SOCKET_REVOKED_CLOSE_CODE);
   });
 
   it("opens for no assistant's token, on any path under the connector, under any holder", async () => {
