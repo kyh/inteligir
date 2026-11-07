@@ -2,80 +2,36 @@ import { describe, expect, it } from "vitest";
 import { rankWikiTargets } from "./rank-wiki-targets";
 import type { RankableWikiTarget } from "./rank-wiki-targets";
 
-const doc = (path: string, title: string, aliases?: string[]): RankableWikiTarget =>
-  aliases === undefined ? { path, title } : { aliases, path, title };
+const titled = (...titles: string[]): RankableWikiTarget[] => titles.map((title) => ({ title }));
 
-const paths = (targets: readonly RankableWikiTarget[]): string[] =>
-  targets.map((target) => target.path);
+const ranked = (titles: readonly string[], query: string): string[] =>
+  rankWikiTargets(titled(...titles), query).map((target) => target.title);
 
 describe(rankWikiTargets, () => {
   it("answers every target in listing order for a blank query", () => {
-    const targets = [doc("b.md", "B"), doc("a.md", "A")];
-    expect(paths(rankWikiTargets(targets, ""))).toStrictEqual(["b.md", "a.md"]);
-    expect(paths(rankWikiTargets(targets, "   "))).toStrictEqual(["b.md", "a.md"]);
+    expect(ranked(["B", "A"], "")).toStrictEqual(["B", "A"]);
+    expect(ranked(["B", "A"], "   ")).toStrictEqual(["B", "A"]);
   });
 
-  it("ranks a stem prefix, then a title prefix, then an alias prefix, then a word start, then a substring", () => {
-    const targets = [
-      doc("notes/unroadmapped.md", "Unroadmapped"),
-      doc("projects/roadmap/plan.md", "Plan"),
-      doc("notes/next quarter.md", "Next quarter", ["Q3 road"]),
-      doc("notes/q3.md", "Q3", ["Roadmap Q3"]),
-      doc("notes/plan.md", "Roadmap for 2027"),
-      doc("notes/roadmap.md", "Roadmap"),
-      doc("notes/other.md", "Other"),
-    ];
-    expect(paths(rankWikiTargets(targets, "road"))).toStrictEqual([
-      "notes/roadmap.md",
-      "notes/plan.md",
-      "notes/q3.md",
-      "notes/next quarter.md",
-      "notes/unroadmapped.md",
-      "projects/roadmap/plan.md",
-    ]);
+  it("ranks a title prefix, then a word start, then a substring", () => {
+    expect(
+      ranked(["Unroadmapped", "The road ahead", "Roadmap for 2027", "Other"], "road"),
+    ).toStrictEqual(["Roadmap for 2027", "The road ahead", "Unroadmapped"]);
   });
 
   it("keeps the listing's order within a rank", () => {
-    const targets = [doc("z/road b.md", "Road B"), doc("a/road a.md", "Road A")];
-    expect(paths(rankWikiTargets(targets, "road"))).toStrictEqual(["z/road b.md", "a/road a.md"]);
+    expect(ranked(["Road B", "Road A"], "road")).toStrictEqual(["Road B", "Road A"]);
   });
 
   it("matches case- and accent-blind", () => {
-    const targets = [doc("notes/Café.md", "Café"), doc("notes/cafeteria.md", "Cafeteria")];
-    expect(paths(rankWikiTargets(targets, "CAFE"))).toStrictEqual([
-      "notes/Café.md",
-      "notes/cafeteria.md",
-    ]);
+    expect(ranked(["Café", "Cafeteria"], "CAFE")).toStrictEqual(["Café", "Cafeteria"]);
   });
 
   it("matches typed words in any order at word starts", () => {
-    const targets = [doc("notes/weekly review.md", "Weekly review"), doc("notes/w.md", "W")];
-    expect(paths(rankWikiTargets(targets, "rev week"))).toStrictEqual(["notes/weekly review.md"]);
+    expect(ranked(["Weekly review", "W"], "rev week")).toStrictEqual(["Weekly review"]);
   });
 
-  it("ranks an attachment by its file name like a note by its stem", () => {
-    const targets = [
-      doc("notes/diagrams.md", "Diagrams"),
-      doc("assets/diagram.png", "diagram.png"),
-    ];
-    expect(paths(rankWikiTargets(targets, "diagram.p"))).toStrictEqual(["assets/diagram.png"]);
-  });
-
-  it("ranks a non-md note by the name its link spells, extension included", () => {
-    const targets = [
-      doc("archive/todo.txt", "todo"),
-      doc("a/todo.txt.backup.md", "todo.txt.backup"),
-      doc("todo.txt-notes.md", "todo.txt-notes"),
-    ];
-    expect(paths(rankWikiTargets(targets, "todo.txt"))).toStrictEqual([
-      "archive/todo.txt",
-      "a/todo.txt.backup.md",
-      "todo.txt-notes.md",
-    ]);
-    const typing = [doc("notes/tips.md", "Todo.txt tips"), doc("archive/todo.txt", "todo")];
-    expect(paths(rankWikiTargets(typing, "todo.t"))).toStrictEqual([
-      "archive/todo.txt",
-      "notes/tips.md",
-    ]);
+  it("reads the title alone, so a word it does not hold matches nothing", () => {
+    expect(ranked(["Apple", "Pear"], "md")).toStrictEqual([]);
   });
 });

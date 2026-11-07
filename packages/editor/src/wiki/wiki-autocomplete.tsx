@@ -21,7 +21,7 @@ import {
 import { createLinkedNote, insertWikiChipFromPicker } from "@repo/editor/wiki/wiki-insert";
 import { WIKI_INPUT_KEY } from "@repo/editor/wiki/wiki-input-key";
 import { useLinkResolver, useLinkTargets } from "@repo/editor/host";
-import type { PickerTarget } from "@repo/editor/host-io";
+import type { LinkTarget } from "@repo/editor/host-io";
 import { rankWikiTargets } from "@repo/notes/knowledge/rank-wiki-targets";
 import { parseWikiBody, serializeWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
@@ -70,7 +70,7 @@ const WikiInputElement = (props: PlateElementProps) => {
 
   // by its id after the pipe, unless the person typed an alias there; a title holding a bracket
   // has no wiki spelling, so it is not offered
-  const itemFor = (target: PickerTarget) => {
+  const itemFor = (target: LinkTarget) => {
     const body = serializeWikiBody({
       ...typed,
       alias: typed.alias ?? target.id,

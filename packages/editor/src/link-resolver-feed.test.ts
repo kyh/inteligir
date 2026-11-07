@@ -29,21 +29,24 @@ describe("the link resolver feed", () => {
     expect(store.getState().resolveWikiTarget("Nothing yet")).toBeNull();
   });
 
-  it("files a title holding a slash under one name, and two items of one title under the first", () => {
+  it("reaches a title holding a slash as it is written, and two items of one title at the first", () => {
     const { setTargets, store } = createLinkResolverFeed();
     const second = "0190a000-0000-7000-8000-000000000002";
 
     setTargets([{ id: PLAN_ID, title: "Q3/Q4 plan" }, ...TARGETS, { id: second, title: "Inbox" }]);
 
-    expect(store.getState().resolveWikiTarget("Q3 Q4 plan")).toBe(PLAN_ID);
+    expect(store.getState().resolveWikiTarget("Q3/Q4 plan")).toBe(PLAN_ID);
+    expect(store.getState().resolveWikiTarget("Q3 Q4 plan")).toBeNull();
     expect(store.getState().resolveWikiTarget("Inbox")).toBe(INBOX_ID);
     expect(store.getState().resolveWikiTarget("", second)).toBe(second);
-    expect(store.getState().targets.map((target) => target.path)).toStrictEqual([
-      "Q3 Q4 plan.md",
-      "Plan.md",
-      "Inbox.md",
-      "Inbox.md",
-    ]);
+  });
+
+  it("reaches no untitled item by an empty name", () => {
+    const { setTargets, store } = createLinkResolverFeed();
+
+    setTargets([{ id: PLAN_ID, title: "" }]);
+
+    expect(store.getState().resolveWikiTarget("")).toBeNull();
   });
 
   it("names an item by id as its card does", () => {
