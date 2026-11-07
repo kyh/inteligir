@@ -309,6 +309,32 @@ describe("an export", () => {
   );
 
   it(
+    "brings back as text what a person typed in the spelling of a highlight, a comment or a ref",
+    { timeout: 30_000 },
+    async () => {
+      const typed = "Profit==revenue==cost, %%kept%% in view, and see page ^2";
+      const from = newAccountId();
+      await inCell(cellOf(from), async (state) => {
+        const library = openCellLibrary(state, env);
+        const client = libraryIn(state, from, library);
+        const note = await client.items.createNote({ markdown: "A note.", title: "Typed" });
+        landedValue(
+          library.write(person(), {
+            itemId: note.item.id,
+            ops: [{ block: paragraph("typed", typed), op: "insert", ord: "a5", section: "note" }],
+          }),
+        );
+      });
+      const { export: written } = await exported(from);
+      const into = newAccountId();
+      await imported(into, await zipIn(from, written.id));
+      const before = await summaryOf(from);
+      expect(before.items.flatMap((item) => item.note)).toContain(typed);
+      await expect(summaryOf(into)).resolves.toStrictEqual(before);
+    },
+  );
+
+  it(
     "keeps a file under any name, one that reads as a note or that a dot hides among them",
     { timeout: 30_000 },
     async () => {
