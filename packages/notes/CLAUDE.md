@@ -35,8 +35,8 @@ node is rather than discriminating structurally at each visit.
   `deriveItem` reads the card (an empty
   title falls back to the first heading, then the first line; the outline
   keeps the first h1 to h3, as the editor's contents do, each cut to a line),
-  the index text (every heading ranks), the links by id, title key or url key,
-  and each block's anchored highlights. Rejected: syncing derived rows (two
+  the index text (every heading ranks), the links by id or url key, and each
+  block's anchored highlights. Rejected: syncing derived rows (two
   derivations would drift), a frontmatter block (its keys are columns).
   `packages/notes/src/library/derive-item.ts`.
 

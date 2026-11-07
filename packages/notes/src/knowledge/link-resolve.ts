@@ -10,9 +10,6 @@ import { basenamePath, dirnamePath, extnamePath, joinPath, normalizePath } from 
 export interface TargetResolver {
   resolveWiki: (target: string, alias?: string) => string | null;
   resolveMd: (target: string, fromPath: string) => string | null;
-  // the doc whose frontmatter `id` this is; a copied file carries its original's, so it breaks
-  // like every other tier
-  resolveNoteId: (id: string) => string | null;
 }
 
 const pickBest = (candidates: Iterable<string>): string | null => {
@@ -135,6 +132,7 @@ const filedResolver = (): TargetResolver & {
     return pickBest(ownersOf(byNameLower, clean.toLowerCase()));
   };
 
+  // a copied file carries its original's `id`, so it breaks like every other tier
   const resolveNoteId = (id: string): string | null => pickBest(ownersOf(idOwners, id));
 
   const resolveWiki = (target: string, alias?: string): string | null => {
@@ -196,7 +194,7 @@ const filedResolver = (): TargetResolver & {
     return null;
   };
 
-  return { addAlias, addNoteId, addPath, resolveMd, resolveNoteId, resolveWiki };
+  return { addAlias, addNoteId, addPath, resolveMd, resolveWiki };
 };
 
 export const buildResolver = (
@@ -214,8 +212,8 @@ export const buildResolver = (
   for (const [id, owner] of idEntries ?? []) {
     filed.addNoteId(owner, id);
   }
-  const { resolveMd, resolveNoteId, resolveWiki } = filed;
-  return { resolveMd, resolveNoteId, resolveWiki };
+  const { resolveMd, resolveWiki } = filed;
+  return { resolveMd, resolveWiki };
 };
 
 // the shortest target that resolves back to `path`: its name, else its path, spelled without the

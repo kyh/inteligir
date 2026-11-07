@@ -436,19 +436,9 @@ export const storeDerived = function* storeDerived(
   yield run("DELETE FROM links WHERE source_id = ?", [itemId]);
   yield* runEach(
     chunkStatement({
-      each: "(?, ?, ?, ?, ?, ?, ?, ?)",
-      head: `INSERT INTO links (source_id, block_id, target_id, target_key, heading, block_ref,
-        kind, section) VALUES `,
-      rows: derived.links.map((link) => [
-        itemId,
-        link.blockId,
-        link.targetId,
-        link.targetKey,
-        link.heading,
-        link.blockRef,
-        link.kind,
-        link.section,
-      ]),
+      each: "(?, ?, ?)",
+      head: "INSERT INTO links (source_id, target_id, target_key) VALUES ",
+      rows: derived.links.map((link) => [itemId, link.targetId, link.targetKey]),
       separator: ", ",
     }),
   );
@@ -569,42 +559,6 @@ export const storeSearchRow = function* storeSearchRow(
 // ---- a whole item ----
 
 /** @internal */
-export interface ItemWrite {
-  readonly id: string;
-  readonly state: ItemState;
-  readonly updatedAt: number;
-  readonly seq: number;
-}
-
-// an item as a whole, with everything derived from it, as the suites lay one down. Null when the
-// row held is as new or newer, and then nothing of the item is written.
-/**
- * @internal
- * @yields {SqlStep} the statements that write the item
- */
-export const storeItem = function* storeItem(write: ItemWrite): SqlPlan<DerivedItem | null> {
-  const derived = deriveItem(write.state.fields, write.state.blocks);
-  const landed = yield* storeItemRow({
-    card: derived.card,
-    fields: write.state.fields,
-    id: write.id,
-    seq: write.seq,
-    updatedAt: write.updatedAt,
-    urlKey: derived.urlKey,
-  });
-  if (!landed) {
-    return null;
-  }
-  yield* replaceBlocks(
-    write.id,
-    blockWritesOf(orderedBlocks(write.state.blocks), derived),
-    write.seq,
-  );
-  yield* storeDerived(write.id, derived);
-  yield* storeSearchRow(write.id, derived.search);
-  return derived;
-};
-
 export interface ItemBodyWrite {
   readonly id: string;
   // the sequence the cell sent the body at
@@ -746,55 +700,29 @@ export const literalMatches = function* literalMatches(
 
 // ---- links ----
 
-export interface Backlink {
-  readonly sourceId: string;
-  readonly blockId: string;
-  readonly kind: string;
-  readonly heading: string | null;
-  readonly blockRef: string | null;
-  readonly section: string;
-}
+const linkSourceSchema = z.object({ source_id: z.string() });
 
-const backlinkRowSchema = z.object({
-  block_id: z.string(),
-  block_ref: z.string().nullable(),
-  heading: z.string().nullable(),
-  kind: z.string(),
-  section: z.string(),
-  source_id: z.string(),
-});
-
-const BACKLINKS = `SELECT links.source_id AS source_id, links.block_id AS block_id,
-  links.kind AS kind, links.heading AS heading, links.block_ref AS block_ref,
-  links.section AS section
-FROM links JOIN items ON items.id = links.source_id
-WHERE items.deleted_at IS NULL AND items.purged = 0 AND `;
-
-const backlinksWhere = function* backlinksWhere(
+const liveSourcesWhere = function* liveSourcesWhere(
   where: string,
-  params: readonly SqlValue[],
-): SqlPlan<Backlink[]> {
-  const rows = yield all(`${BACKLINKS}${where} ORDER BY links.source_id, links.block_id`, params);
-  return rows.map((raw) => {
-    const row = parseRow(raw, backlinkRowSchema, "a link");
-    return {
-      blockId: row.block_id,
-      blockRef: row.block_ref,
-      heading: row.heading,
-      kind: row.kind,
-      section: row.section,
-      sourceId: row.source_id,
-    };
-  });
+  param: string,
+): SqlPlan<string[]> {
+  const rows = yield all(
+    `SELECT DISTINCT links.source_id AS source_id
+     FROM links JOIN items ON items.id = links.source_id
+     WHERE items.deleted_at IS NULL AND items.purged = 0 AND ${where}
+     ORDER BY links.source_id`,
+    [param],
+  );
+  return rows.map((raw) => parseRow(raw, linkSourceSchema, "a link").source_id);
 };
 
 // the live items linking to an item by its id
-export const linksTo = (targetId: string): SqlPlan<Backlink[]> =>
-  backlinksWhere("links.target_id = ?", [targetId]);
+export const linksTo = (targetId: string): SqlPlan<string[]> =>
+  liveSourcesWhere("links.target_id = ?", targetId);
 
 // the live items linking to an address, by its url key: a saved link's Linked from
-export const linksToUrl = (key: string): SqlPlan<Backlink[]> =>
-  backlinksWhere("links.kind = 'url' AND links.target_key = ?", [key]);
+export const linksToUrl = (key: string): SqlPlan<string[]> =>
+  liveSourcesWhere("links.target_key = ?", key);
 
 // ---- highlights ----
 

@@ -393,11 +393,11 @@ export const readItemView = (sql: SqlStatements, codec: CellCodec, input: ReadIn
       .map((row) => targetRowSchema.parse(row).target_id),
   );
   out.delete(input.id);
-  const sources = [
+  const into = new Set([
     ...runPlan(sql, linksTo(input.id)),
     ...(item.urlKey === null ? [] : runPlan(sql, linksToUrl(item.urlKey))),
-  ];
-  const into = new Set(sources.map((link) => link.sourceId).filter((id) => id !== input.id));
+  ]);
+  into.delete(input.id);
   const [counted] = sql.all(
     `SELECT count(*) AS count FROM annotations
      WHERE item_id = ? AND parent_id IS NULL AND deleted_at IS NULL`,

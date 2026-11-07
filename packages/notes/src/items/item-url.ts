@@ -1,6 +1,8 @@
 // A url's one key, computed without the platform's URL: React Native's is not WHATWG, so the phone
-// and the Mac would key one link differently. Import-free; the key is a row `deriveItem` writes
-// with every write of the item (`../library/derive-item.ts`).
+// and the Mac would key one link differently. The key is a row `deriveItem` writes with every write
+// of the item (`../library/derive-item.ts`).
+
+import { safeDecode } from "../text/safe-decode";
 
 // RFC 3986 appendix B, read as a web address: the scheme and authority are required below
 const URI_RE =
@@ -394,14 +396,6 @@ export const cleanUrl = (value: string): string | null => {
     `${url.scheme}://${url.host}${url.port === null ? "" : `:${url.port}`}${url.path}` +
     `${query === null ? "" : `?${query}`}${url.fragment === null ? "" : `#${url.fragment}`}`
   );
-};
-
-const safeDecode = (text: string): string => {
-  try {
-    return decodeURIComponent(text);
-  } catch {
-    return text;
-  }
 };
 
 // the host and the path's words, for the search index's meta column

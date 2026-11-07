@@ -22,21 +22,11 @@ const SHOWN_LINE_MAX = 100;
 // Durable Object caps at 2 MB, and a heading block may hold half a megabyte
 const OUTLINE_MAX = 200;
 
-export const LIBRARY_LINK_KINDS = ["wiki", "embed", "url"] as const;
-type LibraryLinkKind = (typeof LIBRARY_LINK_KINDS)[number];
-
-// `targetId` when the link names an item; `targetKey` what resolves it otherwise: a wiki link's
-// title folded, so a dangling one resolves when an item answers to it, or a url's key, so an item
-// saved from that address finds the notes that linked it
-interface DerivedLink {
-  readonly blockId: string;
-  readonly section: LibrarySection;
-  readonly kind: LibraryLinkKind;
-  readonly targetId: string | null;
-  readonly targetKey: string | null;
-  readonly heading: string | null;
-  readonly blockRef: string | null;
-}
+// an item a link or an embed names, or a url's key, so an item saved from that address finds the
+// notes that linked it
+type DerivedLink =
+  | { readonly targetId: string; readonly targetKey: null }
+  | { readonly targetId: null; readonly targetKey: string };
 
 // a field tag is one the item's tags list names; an inline one a `#name` in its note's text
 interface DerivedTag {
@@ -315,41 +305,19 @@ export const deriveItem = (
     if (preview === "" && block.type === "p" && block.listStyleType === undefined) {
       preview = clipSnippet(text.trim(), PREVIEW_MAX);
     }
-    const link = (kind: LibraryLinkKind, target: Partial<DerivedLink>): void => {
-      links.push({
-        blockId: block.id,
-        blockRef: target.blockRef ?? null,
-        heading: target.heading ?? null,
-        kind,
-        section,
-        targetId: target.targetId ?? null,
-        targetKey: target.targetKey ?? null,
-      });
-    };
     visitElements([block], (node) => {
       switch (node.type) {
-        case "wikiLink": {
-          link("wiki", {
-            blockRef: node.blockRef,
-            heading: node.heading,
-            targetId: node.itemId,
-            targetKey: titleKey(node.title),
-          });
-          break;
-        }
+        case "wikiLink":
         case "wikiEmbed": {
-          link("embed", {
-            blockRef: node.blockRef,
-            heading: node.heading,
-            targetId: node.itemId,
-            targetKey: titleKey(node.title),
-          });
+          if (node.itemId !== null) {
+            links.push({ targetId: node.itemId, targetKey: null });
+          }
           break;
         }
         case "a": {
           const key = urlKey(node.url);
           if (key !== null) {
-            link("url", { targetKey: key });
+            links.push({ targetId: null, targetKey: key });
           }
           break;
         }

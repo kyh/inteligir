@@ -9,7 +9,6 @@ import { z } from "zod";
 
 import { ANNOTATION_SOURCES } from "../annotations/store-schema";
 import { ITEM_KINDS } from "../items/item-kind";
-import { LIBRARY_LINK_KINDS } from "./derive-item";
 import { FETCH_STATES } from "./library-item";
 import { LIBRARY_SECTIONS } from "./library-nodes";
 import { all, run } from "./library-sql";
@@ -17,7 +16,7 @@ import type { SqlPlan, SqlRow } from "./library-sql";
 
 // bump on any change below, and on any change to the JSON a replica's outbox row holds
 // (`@repo/library-replica`), which no build reads in another's shape
-export const LIBRARY_SCHEMA_VERSION = 9;
+export const LIBRARY_SCHEMA_VERSION = 10;
 
 // STRICT tables are SQLite 3.37; a replica's engine is checked against it at open. The cell's is
 // the platform's own, and a Durable Object refuses sqlite_version() ("not authorized to use
@@ -153,13 +152,8 @@ const SYNCED_DDL = [
   `CREATE INDEX IF NOT EXISTS item_tags_tag ON item_tags (tag)`,
   `CREATE TABLE IF NOT EXISTS links (
     source_id TEXT NOT NULL,
-    block_id TEXT NOT NULL,
     target_id TEXT,
-    target_key TEXT,
-    heading TEXT,
-    block_ref TEXT,
-    kind TEXT NOT NULL CHECK (kind IN (${oneOf(LIBRARY_LINK_KINDS)})),
-    section TEXT NOT NULL CHECK (section IN (${oneOf(LIBRARY_SECTIONS)}))
+    target_key TEXT
   ) STRICT`,
   `CREATE INDEX IF NOT EXISTS links_source ON links (source_id)`,
   `CREATE INDEX IF NOT EXISTS links_target ON links (target_id)`,

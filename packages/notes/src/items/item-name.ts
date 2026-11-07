@@ -2,6 +2,7 @@
 // address goes by until its page is read. A title becomes a legal file name here, once, for every
 // writer, repaired rather than refused, so each name is one every disk takes and a link can name.
 
+import { safeDecode } from "../text/safe-decode";
 import { urlHost, urlLastSegment } from "./item-url";
 
 const NAME_MAX_CHARS = 120;
@@ -99,14 +100,6 @@ export const itemNameFromTitle = (title: string): string | null => {
   );
   const end = deviceStemEnd(room);
   return end === null ? room : `${room.slice(0, end)}${DEVICE_SUFFIX}${room.slice(end)}`;
-};
-
-const safeDecode = (text: string): string => {
-  try {
-    return decodeURIComponent(text);
-  } catch {
-    return text;
-  }
 };
 
 // a path segment read as words: decoded, `-` and `_` as spaces, its extension dropped

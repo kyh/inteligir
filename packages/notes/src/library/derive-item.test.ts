@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { deriveItem, titleKey } from "./derive-item";
+import { deriveItem } from "./derive-item";
 import type { LibraryBlock } from "./library-nodes";
 import { itemOf, noteFields, paragraph } from "../test-support/library-items";
 
@@ -24,36 +24,11 @@ const linked: LibraryBlock = {
 };
 
 describe(deriveItem, () => {
-  it("reads links by id, title key and url key, with the block and section they sit in", () => {
+  it("reads links by id and url key, and a link to no item yet is none", () => {
     const derived = deriveItem(noteFields(), itemOf([linked]).blocks);
     expect(derived.links).toStrictEqual([
-      {
-        blockId: "p2",
-        blockRef: null,
-        heading: null,
-        kind: "wiki",
-        section: "note",
-        targetId: "item-2",
-        targetKey: "other",
-      },
-      {
-        blockId: "p2",
-        blockRef: null,
-        heading: "Part",
-        kind: "wiki",
-        section: "note",
-        targetId: null,
-        targetKey: titleKey("Not Yet"),
-      },
-      {
-        blockId: "p2",
-        blockRef: null,
-        heading: null,
-        kind: "url",
-        section: "note",
-        targetId: null,
-        targetKey: "example.com/a",
-      },
+      { targetId: "item-2", targetKey: null },
+      { targetId: null, targetKey: "example.com/a" },
     ]);
   });
 
@@ -94,31 +69,15 @@ describe(deriveItem, () => {
     expect(deriveItem(noteFields(), article).tags).toStrictEqual([]);
   });
 
-  it("files an embed under its title, so one with no item yet waits for it", () => {
+  it("reads an embed by its item's id", () => {
     const embed: LibraryBlock = {
-      children: [{ children: leaf, itemId: null, title: "Later", type: "wikiEmbed" }],
+      children: [{ children: leaf, itemId: "item-3", title: "Later", type: "wikiEmbed" }],
       id: "e1",
       type: "p",
     };
     expect(deriveItem(noteFields(), itemOf([embed]).blocks).links).toStrictEqual([
-      {
-        blockId: "e1",
-        blockRef: null,
-        heading: null,
-        kind: "embed",
-        section: "note",
-        targetId: null,
-        targetKey: "later",
-      },
+      { targetId: "item-3", targetKey: null },
     ]);
-  });
-
-  it("gives each block its text and the highlights it anchors", () => {
-    const derived = deriveItem(noteFields(), itemOf([linked]).blocks);
-    expect(derived.blocks.get("p2")).toStrictEqual({
-      annotationIds: ["h1", "h2"],
-      text: "See Other and Not Yet, the site #Work/plans marked",
-    });
   });
 
   it("names an untitled item by its first heading, else its first line", () => {
