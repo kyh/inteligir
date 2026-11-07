@@ -160,6 +160,7 @@ describe("what a share asks the phone to save", () => {
     ["(https://example.com/z)", null],
     ["Link:https://example.com/z", "Link:"],
     ["[the post](https://example.com/z)", "the post"],
+    ["Start with https://, then (https://example.com/z)", "Start with https://, then"],
   ])("takes a link expo-share-intent's search misses as a link: %s", (text, note) => {
     expect(textShare(text).webUrl).toBeNull();
     expect(sharedSaveOf(textShare(text))).toStrictEqual({
