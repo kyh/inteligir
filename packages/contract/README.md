@@ -60,7 +60,7 @@ src/
 - **apps/extension** reaches the library's saves and the account's sign-out
   through `cloud/v1`, and its connect page's messages through
   `cloud/extension`: a browser install updates on the Web Store's cadence, so
-  the one build floor holds it as it holds the others (`CLOUD_ONLY_CLIENTS` in
+  the one build floor holds it as it holds the others (`DECLARED_EDGES` in
   `tools/repo-guards/src/dep-dag.test.ts`).
 
 ## Invariants

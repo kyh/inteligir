@@ -10,13 +10,12 @@ every other suite.
 ## Why it exists
 
 There is no coverage tooling, on purpose. What the repo pins instead is
-structure: the dependency DAG and where each package may reach, that every
-socket change kind has a producer, that a route path has one spelling, that
-every turbo cache key names what its output reads. Those are questions the
-compiler, knip and a unit suite cannot ask — a file guard cannot see one unused
-export beside four used ones, TypeScript catches a missing arm but never a
-drifted table, and turbo strips an undeclared env var with no error on either
-side.
+structure: the dependency DAG and where each package may reach, that a route
+path has one spelling, that every turbo cache key names what its output reads.
+Those are questions the compiler, knip and a unit suite cannot ask — a file
+guard cannot see one unused export beside four used ones, TypeScript catches a
+missing arm but never a drifted table, and turbo strips an undeclared env var
+with no error on either side.
 
 Every guard obeys three rules. It states its own rule in the failure, so the
 message is the documentation. It names the file to change. And it DERIVES every
@@ -45,9 +44,10 @@ src/
   *.test.ts           # one guard per file — the list below
 ```
 
-The walk skips `node_modules`, `dist`, `coverage` and every dot-directory, so a
-guard passes the same on CI and on a machine that has run a build, and an agent
-worktree under `.claude` is never read as this commit's tree.
+The walk skips `node_modules`, `dist`, `coverage`, `target` and every
+dot-directory, so a guard passes the same on CI and on a machine that has run a
+build, and an agent worktree under `.claude` is never read as this commit's
+tree.
 
 ## The guards
 
@@ -78,14 +78,17 @@ One per file; its header and its failure message state the rule in full.
 - `privacy-routes.test.ts`: every cloud `/v1/` route has a row in `docs/privacy.md`, and every row a route.
 - `decisions-index.test.ts`: `AGENTS.md` § Decisions indexes every nested `CLAUDE.md`, and the root one is `@AGENTS.md`.
 - `tests-beside-source.test.ts`: no tracked path sits in a `__tests__` folder; a suite is beside its module, shared test code in `test-support/`.
+- `product-words.test.ts`: a surface's quoted sentences and JSX text say no engine word, or the file is an `ALLOWED` row.
+- `icon-buttons.test.ts`: every icon-size `Button` carries a label, and no `Tooltip` wraps one.
+- `guard-docs.test.ts`: this list is the guards on disk, and a name the guards' docs cite is one the source holds.
 - `worker-preview.test.ts`: the Preview workflow's script, run against a stub of GitHub and Cloudflare: it reads back only the bot's comment, every page of the environment PRs share, and reports a Preview gone only once it is.
 
-Every exception table — `ALLOWED_EXPORTS`, `NOT_DEMOED`,
-`dispatchedIn`, `elsewhere`, `ELSEWHERE`,
-`DECLARED_SPLITS`, `DATA_FILES`, `DELIBERATE_NON_REFERENCES`, `PROSE_SIZES`,
-`NOT_A_TEXT_FIELD` — has a companion assertion that no row is STALE: a row
-whose subject is gone, or whose gap has closed, fails too. An allowance that
-outlives what it excused only ever loosens.
+Every exception table — `ALLOWED`, `ALLOWED_EXPORTS`, `DATA_FILES`,
+`DECLARED_SPLITS`, `DELIBERATE_NON_REFERENCES`, `EDITOR_PAGE_CLIENTS`,
+`ELSEWHERE`, `NON_COMPONENT_ROOTS`, `NOT_A_TEXT_FIELD`, `NOT_DEMOED`,
+`PROSE_SIZES` — has a companion assertion that no row is STALE: a row whose
+subject is gone, or whose gap has closed, fails too. An allowance that outlives
+what it excused only ever loosens.
 
 ## What the dangling-reference sweep reads
 
@@ -104,16 +107,17 @@ subpath after the name is not resolved) or a path anchored on a workspace group
 (`packages/notes/src/library/block-ops.ts` is checked; a relative
 `src/block-ops.ts` in a Layout block is not). And a path git ignores (`dist/`,
 `.wrangler/`) is excused by asking `git check-ignore`, so the rule stays in
-`.gitignore` and this guard cannot disagree with it.
+`.gitignore` and this guard cannot disagree with it. A name is no path: the
+tables the guards' own docs cite are `guard-docs.test.ts`'s.
 
 ## Invariants
 
 - **A guard states its rule in the failure**, names the file to change and
   says the fix. The message is the documentation; a green run needs none.
 - **Every compared value is derived.** Workspaces from pnpm,
-  vocabularies from their zod declarations, paths from the contract, the env
-  contract from `config.ts`. A hand-written table is a pin or a reasoned
-  exception, never a copy of something the tree already says.
+  vocabularies from their zod declarations, paths from the contract. A
+  hand-written table is a pin or a reasoned exception, never a copy of
+  something the tree already says.
 - **A self-check per sweep.** Each guard asserts it found the thing it is held
   against (a workspace, `apps/desktop/scripts/smoke-packaged.ts`, a `dial()`
   row), so an empty population fails as "the sweep is broken, not the tree"
@@ -122,8 +126,8 @@ subpath after the name is not resolved) or a path anchored on a workspace group
   `test-support/` and `*.test.*` as test; an edge only a test crosses is not a
   DAG edge but must still be declared in the manifest.
 - **This package reaches nothing.** Its `DECLARED_EDGES` row is empty: the
-  contract, domain and config values its guards import are devDependencies,
-  read at test time, and so are edges of no shipped graph.
+  contract's values its guards import are a devDependency, read at test time,
+  and so an edge of no shipped graph.
 
 ## Adding a guard
 

@@ -217,9 +217,8 @@ const IMPORT_SPECIFIER = /\b(?:from|import|require)\s*\(?\s*["'](?<specifier>[^"
 
 const cachedSources = new Map<string, string>();
 
-// full-line comments dropped, so prose naming a package or a change kind cannot invent one; a
-// trailing comment is left alone because stripping it safely means parsing the line, and eating
-// real code fails open.
+// full-line comments dropped, so prose naming a package cannot invent one; a trailing comment is
+// left alone because stripping it safely means parsing the line, and eating real code fails open.
 export const sourceOf = (relativePath: string): string => {
   const cached = cachedSources.get(relativePath);
   if (cached !== undefined) {
