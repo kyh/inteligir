@@ -55,7 +55,9 @@ release's bundle id refuses to start (`src-tauri/src/cloud.rs`).
 
 Sign out, or an account deleted, forgets the credential, the account's replica
 file and every file the Mac holds of it, and the page opens on the sign-in
-again; so does a credential the cloud no longer takes.
+again; so does a credential the cloud no longer takes. A build below the
+cloud's floor keeps all of it: the rail says to update, and what it queued goes
+once the update is in.
 
 ## The replica is one SQLite file
 
