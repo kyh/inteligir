@@ -17,7 +17,7 @@ import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { parseMdast } from "@repo/notes/markdown/parse";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
-describe("owned parse (probe1/2/3 translations)", () => {
+describe("owned parse", () => {
   it("keeps a tag that cannot pair as its own bytes, where MDX would refuse the file", () => {
     const unpaired = [
       "<Foo>\n\nnever closed\n",
@@ -184,7 +184,7 @@ describe("opaque nodes (constructs with no editor node)", () => {
   });
 });
 
-describe("wiki links (probe4 translations)", () => {
+describe("wiki links", () => {
   it("leaves standard links and images untouched (construct fallthrough)", () => {
     expect(roundTrip("[x](https://example.com/y) plain\n")).toBe(
       "[x](https://example.com/y) plain\n",
@@ -265,7 +265,7 @@ describe("parseWikiBody (display-time helper)", () => {
 
 const editor = () => createSlateEditor({ plugins: BASE_KIT });
 
-describe("serialize rules (probe1 §5 / probe5 translations)", () => {
+describe("serialize rules", () => {
   it("does not drop toggle nodes (Plate ships no toggle rule)", () => {
     const out = serializeMd(editor(), {
       remarkStringifyOptions: MD_STRINGIFY,
@@ -302,7 +302,7 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
     expect(out).toBe("Meet @2026-07-01 ok\n");
   });
 
-  it("emits alert blockquotes verbatim with marks preserved (probe5 fidelity)", () => {
+  it("emits alert blockquotes verbatim with marks preserved", () => {
     const md = "> [!TIP]\n> Has **bold** and [[Wiki Link]] and $$x^2$$ inline.\n";
     expect(roundTrip(md)).toBe(md);
   });

@@ -186,7 +186,7 @@ describe("Better Auth's own deletion routes", () => {
   });
 });
 
-describe("the deletion's per-device budget", () => {
+describe("the deletion's per-holder budget", () => {
   // the suite config keeps the limiter off so suites do not 429 on one another
   let wasDisabled: Env["RATE_LIMIT_DISABLED"] = "true";
   beforeEach(() => {
