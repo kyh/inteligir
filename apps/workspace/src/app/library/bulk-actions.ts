@@ -38,6 +38,8 @@ export const runBulk = async <T>(job: BulkRun<T>): Promise<void> => {
   const shown = total > size;
   // one toast from the first progress to the outcome; a run of one chunk shows the outcome alone
   const id = `bulk-${String(Date.now())}-${String(Math.random())}`;
+  // an update by id keeps what the toast held, so an outcome takes the run's Stop off it
+  const outcome = (duration: number) => ({ action: undefined, duration, id });
   let stop = false;
   let done = 0;
   let landed = 0;
@@ -59,10 +61,7 @@ export const runBulk = async <T>(job: BulkRun<T>): Promise<void> => {
   progress();
   for (let start = 0; start < total; start += size) {
     if (stop) {
-      toast.info(`Stopped after ${formatCount(landed)} of ${formatCount(total)}.`, {
-        duration: 4000,
-        id,
-      });
+      toast.info(`Stopped after ${formatCount(landed)} of ${formatCount(total)}.`, outcome(4000));
       return;
     }
     const chunk = job.items.slice(start, start + size);
@@ -73,18 +72,15 @@ export const runBulk = async <T>(job: BulkRun<T>): Promise<void> => {
         landed === 0
           ? noneLanded(total, job.past)
           : `Stopped after ${formatCount(landed)} of ${formatCount(total)}.`;
-      toast.error(`${reached} ${refusalText(error, "The library didn't answer.")}`, {
-        duration: 6000,
-        id,
-      });
+      toast.error(`${reached} ${refusalText(error, "The library didn't answer.")}`, outcome(6000));
       return;
     }
     done += chunk.length;
     progress();
   }
   if (landed === 0) {
-    toast.error(noneLanded(total, job.past), { duration: 6000, id });
+    toast.error(noneLanded(total, job.past), outcome(6000));
   } else {
-    toast.success(job.done(landed), { duration: 4000, id });
+    toast.success(job.done(landed), outcome(4000));
   }
 };

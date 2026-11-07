@@ -129,4 +129,30 @@ describe("a bulk verb", () => {
     await runBulk({ ...job, run: stopsAtTheSecond(refusal) });
     expect(failed.mock.lastCall?.[0]).toBe("Stopped after 2 of 5. Your library is full.");
   });
+
+  it.each([
+    ["landed", async () => await Promise.resolve(1), "Moved 2 to Reading"],
+    [
+      "landed nothing",
+      async () => await Promise.resolve(0),
+      "None of these 2 items could be moved.",
+    ],
+    [
+      "failed",
+      async () => await Promise.reject(new Error("the socket closed")),
+      "None of these 2 items could be moved. The library didn't answer.",
+    ],
+  ])("offers no Stop on the toast of a run that %s", async (_case, run, sentence) => {
+    await runBulk({
+      chunk: 1,
+      done: (count) => `Moved ${String(count)} to Reading`,
+      items: ["a", "b"],
+      past: "moved",
+      run,
+      verb: "Moving",
+    });
+    const closing = toast.getToasts().find((shown) => "title" in shown && shown.title === sentence);
+    expect(closing).toBeDefined();
+    expect(closing).not.toHaveProperty("action.label", "Stop");
+  });
 });
