@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { blockHash } from "./block-hash";
-import { applyOps, libraryOpSchema, mergeListField, orderedBlocks } from "./block-ops";
+import {
+  applyOps,
+  libraryOpSchema,
+  mergeListField,
+  orderedBlocks,
+  SCALAR_FIELDS,
+} from "./block-ops";
 import type { ItemState, LibraryOp } from "./block-ops";
 import { ordBetween } from "./block-order";
 import { ITEM_FIELD_CAPS } from "./library-item";
@@ -250,6 +256,18 @@ const nested = (depth: number): LibraryNode => {
 };
 
 describe("the op grammar", () => {
+  it("has a set op for every field that is not a list", () => {
+    const fields = noteFields();
+    expect(SCALAR_FIELDS).toHaveLength(Object.keys(fields).length - 3);
+    for (const field of SCALAR_FIELDS) {
+      const value = fields[field];
+      expect(
+        libraryOpSchema.safeParse({ base: value, field, op: "set", value }).success,
+        field,
+      ).toBe(true);
+    }
+  });
+
   it("parses a batch and holds each field's patch to that field's own type", () => {
     const block = paragraph("p1", "text");
     expect(

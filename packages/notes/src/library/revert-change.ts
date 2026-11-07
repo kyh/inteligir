@@ -9,11 +9,17 @@ import { annotationEntriesOf, sameAnnotationEntry } from "../annotations/store-s
 import type { AnnotationStore } from "../annotations/store-schema";
 import { revertAnnotationEntries } from "../annotations/revert-entries";
 import { diff3 } from "../text/diff3";
-import { applyOps, libraryOpSchema, orderedBlocks } from "./block-ops";
-import type { ItemState, LibraryOp, StoredBlock } from "./block-ops";
+import {
+  applyOps,
+  libraryOpSchema,
+  orderedBlocks,
+  SCALAR_FIELDS,
+  sameList,
+  sameOptionalJson,
+} from "./block-ops";
+import type { ItemState, LibraryOp, ScalarField, StoredBlock } from "./block-ops";
 import { compareBlockPlaces, placeInOrder } from "./block-order";
 import { sameJson } from "./canonical-json";
-import type { JsonValue } from "./canonical-json";
 import { deriveItem } from "./derive-item";
 import type { LibraryItemFields } from "./library-item";
 import { LIBRARY_SECTIONS } from "./library-nodes";
@@ -96,36 +102,6 @@ export interface ItemRevertInput {
 const UNCHANGED: ItemRevert = { kind: "unchanged" };
 const EDITED_SINCE: ItemRevert = { kind: "keep", reason: "edited-since" };
 
-type ScalarField = Exclude<keyof LibraryItemFields, "aliases" | "properties" | "tags">;
-
-const SCALAR_FIELDS = [
-  "author",
-  "copySha",
-  "coverSha",
-  "deletedAt",
-  "description",
-  "fetchError",
-  "fetchState",
-  "fetchedAt",
-  "folderId",
-  "kind",
-  "lang",
-  "originalName",
-  "originalSha",
-  "pinnedAt",
-  "published",
-  "savedAt",
-  "site",
-  "title",
-  "url",
-] as const satisfies readonly ScalarField[];
-
-const sameList = (a: readonly string[], b: readonly string[]): boolean =>
-  a.length === b.length && a.every((entry, index) => entry === b[index]);
-
-const optionalJson = (a: JsonValue | undefined, b: JsonValue | undefined): boolean =>
-  a === undefined || b === undefined ? a === b : sameJson(a, b);
-
 // a field's op from two readings of that one field; the parse ties the values to the field's own
 // type, which TypeScript cannot follow through a loop over every field
 const setOp = (
@@ -163,10 +139,10 @@ const fieldOps = (
     const was = Object.hasOwn(before.properties, key) ? before.properties[key] : undefined;
     const made = Object.hasOwn(after.properties, key) ? after.properties[key] : undefined;
     const is = Object.hasOwn(now.properties, key) ? now.properties[key] : undefined;
-    if (optionalJson(was, made) || optionalJson(is, was)) {
+    if (sameOptionalJson(was, made) || sameOptionalJson(is, was)) {
       continue;
     }
-    if (!optionalJson(is, made)) {
+    if (!sameOptionalJson(is, made)) {
       return null;
     }
     ops.push({ base: is, key, op: "property", value: was });

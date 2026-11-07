@@ -66,7 +66,13 @@ const moveOpSchema = z.strictObject({
 
 const FIELDS = libraryItemFieldsSchema.shape;
 
-type ScalarField = Exclude<keyof LibraryItemFields, "aliases" | "properties" | "tags">;
+export type ScalarField = Exclude<keyof LibraryItemFields, "aliases" | "properties" | "tags">;
+
+const isScalarField = (field: keyof LibraryItemFields): field is ScalarField =>
+  field !== "aliases" && field !== "properties" && field !== "tags";
+
+// read off the schema, so a field it gains is one an undo restores
+export const SCALAR_FIELDS = libraryItemFieldsSchema.keyof().options.filter(isScalarField);
 
 const setOf = <F extends ScalarField>(field: F) =>
   z.strictObject({
@@ -188,13 +194,13 @@ export const mergeListField = (
   return merged;
 };
 
-const sameList = (a: readonly string[], b: readonly string[]): boolean =>
+export const sameList = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((entry, index) => entry === b[index]);
 
 const propertyAt = (fields: LibraryItemFields, key: string): JsonValue | undefined =>
   Object.hasOwn(fields.properties, key) ? fields.properties[key] : undefined;
 
-const sameOptionalJson = (a: JsonValue | undefined, b: JsonValue | undefined): boolean =>
+export const sameOptionalJson = (a: JsonValue | undefined, b: JsonValue | undefined): boolean =>
   a === undefined || b === undefined ? a === b : sameJson(a, b);
 
 type BlockOp = Extract<LibraryOp, { op: "insert" | "put" | "drop" | "move" }>;
