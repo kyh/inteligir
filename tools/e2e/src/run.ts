@@ -77,8 +77,8 @@ const SCENARIOS: readonly Scenario[] = [
   extensionIntegrated,
 ];
 
-// half the machine's cores, at most four: a lane is a server, a browser and often a Worker, and
-// the scenarios that bound a wait in wall time are tuned on a machine that is not saturated
+// half the machine's cores, at most four: a lane is often a Worker and a browser, and the scenarios
+// that bound a wait in wall time are tuned on a machine that is not saturated
 const DEFAULT_LANES = Math.min(4, Math.max(1, Math.floor(availableParallelism() / 2)));
 
 const USAGE = `Usage: pnpm e2e [--only <names>] [--lanes <n>] [--keep] [--list] [--no-skip]
