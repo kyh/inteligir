@@ -134,12 +134,15 @@ describe("the library cell", () => {
   });
 
   it("leaves a limit to an assistant's grant, so no device reads as read-only", () => {
-    const device = principal(newAccountId());
-    const claimed = (raw: unknown): NamedPrincipal | null =>
-      principalFromHeader(encodeURIComponent(JSON.stringify(raw)));
-    expect(claimed(device)).toStrictEqual(device);
-    expect(claimed({ ...device, scopes: ["library:read"] })).toBeNull();
-    expect(claimed({ ...device, actor: { ...device.actor, scopes: ["library:read"] } })).toBeNull();
+    const laptop = principal(newAccountId());
+    expect(principalFromHeader(principalHeaderValue(laptop))).toStrictEqual(laptop);
+    const scopes = ["library:read"];
+    for (const claim of [
+      { ...laptop, scopes },
+      { ...laptop, actor: { ...laptop.actor, scopes } },
+    ]) {
+      expect(principalFromHeader(encodeURIComponent(JSON.stringify(claim)))).toBeNull();
+    }
   });
 
   it("seals a quiet set when its alarm runs, and sets the next one for the prune", async () => {

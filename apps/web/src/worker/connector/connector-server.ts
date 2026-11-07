@@ -97,7 +97,7 @@ export const authInfoOf = (principal: ConnectorPrincipal): AuthInfo => ({
 
 // a body whose first character is `[` is a batch, which the first bytes settle: the handler reads
 // the body itself, and one at its cap is no body to read twice. Past the cap it is the handler's to
-// refuse, since all the while the unread clone buffers what this read
+// refuse, since all the while the unread request buffers what this read
 const opensBatch = async (request: Request): Promise<boolean> => {
   const reader = request.clone().body?.getReader();
   if (reader === undefined) {
