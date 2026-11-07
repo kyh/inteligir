@@ -2,7 +2,7 @@
 // queues each chunk in the outbox, and a purge calls the cell once for each chunk its route takes.
 // Stop ends after the chunk in flight; a chunk that fails stops the run at once and says how far it
 // got. Each chunk answers how many of it landed, and only those are counted in the closing
-// sentence, so a run where none landed closes with no sentence.
+// sentence, so a run where none landed says that, a failure among them, rather than a count of 0.
 
 import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { toast } from "@repo/ui/components/sonner";
@@ -15,15 +15,25 @@ export interface BulkRun<T> {
   readonly chunk: number;
   // "Tagging": the toast reads "Tagging 1,200 of 8,512…"
   readonly verb: string;
+  // "moved": a run where none landed reads "None of these 12 items could be moved."
+  readonly past: string;
   // answers how many of the chunk landed
   readonly run: (chunk: readonly T[]) => Promise<number>;
   // the sentence once every chunk ran, given how many landed
   readonly done: (count: number) => string;
 }
 
+const noneLanded = (total: number, past: string): string =>
+  total === 1
+    ? `That item couldn't be ${past}.`
+    : `None of these ${formatCount(total)} items could be ${past}.`;
+
 // a run of one chunk needs no progress to watch and nothing to stop
 export const runBulk = async <T>(job: BulkRun<T>): Promise<void> => {
   const total = job.items.length;
+  if (total === 0) {
+    return;
+  }
   const size = Math.max(1, job.chunk);
   const shown = total > size;
   // one toast from the first progress to the outcome; a run of one chunk shows the outcome alone
@@ -49,7 +59,7 @@ export const runBulk = async <T>(job: BulkRun<T>): Promise<void> => {
   progress();
   for (let start = 0; start < total; start += size) {
     if (stop) {
-      toast.info(`Stopped after ${formatCount(done)} of ${formatCount(total)}.`, {
+      toast.info(`Stopped after ${formatCount(landed)} of ${formatCount(total)}.`, {
         duration: 4000,
         id,
       });
@@ -59,17 +69,21 @@ export const runBulk = async <T>(job: BulkRun<T>): Promise<void> => {
     try {
       landed += Math.min(chunk.length, Math.max(0, await job.run(chunk)));
     } catch (error) {
-      toast.error(
-        `Stopped after ${formatCount(done)} of ${formatCount(total)}. ${refusalText(error, "The library didn't answer.")}`,
-        { duration: 6000, id },
-      );
+      const reached =
+        landed === 0
+          ? noneLanded(total, job.past)
+          : `Stopped after ${formatCount(landed)} of ${formatCount(total)}.`;
+      toast.error(`${reached} ${refusalText(error, "The library didn't answer.")}`, {
+        duration: 6000,
+        id,
+      });
       return;
     }
     done += chunk.length;
     progress();
   }
   if (landed === 0) {
-    toast.dismiss(id);
+    toast.error(noneLanded(total, job.past), { duration: 6000, id });
   } else {
     toast.success(job.done(landed), { duration: 4000, id });
   }

@@ -477,6 +477,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
         chunk: BULK_ITEMS_MAX,
         done: (count) => `Deleted ${plural(count, "item")} forever.`,
         items: rows.map((row) => row.id),
+        past: "deleted",
         run: async (ids) => {
           const { purged } = await purgeCall.mutateAsync({ ids: [...ids] });
           return purged.length;
@@ -494,6 +495,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
           chunk: BULK_CHUNK,
           done: (count) => `Moved ${plural(count, "item")}.`,
           items: ids,
+          past: "moved",
           run: async (chunk) => await moveItems(replica, chunk, folderId),
           verb: "Moving",
         });
@@ -516,6 +518,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
           chunk: BULK_CHUNK,
           done: (count) => `Tagged ${plural(count, "item")}.`,
           items: ids,
+          past: "tagged",
           run: async (chunk) => await tagItems(replica, chunk, change),
           verb: "Tagging",
         });
