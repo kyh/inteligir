@@ -147,10 +147,13 @@ mod tests {
     #[test]
     fn a_record_this_build_does_not_read_is_signed_out() -> ShellResult<()> {
         let credentials = mocked()?;
-        credentials
-            .entry()?
-            .set_password("{\"credential\":\"igd_x\"}")?;
-        assert_eq!(credentials.read()?, None);
+        for record in [
+            r#"{"credential":"igd_x"}"#,
+            r#"{"credential":"igd_x","email":"a@b.c","userId":"u","unknown":"field"}"#,
+        ] {
+            credentials.entry()?.set_password(record)?;
+            assert_eq!(credentials.read()?, None, "{record}");
+        }
         Ok(())
     }
 
