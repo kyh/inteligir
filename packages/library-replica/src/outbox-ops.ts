@@ -116,7 +116,7 @@ const createFileSchema = z.strictObject({
     title: FIELDS.title.optional(),
   }),
   kind: z.literal("createFile"),
-  staged: z.array(stagedSchema),
+  staged: z.tuple([stagedSchema]),
 });
 
 // a file kept on the device for a write still to come, a picture pasted into a note's text: it goes

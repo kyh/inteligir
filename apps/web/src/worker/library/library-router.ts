@@ -23,6 +23,7 @@ import {
   liveItemRowSchema,
 } from "@repo/contract/cloud/library/library-wire";
 import { ORPCError, implement } from "@orpc/server";
+import { noteFields } from "@repo/notes/library/item-makes";
 import { z } from "zod";
 
 import { setAgentEnabled } from "../agent/agent-switch";
@@ -43,7 +44,6 @@ import { importJobView, latestImportJob, readImportJob } from "./cell-import-job
 import { cancelImport, startImport } from "./cell-imports";
 import {
   addHighlight,
-  blankFields,
   createFile,
   createNote,
   editItem,
@@ -346,13 +346,7 @@ export const libraryRouter = os.router({
         context.library.land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
           item: landNew(scope, actor, {
             blocks: input.blocks,
-            fields: {
-              ...blankFields(scope.now),
-              folderId: input.folderId,
-              savedAt: input.savedAt,
-              tags: input.tags,
-              title: input.title,
-            },
+            fields: noteFields(input),
             id: input.id,
           }),
         })),

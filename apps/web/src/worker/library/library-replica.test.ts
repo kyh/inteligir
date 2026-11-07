@@ -180,6 +180,32 @@ const sharedNote = async (laptop: Device, phone: Device): Promise<string> => {
 };
 
 describe("the replica engine against the account's cell", () => {
+  it("lists a make before it lands as the cell lands it", { timeout: 30_000 }, async () => {
+    const { cookie } = await account("made");
+    const phone = await deviceOn(cookie, "Phone");
+    const link = await phone.replica.saveLink({
+      folderId: null,
+      tags: [],
+      url: "https://youtu.be/x?utm_source=a",
+    });
+    const picture = await phone.replica.createFile({
+      file: { bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47, 7, 8, 9]), mime: "image/png" },
+      folderId: null,
+      name: "scan",
+      tags: [],
+    });
+    const shown = (id: string) => {
+      const row = phone.replica.row(id);
+      return { cover: row?.fields.coverSha, kind: row?.kind, title: row?.title, url: row?.url };
+    };
+    const before = [shown(link.id), shown(picture.id)];
+    expect(before).toMatchObject([{ kind: "video" }, { cover: picture.sha, kind: "image" }]);
+
+    await phone.replica.sync();
+    expect(phone.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
+    expect([shown(link.id), shown(picture.id)]).toStrictEqual(before);
+  });
+
   it("pulls another device's item, its row and then its body", { timeout: 30_000 }, async () => {
     const { cookie } = await account("pull");
     const laptop = await deviceOn(cookie, "Laptop");

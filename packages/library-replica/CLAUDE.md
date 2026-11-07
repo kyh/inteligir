@@ -34,10 +34,14 @@ and cited.
   landing writes the answered row and the blocks it wrote at the answer's
   sequence, and a folder or highlight stands at sequence 0 until the pull
   replaces it. A save of an address another item holds lists no card of its
-  own. Residuals: search finds an unsent edit's words once it lands; a landing
-  asks for the item's body again. Rejected: optimistic rows in the synced
-  tables (a pull could not tell them apart).
-  `packages/library-replica/src/replica-listing.ts`, `overlay.ts`.
+  own. A make shows by the field rules the cell lands it by, so a card reads
+  alike on both sides of its landing. Residuals: search finds an unsent edit's
+  words once it lands; a landing asks for the item's body again; a saved link's
+  note shows once the cell has read it from markdown. Rejected: optimistic rows
+  in the synced tables (a pull could not tell them apart); a device's own guess
+  at a make's fields (a video listed as a link until it landed).
+  `packages/library-replica/src/replica-listing.ts`, `overlay.ts`,
+  `packages/notes/src/library/item-makes.ts`.
 
 - **THE OUTBOX SENDS OLDEST FIRST UNDER AN OP ID PINNED BEFORE IT FIRST GOES.**
   A write joins the item's last row while it waits, compacted onto the first

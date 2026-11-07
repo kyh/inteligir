@@ -24,6 +24,7 @@ src/
     library-nodes.ts   # the persisted node set, strict zod over Plate's own
                        # node props, checked at the cell's boundary
     library-item.ts    # an item's fields, one column each, capped to a row
+    item-makes.ts      # what each make's fields are, for the cell and the overlay alike
     block-ops.ts       # insert/put/drop/move and field patches, each naming
                        # its base; the per-block guard, apply and rebase
     block-order.ts, block-hash.ts, canonical-json.ts  # fractional order

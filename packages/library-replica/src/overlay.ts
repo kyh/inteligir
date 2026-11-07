@@ -5,10 +5,10 @@
 // row is laid over too, since its bytes are the person's until they discard them.
 
 import type { AnnotationEntry, AnnotationStore } from "@repo/notes/annotations/store-schema";
-import { fileKindOf } from "@repo/notes/items/item-kind";
 import { blockHash } from "@repo/notes/library/block-hash";
 import { mergeListField } from "@repo/notes/library/block-ops";
 import type { ItemState, LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
+import { fileFields, noteFields, pageFields, stubFields } from "@repo/notes/library/item-makes";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
 
@@ -77,35 +77,8 @@ const layLibraryOp = (state: ItemState, op: LibraryOp, bases: WriteOp["bases"]):
   }
 };
 
-// an item's fields before its writer sets any, as the cell's are: a note saved at `savedAt`,
-// filed nowhere
-const blankFields = (savedAt: number): LibraryItemFields => ({
-  aliases: [],
-  author: null,
-  copySha: null,
-  coverSha: null,
-  deletedAt: null,
-  description: null,
-  fetchError: null,
-  fetchState: "none",
-  fetchedAt: null,
-  folderId: null,
-  kind: "note",
-  lang: null,
-  originalName: null,
-  originalSha: null,
-  pinnedAt: null,
-  properties: {},
-  published: null,
-  savedAt,
-  site: null,
-  tags: [],
-  title: "",
-  url: null,
-});
-
-// the item a make lands as, as near as the device can tell before the cell answers: a saved
-// link's note, which the cell reads from markdown, shows once it lands
+// the item a make lands as, by the rules the cell lands it by: a saved link's note, which the cell
+// reads from markdown, shows once it lands
 export const madeBy = (op: Extract<OutboxOp, { input: { id: string } }>): ItemState => {
   switch (op.kind) {
     case "create": {
@@ -117,27 +90,14 @@ export const madeBy = (op: Extract<OutboxOp, { input: { id: string } }>): ItemSt
             held(placed.block, placed.ord, placed.section),
           ]),
         ),
-        fields: {
-          ...blankFields(input.savedAt),
-          folderId: input.folderId,
-          tags: input.tags,
-          title: input.title,
-        },
+        fields: noteFields(input),
       };
     }
     case "saveLink": {
       const { input } = op;
       return {
         blocks: new Map(),
-        fields: {
-          ...blankFields(input.savedAt),
-          fetchState: "pending",
-          folderId: input.folder?.id ?? null,
-          kind: "link",
-          tags: input.tags,
-          title: input.title ?? input.url,
-          url: input.url,
-        },
+        fields: stubFields({ ...input, folderId: input.folder?.id ?? null }),
       };
     }
     case "save": {
@@ -149,35 +109,15 @@ export const madeBy = (op: Extract<OutboxOp, { input: { id: string } }>): ItemSt
             held(placed.block, placed.ord, "article"),
           ]),
         ),
-        fields: {
-          ...blankFields(input.savedAt),
-          ...input.facts,
-          coverSha: input.coverSha,
-          fetchState: "filled",
-          folderId: input.folderId,
-          kind: "link",
-          tags: input.tags,
-          title: input.title,
-          url: input.url,
-        },
+        fields: pageFields(input, input.savedAt),
       };
     }
     case "createFile": {
-      const { input } = op;
-      const kind = fileKindOf(input.name) ?? "file";
-      return {
-        blocks: new Map(),
-        fields: {
-          ...blankFields(input.savedAt),
-          coverSha: kind === "image" ? input.sha : null,
-          folderId: input.folderId,
-          kind,
-          originalName: input.name,
-          originalSha: input.sha,
-          tags: input.tags,
-          title: input.title ?? input.name.replace(/\.[^.]+$/u, ""),
-        },
-      };
+      const {
+        input,
+        staged: [file],
+      } = op;
+      return { blocks: new Map(), fields: fileFields({ ...input, mime: file.mime }) };
     }
     // no default
   }

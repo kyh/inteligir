@@ -66,6 +66,20 @@ export const fileKindOf = (path: string): FileKind | null => {
   return KIND_BY_EXTENSION.get(extnamePath(path).toLowerCase()) ?? "file";
 };
 
+// what kind of file a type uploaded as is; a type no viewer reads is a plain file
+export const fileKindOfMime = (mime: string): FileKind => {
+  const type = mime.toLowerCase();
+  if (type === "application/pdf") {
+    return "pdf";
+  }
+  for (const kind of ["image", "video", "audio"] as const) {
+    if (type.startsWith(`${kind}/`)) {
+      return kind;
+    }
+  }
+  return "file";
+};
+
 // the type a file is kept as when nothing that handled it could tell: plain bytes
 export const UNKNOWN_FILE_TYPE = "application/octet-stream";
 

@@ -826,6 +826,62 @@ describe("what the screens read", () => {
   });
 });
 
+describe("a make before the cell answers", () => {
+  const shown = (replica: LibraryReplica, id: string) => {
+    const row = replica.row(id);
+    return {
+      cover: row?.fields.coverSha,
+      kind: row?.kind,
+      title: row?.title,
+      url: row?.url,
+    };
+  };
+
+  it("lists a saved link as it will land", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const { id } = await phone.replica.saveLink({
+      folderId: null,
+      tags: [],
+      url: "https://youtu.be/x?utm_source=a",
+    });
+    const before = shown(phone.replica, id);
+    expect(before).toMatchObject({ kind: "video", url: "https://youtu.be/x" });
+    expect(before.title).not.toContain("utm_source");
+    await phone.replica.sync();
+    expect(shown(phone.replica, id)).toStrictEqual(before);
+  });
+
+  it("lists a picture by the type it came with, where its name says nothing", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const { id, sha } = await phone.replica.createFile({
+      file: { bytes: PNG, mime: "image/png" },
+      folderId: null,
+      name: "scan",
+      tags: [],
+    });
+    const before = shown(phone.replica, id);
+    expect(before).toStrictEqual({ cover: sha, kind: "image", title: "scan", url: null });
+    await phone.replica.sync();
+    expect(shown(phone.replica, id)).toStrictEqual(before);
+  });
+
+  it("keeps a file's whole name when nothing comes before its extension", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const { id } = await phone.replica.createFile({
+      file: { bytes: PNG, mime: "text/plain" },
+      folderId: null,
+      name: ".env",
+      tags: [],
+    });
+    expect(phone.replica.row(id)?.title).toBe(".env");
+    await phone.replica.sync();
+    expect(phone.replica.row(id)?.title).toBe(".env");
+  });
+});
+
 describe("the outbox's replay", () => {
   it(
     "lands every write once and in order, whatever the network does, over seeded runs",

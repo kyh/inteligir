@@ -31,12 +31,13 @@ import {
   UnauthorizedError,
   V1_ERROR_STATUS_MAP,
 } from "@repo/contract/cloud/v1/errors";
-import { fileKindOf } from "@repo/notes/items/item-kind";
+import { UNKNOWN_FILE_TYPE } from "@repo/notes/items/item-kind";
 import { urlKey } from "@repo/notes/items/item-url";
 import { blockHash } from "@repo/notes/library/block-hash";
 import { applyOps, orderedBlocks } from "@repo/notes/library/block-ops";
 import type { LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
 import { deriveItem, titleKey } from "@repo/notes/library/derive-item";
+import { fileFields, noteFields, pageFields, stubFields } from "@repo/notes/library/item-makes";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
 import { z } from "zod";
@@ -110,31 +111,6 @@ export interface FakeCell {
 
 const NOW = 1_700_000_100_000;
 const ORIGIN = "https://cell.test";
-
-const blankFields = (savedAt: number): LibraryItemFields => ({
-  aliases: [],
-  author: null,
-  copySha: null,
-  coverSha: null,
-  deletedAt: null,
-  description: null,
-  fetchError: null,
-  fetchState: "none",
-  fetchedAt: null,
-  folderId: null,
-  kind: "note",
-  lang: null,
-  originalName: null,
-  originalSha: null,
-  pinnedAt: null,
-  properties: {},
-  published: null,
-  savedAt,
-  site: null,
-  tags: [],
-  title: "",
-  url: null,
-});
 
 const placed = (block: LibraryBlock, ord: string, section: LibrarySection): StoredBlock => ({
   block,
@@ -222,7 +198,8 @@ export const createFakeCell = (): FakeCell => {
   const annotations = new Map<string, AnnotationRow>();
   const folders = new Map<string, FolderRow>();
   const log = new Map<string, Entry>();
-  const blobs = new Set<string>();
+  // each file's type, as its upload named it
+  const blobs = new Map<string, string>();
   const answers = new Map<string, unknown>();
   const calls: string[] = [];
   const uploads: string[] = [];
@@ -559,12 +536,7 @@ export const createFakeCell = (): FakeCell => {
             needsBlobs(shasIn(JSON.stringify(input.blocks)));
             return land(
               input.id,
-              {
-                ...blankFields(input.savedAt),
-                folderId: input.folderId,
-                tags: input.tags,
-                title: input.title,
-              },
+              noteFields(input),
               new Map(
                 input.blocks.map((block) => [
                   block.block.id,
@@ -578,19 +550,8 @@ export const createFakeCell = (): FakeCell => {
           once(input.opId, landedSchema, () => {
             made(input.id);
             needsBlobs([input.sha]);
-            return land(
-              input.id,
-              {
-                ...blankFields(input.savedAt),
-                folderId: input.folderId,
-                kind: fileKindOf(input.name) ?? "file",
-                originalName: input.name,
-                originalSha: input.sha,
-                tags: input.tags,
-                title: input.title ?? input.name,
-              },
-              new Map(),
-            );
+            const mime = blobs.get(input.sha) ?? UNKNOWN_FILE_TYPE;
+            return land(input.id, fileFields({ ...input, mime }), new Map());
           }),
         ),
         delete: os.library.items.delete.handler(({ input }) => {
@@ -627,17 +588,7 @@ export const createFakeCell = (): FakeCell => {
               folded: false,
               ...land(
                 input.id,
-                {
-                  ...blankFields(input.savedAt),
-                  ...input.facts,
-                  coverSha: input.coverSha,
-                  fetchState: "filled",
-                  folderId: input.folderId,
-                  kind: "link",
-                  tags: input.tags,
-                  title: input.title,
-                  url: input.url,
-                },
+                pageFields(input, NOW),
                 new Map(
                   input.article.map((block) => [
                     block.block.id,
@@ -664,15 +615,13 @@ export const createFakeCell = (): FakeCell => {
               folded: false,
               ...land(
                 id,
-                {
-                  ...blankFields(input.savedAt ?? NOW),
-                  fetchState: "pending",
+                stubFields({
                   folderId,
-                  kind: "link",
+                  savedAt: input.savedAt ?? NOW,
                   tags: input.tags ?? [],
-                  title: input.title ?? input.url,
+                  title: input.title,
                   url: input.url,
-                },
+                }),
                 new Map(),
               ),
             };
@@ -746,7 +695,7 @@ export const createFakeCell = (): FakeCell => {
       return new Response(null, { status: 400 });
     }
     uploads.push(sha);
-    blobs.add(sha);
+    blobs.set(sha, request.headers.get("content-type") ?? UNKNOWN_FILE_TYPE);
     return new Response(null, { status: 201 });
   };
 

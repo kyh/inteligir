@@ -9,9 +9,9 @@ import type { EditOutcome } from "@repo/editor/codec/item-edit";
 import { editItemView, placeItemQuotes } from "@repo/editor/codec/item-edit";
 import { importItem } from "@repo/editor/codec/item-markdown";
 import type { AnnotationStore } from "@repo/notes/annotations/store-schema";
-import { fileKindOf } from "@repo/notes/items/item-kind";
 import { blockHash } from "@repo/notes/library/block-hash";
 import type { ItemState, LibraryOp } from "@repo/notes/library/block-ops";
+import { blankItemFields, fileFields } from "@repo/notes/library/item-makes";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
 import { readItem, readItemState } from "@repo/notes/library/library-queries";
@@ -22,7 +22,6 @@ import { annotationSourceOf } from "./cell-actor";
 import type { CellActor } from "./cell-actor";
 import { applyAnnotationOps, readAnnotationRow } from "./cell-annotations";
 import { readBlobRow } from "./cell-blobs";
-import { fileKindOfMime } from "./cell-codec";
 import type { CellCodec } from "./cell-codec";
 import { folderOfTarget } from "./cell-folders";
 import type { FolderTarget } from "./cell-folders";
@@ -49,31 +48,6 @@ export interface NewItem {
 }
 
 // an item's fields before its writer sets any: a note saved now, filed nowhere
-export const blankFields = (now: number): LibraryItemFields => ({
-  aliases: [],
-  author: null,
-  copySha: null,
-  coverSha: null,
-  deletedAt: null,
-  description: null,
-  fetchError: null,
-  fetchState: "none",
-  fetchedAt: null,
-  folderId: null,
-  kind: "note",
-  lang: null,
-  originalName: null,
-  originalSha: null,
-  pinnedAt: null,
-  properties: {},
-  published: null,
-  savedAt: now,
-  site: null,
-  tags: [],
-  title: "",
-  url: null,
-});
-
 const secondsOf = (scope: LandingScope): number => Math.floor(scope.now / 1000);
 
 const placedState = (fields: LibraryItemFields, blocks: readonly PlacedBlock[]): ItemState => ({
@@ -197,7 +171,7 @@ export const createNote = (
   }
   const imported = read.item.fields;
   const fields: LibraryItemFields = {
-    ...blankFields(scope.now),
+    ...blankItemFields(scope.now),
     aliases: imported.aliases,
     properties: imported.properties,
     tags: [...new Set([...imported.tags, ...(input.tags ?? [])])],
@@ -222,8 +196,7 @@ export interface CreateFileInput {
   readonly savedAt: number;
 }
 
-// a file whose bytes the library holds: its kind from the type it was uploaded as, else its name;
-// an image is its own cover
+// a file whose bytes the library holds
 export const createFile = (
   scope: LandingScope,
   actor: CellActor,
@@ -233,22 +206,9 @@ export const createFile = (
   if (blob === null) {
     return refuse({ kind: "blob-missing", shas: [input.sha] });
   }
-  const byType = fileKindOfMime(blob.mime);
-  const kind = byType === "file" ? (fileKindOf(input.name) ?? "file") : byType;
-  const stem = input.name.replace(/\.[^.]+$/u, "");
   return landNew(scope, actor, {
     blocks: [],
-    fields: {
-      ...blankFields(scope.now),
-      coverSha: kind === "image" ? input.sha : null,
-      folderId: input.folderId,
-      kind,
-      originalName: input.name,
-      originalSha: input.sha,
-      savedAt: input.savedAt,
-      tags: [...input.tags],
-      title: input.title ?? (stem === "" ? input.name : stem),
-    },
+    fields: fileFields({ ...input, mime: blob.mime }),
     id: input.id,
   });
 };

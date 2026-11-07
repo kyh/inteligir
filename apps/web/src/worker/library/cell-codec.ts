@@ -8,6 +8,7 @@ import type { EditPorts } from "@repo/editor/codec/item-edit";
 import type { FoundFile, ImportPorts } from "@repo/editor/codec/item-markdown";
 import { viewFileAt } from "@repo/editor/codec/item-view";
 import type { ViewPorts } from "@repo/editor/codec/item-view";
+import { fileKindOfMime } from "@repo/notes/items/item-kind";
 import type { FileKind } from "@repo/notes/items/item-kind";
 import { itemCardSchema, titleKey } from "@repo/notes/library/derive-item";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
@@ -38,20 +39,6 @@ const titleOf = (sql: SqlStatements, itemId: string): string | null => {
   return raw === undefined
     ? null
     : JSON_TEXT.pipe(itemCardSchema).parse(cardRowSchema.parse(raw).card).title;
-};
-
-// what kind of file a type uploaded as is; a type no viewer reads is a plain file
-export const fileKindOfMime = (mime: string): FileKind => {
-  const type = mime.toLowerCase();
-  if (type === "application/pdf") {
-    return "pdf";
-  }
-  for (const kind of ["image", "video", "audio"] as const) {
-    if (type.startsWith(`${kind}/`)) {
-      return kind;
-    }
-  }
-  return "file";
 };
 
 const fileKindOf = (sql: SqlStatements, sha: string): FileKind | null => {
