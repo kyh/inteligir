@@ -70,6 +70,7 @@ const NEXT = "https://x.y/b";
 const MAIL = "[a@b.cd](mailto:a@b.cd)";
 const WWW = "[www.x.y](http://www.x.y)";
 const LABELLED = `[${URL}](${URL})`;
+const WWW_MAIL = "[www.x.y@b.cd](http://www.x.y@b.cd)";
 
 describe("an address that ends where a literal would not keeps its label", () => {
   it.each([
@@ -128,6 +129,11 @@ describe("a link keeps its label beside what a literal would run into", () => {
     ["a word after a www link", `${WWW}b\n`],
     ["a `>` that would close an angle link further back", `<#${MAIL}>\n`],
     ["the same angle a few characters back", `<$%${MAIL}>\n`],
+    ["a space the writer spells as a reference at a line's end", `${LABELLED}&#x20;\n`],
+    ["the same space in a heading", `# ${LABELLED}&#x20;\n`],
+    ["a tab the writer spells the same", `${LABELLED}&#x9;\n`],
+    ["a word a dot joins to a www address that spells a mail address", `x.${WWW_MAIL}\n`],
+    ["a dash that does", `x-${WWW_MAIL}\n`],
   ])("%s", (_name, md) => {
     expect(kept(md)).toBe(md);
   });
@@ -178,6 +184,12 @@ describe("a plain bare url stays as it is written", () => {
     ["a **https://x.y/a**\n"],
     ["https://x.y/a  \nb\n"],
     ["**https://x.y/a**  \nb\n"],
+    ["_https://x.y/a_  \nb\n"],
+    ["_www.x.y@b.cd_  \nb\n"],
+    ["a\\\n_www.x.y@b.cd_  \nb\n"],
+    ["x**https://x.y/a**\n"],
+    ["x*https://x.y/a*\n"],
+    ["x~~https://x.y/a~~\n"],
     ["https://x.y/a\n\nhttps://x.y/b\n"],
     ["# https://x.y/a\n"],
     ["# see https://x.y/a now\n"],
@@ -210,7 +222,6 @@ describe("a mark over the whole link", () => {
     ["bold", `[**${URL}**](${URL})b\n`],
     ["italic", `[_${URL}_](${URL})b\n`],
     ["struck", `[~~${URL}~~](${URL})b\n`],
-    ["bold after a word", `x[**${URL}**](${URL})\n`],
     ["bold on an address no literal ends on", `[**${URL}!**](${URL}!)\n`],
   ])("%s keeps its label", (_name, md) => {
     expect(kept(md)).toBe(md);
@@ -225,6 +236,11 @@ describe("a mark over the whole link", () => {
 
   it("beside a run of the same mark", () => {
     expect(kept(`**a**[**${URL}**](${URL})\n`)).toBe(`**a**[**${URL}**](${URL})\n`);
+  });
+
+  it("after a link that stands bare, whose closer it would join", () => {
+    const bold = "[**a@b.cd**](mailto:a@b.cd)";
+    expect(kept(`${bold}[**${URL}**](${URL})\n`)).toBe(`**a@b.cd**[**${URL}**](${URL})\n`);
   });
 });
 
@@ -296,6 +312,8 @@ const BESIDE = [
   ["", "é"],
   ["é", ""],
   ["", "\u00A0x"],
+  ["x.", ""],
+  ["x-", ""],
   ["_a_ ", ""],
   ["", " _a_"],
   ["", "_a_"],
@@ -324,11 +342,14 @@ describe("every address beside everything", () => {
     ["www.x.y/a.", "http://www.x.y/a."],
     ["a@b.cd", "mailto:a@b.cd"],
     ["a-b_c.d+e@f-g.hi", "mailto:a-b_c.d+e@f-g.hi"],
+    ["www.x.y@b.cd", "http://www.x.y@b.cd"],
   ] as const;
 
   it.each(
     addresses.flatMap(([text, url]) =>
-      BESIDE.map(([before, after]) => `${before}${spelled(text, url)}${after}\n`),
+      [...BESIDE, ["", "&#x20;"] as const].map(
+        ([before, after]) => `${before}${spelled(text, url)}${after}\n`,
+      ),
     ),
   )("%j", (md) => {
     expect(readOf(kept(md))).toStrictEqual(readOf(md));
@@ -345,6 +366,9 @@ describe("a link in a held source", () => {
     ["the end of a mark in a footnote", `[^a]: **${LABELLED}**\n`],
     ["a hard break in a footnote", `[^a]: **${LABELLED}**\\\n    b\n`],
     ["a call past a mark in a footnote", `[^a]: *x ${LABELLED}*[^b]\n`],
+    ["a mark over its label", `<span>[**${URL}**](${URL})</span>\n`],
+    ["a mark over a mail address's label", "<span>[*a@b.cd*](mailto:a@b.cd)</span>\n"],
+    ["a mark over its label in a footnote", `[^a]: [~~${URL}~~](${URL})\n`],
   ])("keeps its label at %s", (_name, md) => {
     expect(kept(md)).toBe(md);
   });

@@ -6,12 +6,17 @@
 import type { Delete, Emphasis, Link, Nodes, Parents, PhrasingContent, Strong } from "mdast";
 import type { Handle, Info, State } from "mdast-util-to-markdown";
 import { defaultHandlers } from "mdast-util-to-markdown";
-import { asciiPunctuation } from "micromark-util-character";
 import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
 import { escapeBarePipes } from "./line-scan";
+
+declare module "mdast-util-to-markdown" {
+  interface ConstructNameMap {
+    linkTail: "linkTail";
+  }
+}
 
 const GFM = unified().use(remarkParse).use(remarkGfm).freeze();
 
@@ -49,12 +54,13 @@ interface Beside {
   after: string;
 }
 
-// What stands before the link is one character of text, which the writer has escaped where it needs
-// to: left bare here a `<` would open an angle link and a `[` a label, and words ahead keep a `#` or
-// `>` from opening a block. A `<` further back shows to no asker, and a `>` after a mail address
-// closes it into an angle link to another: `<#a@b.cd>`. gfm reads that `>` into any other literal.
+// What stands before the link is one character of text. The writer escapes a `<` and a `[`, which
+// left bare here would open an angle link and a label; any other stands as it is written, since a
+// `.` or a `-` joins the mail address a word before it starts, and words ahead keep a `#` or `>` from
+// opening a block. A `<` further back shows to no asker, and a `>` after a mail address closes it
+// into an angle link to another: `<#a@b.cd>`. gfm reads that `>` into any other literal.
 const readsBack = (literal: string, url: string, { after, before }: Beside): boolean => {
-  const text = asciiPunctuation(before.codePointAt(0) ?? null) ? `\\${before}` : before;
+  const text = before === "<" || before === "[" ? `\\${before}` : before;
   const word = NEXT_WORD_RE.exec(after)?.[0] ?? "";
   return (
     !after.startsWith(">") && firstLink(GFM.parse(`words ${text}${literal}${word}`))?.url === url
@@ -125,11 +131,26 @@ const markedLiteral = (
   return inner === null ? null : { ...node, children: [inner] };
 };
 
-const literalOf = (link: Link, state: State): PhrasingContent | null => {
+const isTag = (parent: Parents | undefined): boolean =>
+  parent?.type === "htmlElement" || parent?.type === "underline";
+
+// a tag's text and a footnote are read for the source they keep, not into the library's blocks
+const isHeld = (parent: Parents | undefined, state: State): boolean =>
+  isTag(parent) || state.stack.includes("footnoteDefinition");
+
+// only the library reads a mark around a literal back onto the link's text; a held source would
+// read a link in a mark's own node, which keeps its label (`phrasingOf`)
+const literalOf = (
+  link: Link,
+  parent: Parents | undefined,
+  state: State,
+): PhrasingContent | null => {
   const [only, ...rest] = link.children;
-  return only === undefined || rest.length > 0 || (link.title ?? "") !== ""
-    ? null
-    : markedLiteral(only, link.url, state);
+  if (only === undefined || rest.length > 0 || (link.title ?? "") !== "") {
+    return null;
+  }
+  const literal = markedLiteral(only, link.url, state);
+  return literal?.type === "html" || !isHeld(parent, state) ? literal : null;
 };
 
 // the siblings of a link the writer sees every byte around. A literal runs on through a mark's
@@ -154,27 +175,54 @@ const phrasingOf = (parent: Parents | undefined): readonly PhrasingContent[] => 
 const edgeOf = (byte: string, state: State): string =>
   byte === "|" && state.stack.includes("tableCell") ? "" : byte;
 
+// what stands past a block's last child. A link's own `info.after` is only its next sibling's first
+// byte, which leaves that sibling's last byte unwritten: a space there is a reference at a line's end.
+const blockEnd = (parent: Parents | undefined, state: State): string => {
+  if (isTag(parent)) {
+    return "<";
+  }
+  return state.stack.includes("tableCell") ? "" : "\n";
+};
+
 // the bytes after a link as they will be written. The next link stops them, as a word would: its
 // spelling hangs on its own check, which would have a row of links each write the row's tail, and
-// a literal with no space before that link runs into it either way. A hard break after a literal
-// is two spaces (`hardBreakAfterBareUrl`).
-const writtenAfter = (following: readonly PhrasingContent[], state: State, info: Info): string => {
+// a literal with no space before that link runs into it either way. A link further in is past a
+// word or a tag, so its spelling moves nothing here, and `linkTail` has it skip its own look ahead:
+// each tag deep would otherwise write what it holds once more for each link beside it. A hard
+// break after a literal is two spaces (`hardBreakAfterBareUrl`).
+const writtenAfter = (
+  following: readonly PhrasingContent[],
+  end: string,
+  state: State,
+  info: Info,
+): string => {
   if (following[0]?.type === "break") {
     return "\n";
   }
   const nextLink = following.findIndex((node) => node.type === "link");
   const children = following.slice(0, nextLink === -1 ? following.length : nextLink);
-  const after = nextLink === -1 ? edgeOf(info.after, state) : "x";
+  const after = nextLink === -1 ? end : "x";
+  const exit = state.enter("linkTail");
   const written = state.containerPhrasing({ children, type: "paragraph" }, { ...info, after });
+  exit();
   return `${written}${after}`;
 };
 
-// the writer may spell the character beside a mark as a reference, which a literal cannot hold
-const touchesMark = (siblings: readonly PhrasingContent[], index: number): boolean =>
-  [siblings[index - 1], siblings[index + 1]].some((node) => node !== undefined && isMark(node));
-
-// a mark opens only after no word
-const WORD_END_RE = /[\p{L}\p{N}]$/u;
+// the writer may spell the character beside a mark as a reference, which a literal cannot hold, and
+// a literal's own mark after a link would join that link's closer, should it stand bare too
+const touchesMark = (
+  literal: PhrasingContent,
+  siblings: readonly PhrasingContent[],
+  index: number,
+): boolean => {
+  const before = siblings[index - 1];
+  const after = siblings[index + 1];
+  return (
+    (before !== undefined && isMark(before)) ||
+    (after !== undefined && isMark(after)) ||
+    (literal.type !== "html" && before?.type === "link")
+  );
+};
 
 // the link's bare bytes, where they read back as it
 const bareSpelling = (
@@ -183,21 +231,25 @@ const bareSpelling = (
   state: State,
   info: Info,
 ): string | null => {
-  const literal = literalOf(link, state);
+  const literal = literalOf(link, parent, state);
   const siblings = phrasingOf(parent);
   const index = siblings.indexOf(link);
-  if (literal === null || index === -1) {
+  if (
+    literal === null ||
+    index === -1 ||
+    state.stack.includes("linkTail") ||
+    touchesMark(literal, siblings, index)
+  ) {
     return null;
   }
-  const before = edgeOf(info.before.slice(-1), state);
-  if (touchesMark(siblings, index) || (literal.type !== "html" && WORD_END_RE.test(before))) {
-    return null;
-  }
-  const spelled = state.handle(literal, parent, state, info);
-  const after = writtenAfter(siblings.slice(index + 1), state, {
+  // a line's end stands for all that can follow: a space and punctuation close a mark alike, and a
+  // word runs the literal on past it. So a peek and the break after the link spell what it writes.
+  const spelled = state.handle(literal, parent, state, { ...info, after: "\n" });
+  const after = writtenAfter(siblings.slice(index + 1), blockEnd(parent, state), state, {
     ...info,
     before: spelled.slice(-1),
   });
+  const before = edgeOf(info.before.slice(-1), state);
   return readsBack(spelled, link.url, { after, before }) ? spelled : null;
 };
 
@@ -211,7 +263,7 @@ export const bareAhead = (
 ): string | null => {
   const siblings = phrasingOf(parent);
   const { before } = besideChild(siblings, siblings.indexOf(link));
-  return bareSpelling(link, parent, state, { ...info, before });
+  return bareSpelling(link, parent, state, { ...info, before: before === "" ? "\n" : before });
 };
 
 // every other link keeps `[text](url)` under the writer's `resourceLink`, which always reads back.

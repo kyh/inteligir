@@ -1,7 +1,10 @@
 import type { Nodes } from "mdast";
+import type { Handle, Options } from "mdast-util-to-markdown";
+import { defaultHandlers, toMarkdown } from "mdast-util-to-markdown";
 import { describe, expect, it } from "vitest";
 
 import { besideChild, isBareLink } from "./autolink-text";
+import { MD_PROCESSOR, MD_STRINGIFY } from "./md-plugins";
 
 const link = (text: string, url = text) => ({
   children: [{ type: "text", value: text }],
@@ -56,6 +59,11 @@ describe(isBareLink, () => {
   it("is false of a mail address a `>` follows, which an angle further back would close on", () => {
     expect(isBareLink(link("a@b.cd", "mailto:a@b.cd"), { after: ">", before: "#" })).toBe(false);
   });
+
+  it.each([["."], ["-"], ["+"], ["_"]])("is false of a mail address `%s` runs into", (before) => {
+    const address = link("www.x.y@b.cd", "http://www.x.y@b.cd");
+    expect(isBareLink(address, { after: "", before })).toBe(false);
+  });
 });
 
 describe(besideChild, () => {
@@ -82,5 +90,32 @@ describe(besideChild, () => {
 
   it("is nothing at a block's edges", () => {
     expect(besideChild([url], 0)).toStrictEqual({ after: "", before: "" });
+  });
+});
+
+describe("the look past a link", () => {
+  const nested = (depth: number): string =>
+    Array.from({ length: depth }).reduce<string>(
+      (inner) => `<b>w [https://x.y/a](https://x.y/a) ${inner}</b>`,
+      "`c`",
+    );
+
+  it("writes what a tag holds a few times a level, however deep the tags go", () => {
+    const depth = 10;
+    let writes = 0;
+    const inlineCode: Handle = (node, parent, state) => {
+      writes += 1;
+      return defaultHandlers.inlineCode(node, parent, state);
+    };
+    const options: Options = {
+      ...MD_STRINGIFY,
+      extensions: MD_PROCESSOR.data("toMarkdownExtensions"),
+      handlers: { ...MD_STRINGIFY.handlers, inlineCode },
+    };
+    const written = toMarkdown(MD_PROCESSOR.parse(`${nested(depth)}\n`), options);
+    expect(written).toBe(
+      `${nested(depth).replaceAll("[https://x.y/a](https://x.y/a)", "https://x.y/a")}\n`,
+    );
+    expect(writes).toBeLessThan(depth * 5);
   });
 });
