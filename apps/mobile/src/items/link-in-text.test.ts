@@ -67,6 +67,24 @@ describe("a link inside text", () => {
     expect(linkInText(`it's ${url}`)).toStrictEqual({ rest: "it's", url });
   });
 
+  it("ends a link at an apostrophe in its host, which leaves the word it opens", () => {
+    const url = "https://example.com";
+    expect(linkInText(`Check ${url}'s homepage`)).toStrictEqual({
+      rest: "Check 's homepage",
+      url,
+    });
+    expect(linkInText(`Check ${url}’s homepage`)).toStrictEqual({
+      rest: "Check ’s homepage",
+      url,
+    });
+    expect(linkInText("http://localhost:3000's api")).toStrictEqual({
+      rest: "'s api",
+      url: "http://localhost:3000",
+    });
+    expect(linkInText(`'${url}'`)).toStrictEqual({ rest: "", url });
+    expect(urlIn(`${url}/it's`)).toBe(`${url}/it's`);
+  });
+
   it("ends a link at what no address holds, where a sentence runs straight on from it", () => {
     const url = "https://example.com/a";
     expect(linkInText(`これ ${url}。次の文`)).toStrictEqual({ rest: "これ 次の文", url });
@@ -89,6 +107,9 @@ describe("a link inside text", () => {
     expect(linkInText(`“**${url}**” he said`)).toStrictEqual({ rest: "he said", url });
     expect(linkInText(`5 * 3 ${url}*`)).toStrictEqual({ rest: "5 * 3", url });
     expect(linkInText(`*starred* ${url}`)).toStrictEqual({ rest: "*starred*", url });
+    expect(linkInText(`*(${url})*`)).toStrictEqual({ rest: "", url });
+    expect(linkInText(`(*${url}*)`)).toStrictEqual({ rest: "", url });
+    expect(linkInText(`**[the post](${url})** now`)).toStrictEqual({ rest: "the post now", url });
   });
 
   it("keeps an address's letters and numbers, whatever their script", () => {
