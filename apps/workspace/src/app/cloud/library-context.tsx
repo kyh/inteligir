@@ -32,7 +32,7 @@ export const useLeaveGuard = (): LeaveGuard => usePageLibrary().leave;
 // where a file of the library is drawn from, as the page's host serves it
 export const useFileUrl = (): PageLibrary["fileUrl"] => usePageLibrary().fileUrl;
 
-// a file's bytes from there, as the editor draws one a note names
+// a file's bytes from there, as the editor draws one a note names and a Download saves one
 export const useReadFile = (): PageLibrary["readFile"] => usePageLibrary().readFile;
 
 // `/v1` for the bytes the wire does not carry

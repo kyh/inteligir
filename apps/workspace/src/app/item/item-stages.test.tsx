@@ -5,6 +5,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { PageLibrary } from "../cloud/page-library";
 import { fakePageLibrary, renderOnLibrary } from "../test-support/fake-page-library";
 import { FileStage } from "./item-stages";
 
@@ -61,23 +62,20 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
-  vi.unstubAllGlobals();
 });
 
-const drawn = () => {
+const drawn = (readFile: PageLibrary["readFile"]) => {
   const { library } = fakePageLibrary({ answer: () => ({}) });
-  renderOnLibrary(<FileStage fields={fields({})} title="Minutes" />, library);
-  return library;
+  renderOnLibrary(<FileStage fields={fields({})} title="Minutes" />, { ...library, readFile });
 };
 
 describe("a file item's Download", () => {
-  it("saves the bytes under the file's own name through a blob of the page's origin", async () => {
+  it("saves what the host reads under the file's own name, through a blob of the page's origin", async () => {
     const asked: string[] = [];
-    vi.stubGlobal("fetch", async (url: string) => {
-      asked.push(url);
-      return await Promise.resolve(new Response(BYTES));
+    drawn(async (sha) => {
+      asked.push(sha);
+      return await Promise.resolve(new Blob([BYTES]));
     });
-    const library = drawn();
     const button = screen.getByRole("button", { name: "Download minutes.txt" });
     // never a link to the file: on the Mac its address is another origin, which WebKit follows
     expect(button.closest("a")).toBeNull();
@@ -85,14 +83,13 @@ describe("a file item's Download", () => {
     await vi.waitFor(() => {
       expect(saved).toStrictEqual([{ download: "minutes.txt", href: BLOB_ADDRESS }]);
     });
-    expect(asked).toStrictEqual([library.fileUrl(SHA)]);
+    expect(asked).toStrictEqual([SHA]);
   });
 
   it("saves nothing, and says so, when the file is not there to read", async () => {
     // the Mac's scheme, offline, for a file this Mac does not hold
-    vi.stubGlobal("fetch", async () => await Promise.resolve(new Response(null, { status: 502 })));
     const said = vi.spyOn(toast, "error");
-    drawn();
+    drawn(async () => await Promise.reject(new Error("the file answered 502")));
     fireEvent.click(screen.getByRole("button", { name: "Download minutes.txt" }));
     await vi.waitFor(() => {
       expect(said).toHaveBeenCalledWith(
