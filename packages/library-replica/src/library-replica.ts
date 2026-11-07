@@ -557,6 +557,7 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
 
     discard: async (seq) => {
       await outbox.discard(seq);
+      kick();
     },
 
     focus: (itemId) => {

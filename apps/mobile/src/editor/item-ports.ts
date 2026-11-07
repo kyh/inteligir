@@ -70,9 +70,10 @@ export const createItemPorts = (args: {
       return { queued: queued(outcome.kind) };
     },
     createNote: async ({ besideId, blocks, title }) => {
+      const beside = await replica.item(besideId);
       const made = await replica.createNote({
         blocks: blocks.map(({ block, ord }) => ({ block, ord, section: "note" })),
-        folderId: replica.row(besideId)?.fields.folderId ?? null,
+        folderId: beside?.fields.folderId ?? null,
         tags: [],
         title,
       });

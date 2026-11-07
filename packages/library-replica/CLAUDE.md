@@ -84,9 +84,10 @@ and cited.
   item and a write past its check landing there. No table keeps this, since no
   screen outlives the run, and the listing knows nothing of it, since a selection
   still naming the card must not reach the older item: `row` answers no row, and a
-  delete asked by that id goes nowhere, so a screen deletes what it shows by the
-  id its item read answered. Residual: a call only the cell answers, History or
-  the agent's view of the open item, names the old id until the item opens again.
+  delete asked by that id goes nowhere, so a screen acts on what it shows through
+  its item read, by the id that answered and the fields it holds. Residual: a call
+  only the cell answers that no item read names, History or the agent's view of the
+  open item, names the old id until the item opens again.
   Rejected: the session following the id alone (the item view, the phone's screen
   and its page read that id too, and the screen drops its page on an item it
   cannot read); a move in every host (a bridge event and a route per surface for

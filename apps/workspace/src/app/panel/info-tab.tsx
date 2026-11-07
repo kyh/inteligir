@@ -71,7 +71,8 @@ export const InfoTab = ({
   if (item === null) {
     return <p className="m-0 p-3 text-body text-muted-foreground">This item isn’t here.</p>;
   }
-  const { fields, card } = item;
+  // the item this reads, which a fold may have moved off the id it opened under
+  const { id, fields, card } = item;
   return (
     <div className="flex flex-col gap-3 p-3" data-info-item={itemId}>
       <dl className="m-0">
@@ -93,7 +94,7 @@ export const InfoTab = ({
               size="compact"
               variant="ghost"
               onClick={() => {
-                actions.move(itemId);
+                actions.move(id);
               }}
             >
               Move…
@@ -111,7 +112,7 @@ export const InfoTab = ({
               size="compact"
               variant="ghost"
               onClick={() => {
-                actions.tag(itemId);
+                actions.tag(id);
               }}
             >
               Tag…
@@ -131,7 +132,7 @@ export const InfoTab = ({
         label="Pinned"
         checked={fields.pinnedAt !== null}
         onCheckedChange={(pinned) => {
-          void pinItems(replica, [itemId], pinned);
+          void pinItems(replica, [id], pinned);
         }}
       />
       {isUrlItem(fields) ? (
@@ -144,7 +145,7 @@ export const InfoTab = ({
             size="compact"
             disabled={refresh.isPending}
             onClick={() => {
-              refresh.mutate({ id: itemId });
+              refresh.mutate({ id });
             }}
           >
             Read the page again
