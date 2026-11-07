@@ -50,6 +50,7 @@ import type {
   DateChip,
   FormulaPill,
 } from "@repo/notes/markdown/remark-inline-constructs";
+import { CELL_BREAK } from "@repo/notes/markdown/remark-inline-html";
 import type { Underline } from "@repo/notes/markdown/remark-inline-html";
 import {
   CANVAS_LANG,
@@ -296,7 +297,9 @@ const paragraphRule: WideMdRule = {
 };
 
 const isCellBreak = (node: Descendant): boolean =>
-  ElementApi.isElement(node) && node.type === OPAQUE_KEY && stringProp(node, "source") === "<br/>";
+  ElementApi.isElement(node) &&
+  node.type === OPAQUE_KEY &&
+  stringProp(node, "source") === CELL_BREAK;
 
 const cellLines = (children: readonly Descendant[]): Descendant[][] => {
   const lines: Descendant[][] = [[]];

@@ -14,6 +14,7 @@ import { leadingAlertMarker } from "../markdown/alert-marker";
 import { isBareLink } from "../markdown/autolink-text";
 import { parseBare } from "../markdown/bare-parse";
 import { isContainerLine } from "../markdown/remark-containers";
+import { CELL_BREAK } from "../markdown/remark-inline-html";
 import {
   DATE_CHIP_RE,
   FORMULA_RE,
@@ -617,7 +618,7 @@ const pushUnplaced = (
 // a child of the cell alone: the writer closes a mark at each of a cell's lines, and what a quote is
 // placed in is the writer's
 const isCellBreak = (block: MdNode, child: MdNode): boolean =>
-  block.type === "tableCell" && child.type === "html" && child.value === "<br/>";
+  block.type === "tableCell" && child.type === "html" && child.value === CELL_BREAK;
 
 const walkPhrasing = (
   builder: Builder,

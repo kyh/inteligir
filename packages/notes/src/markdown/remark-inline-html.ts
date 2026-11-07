@@ -13,6 +13,9 @@ import type { Extension as FromMarkdownExtension } from "mdast-util-from-markdow
 import type { Info, Options as ToMarkdownExtension, State } from "mdast-util-to-markdown";
 import type { Plugin, Processor } from "unified";
 
+// the tag the table writer joins a cell's blocks with; any other spelling of it is the tag it is
+export const CELL_BREAK = "<br/>";
+
 export interface Underline extends Parent {
   type: "underline";
   children: PhrasingContent[];
