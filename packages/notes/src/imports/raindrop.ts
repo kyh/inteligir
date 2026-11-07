@@ -11,6 +11,7 @@ import { itemNameFromTitle, itemStem } from "../items/item-name";
 import { formatItemTime, parseItemTime } from "../items/item-time";
 import { cleanUrl, isWebUrl, urlKey } from "../items/item-url";
 import { isTagName } from "../knowledge/tag-grammar";
+import { ITEM_FIELD_CAPS } from "../library/library-item";
 import { parseCsv } from "./csv";
 
 // why a row of the export is left out: it names no address, one off the web, or sits in the bin
@@ -197,6 +198,7 @@ export interface ImportPlan {
 
 const DESCRIPTION_MAX = 1000;
 const MS_PER_SECOND = 1000;
+const DATE_MAX_MS = 8.64e15;
 
 // a tag as a library tag name: NFC, no `#`, every run of what a name cannot hold one `-`, each
 // level trimmed of dashes; null when no name is left
@@ -229,16 +231,16 @@ const folderOf = (segments: readonly string[]): string => {
   return names.join("/");
 };
 
-// ISO 8601 or unix seconds; anything else is the import's own moment
+const readCreated = (created: string): number | null =>
+  /^\d+(?:\.\d+)?$/u.test(created)
+    ? Math.trunc(Number(created) * MS_PER_SECOND)
+    : parseItemTime(created);
+
+// ISO 8601 or unix seconds; anything else, or an instant no field or `Date` holds, is the import's
+// own moment
 const savedMsOf = (created: string | null, now: number): number => {
-  if (created === null) {
-    return now;
-  }
-  if (/^\d+(?:\.\d+)?$/u.test(created)) {
-    const seconds = Number(created);
-    return Number.isFinite(seconds) ? Math.trunc(seconds * MS_PER_SECOND) : now;
-  }
-  return parseItemTime(created) ?? now;
+  const read = created === null ? null : readCreated(created);
+  return read !== null && Number.isInteger(read) && read >= 0 && read <= DATE_MAX_MS ? read : now;
 };
 
 const oneLine = (text: string): string | null => {
@@ -288,7 +290,10 @@ export const planRaindropImport = (rows: readonly RaindropRow[], now: number): I
     }
     const savedMs = savedMsOf(row.created, now);
     byKey.set(key, {
-      cover: row.cover !== null && isWebUrl(row.cover) ? row.cover : null,
+      cover:
+        row.cover !== null && row.cover.length <= ITEM_FIELD_CAPS.url && isWebUrl(row.cover)
+          ? row.cover
+          : null,
       description: oneLine(row.excerpt),
       folder: folderOf(row.folder),
       highlights,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { ITEM_FIELD_CAPS } from "../library/library-item";
 import {
   parseRaindropCsv,
   parseRaindropHighlights,
@@ -153,6 +154,30 @@ describe(planRaindropImport, () => {
     const deep = byUrl.get("https://example.com/deep");
     expect(deep?.saved).toBe("2026-10-17T09:00:00Z");
     expect(deep?.savedSeconds).toBe(NOW / 1000);
+  });
+
+  it.each(["99999999999999999", "0000-01-01T00:00:00Z", "1969-12-31T23:59:59Z"])(
+    "reads a created of %s, no instant the library holds, as the import's moment",
+    (created) => {
+      const [row] = rowsOf(FIXTURE);
+      if (row === undefined) {
+        throw new Error("the fixture holds no row");
+      }
+      const { items } = planRaindropImport([{ ...row, created }], NOW);
+      expect(items.map((item) => item.savedMs)).toStrictEqual([NOW]);
+    },
+  );
+
+  it("leaves a cover past what a url holds to the page's own", () => {
+    const [row] = rowsOf(FIXTURE);
+    if (row === undefined) {
+      throw new Error("the fixture holds no row");
+    }
+    const held = `https://example.com/${"c".repeat(ITEM_FIELD_CAPS.url - "https://example.com/".length)}`;
+    const [fits] = planRaindropImport([{ ...row, cover: held }], NOW).items;
+    const [past] = planRaindropImport([{ ...row, cover: `${held}c` }], NOW).items;
+    expect(fits?.cover).toBe(held);
+    expect(past?.cover).toBeNull();
   });
 
   it("keeps only a web cover, and names an untitled row after its url", () => {
