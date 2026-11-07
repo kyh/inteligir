@@ -29,7 +29,7 @@ export interface PurgeScope {
   readonly email: string;
 }
 
-export interface PurgeStep {
+interface PurgeStep {
   readonly name: string;
   readonly run: (scope: PurgeScope) => Promise<void>;
 }
