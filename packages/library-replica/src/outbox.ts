@@ -269,12 +269,8 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     reason: string,
     rest: Pick<OutboxRow, "op" | "opId"> | null = null,
   ): Promise<SendOutcome> => {
+    const parked: OutboxRow = { ...row, ...rest, reason, state: "parked" };
     await hold(async () => {
-      const held = rows.find((candidate) => candidate.seq === row.seq);
-      if (held === undefined) {
-        return;
-      }
-      const parked: OutboxRow = { ...held, ...rest, reason, state: "parked" };
       await sql.exclusive(async (tx) => {
         await runPlanAsync(tx, saveRow(parked));
       });
@@ -626,11 +622,8 @@ export const createOutbox = (context: OutboxContext): Outbox => {
   const pin = async (seq: number): Promise<OutboxRow | null> =>
     await hold(async () => {
       const row = rows.find((candidate) => candidate.seq === seq);
-      if (row === undefined || row.state === "parked") {
-        return null;
-      }
-      if (row.state === "sent") {
-        return row;
+      if (row?.state !== "queued") {
+        return row ?? null;
       }
       const pinned: OutboxRow = { ...row, state: "sent" };
       await sql.exclusive(async (tx) => {

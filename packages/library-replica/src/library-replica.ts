@@ -190,7 +190,7 @@ const isChange = (row: OutboxRow): boolean => row.op.kind !== "keep" || row.stat
 
 const parkedOf = (rows: readonly OutboxRow[]): ParkedWrite[] =>
   rows.flatMap((row) =>
-    row.state === "parked" && row.reason !== null
+    row.state === "parked"
       ? [{ itemIds: itemIdsOf(row.op), reason: row.reason, seq: row.seq }]
       : [],
   );
