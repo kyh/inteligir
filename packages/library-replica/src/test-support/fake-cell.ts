@@ -28,6 +28,7 @@ import {
   ConflictError,
   NotFoundError,
   PayloadTooLargeError,
+  QuotaError,
   UnauthorizedError,
   V1_ERROR_STATUS_MAP,
 } from "@repo/contract/cloud/v1/errors";
@@ -102,6 +103,8 @@ export interface FakeCell {
   readonly forgetAnswers: () => void;
   // writes to these items are refused as too large
   readonly tooLarge: Set<string>;
+  // writes to these items are refused for a library with no room
+  readonly noRoom: Set<string>;
   // every call is refused as a revoked sign-in
   readonly signOut: () => void;
   // the change log's page and how many bodies an answer carries
@@ -215,6 +218,7 @@ export const createFakeCell = (): FakeCell => {
   const calls: string[] = [];
   const uploads: string[] = [];
   const tooLarge = new Set<string>();
+  const noRoom = new Set<string>();
 
   const record = (kind: ChangeKind, id: string, seq: number): void => {
     log.set(`${kind}:${id}`, { id, kind, seq });
@@ -368,6 +372,9 @@ export const createFakeCell = (): FakeCell => {
     }
     if (tooLarge.has(input.itemId)) {
       throw new PayloadTooLargeError();
+    }
+    if (noRoom.has(input.itemId)) {
+      throw new QuotaError({ data: { bytesCap: 1, bytesUsed: 1 } });
     }
     needsBlobs(shasIn(JSON.stringify(input.ops)));
     const outcome = applyOps({ blocks: item.blocks, fields: item.fields }, input.ops);
@@ -790,6 +797,7 @@ export const createFakeCell = (): FakeCell => {
     head: () => head,
     item: (id) => items.get(id) ?? null,
     items: () => items,
+    noRoom,
     setBodiesPerAnswer: (bodies) => {
       bodiesPerAnswer = bodies;
     },
