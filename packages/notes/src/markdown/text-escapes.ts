@@ -85,8 +85,11 @@ const alignTodoEscapes: Transform = (tree) => {
   visit(tree, "listItem", (item) => {
     const line = item.children.find((child) => child.type === "paragraph");
     const head = line?.children[0];
-    if (typeof item.checked === "boolean" && head?.type === "text" && head.data !== undefined) {
-      head.data.escapes = head.data.escapes?.map((at) => at - 1);
+    const escapes = head?.type === "text" ? head.data?.escapes : undefined;
+    if (typeof item.checked === "boolean" && escapes !== undefined) {
+      escapes.forEach((at, index) => {
+        escapes[index] = at - 1;
+      });
     }
   });
 };
