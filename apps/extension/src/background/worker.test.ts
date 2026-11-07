@@ -3,7 +3,9 @@ import { browser } from "wxt/browser";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 
 import worker from "../entrypoints/background";
-import { keepSave, SEND_ALARM } from "./save-queue";
+import type { ExtensionRequest } from "../messages";
+import { readConnection } from "./connection";
+import { keepSave, queuedSaves, SEND_ALARM } from "./save-queue";
 import { CONNECTION, handOver, MINTED } from "./test-support/fake-cloud";
 
 const WAITING = {
@@ -35,6 +37,19 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+// what the worker answers one of its own pages
+const ask = async (request: ExtensionRequest): Promise<unknown> => {
+  const page = { id: browser.runtime.id, url: browser.runtime.getURL("/welcome.html") };
+  const answers: unknown[] = [];
+  await fakeBrowser.runtime.onMessage.trigger(request, page, (answer: unknown) => {
+    answers.push(answer);
+  });
+  await vi.waitFor(() => {
+    expect(answers).toHaveLength(1);
+  });
+  return answers[0];
+};
+
 describe("the worker", () => {
   it("sends what waited as the browser starts, and holds the alarm a restart may have cleared", async () => {
     await handOver(MINTED);
@@ -49,6 +64,28 @@ describe("the worker", () => {
     });
     await vi.waitFor(async () => {
       await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeDefined();
+    });
+  });
+
+  it("says where the connection can be let go, and Disconnect lets it go there", async () => {
+    await handOver(MINTED);
+    await keepSave(WAITING);
+    const cloud = vi.fn<typeof fetch>().mockRejectedValue(new TypeError("Failed to fetch"));
+    vi.stubGlobal("fetch", cloud);
+    worker.main();
+    await expect(ask({ type: "status" })).resolves.toMatchObject({
+      connection: {
+        email: CONNECTION.email,
+        manageUrl: browser.runtime.getURL("/welcome.html"),
+      },
+    });
+    await expect(ask({ type: "disconnect" })).resolves.toMatchObject({ connection: null });
+    await expect(readConnection()).resolves.toBeNull();
+    await expect(queuedSaves()).resolves.toStrictEqual([]);
+    await expect(browser.alarms.get(SEND_ALARM)).resolves.toBeUndefined();
+    // the revoke, which nothing waits on
+    await vi.waitFor(() => {
+      expect(cloud).toHaveBeenCalledOnce();
     });
   });
 });

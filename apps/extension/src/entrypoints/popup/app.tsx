@@ -1,6 +1,7 @@
 // the toolbar's popup: it saves the tab it opened over as soon as it opens and says how that went,
 // in outcome-copy.ts's sentences, never the cloud's own words; a browser not yet connected to an
-// account is pointed at the site's page that connects it, and a connected one at its library.
+// account is pointed at the site's page that connects it, and a connected one at its library and
+// the page that lets the connection go.
 
 import { Spinner } from "@repo/ui/components/spinner";
 import { useEffect, useRef, useState } from "react";
@@ -100,20 +101,30 @@ export const Popup = ({ activeTabId, ask }: PopupProps) => {
     };
   }, [activeTabId, ask]);
 
-  const libraryUrl = opened?.status?.connection?.libraryUrl ?? null;
+  const connection = opened?.status?.connection ?? null;
 
   return (
     <main className="flex w-80 flex-col gap-3 bg-background p-4 text-foreground">
       <Headline outcome={opened?.answer ?? null} status={opened?.status ?? null} />
-      {libraryUrl === null ? null : (
-        <a
-          className="text-body text-muted-foreground underline"
-          href={libraryUrl}
-          rel="noreferrer"
-          target="_blank"
-        >
-          Open your library
-        </a>
+      {connection === null ? null : (
+        <>
+          <a
+            className="text-body text-muted-foreground underline"
+            href={connection.libraryUrl}
+            rel="noreferrer"
+            target="_blank"
+          >
+            Open your library
+          </a>
+          <a
+            className="text-body text-muted-foreground underline"
+            href={connection.manageUrl}
+            rel="noreferrer"
+            target="_blank"
+          >
+            Manage connection
+          </a>
+        </>
       )}
     </main>
   );

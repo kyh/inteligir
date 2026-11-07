@@ -12,12 +12,13 @@ afterEach(cleanup);
 
 const CONNECT_URL = "https://inteligir.com/connect/extension";
 const LIBRARY_URL = "https://inteligir.com/library";
+const WELCOME_URL = "chrome-extension://an-id/welcome.html";
 
 const saved = (created: boolean): Outcome => ({ created, kind: "saved", title: "File over app" });
 const refused = (reason: OutcomeReason): Outcome => ({ kind: "refused", reason });
 const connected: Outcome = {
   connectUrl: CONNECT_URL,
-  connection: { email: "reader@example.test", libraryUrl: LIBRARY_URL },
+  connection: { email: "reader@example.test", libraryUrl: LIBRARY_URL, manageUrl: WELCOME_URL },
   kind: "status",
 };
 const notConnected: Outcome = { connectUrl: CONNECT_URL, connection: null, kind: "status" };
@@ -45,6 +46,18 @@ describe("the popup", () => {
       LIBRARY_URL,
     );
     expect(asked).toStrictEqual([{ tabId: 7, type: "save" }, { type: "status" }]);
+  });
+
+  it("links the page whose Disconnect lets this browser go, while it is connected", async () => {
+    render(<Popup activeTabId={tabSeven} ask={worker(connected, saved(true)).ask} />);
+    const link = await screen.findByText("Manage connection");
+    expect(link.closest("a")?.getAttribute("href")).toBe(WELCOME_URL);
+    cleanup();
+    render(
+      <Popup activeTabId={tabSeven} ask={worker(notConnected, refused("not-connected")).ask} />,
+    );
+    await screen.findByText(outcomeLine(refused("not-connected")).text);
+    expect(screen.queryByText("Manage connection")).toBeNull();
   });
 
   // the page mounts under StrictMode, which runs an effect twice in a development build: a second

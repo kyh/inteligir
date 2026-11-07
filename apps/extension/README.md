@@ -33,7 +33,7 @@ src/manifest.ts                   the MV3 manifest, one function of the build's 
 src/entrypoints/background.ts     the service worker: its listeners, the menus, the badge
 src/entrypoints/capture.ts        the script executeScript injects: the rendered DOM, cloned
 src/entrypoints/popup/            the toolbar's popup: the save and how it went
-src/entrypoints/welcome/          the page an install opens: the account it saves to, or Connect
+src/entrypoints/welcome/          the page an install, the popup and Options open: the account and Disconnect, or Connect
 src/background/connection.ts      the credential, kept in storage, and the connect page's messages
 src/background/listeners.ts       who the worker hears: its own pages and the one connect page
 src/background/cloud.ts           the /v1 calls, their deadline and what a failure means

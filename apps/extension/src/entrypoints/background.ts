@@ -78,7 +78,11 @@ const status = async (): Promise<Outcome> => {
     connection:
       connection === null
         ? null
-        : { email: connection.email, libraryUrl: `${connection.origin}${LIBRARY_PAGE_PATH}` },
+        : {
+            email: connection.email,
+            libraryUrl: `${connection.origin}${LIBRARY_PAGE_PATH}`,
+            manageUrl: browser.runtime.getURL(WELCOME_PAGE),
+          },
     kind: "status",
   };
 };

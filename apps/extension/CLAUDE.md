@@ -127,3 +127,14 @@ Decisions says how a bullet is written and cited.
   copy needs every stylesheet, font and picture the page names, which an
   `activeTab` extension with no host cannot fetch across origins; the frozen
   DOM alone could spend the capture's 2 MB). `apps/extension/src/background/save-page.ts`.
+
+- **DISCONNECT IS THE WELCOME PAGE'S, AND THAT PAGE CAN ALWAYS BE OPENED AGAIN.**
+  The install opens it once; the popup links it as Manage connection while
+  connected, and the manifest names it `options_ui`, in a tab, so the toolbar
+  button's own Options reaches it when the popup could read no connection.
+  Rejected: Disconnect in the popup (it saves as it opens, and one stray click
+  there would forget what waits); a message from the site that disconnects (a
+  page could then sign a browser out, on a door that only hands a credential
+  over). `apps/extension/src/manifest.ts`,
+  `apps/extension/src/entrypoints/popup/app.tsx`,
+  `apps/extension/src/entrypoints/welcome/app.tsx`.

@@ -38,11 +38,14 @@ const outcomeSchema = z.discriminatedUnion("kind", [
   // the cloud did not answer: the save waits and goes once it does
   z.object({ kind: z.literal("queued") }),
   z.object({ kind: z.literal("refused"), reason: z.enum(OUTCOME_REASONS) }),
-  // the connection this browser holds, the account's email and the library's address, or none
+  // the connection this browser holds, the account's email, the library's address and the page
+  // with Disconnect, or none
   z.object({
     // the site's page that connects this browser to an account
     connectUrl: z.string(),
-    connection: z.object({ email: z.string(), libraryUrl: z.string() }).nullable(),
+    connection: z
+      .object({ email: z.string(), libraryUrl: z.string(), manageUrl: z.string() })
+      .nullable(),
     kind: z.literal("status"),
   }),
 ]);

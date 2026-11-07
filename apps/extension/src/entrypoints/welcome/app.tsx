@@ -1,6 +1,7 @@
-// the page the extension opens once installed: whose library this browser saves to, with
-// Disconnect, or the way to connect it, the site's page that hands it a credential. A failed
-// connection says so in its own words, never a save's.
+// the page the extension opens once installed, and the popup's Manage connection and the browser's
+// Options open again: whose library this browser saves to, with Disconnect, or the way to connect
+// it, the site's page that hands it a credential. A failed connection says so in its own words,
+// never a save's.
 
 import { Button } from "@repo/ui/components/button";
 import { Spinner } from "@repo/ui/components/spinner";
