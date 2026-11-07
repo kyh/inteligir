@@ -5,6 +5,7 @@
 // the first run: there is nothing to choose before it.
 
 import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
+import type { SessionEnd } from "@repo/library-replica/call-outcome";
 import { onlineManager } from "@tanstack/react-query";
 import { createBrowserHistory, createHashHistory, RouterProvider } from "@tanstack/react-router";
 import type { RouterHistory } from "@tanstack/react-router";
@@ -67,9 +68,19 @@ const openInTab = async (target: Root): Promise<void> => {
     leave.drop();
     window.location.assign(signInHref(window.location));
   };
+  // the floor spares a page the Worker served by a header only a browser this old leaves out, and
+  // the sign-in would send a tab it signed in straight back here
+  const sessionEnded = (end: SessionEnd): void => {
+    if (end === "outdated") {
+      leave.drop();
+      target.render(TOO_OLD);
+      return;
+    }
+    goSignIn();
+  };
   let opening: PageOpening;
   try {
-    opening = await openPageLibrary(window.location.origin, { leave, onSessionEnd: goSignIn });
+    opening = await openPageLibrary(window.location.origin, { leave, onSessionEnd: sessionEnded });
   } catch {
     // nothing is drawn yet, so no boundary would catch it: the tab says it didn't open instead
     target.render(

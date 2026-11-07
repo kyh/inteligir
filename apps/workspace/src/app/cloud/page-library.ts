@@ -9,6 +9,7 @@
 
 import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { replicaMerge } from "@repo/editor/stale-write";
+import type { SessionEnd } from "@repo/library-replica/call-outcome";
 import { openLibraryReplica } from "@repo/library-replica/library-replica";
 import type { LibraryReplica } from "@repo/library-replica/library-replica";
 import { openMemorySql } from "@repo/library-replica/memory-sql";
@@ -137,7 +138,7 @@ const readSession = async (origin: string): Promise<SignedIn | null> => {
 
 export const openPageLibrary = async (
   origin: string,
-  { leave, onSessionEnd }: { leave: LeaveGuard; onSessionEnd: () => void },
+  { leave, onSessionEnd }: { leave: LeaveGuard; onSessionEnd: (end: SessionEnd) => void },
 ): Promise<PageOpening> => {
   const account = await readSession(origin);
   if (account === null) {
@@ -157,7 +158,6 @@ export const openPageLibrary = async (
   if (opening.kind === "unsupported") {
     return { kind: "unsupported" };
   }
-  // the tab names no build, so the floor never refuses it: every end it meets is a sign-in's
   watchSessionEnd(opening.replica, onSessionEnd);
   return {
     kind: "ready",

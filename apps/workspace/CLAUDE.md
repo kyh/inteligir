@@ -86,20 +86,6 @@ is parsed in `src/shell/shell-commands.ts`.
   listener always armed (it bars the back-forward cache).
   `apps/workspace/src/app/cloud/leave-guard.ts`, `apps/workspace/src/main.tsx`.
 
-- **A SESSION'S END IS ANSWERED HOWEVER THE PAGE MEETS IT.** The replica calls
-  through a client of its own and stops at a session's end, so each host watches
-  its status beside the wire's interceptor and gives both one answer: the tab
-  goes to the site's sign-in, the Mac lets its credential go and opens on the
-  sign-in, and a Mac below the build floor keeps its credential, replica and
-  outbox and says to update, in a toast and in the rail's footer, since the
-  next build goes on as the same device. Rejected: waiting for a wire call (an
-  idle page makes none, and a stopped replica reads as up to date); a page of
-  its own for the outdated Mac, as the phone draws (the Mac's library reads and
-  queues on disk, and its updater needs no person to go find it).
-  `apps/workspace/src/app/cloud/v1.ts`,
-  `apps/workspace/src/app/cloud/shell-library.ts`,
-  `apps/workspace/src/app/sidebar/sync-words.ts`.
-
 - **IN THE MAC APP THE PAGE OPENS THE SHELL'S REPLICA, AFTER A SIGN-IN OF ITS
   OWN.** The same build runs in the Mac's window, where `main.tsx` asks the
   shell for its config and the credential a sign-in kept: with none the page
@@ -118,6 +104,24 @@ is parsed in `src/shell/shell-commands.ts`.
   carries); the tab's cookie in the window (a cross-site cookie WebKit would
   not send). `apps/workspace/src/app/cloud/shell-library.ts`,
   `apps/workspace/src/app/cloud/sign-in-page.tsx`.
+
+- **A SESSION'S END IS ANSWERED HOWEVER THE PAGE MEETS IT.** The replica calls
+  through a client of its own and stops at a session's end, so each host watches
+  its status beside the wire's interceptor and gives both one answer: the tab
+  goes to the site's sign-in, the Mac lets its credential go and opens on the
+  sign-in, and a Mac below the build floor keeps its credential, replica and
+  outbox and says to update, in a toast and in the rail's footer, since the
+  next build goes on as the same device. The floor spares a page the Worker
+  served, so a tab it refuses is a browser too old to mark its calls as that
+  page's, and the tab says so. Rejected: waiting for a wire call (an idle page
+  makes none, and a stopped replica reads as up to date); a page of its own for
+  the outdated Mac, as the phone draws (the Mac's library reads and queues on
+  disk, and its updater needs no person to go find it); the refused tab sent to
+  sign in (the sign-in sends a signed-in tab straight back, for good).
+  `apps/workspace/src/app/cloud/v1.ts`,
+  `apps/workspace/src/app/cloud/shell-library.ts`,
+  `apps/workspace/src/app/sidebar/sync-words.ts`, `apps/workspace/src/main.tsx`,
+  over `apps/web/src/worker/client-floor.ts`.
 
 ## Surfaces
 
