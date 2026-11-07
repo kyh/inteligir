@@ -63,7 +63,8 @@ type WriteOutcome =
       readonly kind: "invalid";
       readonly fields: Extract<ApplyOutcome, { kind: "invalid" }>["fields"];
     }
-  // the item's body is still to come and the write names blocks of it: it goes once they are here
+  // the item's body is still to come, and the write names blocks of it or a base that moved, which
+  // nothing can settle over no body: it goes once the body is here
   | { readonly kind: "waiting" };
 
 interface WriteInput {
@@ -145,11 +146,10 @@ const touchesNothing = (outcome: Extract<ApplyOutcome, { kind: "applied" }>): bo
   outcome.touched.dropped.size === 0 &&
   !outcome.touched.fields;
 
-// an op on a block this device does not hold: over a body still to come it would read a put as
-// moved and a drop or a move as already true, and what the screen holds would go
-const namesUnheldBlock = (op: LibraryOp, blocks: ReadonlyMap<string, StoredBlock>): boolean =>
-  (op.op === "put" && !blocks.has(op.block.id)) ||
-  ((op.op === "drop" || op.op === "move") && !blocks.has(op.blockId));
+// a drop or a move of a block this device does not hold reads as already true, which a body still
+// to come may not bear out
+const shiftsUnheldBlock = (op: LibraryOp, blocks: ReadonlyMap<string, StoredBlock>): boolean =>
+  (op.op === "drop" || op.op === "move") && !blocks.has(op.blockId);
 
 const tagsOf = (tags: readonly string[]): LibraryItemFields["tags"] => [...new Set(tags)];
 
@@ -296,12 +296,14 @@ export const createCommands = (context: CommandContext): ReplicaCommands => {
           return { kind: "missing" };
         }
         const blocks = new Map(item.blocks.map((held) => [held.block.id, held]));
-        if (!item.bodyHeld && input.ops.some((op) => namesUnheldBlock(op, blocks))) {
+        if (!item.bodyHeld && input.ops.some((op) => shiftsUnheldBlock(op, blocks))) {
           return { kind: "waiting" };
         }
         const outcome = applyOps({ blocks, fields: item.fields }, input.ops);
         if (outcome.kind === "conflict") {
-          return { conflicts: outcome.conflicts, item, kind: "changed" };
+          return item.bodyHeld
+            ? { conflicts: outcome.conflicts, item, kind: "changed" }
+            : { kind: "waiting" };
         }
         if (outcome.kind === "invalid") {
           return { fields: outcome.fields, kind: "invalid" };

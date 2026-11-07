@@ -345,8 +345,9 @@ alone, and no walk narrows structurally.
   A card that folds stays open under its id, which the replica
   answers as the item it landed on, and that item lands as any change from
   elsewhere (A FOLDED MAKE'S ID, in `packages/library-replica/CLAUDE.md`). An
-  edit of a block that item's body has yet to bring waits on the body, unsaved
-  and said so a leave holds, and goes after the next pause once it lands.
+  edit of a block that item's body has yet to bring, or of a field whose base
+  moved, waits on the body, unsaved and said so a leave holds, and goes after
+  the next pause once it lands.
   A block keeps its section wherever it stands, and a new one is the note's, so
   a read of the page never takes what the person typed under it, which reads
   above the article when the item opens again. Rejected: the value mirrored

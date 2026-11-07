@@ -732,6 +732,11 @@ describe("the replica's pull", () => {
         ops: [{ baseOrd: "a0", blockId: "p1", op: "move", ord: "a5" }],
       }),
     ).resolves.toStrictEqual({ kind: "waiting" });
+    await expect(
+      phone.replica.write(id, {
+        ops: [{ base: "Moved on", field: "title", op: "set", value: "Renamed" }],
+      }),
+    ).resolves.toStrictEqual({ kind: "waiting" });
     expect(phone.replica.status().unsent).toBe(0);
 
     await expect(

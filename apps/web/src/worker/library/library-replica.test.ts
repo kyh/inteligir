@@ -4,7 +4,7 @@
 // loads no sqlite-wasm (`../test-support/remote-replica-sql.ts`); everything else is the engine
 // as it ships.
 
-import { createItemSession } from "@repo/editor/item/item-session";
+import { BODY_TO_COME, createItemSession } from "@repo/editor/item/item-session";
 import { headlessEditor } from "@repo/editor/markdown/markdown-doc";
 import { openLibraryReplica } from "@repo/library-replica/library-replica";
 import type { LibraryReplica } from "@repo/library-replica/library-replica";
@@ -934,6 +934,47 @@ describe("the replica engine against the account's cell", () => {
       await laptop.replica.sync();
       await expect(textIn(laptop.replica, holder.id, "a1")).resolves.toBe("page one");
       await expect(textIn(laptop.replica, holder.id, "a2")).resolves.toBeNull();
+    },
+  );
+
+  it(
+    "keeps a save's blocks through a field whose base moved, until the item's body comes",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("fold-body-field");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      const { holder, open } = await openOnUnpulledAddress(phone, laptop);
+      await write(laptop.replica, holder.id, [{ key: "status", op: "property", value: "theirs" }]);
+      await laptop.replica.sync();
+
+      phone.withholdBodies(true);
+      await phone.replica.sync();
+      await open.caughtUp();
+      await open.session.patch([{ key: "status", op: "property", value: "mine" }]);
+
+      expect(open.words()).toContain("page one");
+      expect(open.words()).toContain("page two");
+      expect(open.session.status()).toMatchObject({
+        failure: BODY_TO_COME,
+        kind: "open",
+        unsaved: true,
+      });
+      expect(writesBy(phone)).toBe(0);
+
+      phone.withholdBodies(false);
+      await phone.replica.sync();
+      await open.caughtUp();
+      open.endPause();
+      await open.caughtUp();
+      await phone.replica.sync();
+
+      expect(open.session.status()).toMatchObject({ failure: null, kind: "open", unsaved: false });
+      await laptop.replica.sync();
+      await expect(laptop.replica.item(holder.id)).resolves.toMatchObject({
+        fields: { properties: { status: "mine" } },
+      });
+      await expect(textIn(laptop.replica, holder.id, "a2")).resolves.toBe("page two");
     },
   );
 

@@ -25,12 +25,14 @@ and cited.
   newest, laid only under the row it was sent for. An answer naming another
   epoch wipes the rows, keeps the outbox and pulls from nothing. A row held
   ahead of every block is a body still to come, and a write on a block it may
-  hold answers `waiting` until it lands, while a field or a new block goes.
-  Residual: after a reset, a queued write's landing reads as the whole body
-  until the body comes. Rejected: bodies in the log (a page of long notes);
-  dropping the outbox on a reset (the person's writes lost); a write judged over
-  a body not here (no blocks calls a put moved and a drop or a move already
-  true). `packages/library-replica/src/replica-pull.ts`, `replica-rows.ts`,
+  hold, or on a base that moved, answers `waiting` until it lands, while a field
+  or a new block over its base goes. Residual: a queued write that outlives a
+  reset, or a relaunch after its fold, lands as the whole body until the body
+  comes. Rejected: bodies in the log (a page of long notes); dropping the outbox
+  on a reset (the person's writes lost); a write judged over a body not here (no
+  blocks calls a put moved and a drop or a move already true, and a `changed`
+  answered over none empties the editor).
+  `packages/library-replica/src/replica-pull.ts`, `replica-rows.ts`,
   `replica-commands.ts`.
 
 - **THE SYNCED TABLES HOLD ONLY WHAT THE CELL SENT, AND THE OUTBOX IS LAID OVER
