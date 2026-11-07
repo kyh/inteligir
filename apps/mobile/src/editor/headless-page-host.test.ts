@@ -32,9 +32,7 @@ const READ: FillAnswer = {
     site: "Steph Ango",
     title: "File over app",
   },
-  kept: 1,
   kind: "read",
-  rung: "rich",
 };
 
 const paragraph = (text: string) => ({ children: [{ text }], id: "p1", type: "p" as const });

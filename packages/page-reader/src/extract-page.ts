@@ -242,5 +242,5 @@ export const extractPageBlocks = (
   const page = extractPage(args, parsePage);
   const article =
     page.article === "" ? NO_ARTICLE : (articleBlocks(page.article, newBlockId) ?? NO_ARTICLE);
-  return { article, facts: page.facts, kept: page.kept, rung: page.rung };
+  return { article, facts: page.facts, rung: page.rung };
 };

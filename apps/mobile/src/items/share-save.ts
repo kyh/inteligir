@@ -1,17 +1,23 @@
 // A share from another app, saved: a page the share sheet hands over is read on this phone, as the
 // extension reads the page it is on, and saved through `items.save` with its facts, its article
 // and its cover, so the library holds it read from the first moment; a page this phone cannot read
-// now (offline, no page at the address, a reader that broke) is saved as its link, which the
-// cloud's fill reads once it lands. Either way the words shared beside it are kept. Text alone is
-// a thought. The page is fetched by the phone itself, each redirect judged by its spelling, and
-// read by the reader in the headless page.
+// now (offline, no page at the address, a reader that broke) or read no text from is saved as its
+// link, which the cloud's fill reads once it lands. Either way the words shared beside it are kept.
+// Text alone is a thought. The page is fetched by the phone itself, each redirect judged by its
+// spelling, and read by the reader in the headless page.
 // Platform-free: the scenario suite runs it under node over the reader's own code.
 
 import { base64FromBytes } from "@repo/contract/cloud/bytes";
 import type { FillAnswer, FillJob } from "@repo/editor-bridge/protocol";
 import type { LibraryReplica, Made, PageInput } from "@repo/library-replica/library-replica";
 import { namesPrivateSpace } from "@repo/notes/items/host-names";
-import { coverPicture, FILL_LIMITS, isPageType } from "@repo/notes/items/link-fill";
+import {
+  coverPicture,
+  deviceKeepsReading,
+  FILL_LIMITS,
+  isPageType,
+  preferredText,
+} from "@repo/notes/items/link-fill";
 import { fieldLine, savedFacts } from "@repo/notes/items/saved-facts";
 import type { PageFetch } from "./page-fetch";
 import { createPhoneSaves } from "./phone-saves";
@@ -58,8 +64,8 @@ const coverOf = async (
   return null;
 };
 
-// what this phone read of a shared page, or null when it read nothing the cloud should not read
-// again: a page that did not answer, an answer that is no page, or a reader that broke
+// what this phone read of a shared page, or null when the cloud's fill is to read it: a page that
+// did not answer, an answer that is no page, a reader that broke, or a reading with no article
 const readSharedPage = async (
   ports: ShareReadPorts,
   shared: Extract<SharedSave, { kind: "link" }>,
@@ -81,13 +87,13 @@ const readSharedPage = async (
     answer = await ports.read({
       base64: base64FromBytes(fetched.page.bytes),
       charset: fetched.page.charset,
-      prefer: "article",
+      prefer: preferredText(shared.url),
       url: fetched.page.url,
     });
   } catch {
     return null;
   }
-  if (answer.kind !== "read" || (answer.rung === null && answer.facts.title === null)) {
+  if (answer.kind !== "read" || !deviceKeepsReading(answer.article)) {
     return null;
   }
   const title = fieldLine(answer.facts.title) ?? fieldLine(shared.title) ?? "";

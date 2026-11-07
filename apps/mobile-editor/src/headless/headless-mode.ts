@@ -49,8 +49,6 @@ export const readPage = (
       }),
       facts: read.facts,
       kind: "read",
-      kept: read.kept,
-      rung: read.rung,
     };
   } catch (error) {
     return {

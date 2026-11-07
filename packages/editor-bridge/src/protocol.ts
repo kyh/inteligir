@@ -13,7 +13,7 @@ import { blockHashSchema, libraryOpSchema } from "@repo/notes/library/block-ops"
 import { ordSchema } from "@repo/notes/library/block-order";
 import { libraryItemFieldsSchema, SHA256_HEX_RE } from "@repo/notes/library/library-item";
 import { librarySectionSchema, storableBlockSchema } from "@repo/notes/library/library-nodes";
-import { pageFactsSchema, rungSchema } from "@repo/page-reader/page-facts";
+import { pageFactsSchema } from "@repo/page-reader/page-facts";
 
 // Native reaches the page only by calling this, through `injectJavaScript`: a message event is
 // one a child frame's `parent.postMessage` could forge too.
@@ -166,9 +166,6 @@ const fillAnswerSchema = z.discriminatedUnion("kind", [
     article: z.array(z.strictObject({ block: storableBlockSchema, ord: ordSchema })),
     facts: pageFactsSchema,
     kind: z.literal("read"),
-    // the share of the converted letters the editor's fixpoint kept
-    kept: z.number(),
-    rung: rungSchema.nullable(),
   }),
   z.strictObject({ kind: z.literal("failed"), reason: z.string() }),
 ]);

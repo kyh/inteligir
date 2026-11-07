@@ -10,10 +10,10 @@
 import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
 import { ANNOTATION_QUOTE_MAX } from "@repo/notes/annotations/store-schema";
 import { fieldLine, savedFacts } from "@repo/notes/items/saved-facts";
-import { coverPicture } from "@repo/notes/items/link-fill";
+import { coverPicture, deviceKeepsReading, preferredText } from "@repo/notes/items/link-fill";
 import { namesPrivateSpace } from "@repo/notes/items/host-names";
 import { originalFileName } from "@repo/notes/items/item-name";
-import { isWebUrl, kindForUrl } from "@repo/notes/items/item-url";
+import { isWebUrl } from "@repo/notes/items/item-url";
 import { sniffMedia } from "@repo/notes/items/sniff-media";
 import { uuidV7 } from "@repo/notes/library/uuid-v7";
 import { readHtml } from "@repo/page-reader/read-html";
@@ -83,14 +83,12 @@ const settleFailure = async (queued: QueuedSave, cause: unknown): Promise<Outcom
 };
 
 // the page as the library's read item, or null when it held no text the reader could keep (a shell
-// its scripts have yet to draw, words in shadow roots a clone leaves behind): an item saved read is
-// never filled, so the cloud reads this one from its address
+// its scripts have yet to draw, words in shadow roots a clone leaves behind), which the cloud reads
+// from its address
 const readCapture = (deps: SaveDeps, html: string, url: string): ExtractedPageBlocks | null => {
-  const kind = kindForUrl(url);
-  const prefer = kind === "video" || kind === "audio" ? "description" : "article";
   try {
-    const read = readHtml({ html, prefer, url }, deps.newBlockId);
-    return read.article.blocks.length > 0 ? read : null;
+    const read = readHtml({ html, prefer: preferredText(url), url }, deps.newBlockId);
+    return deviceKeepsReading(read.article.blocks) ? read : null;
   } catch {
     return null;
   }

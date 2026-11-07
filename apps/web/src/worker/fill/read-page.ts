@@ -14,9 +14,15 @@ import type { ExtractedPageBlocks } from "@repo/page-reader/page-reading";
 import type { ReadHtml } from "@repo/page-reader/read-html";
 import { failureOf, fileOnlyLinked, TEXT_NOT_SAVED } from "@repo/notes/items/fill-sentences";
 import { originalFileName } from "@repo/notes/items/item-name";
-import { kindForUrl } from "@repo/notes/items/item-url";
 import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
-import { coverPicture, FILL_LIMITS, isPageType, playableKindOf } from "@repo/notes/items/link-fill";
+import {
+  coverPicture,
+  FILL_LIMITS,
+  fillKeepsReading,
+  isPageType,
+  playableKindOf,
+  preferredText,
+} from "@repo/notes/items/link-fill";
 import {
   OEMBED_MAX_BYTES,
   oembedEndpoint,
@@ -173,12 +179,10 @@ const factsOf = (facts: ExtractedPageBlocks["facts"], oembed: OEmbed | null) =>
   });
 
 const pageRead = async (ports: ReadPorts, job: FillJob, page: FetchedPage): Promise<PageRead> => {
-  const kind = kindForUrl(job.url);
-  const prefer = kind === "video" || kind === "audio" ? "description" : "article";
   const html = decodeText(page.bytes.subarray(0, FILL_LIMITS.htmlBytes), page.charset);
   const readHtml = await loadReader();
-  const read = readHtml({ html, prefer, url: page.url }, newBlockId);
-  if (read.rung === null && read.facts.title === null && read.facts.description === null) {
+  const read = readHtml({ html, prefer: preferredText(job.url), url: page.url }, newBlockId);
+  if (!fillKeepsReading(read)) {
     return failed(job, TEXT_NOT_SAVED);
   }
   const oembed = await askOEmbed(ports, job.url, read.facts.oembed);

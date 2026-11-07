@@ -22,9 +22,7 @@ const READ: FillAnswer = {
     site: "Steph Ango",
     title: "File over app",
   },
-  kept: 1,
   kind: "read",
-  rung: "rich",
 };
 
 // a page the phone fetched itself, as the page fetch answers it
@@ -96,6 +94,45 @@ describe("a share, saved", () => {
       url: URL,
     });
     expect(cell.calls).toContain("phone library/items/save");
+  });
+
+  it("reads a shared video for its description, as every device does", async () => {
+    const { device, newBlockId } = await phone();
+    const jobs: FillJob[] = [];
+    await saveShared(
+      {
+        newBlockId,
+        ports: {
+          fetch: servingPage,
+          read: async (job) => {
+            jobs.push(job);
+            return await Promise.resolve(READ);
+          },
+        },
+        replica: device.replica,
+      },
+      { kind: "link", note: null, title: null, url: "https://www.youtube.com/watch?v=abc123" },
+    );
+    expect(jobs).toMatchObject([{ prefer: "description" }]);
+  });
+
+  it("saves the link for the cloud to read when the page named itself and held no text", async () => {
+    const { cell, device, newBlockId } = await phone();
+    const saved = await saveShared(
+      {
+        newBlockId,
+        ports: {
+          fetch: servingPage,
+          read: async () => await Promise.resolve({ ...READ, article: [] }),
+        },
+        replica: device.replica,
+      },
+      { kind: "link", note: null, title: "A post", url: "https://x.com/kyh/status/1" },
+    );
+    expect(saved?.kind).toBe("saved");
+    await device.replica.sync();
+    expect(cell.calls).toContain("phone library/items/saveLink");
+    expect(cell.calls).not.toContain("phone library/items/save");
   });
 
   it("keeps the words shared beside a page it reads as the item's note", async () => {

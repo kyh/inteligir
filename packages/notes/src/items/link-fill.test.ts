@@ -1,8 +1,15 @@
-// how a device judges a cover candidate it fetched: by the picture its bytes are, and its size
+// how a device judges what it read of a link: a cover candidate by the picture its bytes are and
+// its size, a page by the text its address is kept for, and a reading by who reads after it
 
 import { describe, expect, it } from "vitest";
 
-import { coverPicture, FILL_LIMITS } from "./link-fill";
+import {
+  coverPicture,
+  deviceKeepsReading,
+  fillKeepsReading,
+  FILL_LIMITS,
+  preferredText,
+} from "./link-fill";
 
 // a PNG's signature and IHDR, which is all its size is read from
 const pngOf = (width: number, height: number): Uint8Array => {
@@ -26,5 +33,34 @@ describe("a cover candidate", () => {
     expect(coverPicture(pngOf(edge, edge))).toStrictEqual({ mime: "image/png" });
     expect(coverPicture(pngOf(edge + 1, edge + 1))).toBeNull();
     expect(coverPicture(pngOf(30_000, 30_000))).toBeNull();
+  });
+});
+
+describe("a page's text", () => {
+  it("is its description at a video's or a song's address, and its article at any other", () => {
+    expect(preferredText("https://www.youtube.com/watch?v=abc123")).toBe("description");
+    expect(preferredText("https://open.spotify.com/track/abc123")).toBe("description");
+    expect(preferredText("https://stephango.com/file-over-app")).toBe("article");
+  });
+});
+
+describe("a reading", () => {
+  const facts = { description: null, title: null };
+
+  it("with an article is kept by every reader", () => {
+    expect(deviceKeepsReading(["a block"])).toBe(true);
+    expect(fillKeepsReading({ facts, rung: "rich" })).toBe(true);
+  });
+
+  it("of a page that only named itself goes from a device to the fill, which keeps it", () => {
+    expect(deviceKeepsReading([])).toBe(false);
+    expect(fillKeepsReading({ facts: { ...facts, title: "A shell" }, rung: null })).toBe(true);
+    expect(fillKeepsReading({ facts: { ...facts, description: "A shell" }, rung: null })).toBe(
+      true,
+    );
+  });
+
+  it("of a page that settled no text and named itself nowhere is kept by nothing", () => {
+    expect(fillKeepsReading({ facts, rung: null })).toBe(false);
   });
 });

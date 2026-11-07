@@ -209,8 +209,9 @@ Worker's consumer reads the page with `@repo/page-reader` and lands only its
 one, `fetchedAt`, or `fetchError` when the page could not be read), and a title
 in place of the address an unread item goes by; it calls no model and never
 writes `url` or `savedAt` (`apps/web/src/worker/fill/`). An item's `fetchState` says where it stands:
-`pending`, `filled` or `failed`. A page the phone's share sheet hands over is
-read on the phone and saved read, never a fill (`apps/mobile/src/items/share-save.ts`).
+`pending`, `filled` or `failed`. A page the extension or the phone's share sheet
+read an article from is saved read and never filled; one it did not goes to the
+fill as its link (`deviceKeepsReading` in `@repo/notes/items/link-fill`).
 
 **cover** — an item's picture: its `coverSha` field, the hash of a file the
 library keeps in R2, which a fill sets from the page it read and an export

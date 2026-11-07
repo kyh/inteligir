@@ -1,6 +1,6 @@
-// what a page says about itself and what the reader made of its text, as a wire carries them: the
-// phone's page answers the phone with it. zod alone, so a host that only carries the answer loads
-// no DOM and no extractor.
+// what a page says about itself, as a wire carries it, and what the reader made of its text: the
+// phone's page answers the phone with the facts. zod alone, so a host that only carries the answer
+// loads no DOM and no extractor.
 
 import { z } from "zod";
 
@@ -27,15 +27,13 @@ export const pageFactsSchema = z.strictObject({
 export type PageFacts = z.infer<typeof pageFactsSchema>;
 
 // the body ladder's rungs, rich to plain
-export const rungSchema = z.enum(["rich", "plain", "text"]);
-export type Rung = z.infer<typeof rungSchema>;
+export type Rung = "rich" | "plain" | "text";
 
-const extractedPageSchema = z.strictObject({
+export interface ExtractedPage {
   // the article as the editor's own fixpoint; "" when the page holds no text the editor could keep
-  article: z.string(),
-  facts: pageFactsSchema,
+  readonly article: string;
+  readonly facts: PageFacts;
   // the share of the converted letters the fixpoint kept
-  kept: z.number(),
-  rung: rungSchema.nullable(),
-});
-export type ExtractedPage = z.infer<typeof extractedPageSchema>;
+  readonly kept: number;
+  readonly rung: Rung | null;
+}
