@@ -19,6 +19,7 @@ import type {
   MdRules,
   MdCode,
   MdInlineMath,
+  MdList,
   MdParagraph,
   MdTableRow,
   MdText,
@@ -274,6 +275,78 @@ const paragraphRule: WideMdRule = {
     });
   },
   serialize: defaultParagraphSerialize,
+};
+
+// the blocks that are an item's own line: words, whichever block spelled them
+const ITEM_LINES: ReadonlySet<string> = new Set([KEYS.p, ...KEYS.heading]);
+
+const isItemLine = (block: TElement): boolean => ITEM_LINES.has(block.type);
+
+const elementsIn = (nodes: readonly Descendant[]): TElement[] =>
+  nodes.flatMap((node) => (ElementApi.isElement(node) ? [node] : []));
+
+const emptyLine = (): TElement => ({ children: [{ text: "" }], type: KEYS.p });
+
+// Plate's rule makes whatever an item opens with a `p`, an image aside, which keeps a text's words
+// and leaves an embed's address, a fence's lines and a chart's source on a paragraph that holds
+// none of them. Only words are an item here: any other block stands where the item stood, and the
+// list writes it outside itself, with a to-do's box on a line of its own above it.
+const listBlocks = (
+  list: MdList,
+  indent: number,
+  deco: MdDecoration,
+  options: DeserializeMdOptions,
+): TElement[] => {
+  const ordered = list.ordered === true;
+  const first = list.start ?? 1;
+  // a to-do turns the items after it into to-dos too: the flat list draws one style per run
+  let listStyleType: string = ordered ? KEYS.ol : KEYS.ul;
+  return list.children.flatMap((item, index): TElement[] => {
+    const { checked } = item;
+    const todo = checked !== null && checked !== undefined;
+    if (todo) {
+      listStyleType = KEYS.listTodo;
+    }
+    const [head, ...rest] = item.children;
+    const opened =
+      head === undefined
+        ? [emptyLine()]
+        : elementsIn(convertChildrenDeserialize([head], deco, options));
+    const blocks = todo && !opened.some(isItemLine) ? [emptyLine(), ...opened] : opened;
+    const number = first + index;
+    const placed = blocks.map((block, at): TElement => {
+      const element: TElement = {
+        ...block,
+        indent,
+        listStyleType,
+        type: isItemLine(block) ? KEYS.p : block.type,
+      };
+      if (todo) {
+        element.checked = checked;
+      }
+      if (ordered) {
+        element.listStart = number;
+        if (index === 0 && at === 0 && number > 1) {
+          element.listRestartPolite = number;
+        }
+      }
+      return element;
+    });
+    const nested = rest.flatMap((child): TElement[] =>
+      child.type === "list"
+        ? listBlocks(child, indent + 1, deco, options)
+        : elementsIn(convertChildrenDeserialize([child], deco, options)).map((block) => ({
+            ...block,
+            indent: indent + 1,
+          })),
+    );
+    return [...placed, ...nested];
+  });
+};
+
+const listRule: WideMdRule = {
+  deserialize: (node: MdList, deco: MdDecoration, options: DeserializeMdOptions): TElement[] =>
+    listBlocks(node, 1, deco, options),
 };
 
 // text a re-parse reads back as this same link: a bare url, a www literal (gfm prefixes its url
@@ -532,6 +605,8 @@ export const MD_RULES: MdRules = {
   },
 
   inline_equation: inlineEquationRule,
+
+  list: listRule,
 
   media_embed: embedRule,
 

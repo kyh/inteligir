@@ -393,16 +393,29 @@ describe("an edit made on the view", () => {
 
   it("keeps an escape an edit writes on a line beside a `:::` line as the person's text", () => {
     const blocks = storedOf(":::toggle\nbody here\n:::\n");
-    const edit = editItemView(
+    const outcome = editItemView(
       blocks,
       [{ newText: "first line\n\\==x== literal", oldText: "body here" }],
       portsWith(),
     );
-    expect(edit.kind).toBe("changed");
-    if (edit.kind === "changed") {
-      expect(edit.highlights).toStrictEqual([]);
-      expect(JSON.stringify(edit.ops)).toContain("==x== literal");
+    if (outcome.kind !== "changed") {
+      throw new Error(outcome.refusal.kind);
     }
+    expect(outcome.highlights).toStrictEqual([]);
+    expect(JSON.stringify(outcome.ops)).toContain("==x== literal");
+  });
+
+  it("lands a web image an edit writes in a list as the embed it is", () => {
+    const blocks = storedOf("One.\n\nTwo.\n");
+    const outcome = editItemView(
+      blocks,
+      [{ newText: "- ![](https://a.b/c.png)", oldText: "Two." }],
+      portsWith(),
+    );
+    if (outcome.kind !== "changed") {
+      throw new Error(outcome.refusal.kind);
+    }
+    expect(JSON.stringify(outcome.ops)).toContain('"url":"https://a.b/c.png"');
   });
 
   it("reads the spellings an edit writes in the note, the last edit's alone", () => {

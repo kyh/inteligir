@@ -315,7 +315,11 @@ alone, and no walk narrows structurally.
   A block no store takes is counted among what an import could not read, and
   an edit, a note the agent writes or a save's note holding one is turned
   down; a link or image with no address is its words or its source, so it
-  takes no block with it. An agent's edit must match once, keep the article's
+  takes no block with it. A list item is its words: any other block an item
+  opens with keeps its type where the item stood, written outside the list, a
+  to-do's box on a line above it. Rejected: Plate's list rule (it made every
+  such block a `p`, which holds no address, fence or source). An agent's edit
+  must match once, keep the article's
   own lines and nest no deeper than the editor reads; only the blocks it spans
   are read again, matched by content so the rest keep their ids and markers,
   and a highlight it took either edge of is named. Rejected: a second markdown

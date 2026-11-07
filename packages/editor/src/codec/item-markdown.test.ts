@@ -383,16 +383,96 @@ describe("today's markdown imports losslessly", () => {
   });
 });
 
-describe("a tab's label", () => {
-  const labels = (item: ImportedItem): string[] =>
-    item.blocks.flatMap(({ block }) =>
-      block.type === "tab_group"
-        ? block.children.flatMap((panel) =>
-            "label" in panel && typeof panel.label === "string" ? [panel.label] : [],
-          )
-        : [],
-    );
+const types = (item: ImportedItem): string[] => item.blocks.map(({ block }) => block.type);
 
+const labels = (item: ImportedItem): string[] =>
+  item.blocks.flatMap(({ block }) =>
+    block.type === "tab_group"
+      ? block.children.flatMap((panel) =>
+          "type" in panel && panel.type === "tab_panel" ? [panel.label] : [],
+        )
+      : [],
+  );
+
+describe("a block a list item opens with", () => {
+  const WEB_IMAGE = "![](https://a.b/c.png)";
+
+  it.each([
+    ["a bullet", `- ${WEB_IMAGE}\n`, ["media_embed"]],
+    ["a bullet among others", `- first\n- ${WEB_IMAGE}\n- third\n`, ["p", "media_embed", "p"]],
+    ["a numbered item", `1. first\n2. ${WEB_IMAGE}\n`, ["p", "media_embed"]],
+    ["a nested item", `- a\n  - ${WEB_IMAGE}\n`, ["p", "media_embed"]],
+    ["words either side", `- text ${WEB_IMAGE} more\n`, ["p", "media_embed", "p"]],
+    ["an item's next line", `- ${WEB_IMAGE}\n  more\n`, ["media_embed", "p"]],
+    ["a to-do", `- [ ] ${WEB_IMAGE}\n`, ["p", "media_embed"]],
+    ["a done to-do", `- [x] ${WEB_IMAGE}\n`, ["p", "media_embed"]],
+  ])("keeps a web image's address in %s", (_name, text, blocks) => {
+    const item = imported(text);
+    expect(item.leftOut).toBe(0);
+    expect(types(item)).toStrictEqual(blocks);
+    expect(bodyOf(exported(item).text)).toContain(WEB_IMAGE);
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it.each([
+    ["video", "![](https://www.youtube.com/watch?v=dQw4w9WgXcQ)"],
+    ["file", "![](https://a.b/c.pdf)"],
+  ])("keeps a web %s in a bullet as the embed it is", (type, embed) => {
+    const item = imported(`- ${embed}\n`);
+    expect(types(item)).toStrictEqual([type]);
+    expect(bodyOf(exported(item).text)).toBe(`${embed}\n`);
+  });
+
+  it("keeps the words either side of an image in order, each in the list", () => {
+    const item = imported(`- text ${WEB_IMAGE} more\n`);
+    expect(item.blocks.map(({ block }) => JSON.stringify(block.children))).toStrictEqual([
+      '[{"text":"text "}]',
+      '[{"text":""}]',
+      '[{"text":" more"}]',
+    ]);
+  });
+
+  it.each([
+    [false, "[ ]"],
+    [true, "[x]"],
+  ])("keeps a to-do's box, checked %s, on a line above what it held", (checked, box) => {
+    const [line, embed] = imported(`- ${box} ${WEB_IMAGE}\n`).blocks.map(({ block }) => block);
+    expect(line).toMatchObject({ checked, indent: 1, listStyleType: "todo", type: "p" });
+    expect(embed).toMatchObject({ type: "media_embed", url: "https://a.b/c.png" });
+  });
+
+  it("numbers the items after one a block took out of the list as they were", () => {
+    const item = imported(`1. first\n2. ${WEB_IMAGE}\n3. third\n`);
+    expect(bodyOf(exported(item).text)).toBe(`1. first\n\n${WEB_IMAGE}\n\n3. third\n`);
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it.each([
+    ["a fence", "- ```\n  kept\n  ```\n", "code_block"],
+    ["a chart", '- ```inteligir-chart\n  {"kept":1}\n  ```\n', "chart_block"],
+    ["an equation", "- $$\n  kept\n  $$\n", "equation"],
+    ["a quote", "- > kept\n", "blockquote"],
+    ["a table", "- | kept |\n  | ---- |\n  | also |\n", "table"],
+    ["a toggle", "- :::toggle\n  kept\n  :::\n", "toggle"],
+    ["tabs", "- :::tabs\n  === One\n  kept\n  :::\n", "tab_group"],
+    ["columns", "- :::columns\n  :::column\n  kept\n  :::\n  :::\n", "column_group"],
+  ])("keeps %s an item opens with as the block it is", (_name, text, type) => {
+    const item = imported(text);
+    expect(item.leftOut).toBe(0);
+    expect(types(item)).toStrictEqual([type]);
+    expect(JSON.stringify(item.blocks)).toContain("kept");
+    expect(bodyOf(exported(item).text)).toContain("kept");
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it("keeps a heading an item opens with as the item's words", () => {
+    const item = imported("- # kept\n");
+    expect(types(item)).toStrictEqual(["p"]);
+    expect(bodyOf(exported(item).text)).toBe("- kept\n");
+  });
+});
+
+describe("a tab's label", () => {
   it.each([
     [String.raw`\@2026-08-22`, "@2026-08-22"],
     [String.raw`Due \@2026-08-22`, "Due @2026-08-22"],
