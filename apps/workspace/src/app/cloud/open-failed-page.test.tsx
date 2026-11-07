@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 
+import { implement } from "@orpc/server";
+import { RPCHandler } from "@orpc/server/fetch";
+import { V1_RPC_PATH, v1Contract } from "@repo/contract/cloud/v1";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { APP_COMMANDS } from "../../shell/ipc-contract";
-import type { ShellConfig } from "../../shell/shell-config";
+import type { KeptCredential, ShellConfig } from "../../shell/shell-config";
 import { ShellError } from "../../shell/shell-error";
 import { clearShell, mockShell, reply } from "../../shell/test-support/mock-shell";
 import { OpenFailedPage } from "./open-failed-page";
@@ -14,6 +17,8 @@ import { createPageQueryClient } from "./v1";
 afterEach(() => {
   cleanup();
   clearShell();
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 const CONFIG: ShellConfig = {
@@ -21,6 +26,11 @@ const CONFIG: ShellConfig = {
   deviceName: "Studio Mac",
   filesOrigin: "inteligir-files://localhost",
   version: "0.6.0",
+};
+const KEPT: KeptCredential = {
+  credential: `igd_${"d".repeat(64)}`,
+  email: "owner@example.com",
+  userId: "user-1",
 };
 
 // what the shell rejects with when it cannot do what it was asked (src-tauri/src/error.rs)
@@ -45,7 +55,9 @@ const openingRefused = async (): Promise<ShellError> => {
 };
 
 // the library as the window opens it with a Keychain that said no, drawn as the window draws it
-const openedOverARefusingKeychain = async (forget: () => Promise<null> | null) => {
+const openedOverARefusingKeychain = async (
+  forget: () => Promise<KeptCredential | null> | KeptCredential | null,
+) => {
   mockShell(
     reply(APP_COMMANDS.config)(() => CONFIG),
     reply(APP_COMMANDS.credential.restore)(
@@ -103,5 +115,93 @@ describe("a library the shell could not open", () => {
       screen.queryByText("The copy of your library on this Mac couldn't be opened."),
     ).toBeNull();
     expect(reload).not.toHaveBeenCalled();
+  });
+});
+
+// the cloud's sign-out over a real RPCHandler, naming the bearer that asked, as the Mac's fetch
+// reaches it
+const cloudAnswering = (signedOut: (bearer: string | null) => void) => {
+  const os = implement(v1Contract).$context<{ readonly authorization: string | null }>();
+  const cloud = new RPCHandler({
+    account: {
+      signOut: os.account.signOut.handler(({ context }) => {
+        signedOut(context.authorization);
+        return { revoked: true };
+      }),
+    },
+  });
+  vi.stubGlobal("fetch", async (request: Request) => {
+    const { response } = await cloud.handle(request, {
+      context: { authorization: request.headers.get("authorization") },
+      prefix: V1_RPC_PATH,
+    });
+    return response ?? new Response(null, { status: 404 });
+  });
+};
+
+describe("signing out of a library that would not open", () => {
+  it("gives the device back once the shell let the credential go, so its slot is free", async () => {
+    const order: string[] = [];
+    cloudAnswering((bearer) => {
+      order.push(`revoked ${String(bearer)}`);
+    });
+    const reload = await openedOverARefusingKeychain(() => {
+      order.push("forgotten");
+      return KEPT;
+    });
+    reload.mockImplementation(() => {
+      order.push("reloaded");
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    await vi.waitFor(() => {
+      expect(reload).toHaveBeenCalledOnce();
+    });
+    expect(order).toStrictEqual(["forgotten", `revoked Bearer ${KEPT.credential}`, "reloaded"]);
+  });
+
+  it("asks the cloud nothing when the shell held no credential to give back", async () => {
+    const revoked = vi.fn<() => void>();
+    cloudAnswering(revoked);
+    const reload = await openedOverARefusingKeychain(() => null);
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    await vi.waitFor(() => {
+      expect(reload).toHaveBeenCalledOnce();
+    });
+    expect(revoked).not.toHaveBeenCalled();
+  });
+
+  it("opens on the sign-in all the same with no connection", async () => {
+    vi.stubGlobal("fetch", async () => await Promise.reject(new TypeError("the Mac is offline")));
+    const reload = await openedOverARefusingKeychain(() => KEPT);
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    await vi.waitFor(() => {
+      expect(reload).toHaveBeenCalledOnce();
+    });
+  });
+
+  it("waits only a moment on a cloud that never answers", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    let asked = false;
+    vi.stubGlobal(
+      "fetch",
+      async (request: Request) =>
+        // oxlint-disable-next-line promise/avoid-new -- a call that ends only when it is called off, which only a promise's reject can say
+        await new Promise<Response>((_resolve, reject) => {
+          asked = true;
+          request.signal.addEventListener("abort", () => {
+            reject(new DOMException("called off", "AbortError"));
+          });
+        }),
+    );
+    const reload = await openedOverARefusingKeychain(() => KEPT);
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    await vi.waitFor(() => {
+      expect(asked).toBe(true);
+    });
+    expect(reload).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(60_000);
+    await vi.waitFor(() => {
+      expect(reload).toHaveBeenCalledOnce();
+    });
   });
 });

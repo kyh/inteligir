@@ -93,11 +93,15 @@ impl Account {
     }
 
     /// Signs this Mac out: the credential, the replica's file and every file of the account go.
-    pub fn forget(&self) -> ShellResult<()> {
+    /// Answers the credential let go, for a page whose library never opened to give its device
+    /// back; a Keychain that will not read it stops none of the rest.
+    pub fn forget(&self) -> ShellResult<Option<DeviceCredential>> {
+        let kept = self.credentials.read().unwrap_or_default();
         self.close();
         file_cache::remove_dir_if_there(&self.library_dir)?;
         self.files.clear()?;
-        self.credentials.forget()
+        self.credentials.forget()?;
+        Ok(kept)
     }
 }
 
@@ -185,7 +189,8 @@ mod tests {
         let bytes = b"a staged photo";
         let sha = file_cache::sha_of(bytes);
         account.files().stage(&sha, bytes, "image/png")?;
-        account.forget()?;
+        assert_eq!(account.forget()?, Some(signed_in()));
+        assert_eq!(account.forget()?, None);
         assert_eq!(bearer_of(&account), None);
         assert!(!dir.path().join("library").exists());
         assert_eq!(account.files().staged(&sha)?, None);
@@ -277,7 +282,7 @@ mod tests {
                 .map_err(|error| ShellError::Invalid(error.to_string()))
                 .and_then(|()| account.forget());
             let _ = answer.send(());
-            left.map(|()| fetching.join())
+            left.map(|_| fetching.join())
         })?
         .map_err(|_| ShellError::Invalid("the fetch panicked".to_owned()))?;
         let _ = serving.join();

@@ -3,16 +3,12 @@
 // library; a credential nobody could keep is given back, so it holds no slot of the account's
 // device cap. The browser tab has no screen of this: it signs in on the site.
 
-import { createORPCClient } from "@orpc/client";
-import { RPCLink } from "@orpc/client/fetch";
 import {
   normalizeDeviceName,
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
 } from "@repo/contract/cloud/device/device-schema";
 import type { DeviceLoginResponse } from "@repo/contract/cloud/device/device-schema";
-import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
-import type { V1Client } from "@repo/contract/cloud/v1";
 import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
@@ -25,7 +21,7 @@ import type { ShellConfig } from "../../shell/shell-config";
 import { shellCredential } from "../../shell/shell-commands";
 import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { NEEDS_CONNECTION } from "./needs-connection";
-import { macTransport } from "./shell-library";
+import { giveBackDevice, macClient } from "./shell-library";
 import { shellTroubleText } from "./shell-trouble";
 
 const DID_NOT_WORK = "That didn't work. Try again.";
@@ -40,17 +36,6 @@ interface Typed {
   readonly password: string;
 }
 
-const clientOf = (config: ShellConfig, credential: string | null): V1Client => {
-  const transport = macTransport(config, credential);
-  return createORPCClient<V1Client>(
-    new RPCLink({
-      fetch: async (url, init) => await transport.fetch(new Request(url, init)),
-      origin: transport.origin,
-      url: V1_RPC_PATH,
-    }),
-  );
-};
-
 // the credential and its account kept in the Keychain; one the shell could not keep is signed out
 // again, its slot given back, and the shell's own words said
 const keepSignIn = async (config: ShellConfig, answer: DeviceLoginResponse): Promise<void> => {
@@ -63,17 +48,13 @@ const keepSignIn = async (config: ShellConfig, answer: DeviceLoginResponse): Pro
       },
     });
   } catch (error) {
-    try {
-      await clientOf(config, answer.credential).account.signOut();
-    } catch {
-      // the cloud did not take the sign-out either; the device list shows the slot to free
-    }
+    await giveBackDevice(config, answer.credential);
     throw error;
   }
 };
 
 const signIn = async (config: ShellConfig, typed: Typed): Promise<DeviceLoginResponse> => {
-  const { account } = clientOf(config, null);
+  const { account } = macClient(config, null);
   // this Mac's host name, which can be longer than the cloud keeps
   const deviceName = normalizeDeviceName(config.deviceName);
   const answer =

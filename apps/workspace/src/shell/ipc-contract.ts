@@ -62,8 +62,9 @@ const bytesSchema = z.instanceof(ArrayBuffer).transform((buffer) => new Uint8Arr
 export const APP_COMMANDS = {
   config: route("shell_config", noArgs, shellConfigSchema),
   credential: {
-    // signs this Mac out: the credential, the replica's file and every file of the account go
-    forget: route("credential_forget", noArgs, done),
+    // signs this Mac out: the credential, the replica's file and every file of the account go;
+    // answers the credential let go, null when none could be read
+    forget: route("credential_forget", noArgs, keptCredentialSchema.nullable()),
     keep: route("credential_keep", z.strictObject({ credential: keptCredentialSchema }), done),
     // the credential a sign-in kept, with its account's replica open; null when signed out
     restore: route("credential_restore", noArgs, keptCredentialSchema.nullable()),
