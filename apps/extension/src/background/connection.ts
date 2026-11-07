@@ -79,7 +79,7 @@ export interface ConnectDeps {
 }
 
 // a revoke the cloud did not take leaves a device the devices page can revoke
-const revokeQuietly = async (deps: ConnectDeps, connection: Connection): Promise<void> => {
+export const revokeQuietly = async (deps: ConnectDeps, connection: Connection): Promise<void> => {
   try {
     await deps.revoke(connection);
   } catch {

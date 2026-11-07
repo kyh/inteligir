@@ -16,7 +16,7 @@ import { DEV_CLOUD_ORIGIN, flavorOfMode } from "../manifest";
 import { showOutcome, showSaving } from "../background/badge";
 import { captureTab, fetchCover } from "../background/capture-tab";
 import { cloudOf } from "../background/cloud";
-import { readConnection } from "../background/connection";
+import { readConnection, revokeQuietly } from "../background/connection";
 import type { Connection } from "../background/connection";
 import { connectPageListener, ownPagesListener } from "../background/listeners";
 import { MENU_ITEMS, menuAction } from "../background/menus";
@@ -86,12 +86,8 @@ const status = async (): Promise<Status> => {
   };
 };
 
-const revokeQuietly = async (connection: Connection): Promise<void> => {
-  try {
-    await cloudFor(connection).signOut();
-  } catch {
-    // a revoke the cloud did not take leaves a device the devices page can revoke
-  }
+const revoke = async (connection: Connection): Promise<void> => {
+  await cloudFor(connection).signOut();
 };
 
 const answer = async (request: ExtensionRequest): Promise<WorkerAnswer> => {
@@ -116,8 +112,7 @@ const answer = async (request: ExtensionRequest): Promise<WorkerAnswer> => {
       const connection = await readConnection();
       if (connection !== null) {
         await signedOut(connection.deviceId);
-        // best effort, never waited on by what the page shows
-        void revokeQuietly(connection);
+        void revokeQuietly({ revoke }, connection);
       }
       return await status();
     }
@@ -206,9 +201,7 @@ export default defineBackground({
         answered: async () => {
           await sendQueued(sendDeps);
         },
-        revoke: async (connection) => {
-          await cloudFor(connection).signOut();
-        },
+        revoke,
       }),
     );
     browser.contextMenus.onClicked.addListener((info, tab) => {
