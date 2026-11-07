@@ -2,7 +2,7 @@ import { agentViewContextSchema } from "@repo/contract/cloud/library/library-wir
 import { LIBRARY_SELECTION_MAX } from "@repo/domain/library-scope";
 import { describe, expect, it } from "vitest";
 
-import { composerPlaceholder, sendInput, viewContextOf } from "./agent-send";
+import { composerPlaceholder, quotePassage, sendInput, viewContextOf } from "./agent-send";
 import { TIDY_PLACEHOLDER, TIDY_VIEW_CONTEXT, tidyMessage } from "./tidy-library";
 
 const ITEM = "0199a4c2-0000-7000-8000-0000000000a1";
@@ -79,6 +79,13 @@ describe("what the composer sends", () => {
       text: tidyMessage("Skip recipes"),
       viewContext: TIDY_VIEW_CONTEXT,
     });
+  });
+
+  it("quotes a passage the person asked about, on lines of its own and once", () => {
+    const quote = "> first\n> second\n\n";
+    expect(quotePassage("", "first\nsecond")).toBe(quote);
+    expect(quotePassage("Compare these.\n", "first\nsecond")).toBe(`Compare these.\n\n${quote}`);
+    expect(quotePassage(quote, "first\nsecond")).toBe(quote);
   });
 
   it("says what the field asks for", () => {

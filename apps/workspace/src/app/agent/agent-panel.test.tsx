@@ -57,6 +57,8 @@ const panel = (
     flushOpen={flushOpen}
     tidying={false}
     onTidyEnd={vi.fn<() => void>()}
+    passage={null}
+    onPassageTaken={vi.fn<() => void>()}
   />
 );
 
@@ -148,6 +150,8 @@ describe("the agent panel's conversation", () => {
         })}
         tidying
         onTidyEnd={onTidyEnd}
+        passage={null}
+        onPassageTaken={vi.fn<() => void>()}
       />,
       library,
     );

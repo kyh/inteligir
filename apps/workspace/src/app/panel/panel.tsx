@@ -33,6 +33,9 @@ export interface PanelProps {
   // the agent's composer holds Tidy my library's request
   readonly tidying: boolean;
   readonly onTidyEnd: () => void;
+  readonly passage: string | null;
+  readonly onPassageTaken: () => void;
+  readonly namedHighlights: readonly string[];
 }
 
 const NoItem = () => (
@@ -51,6 +54,9 @@ export const Panel = ({
   flushOpen,
   tidying,
   onTidyEnd,
+  passage,
+  onPassageTaken,
+  namedHighlights,
 }: PanelProps) => (
   <Tabs
     value={tab}
@@ -76,7 +82,7 @@ export const Panel = ({
       )}
     </TabsContent>
     <TabsContent value="annotations" className="min-h-0 flex-1 overflow-y-auto">
-      {itemId === null ? <NoItem /> : <AnnotationsTab itemId={itemId} />}
+      {itemId === null ? <NoItem /> : <AnnotationsTab itemId={itemId} named={namedHighlights} />}
     </TabsContent>
     <TabsContent value="history" className="min-h-0 flex-1 overflow-y-auto">
       {itemId === null ? <NoItem /> : <HistoryTab itemId={itemId} flushOpen={flushOpen} />}
@@ -89,6 +95,8 @@ export const Panel = ({
         flushOpen={flushOpen}
         tidying={tidying}
         onTidyEnd={onTidyEnd}
+        passage={passage}
+        onPassageTaken={onPassageTaken}
       />
     </TabsContent>
   </Tabs>

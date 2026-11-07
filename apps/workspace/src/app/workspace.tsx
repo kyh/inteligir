@@ -147,6 +147,9 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const [threadId, setThreadId] = useState<string | null>(null);
   // the agent's composer holds Tidy my library's request, on a conversation of its own
   const [tidying, setTidying] = useState(false);
+  // a passage the editor asked the agent about, until the composer takes it
+  const [passage, setPassage] = useState<string | null>(null);
+  const [namedHighlights, setNamedHighlights] = useState<readonly string[]>([]);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moveRequest, setMoveRequest] = useState<MoveRequest | null>(null);
   const [tagRequest, setTagRequest] = useState<TagRequest | null>(null);
@@ -199,9 +202,16 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const tidyOffered = counts !== undefined && counts.unsorted + counts.untagged > 0;
 
   // the editor's host, made once for the page: links open items, the chord's highlight lands on
-  // the item open now, and "Ask the agent" opens the panel's composer
-  const hostAsks = useEffectEvent((ask: "agent" | "annotations") => {
-    revealPanel(ask);
+  // the item open now, "Ask the agent" quotes the passage in the panel's composer, and a click on
+  // a highlight opens Highlights on it
+  const hostAsksAgent = useEffectEvent((asked: string) => {
+    setTidying(false);
+    revealPanel("agent");
+    setPassage(asked);
+  });
+  const hostNamesHighlights = useEffectEvent((ids: readonly string[]) => {
+    revealPanel("annotations");
+    setNamedHighlights([...ids]);
   });
   const hostOpens = useEffectEvent((itemId: string) => {
     open(itemId);
@@ -212,12 +222,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   });
   useEffect(() => {
     const host = installPageEditorHost({
-      askAgent: () => {
-        hostAsks("agent");
-      },
-      openAnnotations: () => {
-        hostAsks("annotations");
-      },
+      askAgent: hostAsksAgent,
+      openAnnotations: hostNamesHighlights,
       openItem: hostOpens,
       readFile,
       replica,
@@ -707,6 +713,11 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                   onTidyEnd={() => {
                     setTidying(false);
                   }}
+                  passage={passage}
+                  onPassageTaken={() => {
+                    setPassage(null);
+                  }}
+                  namedHighlights={namedHighlights}
                   viewContext={viewContext}
                   flushOpen={async () => {
                     await sessionRef.current?.flush();

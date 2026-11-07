@@ -159,8 +159,9 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
 
 - **THE PANEL STARTS CLOSED, IS FLAT-TABBED, AND IS DRAGGED LIKE THE RAIL.**
   `panelOpen` defaults off, and every entry that shows something in it opens it
-  on its tab. The tabs are Info, Highlights and History, about the open item or
-  else the one card selected, and the Agent, about the whole library. The width
+  on its tab, a click on a highlight on Highlights with that one ringed and in
+  view. The tabs are Info, Highlights and History, about the open item or else
+  the one card selected, and the Agent, about the whole library. The width
   persists through the rail's own resize handle (`panelWidth` in `app/prefs.ts`).
   Rejected: a second resize mechanism. `apps/workspace/src/app/panel/panel.tsx`,
   `apps/workspace/src/app/workspace.tsx`.
@@ -272,7 +273,9 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   never stored. A send carries the screen it leaves from (the open item, or the
   scope and the selection; none from Deleted); an approval's Approve or Cancel
   answers `library.agent.respond` naming the event that asked; the day's
-  allowance and an agent switched off are said in the person's words. Under
+  allowance and an agent switched off are said in the person's words. A
+  selection's Ask agent quotes the passage under what the composer holds, and
+  the field takes the keyboard for the question. Under
   each finished turn "Undo this turn" takes its change set back, and "Undo this
   conversation" every one of the conversation's, both after the open item's
   unsaved edit is written: the sets are read from every page the cell answers,
