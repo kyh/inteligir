@@ -408,7 +408,9 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   SESSION.** It reads Better Auth's session, or sends the person to sign in
   and back, the sign-in returning by a document load since the site's router
   holds no such page; the provider parses the request, binds the form to the
-  browser by a cookie and keeps the request server-side until the answer.
+  browser by a cookie and keeps the request server-side until the answer, so
+  the form carries the account it named and an Allow from any other session is
+  refused, since a browser can change accounts while the page stays open.
   The page runs no script (`default-src 'none'`, no framing), escapes every
   field a client sent, says where access is sent and warns of a loopback
   address, and asks to "read and change your library". Rejected: a Start route

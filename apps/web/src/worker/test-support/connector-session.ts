@@ -77,7 +77,8 @@ export const authorizeUrl = (
 
 export interface ConsentShown {
   readonly html: string;
-  readonly handle: string;
+  // the form's hidden fields, as a browser posts them back
+  readonly fields: Readonly<Record<string, string>>;
   // the person's session and the cookie binding the form to this browser
   readonly cookie: string;
   readonly response: Response;
@@ -88,11 +89,12 @@ export const showConsent = async (cookie: string, url: string): Promise<ConsentS
   const response = await workerFetch(url, { headers: { cookie } });
   const html = await response.text();
   expect(response.status, html).toBe(200);
-  const handle = /name="handle" value="(?<handle>[^"]+)"/u.exec(html)?.groups?.handle;
-  if (handle === undefined) {
-    throw new Error("the consent page carries no form handle");
-  }
-  return { cookie: `${cookie}; ${cookieHeaderOf(response)}`, handle, html, response };
+  const fields = Object.fromEntries(
+    [...html.matchAll(/type="hidden" name="(?<name>[^"]+)" value="(?<value>[^"]+)"/gu)].map(
+      (field) => [field.groups?.name, field.groups?.value],
+    ),
+  );
+  return { cookie: `${cookie}; ${cookieHeaderOf(response)}`, fields, html, response };
 };
 
 // the person's answer, and where the page sends the browser after it
@@ -101,7 +103,7 @@ export const answerConsent = async (
   shown: ConsentShown,
   answer: { readonly decision: "allow" | "deny"; readonly readOnly?: boolean },
 ): Promise<URL> => {
-  const form = new URLSearchParams({ decision: answer.decision, handle: shown.handle });
+  const form = new URLSearchParams({ ...shown.fields, decision: answer.decision });
   if (answer.readOnly === true) {
     form.set("access", "read");
   }

@@ -224,12 +224,46 @@ describe("the connector's sign-in", () => {
     const shown = await showConsent(cookie, url);
     await answerConsent(url, shown, { decision: "allow" });
     const again = await workerFetch(url, {
-      body: new URLSearchParams({ decision: "allow", handle: shown.handle }),
+      body: new URLSearchParams({ ...shown.fields, decision: "allow" }),
       headers: { cookie: shown.cookie },
       method: "POST",
     });
     expect(again.status).toBe(400);
     await expect(again.text()).resolves.toContain("This link expired or was already used.");
+  });
+
+  it("lets no assistant in on an Allow from another account than the page named", async () => {
+    const named = await signUpUser("connector-named@example.test");
+    const other = await signUpUser("connector-other@example.test");
+    const clientId = await registerClient();
+    const { challenge } = await pkcePair();
+    const url = authorizeUrl(clientId, challenge, "state-3");
+    const shown = await showConsent(named.cookie, url);
+    expect(shown.html).toContain("connector-named@example.test");
+
+    // signed in to the other account in another tab, with this page still open
+    const switched = shown.cookie.replace(named.cookie, other.cookie);
+    const allowed = await workerFetch(url, {
+      body: new URLSearchParams({ ...shown.fields, decision: "allow" }),
+      headers: { cookie: switched },
+      method: "POST",
+      redirect: "manual",
+    });
+    expect(allowed.status).toBe(403);
+    await expect(allowed.text()).resolves.toContain("signed in to a different account");
+    const device = await loginDevice(other.cookie, "Laptop");
+    const listed = await accountClient(device.credential).account.assistants.list();
+    expect(listed.assistants).toStrictEqual([]);
+
+    // refusing lets nobody in, so that answer counts from whoever gives it
+    const redirect = await answerConsent(
+      url,
+      { ...shown, cookie: switched },
+      {
+        decision: "deny",
+      },
+    );
+    expect(redirect.searchParams.get("error")).toBe("access_denied");
   });
 
   it("keeps a grant the person kept to reading to the read scope", async () => {

@@ -57,11 +57,11 @@ export interface ConsentQuestion {
   readonly details: ConsentDescription;
   // the consent transaction this form posts back, bound to this browser
   readonly handle: string;
-  // whose library the person is signed in to
-  readonly email: string;
+  // whose library the page asks about, by the address it names and the id the answer must match
+  readonly account: { readonly email: string; readonly id: string };
 }
 
-export const consentPage = ({ details, email, handle }: ConsentQuestion): string => {
+export const consentPage = ({ account, details, handle }: ConsentQuestion): string => {
   const name = escapeHtml(details.clientName);
   const publisher =
     details.clientDomain === undefined
@@ -73,11 +73,12 @@ export const consentPage = ({ details, email, handle }: ConsentQuestion): string
   return documentOf(
     `Connect ${details.clientName} to your library`,
     `<h1>Allow ${name} to read and change your library?</h1>
-<p>${name} will be able to search and read everything in the library you're signed in to as <strong>${escapeHtml(email)}</strong>, save links, write notes and change your items. Each change it makes shows in History, where you can undo it.</p>
+<p>${name} will be able to search and read everything in the library you're signed in to as <strong>${escapeHtml(account.email)}</strong>, save links, write notes and change your items. Each change it makes shows in History, where you can undo it.</p>
 <p class="muted">${publisher} Access is sent to <strong>${escapeHtml(details.redirectHost)}</strong>.</p>
 ${local}
 <form method="post">
 <input type="hidden" name="handle" value="${escapeHtml(handle)}">
+<input type="hidden" name="account" value="${escapeHtml(account.id)}">
 <label><input type="checkbox" name="access" value="read"> Only let it read the library</label>
 <div class="actions">
 <button type="submit" name="decision" value="allow">Allow</button>
