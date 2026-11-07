@@ -47,7 +47,7 @@ import type { CapturedLink, CapturePayload } from "./library/capture/capture-pay
 import { useWindowCapture } from "./library/capture/window-capture";
 import { MoveDialog, NameDialog, TagDialog } from "./library/item-dialogs";
 import type { MoveRequest, NameRequest, TagRequest } from "./library/item-dialogs";
-import type { LibraryItemActions } from "./library/item-menu";
+import type { LibraryGridActions } from "./library/item-menu";
 import { createLibrarySelection } from "./library/library-selection";
 import {
   createFolder,
@@ -526,7 +526,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       return row === null ? [] : [row];
     });
 
-  const actions: LibraryItemActions = {
+  const actions: LibraryGridActions = {
     askAgent: (rows) => {
       selection.apply({ kind: "all", order: rows.map((row) => row.id) });
       revealPanel("agent");
@@ -545,9 +545,6 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       );
     },
     purge,
-    quickLook: () => {
-      // the grid draws its own Quick Look
-    },
     refresh: (row) => {
       refreshCall.mutate({ id: row.id });
     },

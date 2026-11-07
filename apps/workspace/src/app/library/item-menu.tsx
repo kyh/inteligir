@@ -26,6 +26,9 @@ export interface LibraryItemActions {
   readonly purge: (rows: readonly ReplicaListingRow[]) => void;
 }
 
+// what the grid's owner answers: the grid draws its own Quick Look
+export type LibraryGridActions = Omit<LibraryItemActions, "quickLook">;
+
 export interface ItemMenuState {
   readonly row: ReplicaListingRow;
   readonly anchor: HTMLElement;

@@ -23,7 +23,7 @@ import { TIDY_LABEL } from "@repo/agent-panel/tidy-library";
 import { LIBRARY_SORTS } from "../prefs";
 import type { LibrarySort } from "../prefs";
 import { formatCount } from "./item-labels";
-import type { LibraryItemActions } from "./item-menu";
+import type { LibraryGridActions } from "./item-menu";
 import { KindChips } from "./kind-chips";
 import { LibraryGrid } from "./library-grid";
 import type { LibrarySelectionStore } from "./library-selection";
@@ -57,7 +57,7 @@ export interface LibraryViewProps {
   readonly sort: LibrarySort;
   readonly onSortChange: (sort: LibrarySort) => void;
   readonly selection: LibrarySelectionStore;
-  readonly actions: LibraryItemActions;
+  readonly actions: LibraryGridActions;
   readonly add: LibraryAdd;
   readonly onEmptyDeleted: () => void;
   // offered while the library holds items to file or tag

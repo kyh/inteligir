@@ -15,7 +15,7 @@ import { useStore } from "zustand";
 import { useNow } from "../relative-time";
 import { ItemCard } from "./item-card";
 import { ItemMenu } from "./item-menu";
-import type { ItemMenuState, LibraryItemActions } from "./item-menu";
+import type { ItemMenuState, LibraryGridActions } from "./item-menu";
 import { libraryShortcutFor } from "./library-keys";
 import type { LibraryAction } from "./library-keys";
 import type { LibrarySelectionStore, MoveDelta } from "./library-selection";
@@ -39,7 +39,7 @@ const MOVES: Partial<Record<LibraryAction, { delta: MoveDelta; extend: boolean }
 export interface LibraryGridProps {
   readonly rows: readonly ReplicaListingRow[];
   readonly selection: LibrarySelectionStore;
-  readonly actions: LibraryItemActions;
+  readonly actions: LibraryGridActions;
 }
 
 export const LibraryGrid = ({ rows, selection, actions }: LibraryGridProps) => {
