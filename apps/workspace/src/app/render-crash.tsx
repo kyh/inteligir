@@ -1,19 +1,24 @@
 // Wired as the router's `defaultErrorComponent`, not the root route's `errorComponent`: a route's
 // boundary is its own `errorComponent ?? default`, so the root route alone would leave every child
 // unguarded. It says what the crash left as it was: whatever reached the library is safe there,
-// and what the tab had not sent yet lives only in it, so Try again keeps it and a reload, which
-// the browser asks about first (`cloud/leave-guard.ts`), loses it.
+// what the tab had not sent yet lives only in it, so Try again keeps it and a reload, which the
+// browser asks about first (`cloud/leave-guard.ts`), loses it, and what the Mac had not sent waits
+// on its disk through either.
 
 import type { ErrorComponentProps } from "@tanstack/react-router";
 
+import { underShell } from "../shell/shell-commands";
 import { useReplicaStatus } from "./cloud/library-context";
 
 const unsentWords = (unsent: number): string => {
   if (unsent === 0) {
     return "Everything you changed has reached your library. Try again, or reload the page.";
   }
-  const held = unsent === 1 ? "One change hasn't" : `${String(unsent)} changes haven't`;
-  return `${held} reached your library yet. Try again keeps it; reloading the page now loses it.`;
+  const [held, them] =
+    unsent === 1 ? ["One change hasn't", "it"] : [`${String(unsent)} changes haven't`, "them"];
+  return underShell()
+    ? `${held} reached your library yet, and this Mac keeps ${them} either way. Try again, or reload the page.`
+    : `${held} reached your library yet. Try again keeps ${them}; reloading the page now loses ${them}.`;
 };
 
 export const RenderCrash = ({ error, reset }: ErrorComponentProps) => {
