@@ -553,14 +553,24 @@ account whose library holds about 2,000 items gives the timing check its load.
   library already holds. Passing: it joins that item, with no second card. From
   Notes, share `Look at this https://bit.ly/…`. Passing: the page names the item
   and "Look at this" is its note.
+- **A wall at a shared address.** With the Mac's extension, signed in, save a
+  story behind a sign-in, so its article lands. Let the iPhone pull it. From
+  Notes on the iPhone, share `Worth a second read <that address>`. Passing: the
+  item keeps its article, with no sign-in text in it, and "Worth a second read"
+  is its note. From Safari, share a signed-in page the library does not hold
+  whose address sends a phone with no cookies to its sign-in. Passing: the item
+  keeps the address Safari shared and Safari's title, not the sign-in page's.
+  Vitest proves the rule over a scripted redirect, but only a device meets a
+  real wall and Safari's real title.
 - **A shared address to its last character.** Share
   `https://en.wikipedia.org/wiki/Oklahoma!` from Safari. Passing: the item's
-  address keeps the `!` and it reads as the musical. Vitest reads the library's
-  search out of its build, but only a device runs the Swift handoff.
+  address keeps the `!` and it reads as the musical. Vitest reads
+  expo-share-intent's search out of its build, but only a device runs the
+  Swift handoff.
 - **A link inside shared text.** From Notes, share
   `Read https://en.wikipedia.org/wiki/Mercury_(planet) tonight`. Passing: the
-  item reads the planet and "Read tonight" is its note, or its title if it saved
-  unread. Share three lines with the link on the middle one. Passing: a read
+  item reads the planet and "Read tonight" is its note, read or unread. Share
+  three lines with the link on the middle one. Passing: a read
   page's note keeps the two other lines on their own lines. Share
   `これ見て https://en.wikipedia.org/wiki/Oklahoma。次の文`. Passing: the item
   reads the state and its note is `これ見て 次の文`, which also proves the link's
@@ -808,6 +818,10 @@ account whose library holds about 2,000 items gives the timing check its load.
   outline rail sits at the window's right, its light following the heading
   under the scroll, a hover lists the headings and a click lands on one; and
   the imported pill reads 4 once the note opens.
+- **A list nested to the limit.** On a preview Worker, import a zip holding one
+  note with a list nested 128 levels and one nested 129. Passing: the first
+  lands, exports, and the agent's view reads it; the second is left out and
+  counted under "couldn't be read". Only a Worker has a Worker's stack.
 - **An equation, a diagram and a date open offline.** Open the tab, turn the
   network off, then open, for the first time since the tab loaded, an item
   holding an equation, a Mermaid diagram and a date. Passing: each draws, and

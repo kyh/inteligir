@@ -192,8 +192,9 @@ saved url's is `kindForUrl` (`@repo/notes/items/item-url`). `link`, `video`
 and `audio` are the url kinds, the only ones a fill reads.
 
 **Unsorted** — where an item filed in no folder shows: its `folderId` is null
-(the `unsorted` scope of `@repo/domain/library-scope`). Not a folder: an item
-stays Unsorted until it is filed, whatever it is tagged.
+or names a deleted folder (the `unsorted` scope of
+`@repo/domain/library-scope`). Not a folder: an item stays Unsorted until it is
+filed, whatever it is tagged.
 
 **filing rules** — what the person wrote for the agent about their library, one
 row of the account's library cell (`apps/web/src/worker/library/library-rules.ts`)
