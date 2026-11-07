@@ -450,11 +450,11 @@ export const libraryRouter = os.router({
       const { changed, missing } = await committed(
         context,
         context.library.land(actor, { answer: changedSchema, opId: input.opId }, (scope) => {
-          const answer = setDeleted(scope, actor, { deleted: false, ids: input.ids });
-          for (const item of answer.landed) {
+          const restored = setDeleted(scope, actor, { deleted: false, ids: input.ids });
+          for (const item of restored.landed) {
             askReading(scope, actor, item);
           }
-          return answer;
+          return restored;
         }),
       );
       return { missing, restored: changed };

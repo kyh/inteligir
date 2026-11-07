@@ -1,9 +1,9 @@
 // The library written out as a zip of markdown (`@repo/editor/codec/export-plan`):
 // every live item one markdown file in its folder, its highlights' store beside it, every file it
 // holds once under `assets/`, the filing rules at the root. The zip lives under the account's own
-// prefix in R2, `acct/<userId>/x/<id>.zip`, so the account's deletion takes it, seven days after
-// it was written the alarm lets it go, and the device downloads it from `/v1/exports/<id>`
-// (`./export-routes`).
+// prefix in R2, `acct/<userId>/x/<id>.zip`, so the account's deletion takes it, the alarm lets it go
+// seven days after it was written or once a newer one is ready, since no quota counts a zip, and
+// the device downloads it from `/v1/exports/<id>` (`./export-routes`).
 //
 // The alarm writes it a run at a time, each run bounded by what it reads and writes, never by its
 // clock alone, which moves only while it waits on R2: first the plan, a page of items each run
@@ -535,7 +535,10 @@ const uploadOf = async (
 
 const exportIdOf = (job: DueJob): string => payloadSchema.parse(JSON.parse(job.payload)).exportId;
 
-// the export ended, ready or failed, and what its runs kept let go
+const readyIdSchema = z.object({ id: z.string() });
+
+// the export ended, ready or failed, and what its runs kept let go; false once the account is
+// going. A failed export leaves an older zip ready, and a ready one lets it go
 const endExport = (
   host: ImportHost,
   id: string,
@@ -544,20 +547,33 @@ const endExport = (
     readonly bytes: number | null;
     readonly message: string | null;
   },
-): void => {
+): boolean =>
   apart(host.library, (scope) => {
+    const sql = scope.storage;
     const expiresAt = ended.state === "ready" ? scope.now + EXPORT_KEEP_MS : null;
-    scope.storage.run(
+    if (expiresAt !== null) {
+      for (const raw of sql.all("SELECT id FROM export_jobs WHERE state = 'ready'", [])) {
+        scheduleJob(sql, expireJob(readyIdSchema.parse(raw).id), scope.now);
+      }
+    }
+    sql.run(
       `UPDATE export_jobs SET state = ?, bytes = ?, message = ?, finished_at = ?, expires_at = ?
        WHERE id = ?`,
       [ended.state, ended.bytes, ended.message, scope.now, expiresAt, id],
     );
-    dropExportRows(scope.storage, id);
-    dropJob(scope.storage, writeJob(id).id);
+    dropExportRows(sql, id);
+    dropJob(sql, writeJob(id).id);
     if (expiresAt !== null) {
-      scheduleJob(scope.storage, expireJob(id), expiresAt);
+      scheduleJob(sql, expireJob(id), expiresAt);
     }
   });
+
+// a zip in R2 ready to download; one finished after the account's files went has nothing left to
+// take it, so it goes here
+const endZip = async (host: ImportHost, id: string, bytes: number): Promise<void> => {
+  if (!endExport(host, id, { bytes, message: null, state: "ready" })) {
+    await host.env.BLOBS.delete(exportKey(host.accountId, id));
+  }
 };
 
 const RECORDS_PAGE = 1000;
@@ -569,7 +585,7 @@ const closeZip = async (host: ImportHost, job: Writing, limits: ExportLimits): P
   const key = exportKey(host.accountId, job.id);
   const done = await host.env.BLOBS.head(key);
   if (done !== null) {
-    endExport(host, job.id, { bytes: done.size, message: null, state: "ready" });
+    await endZip(host, job.id, done.size);
     return;
   }
   const { partBytes, upload } = await uploadOf(host, job, limits);
@@ -591,7 +607,7 @@ const closeZip = async (host: ImportHost, job: Writing, limits: ExportLimits): P
   );
   const last = await upload.uploadPart(job.parts + sink.uploaded.length + 1, sink.tail());
   await upload.complete([...kept, ...sink.uploaded, last]);
-  endExport(host, job.id, { bytes: sink.offset(), message: null, state: "ready" });
+  await endZip(host, job.id, sink.offset());
 };
 
 // one run of a writing export, by where it stands

@@ -365,9 +365,12 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   entries' records, the parts' etags and the bytes past its last 8 MiB part, so
   a run the platform ends is written again from there. A link is spelled from
   the items filed under the keys it tries, which a seeded property holds equal
-  to the whole plan's resolver. Rejected: one run per export (a large
-  library's CPU outruns the alarm's 30 s); an R2 lifecycle rule (by prefix
-  only); fflate (no ZIP64 writer) and zip.js (timers and a worker pool).
+  to the whole plan's resolver. A zip counts toward no quota, so an account
+  keeps one: a newer zip ready lets the older go at the alarm's next run, and a
+  failed export leaves it. Rejected: one run per export (a large library's CPU
+  outruns the alarm's 30 s); an R2 lifecycle rule (by prefix only); answering
+  an unchanged library with its ready zip (one keystroke moves the head); fflate
+  (no ZIP64 writer) and zip.js (timers and a worker pool).
   `apps/web/src/worker/library/cell-exports.ts`, `cell-export-rows.ts`,
   `packages/notes/src/knowledge/link-resolve.test.ts`.
 
