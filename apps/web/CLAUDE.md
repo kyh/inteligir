@@ -370,8 +370,8 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 
 - **THE CLOUD KEEPS A PAGE'S COVER AS THE SITE SERVED IT, AND EACH DEVICE DRAWS
   ITS OWN THUMBNAIL.** The consumer keeps the first candidate that is really a
-  picture of a cover's size whole, within `FILL_LIMITS.coverBytes`, and decodes
-  nothing. Rejected: a wasm thumbnail (a decoded picture is four bytes a
+  picture of a cover's size whole, within `FILL_LIMITS.coverBytes` and
+  `FILL_LIMITS.coverMaxPixels`, and decodes nothing. Rejected: a wasm thumbnail (a decoded picture is four bytes a
   pixel, 48 MB for 4000 by 3000, in an isolate whose heap the reading already
   uses; not measured); the Images binding (it bills every picture); a
   thumbnail made in the cell (its CPU holds every write). `apps/web/src/worker/fill/read-page.ts`,

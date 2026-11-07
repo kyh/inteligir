@@ -1,11 +1,13 @@
 // A card's cover drawn small, through the system's own image decoder (expo-image-manipulator): at
 // THUMB_WIDTH, in PNG for any source that can carry transparency (a PNG, a WebP, a GIF) and in
 // JPEG only for a JPEG, since a JPEG writes transparent pixels black. The bytes pass through a
-// cache file, since the decoder reads a file; a picture it cannot decode is no thumbnail. Only the
-// composition root imports this; it loads native modules.
+// cache file, since the decoder reads a file; a picture it cannot decode, or that is past what a
+// phone may decode, is no thumbnail. Only the composition root imports this; it loads native
+// modules.
 
 import { File, Paths } from "expo-file-system";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
+import { decodable } from "@repo/notes/items/link-fill";
 import { thumbFormatOf } from "./file-cache";
 import type { HeldFile } from "./file-cache";
 
@@ -35,6 +37,11 @@ export const shrinkToThumbnail = async (
   try {
     source.write(bytes);
     const original = await ImageManipulator.manipulate(source.uri).renderAsync();
+    // the system's own measure, for what no header reader here knows (an AVIF, a HEIC): an upright
+    // picture is not decoded until the resize below draws it
+    if (!decodable(original)) {
+      return null;
+    }
     const image =
       original.width <= THUMB_WIDTH
         ? original

@@ -4,6 +4,7 @@
 // so a link reads the same whichever device read it.
 
 import { pixelSize, sniffMedia } from "./sniff-media";
+import type { PixelSize } from "./sniff-media";
 
 const MiB = 1024 * 1024;
 
@@ -16,26 +17,34 @@ const MiB = 1024 * 1024;
 // 200 px is a pixel or an icon, never a cover. A device keeps a cover at most 640 px on its long
 // edge; the cloud keeps it as the site served it, within coverBytes, and each device draws its own
 // thumbnail from it, the spec's fallback, taken unmeasured over a wasm decoder: a decoded picture
-// is four bytes a pixel (48 MB for 4000 x 3000) in an isolate whose heap the reading already uses
+// is four bytes a pixel (48 MB for 4000 x 3000) in an isolate whose heap the reading already uses.
+// So no device decodes past coverMaxPixels, whatever the file's size, since a few bytes can name a
+// bitmap of gigabytes; the cap clears the 48-megapixel photo an iPhone takes
 export const FILL_LIMITS = {
   articleBytes: 192 * 1024,
   coverBytes: 10 * MiB,
   coverEdge: 640,
+  coverMaxPixels: 50_000_000,
   coverMinEdge: 200,
   htmlBytes: 5 * MiB,
   pageBytes: 10 * MiB,
 } as const;
 
+// whether a device may decode a picture of this size
+export const decodable = ({ height, width }: PixelSize): boolean =>
+  width * height <= FILL_LIMITS.coverMaxPixels;
+
 // a fetched cover candidate as a page's cover: the picture its bytes are, unless its header names
-// a pixel or an icon by its size; the cloud's fill and the extension, which keep a cover as the
-// site served it, judge every candidate by this
+// a pixel, an icon or more than a device may decode; the cloud's fill, the extension and the
+// phone's share, which keep a cover as the site served it, judge every candidate by this
 export const coverPicture = (bytes: Uint8Array): { readonly mime: string } | null => {
   const sniffed = sniffMedia(bytes);
   if (sniffed?.kind !== "image") {
     return null;
   }
   const size = pixelSize(bytes, sniffed.mediaType);
-  return size !== null && Math.max(size.width, size.height) < FILL_LIMITS.coverMinEdge
+  return size !== null &&
+    (Math.max(size.width, size.height) < FILL_LIMITS.coverMinEdge || !decodable(size))
     ? null
     : { mime: sniffed.mediaType };
 };

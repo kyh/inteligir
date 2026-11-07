@@ -1,4 +1,5 @@
 import type { FillAnswer, FillJob } from "@repo/editor-bridge/protocol";
+import { fileSha } from "@repo/library-replica/library-replica";
 import { createFakeCell } from "@repo/library-replica/test-support/fake-cell";
 import type { FakeCell } from "@repo/library-replica/test-support/fake-cell";
 import { openDevice, paragraph, textOf } from "@repo/library-replica/test-support/replica-harness";
@@ -41,6 +42,16 @@ const servingPage: PageFetch = async (request) =>
   });
 
 const offline: PageFetch = async () => await Promise.reject(new TypeError("the phone is offline"));
+
+// a PNG's signature and IHDR, which name its size whatever the rest of the file holds
+const pngOf = (width: number, height: number): Uint8Array<ArrayBuffer> => {
+  const head = new Uint8Array(24);
+  head.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const view = new DataView(head.buffer);
+  view.setUint32(16, width);
+  view.setUint32(20, height);
+  return head;
+};
 
 const noteOf = (cell: FakeCell, id: string): string[] =>
   [...(cell.item(id)?.blocks.values() ?? [])]
@@ -118,6 +129,48 @@ describe("a share, saved", () => {
     );
     await device.replica.sync();
     expect(noteOf(cell, saved?.kind === "saved" ? saved.made.id : "")).toStrictEqual([]);
+  });
+
+  it("judges a shared page's cover as every device does, passing over one too big to decode", async () => {
+    const { cell, device, newBlockId } = await phone();
+    const pictures = new Map([
+      ["https://stephango.com/big.png", pngOf(30_000, 30_000)],
+      ["https://stephango.com/cover.png", pngOf(1200, 630)],
+    ]);
+    const fetch: PageFetch = async (request) => {
+      const picture = pictures.get(request.url);
+      return picture === undefined
+        ? await servingPage(request)
+        : await Promise.resolve({
+            ok: true,
+            page: {
+              bytes: picture,
+              charset: null,
+              declaredBytes: null,
+              mediaType: "image/png",
+              truncated: false,
+              url: request.url,
+            },
+          });
+    };
+    const saved = await saveShared(
+      {
+        newBlockId,
+        ports: {
+          fetch,
+          read: async () =>
+            await Promise.resolve({
+              ...READ,
+              facts: { ...READ.facts, images: [...pictures.keys()] },
+            }),
+        },
+        replica: device.replica,
+      },
+      { kind: "link", note: null, title: null, url: URL },
+    );
+    await device.replica.sync();
+    const id = saved?.kind === "saved" ? saved.made.id : "";
+    expect(cell.item(id)?.fields.coverSha).toBe(fileSha(pngOf(1200, 630)));
   });
 
   it("saves the link for the cloud to read when the phone cannot read it now", async () => {

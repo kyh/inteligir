@@ -116,8 +116,9 @@ A file is kept by its hash (`src/files/file-cache.ts`), fetched once however
 many screens ask: a staged upload, and a file a live note of the person's
 embeds, are pinned in Documents, out of the device backup; every other file is
 in `Paths.cache`, stamped as used and dropped oldest first past the cap, and a
-file over 512 KB lists from a 320 px thumbnail made once. An upload whose write
-landed is kept as a fetched file is. A screen draws a file as an item's own,
+file over 512 KB lists from a 320 px thumbnail made once. A picture past what a
+phone may decode shows the card's placeholder. An upload whose write landed is
+kept as a fetched file is. A screen draws a file as an item's own,
 its card's cover or its viewer's original, and the item page draws one a note
 names from the cache over its bridge (`readFile`), as the type it was kept or
 served as, and keeps one pasted into the text through the replica

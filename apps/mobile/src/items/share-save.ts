@@ -11,8 +11,7 @@ import { base64FromBytes } from "@repo/contract/cloud/bytes";
 import type { FillAnswer, FillJob } from "@repo/editor-bridge/protocol";
 import type { LibraryReplica, Made, PageInput } from "@repo/library-replica/library-replica";
 import { namesPrivateSpace } from "@repo/notes/items/host-names";
-import { FILL_LIMITS, isPageType } from "@repo/notes/items/link-fill";
-import { pixelSize, sniffMedia } from "@repo/notes/items/sniff-media";
+import { coverPicture, FILL_LIMITS, isPageType } from "@repo/notes/items/link-fill";
 import { fieldLine, savedFacts } from "@repo/notes/items/saved-facts";
 import type { PageFetch } from "./page-fetch";
 import { createPhoneSaves } from "./phone-saves";
@@ -28,10 +27,6 @@ export interface ShareReadPorts {
 
 const PAGE_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
 const COVER_ACCEPT = "image/webp,image/png,image/jpeg,image/gif;q=0.8,*/*;q=0.5";
-
-// a picture whose header says it is at most this many pixels: a small file can name a bitmap of
-// gigabytes, which drawing its thumbnail would decode
-const DECODE_MAX_PIXELS = 40_000_000;
 
 // the first candidate that is really a picture of a cover's size, kept whole as the site served it;
 // a page in private space may name a cover there, a public one never
@@ -55,15 +50,9 @@ const coverOf = async (
       continue;
     }
     const { bytes } = fetched.page;
-    const sniffed = sniffMedia(bytes);
-    const size = sniffed === null ? null : pixelSize(bytes, sniffed.mediaType);
-    if (
-      sniffed?.kind === "image" &&
-      size !== null &&
-      size.width * size.height <= DECODE_MAX_PIXELS &&
-      Math.max(size.width, size.height) >= FILL_LIMITS.coverMinEdge
-    ) {
-      return { bytes: new Uint8Array(bytes), mime: sniffed.mediaType };
+    const cover = coverPicture(bytes);
+    if (cover !== null) {
+      return { bytes: new Uint8Array(bytes), mime: cover.mime };
     }
   }
   return null;

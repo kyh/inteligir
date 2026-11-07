@@ -6,8 +6,9 @@
 // first past the cap. A file this phone added waits, staged, until the write that names it lands
 // (the engine's StagedBlobs), draws from there meanwhile, and is kept once it lands, so the phone
 // never downloads what it sent. A card's cover over 512 KB draws from a thumbnail made once, in a
-// format that keeps a transparent cover's transparency, and a cover whose thumbnail could not be
-// made is not tried again this session.
+// format that keeps a transparent cover's transparency. A cover is drawn whole only when its header
+// says it is small; one past what a phone may decode, or whose thumbnail could not be made, shows
+// the card's placeholder, and is not tried again this session.
 //
 // Every landing in a folder or the index runs under one lock with the sign-in's clear, and checks
 // that no clear came between its download and its landing, so a file of an account this phone
@@ -16,7 +17,8 @@
 import type { ReplicaSql, StagedBlobs } from "@repo/library-replica/replica-ports";
 import { serialLock } from "@repo/library-replica/serial-lock";
 import { UNKNOWN_FILE_TYPE } from "@repo/notes/items/item-kind";
-import { sniffMedia } from "@repo/notes/items/sniff-media";
+import { decodable } from "@repo/notes/items/link-fill";
+import { pixelSize, sniffMedia } from "@repo/notes/items/sniff-media";
 import { z } from "zod";
 
 // where a file is kept: pinned and staged in Documents, out of the backup; cache in Paths.cache
@@ -49,7 +51,8 @@ export interface FileCachePorts {
   // the file from the cloud, whole and hash-checked, with the type it serves; null when the cloud
   // holds none
   readonly download: (sha: string) => Promise<HeldFile | null>;
-  // a cover drawn at a card's width, or null when it cannot be decoded
+  // a cover drawn at a card's width, or null when it cannot be decoded or is past what a phone may
+  // decode, which it measures before it decodes
   readonly shrink: (bytes: Uint8Array<ArrayBuffer>, mime: string) => Promise<HeldFile | null>;
   readonly now: () => number;
   // the discardable copies' total, past which the least recently drawn go
@@ -62,7 +65,8 @@ export interface FileCache {
   // where a file is drawn from on this phone, fetched on a miss; null when it cannot be had now
   // (offline, or the cloud holds none)
   readonly fileUri: (sha: string) => Promise<string | null>;
-  // a card's cover: the file itself when it is small, else a thumbnail made once
+  // a card's cover: the file itself when it is small, else a thumbnail made once; null too for a
+  // picture this phone will not decode
   readonly thumbUri: (sha: string) => Promise<string | null>;
   // a file as this phone holds it, else fetched and kept, as the editor page draws a file a note
   // names, with the type it was kept as; null when it cannot be had now
@@ -125,8 +129,10 @@ export const createFileCache = (ports: FileCachePorts): FileCache => {
   const lock = serialLock();
   // moved by every clear: a landing that began under another generation lands nothing
   let generation = 0;
-  // covers whose thumbnail could not be made, tried once a session
+  // covers this phone will not draw, tried once a session
   const unshrinkable = new Set<string>();
+  // the cap bounds one decode, and a page of rows asks for its covers all at once
+  const decoding = serialLock();
 
   const index = async (name: string): Promise<z.infer<typeof rowsSchema>[number] | null> => {
     const [row] = rowsSchema.parse(
@@ -291,22 +297,29 @@ export const createFileCache = (ports: FileCachePorts): FileCache => {
         }
       }
       if (unshrinkable.has(sha)) {
-        return await fileUri(sha);
+        return null;
       }
       const held = await bytesOf(since, sha);
       if (held === null) {
         return null;
       }
       const { bytes } = held.file;
-      if (bytes.byteLength <= THUMB_OVER_BYTES) {
-        return await held.uri();
-      }
       // decoded as what its first bytes say it is, which a cover's thumbnail is made from
       const mime = sniffMedia(bytes)?.mediaType ?? null;
-      const shrunk = mime === null ? null : await ports.shrink(bytes, mime).catch(() => null);
+      const size = mime === null ? null : pixelSize(bytes, mime);
+      const refused = size !== null && !decodable(size);
+      if (size !== null && !refused && bytes.byteLength <= THUMB_OVER_BYTES) {
+        return await held.uri();
+      }
+      const shrunk =
+        mime === null || refused
+          ? null
+          : await decoding(async () => await ports.shrink(bytes, mime)).catch(() => null);
       if (shrunk === null) {
         unshrinkable.add(sha);
-        return await held.uri();
+        // kept all the same, so the next launch reads it here rather than downloading it again
+        await held.uri();
+        return null;
       }
       return await land(since, name, "cache", shrunk);
     });

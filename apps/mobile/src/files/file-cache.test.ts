@@ -1,10 +1,10 @@
 import type { ReplicaSql } from "@repo/library-replica/replica-ports";
 import { ensureLibrarySchema } from "@repo/notes/library/library-schema";
 import { runPlanAsync } from "@repo/notes/library/library-sql";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { openNodeReplicaSql } from "../lib/node-replica-sql";
 import { openPhoneTables } from "../lib/phone-db";
-import { deferred } from "../test-support/async";
+import { deferred, nextTask } from "../test-support/async";
 import { memoryFolders } from "../test-support/memory-folders";
 import { createFileCache, thumbFormatOf, THUMB_OVER_BYTES } from "./file-cache";
 import type { FileCachePorts, HeldFile } from "./file-cache";
@@ -15,6 +15,19 @@ const SHA_C = "c".repeat(64);
 
 // a PNG's signature and header, enough for the sniffer to name it a picture
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+// a PNG's signature and IHDR, which name its size whatever the rest of the file holds
+const pngHead = (width: number, height: number): Uint8Array => {
+  const head = new Uint8Array(24);
+  head.set(PNG);
+  const view = new DataView(head.buffer);
+  view.setUint32(16, width);
+  view.setUint32(20, height);
+  return head;
+};
+
+// an AVIF's first box: a picture the sniffer names, and whose header says no size it can read
+const AVIF = new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66]);
 
 const bytesOf = (size: number, head: Uint8Array = new Uint8Array()): Uint8Array<ArrayBuffer> => {
   const bytes = new Uint8Array(size);
@@ -214,6 +227,75 @@ describe("the phone's copy of the library's files", () => {
     expect(folders.held("cache")).toStrictEqual([]);
   });
 
+  it("draws no cover whose header names more pixels than a phone may decode, whatever its file's size", async () => {
+    const sql = await phoneSql();
+    const shrunk: string[] = [];
+    const { asked, cache, folders, served } = cacheOver(sql, {
+      capBytes: 10 * THUMB_OVER_BYTES,
+      shrink: async (_bytes, mime) => {
+        shrunk.push(mime);
+        return await Promise.resolve({ bytes: bytesOf(8), mime: "image/png" });
+      },
+    });
+    served.set(SHA_A, bytesOf(THUMB_OVER_BYTES + 1, pngHead(30_000, 30_000)));
+    served.set(SHA_B, bytesOf(100, pngHead(30_000, 30_000)));
+
+    await expect(cache.thumbUri(SHA_A)).resolves.toBeNull();
+    await expect(cache.thumbUri(SHA_B)).resolves.toBeNull();
+    await expect(cache.thumbUri(SHA_A), "asked again, for the same answer").resolves.toBeNull();
+    expect(shrunk).toStrictEqual([]);
+    expect(asked, "kept, so asking again downloads nothing").toStrictEqual([SHA_A, SHA_B]);
+    expect(folders.held("cache").toSorted()).toStrictEqual([SHA_A, SHA_B]);
+  });
+
+  it("draws a picture whose header says no size only from a thumbnail, whatever its file's size", async () => {
+    const sql = await phoneSql();
+    const shrunk: string[] = [];
+    const { cache, served } = cacheOver(sql, {
+      shrink: async (_bytes, mime) => {
+        shrunk.push(mime);
+        return await Promise.resolve(
+          shrunk.length === 1 ? { bytes: bytesOf(8), mime: "image/png" } : null,
+        );
+      },
+    });
+    served.set(SHA_A, bytesOf(100, AVIF));
+    served.set(SHA_B, bytesOf(100, AVIF));
+
+    await expect(cache.thumbUri(SHA_A)).resolves.toBe(`memory://cache/${SHA_A}.thumb`);
+    await expect(cache.thumbUri(SHA_B), "no thumbnail, so no drawing").resolves.toBeNull();
+    expect(shrunk).toStrictEqual(["image/avif", "image/avif"]);
+  });
+
+  it("decodes one cover at a time, however many rows ask at once", async () => {
+    const sql = await phoneSql();
+    const first = deferred<HeldFile | null>();
+    const started: number[] = [];
+    const { cache, served } = cacheOver(sql, {
+      capBytes: 10 * THUMB_OVER_BYTES,
+      shrink: async () => {
+        started.push(started.length);
+        return started.length === 1
+          ? await first.promise
+          : await Promise.resolve({ bytes: bytesOf(8), mime: "image/png" });
+      },
+    });
+    served.set(SHA_A, bytesOf(THUMB_OVER_BYTES + 1, PNG));
+    served.set(SHA_B, bytesOf(THUMB_OVER_BYTES + 1, PNG));
+
+    const drawing = [cache.thumbUri(SHA_A), cache.thumbUri(SHA_B)];
+    await vi.waitFor(() => {
+      expect(started).toHaveLength(1);
+    });
+    await nextTask();
+    expect(started, "the second waits for the first").toHaveLength(1);
+    first.resolve({ bytes: bytesOf(8), mime: "image/png" });
+    await expect(Promise.all(drawing)).resolves.toStrictEqual([
+      `memory://cache/${SHA_A}.thumb`,
+      `memory://cache/${SHA_B}.thumb`,
+    ]);
+  });
+
   it("draws a large cover from a thumbnail made once, and tries an undecodable one once a session", async () => {
     const sql = await phoneSql();
     const shrunk: string[] = [];
@@ -232,8 +314,8 @@ describe("the phone's copy of the library's files", () => {
 
     await expect(cache.thumbUri(SHA_A)).resolves.toBe(`memory://cache/${SHA_A}.thumb`);
     await expect(cache.thumbUri(SHA_A)).resolves.toBe(`memory://cache/${SHA_A}.thumb`);
-    await expect(cache.thumbUri(SHA_B)).resolves.toBe(`memory://cache/${SHA_B}`);
-    await expect(cache.thumbUri(SHA_B)).resolves.toBe(`memory://cache/${SHA_B}`);
+    await expect(cache.thumbUri(SHA_B)).resolves.toBeNull();
+    await expect(cache.thumbUri(SHA_B)).resolves.toBeNull();
     await expect(cache.thumbUri(SHA_C)).resolves.toBe(`memory://cache/${SHA_C}`);
     expect(shrunk).toStrictEqual(["image/png", "image/png"]);
     expect(folders.held("cache")).toContain(`${SHA_A}.thumb`);
@@ -252,7 +334,7 @@ describe("the phone's copy of the library's files", () => {
     });
 
     const drawing = [cache.fileUri(SHA_A), cache.fileUri(SHA_A), cache.thumbUri(SHA_A)];
-    answer.resolve({ bytes: bytesOf(10, PNG), mime: "image/png" });
+    answer.resolve({ bytes: bytesOf(24, PNG), mime: "image/png" });
 
     await expect(Promise.all(drawing)).resolves.toStrictEqual([
       `memory://cache/${SHA_A}`,
