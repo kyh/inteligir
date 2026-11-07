@@ -173,7 +173,8 @@ how it ships.
   its lines kept. Rejected: the library's own `webUrl` for text (its search
   stops at a bracket, a comma or an accented letter, so the wrong page is read);
   trimming a sentence's marks off every share (the real last character of
-  `…/Oklahoma!`).
+  `…/Oklahoma!`); reading a link up to the first space (a language with no
+  spaces runs its sentence on from the link, and an emoji sits right after one).
   It opens the item and only then lets the share go, so a signed-out share
   waits, and so does one a sign-out caught mid-read, which the closed replica
   refuses (`apps/mobile/src/items/share-inbox.tsx`), and a share made while one

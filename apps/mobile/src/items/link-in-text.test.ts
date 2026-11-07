@@ -46,6 +46,29 @@ describe("a link inside text", () => {
     expect(urlIn("https://example.com/don’t-panic")).toBe("https://example.com/don’t-panic");
   });
 
+  it("ends a link at what no address holds, where a sentence runs straight on from it", () => {
+    const url = "https://example.com/a";
+    expect(linkInText(`これ ${url}。次の文`)).toStrictEqual({ rest: "これ 次の文", url });
+    expect(linkInText(`これ（${url}）を見て`)).toStrictEqual({ rest: "これ を見て", url });
+    expect(linkInText(`«${url}»、次`)).toStrictEqual({ rest: "次", url });
+    expect(linkInText(`${url}…and more`)).toStrictEqual({ rest: "and more", url });
+    expect(linkInText(`${url}👍 yes`)).toStrictEqual({ rest: "👍 yes", url });
+    expect(linkInText(`👉${url}👈`)).toStrictEqual({ rest: "👉 👈", url });
+    expect(linkInText(`${url}—the best`)).toStrictEqual({ rest: "—the best", url });
+    expect(linkInText(`${url}\u200B next`)).toStrictEqual({ rest: "\u200B next", url });
+    expect(linkInText(`(see ${url})and more`)).toStrictEqual({ rest: "see and more", url });
+    expect(linkInText(`**${url}**`)?.url).toBe(url);
+  });
+
+  it("keeps an address's letters and numbers, whatever their script", () => {
+    expect(urlIn("Read https://ja.wikipedia.org/wiki/東京 tonight")).toBe(
+      "https://ja.wikipedia.org/wiki/東京",
+    );
+    expect(urlIn("https://example.com/café/menu")).toBe("https://example.com/café/menu");
+    expect(urlIn("https://hi.example/हिन्दी")).toBe("https://hi.example/हिन्दी");
+    expect(urlIn("https://x.y/a,b;c=d|e")).toBe("https://x.y/a,b;c=d|e");
+  });
+
   it("keeps none of the brackets or quotes the link sat in for the note", () => {
     expect(linkInText("(see https://x.y/z)")).toStrictEqual({ rest: "see", url: "https://x.y/z" });
     expect(linkInText("[Foo](https://en.wikipedia.org/wiki/Foo_(bar))")).toStrictEqual({
@@ -67,6 +90,24 @@ describe("a link inside text", () => {
     });
     expect(linkInText("Read <https://x.y/a> tonight")?.rest).toBe("Read tonight");
     expect(linkInText("Read `https://x.y/a` tonight")?.rest).toBe("Read tonight");
+  });
+
+  it("takes a quote and a bracket out together, whichever is inside", () => {
+    expect(linkInText('(see "https://x.y/z")')?.rest).toBe("see");
+    expect(linkInText("(see “https://x.y/z”) for more")?.rest).toBe("see for more");
+    expect(linkInText('"(https://x.y/z)"')?.rest).toBe("");
+    expect(linkInText("“（https://x.y/z）”")?.rest).toBe("");
+  });
+
+  it("takes the link out however often the text spells it", () => {
+    expect(linkInText("https://x.y/a, again https://x.y/a/?utm_source=m")).toStrictEqual({
+      rest: "again",
+      url: "https://x.y/a",
+    });
+    expect(linkInText("[https://x.y/a](https://x.y/a)")).toStrictEqual({
+      rest: "",
+      url: "https://x.y/a",
+    });
   });
 
   it("leaves the sentence's punctuation after a closing quote with the link", () => {

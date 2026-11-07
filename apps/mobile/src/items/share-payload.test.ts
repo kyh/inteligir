@@ -82,6 +82,11 @@ describe("what a share asks the phone to save", () => {
     ["(see https://example.com/z)", "https://example.com/z", "see"],
     ["(see https://example.com/z) for more", "https://example.com/z", "see for more"],
     ["Read <https://example.com/z> tonight", "https://example.com/z", "Read tonight"],
+    ['(see "https://example.com/z")', "https://example.com/z", "see"],
+    ["これ見て https://example.com/z。次の文", "https://example.com/z", "これ見て 次の文"],
+    ["これ（https://example.com/z）を見て", "https://example.com/z", "これ を見て"],
+    ["Love this https://example.com/z👍", "https://example.com/z", "Love this 👍"],
+    ["**https://example.com/z** is good", "https://example.com/z", "** is good"],
   ])("reads the link inside text whole, and the words around it: %s", (text, url, note) => {
     expect(sharedSaveOf(textShare(text))).toStrictEqual({ kind: "link", note, title: null, url });
   });
@@ -154,6 +159,14 @@ describe("what a share asks the phone to save", () => {
       url: "https://example.com/a",
     });
   });
+
+  it.each(["httpbin.org", "httpbin.org is neat", "see http.cat for this"])(
+    "saves as text what the library's search calls an address and no web address is: %s",
+    (text) => {
+      expect(textShare(text).webUrl).not.toBeNull();
+      expect(sharedSaveOf(textShare(text))).toStrictEqual({ kind: "text", text });
+    },
+  );
 
   it("hands text alone to the text save, which finds a link inside it", () => {
     expect(sharedSaveOf(textShare("  a thought  "))).toStrictEqual({

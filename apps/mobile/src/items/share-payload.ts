@@ -7,6 +7,7 @@
 // lost. Text that still holds an address, or only punctuation, names nothing.
 // Pure: the share inbox and the tests read it.
 
+import { isWebUrl } from "@repo/notes/items/item-url";
 import { linkInText, withoutLink } from "./link-in-text";
 
 interface SharedLink {
@@ -49,7 +50,8 @@ const besideLink = (text: string, url: string): string | null => {
 export const sharedSaveOf = (intent: ShareHandoff): SharedSave => {
   const given = filled(intent.webUrl);
   const text = filled(intent.text);
-  if (given === null) {
+  // the library's search also answers a bare name that starts with http, such as httpbin.org
+  if (given === null || !isWebUrl(given)) {
     return text === null ? { kind: "nothing" } : { kind: "text", text };
   }
   const title = filled(intent.meta?.title) ?? filled(intent.meta?.["og:title"]);
