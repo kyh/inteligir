@@ -310,7 +310,8 @@ const emptyLine = (): TElement => ({ children: [{ text: "" }], type: KEYS.p });
 // Plate's rule makes whatever an item opens with a `p`, an image aside, which keeps a text's words
 // and leaves an embed's address, a fence's lines and a chart's source on a paragraph that holds
 // none of them. Only words are an item here: any other block stands where the item stood, outside
-// the list, with a to-do's box on a line of its own above it.
+// the list, with a to-do's box on a line of its own above it. A list an item opens with is that
+// item's empty line and what nests under it, as the writer spells them.
 const listBlocks = (
   list: MdList,
   indent: number,
@@ -327,7 +328,8 @@ const listBlocks = (
     if (todo) {
       listStyleType = KEYS.listTodo;
     }
-    const [head, ...rest] = item.children;
+    const [opener, ...after] = item.children;
+    const [head, rest] = opener?.type === "list" ? [undefined, item.children] : [opener, after];
     const opened =
       head === undefined
         ? [emptyLine()]

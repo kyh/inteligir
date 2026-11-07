@@ -465,6 +465,24 @@ describe("a block a list item opens with", () => {
     expect(content(reimported(item))).toStrictEqual(content(item));
   });
 
+  it.each([
+    ["a bullet", "disc"],
+    ["a numbered item", "decimal"],
+  ] as const)("keeps an empty %s above the list nested under it", (_name, listStyleType) => {
+    const number = listStyleType === "decimal" ? { listStart: 1 } : {};
+    const typed = typedItem("note", [
+      { children: [{ text: "" }], id: "a", indent: 1, listStyleType, type: "p", ...number },
+      { children: [{ text: "b" }], id: "b", indent: 2, listStyleType, type: "p", ...number },
+    ]);
+    expect(content(reimported(typed))).toStrictEqual(content(typed));
+  });
+
+  it("nests a list an item opens with under that item's empty line, its to-dos kept", () => {
+    const item = imported("- - [ ] a\n  - [x] b\n- c\n");
+    expect(bodyOf(exported(item).text)).toBe("-\n  - [ ] a\n  - [x] b\n- c\n");
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
   it("keeps a heading an item opens with as the item's words", () => {
     const item = imported("- # kept\n");
     expect(types(item)).toStrictEqual(["p"]);
