@@ -1,0 +1,51 @@
+// @vitest-environment jsdom
+
+import { createFakeCell } from "@repo/library-replica/test-support/fake-cell";
+import { openDevice } from "@repo/library-replica/test-support/replica-harness";
+import { createHashHistory, RouterProvider } from "@tanstack/react-router";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { createAppRouter } from "../../router";
+import { createPageQueryClient } from "../cloud/v1";
+import { fakePageLibrary } from "../test-support/fake-page-library";
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  window.location.hash = "";
+});
+
+// the whole page as the Mac mounts it: its routes on the hash, over a replica and a cell's wire
+const openedAtSettings = async () => {
+  const { replica } = await openDevice(createFakeCell(), "mac");
+  const { library } = fakePageLibrary({ answer: () => ({ assistants: [], devices: [] }) });
+  window.location.hash = "#/settings";
+  const router = createAppRouter(
+    createHashHistory(),
+    { library: { ...library, replica }, queryClient: createPageQueryClient() },
+    "/",
+  );
+  render(<RouterProvider router={router} />);
+  await screen.findByRole("heading", { name: "Settings" });
+  return { replica, router };
+};
+
+describe("Settings' sections", () => {
+  it("moves to a section and leaves the Mac's hash, which is the route, alone", async () => {
+    const { replica, router } = await openedAtSettings();
+    const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
+
+    fireEvent.click(
+      within(screen.getByRole("navigation", { name: "Settings" })).getByText("Editor"),
+    );
+
+    expect(window.location.hash).toBe("#/settings");
+    await vi.waitFor(() => {
+      expect(scrolled.mock.contexts).toContain(document.querySelector("#editor"));
+    });
+    expect(router.state.location.pathname).toBe("/settings");
+    expect(screen.getByRole("heading", { name: "Settings" })).toBeDefined();
+    await replica.close();
+  });
+});

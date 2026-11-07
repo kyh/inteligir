@@ -71,6 +71,19 @@ export const sendInput = (composer: {
   return input;
 };
 
+// what the field holds with a passage the person asked about quoted under it, ready for their
+// question; asked about twice, it is quoted once
+export const quotePassage = (message: string, passage: string): string => {
+  const quote = `${passage
+    .split("\n")
+    .map((line) => `> ${line}`)
+    .join("\n")}\n\n`;
+  if (message.includes(quote)) {
+    return message;
+  }
+  return message.trim() === "" ? quote : `${message.trimEnd()}\n\n${quote}`;
+};
+
 // what the composer's field says before anything is typed
 export const composerPlaceholder = (tidying: boolean, threadId: string | null): string => {
   if (tidying) {

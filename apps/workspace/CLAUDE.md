@@ -17,8 +17,7 @@ saves; `app/item/` the open item, its stages and the editor's host;
 `app/panel/` Info, Highlights and History; `app/agent/` the built-in agent's
 conversations and Tidy; `app/palette/` ⌘P; `app/sidebar/` the rail;
 `app/settings/` the Settings layer. Every shell answer
-is parsed in `src/shell/shell-commands.ts` and mirrored through one
-`app/bridge-store.ts`.
+is parsed in `src/shell/shell-commands.ts`.
 
 ## The page over the cell
 
@@ -26,12 +25,15 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   the session the site's sign-in left, then the replica engine
   (`@repo/library-replica`) on in-memory SQLite, pulled whole on every load:
   every screen reads the replica, every write goes through its outbox and is
-  laid over what the screens read until the cell takes it, and a tab with no
-  session goes to the site's sign-in, which brings it back. Its calls are the
+  laid over what the screens read until the cell takes it, a tab with no
+  session goes to the site's sign-in, which brings it back, and a tab that could
+  not find out says it didn't open and offers Try again. Its calls are the
   apps' `/v1` over the session cookie, the Worker's own origin. Rejected: a
   server on the device (a second writer beside the cell); the replica in OPFS
-  (one tab would hold it, and the Mac's replica is the shell's, in Rust).
-  `apps/workspace/src/app/cloud/page-library.ts`, `apps/workspace/src/main.tsx`.
+  (one tab would hold it, and the Mac's replica is the shell's, in Rust); a
+  fault of the site's read as signed out (a password asked of someone signed
+  in). `apps/workspace/src/app/cloud/page-library.ts`,
+  `apps/workspace/src/main.tsx`.
 
 - **THE QUERY CLIENT IS THE ROUTER'S.** One `QueryClient` is made with the
   router and handed to it as context, its provider the router's `Wrap`, so a
@@ -53,11 +55,11 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   Settings, in one notice the root keeps up while any waits offline. A refusal
   the contract declares says its own sentence; any other failure says the
   screen's fallback, never an error's own words. The one retry rule never
-  retries a declared refusal, so no screen turns retries off itself, and a session
-  that ended sends the tab to sign in. A write whose order matters shares a
-  `scope`, and refetches in its own callbacks, awaited, only the family it
-  moved. Rejected: a call outside TanStack (it fails at once offline); a note
-  per button (a menu's verb has none). `apps/workspace/src/app/cloud/v1.ts`,
+  retries a declared refusal, so no screen turns retries off itself. A write
+  whose order matters shares a `scope`, and refetches in its own callbacks,
+  awaited, only the family it moved. Rejected: a call outside TanStack (it fails
+  at once offline); a note per button (a menu's verb has none).
+  `apps/workspace/src/app/cloud/v1.ts`,
   `apps/workspace/src/app/cloud/needs-connection.tsx`, over
   `packages/contract/src/cloud/refusal-text.ts`, which the phone says too.
 
@@ -105,6 +107,24 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   not send). `apps/workspace/src/app/cloud/shell-library.ts`,
   `apps/workspace/src/app/cloud/sign-in-page.tsx`.
 
+- **A SESSION'S END IS ANSWERED HOWEVER THE PAGE MEETS IT.** The replica calls
+  through a client of its own and stops at a session's end, so each host watches
+  its status beside the wire's interceptor and gives both one answer: the tab
+  goes to the site's sign-in, the Mac lets its credential go and opens on the
+  sign-in, and a Mac below the build floor keeps its credential, replica and
+  outbox and says to update, in a toast and in the rail's footer, since the
+  next build goes on as the same device. The floor spares a page the Worker
+  served, so a tab it refuses is a browser too old to mark its calls as that
+  page's, and the tab says so. Rejected: waiting for a wire call (an idle page
+  makes none, and a stopped replica reads as up to date); a page of its own for
+  the outdated Mac, as the phone draws (the Mac's library reads and queues on
+  disk, and its updater needs no person to go find it); the refused tab sent to
+  sign in (the sign-in sends a signed-in tab straight back, for good).
+  `apps/workspace/src/app/cloud/v1.ts`,
+  `apps/workspace/src/app/cloud/shell-library.ts`,
+  `apps/workspace/src/app/sidebar/sync-words.ts`, `apps/workspace/src/main.tsx`,
+  over `apps/web/src/worker/client-floor.ts`.
+
 ## Surfaces
 
 - **WINDOW-LEVEL HOSTS MOUNT AT THE ROOT ROUTE.** `ConfirmDialogHost`, `Toaster`
@@ -116,8 +136,9 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   header (Library, Search), then the groups Library (All items, Unsorted),
   Folders, Tags (folding) and Deleted, each row a scope read from the replica
   with its count; a footer says where the library stands (up to date, sending,
-  waiting for a connection, or a change the cell refused, with Try again and
-  Let it go) beside Settings. Each row sets the grid's scope (`libraryScope`)
+  waiting for a connection, a pass that keeps failing, a sign-in that ended, an
+  update it needs, or a change the cell refused, with Try again and Let it go)
+  beside Settings. Each row sets the grid's scope (`libraryScope`)
   and goes back to the library; a folder's other verbs are its right-click and
   its More button. Rejected: a window-wide strip (a second bar under the rail).
   `apps/workspace/src/app/sidebar/rail.tsx`, `sync-line.tsx`.
@@ -143,8 +164,9 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
 
 - **THE PANEL STARTS CLOSED, IS FLAT-TABBED, AND IS DRAGGED LIKE THE RAIL.**
   `panelOpen` defaults off, and every entry that shows something in it opens it
-  on its tab. The tabs are Info, Highlights and History, about the open item or
-  else the one card selected, and the Agent, about the whole library. The width
+  on its tab, a click on a highlight on Highlights with that one ringed and in
+  view. The tabs are Info, Highlights and History, about the open item or else
+  the one card selected, and the Agent, about the whole library. The width
   persists through the rail's own resize handle (`panelWidth` in `app/prefs.ts`).
   Rejected: a second resize mechanism. `apps/workspace/src/app/panel/panel.tsx`,
   `apps/workspace/src/app/workspace.tsx`.
@@ -215,9 +237,10 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
 
 - **A BULK VERB RUNS IN CHUNKS, UNDER ONE TOAST WITH STOP.** A move or a tag of
   many items goes through the outbox fifty at a time and a purge through the
-  cell's own in its route's chunks, sequentially, and the closing sentence says
-  only what landed (`apps/workspace/src/app/library/bulk-actions.ts`). A delete
-  of more than fifty asks first; any delete toasts its Undo.
+  cell's own in its route's chunks, sequentially; a chunk that fails stops the
+  run and says how far it got, and the closing sentence says only what landed
+  (`apps/workspace/src/app/library/bulk-actions.ts`). A delete of more than
+  fifty asks first; any delete toasts its Undo.
 
 - **A SAVE FROM THE WINDOW IS A PASTE OR A DROP THAT NO FIELD CLAIMED.** A paste
   lands where nothing takes text, a drop where no field or editor took it; a
@@ -257,7 +280,9 @@ is parsed in `src/shell/shell-commands.ts` and mirrored through one
   never stored. A send carries the screen it leaves from (the open item, or the
   scope and the selection; none from Deleted); an approval's Approve or Cancel
   answers `library.agent.respond` naming the event that asked; the day's
-  allowance and an agent switched off are said in the person's words. Under
+  allowance and an agent switched off are said in the person's words. A
+  selection's Ask agent quotes the passage under what the composer holds, and
+  the field takes the keyboard for the question. Under
   each finished turn "Undo this turn" takes its change set back, and "Undo this
   conversation" every one of the conversation's, both after the open item's
   unsaved edit is written: the sets are read from every page the cell answers,

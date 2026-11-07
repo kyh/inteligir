@@ -148,24 +148,58 @@ describe("opening the Mac's library", () => {
   });
 });
 
-describe("a credential the cloud no longer takes", () => {
-  // the cloud's account rows over a real RPCHandler, refusing the credential as revoked
-  const os = implement(v1Contract);
-  const revoked = new RPCHandler({
+const os = implement(v1Contract);
+
+type Refusal = "CLIENT_OUTDATED" | "GONE" | "UNAUTHORIZED";
+
+// the cloud over a real RPCHandler, refusing the replica's pull and a wire call as one
+const cloudRefusing = (refusal: Refusal) =>
+  new RPCHandler({
     account: {
       devices: {
         list: os.account.devices.list.handler(({ errors }) => {
-          throw errors.UNAUTHORIZED();
+          throw errors[refusal]();
+        }),
+      },
+    },
+    library: {
+      sync: {
+        pull: os.library.sync.pull.handler(({ errors }) => {
+          throw errors[refusal]();
         }),
       },
     },
   });
 
+const stubCloud = (cloud: ReturnType<typeof cloudRefusing>): void => {
+  vi.stubGlobal("fetch", async (request: Request) => {
+    const { response } = await cloud.handle(request, { prefix: V1_RPC_PATH });
+    return response ?? new Response(null, { status: 404 });
+  });
+};
+
+// the Mac's library over a cloud that refuses it, the shell's forget a suite can watch
+const openedRefused = async (refusal: Refusal) => {
+  stubCloud(cloudRefusing(refusal));
+  const memory = await openMemorySql();
+  const forget = vi.fn<() => null>(() => null);
+  mockShell(
+    configReply,
+    reply(APP_COMMANDS.credential.restore)(() => KEPT),
+    reply(APP_COMMANDS.credential.forget)(forget),
+    ...replicaReplies(memory),
+  );
+  const reload = vi.fn<() => void>();
+  const opening = await openShellLibrary(createShellLeaveGuard(), reload);
+  if (opening.kind !== "ready") {
+    throw new Error(`the library did not open: ${opening.kind}`);
+  }
+  return { forget, library: opening.library, memory, reload };
+};
+
+describe("a credential the cloud no longer takes", () => {
   it("says why when the shell could not let it go, and stays rather than reload onto it", async () => {
-    vi.stubGlobal("fetch", async (request: Request) => {
-      const { response } = await revoked.handle(request, { prefix: V1_RPC_PATH });
-      return response ?? new Response(null, { status: 404 });
-    });
+    stubCloud(cloudRefusing("UNAUTHORIZED"));
     const failed = vi.spyOn(toast, "error");
     const memory = await openMemorySql();
     mockShell(
@@ -192,6 +226,54 @@ describe("a credential the cloud no longer takes", () => {
         { id: "leave-account" },
       );
     });
+    expect(reload).not.toHaveBeenCalled();
+    void library.replica.close();
+    memory.close();
+  });
+
+  it.each(["UNAUTHORIZED", "GONE"] as const)(
+    "lets it go when the replica meets %s, though no wire call ran",
+    async (refusal) => {
+      const { forget, library, memory, reload } = await openedRefused(refusal);
+      await library.replica.sync();
+      await vi.waitFor(() => {
+        expect(reload).toHaveBeenCalledOnce();
+      });
+      expect(forget).toHaveBeenCalledOnce();
+      void library.replica.close();
+      memory.close();
+    },
+  );
+
+  it("lets it go once when the replica and a wire call meet it together", async () => {
+    const { forget, library, memory, reload } = await openedRefused("UNAUTHORIZED");
+    await Promise.allSettled([library.replica.sync(), library.wire.client.account.devices.list()]);
+    await vi.waitFor(() => {
+      expect(reload).toHaveBeenCalledOnce();
+    });
+    expect(forget).toHaveBeenCalledOnce();
+    void library.replica.close();
+    memory.close();
+  });
+});
+
+describe("a Mac below the cloud's build floor", () => {
+  it("keeps its credential and its library, and says to update, however it met the floor", async () => {
+    const failed = vi.spyOn(toast, "error");
+    const { forget, library, memory, reload } = await openedRefused("CLIENT_OUTDATED");
+
+    await library.replica.sync();
+    expect(library.replica.status().failure).toStrictEqual({ end: "outdated", kind: "session" });
+    expect(failed).toHaveBeenCalledOnce();
+    expect(failed.mock.lastCall?.[0]).toMatch(/too old/u);
+
+    await expect(library.wire.client.account.devices.list()).rejects.toMatchObject({
+      code: "CLIENT_OUTDATED",
+    });
+    expect(failed).toHaveBeenCalledTimes(2);
+    expect(failed.mock.lastCall?.[1]).toStrictEqual(failed.mock.calls[0]?.[1]);
+
+    expect(forget).not.toHaveBeenCalled();
     expect(reload).not.toHaveBeenCalled();
     void library.replica.close();
     memory.close();

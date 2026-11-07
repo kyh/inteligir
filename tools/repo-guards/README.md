@@ -58,7 +58,7 @@ One per file; its header and its failure message state the rule in full.
 - `route-paths.test.ts`: a non-procedure route path is spelled only at its contract home.
 - `turbo-cache-keys.test.ts`: a cached task over workspace deps has a `^` edge, and an import outside every workspace is a build input.
 - `desktop-shell-wire.test.ts`: the words the Rust shell shares with the page match on both sides.
-- `ui-orphan-exports.test.ts`: every `@repo/ui` export has a consumer outside the gallery, or a reasoned row.
+- `ui-orphan-exports.test.ts`: every `@repo/ui` export has a consumer outside the gallery.
 - `gallery-coverage.test.ts`: every component under the demoed roots is in the gallery, or a `NOT_DEMOED` row.
 - `type-roles.test.ts`: chrome draws text only in the five type roles, or a `PROSE_SIZES` row.
 - `compiled-hook-shapes.test.ts`: no react source defines a `use*` hook inside another function.
@@ -84,12 +84,12 @@ One per file; its header and its failure message state the rule in full.
 - `worker-preview.test.ts`: the Preview workflow's script, run against a stub of GitHub and Cloudflare: it reads back only the bot's comment, every page of the environment PRs share, and reports a Preview gone only once it is.
 - `remote-media.test.ts`: the tab's, the Mac's and the phone's editor page's content policies let no item draw from the web.
 
-Every exception table — `ALLOWED`, `ALLOWED_EXPORTS`, `DATA_FILES`,
-`DECLARED_SPLITS`, `DELIBERATE_NON_REFERENCES`, `EDITOR_PAGE_CLIENTS`,
-`ELSEWHERE`, `NON_COMPONENT_ROOTS`, `NOT_A_TEXT_FIELD`, `NOT_DEMOED`,
-`PROSE_SIZES` — has a companion assertion that no row is STALE: a row whose
-subject is gone, or whose gap has closed, fails too. An allowance that outlives
-what it excused only ever loosens.
+Every exception table — `ALLOWED`, `DATA_FILES`, `DECLARED_SPLITS`,
+`DELIBERATE_NON_REFERENCES`, `EDITOR_PAGE_CLIENTS`, `ELSEWHERE`,
+`NON_COMPONENT_ROOTS`, `NOT_A_TEXT_FIELD`, `NOT_DEMOED`, `PROSE_SIZES` — has a
+companion assertion that no row is STALE: a row whose subject is gone, or whose
+gap has closed, fails too. An allowance that outlives what it excused only ever
+loosens.
 
 ## What the dangling-reference sweep reads
 

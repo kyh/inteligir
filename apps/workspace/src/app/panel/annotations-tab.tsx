@@ -2,6 +2,8 @@
 // replies, newest first. A note is edited in place and saved on Return or when the field lets go,
 // a reply added under it, and Remove takes the highlight out, each one write through the outbox
 // over the text it read, so another device's note on the same highlight is never written over.
+// A click on a passage or its gutter mark names its highlights: they are ringed, and the first
+// comes into view.
 
 import {
   HIGHLIGHT_SHORTCUT,
@@ -12,10 +14,11 @@ import type { AnnotationEntry } from "@repo/notes/annotations/store-schema";
 import { mintAnnotationId } from "@repo/notes/annotations/store-schema";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
+import { cn } from "@repo/ui/lib/cn";
 import { platformShortcutModifier, spellHotkey } from "@repo/ui/lib/hotkey-spelling";
 import { isImeComposing } from "@repo/ui/lib/ime";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useReplica, useReplicaQueries } from "../cloud/library-context";
 
@@ -81,10 +84,24 @@ const NoteField = ({
   );
 };
 
-export const AnnotationsTab = ({ itemId }: { itemId: string }) => {
+export const AnnotationsTab = ({
+  itemId,
+  named,
+}: {
+  itemId: string;
+  // the highlights the editor named, a new list each time, so naming one again brings it back
+  named: readonly string[];
+}) => {
   const replica = useReplica();
   const store = useQuery(useReplicaQueries().annotations(itemId)).data;
   const highlights = store === undefined ? [] : highlightsOf(store);
+  const firstNamed = highlights.find(({ id }) => named.includes(id))?.id;
+  const namedRow = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (named.length > 0 && firstNamed !== undefined) {
+      namedRow.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [named, firstNamed]);
   const write = (annotations: Parameters<typeof replica.write>[1]["annotations"]): void => {
     void replica.write(itemId, { annotations, ops: [] });
   };
@@ -101,8 +118,12 @@ export const AnnotationsTab = ({ itemId }: { itemId: string }) => {
       {highlights.map(({ entry, id, replies }) => (
         <li
           key={id}
+          ref={id === firstNamed ? namedRow : undefined}
           data-annotation-id={id}
-          className="flex flex-col gap-2 rounded-md border border-border p-2.5"
+          className={cn(
+            "flex flex-col gap-2 rounded-md border border-border p-2.5",
+            named.includes(id) && "ring-2 ring-highlight",
+          )}
         >
           {entry.quote === undefined ? null : (
             <button

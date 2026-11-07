@@ -9,7 +9,7 @@ import type { ReplicaTransport } from "./replica-ports";
 import { isOrpcError } from "@repo/contract/cloud/v1/errors";
 
 // the sign-in is over until the host signs in again (`signed-out`, `gone`) or updates (`outdated`)
-type SessionEnd = "signed-out" | "gone" | "outdated";
+export type SessionEnd = "signed-out" | "gone" | "outdated";
 
 export type CallFailure =
   | { readonly kind: "session"; readonly end: SessionEnd }

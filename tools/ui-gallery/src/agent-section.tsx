@@ -1,12 +1,7 @@
-import {
-  ApprovalActions,
-  ApprovalCard,
-  ApprovalOption,
-  ApprovalQuestion,
-} from "@repo/ui/ai/approval-card";
+import { ApprovalCard, ApprovalOption, ApprovalQuestion } from "@repo/ui/ai/approval-card";
 import { LoadingState } from "@repo/ui/ai/loading-state";
-import { StreamingAction, StreamingText } from "@repo/ui/ai/streaming-text";
-import { Thinking, ThinkingReasoning, ThinkingStep, ThinkingTool } from "@repo/ui/ai/thinking";
+import { StreamingText } from "@repo/ui/ai/streaming-text";
+import { Thinking, ThinkingReasoning } from "@repo/ui/ai/thinking";
 import { ToolChip, ToolChipDetail, ToolChipList } from "@repo/ui/ai/tool-chips";
 import { useState } from "react";
 
@@ -46,24 +41,22 @@ export const AgentSection = () => {
       </Demo>
 
       <Demo
-        name="Thinking · ThinkingStep · ThinkingReasoning · ThinkingTool"
-        purpose="The turn's trace, expandable. One row per thing the agent did or considered."
+        name="Thinking · ThinkingReasoning"
+        purpose="The turn's trace, expandable: what the agent noted while it worked."
         stack
       >
         <div className="w-full max-w-md">
-          <Thinking label="Working" doneLabel="Thought for 4s" working defaultExpanded>
-            <ThinkingStep>Read Getting Started</ThinkingStep>
+          <Thinking label="Working" doneLabel="Thought for 4s" working>
             <ThinkingReasoning>
               The link is unresolved because no item holds that title yet.
             </ThinkingReasoning>
-            <ThinkingTool secondary="2 matches" mono>
-              Searched for &quot;Welcome&quot;
-            </ThinkingTool>
           </Thinking>
         </div>
         <div className="w-full max-w-md">
           <Thinking label="Working" doneLabel="Thought for 4s">
-            <ThinkingStep>Settled — collapsed by default once the turn is done.</ThinkingStep>
+            <ThinkingReasoning>
+              Settled — collapsed by default once the turn is done.
+            </ThinkingReasoning>
           </Thinking>
         </div>
       </Demo>
@@ -74,13 +67,13 @@ export const AgentSection = () => {
         stack
       >
         <div className="w-full max-w-md">
-          <ToolChipList summary="3 library calls" defaultExpanded>
-            <ToolChip icon="write" label="Edited an item" chip="Getting Started" mono>
-              <ToolChipDetail tone="add">+ Added a section on backlinks</ToolChipDetail>
+          <ToolChipList summary="3 library calls">
+            <ToolChip icon="write" label="Edited an item" chip="Getting Started">
+              <ToolChipDetail>+ Added a section on backlinks</ToolChipDetail>
               <ToolChipDetail>- Removed the stale link</ToolChipDetail>
             </ToolChip>
-            <ToolChip icon="read" label="Read an item" chip="Use Cases" mono />
-            <ToolChip icon="read" label="Searched the library" chip="2 matches" mono detailMono>
+            <ToolChip icon="read" label="Read an item" chip="Use Cases" />
+            <ToolChip icon="read" label="Searched the library" chip="2 matches">
               <ToolChipDetail>Getting Started, Use Cases</ToolChipDetail>
             </ToolChip>
           </ToolChipList>
@@ -88,16 +81,13 @@ export const AgentSection = () => {
       </Demo>
 
       <Demo
-        name="StreamingText · StreamingAction"
-        purpose="The assistant's answer, with the actions that belong to it."
+        name="StreamingText"
+        purpose="The assistant's answer, as it arrives."
         note="The word-by-word reveal is off in the product — the text is already live. It is shown on here."
         stack
       >
         <div className="w-full max-w-md">
-          <StreamingText text={ANSWER_TEXT} streaming={false} animate={false}>
-            <StreamingAction label="Copy" />
-            <StreamingAction label="Retry" />
-          </StreamingText>
+          <StreamingText text={ANSWER_TEXT} streaming={false} animate={false} />
         </div>
       </Demo>
 
@@ -118,12 +108,10 @@ export const AgentSection = () => {
               questionId="edit-getting-started"
               prompt="Edit Getting Started?"
               detail="The agent wants to add a section on backlinks."
-              kind="radio"
             >
               <ApprovalOption optionId="allow">Approve</ApprovalOption>
               <ApprovalOption optionId="deny">Cancel</ApprovalOption>
             </ApprovalQuestion>
-            <ApprovalActions />
           </ApprovalCard>
         </div>
       </Demo>

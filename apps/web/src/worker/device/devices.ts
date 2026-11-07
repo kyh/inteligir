@@ -9,7 +9,11 @@ import { device } from "../db/schema";
 import { severSockets } from "../library/socket-routes";
 import { forgetDeviceBudgets } from "../rate-limit";
 
-export const listDevices = async (db: Db, userId: string): Promise<ListDevicesResponse> => {
+export const listDevices = async (
+  db: Db,
+  userId: string,
+  askingDeviceId: string | null,
+): Promise<ListDevicesResponse> => {
   const rows = await db
     .select()
     .from(device)
@@ -20,6 +24,7 @@ export const listDevices = async (db: Db, userId: string): Promise<ListDevicesRe
   return {
     devices: rows.map((row) => ({
       createdAt: row.createdAt.getTime(),
+      current: row.id === askingDeviceId,
       id: row.id,
       lastSeenAt: row.lastSeenAt?.getTime() ?? null,
       name: row.name,

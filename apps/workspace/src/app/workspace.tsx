@@ -7,6 +7,7 @@
 
 import { viewContextOf } from "@repo/agent-panel/agent-send";
 import type { AgentViewContext } from "@repo/agent-panel/agent-send";
+import { BULK_ITEMS_MAX } from "@repo/contract/cloud/library/library-wire";
 import { listedScope } from "@repo/domain/library-scope";
 import type { LibraryScope } from "@repo/domain/library-scope";
 import { jumpToFindMatch } from "@repo/editor/find-bar";
@@ -15,6 +16,7 @@ import { getLiveEditor } from "@repo/editor/live-editor";
 import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
 import { keptFileType } from "@repo/notes/items/item-kind";
 import type { ItemKind } from "@repo/notes/items/item-kind";
+import { isWebUrl } from "@repo/notes/items/item-url";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Sidebar } from "@repo/ui/components/sidebar";
 import { SidebarInset, SidebarProvider } from "@repo/ui/components/sidebar-core";
@@ -46,14 +48,13 @@ import type { CapturedLink, CapturePayload } from "./library/capture/capture-pay
 import { useWindowCapture } from "./library/capture/window-capture";
 import { MoveDialog, NameDialog, TagDialog } from "./library/item-dialogs";
 import type { MoveRequest, NameRequest, TagRequest } from "./library/item-dialogs";
-import type { LibraryItemActions } from "./library/item-menu";
+import type { LibraryGridActions } from "./library/item-menu";
 import { createLibrarySelection } from "./library/library-selection";
 import {
   createFolder,
   deleteFolder,
   moveItems,
   pinItems,
-  purgeItems,
   renameFolder,
   tagItems,
 } from "./library/library-verbs";
@@ -147,6 +148,9 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const [threadId, setThreadId] = useState<string | null>(null);
   // the agent's composer holds Tidy my library's request, on a conversation of its own
   const [tidying, setTidying] = useState(false);
+  // a passage the editor asked the agent about, until the composer takes it
+  const [passage, setPassage] = useState<string | null>(null);
+  const [namedHighlights, setNamedHighlights] = useState<readonly string[]>([]);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moveRequest, setMoveRequest] = useState<MoveRequest | null>(null);
   const [tagRequest, setTagRequest] = useState<TagRequest | null>(null);
@@ -200,9 +204,16 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const tidyOffered = counts !== undefined && counts.unsorted + counts.untagged > 0;
 
   // the editor's host, made once for the page: links open items, the chord's highlight lands on
-  // the item open now, and "Ask the agent" opens the panel's composer
-  const hostAsks = useEffectEvent((ask: "agent" | "annotations") => {
-    revealPanel(ask);
+  // the item open now, "Ask the agent" quotes the passage in the panel's composer, and a click on
+  // a highlight opens Highlights on it
+  const hostAsksAgent = useEffectEvent((asked: string) => {
+    setTidying(false);
+    revealPanel("agent");
+    setPassage(asked);
+  });
+  const hostNamesHighlights = useEffectEvent((ids: readonly string[]) => {
+    revealPanel("annotations");
+    setNamedHighlights([...ids]);
   });
   const hostOpens = useEffectEvent((itemId: string) => {
     open(itemId);
@@ -213,12 +224,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   });
   useEffect(() => {
     const host = installPageEditorHost({
-      askAgent: () => {
-        hostAsks("agent");
-      },
-      openAnnotations: () => {
-        hostAsks("annotations");
-      },
+      askAgent: hostAsksAgent,
+      openAnnotations: hostNamesHighlights,
       openItem: hostOpens,
       readFile,
       replica,
@@ -331,11 +338,18 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
   const saveLinks = (links: readonly CapturedLink[]): void => {
     void (async () => {
       const made = [];
-      for (const link of links) {
-        const into = { folderId: saveFolderOf(scope), tags: saveTagsOf(scope), url: link.url };
-        made.push(
-          await replica.saveLink(link.title === null ? into : { ...into, title: link.title }),
+      try {
+        for (const link of links) {
+          const into = { folderId: saveFolderOf(scope), tags: saveTagsOf(scope), url: link.url };
+          made.push(
+            await replica.saveLink(link.title === null ? into : { ...into, title: link.title }),
+          );
+        }
+      } catch {
+        toast.error(
+          links.length === 1 ? "That link couldn't be saved." : "Not every link could be saved.",
         );
+        return;
       }
       const [only, ...more] = made;
       if (only === undefined) {
@@ -395,6 +409,8 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       initial: "",
       label: "The page's address",
       onSubmit: saveLink,
+      refuse: (address) =>
+        isWebUrl(address) ? null : "Type the whole address, starting with https://",
       title: "Save a link",
     });
   };
@@ -456,15 +472,16 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       ) {
         return;
       }
-      try {
-        const purged = await purgeItems(
-          purgeCall.mutateAsync,
-          rows.map((row) => row.id),
-        );
-        toast.success(`Deleted ${plural(purged, "item")} forever.`);
-      } catch (error) {
-        toast.error(refusalText(error, "Deleted couldn't be emptied. Try again."));
-      }
+      await runBulk({
+        chunk: BULK_ITEMS_MAX,
+        done: (count) => `Deleted ${plural(count, "item")} forever.`,
+        items: rows.map((row) => row.id),
+        run: async (ids) => {
+          const { purged } = await purgeCall.mutateAsync({ ids: [...ids] });
+          return purged.length;
+        },
+        verb: "Deleting",
+      });
     })();
   };
 
@@ -511,7 +528,7 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       return row === null ? [] : [row];
     });
 
-  const actions: LibraryItemActions = {
+  const actions: LibraryGridActions = {
     askAgent: (rows) => {
       selection.apply({ kind: "all", order: rows.map((row) => row.id) });
       revealPanel("agent");
@@ -530,9 +547,6 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
       );
     },
     purge,
-    quickLook: () => {
-      // the grid draws its own Quick Look
-    },
     refresh: (row) => {
       refreshCall.mutate({ id: row.id });
     },
@@ -699,6 +713,11 @@ export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => 
                   onTidyEnd={() => {
                     setTidying(false);
                   }}
+                  passage={passage}
+                  onPassageTaken={() => {
+                    setPassage(null);
+                  }}
+                  namedHighlights={namedHighlights}
                   viewContext={viewContext}
                   flushOpen={async () => {
                     await sessionRef.current?.flush();

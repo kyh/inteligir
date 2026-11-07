@@ -1,46 +1,32 @@
 "use client";
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
-import { Children, createContext, useContext, useMemo, useState } from "react";
+import { Children, useState } from "react";
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
 import { ChevronDownIcon, FileIcon, PenIcon } from "lucide-react";
 
 import { Collapse } from "@repo/ui/lib/collapse";
 import { cn } from "@repo/ui/lib/cn";
 
-type ToolIcon = "read" | "think" | "write";
+type ToolIcon = "read" | "write";
 
-// the think mark is the straight four-point star the thinking trace draws; lucide's sparkle bows
 const ICONS = {
   read: <FileIcon size={13} />,
-  think: (
-    <svg aria-hidden width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z" />
-    </svg>
-  ),
   write: <PenIcon size={13} />,
 } satisfies Record<ToolIcon, ReactNode>;
 
-interface ToolChipContextValue {
-  mono: boolean;
-}
-
-const ToolChipContext = createContext<ToolChipContextValue>({ mono: false });
-
 interface ToolChipListProps extends HTMLAttributes<HTMLDivElement> {
   summary: string;
-  defaultExpanded?: boolean;
 }
 
 const ToolChipList = ({
   summary,
-  defaultExpanded = true,
   className,
   children,
   ref,
   ...props
 }: ToolChipListProps & RefAttributes<HTMLDivElement>) => {
-  const [open, setOpen] = useState(defaultExpanded);
+  const [open, setOpen] = useState(true);
   // the collapse's -mx-1 + px-1.5 keeps x while giving hover pills room inside its clip box
   return (
     <div ref={ref} data-slot="tool-chip-list" className={cn("w-full pb-1", className)} {...props}>
@@ -69,21 +55,17 @@ const ToolChipList = ({
 };
 
 interface ToolChipProps extends HTMLAttributes<HTMLDivElement> {
-  icon?: ToolIcon;
+  icon: ToolIcon;
   label: string;
   chip: string;
   failed?: boolean;
-  mono?: boolean;
-  detailMono?: boolean;
 }
 
 const ToolChip = ({
-  icon = "think",
+  icon,
   label,
   chip,
   failed = false,
-  mono = false,
-  detailMono = false,
   className,
   children,
   ref,
@@ -92,7 +74,6 @@ const ToolChip = ({
   const [open, setOpen] = useState(false);
   // oxlint-disable-next-line react/no-react-children -- expandability is exactly "did the caller pass a body", and only Children.count reads array and hole children the way React renders them
   const expandable = Children.count(children) > 0;
-  const detailContext = useMemo(() => ({ mono: detailMono }), [detailMono]);
   return (
     <div
       ref={ref}
@@ -135,56 +116,36 @@ const ToolChip = ({
         >
           {label}
         </span>
-        <span
-          className={cn(
-            "inline-flex h-5.5 min-w-0 flex-1 items-center truncate rounded-md bg-muted px-1.5 text-caption text-ink-2",
-            mono && "font-mono",
-          )}
-        >
+        <span className="inline-flex h-5.5 min-w-0 flex-1 items-center truncate rounded-md bg-muted px-1.5 text-caption text-ink-2">
           {chip}
         </span>
       </button>
 
       {expandable ? (
         <Collapse open={open} innerClassName="min-h-0">
-          <ToolChipContext value={detailContext}>
-            <div className="mt-0.5 mb-1 ml-2 flex flex-col gap-0.5 border-l border-line py-0.5 pl-3.5">
-              {children}
-            </div>
-          </ToolChipContext>
+          <div className="mt-0.5 mb-1 ml-2 flex flex-col gap-0.5 border-l border-line py-0.5 pl-3.5">
+            {children}
+          </div>
         </Collapse>
       ) : null}
     </div>
   );
 };
 
-interface ToolChipDetailProps extends HTMLAttributes<HTMLSpanElement> {
-  tone?: "add";
-}
-
 const ToolChipDetail = ({
-  tone,
   className,
   children,
   ref,
   ...props
-}: ToolChipDetailProps & RefAttributes<HTMLSpanElement>) => {
-  const { mono } = useContext(ToolChipContext);
-  return (
-    <span
-      ref={ref}
-      data-slot="tool-chip-detail"
-      className={cn(
-        "truncate text-caption leading-[1.6]",
-        mono && "font-mono",
-        tone === "add" ? "text-success" : "text-ink-2",
-        className,
-      )}
-      {...props}
-    >
-      {children}
-    </span>
-  );
-};
+}: HTMLAttributes<HTMLSpanElement> & RefAttributes<HTMLSpanElement>) => (
+  <span
+    ref={ref}
+    data-slot="tool-chip-detail"
+    className={cn("truncate text-caption leading-[1.6] text-ink-2", className)}
+    {...props}
+  >
+    {children}
+  </span>
+);
 
 export { ToolChipList, ToolChip, ToolChipDetail };

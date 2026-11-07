@@ -21,10 +21,10 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 
 - **A GUARD DERIVES EVERY VALUE IT CAN, AND IS FOR A FAILURE NOTHING ELSE
   REPORTS.** What it cannot derive is a row carrying its reason
-  (`ALLOWED_EXPORTS`, `EDITOR_PAGE_CLIENTS`, `PROSE_SIZES`, product-words'
-  `ALLOWED`), and `dep-dag.test.ts`'s `DECLARED_EDGES` is the pin itself. A
-  second copy of a tool's check, or of what the tree already prints,
-  is one more table every change keeps in step, so knip's unused dependencies,
+  (`EDITOR_PAGE_CLIENTS`, `PROSE_SIZES`, product-words' `ALLOWED`), and
+  `dep-dag.test.ts`'s `DECLARED_EDGES` is the pin itself. A second copy of a
+  tool's check, or of what the tree already prints, is one more table every
+  change keeps in step, so knip's unused dependencies,
   oxlint's import rules and `pnpm e2e --list` get no guard, and CI is
   `pnpm verify` plus the steps `verify` cannot run, each with its reason beside
   it in `.github/workflows/ci.yml`.

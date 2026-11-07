@@ -27,7 +27,8 @@ const THEMES: readonly { value: Theme; label: string }[] = [
   { label: "Dark", value: "dark" },
 ];
 
-// ids agree with the section anchors below
+// ids agree with the sections below; the nav scrolls to one rather than linking to its fragment,
+// since the Mac's routes ride the hash and a fragment there is a route
 const NAV = [
   { id: "account", label: "Account" },
   { id: "import", label: "Import and export" },
@@ -102,13 +103,17 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => (
         Library
       </Button>
       {NAV.map((entry) => (
-        <a
+        <Button
           key={entry.id}
-          href={`#${entry.id}`}
-          className="rounded px-2 py-1 text-body text-muted-foreground hover:bg-muted hover:text-foreground"
+          variant="ghost"
+          size="compact"
+          className="justify-start text-muted-foreground"
+          onClick={() => {
+            document.querySelector(`#${entry.id}`)?.scrollIntoView();
+          }}
         >
           {entry.label}
-        </a>
+        </Button>
       ))}
     </nav>
     <main className="min-w-0 flex-1 space-y-6 overflow-y-auto px-8 py-6" data-settings>

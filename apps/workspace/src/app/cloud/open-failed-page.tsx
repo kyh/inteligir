@@ -1,20 +1,35 @@
-// The Mac's window when the shell could not open the library at all: a Keychain that refused or is
-// locked, a replica file that would not open, a config the shell could not give. Nothing else is
-// drawn yet, so this says what failed in the person's words and offers the two ways on: Try again,
-// a reload, and Sign out, which lets go of this Mac's credential, its copy of the library and its
-// files, and opens on the sign-in. The library itself stays in the account.
+// The page when the library could not open at all, with nothing else drawn yet: it says so in the
+// person's words and offers the ways on. In the Mac's window the shell failed (a Keychain that
+// refused or is locked, a replica file that would not open, a config it could not give), so the
+// ways on are Try again, a reload, and Sign out, which lets go of this Mac's credential, its copy
+// of the library and its files, and opens on the sign-in. The library itself stays in the account.
+// In the tab the site or the connection failed, and a tab holds nothing to let go: Try again alone.
 
 import { Button } from "@repo/ui/components/button";
 import { QueryClientProvider, useMutation } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 
 import { shellCredential } from "../../shell/shell-commands";
 import { shellTroubleText, signOutTroubleText } from "./shell-trouble";
 
 const HEADING = "Your library didn't open";
 const OPEN_FAILED = "Something went wrong opening your library on this Mac.";
+const TAB_OPEN_FAILED = "Your library couldn't be reached. Check your connection and try again.";
 const SIGNING_OUT =
   "Signing out removes the copy on this Mac, with any change it hasn't sent yet. Your library stays in your account.";
+
+const OpenFailedFrame = ({ said, children }: { said: string; children: ReactNode }) => (
+  <main className="flex min-h-dvh items-center justify-center p-8" data-tauri-drag-region>
+    <div className="flex w-full max-w-sm flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <h1 className="m-0 text-display font-semibold">{HEADING}</h1>
+        <p className="m-0 text-body text-muted-foreground">{said}</p>
+      </div>
+      {children}
+    </div>
+  </main>
+);
 
 const OpenFailed = ({ cause, reload }: { cause: unknown; reload: () => void }) => {
   const signOut = useMutation({
@@ -26,35 +41,27 @@ const OpenFailed = ({ cause, reload }: { cause: unknown; reload: () => void }) =
     onSuccess: reload,
   });
   return (
-    <main className="flex min-h-dvh items-center justify-center p-8" data-tauri-drag-region>
-      <div className="flex w-full max-w-sm flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="m-0 text-display font-semibold">{HEADING}</h1>
-          <p className="m-0 text-body text-muted-foreground">
-            {shellTroubleText(cause, OPEN_FAILED)}
-          </p>
-        </div>
-        <p className="m-0 text-body text-muted-foreground">{SIGNING_OUT}</p>
-        {signOut.isError ? (
-          <p className="m-0 text-body text-destructive">{signOutTroubleText(signOut.error)}</p>
-        ) : null}
-        <div className="flex items-center gap-2">
-          <Button type="button" onClick={reload}>
-            Try again
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={signOut.isPending}
-            onClick={() => {
-              signOut.mutate();
-            }}
-          >
-            Sign out
-          </Button>
-        </div>
+    <OpenFailedFrame said={shellTroubleText(cause, OPEN_FAILED)}>
+      <p className="m-0 text-body text-muted-foreground">{SIGNING_OUT}</p>
+      {signOut.isError ? (
+        <p className="m-0 text-body text-destructive">{signOutTroubleText(signOut.error)}</p>
+      ) : null}
+      <div className="flex items-center gap-2">
+        <Button type="button" onClick={reload}>
+          Try again
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={signOut.isPending}
+          onClick={() => {
+            signOut.mutate();
+          }}
+        >
+          Sign out
+        </Button>
       </div>
-    </main>
+    </OpenFailedFrame>
   );
 };
 
@@ -71,4 +78,12 @@ export const OpenFailedPage = ({
   <QueryClientProvider client={queryClient}>
     <OpenFailed cause={cause} reload={reload} />
   </QueryClientProvider>
+);
+
+export const TabOpenFailedPage = ({ reload }: { reload: () => void }) => (
+  <OpenFailedFrame said={TAB_OPEN_FAILED}>
+    <Button type="button" className="self-start" onClick={reload}>
+      Try again
+    </Button>
+  </OpenFailedFrame>
 );

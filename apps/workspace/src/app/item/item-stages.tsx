@@ -9,21 +9,17 @@ import { toast } from "@repo/ui/components/sonner";
 import { useMutation } from "@tanstack/react-query";
 import { DownloadIcon, ExternalLinkIcon } from "lucide-react";
 
-import { useFileUrl } from "../cloud/library-context";
+import { useFileUrl, useReadFile } from "../cloud/library-context";
 import { saveBlob } from "@repo/ui/lib/save-blob";
 
-// The file's bytes read where the host draws them, then saved under its own name: the Mac's
-// scheme is another origin than its page, where a `download` link would be followed instead
-// (`@repo/ui/lib/save-blob`). It reads what the device holds, so it runs with no connection too.
-const SaveFile = ({ url, name, label }: { url: string; name: string; label: string }) => {
+// The file's bytes read where the host draws them, a file not sent up yet among them, then saved
+// under its own name: the Mac's scheme is another origin than its page, where a `download` link
+// would be followed instead (`@repo/ui/lib/save-blob`).
+const SaveFile = ({ sha, name, label }: { sha: string; name: string; label: string }) => {
+  const readFile = useReadFile();
   const save = useMutation({
     mutationFn: async () => {
-      const response = await fetch(url);
-      if (!response.ok) {
-        await response.body?.cancel();
-        throw new Error(`the file answered ${String(response.status)}`);
-      }
-      saveBlob(await response.blob(), name);
+      saveBlob(await readFile(sha), name);
     },
     // a file the device holds saves offline; one it would fetch fails at once and says so
     networkMode: "always",
@@ -74,7 +70,7 @@ export const FileStage = ({ fields, title }: { fields: LibraryItemFields; title:
             className="h-[70vh] w-full rounded-md border border-border"
           >
             <SaveFile
-              url={url}
+              sha={sha}
               name={fields.originalName ?? title}
               label={`Download ${fields.originalName ?? "the PDF"}`}
             />
@@ -104,7 +100,7 @@ export const FileStage = ({ fields, title }: { fields: LibraryItemFields; title:
       return (
         <div className="px-8 pt-4">
           <SaveFile
-            url={url}
+            sha={sha}
             name={fields.originalName ?? title}
             label={`Download ${fields.originalName ?? "the file"}`}
           />

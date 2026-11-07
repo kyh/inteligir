@@ -24,7 +24,7 @@ const WorkspaceLayout = () => {
         openItem={item ?? null}
         covered={covered}
         onOpenItem={(itemId) => {
-          // on the current route, so an item opened from Settings' History keeps Settings' layer
+          // on the current route: an open that lands while Settings covers the workspace keeps it
           void navigate({ search: (prior) => ({ ...prior, item: itemId ?? undefined }), to: "." });
         }}
       />

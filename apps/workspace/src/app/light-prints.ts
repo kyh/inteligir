@@ -1,7 +1,6 @@
 // A print is light whatever the window shows: a printer skips backgrounds, so the dark theme's light
-// ink would land on white paper. Every host fires `beforeprint` before it lays a print out and
-// `afterprint` once it is done (a browser around `window.print()`, WebKit around the shell's print
-// sheet), so the theme steps aside between the two, however the print began.
+// ink would land on white paper. The browser fires `beforeprint` before it lays a print out and
+// `afterprint` once it is done, so the theme steps aside between the two, however the print began.
 
 export const installLightPrints = (): (() => void) => {
   const root = document.documentElement;

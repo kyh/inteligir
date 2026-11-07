@@ -4,11 +4,12 @@
 //
 // The browser tab's: SQLite's own wasm in memory, with the session cookie for its credential. The
 // tab keeps nothing between loads: it pulls the library again each time it opens, and a write it
-// queued goes once the cell answers, so the tab is online only (spec §6, "Web"). The Mac's is the
-// shell's (`shell-library.ts`).
+// queued goes once the cell answers, so the tab is online only. The Mac's is the shell's
+// (`shell-library.ts`).
 
 import { V1_BLOBS_PATH } from "@repo/contract/cloud/library/library-blobs";
 import { replicaMerge } from "@repo/editor/stale-write";
+import type { SessionEnd } from "@repo/library-replica/call-outcome";
 import { openLibraryReplica } from "@repo/library-replica/library-replica";
 import type { LibraryReplica } from "@repo/library-replica/library-replica";
 import { openMemorySql } from "@repo/library-replica/memory-sql";
@@ -22,7 +23,7 @@ import { z } from "zod";
 
 import type { LeaveGuard } from "./leave-guard";
 import { keepSession } from "./session-keeper";
-import { createCloudWire } from "./v1";
+import { createCloudWire, watchSessionEnd } from "./v1";
 import type { CloudWire } from "./v1";
 
 // who is signed in: Settings › Account names them
@@ -123,17 +124,22 @@ export const fileAt = async (
   return await response.blob();
 };
 
+// who this cookie signs in, or null when the site says no one; a fault of the site's says neither,
+// so it rejects rather than send a signed-in person to sign in again
 const readSession = async (origin: string): Promise<SignedIn | null> => {
   const response = await fetch(`${origin}/api/auth/get-session`, { credentials: "same-origin" });
-  if (!response.ok) {
+  if (response.status === 401) {
     return null;
+  }
+  if (!response.ok) {
+    throw new Error(`the session read answered ${String(response.status)}`);
   }
   return sessionSchema.parse(await response.json())?.user ?? null;
 };
 
 export const openPageLibrary = async (
   origin: string,
-  { leave, onSessionEnd }: { leave: LeaveGuard; onSessionEnd: () => void },
+  { leave, onSessionEnd }: { leave: LeaveGuard; onSessionEnd: (end: SessionEnd) => void },
 ): Promise<PageOpening> => {
   const account = await readSession(origin);
   if (account === null) {
@@ -156,6 +162,7 @@ export const openPageLibrary = async (
   keepSession(pageClock, async () => {
     await readSession(origin);
   });
+  watchSessionEnd(opening.replica, onSessionEnd);
   return {
     kind: "ready",
     library: {

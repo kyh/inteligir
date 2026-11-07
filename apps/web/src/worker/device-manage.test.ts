@@ -8,6 +8,7 @@ import {
   deviceHeaders,
   loginDevice,
   openSocket,
+  sessionHeaders,
   signUpUser,
   v1Link,
 } from "./test-support/cloud-helpers";
@@ -27,6 +28,21 @@ describe("a device managing its account's devices", () => {
     const { devices } = await as(mac.credential).account.devices.list();
     expect(devices.map((row) => row.name)).toStrictEqual(["Mac", "Phone"]);
     expect(devices.every((row) => row.revokedAt === null)).toBe(true);
+  });
+
+  it("marks the device that asks, and none when the site's session asks", async () => {
+    const { cookie } = await signUpUser("manage-current@example.test");
+    const mac = await loginDevice(cookie, "Mac");
+    await loginDevice(cookie, "Phone");
+
+    const { devices } = await as(mac.credential).account.devices.list();
+    expect(devices.map(({ current, name }) => ({ current, name }))).toStrictEqual([
+      { current: true, name: "Mac" },
+      { current: false, name: "Phone" },
+    ]);
+
+    const site = await v1Link(sessionHeaders(cookie)).account.devices.list();
+    expect(site.devices.map((row) => row.current)).toStrictEqual([false, false]);
   });
 
   // the sign-in's row is a raw insert beside drizzle's writes, so both must spell the same unit

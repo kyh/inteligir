@@ -13,7 +13,7 @@ type Submit = (answers: ApprovalAnswer[]) => void | Promise<void>;
 const renderCard = (onSubmit: Submit): void => {
   render(
     <ApprovalCard onSubmit={onSubmit} sentLabel="Answered">
-      <ApprovalQuestion questionId="q1" prompt="Run it?" kind="radio">
+      <ApprovalQuestion questionId="q1" prompt="Run it?">
         <ApprovalOption optionId="allow">Allow</ApprovalOption>
         <ApprovalOption optionId="deny">Deny</ApprovalOption>
       </ApprovalQuestion>

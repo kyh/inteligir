@@ -144,6 +144,8 @@ export interface NameRequest {
   readonly initial: string;
   readonly confirm: string;
   readonly onSubmit: (name: string) => void;
+  // why this text can't be taken, which holds the dialog open on it
+  readonly refuse?: (name: string) => string | null;
 }
 
 export const NameDialog = ({
@@ -154,9 +156,11 @@ export const NameDialog = ({
   onClose: () => void;
 }) => {
   const [draft, setDraft] = useState<string | null>(null);
+  const [refusal, setRefusal] = useState<string | null>(null);
   const value = draft ?? request?.initial ?? "";
   const close = (): void => {
     setDraft(null);
+    setRefusal(null);
     onClose();
   };
   return (
@@ -176,7 +180,12 @@ export const NameDialog = ({
           onSubmit={(event) => {
             event.preventDefault();
             const name = value.trim();
-            if (name !== "" && request !== null) {
+            if (name === "" || request === null) {
+              return;
+            }
+            const refused = request.refuse?.(name) ?? null;
+            setRefusal(refused);
+            if (refused === null) {
               request.onSubmit(name);
               close();
             }
@@ -188,12 +197,18 @@ export const NameDialog = ({
             autoFocus
             onChange={(event) => {
               setDraft(event.target.value);
+              setRefusal(null);
             }}
           />
           <Button type="submit" disabled={value.trim() === ""}>
             {request?.confirm ?? "Save"}
           </Button>
         </form>
+        {refusal === null ? null : (
+          <p role="alert" className="m-0 text-body text-destructive">
+            {refusal}
+          </p>
+        )}
       </DialogContent>
     </Dialog>
   );

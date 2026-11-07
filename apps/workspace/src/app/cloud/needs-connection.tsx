@@ -3,7 +3,7 @@
 // connection TanStack Query pauses it rather than failing it, and the screen says it needs one;
 // a refusal says its own sentence. A read says so where it would draw; a write, wherever it was
 // asked from (a card's menu, a button, Settings), says so in one notice the page keeps up while
-// any waits. Spec §6, "Online only, said plainly in the UI".
+// any waits.
 
 import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { LoadingState } from "@repo/ui/ai/loading-state";

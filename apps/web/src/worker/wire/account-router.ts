@@ -131,9 +131,14 @@ const accountRouter = os.router({
     }
   }),
   devices: {
-    list: os.devices.list
-      .use(signedIn)
-      .handler(async ({ context }) => await listDevices(context.db, context.signedIn.accountId)),
+    list: os.devices.list.use(signedIn).handler(async ({ context }) => {
+      const { accountId, actor } = context.signedIn;
+      return await listDevices(
+        context.db,
+        accountId,
+        actor.kind === "device" ? actor.deviceId : null,
+      );
+    }),
     revoke: os.devices.revoke.use(signedIn).handler(async ({ context, errors, input }) => {
       const revoked = await revokeDevice(context.ctx, context.db, {
         deviceId: input.deviceId,

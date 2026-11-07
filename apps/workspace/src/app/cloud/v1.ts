@@ -11,9 +11,11 @@ import { RPCLink } from "@orpc/client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import type { V1Client } from "@repo/contract/cloud/v1";
+import { sharedFailure } from "@repo/library-replica/call-outcome";
+import type { SessionEnd } from "@repo/library-replica/call-outcome";
+import type { LibraryReplica, ReplicaStatus } from "@repo/library-replica/library-replica";
 import type { ReplicaTransport } from "@repo/library-replica/replica-ports";
 import { QueryClient } from "@tanstack/react-query";
-import { isOrpcError } from "@repo/contract/cloud/v1/errors";
 
 type V1Queries = ReturnType<typeof createTanstackQueryUtils<V1Client>>;
 
@@ -22,23 +24,42 @@ export interface CloudWire {
   readonly orpc: V1Queries;
 }
 
-// a call met a session that ended (signed out elsewhere, the account deleted): the page has no
-// library to show, so it goes to the sign-in that brings it back here
+// how a call's failure ended the page's sign-in, in the replica's own terms, if it did
 /** @internal */
-export const sessionEnded = (cause: unknown): boolean =>
-  isOrpcError(cause) && cause.defined && (cause.code === "UNAUTHORIZED" || cause.code === "GONE");
+export const sessionEndOf = (cause: unknown): SessionEnd | null => {
+  const failure = cause instanceof Error ? sharedFailure(cause) : null;
+  return failure?.kind === "session" ? failure.end : null;
+};
+
+// CLAUDE.md § A SESSION'S END IS ANSWERED HOWEVER THE PAGE MEETS IT. The replica calls through a
+// client of its own, which the wire's interceptor never hears, and an idle page makes no wire call.
+// A status moves many times after one end, so each failure is answered once.
+export const watchSessionEnd = (
+  replica: Pick<LibraryReplica, "onStatus" | "status">,
+  onSessionEnd: (end: SessionEnd) => void,
+): void => {
+  let answered: ReplicaStatus["failure"] = null;
+  replica.onStatus(() => {
+    const { failure } = replica.status();
+    if (failure?.kind === "session" && failure !== answered) {
+      answered = failure;
+      onSessionEnd(failure.end);
+    }
+  });
+};
 
 export const createCloudWire = (
   transport: ReplicaTransport,
-  onSessionEnd: () => void,
+  onSessionEnd: (end: SessionEnd) => void,
 ): CloudWire => {
   const link = new RPCLink({
     fetch: async (url, init) => await transport.fetch(new Request(url, init)),
     // the link's own interceptor sees every call's failure once, before its caller does
     interceptors: [
       onError((cause: unknown) => {
-        if (sessionEnded(cause)) {
-          onSessionEnd();
+        const end = sessionEndOf(cause);
+        if (end !== null) {
+          onSessionEnd(end);
         }
       }),
     ],

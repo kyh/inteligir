@@ -55,6 +55,8 @@ const RootDocument = ({ children }: { children: React.ReactNode }) => {
 
   // suppressHydrationWarning: the inline script sets the theme class before hydration
   // the theme-color metas are plain tags because HeadContent dedupes meta by name and would drop one of the pair
+  // isolate: the site's own stacking context, so a popup Base UI portals into body stays above it
+  // (https://base-ui.com/react/overview/quick-start)
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -75,8 +77,6 @@ const RootDocument = ({ children }: { children: React.ReactNode }) => {
         />
       </head>
       <body className="bg-background text-foreground font-sans antialiased">
-        {/* the site's own stacking context, so a popup Base UI portals into body stays above it
-            (https://base-ui.com/react/overview/quick-start) */}
         <div className="isolate">{children}</div>
         <Scripts />
       </body>

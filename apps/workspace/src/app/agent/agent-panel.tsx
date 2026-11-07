@@ -4,7 +4,7 @@
 // answer to an approval, a stop and an undo go to the cell, so each waits for a connection. A
 // message carries the screen it was sent from (the open item, or the grid's scope and selection).
 
-import { composerPlaceholder, sendInput } from "@repo/agent-panel/agent-send";
+import { composerPlaceholder, quotePassage, sendInput } from "@repo/agent-panel/agent-send";
 import type { AgentViewContext } from "@repo/agent-panel/agent-send";
 import {
   agentRefusalWords,
@@ -56,6 +56,9 @@ export interface AgentPanelProps {
   // the composer holds Tidy my library's request, until it is sent or dropped
   readonly tidying: boolean;
   readonly onTidyEnd: () => void;
+  // a passage the person asked the agent about, waiting for the composer to quote it
+  readonly passage: string | null;
+  readonly onPassageTaken: () => void;
 }
 
 const EntryRow = ({
@@ -331,7 +334,6 @@ const Conversation = ({
                 questionId={approval.eventId}
                 prompt={question}
                 detail={detail ?? undefined}
-                kind="radio"
               >
                 <ApprovalOption optionId="allow">Approve</ApprovalOption>
                 <ApprovalOption optionId="deny">Cancel</ApprovalOption>
@@ -387,16 +389,34 @@ const Composer = ({
   viewContext,
   tidying,
   onTidyEnd,
+  passage,
+  onPassageTaken,
 }: {
   threadId: string | null;
   onThread: (threadId: string) => void;
   viewContext: () => AgentViewContext | undefined;
   tidying: boolean;
   onTidyEnd: () => void;
+  passage: string | null;
+  onPassageTaken: () => void;
 }) => {
   const { orpc } = useWire();
   const [text, setText] = useState("");
   const nowMs = useNow();
+  const field = useRef<HTMLTextAreaElement>(null);
+  const [quoted, setQuoted] = useState<string | null>(null);
+  if (passage !== quoted) {
+    setQuoted(passage);
+    if (passage !== null) {
+      setText(quotePassage(text, passage));
+    }
+  }
+  useEffect(() => {
+    if (passage !== null) {
+      field.current?.focus();
+      onPassageTaken();
+    }
+  }, [onPassageTaken, passage]);
   const send = useMutation(
     orpc.library.agent.send.mutationOptions({
       onError: (cause) => {
@@ -434,6 +454,7 @@ const Composer = ({
         minRows={2}
         maxRows={8}
         disabled={send.isPending}
+        textareaRef={field}
         textareaProps={{ "aria-label": "Message the agent" }}
       />
     </div>
@@ -447,6 +468,8 @@ export const AgentPanel = ({
   flushOpen,
   tidying,
   onTidyEnd,
+  passage,
+  onPassageTaken,
 }: AgentPanelProps) => (
   <div className="flex h-full min-h-0 flex-col" data-agent-panel>
     <div className="flex h-10 shrink-0 items-center gap-1 px-2">
@@ -487,6 +510,8 @@ export const AgentPanel = ({
       viewContext={viewContext}
       tidying={tidying}
       onTidyEnd={onTidyEnd}
+      passage={passage}
+      onPassageTaken={onPassageTaken}
     />
   </div>
 );
