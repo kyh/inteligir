@@ -343,7 +343,9 @@ describe("the phone's runtime", () => {
     const { runtime } = runtimeOver(cell, {
       fetch: async (request) => {
         const calledOff = deferred();
-        request.signal.addEventListener("abort", calledOff.resolve);
+        request.signal.addEventListener("abort", () => {
+          calledOff.resolve();
+        });
         reached.resolve();
         await calledOff.promise;
         throw new TypeError("the call was called off");
