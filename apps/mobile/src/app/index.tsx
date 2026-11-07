@@ -209,7 +209,7 @@ const LibraryScreen = () => {
   const scope = listedScope(chosenScope, folders);
   const hits = useSearchHits(query, searchSideOf(scope));
   const listingAsked = listingQuery({ hits, kinds, scope });
-  const { page } = useListing(listingAsked);
+  const page = useListing(listingAsked);
 
   const refresh = async (): Promise<void> => {
     setRefreshing(true);
