@@ -29,6 +29,8 @@ nothing here dials.
   carries.
 - `page-reading.ts` — that reading as blocks, in types that name no DOM.
 - `read-html.ts` — the reading over linkedom, for a host with no DOM of its own.
+- `read-html-api.ts` — that entry's signature in types that name no DOM, for a
+  program with none.
 - `web-url.ts` — the one rule for a link a page names.
 - `linkedom-page.ts` — the parse of a host with no DOM of its own.
 
