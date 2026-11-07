@@ -368,6 +368,61 @@ describe("the replica's outbox", () => {
     expect(phone.replica.status().unsent).toBe(0);
   });
 
+  it("counts a make the cell no longer remembers as landed when it holds the item", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    const { id } = await phone.replica.createNote({
+      blocks: [{ block: paragraph("p1", "first"), ord: "a0", section: "note" }],
+      folderId: null,
+      tags: [],
+      title: "Plans",
+    });
+    await write(phone.replica, id, [await putText(phone.replica, id, "p1", "behind it")]);
+    phone.network.loseAnswers(1);
+    await phone.replica.sync();
+    expect(cell.item(id)).not.toBeNull();
+    cell.forgetAnswers();
+    await phone.replica.sync();
+    expect(phone.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
+    expect(cellText(cell, id, "p1")).toBe("behind it");
+    await expect(replicaText(phone.replica, id, "p1")).resolves.toBe("behind it");
+  });
+
+  it("counts a file's make the cell no longer remembers as landed, its bytes let go", async () => {
+    const cell = createFakeCell();
+    const network = cell.device("phone");
+    let lost = false;
+    const phone = await openDevice(cell, "phone", {
+      network: {
+        ...network,
+        transport: {
+          fetch: async (request) => {
+            const response = await network.transport.fetch(request);
+            if (!lost && request.url.endsWith("/library/items/createFile")) {
+              lost = true;
+              throw new TypeError("the answer was lost");
+            }
+            return response;
+          },
+          origin: network.transport.origin,
+        },
+      },
+    });
+    const { id } = await phone.replica.createFile({
+      file: { bytes: PNG, mime: "image/png" },
+      folderId: null,
+      name: "a.png",
+      tags: [],
+    });
+    await phone.replica.sync();
+    expect(cell.item(id)).not.toBeNull();
+    cell.forgetAnswers();
+    await phone.replica.sync();
+    expect(phone.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
+    expect(phone.blobs.held()).toStrictEqual([]);
+    expect(phone.replica.row(id)).not.toBeNull();
+  });
+
   it("parks a write the cell refuses for its size, keeping its text, while another item goes on", async () => {
     const cell = createFakeCell();
     const phone = await openDevice(cell, "phone");

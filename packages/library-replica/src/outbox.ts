@@ -328,6 +328,16 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     return { kind: "landed" };
   };
 
+  // the cell holds what the row asked for already, or the row asked nothing of it
+  const satisfied = async (row: OutboxRow): Promise<SendOutcome> =>
+    await land(
+      row,
+      function* nothing() {
+        yield* [];
+      },
+      touchedNothing(),
+    );
+
   const landMake = async (
     row: OutboxRow,
     madeAs: string,
@@ -350,13 +360,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     overlapped: readonly string[],
   ): Promise<SendOutcome> => {
     if (outcome.kind === "satisfied") {
-      return await land(
-        row,
-        function* nothing() {
-          yield* [];
-        },
-        touchedNothing(),
-      );
+      return await satisfied(row);
     }
     return await resend(row, again(outcome.op), overlapped);
   };
@@ -515,11 +519,23 @@ export const createOutbox = (context: OutboxContext): Outbox => {
         return { dropped: [], written: [] };
       });
     }
-    return await refused(row, error, async () =>
-      isDefinedError(error) && error.code === "BLOB_MISSING" && "shas" in error.data
-        ? await missingFiles(row, error.data.shas)
-        : null,
-    );
+    return await refused(row, error, async () => {
+      if (!isDefinedError(error)) {
+        return null;
+      }
+      if (error.code === "BLOB_MISSING" && "shas" in error.data) {
+        return await missingFiles(row, error.data.shas);
+      }
+      // the id is minted for this row alone, so an item under it is this row's, landed under an
+      // op id the cell has since let go; the pull lays it
+      return error.code === "CONFLICT" &&
+        "current" in error.data &&
+        error.data.current.some(
+          (current) => current.kind === "item" && current.itemId === op.input.id,
+        )
+        ? await satisfied(row)
+        : null;
+    });
   };
 
   const sendDeletion = async (
@@ -625,13 +641,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       }
       // its file is up, which was all it asked
       case "keep": {
-        return await land(
-          row,
-          function* nothing() {
-            yield* [];
-          },
-          touchedNothing(),
-        );
+        return await satisfied(row);
       }
       // no default
     }
