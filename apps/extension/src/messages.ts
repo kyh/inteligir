@@ -56,18 +56,22 @@ export type Status = z.infer<typeof statusSchema>;
 // what the worker sends a page: a save's outcome, a status, or, for any work that failed, a refusal
 export type WorkerAnswer = Outcome | Status;
 
-const answerTo = async (request: ExtensionRequest): Promise<unknown> => {
+const SAVE_FAILED: Outcome = { kind: "refused", reason: "failed" };
+
+// a page asks its worker and reads the answer; an answer that is not one is `unread`, a failure to
+// report
+const answerTo = async <T, U>(
+  request: ExtensionRequest,
+  schema: z.ZodType<T>,
+  unread: U,
+): Promise<T | U> => {
   try {
     const answer: unknown = await browser.runtime.sendMessage(request);
-    return answer;
+    const parsed = schema.safeParse(answer);
+    return parsed.success ? parsed.data : unread;
   } catch {
-    return undefined;
+    return unread;
   }
-};
-
-const statusAfter = async (request: ExtensionRequest): Promise<Status | null> => {
-  const parsed = statusSchema.safeParse(await answerTo(request));
-  return parsed.success ? parsed.data : null;
 };
 
 export interface WorkerAsks {
@@ -77,12 +81,8 @@ export interface WorkerAsks {
   readonly disconnect: () => Promise<Status | null>;
 }
 
-// a page asks its worker and reads the answer; an answer that is not one is a failure to report
 export const askWorker: WorkerAsks = {
-  disconnect: async () => await statusAfter({ type: "disconnect" }),
-  save: async (tabId) => {
-    const parsed = outcomeSchema.safeParse(await answerTo({ tabId, type: "save" }));
-    return parsed.success ? parsed.data : { kind: "refused", reason: "failed" };
-  },
-  status: async () => await statusAfter({ type: "status" }),
+  disconnect: async () => await answerTo({ type: "disconnect" }, statusSchema, null),
+  save: async (tabId) => await answerTo({ tabId, type: "save" }, outcomeSchema, SAVE_FAILED),
+  status: async () => await answerTo({ type: "status" }, statusSchema, null),
 };
