@@ -86,10 +86,10 @@ const alignTodoEscapes: Transform = (tree) => {
     const line = item.children.find((child) => child.type === "paragraph");
     const head = line?.children[0];
     const escapes = head?.type === "text" ? head.data?.escapes : undefined;
-    if (typeof item.checked === "boolean" && escapes !== undefined) {
-      escapes.forEach((at, index) => {
+    if (item.checked !== null && item.checked !== undefined && escapes !== undefined) {
+      for (const [index, at] of escapes.entries()) {
         escapes[index] = at - 1;
-      });
+      }
     }
   });
 };

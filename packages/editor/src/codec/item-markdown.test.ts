@@ -212,7 +212,7 @@ describe("Obsidian's spellings, through a real export and import", () => {
   });
 
   it("answers a file nested past what its spellings are read through as too deep", () => {
-    for (const depth of [3_000, 6_000, 12_000]) {
+    for (const depth of [3000, 6000, 12_000]) {
       const text = `${"> ".repeat(depth)}x\n`;
       expect(
         importItem({ annotations: null, name: "Deep", text }, library.importPorts()),
