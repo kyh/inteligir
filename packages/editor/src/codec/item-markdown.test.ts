@@ -189,6 +189,28 @@ describe("Obsidian's spellings, through a real export and import", () => {
     expect(content(reimported(typed))).toStrictEqual(content(typed));
   });
 
+  it.each([...LOOK_ALIKES, "@2026-08-22", "{{1+1}}", "%%i:abc:start%%"])(
+    "keeps %j, typed first in a to-do, as the text it is",
+    (text) => {
+      const todo = (checked: boolean, id: string): LibraryBlock => ({
+        checked,
+        children: [{ text }],
+        id,
+        indent: 1,
+        listStyleType: "todo",
+        type: "p",
+      });
+      const typed = typedItem("note", [todo(false, "open"), todo(true, "done")]);
+      expect(content(reimported(typed))).toStrictEqual(content(typed));
+    },
+  );
+
+  it("reads a real highlight and ref in a to-do", () => {
+    const item = imported("- [ ] ==first== then ^ref\n");
+    expect(Object.values(item.annotations).map(({ quote }) => quote)).toStrictEqual(["first"]);
+    expect(item.blocks.map(({ block }) => block.ref)).toStrictEqual(["ref"]);
+  });
+
   it("writes the escape that keeps typed text text, and none where nothing would read", () => {
     expect(typedBody("x==1==y")).toBe("x\\==1==y\n");
     expect(typedBody("50%% and 60%%")).toBe("50\\%% and 60%%\n");

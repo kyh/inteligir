@@ -40,6 +40,18 @@ describe("a construct whose first character an escape wrote", () => {
     expect(stringify(parseMdast(md).root)).toBe(md);
   });
 
+  it.each([
+    ["an open to-do", "- [ ] \\@2026-07-01 there\n"],
+    ["a done to-do", "- [x] \\@2026-07-01 there\n"],
+  ])("is text at the head of %s, whose first space GFM takes off", (_name, md) => {
+    expect(outlineOf(md).at(-1)).toBe("        text @2026-07-01 there");
+    expect(stringify(parseMdast(md).root)).toBe(md);
+  });
+
+  it("is a construct just past an escape at the head of a to-do", () => {
+    expect(outlineOf("- [ ] \\(@2026-07-01\n")).toContain("        date");
+  });
+
   it("is text past a bare url GFM found in the same text, which splits it", () => {
     const md = "www\\.y.org2026-01-02) \\@2026-01-02-$\n";
     expect(outlineOf(md)).toStrictEqual([
