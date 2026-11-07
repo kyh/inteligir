@@ -15,7 +15,6 @@ import type { Plugin, Processor, Transformer } from "unified";
 
 import { ANNOTATION_ID_PATTERN } from "../annotations/store-schema";
 import { ISO_DATE_PATTERN } from "../iso-date";
-import { cellSafe } from "./line-scan";
 import { isMdastRoot } from "./mdast-nodes";
 import { escapedAt, textCutter } from "./text-escapes";
 
@@ -216,9 +215,13 @@ const inlineConstructsToMarkdown: ToMarkdownExtension = {
       peek: () => "%",
     }),
     date: Object.assign((node: DateChip) => `@${node.value}`, { peek: () => "@" }),
+    // inside a gfm table cell the pill's pipes must leave as `\|` or the next parse reads them
+    // as cell delimiters; gfm-table's fromMarkdown unescapes them before this transform sees text.
     formulaPill: Object.assign(
-      (node: FormulaPill, _parent: Parents | undefined, state: State) =>
-        cellSafe(`{{${node.raw}}}`, state),
+      (node: FormulaPill, _parent: Parents | undefined, state: State) => {
+        const raw = `{{${node.raw}}}`;
+        return state.stack.includes("tableCell") ? raw.replaceAll("|", "\\|") : raw;
+      },
       { peek: () => "{" },
     ),
   },

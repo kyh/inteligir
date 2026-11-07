@@ -63,6 +63,15 @@ describe("a block a list item opens with", () => {
   });
 });
 
+describe("a pipe in a table cell", () => {
+  it.each([
+    ["a pill's decoded source", String.raw`{{a\\|b}}`],
+    ["a tag's own bytes", String.raw`<a title="x\|y">z</a>`],
+  ])("keeps %s in its cell with its backslash", (_name, cell) => {
+    expect(roundTrip(`| a |\n| - |\n| ${cell} |\n`)).toContain(`| ${cell} |`);
+  });
+});
+
 describe("owned parse", () => {
   it("keeps a tag that cannot pair as its own bytes, where MDX would refuse the file", () => {
     const unpaired = [
