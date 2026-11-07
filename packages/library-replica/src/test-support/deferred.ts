@@ -9,6 +9,7 @@ interface Deferred {
 
 const unset = (): void => undefined;
 
+/** @internal */
 export const deferred = (): Deferred => {
   let settle: () => void = unset;
   // oxlint-disable-next-line promise/avoid-new -- the resolver is handed to the suite, which only a promise can do
@@ -21,6 +22,7 @@ export const deferred = (): Deferred => {
 // the event loop's next turn, once every microtask queued before it has run: what a suite waits
 // for when the engine's next step is nothing it can see, over a database and a network that
 // answer in microtasks
+/** @internal */
 export const nextTurn = async (): Promise<void> => {
   const turn = deferred();
   setTimeout(turn.resolve, 0);
