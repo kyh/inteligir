@@ -69,6 +69,8 @@ export const cursorSchema = z.string().min(1).max(512);
 // one write's ops (the item's text cap binds first), and one bulk change's items
 export const WRITE_OPS_MAX = 10_000;
 export const BULK_ITEMS_MAX = 100;
+// the items one call for bodies names
+export const BODY_IDS_MAX = 1000;
 // a highlight's own note, and a note or link note an agent writes as markdown
 export const ANNOTATION_NOTE_MAX = 20_000;
 export const MARKDOWN_MAX = 1_000_000;

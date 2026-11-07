@@ -28,6 +28,7 @@ import {
   agentViewContextSchema,
   ANNOTATION_NOTE_MAX,
   annotationOpSchema,
+  BODY_IDS_MAX,
   BULK_ITEMS_MAX,
   changeSetSchema,
   cursorSchema,
@@ -115,15 +116,17 @@ const syncContract = {
 
   // items' bodies in the order asked, about 4 MB an answer and at least one; `deferred` waits for
   // the next ask, and `gone` names items with no body to send
-  bodies: signedBase.input(z.strictObject({ ids: z.array(idSchema).min(1).max(1000) })).output(
-    z.object({
-      bodies: z.array(
-        z.object({ blocks: z.array(storedBlockSchema), id: idSchema, seq: seqSchema }),
-      ),
-      deferred: z.array(idSchema),
-      gone: z.array(idSchema),
-    }),
-  ),
+  bodies: signedBase
+    .input(z.strictObject({ ids: z.array(idSchema).min(1).max(BODY_IDS_MAX) }))
+    .output(
+      z.object({
+        bodies: z.array(
+          z.object({ blocks: z.array(storedBlockSchema), id: idSchema, seq: seqSchema }),
+        ),
+        deferred: z.array(idSchema),
+        gone: z.array(idSchema),
+      }),
+    ),
 };
 
 const itemsContract = {

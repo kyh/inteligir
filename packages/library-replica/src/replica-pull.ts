@@ -6,6 +6,7 @@
 // sent for.
 
 import { safe } from "@orpc/client";
+import { BODY_IDS_MAX } from "@repo/contract/cloud/library/library-wire";
 import type { V1Client } from "@repo/contract/cloud/v1";
 import { readItem, storeItemBody } from "@repo/notes/library/library-queries";
 import { runPlanAsync } from "@repo/notes/library/library-sql";
@@ -44,8 +45,6 @@ export type FetchOutcome =
 
 // a library restored twice in one pull is a cell to ask again later
 const MAX_RESETS = 2;
-// the most ids one bodies call names
-const BODY_IDS_MAX = 1000;
 
 const failedWith = (error: Error): FetchOutcome => ({
   failure: sharedFailure(error) ?? { kind: "unreachable", message: UNREACHABLE },
