@@ -1,4 +1,4 @@
-// the page the extension opens once installed: whose library it saves to, or how to connect one.
+// the page that says whose library this browser saves to, or how to connect one.
 
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

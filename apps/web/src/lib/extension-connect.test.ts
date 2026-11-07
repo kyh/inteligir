@@ -74,6 +74,12 @@ describe("a message to the extension", () => {
     expect(answer).toStrictEqual({ email: null });
     expect(sent).toStrictEqual([[EXTENSION_ID, { type: "hello" }]]);
     await expect(
+      askExtension(
+        { sendMessage: async () => ({ email: MINTED.email }) },
+        { connection: MINTED, type: "connect" },
+      ),
+    ).resolves.toStrictEqual({ email: MINTED.email });
+    await expect(
       askExtension({ sendMessage: async () => "nonsense" }, { type: "hello" }),
     ).resolves.toBeNull();
     await expect(
