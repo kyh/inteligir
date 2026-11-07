@@ -807,6 +807,24 @@ describe("an item open in the editor", () => {
     });
   });
 
+  it("goes on writing after a surface it told throws", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+    session.edited();
+    const stop = session.subscribe(() => {
+      throw new Error("the surface broke");
+    });
+    await expect(session.flush()).rejects.toThrow("the surface broke");
+    stop();
+    editor.tf.insertText("?", { at: { offset: 6, path: [0, 0] } });
+    session.edited();
+    await session.flush();
+    await phone.replica.sync();
+    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!?"));
+  });
+
   it("says a first read that failed, and opens the item when asked again", async () => {
     const { cell, mac, phone } = await devices();
     const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);

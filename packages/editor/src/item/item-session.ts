@@ -344,11 +344,12 @@ export const createItemSession = (
     }
   };
 
-  // one write or one read at a time, in the order they were asked for
+  // one write or one read at a time, in the order they were asked for; one that throws says so to
+  // the caller that asked, and the next still runs
   const serial = async (work: () => Promise<void>): Promise<void> => {
     const previous = queue;
     const run = (async () => {
-      await previous;
+      await Promise.allSettled([previous]);
       await work();
     })();
     queue = run;
@@ -569,12 +570,14 @@ export const createItemSession = (
     keeping.delete(keep);
     publish();
   };
-  // leaving waits for a file still being kept, whose block is in no value until it is
+  // what the value holds goes at once, however long a file takes, and leaving waits for one still
+  // being kept, whose block is in no value until it is
   const flush = async (): Promise<void> => {
+    await writeNow();
     while (keeping.size > 0) {
       await Promise.allSettled(keeping);
+      await writeNow();
     }
-    await writeNow();
   };
 
   const land = async (overlappedThere: boolean): Promise<void> => {

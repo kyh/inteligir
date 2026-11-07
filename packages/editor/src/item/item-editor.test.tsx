@@ -335,6 +335,26 @@ describe("a file still being kept in an open item", () => {
     expect(storedShas(items)).toStrictEqual([SHA]);
   });
 
+  it("lets what was typed go at once, ahead of the block a leave waits for", async () => {
+    const items = new Map([[A, itemOf("A", paragraph("a1", "A one"))]]);
+    const { kept } = await pasteHeld(items);
+    const session = lastSession();
+    made.editors.at(-1)?.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+
+    const leaving = session.flush();
+    await act(async () => {
+      await delay(0);
+    });
+    expect(textsOf(items.get(A))).toContain("A one!");
+    expect(storedShas(items)).toStrictEqual([]);
+
+    kept.resolve({ sha: SHA });
+    await act(async () => {
+      await leaving;
+    });
+    expect(storedShas(items)).toStrictEqual([SHA]);
+  });
+
   it("is written when the surface closed before it was kept", async () => {
     const items = new Map([[A, itemOf("A", paragraph("a1", "A one"))]]);
     const { kept, view } = await pasteHeld(items);
