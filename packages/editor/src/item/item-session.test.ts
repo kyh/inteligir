@@ -25,6 +25,7 @@ import { readElement } from "./item-diff";
 import { itemProperties } from "./item-properties";
 import {
   BLOCK_HELD_BACK,
+  BODY_TO_COME,
   createItemSession,
   ITEM_IDLE_MS,
   ITEM_UNREAD,
@@ -606,6 +607,30 @@ describe("an item open in the editor", () => {
     });
     expect(refusals).toBe(3);
     expect(phone.replica.status().unsent).toBe(0);
+    await pause(phone, session);
+    expect(session.status()).toMatchObject({ failure: null, unsaved: false });
+    await phone.replica.sync();
+    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
+  });
+
+  it("holds an edit over a body still to come, says so to a leave, and writes it once it lands", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), paragraph("p2", "x")]);
+    let toCome = true;
+    const store: ItemStore = {
+      item: phone.replica.item,
+      onChange: phone.replica.onChange,
+      write: async (itemId, input) =>
+        toCome ? { kind: "waiting" } : await phone.replica.write(itemId, input),
+    };
+    const { editor, session } = await openOn(phone, id, store);
+    editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+    session.edited();
+    await session.flush();
+    expect(session.status()).toMatchObject({ failure: BODY_TO_COME, kind: "open", unsaved: true });
+    expect([editorText(editor, 0), editorText(editor, 1)]).toStrictEqual(["first!", "x"]);
+
+    toCome = false;
     await pause(phone, session);
     expect(session.status()).toMatchObject({ failure: null, unsaved: false });
     await phone.replica.sync();

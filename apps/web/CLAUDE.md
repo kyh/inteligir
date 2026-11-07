@@ -324,9 +324,13 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   its tags, and in the same write places every highlight that keeps a quote by that quote,
   since the markers went with the old article; one the note holds stays where
   it is, a selection the item keeps adds nothing, and a read with no article
-  leaves the item's. Rejected: keeping the first article (a resave never shows
-  the page as it reads now); answering `exists` (the popup's highlight did
-  nothing). `apps/web/src/worker/library/cell-saves.ts`.
+  leaves the item's. A page files the item only where it has no folder, and a
+  link moves it only to a folder it names, so a save from no folder (All, a tag,
+  the share sheet) leaves it where it is, and taking it out of a folder is
+  organize's. Rejected: keeping the first article (a resave never shows the page
+  as it reads now); answering `exists` (the popup's highlight did nothing); a
+  link's null folder unfiling the item (a re-save from All moved it to Unsorted
+  and said nothing). `apps/web/src/worker/library/cell-saves.ts`.
 
 - **A SAVED LINK IS READ OFF THE FILL QUEUE, ASKED FOR IN THE WRITE THAT MADE IT
   WAIT.** The write lands a `fill` job row in its own transaction, and the cell

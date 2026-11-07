@@ -62,6 +62,21 @@ describe("an item page's questions, answered from the phone's replica", () => {
     });
   });
 
+  it("answers a pause on blocks of a body still to come as waiting for it", async () => {
+    const { cell, id } = await phoneWithNote();
+    cell.setBodiesPerAnswer(0);
+    const phone = await openDevice(cell, "second phone");
+    await phone.replica.sync();
+    const ports = createItemPorts({ files: heldFiles(), now: () => NOW, replica: phone.replica });
+
+    await expect(
+      ports.writeItem({
+        itemId: id,
+        ops: [{ baseHash: "seen", block: paragraph("p1", "typed"), op: "put" }],
+      }),
+    ).resolves.toStrictEqual({ kind: "waiting" });
+  });
+
   it("names every item a link can open, by id and by title", async () => {
     const { id, ports } = await phoneWithNote();
     await expect(ports.linkTargets({})).resolves.toStrictEqual({
@@ -173,27 +188,38 @@ describe("an item page's questions, answered from the phone's replica", () => {
     expect(cell.item(id)?.blocks.get("p2")).toMatchObject({ section: "note" });
   });
 
-  it("makes a note beside a card that folded in the folder of the item it landed on", async () => {
-    const cell = createFakeCell();
-    const mac = await openDevice(cell, "mac");
-    const folderId = mac.newId();
-    await mac.replica.writeFolders([
-      { id: folderId, name: "Reading", op: "create", parentId: null, sort: "a0" },
-    ]);
-    const url = "https://example.com/article";
-    await mac.replica.saveLink({ folderId, tags: [], url });
-    await mac.replica.sync();
-    const phone = await openDevice(cell, "phone");
-    const card = await phone.replica.saveLink({ folderId: null, tags: [], url });
-    await phone.replica.sync();
-    const ports = createItemPorts({ files: heldFiles(), now: () => NOW, replica: phone.replica });
+  it.each([
+    { landsIn: "held", saved: "no folder" },
+    { landsIn: "named", saved: "a folder of its own" },
+  ] as const)(
+    "makes a note beside a card that folded from $saved in the $landsIn folder",
+    async ({ landsIn }) => {
+      const cell = createFakeCell();
+      const mac = await openDevice(cell, "mac");
+      const folders = { held: mac.newId(), named: mac.newId() };
+      await mac.replica.writeFolders([
+        { id: folders.held, name: "Reading", op: "create", parentId: null, sort: "a0" },
+        { id: folders.named, name: "Later", op: "create", parentId: null, sort: "a1" },
+      ]);
+      const url = "https://example.com/article";
+      await mac.replica.saveLink({ folderId: folders.held, tags: [], url });
+      await mac.replica.sync();
+      const phone = await openDevice(cell, "phone");
+      const card = await phone.replica.saveLink({
+        folderId: landsIn === "held" ? null : folders.named,
+        tags: [],
+        url,
+      });
+      await phone.replica.sync();
+      const ports = createItemPorts({ files: heldFiles(), now: () => NOW, replica: phone.replica });
 
-    const { id } = await ports.createNote({
-      besideId: card.id,
-      blocks: [{ block: paragraph("p2", "moved"), ord: "a0" }],
-      title: "moved",
-    });
+      const { id } = await ports.createNote({
+        besideId: card.id,
+        blocks: [{ block: paragraph("p2", "moved"), ord: "a0" }],
+        title: "moved",
+      });
 
-    expect(phone.replica.row(id)?.fields).toMatchObject({ folderId });
-  });
+      expect(phone.replica.row(id)?.fields).toMatchObject({ folderId: folders[landsIn] });
+    },
+  );
 });

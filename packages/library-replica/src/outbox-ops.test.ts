@@ -13,7 +13,7 @@ import {
   compactOps,
   repointedOp,
   shasNamed,
-  unfiledOp,
+  unmadeOp,
 } from "./outbox-ops";
 import type { WriteOp } from "./outbox-ops";
 import { paragraph } from "./test-support/replica-harness";
@@ -290,23 +290,23 @@ const writeOf = (ops: LibraryOp[], annotations: WriteOp["annotations"] = []): Wr
   staged: [],
 });
 
-describe(unfiledOp, () => {
+describe(unmadeOp, () => {
   const gone = new Set(["gone"]);
 
   it("takes an item filed in the folder out of it, wherever it stood", () => {
     expect(
-      unfiledOp(writeOf([{ base: "kept", field: "folderId", op: "set", value: "gone" }]), gone),
+      unmadeOp(writeOf([{ base: "kept", field: "folderId", op: "set", value: "gone" }]), gone),
     ).toStrictEqual(writeOf([{ base: "kept", field: "folderId", op: "set", value: null }]));
   });
 
   it("is null for a write that asked only to file an unfiled item", () => {
     const filed: LibraryOp = { base: null, field: "folderId", op: "set", value: "gone" };
 
-    expect(unfiledOp(writeOf([filed]), gone)).toBeNull();
+    expect(unmadeOp(writeOf([filed]), gone)).toBeNull();
     const titled: LibraryOp = { base: "Old", field: "title", op: "set", value: "New" };
-    expect(unfiledOp(writeOf([filed, titled]), gone)).toStrictEqual(writeOf([titled]));
+    expect(unmadeOp(writeOf([filed, titled]), gone)).toStrictEqual(writeOf([titled]));
     const noted: WriteOp["annotations"][number] = { base: "a", id: "h1", op: "note", text: "b" };
-    expect(unfiledOp(writeOf([filed], [noted]), gone)).toStrictEqual(writeOf([], [noted]));
+    expect(unmadeOp(writeOf([filed], [noted]), gone)).toStrictEqual(writeOf([], [noted]));
   });
 
   it("leaves a link saved to another folder where it asked", () => {
@@ -318,10 +318,21 @@ describe(unfiledOp, () => {
       url: "https://example.com/",
     };
 
-    expect(unfiledOp({ input, kind: "saveLink" }, gone)).toStrictEqual({ input, kind: "saveLink" });
+    expect(unmadeOp({ input, kind: "saveLink" }, gone)).toStrictEqual({ input, kind: "saveLink" });
     expect(
-      unfiledOp({ input: { ...input, folder: { id: "gone" } }, kind: "saveLink" }, gone),
+      unmadeOp({ input: { ...input, folder: { id: "gone" } }, kind: "saveLink" }, gone),
     ).toStrictEqual({ input: { ...input, folder: null }, kind: "saveLink" });
+  });
+
+  it("lets a write on an item that went go with it, and that id out of a delete or a restore", () => {
+    const write: WriteOp = { ...writeOf([]), itemId: "gone" };
+
+    expect(unmadeOp(write, gone)).toBeNull();
+    expect(unmadeOp({ ids: ["gone"], kind: "delete" }, gone)).toBeNull();
+    expect(unmadeOp({ ids: ["gone", "kept"], kind: "restore" }, gone)).toStrictEqual({
+      ids: ["kept"],
+      kind: "restore",
+    });
   });
 
   it("puts a folder that went under it at the top, and lets ops on it go", () => {
@@ -329,9 +340,9 @@ describe(unfiledOp, () => {
     const renamed = { base: "Old", id: "gone", name: "New", op: "rename" } as const;
 
     expect(
-      unfiledOp({ kind: "folders", ops: [{ ...place, parentId: "gone" }, renamed] }, gone),
+      unmadeOp({ kind: "folders", ops: [{ ...place, parentId: "gone" }, renamed] }, gone),
     ).toStrictEqual({ kind: "folders", ops: [{ ...place, parentId: null }] });
-    expect(unfiledOp({ kind: "folders", ops: [renamed] }, gone)).toBeNull();
+    expect(unmadeOp({ kind: "folders", ops: [renamed] }, gone)).toBeNull();
   });
 });
 

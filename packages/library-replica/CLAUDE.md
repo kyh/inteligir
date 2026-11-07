@@ -23,10 +23,17 @@ and cited.
   item holding it at the higher one, whichever came first; a moved item's body
   is wanted at its row's sequence and fetched the open item first, then the
   newest, laid only under the row it was sent for. An answer naming another
-  epoch wipes the rows, keeps the outbox and pulls from nothing. Rejected:
-  bodies in the log (a page of long notes); dropping the outbox on a reset
-  (the person's writes lost). `packages/library-replica/src/replica-pull.ts`,
-  `replica-rows.ts`.
+  epoch wipes the rows, keeps the outbox and pulls from nothing. A row held
+  ahead of every block is a body still to come, and a write on a block it may
+  hold, or on a base that moved, answers `waiting` until it lands, while a field
+  over its base or a new block goes. Residual: a queued write that outlives a
+  reset, or a relaunch after its fold, lands as the whole body until the body
+  comes. Rejected: bodies in the log (a page of long notes); dropping the outbox
+  on a reset (the person's writes lost); a write judged over a body not here (no
+  blocks calls a put moved and a drop or a move already true, and a `changed`
+  answered over none empties the editor).
+  `packages/library-replica/src/replica-pull.ts`, `replica-rows.ts`,
+  `replica-commands.ts`.
 
 - **THE SYNCED TABLES HOLD ONLY WHAT THE CELL SENT, AND THE OUTBOX IS LAID OVER
   THEM AS A SCREEN READS.** An item, its listing row and its highlights are
@@ -60,6 +67,8 @@ and cited.
   make holds what is filed in it, since its id names nothing at the cell; let go,
   it takes the ops on it along and what was filed in it lands unfiled, in the one
   transaction, while a folder that stands files what comes whatever parked on it.
+  A make let go takes the writes on its item along in that transaction, the words
+  going with the card, and a delete or a restore of it lets its id go.
   A make the cell folds onto the item at its address takes the writes naming it
   along, in its landing's
   transaction, and a block they name there settles as any other; a delete or a
@@ -70,28 +79,35 @@ and cited.
   refused write; a whole-item retry (two devices' edits to different blocks would
   meet); stopping the pass on a row that cannot change (every later write and the
   pull wait on it, with nothing for the person to answer); parking a row on a
-  folded id (its text shows nowhere and no resend can pass); filing past a folder
+  folded or let-go id (its text shows nowhere and no resend can pass); filing past a folder
   the cell has yet to hold (a note lands with an id no folder takes, a link parks
   not-found); a delete following
   the card to the item it met (an older item binned for a duplicate).
   `packages/library-replica/src/outbox.ts`, `outbox-settle.ts`,
   `outbox-ops.ts`.
 
-- **A FOLDED MAKE'S ID ANSWERS AS THE ITEM IT LANDED ON FOR AS LONG AS A SCREEN
-  CAN HOLD IT.** An item's read, its highlights, a write and the change feed take
+- **A FOLDED MAKE'S ID ANSWERS AS THE ITEM IT LANDED ON FOR THE REST OF THE
+  RUN.** An item's read, its highlights, a write and the change feed take
   the id a make was queued under to the item the cell folded it onto, so a screen
   open on the card stays open through the fold, its unsaved words going on to that
-  item and a write past its check landing there. No table keeps this, since no
-  screen outlives the run, and the listing knows nothing of it, since a selection
-  still naming the card must not reach the older item: `row` answers no row, and a
-  delete asked by that id goes nowhere, so a screen acts on what it shows through
-  its item read, by the id that answered and the fields it holds. Residual: a call
-  only the cell answers that no item read names, History or the agent's view of the
-  open item, names the old id until the item opens again.
+  item and a write past its check landing there. A write landing on that item
+  while its body is still to come lays no block, since a part would read as all
+  of it and take the open card's blocks away; the body brings them. No table keeps
+  this, since only a url naming the card outlives the run, and the listing knows
+  nothing of it, since a selection still naming the card must not reach the older
+  item: `row` answers no row, and a delete asked by that id goes nowhere, so a
+  screen acts on what it shows through its item read, by the id that answered and
+  the fields it holds. Residuals: a call only the cell answers that no item read
+  names, History or the agent's view of the open item, names the old id until the
+  item opens again; a reload on a url naming a card that folded says the item
+  isn't on this device, though it stands at its holder's id in the grid.
   Rejected: the session following the id alone (the item view, the phone's screen
   and its page read that id too, and the screen drops its page on an item it
   cannot read); a move in every host (a bridge event and a route per surface for
-  what one map answers). `packages/library-replica/src/folded-makes.ts`,
+  what one map answers); the url moved to the landed id (an item's editor is keyed
+  by its id, so the move closes a session in the middle of an edit, one waiting on
+  a body with nowhere to write it); a table of folds (a second store for one reload
+  of one url). `packages/library-replica/src/folded-makes.ts`,
   `library-replica.ts`.
 
 - **THE SOCKET IS A HINT, AND THE MINUTE'S CHECK-IN THE FLOOR.** A pass runs as

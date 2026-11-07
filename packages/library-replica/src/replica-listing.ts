@@ -26,7 +26,7 @@ import { itemIdsOf } from "./outbox-ops";
 import type { OutboxOp } from "./outbox-ops";
 import type { OutboxRow } from "./outbox-rows";
 import { layAnnotations, layRow } from "./overlay";
-import { readTagsByItem } from "./replica-rows";
+import { bodyToCome, readTagsByItem } from "./replica-rows";
 
 // an item as a screen reads it
 export interface ReplicaItem {
@@ -55,11 +55,6 @@ export interface ReplicaListingRow extends ListingRow {
 export const rowsNaming = (rows: readonly OutboxRow[], itemId: string): OutboxRow[] =>
   rows.filter((row) => itemIdsOf(row.op).includes(itemId));
 
-const isWanted = function* isWanted(itemId: string): SqlPlan<boolean> {
-  const rows = yield all("SELECT item_id FROM body_wants WHERE item_id = ?", [itemId]);
-  return rows.length > 0;
-};
-
 const holderSchema = z.object({ id: z.string() });
 
 // the live item at a page's address, as the cell finds the one a save folds onto
@@ -78,7 +73,7 @@ export const heldAtAddress = function* heldAtAddress(url: string): SqlPlan<strin
 interface Held {
   readonly stored: LiveStoredItem | null;
   readonly state: ItemState | null;
-  readonly wanted: boolean;
+  readonly toCome: boolean;
 }
 
 // the card the cell sent, until a row of this device's changes the item: then the laid state's,
@@ -111,7 +106,7 @@ const laidItem = (id: string, held: Held, pending: readonly OutboxRow[]): Replic
     return null;
   }
   const { stored } = held;
-  const bodyHeld = stored === null || !held.wanted || (held.state?.blocks.size ?? 0) > 0;
+  const bodyHeld = !held.toCome;
   const card = cardOf(stored, state, pending.length > 0, bodyHeld);
   return {
     blocks: orderedBlocks(state.blocks),
@@ -134,8 +129,8 @@ export const readReplicaItem = function* readReplicaItem(
     return null;
   }
   const state = found === null ? null : yield* readItemState(id);
-  const wanted = yield* isWanted(id);
-  return laidItem(id, { state, stored: found, wanted }, pending);
+  const toCome = yield* bodyToCome(id);
+  return laidItem(id, { state, stored: found, toCome }, pending);
 };
 
 // an item's highlights with its unsent writes' highlight ops laid over

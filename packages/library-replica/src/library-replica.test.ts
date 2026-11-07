@@ -687,6 +687,70 @@ describe("the replica's pull", () => {
     await expect(replicaText(phone.replica, id, "p2")).resolves.toBe("second");
   });
 
+  it("goes on writing to a note it made while the body of its landing is still wanted", async () => {
+    const cell = createFakeCell();
+    const phone = await openDevice(cell, "phone");
+    cell.setBodiesPerAnswer(0);
+    const { id } = await phone.replica.createNote({
+      blocks: [],
+      folderId: null,
+      tags: [],
+      title: "New",
+    });
+    await phone.replica.write(id, {
+      ops: [{ block: paragraph("p1", "first"), op: "insert", ord: "a0", section: "note" }],
+    });
+    await phone.replica.sync();
+
+    const landed = await phone.replica.item(id);
+    expect(landed).toMatchObject({ bodyHeld: true });
+    const [held] = landed?.blocks ?? [];
+    await expect(
+      phone.replica.write(id, {
+        ops: [{ baseHash: held?.hash ?? "", block: paragraph("p1", "first!"), op: "put" }],
+      }),
+    ).resolves.toMatchObject({ kind: "queued" });
+  });
+
+  it("leaves a write on blocks of a body still to come until they are here", async () => {
+    const cell = createFakeCell();
+    const mac = await openDevice(cell, "mac");
+    const id = await landedNote(cell, mac);
+    cell.setBodiesPerAnswer(0);
+    const phone = await openDevice(cell, "phone");
+    await phone.replica.sync();
+    const put = { baseHash: "seen-elsewhere", block: paragraph("p1", "mine"), op: "put" } as const;
+
+    await expect(phone.replica.write(id, { ops: [put] })).resolves.toStrictEqual({
+      kind: "waiting",
+    });
+    await expect(
+      phone.replica.write(id, { ops: [{ baseHash: "seen-elsewhere", blockId: "p1", op: "drop" }] }),
+    ).resolves.toStrictEqual({ kind: "waiting" });
+    await expect(
+      phone.replica.write(id, {
+        ops: [{ baseOrd: "a0", blockId: "p1", op: "move", ord: "a5" }],
+      }),
+    ).resolves.toStrictEqual({ kind: "waiting" });
+    await expect(
+      phone.replica.write(id, {
+        ops: [{ base: "Moved on", field: "title", op: "set", value: "Renamed" }],
+      }),
+    ).resolves.toStrictEqual({ kind: "waiting" });
+    expect(phone.replica.status().unsent).toBe(0);
+
+    await expect(
+      phone.replica.write(id, {
+        ops: [{ base: "Plans", field: "title", op: "set", value: "Renamed" }],
+      }),
+    ).resolves.toMatchObject({ kind: "queued" });
+    await expect(
+      phone.replica.write(id, {
+        ops: [{ block: paragraph("n1", "new"), op: "insert", ord: "a9", section: "note" }],
+      }),
+    ).resolves.toMatchObject({ kind: "queued" });
+  });
+
   it("starts over in another library's epoch, keeping the unsent writes", async () => {
     const cell = createFakeCell();
     const phone = await openDevice(cell, "phone");

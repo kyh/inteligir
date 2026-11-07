@@ -58,7 +58,8 @@ end that receives it.
   requests `{ id, nonce, kind, payload }` — `item` (the item as the replica
   reads it, each block with its hash and place), `writeItem` (ops under their
   bases, answered queued, unchanged, missing, changed with the item as it
-  reads now, or invalid), `linkTargets` (the items a link can name, by id and
+  reads now, invalid, or waiting on a body still to come), `linkTargets` (the
+  items a link can name, by id and
   the title each goes by now, asked again whenever another item moves),
   `readFile` (a file a note names, by its sha, from the phone's file cache,
   which fetches it the first time, as the type it was kept or served as; none

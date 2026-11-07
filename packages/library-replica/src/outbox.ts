@@ -26,10 +26,11 @@ import {
   foldersFiledIn,
   foldersMadeBy,
   itemIdsOf,
+  itemsMadeBy,
   repointedOp,
   shasNamed,
   stagedOf,
-  unfiledOp,
+  unmadeOp,
 } from "./outbox-ops";
 import type { OutboxOp, WriteOp } from "./outbox-ops";
 import { deleteAllRows, deleteRow, insertRow, readRows, saveRow } from "./outbox-rows";
@@ -47,6 +48,7 @@ import type {
   StagedBlobs,
 } from "./replica-ports";
 import {
+  bodyToCome,
   landOwnAnnotations,
   landOwnFolders,
   landOwnRow,
@@ -477,6 +479,15 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     return (await putStaged(row, shas)) ?? { kind: "again" };
   };
 
+  // what a write lays as it lands. Over an item a make folded onto, whose body is still to come,
+  // nothing: the item holds more than this device has seen, and a part of it would read as all of
+  // it, taking the open card's blocks away
+  const blocksLanded = function* blocksLanded(op: WriteOp, createdAt: number) {
+    return folded.tookFold(op.itemId) && (yield* bodyToCome(op.itemId))
+      ? { dropped: [], written: [] }
+      : yield* blocksOfWrite(op, createdAt);
+  };
+
   const sendWrite = async (row: OutboxRow, op: WriteOp): Promise<SendOutcome> => {
     const [error, answer] = await safe(
       client.library.write({
@@ -498,7 +509,7 @@ export const createOutbox = (context: OutboxContext): Outbox => {
       return await land(
         row,
         function* landed() {
-          yield* landOwnRow(answer.item, yield* blocksOfWrite(op, row.createdAt));
+          yield* landOwnRow(answer.item, yield* blocksLanded(op, row.createdAt));
           yield* landOwnAnnotations(op.itemId, op.annotations, atSeconds);
         },
         touched,
@@ -764,21 +775,22 @@ export const createOutbox = (context: OutboxContext): Outbox => {
         if (row?.state !== "parked") {
           return null;
         }
-        // a folder let go is an id the cell will never hold, so nothing queued may go on naming it
-        const gone = new Set(foldersMadeBy(row.op));
+        // a folder or an item let go is an id the cell will never hold, so nothing queued may go on
+        // naming it: a write on an item that never lands parks with no text to show for it
+        const gone = new Set([...foldersMadeBy(row.op), ...itemsMadeBy(row.op)]);
         const named = (op: OutboxOp): boolean =>
           [...holdsOf(op), ...foldersFiledIn(op)].some((id) => gone.has(id));
-        const unfiled = rows
+        const followed = rows
           .filter((held) => held.seq !== seq && named(held.op))
-          .map((held) => ({ held, op: unfiledOp(held.op, gone) }));
+          .map((held) => ({ held, op: unmadeOp(held.op, gone) }));
         await sql.exclusive(async (tx) => {
           await runPlanAsync(tx, deleteRow(seq));
-          await runPlanAsync(tx, saveRewritten(unfiled));
+          await runPlanAsync(tx, saveRewritten(followed));
         });
         forget(seq);
-        await adopt(unfiled);
+        await adopt(followed);
         await release(row.op);
-        return touchedItems([row.op, ...unfiled.map(({ held }) => held.op)].flatMap(itemIdsOf));
+        return touchedItems([row.op, ...followed.map(({ held }) => held.op)].flatMap(itemIdsOf));
       });
       if (touched !== null) {
         touched.kinds.add("folder");

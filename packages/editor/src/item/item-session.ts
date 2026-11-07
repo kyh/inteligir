@@ -8,8 +8,8 @@
 // outlives a drop either way round. A write the store refuses on a base that moved under it
 // settles the same way and goes again, and a merge that kept this device's lines over another's
 // change to the same ones is said, whether this session or the replica's outbox made it. A block
-// no write can store stays in the editor as the person left it, counted unsaved and said, so a
-// host holds the leave.
+// no write can store, and an edit that waits on a body still to come, stay in the editor as the
+// person left them, counted unsaved and said, so a host holds the leave.
 // Construction is inert: nothing reads, subscribes or schedules until `start()`.
 
 import { NodeApi, TextApi } from "platejs";
@@ -46,7 +46,9 @@ type ItemWriteOutcome =
   | { readonly kind: "missing" }
   // a base the write names no longer holds against the item as the store reads it now
   | { readonly kind: "changed"; readonly item: HeldItem }
-  | { readonly kind: "invalid"; readonly fields: readonly string[] };
+  | { readonly kind: "invalid"; readonly fields: readonly string[] }
+  // the item's body is still to come, so nothing can tell what the write is written over
+  | { readonly kind: "waiting" };
 
 // what moved in the store: these items or all of them, and the items a queued write of this
 // device was merged into keeping its lines over another device's change to the same ones
@@ -123,6 +125,9 @@ export const BLOCK_HELD_BACK =
 export const ITEM_UNSAVED = "This item couldn't be saved just now. It will try again.";
 /** @internal */
 export const ITEM_UNREAD = "This item couldn't be read just now.";
+/** @internal */
+export const BODY_TO_COME =
+  "This item is still on its way to this device. Your edit saves once it's here.";
 
 // a stored block as the element the editor holds
 /** @internal */
@@ -528,6 +533,12 @@ export const createItemSession = (
           missing = true;
           break;
         }
+        // said, so a leave holds: its own write would meet this same answer and nothing after it
+        case "waiting": {
+          failure = refused ?? BODY_TO_COME;
+          behind = true;
+          return "ran-out";
+        }
         // no default
       }
     }
@@ -593,8 +604,8 @@ export const createItemSession = (
       failure = null;
     }
     missing = item === null;
-    // a body the replica no longer holds (it started over) is pulled again, and no block of it
-    // was removed meanwhile
+    // a body still to come (the replica started over, or a card folded onto an item it has not
+    // pulled) took no block away
     if (item?.bodyHeld === true) {
       settle(item, overlappedThere);
     }
