@@ -34,8 +34,9 @@ and cited.
   landing writes the answered row and the blocks it wrote at the answer's
   sequence, and a folder or highlight stands at sequence 0 until the pull
   replaces it. A save of an address another item holds lists no card of its
-  own. Residuals: search finds an unsent edit's words once it lands; a landing
-  asks for the item's body again. Rejected: optimistic rows in the synced
+  own. Residuals: search finds an unsent edit's words once it lands, and an
+  unsent delete in Deleted's search once it lands; a landing asks for the item's
+  body again. Rejected: optimistic rows in the synced
   tables (a pull could not tell them apart).
   `packages/library-replica/src/replica-listing.ts`, `overlay.ts`.
 

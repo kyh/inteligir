@@ -24,8 +24,9 @@ import type {
   ListingQuery,
   ListingScopes,
 } from "@repo/notes/library/library-index";
+import { TYPED_QUERY } from "@repo/notes/knowledge/search-query";
 import { searchLibrary } from "@repo/notes/library/library-queries";
-import type { LibrarySearchHit } from "@repo/notes/library/library-queries";
+import type { LibrarySearchHit, SearchSide } from "@repo/notes/library/library-queries";
 import { ensureLibrarySchema } from "@repo/notes/library/library-schema";
 import { all, run, runPlanAsync } from "@repo/notes/library/library-sql";
 import type { SqlPlan } from "@repo/notes/library/library-sql";
@@ -146,8 +147,9 @@ export interface LibraryReplica extends ReplicaCommands {
   readonly row: (itemId: string) => ReplicaListingRow | null;
   readonly item: (itemId: string) => Promise<ReplicaItem | null>;
   readonly annotations: (itemId: string) => Promise<AnnotationStore>;
-  // the library's ranked search over what has landed, less what this device deleted
-  readonly search: (query: string, limit: number) => Promise<LibrarySearchHit[]>;
+  // the library's ranked search over what has landed, less what this device moved to the other
+  // side of Deleted
+  readonly search: (query: string, limit: number, side?: SearchSide) => Promise<LibrarySearchHit[]>;
   readonly threads: () => Promise<ThreadRow[]>;
   readonly threadEvents: (threadId: string) => Promise<ThreadEventRow[]>;
 
@@ -604,9 +606,12 @@ export const openLibraryReplica = async (deps: ReplicaDeps): Promise<ReplicaOpen
 
     scopes: () => index.scopes(),
 
-    search: async (query, limit) => {
-      const hits = await runPlanAsync(sql, searchLibrary(query, limit));
-      return hits.filter((hit) => rowsById.get(hit.itemId)?.deletedAt === null);
+    search: async (query, limit, side = "live") => {
+      const hits = await runPlanAsync(sql, searchLibrary(query, limit, TYPED_QUERY, side));
+      return hits.filter((hit) => {
+        const row = rowsById.get(hit.itemId);
+        return row !== undefined && (row.deletedAt !== null) === (side === "deleted");
+      });
     },
 
     start: goOn,

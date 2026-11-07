@@ -1,11 +1,16 @@
 // The Library's question to the replica's listing: the scope the menu chose, the kinds the chips
 // narrow it to and the words the search field holds, as one `ListingQuery`. A search ranks by the
-// replica's own full-text index, offline as every device ranks it; a scope names a folder by its id
-// as the cell keeps it.
+// replica's own full-text index, offline as every device ranks it, and Deleted searches what it
+// lists; a scope names a folder by its id as the cell keeps it.
 
 import type { LibraryScope } from "@repo/domain/library-scope";
+import type { LibraryReplica } from "@repo/library-replica/library-replica";
 import type { ItemKind } from "@repo/notes/items/item-kind";
 import type { ListingFolder, ListingQuery } from "@repo/notes/library/library-index";
+import type { SearchSide } from "@repo/notes/library/library-queries";
+
+// at most this many hits a search ranks
+const SEARCH_HITS = 500;
 
 export interface LibraryFilter {
   readonly scope: LibraryScope;
@@ -13,6 +18,19 @@ export interface LibraryFilter {
   // a search's hits by item id, best first; null while the field is empty
   readonly hits: ReadonlyMap<string, number> | null;
 }
+
+export const searchSideOf = (scope: LibraryScope): SearchSide =>
+  scope.kind === "deleted" ? "deleted" : "live";
+
+// the words' hits by item id, best first
+export const searchHits = async (
+  replica: Pick<LibraryReplica, "search">,
+  words: string,
+  side: SearchSide,
+): Promise<ReadonlyMap<string, number>> => {
+  const found = await replica.search(words, SEARCH_HITS, side);
+  return new Map(found.map((hit, rank) => [hit.itemId, rank]));
+};
 
 export const listingQuery = ({ hits, kinds, scope }: LibraryFilter): ListingQuery => {
   const query: ListingQuery = {
