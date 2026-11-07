@@ -37,6 +37,9 @@ import { TextButton } from "@/ui/text-button";
 
 const NEEDS_CONNECTION = "Needs a connection";
 
+// a refused send, the allowance's words naming when it fills again from now
+const refusalNow = (cause: unknown): string => sendRefusalWords(cause, Date.now());
+
 // the screen a message leaves from: the item it was asked about, else the whole library
 const contextOf = (fromItem: string | null): AgentViewContext | undefined =>
   viewContextOf({ kind: null, openItem: fromItem, scope: { kind: "all" }, selected: [] });
@@ -199,7 +202,7 @@ const Composer = ({
   const send = useMutation(
     queries.library.agent.send.mutationOptions({
       onError: (cause) => {
-        setRefused(sendRefusalWords(cause, Date.now()));
+        setRefused(refusalNow(cause));
       },
       onSuccess: (answer) => {
         setText("");
