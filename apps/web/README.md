@@ -5,7 +5,8 @@ one origin: the TanStack Start pages, Better Auth on D1, device login, each
 account's library cell (a SQLite Durable Object holding the library and its
 devices' sockets), the connector a person's own assistant reaches the library
 through. The wire contract is `@repo/contract/cloud` — the Worker implements
-it, the local app's and the phone's clients consume it.
+it, and the Mac app, the library's browser tab, the phone and the extension
+consume it.
 
 ## Layout
 
@@ -334,12 +335,14 @@ and end them, and the account's deletion revokes every one.
   retry runs every step again. THE ORDER IS LOAD-BEARING
   (`src/worker/library/account-purge.ts`): the library cell's tombstone first
   (every later call to the cell, a socket's included, is refused) and its
-  sockets closed, then the cell's storage with the tombstone written back at
-  once, then the account's files in R2, then its device rows and the deleted
-  email off the invite it spent (`redeemed_at` stays set, so the code stays
-  burned), the credentials last so a failure leaves one to retry with. The
-  tombstone stays, so a request that verified a moment before the credentials
-  went founds no library.
+  sockets closed, then every conversation's object, while the cell's rows that
+  alone name them are still there, then the cell's storage with the tombstone
+  written back at once, then the account's files in R2, then every assistant's
+  grant with its tokens, before the credentials that could let one in again,
+  then its device rows and the deleted email off the invite it spent
+  (`redeemed_at` stays set, so the code stays burned), the credentials last so
+  a failure leaves one to retry with. The tombstone stays, so a request that
+  verified a moment before the credentials went founds no library.
   A device or the library's tab asks it through `account.delete`
   (`src/worker/device/account.ts`): the credential or the tab's session, a
   window of 5 a minute, the password checked again through `signInEmail`, then

@@ -191,12 +191,13 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 - **EACH ACCOUNT'S LIBRARY IS ONE SQLITE DURABLE OBJECT, `LibraryDO`, REACHED
   ONLY THROUGH `ctx.exports` UNDER A NAME A VERIFIED CREDENTIAL OR ITS OWN CELL
   GIVES.** Naming an object creates it, so `library:<userId>` comes from a
-  credential the Worker verified, or from a fill message, which only the
-  account's cell writes, from its own `ctx.id.name`, onto a queue only this
-  Worker produces to, and a conversation's `agent-thread:<accountId>:<threadId>`
-  from its cell alone, for a thread its rows hold; `cloudflare.config.ts`
-  declares `LibraryDO` and `AgentThreadDO` in `exports` with SQLite storage and
-  binds no namespace; `ThreadSyncDO`, `RepoCell` and `Registry` are each a
+  credential the Worker verified, from a fill message, which only the account's
+  cell writes, from its own `ctx.id.name`, onto a queue only this Worker
+  produces to, or from a conversation's own name, which names its cell back,
+  and a conversation's `agent-thread:<accountId>:<threadId>` from its cell
+  alone, for a thread its rows hold; `cloudflare.config.ts` declares `LibraryDO`
+  and `AgentThreadDO` in `exports` with SQLite storage and binds no namespace;
+  `ThreadSyncDO`, `RepoCell` and `Registry` are each a
   `state: "deleted"` tombstone, kept until a deploy's answer lets it go
   (`docs/releasing.md` § 5). The schema opens under
   `blockConcurrencyWhile`; one of another version wipes the cell under a new
@@ -298,7 +299,7 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 
 - **A SAVED PAGE OF A URL THE LIBRARY HOLDS FOLDS ONTO ITS ITEM, ITS ARTICLE
   REPLACING THE ITEM'S AND THE ITEM'S HIGHLIGHTS PLACED AGAIN.** One url, one
-  item (R22): a device's read lands its article in place of the item's, leaves
+  item: a device's read lands its article in place of the item's, leaves
   the person's note alone, sets the item's fields as a reading does and adds
   its tags, and in the same write places every highlight that keeps a quote by that quote,
   since the markers went with the old article; one the note holds stays where

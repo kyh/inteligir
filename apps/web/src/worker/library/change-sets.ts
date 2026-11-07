@@ -22,7 +22,8 @@ import { encodeParts, storeParts } from "./cell-parts";
 import type { PartRefs } from "./cell-parts";
 import { PRUNE_EVERY_MS } from "./history-prune";
 
-// the history prune's job, made with the first sealed revision and run once a day
+// the history prune's job, made by whichever lands first, a sealed set or an op's answer, either
+// of which it bounds, and run once a day
 export const PRUNE_JOB = {
   id: "prune",
   kind: "prune",
@@ -158,15 +159,15 @@ const writeAfter = (
 const sealRowSchema = z.object({ actor: z.string(), sealed_at: z.number().nullable() });
 const setItemSchema = z.object({ after_fields: z.string().nullable(), item_id: z.string() });
 
-// writes the after and revision of each item the set still holds open, and closes the set; false
-// when it was already sealed or never was. An item another set changed since already has both,
-// written at that change
-export const sealChangeSet = (sql: SqlStatements, setId: string, now: number): boolean => {
+// writes the after and revision of each item the set still holds open, and closes the set, unless
+// it was already sealed or never was. An item another set changed since already has both, written
+// at that change
+export const sealChangeSet = (sql: SqlStatements, setId: string, now: number): void => {
   const [raw] = sql.all("SELECT actor, sealed_at FROM change_sets WHERE id = ?", [setId]);
   const set = raw === undefined ? null : sealRowSchema.parse(raw);
   if (set?.sealed_at !== null) {
     dropJob(sql, sealJobOf(setId).id);
-    return false;
+    return;
   }
   const items = sql
     .all("SELECT item_id, after_fields FROM change_set_items WHERE change_set_id = ?", [setId])
@@ -193,7 +194,6 @@ export const sealChangeSet = (sql: SqlStatements, setId: string, now: number): b
   sql.run("UPDATE change_sets SET sealed_at = ? WHERE id = ?", [now, setId]);
   dropJob(sql, sealJobOf(setId).id);
   ensureJob(sql, PRUNE_JOB, now + PRUNE_EVERY_MS);
-  return true;
 };
 
 // the actor's open set, which this write joins: a new one when it has none, when its own has gone

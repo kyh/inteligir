@@ -17,8 +17,9 @@ One library cell per account, a replica on every device, and the agents that
 reach it.
 
 **library cell** — one account's whole library: a SQLite Durable Object,
-`LibraryDO`, named `library:<userId>` only from a verified credential, in the
-Worker (`apps/web/src/worker/library/library-do.ts`). It holds the items,
+`LibraryDO`, in the Worker (`apps/web/src/worker/library/library-do.ts`), named
+`library:<userId>` only from a verified credential, or from what the cell itself
+gave out: a fill message or a conversation's name. It holds the items,
 their **blocks**, folders, tags, links, highlights, threads, the change log,
 History and the account's live sockets, and it is the library's only writer: every `/v1` library call and every **connector** call
 is forwarded to it. R2 holds the bytes it names by hash, and D1 only the

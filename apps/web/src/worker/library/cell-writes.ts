@@ -1,8 +1,9 @@
 // One item's ops and highlight writes landed inside a write's transaction: the ops guarded block by
 // block and field by field (`@repo/notes/library/block-ops`), the highlights by the note text they
 // were computed from (`./cell-annotations`), every conflict answered together, and the item laid
-// only when something changed. Every write the cell's procedures make of an existing item comes
-// through here: a device's own ops, an agent's edit, a fold of a save, an organize.
+// only when something changed. Every write the cell's procedures make of an existing item by ops
+// comes through here: a device's own ops, an agent's edit, a fold of a save, an organize. An undo
+// (`./cell-undo`) lands a state it merged, and a purge (`./library-engine`) a tombstone.
 
 import type { annotationOpSchema } from "@repo/contract/cloud/library/library-wire";
 import { applyOps } from "@repo/notes/library/block-ops";

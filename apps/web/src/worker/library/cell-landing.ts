@@ -32,7 +32,7 @@ import type { CellStorage } from "./cell-storage";
 import { touchItem } from "./change-sets";
 import type { OpenSet } from "./change-sets";
 
-// an item's text, all its blocks' together (the spec's cap); a block's own is the vocabulary's
+// an item's text, all its blocks' together; a block's own is the vocabulary's
 export const ITEM_TEXT_MAX_BYTES = 8 * 1024 * 1024;
 
 // an item as a replica pulls it

@@ -1,8 +1,8 @@
-// What history keeps (owner decision 8): an item's newest 100 revisions; past those, everything
-// from the last 30 days, and before that the day's last revision for each day. A set's entry for an
-// item goes with the last of the set's revisions of it, so the set can no longer undo that item,
-// and then whatever part or block version nothing kept still names goes too. The job sweeps the
-// library a page of items per alarm run, its place kept in its payload, and once a day.
+// What history keeps: an item's newest 100 revisions; past those, everything from the last 30
+// days, and before that the day's last revision for each day. A set's entry for an item goes with
+// the last of the set's revisions of it, so the set can no longer undo that item, and then whatever
+// part or block version nothing kept still names goes too. The job sweeps the library a page of
+// items per alarm run, its place kept in its payload, and once a day.
 
 import { chunkStatement } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";

@@ -19,7 +19,7 @@ import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
 
 import { cellStorageOf } from "../library/cell-storage";
-import { libraryCellName } from "../library/library-cell";
+import { libraryCell } from "../library/library-cell";
 import { errorFields } from "../log";
 import { anthropicClient } from "./anthropic-client";
 import {
@@ -86,7 +86,7 @@ export class AgentThreadDO extends DurableObject<Env> {
     const { jobs } = this.lifecycle;
     return {
       calls: this.#calls,
-      cell: () => this.ctx.exports.LibraryDO.getByName(libraryCellName(accountId)),
+      cell: () => libraryCell(this.ctx.exports, accountId),
       client: () => {
         this.#client ??= anthropicClient(this.env, listeningFetch(this.#calls, Date.now));
         return this.#client;
