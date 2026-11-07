@@ -556,9 +556,8 @@ export const storeSearchRow = function* storeSearchRow(
   ]);
 };
 
-// ---- a whole item ----
+// ---- an item's body ----
 
-/** @internal */
 export interface ItemBodyWrite {
   readonly id: string;
   // the sequence the cell sent the body at
