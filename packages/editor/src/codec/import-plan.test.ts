@@ -364,6 +364,13 @@ describe("an Obsidian vault read into the library", () => {
     });
   });
 
+  it.each(["a%20b.png", "100%.png", "a b.png"])("embeds %s as the bytes it names", (name) => {
+    const sha = shaOf(name);
+    const { items } = readFolder({ "Note.md": `![[${name}]]\n` }, new Map([[name, sha]]));
+    expect(items.map((item) => item.fields.title)).toStrictEqual(["Note"]);
+    expect(items[0]?.blocks.map(({ block }) => block)).toMatchObject([{ sha, type: "img" }]);
+  });
+
   it("keeps a property no field reads, and the item's own id", () => {
     expect(project.itemId).toBe(PROJECT_ID);
     expect(project.fields).toMatchObject({

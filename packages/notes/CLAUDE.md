@@ -174,13 +174,14 @@ node is rather than discriminating structurally at each visit.
   import reads a link's or an image's url through `mdLinkTarget`
   (`@repo/notes/knowledge/link-extract`) and resolves it with `buildResolver`
   beside the file that wrote it, so a folder's relative links and pictures
-  become links by id and files by sha, and an export writes a file's path
-  through `mdLinkUrl`, its inverse, so a `#` or `%` in a name reads back. Past
-  the import nothing is a path: the editor reaches an item by `[[…]]` through
-  the resolver its host feeds with the library's items
-  (`packages/editor/src/link-resolver-feed.ts`) and a file by its sha, and only
-  an http(s) url reaches the browser. Rejected: resolving a live note's
-  relative url (no library item has a path to resolve it against).
+  become links by id and files by sha, and a file's path written as a url, by
+  an export or an import's `![[…]]`, goes through `mdLinkUrl`, its inverse, so
+  a `#` or `%` in a name reads back. Past the import nothing is a path: the
+  editor reaches an item by `[[…]]` through the resolver its host feeds with
+  the library's items (`packages/editor/src/link-resolver-feed.ts`) and a file
+  by its sha, and only an http(s) url reaches the browser. Rejected: resolving
+  a live note's relative url (no library item has a path to resolve it
+  against).
   `packages/editor/src/codec/import-plan.ts`.
 
 - **A WIKI LINK NAMES WHAT THE RESOLVER ANSWERS TO, AND ONE FUNCTION BESIDE THE
