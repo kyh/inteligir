@@ -155,15 +155,44 @@ describe("what a share asks the phone to save", () => {
     },
   );
 
-  it("hands text alone to the text save, which finds a link inside it", () => {
+  it.each([
+    ["the post (https://example.com/z) says it well", "the post says it well"],
+    ["(https://example.com/z)", null],
+    ["Link:https://example.com/z", "Link:"],
+    ["[the post](https://example.com/z)", "the post"],
+  ])("takes a link expo-share-intent's search misses as a link: %s", (text, note) => {
+    expect(textShare(text).webUrl).toBeNull();
+    expect(sharedSaveOf(textShare(text))).toStrictEqual({
+      kind: "link",
+      note,
+      title: null,
+      url: "https://example.com/z",
+    });
+  });
+
+  it("takes the link past a bare name expo-share-intent's search calls an address", () => {
+    const text = "see http.cat then https://example.com/z";
+    expect(textShare(text).webUrl).toBe("http.cat");
+    expect(sharedSaveOf(textShare(text))).toStrictEqual({
+      kind: "link",
+      note: "see http.cat then",
+      title: null,
+      url: "https://example.com/z",
+    });
+  });
+
+  it("takes the sheet's title for a link expo-share-intent's search misses", () => {
+    expect(
+      sharedSaveOf({ ...textShare("(https://example.com/z)"), meta: { title: " The post " } }),
+    ).toStrictEqual({ kind: "link", note: null, title: "The post", url: "https://example.com/z" });
+  });
+
+  it("hands text with no link to the text save", () => {
     expect(sharedSaveOf(textShare("  a thought  "))).toStrictEqual({
       kind: "text",
       text: "a thought",
     });
-    expect(sharedSaveOf(textShare("(https://example.com/z)"))).toStrictEqual({
-      kind: "text",
-      text: "(https://example.com/z)",
-    });
+    expect(sharedSaveOf(textShare("https://)"))).toStrictEqual({ kind: "text", text: "https://)" });
     expect(sharedSaveOf({ meta: null, text: " ", webUrl: " " })).toStrictEqual({ kind: "nothing" });
   });
 });

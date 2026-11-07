@@ -715,6 +715,21 @@ describe("a share, saved", () => {
     expect(noteOf(cell, id)).toStrictEqual(["Look at this"]);
   });
 
+  it("reads a link the share sheet's search missed on the phone, as any other", async () => {
+    const { cell, device, newBlockId } = await phone();
+    const { asked, fetch } = walking(new Map());
+    const saved = await saveShared(
+      { newBlockId, ports: portsOf(fetch), replica: device.replica },
+      sharedSaveOf({ meta: null, text: `the post (${URL}) says it well`, webUrl: null }),
+    );
+    await device.replica.sync();
+    expect(asked).toStrictEqual([URL]);
+    expect(cell.calls).toContain("phone library/items/save");
+    expect(cell.item(idOf(saved))?.fields.fetchState).toBe("filled");
+    expect(articleOf(cell, idOf(saved))).toStrictEqual(["File over app is a philosophy."]);
+    expect(noteOf(cell, idOf(saved))).toStrictEqual(["the post says it well"]);
+  });
+
   it("adds no note of words that only say the page's own title again", async () => {
     const { cell, device, newBlockId } = await phone();
     const saved = await saveShared(
