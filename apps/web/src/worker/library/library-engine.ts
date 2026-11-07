@@ -123,6 +123,7 @@ const purgedSchema = z.object({ missing: z.array(z.string()), purged: z.array(z.
 const undoSchema = z.object({
   changeSetId: z.string(),
   kept: z.array(z.string()),
+  refused: z.array(z.string()),
   reverted: z.array(z.string()),
 });
 

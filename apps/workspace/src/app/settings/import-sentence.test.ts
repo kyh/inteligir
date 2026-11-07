@@ -40,7 +40,8 @@ describe("what an import says", () => {
 
 describe("what an undo says", () => {
   it("says when a later change was kept where it overlapped", () => {
-    expect(undoSentence({ kept: [], reverted: ["a"] })).toBe("Undone.");
-    expect(undoSentence({ kept: ["a"], reverted: [] })).toMatch(/were kept/u);
+    expect(undoSentence({ kept: [], refused: [] })).toBe("Undone.");
+    expect(undoSentence({ kept: ["a"], refused: [] })).toMatch(/were kept/u);
+    expect(undoSentence({ kept: ["a"], refused: ["b"] })).toMatch(/undo this again/u);
   });
 });

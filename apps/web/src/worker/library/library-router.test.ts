@@ -675,6 +675,27 @@ describe("the library's procedures", () => {
     });
   });
 
+  it("answers an undo the library has no room for as its row declares", async () => {
+    await inCell(cellOf(), async (state) => {
+      const clock = clockAt();
+      const library = clientIn(state, clock);
+      const passage = "A passage long enough to cut.";
+      const { item } = await library.items.createNote({ markdown: passage });
+      clock.now += 120_000;
+      const { seq } = await library.items.read({ id: item.id });
+      await library.items.edit({
+        baseSeq: seq,
+        edits: [{ newText: "Cut.", oldText: passage }],
+        id: item.id,
+      });
+      const { changeSets } = await library.history.list({ itemId: item.id });
+      addFileBytes(cellStorageOf(state.storage), GiB);
+      await expect(
+        refusalOf(library.history.undo({ changeSetIds: [changeSets[0]?.id ?? ""] })),
+      ).resolves.toMatchObject({ code: "QUOTA", defined: true });
+    });
+  });
+
   it("lists the account's threads newest first, pages a thread's events, and deletes a thread as gone", async () => {
     await inCell(cellOf(), async (state) => {
       const library = clientIn(state, clockAt());

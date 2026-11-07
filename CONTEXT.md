@@ -273,7 +273,8 @@ back. Not the editor's own undo (⌘Z), which lives and dies with the open item.
 this conversation" under a conversation: `library.history.undo` over the
 CHANGE SETS named, in a change set of its own, so an undo is itself in History.
 A block changed since stays, and an item whose later edits overlap the set's is
-kept whole and named.
+kept whole and named. An item a rule holds back (a full library, an address
+another item holds now) is named apart, and its set can be undone again.
 
 **Deleted** — the rail's row: the items deleted, each restorable, and "Empty
 Deleted…", which removes them for good.

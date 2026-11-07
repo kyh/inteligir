@@ -29,12 +29,16 @@ interface ShownRevision {
   readonly label: string;
 }
 
-// what an undo's answer says: what it took back, and what a later change kept as it is
-/** @internal */
-export const undoSentence = (answer: { reverted: readonly string[]; kept: readonly string[] }) =>
-  answer.kept.length === 0
+// what an undo's answer says: what it took back, what a later change kept as it is, and what a
+// rule held back, which Undo can still take
+export const undoSentence = (answer: { kept: readonly string[]; refused: readonly string[] }) => {
+  if (answer.refused.length > 0) {
+    return "Partly undone. Some items couldn't come back yet, so you can undo this again.";
+  }
+  return answer.kept.length === 0
     ? "Undone."
     : "Undone, but changes made since were kept where they overlapped.";
+};
 
 const RevisionDialog = ({
   itemId,

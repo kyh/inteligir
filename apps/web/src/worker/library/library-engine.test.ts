@@ -628,6 +628,125 @@ describe("change sets and undo", () => {
     });
   });
 
+  describe("an undo a rule refuses", () => {
+    const laptopSet = (state: DurableObjectState): string => {
+      const [row] = state.storage.sql
+        .exec("SELECT id FROM change_sets WHERE device_id = 'laptop'")
+        .toArray();
+      return z.string().parse(row?.id);
+    };
+    const undoneBy = (state: DurableObjectState, id: string): unknown =>
+      state.storage.sql.exec("SELECT undone_by FROM change_sets WHERE id = ?", id).one().undone_by;
+    const setCount = (state: DurableObjectState): number =>
+      state.storage.sql.exec("SELECT id FROM change_sets").toArray().length;
+    const passage = paragraph("long", "x".repeat(4096));
+
+    it("answers why and stays undoable while every item's way back is refused", async () => {
+      await inCell(cellOf(), (state) => {
+        const clock = clockAt();
+        const roomy = engineIn(state, clock);
+        const itemId = newItemId();
+        landedValue(
+          roomy.create(SYSTEM, { blocks: placed([A, passage]), fields: noteFields(), id: itemId }),
+        );
+        landedValue(
+          roomy.write(person("laptop"), {
+            itemId,
+            ops: [{ baseHash: hashOf(passage), blockId: "long", op: "drop" }],
+          }),
+        );
+        const setId = laptopSet(state);
+        const sets = setCount(state);
+        const full = engineIn(state, clock, 1);
+        expect(refusalOf(full.undo(person("laptop"), { changeSetIds: [setId] }))).toMatchObject({
+          kind: "quota",
+        });
+        expect(undoneBy(state, setId)).toBeNull();
+        expect(setCount(state)).toBe(sets);
+        const answer = landedValue(roomy.undo(person("laptop"), { changeSetIds: [setId] }));
+        expect(answer).toMatchObject({ kept: [], refused: [], reverted: [itemId] });
+        const [body] = landedValue(roomy.bodies([itemId])).bodies;
+        expect(body?.blocks.map((stored) => stored.block)).toStrictEqual([A, passage]);
+        expect(undoneBy(state, setId)).toBe(answer.changeSetId);
+      });
+    });
+
+    it("lands what it can, names the rest, and a second try takes the rest back", async () => {
+      await inCell(cellOf(), (state) => {
+        const clock = clockAt();
+        const roomy = engineIn(state, clock);
+        const cut = newItemId();
+        const added = newItemId();
+        landedValue(
+          roomy.create(SYSTEM, { blocks: placed([A, passage]), fields: noteFields(), id: cut }),
+        );
+        landedValue(roomy.create(SYSTEM, { blocks: placed([A]), fields: noteFields(), id: added }));
+        landedValue(
+          roomy.write(person("laptop"), {
+            itemId: cut,
+            ops: [{ baseHash: hashOf(passage), blockId: "long", op: "drop" }],
+          }),
+        );
+        landedValue(
+          roomy.write(person("laptop"), {
+            itemId: added,
+            ops: [{ block: B, op: "insert", ord: "a5", section: "note" }],
+          }),
+        );
+        const setId = laptopSet(state);
+        const full = engineIn(state, clock, 1);
+        const partial = landedValue(full.undo(person("laptop"), { changeSetIds: [setId] }));
+        expect(partial).toMatchObject({ kept: [], refused: [cut], reverted: [added] });
+        expect(undoneBy(state, setId)).toBeNull();
+        const [thinned] = landedValue(roomy.bodies([added])).bodies;
+        expect(thinned?.blocks.map((stored) => stored.block)).toStrictEqual([A]);
+        const rest = landedValue(roomy.undo(person("laptop"), { changeSetIds: [setId] }));
+        expect(rest).toMatchObject({ kept: [], refused: [] });
+        expect(rest.reverted).toContain(cut);
+        const [whole] = landedValue(roomy.bodies([cut])).bodies;
+        expect(whole?.blocks.map((stored) => stored.block)).toStrictEqual([A, passage]);
+        expect(undoneBy(state, setId)).toBe(rest.changeSetId);
+      });
+    });
+
+    it("waits while another item holds the address, and lands once it no longer does", async () => {
+      await inCell(cellOf(), (state) => {
+        const clock = clockAt();
+        const library = engineIn(state, clock);
+        const url = "https://example.com/one";
+        const gone = newItemId();
+        const holder = newItemId();
+        landedValue(
+          library.create(SYSTEM, { blocks: placed([]), fields: noteFields({ url }), id: gone }),
+        );
+        landedValue(
+          library.write(person("laptop"), {
+            itemId: gone,
+            ops: [{ base: null, field: "deletedAt", op: "set", value: clock.now }],
+          }),
+        );
+        const setId = laptopSet(state);
+        landedValue(
+          library.create(SYSTEM, { blocks: placed([]), fields: noteFields({ url }), id: holder }),
+        );
+        expect(refusalOf(library.undo(person("laptop"), { changeSetIds: [setId] }))).toMatchObject({
+          itemId: holder,
+          kind: "url-held",
+        });
+        expect(undoneBy(state, setId)).toBeNull();
+        landedValue(
+          library.write(SYSTEM, {
+            itemId: holder,
+            ops: [{ base: null, field: "deletedAt", op: "set", value: clock.now }],
+          }),
+        );
+        expect(
+          landedValue(library.undo(person("laptop"), { changeSetIds: [setId] })),
+        ).toMatchObject({ refused: [], reverted: [gone] });
+      });
+    });
+  });
+
   it("writes each revision when its state stops being the item's, so the newest is the item as it stands", async () => {
     await inCell(cellOf(), (state) => {
       const clock = clockAt();
