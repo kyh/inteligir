@@ -38,14 +38,6 @@ export interface ExportFolder {
   readonly name: string;
 }
 
-// what names an item's file: its title, its folder and its aliases, which a link may resolve by
-export interface ExportItemHead {
-  readonly id: string;
-  readonly title: string;
-  readonly folderId: string | null;
-  readonly aliases: readonly string[];
-}
-
 export type ExportFile =
   | { readonly kind: "text"; readonly path: string; readonly text: string }
   | { readonly kind: "bytes"; readonly path: string; readonly sha: string };
@@ -155,12 +147,8 @@ export const exportFolderPaths = (folders: readonly ExportFolder[]): Map<string,
 
 // an item given its file, named for its title in its folder (`dir`, the folder's path), the first
 // spelling no other file holds
-export const planExportDoc = (
-  head: ExportItemHead,
-  dir: string,
-  store: ExportStore,
-): PlannedExportDoc => {
-  const name = itemNameFromTitle(head.title) ?? UNTITLED;
+export const planExportDoc = (title: string, dir: string, store: ExportStore): PlannedExportDoc => {
+  const name = itemNameFromTitle(title) ?? UNTITLED;
   const searchKey = pathCollisionKey(joinPath(dir, `${name}${DOC_EXTENSION}`));
   const free = freePathFrom(
     dir,

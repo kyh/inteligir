@@ -18,7 +18,6 @@
 // were one kept instead, the zip's completion fails and the export with it, never a zip of mixed
 // runs.
 
-import type { exportJobSchema } from "@repo/contract/cloud/library/library-wire";
 import {
   beginExport,
   exportDoc,
@@ -143,16 +142,6 @@ const jobOf = (raw: SqlRow): ExportJob => {
     state: row.state,
   };
 };
-
-export const exportJobView = (job: ExportJob): z.input<typeof exportJobSchema> => ({
-  bytes: job.bytes,
-  expiresAt: job.expiresAt,
-  finishedAt: job.finishedAt,
-  id: job.id,
-  message: job.message,
-  startedAt: job.startedAt,
-  state: job.state,
-});
 
 export const readExportJob = (sql: SqlStatements, id: string): ExportJob | null => {
   const [raw] = sql.all(`SELECT ${COLUMNS} FROM export_jobs WHERE id = ?`, [id]);
@@ -280,11 +269,7 @@ const planPage = (sql: SqlStatements, job: Writing, limits: ExportLimits): Writi
     const aliases = aliasesSchema.parse(JSON.parse(head.aliases));
     const dir =
       head.folder_id === null ? "" : (rowValue(sql, job.id, ROWS.folder, head.folder_id) ?? "");
-    const planned = planExportDoc(
-      { aliases, folderId: head.folder_id, id: head.id, title: head.title },
-      dir,
-      store,
-    );
+    const planned = planExportDoc(head.title, dir, store);
     const idx = from + index;
     const doc: DocRow = { aliases, name: planned.name, path: planned.path };
     putRows(sql, job.id, ROWS.doc, [{ idx, key: head.id, value: JSON.stringify(doc) }]);

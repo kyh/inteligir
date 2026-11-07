@@ -420,10 +420,7 @@ const exportInSteps = (library: ReadLibrary, items: readonly ExportItem[]): Expo
   for (const item of items) {
     const { aliases, folderId, title } = item.fields;
     const dir = folderId === null ? "" : (folders.get(folderId) ?? "");
-    planned.set(item.id, {
-      ...planExportDoc({ aliases, folderId, id: item.id, title }, dir, store),
-      aliases,
-    });
+    planned.set(item.id, { ...planExportDoc(title, dir, store), aliases });
   }
   const target = (itemId: string): string | null => {
     const doc = planned.get(itemId);

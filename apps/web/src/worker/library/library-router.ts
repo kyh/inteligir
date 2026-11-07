@@ -37,7 +37,7 @@ import type { AgentCell } from "../agent/agent-turns";
 import { libraryTools } from "../connector/library-tools";
 import { cellCodec } from "./cell-codec";
 import { askFill, askFillAfterTurn } from "./cell-fills";
-import { exportJobView, readExportJob, startExport } from "./cell-exports";
+import { readExportJob, startExport } from "./cell-exports";
 import { writeFolders } from "./cell-folders";
 import { importJobView, latestImportJob, readImportJob } from "./cell-import-jobs";
 import { cancelImport, startImport } from "./cell-imports";
@@ -267,14 +267,14 @@ export const libraryRouter = os.router({
       if (job === null) {
         throw new NotFoundError();
       }
-      return { export: exportJobView(job) };
+      return { export: job };
     }),
     start: os.exports.start.handler(async ({ context, input }) => {
       const { library } = context;
       return await committed(
         context,
         library.landApart({ answer: exportAnswer, opId: input.opId }, (scope) => ({
-          export: exportJobView(startExport(scope, library.ids)),
+          export: startExport(scope, library.ids),
         })),
       );
     }),
