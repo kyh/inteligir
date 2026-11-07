@@ -550,7 +550,8 @@ stops it syncing, and on a Mac deletes its copy of your library.
 cookies, and clear what a website keeps in web storage, in their settings. If
 you block our website's session cookie, you cannot sign in to its account pages;
 the apps do not depend on it. If you clear our website's web storage, it forgets
-your theme and shows its dark one.
+your theme and shows its dark one, and your library in a browser tab forgets its
+settings and layout and follows your device's theme.
 
 **Do Not Track.** Some Internet browsers may be configured to send "Do Not
 Track" signals to the online services that you visit. We currently do not
