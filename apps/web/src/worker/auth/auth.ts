@@ -17,19 +17,22 @@ import { sendResetEmail } from "./reset-email";
 
 // The HTTP router's alone: auth.api still calls each. The site calls sign-in, get-session and the
 // reset pair, and the invite gate forwards sign-up; a route no client calls is surface with no
-// user. Sign-out stays, since ending a session is never a risk. Deletion's one door is
-// `account.delete` (../device/account.ts), which asks the password again, where Better Auth's own
-// route settles for a fresh session.
+// user. Sign-out stays, since ending a session is never a risk. So does `/callback/:id`, which an
+// exact list cannot name and which, with no social provider, has nothing to sign in with. Deletion's
+// one door is `account.delete` (../device/account.ts), which asks the password again, where Better
+// Auth's own route settles for a fresh session.
 const DISABLED_PATHS = [
   "/account-info",
   "/change-email",
   "/change-password",
   "/delete-user",
   "/delete-user/callback",
+  "/error",
   "/get-access-token",
   "/link-social",
   "/list-accounts",
   "/list-sessions",
+  "/ok",
   "/refresh-token",
   "/revoke-other-sessions",
   "/revoke-session",

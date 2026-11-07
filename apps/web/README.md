@@ -237,7 +237,9 @@ and end them, and the account's deletion revokes every one.
   calls (the site uses sign-in, `get-session`, the reset pair and, through the
   invite gate, sign-up). That includes its own `/delete-user`, so
   `account.delete` is the one way to delete an account;
-  `auth.api.deleteUser` behind it is unaffected, as the list gates only HTTP. Better Auth reads
+  `auth.api.deleteUser` behind it is unaffected, as the list gates only HTTP.
+  Only `/callback/:id` stays open: an exact list cannot name it, and with no
+  social provider it has nothing to sign in with. Better Auth reads
   `BETTER_AUTH_TRUSTED_ORIGINS` itself, should an origin other than the
   request's ever need trusting. `readSession` is a route of the Worker's own
   reading a session, which never slides it: only `/api/auth/get-session` answers
