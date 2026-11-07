@@ -33,6 +33,8 @@ export const accountReads = (orpc: CloudWire["orpc"]) => ({
   devices: orpc.account.devices.list.queryOptions({ staleTime: ACCOUNT_FRESH_MS }),
 });
 
+// the page's own device has no Sign out here: it leaves through the account's, which asks before
+// dropping what it has not sent
 const DevicesRow = () => {
   const { orpc } = useWire();
   const queryClient = useQueryClient();
@@ -63,17 +65,21 @@ const DevicesRow = () => {
                   <span className="text-caption text-muted-foreground">
                     {device.lastSeenAt === null ? "" : relativeTimeLabel(device.lastSeenAt, nowMs)}
                   </span>
-                  <Button
-                    size="compact"
-                    variant="ghost"
-                    className="ml-auto"
-                    aria-label={`Sign out ${device.name}`}
-                    onClick={() => {
-                      revoke.mutate({ deviceId: device.id });
-                    }}
-                  >
-                    Sign out
-                  </Button>
+                  {device.current ? (
+                    <span className="ml-auto text-caption text-muted-foreground">This Mac</span>
+                  ) : (
+                    <Button
+                      size="compact"
+                      variant="ghost"
+                      className="ml-auto"
+                      aria-label={`Sign out ${device.name}`}
+                      onClick={() => {
+                        revoke.mutate({ deviceId: device.id });
+                      }}
+                    >
+                      Sign out
+                    </Button>
+                  )}
                 </li>
               ))}
             </ul>

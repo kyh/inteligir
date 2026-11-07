@@ -51,6 +51,8 @@ export type DeviceLoginResponse = z.infer<typeof deviceLoginResponseSchema>;
 
 const deviceSchema = z.object({
   createdAt: z.number().int(),
+  // this is the device asking; a browser's session is no device, so it finds none
+  current: z.boolean(),
   id: z.string().min(1),
   lastSeenAt: z.number().int().nullable(),
   name: z.string(),

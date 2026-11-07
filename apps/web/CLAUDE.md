@@ -28,8 +28,9 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
 - **A DEVICE CREDENTIAL, OR THE SITE'S SESSION, LISTS AND REVOKES ITS
   ACCOUNT'S DEVICES**, so Settings › Account, in a signed-in Mac or the library's
   browser tab, removes a lost phone with no password asked, as a sign-out asks
-  none; the web's devices page stays as the fallback. A Mac's own row offers no
-  Revoke: this device leaves through a sign-out.
+  none; the web's devices page stays as the fallback. The list marks the device
+  asking, and that row offers no Revoke: this device leaves through a sign-out,
+  which asks before it drops what it has not sent.
   `apps/web/src/worker/wire/account-router.ts`, `apps/web/src/worker/device/devices.ts`,
   `apps/workspace/src/app/settings/account-section.tsx`.
 
