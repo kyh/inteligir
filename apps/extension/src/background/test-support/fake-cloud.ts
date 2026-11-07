@@ -35,7 +35,6 @@ export interface FakeCloud {
   readonly links: LinkSave[];
   readonly files: FileCreate[];
   readonly uploads: { readonly bytes: Uint8Array; readonly mime: string }[];
-  signOuts: number;
 }
 
 export const fakeCloud = (script: {
@@ -62,14 +61,11 @@ export const fakeCloud = (script: {
         fake.links.push(input);
         return await (script.saveLink ?? (async () => savedAs(input.title ?? input.url)))();
       },
-      signOut: async () => {
-        fake.signOuts += 1;
-      },
+      signOut: async () => {},
     },
     files: [],
     links: [],
     saves: [],
-    signOuts: 0,
     uploads: [],
   };
   return fake;
