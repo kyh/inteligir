@@ -18,7 +18,7 @@ import {
 } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { historyPages } from "../cloud/history-pages";
+import { historyPages, UNDO_SCOPE } from "../cloud/history-pages";
 import { useReplica, useWire } from "../cloud/library-context";
 import { refusalText } from "@repo/contract/cloud/refusal-text";
 import { CellAnswer } from "../cloud/needs-connection";
@@ -126,12 +126,15 @@ export const HistoryTab = ({
       onError: (cause) => {
         toast.error(refusalText(cause, "That change couldn't be undone."));
       },
-      onSuccess: async (answer) => {
-        announceUndo(answer);
+      // refused too: an open list hears nothing of what another device took back, so a refusal can
+      // be the first it learns of it
+      onSettled: async () => {
         await queryClient.invalidateQueries({ queryKey: orpc.library.history.key() });
       },
-      // one undo after another, in the order they were asked
-      scope: { id: "history-undo" },
+      onSuccess: (answer) => {
+        announceUndo(answer);
+      },
+      scope: UNDO_SCOPE,
     }),
   );
   return (

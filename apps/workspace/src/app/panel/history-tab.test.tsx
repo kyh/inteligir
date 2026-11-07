@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { createORPCErrorFromJson } from "@orpc/client";
 import { toast } from "@repo/ui/components/sonner";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -14,7 +15,7 @@ afterEach(() => {
 
 const ITEM = "0199a4c2-0000-7000-8000-0000000000b1";
 
-const set = (id: string, label: string) => ({
+const set = (id: string, label: string, undoneBy: string | null = null) => ({
   actor: "person",
   closedAt: "2026-11-05T10:00:00.000Z",
   id,
@@ -24,7 +25,7 @@ const set = (id: string, label: string) => ({
   openedAt: "2026-11-05T09:59:00.000Z",
   threadId: null,
   turn: null,
-  undoneBy: null,
+  undoneBy,
 });
 
 describe("an item's History", () => {
@@ -84,5 +85,41 @@ describe("an item's History", () => {
       expect(info).toHaveBeenCalledWith(expect.stringMatching(/^Nothing was undone/u));
     });
     expect(success).not.toHaveBeenCalled();
+  });
+
+  it("reads the list again when an undo is refused, so what another device took back shows", async () => {
+    const said = vi.spyOn(toast, "error");
+    const refusal = "That change was already undone.";
+    let listed = [set("s1", "Renamed Plans")];
+    const { library } = fakePageLibrary({
+      answer: ({ path }) => {
+        if (path === "library.history.list") {
+          return { changeSets: listed, cursor: null };
+        }
+        throw createORPCErrorFromJson({
+          code: "ALREADY_UNDONE",
+          data: undefined,
+          defined: true,
+          message: refusal,
+        });
+      },
+    });
+    renderOnLibrary(
+      <HistoryTab
+        itemId={ITEM}
+        flushOpen={async () => {
+          await Promise.resolve();
+        }}
+      />,
+      library,
+    );
+    const undo = await screen.findByRole("button", { name: "Undo" });
+    listed = [set("s1", "Renamed Plans", "u9")];
+    fireEvent.click(undo);
+    await waitFor(() => {
+      expect(said).toHaveBeenCalledWith(refusal);
+    });
+    await screen.findByText(/undone$/u);
+    expect(undo).toHaveProperty("disabled", true);
   });
 });

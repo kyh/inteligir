@@ -8,6 +8,9 @@ import type { CloudWire } from "./v1";
 
 type HistoryFilter = { readonly itemId: string } | { readonly threadId: string };
 
+// one undo after another, in the order they were asked
+export const UNDO_SCOPE = { id: "history-undo" };
+
 export const historyPages = (orpc: CloudWire["orpc"], filter: HistoryFilter) =>
   orpc.library.history.list.infiniteOptions({
     getNextPageParam: (last) => last.cursor,
@@ -15,7 +18,8 @@ export const historyPages = (orpc: CloudWire["orpc"], filter: HistoryFilter) =>
     input: (cursor: string | undefined) => ({ ...filter, cursor }),
   });
 
-// every set as the cell holds them now, newest first, for what must not act on a list still catching up
+// every set as the cell holds them now, newest first, for what must not act on a list still
+// catching up; run in a mutation, since a bare call fails at once offline
 export const everyChangeSet = async (client: CloudWire["client"], filter: HistoryFilter) => {
   const pages = [];
   let cursor: string | undefined;
