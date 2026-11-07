@@ -44,12 +44,14 @@ The premises every change builds from, each with its reason:
   the agent's tools work on every item without a second store, and a row per
   block is what lets two devices' edits to different blocks merge with no
   round trip.
-- **The apps and every agent call the same oRPC procedures, and a tool is a
-  procedure tagged with `mcp.tool`.** The cell implements the library's
+- **The apps and every agent share one oRPC contract, and a tool is a
+  procedure of it tagged with `mcp.tool`.** The cell implements the library's
   contract once and serves it at two doors, `/v1` for the apps and the
-  connector for assistants, and runs it itself for the built-in agent's tool
-  calls, because an agent should do what the app does, guarded the same way,
-  and nothing the app cannot.
+  connector for assistants, and runs the tools itself for the built-in agent's
+  calls. The apps call only a few of the tools, since a replica writes by its
+  own rows, and every write lands through the cell's one engine, because an
+  agent should do what the app does, guarded the same way, and nothing the app
+  cannot.
 - **The Mac and the phone read everything offline and queue writes; the
   agent, import, export, History and the account need a connection**, because
   every row and body is on the device while those run in the cell, and an

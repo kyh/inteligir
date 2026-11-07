@@ -32,7 +32,7 @@ import { openCellLibrary, scheduleAlarm, settleCommit } from "./cell-library";
 import type { CellRefusal } from "./cell-refusal";
 import { cellStorageOf } from "./cell-storage";
 import { cellAccountId } from "./library-cell";
-import { PRINCIPAL_HEADER, principalHeaderValue } from "./library-principal";
+import { PRINCIPAL_HEADER, principalFromHeader, principalHeaderValue } from "./library-principal";
 import type { NamedPrincipal } from "./library-principal";
 import { V1_LIBRARY_RPC_PATH } from "./library-rpc";
 
@@ -47,7 +47,6 @@ const files = async (prefix: string): Promise<number> => {
 const principal = (accountId: string): NamedPrincipal => ({
   accountId,
   actor: { deviceId: "laptop-1", deviceName: "Laptop", kind: "device" },
-  scopes: ["library"],
 });
 
 const itemCount = (state: DurableObjectState): number =>
@@ -111,8 +110,13 @@ describe("the library cell", () => {
     const stub = cellOf(accountId);
     const assistant: NamedPrincipal = {
       accountId,
-      actor: { clientId: "client-1", clientName: "Claude", grantId: "grant-1", kind: "assistant" },
-      scopes: ["library"],
+      actor: {
+        clientId: "client-1",
+        clientName: "Claude",
+        grantId: "grant-1",
+        kind: "assistant",
+        scopes: ["library"],
+      },
     };
     const status = async (path: string, as: NamedPrincipal): Promise<number> => {
       const answer = await stub.fetch(`https://cell.test${path}`, {
@@ -130,6 +134,18 @@ describe("the library cell", () => {
     await expect(status(`${V1_LIBRARY_RPC_PATH}/items/createNote`, assistant)).resolves.toBe(403);
     await expect(status(CONNECTOR_PATH, principal(accountId))).resolves.toBe(403);
     await expect(inCell(stub, itemCount)).resolves.toBe(0);
+  });
+
+  it("leaves a limit to an assistant's grant, so no device reads as read-only", () => {
+    const laptop = principal(newAccountId());
+    expect(principalFromHeader(principalHeaderValue(laptop))).toStrictEqual(laptop);
+    const scopes = ["library:read"];
+    for (const claim of [
+      { ...laptop, scopes },
+      { ...laptop, actor: { ...laptop.actor, scopes } },
+    ]) {
+      expect(principalFromHeader(encodeURIComponent(JSON.stringify(claim)))).toBeNull();
+    }
   });
 
   it("seals a quiet set when its alarm runs, and sets the next one for the prune", async () => {

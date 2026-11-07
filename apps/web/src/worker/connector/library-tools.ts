@@ -13,7 +13,7 @@ import { libraryContract } from "@repo/contract/cloud/library/library-contract";
 
 const { annotations, history, items, organize, search } = libraryContract;
 
-// a read implies its read-only hint by its verb; it is closed-world, as every library tool is
+// a read implies its read-only hint by its verb; it is closed-world
 const read = mcp.tool({ annotations: { openWorldHint: false } });
 
 // a write that only adds (a note, a highlight) destroys nothing; one that changes or removes what

@@ -380,6 +380,9 @@ Specifically, in our cloud:
 - Device rows (including revoked ones) persist as the dashboard's audit trail
   until account deletion. A device's throttling counters are deleted when it is
   revoked.
+- A row for each assistant you disconnected (its grant's id and your account)
+  persists until account deletion, so an assistant renewing its access at that
+  moment stays out.
 - Throttling rows keyed on an address, a browser session or an assistant's
   access, not an account, cannot be found by account deletion, and neither a
   session ending nor an assistant's removal deletes its own. Better Auth deletes
@@ -390,11 +393,13 @@ Specifically, in our cloud:
   the link is used. One never used stops working after an hour and is swept the
   next time anyone opens a reset link; account deletion does not look for it,
   and once the account is gone it opens nothing.
-- An assistant you connected keeps its grant until 30 days after it last
-  renewed its access, which it does while it keeps using it: removing the
-  connector in the assistant stops its requests, and the grant then lapses at
-  those 30 days. Deleting the account revokes every assistant's grant, which
-  our cloud stops answering everywhere within about a minute. What an assistant
+- An assistant you connected keeps its grant until you Disconnect it in
+  Settings › Account › Connected assistants, which ends its access at once, or
+  until 30 days after it last renewed its access, which it does while it keeps
+  using it: removing the connector in the assistant stops its requests, and the
+  grant then lapses at those 30 days, unless it keeps renewing. Deleting the
+  account revokes every assistant's grant, which our cloud stops answering
+  everywhere within about a minute. What an assistant
   registered (its name and addresses, never yours) is deleted 90 days after it
   last used it, and deleting the account leaves a registration to those 90
   days, since none is filed under an account.
@@ -443,7 +448,8 @@ us operate the Service or our business (such as hosting, information technology
 and email delivery). Specifically:
 
 - **Cloudflare** runs our cloud and our website. Its D1 database holds your
-  account, sessions, devices, the invite you redeemed and the throttling rows;
+  account, sessions, devices, the invite you redeemed, a row for each assistant
+  you disconnected and the throttling rows;
   its KV storage holds each assistant you connected: what it registered (its
   name and the addresses it gave), its grant, filed under your account with
   its name and what you let it do, and its tokens, kept only as hashes;
@@ -490,7 +496,8 @@ It travels from our cloud:
   What it writes lands in your library as a change named for it, which History
   can undo, and one you allowed only to read can change nothing. The page
   names the assistant as it named itself and where its access is sent.
-  Removing the connector in your assistant stops its requests, and its
+  Disconnecting it in Settings › Account › Connected assistants ends its access
+  at once. Removing the connector in your assistant stops its requests, and its
   access lapses 30 days after it last renewed it; deleting the account ends
   every assistant's access within about a minute.
 
@@ -579,7 +586,8 @@ account row itself goes:
    D1, and **your email is dropped from the invite you redeemed** (the code
    stays burned). This is late on purpose: until then your device can still ask
    again if a step failed.
-   Then Better Auth deletes your sessions, your password hash and the account row.
+   Then Better Auth deletes your sessions, your password hash and the account row,
+   and the rows for assistants you disconnected go with it.
    All six steps run BEFORE that, so a step that fails aborts the deletion and
    leaves the account able to ask again; every step is idempotent, so asking again
    resumes. Each of your devices erases its copy the next time our cloud refuses it

@@ -9,7 +9,7 @@ import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import type { V1Client } from "@repo/contract/cloud/v1";
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { createDb } from "../db/client";
@@ -55,6 +55,17 @@ const initialize = async (headers: Record<string, string> = {}) =>
       "content-type": "application/json",
       ...headers,
     },
+    method: "POST",
+  });
+
+// a client renewing its access at the token endpoint
+const refresh = async (clientId: string, refreshToken: string): Promise<Response> =>
+  await workerFetch(`${ORIGIN}/oauth/token`, {
+    body: new URLSearchParams({
+      client_id: clientId,
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    }),
     method: "POST",
   });
 
@@ -143,6 +154,8 @@ describe("the connector's sign-in", () => {
     expect(shown.html).toContain("&#60;img src=x onerror=&#34;alert(1)&#34;&#62;");
     expect(shown.html).not.toContain("<img");
     expect(shown.html).toContain("connector-escape@example.test");
+    expect(shown.html).toContain("Disconnect it in Settings › Account › Connected assistants");
+    expect(shown.html).not.toContain("30 days");
     // the redirect goes to an app on this machine, which the page warns of
     expect(shown.html).toContain("This sends access to an app on this computer.");
     expect(shown.response.headers.get("x-frame-options")).toBe("DENY");
@@ -240,12 +253,46 @@ describe("the connector's sign-in", () => {
     const shown = await showConsent(cookie, url);
     await answerConsent(url, shown, { decision: "allow" });
     const again = await workerFetch(url, {
-      body: new URLSearchParams({ decision: "allow", handle: shown.handle }),
+      body: new URLSearchParams({ ...shown.fields, decision: "allow" }),
       headers: { cookie: shown.cookie },
       method: "POST",
     });
     expect(again.status).toBe(400);
     await expect(again.text()).resolves.toContain("This link expired or was already used.");
+  });
+
+  it("lets no assistant in on an Allow from another account than the page named", async () => {
+    const named = await signUpUser("connector-named@example.test");
+    const other = await signUpUser("connector-other@example.test");
+    const clientId = await registerClient();
+    const { challenge } = await pkcePair();
+    const url = authorizeUrl(clientId, challenge, "state-3");
+    const shown = await showConsent(named.cookie, url);
+    expect(shown.html).toContain("connector-named@example.test");
+
+    // signed in to the other account in another tab, with this page still open
+    const switched = shown.cookie.replace(named.cookie, other.cookie);
+    const allowed = await workerFetch(url, {
+      body: new URLSearchParams({ ...shown.fields, decision: "allow" }),
+      headers: { cookie: switched },
+      method: "POST",
+      redirect: "manual",
+    });
+    expect(allowed.status).toBe(403);
+    await expect(allowed.text()).resolves.toContain("signed in to a different account");
+    const device = await loginDevice(other.cookie, "Laptop");
+    const listed = await accountClient(device.credential).account.assistants.list();
+    expect(listed.assistants).toStrictEqual([]);
+
+    // refusing lets nobody in, so that answer counts from whoever gives it
+    const redirect = await answerConsent(
+      url,
+      { ...shown, cookie: switched },
+      {
+        decision: "deny",
+      },
+    );
+    expect(redirect.searchParams.get("error")).toBe("access_denied");
   });
 
   it("keeps a grant the person kept to reading to the read scope", async () => {
@@ -254,7 +301,7 @@ describe("the connector's sign-in", () => {
     expect(minted.scope).toBe("library:read");
   });
 
-  it("steps up a token that holds neither library scope, naming the one any access needs", async () => {
+  it("steps up a token that holds neither library scope, naming the one a client asks for first", async () => {
     // a grant the consent page never makes, completed through the provider's own helpers
     const { cookie } = await signUpUser("connector-step-up@example.test");
     const userId = await userIdOf(cookie);
@@ -313,6 +360,54 @@ describe("the account's assistants", () => {
     expect(answered.status).toBe(200);
     const left = await account.assistants.list();
     expect(left.assistants).toHaveLength(1);
+  });
+
+  it("ends an assistant's access though a renewal was writing its grant back as it was disconnected", async () => {
+    const { cookie } = await signUpUser("connector-race@example.test");
+    const device = await loginDevice(cookie, "Laptop");
+    const { account } = accountClient(device.credential);
+    const minted = await connectAssistant(cookie);
+    const { assistants } = await account.assistants.list();
+
+    // the renewal has read the grant and is about to write it back when the revoke runs; flags,
+    // since a promise resolved from one request's context would carry the other's on with it
+    let reachedWrite = false;
+    let revokeRan = false;
+    const put = env.OAUTH_KV.put.bind(env.OAUTH_KV);
+    const heldWrite = vi.spyOn(env.OAUTH_KV, "put").mockImplementation(async (key, ...rest) => {
+      if (key.startsWith("grant:")) {
+        reachedWrite = true;
+        await vi.waitUntil(() => revokeRan);
+      }
+      await put(key, ...rest);
+    });
+    const renewing = refresh(minted.clientId, minted.refresh_token);
+    await vi.waitUntil(() => reachedWrite);
+    await account.assistants.revoke({ grantId: assistants[0]?.grantId ?? "" });
+    revokeRan = true;
+    const renewal = await renewing;
+    heldWrite.mockRestore();
+    const renewed = z
+      .object({ access_token: z.string(), refresh_token: z.string() })
+      .parse(await renewal.json());
+
+    // the grant is back in KV, and still nobody's to list or to reach
+    const heldGrants = async (): Promise<number> => {
+      const { items } = await connectorAuth(env).helpers.listUserGrants(await userIdOf(cookie));
+      return items.length;
+    };
+    await expect(heldGrants()).resolves.toBe(1);
+    const left = await account.assistants.list();
+    expect(left.assistants).toStrictEqual([]);
+    const challenged = await drained(
+      initialize({ authorization: `Bearer ${renewed.access_token}` }),
+    );
+    expect(challenged.status).toBe(401);
+
+    // the next renewal is refused, and the provider deletes what the first wrote back
+    const refused = await refresh(minted.clientId, renewed.refresh_token);
+    await expect(refused.json()).resolves.toMatchObject({ error: "invalid_grant" });
+    await expect(heldGrants()).resolves.toBe(0);
   });
 
   it("names no other account's grant", async () => {

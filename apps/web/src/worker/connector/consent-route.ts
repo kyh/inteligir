@@ -11,6 +11,7 @@ import { z } from "zod";
 
 import { readSession } from "../auth/auth";
 import { CONSENT_PAGE_POLICY, consentPage, refusalPage } from "./consent-page";
+import type { ConsentQuestion } from "./consent-page";
 import { connectorAuth, READ_SCOPE } from "./connector-auth";
 import type { ConnectorAuth, GrantMetadata } from "./connector-auth";
 
@@ -29,10 +30,11 @@ const pageResponse = (html: string, status: number, headers = new Headers()): Re
 
 const STARTED_ELSEWHERE = "Start connecting again from your assistant.";
 
-// the form `consentPage` posts: its transaction, the answer, and the box that keeps a grant to
-// reading
+// the form `consentPage` posts: its transaction, the account it asked about, the answer, and the
+// box that keeps a grant to reading
 const consentFormSchema = z.object({
   access: z.literal("read").optional(),
+  account: z.string().min(1),
   decision: z.enum(["allow", "deny"]),
   handle: z.string().min(1),
 });
@@ -49,7 +51,11 @@ const signInFirst = (url: URL): Response => {
 const sendsHere = (redirectUri: string, origin: string): boolean =>
   URL.parse(redirectUri)?.origin === origin;
 
-const ask = async (auth: ConnectorAuth, request: Request, email: string): Promise<Response> => {
+const ask = async (
+  auth: ConnectorAuth,
+  request: Request,
+  account: ConsentQuestion["account"],
+): Promise<Response> => {
   const { helpers } = auth;
   const authRequest = await helpers.parseAuthRequest(request);
   if (sendsHere(authRequest.redirectUri, auth.origin)) {
@@ -62,7 +68,7 @@ const ask = async (auth: ConnectorAuth, request: Request, email: string): Promis
   const details = await helpers.describeConsent(authRequest);
   const consent = await helpers.beginConsent(authRequest);
   return pageResponse(
-    consentPage({ details, email, handle: consent.handle }),
+    consentPage({ account, details, handle: consent.handle }),
     200,
     consent.headers,
   );
@@ -80,10 +86,21 @@ const answer = async (
       400,
     );
   }
-  const { access, decision, handle } = form.data;
+  const { access, account, decision, handle } = form.data;
   if (decision === "deny") {
     const denied = await helpers.denyConsent(request, handle);
     return new Response(null, { headers: denied.headers, status: 302 });
+  }
+  // the provider binds the form to the browser and no further, and a browser can change accounts
+  // while the page stays open: an Allow opens only the library the page named
+  if (account !== accountId) {
+    return pageResponse(
+      refusalPage(
+        `You're signed in to a different account than the one this page asked about. ${STARTED_ELSEWHERE}`,
+        null,
+      ),
+      403,
+    );
   }
   // `library` reads and changes; the box the person ticked keeps the grant to reading
   const scope = access === "read" ? [READ_SCOPE] : ["library"];
@@ -119,7 +136,7 @@ export const handleConsent = async (
   const auth = connectorAuth(env);
   try {
     return request.method === "GET"
-      ? await ask(auth, request, signedIn.user.email)
+      ? await ask(auth, request, signedIn.user)
       : await answer(auth.helpers, request, signedIn.user.id);
   } catch (error) {
     // the refusals a person can meet here, in their words; anything else is a fault, never theirs

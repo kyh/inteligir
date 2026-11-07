@@ -5,10 +5,14 @@
 // itself, publishes its RFC 9728 metadata, challenges a call with no valid token and admits only
 // tokens minted for its own address. Both are named from one per-deployment origin, never the
 // request's Host, so a Preview's tokens are its own; KV holds the clients, grants and tokens, and
-// nothing else. The consent page is this Worker's (`./consent-route`).
+// each consent request for its ten minutes. The consent page is this Worker's (`./consent-route`).
 
 import { CONNECTOR_PATH } from "@repo/contract/cloud/connector";
-import { OAuthAuthorizationServer, OAuthResourceServer } from "@cloudflare/workers-oauth-provider";
+import {
+  OAuthAuthorizationServer,
+  OAuthError,
+  OAuthResourceServer,
+} from "@cloudflare/workers-oauth-provider";
 import type {
   OAuthHelpers,
   OAuthResourceHandler,
@@ -19,6 +23,7 @@ import { z } from "zod";
 import { createDb } from "../db/client";
 import { credentialIdSchema, LIBRARY_SCOPES } from "../library/library-principal";
 import { spendCallerBudget } from "../rate-limit";
+import { isGrantRevoked } from "./revoked-grants";
 
 // the person's own page, which signs them in and asks; the provider advertises it and refuses a
 // request parsed anywhere else
@@ -28,8 +33,8 @@ export const CONSENT_PATH = "/connect/authorize";
 const TOKEN_PATH = "/oauth/token";
 const REGISTRATION_PATH = "/oauth/register";
 
-// the scope any access needs, which a client asks for first; the consent page grants it, or
-// `library` with it, as the person chooses
+// the scope a client is told to ask for first; the consent page grants it, or `library` in its
+// place, as the person chooses
 export const READ_SCOPE = "library:read";
 
 const DAY_SECONDS = 24 * 60 * 60;
@@ -109,15 +114,19 @@ const authorizationServerAt = (env: Env, origin: string): OAuthAuthorizationServ
     resources: [connectorResourceOf(origin)],
     scopesSupported: [...LIBRARY_SCOPES],
     // the grant id rides each access token's props: a refresh mints a new token under the same
-    // grant, and the code exchange is the first moment the grant has one
-    tokenExchangeCallback: ({ grantId, props }) => ({
-      accessTokenProps: { ...grantPropsSchema.parse(props), grantId },
-    }),
+    // grant, and the code exchange is the first moment the grant has one. `invalid_grant` has the
+    // provider delete what a racing refresh wrote back
+    tokenExchangeCallback: async ({ grantId, props }) => {
+      if (await isGrantRevoked(createDb(env.DB), grantId)) {
+        throw new OAuthError("invalid_grant", { description: "This assistant was disconnected." });
+      }
+      return { accessTokenProps: { ...grantPropsSchema.parse(props), grantId } };
+    },
     tokenEndpoint: TOKEN_PATH,
   });
 
-// the token is this Worker's own; a grant whose props this build does not read is no grant, and
-// answers the challenge a client signs in again from
+// the token is this Worker's own; a grant whose props this build does not read is no grant, nor is
+// one the person disconnected, and either answers the challenge a client signs in again from
 const validatedToken = async (
   authorizationServer: OAuthAuthorizationServer<Env>,
   env: Env,
@@ -129,14 +138,16 @@ const validatedToken = async (
     env,
   );
   const tokenProps = tokenPropsSchema.safeParse(validated?.props);
-  return validated === null || !tokenProps.success
+  if (validated === null || !tokenProps.success) {
+    return null;
+  }
+  return (await isGrantRevoked(createDb(env.DB), tokenProps.data.grantId))
     ? null
     : { ...validated, props: tokenProps.data };
 };
 
 export interface ConnectorAuth {
   readonly origin: string;
-  readonly resource: string;
   readonly authorizationServer: OAuthAuthorizationServer<Env>;
   readonly helpers: OAuthHelpers;
   // the connector behind its token check, answering with `handler` once a token validates
@@ -155,7 +166,6 @@ export const connectorAuth = (env: Env): ConnectorAuth => {
     authorizationServer,
     helpers: authorizationServer.getOAuthApi(env),
     origin,
-    resource,
     resourceServer: (handler) =>
       new OAuthResourceServer<Env, TokenProps>({
         handler,

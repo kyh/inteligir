@@ -27,8 +27,9 @@ accounts. Not a **replica**, which a device reads while it writes through the
 cell.
 
 **principal** — who a library call is by, as the Worker verified it: the
-account, the scopes its credential holds, and the actor whose **change set**
-its writes join (a device, or the site's own tab on its session). The Worker
+account and the actor whose **change set** its writes join (a device, the
+site's own tab on its session, or a **connected assistant** under one grant,
+the only actor with scopes). The Worker
 stamps it on the call it forwards to the **library cell** and drops any copy the
 request brought (`apps/web/src/worker/library/library-principal.ts`). Not a
 credential: the cell never sees one.
@@ -94,9 +95,10 @@ tagged as tools
 cell (`connector-server.ts`), behind OAuth from
 `@cloudflare/workers-oauth-provider` (`connector-auth.ts`) with a
 read-and-change scope, `library`, and a read-only one, `library:read`. Every
-**connected assistant** calls it, and each tool is the same procedure the apps
-call over `/v1` and the **built-in agent**'s cell runs for it. Connector is
-Claude's word for it and the product's, which never says MCP.
+**connected assistant** calls it. `/v1` serves the same procedures, of which
+the apps call only a few, and the **built-in agent**'s cell runs them for it
+with no connector between. Connector is Claude's word for it and the
+product's, which never says MCP.
 
 **connected assistant** — the person's own Claude (claude.ai, Claude Desktop,
 Claude Code) or ChatGPT, signed in to the **connector** by OAuth on our

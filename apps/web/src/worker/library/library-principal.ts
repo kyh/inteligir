@@ -1,7 +1,7 @@
-// Who a call to the library is by: the account, what it may do, and the actor whose change set its
-// writes join. The Worker resolves it from the credential the request carried (a device's bearer
-// and a browser's session on `/v1`, an assistant's OAuth token on the connector), drops any copy
-// the request brought, and stamps it on the request it forwards to the account's cell
+// Who a call to the library is by: the account, and the actor whose change set its writes join. The
+// Worker resolves it from the credential the request carried (a device's bearer and a browser's
+// session on `/v1`, an assistant's OAuth token on the connector), drops any copy the request
+// brought, and stamps it on the request it forwards to the account's cell
 // (`../wire/v1-rpc`, `../connector/connector-route`); the cell takes it from there alone, since
 // only the Worker reaches a cell, and holds it to the account its own name gives. The built-in
 // agent's principal is never a header's: the cell mints it in `agentTool`, for one turn of one
@@ -16,8 +16,8 @@ import { libraryCell } from "./library-cell";
 export const PRINCIPAL_HEADER = "x-library-principal";
 export const SOCKET_HOLDER_HEADER = "x-library-socket-holder";
 
-// what a credential may do with the library: `library` reads and changes it, and `library:read`,
-// which only an assistant's grant can hold, reads it alone
+// what an assistant's grant may do with the library: `library` reads and changes it, and
+// `library:read` reads it alone; an app and the built-in agent hold neither, having no such limit
 export const LIBRARY_SCOPES = ["library", "library:read"] as const;
 
 // the id a credential goes by: a device's, a browser session's or an assistant's grant
@@ -37,12 +37,14 @@ const sessionActorSchema = z.strictObject({
 });
 
 // the person's own assistant under one grant of the connector's consent page; its client id is a
-// URL for a client that publishes its metadata, and its name is the client's own claim
+// URL for a client that publishes its metadata, its name is the client's own claim, and its scopes
+// are what the person let that grant do
 const assistantActorSchema = z.strictObject({
   clientId: z.string().min(1).max(2048),
   clientName: z.string().min(1).max(128),
   grantId: credentialIdSchema,
   kind: z.literal("assistant"),
+  scopes: z.array(z.enum(LIBRARY_SCOPES)).min(1),
 });
 
 // what a header may carry: every principal but the built-in agent's, so no request names one
@@ -53,7 +55,6 @@ export const principalSchema = z.strictObject({
     sessionActorSchema,
     assistantActorSchema,
   ]),
-  scopes: z.array(z.enum(LIBRARY_SCOPES)).min(1),
 });
 
 // a principal its own claim names, as the Worker stamps it
@@ -63,7 +64,6 @@ export type NamedPrincipal = z.infer<typeof principalSchema>;
 export interface AgentPrincipal {
   readonly accountId: string;
   readonly actor: { readonly kind: "agent"; readonly threadId: string; readonly turn: number };
-  readonly scopes: readonly ["library"];
 }
 
 export type Principal = NamedPrincipal | AgentPrincipal;
@@ -74,7 +74,6 @@ export const agentPrincipal = (
 ): AgentPrincipal => ({
   accountId,
   actor: { kind: "agent", threadId: turn.threadId, turn: turn.turn },
-  scopes: ["library"],
 });
 
 // what an app's credential verifies to on `/v1`, which takes no assistant
@@ -96,9 +95,9 @@ export const isAppPrincipal = (principal: Principal): principal is AppPrincipal 
 export const isNamedPrincipal = (principal: Principal): principal is NamedPrincipal =>
   principal.actor.kind !== "agent";
 
-// whether the principal may change the library, not only read it
-export const changesLibrary = (principal: Principal): boolean =>
-  principal.scopes.includes("library");
+// whether the grant may change the library, not only read it
+export const changesLibrary = (principal: ConnectorPrincipal): boolean =>
+  principal.actor.scopes.includes("library");
 
 // a header carries Latin-1 alone and a device's name may hold any letter, so the JSON is
 // percent-encoded

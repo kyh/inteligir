@@ -428,25 +428,32 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   since each is a KV record; `SITE_ORIGIN` names issuer and resource, never the
   request's Host, so one deployment's tokens open no other's. A grant is
   `library` or `library:read`, the person's choice, and the handler refuses a
-  token holding neither: the provider advertises scopes but enforces none.
-  Rejected: the MCP SDK's bearer middleware or an authorization server of our
-  own (a second verifier to audit); the Host header (the workers.dev name and
-  the domain would be two servers whose tokens refuse each other).
-  `apps/web/src/worker/connector/connector-auth.ts`,
+  token holding neither: the provider advertises scopes but enforces none. A
+  grant the person disconnected is a row in D1, written before the KV delete and
+  read by the token exchange, every call and the account's list, since a refresh
+  that read the grant before the delete writes it back after. Rejected: the MCP
+  SDK's bearer middleware or an authorization server of our own (a second
+  verifier to audit); the Host header (the workers.dev name and the domain would
+  be two servers whose tokens refuse each other); the KV delete alone (KV has no
+  compare-and-swap, and the provider's token check never reads the grant).
+  `apps/web/src/worker/connector/connector-auth.ts`, `revoked-grants.ts`,
   `apps/web/cloudflare.config.ts`.
 
 - **THE CONSENT PAGE IS THE WORKER'S, AT `/connect/authorize`, OVER THE SITE'S
-  SESSION.** It reads Better Auth's session, or sends the person to sign in
-  and back, the sign-in returning by a document load since the site's router
+  SESSION.** It reads Better Auth's session, or sends the person to sign in or
+  sign up and back, either returning by a document load since the site's router
   holds no such page; the provider parses the request, binds the form to the
-  browser by a cookie and keeps the request server-side until the answer.
+  browser by a cookie and keeps the request server-side until the answer, so
+  the form carries the account it named and an Allow from any other session is
+  refused, since a browser can change accounts while the page stays open.
   The page runs no script (`default-src 'none'`, no framing), escapes every
   field a client sent, says where access is sent and warns of a loopback
   address, and asks to "read and change your library". Rejected: a Start route
   (the provider's helpers take the raw request, and the page would carry the
-  site's bundle); remembering an approval (every connect asks).
+  site's bundle); remembering an approval (every connect asks); `form-action`
+  (browsers disagree on whether it holds the 302 to the assistant's origin).
   `apps/web/src/worker/connector/consent-route.ts`, `consent-page.ts`,
-  `apps/web/src/routes/app/sign-in.tsx`.
+  `apps/web/src/routes/app/sign-in.tsx`, `sign-up.tsx`.
 
 - **THE CONNECTOR IS SERVED IN THE ACCOUNT'S CELL, A FRESH SERVER A REQUEST
   OVER ONE OF TWO REGISTRARS, ITS PRINCIPAL AN ASSISTANT'S.** The Worker
@@ -456,9 +463,13 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   only here. The read-only registrar holds the
   GET rows; each server is stateless, its tools/list private to the client,
   and it advertises no `listChanged`, since a grant's tools never change and a
-  `subscriptions/listen` would hold the cell open. Rejected: a session object
-  per client (state nothing needs); a registrar per request (it rebuilds the
-  same schemas); a device credential here (the door is an assistant's).
+  `subscriptions/listen` would hold the cell open. A JSON-RPC batch is refused,
+  so a budget slot is one call. Rejected: a session object per client (state
+  nothing needs); a registrar per request (it rebuilds the same schemas); a
+  device credential here (the door is an assistant's); a slot per message of a
+  batch (the Worker would read every body to count it); scopes on every
+  principal (only a grant has a limit, and a read-only device would parse and
+  still write).
   `apps/web/src/worker/connector/connector-route.ts`, `connector-server.ts`,
   `apps/web/src/worker/library/library-principal.ts`.
 

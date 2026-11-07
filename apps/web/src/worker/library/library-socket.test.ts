@@ -292,8 +292,8 @@ describe("the account's socket", () => {
             clientName: "Claude",
             grantId: "grant-1",
             kind: "assistant",
+            scopes: ["library:read"],
           },
-          scopes: ["library:read"],
         },
       ),
     );

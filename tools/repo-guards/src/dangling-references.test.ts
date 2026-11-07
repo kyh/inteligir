@@ -25,6 +25,10 @@ const DATA_FILES = new Map<string, string>([
 // ignore-under-tests would hide the rot, which is mostly in tests and configs.
 const DELIBERATE_NON_REFERENCES = new Map<string, string>([
   [
+    "tools/call",
+    "MCP's method that calls a tool, as a batch the connector refuses carries it on the wire (apps/web/src/worker/connector/connector-server.test.ts)",
+  ],
+  [
     "tools/list",
     "MCP's method that lists a server's tools, which the connector's cache hint is keyed by (apps/web/src/worker/connector/connector-server.ts)",
   ],

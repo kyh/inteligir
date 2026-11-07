@@ -157,3 +157,16 @@ export const device = sqliteTable(
     index("device_user_id_idx").on(table.userId, table.revokedAt),
   ],
 );
+
+// a grant its account disconnected, which outlives the grant's own record in KV and dies with the
+// account (`../connector/revoked-grants`)
+export const revokedGrant = sqliteTable(
+  "revoked_grant",
+  {
+    grantId: text("grant_id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [index("revoked_grant_user_id_idx").on(table.userId)],
+);
