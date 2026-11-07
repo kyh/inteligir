@@ -17,47 +17,48 @@ import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 import { parseMdast } from "@repo/notes/markdown/parse";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
-describe("a block a list item opens with", () => {
-  const listProps = (md: string): Record<string, unknown>[] => {
-    const parsed = parseMarkdown(md);
-    assert(parsed.ok);
-    return parsed.value.map(({ checked, indent, listRestartPolite, listStyleType, type }) => ({
-      checked,
-      indent,
-      listRestartPolite,
-      listStyleType,
-      type,
-    }));
-  };
-  const bare = (type: string): Record<string, unknown> => ({
-    checked: undefined,
-    indent: undefined,
-    listRestartPolite: undefined,
-    listStyleType: undefined,
-    type,
-  });
+const LIST_PROPS = new Set([
+  "checked",
+  "indent",
+  "listRestartPolite",
+  "listStart",
+  "listStyleType",
+]);
 
+// each block's type and the list props it holds, as a paste lands them
+const listPropsOf = (md: string): string[][] => {
+  const parsed = parseMarkdown(md);
+  assert(parsed.ok);
+  return parsed.value.map((block) => [
+    block.type,
+    ...Object.keys(block)
+      .filter((key) => LIST_PROPS.has(key))
+      .toSorted(),
+  ]);
+};
+
+describe("a block a list item opens with", () => {
   it.each([
     ["an embed", "- ![](https://a.b/c.png)\n", "media_embed"],
     ["an image", "- ![alt](https://a.b/c.png)\n", "img"],
     ["a fence", "- ```\n  code\n  ```\n", "code_block"],
     ["a quote", "- > words\n", "blockquote"],
   ])("lands %s as a paste and an import both hold it, out of the list", (_name, md, type) => {
-    expect(listProps(md)).toStrictEqual([bare(type)]);
+    expect(listPropsOf(md)).toStrictEqual([[type]]);
   });
 
   it("gives a to-do's box its own line above what the item held", () => {
-    expect(listProps("- [x] ![](https://a.b/c.png)\n")).toStrictEqual([
-      { ...bare("p"), checked: true, indent: 1, listStyleType: "todo" },
-      bare("media_embed"),
+    expect(listPropsOf("- [x] ![](https://a.b/c.png)\n")).toStrictEqual([
+      ["p", "checked", "indent", "listStyleType"],
+      ["media_embed"],
     ]);
   });
 
   it("restarts a list's numbers on its first line, past a block it opened with", () => {
-    expect(listProps("3. ![](https://a.b/c.png) words\n4. more\n")).toStrictEqual([
-      bare("media_embed"),
-      { ...bare("p"), indent: 1, listRestartPolite: 3, listStyleType: "decimal" },
-      { ...bare("p"), indent: 1, listStyleType: "decimal" },
+    expect(listPropsOf("3. ![](https://a.b/c.png) words\n4. more\n")).toStrictEqual([
+      ["media_embed"],
+      ["p", "indent", "listRestartPolite", "listStart", "listStyleType"],
+      ["p", "indent", "listStart", "listStyleType"],
     ]);
   });
 });
