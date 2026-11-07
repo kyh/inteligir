@@ -78,6 +78,17 @@ const stillClock = {
   now: () => 1_700_000_200_000,
 };
 
+const httpCache = () => {
+  const cache = {
+    clears: 0,
+    clear: async () => {
+      cache.clears += 1;
+      await Promise.resolve();
+    },
+  };
+  return cache;
+};
+
 const runtimeOver = (
   cell: FakeCell,
   options: {
@@ -91,7 +102,7 @@ const runtimeOver = (
   const network = cell.device("phone");
   const runtime = composeRuntime({
     build: { platform: "mobile", version: "1.0.0" },
-    clearHttpCache: options.clearHttpCache ?? (async () => await Promise.resolve()),
+    clearHttpCache: options.clearHttpCache ?? httpCache().clear,
     clock: stillClock,
     cloudUrl: "https://cell.test",
     credentials: options.keys.store,
@@ -401,17 +412,6 @@ describe("the phone's runtime", () => {
   });
 
   describe("the system's HTTP cache, which keeps what the phone's fetches read", () => {
-    const httpCache = () => {
-      const cache = {
-        clears: 0,
-        clear: async () => {
-          cache.clears += 1;
-          await Promise.resolve();
-        },
-      };
-      return cache;
-    };
-
     it("is emptied by a sign-out, and left alone by a relaunch", async () => {
       const cache = httpCache();
       const { runtime } = runtimeOver(createFakeCell(), {

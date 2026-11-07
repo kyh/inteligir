@@ -893,8 +893,9 @@ describe("a write after the replica closed", () => {
   it("goes on through a write already under way, which the wipe then takes", async () => {
     const cell = createFakeCell();
     const landing = deferred();
+    const scratch = await openDevice(cell, "scratch");
     const blobs = {
-      ...(await openDevice(cell, "scratch")).blobs,
+      ...scratch.blobs,
       put: async () => {
         await landing.promise;
       },

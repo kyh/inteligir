@@ -258,12 +258,12 @@ describe("a credential the cloud no longer takes", () => {
   });
 });
 
-describe("what the page's own storage holds of an account", () => {
-  const remembered = (): void => {
-    writePref(PREFS.libraryScope, { kind: "tag", tag: "field" });
-    toggleHeadingCollapse("item-1", "a-fold");
-  };
+const remembered = (): void => {
+  writePref(PREFS.libraryScope, { kind: "tag", tag: "field" });
+  toggleHeadingCollapse("item-1", "a-fold");
+};
 
+describe("what the page's own storage holds of an account", () => {
   it("goes with a credential the cloud no longer takes", async () => {
     const { library, memory, reload } = await openedRefused("UNAUTHORIZED");
     remembered();
