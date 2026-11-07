@@ -12,11 +12,12 @@ import { messagesFake } from "./messages-fake.ts";
 import type { MessagesFake } from "./messages-fake.ts";
 
 export interface ServedFake {
-  readonly fake: MessagesFake;
   // what the Worker's client takes as its base URL
   readonly origin: string;
   readonly close: () => Promise<void>;
 }
+
+const HOST = "127.0.0.1";
 
 const addressSchema = z.object({ port: z.number().int().nonnegative() });
 
@@ -77,20 +78,16 @@ const answer = async (
   outgoing.end();
 };
 
-export const serveMessagesFake = async (options: {
-  readonly port: number;
-  readonly host?: string;
-}): Promise<ServedFake> => {
-  const host = options.host ?? "127.0.0.1";
+export const serveMessagesFake = async (requestedPort: number): Promise<ServedFake> => {
   const fake = messagesFake();
   let origin = "";
   const server = createServer((incoming, outgoing) => {
     void answer(fake, origin, incoming, outgoing);
   });
-  server.listen(options.port, host);
+  server.listen(requestedPort, HOST);
   await once(server, "listening");
   const { port } = addressSchema.parse(server.address());
-  origin = `http://${host}:${String(port)}`;
+  origin = `http://${HOST}:${String(port)}`;
   return {
     close: async () => {
       const closed = once(server, "close");
@@ -98,7 +95,6 @@ export const serveMessagesFake = async (options: {
       server.close();
       await closed;
     },
-    fake,
     origin,
   };
 };

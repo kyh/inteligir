@@ -114,7 +114,7 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
   const schemaFile = await writeSchema(webDir, args);
   // the built-in agent's Claude, a scripted Messages API with no model and no account, in this
   // process: each conversation's object reaches it by ANTHROPIC_FAKE_URL (tools/messages-fake)
-  const messages = await serveMessagesFake({ port: 0 });
+  const messages = await serveMessagesFake(0);
   args.register({ name: "messages-fake", outputTail: () => "", stop: messages.close });
 
   const worker = await bootWithPorts<CloudWorker>({
