@@ -35,6 +35,8 @@ sign-out wipes it). The socket is a hint and never the state.
 - `src/outbox.ts`, `src/outbox-rows.ts`, `src/outbox-ops.ts`,
   `src/outbox-settle.ts` — the queue, its table, what a row holds and how two
   writes join, and how a `CONFLICT` settles.
+- `src/folded-makes.ts` — the makes the cell folded this run, by the id a screen
+  open on one still holds.
 - `src/replica-socket.ts` — the account's socket.
 - `src/call-outcome.ts` — what a call's failure means to the passes, and a
   file's upload.
