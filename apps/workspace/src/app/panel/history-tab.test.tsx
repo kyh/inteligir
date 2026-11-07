@@ -61,7 +61,7 @@ describe("an item's History", () => {
     expect(flushOpen).toHaveBeenCalledOnce();
   });
 
-  it("says so when a later change kept everything, and offers the set again", async () => {
+  it("says so, and calls it no success, when a later change kept everything", async () => {
     const info = vi.spyOn(toast, "info");
     const success = vi.spyOn(toast, "success");
     const { library } = fakePageLibrary({

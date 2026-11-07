@@ -40,6 +40,7 @@ const NOTHING_UNDONE =
 
 // what an undo's answer says: what it took back, what a later change kept as it is, and what a
 // rule held back, which Undo can still take
+/** @internal */
 export const undoSentence = (answer: UndoAnswer) => {
   if (answer.refused.length > 0) {
     return "Partly undone. Some items couldn't come back yet, so you can undo this again.";

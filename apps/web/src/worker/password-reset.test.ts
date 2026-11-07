@@ -135,6 +135,18 @@ describe("password reset", () => {
     expect(sent).toHaveLength(0);
   });
 
+  it("lands a link rewritten to leave this site nowhere", async () => {
+    await signUpUser("rewritten@example.com");
+    const { EMAIL, sent } = recordingEmail();
+    await drained(requestReset("rewritten@example.com", envWith(EMAIL)));
+    const link = new URL(extractResetLink(firstEmail(sent)));
+    link.searchParams.set("callbackURL", "https://evil.example/app/reset-password");
+
+    const response = await drained(exports.default.fetch(link, { redirect: "manual" }));
+    expect(response.status).toBe(403);
+    expect(response.headers.get("location")).toBeNull();
+  });
+
   it("refuses a new password outside the contract's bounds, which Better Auth is configured with", async () => {
     await signUpUser("bounds@example.com");
     for (const newPassword of [

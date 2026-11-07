@@ -118,6 +118,15 @@ const changesOf = (sql: SqlStatements, setId: string): Map<string, ItemChange> =
   return changes;
 };
 
+// the undo's own set, named on each set it settled
+const markUndone = (scope: LandingScope, settled: readonly { readonly id: string }[]): string => {
+  const undoSet = scope.set();
+  for (const set of settled) {
+    scope.storage.run("UPDATE change_sets SET undone_by = ? WHERE id = ?", [undoSet.id, set.id]);
+  }
+  return undoSet.id;
+};
+
 export const undoChangeSets = (
   scope: LandingScope,
   changeSetIds: readonly string[],
@@ -198,17 +207,10 @@ export const undoChangeSets = (
   if (first !== undefined && !moved) {
     refuse(first);
   }
-  const answer = {
+  return {
+    changeSetId: moved ? markUndone(scope, settled) : null,
     kept: [...kept].filter((id) => !refused.has(id)).toSorted(),
     refused: [...refused.keys()].toSorted(),
     reverted: reverted.toSorted(),
   };
-  if (!moved) {
-    return { ...answer, changeSetId: null };
-  }
-  const undoSet = scope.set();
-  for (const set of settled) {
-    storage.run("UPDATE change_sets SET undone_by = ? WHERE id = ?", [undoSet.id, set.id]);
-  }
-  return { ...answer, changeSetId: undoSet.id };
 };
