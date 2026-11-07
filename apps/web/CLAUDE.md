@@ -325,10 +325,13 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   parser gives it; a public address is asked like a name. It judges the saved
   address and every redirect alike, follows at most five, counts bytes as they
   arrive and gives the read 20 s; `global_fetch_strictly_public` sends even
-  this zone through its front door. Rejected: a lookup first (the platform
-  dials by name anyway); refusing every address written out (a public page's
-  refusal said a private network it was not on); leaving it to the platform (a
-  refusal said at once beats three vague retries).
+  this zone through its front door. The redirects and the capped read are the
+  phone's share's too (`packages/notes/src/items/page-fetch.ts`), so a host
+  keeps only which hops it asks, how it asks and its deadline. Rejected: a
+  lookup first (the platform dials by name anyway); refusing every address
+  written out (a public page's refusal said a private network it was not on);
+  leaving it to the platform (a refusal said at once beats three vague retries);
+  a copy of the read per host (the two status gates drifted).
   `apps/web/src/worker/fill/page-fetch.ts`, `address-space.ts`.
 
 - **A READING LANDS ONLY THE ARTICLE AND THE FACTS A FILL OWNS, AS ITS OWN

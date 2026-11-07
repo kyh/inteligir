@@ -27,6 +27,7 @@
     "./items/item-url": "./src/items/item-url.ts",
     "./items/link-fill": "./src/items/link-fill.ts",
     "./items/oembed": "./src/items/oembed.ts",
+    "./items/page-fetch": "./src/items/page-fetch.ts",
     "./items/saved-facts": "./src/items/saved-facts.ts",
     "./items/sniff-media": "./src/items/sniff-media.ts",
     "./knowledge/asset-name": "./src/knowledge/asset-name.ts",

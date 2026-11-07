@@ -1,11 +1,9 @@
 // why a page was not read, in one plain sentence, as the item says it, and whether the fill tries
 // again later: offline, a timeout, a resolver that did not answer, or a site saying it is busy
-// (429, 503) leave the link waiting for a retry; anything else is said on the item. Every reader
-// of a link says it in these words: the cloud's fill and the phone's share alike.
+// (429, 503) leave the link waiting for a retry; anything else is said on the item.
 
-// what a fetch refuses to ask: the phone's, which has no lookup, refuses only a hop from a public
-// address to one whose spelling names private space; the cloud's, which reaches no private space
-// at all, refuses a saved address whose spelling names it, or space no host holds
+// what a fetch refuses to ask: a saved address whose spelling names private space, a public page's
+// redirect into it, or space no host holds
 type FetchRefusal = "reserved" | "private-from-public" | "private-network";
 
 export type FetchFailure =
@@ -16,8 +14,6 @@ export type FetchFailure =
   | { kind: "unreachable"; transient: boolean }
   | { kind: "tls" }
   | { kind: "redirects" }
-  // a public address over plain http, which iOS lets the phone ask only of the person's own network
-  | { kind: "plain-http" }
   // `bytes`: the size the site declared, or what had arrived when the read stopped
   | { kind: "too-large"; bytes: number }
   | { kind: "aborted" };
@@ -74,7 +70,7 @@ const STATUS_REASONS: ReadonlyMap<number, string> = new Map([
 // a site saying it is busy, which a later try may get past
 const TRANSIENT_STATUSES: ReadonlySet<number> = new Set([429, 503]);
 
-// a status no page is read from (anything under 200, or 400 and over), as every device says it
+// a status no page is read from (anything outside 200 to 299), as every device says it
 export const statusFailure = (status: number): FetchFailure => ({
   kind: "status",
   reason: STATUS_REASONS.get(status) ?? "an error",
@@ -144,12 +140,6 @@ export const failureOf = (failure: FetchFailure): FillFailure => {
     }
     case "redirects": {
       return { sentence: "The page redirected too many times.", transient: false };
-    }
-    case "plain-http": {
-      return {
-        sentence: "The iPhone reads a public page only over a secure (https) connection.",
-        transient: false,
-      };
     }
     case "too-large": {
       return { sentence: fileOnlyLinked(failure.bytes), transient: false };

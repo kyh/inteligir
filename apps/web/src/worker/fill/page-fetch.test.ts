@@ -4,8 +4,9 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { PageRequest } from "@repo/notes/items/page-fetch";
+
 import { fetchPage, pageFetch } from "./page-fetch";
-import type { PageRequest } from "./page-fetch";
 import { readPage } from "./read-page";
 import { htmlPage, serveWeb } from "./test-support/fill-cell";
 

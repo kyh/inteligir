@@ -34,9 +34,7 @@ const servingPage: PageFetch = async (request) =>
     page: {
       bytes: new TextEncoder().encode("<h1>File over app</h1>"),
       charset: "utf-8",
-      declaredBytes: null,
       mediaType: "text/html",
-      truncated: false,
       url: request.url,
     },
   });
@@ -146,9 +144,7 @@ describe("a share, saved", () => {
             page: {
               bytes: picture,
               charset: null,
-              declaredBytes: null,
               mediaType: "image/png",
-              truncated: false,
               url: request.url,
             },
           });
