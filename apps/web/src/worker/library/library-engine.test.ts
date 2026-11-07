@@ -856,6 +856,59 @@ describe("change sets and undo", () => {
       });
     });
 
+    it("answers why when the only other set named has nothing to take back", async () => {
+      await inCell(cellOf(), (state) => {
+        const clock = clockAt();
+        const roomy = engineIn(state, clock);
+        const [cut, held] = [newItemId(), newItemId()];
+        landedValue(
+          createItem(roomy, FILL_ACTOR, {
+            blocks: placed([A, passage]),
+            fields: noteFields(),
+            id: cut,
+          }),
+        );
+        landedValue(
+          createItem(roomy, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: held }),
+        );
+        const edit = paragraph("a", "an edit");
+        landedValue(
+          roomy.write(person("laptop"), {
+            itemId: held,
+            ops: [{ baseHash: hashOf(A), block: edit, op: "put" }],
+          }),
+        );
+        const heldSet = laptopSet(state);
+        clock.now += 120_000;
+        landedValue(
+          roomy.write(person("tablet"), {
+            itemId: held,
+            ops: [{ baseHash: hashOf(edit), block: paragraph("a", "edited again"), op: "put" }],
+          }),
+        );
+        landedValue(
+          roomy.write(person("phone"), {
+            itemId: cut,
+            ops: [{ baseHash: hashOf(passage), blockId: "long", op: "drop" }],
+          }),
+        );
+        const cutSet = z
+          .string()
+          .parse(
+            state.storage.sql.exec("SELECT id FROM change_sets WHERE device_id = 'phone'").one().id,
+          );
+        const sets = setCount(state);
+
+        const full = engineIn(state, clock, 1);
+        expect(
+          refusalOf(full.undo(person("laptop"), { changeSetIds: [heldSet, cutSet] })),
+        ).toMatchObject({ kind: "quota" });
+        expect(undoneBy(state, heldSet)).toBeNull();
+        expect(undoneBy(state, cutSet)).toBeNull();
+        expect(setCount(state)).toBe(sets);
+      });
+    });
+
     it("waits while another item holds the address, and lands once it no longer does", async () => {
       await inCell(cellOf(), (state) => {
         const clock = clockAt();

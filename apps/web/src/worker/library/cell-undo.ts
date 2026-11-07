@@ -24,7 +24,7 @@ import type { CellRefusal } from "./cell-refusal";
 import { readItemNow, sealChangeSet } from "./change-sets";
 
 export interface UndoAnswer {
-  // null: nothing went back, so no undo was made
+  // null: no item went back and no set was undone, so no undo was made
   readonly changeSetId: string | null;
   readonly kept: readonly string[];
   readonly refused: readonly string[];

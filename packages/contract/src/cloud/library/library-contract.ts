@@ -441,8 +441,8 @@ const historyContract = {
 
   // newest first, in one change set of its own; an item a later edit overlaps is named under
   // `kept`, and one a rule refuses under `refused`, its set left to undo again. A set of which
-  // only kept items remain stays undoable too, and with nothing gone back `changeSetId` is null.
-  // When a rule held back all that could land, its own error is the answer
+  // only kept items remain stays undoable too, and `changeSetId` is null when no item went back
+  // and no set was undone. When a rule held back all that could land, its own error is the answer
   undo: signedBase
     .errors({
       [AlreadyUndoneError.code]: AlreadyUndoneError,
