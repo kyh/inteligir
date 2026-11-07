@@ -160,7 +160,7 @@ own (`.dev.vars.example`).
 | `POST /v1/rpc/account/*`    | — or device/tab | The account's oRPC rows: sign in or up, devices, delete, ticket, extension    |
 | `POST /v1/rpc/library/*`    | device or tab   | The library's oRPC rows, forwarded to the account's library cell              |
 | `/v1/blobs/:sha`            | device or tab   | A file's bytes in R2: PUT once by its SHA-256, GET/HEAD by range              |
-| `GET /v1/exports/:id`       | device or tab   | An export's zip, by range, for seven days after it was written                |
+| `GET /v1/exports/:id`       | device or tab   | An export's zip, by range, for seven days or until a newer one is ready       |
 | `POST /connector`           | assistant token | The connector: the library's tools, forwarded to the account's cell           |
 | `/connect/authorize`        | session         | The consent page an assistant sends the person to, after sign-in              |
 | `/connect/extension`        | session         | The site's page that hands the browser extension a credential of its own      |

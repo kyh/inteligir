@@ -482,7 +482,7 @@ const importsContract = {
 };
 
 // the whole library as a zip of markdown, written by the cell and downloaded from
-// `/v1/exports/<id>` until it is let go, seven days on
+// `/v1/exports/<id>` until it is let go, seven days on or once a newer one is ready
 const exportsContract = {
   start: signedBase.input(z.strictObject({ opId })).output(z.object({ export: exportJobSchema })),
 
