@@ -17,8 +17,7 @@ saves; `app/item/` the open item, its stages and the editor's host;
 `app/panel/` Info, Highlights and History; `app/agent/` the built-in agent's
 conversations and Tidy; `app/palette/` ⌘P; `app/sidebar/` the rail;
 `app/settings/` the Settings layer. Every shell answer
-is parsed in `src/shell/shell-commands.ts` and mirrored through one
-`app/bridge-store.ts`.
+is parsed in `src/shell/shell-commands.ts`.
 
 ## The page over the cell
 

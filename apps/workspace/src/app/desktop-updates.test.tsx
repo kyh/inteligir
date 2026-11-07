@@ -3,25 +3,29 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearShell, mockShell } from "../shell/test-support/mock-shell";
-import { createBridgeStore } from "./bridge-store";
+import type { UpdateState } from "../shell/update-state";
+import { createUpdatesStore } from "./desktop-updates";
 
 afterEach(() => {
   cleanup();
   clearShell();
 });
 
+const idle: UpdateState = { checkedAt: null, currentVersion: "1.0.0", status: "idle" };
+const checking: UpdateState = { checkedAt: null, currentVersion: "1.0.0", status: "checking" };
+
 const fakeStore = () => {
-  const firstRead = Promise.withResolvers<number>();
-  const read = vi.fn<() => Promise<number>>(async () => await firstRead.promise);
-  const pushes: ((state: number) => void)[] = [];
-  const store = createBridgeStore<number>({
-    label: "test",
-    read,
-    subscribe: (adopt) => {
+  const firstRead = Promise.withResolvers<UpdateState>();
+  const read = vi.fn<() => Promise<UpdateState>>(async () => await firstRead.promise);
+  const pushes: ((state: UpdateState) => void)[] = [];
+  const store = createUpdatesStore({
+    getState: read,
+    onState: (adopt) => {
       pushes.push(adopt);
+      return () => {};
     },
   });
-  const push = (state: number): void => {
+  const push = (state: UpdateState): void => {
     for (const adopt of pushes) {
       adopt(state);
     }
@@ -29,16 +33,16 @@ const fakeStore = () => {
   return { answerRead: firstRead.resolve, push, read, store };
 };
 
-describe("a bridge store", () => {
+describe("the updates store", () => {
   it("adopts its first read", async () => {
     mockShell();
     const { answerRead, store } = fakeStore();
     const { result } = renderHook(store.use);
     expect(result.current).toStrictEqual({ kind: "loading" });
     await act(async () => {
-      answerRead(1);
+      answerRead(idle);
     });
-    expect(result.current).toStrictEqual({ kind: "state", state: 1 });
+    expect(result.current).toStrictEqual({ kind: "state", state: idle });
   });
 
   it("keeps a pushed state over a first read that answers after it", async () => {
@@ -46,12 +50,12 @@ describe("a bridge store", () => {
     const { answerRead, push, store } = fakeStore();
     const { result } = renderHook(store.use);
     act(() => {
-      push(2);
+      push(checking);
     });
     await act(async () => {
-      answerRead(1);
+      answerRead(idle);
     });
-    expect(result.current).toStrictEqual({ kind: "state", state: 2 });
+    expect(result.current).toStrictEqual({ kind: "state", state: checking });
   });
 
   it("says there is no shell outside it, and asks nothing", () => {
