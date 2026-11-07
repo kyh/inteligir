@@ -182,10 +182,6 @@ pub fn run() {
         }
     };
     app.run(|app, event| match event {
-        // closing the window hides the app in the menu bar; Quit is the way out
-        RunEvent::ExitRequested {
-            code: None, api, ..
-        } => api.prevent_exit(),
         // every way out ends here: Quit once the page wrote what it held (leaving.rs), or a quit
         // macOS sends itself, which ends in applicationWillTerminate with nothing after it to wait
         // in. A ready update installs, and the replica's file closes after its last commit
