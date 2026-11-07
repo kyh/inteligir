@@ -3,12 +3,12 @@
 //! the file scheme fetches a miss with. A sign-in keeps the credential and opens the account's
 //! replica; a launch restores both; a sign-out leaves nothing of the account behind.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use crate::credential::{Credentials, DeviceCredential};
 use crate::error::ShellResult;
-use crate::file_cache::{self, FileCache};
+use crate::file_cache::{self, FetchAs, FileCache};
 use crate::replica::Replica;
 
 pub struct Account {
@@ -47,9 +47,13 @@ impl Account {
         &self.files
     }
 
-    /// The credential a miss is fetched with, while an account is signed in.
-    pub fn bearer(&self) -> Option<String> {
-        self.bearer_slot().clone()
+    /// The credential a miss is fetched with, while an account is signed in. The generation is
+    /// read first, so a sign-out that lands between the two reads leaves it behind and the fetch
+    /// keeps nothing.
+    pub fn fetching_as(&self) -> Option<FetchAs> {
+        let since = self.files.generation();
+        let bearer = self.bearer_slot().clone()?;
+        Some(FetchAs { bearer, since })
     }
 
     /// The account's replica: one file an account, named by a hash of its id, so no id reaches a
@@ -84,28 +88,28 @@ impl Account {
     pub fn forget(&self) -> ShellResult<()> {
         self.bearer_slot().take();
         self.replica.close();
-        remove_dir(&self.library_dir)?;
+        file_cache::remove_dir_if_there(&self.library_dir)?;
         self.files.clear()?;
         self.credentials.forget()
     }
 }
 
-fn remove_dir(dir: &Path) -> std::io::Result<()> {
-    match std::fs::remove_dir_all(dir) {
-        Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error),
-        _ => Ok(()),
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::error::Error;
+    use std::io::{BufRead, BufReader, Write};
+    use std::net::TcpListener;
+    use std::path::Path;
+    use std::sync::{Arc, mpsc};
 
     use keyring_core::CredentialStore;
     use serde_json::json;
+    use tauri::http::{Request, StatusCode};
 
     use super::*;
-    use crate::file_cache::CACHE_LIMIT_BYTES;
+    use crate::error::ShellError;
+    use crate::file_cache::{CACHE_LIMIT_BYTES, CloudFiles};
+    use crate::file_scheme;
     use crate::replica::{Statement, TRANSACTION_IDLE_LIMIT};
 
     fn account_in(dir: &Path, store: &Arc<CredentialStore>) -> Account {
@@ -125,6 +129,10 @@ mod tests {
         }
     }
 
+    fn bearer_of(account: &Account) -> Option<String> {
+        account.fetching_as().map(|fetching| fetching.bearer)
+    }
+
     fn statement(sql: &str) -> Statement {
         Statement {
             sql: sql.to_owned(),
@@ -138,9 +146,9 @@ mod tests {
         let store: Arc<CredentialStore> = keyring_core::mock::Store::new()?;
         let first = account_in(dir.path(), &store);
         assert_eq!(first.restore()?, None);
-        assert_eq!(first.bearer(), None);
+        assert_eq!(bearer_of(&first), None);
         first.keep(&signed_in())?;
-        assert_eq!(first.bearer(), Some(signed_in().credential));
+        assert_eq!(bearer_of(&first), Some(signed_in().credential));
         first
             .replica()
             .run(&statement("CREATE TABLE kept (body TEXT)"))?;
@@ -171,11 +179,76 @@ mod tests {
         let sha = file_cache::sha_of(bytes);
         account.files().stage(&sha, bytes, "image/png")?;
         account.forget()?;
-        assert_eq!(account.bearer(), None);
+        assert_eq!(bearer_of(&account), None);
         assert!(!dir.path().join("library").exists());
         assert_eq!(account.files().staged(&sha)?, None);
         assert!(account.replica().all(&statement("SELECT 1")).is_err());
         assert_eq!(account_in(dir.path(), &store).restore()?, None);
+        Ok(())
+    }
+
+    #[test]
+    fn a_file_on_its_way_at_a_sign_out_stays_out_of_the_cache() -> Result<(), Box<dyn Error>> {
+        let dir = tempfile::tempdir()?;
+        let store: Arc<CredentialStore> = keyring_core::mock::Store::new()?;
+        let account = account_in(dir.path(), &store);
+        account.keep(&signed_in())?;
+        let body: &'static [u8] = b"a photo of the account's";
+        let sha = file_cache::sha_of(body);
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        let cloud = CloudFiles {
+            client: file_cache::http_client()?,
+            origin: format!("http://{}", listener.local_addr()?),
+            build: "0.6.0+desktop".to_owned(),
+        };
+        let (asked, cloud_was_asked) = mpsc::channel();
+        let (answer, cloud_may_answer) = mpsc::channel::<()>();
+        let serving = std::thread::spawn(move || {
+            let Ok((mut stream, _)) = listener.accept() else {
+                return;
+            };
+            let Ok(read) = stream.try_clone() else {
+                return;
+            };
+            let mut reader = BufReader::new(read);
+            let mut line = String::new();
+            while reader.read_line(&mut line).is_ok_and(|read| read > 2) {
+                line.clear();
+            }
+            let _ = asked.send(());
+            let _ = cloud_may_answer.recv();
+            let head = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: image/png\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                body.len()
+            );
+            let _ = stream.write_all(head.as_bytes());
+            let _ = stream.write_all(body);
+        });
+        let request = Request::builder()
+            .uri(format!("{}/{sha}", file_scheme::ORIGIN))
+            .body(Vec::new())?;
+        let asking = account.fetching_as();
+        let response = std::thread::scope(|scope| {
+            let fetching = scope.spawn(|| {
+                tauri::async_runtime::block_on(file_scheme::answer(
+                    account.files(),
+                    &cloud,
+                    asking,
+                    &request,
+                ))
+            });
+            let left = cloud_was_asked
+                .recv()
+                .map_err(|error| ShellError::Invalid(error.to_string()))
+                .and_then(|()| account.forget());
+            let _ = answer.send(());
+            left.map(|()| fetching.join())
+        })?
+        .map_err(|_| ShellError::Invalid("the fetch panicked".to_owned()))?;
+        let _ = serving.join();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(account.files().locate(&sha)?, None);
+        assert!(!dir.path().join("cache").exists());
         Ok(())
     }
 }

@@ -132,7 +132,7 @@ pub fn run() {
                     let response = file_scheme::answer(
                         account.files(),
                         &app.state::<CloudFiles>(),
-                        account.bearer(),
+                        account.fetching_as(),
                         &request,
                     )
                     .await;

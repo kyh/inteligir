@@ -117,9 +117,11 @@ a bullet is written and cited.
   read evicted first; a staged file, which the outbox has yet to upload, sits
   in the data dir, never evicted, until its upload moves it into the cache;
   each file's type, the one the page staged it as or the cloud served, moves
-  with it. Every file but a PDF is served under a script-less sandbox, as the
-  cloud serves it; a PDF keeps WebKit's viewer under a policy that runs no
-  script and that only the app's page may frame. Rejected: the cloud's route
+  with it. A sign-out moves the cache's generation, so a fetch begun before it
+  keeps nothing and answers as a miss signed out. Every file but a PDF is
+  served under a script-less sandbox, as the cloud serves it; a PDF keeps
+  WebKit's viewer under a policy that runs no script and that only the app's
+  page may frame. Rejected: the cloud's route
   straight from the page (an `<img>` carries no bearer, and offline it draws
   nothing); the asset protocol over a scope of the disk (no fetch on a miss).
   Residual: WebKitGTK's player loads nothing from a custom scheme, so a

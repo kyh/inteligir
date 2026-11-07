@@ -9,7 +9,7 @@
 
 use tauri::http::{Request, Response, StatusCode, header};
 
-use crate::file_cache::{self, CloudFiles, Fetched, FileCache, Held, Located};
+use crate::file_cache::{self, CloudFiles, FetchAs, Fetched, FileCache, Held, Landing, Located};
 use crate::window::PAGE_ORIGIN;
 
 pub const SCHEME: &str = "inteligir-files";
@@ -101,18 +101,24 @@ fn held(files: &FileCache, sha: &str, range_header: Option<&str>) -> Option<Resp
     }
 }
 
-/// A fetched file kept, then served from where it was kept.
+/// A fetched file kept, then served from where it was kept; one whose account left meanwhile is
+/// answered as a miss signed out.
 fn kept(
     files: &FileCache,
     sha: &str,
     fetched: &Held,
+    since: u64,
     range_header: Option<&str>,
 ) -> Response<Vec<u8>> {
-    if let Err(error) = files.keep(sha, fetched) {
-        eprintln!("[files] could not keep {sha}: {error}");
-        return refused(StatusCode::BAD_GATEWAY);
+    match files.keep(sha, fetched, since) {
+        Ok(Landing::Kept) => held(files, sha, range_header)
+            .unwrap_or_else(|| refused(StatusCode::INTERNAL_SERVER_ERROR)),
+        Ok(Landing::AccountLeft) => refused(StatusCode::UNAUTHORIZED),
+        Err(error) => {
+            eprintln!("[files] could not keep {sha}: {error}");
+            refused(StatusCode::BAD_GATEWAY)
+        }
     }
-    held(files, sha, range_header).unwrap_or_else(|| refused(StatusCode::INTERNAL_SERVER_ERROR))
 }
 
 /// The disk's part of an answer, on a blocking thread, never the async runtime's, which the
@@ -135,7 +141,7 @@ async fn on_disk(
 pub async fn answer(
     files: &FileCache,
     cloud: &CloudFiles,
-    bearer: Option<String>,
+    fetching: Option<FetchAs>,
     request: &Request<Vec<u8>>,
 ) -> Response<Vec<u8>> {
     let sha = request.uri().path().trim_start_matches('/').to_owned();
@@ -153,7 +159,7 @@ pub async fn answer(
     {
         return response;
     }
-    let Some(bearer) = bearer else {
+    let Some(FetchAs { bearer, since }) = fetching else {
         return refused(StatusCode::UNAUTHORIZED);
     };
     let fetched = match file_cache::fetch(cloud, &bearer, &sha).await {
@@ -168,7 +174,7 @@ pub async fn answer(
         }
     };
     on_disk(files, move |files| {
-        Some(kept(files, &sha, &fetched, range_header.as_deref()))
+        Some(kept(files, &sha, &fetched, since, range_header.as_deref()))
     })
     .await
     .unwrap_or_else(|| refused(StatusCode::INTERNAL_SERVER_ERROR))
@@ -212,7 +218,11 @@ mod tests {
         bearer: Option<&str>,
         request: &Request<Vec<u8>>,
     ) -> Response<Vec<u8>> {
-        tauri::async_runtime::block_on(answer(files, cloud, bearer.map(str::to_owned), request))
+        let fetching = bearer.map(|bearer| FetchAs {
+            bearer: bearer.to_owned(),
+            since: files.generation(),
+        });
+        tauri::async_runtime::block_on(answer(files, cloud, fetching, request))
     }
 
     #[test]
@@ -232,6 +242,7 @@ mod tests {
                 bytes: bytes.to_vec(),
                 content_type: "video/webm".to_owned(),
             },
+            files.generation(),
         )?;
         let whole = served_now(&files, &nowhere(), None, &get(&sha, None));
         assert_eq!(whole.status(), StatusCode::OK);
