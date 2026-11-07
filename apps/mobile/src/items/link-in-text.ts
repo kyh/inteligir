@@ -70,9 +70,9 @@ const linkOf = (found: string): string => {
     if (opener !== undefined && (open.get(opener) ?? 0) === 0) {
       break;
     }
-    const opened = opener ?? ch;
-    if (CLOSER_OF.has(opened)) {
-      open.set(opened, (open.get(opened) ?? 0) + (opener === undefined ? 1 : -1));
+    const bracket = opener ?? ch;
+    if (CLOSER_OF.has(bracket)) {
+      open.set(bracket, (open.get(bracket) ?? 0) + (opener === undefined ? 1 : -1));
     }
     end += ch.length;
   }
@@ -83,8 +83,7 @@ const linkOf = (found: string): string => {
   return url;
 };
 
-// the text before the link without the openers of the closers its tail gave the sentence back:
-// each closer takes the nearest opener of its kind that nothing before the link closed
+// the text before the link without the openers of the closers straight after it: each closer takes the nearest opener of its kind that nothing before the link closed
 const withoutOpenersOf = (before: string, closers: readonly string[]): string => {
   const open = new Map<string, number[]>();
   for (const [index, ch] of [...before].entries()) {
@@ -134,8 +133,8 @@ const restAround = (before: string, after: string): string => {
     closers = closers.slice(1);
   }
   head = withoutOpenersOf(head, closers);
-  // ’ can be among the marks, where the sentence already took it; past any other quote the sentence
-  // goes on, and what it puts there is the link's too
+  // ’ can be among the marks, which took it for the sentence's; any other quote closes after them,
+  // and the marks past it are the link's too
   const quote = QUOTE_CLOSER_OF.get(head.at(-1) ?? "");
   if (quote !== undefined && (marks.includes(quote) || next.startsWith(quote))) {
     return restAround(head.slice(0, -1), marks.includes(quote) ? next : next.slice(quote.length));

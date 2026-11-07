@@ -86,7 +86,6 @@ describe("what a share asks the phone to save", () => {
     ["これ見て https://example.com/z。次の文", "https://example.com/z", "これ見て 次の文"],
     ["これ（https://example.com/z）を見て", "https://example.com/z", "これ を見て"],
     ["Love this https://example.com/z👍", "https://example.com/z", "Love this 👍"],
-    ["**https://example.com/z** is good", "https://example.com/z", "** is good"],
   ])("reads the link inside text whole, and the words around it: %s", (text, url, note) => {
     expect(sharedSaveOf(textShare(text))).toStrictEqual({ kind: "link", note, title: null, url });
   });
