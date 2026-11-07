@@ -64,6 +64,10 @@ const badRequest = async (): Promise<never> => {
   throw new ORPCError("BAD_REQUEST");
 };
 
+const unauthorized = async (): Promise<never> => {
+  throw new ORPCError("UNAUTHORIZED");
+};
+
 let seq = 0;
 
 const depsWith = (cloud: FakeCloud, options: { captured?: CapturedPage | null } = {}) => {
@@ -283,14 +287,11 @@ describe("a tab saved", () => {
   });
 
   it("asks for the connection again when another save's refusal already ended it", async () => {
-    const refusal = async (): Promise<never> => {
-      throw new ORPCError("UNAUTHORIZED");
-    };
-    const other = depsWith(fakeCloud({ save: refusal })).deps;
+    const other = depsWith(fakeCloud({ save: unauthorized })).deps;
     const cloud = fakeCloud({
       save: async () => {
         await saveTab(other, { tab: TAB });
-        return await refusal();
+        return await unauthorized();
       },
     });
     await expect(saveTab(depsWith(cloud).deps, { tab: TAB })).resolves.toStrictEqual({
