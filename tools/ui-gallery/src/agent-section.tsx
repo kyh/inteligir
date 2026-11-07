@@ -63,7 +63,7 @@ export const AgentSection = () => {
         stack
       >
         <div className="w-full max-w-md">
-          <ToolChipList summary="3 files changed">
+          <ToolChipList summary="2 files touched">
             <ToolChip icon="write" label="Edited" chip="Getting Started.md">
               <ToolChipDetail>+ Added a section on backlinks</ToolChipDetail>
               <ToolChipDetail>- Removed the stale link</ToolChipDetail>

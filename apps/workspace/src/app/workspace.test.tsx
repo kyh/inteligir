@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { BULK_ITEMS_MAX } from "@repo/contract/cloud/library/library-wire";
 import { getEditorHostActions } from "@repo/editor/host-io";
 import { createFakeCell } from "@repo/library-replica/test-support/fake-cell";
 import { openDevice } from "@repo/library-replica/test-support/replica-harness";
@@ -7,6 +8,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 import { createAppRouter } from "../router";
 import { createPageQueryClient } from "./cloud/v1";
@@ -108,6 +110,49 @@ describe("Save a link", () => {
     await vi.waitFor(() => {
       expect(failed).toHaveBeenCalledWith("That link couldn't be saved.");
     });
+    await replica.close();
+  });
+});
+
+describe("Empty Deleted", () => {
+  it("goes in the chunks the route takes, under one toast with Stop", async () => {
+    const { replica } = await openDevice(createFakeCell(), "tab");
+    const deleted = await Promise.all(
+      Array.from(
+        { length: BULK_ITEMS_MAX + 1 },
+        async (_, at) =>
+          await replica.saveLink({
+            folderId: null,
+            tags: [],
+            url: `https://example.com/${String(at)}`,
+          }),
+      ),
+    );
+    await replica.deleteItems(deleted.map(({ id }) => id));
+    const purge = z.object({ ids: z.array(z.string()) });
+    const { calls, library } = fakePageLibrary({
+      answer: ({ input }) => ({ purged: purge.parse(input).ids }),
+    });
+    const router = createAppRouter(createMemoryHistory({ initialEntries: ["/library"] }), {
+      library: { ...library, replica },
+      queryClient: createPageQueryClient(),
+    });
+    const running = vi.spyOn(toast, "loading");
+    const said = vi.spyOn(toast, "success");
+    render(<RouterProvider router={router} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Deleted" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Empty Deleted…" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Delete forever" }));
+
+    await vi.waitFor(() => {
+      expect(said.mock.lastCall?.[0]).toBe(`Deleted ${String(BULK_ITEMS_MAX + 1)} items forever.`);
+    });
+    const chunks = calls
+      .filter(({ path }) => path === "library.items.purge")
+      .map(({ input }) => purge.parse(input).ids.length);
+    expect(chunks).toStrictEqual([BULK_ITEMS_MAX, 1]);
+    expect(running.mock.calls[0]?.[1]?.action).toMatchObject({ label: "Stop" });
     await replica.close();
   });
 });

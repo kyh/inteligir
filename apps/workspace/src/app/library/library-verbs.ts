@@ -2,8 +2,7 @@
 // each one queued at once, laid over what the screens read, and sent once the cell can take it, so
 // a pin, a move or a tag reads as done before it lands. A write is computed over the item as the
 // screen read it; one whose base moved since (another device's write landed first) is read again
-// and written once more over what it reads now. Emptying Deleted is the cell's alone: a purge has
-// no overlay to show, so it goes as a call that needs a connection.
+// and written once more over what it reads now.
 
 import type { LibraryReplica } from "@repo/library-replica/library-replica";
 import type { LibraryOp } from "@repo/notes/library/block-ops";
