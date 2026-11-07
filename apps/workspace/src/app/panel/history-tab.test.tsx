@@ -15,7 +15,7 @@ afterEach(() => {
 
 const ITEM = "0199a4c2-0000-7000-8000-0000000000b1";
 
-const set = (id: string, label: string) => ({
+const set = (id: string, label: string, undoneBy: string | null = null) => ({
   actor: "person",
   closedAt: "2026-11-05T10:00:00.000Z",
   id,
@@ -25,7 +25,7 @@ const set = (id: string, label: string) => ({
   openedAt: "2026-11-05T09:59:00.000Z",
   threadId: null,
   turn: null,
-  undoneBy: null,
+  undoneBy,
 });
 
 describe("an item's History", () => {
@@ -114,7 +114,7 @@ describe("an item's History", () => {
       library,
     );
     const undo = await screen.findByRole("button", { name: "Undo" });
-    listed = [{ ...set("s1", "Renamed Plans"), undoneBy: "u9" }];
+    listed = [set("s1", "Renamed Plans", "u9")];
     fireEvent.click(undo);
     await waitFor(() => {
       expect(said).toHaveBeenCalledWith(refusal);
