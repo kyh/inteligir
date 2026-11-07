@@ -31,6 +31,7 @@ import type { ExportFile } from "@repo/editor/codec/export-plan";
 import { wikiFilingKeys, wikiTargetKeys } from "@repo/notes/knowledge/link-resolve";
 import { EXPORT_PHASES, EXPORT_STATES } from "@repo/notes/library/library-schema";
 import type { SqlRow, SqlStatements } from "@repo/notes/library/library-sql";
+import { jsonTextSchema } from "@repo/notes/library/sql-value";
 import { z } from "zod";
 
 import { errorFields } from "../log";
@@ -533,7 +534,8 @@ const uploadOf = async (
   return { partBytes: limits.partBytes, upload };
 };
 
-const exportIdOf = (job: DueJob): string => payloadSchema.parse(JSON.parse(job.payload)).exportId;
+const exportIdOf = (job: DueJob): string =>
+  jsonTextSchema.pipe(payloadSchema).parse(job.payload).exportId;
 
 const readyIdSchema = z.object({ id: z.string() });
 

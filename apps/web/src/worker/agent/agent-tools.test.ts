@@ -18,6 +18,7 @@ import { libraryRouter } from "../library/library-router";
 import {
   agentCellIn,
   cellOf,
+  createItem,
   inCell,
   landedValue,
   noteFields,
@@ -86,7 +87,7 @@ describe("the built-in agent's tools", () => {
         const library = openCellLibrary(state, env);
         for (let index = 0; index < 60; index += 1) {
           landedValue(
-            library.create(FILL_ACTOR, {
+            createItem(library, FILL_ACTOR, {
               blocks: placed([paragraph("a", words(80, `body${String(index)}x`))]),
               fields: noteFields({
                 description: words(60, "about"),
@@ -99,7 +100,7 @@ describe("the built-in agent's tools", () => {
         }
         const longId = crypto.randomUUID();
         landedValue(
-          library.create(FILL_ACTOR, {
+          createItem(library, FILL_ACTOR, {
             blocks: placed(
               Array.from({ length: 400 }, (_, index) =>
                 paragraph(`p${String(index)}`, words(60, `line${String(index)}x`)),

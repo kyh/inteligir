@@ -103,6 +103,32 @@ export type LibraryItemFields = z.infer<typeof libraryItemFieldsSchema>;
 export type LibraryItemField = keyof LibraryItemFields;
 export type PropertyValue = LibraryItemFields["properties"][string];
 
+// an item's fields before its writer sets any: a note saved at `savedAt`, filed nowhere
+export const blankFields = (savedAt: number): LibraryItemFields => ({
+  aliases: [],
+  author: null,
+  copySha: null,
+  coverSha: null,
+  deletedAt: null,
+  description: null,
+  fetchError: null,
+  fetchState: "none",
+  fetchedAt: null,
+  folderId: null,
+  kind: "note",
+  lang: null,
+  originalName: null,
+  originalSha: null,
+  pinnedAt: null,
+  properties: {},
+  published: null,
+  savedAt,
+  site: null,
+  tags: [],
+  title: "",
+  url: null,
+});
+
 // the fields a fill writes, and Refresh replaces; every other field is the person's (or an
 // agent's, on the person's behalf)
 export const FILL_OWNED_FIELDS = [

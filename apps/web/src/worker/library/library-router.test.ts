@@ -12,6 +12,7 @@ import {
   agentCellIn,
   cellOf,
   clockAt,
+  createItem,
   engineIn,
   inCell,
   landedValue,
@@ -267,7 +268,7 @@ describe("the library's procedures", () => {
 
       // a page whose read failed, asked for again: it waits for the cloud, its failure forgotten
       const { item: failed } = landedValue(
-        engineIn(state, clockAt()).create(FILL_ACTOR, {
+        createItem(engineIn(state, clockAt()), FILL_ACTOR, {
           blocks: [],
           fields: noteFields({
             fetchError: "The site refused the read.",

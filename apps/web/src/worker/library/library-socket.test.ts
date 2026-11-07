@@ -24,6 +24,7 @@ import {
 import { issueToken } from "../test-support/password-reset";
 import {
   cellOf,
+  createItem,
   inCell,
   noteFields,
   paragraph,
@@ -111,7 +112,7 @@ const signedInTab = async (email: string) => {
 const writeInCell = async (accountId: string): Promise<number> =>
   await inCell(cellOf(accountId), async (state) => {
     const library = openCellLibrary(state, env);
-    const result = library.create(person(), {
+    const result = createItem(library, person(), {
       blocks: placed([paragraph("a", "a new note")]),
       fields: noteFields(),
       id: crypto.randomUUID(),

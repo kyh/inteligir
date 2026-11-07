@@ -6,16 +6,16 @@
 // The consumer reads the page and hands it back (`../fill/fill-consumer`), and it lands here as a
 // change set of its own: only the article and the facts a fill owns, so the person's note and
 // fields are never touched, and only on an item still waiting for that reading at that address,
-// so a message met twice lands once. One url, one item (R22): a page whose redirects end at an
+// so a message met twice lands once. One url, one item: a page whose redirects end at an
 // address another live item holds folds onto that item, unless the stub keeps highlights of its
 // own, which its own text must hold.
 
 import type { LibraryOp, ItemState } from "@repo/notes/library/block-ops";
-import { applyOps } from "@repo/notes/library/block-ops";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import { readItemState } from "@repo/notes/library/library-queries";
 import { runPlan } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
+import { jsonTextSchema } from "@repo/notes/library/sql-value";
 import { kindForUrl, urlKey } from "@repo/notes/items/item-url";
 import { z } from "zod";
 
@@ -24,12 +24,11 @@ import type { CellActor } from "./cell-actor";
 import { readAnnotationRows } from "./cell-annotations";
 import { hurryUnnamed } from "./cell-blobs";
 import type { CellCodec } from "./cell-codec";
-import { placeQuotes } from "./cell-items";
 import { deferJob, dueJobs, scheduleJob } from "./cell-jobs";
 import type { DueJob } from "./cell-jobs";
 import { urlHolder } from "./cell-landing";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
-import { changes, foldPage, pageFieldOps, quotesOf } from "./cell-saves";
+import { articleOps, changes, foldPage, pageFieldOps, quoteOps, quotesOf } from "./cell-saves";
 import { landWrite } from "./cell-writes";
 
 // who a page's reading is by, in History's words
@@ -157,7 +156,7 @@ export interface ClaimedFill {
 // again by the alarm and two commits in flight do not both send one
 export const claimFills = (sql: SqlStatements, now: number): ClaimedFill[] =>
   dueJobs(sql, now, ["fill"]).flatMap((job) => {
-    const { heldBy, ...request } = requestSchema.parse(JSON.parse(job.payload));
+    const { heldBy, ...request } = jsonTextSchema.pipe(requestSchema).parse(job.payload);
     if (heldBy !== null && !turnSealed(sql, heldBy)) {
       deferJob(sql, job.id, now + HELD_MS);
       return [];
@@ -204,26 +203,6 @@ const readFieldOps = (
   ];
 };
 
-// the item's article replaced by the page's, unless the page held none, which leaves the item's
-const articleOps = (state: ItemState, landing: Extract<FillLanding, { kind: "read" }>) =>
-  landing.article.length === 0
-    ? []
-    : [
-        ...[...state.blocks.values()]
-          .filter((stored) => stored.section === "article")
-          .map((stored): LibraryOp => ({
-            baseHash: stored.hash,
-            blockId: stored.block.id,
-            op: "drop",
-          })),
-        ...landing.article.map(({ block, ord }): LibraryOp => ({
-          block,
-          op: "insert",
-          ord,
-          section: "article",
-        })),
-      ];
-
 // the page read into the item, its highlights placed again in the article by their quotes, since
 // the markers the old article held went with it; one the note holds stays where it is
 const landRead = (
@@ -238,11 +217,10 @@ const landRead = (
   ];
   const quotes =
     landing.article.length === 0 ? [] : quotesOf(readAnnotationRows(scope.storage, item.id));
-  const read = quotes.length === 0 ? null : applyOps(item.state, ops);
-  if (read?.kind === "applied") {
-    ops.push(...placeQuotes(read.state, codec, quotes).ops);
-  }
-  landWrite(scope, FILL_ACTOR, { itemId: item.id, ops });
+  landWrite(scope, FILL_ACTOR, {
+    itemId: item.id,
+    ops: [...ops, ...quoteOps(item.state, codec, ops, quotes)],
+  });
 };
 
 // a stub whose page turned out to be another item's: the page lands on that item as a save of it

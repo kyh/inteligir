@@ -37,6 +37,7 @@ import { blockHash } from "@repo/notes/library/block-hash";
 import { applyOps, orderedBlocks } from "@repo/notes/library/block-ops";
 import type { LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
 import { deriveItem } from "@repo/notes/library/derive-item";
+import { blankFields } from "@repo/notes/library/library-item";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
 import { z } from "zod";
@@ -109,31 +110,6 @@ export interface FakeCell {
 
 const NOW = 1_700_000_100_000;
 const ORIGIN = "https://cell.test";
-
-const blankFields = (savedAt: number): LibraryItemFields => ({
-  aliases: [],
-  author: null,
-  copySha: null,
-  coverSha: null,
-  deletedAt: null,
-  description: null,
-  fetchError: null,
-  fetchState: "none",
-  fetchedAt: null,
-  folderId: null,
-  kind: "note",
-  lang: null,
-  originalName: null,
-  originalSha: null,
-  pinnedAt: null,
-  properties: {},
-  published: null,
-  savedAt,
-  site: null,
-  tags: [],
-  title: "",
-  url: null,
-});
 
 const placed = (block: LibraryBlock, ord: string, section: LibrarySection): StoredBlock => ({
   block,

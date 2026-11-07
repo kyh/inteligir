@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   cellOf,
   clockAt,
+  createItem,
   engineIn,
   hashOf,
   inCell,
@@ -60,7 +61,11 @@ describe("the prune job", () => {
       const itemId = crypto.randomUUID();
       let block = paragraph("a", "version 0");
       landedValue(
-        library.create(FILL_ACTOR, { blocks: placed([block]), fields: noteFields(), id: itemId }),
+        createItem(library, FILL_ACTOR, {
+          blocks: placed([block]),
+          fields: noteFields(),
+          id: itemId,
+        }),
       );
       // a revision a write (the library's own writes seal as they land): 130 of them, the first
       // 30 two months back, a few hours apart, then one a minute today
@@ -120,7 +125,11 @@ describe("the prune job", () => {
         block = next;
       };
       landedValue(
-        library.create(FILL_ACTOR, { blocks: placed([block]), fields: noteFields(), id: itemId }),
+        createItem(library, FILL_ACTOR, {
+          blocks: placed([block]),
+          fields: noteFields(),
+          id: itemId,
+        }),
       );
       // two months back the person's set wrote, the library wrote over it, and the person took
       // the item back: the person's set holds two revisions of it, the day's last among them

@@ -12,6 +12,7 @@ import type { AnnotationStore } from "@repo/notes/annotations/store-schema";
 import { fileKindOf } from "@repo/notes/items/item-kind";
 import { blockHash } from "@repo/notes/library/block-hash";
 import type { ItemState, LibraryOp } from "@repo/notes/library/block-ops";
+import { blankFields } from "@repo/notes/library/library-item";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
 import { readItem, readItemState } from "@repo/notes/library/library-queries";
@@ -47,32 +48,6 @@ export interface NewItem {
   readonly blocks: readonly PlacedBlock[];
   readonly annotations?: readonly AnnotationOp[] | undefined;
 }
-
-// an item's fields before its writer sets any: a note saved now, filed nowhere
-export const blankFields = (now: number): LibraryItemFields => ({
-  aliases: [],
-  author: null,
-  copySha: null,
-  coverSha: null,
-  deletedAt: null,
-  description: null,
-  fetchError: null,
-  fetchState: "none",
-  fetchedAt: null,
-  folderId: null,
-  kind: "note",
-  lang: null,
-  originalName: null,
-  originalSha: null,
-  pinnedAt: null,
-  properties: {},
-  published: null,
-  savedAt: now,
-  site: null,
-  tags: [],
-  title: "",
-  url: null,
-});
 
 const secondsOf = (scope: LandingScope): number => Math.floor(scope.now / 1000);
 
@@ -380,7 +355,7 @@ export interface OrganizeInput {
   readonly title?: string | undefined;
 }
 
-const tagKey = (tag: string): string => tag.toLowerCase();
+export const tagKey = (tag: string): string => tag.toLowerCase();
 
 // tags, folder, pin and title for each item, in the one set the write joins; an id that names
 // no live item refuses the whole change

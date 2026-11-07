@@ -17,6 +17,7 @@ import type { SqlPlan, SqlRow } from "./library-sql";
 
 // bump on any change below, and on any change to the JSON a replica's outbox row holds
 // (`@repo/library-replica`), which no build reads in another's shape
+/** @internal */
 export const LIBRARY_SCHEMA_VERSION = 11;
 
 // STRICT tables are SQLite 3.37; a replica's engine is checked against it at open. The cell's is

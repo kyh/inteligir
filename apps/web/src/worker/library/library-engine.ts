@@ -18,6 +18,7 @@ import {
 } from "@repo/notes/library/library-queries";
 import { LibraryRowError, runPlan } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
+import { jsonTextSchema } from "@repo/notes/library/sql-value";
 import { z } from "zod";
 
 import { fillLandedSchema } from "../fill/fill-landing";
@@ -44,8 +45,6 @@ import { claimFills, FILL_ACTOR, fillWaits, landFill, readingFiles, sentFills } 
 import type { ClaimedFill } from "./cell-fills";
 import type { CellIds } from "./cell-ids";
 import { importsRunning } from "./cell-import-jobs";
-import { landNew } from "./cell-items";
-import type { NewItem } from "./cell-items";
 import { dueJobs, ensureJob, nextJobAt, retryJob, scheduleJob } from "./cell-jobs";
 import type { DueJob } from "./cell-jobs";
 import type { LandingScope } from "./cell-landing";
@@ -70,11 +69,7 @@ export interface LibraryEngineDeps {
   readonly bytesCap: number;
 }
 
-// a write's key in the op ledger, beside what it carries
-type Keyed<T> = T & { readonly opId?: string | undefined };
-
-export type CreateItemInput = Keyed<NewItem>;
-export type WriteItemInput = Keyed<ItemWrite>;
+export type WriteItemInput = ItemWrite & { readonly opId?: string | undefined };
 
 // what a write asks of the engine around its work: its key in the op ledger, and the schema its
 // answer is read through, as it lands and as the ledger kept it
@@ -130,21 +125,12 @@ const answerRowSchema = z.object({ answer: z.string() });
 const deletedAtSchema = z.number().int().nonnegative();
 const revisionRowSchema = z.object({ fields: z.string(), manifest: z.string() });
 
-const JSON_TEXT = z.string().transform((text, context) => {
-  try {
-    return z.json().parse(JSON.parse(text));
-  } catch {
-    context.addIssue({ code: "custom", message: "is not JSON" });
-    return z.NEVER;
-  }
-});
-
 const PAYLOADS = {
-  prune: JSON_TEXT.pipe(z.object({ after: z.string().nullable() })),
-  seal: JSON_TEXT.pipe(z.object({ changeSetId: z.string() })),
-  stray: JSON_TEXT.pipe(z.object({ sha: z.string() })),
-  unnamed: JSON_TEXT.pipe(z.object({ sha: z.string() })),
-  upload: JSON_TEXT.pipe(z.object({ sha: z.string() })),
+  prune: jsonTextSchema.pipe(z.object({ after: z.string().nullable() })),
+  seal: jsonTextSchema.pipe(z.object({ changeSetId: z.string() })),
+  stray: jsonTextSchema.pipe(z.object({ sha: z.string() })),
+  unnamed: jsonTextSchema.pipe(z.object({ sha: z.string() })),
+  upload: jsonTextSchema.pipe(z.object({ sha: z.string() })),
 };
 
 // the jobs a run settles inside one transaction each; a stray's removal waits on R2, so the cell
@@ -180,7 +166,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     const [prior] = storage.all("SELECT answer FROM applied_ops WHERE op_id = ?", [opId]);
     return prior === undefined
       ? null
-      : answer.parse(JSON_TEXT.parse(answerRowSchema.parse(prior).answer));
+      : answer.parse(jsonTextSchema.parse(answerRowSchema.parse(prior).answer));
   };
 
   // one write: refused once the account is being deleted, answered from its op's record when it
@@ -252,11 +238,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     work: (scope: LandingScope) => Built<z.input<S>>,
   ): CellResult<z.output<S>> => transact({ ...request, openSet: noSet }, work);
 
-  const create = (actor: CellActor, input: CreateItemInput) =>
-    land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
-      item: landNew(scope, actor, input),
-    }));
-
   const write = (actor: CellActor, input: WriteItemInput) =>
     land(actor, { answer: landedSchema, opId: input.opId }, (scope) => ({
       item: landWrite(scope, actor, input),
@@ -317,9 +298,12 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       (scope) => undoChangeSets(scope, input.changeSetIds),
     );
 
-  // an agent's turn or an import closes its own set; false when it was closed already
-  const closeChangeSet = (changeSetId: string): boolean =>
-    storage.transaction(() => sealChangeSet(storage, changeSetId, deps.now()));
+  // an import closes its own set
+  const closeChangeSet = (changeSetId: string): void => {
+    storage.transaction(() => {
+      sealChangeSet(storage, changeSetId, deps.now());
+    });
+  };
 
   // room for a file a device is about to upload
   const reserve = (request: UploadRequest): CellResult<UploadRoom> =>
@@ -521,7 +505,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
     bodies,
     claimDueFills,
     closeChangeSet,
-    create,
     deletedAt,
     endStrayRemovals,
     fillWanted,

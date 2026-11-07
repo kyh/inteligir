@@ -19,24 +19,28 @@ export const PRINCIPAL_HEADER = "x-library-principal";
 // which only an assistant's grant can hold, reads it alone
 export const LIBRARY_SCOPES = ["library", "library:read"] as const;
 
-const holderId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/u);
+// the id a credential goes by: a device's, a browser session's or an assistant's grant
+export const credentialIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/u);
 
 // an app signed in on a device: the Mac, the phone, the extension
 const deviceActorSchema = z.strictObject({
-  deviceId: holderId,
+  deviceId: credentialIdSchema,
   deviceName: z.string().min(1).max(128),
   kind: z.literal("device"),
 });
 
 // the library in a browser tab, signed in with the site's own session
-const sessionActorSchema = z.strictObject({ kind: z.literal("session"), sessionId: holderId });
+const sessionActorSchema = z.strictObject({
+  kind: z.literal("session"),
+  sessionId: credentialIdSchema,
+});
 
 // the person's own assistant under one grant of the connector's consent page; its client id is a
 // URL for a client that publishes its metadata, and its name is the client's own claim
 const assistantActorSchema = z.strictObject({
   clientId: z.string().min(1).max(2048),
   clientName: z.string().min(1).max(128),
-  grantId: holderId,
+  grantId: credentialIdSchema,
   kind: z.literal("assistant"),
 });
 

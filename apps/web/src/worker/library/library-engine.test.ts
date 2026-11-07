@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   cellOf,
   clockAt,
+  createItem,
   engineIn,
   hashOf,
   inCell,
@@ -25,6 +26,24 @@ const A = paragraph("a", "the first line");
 const B = paragraph("b", "the second line");
 
 const newItemId = (): string => crypto.randomUUID();
+
+const laptopSet = (state: DurableObjectState): string => {
+  const [row] = state.storage.sql
+    .exec("SELECT id FROM change_sets WHERE device_id = 'laptop'")
+    .toArray();
+  return z.string().parse(row?.id);
+};
+
+const undoneBy = (state: DurableObjectState, id: string): string | null =>
+  z
+    .string()
+    .nullable()
+    .parse(
+      state.storage.sql.exec("SELECT undone_by FROM change_sets WHERE id = ?", id).one().undone_by,
+    );
+
+const setCount = (state: DurableObjectState): number =>
+  state.storage.sql.exec("SELECT id FROM change_sets").toArray().length;
 
 // what R2 holds of an image upload
 const png = (bytes: number) => ({ bytes, mime: "image/png" });
@@ -47,7 +66,7 @@ describe("a write to the library cell", () => {
       const library = engineIn(state, clockAt());
       const itemId = newItemId();
       const made = landedValue(
-        library.create(person(), { blocks: placed([A, B]), fields: noteFields(), id: itemId }),
+        createItem(library, person(), { blocks: placed([A, B]), fields: noteFields(), id: itemId }),
       );
       expect(made.item.seq).toBe(1);
 
@@ -94,7 +113,7 @@ describe("a write to the library cell", () => {
       const library = engineIn(state, clockAt());
       const itemId = newItemId();
       landedValue(
-        library.create(person(), { blocks: placed([A, B]), fields: noteFields(), id: itemId }),
+        createItem(library, person(), { blocks: placed([A, B]), fields: noteFields(), id: itemId }),
       );
       const first = paragraph("a", "from the laptop");
       const second = paragraph("b", "from the phone");
@@ -120,13 +139,13 @@ describe("a write to the library cell", () => {
       const library = engineIn(state, clockAt());
       const itemId = newItemId();
       const opId = crypto.randomUUID();
-      const first = library.create(person(), {
+      const first = createItem(library, person(), {
         blocks: placed([A]),
         fields: noteFields(),
         id: itemId,
         opId,
       });
-      const again = library.create(person(), {
+      const again = createItem(library, person(), {
         blocks: placed([A]),
         fields: noteFields(),
         id: itemId,
@@ -157,7 +176,11 @@ describe("a write to the library cell", () => {
         paragraph(`p${String(index)}`, `line ${String(index)}`),
       );
       landedValue(
-        library.create(FILL_ACTOR, { blocks: placed(blocks), fields: noteFields(), id: itemId }),
+        createItem(library, FILL_ACTOR, {
+          blocks: placed(blocks),
+          fields: noteFields(),
+          id: itemId,
+        }),
       );
       expect(landedValue(library.bodies([itemId])).bodies[0]?.blocks).toHaveLength(2000);
     });
@@ -170,7 +193,7 @@ describe("a write to the library cell", () => {
       const line = "x".repeat(500 * 1024);
       const blocks = Array.from({ length: 17 }, (_, index) => paragraph(`p${String(index)}`, line));
       expect(17 * line.length).toBeGreaterThan(ITEM_TEXT_MAX_BYTES);
-      const refused = library.create(FILL_ACTOR, {
+      const refused = createItem(library, FILL_ACTOR, {
         blocks: placed(blocks),
         fields: noteFields(),
         id: newItemId(),
@@ -185,7 +208,7 @@ describe("a write to the library cell", () => {
       const roomy = engineIn(state, clockAt());
       const itemId = newItemId();
       landedValue(
-        roomy.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        createItem(roomy, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
       const bytesCap = state.storage.sql.databaseSize + 64 * 1024;
       const library = engineIn(state, clockAt(), bytesCap);
@@ -213,7 +236,7 @@ describe("a write to the library cell", () => {
       const roomy = engineIn(state, clockAt());
       const itemId = newItemId();
       landedValue(
-        roomy.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        createItem(roomy, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
       const bytesCap = state.storage.sql.databaseSize + 1024;
       const library = engineIn(state, clockAt(), bytesCap);
@@ -228,7 +251,7 @@ describe("a write to the library cell", () => {
         ops: [{ base: null, field: "description", op: "set", value: long }],
       });
       expect(refusalOf(refusedDescription)).toMatchObject({ kind: "quota" });
-      const refusedNew = library.create(FILL_ACTOR, {
+      const refusedNew = createItem(library, FILL_ACTOR, {
         blocks: placed([]),
         fields: noteFields({ properties: { notes: long } }),
         id: newItemId(),
@@ -243,7 +266,7 @@ describe("a write to the library cell", () => {
       const itemId = newItemId();
       const title = "a title long enough to shorten";
       landedValue(
-        roomy.create(FILL_ACTOR, {
+        createItem(roomy, FILL_ACTOR, {
           blocks: placed([A]),
           fields: noteFields({ title }),
           id: itemId,
@@ -258,6 +281,9 @@ describe("a write to the library cell", () => {
       landing([{ base: "none", field: "fetchState", op: "set", value: "failed" }]);
       landing([{ base: null, field: "fetchError", op: "set", value: "The page would not load." }]);
       landing([{ base: null, field: "deletedAt", op: "set", value: 7 }]);
+      expect(
+        state.storage.sql.exec("SELECT deleted_at FROM items WHERE id = ?", itemId).one(),
+      ).toStrictEqual({ deleted_at: 7 });
     });
   });
 
@@ -266,7 +292,7 @@ describe("a write to the library cell", () => {
       const library = engineIn(state, clockAt());
       const itemId = newItemId();
       landedValue(
-        library.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
       const sha = "a".repeat(64);
       const image = {
@@ -383,7 +409,7 @@ describe("a write to the library cell", () => {
       const library = engineIn(state, clockAt());
       const itemId = newItemId();
       landedValue(
-        library.create(person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        createItem(library, person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
       const add = {
         createdAt: 1,
@@ -422,7 +448,9 @@ describe("a write to the library cell", () => {
       const first = newItemId();
       const second = newItemId();
       for (const id of [first, second]) {
-        landedValue(library.create(person(), { blocks: placed([A]), fields: noteFields(), id }));
+        landedValue(
+          createItem(library, person(), { blocks: placed([A]), fields: noteFields(), id }),
+        );
       }
       landedValue(
         library.write(person(), {
@@ -462,7 +490,9 @@ describe("pulling the library", () => {
       const library = engineIn(state, clockAt());
       const ids = Array.from({ length: 30 }, () => newItemId());
       for (const id of ids) {
-        landedValue(library.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id }));
+        landedValue(
+          createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id }),
+        );
       }
       const first = landedValue(library.pull({ cursor: 0, epoch: null }));
       if (first.kind !== "changes") {
@@ -483,7 +513,11 @@ describe("pulling the library", () => {
     await inCell(cellOf(), (state) => {
       const library = engineIn(state, clockAt());
       landedValue(
-        library.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: newItemId() }),
+        createItem(library, FILL_ACTOR, {
+          blocks: placed([A]),
+          fields: noteFields(),
+          id: newItemId(),
+        }),
       );
       const fresh = landedValue(library.pull({ cursor: 0, epoch: null }));
       expect(landedValue(library.pull({ cursor: 1, epoch: "another-library" }))).toStrictEqual({
@@ -506,10 +540,10 @@ describe("pulling the library", () => {
       const one = newItemId();
       const two = newItemId();
       landedValue(
-        library.create(FILL_ACTOR, { blocks: placed(big), fields: noteFields(), id: one }),
+        createItem(library, FILL_ACTOR, { blocks: placed(big), fields: noteFields(), id: one }),
       );
       landedValue(
-        library.create(FILL_ACTOR, { blocks: placed(big), fields: noteFields(), id: two }),
+        createItem(library, FILL_ACTOR, { blocks: placed(big), fields: noteFields(), id: two }),
       );
       const missing = newItemId();
       // past about 4 MB the rest waits for the next ask, the first body whatever its size
@@ -528,7 +562,7 @@ describe("change sets and undo", () => {
       const itemId = newItemId();
       const start = clock.now;
       landedValue(
-        library.create(person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        createItem(library, person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
       clock.now = start + 10_000;
       landedValue(
@@ -560,7 +594,7 @@ describe("change sets and undo", () => {
       const itemId = newItemId();
       const start = clock.now;
       landedValue(
-        library.create(person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        createItem(library, person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
       let block = A;
       for (const at of [10_000, 20_000, 30_000, 40_000, 50_000]) {
@@ -601,10 +635,10 @@ describe("change sets and undo", () => {
       const kept = newItemId();
       const undone = newItemId();
       landedValue(
-        library.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: kept }),
+        createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: kept }),
       );
       landedValue(
-        library.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: undone }),
+        createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: undone }),
       );
       const edit = paragraph("a", "the laptop's edit");
       for (const itemId of [kept, undone]) {
@@ -615,10 +649,7 @@ describe("change sets and undo", () => {
           }),
         );
       }
-      const [laptopSet] = state.storage.sql
-        .exec("SELECT id FROM change_sets WHERE device_id = 'laptop'")
-        .toArray();
-      const setId = z.string().parse(laptopSet?.id);
+      const setId = laptopSet(state);
       // the phone changes one of the two again since
       clock.now += 120_000;
       landedValue(
@@ -646,16 +677,6 @@ describe("change sets and undo", () => {
   });
 
   describe("an undo a rule refuses", () => {
-    const laptopSet = (state: DurableObjectState): string => {
-      const [row] = state.storage.sql
-        .exec("SELECT id FROM change_sets WHERE device_id = 'laptop'")
-        .toArray();
-      return z.string().parse(row?.id);
-    };
-    const undoneBy = (state: DurableObjectState, id: string): unknown =>
-      state.storage.sql.exec("SELECT undone_by FROM change_sets WHERE id = ?", id).one().undone_by;
-    const setCount = (state: DurableObjectState): number =>
-      state.storage.sql.exec("SELECT id FROM change_sets").toArray().length;
     const passage = paragraph("long", "x".repeat(4096));
 
     it("answers why and stays undoable while every item's way back is refused", async () => {
@@ -664,7 +685,7 @@ describe("change sets and undo", () => {
         const roomy = engineIn(state, clock);
         const itemId = newItemId();
         landedValue(
-          roomy.create(FILL_ACTOR, {
+          createItem(roomy, FILL_ACTOR, {
             blocks: placed([A, passage]),
             fields: noteFields(),
             id: itemId,
@@ -699,10 +720,14 @@ describe("change sets and undo", () => {
         const cut = newItemId();
         const added = newItemId();
         landedValue(
-          roomy.create(FILL_ACTOR, { blocks: placed([A, passage]), fields: noteFields(), id: cut }),
+          createItem(roomy, FILL_ACTOR, {
+            blocks: placed([A, passage]),
+            fields: noteFields(),
+            id: cut,
+          }),
         );
         landedValue(
-          roomy.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: added }),
+          createItem(roomy, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: added }),
         );
         landedValue(
           roomy.write(person("laptop"), {
@@ -740,7 +765,11 @@ describe("change sets and undo", () => {
         const gone = newItemId();
         const holder = newItemId();
         landedValue(
-          library.create(FILL_ACTOR, { blocks: placed([]), fields: noteFields({ url }), id: gone }),
+          createItem(library, FILL_ACTOR, {
+            blocks: placed([]),
+            fields: noteFields({ url }),
+            id: gone,
+          }),
         );
         landedValue(
           library.write(person("laptop"), {
@@ -750,7 +779,7 @@ describe("change sets and undo", () => {
         );
         const setId = laptopSet(state);
         landedValue(
-          library.create(FILL_ACTOR, {
+          createItem(library, FILL_ACTOR, {
             blocks: placed([]),
             fields: noteFields({ url }),
             id: holder,
@@ -786,7 +815,7 @@ describe("change sets and undo", () => {
         );
       };
       landedValue(
-        library.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
       // the person's set stays open while the library's own write seals as it lands, then the
       // person takes the item back within the same set
@@ -824,7 +853,7 @@ describe("change sets and undo", () => {
       const library = engineIn(state, clock);
       const itemId = newItemId();
       landedValue(
-        library.create(person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        createItem(library, person(), { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
       const [set] = state.storage.sql.exec("SELECT id FROM change_sets").toArray();
       landedValue(library.undo(person(), { changeSetIds: [z.string().parse(set?.id)] }));
@@ -841,7 +870,7 @@ describe("change sets and undo", () => {
       const library = engineIn(state, clock);
       const itemId = newItemId();
       landedValue(
-        library.create(FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
+        createItem(library, FILL_ACTOR, { blocks: placed([A]), fields: noteFields(), id: itemId }),
       );
       landedValue(
         library.write(FILL_ACTOR, {

@@ -12,6 +12,7 @@ import { connectAssistant } from "../test-support/connector-session";
 import {
   cellOf,
   clockAt,
+  createItem,
   engineIn,
   inCell,
   landedValue,
@@ -68,7 +69,7 @@ describe("the library cell", () => {
     const theirs = cellOf();
     await inCell(mine, (state) => {
       landedValue(
-        engineIn(state, clockAt()).create(FILL_ACTOR, {
+        createItem(engineIn(state, clockAt()), FILL_ACTOR, {
           blocks: placed([paragraph("a", "mine")]),
           fields: noteFields(),
           id: crypto.randomUUID(),
@@ -137,7 +138,7 @@ describe("the library cell", () => {
     await inCell(stub, async (state) => {
       const library = engineIn(state, clockAt(written));
       landedValue(
-        library.create(person(), {
+        createItem(library, person(), {
           blocks: placed([paragraph("a", "typed a while ago")]),
           fields: noteFields(),
           id: crypto.randomUUID(),
@@ -161,7 +162,7 @@ describe("the library cell", () => {
     const itemId = crypto.randomUUID();
     const alarm = await inCell(stub, async (state) => {
       const library = openCellLibrary(state, env);
-      const result = library.create(person(), {
+      const result = createItem(library, person(), {
         blocks: placed([paragraph("a", "before the eviction")]),
         fields: noteFields(),
         id: itemId,
@@ -190,7 +191,7 @@ describe("the library cell", () => {
     const before = await inCell(stub, (state) => {
       const library = engineIn(state, clockAt());
       landedValue(
-        library.create(FILL_ACTOR, {
+        createItem(library, FILL_ACTOR, {
           blocks: placed([paragraph("a", "an older build's")]),
           fields: noteFields(),
           id: crypto.randomUUID(),
@@ -318,7 +319,7 @@ describe("deleting the account from its cell", () => {
     const seen = new Map<string, Seen>();
     await inCell(cellOf(accountId), async (state) => {
       landedValue(
-        engineIn(state, clockAt()).create(FILL_ACTOR, {
+        createItem(engineIn(state, clockAt()), FILL_ACTOR, {
           blocks: placed([paragraph("a", "gone with the account")]),
           fields: noteFields(),
           id: crypto.randomUUID(),

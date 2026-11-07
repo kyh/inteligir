@@ -10,7 +10,7 @@ import type { PlannedItem } from "@repo/notes/imports/raindrop";
 import { UNSORTED_FOLDER } from "@repo/notes/items/item-kind";
 import { itemNameFromUrl } from "@repo/notes/items/item-name";
 import { kindForUrl } from "@repo/notes/items/item-url";
-import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
+import { blankFields, ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
 import { z } from "zod";
 
 import { blobKey } from "./cell-blobs";
@@ -22,7 +22,7 @@ import { apart, DONE, failed, importActor, LIBRARY_FULL, MORE, PAGE_MS } from ".
 import type { ImportHost, StepOutcome } from "./cell-import-host";
 import { advanceImport, importRows, putImportRows } from "./cell-import-jobs";
 import type { ImportJob } from "./cell-import-jobs";
-import { blankFields, landNew, noteBlocksOf } from "./cell-items";
+import { landNew, noteBlocksOf } from "./cell-items";
 import type { AddOp } from "./cell-items";
 import { urlHolder } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";

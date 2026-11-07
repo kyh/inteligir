@@ -3,7 +3,7 @@
 // principal the Worker verified resolves to. Every write lands through the engine in one
 // transaction, joins its actor's change set, and is settled after it commits (the sockets told,
 // the alarm set); every refusal answers as the error its row declares
-// (`@repo/contract/cloud/v1-errors`). The built-in agent's turns are `../agent/agent-turns`'.
+// (`@repo/contract/cloud/v1/errors`). The built-in agent's turns are `../agent/agent-turns`'.
 
 import {
   AccountGoneError,
@@ -22,6 +22,7 @@ import {
   importJobSchema,
   liveItemRowSchema,
 } from "@repo/contract/cloud/library/library-wire";
+import { blankFields } from "@repo/notes/library/library-item";
 import { ORPCError, implement } from "@orpc/server";
 import { z } from "zod";
 
@@ -43,7 +44,6 @@ import { importJobView, latestImportJob, readImportJob } from "./cell-import-job
 import { cancelImport, startImport } from "./cell-imports";
 import {
   addHighlight,
-  blankFields,
   createFile,
   createNote,
   editItem,

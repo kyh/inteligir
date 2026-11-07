@@ -8,6 +8,7 @@ import type { importJobSchema } from "@repo/contract/cloud/library/library-wire"
 import { IMPORT_PHASES, IMPORT_SOURCES, IMPORT_STATES } from "@repo/notes/library/library-schema";
 import { chunkStatement } from "@repo/notes/library/library-sql";
 import type { SqlRow, SqlStatements } from "@repo/notes/library/library-sql";
+import { jsonTextSchema } from "@repo/notes/library/sql-value";
 import { z } from "zod";
 
 import { dropJob, scheduleJob } from "./cell-jobs";
@@ -128,7 +129,7 @@ const alarmJobId = (id: string): string => `import:${id}`;
 const alarmJobSchema = z.object({ jobId: z.string() });
 
 export const importJobIdOf = (payload: string): string =>
-  alarmJobSchema.parse(JSON.parse(payload)).jobId;
+  jsonTextSchema.pipe(alarmJobSchema).parse(payload).jobId;
 
 // the import's next run, at once: a run does one page and asks for the next
 export const runImportNext = (sql: SqlStatements, id: string, now: number): void => {

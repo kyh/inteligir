@@ -31,6 +31,7 @@ import {
 } from "@repo/notes/library/library-queries";
 import { all, chunkStatement, LibraryRowError, run } from "@repo/notes/library/library-sql";
 import type { SqlPlan, SqlRow, SqlStatement } from "@repo/notes/library/library-sql";
+import { jsonTextSchema } from "@repo/notes/library/sql-value";
 import { z } from "zod";
 
 type LibraryChange = z.infer<typeof libraryChangeSchema>;
@@ -610,20 +611,11 @@ export const readThreads = function* readThreads(): SqlPlan<ThreadRow[]> {
   });
 };
 
-const eventJsonSchema = z.string().transform((text, context) => {
-  try {
-    return z.json().parse(JSON.parse(text));
-  } catch {
-    context.addIssue({ code: "custom", message: "is not JSON" });
-    return z.NEVER;
-  }
-});
-
 const threadEventSqlSchema = z.object({
   at: z.number(),
   event_id: z.string(),
   idx: z.number(),
-  json: eventJsonSchema,
+  json: jsonTextSchema,
   seq: z.number(),
   thread_id: z.string(),
   type: z.string(),
