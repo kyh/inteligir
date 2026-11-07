@@ -310,13 +310,12 @@ describe("an item open in the editor", () => {
     expect(editorText(editor, 0)).toBe("one, the phone's\ntwo");
   });
 
-  it("lays another device's edit to another block into the open editor, outside its undo", async () => {
+  it("lays another device's edit to another block into the open editor, which no undo takes back", async () => {
     const { cell, mac, phone } = await devices();
     const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), paragraph("p2", "x")]);
     const { editor, session } = await openOn(phone, id);
     editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
     session.edited();
-    const undos = editor.history.undos.length;
     const onMac = await mac.replica.item(id);
     const held = onMac?.blocks[1];
     await mac.replica.write(id, {
@@ -327,10 +326,118 @@ describe("an item open in the editor", () => {
     await session.flush();
     expect(editorText(editor, 0)).toBe("first!");
     expect(editorText(editor, 1)).toBe("from the Mac");
-    expect(editor.history.undos).toHaveLength(undos);
+    editor.undo();
+    expect(editorText(editor, 1)).toBe("from the Mac");
     await phone.replica.sync();
     expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
     expect(cellBlock(cell, id, "p2")).toStrictEqual(paragraph("p2", "from the Mac"));
+  });
+
+  it("starts the undo over when a block lands above the last edit, which leaves others whole", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [
+      paragraph("p1", "keep this sentence"),
+      paragraph("p2", "typed here"),
+    ]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("XYZ", { at: { offset: 5, path: [1, 0] } });
+    session.edited();
+    await pause(phone, session);
+    await mac.replica.write(id, {
+      ops: [{ block: paragraph("p0", "above"), op: "insert", ord: "Zz", section: "note" }],
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    await session.flush();
+    expect(editorText(editor, 0)).toBe("above");
+    editor.undo();
+    expect([editorText(editor, 1), editorText(editor, 2)]).toStrictEqual([
+      "keep this sentence",
+      "typedXYZ here",
+    ]);
+    session.edited();
+    await pause(phone, session);
+    await phone.replica.sync();
+    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "keep this sentence"));
+  });
+
+  it("starts the undo over when a block above the last edit goes, and goes on recording", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [
+      paragraph("p1", "first"),
+      paragraph("p2", "typed here"),
+    ]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("XYZ", { at: { offset: 5, path: [1, 0] } });
+    session.edited();
+    await pause(phone, session);
+    const onMac = await mac.replica.item(id);
+    await mac.replica.write(id, {
+      ops: [{ baseHash: onMac?.blocks[0]?.hash ?? "", blockId: "p1", op: "drop" }],
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    await session.flush();
+    expect(() => {
+      editor.undo();
+    }).not.toThrow();
+    expect(editorText(editor, 0)).toBe("typedXYZ here");
+    editor.tf.insertText("!", { at: { offset: 0, path: [0, 0] } });
+    expect(editorText(editor, 0)).toBe("!typedXYZ here");
+    editor.undo();
+    expect(editorText(editor, 0)).toBe("typedXYZ here");
+  });
+
+  it("starts the undo over when the block under the last edit is laid in anew", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "a long first line")]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("!", { at: { offset: 2, path: [0, 0] } });
+    session.edited();
+    await pause(phone, session);
+    await phone.replica.sync();
+    await mac.replica.sync();
+    const onMac = await mac.replica.item(id);
+    await mac.replica.write(id, {
+      ops: [{ baseHash: onMac?.blocks[0]?.hash ?? "", block: paragraph("p1", "short"), op: "put" }],
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    await session.flush();
+    expect(editorText(editor, 0)).toBe("short");
+    expect(() => {
+      editor.undo();
+    }).not.toThrow();
+    expect(editorText(editor, 0)).toBe("short");
+  });
+
+  it("drops what a redo would replay when a landing moves the blocks under it", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "typed here")]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("XYZ", { at: { offset: 5, path: [0, 0] } });
+    editor.undo();
+    await mac.replica.write(id, {
+      ops: [{ block: paragraph("p0", "above"), op: "insert", ord: "Zz", section: "note" }],
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    await session.flush();
+    editor.redo();
+    expect([editorText(editor, 0), editorText(editor, 1)]).toStrictEqual(["above", "typed here"]);
+  });
+
+  it("keeps the undo through its own write coming back", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+    session.edited();
+    await pause(phone, session);
+    await phone.replica.sync();
+    await session.flush();
+    editor.undo();
+    expect(editorText(editor, 0)).toBe("first");
   });
 
   it("keeps its blocks while a replica that started over holds the row ahead of the body", async () => {

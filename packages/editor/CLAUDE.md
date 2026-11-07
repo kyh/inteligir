@@ -314,9 +314,10 @@ alone, and no walk narrows structurally.
   id names, the ids inside one the editor's alone, and 800 ms after the last
   keystroke the ops of what changed since the blocks last acknowledged go to the
   outbox, decided by hash; a field patch goes at once, under its base. A change
-  from elsewhere is laid in outside the undo, a block both sides changed merged
-  by `mergeBlocks` (`packages/editor/src/stale-write.ts`), which the replica
-  runs on a CONFLICT too. Each item gets its own editor and session, drawn once
+  from elsewhere is laid in outside the undo and starts it over, since an undo
+  replays each edit at the path it was recorded at, a block both sides changed
+  merged by `mergeBlocks` (`packages/editor/src/stale-write.ts`), which the
+  replica runs on a CONFLICT too. Each item gets its own editor and session, drawn once
   its blocks are in (`packages/editor/src/item/item-editor.tsx`). A block no
   write can store stays as the person left it and counts as a failure and as
   unsaved, so the surface says so on every host and each host holds the leave;
@@ -327,7 +328,8 @@ alone, and no walk narrows structurally.
   into React state (a render per keystroke); a whole-item write (two devices'
   edits to different blocks would meet); one editor handed from item to item
   (a closing write would diff the next one's blocks); a section by where a block
-  stands (a read deleted what was typed below the article).
+  stands (a read deleted what was typed below the article); rebasing the undo
+  through a landing (each recorded batch would be transformed against it).
   `packages/editor/src/item/item-session.ts`, `item-diff.ts`.
 
 - **THE EDITOR'S HOST SPEAKS THE LIBRARY: AN ITEM BY ITS ID, A FILE BY ITS

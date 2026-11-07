@@ -3,9 +3,9 @@
 // of the value of its own. A pause in typing writes what changed since the blocks it last
 // acknowledged (`item-diff.ts`) through the store, which queues it for the cell; a field patch
 // writes at once. A change that lands from elsewhere is laid into the value with the editor's own
-// transforms and outside its undo history: a block only one side changed takes that side, one
-// both changed is merged three ways (`@repo/editor/stale-write`), and an edit outlives a drop
-// either way round. A write the store refuses on a base that moved under it settles the same way
+// transforms, outside its undo history, which starts over: a block only one side changed takes
+// that side, one both changed is merged three ways (`@repo/editor/stale-write`), and an edit
+// outlives a drop either way round. A write the store refuses on a base that moved under it settles the same way
 // and goes again, and a merge that kept this device's lines over another's change to the same ones
 // is said, whether this session or the replica's outbox made it. A block no write can store stays
 // in the editor as the person left it, counted unsaved and said, so a host holds the leave.
@@ -362,6 +362,11 @@ export const createItemSession = (
     });
   };
 
+  const startHistoryOver = (): void => {
+    editor.history.undos = [];
+    editor.history.redos = [];
+  };
+
   // a selection's point by the block it stands in, so a block laid in from elsewhere keeps the
   // caret where it still fits
   const heldPoint = (point: Point): HeldPoint | null => {
@@ -436,6 +441,11 @@ export const createItemSession = (
     withoutHistory(() => {
       layOut(target);
     });
+    // an undo replays each edit at the path and offset it was recorded at, which no longer name
+    // what it changed; rebasing them would mean transforming every batch through the landing
+    if (editor.children !== value) {
+      startHistoryOver();
+    }
     const anchorAt = pointIn(anchor);
     const focusAt = pointIn(focus);
     if (anchorAt !== null && focusAt !== null) {
@@ -568,8 +578,7 @@ export const createItemSession = (
     });
     // the value is the item's now, so no undo reaches what the editor held before it, as Plate's
     // own reset clears
-    editor.history.undos = [];
-    editor.history.redos = [];
+    startHistoryOver();
     seen = editor.children;
     publish();
   };
