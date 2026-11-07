@@ -83,6 +83,7 @@ export const fakePageLibrary = ({
     discard: unread,
     focus: unread,
     folders: unread,
+    holderOf: unread,
     item: unread,
     keepFile: unread,
     listing: unread,
