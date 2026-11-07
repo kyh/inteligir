@@ -181,7 +181,8 @@ const factsOf = (facts: ExtractedPageBlocks["facts"], oembed: OEmbed | null) =>
 const pageRead = async (ports: ReadPorts, job: FillJob, page: FetchedPage): Promise<PageRead> => {
   const html = decodeText(page.bytes.subarray(0, FILL_LIMITS.htmlBytes), page.charset);
   const readHtml = await loadReader();
-  const read = readHtml({ html, prefer: preferredText(job.url), url: page.url }, newBlockId);
+  const prefer = preferredText(job.url, finalAddress(job, page));
+  const read = readHtml({ html, prefer, url: page.url }, newBlockId);
   if (!fillKeepsReading(read)) {
     return failed(job, TEXT_NOT_SAVED);
   }

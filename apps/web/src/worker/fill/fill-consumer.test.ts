@@ -155,6 +155,36 @@ describe("a saved link's reading", () => {
     expect(textOfSection(item, "article")).not.toBe("[]");
   });
 
+  it("reads a short link to a video as the video it became, its description the article", async () => {
+    const url = "https://bit.ly/x";
+    const video = "https://www.youtube.com/watch?v=abc123";
+    const { accountId, itemId, job } = await savedLink(url);
+    serveWeb({
+      [url]: () => new Response(null, { headers: { location: video }, status: 301 }),
+      [video]: htmlPage(videoPage),
+    });
+    await deliver(job);
+    const item = await itemIn(accountId, itemId);
+    expect(item?.fields).toMatchObject({ fetchState: "filled", kind: "video" });
+    const article = textOfSection(item, "article");
+    expect(article).toContain("A quick guide to a first loaf");
+    expect(article).not.toContain("Great video");
+  });
+
+  it("keeps a song's text its description when its page moves to an address that names none", async () => {
+    const url = "https://open.spotify.com/track/abc123";
+    const moved = "https://open.spotify.com/intl-de/track/abc123";
+    const { accountId, itemId, job } = await savedLink(url);
+    serveWeb({
+      [moved]: htmlPage(videoPage),
+      [url]: () => new Response(null, { headers: { location: moved }, status: 301 }),
+    });
+    await deliver(job);
+    const item = await itemIn(accountId, itemId);
+    expect(item?.fields).toMatchObject({ fetchState: "filled", kind: "audio" });
+    expect(textOfSection(item, "article")).toContain("A quick guide to a first loaf");
+  });
+
   it("reads a post an app shell hides from what the host's oEmbed says of it", async () => {
     const url = "https://x.com/kyh/status/1";
     const { accountId, itemId, job } = await savedLink(url);

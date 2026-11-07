@@ -69,12 +69,11 @@ export const playableKindOf = (mediaType: string | null): "video" | "audio" | nu
   return mediaType?.startsWith("audio/") === true ? "audio" : null;
 };
 
-// which of a page's texts a saved address keeps as its article: a video's or a song's page holds
-// little prose, so its description stands for it
-export const preferredText = (url: string): "article" | "description" => {
-  const kind = kindForUrl(url);
-  return kind === "video" || kind === "audio" ? "description" : "article";
-};
+// which of a page's texts a reading keeps as its article: a video's or a song's page holds little
+// prose, so its description stands for it. It goes by the address the item's kind goes by: a link
+// takes the kind of where it landed, and a video or a song stays one wherever it landed
+export const preferredText = (saved: string, landed: string = saved): "article" | "description" =>
+  kindForUrl(saved) === "link" && kindForUrl(landed) === "link" ? "article" : "description";
 
 // a device has the cloud's fill behind it and an item saved read is never filled, so it keeps only
 // an article and hands the page over: the fill can find what a device did not, such as a post an

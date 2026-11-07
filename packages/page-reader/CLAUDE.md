@@ -48,10 +48,11 @@ A saved page read into an item: its facts and its article.
 
 - **A DEVICE KEEPS A READING ONLY FOR ITS ARTICLE; THE FILL, THE LAST READER,
   KEEPS A PAGE THAT NAMED ITSELF.** Every host reads an address for the text
-  `preferredText` names, and judges its reading by who reads after it. An item
-  saved read is never filled, so the extension and the phone hand a page they
-  kept no article of to the fill, which can find what a device did not (a post
-  an app shell hides, in its host's oEmbed); nothing reads after the fill, so it
+  `preferredText` names, which goes by the address the item's kind goes by, and
+  judges its reading by who reads after it. An item saved read is never filled,
+  so the extension and the phone hand a page they kept no article of to the
+  fill, which can find what a device did not (a post an app shell hides, in its
+  host's oEmbed); nothing reads after the fill, so it
   fails a page only when none of its text settled and it named itself nowhere.
   Rejected: the fill's rule on a device (a titled shell lands blank and is never
   read again); a device's rule in the fill (it would fail a page it can name);

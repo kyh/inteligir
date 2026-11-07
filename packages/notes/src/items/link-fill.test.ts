@@ -61,6 +61,18 @@ describe("a page's text", () => {
     expect(preferredText("https://open.spotify.com/track/abc123")).toBe("description");
     expect(preferredText("https://stephango.com/file-over-app")).toBe("article");
   });
+
+  it("goes by the address the item's kind does when a link's redirects end elsewhere", () => {
+    const short = "https://bit.ly/x";
+    expect(preferredText(short, "https://vimeo.com/123456")).toBe("description");
+    expect(preferredText(short, "https://stephango.com/file-over-app")).toBe("article");
+    expect(
+      preferredText(
+        "https://open.spotify.com/track/abc123",
+        "https://open.spotify.com/intl-de/track/abc123",
+      ),
+    ).toBe("description");
+  });
 });
 
 describe("a reading", () => {
