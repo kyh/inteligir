@@ -212,7 +212,7 @@ previews.
   base config holds two values of their own (`apps/web/README.md`
   § Previews); and the repository's Actions secrets hold
   `CLOUDFLARE_API_TOKEN`, with the scopes `apps/web/README.md` § Build &
-  deploy names, and `CLOUDFLARE_ACCOUNT_ID`. Passing: a sign-in on
+  deploy names and the two § Previews adds, and `CLOUDFLARE_ACCOUNT_ID`. Passing: a sign-in on
   inteligir.com and one on a preview each keep their session across a
   reload, and the built-in agent's gateway checks below pass on both.
 - **The connector's OAuth namespace is the target's.** Workers KV lists the
@@ -233,6 +233,17 @@ previews.
   is not in `inteligir-vault`, and a link saved there stays unread, since
   nothing consumes `inteligir-fill-preview` (`apps/web/README.md`
   § Previews). Passing: each holds.
+- **Closing a PR that has a live preview.** Close it. Passing: the Preview
+  workflow's cleanup job is green, the preview's URL stops answering, the
+  sticky comment says Deleted, and View deployment is gone from the PR.
+- **Closing a PR that never had a preview.** Close one that never went green.
+  Passing: the cleanup job is green, having taken Cloudflare's "Preview not
+  found" (code 10025) as nothing to do. A red job here means that answer
+  changed.
+- **A stranger's marker comment.** On a PR whose first report has not run, have
+  a second account comment a line starting `<!-- worker-previews -->`, then let
+  CI go green. Passing: the preview deploys, and `github-actions[bot]` posts its
+  own sticky comment, leaving the stranger's untouched.
 
 ### The Mac app
 
@@ -372,6 +383,18 @@ from inteligir.com alone), with no dev build loaded.
 - **Disconnect.** The welcome page's Disconnect. Passing: the popup then
   offers Connect Inteligir to your library to save, and the devices page shows
   the extension revoked.
+- **Disconnect, once the welcome tab is closed.** Close the tab the install
+  opened. Click the toolbar button and choose Manage connection, then
+  right-click the button and choose Options. Passing: each opens the welcome
+  page in a tab, and its Disconnect works as the check above says. Vitest
+  proves the link's href and the manifest's `options_ui`, not that the browser
+  opens either.
+- **A save through a restart.** Turn the network off, save a page, and quit
+  the browser while the save is under way or waiting. Turn the network on and
+  start the browser without touching the extension. Passing: the page is in
+  the library within four minutes, with no click. The suite triggers the fake
+  browser's `onStartup`, so that a real browser start wakes a stopped worker is
+  proved only here.
 - **The store link**, once the listing is public. Passing: the site's Save
   from anywhere link (inteligir.com) and Get the Inteligir extension on
   inteligir.com/connect/extension each open the extension's Web Store page.
