@@ -291,6 +291,7 @@ describe("what the page's own storage holds of an account", () => {
     await library.left("signed-out");
     expect(reload).toHaveBeenCalledOnce();
     expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "all" });
+    expect(readPref(PREFS.storageAccount)).toBeNull();
     void library.replica.close();
     memory.close();
   });

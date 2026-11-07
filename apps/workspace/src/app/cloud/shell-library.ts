@@ -168,7 +168,7 @@ export const openShellLibrary = async (
   const config = await shellConfig();
   const kept: KeptCredential | null = await shellCredential.restore();
   if (kept === null) {
-    // the credential goes first, so a quit in the middle of a leave stops short of this
+    // the shell lets go first, so a quit in the middle of a leave leaves this to the next open
     forgetAccountStorage();
     return { config, kind: "signed-out" };
   }

@@ -234,6 +234,7 @@ describe("a tab that leaves its account", () => {
     await left("signed-out");
     expect(readPref(PREFS.libraryScope)).toStrictEqual({ kind: "all" });
     expect([...headingCollapseKeys("item-1")]).toStrictEqual([]);
+    expect(readPref(PREFS.storageAccount)).toBeNull();
     await replica.close();
   });
 });
