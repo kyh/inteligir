@@ -149,7 +149,9 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   whose imports name no extension (most of the contract's) cannot load in a
   script, so a script parses only the fields it reads
   (`apps/desktop/scripts/smoke-packaged.ts`). `.github/scripts/worker-preview.mjs`
-  stays JS: its first step runs before the job sets up the repo's node.
+  stays JS: its first step runs before the job sets up the repo's node. It sits
+  in no workspace, so this one's suite runs it against a stub of both APIs
+  (`tools/repo-guards/src/worker-preview.test.ts`).
 
 - **A TEST SITS BESIDE THE MODULE IT TESTS, AND A PACKAGE'S SHARED TEST CODE IS
   ITS `test-support/`.** A suite is `<name>.test.ts` beside its `<name>.ts`, and

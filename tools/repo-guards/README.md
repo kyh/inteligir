@@ -78,6 +78,7 @@ One per file; its header and its failure message state the rule in full.
 - `privacy-routes.test.ts`: every cloud `/v1/` route has a row in `docs/privacy.md`, and every row a route.
 - `decisions-index.test.ts`: `AGENTS.md` § Decisions indexes every nested `CLAUDE.md`, and the root one is `@AGENTS.md`.
 - `tests-beside-source.test.ts`: no tracked path sits in a `__tests__` folder; a suite is beside its module, shared test code in `test-support/`.
+- `worker-preview.test.ts`: the Preview workflow's script, run against a stub of GitHub and Cloudflare: it reads back only the bot's comment, every page of the environment PRs share, and reports a Preview gone only once it is.
 
 Every exception table — `ALLOWED_EXPORTS`, `NOT_DEMOED`,
 `dispatchedIn`, `elsewhere`, `ELSEWHERE`,

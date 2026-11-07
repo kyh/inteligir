@@ -16,7 +16,7 @@
 # the second the token of the inteligir-preview AI Gateway, which holds the preview Anthropic
 # workspace's own key, never production's; the deploy names that gateway's account by
 # CLOUDFLARE_ACCOUNT_ID (apps/web/cloudflare.config.ts)
-# (wrangler, as cf has no preview secret or delete command yet)
+# (wrangler, as cf has no preview secret command yet)
 name: Preview
 
 on:
@@ -163,18 +163,10 @@ jobs:
       # the base branch: pull_request_target must never run the PR's code
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
-        with:
-          runtime: node@24
-          cache: true
-
-      # a PR that never went green never had a Preview, so a miss is not a failure
+      # the script deletes and then reports, so a delete that fails reddens this job with the PR
+      # still saying Ready, and rerunning it is the retry
       - name: Delete preview
-        working-directory: apps/web
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm exec cf previews delete "pr-$PR_NUMBER" --worker inteligir-web --force || true
-
-      - name: Report deleted
         run: node .github/scripts/worker-preview.mjs close inteligir-web

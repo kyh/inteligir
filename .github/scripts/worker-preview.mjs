@@ -3,6 +3,8 @@
 //   node .github/scripts/worker-preview.mjs report <project> <building|ready|error> [url]
 //   node .github/scripts/worker-preview.mjs close <project>...
 //
+// `close` deletes each project's Preview before it reports it gone. A project is a Worker's name.
+//
 // Two surfaces, both keyed by project so one PR can carry several Workers:
 // - ONE sticky PR comment, a table with a row per project. The rows live as JSON in a hidden
 //   marker inside the comment, so a report rewrites its own row and leaves the others alone.
@@ -11,12 +13,18 @@
 //   than through a job's `environment:`, because under workflow_run that would record the
 //   default branch's commit and never reach the PR.
 //
-// Env: GITHUB_TOKEN, GITHUB_REPOSITORY, PR_NUMBER; `report` also needs HEAD_SHA and RUN_URL.
-// No dependencies: Node's fetch against the REST API.
+// Env: GITHUB_TOKEN, GITHUB_REPOSITORY, PR_NUMBER; `report` also needs HEAD_SHA and RUN_URL, and
+// `close` CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
+// No dependencies: Node's fetch against the REST APIs.
 
 const MARKER = "<!-- worker-previews -->";
+// who GITHUB_TOKEN comments as. Anyone can comment on a public repo, so only this author's marker
+// is the sticky comment, and only its state is read back.
+const BOT = "github-actions[bot]";
 const STATE = /<!-- worker-previews-state:(?<rows>[A-Za-z0-9+/=]*) -->/u;
 const api = `${process.env.GITHUB_API_URL ?? "https://api.github.com"}/repos/${process.env.GITHUB_REPOSITORY}`;
+const cloudflareApi = process.env.CLOUDFLARE_API_BASE_URL ?? "https://api.cloudflare.com/client/v4";
+const PAGE_SIZE = 100;
 
 const env = (name) => {
   const value = process.env[name];
@@ -43,6 +51,17 @@ const gh = async (method, path, body) => {
     throw new Error(`${method} ${path}: ${response.status} ${await response.text()}`);
   }
   return response.status === 204 ? null : await response.json();
+};
+
+const ghRows = async function* ghRows(path) {
+  const separator = path.includes("?") ? "&" : "?";
+  for (let page = 1; ; page += 1) {
+    const rows = await gh("GET", `${path}${separator}per_page=${PAGE_SIZE}&page=${page}`);
+    yield* rows;
+    if (rows.length < PAGE_SIZE) {
+      return;
+    }
+  }
 };
 
 const environmentOf = (project) => `Preview – ${project}`;
@@ -92,11 +111,9 @@ const render = (rows) => {
 };
 
 const findComment = async (pr) => {
-  for (let page = 1; ; page += 1) {
-    const comments = await gh("GET", `/issues/${pr}/comments?per_page=100&page=${page}`);
-    const found = comments.find((comment) => comment.body?.startsWith(MARKER));
-    if (found || comments.length < 100) {
-      return found;
+  for await (const comment of ghRows(`/issues/${pr}/comments`)) {
+    if (comment.user?.login === BOT && comment.body?.startsWith(MARKER)) {
+      return comment;
     }
   }
 };
@@ -118,8 +135,13 @@ const upsertRows = async (pr, update) => {
 // ref is the exact commit: a branch ref would resolve to whatever the branch holds by now.
 const deploymentsOf = async (project, pr) => {
   const environment = encodeURIComponent(environmentOf(project));
-  const deployments = await gh("GET", `/deployments?environment=${environment}&per_page=100`);
-  return deployments.filter((deployment) => String(deployment.payload?.pr) === pr);
+  const deployments = [];
+  for await (const deployment of ghRows(`/deployments?environment=${environment}`)) {
+    if (String(deployment.payload?.pr) === pr) {
+      deployments.push(deployment);
+    }
+  }
+  return deployments;
 };
 
 const deploymentFor = async (project, pr, sha) => {
@@ -170,9 +192,24 @@ const report = async (project, state, url) => {
   });
 };
 
+// a PR that never went green never had a Preview, so a 404 leaves nothing to do. Any other refusal
+// throws before a surface says the Preview is gone, since nothing comes back to retry it. cf's own
+// delete exits 1 on a 404 and on an expired token alike.
+const deletePreview = async (project, pr) => {
+  const path = `/accounts/${env("CLOUDFLARE_ACCOUNT_ID")}/workers/workers/${project}/previews/pr-${pr}`;
+  const response = await fetch(`${cloudflareApi}${path}`, {
+    headers: { authorization: `Bearer ${env("CLOUDFLARE_API_TOKEN")}` },
+    method: "DELETE",
+  });
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`DELETE ${path}: ${response.status} ${await response.text()}`);
+  }
+};
+
 const close = async (projects) => {
   const pr = env("PR_NUMBER");
   for (const project of projects) {
+    await deletePreview(project, pr);
     await deactivate(await deploymentsOf(project, pr));
   }
   await upsertRows(pr, (rows) => {
