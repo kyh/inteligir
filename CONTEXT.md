@@ -140,8 +140,9 @@ note as `.md`, and WIDER than what a link may leave off: `.md` alone, so a
 whose `kind:` is missing or unknown is one, its filename its title, with no
 slug layer.
 The name an export files an item under follows one rule,
-`@repo/notes/items/item-name`, whatever its kind: it may not hold `[` or `]`,
-which would end a link to it.
+`@repo/notes/items/item-name`, whatever its kind: a title is repaired into a
+name every disk takes, never refused, and its `[` and `]`, which would end a
+link to it, become `(` and `)`.
 
 **line** — a line's content EXCLUDES its terminator, whichever flavor (`\r\n`,
 `\r`, `\n`), stated once in `@repo/notes`' `text/source-lines`. A second reading
