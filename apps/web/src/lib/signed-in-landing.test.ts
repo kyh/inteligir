@@ -29,10 +29,10 @@ vi.hoisted(() => {
 
 const CONSENT = "/connect/authorize?client_id=claude";
 
-const open = async (path: string) => {
+const open = async (path: string, { isServer = false } = {}) => {
   const router = createRouter({
     history: createMemoryHistory({ initialEntries: [path] }),
-    isServer: false,
+    isServer,
     origin: "http://localhost",
     routeTree,
   });
@@ -83,6 +83,16 @@ describe("a session with nowhere to come back to", () => {
       expect(loads).toStrictEqual([LIBRARY_PAGE_PATH]);
     },
   );
+});
+
+describe("bare /app on a browser's first request", () => {
+  it("is the server's own redirect to the library", async () => {
+    const { _serverResult: answer } = await open("/app", { isServer: true });
+    expect(answer?.type).toBe("redirect");
+    expect(answer?.type === "redirect" && answer.redirect.headers.get("Location")).toBe(
+      LIBRARY_PAGE_PATH,
+    );
+  });
 });
 
 describe("a session with a way back", () => {
