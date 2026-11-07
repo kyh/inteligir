@@ -28,7 +28,14 @@ import {
   OBSIDIAN_VAULT,
   zipOf,
 } from "../test-support/library-files";
-import { cellOf, inCell, newAccountId, paragraph } from "../test-support/library-cell";
+import {
+  cellOf,
+  inCell,
+  landedValue,
+  newAccountId,
+  paragraph,
+  SYSTEM,
+} from "../test-support/library-cell";
 import { readZipEntries, readZipEntry } from "../zip/zip-read";
 import type { ByteSource } from "../zip/zip-read";
 import { EXPORT_KEEP_MS, EXPORT_LIMITS, exportKey, runExports } from "./cell-exports";
@@ -36,6 +43,8 @@ import type { ExportLimits } from "./cell-exports";
 import { openCellLibrary } from "./cell-library";
 
 const LINK = "https://pages.example/reading";
+
+const encoder = new TextEncoder();
 
 // an account holding the small Obsidian vault, imported, beside a saved link the cloud read: its article,
 // its cover, and a highlight placed in the article
@@ -253,6 +262,70 @@ describe("an export", () => {
       expect(link?.files.map(([role]) => role)).toStrictEqual(["cover"]);
       expect(before.highlights).toHaveLength(2);
       await expect(summaryOf(into)).resolves.toStrictEqual(before);
+    },
+  );
+
+  it(
+    "keeps a file under any name, one that reads as a note or that a dot hides among them",
+    { timeout: 30_000 },
+    async () => {
+      const from = newAccountId();
+      await inCell(cellOf(from), async (state) => {
+        const library = openCellLibrary(state, env);
+        const client = libraryIn(state, from, library);
+        const note = await client.items.createNote({ markdown: "A note.", title: "Holder" });
+        for (const [name, mime] of [
+          ["notes.txt", "text/plain"],
+          ["readme.md", "text/markdown"],
+          [".env", "application/octet-stream"],
+          [".hidden.png", "image/png"],
+        ] as const) {
+          const bytes = encoder.encode(`the bytes of ${name}`);
+          const sha = await uploadedFile(library, from, { bytes, mime });
+          await client.items.createFile({
+            folderId: null,
+            id: library.ids.item(),
+            name,
+            savedAt: Date.UTC(2026, 9, 1),
+            sha,
+            tags: [],
+          });
+        }
+        const sha = await uploadedFile(library, from, {
+          bytes: encoder.encode("embedded in a note"),
+          mime: "text/plain",
+        });
+        landedValue(
+          library.write(SYSTEM, {
+            itemId: note.item.id,
+            ops: [
+              {
+                block: { children: [{ text: "" }], id: "card", name: "log.txt", sha, type: "file" },
+                op: "insert",
+                ord: "a5",
+                section: "note",
+              },
+            ],
+          }),
+        );
+      });
+      const { export: written } = await exported(from);
+      const zip = await zipIn(from, written.id);
+      const into = newAccountId();
+      await expect(imported(into, zip)).resolves.toMatchObject({
+        added: 5,
+        skipped: 0,
+        state: "done",
+        unreadable: 0,
+      });
+      await expect(summaryOf(into)).resolves.toStrictEqual(await summaryOf(from));
+      const names = await inCell(cellOf(into), (state) =>
+        state.storage.sql
+          .exec("SELECT original_name AS name FROM items WHERE original_name IS NOT NULL")
+          .toArray()
+          .map((row) => row.name),
+      );
+      expect(names.toSorted()).toStrictEqual([".env", ".hidden.png", "notes.txt", "readme.md"]);
     },
   );
 

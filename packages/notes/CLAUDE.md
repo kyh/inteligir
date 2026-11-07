@@ -153,7 +153,9 @@ node is rather than discriminating structurally at each visit.
   private `.md` rule in a reader (it leaves out every `.txt` note and disagrees
   on a name once it is not lowercase). What any other file is in the library
   is `fileKindOf` (`@repo/notes/items/item-kind`), and what a doc is as an item
-  is its `kind`: one answer each, for every reader.
+  is its `kind`: one answer each, for every reader. A kept file whose own name
+  would read as a doc or a dot-entry stands in `assets/<16 hex>/`, its bytes'
+  folder (`bytesFolderPath`), which an import reads as a file by that shape.
 
 - **THE DIALECT'S GRAMMAR IS THE EDITOR'S OWN, AND IT IS TOTAL.** Every reader
   of markdown, the codec, an import and the editor alike, parses through one

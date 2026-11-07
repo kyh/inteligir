@@ -1,6 +1,7 @@
 // What an item is, spelled once. Parser-free on purpose: the contract validates against these and
 // loads in every client, so this module reaches only the path grammars, never yaml or remark.
 
+import { DEFAULT_ATTACHMENTS_FOLDER } from "../knowledge/asset-name";
 import { isDocPath, isDotEntryPath } from "../knowledge/doc-file";
 import { extnamePath } from "../knowledge/folder-path";
 
@@ -84,6 +85,19 @@ const CONTENT_ADDRESS_HEX_CHARS = 16;
 // devices keeping the same bytes write one file
 export const contentAddressedName = (sha256Hex: string, extension: string): string =>
   `${sha256Hex.slice(0, CONTENT_ADDRESS_HEX_CHARS)}.${extension}`;
+
+// a file an export cannot write under its own name in `assets/`, because another file holds that
+// name or an import would read that path as a note or pass it over: a folder of its bytes, which
+// an import reads as the file it is, whatever its name says
+export const bytesFolderPath = (sha256Hex: string, name: string): string =>
+  `${DEFAULT_ATTACHMENTS_FOLDER}/${sha256Hex.slice(0, CONTENT_ADDRESS_HEX_CHARS)}/${name}`;
+
+const BYTES_FOLDER_PATH = new RegExp(
+  `^${DEFAULT_ATTACHMENTS_FOLDER}/[0-9a-f]{${String(CONTENT_ADDRESS_HEX_CHARS)}}/[^/]+$`,
+  "u",
+);
+
+export const isBytesFolderPath = (path: string): boolean => BYTES_FOLDER_PATH.test(path);
 
 // the library's filing rules, which the agent reads; hidden from the grid
 export const LIBRARY_RULES_PATH = "AGENTS.md";

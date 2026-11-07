@@ -9,7 +9,13 @@
 // apart from every item, and a `.canvas` or a `.base` is always an item, never an attachment.
 
 import { annotationsStoreItemId } from "@repo/notes/annotations/store-schema";
-import { COVERS_DIR, fileKindOf, LIBRARY_RULES_PATH, PAGES_DIR } from "@repo/notes/items/item-kind";
+import {
+  COVERS_DIR,
+  fileKindOf,
+  isBytesFolderPath,
+  LIBRARY_RULES_PATH,
+  PAGES_DIR,
+} from "@repo/notes/items/item-kind";
 import type { FileKind } from "@repo/notes/items/item-kind";
 import { urlKey } from "@repo/notes/items/item-url";
 import { docStem, isDocPath, isDotEntryPath } from "@repo/notes/knowledge/doc-file";
@@ -41,6 +47,9 @@ export const importPathKind = (raw: string): ImportPathKind => {
   const path = normalizePath(raw);
   if (annotationsStoreItemId(path) !== null) {
     return "store";
+  }
+  if (isBytesFolderPath(path)) {
+    return "file";
   }
   if (path === "" || isDotEntryPath(path)) {
     return "skipped";
@@ -175,7 +184,9 @@ export const planImport = (entries: readonly ImportEntry[], ids: PlanIds): Impor
         break;
       }
       case "file": {
-        files.push({ kind: fileKindOf(path) ?? "file", path, sha: entry.sha });
+        // a name's leading dot hides it, and says nothing of what the file is
+        const name = basenamePath(path).replace(/^\.+/u, "");
+        files.push({ kind: fileKindOf(name) ?? "file", path, sha: entry.sha });
         break;
       }
       case "doc": {

@@ -3,7 +3,8 @@
 // highlights' store under `.inteligir/annotations/`, and every file it holds once under `assets/`
 // (a saved link's cover under `assets/covers/` and its page copy under `assets/pages/`, where an
 // import looks for them). A file is written under the name it was saved under, so a `.canvas`
-// stays one; only bytes no name came with take an extension from their media type. A link is
+// stays one, in a folder of its bytes where that name alone would read as a note or be passed over;
+// only bytes no name came with take an extension from their media type. A link is
 // written by the shortest target that resolves back to its item among the exported files
 // (`wikiTargetForPath`), so the folder reads back into the same library.
 //
@@ -15,6 +16,7 @@
 
 import { annotationsStorePath } from "@repo/notes/annotations/store-schema";
 import {
+  bytesFolderPath,
   contentAddressedName,
   COVERS_DIR,
   LIBRARY_RULES_PATH,
@@ -24,8 +26,9 @@ import { itemNameFromTitle } from "@repo/notes/items/item-name";
 import { DEFAULT_ATTACHMENTS_FOLDER, freeAssetPathWhere } from "@repo/notes/knowledge/asset-name";
 import { docStem, freePath, freePathFrom } from "@repo/notes/knowledge/doc-file";
 import { buildResolver, wikiTargetForPath } from "@repo/notes/knowledge/link-resolve";
-import { joinPath, pathCollisionKey } from "@repo/notes/knowledge/folder-path";
+import { basenamePath, joinPath, pathCollisionKey } from "@repo/notes/knowledge/folder-path";
 
+import { importPathKind } from "./import-plan";
 import { exportItem } from "./item-markdown";
 import type { ExportItem, HeldFile } from "./item-markdown";
 import type { WrittenFile } from "./write-blocks";
@@ -209,12 +212,13 @@ const filePlaces = (ports: ExportDocPorts, title: string) => {
     store.place(key, { path, sha });
     return path;
   };
+  // a path an import would read as a note or pass over gives way to a folder of the file's bytes
+  const readable = (sha: string, path: string): string =>
+    importPathKind(path) === "file" ? path : bytesFolderPath(sha, basenamePath(path));
   // an asset by its own name, under a folder of its bytes when another file holds that name
   const named = (sha: string, name: string): string => {
     const plain = joinPath(DEFAULT_ATTACHMENTS_FOLDER, name);
-    return isTaken(store)(plain)
-      ? joinPath(DEFAULT_ATTACHMENTS_FOLDER, `${sha.slice(0, 16)}/${name}`)
-      : plain;
+    return isTaken(store)(plain) ? bytesFolderPath(sha, name) : readable(sha, plain);
   };
   const byName = (sha: string, name: string): string =>
     assign(`named:${sha}:${name}`, sha, () => named(sha, name));
@@ -222,10 +226,13 @@ const filePlaces = (ports: ExportDocPorts, title: string) => {
     body: (file: WrittenFile): string =>
       file.name === null
         ? assign(`body:${file.sha}`, file.sha, () =>
-            contentAddressed(
-              DEFAULT_ATTACHMENTS_FOLDER,
+            readable(
               file.sha,
-              extensionOf(mediaType(file.sha)),
+              contentAddressed(
+                DEFAULT_ATTACHMENTS_FOLDER,
+                file.sha,
+                extensionOf(mediaType(file.sha)),
+              ),
             ),
           )
         : byName(file.sha, file.name),
@@ -243,10 +250,13 @@ const filePlaces = (ports: ExportDocPorts, title: string) => {
         case "original": {
           return file.name === null
             ? assign(`original:${sha}`, sha, () =>
-                freeAssetPathWhere(
-                  DEFAULT_ATTACHMENTS_FOLDER,
-                  `${title}.${extensionOf(mediaType(sha))}`,
-                  isTaken(store),
+                readable(
+                  sha,
+                  freeAssetPathWhere(
+                    DEFAULT_ATTACHMENTS_FOLDER,
+                    `${title}.${extensionOf(mediaType(sha))}`,
+                    isTaken(store),
+                  ),
                 ),
               )
             : byName(sha, file.name);
