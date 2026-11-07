@@ -410,7 +410,7 @@ describe("pulling the library", () => {
       if (first.kind !== "changes") {
         throw new Error("a fresh replica pulls from the start");
       }
-      expect(first.head).toBe(30);
+      expect(first.upto).toBe(30);
       expect(first.more).toBe(false);
       expect(first.changes.map((change) => change.id).toSorted()).toStrictEqual(ids.toSorted());
       for (const change of first.changes) {
