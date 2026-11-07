@@ -18,8 +18,8 @@ const MiB = 1024 * 1024;
 // edge; the cloud keeps it as the site served it, within coverBytes, and each device draws its own
 // thumbnail from it, the spec's fallback, taken unmeasured over a wasm decoder: a decoded picture
 // is four bytes a pixel (48 MB for 4000 x 3000) in an isolate whose heap the reading already uses.
-// So no device decodes past coverMaxPixels, whatever the file's size, since a few bytes can name a
-// bitmap of gigabytes; the cap clears the 48-megapixel photo an iPhone takes
+// So no cover is kept or drawn past coverMaxPixels, whatever the file's size, since a few bytes can
+// name a bitmap of gigabytes; the cap clears the 48-megapixel photo an iPhone takes
 export const FILL_LIMITS = {
   articleBytes: 192 * 1024,
   coverBytes: 10 * MiB,

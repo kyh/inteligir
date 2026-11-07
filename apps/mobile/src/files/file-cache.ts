@@ -6,9 +6,9 @@
 // staged, until the write that names it lands (the engine's StagedBlobs), draws from there
 // meanwhile, and is kept once it lands, so the phone never downloads what it sent. A card's cover
 // over 512 KB draws from a thumbnail made once, in a format that keeps a transparent cover's
-// transparency. A cover is drawn whole only when its header says it is small; one past what a phone
-// may decode, or whose thumbnail could not be made, shows the card's placeholder, and is not tried
-// again this session.
+// transparency. A cover is drawn whole only when it is a small file whose header names its size;
+// one past what a phone may decode, or whose thumbnail could not be made, shows the card's
+// placeholder, and is not tried again this session.
 //
 // Every landing in a folder or the index runs under one lock with the sign-in's clear, and checks
 // that no clear came between its download and its landing, so a file of an account this phone

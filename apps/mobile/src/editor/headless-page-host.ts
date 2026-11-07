@@ -37,6 +37,7 @@ export interface HeadlessPageHost {
   reload: () => void;
 }
 
+// past this the page has wedged, and only a reload frees the jobs behind it
 const JOB_TIMEOUT_MS = 30_000;
 
 const PAGE_GONE = "the headless page went away before it answered";

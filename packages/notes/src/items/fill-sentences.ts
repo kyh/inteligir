@@ -70,7 +70,7 @@ const STATUS_REASONS: ReadonlyMap<number, string> = new Map([
 // a site saying it is busy, which a later try may get past
 const TRANSIENT_STATUSES: ReadonlySet<number> = new Set([429, 503]);
 
-// a status no page is read from (anything outside 200 to 299), as every device says it
+// a status no page is read from (anything outside 200 to 299)
 export const statusFailure = (status: number): FetchFailure => ({
   kind: "status",
   reason: STATUS_REASONS.get(status) ?? "an error",

@@ -121,8 +121,8 @@ file over 512 KB lists from a 320 px thumbnail made once. A picture past what a
 phone may decode shows the card's placeholder. A screen waiting on a file it
 could not reach gets it once the library answers again
 (`src/files/watch-file.ts`). An upload whose write landed is kept as a fetched
-file is. A screen draws a file as an item's own,
-its card's cover or its viewer's original, and the item page draws one a note
+file is. A screen draws a file as an item's own, its card's cover or its
+viewer's original, and the item page draws one a note
 names from the cache over its bridge (`readFile`), as the type it was kept or
 served as, and keeps one pasted into the text through the replica
 (`keepFile`). A sign-out moves the cache's generation,
@@ -136,7 +136,8 @@ page is fetched by the phone, each redirect judged by its spelling
 (`src/items/page-fetch.ts`), read in the headless page by the library's own
 reader and saved read, with its cover; a page it cannot read now, offline
 among them, is saved as its link, which the cloud reads once it lands. Words
-shared beside the link are kept either way, as the item's note.
+shared beside the link are kept either way: as the item's note, or as an
+unread link's title when they are short enough to name it.
 
 ## The agent
 

@@ -28,6 +28,7 @@ export type PageFetch = (
 
 const REQUEST_TIMEOUT_MS = 20_000;
 
+// the walk says why it stopped, which nothing here reads
 const REFUSED: PageHop = { refused: { kind: "refused", refusal: "reserved" } };
 
 // a hop the phone asks: on the web, over https to a public address, and in private space only

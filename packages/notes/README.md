@@ -106,6 +106,8 @@ src/
                        # of a page a reader reads and which picture is its
                        # cover, the sentence each failure is said in, a
                        # file's type by its bytes, and a page's embed
+    page-fetch.ts      # a page's redirects and capped read, over each host's
+                       # own hop rule, fetch and deadline
   annotations/         # the %%i:id:start/end%% markers: highlights, notes
                        # and replies, the store schema, the passage text a
                        # person reads, where a quote's markers land, and the
