@@ -75,10 +75,12 @@ export const authorizeUrl = (
   return url.toString();
 };
 
+// the consent form's hidden fields, as a browser posts them back
+const consentFieldsSchema = z.object({ account: z.string().min(1), handle: z.string().min(1) });
+
 export interface ConsentShown {
   readonly html: string;
-  // the form's hidden fields, as a browser posts them back
-  readonly fields: Readonly<Record<string, string>>;
+  readonly fields: z.infer<typeof consentFieldsSchema>;
   // the person's session and the cookie binding the form to this browser
   readonly cookie: string;
   readonly response: Response;
@@ -89,9 +91,11 @@ export const showConsent = async (cookie: string, url: string): Promise<ConsentS
   const response = await workerFetch(url, { headers: { cookie } });
   const html = await response.text();
   expect(response.status, html).toBe(200);
-  const fields = Object.fromEntries(
-    [...html.matchAll(/type="hidden" name="(?<name>[^"]+)" value="(?<value>[^"]+)"/gu)].map(
-      (field) => [field.groups?.name, field.groups?.value],
+  const fields = consentFieldsSchema.parse(
+    Object.fromEntries(
+      [...html.matchAll(/type="hidden" name="(?<name>[^"]+)" value="(?<value>[^"]+)"/gu)].map(
+        (field) => [field.groups?.name, field.groups?.value],
+      ),
     ),
   );
   return { cookie: `${cookie}; ${cookieHeaderOf(response)}`, fields, html, response };

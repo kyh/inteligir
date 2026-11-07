@@ -29,7 +29,7 @@ import { accountBlobPrefix, blobKey } from "./cell-blobs";
 import { openCellLibrary, scheduleAlarm, settleCommit } from "./cell-library";
 import type { CellRefusal } from "./cell-refusal";
 import { cellAccountId } from "./library-cell";
-import { PRINCIPAL_HEADER, principalHeaderValue } from "./library-principal";
+import { PRINCIPAL_HEADER, principalFromHeader, principalHeaderValue } from "./library-principal";
 import type { NamedPrincipal } from "./library-principal";
 import { V1_LIBRARY_RPC_PATH } from "./library-rpc";
 
@@ -131,6 +131,15 @@ describe("the library cell", () => {
     await expect(status(`${V1_LIBRARY_RPC_PATH}/items/createNote`, assistant)).resolves.toBe(403);
     await expect(status(CONNECTOR_PATH, principal(accountId))).resolves.toBe(403);
     await expect(inCell(stub, itemCount)).resolves.toBe(0);
+  });
+
+  it("leaves a limit to an assistant's grant, so no device reads as read-only", () => {
+    const device = principal(newAccountId());
+    const claimed = (raw: unknown): NamedPrincipal | null =>
+      principalFromHeader(encodeURIComponent(JSON.stringify(raw)));
+    expect(claimed(device)).toStrictEqual(device);
+    expect(claimed({ ...device, scopes: ["library:read"] })).toBeNull();
+    expect(claimed({ ...device, actor: { ...device.actor, scopes: ["library:read"] } })).toBeNull();
   });
 
   it("seals a quiet set when its alarm runs, and sets the next one for the prune", async () => {

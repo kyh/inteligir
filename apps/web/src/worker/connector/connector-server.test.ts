@@ -63,6 +63,23 @@ const createNoteCall = (id: number) => ({
   params: { arguments: { markdown: `Note ${String(id)}.` }, name: "create_note" },
 });
 
+// a body that arrives in parts, each a chunk of its own to whatever reads it
+const inParts = (...parts: readonly string[]): ReadableStream<Uint8Array> => {
+  const encoder = new TextEncoder();
+  const left = [...parts];
+  return new ReadableStream({
+    pull: async (controller) => {
+      await scheduler.wait(10);
+      const part = left.shift();
+      if (part === undefined) {
+        controller.close();
+        return;
+      }
+      controller.enqueue(encoder.encode(part));
+    },
+  });
+};
+
 const assistantFor = async (email: string, readOnly = false): Promise<Client> => {
   const { cookie } = await signUpUser(email);
   const minted = await connectAssistant(cookie, { readOnly });
@@ -187,9 +204,8 @@ describe("the connector's tools", () => {
   it("takes one message a request, so a grant's budget counts every call", async () => {
     const { cookie } = await signUpUser("tools-batch@example.test");
     const minted = await connectAssistant(cookie);
-    const batch = JSON.stringify([createNoteCall(1), createNoteCall(2)]);
-    for (const body of [batch, ` \n${batch}`]) {
-      const refused = await workerFetch(CONNECTOR_URL, {
+    const send = async (body: BodyInit): Promise<Response> =>
+      await workerFetch(CONNECTOR_URL, {
         body,
         headers: {
           accept: "application/json, text/event-stream",
@@ -198,17 +214,25 @@ describe("the connector's tools", () => {
         },
         method: "POST",
       });
+    const batch = JSON.stringify([createNoteCall(1), createNoteCall(2)]);
+    for (const body of [batch, ` \n${batch}`, inParts(" \n", batch)]) {
+      const refused = await send(body);
       const refusal = await refused.text();
       expect(refused.status, refusal).toBe(400);
       expect(JSON.parse(refusal)).toMatchObject({ error: { code: -32_600 }, id: null });
     }
+
+    // one message in parts still reaches the handler whole, past what the check read of it
+    const single = JSON.stringify(createNoteCall(3));
+    const landed = await send(inParts(single.slice(0, 20), single.slice(20)));
+    await expect(landed.text()).resolves.toContain("Note 3.");
 
     const client = await connectorClient(minted.access_token);
     const found = await structured(client, z.object({ hits: z.array(z.unknown()) }), {
       arguments: { query: "Note" },
       name: "search_library",
     });
-    expect(found.hits).toStrictEqual([]);
+    expect(found.hits).toHaveLength(1);
     await client.close();
   });
 

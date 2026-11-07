@@ -119,7 +119,7 @@ const opensBatch = async (request: Request): Promise<boolean> => {
 };
 
 // the Worker spends a grant's budget on the request, so the handler running each message of a batch
-// would make one slot a hundred calls; no revision since 2025-03-26 has batches
+// would make one slot a hundred calls; no revision after 2025-03-26 has batches
 const batchRefused = (): Response =>
   Response.json(
     {
