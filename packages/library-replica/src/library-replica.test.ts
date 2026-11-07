@@ -196,8 +196,9 @@ describe("the replica's outbox", () => {
     expect(cellText(cell, id, "p1")).toBe("draft, edited");
     expect(again.replica.status()).toMatchObject({ failure: null, unsent: 0 });
     expect(again.replica.row(id)).toMatchObject({ title: "Offline", unsent: false });
-    const item = await again.replica.item(id);
-    expect(item?.seq).toBe(cell.item(id)?.seq);
+    await expect(again.sql.all("SELECT seq FROM items WHERE id = ?", [id])).resolves.toStrictEqual([
+      { seq: cell.item(id)?.seq },
+    ]);
   });
 
   it("sends three offline saves of one item as ONE write on the first base", async () => {
