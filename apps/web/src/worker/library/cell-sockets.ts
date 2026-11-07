@@ -1,9 +1,9 @@
 // The account's live sockets, held by its library cell under the hibernation API
 // (https://developers.cloudflare.com/durable-objects/best-practices/websockets/): each accepted
-// with `ctx.acceptWebSocket` under its holder's tag, the holder kept in its attachment, a ping
-// answered by the runtime without waking the cell, and every frame sent to the sockets
-// `getWebSockets()` lists that are still open. Nothing the cell needs later lives in memory, so a
-// hibernated or evicted cell finds every socket again.
+// with `ctx.acceptWebSocket` under its holder's tag, a ping answered by the runtime without waking
+// the cell, and every frame sent to the sockets `getWebSockets()` lists that are still open.
+// Nothing the cell needs later lives in memory, so a hibernated or evicted cell finds every socket
+// again.
 
 import { SOCKET_REVOKED_CLOSE_CODE } from "@repo/contract/cloud/library/library-socket";
 import type { LibrarySocketFrame } from "@repo/contract/cloud/library/library-socket";
@@ -41,20 +41,15 @@ export const holderFromHeader = (value: string | null): SocketHolder | null => {
 // a tag is at most 256 characters, and a socket holds at most 10
 const holderTag = (holder: SocketHolder): string => holderHeaderValue(holder);
 
-const attachmentSchema = z.object({ holder: holderSchema });
-
 export const acceptSocket = (ctx: DurableObjectState, holder: SocketHolder): Response => {
   const pair = new WebSocketPair();
   const [client, server] = [pair[0], pair[1]];
   ctx.acceptWebSocket(server, [holderTag(holder)]);
-  server.serializeAttachment(attachmentSchema.parse({ holder }));
   return new Response(null, { status: 101, webSocket: client });
 };
 
-export const socketHolder = (socket: WebSocket): SocketHolder | null => {
-  const attachment = attachmentSchema.safeParse(socket.deserializeAttachment());
-  return attachment.success ? attachment.data.holder : null;
-};
+export const socketHolder = (ctx: DurableObjectState, socket: WebSocket): SocketHolder | null =>
+  holderFromHeader(ctx.getTags(socket)[0] ?? null);
 
 // a closing socket still lists until it closes, and one torn down between the listing and the send
 // throws: neither keeps the frame from the rest

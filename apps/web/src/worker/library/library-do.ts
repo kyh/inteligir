@@ -213,11 +213,10 @@ export class LibraryDO extends DurableObject<Env> {
     // a frame is no request: a newer app must not lose its socket over one this build predates
   }
 
-  // oxlint-disable-next-line eslint/class-methods-use-this -- DurableObject declares this hook as an instance method
   override webSocketError(socket: WebSocket, cause: unknown): void {
     console.warn({
       event: "library-socket-error",
-      holder: socketHolder(socket)?.kind ?? null,
+      holder: socketHolder(this.ctx, socket)?.kind ?? null,
       ...errorFields(cause),
     });
   }
