@@ -98,12 +98,13 @@ node is rather than discriminating structurally at each visit.
   THEM.** An import, and the codec reading a file back, take a link's, a
   video's or a note's facts from its frontmatter (`kind`, `url`, `site`,
   `author`, `published`, `saved`, `fetched`, `fetch-error`, `description`,
-  beside `id`, `tags` and `aliases`) through `readItemFacts`
+  `lang`, beside `id`, `tags` and `aliases`) through `readItemFacts`
   (`@repo/notes/items/item-frontmatter`), into the item's fields: a missing or
   unknown `kind` is a note, and an export writes a note none. The filename is
-  the title (`itemNameFromTitle` in `@repo/notes/items/item-name`). Rejected:
-  a `title:` key (two names that drift); a frontmatter block kept in the item
-  (its keys are the item's fields).
+  the title (`itemNameFromTitle` in `@repo/notes/items/item-name`), and a
+  `title:` key is written only for a title the file's stem cannot carry, one
+  its name mended or numbered, so an export reads back as the item. Rejected:
+  a frontmatter block kept in the item (its keys are the item's fields).
 
 - **A URL HAS ONE KEY, COMPUTED WITHOUT THE PLATFORM'S URL.**
   `@repo/notes/items/item-url` parses by the RFC 3986 appendix-B regex. The key

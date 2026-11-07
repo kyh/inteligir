@@ -22,7 +22,7 @@ import {
 } from "@repo/notes/items/item-kind";
 import { itemNameFromTitle } from "@repo/notes/items/item-name";
 import { DEFAULT_ATTACHMENTS_FOLDER, freeAssetPathWhere } from "@repo/notes/knowledge/asset-name";
-import { freePath, freePathFrom } from "@repo/notes/knowledge/doc-file";
+import { docStem, freePath, freePathFrom } from "@repo/notes/knowledge/doc-file";
 import { buildResolver, wikiTargetForPath } from "@repo/notes/knowledge/link-resolve";
 import { joinPath, pathCollisionKey } from "@repo/notes/knowledge/folder-path";
 
@@ -265,11 +265,12 @@ export const exportDoc = (
   ports: ExportDocPorts,
 ): ExportFile[] => {
   const places = filePlaces(ports, doc.name);
-  // a file's name cuts and mends what a title may hold, so a title it cannot carry is written
+  // a file's name cuts and mends what a title may hold and numbers one another file took, so a
+  // title it cannot carry is written
   const exported = exportItem(
     item,
     { held: places.held, path: places.body, target: ports.target, withIds: false },
-    doc.name === item.fields.title ? null : item.fields.title,
+    docStem(doc.path) === item.fields.title ? null : item.fields.title,
   );
   const files: ExportFile[] = [{ kind: "text", path: doc.path, text: exported.text }];
   if (exported.annotations !== null) {

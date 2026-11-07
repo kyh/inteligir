@@ -506,4 +506,21 @@ describe("export, then import, gives the library back", () => {
     expect(contentOf(second)).toStrictEqual(contentOf(first));
     expect(second.rules).toBe(first.rules);
   });
+
+  it("keeps the title of an item whose file took another spelling", () => {
+    const first = readFolder(
+      {
+        "a.md": "---\ntitle: Home\n---\nThe first.\n",
+        "b.md": "---\ntitle: Home\n---\nThe second.\n",
+        "c.md": "---\ntitle: AGENTS\n---\nNot the filing rules.\n",
+      },
+      new Map(),
+    );
+    const texts = Object.fromEntries(
+      exportOf(first).flatMap((file) => (file.kind === "text" ? [[file.path, file.text]] : [])),
+    );
+    expect(Object.keys(texts).toSorted()).toStrictEqual(["AGENTS 2.md", "Home 2.md", "Home.md"]);
+    const titles = readFolder(texts, new Map()).items.map((item) => item.fields.title);
+    expect(titles.toSorted()).toStrictEqual(["AGENTS", "Home", "Home"]);
+  });
 });
