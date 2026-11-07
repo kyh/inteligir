@@ -1,20 +1,20 @@
 import { useState } from "react";
 import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import type { ErrorComponentProps } from "@tanstack/react-router";
+import { createORPCClient } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
 
-import { readCloudCall } from "@repo/contract/cloud/client";
-import type { CloudFailure } from "@repo/contract/cloud/client";
-import {
-  DEVICE_API_PATHS,
-  listDevicesResponseSchema,
-  revokeDeviceResponseSchema,
-} from "@repo/contract/cloud/device/device-schema";
-import type { Device, RevokeDeviceRequest } from "@repo/contract/cloud/device/device-schema";
+import type { Device } from "@repo/contract/cloud/device/device-schema";
+import { refusalText } from "@repo/contract/cloud/refusal-text";
+import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
+import type { V1Client } from "@repo/contract/cloud/v1";
 import { Button } from "@repo/ui/components/button";
 
-import { AuthError, CONNECTION_FAILED } from "@/components/auth-shell";
-import { currentSession } from "@/lib/session-guard";
-import { siteConfig } from "@/lib/site-config";
+import { AuthError, CONNECTION_FAILED } from "#components/auth-shell";
+import { LibraryLink } from "#components/library-link";
+import { currentSession } from "#lib/session-guard";
+import { siteConfig } from "#lib/site-config";
+import { isOrpcError } from "@repo/contract/cloud/v1/errors";
 
 // Nothing here adds a device: a device signs in from the app with the account's own password.
 // ssr: false because everything here depends on the live session, and only the client can send
@@ -23,18 +23,23 @@ import { siteConfig } from "@/lib/site-config";
 const redirectToSignIn = (href: string) =>
   redirect({ to: "/app/sign-in", search: { next: href }, throw: true });
 
-// a session that ended since the guard read it answers the list and the revoke alike
-const isSignedOut = (failure: CloudFailure): boolean =>
-  failure.kind === "refused" && failure.code === "unauthorized";
+// the page's calls, on its session's cookie, to this origin's `account.devices`
+const account = (): V1Client["account"] =>
+  createORPCClient<V1Client>(new RPCLink({ origin: window.location.origin, url: V1_RPC_PATH }))
+    .account;
 
-const failureMessage = (failure: CloudFailure): string =>
-  failure.kind === "unreachable" ? CONNECTION_FAILED : failure.message;
+// a session that ended since the guard read it answers the list and the revoke alike
+const isSignedOut = (cause: unknown): boolean =>
+  isOrpcError(cause) && cause.defined && cause.code === "UNAUTHORIZED";
 
 const DevicesShell = ({ children }: { children: React.ReactNode }) => (
   <main className="mx-auto w-full max-w-lg px-6 py-16">
-    <Link to="/" className="mb-8 block text-sm font-medium tracking-tight">
-      {siteConfig.name}
-    </Link>
+    <div className="mb-8 flex items-baseline justify-between gap-4">
+      <Link to="/" className="text-sm font-medium tracking-tight">
+        {siteConfig.name}
+      </Link>
+      <LibraryLink className="text-sm text-muted-foreground underline underline-offset-4" />
+    </div>
     <h1 className="text-lg font-medium tracking-tight">Devices</h1>
     <p className="mt-1 text-sm text-muted-foreground">
       To add a Mac or a phone, sign in on it with this account. Revoking a device cuts it off at
@@ -53,18 +58,12 @@ const DevicesPage = () => {
   const revoke = async (deviceId: string) => {
     setRevoking(deviceId);
     setError(null);
-    const request: RevokeDeviceRequest = { deviceId };
-    const result = await readCloudCall(
-      async () =>
-        await fetch(DEVICE_API_PATHS.revoke, {
-          body: JSON.stringify(request),
-          headers: { "content-type": "application/json" },
-          method: "POST",
-        }),
-      revokeDeviceResponseSchema,
-    );
-    if (!result.ok && !isSignedOut(result.failure)) {
-      setError(failureMessage(result.failure));
+    try {
+      await account().devices.revoke({ deviceId });
+    } catch (error_) {
+      if (!isSignedOut(error_)) {
+        setError(refusalText(error_, CONNECTION_FAILED));
+      }
     }
     // a refused revoke is as likely a stale row as a fault, and a signed-out session is the
     // loader's to send to sign-in, so the list is read again either way
@@ -182,17 +181,15 @@ export const Route = createFileRoute("/app/devices")({
     }
   },
   loader: async ({ location }) => {
-    const result = await readCloudCall(
-      async () => await fetch(DEVICE_API_PATHS.list),
-      listDevicesResponseSchema,
-    );
-    if (result.ok) {
-      return result.value.devices;
+    try {
+      const { devices } = await account().devices.list();
+      return devices;
+    } catch (error) {
+      if (isSignedOut(error)) {
+        redirectToSignIn(location.href);
+      }
+      throw new Error(refusalText(error, CONNECTION_FAILED), { cause: error });
     }
-    if (isSignedOut(result.failure)) {
-      redirectToSignIn(location.href);
-    }
-    throw new Error(failureMessage(result.failure));
   },
   pendingComponent: DevicesPending,
   errorComponent: DevicesError,

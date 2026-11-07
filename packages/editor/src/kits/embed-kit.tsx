@@ -4,13 +4,7 @@ import { ElementApi, KEYS, NodeApi, PathApi } from "platejs";
 import type { TElement } from "platejs";
 import { createPlatePlugin } from "platejs/react";
 import type { PlateEditor } from "platejs/react";
-import {
-  BaseFilePlugin,
-  BaseMediaEmbedPlugin,
-  BaseVideoPlugin,
-  parseTwitterUrl,
-  parseVideoUrl,
-} from "@platejs/media";
+import { parseTwitterUrl, parseVideoUrl } from "@platejs/media";
 import { FilePlugin, MediaEmbedPlugin, VideoPlugin } from "@platejs/media/react";
 import { isImeComposing } from "@repo/ui/lib/ime";
 
@@ -19,8 +13,6 @@ import { embedTypeForUrl } from "@repo/editor/lib/embed-url";
 
 import { FileElement } from "@repo/editor/nodes/pdf-node";
 import { remoteMediaElement } from "@repo/editor/nodes/remote-media-node";
-
-export const EmbedBaseKit = [BaseVideoPlugin, BaseMediaEmbedPlugin, BaseFilePlugin];
 
 // null for a url off the web, which would read back as an image
 const embedNodeForUrl = (url: string): TElement | null => {

@@ -1,23 +1,21 @@
-// The Mac app: the shell, the node beside it and the CLI as a resource, signed, notarized when
-// <repo>/.release holds the notary key, and the release's assets in .output/bin. The release
-// material is read HERE, inside the turbo task, because turbo's strict env mode strips an
-// undeclared variable before this process starts; exporting one in the shell reaches nothing.
+// The Mac app: the shell with the library's page inside it, signed with the hardened runtime and
+// no entitlement, notarized when <repo>/.release holds the notary key, and the release's assets in
+// .output/bin: the dmg, and with the updater's key the signed update and the feed every installed
+// app reads. The release material is read HERE, inside the turbo task, because turbo's strict env
+// mode strips an undeclared variable before this process starts; exporting one in the shell
+// reaches nothing.
 //
-// `bundle.resources` and `externalBin` live in the config this writes, never in tauri.conf.json:
-// tauri-build copies both on every cargo build, so a clippy run would copy the 700 MB server, and
-// a checkout that never packaged would fail its typecheck for want of them.
+// `bundle.resources` lives in the config this writes, never in tauri.conf.json: tauri-build copies
+// it on every cargo build, so a checkout that never packaged would fail its typecheck for want of
+// the notices it names.
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { copyFile, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import manifest from "../package.json" with { type: "json" };
-import { fetchGit } from "./fetch-git.ts";
-import { fetchNode } from "./fetch-node.ts";
 import { run } from "./run.ts";
 import { writeRustNotices } from "./rust-notices.ts";
-import { signResources } from "./sign-resources.ts";
-import { stageServer } from "./stage-server.ts";
 
 const packageRoot = path.resolve(import.meta.dirname, "..");
 const repoRoot = path.resolve(packageRoot, "..", "..");
@@ -32,7 +30,8 @@ const UPDATER_ENDPOINT = `${RELEASES}/latest/download/latest.json`;
 // fixed, so the site links releases/latest/download/Inteligir-arm64.dmg with no lookup
 const DMG_NAME = "Inteligir-arm64.dmg";
 const UPDATER_ARCHIVE = "Inteligir.app.tar.gz";
-// node 24's own floor (its binary's LC_BUILD_VERSION)
+// the oldest macOS the owner's smoke runs the .app on (docs/releasing.md § 5); its WebKit runs the
+// page's ES2023
 const MINIMUM_MACOS = "13.5";
 
 const log = (line: string): void => {
@@ -114,9 +113,6 @@ if (process.platform !== "darwin") {
   throw new Error("the Mac app packs on a Mac: codesign, hdiutil and notarytool are macOS's");
 }
 
-await fetchGit();
-await fetchNode();
-
 const identity = signingIdentity();
 const signed = identity !== "-";
 const notary = signed ? notaryEnv() : null;
@@ -133,15 +129,6 @@ log(
 );
 log(updaterKey === null ? "no updater key: the app will not update itself" : "signing the update");
 
-await stageServer();
-const resourceCount = await signResources(
-  {
-    jit: path.join(packageRoot, ".output", "server"),
-    plain: path.join(packageRoot, "resources", "git"),
-  },
-  identity,
-);
-log(`signed ${resourceCount} binaries the resources carry`);
 const crateCount = await writeRustNotices(
   path.join(packageRoot, "src-tauri"),
   path.join(packageRoot, ".output", "notices", "rust-crates.txt"),
@@ -152,9 +139,7 @@ log(`noted the licences of the ${crateCount} Rust crates the shell links`);
 interface PackageConfig {
   bundle: {
     createUpdaterArtifacts: boolean;
-    externalBin: string[];
     macOS: {
-      entitlements: string;
       hardenedRuntime: boolean;
       minimumSystemVersion: string;
       signingIdentity: string;
@@ -168,26 +153,22 @@ interface PackageConfig {
 const config: PackageConfig = {
   bundle: {
     createUpdaterArtifacts: updaterKey !== null,
-    externalBin: ["binaries/node"],
     macOS: {
-      entitlements: "../resources/entitlements.mac.plist",
-      // an ad-hoc pack carries no team, so library validation would refuse its own addons
+      // the hardened runtime with no entitlement: the shell runs no JavaScript of its own (WebKit
+      // compiles the page in its own process), loads no unsigned code and is not sandboxed, so it
+      // asks for no JIT, no unsigned memory and no network grant. An ad-hoc pack carries no team,
+      // so it skips the runtime
       hardenedRuntime: signed,
       minimumSystemVersion: MINIMUM_MACOS,
       signingIdentity: identity,
     },
-    resources: {
-      "../.output/notices/": "notices/",
-      "../.output/server/": "server/",
-      "../resources/git/": "git/",
-      // not `node/`: tauri-build copies the sidecar and the resources into one target folder, where
-      // the sidecar is already a file named `node`, and a folder of that name fails the build
-      "../resources/node/": "notices/node/",
-    },
+    resources: { "../.output/notices/": "notices/" },
     targets: ["app", "dmg"],
   },
 };
-// no key, no feed: the build reports its updates disabled rather than checking one it cannot verify
+// no key, no feed: the build reports its updates disabled rather than checking one it cannot
+// verify. The private key reaches the bundler as TAURI_SIGNING_PRIVATE_KEY in its environment
+// alone, never a file the config names
 if (updaterPubkey !== null) {
   config.plugins = { updater: { endpoints: [UPDATER_ENDPOINT], pubkey: updaterPubkey } };
 }

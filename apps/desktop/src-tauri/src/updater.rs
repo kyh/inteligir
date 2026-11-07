@@ -1,7 +1,12 @@
-//! Tauri's updater makes the moves; this owns the policy. One step at a time, nothing downloads or
-//! installs without a click, a check 15 seconds after launch and every 4 minutes after, and the
-//! server stopped before the bundle is replaced, so the vault's pending commit flushes first. The
-//! state is the `UpdateState` union, which the page mirrors from the `update-state` event.
+//! Tauri's updater makes the moves; this owns the policy (`update_state.rs`). A check runs 15
+//! seconds after launch and every 4 minutes after; one that finds an update downloads it in the
+//! background, the plugin verifying its signature, and a verified download installs when the app
+//! quits, so the next launch is the new version, and nothing restarts the app under the person.
+//! Restart to Update, in the app menu and in Settings, installs it and relaunches at once. Either
+//! way out first has the page write the open item's last edit to the outbox on disk
+//! (`leaving.rs`), so a quit to install loses no edit the page held. The page holds no updater
+//! permission: it mirrors this state from the `update-state` event and asks through the shell's own
+//! commands.
 
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, SystemTime};
@@ -9,36 +14,37 @@ use std::time::{Duration, SystemTime};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::MessageDialogKind;
 use tauri_plugin_updater::{Update, UpdaterExt};
+use time::OffsetDateTime;
+use time::format_description::BorrowedFormatItem;
+use time::macros::format_description;
 
 use crate::dialogs;
-use crate::server_log::utc_stamp;
-use crate::update_state::{UpdateAction, UpdateState, UpdateStatus, failure_reason};
+use crate::update_state::{UpdateState, UpdateStatus};
 
 pub const UPDATE_STATE_EVENT: &str = "update-state";
 pub const STARTUP_DELAY: Duration = Duration::from_secs(15);
 pub const POLL_INTERVAL: Duration = Duration::from_secs(4 * 60);
 
-/// What a step holds while it runs, so two cannot run at once.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Step {
-    Check,
-    Download,
-    Install,
+const STAMP: &[BorrowedFormatItem<'_>] =
+    format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3]Z");
+
+fn now() -> String {
+    OffsetDateTime::from(SystemTime::now())
+        .format(STAMP)
+        .unwrap_or_default()
 }
 
 struct Inner {
     state: UpdateState,
-    step: Option<Step>,
-    found: Option<Update>,
-    /// The bytes a download verified, kept for the install, with the version they are.
-    downloaded: Option<(String, Vec<u8>)>,
+    /// The verified bytes of the ready update, with the update they install.
+    ready: Option<(Update, Vec<u8>)>,
 }
 
 pub struct Updates {
     inner: Mutex<Inner>,
 }
 
-/// Why a build never checks: one with no feed configured, and a shell with no bundle to replace.
+/// Why a build never checks: a shell with no bundle to replace, and one with no feed configured.
 pub fn disabled_reason(configured: bool, bundled: bool) -> Option<&'static str> {
     if !bundled {
         Some("Automatic updates are only available in the packaged app.")
@@ -49,18 +55,12 @@ pub fn disabled_reason(configured: bool, bundled: bool) -> Option<&'static str> 
     }
 }
 
-fn now() -> String {
-    utc_stamp(SystemTime::now())
-}
-
 impl Updates {
     pub fn new(current_version: &str, disabled: Option<&str>) -> Self {
         Self {
             inner: Mutex::new(Inner {
                 state: UpdateState::initial(current_version, disabled),
-                step: None,
-                found: None,
-                downloaded: None,
+                ready: None,
             }),
         }
     }
@@ -73,46 +73,24 @@ impl Updates {
         self.lock().state.clone()
     }
 
-    /// Reserves a step until the guard drops; None when another is running, which is said and
-    /// skipped.
-    fn reserve(&self, step: Step) -> Option<Running<'_>> {
-        let mut inner = self.lock();
-        if let Some(running) = inner.step {
-            println!("[updater] {step:?} skipped: {running:?} is in progress");
-            return None;
-        }
-        inner.step = Some(step);
-        Some(Running { updates: self })
-    }
-
-    /// Moves the state on and tells the page; `next` may keep what the step found beside it.
+    /// Moves the state on and tells the page; the menu follows whether an update is ready.
     fn transition(&self, app: &AppHandle, next: impl FnOnce(&mut Inner) -> UpdateState) {
-        let mut inner = self.lock();
-        let next = next(&mut inner);
-        publish(app, &mut inner, next);
-    }
-}
-
-/// A reserved step, released on whichever path the step leaves by.
-struct Running<'a> {
-    updates: &'a Updates,
-}
-
-impl Drop for Running<'_> {
-    // takes the lock, which is not reentrant: a step reserves before it locks, so every guard it
-    // takes on `Inner` is gone by the time this one drops
-    fn drop(&mut self) {
-        self.updates.lock().step = None;
-    }
-}
-
-fn publish(app: &AppHandle, inner: &mut Inner, next: UpdateState) {
-    if inner.state == next {
-        return;
-    }
-    inner.state = next;
-    if let Err(error) = app.emit(UPDATE_STATE_EVENT, &inner.state) {
-        eprintln!("[updater] could not tell the page: {error}");
+        let ready_moved = {
+            let mut inner = self.lock();
+            let next = next(&mut inner);
+            if inner.state == next {
+                return;
+            }
+            let was_ready = inner.state.installs_on_quit().is_some();
+            inner.state = next;
+            if let Err(error) = app.emit(UPDATE_STATE_EVENT, &inner.state) {
+                eprintln!("[updater] could not tell the page: {error}");
+            }
+            was_ready != inner.state.installs_on_quit().is_some()
+        };
+        if ready_moved {
+            crate::menu::rebuild(app);
+        }
     }
 }
 
@@ -120,72 +98,41 @@ fn updates(app: &AppHandle) -> tauri::State<'_, Updates> {
     app.state::<Updates>()
 }
 
+/// Asks the feed; an update it names starts downloading in the background, and the state that
+/// says so is answered at once.
 pub async fn check(app: &AppHandle, reason: &str) -> UpdateState {
     let updates = updates(app);
-    {
-        let state = updates.state();
-        if state.is_disabled() {
-            return state;
-        }
-        if matches!(
-            state.status,
-            UpdateStatus::Downloading { .. } | UpdateStatus::Downloaded { .. }
-        ) {
-            println!("[updater] check ({reason}) skipped: an update is already on its way");
-            return state;
-        }
-    }
-    let Some(_running) = updates.reserve(Step::Check) else {
+    let mut started = false;
+    updates.transition(app, |inner| {
+        started = inner.state.may_check();
+        inner.state.check_started(&now())
+    });
+    if !started {
         return updates.state();
-    };
-    updates.transition(app, |inner| inner.state.check_started(&now()));
+    }
     println!("[updater] checking for updates ({reason})");
     let found = match app.updater() {
         Ok(checker) => checker.check().await.map_err(|error| error.to_string()),
         Err(error) => Err(error.to_string()),
     };
-    updates.transition(app, |inner| {
-        let at = now();
-        match found {
-            Ok(Some(update)) => {
-                println!("[updater] update available: {}", update.version);
-                let next = inner.state.update_available(&update.version, &at);
-                inner.found = Some(update);
-                next
-            }
-            Ok(None) => inner.state.no_update(&at),
-            Err(message) => inner.state.failure(&failure_reason(&message), Some(&at)),
+    match found {
+        Ok(Some(update)) => {
+            println!(
+                "[updater] update available: {}; downloading",
+                update.version
+            );
+            updates.transition(app, |inner| inner.state.update_found(&update.version));
+            let downloading = app.clone();
+            tauri::async_runtime::spawn(async move { download(&downloading, update).await });
         }
-    });
+        Ok(None) => updates.transition(app, |inner| inner.state.no_update()),
+        Err(message) => updates.transition(app, |inner| inner.state.failure(&message)),
+    }
     updates.state()
 }
 
-/// Runs only where the button offers a download, so the two cannot disagree. Reserved before the
-/// update is read, so no check can swap `found` between the read and the download: the bytes are
-/// always the update's that install pairs them with.
-pub async fn download(app: &AppHandle) -> UpdateState {
+async fn download(app: &AppHandle, update: Update) {
     let updates = updates(app);
-    let Some(_running) = updates.reserve(Step::Download) else {
-        return updates.state();
-    };
-    let (version, update) = {
-        let mut inner = updates.lock();
-        let offered = match (inner.state.action(), &inner.found) {
-            (Some(UpdateAction::Download { version }), Some(update))
-                if update.version == version =>
-            {
-                Some((version, update.clone()))
-            }
-            _ => None,
-        };
-        let Some((version, update)) = offered else {
-            return inner.state.clone();
-        };
-        let next = inner.state.download_started(&version);
-        publish(app, &mut inner, next);
-        (version, update)
-    };
-    println!("[updater] downloading {version}");
     let mut received: u64 = 0;
     let bytes = update
         .download(
@@ -202,56 +149,49 @@ pub async fn download(app: &AppHandle) -> UpdateState {
         .await;
     updates.transition(app, |inner| match bytes {
         Ok(bytes) => {
-            println!("[updater] update downloaded: {version}");
-            inner.downloaded = Some((version.clone(), bytes));
-            inner.state.download_complete(&version)
+            println!(
+                "[updater] {} is ready: it installs when the app quits",
+                update.version
+            );
+            inner.ready = Some((update, bytes));
+            inner.state.download_complete()
         }
-        Err(error) => inner
-            .state
-            .failure(&failure_reason(&error.to_string()), None),
+        Err(error) => inner.state.failure(&error.to_string()),
     });
-    updates.state()
 }
 
-/// Stops the server, replaces the bundle, relaunches. The server is already down when an install
-/// fails, so the honest move is to say so and quit.
-pub fn install(app: &AppHandle) -> UpdateState {
+/// Installs the ready update over the bundle, if there is one; the next launch runs it.
+fn install_ready(app: &AppHandle) -> Option<Result<(), String>> {
     let updates = updates(app);
-    let (update, bytes) = {
-        let inner = updates.lock();
-        let Some(UpdateAction::Install { version }) = inner.state.action() else {
-            return inner.state.clone();
-        };
-        match (&inner.found, &inner.downloaded) {
-            (Some(update), Some((downloaded, bytes))) if *downloaded == version => {
-                (update.clone(), bytes.clone())
-            }
-            _ => return inner.state.clone(),
-        }
-    };
-    let Some(running) = updates.reserve(Step::Install) else {
-        return updates.state();
-    };
-    println!(
-        "[updater] installing {}: stopping the server",
-        update.version
-    );
-    crate::shell::stop_owned_server(app);
-    match update.install(bytes) {
-        Ok(()) => app.restart(),
-        Err(error) => {
-            let message = failure_reason(&error.to_string());
-            updates.transition(app, |inner| inner.state.failure(&message, None));
-            drop(running);
-            dialogs::error(
-                app,
-                "Update failed",
-                &format!("{message} Reopen Inteligir to continue."),
-            );
-            app.exit(1);
-            updates.state()
-        }
+    let (update, bytes) = updates.lock().ready.take()?;
+    println!("[updater] installing {}", update.version);
+    let installed = update.install(bytes).map_err(|error| error.to_string());
+    if let Err(message) = &installed {
+        updates.transition(app, |inner| inner.state.failure(message));
     }
+    Some(installed)
+}
+
+/// The app is quitting: a ready update goes on now, so the next launch is the new version.
+pub fn install_on_quit(app: &AppHandle) {
+    if let Some(Err(message)) = install_ready(app) {
+        eprintln!("[updater] the update did not install: {message}");
+    }
+}
+
+/// Restart to Update, once the page wrote what it held (`leaving::restart_to_update`): installs the
+/// ready update and relaunches at once.
+pub fn restart_to_update(app: &AppHandle) -> UpdateState {
+    match install_ready(app) {
+        Some(Ok(())) => app.restart(),
+        Some(Err(message)) => dialogs::error(
+            app,
+            "The update did not install",
+            &format!("{message} Inteligir will try again after its next check."),
+        ),
+        None => {}
+    }
+    updates(app).state()
 }
 
 /// The first check shortly after launch, then every few minutes; a disabled updater runs neither.
@@ -271,23 +211,8 @@ pub fn start(app: &AppHandle) {
     });
 }
 
-fn ask_to_restart(app: &AppHandle, version: &str) {
-    if dialogs::confirm(
-        app,
-        MessageDialogKind::Info,
-        "Update ready",
-        &format!(
-            "Inteligir {version} is ready to install. The app restarts to finish; your notes are saved first."
-        ),
-        "Restart now",
-        "Later",
-    ) {
-        install(app);
-    }
-}
-
-/// Check for Updates… in the app menu: the same steps the page's button takes, said in dialogs,
-/// each waited out, so it runs on a thread of its own.
+/// Check for Updates… in the app menu: the page's button's check, its answer said in a dialog, so
+/// it runs on a thread of its own.
 pub fn check_from_menu(app: &AppHandle) {
     let UpdateState {
         current_version,
@@ -295,36 +220,25 @@ pub fn check_from_menu(app: &AppHandle) {
         ..
     } = tauri::async_runtime::block_on(check(app, "menu"));
     match status {
-        UpdateStatus::Idle | UpdateStatus::Checking { .. } | UpdateStatus::Downloading { .. } => {}
+        UpdateStatus::Idle | UpdateStatus::Checking | UpdateStatus::Ready { .. } => {}
         UpdateStatus::UpToDate => dialogs::show(
             app,
             MessageDialogKind::Info,
             "You're up to date",
             &format!("Inteligir {current_version} is the newest version."),
         ),
-        UpdateStatus::Available { version } => {
-            if dialogs::confirm(
-                app,
-                MessageDialogKind::Info,
-                "Update available",
-                &format!("Inteligir {version} is available."),
-                "Download",
-                "Later",
-            ) {
-                match tauri::async_runtime::block_on(download(app)).status {
-                    UpdateStatus::Downloaded { version } => ask_to_restart(app, &version),
-                    UpdateStatus::Error { message, .. } => {
-                        dialogs::error(app, "Download failed", &message);
-                    }
-                    _ => {}
-                }
-            }
-        }
-        UpdateStatus::Downloaded { version } => ask_to_restart(app, &version),
+        UpdateStatus::Downloading { version, .. } => dialogs::show(
+            app,
+            MessageDialogKind::Info,
+            "An update is on its way",
+            &format!(
+                "Inteligir {version} is downloading. It installs when you quit, or choose Restart to Update once it's ready."
+            ),
+        ),
         UpdateStatus::Disabled { reason } => {
             dialogs::show(app, MessageDialogKind::Warning, "Updates are off", &reason);
         }
-        UpdateStatus::Error { message, .. } => {
+        UpdateStatus::Error { message } => {
             dialogs::show(
                 app,
                 MessageDialogKind::Warning,

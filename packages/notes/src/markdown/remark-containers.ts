@@ -5,7 +5,9 @@
 // construct, or whose first character an escape wrote, is not a marker, and the serializer writes
 // that escape before a line of text that would read as one. An opener whose container cannot be
 // read whole (never closed, content before the first `=== Label` of tabs, anything but a
-// `:::column` between columns) is prose, and the scan resumes after it rather than guessing.
+// `:::column` between columns) is prose, and the scan resumes after it rather than guessing. The
+// `:::article` section, the page a fill read beside the person's note, opens only at the root
+// and holds every other container; anywhere else its line is text.
 
 import type {
   BlockContent,
@@ -18,13 +20,15 @@ import type {
   PhrasingContent,
   Root,
   RootContent,
+  Text,
 } from "mdast";
 import type { Info, Options as ToMarkdownExtension, State } from "mdast-util-to-markdown";
 import type { Plugin, Processor, Transformer } from "unified";
 
 import { splitLinesKeepingTerminators } from "../text/source-lines";
 import { isMdastRoot } from "./mdast-nodes";
-import { escapedAt, textCutter } from "./text-escapes";
+import { isHeldDefinition, isHeldFootnote } from "./remark-opaque";
+import { escapedAt, joinedText, textCutter } from "./text-escapes";
 
 export type ContainerContent = BlockContent | DefinitionContent;
 
@@ -56,6 +60,12 @@ export interface ColumnGroup extends Parent {
   children: Column[];
 }
 
+// the item's article section, which an export writes after the person's note: a root child only
+export interface ArticleSection extends Parent {
+  type: "articleSection";
+  children: ContainerContent[];
+}
+
 declare module "mdast" {
   interface BlockContentMap {
     columnGroup: ColumnGroup;
@@ -63,6 +73,7 @@ declare module "mdast" {
     toggle: Toggle;
   }
   interface RootContentMap {
+    articleSection: ArticleSection;
     column: Column;
     columnGroup: ColumnGroup;
     tabGroup: TabGroup;
@@ -71,23 +82,30 @@ declare module "mdast" {
   }
 }
 
+const ARTICLE_LINE = ":::article";
 const TOGGLE_LINE = ":::toggle";
 const TABS_LINE = ":::tabs";
 const COLUMNS_LINE = ":::columns";
 const COLUMN_LINE = ":::column";
 const CLOSE_LINE = ":::";
 const WIDTH = String.raw`\d+(?:\.\d+)?%`;
-const PANEL_RE = /^=== (?<label>.+)$/u;
+const PANEL_MARK = "=== ";
+const PANEL_RE = new RegExp(`^${PANEL_MARK}(?<label>.+)$`, "u");
 const COLUMN_RE = new RegExp(`^${COLUMN_LINE}(?: (?<width>${WIDTH}))?$`, "u");
 
+type Opened = "article" | "columns" | "tabs" | "toggle";
+
 type Marker =
-  | { kind: "open"; container: "columns" | "tabs" | "toggle" }
+  | { kind: "open"; container: Opened }
   | { kind: "column"; width: string | null }
   | { kind: "panel"; label: string }
   | { kind: "close" };
 
 const markerFor = (line: string): Marker | null => {
   switch (line) {
+    case ARTICLE_LINE: {
+      return { container: "article", kind: "open" };
+    }
     case TOGGLE_LINE: {
       return { container: "toggle", kind: "open" };
     }
@@ -111,8 +129,8 @@ const markerFor = (line: string): Marker | null => {
   }
 };
 
-// a line this grammar may read as a marker, which a rewrite of its words would unmake
-export const isMarkerLine = (line: string): boolean => markerFor(line) !== null;
+// a `:::` container line or a tab's `=== Label`: line grammar the transform lifts out of text
+export const isContainerLine = (line: string): boolean => markerFor(line) !== null;
 
 interface Line {
   nodes: PhrasingContent[];
@@ -157,20 +175,30 @@ const linesOf = (children: PhrasingContent[]): Line[] => {
   return lines;
 };
 
+// GFM reads a bare url out of finished text past the backslash that broke it (`./text-escapes`), and
+// what it reads there holds no place in the source, so that text is still the line's
+const writtenText = (node: PhrasingContent): Text | null => {
+  if (node.type === "text") {
+    return node;
+  }
+  const [only, ...rest] = node.type === "link" && node.position === undefined ? node.children : [];
+  return only?.type === "text" && rest.length === 0 ? only : null;
+};
+
 const markerOf = (line: Line): Marker | null => {
-  const [only, ...rest] = line.nodes;
-  return only?.type === "text" && rest.length === 0 && !escapedAt(only, 0)
-    ? markerFor(only.value)
+  const [first] = line.nodes;
+  const texts = line.nodes.flatMap((node) => writtenText(node) ?? []);
+  return first?.type === "text" && !escapedAt(first, 0) && texts.length === line.nodes.length
+    ? markerFor(texts.map(({ value }) => value).join(""))
     : null;
 };
 
-// a merged line keeps no escapes: no marker is read from the paragraphs this builds
 const paragraphOf = (lines: readonly Line[]): Paragraph => {
   const children: PhrasingContent[] = [];
   const push = (node: PhrasingContent): void => {
     const last = children.at(-1);
     if (node.type === "text" && last?.type === "text") {
-      children[children.length - 1] = { type: "text", value: last.value + node.value };
+      children[children.length - 1] = joinedText(last, node);
       return;
     }
     children.push(node);
@@ -245,14 +273,18 @@ const paragraphFrom = (run: Run): Paragraph =>
 
 // `opener` is the token of the marker that opened it
 type Frame = { opener: number } & (
+  | { kind: "article"; children: ContainerContent[] }
   | { kind: "toggle"; children: ContainerContent[] }
   | { kind: "column"; width: string | null; children: ContainerContent[] }
   | { kind: "tabs"; panels: TabPanel[] }
   | { kind: "columns"; columns: Column[] }
 );
 
-const frameFor = (container: "columns" | "tabs" | "toggle", opener: number): Frame => {
+const frameFor = (container: Opened, opener: number): Frame => {
   switch (container) {
+    case "article": {
+      return { children: [], kind: "article", opener };
+    }
     case "columns": {
       return { columns: [], kind: "columns", opener };
     }
@@ -270,6 +302,7 @@ const frameFor = (container: "columns" | "tabs" | "toggle", opener: number): Fra
 // columns, where only a `:::column` may stand)
 const sinkOf = (frame: Frame): ContainerContent[] | null => {
   switch (frame.kind) {
+    case "article":
     case "toggle":
     case "column": {
       return frame.children;
@@ -284,8 +317,14 @@ const sinkOf = (frame: Frame): ContainerContent[] | null => {
   }
 };
 
-const built = (frame: Frame): ContainerContent | Column | null => {
+// what a section or a container reads as: an article at the root, a container anywhere
+type Read = ContainerContent | ArticleSection;
+
+const built = (frame: Frame): Read | Column | null => {
   switch (frame.kind) {
+    case "article": {
+      return { children: frame.children, type: "articleSection" };
+    }
     case "toggle": {
       return { children: frame.children, type: "toggle" };
     }
@@ -304,17 +343,17 @@ const built = (frame: Frame): ContainerContent | Column | null => {
 
 // `unreadable` names every opener a read from it would refuse at the same token, so none is read
 // twice and a run of unclosed openers costs one pass, not one per opener
-type Read =
-  | { ok: true; node: ContainerContent; next: number }
-  | { ok: false; unreadable: number[] };
+type ReadResult = { ok: true; node: Read; next: number } | { ok: false; unreadable: number[] };
 
-// the containers open, innermost last, and the content lines read since the last marker
+// the containers open, innermost last, and the content lines read since the last marker; `root`
+// when the flow read is the root's, the one flow an article opens in
 interface Reader {
   stack: Frame[];
   run: Run | null;
+  root: boolean;
 }
 
-const refused = (reader: Reader, ...popped: Frame[]): Read => ({
+const refused = (reader: Reader, ...popped: Frame[]): ReadResult => ({
   ok: false,
   unreadable: [...reader.stack, ...popped].map((frame) => frame.opener),
 });
@@ -359,11 +398,19 @@ const readLine = (reader: Reader, token: LineToken): boolean => {
   return true;
 };
 
+// an article opens only in the root's own flow, inside no container
+const opensArticle = (reader: Reader): boolean => reader.root && reader.stack.length === 0;
+
 // a marker means what the innermost container open lets it: a panel marker belongs to tabs alone,
-// and elsewhere it is a line of text
+// an article's to the root alone, and elsewhere each is a line of text
 const markerHere = (reader: Reader, token: LineToken): Marker | null => {
   const { marker } = token;
-  return marker?.kind === "panel" && reader.stack.at(-1)?.kind !== "tabs" ? null : marker;
+  if (marker?.kind === "panel" && reader.stack.at(-1)?.kind !== "tabs") {
+    return null;
+  }
+  return marker?.kind === "open" && marker.container === "article" && !opensArticle(reader)
+    ? null
+    : marker;
 };
 
 const opened = (
@@ -400,7 +447,7 @@ const opened = (
 
 type Closed =
   | { kind: "inside" }
-  | { kind: "outermost"; node: ContainerContent }
+  | { kind: "outermost"; node: Read }
   | { kind: "refused"; popped: Frame[] };
 
 const closed = (reader: Reader): Closed => {
@@ -424,7 +471,7 @@ const closed = (reader: Reader): Closed => {
     return { kind: "outermost", node };
   }
   const sink = sinkOf(parent);
-  if (sink === null) {
+  if (sink === null || node.type === "articleSection") {
     return { kind: "refused", popped: [] };
   }
   sink.push(node);
@@ -432,8 +479,12 @@ const closed = (reader: Reader): Closed => {
 };
 
 // reads the container `start` opens through its closing `:::`
-const readContainer = <T>(tokens: readonly Token<T>[], start: number): Read => {
-  const reader: Reader = { run: null, stack: [] };
+const readContainer = <T>(
+  tokens: readonly Token<T>[],
+  start: number,
+  root: boolean,
+): ReadResult => {
+  const reader: Reader = { root, run: null, stack: [] };
   for (let at = start; at < tokens.length; at += 1) {
     const token = tokens[at];
     if (token === undefined) {
@@ -472,10 +523,12 @@ const readContainer = <T>(tokens: readonly Token<T>[], start: number): Read => {
   return refused(reader);
 };
 
+// `fromArticle` is the root's alone: a flow without one reads an article's line as text
 const rewriteFlow = <T>(
   children: T[],
   asContent: (node: T) => ContainerContent | null,
   fromContent: (node: ContainerContent) => T,
+  fromArticle: ((node: ArticleSection) => T) | null,
 ): T[] => {
   const tokens = tokensOf(children, asContent);
   if (tokens.every((token) => token.kind === "block")) {
@@ -501,11 +554,19 @@ const rewriteFlow = <T>(
       at += 1;
       continue;
     }
-    if (token.marker?.kind === "open" && !unreadable.has(at)) {
-      const read = readContainer(tokens, at);
+    const opens =
+      token.marker?.kind === "open" &&
+      (token.marker.container !== "article" || fromArticle !== null);
+    if (opens && !unreadable.has(at)) {
+      const read = readContainer(tokens, at, fromArticle !== null);
       if (read.ok) {
         flushProse();
-        out.push(fromContent(read.node));
+        const { node } = read;
+        if (node.type !== "articleSection") {
+          out.push(fromContent(node));
+        } else if (fromArticle !== null) {
+          out.push(fromArticle(node));
+        }
         at = read.next;
         continue;
       }
@@ -561,26 +622,22 @@ const rewriteTree = (node: Root | RootContent): void => {
       node.children,
       (child) => (isContainerContent(child) ? child : null),
       identity,
+      (article) => article,
     );
   } else if (
     node.type === "blockquote" ||
     node.type === "footnoteDefinition" ||
     node.type === "listItem"
   ) {
-    node.children = rewriteFlow(node.children, identity, identity);
+    node.children = rewriteFlow(node.children, identity, identity, null);
   }
 };
 
 // a marker line runs on into the paragraph one of these leaves open, so a blank line ends it first
-const ABSORBS_NEXT_LINE: ReadonlySet<string> = new Set([
-  "blockquote",
-  "footnoteDefinition",
-  "list",
-  "table",
-]);
+const ABSORBS_NEXT_LINE: ReadonlySet<string> = new Set(["blockquote", "list", "table"]);
 
 const blankBeforeMarker = (last: ContainerContent | undefined): string =>
-  last !== undefined && ABSORBS_NEXT_LINE.has(last.type) ? "\n" : "";
+  last !== undefined && (ABSORBS_NEXT_LINE.has(last.type) || isHeldFootnote(last)) ? "\n" : "";
 
 const emptyFirstItem = (list: List): boolean => {
   const [item] = list.children;
@@ -591,7 +648,7 @@ const emptyFirstItem = (list: List): boolean => {
 // a block that cannot interrupt a paragraph would be read as more of the marker line's text, and
 // a `---` rule under it as the setext underline that makes the marker a heading
 const blankAfterMarker = (first: ContainerContent | undefined): string => {
-  if (first?.type === "definition" || first?.type === "thematicBreak") {
+  if (first?.type === "thematicBreak" || isHeldDefinition(first)) {
     return "\n";
   }
   if (first?.type === "list") {
@@ -603,7 +660,12 @@ const blankAfterMarker = (first: ContainerContent | undefined): string => {
 
 // the marker, the body and the closing `:::`, which a body ending in a block that absorbs a line
 // keeps a blank line away from
-const fenced = (marker: string, body: Toggle | Column, state: State, info: Info): string => {
+const fenced = (
+  marker: string,
+  body: Toggle | Column | ArticleSection,
+  state: State,
+  info: Info,
+): string => {
   const inner = state.containerFlow(body, info);
   if (inner === "") {
     return `${marker}\n${CLOSE_LINE}`;
@@ -611,17 +673,32 @@ const fenced = (marker: string, body: Toggle | Column, state: State, info: Info)
   return `${marker}\n${blankAfterMarker(body.children[0])}${inner}\n${blankBeforeMarker(body.children.at(-1))}${CLOSE_LINE}`;
 };
 
+// a marker is read from one finished text, so its label is written as text is: anything the next
+// parse would read as a construct takes the escape that keeps the line whole
+const panelLine = (label: string, state: State): string => {
+  const exit = state.enter("phrasing");
+  const written = state.safe(label, { after: "\n", before: PANEL_MARK });
+  exit();
+  return `${PANEL_MARK}${written}`;
+};
+
 const panelToMarkdown = (panel: TabPanel, state: State, info: Info): string => {
   const inner = state.containerFlow(panel, info);
-  const marker = `=== ${panel.label}`;
+  const marker = panelLine(panel.label, state);
   return inner === "" ? marker : `${marker}\n${blankAfterMarker(panel.children[0])}${inner}`;
 };
 
 // a line of text the next parse would read as a marker, after the `:` its escape goes before
-const MARKER_LINE_TAIL = String.raw`::(?:toggle|tabs|columns|column(?: ${WIDTH})?)?(?=\r?\n|$)`;
+const MARKER_LINE_TAIL = String.raw`::(?:article|toggle|tabs|columns|column(?: ${WIDTH})?)?(?=\r?\n|$)`;
 
 const containersToMarkdown: ToMarkdownExtension = {
   handlers: {
+    articleSection: (
+      node: ArticleSection,
+      _parent: Parents | undefined,
+      state: State,
+      info: Info,
+    ) => fenced(ARTICLE_LINE, node, state, info),
     columnGroup: (node: ColumnGroup, _parent: Parents | undefined, state: State, info: Info) => {
       const columns = node.children.map((column) =>
         fenced(

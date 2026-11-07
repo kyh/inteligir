@@ -12,17 +12,17 @@ const WORD_MS = 55;
 const splitWords = (text: string): string[] =>
   text.length === 0 ? [] : text.split(/(?<separator>\s+)/u).filter((part) => part.length > 0);
 
-interface StreamingFrameProps extends HTMLAttributes<HTMLDivElement> {
+type TextFrameProps = Omit<HTMLAttributes<HTMLDivElement>, "children">;
+
+interface StreamingFrameProps extends TextFrameProps {
   shown: string;
   caret: boolean;
 }
 
-// actions wait for the text to settle: one offered mid-stream acts on a moving message
 const StreamingFrame = ({
   shown,
   caret,
   className,
-  children,
   ref,
   ...props
 }: StreamingFrameProps & RefAttributes<HTMLDivElement>) => (
@@ -36,16 +36,10 @@ const StreamingFrame = ({
         />
       ) : null}
     </p>
-
-    {children !== undefined && !caret ? (
-      <div data-slot="streaming-text-actions" className="mt-2 flex items-center gap-0.5">
-        {children}
-      </div>
-    ) : null}
   </div>
 );
 
-interface StreamingTextProps extends HTMLAttributes<HTMLDivElement> {
+interface StreamingTextProps extends TextFrameProps {
   text: string;
   streaming?: boolean;
   animate?: boolean;
@@ -102,31 +96,4 @@ const StreamingText = ({
     <StreamingFrame shown={text} caret={streaming} {...frame} />
   );
 
-interface StreamingActionProps extends HTMLAttributes<HTMLButtonElement> {
-  label: string;
-}
-
-const StreamingAction = ({
-  label,
-  className,
-  children,
-  ref,
-  ...props
-}: StreamingActionProps & RefAttributes<HTMLButtonElement>) => (
-  <button
-    ref={ref}
-    type="button"
-    aria-label={label}
-    title={label}
-    data-slot="streaming-action"
-    className={cn(
-      "flex size-7 items-center justify-center rounded-md text-ink-3 transition-colors duration-100 hover:bg-hover hover:text-ink",
-      className,
-    )}
-    {...props}
-  >
-    {children}
-  </button>
-);
-
-export { StreamingText, StreamingAction };
+export { StreamingText };

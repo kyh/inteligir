@@ -4,7 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
 
-import { siteConfig } from "@/lib/site-config";
+import { siteConfig } from "#lib/site-config";
 
 export const AuthShell = ({
   title,
@@ -56,6 +56,7 @@ type AuthSubmit = (form: FormData) => Promise<string | null>;
 
 // a throw is a request that never reached the Worker; escaping the transition, it would land on
 // the route's error boundary and take the typed form with it
+/** @internal */
 export const settleAuthSubmit = async (
   submit: AuthSubmit,
   form: FormData,

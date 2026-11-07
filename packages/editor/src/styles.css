@@ -24,6 +24,32 @@
   visibility: hidden;
 }
 
+/* a long note renders in runs of blocks, and a run off screen skips its layout and paint, held at
+   an estimate of its height until it first draws and at its last height after. paint containment
+   clips to the run's own box, so it overhangs the column by the gutter the drag handle, a
+   heading's fold, a task's checkbox and a highlight's dot hang in. A run is a flow-root, its own
+   formatting context whether it contains or not, so dropping the containment moves no margin;
+   and no block to the plain text a copy writes, which ends a line after every display: block
+   (slate-dom's getPlainText), so a copy across two runs gains no blank line at their edge. */
+.editor-chunk {
+  display: flow-root;
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 300em;
+  margin-inline: -3rem;
+  padding-inline: 3rem;
+}
+
+/* a block being dragged draws wherever the pointer takes it, and the line where it would land may
+   sit on its run's edge, so neither run clips while the drag lasts */
+.editor-chunk:has([data-drag-overhang]) {
+  content-visibility: visible;
+}
+
+/* typeset trims the note's first block's top margin, which the first run's box would hold apart */
+.editor-chunk:first-child {
+  margin-trim: block-start;
+}
+
 /* the prose typeset draws, fed by the appearance dials the host publishes as --editor-* on <html> */
 .typeset-docs {
   --typeset-font-body: var(--editor-font);
@@ -32,6 +58,35 @@
   --typeset-size: var(--editor-size);
   --typeset-leading: var(--editor-line-height);
   --typeset-flow: 1.25em;
+}
+
+/* a diagram reads its colours and faces from these, so a theme change recolours it with no
+   redraw. --pele-bg is the frame's own fill too, so the panel behind an edge's label matches it;
+   the alt surface sits a step off the surface in both themes, where --accent is --muted in dark,
+   so a note and a participant stay apart; the series cycle the chart tokens as the chart block
+   does. */
+.diagram-preview {
+  --pele-bg: color-mix(in oklab, var(--muted) 30%, var(--background));
+  --pele-fg: var(--foreground);
+  --pele-muted: var(--muted-foreground);
+  --pele-line: var(--muted-foreground);
+  --pele-surface: var(--muted);
+  --pele-surface-alt: color-mix(in oklab, var(--muted), var(--foreground) 8%);
+  --pele-border: var(--line-strong);
+  --pele-accent: var(--primary);
+  --pele-critical: var(--destructive);
+  --pele-radius: calc(var(--radius) * 0.6);
+  --pele-font: var(--editor-font);
+  --pele-font-mono: var(--editor-mono);
+  --pele-series-1: var(--chart-1);
+  --pele-series-2: var(--chart-2);
+  --pele-series-3: var(--chart-3);
+  --pele-series-4: var(--chart-4);
+  --pele-series-5: var(--chart-5);
+  --pele-series-6: var(--chart-1);
+  --pele-series-7: var(--chart-2);
+  --pele-series-8: var(--chart-3);
+  background-color: var(--pele-bg);
 }
 
 /* plain class selectors out-specify typeset's zero-specificity :where() rules */

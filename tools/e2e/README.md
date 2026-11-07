@@ -1,32 +1,51 @@
 # @repo/e2e — the end-to-end suite
 
-Boots REAL servers (`inteligir serve`, the same binary a packaged install
-runs) on scratch instance dirs, drives them over the typed oRPC client and a
-headless browser, and asserts on the wire AND on disk. It is orchestration
-plus plain assertions on purpose — no test framework; the runner exits
-non-zero on any failure with a readable transcript.
-
-ONE mode: the workspace is a plain SPA, built once and served as files, so the
-suite drives the same bytes and the same policy a user gets.
+Boots the REAL Worker (apps/web's `cf build` output under Miniflare), the
+desktop shell, the browser extension and the phone's own runtime on scratch
+dirs, drives them over `/v1`, the connector, a headless browser and WebDriver,
+and asserts on the wire, in the cell and on disk. It is orchestration plus
+plain assertions on purpose — no test framework; the runner exits non-zero on
+any failure with a readable transcript.
 
 ## Run it
 
 ```sh
-pnpm e2e                      # every scenario (the runner builds the CLI first)
-pnpm e2e --only vault-sync    # one scenario (comma-separated, repeatable)
+pnpm e2e                      # every scenario
+pnpm e2e --only agent-cell    # one scenario (comma-separated, repeatable)
+pnpm e2e --lanes 1            # one scenario at a time, every line as it happens
 pnpm e2e --keep               # keep the scratch dirs for post-mortem
 pnpm e2e --list               # every scenario, in run order, and what it proves
 pnpm e2e --no-skip            # every SKIP FAILS: for a provisioned browser and display
 ```
 
-Before the first scenario the runner builds the CLI bundle and the workspace
-UI it stages, through turbo (`--filter=inteligir`): a cache hit when nothing
-changed, and never a stale `dist/` booted as if it were this checkout.
+Before the first scenario the runner builds the browser extension's dev build
+through turbo (`--filter=@repo/extension`): a cache hit when nothing changed,
+and never a stale output loaded as if it were this checkout.
+
+Scenarios run in lanes: `--lanes <n>` of them at once, by default half this
+machine's cores and at most four, each started in registry order as a lane
+frees. With more than one lane a scenario's lines are held and printed whole
+when it ends, after a live `[name] started` line, so two lanes never
+interleave; `--lanes 1` streams each line as it happens. A run that dies first
+(a signal, a crash, a job's timeout) prints what each scenario still running
+had written, under an `[name] INTERRUPTED` line. The summary lists
+every scenario in registry order whatever finished first. A scenario that needs
+something only one may hold at a time names it in `exclusive` and never runs
+beside another holding it: today that is `desktop-shell`, the shell's window on
+the run's one display, driven through WebKit's WebDriver. Everything else a
+scenario touches is its own, which is what lets it share a run: its scratch
+dir, ports reserved ephemerally and never handed to two lanes in one run
+(`src/harness/ports.ts`), and browser sessions named for it. A build a scenario
+makes through turbo (the Worker, the phone's editor page) runs once per run and
+one at a time (`src/harness/turbo-build.ts`), because a second build would
+rewrite the output a running Worker serves its assets from.
 
 Every scenario runs under a deadline (`timeoutMs`, default 180s; a scenario
 that builds or boots a Worker, or the desktop shell, declares more). A run
-still going past it FAILS with its instances' output tails and is torn down,
-so a hang costs one scenario, not the whole job.
+still going past it FAILS with its processes' output tails and is torn down,
+so a hang costs one scenario, not the whole job. Time its build sat queued
+behind another lane's moves the deadline out by as much, since the budget is
+for the scenario's own build.
 
 Deliberately OUTSIDE `pnpm verify`: the package typechecks/lints/formats in
 the gate (it has a `typecheck` script and lives under the root oxlint/oxfmt
@@ -38,78 +57,71 @@ sweep), but its scenarios boot processes and a browser, so they run only via
 Each scenario receives a context (`src/harness/scenario.ts`) that owns its
 scratch dir and tears everything down afterwards:
 
-- `boot({ name, mode?, vaultRemote?, extraEnv?, seedVault?, seedData? })` — a
-  fresh instance. `mode` is `source` (the default: `bin/inteligir`, which runs
-  `src/` under tsx in a checkout) or `built` (`dist/index.js` under
-  `NODE_ENV=production`, what npm and the .app run). Scratch `data/` + `vault/`
-  siblings, empty vendor stores of its own (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`,
-  named on the instance as `vendorDirs`, so no instance runs the agent, asks
-  its sign-in or edits its connectors on the host's account), a
-  reserved free port (bind races retry with a fresh port,
-  bounded), health-gated on `/health` answering `{ok:true}`. Registered for
-  teardown at SPAWN, before the health wait, and torn down as a process group
-  that is polled to verified-dead (SIGTERM →
-  SIGKILL → ESRCH) before its scratch is removed; Ctrl-C kills every live
-  group. `extraEnv` may not touch harness-owned keys (paths, vendor stores,
-  port, NODE_ENV, `GIT_*`) — collisions are refused loudly. `seedVault` writes fixture files
-  before boot; the app's repo init commits them. A seeded vault exists before
-  boot, so the bootstrap adds no starter notes. `seedData` does the same for
-  the data dir — a device credential, so the instance boots already signed in.
-- `bareRemote()` — a scratch bare git repo, returned as the `file://` URL for
-  `INTELIGIR_VAULT_REMOTE` or `vault.setRemote`.
-- `cloudWorker({ vars? })` — the product Worker (apps/web), built through turbo
-  and booted from its `cf build` output under Miniflare
+- `cloudWorker({ vars?, json?, pages? })` — the product Worker (apps/web), built through
+  turbo once per run and booted from its `cf build` output under Miniflare
   (`src/harness/worker-host.ts`) on a scratch persist dir, its D1 carrying
   apps/web's own `db:export` schema plus one invite row; `vars` override
-  cloudflare.config.ts's text bindings (a storage cap a scenario can fill). Registered for teardown exactly like an
-  instance.
-- `instance.api` — the oRPC client over `@repo/contract/local`, carrying the device
-  token this instance published in `<dataDir>/server.json`;
-  `instance.vaultDir` / `dataDir` for on-disk assertions.
-- `desktopShell({ seedVault?, seedOwnDir?, firstRun? })` — the checkout's
-  built Tauri shell (`pnpm turbo run build:shell --filter=@repo/desktop`, an
-  unbundled debug build the runner makes before the first scenario that asks,
-  outside every deadline). It makes the default vault's folder before launch,
-  as a launch before first run left it, so the shell boots it; `firstRun: true`
-  makes nothing, so the shell opens its first-run page and boots no server
-  until a vault is chosen, and a relaunch over the same scratch finds the vault
-  that run made. Launched by `tauri-driver` on a scratch `HOME` (never
-  `INTELIGIR_DATA_DIR`/`INTELIGIR_VAULT_DIR`, which would make it refuse a vault
-  switch), a pinned server port and `INTELIGIR_AGENT=scripted`. Its `window` is
-  a WebDriver session over the shell's FIRST window alone: Tauri hands WebKit's
-  automation the first web view it makes, and each vault's window lives in a
-  web context of its own, so a window made after it (a switch's, the app's
-  after a first run) is watched through its server and `serverLog()`, where the
-  shell notes each window it loads. `api` is the oRPC client over whichever
-  server it runs now; `target()` is the data and vault dir it resolves now,
-  derived as the shell's CLI door derives them; `ownDir` is the shell's own
-  folder (its recent vaults, its debug choice); `quit()` sends the shell the
-  SIGTERM it quits on. Registered for teardown like an instance. It runs on
-  Linux alone, and skips with no display (run the suite under `xvfb-run -a`),
-  no `tauri-driver` or `WebKitWebDriver`, or no built shell.
-- `browser(label)` — an agent-browser session registered for teardown like an
-  instance, so a failed or abandoned scenario still closes it. It is callable
-  with any agent-browser command, and `openWorkspace(app, { path? })`
-  signs it in through a fresh handoff and returns once the rail and the editor
-  mounted. It skips the scenario when no headless browser can launch (see CI).
+  cloudflare.config.ts's text bindings (a storage cap a scenario can fill), and
+  `json` its JSON bindings (the built-in agent's allowance). Each Worker's
+  built-in agent runs against its own scripted Messages API
+  (`tools/messages-fake`), served in the runner's process on an ephemeral
+  port and named to the Worker as `ANTHROPIC_FAKE_URL`, the tools its script
+  names run by that Worker's own cell; its counters answer at
+  `/__fake/stats`. `pages` names public hosts whose pages a loopback server
+  answers for the Worker's own fetch (`page-fixture.ts`). Registered for
+  teardown with the scenario.
+- `cloudLink(worker)` — a relay to a booted Worker on a port of its own, so a
+  scenario can cut the cloud and restore it (`src/harness/cloud-link.ts`): a
+  cut refuses every new connection and drops every open one, as a Mac that lost
+  its network meets the cloud, and a restore listens on the same port again.
+  Registered for teardown with the scenario.
+- `desktopShell({ cloudOrigin })` — the checkout's built Tauri shell
+  (`pnpm turbo run build:shell --filter=@repo/desktop`, an unbundled debug
+  build with the page inside it, which the runner makes before the first
+  scenario when any selected one is `exclusive` on `desktop-shell`, outside
+  every deadline), calling the cloud at `cloudOrigin`, a Worker's or a
+  `cloudLink`'s. Launched by `tauri-driver` on the scenario's scratch `HOME`,
+  which a second launch in the same scenario finds again, so a relaunch keeps
+  the replica and the credential's stand-in. Its `window` is a WebDriver
+  session over the shell's one window, `dataDir` is where the shell keeps the
+  account's replica and staged files, `replicaFiles()` lists the replicas it
+  holds (`replicaTitle` reads an item back off one), and `quit()` sends the
+  shell the SIGTERM it quits on. Registered for teardown with the scenario. It
+  runs on Linux alone, and skips with no display (run the suite under
+  `xvfb-run -a`), no `tauri-driver` or `WebKitWebDriver`, or no built shell.
+- `browser(label)` — an agent-browser session registered for teardown with the
+  scenario, so a failed or abandoned scenario still closes it. It is callable
+  with any agent-browser command, and `openLibrary(worker, { path?, ready? })`
+  signs it in to a booted Worker through the site's own sign-in, which comes
+  back to `/library`, and returns once the rail and `ready` mounted. It skips
+  the scenario when no headless browser can launch (see CI).
 
 Beside the context, `src/harness/` carries what the scenarios would otherwise
 each re-spell: `pollUntil` (`poll.ts`), which returns the value it waited for
-and fails with what the last read held; `untilThreadIdle`, `runTurn` and the
-scripted driver's `agentNote` (`threads.ts`); `modChord` for the platform's
-modifier key, `clickButtonIn` and `untilBodyHolds` (`agent-browser.ts`); the
-workspace and Settings selectors (`selectors.ts`); `gitIn` and `readOrNull`
-(`exec.ts`); the bare `inteligir` on an agent shell's PATH
-(`agent-shell-cli.ts`); the account's sign-up and device routes against a dev
-Worker (`cloud-account.ts`); `NO_AUTO_SYNC` and the one strict sync pass,
-`syncExpectClean` (`vault-sync.ts`); the owner's sign-in and a signed-in
-instance's explicit sync against the hosted vault (`hosted-vault.ts`); and the
-phone's own runtime, logged in as `PHONE_NAME` (`phone-runtime.ts`).
+and fails with what the last read held; `modChord` for the platform's
+modifier key, `clickButtonIn`, `press`, `caretToEndOf` and `untilBodyHolds`
+(`agent-browser.ts`); the library page's selectors (`selectors.ts`); the
+library's tab over a booted Worker, with a device of the account to seed and
+read the cell through `/v1` (`openLibraryTab` and `untilItemText`,
+`library-tab.ts`); the account's sign-up against a dev Worker
+(`cloud-account.ts`); `/v1` as a phone calls it, a file's upload and read and
+an item's fields as the change log holds them (`v1-wire.ts`); the
+phone's own runtime under node over its own database, signed in as the
+owner, a second one standing in for another device, with a network a
+scenario can take away (`phone-runtime.ts`); the page
+server a save's fetch reads, on loopback, which the Worker's fill reaches under
+a public name of its own (`page-fixture.ts`); the browser extension's dev build, connected through the
+site's connect page, and its worker's save (`extension-fixture.ts`); and the PNG
+reader for what a frame or a thumbnail
+draws (`png-pixels.ts`).
 
 ## Adding a scenario
 
 1. `src/scenarios/<name>.ts` exporting a `Scenario` (`name`, `description`,
-   `run(ctx)`, and `timeoutMs` only when a green run can near the default);
+   `run(ctx)`, `timeoutMs` only when a green run can near the default, and
+   `exclusive` when it holds something only one scenario may, such as the
+   desktop shell); it shares a run with others in lanes, so it binds no fixed
+   port and writes nothing outside its scratch dir;
    assert with `expect`/`expectEq`, bail with `skip(reason)` for a capability
    this environment/branch does not have yet. The `description` says what the
    scenario proves: it is what `pnpm e2e --list` prints and what the transcript
@@ -120,48 +132,28 @@ phone's own runtime, logged in as `PHONE_NAME` (`phone-runtime.ts`).
 
 Each feature issue lands with its scenario here.
 
-## The env contract the harness drives
+## The env the harness drives
 
-| var                          | effect                                                 |
-| ---------------------------- | ------------------------------------------------------ |
-| `INTELIGIR_DATA_DIR`         | absolute data dir (SQLite + config.json)               |
-| `INTELIGIR_VAULT_DIR`        | absolute vault dir; must be disjoint from the data dir |
-| `INTELIGIR_PORT`             | exact port (env-configured ports are never probed)     |
-| `INTELIGIR_VAULT_REMOTE`     | git remote URL pinned over the vault's own origin;     |
-|                              | unset = that origin, else the signed-in account's      |
-| `INTELIGIR_CLOUD_URL`        | the cloud origin; hosted-vault-sync points it at its   |
-|                              | own scratch Miniflare Worker                           |
-| `INTELIGIR_SYNC_INTERVAL_MS` | vault auto-sync cadence; `0` disables the loop AND the |
-|                              | boot sync (the sync scenarios set it for determinism)  |
-| `INTELIGIR_AGENT`            | `scripted` — the deterministic in-process driver the   |
-|                              | thread and action scenarios run against                |
-| `INTELIGIR_SLOW_READS`       | `<ms>:<vault path>` — every read of that path, and     |
-|                              | everything under it, answers that late (an empty path  |
-|                              | is the whole vault); slow-storage's stand-in for       |
-|                              | storage that fetches or wakes                          |
-| `INTELIGIR_DEBUG`            | the diagnostics debug-log reads off an instance's      |
-|                              | stderr; unset on every other instance                  |
-
-Instances run with every host `GIT_*` variable stripped, `GIT_CONFIG_GLOBAL`
-/`GIT_CONFIG_SYSTEM` pinned to `/dev/null` and an explicit harness git
-identity, so no commit or fixture depends on the host's git configuration —
-the same env every git the harness itself runs gets. They also drop the host's
-vendor credentials and executable overrides (`HOST_AGENT_ENV` in
-`src/harness/exec.ts`), so the agent runs the bundled vendors over their empty
-stores; a scenario that wants a fake vendor sets it in `extraEnv`.
+Every process the harness starts runs with every host `GIT_*` variable
+stripped, since turbo hashes the checkout through git and a hook's `GIT_DIR`
+would point it elsewhere, and the desktop shell without an inherited
+`INTELIGIR_*` (`src/harness/exec.ts`). The Worker's own settings ride as
+Miniflare bindings over its config's (`cloudWorker({ vars, json, pages })`),
+never as process env.
 
 ## CI
 
 Headless by construction: no interactive auth, no pinned ports, and no
-accounts on any EXTERNAL service — hosted-vault-sync signs up a real account,
-but against its own scratch Miniflare Worker (apps/web's build output, state
+accounts on any EXTERNAL service — a scenario signs up a real account, but
+against its own scratch Miniflare Worker (apps/web's build output, state
 under the scenario's scratch dir; secrets are passed as text bindings, so no
 `.dev.vars` is needed). The one setup step beyond `pnpm install` is the
 browser binary every browser scenario needs: `pnpm add -g agent-browser@X.Y.Z &&
 agent-browser install` (Linux: `--with-deps`), at the version
 `.github/workflows/ci.yml` pins so a local run drives the browser CI drives.
 The desktop shell opens a real window, so CI runs the suite under `xvfb-run -a`,
-with WebKitGTK's WebDriver (`webkit2gtk-driver`) and `cargo install tauri-driver
+with WebKitGTK's WebDriver (`webkitgtk-webdriver`, `webkit2gtk-driver` before
+Ubuntu 26.04) and `cargo install tauri-driver
 --version X.Y.Z --locked` beside it, at the version CI pins; with no display, no
 driver or no built shell, the shell scenarios skip. The first browser a run asks for probes the
 environment with `about:blank`, once per run and in a session of its own, so
@@ -175,9 +167,18 @@ environment was provisioned passes `--no-skip`, and every skip, the browser's
 and the display's alike, becomes a FAIL carrying the reason it would have
 skipped with.
 
-The runner's suite-start build is what stages `apps/cli/dist/ui`; the harness
-still refuses to boot without it, because a server with no workspace UI
-answers the API and serves a 404 to the browser — a green API run beside a
-page that never loads. built-worker-boot builds apps/web for itself, through
-turbo, because the bundle it boots is the thing under test and no other
-scenario needs it.
+A scenario whose save must read a page serves it from `page-fixture.ts`, on
+loopback. The phone's runtime reads it there; the Worker's fill reads it at
+`PAGE_HOST`, a name in `.test` that the Worker host answers from that server
+through Miniflare's outbound service (`cloudWorker({ pages })`), so the fill's
+guard judges the name as it judges any site's and is never widened for a
+scenario, and every machine runs them all.
+
+The Worker is built through turbo by the first scenario that boots one, once
+per run, rather than at suite start, because only the scenarios that boot a
+Worker need it; its build carries the library's page, so a browser scenario
+drives the page the Worker deploys.
+
+CI runs the suite in two lanes (`--lanes 2`), half its four-core runner, the
+same count a four-core machine's default gives, so a local default run is the
+one CI runs.

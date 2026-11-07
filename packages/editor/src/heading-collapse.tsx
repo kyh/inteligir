@@ -1,8 +1,9 @@
-// Collapse is view state keyed `level:text:ordinal` per note path in localStorage;
+// Collapse is view state kept per item id in localStorage, each fold by a hash of its
+// `level:text:ordinal`, since that storage sits outside the phone's wipe and inside its backup;
 // it never touches bytes or history. What a fold hides is derived once per document
 // change in a provider, a per-block backward walk being quadratic under keystrokes, and
 // addressed by block id: Plate re-renders a block only when its own node changes, so the
-// `path` it last rendered with is stale after an insert above it.
+// Slate path it last rendered with is stale after an insert above it.
 
 import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
@@ -20,7 +21,8 @@ import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 
 import { blockId } from "@repo/editor/node-props";
-import { useOpenNotePath } from "@repo/editor/note/open-note-context";
+import { useOpenItemId } from "@repo/editor/open-item";
+import { contentHash } from "@repo/notes/library/block-hash";
 
 const STORAGE_KEY = "inteligir.collapsed-headings";
 
@@ -38,7 +40,7 @@ const foldsStore = createStore<ReadonlyMap<string, ReadonlySet<string>>>()(() =>
 // the first ask is a render's selector, and setting state there would notify mid-render.
 const restored = new Map<string, ReadonlySet<string>>();
 
-// decoded per note, so one unreadable entry cannot discard every other note's folds
+// decoded per item, so one unreadable entry cannot discard every other item's folds
 const STORED_NOTES = z.record(z.string(), z.unknown());
 const STORED_KEYS = z.array(z.string());
 
@@ -53,10 +55,10 @@ const readStorage = (): Map<string, string[]> => {
     if (!notes.success) {
       return out;
     }
-    for (const [path, value] of Object.entries(notes.data)) {
+    for (const [itemId, value] of Object.entries(notes.data)) {
       const keys = STORED_KEYS.safeParse(value);
       if (keys.success) {
-        out.set(path, keys.data);
+        out.set(itemId, keys.data);
       }
     }
   } catch {
@@ -65,14 +67,14 @@ const readStorage = (): Map<string, string[]> => {
   return out;
 };
 
-// Re-read before writing: the record holds every note, and a write from this map alone drops the notes never opened.
-const writeStorage = (path: string, keys: ReadonlySet<string>): void => {
+// Re-read before writing: the record holds every item, and a write from this map alone drops the items never opened.
+const writeStorage = (itemId: string, keys: ReadonlySet<string>): void => {
   try {
     const all = readStorage();
     if (keys.size === 0) {
-      all.delete(path);
+      all.delete(itemId);
     } else {
-      all.set(path, [...keys]);
+      all.set(itemId, [...keys]);
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries(all)));
   } catch {
@@ -82,35 +84,49 @@ const writeStorage = (path: string, keys: ReadonlySet<string>): void => {
 
 const foldsFor = (
   folds: ReadonlyMap<string, ReadonlySet<string>>,
-  path: string,
+  itemId: string,
 ): ReadonlySet<string> => {
-  const known = folds.get(path) ?? restored.get(path);
+  const known = folds.get(itemId) ?? restored.get(itemId);
   if (known !== undefined) {
     return known;
   }
-  const stored = new Set(readStorage().get(path));
-  restored.set(path, stored);
+  const stored = new Set(readStorage().get(itemId));
+  restored.set(itemId, stored);
   return stored;
 };
 
-export const headingCollapseKeys = (path: string): ReadonlySet<string> =>
-  foldsFor(foldsStore.getState(), path);
+/** @internal */
+export const headingCollapseKeys = (itemId: string): ReadonlySet<string> =>
+  foldsFor(foldsStore.getState(), itemId);
 
-export const toggleHeadingCollapse = (path: string, key: string): void => {
-  const keys = new Set(headingCollapseKeys(path));
+/** @internal */
+export const toggleHeadingCollapse = (itemId: string, key: string): void => {
+  const keys = new Set(headingCollapseKeys(itemId));
   if (keys.has(key)) {
     keys.delete(key);
   } else {
     keys.add(key);
   }
-  writeStorage(path, keys);
-  foldsStore.setState((folds) => new Map(folds).set(path, keys), true);
+  writeStorage(itemId, keys);
+  foldsStore.setState((folds) => new Map(folds).set(itemId, keys), true);
+};
+
+// every item's folds go: the account they belong to left this device. Storage first: a mounted
+// editor reads it again the moment the store moves
+export const forgetHeadingFolds = (): void => {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // storage unavailable
+  }
+  restored.clear();
+  foldsStore.setState(new Map(), true);
 };
 
 const NO_FOLDS: ReadonlySet<string> = new Set();
 
 interface Derived {
-  path: string;
+  itemId: string;
   folded: ReadonlySet<string>;
   // block id → that heading's fold key
   keys: ReadonlyMap<string, string>;
@@ -119,7 +135,7 @@ interface Derived {
 
 const derive = (
   children: readonly TElement[],
-  path: string,
+  itemId: string,
   folded: ReadonlySet<string>,
 ): Derived => {
   const hidden = new Set<string>();
@@ -145,7 +161,7 @@ const derive = (
     const base = `${String(rank)}:${text}`;
     const ordinal = ordinals.get(base) ?? 0;
     ordinals.set(base, ordinal + 1);
-    const key = `${base}:${String(ordinal)}`;
+    const key = contentHash(`${base}:${String(ordinal)}`);
     if (id !== undefined) {
       keys.set(id, key);
     }
@@ -153,7 +169,7 @@ const derive = (
       stack.push(rank);
     }
   }
-  return { folded, hidden, keys, path };
+  return { folded, hidden, keys, itemId };
 };
 
 // Every change re-derives, so this is what keeps typing in a paragraph from re-rendering every
@@ -163,7 +179,7 @@ const sameDerived = (a: Derived | null, b: Derived | null): boolean => {
     return a === b;
   }
   return (
-    a.path === b.path &&
+    a.itemId === b.itemId &&
     a.folded === b.folded &&
     shallow(a.hidden, b.hidden) &&
     shallow(a.keys, b.keys)
@@ -173,14 +189,14 @@ const sameDerived = (a: Derived | null, b: Derived | null): boolean => {
 const DerivedContext = createContext<Derived | null>(null);
 
 const CollapseProvider = ({ children }: { children: ReactNode }) => {
-  // subscribed once here rather than per block, so the fold set and every chevron name the same file
-  const path = useOpenNotePath();
+  // subscribed once here rather than per block, so the fold set and every chevron name the same item
+  const itemId = useOpenItemId();
   const folded = useStore(foldsStore, (folds) =>
-    path === null ? NO_FOLDS : foldsFor(folds, path),
+    itemId === null ? NO_FOLDS : foldsFor(folds, itemId),
   );
   const derived = useEditorSelector(
-    (editor) => (path === null ? null : derive(editor.children, path, folded)),
-    [path, folded],
+    (editor) => (itemId === null ? null : derive(editor.children, itemId, folded)),
+    [itemId, folded],
     { equalityFn: sameDerived },
   );
   return <DerivedContext value={derived}>{children}</DerivedContext>;
@@ -194,7 +210,7 @@ const CollapsibleBlock = ({ id, children }: { id: string; children: ReactNode })
   if (derived === null || key === undefined) {
     return <div className={cn(isHidden && "hidden")}>{children}</div>;
   }
-  const { path } = derived;
+  const { itemId } = derived;
   const isCollapsed = derived.folded.has(key);
   return (
     <div className={cn("group/heading relative", isHidden && "hidden")}>
@@ -208,7 +224,7 @@ const CollapsibleBlock = ({ id, children }: { id: string; children: ReactNode })
             event.preventDefault();
           }}
           onClick={() => {
-            toggleHeadingCollapse(path, key);
+            toggleHeadingCollapse(itemId, key);
           }}
           className={cn(
             "absolute top-1/2 -left-6 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-transform select-none hover:bg-accent [&_svg]:size-3.5",

@@ -29,10 +29,10 @@ interface FilterItem {
   keywords?: string[] | undefined;
   label?: string | undefined;
 }
-export type FilterFn = (item: FilterItem, search: string) => boolean;
+type FilterFn = (item: FilterItem, search: string) => boolean;
 
 interface InlineComboboxContextValue {
-  commit: (focusEditor: boolean) => void;
+  commit: () => void;
   filter: FilterFn | false;
   inputProps: {
     onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void;
@@ -40,7 +40,6 @@ interface InlineComboboxContextValue {
   inputRef: React.RefObject<HTMLInputElement | null>;
   registerVisibleItem: () => () => void;
   setHasEmpty: (hasEmpty: boolean) => void;
-  showTrigger: boolean;
   trigger: string;
   value: string;
   visibleCount: number;
@@ -66,8 +65,6 @@ interface InlineComboboxProps {
   element: TElement;
   trigger: string;
   filter?: FilterFn | false;
-  hideWhenNoValue?: boolean;
-  showTrigger?: boolean;
   value?: string;
   setValue?: (value: string) => void;
 }
@@ -76,9 +73,7 @@ const InlineCombobox = ({
   children,
   element,
   filter = defaultFilter,
-  hideWhenNoValue = false,
   setValue: setValueProp,
-  showTrigger = true,
   trigger,
   value: valueProp,
 }: InlineComboboxProps) => {
@@ -123,16 +118,13 @@ const InlineCombobox = ({
     [editor, element, trigger],
   );
 
-  const commit = React.useCallback(
-    (focusEditor: boolean) => {
-      if (closedRef.current) {
-        return;
-      }
-      closedRef.current = true;
-      commitComboboxInput(editor, element, focusEditor);
-    },
-    [editor, element],
-  );
+  const commit = React.useCallback(() => {
+    if (closedRef.current) {
+      return;
+    }
+    closedRef.current = true;
+    commitComboboxInput(editor, element, true);
+  }, [editor, element]);
 
   React.useEffect(() => {
     inputRef.current?.focus();
@@ -238,7 +230,7 @@ const InlineCombobox = ({
   }, []);
   const [hasEmpty, setHasEmpty] = React.useState(false);
 
-  const open = (visibleCount > 0 || hasEmpty) && (!hideWhenNoValue || value.length > 0);
+  const open = visibleCount > 0 || hasEmpty;
 
   const contextValue = React.useMemo<InlineComboboxContextValue>(
     () => ({
@@ -248,12 +240,11 @@ const InlineCombobox = ({
       inputRef,
       registerVisibleItem,
       setHasEmpty,
-      showTrigger,
       trigger,
       value,
       visibleCount,
     }),
-    [commit, filter, inputProps, registerVisibleItem, showTrigger, trigger, value, visibleCount],
+    [commit, filter, inputProps, registerVisibleItem, trigger, value, visibleCount],
   );
 
   // no onOpenChange: open is derived, and Base UI's escape/outside-click close requests route through cancel
@@ -282,18 +273,12 @@ const InlineComboboxInput = ({
   ref?: React.Ref<HTMLInputElement>;
   placeholder?: string;
 }) => {
-  const {
-    inputProps,
-    inputRef: contextRef,
-    showTrigger,
-    trigger,
-    value,
-  } = useInlineComboboxContext();
+  const { inputProps, inputRef: contextRef, trigger, value } = useInlineComboboxContext();
   const ref = useComposedRef(refProp, contextRef);
 
   return (
     <>
-      {showTrigger && trigger}
+      {trigger}
       <span className="relative min-h-[1lh]">
         <span aria-hidden="true" className="invisible overflow-hidden text-nowrap">
           {(value || placeholder) ?? "​"}
@@ -343,7 +328,6 @@ const InlineComboboxContent = ({
 
 const InlineComboboxItem = ({
   className,
-  focusEditor = true,
   group,
   keywords,
   label,
@@ -352,7 +336,6 @@ const InlineComboboxItem = ({
   children,
 }: {
   className?: string;
-  focusEditor?: boolean | undefined;
   group?: string | undefined;
   keywords?: string[] | undefined;
   label?: string | undefined;
@@ -371,8 +354,6 @@ const InlineComboboxItem = ({
     if (visible) {
       return registerVisibleItem();
     }
-    // oxlint-disable-next-line no-useless-return -- noImplicitReturns rejects falling off the end when the other arm returns a cleanup
-    return;
   }, [visible, registerVisibleItem]);
 
   if (!visible) {
@@ -384,7 +365,7 @@ const InlineComboboxItem = ({
     <Combobox.Item
       className={cn(ITEM_BASE, ITEM_INTERACTIVE, className)}
       onClick={(event) => {
-        commit(focusEditor);
+        commit();
         onClick?.(event);
       }}
       value={value}

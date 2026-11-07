@@ -1,243 +1,168 @@
+// Settings in the tab, over the account's cell and the Worker: what only the cloud answers waits
+// for a connection and says so, then fills in once the tab is back online; a device signed out
+// from the list can no longer reach the library; the built-in agent's switch is the account's; a
+// Raindrop export imports and the library exports as a zip; Delete account… holds its button
+// until a password is typed and says the cloud's refusal; and Sign out leaves for the site's
+// sign-in, the library's page sending the tab back there after.
+
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { DEVICE_CREDENTIAL_PREFIX } from "@repo/contract/cloud/device/device-schema";
-import { writeDeviceCredential } from "inteligir/server/cloud/credential-store";
 import { z } from "zod";
-import { clickButtonIn, parseEval, untilBodyHolds } from "../harness/agent-browser";
-import { expect } from "../harness/assert";
+import {
+  clickButtonIn,
+  modChord,
+  parseEval,
+  press,
+  untilBodyHolds,
+} from "../harness/agent-browser";
+import { expect, expectEq } from "../harness/assert";
+import { OWNER } from "../harness/cloud-account";
+import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
+import { openLibraryTab } from "../harness/library-tab";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import {
-  ALERT_DIALOG,
-  CONNECTOR_FORM,
-  DIALOG_PRESENCE,
-  NAME_INPUT,
-  TOAST,
-  URL_INPUT,
-} from "../harness/selectors";
-import { NO_AUTO_SYNC } from "../harness/vault-sync";
+import { TOAST_TEXT } from "../harness/selectors";
+import { v1Client } from "../harness/v1-wire";
+import { isOrpcError } from "@repo/contract/cloud/v1/errors";
 
-// nothing listens on port 1, so every cloud request is refused at once; the credential file alone
-// puts Sign out on screen.
-const DEAD_CLOUD_URL = "http://127.0.0.1:1";
-const CONNECTOR_NAME = "dupe";
-const CONNECTOR_URL = "https://mcp.example.com/mcp";
-const STATUS_DEADLINE_MS = 30_000;
-// the section's own heading, not a row or the nav link that share its word
-const ACCOUNT_HEADING = `[...document.querySelectorAll("h3")].some((el) => el.textContent.trim() === "Account") ? "drawn" : "missing"`;
-const DEVICES_UNREACHABLE = "Couldn't reach your account to list its devices.";
-// by its title, so no other dialog on the page can stand in for it
-const DELETE_DIALOG = `[...document.querySelectorAll('[role="dialog"]')].find((el) => el.textContent.includes("Delete your account?"))`;
-const DELETE_DIALOG_PRESENCE = `(${DELETE_DIALOG}) ? "present" : "gone"`;
-const DELETE_PASSWORD = '[role="dialog"] input[type="password"]';
-// the dialog's own button: the section's Delete account… behind it carries an ellipsis
-const DELETE_BUTTON_STATE = `(() => {
-  const dialog = ${DELETE_DIALOG};
-  const button = dialog ? [...dialog.querySelectorAll("button")].find((el) => el.textContent.trim() === "Delete account") : null;
+const PHONE = "E2E Phone";
+const DEADLINE_MS = 30_000;
+const IMPORT_DEADLINE_MS = 60_000;
+const NEEDS_CONNECTION = "[data-needs-connection]";
+// a host no page answers (TEST-NET-1), so the imported link's reading fails without leaving the
+// machine; the import itself fetches nothing
+const RAINDROP = `id,title,note,excerpt,url,folder,tags,created,cover,highlights,favorite
+1,Pasta al limone,,A quick lemon pasta.,http://192.0.2.10/pasta,Cooking,recipes,1696147200,,,false
+`;
+const PASTA = "Pasta al limone";
+const DELETE_DIALOG = '[role="dialog"]:has(input[type="password"])';
+// the cloud's own sentence, written out: any failure it did not declare toasts the screen's
+// fallback, so a toast alone proves no refusal
+const WRONG_PASSWORD_REFUSAL = "That email and password don't match an account.";
+const DELETE_STATE = `(() => {
+  const button = [...document.querySelectorAll(${JSON.stringify(`${DELETE_DIALOG} button`)})].find((el) => el.textContent.trim() === "Delete everything");
   if (!button) return "missing";
   return button.disabled ? "disabled" : "enabled";
 })()`;
-const CLICK_DELETE = `(() => {
-  const dialog = ${DELETE_DIALOG};
-  const button = dialog ? [...dialog.querySelectorAll("button")].find((el) => el.textContent.trim() === "Delete account") : null;
-  if (!button) return "missing";
-  if (button.disabled) return "disabled";
-  button.click();
-  return "clicked";
-})()`;
-const DELETE_DIALOG_TEXT = `(() => { const dialog = ${DELETE_DIALOG}; return dialog ? dialog.textContent : ""; })()`;
-const NEW_ACCOUNT = {
-  email: "new@inteligir.local",
-  inviteCode: "E2E-NO-CLOUD",
-  name: "New Person",
-  password: "a fresh passphrase",
-};
-// each field of the form that holds "Invite code", by its label: the connector form beside it has a
-// Name too, and the ids are React-minted per mount.
-const ACCOUNT_FIELDS = `(() => {
-  const labelled = (root, text) => [...root.querySelectorAll("label")].find((el) => el.textContent.trim() === text);
-  const invite = labelled(document, "Invite code");
-  const form = invite ? invite.closest("form") : null;
-  if (!form) return "missing";
-  const field = (text) => {
-    const label = labelled(form, text);
-    const input = label ? document.getElementById(label.htmlFor) : null;
-    return input ? { selector: "#" + CSS.escape(input.id), value: input.value } : null;
-  };
-  return JSON.stringify({ email: field("Email"), inviteCode: field("Invite code"), name: field("Name"), password: field("Password") });
-})()`;
-const fieldSchema = z.object({ selector: z.string(), value: z.string() });
-const accountFieldsSchema = z.object({
-  email: fieldSchema,
-  inviteCode: fieldSchema,
-  name: fieldSchema,
-  password: fieldSchema,
-});
 
 export const settingsBrowser: Scenario = {
   description:
-    "/settings hosts the window-level surfaces: the Account section says a dead cloud's device list couldn't load, Delete account… holds its button until a password is typed and shows the cloud's refusal, Sign out opens its confirm dialog on that route, and a connector add that collides with a row in the instance's claude store toasts there; signed out, Create an account asks for an invite code, and a sign-up the cloud cannot answer says so and keeps what was typed",
+    "Settings in the tab: opened offline, every row the cloud answers says it needs a connection and fills in once the tab is back online; a phone signed out from Devices is refused after; the built-in agent's switch turns it off for the account; a Raindrop export imports and the library exports as a zip to download; Delete account… holds its button until a password is typed and shows the cloud's refusal; Sign out leaves for the site's sign-in, and the library's page sends the tab there after",
   name: "settings-browser",
+  timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    const app = await ctx.boot({
-      extraEnv: { INTELIGIR_CLOUD_URL: DEAD_CLOUD_URL, ...NO_AUTO_SYNC },
-      name: "solo",
-      seedData: (dataDir) => {
-        writeDeviceCredential(dataDir, {
-          credential: `${DEVICE_CREDENTIAL_PREFIX}${"0".repeat(64)}`,
-          deviceId: "dev_settings_e2e",
-          deviceName: "E2E Settings",
-          email: "e2e-settings@inteligir.local",
-          userId: "user_settings_e2e",
-        });
-      },
-    });
-    // the row the form's add will collide with, in the claude store the instance runs claude over.
-    await writeFile(
-      path.join(app.vendorDirs.claudeConfigDir, ".claude.json"),
-      JSON.stringify({ mcpServers: { [CONNECTOR_NAME]: { type: "http", url: CONNECTOR_URL } } }),
-    );
+    const { browser, library, worker } = await openLibraryTab(ctx, "settings");
+    const phone = await v1Client(worker, null).account.signIn({ ...OWNER, deviceName: PHONE });
 
-    const agentBrowser = await ctx.browser("settings");
-
-    ctx.log(`opening ${app.baseUrl}/settings`);
-    await agentBrowser(["open", await app.browserUrl("/settings")], 60_000);
-    await agentBrowser(["wait", NAME_INPUT], 90_000);
-
-    ctx.log("waiting for the signed-in status to reach the page");
-    await untilBodyHolds(agentBrowser, ["Sign out"], STATUS_DEADLINE_MS);
-
-    ctx.log("the Account section draws, and says the dead cloud's device list couldn't load");
-    const heading = parseEval(await agentBrowser(["eval", ACCOUNT_HEADING]), z.string());
-    expect(heading === "drawn", "Settings drew no Account heading");
-    await untilBodyHolds(agentBrowser, [DEVICES_UNREACHABLE], STATUS_DEADLINE_MS);
-
-    ctx.log("Delete account… asks for the password, and holds its button until one is typed");
-    let dialogOpened = false;
-    for (let attempt = 0; attempt < 3 && !dialogOpened; attempt += 1) {
-      await agentBrowser([
-        "find",
-        "role",
-        "button",
-        "click",
-        "--name",
-        "Delete account…",
-        "--exact",
-      ]);
-      dialogOpened = await pollUntil(
-        async () => parseEval(await agentBrowser(["eval", DELETE_DIALOG_PRESENCE]), z.string()),
-        (presence) => presence === "present",
-        { deadlineMs: 10_000, describe: () => "no delete dialog", intervalMs: 200 },
-      ).then(
-        () => true,
-        () => false,
-      );
-    }
-    expect(dialogOpened, "the delete-account dialog never opened");
-    const untyped = parseEval(await agentBrowser(["eval", DELETE_BUTTON_STATE]), z.string());
-    expect(untyped === "disabled", `the dialog's Delete account was ${untyped} before a password`);
-    await agentBrowser(["fill", DELETE_PASSWORD, "a password to check"]);
-    const deleteClicked = parseEval(await agentBrowser(["eval", CLICK_DELETE]), z.string());
-    expect(deleteClicked === "clicked", `the dialog's Delete account was ${deleteClicked}`);
-
-    ctx.log("the dead cloud's refusal shows in the dialog, and the Mac stays signed in");
+    ctx.log("Settings opened offline: each row the cloud answers waits, and says so");
+    await browser(["set", "offline", "on"]);
+    await browser(["press", modChord(",")]);
+    await untilBodyHolds(browser, ["Signed in as", OWNER.email]);
     await pollUntil(
-      async () => parseEval(await agentBrowser(["eval", DELETE_DIALOG_TEXT]), z.string()),
-      (text) => text.includes("Could not reach the cloud"),
+      async () => await browser(["get", "count", NEEDS_CONNECTION]),
+      (count) => Number(count.trim()) >= 3,
       {
-        deadlineMs: STATUS_DEADLINE_MS,
-        describe: (text) => `the dialog never said the cloud was unreachable:\n${text}`,
-        intervalMs: 500,
+        deadlineMs: DEADLINE_MS,
+        describe: (count) => `${count.trim()} rows said they need a connection, not every one`,
       },
     );
-    await agentBrowser(["press", "Escape"]);
+
+    ctx.log("back online, the rows fill in: the devices, no assistants, the agent's switch");
+    await browser(["set", "offline", "off"]);
+    await untilBodyHolds(browser, [PHONE, "None. Claude or ChatGPT", "turns left today"]);
+    const waiting = await browser(["get", "count", NEEDS_CONNECTION]);
+    expectEq(waiting.trim(), "0", "rows still waiting once online");
+
+    ctx.log("the phone signed out from the list is refused after");
+    await browser(["click", `button[aria-label="Sign out ${PHONE}"]`]);
     await pollUntil(
-      async () => parseEval(await agentBrowser(["eval", DELETE_DIALOG_PRESENCE]), z.string()),
-      (presence) => presence === "gone",
+      async () => {
+        try {
+          await v1Client(worker, phone.credential).library.agent.status();
+          return "answered";
+        } catch (error) {
+          return isOrpcError(error) ? error.code : "failed";
+        }
+      },
+      (outcome) => outcome === "UNAUTHORIZED",
+      { deadlineMs: DEADLINE_MS, describe: (outcome) => `the signed-out phone was ${outcome}` },
+    );
+
+    ctx.log("the agent's switch turns it off for the account");
+    await browser([
+      "wait",
+      "--fn",
+      `document.querySelector(${JSON.stringify(`button[aria-label="Sign out ${PHONE}"]`)}) === null`,
+    ]);
+    await press(browser, '[role="switch"][aria-label="Built-in agent"]');
+    await pollUntil(
+      async () => await library.agent.status(),
+      (status) => !status.enabled,
+      { deadlineMs: DEADLINE_MS, describe: () => "the built-in agent stayed on" },
+    );
+    await untilBodyHolds(browser, ["Off: it answers nothing"]);
+
+    ctx.log("a Raindrop export imports into the library");
+    const csv = path.join(ctx.scratchDir, "raindrop.csv");
+    await writeFile(csv, RAINDROP, "utf-8");
+    await browser(["upload", 'input[aria-label="The file to import"]', csv]);
+    await browser(["wait", '[data-import-state="done"]'], IMPORT_DEADLINE_MS);
+    await pollUntil(
+      async () => await library.items.list({}),
+      (listed) => listed.items.some((item) => item.title === PASTA),
+      { deadlineMs: DEADLINE_MS, describe: () => `the cell never held "${PASTA}"` },
+    );
+
+    ctx.log("the library exports as a zip to download");
+    await clickButtonIn(browser, "#import", "Export the library");
+    await browser(["wait", '[data-export-state="ready"] a[download]'], IMPORT_DEADLINE_MS);
+
+    ctx.log("Delete account… holds its button until a password is typed, and says the refusal");
+    await clickButtonIn(browser, "#account", "Delete account…");
+    await browser(["wait", DELETE_DIALOG], DEADLINE_MS);
+    expectEq(
+      parseEval(await browser(["eval", DELETE_STATE]), z.string()),
+      "disabled",
+      "the delete button before a password",
+    );
+    await browser(["fill", `${DELETE_DIALOG} input[type="password"]`, "not the password"]);
+    await clickButtonIn(browser, DELETE_DIALOG, "Delete everything");
+    await pollUntil(
+      async () => parseEval(await browser(["eval", TOAST_TEXT]), z.string()),
+      (text) => text.includes(WRONG_PASSWORD_REFUSAL),
       {
-        deadlineMs: STATUS_DEADLINE_MS,
-        describe: () => "the delete dialog never left the page",
-        intervalMs: 100,
+        deadlineMs: DEADLINE_MS,
+        describe: (text) => `the refused deletion never said the refusal; its toasts say:\n${text}`,
       },
     );
-    const afterRefusal = await agentBrowser(["get", "text", "body"]);
-    expect(
-      afterRefusal.includes("Sign out"),
-      `a refused deletion took Sign out away:\n${afterRefusal}`,
+    const still = await library.agent.status();
+    expect(!still.enabled, "the account answered nothing after a refused deletion");
+    await browser(["press", "Escape"]);
+    // closed, and its backdrop gone with it: the exit animation still covers the page
+    await browser([
+      "wait",
+      "--fn",
+      `document.querySelector(${JSON.stringify(DELETE_DIALOG)}) === null`,
+    ]);
+
+    ctx.log("Sign out leaves for the site's sign-in, and the page sends the tab there after");
+    await browser(["find", "role", "button", "click", "--name", "Sign out", "--exact"]);
+    await pollUntil(
+      async () => await browser(["get", "url"]),
+      (url) => url.includes("/app/sign-in"),
+      {
+        deadlineMs: DEADLINE_MS,
+        describe: (url) => `the signed-out tab stayed on ${url}`,
+      },
     );
-
-    // by role, since the unauthorized state's prose carries the words too; retried, because a
-    // click that lands before React attaches the handler is lost on a slow runner.
-    const openSignOutConfirm = async (): Promise<void> => {
-      let opened = false;
-      for (let attempt = 0; attempt < 3 && !opened; attempt += 1) {
-        await agentBrowser(["find", "role", "button", "click", "--name", "Sign out", "--exact"]);
-        opened = await agentBrowser(["wait", ALERT_DIALOG], 10_000).then(
-          () => true,
-          () => false,
-        );
-      }
-      expect(opened, "the Sign out confirm dialog never opened");
-    };
-
-    // until then it still covers the page, and still answers "Sign out" by that name
-    const confirmLeft = async (): Promise<void> => {
-      await pollUntil(
-        async () => parseEval(await agentBrowser(["eval", DIALOG_PRESENCE]), z.string()),
-        (presence) => presence === "gone",
-        {
-          deadlineMs: STATUS_DEADLINE_MS,
-          describe: () => "the confirm never left the page",
-          intervalMs: 100,
-        },
-      );
-    };
-
-    ctx.log("Sign out awaits a confirm: the dialog opens on this route");
-    await openSignOutConfirm();
-    const dialog = await agentBrowser(["get", "text", ALERT_DIALOG]);
-    expect(
-      dialog.includes("Stop syncing this device?"),
-      `the confirm dialog did not carry the Sign out prompt:\n${dialog}`,
-    );
-    await agentBrowser(["press", "Escape"]);
-    await confirmLeft();
-
-    ctx.log("a refused add toasts on this route");
-    await agentBrowser(["fill", NAME_INPUT, CONNECTOR_NAME]);
-    await agentBrowser(["fill", URL_INPUT, CONNECTOR_URL]);
-    await clickButtonIn(agentBrowser, CONNECTOR_FORM, "Add", 10_000);
-    await agentBrowser(["wait", TOAST], 30_000);
-    const toastText = await agentBrowser(["get", "text", TOAST]);
-    expect(
-      toastText.includes(`already has a connector named "${CONNECTOR_NAME}"`),
-      `the toast did not carry the refusal:\n${toastText}`,
-    );
-
-    ctx.log("signed out, the Account section offers to create an account");
-    await openSignOutConfirm();
-    // the confirm's own button: the section's Sign out behind the dialog carries the same name.
-    await clickButtonIn(agentBrowser, ALERT_DIALOG, "Sign out");
-    await confirmLeft();
-    await untilBodyHolds(agentBrowser, ["Create an account"], STATUS_DEADLINE_MS);
-    await agentBrowser(["find", "role", "button", "click", "--name", "Create an account"]);
-    await untilBodyHolds(agentBrowser, ["Invite code"], STATUS_DEADLINE_MS);
-    const fields = parseEval(await agentBrowser(["eval", ACCOUNT_FIELDS]), accountFieldsSchema);
-    await agentBrowser(["fill", fields.name.selector, NEW_ACCOUNT.name]);
-    await agentBrowser(["fill", fields.email.selector, NEW_ACCOUNT.email]);
-    await agentBrowser(["fill", fields.password.selector, NEW_ACCOUNT.password]);
-    await agentBrowser(["fill", fields.inviteCode.selector, NEW_ACCOUNT.inviteCode]);
-
-    ctx.log("a sign-up the dead cloud cannot answer says so, and keeps what was typed");
-    await agentBrowser(["find", "role", "button", "click", "--name", "Create account", "--exact"]);
-    await untilBodyHolds(agentBrowser, ["Could not reach the cloud"], STATUS_DEADLINE_MS);
-    const kept = parseEval(await agentBrowser(["eval", ACCOUNT_FIELDS]), accountFieldsSchema);
-    expect(
-      kept.name.value === NEW_ACCOUNT.name &&
-        kept.email.value === NEW_ACCOUNT.email &&
-        kept.password.value === NEW_ACCOUNT.password &&
-        kept.inviteCode.value === NEW_ACCOUNT.inviteCode,
-      `the form lost what was typed: ${JSON.stringify(kept)}`,
+    await browser(["open", `${worker.origin}/library`], 60_000);
+    await pollUntil(
+      async () => await browser(["get", "url"]),
+      (url) => url.includes("/app/sign-in"),
+      {
+        deadlineMs: DEADLINE_MS,
+        describe: (url) => `the library opened for a signed-out tab at ${url}`,
+      },
     );
   },
 };

@@ -1,8 +1,7 @@
 import { RadioGroup, RadioGroupItem } from "@repo/ui/components/radio-group";
 import { toast } from "@repo/ui/components/sonner";
 
-// the shell answers a refusal as a value, so a rejected command is a fault, worded for the
-// shell's log rather than for the person: the row says its own sentence instead
+// a shell command that rejected: its words are for the log, and the row says its own sentence
 export const bridgeFailed = (cause: unknown, sentence: string): void => {
   console.warn("[desktop] the shell did not answer", cause);
   toast.error(sentence);

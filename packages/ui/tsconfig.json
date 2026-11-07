@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
     // ES2023 is the repo-wide floor and the CEILING here: these components are
     // bundled into apps/web and the workspace UI, which ship at Vite's

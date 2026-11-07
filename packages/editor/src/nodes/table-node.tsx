@@ -49,9 +49,10 @@ export const TableElement = (props: PlateElementProps) => {
   };
 
   // max-w-full + inner overflow-x-auto: a wide table scrolls inside its own block instead of
-  // being clipped by the editable's overflow-x-hidden.
+  // being clipped by the editable's overflow-x-hidden. The add-row bar sits in the block's own
+  // bottom padding, since a run of blocks clips what hangs past its last one (styles.css).
   return (
-    <div className="group/table relative w-fit max-w-full">
+    <div className="group/table relative w-fit max-w-full pb-2.5">
       <Button
         variant="ghost"
         size="icon-compact"
@@ -102,7 +103,7 @@ export const TableElement = (props: PlateElementProps) => {
         contentEditable={false}
         onClick={addRow}
         title="Add row"
-        className="absolute inset-x-0 -bottom-2.5 h-2 rounded-sm bg-muted px-0 text-muted-foreground opacity-0 group-hover/table:opacity-100 dark:hover:bg-muted"
+        className="absolute inset-x-0 bottom-0 h-2 rounded-sm bg-muted px-0 text-muted-foreground opacity-0 group-hover/table:opacity-100 dark:hover:bg-muted"
       >
         <PlusIcon className="size-3" />
       </Button>

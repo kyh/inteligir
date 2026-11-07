@@ -1,0 +1,24 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    // the tsconfig and the types `wxt prepare` writes from wxt.config.ts, which the program extends
+    // and reads: typecheck and test depend on it through the root's `generate`
+    "generate": {
+      "outputs": [".wxt/**"]
+    },
+    // the unpacked dev build the e2e loads with --extension
+    "build": {
+      "outputs": [".output/chrome-mv3/**"]
+    },
+    // the Web Store zip and the unpacked store build beside it (wxt.config.ts)
+    "zip": {
+      "dependsOn": ["^build"],
+      "outputs": [
+        ".output/chrome-mv3-store/**",
+        ".output/chrome-mv3-store-unpacked/**",
+        ".output/inteligir-extension-*.zip"
+      ]
+    }
+  }
+}

@@ -15,21 +15,21 @@ export const FeedbackSection = () => (
       </DemoCase>
       <DemoCase label="in a button">
         <Button variant="secondary" loading>
-          Committing
+          Saving
         </Button>
       </DemoCase>
     </Demo>
 
     <Demo name="Separator" purpose="A rule between groups that belong to the same surface." stack>
       <div className="w-72 space-y-3">
-        <p className="text-sm">Vault</p>
+        <p className="text-sm">Library</p>
         <Separator />
         <p className="text-sm">Agent</p>
       </div>
       <div className="flex h-8 items-center gap-3">
-        <span className="text-sm">Local</span>
+        <span className="text-sm">Folders</span>
         <Separator orientation="vertical" />
-        <span className="text-sm">Synced</span>
+        <span className="text-sm">Tags</span>
       </div>
     </Demo>
 
@@ -40,7 +40,7 @@ export const FeedbackSection = () => (
       <Button
         variant="secondary"
         onClick={() => {
-          toast.success("Copied for an external agent");
+          toast.success("Moved 2 items to Deleted.");
         }}
       >
         Success toast
@@ -48,7 +48,7 @@ export const FeedbackSection = () => (
       <Button
         variant="secondary"
         onClick={() => {
-          toast.error("Could not reach the vault");
+          toast.error("Could not reach the library");
         }}
       >
         Error toast

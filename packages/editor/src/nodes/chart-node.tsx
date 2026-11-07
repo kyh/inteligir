@@ -59,13 +59,8 @@ const seriesSchema = z.strictObject({
 });
 
 const optionsSchema = z.strictObject({
-  height: z.number().positive().optional(),
-  palette: z.enum(["classic", "accessible", "mono"]).optional(),
   showGrid: z.boolean().optional(),
   showLegend: z.boolean().optional(),
-  width: z.number().positive().optional(),
-  xAxisLabel: z.string().optional(),
-  yAxisLabel: z.string().optional(),
 });
 
 // a plain union: both branches share "bar", which zod's discriminator refuses; the series
@@ -89,6 +84,7 @@ export type ChartPayload = z.infer<typeof chartSchema>;
 
 export type ChartParse = { ok: true; chart: ChartPayload } | { ok: false; reason: string };
 
+/** @internal */
 export const parseChartPayload = (value: string): ChartParse => {
   let json: unknown;
   try {

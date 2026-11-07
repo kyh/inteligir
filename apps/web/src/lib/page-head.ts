@@ -1,10 +1,11 @@
-import type { PageMeta } from "@/lib/page-meta";
-import { statedDate } from "@/lib/page-meta";
-import { siteConfig } from "@/lib/site-config";
-import { pageGraph } from "@/lib/structured-data";
+import type { PageMeta } from "#lib/page-meta";
+import { statedDate } from "#lib/page-meta";
+import { siteConfig } from "#lib/site-config";
+import { pageGraph } from "#lib/structured-data";
 
 const absolute = (path: string): string => `${siteConfig.url}${path === "/" ? "" : path}`;
 
+/** @internal */
 export const pageTitle = (page: PageMeta): string =>
   page.kind === "home" ? `${siteConfig.name}: ${page.title}` : `${page.title} · ${siteConfig.name}`;
 

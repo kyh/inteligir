@@ -17,8 +17,6 @@ export interface TrackedProcess {
 
 export interface SupervisedChild extends TrackedProcess {
   exited: () => boolean;
-  // the leader alone, where stop() signals the whole group: what an OS quit sends an app
-  signalLeader: (signal: NodeJS.Signals) => void;
 }
 
 // module scope: the runner's signal handlers need one place naming every group to kill.
@@ -89,8 +87,8 @@ export interface SpawnSupervisedArgs {
   env: NodeJS.ProcessEnv;
 }
 
-// its own process group, so stop() kills the tree: the server's watcher and Miniflare's workerd
-// would otherwise outlive it.
+// its own process group, so stop() kills the tree: Miniflare's workerd and tauri-driver's own
+// children would otherwise outlive it.
 export const spawnSupervised = (args: SpawnSupervisedArgs): SupervisedChild => {
   const child = spawn(args.file, [...args.argv], {
     cwd: args.cwd,
@@ -137,19 +135,15 @@ export const spawnSupervised = (args: SpawnSupervisedArgs): SupervisedChild => {
   });
 
   let stopPromise: Promise<void> | null = null;
+  const stop = async (): Promise<void> => {
+    stopPromise ??= pid === undefined ? Promise.resolve() : stopProcessGroup(pid, args.name);
+    await stopPromise;
+  };
   return {
     exited: () => exited,
     name: args.name,
     outputTail: (lines = 40) => outputLines.slice(-lines).join("\n"),
-    signalLeader: (signal) => {
-      if (pid !== undefined && !exited) {
-        process.kill(pid, signal);
-      }
-    },
-    async stop() {
-      stopPromise ??= pid === undefined ? Promise.resolve() : stopProcessGroup(pid, args.name);
-      await stopPromise;
-    },
+    stop,
   };
 };
 

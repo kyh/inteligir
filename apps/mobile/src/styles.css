@@ -1,0 +1,78 @@
+/* Tailwind imported apart, as NativeWind 5's install sets a sheet up
+   (nativewind.dev/v5/getting-started/installation): the theme and preflight layered, the utilities
+   unlayered, so no default the cascade holds can sit above a class. The classes are the phone's own
+   sources wherever Metro runs from, never a suite's strings. */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css" source(".");
+@import "nativewind/theme";
+@source not "./**/*.test.ts";
+
+/* the root size a rem means, the web's 16px, which react-native-css reads from here for every rem
+   (its own default is 14), so p-4 is 16 and rounded-lg 8 as on the web */
+:root {
+  font-size: 16px;
+}
+
+/* The phone's palette: a variable per token, light here and dark under the system's scheme below.
+   src/lib/palette.ts holds the same values of the tokens React Native takes as a value rather than
+   a class, and src/styles.test.ts compiles this sheet to hold the two equal. No @repo/ui import: it
+   is web-only, and the dep-dag guard refuses the edge. */
+:root {
+  --background: #fafafa;
+  --foreground: #171717;
+  --card: #ffffff;
+  --card-foreground: #171717;
+  --primary: #171717;
+  --primary-foreground: #fafafa;
+  --muted: #f4f4f5;
+  --muted-foreground: #737373;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --destructive: #ef4444;
+}
+
+/* react-native-css has no class list to put a `.dark` on, so dark is the system's scheme, which is
+   also what Tailwind's own `dark:` reads */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #171717;
+    --foreground: #f5f5f5;
+    --card: #252525;
+    --card-foreground: #f5f5f5;
+    --primary: #e5e5e5;
+    --primary-foreground: #171717;
+    --muted: #1e1e1e;
+    --muted-foreground: #a3a3a3;
+    --border: #404040;
+    --input: #404040;
+    --destructive: #f87171;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-destructive: var(--destructive);
+}
+
+/* The type sizes are the phone's own, named by their px. Tailwind's ladder pairs each size with a
+   line height, so it is cleared and a size is a size alone; a line height is a `leading-*` class
+   beside it where a reading line needs one. */
+@theme {
+  --text-*: initial;
+  --text-12: 12px;
+  --text-13: 13px;
+  --text-14: 14px;
+  --text-15: 15px;
+  --text-16: 16px;
+  --text-30: 30px;
+}

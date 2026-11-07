@@ -10,13 +10,12 @@ every other suite.
 ## Why it exists
 
 There is no coverage tooling, on purpose. What the repo pins instead is
-structure: the dependency DAG and where each package may reach, that every
-socket change kind has a producer, that a route path has one spelling, that
-every turbo cache key names what its output reads. Those are questions the
-compiler, knip and a unit suite cannot ask — a file guard cannot see one unused
-export beside four used ones, TypeScript catches a missing arm but never a
-drifted table, and turbo strips an undeclared env var with no error on either
-side.
+structure: the dependency DAG and where each package may reach, that a route
+path has one spelling, that every turbo cache key names what its output reads.
+Those are questions the compiler, knip and a unit suite cannot ask — a file
+guard cannot see one unused export beside four used ones, TypeScript catches a
+missing arm but never a drifted table, and turbo replays a stale output with no
+error when an edit falls outside a task's cache key.
 
 Every guard obeys three rules. It states its own rule in the failure, so the
 message is the documentation. It names the file to change. And it DERIVES every
@@ -42,15 +41,13 @@ src/
                       # workspaceTurboConfig)
   ui-package.ts       # @repo/ui's swept roots, read from its exports map, and
                       # the gallery dir that never counts as a consumer
-  content-security-policy.ts
-                      # a policy read as a map of directives, so the first
-                      # run's and the phone page's compare to the server's
   *.test.ts           # one guard per file — the list below
 ```
 
-The walk skips `node_modules`, `dist`, `coverage` and every dot-directory, so a
-guard passes the same on CI and on a machine that has run a build, and an agent
-worktree under `.claude` is never read as this commit's tree.
+The walk skips `node_modules`, `dist`, `coverage`, `target` and every
+dot-directory, so a guard passes the same on CI and on a machine that has run a
+build, and an agent worktree under `.claude` is never read as this commit's
+tree.
 
 ## The guards
 
@@ -58,15 +55,10 @@ One per file; its header and its failure message state the rule in full.
 
 - `dep-dag.test.ts`: imports match `DECLARED_EDGES` from both sides, and each package reaches only what its platform allows.
 - `dangling-references.test.ts`: every `@repo/*` name and group-anchored path in a tracked file resolves (what it reads: below).
-- `ws-change-kinds.test.ts`: every declared change kind is fired, and every fired kind declared.
-- `domain-dispatch.test.ts`: a file quoting every member of a vocabulary is its declaration or a `dispatchedIn` row.
-- `one-spelling.test.ts`: path containment and porcelain parsing are spelled once, or in an `elsewhere` row.
 - `route-paths.test.ts`: a non-procedure route path is spelled only at its contract home.
-- `turbo-passthrough.test.ts`: a workspace that reads `resolveAppConfig` passes exactly `ENV_VAR_NAMES` through turbo.
 - `turbo-cache-keys.test.ts`: a cached task over workspace deps has a `^` edge, and an import outside every workspace is a build input.
-- `desktop-shell-wire.test.ts`: the words the Rust shell shares with the page and the CLI match on both sides.
-- `phone-page-csp.test.ts`: the phone page's CSP is the server's, apart from a `PAGE_DEPARTURES` row.
-- `ui-orphan-exports.test.ts`: every `@repo/ui` export has a consumer outside the gallery, or a reasoned row.
+- `desktop-shell-wire.test.ts`: the words the Rust shell shares with the page match on both sides.
+- `ui-orphan-exports.test.ts`: every `@repo/ui` export has a consumer outside the gallery.
 - `gallery-coverage.test.ts`: every component under the demoed roots is in the gallery, or a `NOT_DEMOED` row.
 - `type-roles.test.ts`: chrome draws text only in the five type roles, or a `PROSE_SIZES` row.
 - `compiled-hook-shapes.test.ts`: no react source defines a `use*` hook inside another function.
@@ -76,23 +68,28 @@ One per file; its header and its failure message state the rule in full.
 - `script-naming.test.ts`: a root script's workspace suffix and every `--filter` name a real workspace.
 - `catalog-spelling.test.ts`: a dependency two manifests name is `catalog:`, or a `DECLARED_SPLITS` row.
 - `tailwind-source.test.ts`: every `@source` glob's static base exists.
-- `workerd-compat-date.test.ts`: the Worker's `compatibilityDate` is the oldest workerd date the lockfile resolves.
-- `durable-git-stub.test.ts`: the durable-git stub's header names the version the lockfile resolves.
+- `workerd-compat-date.test.ts`: the Worker's `compatibilityDate` is the oldest workerd date the lockfile resolves, and no earlier than the first date a Durable Object's pending I/O holds it from eviction.
 - `d1-unique-index.test.ts`: no `d1-http` schema declares `.unique()`; a unique is a `uniqueIndex` row.
-- `agent-skills.test.ts`: every skill names itself, the hub indexes every skill, and the CLI's probe file exists.
+- `agent-skills.test.ts`: every skill directory holds a `SKILL.md`, the hub indexes every skill, and the built-in agent's prompt module is what its script writes.
 - `control-bytes.test.ts`: no tracked text file carries a raw control byte other than tab, LF and CR.
 - `changelog.test.ts`: `CHANGELOG.md` runs newest first, its top release naming the desktop's version.
-- `release-versions.test.ts`: the CLI, desktop and phone carry one version, and EAS builds with the repo's pins.
+- `release-versions.test.ts`: the desktop, the extension and the phone carry one version, and EAS builds with the repo's pins.
 - `ime-enter.test.ts`: a source testing a key against Enter imports `isImeComposing`, or is a `NOT_A_TEXT_FIELD` row.
 - `privacy-routes.test.ts`: every cloud `/v1/` route has a row in `docs/privacy.md`, and every row a route.
 - `decisions-index.test.ts`: `AGENTS.md` § Decisions indexes every nested `CLAUDE.md`, and the root one is `@AGENTS.md`.
+- `tests-beside-source.test.ts`: no tracked path sits in a `__tests__` folder; a suite is beside its module, shared test code in `test-support/`.
+- `product-words.test.ts`: a surface's quoted sentences, templates and JSX text and the legal pages say no engine word, or the file is an `ALLOWED` row.
+- `icon-buttons.test.ts`: every icon-size `Button` carries a label, and no `Tooltip` wraps one.
+- `guard-docs.test.ts`: this list is the guards on disk, and a name the guards' docs, the contract's README or the Worker's README cite is one the source holds.
+- `worker-preview.test.ts`: the Preview workflow's script, run against a stub of GitHub and Cloudflare: it reads back only the bot's comment, every page of the environment PRs share, and reports a Preview gone only once it is.
+- `remote-media.test.ts`: the tab's, the Mac's and the phone's editor page's content policies let no item draw from the web.
 
-Every exception table — `ALLOWED_EXPORTS`, `AWAITING_CONSUMER`, `NOT_DEMOED`,
-`dispatchedIn`, `elsewhere`, `ELSEWHERE`,
-`DECLARED_SPLITS`, `DATA_FILES`, `DELIBERATE_NON_REFERENCES`, `PROSE_SIZES`,
-`NOT_A_TEXT_FIELD` — has a companion assertion that no row is STALE: a row
-whose subject is gone, or whose gap has closed, fails too. An allowance that
-outlives what it excused only ever loosens.
+Every exception table — `ALLOWED`, `DATA_FILES`, `DECLARED_SPLITS`,
+`DELIBERATE_NON_REFERENCES`, `EDITOR_PAGE_CLIENTS`, `ELSEWHERE`,
+`NON_COMPONENT_ROOTS`, `NOT_A_TEXT_FIELD`, `NOT_DEMOED`, `PROSE_SIZES` — has a
+companion assertion that no row is STALE: a row whose subject is gone, or whose
+gap has closed, fails too. An allowance that outlives what it excused only ever
+loosens.
 
 ## What the dangling-reference sweep reads
 
@@ -108,29 +105,30 @@ both.
 
 Two limits, stated. A reference is checked only if it is a `@repo/<name>` (the
 subpath after the name is not resolved) or a path anchored on a workspace group
-(`packages/notes/src/knowledge/projection.ts` is checked; a relative
-`src/projection.ts` in a Layout block is not). And a path git ignores (`dist/`,
+(`packages/notes/src/library/block-ops.ts` is checked; a relative
+`src/block-ops.ts` in a Layout block is not). And a path git ignores (`dist/`,
 `.wrangler/`) is excused by asking `git check-ignore`, so the rule stays in
-`.gitignore` and this guard cannot disagree with it.
+`.gitignore` and this guard cannot disagree with it. A name is no path: the
+tables the guards' own docs cite are `guard-docs.test.ts`'s.
 
 ## Invariants
 
 - **A guard states its rule in the failure**, names the file to change and
   says the fix. The message is the documentation; a green run needs none.
 - **Every compared value is derived.** Workspaces from pnpm,
-  vocabularies from their zod declarations, paths from the contract, the env
-  contract from `config.ts`. A hand-written table is a pin or a reasoned
-  exception, never a copy of something the tree already says.
+  vocabularies from their zod declarations, paths from the contract. A
+  hand-written table is a pin or a reasoned exception, never a copy of
+  something the tree already says.
 - **A self-check per sweep.** Each guard asserts it found the thing it is held
-  against (the `inteligir` workspace, `apps/cli/scripts/smoke.ts`, a `dial()`
+  against (a workspace, `apps/desktop/scripts/smoke-packaged.ts`, a `dial()`
   row), so an empty population fails as "the sweep is broken, not the tree"
   rather than passing over nothing.
-- **Shipped and test are split.** `workspaceFiles` classes `__tests__/`,
+- **Shipped and test are split.** `workspaceFiles` classes
   `test-support/` and `*.test.*` as test; an edge only a test crosses is not a
   DAG edge but must still be declared in the manifest.
 - **This package reaches nothing.** Its `DECLARED_EDGES` row is empty: the
-  contract, domain and config values its guards import are devDependencies,
-  read at test time, and so are edges of no shipped graph.
+  contract's values its guards import are a devDependency, read at test time,
+  and so an edge of no shipped graph.
 
 ## Adding a guard
 
@@ -143,6 +141,7 @@ subpath after the name is not resolved) or a path anchored on a workspace group
    anchor.
 4. Knip's vitest plugin reads `src/**/*.test.ts` as this workspace's entries,
    so a helper module is reachable only from a test.
+5. Add its row to § The guards; `guard-docs.test.ts` fails without one.
 
 ## Running
 

@@ -7,11 +7,11 @@ import { device } from "../db/schema";
 // A hash compare against D1 on every request, never cached: a cache with any TTL is the
 // window a revoked credential keeps working through.
 
-// last seen is written at most this often per device: every sync, vault read and git call
-// verifies, and a D1 write on each kept current a devices page nobody reads to the second
+// last seen is written at most this often per device: every call verifies, and a D1 write on each kept current a devices page nobody reads to the second
+/** @internal */
 export const LAST_SEEN_RESOLUTION_MS = 5 * 60_000;
 
-export interface VerifiedDevice {
+interface VerifiedDevice {
   readonly deviceId: string;
   readonly deviceName: string;
   readonly userId: string;
@@ -28,35 +28,7 @@ const bearerCredential = (authorization: string | null): string | null => {
   return credential;
 };
 
-// Basic as well: a stock git client answers the vault remote's 401 that way with the credential
-// as the password; a token put in the username slot still verifies, since the other field is empty then
-export const deviceCredentialFromHeader = (authorization: string | null): string | null => {
-  const bearer = bearerCredential(authorization);
-  if (bearer !== null) {
-    return bearer;
-  }
-  if (authorization === null) {
-    return null;
-  }
-  const [scheme, value, ...rest] = authorization.split(" ");
-  if (scheme?.toLowerCase() !== "basic" || value === undefined || rest.length > 0) {
-    return null;
-  }
-  let decoded: string;
-  try {
-    decoded = atob(value);
-  } catch {
-    return null;
-  }
-  const colon = decoded.indexOf(":");
-  if (colon === -1) {
-    return decoded;
-  }
-  const pass = decoded.slice(colon + 1);
-  return pass === "" ? decoded.slice(0, colon) : pass;
-};
-
-export const verifyDeviceCredentialValue = async (
+const verifyDeviceCredentialValue = async (
   db: Db,
   credential: string,
 ): Promise<VerifiedDevice | null> => {
@@ -97,7 +69,9 @@ export const verifyDeviceCredentialValue = async (
   return touched ?? null;
 };
 
-// the igd_ prefix routes the bearer: a session token never reaches this table and a device credential never reaches Better Auth
+// the one verifier a bearer meets: the Authorization header alone picks it (`../wire/v1-principal`),
+// so a device credential never reaches Better Auth, and a token without the igd_ prefix is refused
+// before its hash and the read, so a session token never reaches this table
 export const verifyDeviceCredential = async (
   db: Db,
   authorization: string | null,
@@ -105,6 +79,3 @@ export const verifyDeviceCredential = async (
   const credential = bearerCredential(authorization);
   return credential === null ? null : await verifyDeviceCredentialValue(db, credential);
 };
-
-export const carriesDeviceCredential = (authorization: string | null): boolean =>
-  bearerCredential(authorization)?.startsWith(DEVICE_CREDENTIAL_PREFIX) ?? false;

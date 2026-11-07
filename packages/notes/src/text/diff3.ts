@@ -1,5 +1,4 @@
-// a genuine overlap keeps mine (the buffer is the user's work) and reports the conflict. `union`
-// keeps both sides' lines there instead, mine first, for a file every writer only appends to.
+// a genuine overlap keeps mine (the buffer is the user's work) and reports the conflict.
 // unstable regions not separated by a stable line are grouped, as classic diff3 does.
 // a side past the line diff's budget arrives as one hunk, so the other side's edits inside it
 // are overlaps and conflict, while its edits outside it still merge.
@@ -9,14 +8,8 @@ import type { DiffHunk } from "./line-diff";
 
 export interface Diff3Result {
   merged: string;
-  // an overlap was met, whichever policy resolved it
+  // an overlap was met, and mine kept there
   conflicted: boolean;
-}
-
-export type Diff3Overlap = "mine" | "union";
-
-export interface Diff3Options {
-  readonly overlap?: Diff3Overlap;
 }
 
 interface SideCursor {
@@ -43,45 +36,7 @@ const segmentsEqual = (a: readonly string[], b: readonly string[]): boolean => {
   return true;
 };
 
-// the lines both segments share appear once, in order, with mine's own lines before theirs
-// between them: two appends keep both, and a heading both sides wrote is not doubled.
-const unionSegments = (mine: readonly string[], theirs: readonly string[]): string[] => {
-  const union: string[] = [];
-  let mineLine = 0;
-  for (const hunk of diffLines(mine, theirs).hunks) {
-    union.push(
-      ...mine.slice(mineLine, hunk.baseEnd),
-      ...theirs.slice(hunk.sideStart, hunk.sideEnd),
-    );
-    mineLine = hunk.baseEnd;
-  }
-  union.push(...mine.slice(mineLine));
-  return union;
-};
-
-interface RegionLines {
-  readonly conflicted: boolean;
-  readonly lines: readonly string[];
-}
-
-// both sides changed the region: the same change is no overlap, anything else is resolved by policy
-const bothChanged = (
-  mine: readonly string[],
-  theirs: readonly string[],
-  overlap: Diff3Overlap,
-): RegionLines => {
-  if (segmentsEqual(mine, theirs)) {
-    return { conflicted: false, lines: mine };
-  }
-  return { conflicted: true, lines: overlap === "union" ? unionSegments(mine, theirs) : mine };
-};
-
-export const diff3 = (
-  base: string,
-  mine: string,
-  theirs: string,
-  { overlap = "mine" }: Diff3Options = {},
-): Diff3Result => {
+export const diff3 = (base: string, mine: string, theirs: string): Diff3Result => {
   if (mine === theirs) {
     return { conflicted: false, merged: mine };
   }
@@ -158,9 +113,9 @@ export const diff3 = (
     const theirsSegment = takeSegment(theirsCursor, inRegion.theirs, theirsLines);
 
     if (inRegion.mine.length > 0 && inRegion.theirs.length > 0) {
-      const region = bothChanged(mineSegment, theirsSegment, overlap);
-      conflicted ||= region.conflicted;
-      merged.push(...region.lines);
+      // both sides changed the region: the same change is no overlap
+      conflicted ||= !segmentsEqual(mineSegment, theirsSegment);
+      merged.push(...mineSegment);
     } else if (inRegion.mine.length > 0) {
       merged.push(...mineSegment);
     } else {

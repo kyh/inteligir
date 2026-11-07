@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { siteConfig } from "@/lib/site-config";
+import { siteConfig } from "#lib/site-config";
 
 const body = [
   "User-agent: *",

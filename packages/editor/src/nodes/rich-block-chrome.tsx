@@ -35,8 +35,13 @@ export const RichBlockCard = ({
 // Outside the editable, so the browser types nothing into a locked container's blocks; a caret a
 // tap leaves there has its keystrokes refused by the lock, and its model guard refuses whatever
 // edit arrives some other way.
-export const LockedContent = ({ children, locked }: { children: ReactNode; locked: boolean }) =>
-  locked ? <div contentEditable={false}>{children}</div> : children;
+export const LockedContent = ({
+  children,
+  locked,
+}: {
+  children: ReactNode;
+  locked: boolean;
+}): ReactNode => (locked ? <div contentEditable={false}>{children}</div> : children);
 
 export const DegradedPayloadView = ({ reason, value }: { reason: string; value: string }) => (
   <div>

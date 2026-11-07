@@ -1,79 +1,52 @@
+// The built Mac shell on a scratch home, driven over WebDriver: tauri-driver starts the debug build
+// (`build:shell`) for the session it is asked for, and the shell opens its one window on the
+// library's page it carries, calling the cloud origin the harness names (`INTELIGIR_CLOUD_ORIGIN`,
+// which a debug build alone reads). The home is the scenario's own and outlives a launch, so a
+// relaunch finds the credential and the replica the one before it kept.
+
 import { existsSync, readdirSync, readFileSync, readlinkSync, realpathSync } from "node:fs";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { resolveAppConfig } from "inteligir/server/config";
-import { resolveCheckoutRoot } from "inteligir/server/dev-instance";
-import { loopbackOrigin } from "inteligir/server/server-file";
-import { SHUTDOWN_TIMEOUT_MS } from "inteligir/server/shutdown";
+import { DatabaseSync } from "node:sqlite";
+import { z } from "zod";
 import { skip } from "./assert";
 import { appLaunchEnv } from "./exec";
-import { createInstanceApi, makeVendorDirs, vendorEnv } from "./instance";
-import type { InstanceApi, VendorDirs } from "./instance";
 import { pollUntil } from "./poll";
+import { BACK_TO_LIBRARY, LIBRARY_GRID } from "./selectors";
+import { loopbackOrigin } from "./ports";
 import { bootWithPorts, spawnSupervised } from "./tracked-child";
 import type { TrackedProcess } from "./tracked-child";
-import { NO_AUTO_SYNC } from "./vault-sync";
 import { openSession } from "./webdriver";
 import type { WebDriverSession } from "./webdriver";
 
-// the first-run window's page, the one the shell carries inside it (src-tauri/tauri.conf.json)
-export const SHELL_FIRST_RUN_URL = "tauri://localhost/first-run.html";
-// what the shell notes in a vault's server log as each app window loads (src-tauri/src/window.rs)
-export const WINDOW_LOADED = "[desktop] window loaded";
-// the app window's page has drawn under the shell, whose runtime marks every page it hosts
-export const PAGE_UNDER_SHELL =
-  'window.isTauri && document.querySelector("#root")?.firstElementChild != null';
-// a page expression asking the shell one command, by the name its row in
-// apps/workspace/src/shell/ipc-contract.ts gives it, over the IPC the page's own calls ride
-export const askShell = (
-  command: string,
-  args: Readonly<Record<string, string | boolean>> = {},
-): string =>
-  `window.__TAURI_INTERNALS__.invoke(${JSON.stringify(command)}, ${JSON.stringify(args)})`;
-const SERVER_LOG = path.join("logs", "server.log");
-
-// a cold boot starts the driver, the shell, its server, migrates, indexes and paints the window
+// the page as the shell carries it (src-tauri/src/window.rs)
+export const SHELL_PAGE_URL = "tauri://localhost/library/";
+// the debug build's bundle id, which names the app's data dir under XDG_DATA_HOME
+// (src-tauri/tauri.local.conf.json, which build:shell builds under)
+const APP_ID = "com.inteligir.desktop.dev";
+// a cold launch starts the driver, the shell and its window
 const READY_DEADLINE_MS = 90_000;
 const READY_POLL_INTERVAL_MS = 500;
-// a killed shell's server sees its lifeline close and runs its whole teardown
-const QUIT_DEADLINE_MS = SHUTDOWN_TIMEOUT_MS + 30_000;
-
-export interface ShellTarget {
-  dataDir: string;
-  vaultDir: string;
-}
+// a quit installs nothing in a debug build and closes the replica's file
+const QUIT_DEADLINE_MS = 30_000;
 
 export interface DesktopShell extends TrackedProcess {
-  // the server the shell runs now: the port is pinned across a switch, the bearer re-read per call,
-  // so on a first run it answers once the chosen vault's server.json appears
-  api: InstanceApi;
-  serverOrigin: string;
-  // what the shell resolves now, derived as the shell's CLI door derives it, so a switch moves it
-  target: () => ShellTarget;
-  // the shell's own folder: its recent-vaults list, its debug choice, each vault's web store
-  ownDir: string;
-  // the shell's first window, and only it (harness/webdriver.ts says why)
+  // the shell's one window
   window: WebDriverSession;
-  // the lines a vault's server log holds, the shell's notes of its windows among them
-  serverLog: (target: ShellTarget) => Promise<string[]>;
-  // SIGTERM to the shell, as a session's end or a crash sends it: its server must not outlive it
+  // where the shell keeps the account's replica, its staged files and the credential's stand-in
+  dataDir: string;
+  // where a file the page saves lands: the home's Downloads, as its user dirs name it
+  downloadsDir: string;
+  // the replica's files, one an account the shell holds
+  replicaFiles: () => string[];
+  // SIGTERM to the shell, as Quit, a session's end or launchd at shutdown sends it
   quit: () => Promise<void>;
 }
 
-export type DesktopShellOptions = {
-  // the shell's own folder (its recent-vaults list, its debug choice)
-  seedOwnDir?: (ownDir: string) => Promise<void>;
-} & (
-  | {
-      firstRun?: false;
-      // the vault the shell opens, made before launch so the shell boots it rather than asking
-      // for one; seeded before its server's repo init commits it
-      seedVault?: (vaultDir: string) => Promise<void>;
-    }
-  // no vault and nothing seeded: the shell opens its first run and boots nothing until a vault
-  // is chosen. A relaunch over the same scratch finds the vault that run made
-  | { firstRun: true }
-);
+export interface DesktopShellOptions {
+  // the cloud the shell calls: a Worker's origin, or a link to one the scenario can cut
+  cloudOrigin: string;
+}
 
 export type LaunchDesktopShellArgs = DesktopShellOptions & {
   repoRoot: string;
@@ -83,7 +56,7 @@ export type LaunchDesktopShellArgs = DesktopShellOptions & {
 };
 
 // what `pnpm turbo run build:shell --filter=@repo/desktop` leaves, which the runner builds before a
-// shell scenario: an unbundled debug build, its first-run page inside it
+// shell scenario: an unbundled debug build with the page inside it
 export const shellBinary = (repoRoot: string): string =>
   path.join(repoRoot, "apps", "desktop", "src-tauri", "target", "debug", "Inteligir");
 
@@ -104,7 +77,7 @@ const requireShellSetup = (binary: string): void => {
   }
   if (!onPath("tauri-driver") || !onPath("WebKitWebDriver")) {
     skip(
-      "no WebDriver for the shell: install webkit2gtk-driver, then `cargo install tauri-driver --locked`",
+      "no WebDriver for the shell: install webkitgtk-webdriver (webkit2gtk-driver before Ubuntu 26.04), then `cargo install tauri-driver --locked`",
     );
   }
   if (!existsSync(binary)) {
@@ -112,18 +85,21 @@ const requireShellSetup = (binary: string): void => {
   }
 };
 
-type ShellDirs = VendorDirs & { homeDir: string };
+interface ShellHome {
+  home: string;
+  dataHome: string;
+  cacheHome: string;
+}
 
-// HOME, not INTELIGIR_DATA_DIR/INTELIGIR_VAULT_DIR: the shell refuses a switch while either is
-// pinned, so the scratch is reached through the dev instance a home derives. The driver passes
-// its environment down to the shell it starts.
-const shellEnv = (dirs: ShellDirs, serverPort: number): NodeJS.ProcessEnv =>
-  Object.assign(appLaunchEnv(), vendorEnv(dirs), NO_AUTO_SYNC, {
-    HOME: dirs.homeDir,
-    INTELIGIR_AGENT: "scripted",
-    INTELIGIR_PORT: String(serverPort),
-    XDG_CONFIG_HOME: path.join(dirs.homeDir, ".config"),
-    XDG_DATA_HOME: path.join(dirs.homeDir, ".local", "share"),
+// HOME and the XDG dirs, which place the app's data and caches; the driver passes its environment
+// down to the shell it starts
+const shellEnv = (home: ShellHome, cloudOrigin: string): NodeJS.ProcessEnv =>
+  Object.assign(appLaunchEnv(), {
+    HOME: home.home,
+    INTELIGIR_CLOUD_ORIGIN: cloudOrigin,
+    XDG_CACHE_HOME: home.cacheHome,
+    XDG_CONFIG_HOME: path.join(home.home, ".config"),
+    XDG_DATA_HOME: home.dataHome,
   });
 
 // the shell is the driver's grandchild: found by its binary and the scratch home it runs under
@@ -157,9 +133,8 @@ const driverListening = async (origin: string): Promise<boolean> => {
   }
 };
 
-// a zombie still answers kill(pid, 0), and a killed shell's server is an orphan whose reaping is
-// the init process's; its state says it is done
-export const running = (pid: number): boolean => {
+// a zombie still answers kill(pid, 0); its state says it is done
+const running = (pid: number): boolean => {
   try {
     const stat = readFileSync(`/proc/${String(pid)}/stat`, "utf-8");
     return !/^\d+ \(.*\) Z/u.test(stat);
@@ -172,29 +147,24 @@ export const launchDesktopShell = async (args: LaunchDesktopShellArgs): Promise<
   const binary = shellBinary(args.repoRoot);
   requireShellSetup(binary);
   const desktopDir = path.join(args.repoRoot, "apps", "desktop");
-  const shellDir = path.join(args.scratchDir, "shell");
-  const homeDir = path.join(shellDir, "home");
-  const dirs: ShellDirs = { ...(await makeVendorDirs(shellDir)), homeDir };
-  const checkoutPath = resolveCheckoutRoot(desktopDir);
-  // an unbundled shell's door resolves in development mode, for the checkout it belongs to; the
-  // rest of the env it hands the resolution moves neither dir
-  const config = () =>
-    resolveAppConfig({ checkoutPath, env: { NODE_ENV: "development" }, homeDir });
-  const target = (): ShellTarget => {
-    const { dataDir, vaultDir } = config();
-    return { dataDir, vaultDir };
+  const homeDir = path.join(args.scratchDir, "shell", "home");
+  const home: ShellHome = {
+    cacheHome: path.join(homeDir, ".cache"),
+    dataHome: path.join(homeDir, ".local", "share"),
+    home: homeDir,
   };
-  // beside config.json (src-tauri/src/shell.rs names the folder)
-  const ownDir = path.join(config().rootDataDir, "desktop");
-  await mkdir(ownDir, { recursive: true });
-
-  // the default vault already there is what a launch before first run left, so the shell boots it
-  if (args.firstRun !== true) {
-    const { vaultDir } = target();
-    await mkdir(vaultDir, { recursive: true });
-    await args.seedVault?.(vaultDir);
-  }
-  await args.seedOwnDir?.(ownDir);
+  await mkdir(home.dataHome, { recursive: true });
+  // WebKitGTK saves a download where the XDG user dirs name Downloads, and where it was started
+  // when they name none, which would be the checkout
+  const downloadsDir = path.join(homeDir, "Downloads");
+  await mkdir(downloadsDir, { recursive: true });
+  await mkdir(path.join(homeDir, ".config"), { recursive: true });
+  await writeFile(
+    path.join(homeDir, ".config", "user-dirs.dirs"),
+    'XDG_DOWNLOAD_DIR="$HOME/Downloads"\n',
+  );
+  const dataDir = path.join(home.dataHome, APP_ID);
+  const libraryDir = path.join(dataDir, "library");
 
   let session: WebDriverSession | null = null;
   const live = (): WebDriverSession => {
@@ -210,8 +180,8 @@ export const launchDesktopShell = async (args: LaunchDesktopShellArgs): Promise<
     label: "the desktop shell",
     onLog: args.onLog,
     pollIntervalMs: READY_POLL_INTERVAL_MS,
-    portCount: 3,
-    // the session opens once the shell's first window exists, which is the shell being up
+    portCount: 2,
+    // the session opens once the shell's window exists, which is the shell being up
     ready: async () => {
       if (session !== null) {
         return true;
@@ -222,20 +192,19 @@ export const launchDesktopShell = async (args: LaunchDesktopShellArgs): Promise<
       session = await openSession(driverOrigin, binary);
       return true;
     },
-    spawn: ([port = 0, nativePort = 0, serverPort = 0]) => {
+    spawn: ([port = 0, nativePort = 0]) => {
       driverOrigin = loopbackOrigin(port);
       const child = spawnSupervised({
         argv: ["--port", String(port), "--native-port", String(nativePort)],
         cwd: desktopDir,
-        env: shellEnv(dirs, serverPort),
+        env: shellEnv(home, args.cloudOrigin),
         file: "tauri-driver",
         name: "shell",
       });
-      const serverOrigin = loopbackOrigin(serverPort);
       const shell: DesktopShell = {
         ...child,
-        api: createInstanceApi(serverOrigin, () => target().dataDir),
-        ownDir,
+        dataDir,
+        downloadsDir,
         async quit() {
           const pid = shellPid(binary, homeDir);
           if (pid !== null) {
@@ -250,23 +219,61 @@ export const launchDesktopShell = async (args: LaunchDesktopShellArgs): Promise<
             );
           }
           await session?.close();
+          await child.stop();
         },
-        serverLog: async (of) =>
-          await readFile(path.join(of.dataDir, SERVER_LOG), "utf-8").then(
-            (text) => text.split("\n"),
-            () => [],
-          ),
-        serverOrigin,
-        target,
+        replicaFiles: () =>
+          existsSync(libraryDir)
+            ? readdirSync(libraryDir)
+                .filter((name) => name.endsWith(".sqlite"))
+                .map((name) => path.join(libraryDir, name))
+            : [],
         get window() {
           return live();
         },
       };
       args.register(shell);
       args.onLog(
-        `launching the desktop shell (WebDriver on ${String(port)}, server on ${serverOrigin})`,
+        `launching the desktop shell (WebDriver on ${String(port)}, the cloud at ${args.cloudOrigin})`,
       );
       return { child, handle: shell };
     },
   });
+};
+
+const titleRowSchema = z.object({ title: z.string() });
+
+// an item's title as the shell's replica holds it, read off the file the shell wrote, or null when
+// the replica holds no such item: the oracle that the page read the Rust replica, not the cloud
+export const replicaTitle = (file: string, itemId: string): string | null => {
+  const db = new DatabaseSync(file, { readOnly: true });
+  try {
+    const row = db.prepare("SELECT title FROM items WHERE id = ?").get(itemId);
+    return row === undefined ? null : titleRowSchema.parse(row).title;
+  } finally {
+    db.close();
+  }
+};
+
+const SIGN_IN_DEADLINE_MS = 60_000;
+const LIBRARY_DEADLINE_MS = 60_000;
+
+// from an open item, its topbar's way back, and the grid drawn again
+export const backToLibrary = async (page: WebDriverSession): Promise<void> => {
+  await page.clickWhenThere(BACK_TO_LIBRARY, LIBRARY_DEADLINE_MS);
+  await page.waitUntil(
+    `document.querySelector(${JSON.stringify(LIBRARY_GRID)}) !== null`,
+    LIBRARY_DEADLINE_MS,
+  );
+};
+
+// the first run as a person meets it: the window's sign-in, the account's email and password typed
+// through the browser's own keys, then Sign in, which keeps the credential and opens the library
+export const signInThroughWindow = async (
+  page: WebDriverSession,
+  account: { readonly email: string; readonly password: string },
+): Promise<void> => {
+  await page.waitForText("Sign in to your library", SIGN_IN_DEADLINE_MS);
+  await page.typeInto('input[type="email"]', account.email);
+  await page.typeInto('input[type="password"]', account.password);
+  await page.clickButton("Sign in", SIGN_IN_DEADLINE_MS);
 };

@@ -1,51 +1,49 @@
-import { mkdir } from "node:fs/promises";
-import path from "node:path";
 import { createScenarioBrowser, requireHeadlessBrowser } from "./agent-browser";
-import type { ScenarioBrowser } from "./agent-browser";
+import type { ScenarioBrowser, ScenarioBrowserOptions } from "./agent-browser";
+import { openCloudLink } from "./cloud-link";
+import type { CloudLink } from "./cloud-link";
 import { launchCloudWorker } from "./cloud-worker";
 import type { CloudWorker, LaunchCloudWorkerArgs } from "./cloud-worker";
 import { launchDesktopShell } from "./desktop-shell";
 import type { DesktopShell, DesktopShellOptions } from "./desktop-shell";
-import { exec, hermeticProcessEnv } from "./exec";
-import { launchApp } from "./instance";
-import type { AppInstance, LaunchAppArgs, LaunchMode } from "./instance";
 import type { TrackedProcess } from "./tracked-child";
-
-interface BootOptions {
-  name: string;
-  mode?: LaunchMode;
-  vaultRemote?: string;
-  extraEnv?: Readonly<Record<string, string>>;
-  // both run before boot; the app's repo init commits whatever it finds in the vault.
-  seedVault?: (vaultDir: string) => Promise<void>;
-  seedData?: (dataDir: string) => void | Promise<void>;
-}
 
 export interface ScenarioContext {
   repoRoot: string;
   scratchDir: string;
   log: (message: string) => void;
-  boot: (options: BootOptions) => Promise<AppInstance>;
-  bareRemote: (name?: string) => Promise<string>;
-  cloudWorker: (options?: Pick<LaunchCloudWorkerArgs, "vars">) => Promise<CloudWorker>;
-  // the built Tauri shell on a scratch home, driven over WebDriver; skips with no display, no
-  // driver or no built shell.
-  desktopShell: (options?: DesktopShellOptions) => Promise<DesktopShell>;
-  // skips the scenario when no headless browser can launch; closed at teardown like an instance.
-  browser: (label: string) => Promise<ScenarioBrowser>;
+  cloudWorker: (
+    options?: Pick<LaunchCloudWorkerArgs, "json" | "pages" | "vars">,
+  ) => Promise<CloudWorker>;
+  // a relay to a booted Worker the scenario can cut and restore, closed at teardown
+  cloudLink: (worker: CloudWorker) => Promise<CloudLink>;
+  // the built Tauri shell on the scenario's scratch home, which outlives a launch, driven over
+  // WebDriver; skips with no display, no driver or no built shell.
+  desktopShell: (options: DesktopShellOptions) => Promise<DesktopShell>;
+  // skips the scenario when no headless browser can launch; closed at teardown like a Worker.
+  browser: (label: string, options?: ScenarioBrowserOptions) => Promise<ScenarioBrowser>;
 }
+
+// what one scenario at a time may hold, whatever the lane count: the desktop shell is a window on
+// the run's one display, driven through WebKit's WebDriver, and two at once would share its focus.
+// Everything else a scenario touches is its own (a scratch dir, ephemeral ports, a browser session
+// named for it), so a scenario that holds none of these runs beside any other
+export type ExclusiveResource = "desktop-shell";
 
 export interface Scenario {
   name: string;
   description: string;
   // the runner fails a run still going past this, so a hang costs one scenario, not the job.
   timeoutMs?: number;
-  // the runner builds the shell before the first scenario that launches it, outside every deadline
-  usesDesktopShell?: true;
+  // never beside another scenario holding the same one. "desktop-shell" also has the runner build
+  // the shell before the first scenario, outside every deadline
+  exclusive?: readonly ExclusiveResource[];
   run: (context: ScenarioContext) => Promise<void>;
 }
 
 export interface CreateScenarioContextArgs {
+  // the scenario's own name, which every browser session it opens carries
+  scenarioName: string;
   repoRoot: string;
   scratchDir: string;
   log: (message: string) => void;
@@ -71,51 +69,16 @@ const own = (args: CreateScenarioContextArgs, instance: TrackedProcess): void =>
 };
 
 export const createScenarioContext = (args: CreateScenarioContextArgs): ScenarioContext => ({
-  async bareRemote(name = "remote") {
-    const remoteDir = path.join(args.scratchDir, `${name}.git`);
-    await mkdir(remoteDir, { recursive: true });
-    await exec("git", ["init", "--bare", "-b", "main", remoteDir], {
-      env: hermeticProcessEnv(),
-    });
-    args.log(`bare remote at ${remoteDir}`);
-    return `file://${remoteDir}`;
-  },
-  async boot(options) {
-    const instanceDir = path.join(args.scratchDir, options.name);
-    if (options.seedVault) {
-      const vaultDir = path.join(instanceDir, "vault");
-      await mkdir(vaultDir, { recursive: true });
-      await options.seedVault(vaultDir);
-    }
-    if (options.seedData) {
-      const dataDir = path.join(instanceDir, "data");
-      await mkdir(dataDir, { recursive: true });
-      await options.seedData(dataDir);
-    }
-    const launchArgs: LaunchAppArgs = {
-      instanceDir,
-      mode: options.mode ?? "source",
-      name: options.name,
-      onLog: args.log,
-      register: (instance) => {
-        own(args, instance);
-      },
-      repoRoot: args.repoRoot,
-    };
-    // exactOptionalPropertyTypes: an absent option stays absent, never an explicit undefined.
-    if (options.vaultRemote !== undefined) {
-      launchArgs.vaultRemote = options.vaultRemote;
-    }
-    if (options.extraEnv !== undefined) {
-      launchArgs.extraEnv = options.extraEnv;
-    }
-    return await launchApp(launchArgs);
-  },
-  async browser(label) {
+  async browser(label, options) {
     await requireHeadlessBrowser(args.log);
-    const browser = createScenarioBrowser(label);
+    const browser = createScenarioBrowser(`${args.scenarioName}-${label}`, options);
     own(args, { name: `browser "${label}"`, outputTail: () => "", stop: browser.close });
     return browser;
+  },
+  async cloudLink(worker) {
+    const link = await openCloudLink(worker.origin);
+    own(args, { name: "the cloud link", outputTail: () => "", stop: link.close });
+    return link;
   },
   async cloudWorker(options) {
     const launch: LaunchCloudWorkerArgs = {
@@ -129,9 +92,15 @@ export const createScenarioContext = (args: CreateScenarioContextArgs): Scenario
     if (options?.vars !== undefined) {
       launch.vars = options.vars;
     }
+    if (options?.json !== undefined) {
+      launch.json = options.json;
+    }
+    if (options?.pages !== undefined) {
+      launch.pages = options.pages;
+    }
     return await launchCloudWorker(launch);
   },
-  async desktopShell(options = {}) {
+  async desktopShell(options) {
     return await launchDesktopShell({
       ...options,
       onLog: args.log,

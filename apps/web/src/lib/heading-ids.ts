@@ -20,7 +20,10 @@ interface HastNode {
 
 const HEADING = /^h[1-6]$/u;
 
-/** GitHub's rule: lowercase, punctuation and symbols dropped, each space a dash. */
+/**
+ * GitHub's rule: lowercase, punctuation and symbols dropped, each space a dash.
+ * @internal
+ */
 export const headingSlug = (text: string): string =>
   text
     .toLowerCase()

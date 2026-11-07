@@ -1,19 +1,15 @@
 {
-  "extends": "../../tsconfig.base.json",
+  // the repo's strictness, then Expo's own base over it: Metro's "react-native" export condition,
+  // its jsx and module settings, and its excludes, so TypeScript checks the entry points the
+  // bundler loads
+  "extends": ["@kyh/tsconfig/base.json", "expo/tsconfig.base"],
   "compilerOptions": {
+    // the language Hermes runs, not Expo's ESNext, and the DOM types React Native's globals use
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "jsx": "react-native",
-    // Metro resolves package `exports` under the "react-native" condition; the
-    // repo base sets none, so without this TS would check a different entry
-    // point than the bundler actually loads. (Expo's own base sets it — we do
-    // not extend that base, because chaining it would silently drag in its
-    // lib/target/module/exclude too.)
-    "customConditions": ["react-native"],
     "moduleSuffixes": [".ios", ".native", ""],
     "paths": {
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "*.ts", ".expo/types/**/*.ts", "expo-env.d.ts"],
-  "exclude": ["node_modules"]
+  "include": ["src", "*.ts", ".expo/types/**/*.ts", "expo-env.d.ts", "nativewind-env.d.ts"]
 }

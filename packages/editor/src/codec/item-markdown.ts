@@ -1,0 +1,354 @@
+// One item as one markdown file, both ways. Its fields are the frontmatter
+// (`item-fields.ts`), its body the dialect, the page a fill read inside `:::article` after the
+// person's note, and its highlights the markers in the body beside the item's
+// `.inteligir/annotations/<id>.json`. The files an item holds whole sit where an export puts
+// them: a saved link's cover the body's first embed under `assets/covers/`, a file item's
+// original its first embed of its kind.
+
+import type { Root, RootContent } from "mdast";
+import type { TElement } from "platejs";
+
+import {
+  parseAnnotationStore,
+  serializeAnnotationStore,
+} from "@repo/notes/annotations/store-schema";
+import type { AnnotationStore } from "@repo/notes/annotations/store-schema";
+import { COVERS_DIR, URL_ITEM_KINDS } from "@repo/notes/items/item-kind";
+import type { ItemKind } from "@repo/notes/items/item-kind";
+import { orderedBlocks } from "@repo/notes/library/block-ops";
+import type { StoredBlock } from "@repo/notes/library/block-ops";
+import { ordsBetween } from "@repo/notes/library/block-order";
+import type { LibraryItemFields } from "@repo/notes/library/library-item";
+import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
+import { parseMdast } from "@repo/notes/markdown/parse";
+import { obsidianReader } from "@repo/notes/markdown/remark-obsidian";
+import type { ObsidianHighlight } from "@repo/notes/markdown/remark-obsidian";
+import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
+
+import { headlessEditor, serializeNote } from "@repo/editor/markdown/markdown-doc";
+import { ARTICLE_SECTION_KEY, yamlCodeBlock } from "@repo/editor/markdown/md-rules";
+import { mdToSlate, rootToSlate, withinStack } from "@repo/editor/markdown/md-to-slate";
+import { stringProp } from "@repo/editor/node-props";
+
+import { readFrontmatter, writeFrontmatter } from "./item-fields";
+import type { FileFields } from "./item-fields";
+import { nameDrafts } from "./name-blocks";
+import { readBlocks } from "./read-blocks";
+import { elementsOf, embedFiles, settled } from "./read-markdown";
+import type { LibraryFile, Reached } from "./read-blocks";
+import { leaf } from "./slate-leaves";
+import { writeBlocks } from "./write-blocks";
+import type { WritePorts } from "./write-blocks";
+
+// a file an import found, and where in the folder it sits
+export interface FoundFile extends LibraryFile {
+  readonly place: string;
+}
+
+export interface ImportPorts {
+  readonly wiki: (link: WikiBody, embed: boolean) => Reached;
+  // the file a markdown image's or link's address names, from this file
+  readonly file: (url: string) => FoundFile | null;
+  readonly newBlockId: () => string;
+  readonly newAnnotationId: () => string;
+  // the instant the import runs, unix milliseconds: what an item saved without `saved:` takes, and
+  // when its Obsidian highlights were made
+  readonly now: number;
+}
+
+export interface ItemSource {
+  readonly text: string;
+  // the file's name, less its extension: the item's title unless its frontmatter names one
+  readonly name: string;
+  // the item's `.inteligir/annotations/<id>.json`, as written
+  readonly annotations: string | null;
+}
+
+// a block in its place, as an insert lands it
+interface PlacedBlock {
+  readonly block: LibraryBlock;
+  readonly ord: string;
+  readonly section: LibrarySection;
+}
+
+export type ImportedFields = Omit<LibraryItemFields, "deletedAt" | "folderId">;
+
+export interface ImportedItem {
+  readonly fields: ImportedFields;
+  readonly blocks: readonly PlacedBlock[];
+  readonly annotations: AnnotationStore;
+  // what the file held that the item cannot: each block no store takes, and a highlights' store
+  // past reading
+  readonly leftOut: number;
+}
+
+export type ItemImport =
+  | { readonly ok: true; readonly item: ImportedItem }
+  | { readonly ok: false; readonly reason: "too-deep" };
+
+interface Parts {
+  readonly yaml: string | null;
+  // the root's children before an `:::article`, inside it, and after it
+  readonly before: RootContent[];
+  readonly article: RootContent[] | null;
+  readonly after: RootContent[];
+}
+
+const partsOf = (root: Root): Parts => {
+  let yaml: string | null = null;
+  const before: RootContent[] = [];
+  const after: RootContent[] = [];
+  let article: RootContent[] | null = null;
+  for (const child of root.children) {
+    if (child.type === "yaml") {
+      yaml ??= child.value;
+    } else if (child.type === "articleSection") {
+      article = [...(article ?? []), ...child.children];
+    } else {
+      (article === null ? before : after).push(child);
+    }
+  }
+  return { after, article, before, yaml };
+};
+
+// a lone image block's address: the parse lifts every markdown image into a block of its own
+const imageUrl = (block: TElement | undefined): string | null =>
+  block?.type === "img" ? (stringProp(block, "url") ?? null) : null;
+
+const under = (dir: string, path: string): boolean => path.startsWith(`${dir}/`);
+
+const originalKind = (kind: ItemKind): boolean =>
+  !URL_ITEM_KINDS.some((url) => url === kind) && kind !== "note";
+
+interface HeldFiles {
+  cover: string | null;
+  // the original's bytes and the name it was found under
+  original: { readonly sha: string; readonly name: string } | null;
+}
+
+// the body's structural files taken out of it: what an export puts there, read back
+const takeHeldFiles = (
+  sections: { first: TElement[]; all: TElement[][] },
+  kind: ItemKind,
+  ports: ImportPorts,
+): HeldFiles => {
+  const held: HeldFiles = { cover: null, original: null };
+  const firstUrl = imageUrl(sections.first[0]);
+  const cover = firstUrl === null ? null : ports.file(firstUrl);
+  if (cover?.kind === "image" && under(COVERS_DIR, cover.place)) {
+    held.cover = cover.sha;
+    sections.first.shift();
+  }
+  if (!originalKind(kind)) {
+    return held;
+  }
+  for (const blocks of sections.all) {
+    const index = blocks.findIndex((block) => {
+      const url = imageUrl(block);
+      const file = url === null ? null : ports.file(url);
+      return file !== null && (kind === "file" || file.kind === kind);
+    });
+    const url = imageUrl(blocks[index]);
+    const file = url === null ? null : ports.file(url);
+    if (file !== null) {
+      held.original = { name: file.name, sha: file.sha };
+      blocks.splice(index, 1);
+      return held;
+    }
+  }
+  return held;
+};
+
+const placed = (blocks: readonly LibraryBlock[], section: LibrarySection): PlacedBlock[] => {
+  const ords = blocks.length === 0 ? [] : ordsBetween(null, null, blocks.length);
+  return blocks.map((block, index) => ({ block, ord: ords[index] ?? "a0", section }));
+};
+
+const highlightEntries = (
+  highlights: readonly ObsidianHighlight[],
+  now: number,
+): AnnotationStore => {
+  const seconds = Math.floor(now / 1000);
+  const store: AnnotationStore = {};
+  for (const { id, quote } of highlights) {
+    store[id] = { createdAt: seconds, quote, source: "user", text: "", updatedAt: seconds };
+  }
+  return store;
+};
+
+const fieldsWith = (fields: FileFields, held: HeldFiles): ImportedFields => ({
+  ...fields,
+  coverSha: held.cover ?? (fields.kind === "image" ? (held.original?.sha ?? null) : null),
+  originalName: held.original?.name ?? null,
+  originalSha: held.original?.sha ?? null,
+});
+
+interface SectionValues {
+  readonly before: TElement[];
+  readonly article: TElement[];
+  readonly after: TElement[];
+}
+
+const sectionValues = (parts: Parts): SectionValues | null => {
+  const editor = headlessEditor();
+  const values: TElement[][] = [];
+  for (const children of [parts.before, parts.article ?? [], parts.after]) {
+    const converted = rootToSlate(editor, { children, type: "root" });
+    if (!converted.ok) {
+      return null;
+    }
+    values.push(elementsOf(converted.nodes));
+  }
+  const [before = [], article = [], after = []] = values;
+  return { after, article, before };
+};
+
+interface ReadAnnotations {
+  readonly annotations: AnnotationStore;
+  readonly unreadable: boolean;
+}
+
+// the store the file's highlights were kept in, and the bare highlights its `==x==` made
+const annotationsOf = (
+  written: string | null,
+  highlights: readonly ObsidianHighlight[],
+  now: number,
+): ReadAnnotations => {
+  const store = written === null ? null : parseAnnotationStore(written);
+  const kept = store?.ok === true ? store.store : {};
+  return {
+    annotations: { ...kept, ...highlightEntries(highlights, now) },
+    unreadable: store?.ok === false,
+  };
+};
+
+// one markdown file as its item
+export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport => {
+  const person = obsidianReader(ports.newAnnotationId);
+  const parts = withinStack((): Parts => {
+    const parsed = partsOf(parseMdast(source.text).root);
+    const before = person.read(parsed.before);
+    return { ...parsed, after: person.read(parsed.after), before };
+  });
+  const values = parts === null ? null : sectionValues(parts);
+  if (parts === null || values === null) {
+    return { ok: false, reason: "too-deep" };
+  }
+  const front = readFrontmatter(parts.yaml, source.name, ports.now);
+  const sections = [values.before, values.article, values.after];
+  const held = takeHeldFiles(
+    { all: sections, first: sections.find((blocks) => blocks.length > 0) ?? values.before },
+    front.fields.kind,
+    ports,
+  );
+  const note = [...values.before, ...values.after];
+  if (front.invalidYaml !== null) {
+    note.unshift(yamlCodeBlock(front.invalidYaml));
+  }
+  const readPorts = {
+    image: (url: string): LibraryFile | null => ports.file(url),
+    wiki: ports.wiki,
+  };
+  const noteValue = settled(elementsOf(embedFiles(note, readPorts)), person.read);
+  const pageValue = settled(elementsOf(embedFiles(values.article, readPorts)));
+  const noteBlocks = nameDrafts(readBlocks(noteValue, readPorts), ports.newBlockId);
+  const pageBlocks = nameDrafts(readBlocks(pageValue, readPorts), ports.newBlockId);
+  const highlights = annotationsOf(source.annotations, person.highlights, ports.now);
+  return {
+    item: {
+      annotations: highlights.annotations,
+      blocks: [...placed(noteBlocks.blocks, "note"), ...placed(pageBlocks.blocks, "article")],
+      fields: fieldsWith(front.fields, held),
+      leftOut: noteBlocks.refused + pageBlocks.refused + (highlights.unreadable ? 1 : 0),
+    },
+    ok: true,
+  };
+};
+
+// what a page names that the library could hold resolves to nothing: a page's links and images
+// are addresses on the web
+const PAGE_PORTS = { image: (): null => null, wiki: (): null => null };
+
+export interface ArticleBlocks {
+  readonly blocks: readonly PlacedBlock[];
+}
+
+// a page a fill read (the reader's canonical markdown) as its item's article section, keys minted
+// apart from the note's, so a fill never threads its blocks through the person's
+export const articleBlocks = (markdown: string, newBlockId: () => string): ArticleBlocks | null => {
+  const converted = mdToSlate(headlessEditor(), markdown);
+  if (!converted.ok) {
+    return null;
+  }
+  const drafts = readBlocks(settled(elementsOf(converted.nodes)), PAGE_PORTS);
+  const named = nameDrafts(drafts, newBlockId);
+  return { blocks: placed(named.blocks, "article") };
+};
+
+export interface ExportItem {
+  readonly id: string;
+  readonly fields: LibraryItemFields;
+  readonly blocks: ReadonlyMap<string, StoredBlock>;
+  readonly annotations: AnnotationStore;
+}
+
+// a file the item holds whole, by its role: an original by the name it was saved under too, null
+// where none came with it
+export type HeldFile =
+  | { readonly role: "cover"; readonly sha: string }
+  | { readonly role: "original"; readonly sha: string; readonly name: string | null };
+
+export interface ExportPorts extends WritePorts {
+  // where a file the item holds whole is written
+  readonly held: (file: HeldFile) => string;
+}
+
+export interface ExportedItem {
+  readonly text: string;
+  // its highlights' store, null when it holds none
+  readonly annotations: string | null;
+}
+
+const heldImage = (url: string): TElement => ({
+  caption: [leaf("", {})],
+  children: [leaf("", {})],
+  type: "img",
+  url,
+});
+
+// one item as one markdown file; `title` is written into the frontmatter when the file's name
+// cannot carry it
+export const exportItem = (
+  item: ExportItem,
+  ports: ExportPorts,
+  title: string | null,
+): ExportedItem => {
+  const blocks = orderedBlocks(item.blocks);
+  const of = (section: LibrarySection): LibraryBlock[] =>
+    blocks.filter((stored) => stored.section === section).map((stored) => stored.block);
+  const note = writeBlocks(of("note"), ports);
+  const article = writeBlocks(of("article"), ports);
+  const { fields } = item;
+  const head: TElement[] = [];
+  const ownCover = fields.coverSha !== null && fields.coverSha !== fields.originalSha;
+  if (fields.coverSha !== null && (ownCover || fields.kind !== "image")) {
+    head.push(heldImage(ports.held({ role: "cover", sha: fields.coverSha })));
+  }
+  if (fields.originalSha !== null) {
+    head.push(
+      heldImage(
+        ports.held({ name: fields.originalName, role: "original", sha: fields.originalSha }),
+      ),
+    );
+  }
+  const body: TElement[] =
+    article.length > 0
+      ? [...head, ...note, { children: article, type: ARTICLE_SECTION_KEY }]
+      : [...head, ...note];
+  const markdown = body.length === 0 ? "" : `${serializeNote(headlessEditor(), body).trimEnd()}\n`;
+  const yaml = writeFrontmatter(fields, item.id, title);
+  const separator = markdown === "" ? "" : "\n";
+  const store =
+    Object.keys(item.annotations).length === 0 ? null : serializeAnnotationStore(item.annotations);
+  return { annotations: store, text: `---\n${yaml}\n---\n${separator}${markdown}` };
+};

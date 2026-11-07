@@ -148,7 +148,7 @@ describe("every cached turbo task hashes the workspaces it depends on", () => {
           `  fix: add "^${task.task}", or "^topo" where that would be a cycle`,
       );
     }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 });
 
@@ -213,6 +213,6 @@ describe("a bundled file outside every workspace is a named build input", () => 
           `  fix: add "${TURBO_ROOT}${stray.target}" to tasks.build.inputs in ${stray.workspace.dir}/turbo.json, beside "$TURBO_DEFAULT$"`,
       );
     }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 });

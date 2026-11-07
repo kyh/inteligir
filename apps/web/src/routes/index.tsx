@@ -4,16 +4,16 @@ import { ClientOnly, createFileRoute, Link } from "@tanstack/react-router";
 import Markdown from "react-markdown";
 import type { ExtraProps } from "react-markdown";
 
-import { markdownHandler, varyHeaders } from "@/lib/markdown-route";
-import { PAGES } from "@/lib/page-meta";
-import { pageHead } from "@/lib/page-head";
-import { siteConfig } from "@/lib/site-config";
-import { homeMarkdown } from "@/lib/site-content";
-import { SiteHeader } from "@/components/site-header";
+import { markdownHandler, varyHeaders } from "#lib/markdown-route";
+import { PAGES } from "#lib/page-meta";
+import { pageHead } from "#lib/page-head";
+import { siteConfig } from "#lib/site-config";
+import { homeMarkdown } from "#lib/site-content";
+import { SiteHeader } from "#components/site-header";
 
 // three.js is most of this page's weight; imported statically it would hold hydration, and the CTA with it
 const HeroOrb = lazy(async () => {
-  const module = await import("@/components/hero-orb");
+  const module = await import("#components/hero-orb");
   return { default: module.HeroOrb };
 });
 
@@ -68,7 +68,8 @@ const Page = () => (
           Download for Mac
         </a>
         <span className="text-center text-xs text-foreground/60">
-          For Macs with Apple silicon. The agent works with a paid Claude plan or any ChatGPT plan.
+          For Macs with Apple silicon. Saves from Chrome, Arc, Brave and Edge. An account is
+          required, by invite for now, and its first 1 GB is free. The agent is built in.
         </span>
       </div>
       <footer className="flex justify-center pb-6">

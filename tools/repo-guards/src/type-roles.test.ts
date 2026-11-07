@@ -4,13 +4,12 @@
 import { describe, expect, it } from "vitest";
 
 import { sourceOf, workspaceFiles, workspaces } from "./repo";
-import { AWAITING_CONSUMER } from "./ui-package";
 
 const ROLES_DECLARED = "packages/ui/src/styles/globals.css";
 
-// where chrome is drawn. A file held in AWAITING_CONSUMER keeps its own sizes until a surface
-// draws it.
+// where chrome is drawn.
 const CHROME_ROOTS = [
+  "apps/extension/src/",
   "apps/workspace/src/",
   "packages/editor/src/",
   "packages/ui/src/components/",
@@ -32,9 +31,7 @@ const PROSE_SIZES = new Map<string, ProseSize>();
 
 const chromeFiles = workspaces()
   .flatMap((workspace) => workspaceFiles(workspace).shipped)
-  .filter(
-    (file) => CHROME_ROOTS.some((root) => file.startsWith(root)) && !AWAITING_CONSUMER.has(file),
-  )
+  .filter((file) => CHROME_ROOTS.some((root) => file.startsWith(root)))
   .toSorted();
 
 const rawSizesIn = (file: string): string[] =>
@@ -64,7 +61,7 @@ describe("the chrome's type roles", () => {
         : `RAW TYPE SIZES IN THE CHROME\n${offenders.map((line) => `  ${line}`).join("\n")}\n` +
             `  rule: chrome speaks text-caption | body | subtitle | title | display (${ROLES_DECLARED}); a raw size beside them is a second scale\n` +
             `  fix: name the role the line is; inside the note's prose, size in em so the size dial reaches it, or add a PROSE_SIZES row with its reason`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("keeps no prose row its file no longer needs", () => {
@@ -75,6 +72,6 @@ describe("the chrome's type roles", () => {
     expect(
       stale,
       `a PROSE_SIZES row permits a size its file no longer draws: drop it, or a raw size can return there unasked`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });

@@ -2,10 +2,6 @@
   "$schema": "https://turborepo.dev/schema.json",
   "agentGuidance": false,
   "ui": "tui",
-  // every tsconfig extends the base, but turbo hashes only files inside a workspace: without this,
-  // loosening a compiler setting leaves every typecheck key unchanged, and CI, restoring `.turbo`
-  // from a branch-prefix key, serves a green typecheck it never re-ran
-  "globalDependencies": ["tsconfig.base.json"],
   // worktrees share one cache dir and turbo never evicts by default; eviction runs in the
   // background at the start of `turbo run`
   "cacheMaxSize": "10GB",
@@ -31,8 +27,14 @@
       "cache": false,
       "persistent": true
     },
+    // a workspace's generated sources (apps/web's Env and runtime types, from `cf workers types`),
+    // which its typecheck and its suites both read: a test file can carry type claims too. ^topo:
+    // the Env is typed from the entry's exports, which import other workspaces
+    "generate": {
+      "dependsOn": ["^topo"]
+    },
     "typecheck": {
-      "dependsOn": ["^topo"],
+      "dependsOn": ["^topo", "generate"],
       // tsc runs incremental, so its state is this task's output, or every restore re-checks from
       // cold; a glob, because a workspace with several programs writes one file each
       "outputs": [".cache/tsbuildinfo*.json"]
@@ -47,17 +49,23 @@
     "//#format": {
       "cache": false
     },
+    // knip reads each workspace's tsconfig, and the extension's extends the one `wxt prepare`
+    // writes: without it knip sees none of the extension's suites
     "//#knip": {
-      "cache": false
+      "cache": false,
+      "dependsOn": ["@repo/extension#generate"]
     },
+    // the type-aware pass reads each workspace's program, and the Worker's and the extension's
+    // extend what their `generate` writes (the Env types, `.wxt/tsconfig.json`)
     "//#lint": {
-      "cache": false
+      "cache": false,
+      "dependsOn": ["@repo/web#generate", "@repo/extension#generate"]
     },
     "format:fix": {
       "cache": false
     },
     "test": {
-      "dependsOn": ["^topo"],
+      "dependsOn": ["^topo", "generate"],
       // the suites run in parallel (four at once, or TEST_CONCURRENCY), so every vitest.config.ts
       // caps its own maxWorkers: uncapped pools exhaust the machine and kill workers mid-run
       "cache": false,
@@ -67,8 +75,8 @@
     }
   },
   // NODE_ENV is hashed, not only passed through: vite emits React's dev build under an ambient
-  // `development`, which the unpackaged shell hands every agent shell, so an agent's build would
-  // otherwise store a dev bundle under the production key in the cache every worktree shares
+  // `development`, so a build run from a shell that sets it would otherwise store a dev bundle
+  // under the production key in the cache every worktree shares
   "globalEnv": ["NODE_ENV"],
   "globalPassThroughEnv": ["CI", "npm_lifecycle_event"]
 }

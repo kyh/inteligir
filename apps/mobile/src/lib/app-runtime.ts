@@ -1,101 +1,145 @@
-import { useMemo, useSyncExternalStore } from "react";
+// The composition root's native half: composeRuntime bound to the Keychain, expo-sqlite, the file
+// folders, the global fetch, React Native's socket, the headless page's merge and the OS's app
+// state, built once for the app's life. A screen reaches the library through the hooks in
+// library-hooks.ts, and what only the cell answers through TanStack Query, whose online state is
+// the network's and whose focus is the app's.
+
+import { focusManager, onlineManager, QueryClient } from "@tanstack/react-query";
+import { useSyncExternalStore } from "react";
 import { AppState } from "react-native";
 import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";
-import { File } from "expo-file-system";
 import { addNetworkStateListener } from "expo-network";
 import * as SecureStore from "expo-secure-store";
-import { createKeychainCredentials } from "../credential/secure-store-credential";
-import {
-  pendingCaptures,
-  threadDispatches,
-  threadListEntries,
-} from "../dispatch/dispatch-projection";
-import type {
-  PendingCaptures,
-  ThreadDispatches,
-  ThreadListEntry,
-} from "../dispatch/dispatch-projection";
-import type {
-  AskAgentRequest,
-  CancelOutcome,
-  DispatchOutcome,
-  DispatchState,
-} from "../dispatch/dispatch-runtime";
-import { createEditorPorts } from "../editor/editor-ports";
-import type { EditorPorts, EditorPortsArgs } from "../editor/editor-ports";
-import { defaultDeviceName } from "../login/device-name";
-import type { LoginRequest, LoginState } from "../login/login-store";
-
-import { createExpoAttachmentFiles } from "../notes/expo-attachment-files";
-import { createExpoOutboxFolder } from "../notes/expo-outbox-files";
-import type { CreatedNote, RenamedNote } from "../notes/file-ops";
-import type { CommentsRead, NoteRead, NoteText, NotesTreeState } from "../notes/notes-store";
-import { excludedFromBackup } from "../notes/outbox-files";
-import { ingestPhoto } from "../notes/photo-ingest";
-import type { OutboxStatus } from "../notes/vault-outbox";
-import type { LiveItem } from "../sync/live-turns";
-import { rnSocketDial } from "../sync/rn-socket-dial";
-import type { SyncStatus } from "../sync/sync-runtime";
-import { liveThreadsFirst, projectThread } from "../sync/thread-projection";
-import type { ThreadProjection } from "../sync/thread-projection";
 import { hexFromBytes } from "@repo/contract/cloud/bytes";
-import { createCloudSocketOpener } from "@repo/contract/cloud/sync/cloud-socket";
-import type { PendingInteractionApprovalDecision } from "@repo/domain/pending-interactions";
+import { uuidV7 } from "@repo/notes/library/uuid-v7";
+import { createKeychainCredentials } from "../credential/secure-store-credential";
+import { createHeadlessPageHost } from "../editor/headless-page-host";
+import type { HeadlessPageHost } from "../editor/headless-page-host";
+import { editorPageSource } from "../editor/page-source";
+import type { PageSource } from "../editor/page-source";
+import { createExpoFileFolders } from "../files/expo-file-folders";
+import { shrinkToThumbnail } from "../files/expo-thumbnail";
+import { createPageFetch } from "../items/page-fetch";
+import type { PageFetch } from "../items/page-fetch";
+import type { LoginRequest, LoginState } from "../login/login-store";
 import { excludeFromBackup } from "./backup-exclusion";
 import { getCloudUrl } from "./cloud-url";
 import { composeRuntime } from "./compose-runtime";
-import type { AppRuntime, LogoutOutcome } from "./compose-runtime";
-import { createExpoSqlDriver } from "./expo-sql-driver";
-import { openPhoneDb } from "./phone-db";
-
-let runtime: AppRuntime | null = null;
-
-// console.warn would raise a LogBox toast per skipped row or offline pass.
-const devLog = (message: string): void => {
-  if (__DEV__) {
-    console.log(`sync: ${message}`);
-  }
-};
+import type { AppRuntime, LogoutOutcome, PhoneSession } from "./compose-runtime";
+import { openExpoReplicaSql } from "./expo-replica-sql";
+import { clearHttpCache } from "./http-cache";
 
 // the version app.config.js read from the package. a build that carries none says 0.0.0, which
 // the cloud refuses as too old rather than letting a build it cannot place through
 const appVersion = (): string => Constants.expoConfig?.version ?? "0.0.0";
 
+// a block's id on this phone: what a thought's paragraphs are named by
+export const newBlockId = (): string => Crypto.randomUUID();
+
+// one per load of an item's page, and of the headless page
+export const mintBridgeNonce = (): string => hexFromBytes(Crypto.getRandomBytes(16));
+
+let headless: { host: HeadlessPageHost; source: PageSource } | null | undefined;
+
+// the page in its headless mode, which HeadlessPage mounts; null for a build made without the page
+export const headlessPage = (): { host: HeadlessPageHost; source: PageSource } | null => {
+  if (headless === undefined) {
+    const source = editorPageSource();
+    headless =
+      source === null
+        ? null
+        : {
+            host: createHeadlessPageHost({ mintNonce: mintBridgeNonce, pageUrl: source.uri }),
+            source,
+          };
+  }
+  return headless;
+};
+
+// a shared page is asked for as Safari on the phone would ask, naming the app after it
+const userAgent = (): string =>
+  `Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1 inteligir/${appVersion()}`;
+
+// the phone's own language first, its bare language after
+const acceptLanguage = (): string => {
+  const { locale } = Intl.DateTimeFormat().resolvedOptions();
+  const [language = "en"] = locale.split("-");
+  return locale === language ? locale : `${locale},${language};q=0.9`;
+};
+
+// a page the share sheet reads: fetched by the phone itself, its redirects judged hop by hop
+export const sharedPageFetch: PageFetch = createPageFetch(globalThis.fetch, {
+  acceptLanguage: acceptLanguage(),
+  userAgent: userAgent(),
+});
+
+const sha256Hex = async (bytes: Uint8Array<ArrayBuffer>): Promise<string> =>
+  hexFromBytes(new Uint8Array(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, bytes)));
+
+// what only the cell answers, asked with TanStack Query: it pauses with no connection, and asks
+// again as the app comes back to the front
+export const queryClient = new QueryClient();
+
+let runtime: AppRuntime | null = null;
+
 const build = (): AppRuntime => {
   const rt = composeRuntime({
-    attachments: createExpoAttachmentFiles(),
     build: { platform: "mobile", version: appVersion() },
+    clearHttpCache,
+    clock: {
+      after: (ms, run) => {
+        const timer = setTimeout(run, ms);
+        return () => {
+          clearTimeout(timer);
+        };
+      },
+      now: () => Date.now(),
+    },
     cloudUrl: getCloudUrl(),
     credentials: createKeychainCredentials(SecureStore),
-    db: openPhoneDb(createExpoSqlDriver("inteligir.db")),
-    deviceName: defaultDeviceName(),
-    mintId: () => hexFromBytes(Crypto.getRandomBytes(16)),
-    mintNoteId: Crypto.randomUUID,
-    outboxFiles: excludedFromBackup(createExpoOutboxFolder(), excludeFromBackup),
-    randomBytes: Crypto.getRandomBytes,
-    sha1: async (bytes) =>
-      new Uint8Array(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA1, bytes)),
-    sync: { onDebug: devLog, openSocket: createCloudSocketOpener(rnSocketDial) },
+    // React Native's WebSocket: the engine opens it with the ticket a `/v1` call minted, in the
+    // query string, as every client does, never a header
+    dial: (url) => new WebSocket(url),
+    fetch: async (request) => await globalThis.fetch(request),
+    folders: createExpoFileFolders(excludeFromBackup),
+    merge: async (sides) => {
+      const page = headlessPage();
+      if (page === null) {
+        throw new Error("This build has no page to merge a change with.");
+      }
+      return await page.host.merge(sides);
+    },
+    newId: () => uuidV7(Date.now(), Crypto.getRandomBytes(16)),
+    openSql: async () => await openExpoReplicaSql("inteligir.db"),
+    sha256Hex,
+    shrinkCover: shrinkToThumbnail,
   });
   // never removed: the runtime lives as long as the app, and a resume while signed out is a no-op.
   // `inactive` is a passing state on iOS (a pulled-down notification centre), not a departure.
   AppState.addEventListener("change", (state) => {
+    focusManager.setFocused(state === "active");
     if (state === "active") {
       rt.resume();
     } else if (state === "background") {
       rt.suspend();
     }
   });
-  // a phone back online sends what it saved offline without waiting for the retry timer; in the
-  // background it waits for the foreground, which reopens the socket too
+  // a phone back online sends what it queued offline without waiting for its retry; in the
+  // background it waits for the foreground, which dials the socket too
   let online = true;
-  addNetworkStateListener((network) => {
-    const reachable = network.isInternetReachable ?? network.isConnected ?? false;
-    if (reachable && !online && AppState.currentState === "active") {
-      rt.resume();
-    }
-    online = reachable;
+  onlineManager.setEventListener((setOnline) => {
+    const subscription = addNetworkStateListener((network) => {
+      const reachable = network.isInternetReachable ?? network.isConnected ?? false;
+      setOnline(reachable);
+      if (reachable && !online && AppState.currentState === "active") {
+        rt.resume();
+      }
+      online = reachable;
+    });
+    return () => {
+      subscription.remove();
+    };
   });
   return rt;
 };
@@ -109,10 +153,6 @@ export const ensureStarted = async (): Promise<void> => {
   await getRuntime().start();
 };
 
-export const syncNow = async (): Promise<void> => {
-  await getRuntime().sync.syncNow();
-};
-
 export const logout = async (options?: { discardUnsent?: boolean }): Promise<LogoutOutcome> =>
   await getRuntime().logout(options);
 
@@ -120,157 +160,12 @@ export const login = async (request: LoginRequest): Promise<void> => {
   await getRuntime().login.login(request);
 };
 
-export const refreshNotes = async (): Promise<void> => {
-  await getRuntime().notes.refresh();
-};
-
-export const readNote = async (path: string): Promise<NoteRead> =>
-  await getRuntime().notes.readNote(path);
-
-export const readNoteComments = async (note: NoteText): Promise<CommentsRead> =>
-  await getRuntime().notes.readComments(note);
-
-export const createNote = async (dir: string): Promise<CreatedNote> =>
-  await getRuntime().fileOps.create(dir);
-
-export const renameNote = async (from: string, name: string): Promise<RenamedNote> =>
-  await getRuntime().fileOps.rename(from, name);
-
-export const deleteNote = async (path: string): Promise<void> => {
-  await getRuntime().fileOps.remove(path);
-};
-
-// the view context's revision: the sha-256 of the note's bytes as the screen showed them
-const noteRevision = async (content: string): Promise<string> =>
-  hexFromBytes(
-    new Uint8Array(
-      await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, new TextEncoder().encode(content)),
-    ),
-  );
-
-// the editor page's ports over the store and the file verbs, bound to their native halves: the
-// photo picker, a held file's bytes, the revision hash and a new thread's id
-export const createNoteEditorPorts = (
-  screen: Pick<
-    EditorPortsArgs,
-    "editorState" | "go" | "notify" | "openFailed" | "opened" | "showComments"
-  >,
-): EditorPorts => {
-  const rt = getRuntime();
-  return createEditorPorts({
-    ...screen,
-    comments: rt.comments,
-    fileOps: rt.fileOps,
-    newThreadId: () => rt.dispatch.newThreadId(),
-    pickImage: async () => await ingestPhoto(rt.fileOps),
-    readBase64: async (uri) => await new File(uri).base64(),
-    revisionOf: noteRevision,
-    store: rt.notes,
-  });
-};
-
-// one per load of the editor page
-export const mintBridgeNonce = (): string => hexFromBytes(Crypto.getRandomBytes(16));
-
-export const useNotesTree = (): NotesTreeState => {
-  const rt = getRuntime();
-  return useSyncExternalStore(rt.notes.tree.subscribe, rt.notes.tree.get);
-};
-
-// what has not reached the vault: the parked changes and the conflicts the queue settled
-export const useOutboxStatus = (): OutboxStatus => {
-  const { status } = getRuntime().notes.outbox;
-  return useSyncExternalStore(status.subscribe, status.get);
-};
-
-export const retryUnsent = async (seq: number): Promise<void> => {
-  await getRuntime().notes.outbox.retry(seq);
-};
-
-// the path the change was kept at, or null when it had nothing to keep
-export const saveUnsentAsNew = async (seq: number): Promise<string | null> =>
-  await getRuntime().notes.outbox.saveAsNew(seq);
-
-export const discardUnsent = async (seq: number): Promise<void> => {
-  await getRuntime().notes.outbox.discard(seq);
-};
-
-export const dismissSyncNotice = (id: number): void => {
-  getRuntime().notes.outbox.dismiss(id);
-};
-
-export const useSyncStatus = (): SyncStatus => {
-  const rt = getRuntime();
-  return useSyncExternalStore(rt.sync.subscribe, rt.sync.get);
+export const useSession = (): PhoneSession => {
+  const { session } = getRuntime();
+  return useSyncExternalStore(session.subscribe, session.get);
 };
 
 export const useLoginState = (): LoginState => {
   const rt = getRuntime();
   return useSyncExternalStore(rt.login.subscribe, rt.login.get);
-};
-
-const useDispatchState = (): DispatchState => {
-  const rt = getRuntime();
-  return useSyncExternalStore(rt.dispatch.subscribe, rt.dispatch.get);
-};
-
-// the synced threads and those that so far exist only on this phone, each with what it is doing
-export const useThreadList = (): readonly ThreadListEntry[] => {
-  const rt = getRuntime();
-  const threads = useSyncExternalStore(rt.store.subscribeThreads, rt.store.snapshotThreads);
-  const dispatches = useDispatchState();
-  return useMemo(
-    () =>
-      threadListEntries(
-        liveThreadsFirst(threads.map((thread) => projectThread(thread))),
-        dispatches,
-      ),
-    [threads, dispatches],
-  );
-};
-
-export const useThread = (threadId: string): ThreadProjection | null => {
-  const rt = getRuntime();
-  const thread = useSyncExternalStore(rt.store.subscribeThreads, () =>
-    rt.store.snapshotThread(threadId),
-  );
-  return useMemo(() => (thread === null ? null : projectThread(thread)), [thread]);
-};
-
-// what the thread's running turn has streamed so far, cleared as its items settle
-export const useLiveItems = (threadId: string): readonly LiveItem[] => {
-  const rt = getRuntime();
-  return useSyncExternalStore(rt.live.subscribe, () => rt.live.snapshot(threadId));
-};
-
-export const useDispatches = (threadId: string): ThreadDispatches => {
-  const thread = useThread(threadId);
-  const dispatches = useDispatchState();
-  return useMemo(
-    () => threadDispatches(threadId, thread, dispatches),
-    [threadId, thread, dispatches],
-  );
-};
-
-export const usePendingCaptures = (): PendingCaptures => {
-  const dispatches = useDispatchState();
-  return useMemo(() => pendingCaptures(dispatches), [dispatches]);
-};
-
-export const askAgent = async (request: AskAgentRequest): Promise<DispatchOutcome> =>
-  await getRuntime().dispatch.askAgent(request);
-
-export const capture = async (text: string): Promise<DispatchOutcome> =>
-  await getRuntime().dispatch.capture(text);
-
-export const answerApproval = async (
-  approvalId: string,
-  decision: PendingInteractionApprovalDecision,
-): Promise<DispatchOutcome> => await getRuntime().dispatch.answer(approvalId, decision);
-
-export const cancelDispatch = async (id: string): Promise<CancelOutcome> =>
-  await getRuntime().dispatch.cancel(id);
-
-export const dismissDispatch = async (id: string): Promise<void> => {
-  await getRuntime().dispatch.dismiss(id);
 };

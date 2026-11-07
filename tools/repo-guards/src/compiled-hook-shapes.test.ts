@@ -148,7 +148,7 @@ describe("hooks in compiled sources are defined at module scope", () => {
       }
       export function useTopLevel() {}
     `);
-    expect(nested.map((hook) => hook.name)).toEqual(["useCounted"]);
+    expect(nested.map((hook) => hook.name)).toStrictEqual(["useCounted"]);
   });
 
   it("no react-importing source file defines a hook inside another function", () => {
@@ -167,6 +167,6 @@ describe("hooks in compiled sources are defined at module scope", () => {
         "  compiler reports no diagnostic. Define the hook at module scope and pass what",
         "  it needs as arguments.",
       ].join("\n"),
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });

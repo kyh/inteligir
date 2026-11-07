@@ -1,11 +1,12 @@
 # `@repo/web` — inteligir.com
 
 One Cloudflare Worker serving the marketing site and the whole cloud from
-one origin: the TanStack Start pages, Better Auth on D1, device login, the
-per-user thread-sync Durable Object, the dispatch inbox (a phone's turns,
-answers and captures) and the hosted vault git remote. The wire contract is
-`@repo/contract/cloud` — the Worker implements it, the local app's sync client
-consumes it.
+one origin: the TanStack Start pages, the library's page at `/library`, Better
+Auth on D1, device login, each account's library cell (a SQLite Durable Object
+holding the library and its devices' sockets), the connector a person's own
+assistant reaches the library through. The wire contract is
+`@repo/contract/cloud` — the Worker implements it; the library's page (the Mac
+app's window and the browser tab), the phone and the extension consume it.
 
 ## Layout
 
@@ -19,6 +20,8 @@ src/
     app/             /app/sign-in, /app/sign-up, /app/forgot-password,
                      /app/reset-password and /app/devices (the last two
                      client-only)
+    connect/         /connect/extension, which hands the browser extension a
+                     credential of its own (client-only)
   components/        The site's own components (auth card, header, theme, orb)
   lib/               Better Auth client, session guard, site config (the
                      Download button's fixed dmg link among it), page markdown
@@ -27,104 +30,211 @@ src/
     index.ts         The API route table (also the test suite's entry)
     auth/            Better Auth factory, invite gate, reset email
     device/          Device login and sign-up, credential verification,
-                     account deletion
-    sync/            ThreadSyncDO + the device-authed route chokepoint + the
-                     dispatch inbox's SQL (dispatch-inbox.ts) + the calls
-                     the rest of the Worker makes on the object
-                     (thread-sync-stub.ts)
-    vault/           The hosted vault git remote (durable-git behind the
-                     wrapper) + the repo's one name and its purge
-                     (vault-repo.ts) + the git-less /v1/vault/* read
-                     routes + the Worker's own commits (commit-changes.ts,
-                     planned by plan-change-set.ts over a tree listing and
-                     pushed through the cell's receive-pack like any
-                     client's)
+                     the account's devices, account deletion
+    wire/            /v1's one wire: the floor, the principal a credential verifies
+                     to (v1-principal.ts), the account's rows on the Worker's
+                     own handler (account-router.ts), and the library's
+                     forwarded to its cell (v1-rpc.ts)
+    library/         The account's library cell: LibraryDO (library-do.ts),
+                     its engine over the cell's SQLite (library-engine.ts:
+                     writes, change sets, History, undo, sync, quota, files),
+                     every library procedure over it and the markdown codec
+                     (library-router.ts, served by library-rpc.ts), the
+                     alarm's jobs, the account's purge in order
+                     (account-purge.ts), its sockets, the upgrade routes with
+                     the ticket a browser's socket opens on, the files'
+                     bytes in R2 (blob-routes.ts), the readings it sends to
+                     the fill queue (cell-fills.ts), its imports and exports
+                     (cell-imports.ts, cell-exports.ts) and an export's zip
+                     (export-routes.ts); beside the cell, the library's page,
+                     answered from the assets (library-page.ts)
+    connector/       The connector: its OAuth on @cloudflare/workers-oauth-provider
+                     (connector-auth.ts), the consent page an assistant
+                     sends the person to (consent-route.ts), the route that
+                     forwards a verified call into the account's cell
+                     (connector-route.ts), the MCP server the cell builds
+                     per request over the library's tool rows
+                     (connector-server.ts, library-tools.ts) and the
+                     account's grants (assistant-grants.ts)
+    agent/           The built-in agent: its one definition (library-agent.ts)
+                     and its generated prompt (agent-prompt.ts), each
+                     conversation's object, AgentThreadDO (agent-thread.ts),
+                     with its tables (thread-schema.ts), its loop
+                     (thread-loop.ts), its requests (thread-request.ts) and
+                     its client through AI Gateway (anthropic-client.ts);
+                     and the cell's side: the tools it runs
+                     (agent-tools.ts), the allowance and the prices it books
+                     (agent-allowance.ts), the switch (agent-switch.ts), and
+                     each turn let in, handed over, landed and sealed
+                     (agent-turns.ts, turn-rows.ts)
+    fill/            The fill queue's consumer (fill-consumer.ts): a saved
+                     link read through the guarded fetch (page-fetch.ts) and
+                     the page reader, its files kept, landed in the cell
+    zip/             The zip codec imports read and exports write
     db/              Drizzle schema + client for the D1 auth database
     rate-limit.ts    The D1 fixed window every throttled route spends
-    types/           The hand-authored durable-git .d.ts (it ships untyped TS
-                     source) — re-check on every version bump
-    __tests__/       vitest-pool-workers suites (real miniflare + D1 + DO)
+    types/           The highlight.js stub that keeps the DOM lib out (below),
+                     and the type of a suite's `?raw` import
+    *.test.ts        suites run inside workerd (@cloudflare/vitest-plugin:
+                     real D1 + DO)
+    test-support/    Their shared harness: the schema setup, the client
+                     helpers and the test env's types
 ```
 
 `src/worker/` compiles without `lib.dom` on purpose: workerd and the DOM both
 declare `BufferSource`/`BodyInit` globally with different bounds, so one
 program would typecheck the Worker against a stdlib it never runs on. That is
 why the whole Worker — entry, routes, tests — lives under one directory with
-its own `tsconfig.json`.
+its own `tsconfig.json`. The markdown codec the cell runs reaches highlight.js's
+types, which reference `lib.dom` themselves, so the program maps `highlight.js`
+to `types/highlight-js.d.ts`, the one type lowlight takes from it (`LanguageFn`);
+the fill reads a page with `@repo/page-reader`, whose code is typed by the
+DOM's globals, so the one entry the Worker calls publishes a `types` condition,
+its DOM-free signature (`packages/page-reader/src/read-html-api.ts`).
+
+## The built-in agent
+
+The agent is our own loop over the Messages API, one Durable Object a
+conversation, `AgentThreadDO`, named `agent-thread:<accountId>:<threadId>` by
+the account's cell alone and reached through `ctx.exports` with no namespace
+binding. It imports `agents/lifecycle` and nothing else of Cloudflare's Agents
+SDK: Lifecycle's durable job queue and its one alarm drive the loop, wake a
+conversation whose instance died, and deny an approval nobody answered in ten
+minutes. Its definition is code, the same bytes for every account: the model
+and effort (`src/worker/agent/library-agent.ts`), the system prompt
+(`src/worker/agent/agent-prompt.ts`, which `pnpm --filter @repo/web
+agent-prompt` writes from `@repo/agent-skills`; edit the skills and run it,
+never the module) and the tools (`agent-tools.ts`). A thread freezes them at
+its first turn and replays them byte for byte; a deploy that changes them is
+taken up at the start of the thread's next turn, never mid-turn, its requests
+from then on carrying no thinking from before that turn.
+
+A person's send (`library.agent.send`) is admitted in one transaction of the
+account's cell: refused `SERVICE_UNAVAILABLE` while the agent is off or the
+Worker has no Claude to call, `AGENT_BUDGET` once the day's turns or list cost
+(`AGENT_ALLOWANCE`) are spent, queued behind its thread's open turn or while
+the account runs two, and otherwise opened and handed to its thread's object,
+again every 30 seconds until it lands. The object reserves each model call
+with the cell before it sends it, streams it with previews to the account's
+sockets, and lands only the whole reply, as returned, beside its usage; a call
+an instance died reading is sent again whole. A conversation past 50,000
+input tokens, the least the API compacts at, is compacted by the API inside
+the request that reaches them, its summary landing with the reply, and every
+request after carries the conversation from that summary on. A call that
+may compact is reserved for the summary's pass beside its answer; at the API's
+default of 150,000, a turn after a pause could not afford its first call.
+Every tool call runs in the cell
+through the library's own procedures as that turn's, its write's op id derived
+from the call's, so one run again lands once; a deletion waits for the
+person. What the turn did reaches the cell as pushes, each once by its
+sequence, stored as the account's synced thread events, a short progress note
+before each tool call among them; the push that ends a
+turn seals its one change set, books what it cost at list price
+(`AGENT_PRICES`), gives back a turn that cost nothing, and lets the links it
+saved be read.
+
+Claude is reached through the target's AI Gateway, on its provider-native
+Anthropic route (`AGENT_GATEWAY_URL`): `inteligir` for production,
+`inteligir-preview` for every Preview, each holding its target's own Anthropic
+workspace key with provider credentials required and Authenticated Gateway
+on, so the Worker holds no Anthropic key, only the gateway's `AI_GATEWAY_TOKEN`,
+and every request asks the gateway to keep no prompt or reply. A Worker with
+no gateway refuses every send. `vite dev` names no target's gateway: its
+`.dev.vars` names the scripted Messages API or a gateway of the developer's
+own (`.dev.vars.example`).
 
 ## Routes
 
-| Route                                   | Auth              | What                                                                |
-| --------------------------------------- | ----------------- | ------------------------------------------------------------------- |
-| `/`                                     | —                 | Marketing page (SSR); markdown to `Accept: text/markdown`           |
-| `/about`, `/contact`                    | —                 | Trust pages from `lib/site-content.ts`, negotiated the same way     |
-| `/privacy`                              | —                 | Renders `docs/privacy.md` itself (SSR) — never a copy               |
-| `/terms`                                | —                 | Renders `docs/terms.md` itself (SSR) — never a copy                 |
-| `/llms.txt`, `/sitemap.xml`             | —                 | Agent and crawler files, beside `/robots.txt`                       |
-| `/*` (anything else)                    | —                 | 404; a markdown recovery body to `Accept: text/markdown`            |
-| `/app/sign-in`                          | —                 | Sign-in (SSR when signed out — see `lib/session-guard.ts`)          |
-| `/app/sign-up`                          | —                 | Sign-up form; submits to the invite gate                            |
-| `/app/forgot-password`                  | —                 | Requests the reset link                                             |
-| `/app/reset-password`                   | —                 | Where the emailed link lands (client-only, `no-store`, no referrer) |
-| `/app/devices`                          | session           | The device table: list and revoke                                   |
-| `/api/auth/*`                           | —                 | Better Auth (email+password, session cookie)                        |
-| `/v1/auth/sign-up`                      | —                 | The invite gate in front of Better Auth's sign-up                   |
-| `POST /v1/device/login`                 | —                 | Email + password in, the device credential and its account out      |
-| `POST /v1/device/sign-up`               | —                 | Sign-up from the app: account + device credential out               |
-| `GET /v1/device/list`                   | session or device | The device table (revoked rows included)                            |
-| `POST /v1/device/revoke`                | session or device | Cut a device off — bites on its next request                        |
-| `POST /v1/device/sign-out`              | device            | The same revoke, for the device the credential names                |
-| `POST /v1/sync/push`                    | device            | Outbox batch in — idempotent, conflict-aware                        |
-| `GET /v1/sync/pull`                     | device            | Page the merged log by global `seq`                                 |
-| `GET /v1/sync/ws`                       | device            | Invalidation socket (Bearer on the upgrade; hibernatable)           |
-| `POST /v1/sync/dispatch`                | device            | A phone's turn, approval answer or capture in, deduped on its id    |
-| `POST /v1/sync/dispatch/claim`          | device            | Take waiting rows of the kinds named, for two minutes               |
-| `POST /v1/sync/dispatch/ack`            | device            | Settle what that claim owns, delivered or refused — per-id outcomes |
-| `POST /v1/sync/dispatch/status`         | device            | Each dispatch's state, and how many desktops are listening          |
-| `POST /v1/sync/dispatch/cancel`         | device            | Withdraw a dispatch no Mac holds                                    |
-| `POST /v1/sync/dispatch/approval`       | device            | A Mac opens an approval a phone-started turn waits on               |
-| `POST /v1/sync/dispatch/approval/close` | device            | That Mac closes it: answered there, or its turn ended               |
-| `GET /v1/sync/dispatch/approvals`       | device            | The approvals waiting for the phone's answer                        |
-| `/v1/git/vault.git/*`                   | device            | The hosted vault git remote — smart HTTP, 90 MiB push, 1 GiB stored |
-| `POST /v1/vault/tree`                   | device            | Flat listing — path, size, blob oid — at one commit                 |
-| `POST /v1/vault/file`                   | device            | One note's bytes at that commit — 2 MB ceiling                      |
-| `POST /v1/vault/files`                  | device            | Up to 40 notes at a pinned commit — 4 MiB, rest deferred            |
-| `POST /v1/vault/asset`                  | device            | One embedded binary at that commit                                  |
-| `POST /v1/vault/commit`                 | device            | A change set, each change CAS'd on its blob — one commit            |
-| `POST /v1/account/delete`               | device + password | Delete the account through Better Auth's `deleteUser`               |
+| Route                       | Auth            | What                                                                          |
+| --------------------------- | --------------- | ----------------------------------------------------------------------------- |
+| `/`                         | —               | Marketing page (SSR); markdown to `Accept: text/markdown`                     |
+| `/about`, `/contact`        | —               | Trust pages from `lib/site-content.ts`, negotiated the same way               |
+| `/privacy`                  | —               | Renders `docs/privacy.md` itself (SSR) — never a copy                         |
+| `/terms`                    | —               | Renders `docs/terms.md` itself (SSR) — never a copy                           |
+| `/llms.txt`, `/sitemap.xml` | —               | Agent and crawler files, beside `/robots.txt`                                 |
+| `/*` (anything else)        | —               | 404; a markdown recovery body to `Accept: text/markdown`                      |
+| `/app`                      | —               | Redirects to `SIGNED_IN_HOME`, the library; the layout has no page of its own |
+| `/app/sign-in`              | —               | Sign-in (SSR when signed out — see `lib/session-guard.ts`)                    |
+| `/app/sign-up`              | —               | Sign-up form; submits to the invite gate                                      |
+| `/app/forgot-password`      | —               | Requests the reset link                                                       |
+| `/app/reset-password`       | —               | Where the emailed link lands (client-only, `no-store`, no referrer)           |
+| `/app/devices`              | session         | The device table: list and revoke                                             |
+| `/library`, `/library/*`    | —               | The library in a tab, `@repo/workspace`; a signed-out visit goes to sign-in   |
+| `/api/auth/*`               | —               | Better Auth (email+password, session cookie)                                  |
+| `POST /api/sign-up`         | —               | The invite gate in front of Better Auth's sign-up, for the site's form        |
+| `GET /v1/socket`            | ticket          | The library-moved socket, on a minute's ticket in the query; hibernatable     |
+| `POST /v1/rpc/account/*`    | — or device/tab | The account's oRPC rows: sign in or up, devices, delete, ticket, extension    |
+| `POST /v1/rpc/library/*`    | device or tab   | The library's oRPC rows, forwarded to the account's library cell              |
+| `/v1/blobs/:sha`            | device or tab   | A file's bytes in R2: PUT once by its SHA-256, GET/HEAD by range              |
+| `GET /v1/exports/:id`       | device or tab   | An export's zip, by range, for seven days or until a newer one is ready       |
+| `POST /connector`           | assistant token | The connector: the library's tools, forwarded to the account's cell           |
+| `/connect/authorize`        | session         | The consent page an assistant sends the person to, after sign-in              |
+| `/connect/extension`        | session         | The site's page that hands the browser extension a credential of its own      |
+| `/.well-known/oauth-*`      | —               | The authorization server's and the connector's metadata                       |
+| `POST /oauth/register`      | —               | An assistant registers itself, ten an address a minute; let go 90 days unused |
+| `POST /oauth/token`         | —               | A code (PKCE S256) or refresh token for an access token; revocation           |
 
 "device" auth is the `igd_…` credential a login minted, verified per request by
 hash compare against D1 — never cached, so revocation is immediate; its
 `last_seen_at` is written at most every five minutes
 (`LAST_SEEN_RESOLUTION_MS`), so a verify is one read. The
 VERIFIED credential's userId — never a path or a body — names the state it
-reaches: the sync and dispatch routes fan out to that user's own
-`ThreadSyncDO` by RPC (the Worker parses each body and hands the object the
-verified deviceId; only the socket upgrade is a forwarded request), the git
-remote and the `/v1/vault/*` reads and commits to that user's own durable-git
-`RepoCell`, and the account deletion reads D1 directly. A commit is authored by the
-verified device row's name, and a stale base answers 409 `vault-conflict` with
-what the head holds beside the envelope; the Worker never merges. Every `/v1` refusal, an unknown route and
-an unhandled fault included, is the JSON error envelope; the git mount alone
-answers git clients in plain text.
+reaches: the socket upgrade to that user's own library cell, `LibraryDO`
+named `library:<userId>` (on the cell's own socket path, carrying the verified
+holder; a revoke and a deletion call the cell by RPC), and the account
+deletion reads D1 directly. `/v1/rpc` answers every refusal, an unhandled
+fault included, in its own protocol, and `/v1/blobs`, `/v1/exports` and the
+socket's upgrade in HTTP's statuses alone, with a sentence for a person.
+
+A link the library holds unread (a `saveLink`, a `refresh`, an import's) is
+read by the Worker's own queue consumer: the cell writes the reading's ask as a
+`fill` job in the write's transaction and sends it to `inteligir-fill` once
+the write commits, the alarm sending again what no send took; the consumer
+reads the page and hands it back in one `landFill` call. A message the queue's
+three retries could not handle reaches `inteligir-fill-failed`, whose consumer
+says the failure in the item. A preview binds `inteligir-fill-preview`, which
+nothing consumes, so its links stay unread.
+
+`/v1/rpc` is oRPC's RPC protocol: POST only, every refusal a declared code at
+the status `V1_ERROR_STATUS_MAP` gives it, the floor, the credential and the
+budget answered in the same protocol before any procedure runs
+(`src/worker/wire/rpc-refusal.ts`). "device or tab" is a device's bearer or, on a
+request the site's own page made (`Sec-Fetch-Site: same-origin`), its session
+cookie; a bearer that does not verify is refused, never retried as the cookie.
+A library call reaches the cell with the principal the credential verified, in
+`x-library-principal`, and nothing the caller sent in its place
+(`src/worker/wire/v1-rpc.ts`). A file is PUT with its `Content-Length` (at most
+100 MB, room held in the cell first) and kept only if its bytes hash to its
+sha; a read is answered its single range (206), the whole file for a multi-part
+ask, 416 for a range past the end, and 304/412 for its preconditions, under a
+script-less sandbox but for a PDF (`src/worker/library/blob-routes.ts`).
 
 Every `/v1` request an install sends names its build in
 `x-inteligir-build: <semver>+<platform>` (`@repo/contract/cloud/client-build`),
 and before any route reads it `src/worker/client-floor.ts` refuses one that
 names none, or a version below `MIN_CLIENT_BUILD` (`cloudflare.config.ts`):
-426 `client-outdated`, in plain text on the git mount. The platform is
-telemetry and never compared. A request a browser marks `Sec-Fetch-Site:
+426, as `CLIENT_OUTDATED` on `/v1/rpc` and in plain text on a file or an
+export. The platform is telemetry and never compared. A request a browser marks `Sec-Fetch-Site:
 same-origin` passes, since the site's own pages ship in this deploy. The floor
 is how `/v1` retires a shape: raise it past every build that reads the shape,
 then delete the shape.
 
-The tree, file, files and asset reads take their query as a JSON body, so no
-vault path reaches a URL, which the Worker's request log and traces keep; any
-other method is refused `bad-request` (`src/worker/vault/read-routes.ts`).
+The connector is an assistant's door alone: its OAuth is
+`@cloudflare/workers-oauth-provider`'s on `OAUTH_KV`, which keeps the
+assistants' registrations, grants and tokens, and its issuer and resource are
+named from `SITE_ORIGIN`, one value per deployment, never the request's Host.
+A call to `/connector` is refused 403 for a Host or Origin not this
+deployment's, challenged 401 with its `resource_metadata` without a token this
+Worker minted for it (a device credential is none), and forwarded into the
+account's cell with an `assistant` principal once its grant's budget (300
+calls a minute) holds (`src/worker/connector/connector-route.ts`). A grant is
+`library` (read and change) or `library:read`, as the person chose on the
+consent page; the account's `assistants.list` and `assistants.revoke` name
+and end them, and the account's deletion revokes every one.
 
 ## Auth
 
-- `src/worker/auth/auth.ts::createAuth(env, baseURL)` builds a **per-request**
+- `src/worker/auth/auth.ts::createAuth(env, ctx, baseURL)` builds a **per-request**
   Better Auth instance (D1 is a runtime binding, not a module singleton;
   `baseURL` is the request origin, so localhost/preview/prod all work with no
   config). No plugins: a browser holds Better Auth's session cookie and
@@ -132,12 +242,16 @@ other method is refused `bad-request` (`src/worker/vault/read-routes.ts`).
   reaches Better Auth. `disabledPaths` shuts every Better Auth route no client
   calls (the site uses sign-in, `get-session`, the reset pair and, through the
   invite gate, sign-up). That includes its own `/delete-user`, so
-  `POST /v1/account/delete` is the one way to delete an account;
-  `auth.api.deleteUser` behind it is unaffected, as the list gates only HTTP. Better Auth reads
+  `account.delete` is the one way to delete an account;
+  `auth.api.deleteUser` behind it is unaffected, as the list gates only HTTP.
+  Only `/callback/:id` stays open: an exact list cannot name it, and with no
+  social provider it has nothing to sign in with. Better Auth reads
   `BETTER_AUTH_TRUSTED_ORIGINS` itself, should an origin other than the
-  request's ever need trusting.
+  request's ever need trusting. `readSession` is a route of the Worker's own
+  reading a session, which never slides it: only `/api/auth/get-session` answers
+  with the cookie a slid row needs.
 - **Sign-up is invite-gated by a Worker route in front of Better Auth**
-  (`src/worker/auth/invite.ts`). `POST /v1/auth/sign-up` parses its body with
+  (`src/worker/auth/invite.ts`). `POST /api/sign-up` parses its body with
   `signUpRequestSchema` (`@repo/contract/cloud/account/account-schema`, which the
   page, the gate and the e2e harness share with `AUTH_API_PATHS`) and refuses a
   password outside `PASSWORD_MIN_LENGTH`–`PASSWORD_MAX_LENGTH` before touching
@@ -151,21 +265,22 @@ other method is refused `bad-request` (`src/worker/vault/read-routes.ts`).
   `/api/auth/sign-up/email` and `auth.api.signUpEmail` together. The gate
   has TWO front doors over that one claim (`claimInvite` / `releaseInvite`):
   this page's, which forwards so the browser keeps Better Auth's cookie, and
-  the app's, `POST /v1/device/sign-up` (`src/worker/device/sign-up.ts`),
-  which calls `signUpEmail` on the sign-up instance, releases the claim on any
-  refusal (`account-exists` 409 for a taken address, `invite-refused` 403 for
-  a code that will not work), deletes the session the sign-up minted and
-  answers the device credential a login would. Both spend one per-address
+  the app's, `account.signUp` (`src/worker/device/sign-up.ts`), which calls
+  `signUpEmail` on the sign-up instance, releases the claim on any refusal
+  (`ACCOUNT_EXISTS` 409 for a taken address, `FORBIDDEN` 403 for a code that
+  will not work), deletes the session the sign-up minted and answers the
+  device credential a sign-in would. Both spend one per-address
   window, so two doors are not twice the guesses.
 - **The site's pages ask for a session in the route, and remember the way
   back.** `/app/devices` is `ssr: false`; its `beforeLoad` sends a signed-out
   visit to `/app/sign-in?next=<the page>`, and its loader does the same when
-  the list answers `unauthorized`. Sign-in follows `next` through
-  `internalNextPath` (`src/lib/next-path.ts`, the open-redirect guard), else
-  lands on `SIGNED_IN_HOME`, as sign-up and bare `/app` do. The list loads in
-  the route's loader and every refusal reads the cloud error envelope through
-  `readCloudCall` (`@repo/contract/cloud/client`), so a failure is the route's error
-  view with a retry, never a page stuck on Loading. The auth forms submit
+  the list answers `UNAUTHORIZED`. Sign-in and sign-up follow `next` through
+  `internalNextPath` (`src/lib/next-path.ts`, the open-redirect guard), each
+  handing it to the other, else land in the library, `SIGNED_IN_HOME`, as bare
+  `/app` does, each by a document load. The list loads in
+  the route's loader through `account.devices` on the session's cookie, and a
+  refusal is said in its declared words (`refusalText`), so a failure is the
+  route's error view with a retry, never a page stuck on Loading. The auth forms submit
   through one `useAuthSubmit` (`src/components/auth-shell.tsx`), which turns a
   request that never left into a message rather than a button stuck busy.
 - **The emailed reset link lands on a site page, not a Worker route.**
@@ -175,32 +290,32 @@ other method is refused `bad-request` (`src/worker/vault/read-routes.ts`).
   client. Its URL carries a live single-use token, so the route is
   `ssr: false`, answers `Cache-Control: no-store` and sets a `no-referrer`
   meta (`src/routes/app/reset-password.tsx`). It works with no app installed,
-  since an email client opens a browser.
+  since an email client opens a browser. A `next` the person came with rides
+  the request, the mail's link and the page's links back to sign-in.
 - **A device signs in with the account's own email and password**
-  (`src/worker/device/login.ts`, the Obsidian Sync model). `POST /v1/device/login`
+  (`src/worker/device/login.ts`, the Obsidian Sync model). `account.signIn`
   verifies the email and password through `auth.api.signInEmail`, mints the `igd_…` credential
   under the twenty-device cap, and DELETES the browser session that sign-in
   created — the device holds its credential and nothing else, and a session
   nobody sees is a bearer nobody revokes. The answer names the account beside
   the credential (`{ credential, deviceId, userId, email }`), so a device knows
-  whose vault it syncs from its first request. A wrong password and an unknown
-  address answer one `invalid-credentials`, throttled
-  per address. A credential is revoked from `/app/devices` or from any
-  signed-in Mac's Settings › Account: `GET /v1/device/list` and
-  `POST /v1/device/revoke` take a session or a live device credential of the
-  same account (`src/worker/device/routes.ts`), the `igd_` prefix deciding
-  which, so a device credential never reaches Better Auth and a revoked one is
-  refused rather than tried as a session.
-- **A signing-out device revokes itself** (`POST /v1/device/sign-out`, the one
-  device route only a device credential authenticates, since a session names
-  no device). It is the dashboard's revoke — the row's `revoked_at`, the device's
+  whose library it holds from its first request. A wrong password and an
+  unknown address answer one `INVALID_CREDENTIALS`, throttled per address. A
+  credential is revoked from `/app/devices` or from Settings › Account on any
+  signed-in device or the library's tab: `account.devices.list` and
+  `account.devices.revoke` take a session or a live device credential of the
+  same account (`src/worker/wire/account-router.ts`), an `Authorization`
+  header deciding which, so a device credential never reaches Better Auth and
+  a revoked one is refused rather than tried as a session.
+- **A signing-out device revokes itself** (`account.signOut`, which revokes
+  the device a credential names, and ends the session a browser tab signs out
+  with). It is the dashboard's revoke — the row's `revoked_at`, the device's
   limiter rows, its live sockets — so the account's twenty-device cap counts
   only devices still signed in. It answers `{ revoked: true }` even when a
-  dashboard revoke lands mid-request, and `unauthorized` to a credential
-  already revoked. The desktop's local server and the phone send it best-effort
-  as they drop the credential, and the login flow sends it for a credential its
-  store could not keep; a sign-out the cloud never hears leaves the row for
-  another Mac's Settings › Account or `/app/devices`.
+  dashboard revoke lands mid-request, and `UNAUTHORIZED` to a credential
+  already revoked. The Mac, the phone and the browser extension send it
+  best-effort as they drop the credential; a sign-out the cloud never hears
+  leaves the row for another device's Settings › Account or `/app/devices`.
 - **Rate limits live in D1** (`rate_limit` table): Better Auth's own database
   limiter on the auth routes, and the same table behind the invite gate's and
   the device login's 10/60s-per-IP windows (`src/worker/rate-limit.ts`). The
@@ -209,37 +324,43 @@ other method is refused `bad-request` (`src/worker/vault/read-routes.ts`).
   they are under the cap, which is the burst it exists to stop. Every window
   keyed on an address, Better Auth's included, reads `cf-connecting-ip`
   (`CALLER_IP_HEADER`), the one address the edge writes itself, never
-  `x-forwarded-for`. `/api/auth/get-session` spends no window: a session read
+  `x-forwarded-for`, and counts an IPv6 address by its /64 (`CALLER_ADDRESS`),
+  which one host holds whole. `/api/auth/get-session` spends no window: a session read
   is no password oracle, and every route guard and hover preload makes one. A
   read that fails is unknown to the route guards, never signed out
   (`src/lib/auth-client.ts`), and `/app/devices` shows it, like a device list
   that failed to load, as its message and a retry
-  (`src/routes/app/devices.tsx`). The hosted
-  vault's three budgets (`/v1/git/*` 600/min, the `/v1/vault/*` reads
-  3,000/min, `/v1/vault/commit` 300/min) spend the same table keyed on the
-  DEVICE, never the address: a stolen credential moves between addresses, and
-  the device row is what `/app/devices` revokes. A batch of files spends one
-  unit however many paths it names, so a phone's first mirror of 50,000 notes
-  costs about 1,350; a phone's queue sends one change set at a time, so 300
-  drains a long offline backlog within the minute. Three families so a drained
-  budget never takes another down: a looping writer still syncs and reads.
-  Revocation and account deletion drop the rows. Better Auth prunes the shared table on its own writes, every row past
-  its 60s window with it, so every Worker window is declared in `RATE_WINDOWS`
-  and a guard holds each to 60s or less.
-- **No CORS**, deliberately: every browser client is served by this Worker from
-  this origin, and a native client is not subject to CORS at all. If CORS is
-  ever reintroduced, `access-control-allow-credentials` must stay absent — the
-  auth surface is cookie-bearing.
+  (`src/routes/app/devices.tsx`). `/v1/rpc` and `/v1/blobs` spend the same
+  table keyed on the HOLDER, the device or the browser session, never the
+  address: a stolen credential moves between addresses, and the device row is
+  what `/app/devices` revokes. The connector spends it keyed on the assistant's
+  grant. Each family is its own, so a drained budget never takes another down.
+  Revoking a device and deleting the account drop that device's rows; a
+  session's and a grant's wait for the prune. Better Auth prunes the shared
+  table on its own writes, every row past its 60s window with it, so every
+  Worker window is declared in `RATE_WINDOWS` and a guard holds each to 60s or
+  less.
+- **CORS for two origins alone** (`src/worker/cors.ts`): the Mac app's page,
+  which its shell serves on `tauri://localhost`, and the browser extension's
+  worker, each on the routes it calls and by its exact origin, never a
+  reflected one. Every other browser client is served by this Worker from this
+  origin. `access-control-allow-credentials` stays absent: both send a device
+  credential as a bearer, and the auth surface is cookie-bearing.
 - **Deleting the account deletes the account's data** in a `beforeDelete` hook,
-  so a failed step aborts the deletion rather than orphaning data. THE ORDER IS
-  LOAD-BEARING: device rows first (while one lives its credential still
-  verifies, and a request on it can rebuild whatever was deleted before it),
-  then the hosted vault git repo, then the
-  ThreadSyncDO — purged whole and TOMBSTONED, which refuses the request that
-  authenticated microseconds before step one — then the deleted email off the
-  invite it spent (`redeemed_at` stays set, so the code stays burned).
-  The app asks it at `POST /v1/account/delete` (`src/worker/device/account.ts`),
-  holding a device credential and no session: the credential, a per-device
+  so a failed step aborts the deletion rather than orphaning data, and the
+  retry runs every step again. THE ORDER IS LOAD-BEARING
+  (`src/worker/library/account-purge.ts`): the library cell's tombstone first
+  (every later call to the cell, a socket's included, is refused) and its
+  sockets closed, then every conversation's object, while the cell's rows that
+  alone name them are still there, then the cell's storage with the tombstone
+  written back at once, then the account's files in R2, then every assistant's
+  grant with its tokens, before the credentials that could let one in again,
+  then its device rows and the deleted email off the invite it spent
+  (`redeemed_at` stays set, so the code stays burned), the credentials last so
+  a failure leaves one to retry with. The tombstone stays, so a request that
+  verified a moment before the credentials went founds no library.
+  A device or the library's tab asks it through `account.delete`
+  (`src/worker/device/account.ts`): the credential or the tab's session, a
   window of 5 a minute, the password checked again through `signInEmail`, then
   `auth.api.deleteUser` under the cookie of the session that sign-in minted, so this hook
   stays the one purge path. The credential alone deletes nothing: whoever held a
@@ -272,14 +393,22 @@ pnpm --filter @repo/web db:push
 > creds and hit the PRODUCTION D1. The bare `db:push` and `db:studio` are the
 > local ones.
 
-Tests run in a real in-process Workers runtime (`@cloudflare/vitest-pool-workers`)
-against the bindings `cloudflare.config.ts` declares, restated in
-`vitest.config.ts` because the pool reads only wrangler's config format; the
-schema DDL is derived from `src/worker/db/schema.ts` at config load. The
-inboxes' refusal and ordering rules are one table,
-`@repo/contract/cloud/test-support/inbox-scenarios`, which
-`src/worker/__tests__/inbox-scenarios.test.ts` runs against the object and the
-CLI's suites run against their fake cloud.
+`pnpm dev:web` also starts the scripted Messages API on :5177
+(`tools/messages-fake`), and `ANTHROPIC_FAKE_URL` in `.dev.vars` points the
+built-in agent at it: each conversation's object runs its turns through the
+SDK as it does deployed, with no key and no model, and the cell runs the tools
+the script names. The suites bind the same name, and their outbound service
+answers it with the fake's handler and refuses every other address
+(`messages-service.ts`).
+
+Tests run inside workerd through `@cloudflare/vitest-plugin`, against the
+bindings `cloudflare.config.ts` declares, restated in `vitest.config.ts`
+because the plugin documents reading only a Wrangler file. A suite reaches the
+Worker through `exports.default.fetch()` and reads every response body to the
+end; the suites that open the account's socket share one storage in their own
+project, since Durable Object WebSockets are unsupported under per-file
+isolation. The schema DDL is derived from `src/worker/db/schema.ts` at config
+load and applied as one D1 batch.
 
 ## Build & deploy (owner-only)
 
@@ -298,19 +427,36 @@ pnpm --filter @repo/web db:push:remote
 # 4. Set the runtime secrets (NOT committed). BETTER_AUTH_SECRET is a DEDICATED
 #    signing key — generate a fresh random 32+ char value, don't reuse another.
 pnpm -F @repo/web exec cf workers secrets update BETTER_AUTH_SECRET --worker inteligir-web --text '...'
+#    The built-in agent's: the token of the `inteligir` AI Gateway, whose Authenticated
+#    Gateway admits only requests carrying it, and which stores the PRODUCTION Anthropic
+#    workspace's key itself (docs/releasing.md § 5). Without it the agent says it can't be
+#    reached. The deploy job's CLOUDFLARE_ACCOUNT_ID names the gateway's account.
+pnpm -F @repo/web exec cf workers secrets update AI_GATEWAY_TOKEN --worker inteligir-web --text '...'
 
 # 5. Password reset. Until the sending domain is onboarded, every reset email
 #    fails server-side and is only logged — the request response stays neutral
-#    on purpose. Onboard it, then set the sender if the verified domain is not
-#    the default `inteligir.app`:
-#    (dashboard: Email Sending, then the DKIM/SPF DNS), and if needed:
-# cf workers secrets update RESET_FROM_ADDRESS --worker inteligir-web --text 'no-reply@<verified-domain>'
+#    on purpose. Onboard it (dashboard: Email Sending, then the DKIM/SPF DNS);
+#    the sender is RESET_FROM_ADDRESS in cloudflare.config.ts, on inteligir.app
+#    until the verified domain is another one.
 
-# 6. The vault pack bucket (once — the R2 binding refuses to deploy without it)
+# 6. The library's files bucket, BLOBS (once — the R2 binding refuses to deploy without it)
 pnpm -F @repo/web exec cf r2 buckets create --name inteligir-vault
 
-# 7. Deploy — the exact command the `Deploy` workflow runs
-pnpm turbo run build --filter=@repo/web... && pnpm -F @repo/web exec cf deploy --prebuilt
+# 6b. The fill queues (once — the queue bindings and consumers refuse to deploy without them)
+pnpm -F @repo/web exec cf queues create --queue-name inteligir-fill
+pnpm -F @repo/web exec cf queues create --queue-name inteligir-fill-failed
+
+# 6c. The connector's OAuth namespace takes no step: OAUTH_KV names no id, so the first
+#     deploy creates it and keeps it linked to the Worker after
+
+# 7. Deploy — the exact commands the `Deploy` workflow runs. The build bakes the agent's
+#    gateway into the Build Output from CLOUDFLARE_ACCOUNT_ID (apps/web/turbo.json hands it
+#    the build), and the check refuses an output that names none
+export CLOUDFLARE_ACCOUNT_ID=...
+pnpm turbo run build --filter=@repo/web...
+jq -e '.env.AGENT_GATEWAY_URL.value | startswith("https://gateway.ai.cloudflare.com/v1/")' \
+  apps/web/.cloudflare/output/v0/workers/default/worker.config.json
+pnpm -F @repo/web exec cf deploy --prebuilt
 
 # (optional) tail logs: cf cannot tail yet
 pnpm -F @repo/web exec wrangler tail inteligir-web
@@ -323,8 +469,11 @@ schema: the schema reaches production only from a local machine (step 3), so
 push it BEFORE merging a change that needs it — the schema is additive, so an
 old Worker against a new database ignores what it does not know, while a new
 Worker against an old database 500s on every request touching a table that
-isn't there. The workflow's one secret is `CLOUDFLARE_API_TOKEN` (Workers
-Scripts: Edit, plus Workers Routes: Edit on the inteligir.com zone).
+isn't there. The workflow's secrets are `CLOUDFLARE_API_TOKEN` (Workers
+Scripts: Edit, Queues: Edit, Workers KV Storage: Edit, for the namespace the
+first deploy creates, plus Workers Routes: Edit on the inteligir.com zone) and
+`CLOUDFLARE_ACCOUNT_ID`, which names the account of the built-in agent's
+gateway.
 
 ## Previews
 
@@ -333,14 +482,20 @@ Every PR from a branch of this repo gets a
 green, the way Vercel previews a PR: a sticky comment with the status and the
 URL, a "View deployment" button on the PR, a fresh deploy on every push, and the
 Preview deleted when the PR closes. `.github/workflows/preview.yml` runs it;
-`.github/scripts/worker-preview.mjs` draws the comment and the deployment.
+`.github/scripts/worker-preview.mjs` draws the comment and the deployment, and
+deletes the Preview. A delete Cloudflare refuses fails the job and leaves the
+comment as it was, so rerun the job; only "Preview not found", a PR that never
+had one, is no failure.
 
 A Preview never touches production data. `cloudflare.config.ts` binds
-`inteligir-auth-preview` (D1) and `inteligir-vault-preview` (R2) when
-`isPreview`, which
-the workflow creates on first use and pushes the PR's schema into with
+`inteligir-auth-preview` (D1), `inteligir-vault-preview` (R2),
+`inteligir-fill-preview` (a queue nothing consumes) and
+`inteligir-oauth-preview` (KV, the connected assistants) when `isPreview`,
+which the workflow creates on first use and pushes the PR's schema into with
 `drizzle-kit push --force`; the Durable Objects are a fresh namespace per
-Preview. All PRs share the one preview D1, so an account made on one Preview
+Preview. The workflow hands the build the KV namespace's id and the Preview's
+own URL (`OAUTH_KV_PREVIEW_ID`, `PREVIEW_ORIGIN`), so the connector's tokens
+name the Preview that minted them, and fails a deploy that lands elsewhere. All PRs share the one preview D1, so an account made on one Preview
 signs in on the next. There is no `send_email` binding, so a reset email is
 logged, not sent. Sign-up stays invite-gated: mint a code into the preview D1
 to create the first account.
@@ -348,10 +503,17 @@ to create the first account.
 Setup, once:
 
 ```bash
-# the Deploy token also needs D1: Edit and Workers R2 Storage: Edit, and the
-# repo needs a CLOUDFLARE_ACCOUNT_ID secret beside CLOUDFLARE_API_TOKEN
+# the Deploy token also needs D1: Edit and Workers R2 Storage: Edit
 # wrangler: cf has no preview secret command yet
 pnpm -F @repo/web exec wrangler preview base-config secret put BETTER_AUTH_SECRET --worker-name inteligir-web  # a preview-only value
+# the token of the `inteligir-preview` AI Gateway, which stores the PREVIEW Anthropic
+# workspace's own key, never production's
+pnpm -F @repo/web exec wrangler preview base-config secret put AI_GATEWAY_TOKEN --worker-name inteligir-web
 ```
+
+A Preview's built-in agent calls Claude through the `inteligir-preview`
+gateway, so nothing a PR deploys can spend production's key, and runs the PR's
+own definition, since the definition is code; its conversations are the
+Preview's own `AgentThreadDO` namespace.
 
 Locally, `pnpm -F @repo/web exec cf previews deploy <name>` deploys one.

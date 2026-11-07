@@ -4,7 +4,7 @@
 
 export const CLIENT_BUILD_HEADER = "x-inteligir-build";
 
-export type ClientPlatform = "desktop" | "mobile";
+type ClientPlatform = "desktop" | "extension" | "mobile";
 
 export interface ClientBuild {
   version: string;

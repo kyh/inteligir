@@ -1,5 +1,5 @@
-import type { PageMeta } from "@/lib/page-meta";
-import { siteConfig } from "@/lib/site-config";
+import type { PageMeta } from "#lib/page-meta";
+import { siteConfig } from "#lib/site-config";
 
 const { contact, description, downloadUrl, github, name, twitterUrl, url } = siteConfig;
 
@@ -39,7 +39,7 @@ export const siteGraph = () => ({
       "@type": "SoftwareApplication",
       applicationCategory: "ProductivityApplication",
       description:
-        "A local-first notes app for the Mac in which an AI agent, running on your own Claude or ChatGPT plan, edits your markdown notes with you.",
+        "One library for the links, articles, images, PDFs and files you save and the notes you write, kept in your account and on your Mac and iPhone, with a built-in AI agent that files, tags and edits it with you.",
       downloadUrl,
       license: "https://opensource.org/licenses/MIT",
       name,

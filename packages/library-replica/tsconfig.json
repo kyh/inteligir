@@ -1,0 +1,12 @@
+{
+  "extends": "@kyh/tsconfig/base.json",
+  "compilerOptions": {
+    // ES2023, a ceiling: the phone runs this on Hermes, which ships no ES2024+ stdlib. WebWorker
+    // types the WHATWG globals every host has (fetch's Request and Response, TextEncoder); the
+    // platform's own (its timers, crypto, sockets, storage) are banned in oxlint.config.ts, since
+    // the host hands each one in
+    "lib": ["ES2023", "WebWorker"],
+    "types": []
+  },
+  "include": ["src", "vitest.config.ts"]
+}

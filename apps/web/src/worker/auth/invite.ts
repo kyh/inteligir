@@ -4,7 +4,8 @@ import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
 } from "@repo/contract/cloud/device/device-schema";
-import { and, eq, isNull } from "drizzle-orm";
+import { InviteRefusedError } from "@repo/contract/cloud/v1/errors";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { createSignUpAuth } from "./auth";
 import { createDb } from "../db/client";
@@ -13,15 +14,13 @@ import { inviteCode } from "../db/schema";
 
 import { spendCallerBudget } from "../rate-limit";
 
-// Two front doors, one claim: the site's page (below) and the app's (../device/sign-up.ts). The
-// invite is claimed before the account exists: one UPDATE … WHERE redeemed_at IS NULL is the only
-// atomic step, so it settles two simultaneous sign-ups on one code. A failed sign-up releases the
-// claim; an isolate dying between the two burns a code, and the owner mints another.
+// Two front doors, one claim: the site's page (below) and the app's `account.signUp`
+// (../device/sign-up.ts). The invite is claimed before the account exists: one UPDATE … WHERE
+// redeemed_at IS NULL is the only atomic step, so it settles two simultaneous sign-ups on one code.
+// A failed sign-up releases the claim; an isolate dying between the two burns a code, and the
+// owner mints another.
 
 const CODE_PATTERN = /^[A-Za-z0-9-]{6,64}$/u;
-
-// one message for "no such code" and "already used", so a caller learns only that this code will not work
-export const INVITE_REFUSED = "That invite code isn't valid. Check it and try again.";
 
 // false when the code will not work: malformed, unknown, or already claimed
 export const claimInvite = async (db: Db, code: string, email: string): Promise<boolean> => {
@@ -37,6 +36,15 @@ export const claimInvite = async (db: Db, code: string, email: string): Promise<
   return claimed !== undefined;
 };
 
+// redeemed_at stays set: clearing it would hand a working sign-up to whoever still holds the
+// code. Case-insensitive because the gate stores the address as typed and Better Auth lowercases it.
+export const forgetInviteRedeemer = async (db: Db, email: string): Promise<void> => {
+  await db
+    .update(inviteCode)
+    .set({ redeemedBy: null })
+    .where(sql`lower(${inviteCode.redeemedBy}) = lower(${email})`);
+};
+
 // scoped to the email this request claimed with, so a loser never releases a concurrent winner's claim
 export const releaseInvite = async (db: Db, code: string, email: string): Promise<void> => {
   await db
@@ -46,10 +54,10 @@ export const releaseInvite = async (db: Db, code: string, email: string): Promis
 };
 
 // refused before the claim, so a password Better Auth would refuse never claims and releases a code
-export const signUpBodyRefusal = (error: z.ZodError, otherwise: string): string =>
+const signUpBodyRefusal = (error: z.ZodError): string =>
   error.issues.every((issue) => issue.path[0] === "password")
     ? `Use a password of ${PASSWORD_MIN_LENGTH} to ${PASSWORD_MAX_LENGTH} characters.`
-    : otherwise;
+    : "Fill in every field to create an account.";
 
 const formRefusal = (status: number, message: string): Response =>
   Response.json({ message }, { status });
@@ -59,9 +67,10 @@ const formRefusal = (status: number, message: string): Response =>
 const forwardSignUp = async (
   request: Request,
   env: Env,
-  origin: string,
+  ctx: ExecutionContext,
   body: SignUpRequest,
 ): Promise<Response> => {
+  const { origin } = new URL(request.url);
   const headers = new Headers(request.headers);
   // an inherited content-length would describe the body this route consumed
   headers.delete("content-length");
@@ -71,11 +80,14 @@ const forwardSignUp = async (
     headers,
     method: "POST",
   });
-  return await createSignUpAuth(env, origin).handler(forwarded);
+  return await createSignUpAuth(env, ctx, origin).handler(forwarded);
 };
 
-export const handleInviteSignUp = async (request: Request, env: Env): Promise<Response> => {
-  const url = new URL(request.url);
+export const handleInviteSignUp = async (
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response> => {
   const db = createDb(env.DB);
 
   if (!(await spendCallerBudget(env, db, "inviteSignUp", request))) {
@@ -85,17 +97,14 @@ export const handleInviteSignUp = async (request: Request, env: Env): Promise<Re
 
   const body = signUpRequestSchema.safeParse(await request.json().catch(() => null));
   if (!body.success) {
-    return formRefusal(
-      400,
-      signUpBodyRefusal(body.error, "Fill in every field to create an account."),
-    );
+    return formRefusal(400, signUpBodyRefusal(body.error));
   }
   const parsed = body.data;
   if (!(await claimInvite(db, parsed.inviteCode, parsed.email))) {
-    return formRefusal(403, INVITE_REFUSED);
+    return formRefusal(403, new InviteRefusedError().message);
   }
 
-  const response = await forwardSignUp(request, env, url.origin, parsed);
+  const response = await forwardSignUp(request, env, ctx, parsed);
   if (!response.ok) {
     await releaseInvite(db, parsed.inviteCode, parsed.email);
   }

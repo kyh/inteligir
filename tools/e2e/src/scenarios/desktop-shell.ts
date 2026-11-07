@@ -1,111 +1,108 @@
-import { mkdir, symlink, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { z } from "zod";
-import { physicalVaultDir } from "inteligir/server/config";
-import { readServerFile } from "inteligir/server/server-file";
-import { processAlive } from "inteligir/server/server-probe";
 import { expect, expectEq } from "../harness/assert";
-import { askShell, PAGE_UNDER_SHELL, running, WINDOW_LOADED } from "../harness/desktop-shell";
-import type { DesktopShell, ShellTarget } from "../harness/desktop-shell";
+import { OWNER, signUp } from "../harness/cloud-account";
+import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
+import {
+  backToLibrary,
+  replicaTitle,
+  SHELL_PAGE_URL,
+  signInThroughWindow,
+} from "../harness/desktop-shell";
+import type { DesktopShell } from "../harness/desktop-shell";
+import { untilItemText } from "../harness/library-tab";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { EDITOR, treeRow } from "../harness/selectors";
+import { EDITOR, doubleClickCard, libraryCard } from "../harness/selectors";
+import { uploadFile, v1Client } from "../harness/v1-wire";
+import { farJumpsHold, seedLongArticle } from "./desktop-shell/long-note";
+import { addedOfflineDraw, seedViewerItems, viewersDraw } from "./desktop-shell/viewers";
 
-const NOTE = "Shell.md";
-const SEEDED_TOKEN = "seededshelltoken";
-const WRITTEN_TOKEN = "apiwrittenshelltoken";
-// a link inside the vault to a file outside it: a lexical check passes it, a physical one cannot
-const ESCAPE_LINK = "escape.md";
-const SECOND_NOTE = "Elsewhere.md";
-const SECOND_TOKEN = "secondvaulttoken";
-// the shell's own list (apps/desktop/src-tauri/src/vaults.rs): the page may only open a vault it holds
-const RECENT_VAULTS_FILE = "recent-vaults.json";
-const RAIL_DEADLINE_MS = 60_000;
-const PAGE_DEADLINE_MS = 30_000;
+const TITLE = "Shell note";
+const SEEDED = "Seeded on another device.";
+const WRITTEN = "Written by another device while this one reads.";
+const OFFLINE = " Typed with no connection.";
+const PAGE_DEADLINE_MS = 60_000;
 const EDITOR_DEADLINE_MS = 30_000;
-const SWITCH_DEADLINE_MS = 90_000;
 
-const pathActionSchema = z.discriminatedUnion("ok", [
-  z.object({ ok: z.literal(true) }),
-  z.object({ ok: z.literal(false), reason: z.string() }),
-]);
+const editorText = async (shell: DesktopShell): Promise<string> =>
+  await shell.window.textOf(EDITOR);
 
-const requireServer = (target: ShellTarget) => {
-  const server = readServerFile(target.dataDir);
-  expect(server !== null, `no server.json in ${target.dataDir}: the shell runs no server there`);
-  return server;
+const untilEditorHolds = async (
+  shell: DesktopShell,
+  words: string,
+  what: string,
+): Promise<void> => {
+  await pollUntil(
+    async () => await editorText(shell),
+    (text) => text.includes(words),
+    { deadlineMs: EDITOR_DEADLINE_MS, describe: (text) => `${what}; the editor holds:\n${text}` },
+  );
 };
 
-interface SwitchState {
-  target: ShellTarget;
-  serving: boolean;
-  loaded: boolean;
-}
-
-const switchedTo = async (shell: DesktopShell): Promise<SwitchState> => {
-  const target = shell.target();
-  const log = await shell.serverLog(target);
-  return {
-    loaded: log.some((line) => line.includes(WINDOW_LOADED)),
-    serving: readServerFile(target.dataDir) !== null,
-    target,
-  };
+const openItem = async (shell: DesktopShell, itemId: string): Promise<void> => {
+  await shell.window.waitUntil(
+    `document.querySelector(${JSON.stringify(libraryCard(itemId))}) !== null`,
+    PAGE_DEADLINE_MS,
+  );
+  expectEq(
+    await shell.window.run(`return ${doubleClickCard(itemId)};`, z.string()),
+    "opened",
+    TITLE,
+  );
+  await shell.window.waitUntil(
+    `document.querySelector(${JSON.stringify(EDITOR)}) !== null`,
+    PAGE_DEADLINE_MS,
+  );
 };
 
 export const desktopShell: Scenario = {
   description:
-    "the built Tauri shell over WebDriver: the window is the server's own page signed in by its handoff, the rail and a note ride its cookie, an API write reaches the open editor through the socket, `window.open` is denied, every permission request is refused, Reveal refuses a symlink out of the vault, a switch boots a new child and a new window on the new vault, and a SIGTERM quit stops the server and retracts `server.json`",
+    "the built Tauri shell over WebDriver against a booted Worker: the window is the page the shell carries, signed in on its own sign-in; the library reads the shell's own replica, and a write another device makes reaches the open editor through the socket; `window.open` is denied and every permission request refused; a picture and a PDF draw over the shell's file scheme, fetched with the credential; in WebKit, a far jump in a long article lands on its target and holds still and scrolling back up never leaps; with the cloud cut, a relaunch opens the library and the item from the replica, a PDF dropped draws from its staged bytes, a file's Download lands in Downloads with the window left on it, an edit typed just before Quit is written before the app goes and survives the next launch, and once the cloud is back the edit lands in the cell",
   name: "desktop-shell",
-  // the shell boots twice (the switch)
-  timeoutMs: 300_000,
-  usesDesktopShell: true,
+  // the shell launches three times beside a booted Worker, and the far jumps and viewers take
+  // their time
+  timeoutMs: WORKER_SCENARIO_TIMEOUT_MS + 420_000,
+  exclusive: ["desktop-shell"],
   async run(ctx) {
-    const outsideFile = path.join(ctx.scratchDir, "outside", "secret.md");
-    await mkdir(path.dirname(outsideFile), { recursive: true });
-    await writeFile(outsideFile, "# Secret\n", "utf-8");
-    const secondVault = path.join(ctx.scratchDir, "second-vault");
-    await mkdir(secondVault, { recursive: true });
-    await writeFile(path.join(secondVault, SECOND_NOTE), `# Elsewhere\n\n${SECOND_TOKEN}\n`);
-
-    const shell = await ctx.desktopShell({
-      seedOwnDir: async (ownDir) => {
-        await writeFile(
-          path.join(ownDir, RECENT_VAULTS_FILE),
-          JSON.stringify({ vaults: [{ path: secondVault }] }),
-        );
-      },
-      seedVault: async (vaultDir) => {
-        await writeFile(path.join(vaultDir, NOTE), `# Shell\n\n${SEEDED_TOKEN}\n`, "utf-8");
-        await symlink(outsideFile, path.join(vaultDir, ESCAPE_LINK));
-      },
+    const worker = await ctx.cloudWorker();
+    await signUp(worker.origin);
+    const device = await v1Client(worker, null).account.signIn({
+      ...OWNER,
+      deviceName: "E2E Seeder",
     });
+    const { library } = v1Client(worker, device.credential);
+    const { item } = await library.items.createNote({ markdown: `${SEEDED}\n`, title: TITLE });
+    const article = await seedLongArticle(library);
+    const viewers = await seedViewerItems(library, async (file) => {
+      const uploaded = await uploadFile(worker, device.credential, file);
+      expectEq(uploaded.status, 201, "the seed's upload");
+      return uploaded.sha;
+    });
+    const link = await ctx.cloudLink(worker);
+
+    const shell = await ctx.desktopShell({ cloudOrigin: link.origin });
     const page = shell.window;
 
-    ctx.log("the window is the server's own page, signed in by the handoff it was opened with");
-    // the session opens with the window, and the page signs in after it
-    await page.waitUntil(PAGE_UNDER_SHELL, PAGE_DEADLINE_MS);
+    ctx.log("the window is the page the shell carries, and its first run is the sign-in");
+    await signInThroughWindow(page, OWNER);
     const url = await page.url();
-    expect(url.startsWith(`${shell.serverOrigin}/`), `the window is not on the server: ${url}`);
-    expect(!url.includes("handoff"), `the handoff's nonce stayed in the window's url: ${url}`);
+    expect(url.startsWith(SHELL_PAGE_URL), `the window is not on the shell's page: ${url}`);
 
-    ctx.log("the rail lists the seeded note, and the note opens: the cookie carries every call");
-    await page.clickWhenThere(treeRow(NOTE), RAIL_DEADLINE_MS);
-    const readEditor = async (): Promise<string> => await page.textOf(EDITOR);
-    await pollUntil(readEditor, (text) => text.includes(SEEDED_TOKEN), {
-      deadlineMs: EDITOR_DEADLINE_MS,
-      describe: (text) => `the editor never opened ${NOTE}; it holds:\n${text}`,
-    });
+    ctx.log("the library reads the shell's replica, and the card opens the item");
+    await openItem(shell, item.id);
+    await untilEditorHolds(shell, SEEDED, "the item never opened");
+    const [file] = shell.replicaFiles();
+    expect(file !== undefined, "the shell holds no replica file");
+    expectEq(replicaTitle(file, item.id), TITLE, "the item in the shell's replica");
 
-    ctx.log("a write over the API reaches the open editor: the page's socket is live");
-    await shell.api.vault.write({
-      content: `# Shell\n\n${WRITTEN_TOKEN}\n`,
-      guard: { kind: "overwrite" },
-      path: NOTE,
+    ctx.log("a write another device makes reaches the open editor: the socket is live");
+    const read = await library.items.read({ id: item.id });
+    await library.items.edit({
+      baseSeq: read.seq,
+      edits: [{ newText: `${SEEDED} ${WRITTEN}`, oldText: SEEDED }],
+      id: item.id,
     });
-    await pollUntil(readEditor, (text) => text.includes(WRITTEN_TOKEN), {
-      deadlineMs: EDITOR_DEADLINE_MS,
-      describe: (text) => `the editor never heard the write; it holds:\n${text}`,
-    });
+    await untilEditorHolds(shell, WRITTEN, "the editor never heard the other device's write");
 
     ctx.log("window.open is denied, the app's own origin included");
     // from a click: WebKit refuses an open no gesture made before the shell is asked, so a script's
@@ -116,17 +113,21 @@ export const desktopShell: Scenario = {
       button.textContent = "open";
       button.style.cssText = "position:fixed;top:0;left:0;width:48px;height:48px;z-index:2147483647";
       button.addEventListener("click", () => {
-        window.e2eOpened = String(window.open(${JSON.stringify(shell.serverOrigin)}));
+        window.e2eOpened = String(window.open(location.href));
       });
       document.body.append(button);
       return null;`,
       z.null(),
     );
     await page.clickWhenThere("#e2e-window-open", PAGE_DEADLINE_MS);
-    const opened = await page.run("return window.e2eOpened ?? null", z.string().nullable());
-    expectEq(opened, "null", "window.open's answer");
+    expectEq(
+      await page.run("return window.e2eOpened ?? null", z.string().nullable()),
+      "null",
+      "window.open's answer",
+    );
     const handles = await page.handles();
     expectEq(handles.length, 1, "windows after window.open");
+    await page.run(`document.getElementById("e2e-window-open")?.remove(); return null;`, z.null());
 
     ctx.log("the window holds no permission: every request is denied");
     // dictation is the OS's, so the page needs no microphone; a runner has no capture device to
@@ -142,58 +143,55 @@ export const desktopShell: Scenario = {
     );
     expectEq(notifications, "denied", "the notification request's answer");
 
-    ctx.log("Reveal refuses what the vault does not physically contain");
-    for (const entry of [ESCAPE_LINK, "../outside/secret.md"]) {
-      const answer = await page.runAsync(
-        `${askShell("paths_reveal", { path: entry })}.then(done, (error) => done({ ok: false, reason: String(error) }))`,
-        pathActionSchema,
-      );
-      expect(!answer.ok, `Reveal handed the OS ${entry}, which is outside the vault`);
-    }
+    await backToLibrary(page);
+    await viewersDraw(ctx, page, viewers);
 
-    ctx.log("a switch to a remembered vault stops the child and boots one on the new vault");
-    const before = shell.target();
-    const beforeServer = requireServer(before);
-    // not awaited: a switch closes this window before its answer could land
-    await page.run(
-      `void ${askShell("vaults_open", { path: secondVault })}; return "asked"`,
-      z.string(),
-    );
-    const secondVaultDir = physicalVaultDir(secondVault);
-    const after = await pollUntil(
-      async () => await switchedTo(shell),
-      (state) => state.target.vaultDir === secondVaultDir && state.serving && state.loaded,
-      {
-        deadlineMs: SWITCH_DEADLINE_MS,
-        describe: (state) =>
-          `the switch never settled: the selector names ${state.target.vaultDir}, serving ${String(state.serving)}, a window loaded ${String(state.loaded)}`,
-      },
-    );
-    expect(after.target.dataDir !== before.dataDir, "the second vault shares the first's data dir");
-    expect(
-      readServerFile(before.dataDir) === null && !processAlive(beforeServer.pid),
-      `the first vault's server (pid ${String(beforeServer.pid)}) outlived the switch`,
-    );
-    const afterServer = requireServer(after.target);
-    expect(afterServer.pid !== beforeServer.pid, "the switch booted no new child");
-    const { content } = await shell.api.vault.read({ path: SECOND_NOTE });
-    expect(content.includes(SECOND_TOKEN), `the new child reads another vault:\n${content}`);
-    // the session's window was the first vault's, and the switch closed it
-    expectEq(await page.handles(), [], "the first vault's window after the switch");
+    ctx.log("a long article: the find bar's far jumps hold, and the scroll back up never leaps");
+    await farJumpsHold(ctx, page, article);
+    await backToLibrary(page);
 
-    ctx.log("the server never outlives the shell: its teardown retracts server.json");
+    ctx.log("with the cloud cut, a relaunch opens the library and the item from the replica");
     await shell.quit();
-    await pollUntil(
-      async () =>
-        await Promise.resolve(
-          readServerFile(after.target.dataDir) === null && !running(afterServer.pid),
-        ),
-      (gone) => gone,
-      {
-        deadlineMs: 60_000,
-        describe: () =>
-          `the server (pid ${String(afterServer.pid)}) or its server.json outlived the shell`,
-      },
+    await link.cut();
+    const offline = await ctx.desktopShell({ cloudOrigin: link.origin });
+    await addedOfflineDraw(ctx, offline);
+    await openItem(offline, item.id);
+    await untilEditorHolds(offline, WRITTEN, "the relaunch read no item offline");
+
+    ctx.log("an edit typed just before Quit is written before the app goes, and queues offline");
+    await offline.window.run(
+      `const editor = document.querySelector(${JSON.stringify(EDITOR)});
+      const range = document.createRange();
+      range.selectNodeContents(editor.lastElementChild);
+      range.collapse(false);
+      editor.focus();
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return null;`,
+      z.null(),
     );
+    await offline.window.typeInto(EDITOR, OFFLINE);
+    await untilEditorHolds(offline, OFFLINE.trim(), "the offline edit never showed");
+    // within the editor's pause, which only the page's write as the shell quits can beat
+    await offline.quit();
+    const relaunched = await ctx.desktopShell({ cloudOrigin: link.origin });
+    await openItem(relaunched, item.id);
+    await untilEditorHolds(relaunched, OFFLINE.trim(), "the edit typed just before Quit was lost");
+    const unsent = await library.items.read({ id: item.id });
+    expect(
+      !unsent.view.markdown.includes(OFFLINE.trim()),
+      "the edit reached the cell with the cloud cut",
+    );
+
+    ctx.log("once the cloud is back, the queued edit lands in the cell");
+    await link.restore();
+    await untilItemText(
+      library,
+      item.id,
+      (markdown) => markdown.includes(OFFLINE.trim()),
+      "the queued edit never landed once the cloud was back",
+    );
+    await relaunched.quit();
   },
 };

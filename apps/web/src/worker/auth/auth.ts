@@ -1,18 +1,15 @@
 import { betterAuth } from "better-auth";
-// the adapter better-auth re-exports reads `db._.fullSchema`, gone in drizzle 1.0; relations-v2
-// reads `db._.relations`, which `createDb` populates.
+// relations-v2: the adapter better-auth re-exports reads `db._.fullSchema`, gone in drizzle 1.0
 import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
 import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
 } from "@repo/contract/cloud/device/device-schema";
-import { sql } from "drizzle-orm";
-import { deleteVaultGitRepo } from "../vault/vault-repo";
 import { createDb } from "../db/client";
-import { inviteCode } from "../db/schema";
-import { purgeDeviceRows } from "../device/login";
-import { AUTH_RATE_WINDOW_SECONDS, CALLER_IP_HEADER } from "../rate-limit";
-import { purgeThreadSync } from "../sync/thread-sync-stub";
+import { authTables } from "../db/schema";
+import { AUTH_RATE_WINDOW_SECONDS, CALLER_ADDRESS } from "../rate-limit";
+import { libraryCell } from "../library/library-cell";
+import { severSockets } from "../library/socket-routes";
 import { sendResetEmail } from "./reset-email";
 
 // Built per request: D1 is a runtime binding, not a module singleton. No baseURL config —
@@ -20,19 +17,22 @@ import { sendResetEmail } from "./reset-email";
 
 // The HTTP router's alone: auth.api still calls each. The site calls sign-in, get-session and the
 // reset pair, and the invite gate forwards sign-up; a route no client calls is surface with no
-// user. Sign-out stays, since ending a session is never a risk. Deletion's one door is
-// /v1/account/delete (../device/account.ts), which asks the password again, where Better Auth's
-// own route settles for a fresh session.
+// user. Sign-out stays, since ending a session is never a risk. So does `/callback/:id`, which an
+// exact list cannot name and which, with no social provider, has nothing to sign in with. Deletion's
+// one door is `account.delete` (../device/account.ts), which asks the password again, where Better
+// Auth's own route settles for a fresh session.
 const DISABLED_PATHS = [
   "/account-info",
   "/change-email",
   "/change-password",
   "/delete-user",
   "/delete-user/callback",
+  "/error",
   "/get-access-token",
   "/link-social",
   "/list-accounts",
   "/list-sessions",
+  "/ok",
   "/refresh-token",
   "/revoke-other-sessions",
   "/revoke-session",
@@ -46,24 +46,34 @@ const DISABLED_PATHS = [
   "/verify-password",
 ];
 
-// redeemed_at stays set: clearing it would hand a working sign-up to whoever still holds the
-// code. Case-insensitive because the gate stores the address as typed and Better Auth lowercases it.
-const forgetInviteRedeemer = async (env: Env, email: string): Promise<void> => {
-  await createDb(env.DB)
-    .update(inviteCode)
-    .set({ redeemedBy: null })
-    .where(sql`lower(${inviteCode.redeemedBy}) = lower(${email})`);
-};
-
-const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
+const buildAuth = (env: Env, ctx: ExecutionContext, baseURL: string, disableSignUp: boolean) =>
   betterAuth({
     advanced: {
+      // past the answer: an unknown address sends no reset mail, so a request that waited on one
+      // would say by its time which addresses hold an account
+      backgroundTasks: {
+        handler: (task) => {
+          ctx.waitUntil(task);
+        },
+      },
       // the default reads x-forwarded-for and, finding more than one hop there, keys every such
       // caller into one bucket per path
-      ipAddress: { ipAddressHeaders: [CALLER_IP_HEADER] },
+      ipAddress: CALLER_ADDRESS,
     },
     baseURL,
-    database: drizzleAdapter(createDb(env.DB), { provider: "sqlite" }),
+    database: drizzleAdapter(createDb(env.DB), { provider: "sqlite", schema: authTables }),
+    databaseHooks: {
+      // every session Better Auth ends, the site's sign-out and each one a password reset revokes,
+      // closes the sockets it opened, whose standing was checked only at their upgrade
+      // (../library/socket-routes.ts)
+      session: {
+        delete: {
+          after: async (ended) => {
+            await severSockets(ctx.exports, ended.userId, { id: ended.id, kind: "session" });
+          },
+        },
+      },
+    },
     disabledPaths: DISABLED_PATHS,
     emailAndPassword: {
       disableSignUp,
@@ -75,8 +85,9 @@ const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
       // sessions only, not device credentials: most resets are the owner rotating a password,
       // and cutting every signed-in device would sign their own machines out; per-device revoke is the hatch
       revokeSessionsOnPasswordReset: true,
-      // the forgot-password page requests with redirectTo /app/reset-password, so the URL's GET leg
-      // lands on the site's route (apps/web/src/routes/app/reset-password.tsx)
+      // the forgot-password page requests with redirectTo /app/reset-password and any way back the
+      // person came with, so the URL's GET leg lands on the site's route
+      // (apps/web/src/routes/app/reset-password.tsx)
       sendResetPassword: async ({ user, url }) => {
         await sendResetEmail(env, user.email, url);
       },
@@ -96,23 +107,29 @@ const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
     user: {
       deleteUser: {
         // beforeDelete, not afterDelete: a failure aborts the deletion and the account survives to
-        // retry. Credentials first: while a device row lives its credential verifies, and a request
-        // landing after the purge would rebuild the object; the object's tombstone then refuses the
-        // request that verified before step 1 committed.
+        // retry. The library cell runs the account's purge, in its order, its credentials last
+        // (../library/account-purge.ts).
         beforeDelete: async (user) => {
-          await purgeDeviceRows(createDb(env.DB), user.id);
-          await deleteVaultGitRepo(env, user.id);
-          await purgeThreadSync(env, user.id);
-          await forgetInviteRedeemer(env, user.email);
+          await libraryCell(ctx.exports, user.id).purge(user.email);
         },
         enabled: true,
       },
     },
   });
 
-export const createAuth = (env: Env, baseURL: string) => buildAuth(env, baseURL, true);
+export const createAuth = (env: Env, ctx: ExecutionContext, baseURL: string) =>
+  buildAuth(env, ctx, baseURL, true);
+
+// the session a request's cookie names, for a route of the Worker's own: it answers with no cookie
+// of Better Auth's, so a row slid here would outlive the cookie that names it
+export const readSession = async (env: Env, ctx: ExecutionContext, request: Request) =>
+  await createAuth(env, ctx, new URL(request.url).origin).api.getSession({
+    headers: request.headers,
+    query: { disableRefresh: true },
+  });
 
 // Better Auth reads disableSignUp off the instance options with no per-call override, so the
 // invite gate's two doors (./invite.ts, ../device/sign-up.ts) need this second instance; the flag
 // also shuts auth.api.signUpEmail.
-export const createSignUpAuth = (env: Env, baseURL: string) => buildAuth(env, baseURL, false);
+export const createSignUpAuth = (env: Env, ctx: ExecutionContext, baseURL: string) =>
+  buildAuth(env, ctx, baseURL, false);

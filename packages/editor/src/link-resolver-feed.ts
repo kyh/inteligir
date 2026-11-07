@@ -1,49 +1,42 @@
-import type { LinkResolver, LinkResolverStore, VaultEntry } from "@repo/editor/host-io";
-import { resolverEntriesOf } from "@repo/notes/knowledge/link-graph-index";
-import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
-import { buildResolver } from "@repo/notes/knowledge/link-resolve";
+import type { LinkResolver, LinkResolverStore, LinkTarget } from "@repo/editor/host-io";
+import { titleKey } from "@repo/notes/library/derive-item";
 import { createStore } from "zustand/vanilla";
 
-// What a host installs as `EditorHostIo.linkResolver`, and the two inputs it feeds: the session's
-// listing and the index's wiki targets, which arrive apart.
+// What a host installs as `EditorHostIo.linkResolver`, and the one input it feeds: the items a
+// link can name. A link written with a title reaches the item that title names today, by the key
+// the cell resolves a title by, and one carrying an id reaches that item whatever it is called.
 export interface LinkResolverFeed {
   readonly store: LinkResolverStore;
-  readonly setListing: (entries: readonly VaultEntry[]) => void;
-  readonly setTargets: (targets: readonly WikiTarget[]) => void;
+  readonly setTargets: (targets: readonly LinkTarget[]) => void;
 }
 
 const NO_RESOLVER: LinkResolver = {
-  resolveMdTarget: () => null,
   resolveWikiTarget: () => null,
   targets: [],
+  titleOf: () => null,
 };
 
 export const createLinkResolverFeed = (): LinkResolverFeed => {
-  let entries: readonly VaultEntry[] = [];
-  let targets: readonly WikiTarget[] = [];
   const store = createStore<LinkResolver>()(() => NO_RESOLVER);
-  // Rebuilt whole from either input: the resolver's identity is what tells a link to re-render.
-  const rebuild = (): void => {
-    const { aliasEntries, idEntries } = resolverEntriesOf(targets);
-    const resolver = buildResolver(
-      entries.map((entry) => entry.path),
-      aliasEntries,
-      idEntries,
-    );
-    store.setState({
-      resolveMdTarget: (target, fromPath) => resolver.resolveMd(target, fromPath),
-      resolveWikiTarget: (target, alias) => resolver.resolveWiki(target, alias),
-      targets,
-    });
-  };
   return {
-    setListing: (next) => {
-      entries = next;
-      rebuild();
-    },
-    setTargets: (next) => {
-      targets = next;
-      rebuild();
+    setTargets: (targets) => {
+      // two items of one title answer to one key, which reaches the first the host lists
+      const owners = new Map<string, string>();
+      for (const target of targets) {
+        const key = titleKey(target.title);
+        if (key !== "" && !owners.has(key)) {
+          owners.set(key, target.id);
+        }
+      }
+      const titles = new Map(targets.map((target) => [target.id, target.title]));
+      // rebuilt whole: the resolver's identity is what tells a link to re-render
+      store.setState({
+        // an id the link carries names its item whatever it is called now
+        resolveWikiTarget: (target, alias) =>
+          alias !== undefined && titles.has(alias) ? alias : (owners.get(titleKey(target)) ?? null),
+        targets,
+        titleOf: (itemId) => titles.get(itemId) ?? null,
+      });
     },
     store,
   };

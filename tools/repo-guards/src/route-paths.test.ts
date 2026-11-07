@@ -2,41 +2,55 @@
 // that drift. tests are excluded on purpose: a route test that derived its URL from the contract
 // could not catch the contract moving.
 
-import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
-import {
-  HEALTH_PATH,
-  HTML_FRAME_PATH,
-  RPC_PREFIX,
-  VAULT_ASSET_PATH,
-} from "@repo/contract/local/routes";
+import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
+import { V1_RPC_PATH } from "@repo/contract/cloud/v1";
 import { describe, expect, it } from "vitest";
 import { isTestFile, sourceOf, workspaceSourceFiles, workspaces } from "./repo";
 
-// `/ws` is absent: two characters plus a slash matches far too much ordinary prose and code.
-const NAMESPACES = [
+// a `quoted` path is a word module paths hold too (`@repo/notes/library/…`), so it counts only
+// where a string or a route pattern starts with it.
+interface Namespace {
+  readonly home: string;
+  readonly paths: readonly string[];
+  readonly use: string;
+  readonly quoted?: boolean;
+}
+
+const NAMESPACES: readonly Namespace[] = [
   {
-    home: "packages/contract/src/local/local-routes.ts",
-    paths: [VAULT_ASSET_PATH, HTML_FRAME_PATH, HEALTH_PATH, RPC_PREFIX],
-    use: "the constants in @repo/contract/local/routes",
+    home: "packages/contract/src/cloud/v1-contract.ts",
+    paths: [V1_RPC_PATH],
+    use: "V1_RPC_PATH from @repo/contract/cloud/v1",
   },
   {
-    home: "packages/contract/src/cloud/vault/vault-schema.ts",
-    paths: Object.values(VAULT_API_PATHS),
-    use: "VAULT_API_PATHS from @repo/contract/cloud/vault/vault-schema",
+    home: "packages/contract/src/cloud/library-page.ts",
+    paths: [LIBRARY_PAGE_PATH],
+    quoted: true,
+    use: "LIBRARY_PAGE_PATH from @repo/contract/cloud/library-page",
   },
 ];
 
-// longest first, so the cloud's `/v1/vault/asset` is tried before the local `/vault/asset` it
-// contains.
+// longest first, so a path is matched before any shorter one it contains
 const GUARDED = NAMESPACES.flatMap((namespace) =>
-  namespace.paths.map((path) => ({ home: namespace.home, path, use: namespace.use })),
+  namespace.paths.map((path) => ({
+    home: namespace.home,
+    path,
+    quoted: namespace.quoted === true,
+    use: namespace.use,
+  })),
 ).toSorted((left, right) => right.path.length - left.path.length);
 
 // a caller that cannot import the contract, keyed by file, with why it cannot
-const ELSEWHERE = new Map<string, string>();
+const ELSEWHERE = new Map([
+  [
+    "apps/web/cloudflare.config.ts",
+    "its runWorkerFirst patterns: the dev server cannot load a module the config and the Worker both load (oxlint.config.ts, CONFIG_MODULES)",
+  ],
+]);
 
 interface Spelled {
   path: string;
+  quoted: boolean;
   home: string;
   use: string;
 }
@@ -45,13 +59,12 @@ interface Hit extends Spelled {
   file: string;
 }
 
-// not followed by a word character or a dash, which tells `"/vault/asset?path="` from
-// `"./vault/asset-route"`.
-const spells = (source: string, path: string): boolean =>
-  new RegExp(`${path}(?![\\w-])`, "u").test(source);
+// not followed by a word character or a dash, which tells `"/library?item="` from `"/library-page"`
+const spells = (source: string, { path, quoted }: Pick<Spelled, "path" | "quoted">): boolean =>
+  new RegExp(`${quoted ? "[\"'`!]" : ""}${path}(?![\\w-])`, "u").test(source);
 
 const spellings = (source: string): Spelled[] =>
-  GUARDED.filter((row) => spells(source, row.path)).slice(0, 1);
+  GUARDED.filter((row) => spells(source, row)).slice(0, 1);
 
 const sweptFiles = (): string[] =>
   workspaces()
@@ -60,14 +73,7 @@ const sweptFiles = (): string[] =>
     .toSorted();
 
 const hits = (files: readonly string[]): Hit[] =>
-  files.flatMap((file) =>
-    spellings(sourceOf(file)).map((row) => ({
-      file,
-      home: row.home,
-      path: row.path,
-      use: row.use,
-    })),
-  );
+  files.flatMap((file) => spellings(sourceOf(file)).map((row) => ({ ...row, file })));
 
 describe("one spelling per non-procedure route path", () => {
   const files = sweptFiles();
@@ -79,15 +85,12 @@ describe("one spelling per non-procedure route path", () => {
     expect(
       files,
       "the sweep does not reach scripts/, which is where the smokes that spell paths live",
-    ).toContain("apps/cli/scripts/smoke.ts");
+    ).toContain("apps/desktop/scripts/smoke-packaged.ts");
     for (const namespace of NAMESPACES) {
       expect(files, `the sweep found no ${namespace.home} — it is broken, not the tree`).toContain(
         namespace.home,
       );
-      expect(
-        spellings(sourceOf(namespace.home)).length,
-        `${namespace.home} no longer spells a route path`,
-      ).toBe(1);
+      expect(spellings(sourceOf(namespace.home))).toHaveLength(1);
     }
   });
 
@@ -107,7 +110,7 @@ describe("one spelling per non-procedure route path", () => {
           `  fix: use ${hit.use} — or add a row to ELSEWHERE in tools/repo-guards/src/route-paths.test.ts saying why this caller cannot import the contract`,
       );
     }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 
   it("no ELSEWHERE row is stale", () => {
@@ -121,6 +124,6 @@ describe("one spelling per non-procedure route path", () => {
           `  the reason was: ${why}\n` +
           `  fix: delete the row from ELSEWHERE in tools/repo-guards/src/route-paths.test.ts`,
       );
-    expect(stale, `\n${stale.join("\n\n")}\n`).toEqual([]);
+    expect(stale, `\n${stale.join("\n\n")}\n`).toStrictEqual([]);
   });
 });

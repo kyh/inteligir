@@ -9,12 +9,12 @@ import {
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { noFlashThemeScript } from "@repo/ui/lib/theme";
 
-import { varyHeaders } from "@/lib/markdown-route";
-import { PAGES } from "@/lib/page-meta";
-import { siteConfig } from "@/lib/site-config";
-import { serializeJsonLd, siteGraph } from "@/lib/structured-data";
-import { SiteProviders } from "@/components/site-providers";
-import { THEME_FALLBACK, THEME_STORAGE_KEY } from "@/components/theme-provider";
+import { varyHeaders } from "#lib/markdown-route";
+import { PAGES } from "#lib/page-meta";
+import { siteConfig } from "#lib/site-config";
+import { serializeJsonLd, siteGraph } from "#lib/structured-data";
+import { SiteProviders } from "#components/site-providers";
+import { THEME_FALLBACK, THEME_STORAGE_KEY } from "#components/theme-provider";
 
 import appCss from "../styles/globals.css?url";
 
@@ -55,6 +55,8 @@ const RootDocument = ({ children }: { children: React.ReactNode }) => {
 
   // suppressHydrationWarning: the inline script sets the theme class before hydration
   // the theme-color metas are plain tags because HeadContent dedupes meta by name and would drop one of the pair
+  // isolate: the site's own stacking context, so a popup Base UI portals into body stays above it
+  // (https://base-ui.com/react/overview/quick-start)
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -75,7 +77,7 @@ const RootDocument = ({ children }: { children: React.ReactNode }) => {
         />
       </head>
       <body className="bg-background text-foreground font-sans antialiased">
-        {children}
+        <div className="isolate">{children}</div>
         <Scripts />
       </body>
     </html>

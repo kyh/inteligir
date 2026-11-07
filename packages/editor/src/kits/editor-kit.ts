@@ -8,7 +8,6 @@ import { ColumnKit } from "@repo/editor/kits/column-kit";
 import { DateKit } from "@repo/editor/kits/date-kit";
 import { EmbedKit } from "@repo/editor/kits/embed-kit";
 import { FloatingToolbarKit } from "@repo/editor/kits/floating-toolbar-kit";
-import { FrontmatterKit } from "@repo/editor/kits/frontmatter-kit";
 import { ImageKit } from "@repo/editor/kits/image-kit";
 import { LinkKit } from "@repo/editor/kits/link-kit";
 import { ListKit } from "@repo/editor/kits/list-kit";
@@ -18,8 +17,8 @@ import { OpaqueKit } from "@repo/editor/kits/opaque-kit";
 import { TableKit } from "@repo/editor/kits/table-kit";
 import { TagChipKit } from "@repo/editor/kits/tag-chip-kit";
 import { ToggleKit } from "@repo/editor/kits/toggle-kit";
-import { CommentGutterKit } from "@repo/editor/comments/comment-gutter";
-import { CommentKit } from "@repo/editor/comments/comment-kit";
+import { AnnotationGutterKit } from "@repo/editor/annotations/annotation-gutter";
+import { AnnotationKit } from "@repo/editor/annotations/annotation-kit";
 import { EditorShortcutsKit } from "@repo/editor/editor-shortcuts";
 import { FindBarKit } from "@repo/editor/find-bar";
 import { RichBlocksKit } from "@repo/editor/kits/rich-blocks-kit";
@@ -32,7 +31,7 @@ import { FormulaAutocompleteKit } from "@repo/editor/formulas/formula-autocomple
 import { WikiAutocompleteKit } from "@repo/editor/wiki/wiki-autocomplete";
 
 // Everything the document is made of: every node, the dialect's inputs and decorations, the
-// comment decoration and the markdown wiring. Every surface composes this whole, so a note reads
+// annotation decoration and the markdown wiring. Every surface composes this whole, so a note reads
 // and serializes alike wherever it is open.
 export const CONTENT_KIT = [
   ...BasicMarksKit,
@@ -48,11 +47,10 @@ export const CONTENT_KIT = [
   ...DateKit,
   ...MathKit,
   ...OpaqueKit,
-  ...FrontmatterKit,
   ...WikiLinkKit,
   ...InlineConstructsKit,
   ...RichBlocksKit,
-  ...CommentKit,
+  ...AnnotationKit,
   ...TabsKit,
   ...WikiAutocompleteKit,
   ...FormulaAutocompleteKit,
@@ -63,8 +61,9 @@ export const CONTENT_KIT = [
 
 // A later plugin's aboveNodes wraps an earlier one's, so the gutter stays inside the fold that
 // hides its block, and both inside the drag handle.
+/** @internal */
 export const DESKTOP_CHROME_KIT = [
-  ...CommentGutterKit,
+  ...AnnotationGutterKit,
   ...HeadingCollapseKit,
   ...SlashKit,
   ...EditorShortcutsKit,

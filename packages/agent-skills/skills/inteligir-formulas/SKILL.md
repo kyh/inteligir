@@ -1,8 +1,3 @@
----
-name: inteligir-formulas
-description: Formula pills and named variables in inteligir notes — the persisted grammar, identity, bound references, and metadata.
----
-
 # inteligir Formulas And Variables
 
 A pill holds a computed or reusable value inline. Two fields are enough for a
@@ -41,7 +36,7 @@ the parse; they do not decorate the result.
 
 ## Identity And References
 
-A pill's identity is `(note id, pill id)`. Names live in `name=`, and a name is
+A pill's identity is `(item id, pill id)`. Names live in `name=`, and a name is
 only meaningful next to an `id`.
 
 A bound reference points at an exact pill:
@@ -58,9 +53,9 @@ A bound reference points at an exact pill:
 That is the whole point of named pills: define an anchor once, derive from it,
 and changing the anchor moves everything downstream.
 
-**Only write a bound reference when you have both real ids** — from the note's
-frontmatter `id:` and the target pill's `id=`. An invented id resolves to
-nothing and the pill goes stale. When you lack them, write a plain value.
+**Only write a bound reference when you have both real ids** — the item's `id`
+as `read_item` answered it and the target pill's `id=`. An invented id resolves
+to nothing and the pill goes stale. When you lack them, write a plain value.
 
 Duplicating a pill inside one note keeps the id, and the copies stay linked.
 An independent value needs a fresh uuid.
@@ -77,7 +72,7 @@ An independent value needs a fresh uuid.
 from a pill you are not rebuilding — it is the app telling the reader the number
 may be out of date.
 
-Unknown keys are preserved. Legacy `format=` is dropped on rewrite.
+Unknown keys are preserved.
 
 ## In Tables
 

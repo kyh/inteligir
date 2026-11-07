@@ -1,5 +1,15 @@
 import { bindings, defineConfig, defineWorker, exports, triggers } from "cf/config";
+import { z } from "zod";
+import { AGENT_ALLOWANCE, AGENT_PRICES } from "./agent-limits.ts";
 import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
+import type { FillJob } from "./src/worker/fill/fill-job.ts";
+import {
+  FILL_BATCH_SIZE,
+  FILL_FAILED_QUEUE,
+  FILL_PREVIEW_QUEUE,
+  FILL_QUEUE,
+  FILL_RETRIES,
+} from "./fill-queues.ts";
 
 // the file path, not `@tanstack/react-start/server-entry`: the package export builds Start's
 // default entry and drops the API routes (cloudflare/workers-sdk#11100). Imported, not named by
@@ -12,73 +22,189 @@ const worker = defineWorker({
   compatibilityDate,
   compatibilityFlags,
   workersDev: true,
-  // the log and the traces keep every request's URL for up to seven days, so no route carries a
-  // vault path in one: the vault reads post it (docs/privacy.md)
+  // the library's page (@repo/workspace): every path under its prefix reaches the Worker first,
+  // which answers the page's document from these assets, so a deep link loads the page and no
+  // other path falls back to it; its hashed files go straight to the assets
+  // (src/worker/library/library-page.ts). The prefix is LIBRARY_PAGE_PATH, written out since the
+  // dev server cannot load a module the Worker loads too (tools/repo-guards/src/route-paths.test.ts)
+  assets: { runWorkerFirst: ["/library", "/library/*", "!/library/assets/*"] },
+  // the log and the traces keep every request's path for up to seven days, so no route carries a
+  // library's name for anything in one, and drop the query string, which carries sign-in codes and
+  // tickets (docs/privacy.md)
   observability: {
     enabled: true,
+    redactQueryString: true,
     traces: { enabled: true, headSamplingRate: 0.01 },
   },
+  // a live class is reached through `ctx.exports`, with no env binding, and each preview gets its
+  // own namespace of it (developers.cloudflare.com/cf/projects/cloudflare-config/)
   exports: {
-    ThreadSyncDO: exports.durableObject({ storage: "sqlite" }),
-    RepoCell: exports.durableObject({ storage: "sqlite" }),
-    Registry: exports.durableObject({ storage: "sqlite" }),
+    // each account's library cell (src/worker/library/library-do.ts)
+    LibraryDO: exports.durableObject({ storage: "sqlite" }),
+    // each conversation with the built-in agent, which only its account's cell names
+    // (src/worker/agent/agent-thread.ts)
+    AgentThreadDO: exports.durableObject({ storage: "sqlite" }),
+    // deleted classes: each namespace is a tombstone, its class in no entry, until a deploy's
+    // response names it safe to drop from this map (docs/releasing.md § 5)
+    ThreadSyncDO: exports.durableObject({ state: "deleted" }),
+    RepoCell: exports.durableObject({ state: "deleted" }),
+    Registry: exports.durableObject({ state: "deleted" }),
   },
 });
 
-// the oldest build /v1 answers (src/worker/client-floor.ts). 0.6.0 sends no build header, which the
-// floor refuses on its own, so this admits exactly the builds that send one, a checkout's included
-// until its release raises the version; raise it to retire a wire shape every older build reads
+// the oldest build /v1 answers (src/worker/client-floor.ts): a request naming no build, or one
+// below this, is refused as outdated, so the build is told to update rather than meeting a wire it
+// does not speak. A change that drops a /v1 shape an older build reads owes the floor, and the
+// release after it raises this to its own version (docs/releasing.md § 1, step 3); every checkout
+// reports the last release's version, so the floor never passes one before then.
+// The next release owes the floor: this Worker answers no wire a 0.6.0 build speaks.
 const MIN_CLIENT_BUILD = "0.6.0";
 
-const durableObjects = {
-  THREAD_SYNC: bindings.durableObject({ worker, exportName: "ThreadSyncDO" }),
-  // REPO and REGISTRY are durable-git's own classes, re-exported through the entry
-  REPO: bindings.durableObject({ worker, exportName: "RepoCell" }),
-  REGISTRY: bindings.durableObject({ worker, exportName: "Registry" }),
+// what both modes bind alike
+const shared = {
+  // the site's and the library page's built files (vite.config.ts copies the page's in)
+  ASSETS: bindings.assets(),
+  // Better Auth's signing key: `cf workers secrets update` in production, a preview base-config
+  // secret (.github/workflows/preview.yml), .dev.vars locally
+  BETTER_AUTH_SECRET: bindings.secret(),
+  MIN_CLIENT_BUILD: bindings.text(MIN_CLIENT_BUILD),
+  // what one account's library may hold, its files and its history included: 1 GiB
+  LIBRARY_STORAGE_CAP_BYTES: bindings.text("1073741824"),
+  // the auth limiter's off switch, "true" only where one caller signs up many accounts: the
+  // suites, the e2e harness, a local script's .dev.vars
+  RATE_LIMIT_DISABLED: bindings.text<"true" | "false">("false"),
+  // what the fill consumer needs of its queues' config, handed over rather than imported, since the
+  // dev server cannot load a module this file also loads (fill-queues.ts)
+  FILL_DELIVERY: bindings.json({ deadLetterQueue: FILL_FAILED_QUEUE, retries: FILL_RETRIES }),
+  // the token of the target's AI Gateway, whose Authenticated Gateway admits only requests that
+  // carry it (src/worker/agent/anthropic-client.ts): `cf workers secrets update` in production, a
+  // preview base-config secret (.github/workflows/preview.yml), .dev.vars for a gateway of a
+  // developer's own. The Worker holds no Anthropic key: each gateway stores its target's
+  AI_GATEWAY_TOKEN: bindings.secret(),
+  // what the built-in agent may spend for one account, and the list prices its calls are booked
+  // at, a fallback model's included (agent-limits.ts, read by src/worker/agent/agent-allowance.ts)
+  AGENT_ALLOWANCE: bindings.json(AGENT_ALLOWANCE),
+  AGENT_PRICES: bindings.json(AGENT_PRICES),
 };
+
+// each target's AI Gateway on its provider-native Anthropic route
+// (developers.cloudflare.com/ai-gateway/usage/providers/anthropic/): production's `inteligir`,
+// every preview's `inteligir-preview`. The account comes from the deploy job's
+// CLOUDFLARE_ACCOUNT_ID (apps/web/turbo.json hands it to the build task), parsed off `globalThis`
+// as `previewDeploy` parses its values; a build without it, CI's, names no gateway, and its
+// Worker refuses every agent send
+const GATEWAYS = { preview: "inteligir-preview", production: "inteligir" } as const;
+
+const gatewayUrl = (gateway: (typeof GATEWAYS)[keyof typeof GATEWAYS]): string => {
+  const account = z
+    .object({
+      process: z.object({
+        env: z.object({
+          CLOUDFLARE_ACCOUNT_ID: z
+            .string()
+            .regex(/^[0-9a-f]{32}$/u)
+            .optional(),
+        }),
+      }),
+    })
+    .parse(globalThis).process.env.CLOUDFLARE_ACCOUNT_ID;
+  return account === undefined
+    ? ""
+    : `https://gateway.ai.cloudflare.com/v1/${account}/${gateway}/anthropic`;
+};
+
+// what the Preview job hands this deploy (.github/workflows/preview.yml). Node evaluates this file,
+// but the Worker's own program types it too and declares no `process`, so the job's environment is
+// parsed off `globalThis`; a Preview deployed without either value is refused here
+const previewDeploy = () =>
+  z
+    .object({
+      process: z.object({
+        env: z.object({
+          // the namespace preview.yml finds or creates: a KV binding names one by id alone
+          OAUTH_KV_PREVIEW_ID: z.string().regex(/^[0-9a-f]{32}$/u),
+          // this Preview's own URL, derived from its name and the account's workers.dev subdomain
+          PREVIEW_ORIGIN: z.url({ protocol: /^https$/u }),
+        }),
+      }),
+    })
+    .parse(globalThis).process.env;
 
 // A Preview must not claim the production hostnames, and gets its own Durable Object namespaces
-// for free, and a preview-only D1 and bucket (.github/workflows/preview.yml creates them): a PR
-// never reaches the production accounts or vault packs. No EMAIL: a preview must not mail real
-// inboxes from the production domain, and src/worker/auth/reset-email.ts logs instead when it is
-// absent. No unsafe metadata: a Preview upload refuses it, and a preview has no sockets worth
-// draining.
-const previewWorker = {
-  ...worker,
-  triggers: [],
-  env: {
-    ...durableObjects,
-    DB: bindings.d1({ name: "inteligir-auth-preview" }),
-    PACK_CACHE: bindings.r2({ name: "inteligir-vault-preview" }),
-    VAULT_STORAGE_CAP_BYTES: bindings.text("1073741824"),
-    MIN_CLIENT_BUILD: bindings.text(MIN_CLIENT_BUILD),
-  },
+// for free, and a preview-only D1, bucket, queue and KV namespace (.github/workflows/preview.yml
+// creates them): a PR never reaches the production accounts, files, fills or connected
+// assistants. A preview consumes no queue
+// (developers.cloudflare.com/workers/previews/resources/), so a link saved there stays unread. No
+// EMAIL or sender: a preview must not mail real inboxes from the production domain, and
+// src/worker/auth/reset-email.ts logs instead.
+const previewWorker = () => {
+  const deploy = previewDeploy();
+  return {
+    ...worker,
+    triggers: [],
+    env: {
+      ...shared,
+      // the preview gateway, which holds the preview Anthropic workspace's key, never production's
+      AGENT_GATEWAY_URL: bindings.text<string>(gatewayUrl(GATEWAYS.preview)),
+      DB: bindings.d1({ name: "inteligir-auth-preview" }),
+      BLOBS: bindings.r2({ name: "inteligir-vault-preview" }),
+      FILLS: bindings.queue<FillJob>({ name: FILL_PREVIEW_QUEUE }),
+      OAUTH_KV: bindings.kv({ id: deploy.OAUTH_KV_PREVIEW_ID }),
+      // its connector's tokens are minted for this Preview's URL and no other
+      SITE_ORIGIN: bindings.text<string>(deploy.PREVIEW_ORIGIN),
+    },
+  };
 };
 
-const productionWorker = {
+const productionWorker = (mode: string | undefined) => ({
   ...worker,
   triggers: [
     triggers.fetch({ pattern: "inteligir.com/*", zone: "inteligir.com" }),
     triggers.fetch({ pattern: "www.inteligir.com/*", zone: "inteligir.com" }),
+    // the pages the cloud reads, consumed by this Worker (fill-queues.ts)
+    triggers.queue({
+      deadLetterQueue: FILL_FAILED_QUEUE,
+      maxBatchSize: FILL_BATCH_SIZE,
+      maxRetries: FILL_RETRIES,
+      name: FILL_QUEUE,
+    }),
+    triggers.queue({ maxRetries: FILL_RETRIES, name: FILL_FAILED_QUEUE }),
   ],
-  // cf sends no code_update_strategy, so the API would cut every open sync socket on deploy; this
-  // is wrangler's default, which lets them finish on the old code for up to 5 minutes
-  unsafe: { metadata: { code_update_strategy: { max_delay: 300, mode: "deferred" } } },
+  // no code_update_strategy: a deploy restarts every Durable Object and drops its sockets, and each
+  // client reconnects and catches up by itself, so none waits on the old code to drain
   env: {
-    ...durableObjects,
+    ...shared,
+    // none for the local Worker: its .dev.vars names the scripted Messages API, or a gateway of the
+    // developer's own (.dev.vars.example), never a target's
+    AGENT_GATEWAY_URL: bindings.text<string>(
+      mode === "development" ? "" : gatewayUrl(GATEWAYS.production),
+    ),
+    // the scripted Messages API the local Worker's .dev.vars names (tools/messages-fake), declared
+    // by `vite dev` alone, so no deployed Worker can be pointed at one
+    ANTHROPIC_FAKE_URL: mode === "development" ? bindings.text<string>("") : undefined,
     // schema is src/worker/db/schema.ts, applied with drizzle-kit push (no migration files)
     DB: bindings.d1({ name: "inteligir-auth", id: "005d0e52-f102-4298-8da9-492b672ed00f" }),
-    // pack bytes only; without it durable-git stores packs in the cell's SQLite, which
-    // caps vault size
-    PACK_CACHE: bindings.r2({ name: "inteligir-vault" }),
-    // what one account's hosted vault may store, history included: 1 GiB
-    VAULT_STORAGE_CAP_BYTES: bindings.text("1073741824"),
-    MIN_CLIENT_BUILD: bindings.text(MIN_CLIENT_BUILD),
+    // the library's files and exports, under acct/<userId>/
+    BLOBS: bindings.r2({ name: "inteligir-vault" }),
+    FILLS: bindings.queue<FillJob>({ name: FILL_QUEUE }),
     // password-reset transport; needs email sending enabled + DNS onboarding once
     EMAIL: bindings.sendEmail({}),
+    // the reset email's sender, on the domain onboarded for Email Sending
+    RESET_FROM_ADDRESS: bindings.text("no-reply@inteligir.app"),
+    // the connector's OAuth clients, grants and tokens, and nothing else (src/worker/connector):
+    // no id, so the first deploy provisions the namespace and every later one keeps it linked
+    // (developers.cloudflare.com/workers/wrangler/configuration/#automatic-provisioning)
+    OAUTH_KV: bindings.kv(),
+    // this deployment's own origin, the connector's OAuth issuer and the root of its resource,
+    // never the request's Host; `vite dev` serves the Worker on its pinned port (vite.config.ts)
+    SITE_ORIGIN: bindings.text<string>(
+      mode === "development" ? "http://localhost:5174" : "https://inteligir.com",
+    ),
   },
-};
+});
 
-export default defineConfig(({ isPreview }) => ({
-  worker: isPreview ? previewWorker : productionWorker,
+// cf reads the default export of the file it is pointed at
+/** @public */
+export default defineConfig(({ isPreview, mode }) => ({
+  worker: isPreview ? previewWorker() : productionWorker(mode),
 }));

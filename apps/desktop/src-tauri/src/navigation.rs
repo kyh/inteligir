@@ -1,5 +1,10 @@
-//! What a window may show. A window keeps its own origin: the app window the server's, the first
-//! run's the bundle's. Any other web page opens in the browser instead, and nothing else loads.
+//! What the window may load: the app's own page, and the shell's files inside it (a PDF's viewer
+//! is a frame of the page's). Tauri hands this hook a navigation's URL alone, never the frame it is
+//! for, so a load of the files' origin passes whichever frame asks; the page never sends the window
+//! itself there, since it saves a file through a blob of its own origin (`item-stages.tsx`), whose
+//! `download` link WebKitGTK asks this hook about (WebKit on macOS hands a download over unasked),
+//! so a blob the page made passes too. Any other web page opens in the browser instead, and
+//! nothing else loads.
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -37,9 +42,23 @@ pub fn is_web_url(url: &Url) -> bool {
     matches!(url.scheme(), "http" | "https")
 }
 
-/// Compared by origin, never by prefix: `http://127.0.0.1:4664` prefixes `http://127.0.0.1:46640`.
-pub fn classify(target: &Url, pinned: &str) -> Verdict {
-    if comparable_origin(target).as_deref() == Some(pinned) || is_frame_document(target) {
+/// The origin a blob was made by: WebKit names one `blob:` before its maker's origin, and only that
+/// origin's own scripts can make one.
+fn blob_maker(target: &Url) -> Option<String> {
+    if target.scheme() != "blob" {
+        return None;
+    }
+    comparable_origin(&Url::parse(target.path()).ok()?)
+}
+
+/// Compared by origin, never by prefix: `tauri://localhost` prefixes `tauri://localhost.evil`.
+pub fn classify(target: &Url, pinned: &[&str]) -> Verdict {
+    let pinned_origin =
+        |origin: Option<String>| origin.is_some_and(|origin| pinned.contains(&origin.as_str()));
+    if pinned_origin(comparable_origin(target))
+        || pinned_origin(blob_maker(target))
+        || is_frame_document(target)
+    {
         return Verdict::Allow;
     }
     if is_web_url(target) {
@@ -84,23 +103,22 @@ impl ExternalOpens {
 mod tests {
     use super::*;
 
+    const PINNED: &[&str] = &["tauri://localhost", "inteligir-files://localhost"];
+
     fn url(value: &str) -> Url {
         Url::parse(value).unwrap_or_else(|error| panic!("{value}: {error}"))
     }
 
     #[test]
-    fn keeps_the_pinned_origin_on_any_path() {
+    fn keeps_the_page_and_its_files_on_any_path() {
         assert_eq!(
-            classify(
-                &url("http://127.0.0.1:4664/settings?tab=1"),
-                "http://127.0.0.1:4664"
-            ),
+            classify(&url("tauri://localhost/library/#/settings"), PINNED),
             Verdict::Allow
         );
         assert_eq!(
             classify(
-                &url("tauri://localhost/first-run.html"),
-                "tauri://localhost"
+                &url(&format!("inteligir-files://localhost/{}", "a".repeat(64))),
+                PINNED
             ),
             Verdict::Allow
         );
@@ -108,17 +126,13 @@ mod tests {
 
     #[test]
     fn compares_origins_not_prefixes() {
-        let pinned = "http://127.0.0.1:4664";
         assert_eq!(
-            classify(&url("http://127.0.0.1:46640/"), pinned),
-            Verdict::OpenExternally
+            classify(&url("tauri://localhost.evil/"), PINNED),
+            Verdict::Deny
         );
+        assert_eq!(classify(&url("tauri://elsewhere/"), PINNED), Verdict::Deny);
         assert_eq!(
-            classify(&url("http://localhost:4664/"), pinned),
-            Verdict::OpenExternally
-        );
-        assert_eq!(
-            classify(&url("https://127.0.0.1:4664/"), pinned),
+            classify(&url("http://localhost/library/"), PINNED),
             Verdict::OpenExternally
         );
     }
@@ -127,33 +141,50 @@ mod tests {
     fn a_login_in_the_url_is_no_origin() {
         assert_eq!(comparable_origin(&url("tauri://localhost@evil/")), None);
         assert_eq!(
-            classify(&url("tauri://localhost@evil/"), "tauri://localhost"),
+            classify(&url("tauri://localhost@evil/"), PINNED),
             Verdict::Deny
         );
         assert_eq!(
-            classify(&url("http://user@127.0.0.1:4664/"), "http://127.0.0.1:4664"),
+            classify(&url("https://user@inteligir.com/"), PINNED),
             Verdict::OpenExternally
         );
     }
 
     #[test]
     fn opens_other_web_pages_in_the_browser_and_refuses_the_rest() {
-        let pinned = "http://127.0.0.1:4664";
         assert_eq!(
-            classify(&url("https://example.com/"), pinned),
+            classify(&url("https://example.com/"), PINNED),
             Verdict::OpenExternally
         );
-        assert_eq!(classify(&url("file:///etc/passwd"), pinned), Verdict::Deny);
-        assert_eq!(classify(&url("javascript:alert(1)"), pinned), Verdict::Deny);
-        assert_eq!(classify(&url("tauri://localhost/"), pinned), Verdict::Deny);
+        assert_eq!(classify(&url("file:///etc/passwd"), PINNED), Verdict::Deny);
+        assert_eq!(classify(&url("javascript:alert(1)"), PINNED), Verdict::Deny);
+    }
+
+    #[test]
+    fn lets_a_blob_the_page_made_load_as_its_save_and_no_other() {
+        assert_eq!(
+            classify(&url("blob:tauri://localhost/065f281d-fbc4"), PINNED),
+            Verdict::Allow
+        );
+        assert_eq!(
+            classify(&url("blob:https://example.com/065f281d-fbc4"), PINNED),
+            Verdict::Deny
+        );
+        assert_eq!(
+            classify(&url("blob:tauri://localhost.evil/065f281d-fbc4"), PINNED),
+            Verdict::Deny
+        );
+        assert_eq!(
+            classify(&url("blob:null/065f281d-fbc4"), PINNED),
+            Verdict::Deny
+        );
     }
 
     #[test]
     fn lets_frames_load_their_blank_documents() {
-        let pinned = "http://127.0.0.1:4664";
-        assert_eq!(classify(&url("about:srcdoc"), pinned), Verdict::Allow);
-        assert_eq!(classify(&url("about:blank"), pinned), Verdict::Allow);
-        assert_eq!(classify(&url("about:config"), pinned), Verdict::Deny);
+        assert_eq!(classify(&url("about:srcdoc"), PINNED), Verdict::Allow);
+        assert_eq!(classify(&url("about:blank"), PINNED), Verdict::Allow);
+        assert_eq!(classify(&url("about:config"), PINNED), Verdict::Deny);
     }
 
     #[test]

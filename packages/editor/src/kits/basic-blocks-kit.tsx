@@ -1,13 +1,4 @@
-import {
-  BaseBlockquotePlugin,
-  BaseH1Plugin,
-  BaseH2Plugin,
-  BaseH3Plugin,
-  BaseHorizontalRulePlugin,
-  BlockquoteRules,
-  HeadingRules,
-  HorizontalRuleRules,
-} from "@platejs/basic-nodes";
+import { BlockquoteRules, HeadingRules, HorizontalRuleRules } from "@platejs/basic-nodes";
 import {
   BlockquotePlugin,
   H1Plugin,
@@ -23,19 +14,11 @@ import type { PlateEditor, PlateElementProps, PlateLeafProps } from "platejs/rea
 import { cn } from "@repo/ui/lib/cn";
 
 import { WIKI_EMBED_KEY } from "@repo/editor/dialect-node-keys";
-import { alertMarkerPrefix } from "@repo/editor/markdown/alert-marker";
+import { alertMarkerPrefix } from "@repo/notes/markdown/alert-marker";
 import { BlockquoteElement } from "@repo/editor/nodes/blockquote-node";
 import { HrElement } from "@repo/editor/nodes/hr-node";
 import { stringProp } from "@repo/editor/node-props";
 import { CALLOUT_MARKER, CALLOUT_MARKER_LINE } from "@repo/editor/style-hooks";
-
-export const BasicBlocksBaseKit = [
-  BaseH1Plugin,
-  BaseH2Plugin,
-  BaseH3Plugin,
-  BaseBlockquotePlugin,
-  BaseHorizontalRulePlugin,
-];
 
 // A `listStyleType` block hosts BlockList's <ul> inside it and a wikiEmbed expands into
 // block content; either inside <p>/<h*> is invalid DOM and React logs a nesting error.

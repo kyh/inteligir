@@ -1,241 +1,387 @@
 # Decisions: @repo/workspace
 
-The page: the rail, the palette, the panel, the open note and the page's own
+The library's page: the account's library over a replica in the tab, the rail,
+the grid, the open item, the panel, the palette, Settings and the page's own
 preferences. `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Shape
 
-`src/app/workspace.tsx` owns the note, the rail, the palette and the panel;
-`app/note/` the guarded writes; `app/palette/` the ⌘P pages; `app/sidebar/` the
-rail's Recent | Files | Deleted views; `app/agents/` the one agent sign-in ⌘K,
-the panel, Settings and onboarding all draw; `app/settings/` the Settings layer,
-Account and Advanced included; `app/onboarding/` the agent and account steps
-`/welcome` offers after a first run. Every shell answer is parsed in
-`src/shell/shell-commands.ts` and mirrored through one `app/bridge-store.ts`.
+`src/main.tsx` opens the account's library (in the tab the session, then the
+replica; in the Mac app the shell's credential, then its replica) and mounts
+the router; `src/router.tsx` makes the router and the QueryClient it
+carries. `app/cloud/` holds the `/v1` client and its query utils, the replica's
+queries and the page's library context; `app/workspace.tsx` owns the rail, the
+grid or the open item, the panel and the palette; `app/library/` the grid, its
+scope, selection, Quick Look, the verbs over items and what a paste or a drop
+saves; `app/item/` the open item, its stages and the editor's host;
+`app/panel/` Info, Highlights and History; `app/agent/` the built-in agent's
+conversations and Tidy; `app/palette/` ⌘P; `app/sidebar/` the rail;
+`app/settings/` the Settings layer. Every shell answer
+is parsed in `src/shell/shell-commands.ts`.
 
-## Vault: writes, git and containment
+## The page over the cell
 
-- **A MOVE IS A RENAME THAT KEEPS THE NAME, and `planMove` is its one verdict.**
-  The tree's drop and the palette's "Move note to folder…" both ask `planMove`
-  (`apps/workspace/src/app/sidebar/tree-ops.ts`), so both refuse for the same
-  reasons. The drag's source is component state, not `dataTransfer`, so a file
-  dragged in from the desktop is ignored. No second write path: the move rides
-  `vault.rename`, which rewrites links for a folder as for a note
-  (`apps/cli/src/server/knowledge/rename.ts`), and the vault session carries the
-  open note through it (`packages/editor/src/note/vault-session.ts`). The
-  rename's pure half (the moves, the old stem kept as an alias, the writes) is
-  `@repo/notes/knowledge/plan-rename`, which the phone plans with too; only the
-  guards are each caller's.
+- **THE PAGE IS THE ACCOUNT'S LIBRARY OVER A REPLICA THE TAB HOLDS.** It opens
+  the session the site's sign-in left, then the replica engine
+  (`@repo/library-replica`) on in-memory SQLite, pulled whole on every load:
+  every screen reads the replica, every write goes through its outbox and is
+  laid over what the screens read until the cell takes it, a tab with no
+  session goes to the site's sign-in, which brings it back, and a tab that could
+  not find out says it didn't open and offers Try again. Its calls are the
+  apps' `/v1` over the session cookie, the Worker's own origin. Rejected: a
+  server on the device (a second writer beside the cell); the replica in OPFS
+  (one tab would hold it, and the Mac's replica is the shell's, in Rust); a
+  fault of the site's read as signed out (a password asked of someone signed
+  in). `apps/workspace/src/app/cloud/page-library.ts`,
+  `apps/workspace/src/main.tsx`.
 
-- **GIT IS THE ENGINE, NEVER THE VOCABULARY, AND ITS RAW STATE IS SETTINGS ›
-  ADVANCED'S.** The rail, a sync toast, History and a note's facts say sync and
-  versions. A sync state's label and its one line are spelled in
-  `syncStateLabel` and `syncStateNote`
-  (`apps/workspace/src/app/vault-hooks.ts`), and nothing but Settings › Advanced
-  reads `lastError`, git's own stderr: a state only the engine can explain says
-  "Sync paused" and offers Sync details…, which opens the one section that shows
-  the remote, the raw state and the last error, the thread sync's included
-  (`apps/workspace/src/app/settings/advanced-section.tsx`). History names a
-  version by when and who, never by its subject or sha: the server reads
-  `authorKind` off the author (the user's own edits, the agent, or `external`,
-  which keeps its name and subject), so no client matches an email
-  (`apps/cli/src/server/vault/git-history.ts`); a phone's edit, which the Worker
-  commits under the device's own address, reads as the user's own, never
-  `external`, and the commit vocabulary both ends read is spelled once in
-  `@repo/contract/cloud/vault/vault-git`. Quoting the engine's error inside a
-  friendlier sentence is rejected: no sentence around git's stderr makes it the
-  user's. `apps/workspace/src/app/__tests__/vault-hooks.test.ts` holds the copy
-  to that and refuses a `lastError` read anywhere else in the page.
+- **THE QUERY CLIENT IS THE ROUTER'S.** One `QueryClient` is made with the
+  router and handed to it as context, its provider the router's `Wrap`, so a
+  loader and a component share one cache; a loader seeds what its screen reads
+  with `queryClient.query({ ..., staleTime: "static" })`, once, over the options
+  its screen reads with their own freshness, waiting for one answer and not the
+  retries the screen's query makes itself. A replica read is a query that runs
+  offline (`networkMode: "always"`, never stale), and the replica's change
+  invalidates only the families it moved; a cell call is oRPC's TanStack utils
+  over the same client. Rejected: a module-level client
+  (a test and a second router share it); `ensureQueryData`, `fetchQuery` and
+  `prefetchQuery` (deprecated for `query`). `apps/workspace/src/router.tsx`,
+  `apps/workspace/src/app/cloud/replica-queries.ts`.
 
-## Knowledge: index, search and links
+- **A CELL CALL PAUSES OFFLINE AND SAYS SO.** A call only the cell answers is a
+  TanStack query or mutation run online (`networkMode: "online"`), so with no
+  connection it waits rather than fails: a read says "Needs a connection" where
+  it would draw, and a write, whether asked from a card's menu, a button or
+  Settings, in one notice the root keeps up while any waits offline. A refusal
+  the contract declares says its own sentence; any other failure says the
+  screen's fallback, never an error's own words. The one retry rule never
+  retries a declared refusal, so no screen turns retries off itself. A write
+  whose order matters shares a `scope`, and refetches in its own callbacks,
+  awaited, only the family it moved. A read a press must act on is a mutation
+  too, so it waits under that notice and in that scope, retried as a query is.
+  Rejected: a call outside TanStack (it fails at once offline); a note per
+  button (a menu's verb has none).
+  `apps/workspace/src/app/cloud/v1.ts`,
+  `apps/workspace/src/app/cloud/needs-connection.tsx`, over
+  `packages/contract/src/cloud/refusal-text.ts`, which the phone says too.
 
-- **RELATED IS ONE PANEL SECTION**: backlinks first because they are counted,
-  then the scorer's rows with their reasons, then unlinked mentions
-  (`apps/workspace/src/app/actions/related-section.tsx`). Outgoing links stay
-  absent (they are on screen); no graph view; the route is search-shaped (a
-  `limit`, no `total`) and fetched only while unfolded. A change sweeps
-  `orpc.knowledge.key()` whole, because a link into a note lives in another
-  note's bytes, except that `content-changed` skips the vault-wide
-  `knowledge.unlinkedMentions` (`app/change-batch.ts`).
+- **THE PAGE IS ONE BUNDLE, AND CATCHES UP AS ITS CONNECTION RETURNS.** The
+  build inlines every dynamic import (`codeSplitting: false`), the editor's lazy
+  nodes (KaTeX, Mermaid, the calendar, the wiki chip) with the routes, so after
+  the page loads nothing is fetched but calls and files: a chunk first asked for
+  by a tab that lost its connection fails, the crash screen offers a reload, and
+  a reload loses the replica held in memory. The tab resumes the replica the
+  moment the browser says it is online again, rather than at its next retry.
+  Rejected: route splitting alone (the lazy nodes still split); warming each
+  chunk at boot (a tab offline before they land still fails); a boundary per
+  lazy node (nothing is left to fail to load). `apps/workspace/vite.config.ts`,
+  `apps/workspace/src/main.tsx`.
 
-## Agents and threads
+- **THE TAB SENDS WHAT IT HOLDS UNTIL IT CLOSES, AND ASKS BEFORE LOSING IT.** A
+  change the tab made lives only in its memory until the cell takes it, so the
+  replica's socket, check-in and outbox keep running while the tab is out of
+  sight, a tab going out of sight writes the open item's edit at once, and while
+  the replica or the open item holds anything unsent the browser asks before the
+  tab closes, reloads or leaves, its listener there only then; a session that
+  ended asks nothing, since nothing can go. An open item that will not write
+  asks before the page leaves it, saying why, in the tab and on the Mac
+  (`apps/workspace/src/app/item/leave-item.ts`). Rejected: suspending the replica
+  out of sight as the phone does (its outbox is on disk, the tab's is not); a
+  listener always armed (it bars the back-forward cache).
+  `apps/workspace/src/app/cloud/leave-guard.ts`, `apps/workspace/src/main.tsx`.
 
-- **THE AGENT SURFACE IS THE ⌘K ACTION COMPOSER AND THE RIGHT PANEL** (the
-  surfaces declined beside it are #645's register). An action is an ordinary
-  thread attached to the note it was composed over (AN ACTION'S ORIGIN, in
-  `apps/cli/src/server/agents/CLAUDE.md`). The agent edits the vault directly
-  and anchored comments are the review channel; the panel's Actions | Comments |
-  History | Metadata tabs are transcript, review, revision, and the note's own
-  properties, related notes and delete. Each settled reply ends with the notes
-  its turn edited and Undo changes, and a finish toast ("Agent edited N notes",
-  Undo) sits outside the panel; a `changes-committed` frame names its thread,
-  never its turn, since the bus carries no payload, so the toast diffs a
-  thread's turns against what it last read
-  (`apps/workspace/src/app/actions/turn-finish-toast.ts`). Both undos flush the
-  open note first, so a line inside the autosave debounce is merged around
-  rather than missed (`undo-turn.ts`). "Ask agent" seeds the composer through
-  the editor host's agent actions (`packages/editor/src/host-io.ts`), so the
-  editor never imports the shell.
-  `apps/workspace/src/app/actions/actions-panel.tsx`, `action-detail.tsx` and
-  `action-composer.tsx`.
+- **IN THE MAC APP THE PAGE OPENS THE SHELL'S REPLICA, AFTER A SIGN-IN OF ITS
+  OWN.** The same build runs in the Mac's window, where `main.tsx` asks the
+  shell for its config and the credential a sign-in kept: with none the page
+  is the first run, a sign-in or a new account with an invite code, whose
+  device credential the shell keeps in the Keychain before the library opens
+  (a Keychain that refuses it gives the device's slot back, so no device is
+  left signed in with no credential); with one, the replica engine runs over
+  the shell's SQLite and staged files, its calls going to the cloud's origin
+  with the credential as the bearer and the build in a header. What differs by
+  host is one `PageLibrary`: where a file is drawn and read from, the transport an
+  upload or an export rides, what the page does about what it holds before it
+  goes (the tab asks; the Mac, whose outbox is on disk, writes the open item's
+  edit when the shell says it is quitting) and where a sign-out goes, each
+  host's every way of leaving taking what the page's own storage remembers of
+  the account (`apps/workspace/src/app/cloud/account-storage.ts`). A leave no
+  page saw (a session that lapsed with no tab open, a quit in the middle of
+  one) takes it at the next open, which compares the storage's one
+  `storageAccount` row, an account's opaque id, with who is opening. The
+  Mac's routes ride the hash, since its document never changes, so a reload
+  keeps the route, and the page drops it where it lands signed out: the next
+  account opens on All items, not on the last one's Settings or item. Rejected:
+  a first-run window of the shell's own (a second page beside the one the shell
+  carries); the tab's cookie in the window (a cross-site cookie WebKit would
+  not send); clearing only where an open reads no session (the site's sign-in
+  takes a lapsed cookie and lands on the library, so the next account's first
+  open reads one); dropping the route in each way of leaving (a sign-out, a
+  deletion, a revoke and the failed open's Sign out each reload, and all of them
+  meet that one arm). `apps/workspace/src/app/cloud/shell-library.ts`,
+  `apps/workspace/src/app/cloud/sign-in-page.tsx`, `apps/workspace/src/main.tsx`.
 
-## Desktop workspace surfaces
+- **A SESSION'S END IS ANSWERED HOWEVER THE PAGE MEETS IT.** The replica calls
+  through a client of its own and stops at a session's end, so each host watches
+  its status beside the wire's interceptor and gives both one answer: the tab
+  goes to the site's sign-in, the Mac lets its credential go and opens on the
+  sign-in, and a Mac below the build floor keeps its credential, replica and
+  outbox and says to update, in a toast and in the rail's footer, since the
+  next build goes on as the same device. The floor spares a page the Worker
+  served, so a tab it refuses is a browser too old to mark its calls as that
+  page's, and the tab says so. Rejected: waiting for a wire call (an idle page
+  makes none, and a stopped replica reads as up to date); a page of its own for
+  the outdated Mac, as the phone draws (the Mac's library reads and queues on
+  disk, and its updater needs no person to go find it); the refused tab sent to
+  sign in (the sign-in sends a signed-in tab straight back, for good).
+  `apps/workspace/src/app/cloud/v1.ts`,
+  `apps/workspace/src/app/cloud/shell-library.ts`,
+  `apps/workspace/src/app/sidebar/sync-words.ts`, `apps/workspace/src/main.tsx`,
+  over `apps/web/src/worker/client-floor.ts`.
+
+## Surfaces
 
 - **WINDOW-LEVEL HOSTS MOUNT AT THE ROOT ROUTE.** `ConfirmDialogHost`, `Toaster`
   and the one `TooltipProvider` live in `apps/workspace/src/routes/__root.tsx`;
   a host mounted by one route leaves another route's `confirm()` parked on a
   dialog that never opens.
 
-- **THE RAIL IS FLUID'S SIDEBAR ANATOMY, AMBIENT STATE LIVES IN ITS FOOTER, AND
-  THE TOP BAR IS THE OPEN NOTE.** Header (the vault row, and Search, which opens
-  the palette), one group, and a footer. The group's label names the view and
-  opens the view menu — Recent | Files | Deleted, one list each, drawn by the
-  same `SidebarMenu` rows (`@repo/ui/components/sidebar-menu`) so switching
-  swaps rows and never the chrome. Not tabs and not stacked sections: a stack
-  made every list short, and a tab row was a third line of chrome. Every other
-  verb is a right-click, as in an IDE. The footer holds the sync state, the
-  agent's spinner and Settings, because a strip across the whole window was a
-  second bar under a rail that already had a bottom; its account row runs the
-  one `useCloudSession` (`app/cloud-session.ts`) Settings › Account runs too,
-  and offers Sync now and no second sync for actions, which sync on their own
-  (`sidebar/sync-row.tsx`).
-  The view is the workspace's (`railView` in `app/prefs.ts`), because a `#tag`
-  chip, a create and "Deleted notes…" each switch it. THERE IS NO FOLDER SCOPE:
-  the breadcrumb REVEALS rather than narrows, opening the way to that folder in
-  Files (`revealInTree` in `app/workspace.tsx`, a nonce-keyed prop the rail
-  applies once); a second listing root was a second answer to "what is this
-  list?". The tree's fold, selection and name input are the rail's state
-  (`sidebar/tree-state.ts`), applied during the rail's own render, because a
-  component setting its owner's state while it renders is a React error. The
-  rail and the palette hide what the user did not write through one filter,
-  `visibleEntries` in `app/vault-hooks.ts`; the server's listing stays complete
-  because the CLI and the agent read it. Under the note sits only its word count
-  and reading time (`app/note-footer.tsx`), the serializer's published count,
-  never a recount, with no rule above it so it reads as the note's last line;
-  zen hides it. Under the macOS shell the rail reserves the traffic-light corner
-  (`apps/workspace/src/app/title-bar.ts`).
-  `apps/workspace/src/app/sidebar/sidebar.tsx`.
+- **THE RAIL CHOOSES THE LIBRARY'S SCOPE, AMBIENT STATE LIVES IN ITS FOOTER.** A
+  header (Library, Search), then the groups Library (All items, Unsorted),
+  Folders, Tags (folding) and Deleted, each row a scope read from the replica
+  with its count; a footer says where the library stands (up to date, sending,
+  waiting for a connection, a pass that keeps failing, a sign-in that ended, an
+  update it needs, or a change the cell refused, with Try again and Let it go)
+  beside Settings. Each row sets the grid's scope (`libraryScope`)
+  and goes back to the library; a folder's other verbs are its right-click and
+  its More button. Rejected: a window-wide strip (a second bar under the rail).
+  `apps/workspace/src/app/sidebar/rail.tsx`, `sync-line.tsx`.
 
-- **THERE IS ONE SEARCH SURFACE, AND IT IS ⌘P.** The palette lists every note
-  and every command in one field, and the search that is not a lookup opens from
-  inside it: "Search across the vault…" (the literal scan with its replace). ⌘F
-  IS NOT ONE OF THEM: it searches within the open note, so it keeps its own
-  chord and its own bar. There is no ⌘O, no ⌘⇧F, no quick-open page and no rail
-  search field: four ways to type a note's name was three too many, each a
-  different set of rows for the same question. The rail's Search button's
-  tooltip spells ⌘P from the table (`app/global-shortcuts.ts`), never as a
-  literal.
+- **A FOLDER SCOPE EXISTS, BY THE FOLDER'S ID.** A folder row narrows the grid
+  to the folder; nested folders indent under their parents, and a save from the
+  folder's grid lands in it. A remembered folder no longer listed reads as All
+  items, on the phone as here (`listedScope` in
+  `packages/domain/src/library-scope.ts`).
+  `apps/workspace/src/app/library/listing.ts`,
+  `apps/workspace/src/app/sidebar/folder-paths.ts`.
 
-- **A NOTE'S FACTS ARE READ WHERE THEY ARE CHEAP, and the count rides the
-  serializer.** The Metadata tab's "About" block is folded by default because
-  unfolding it is what reads the git log for the created date. Words, characters
-  and reading time are counted by `@repo/editor/note-stats` beside the TOC's
-  walk, so both agree on the document, and published by the serializer's
-  debounce, never per keystroke.
-  `apps/workspace/src/app/actions/note-facts.tsx`.
+- **THERE IS ONE SEARCH SURFACE, AND IT IS ⌘P.** One field searches the
+  replica's own full-text index (titles, notes, saved articles and highlights),
+  ranked as every device ranks it, beside the page's commands; a hit opens its
+  item with the find bar on the words, and a typed web address offers "Save
+  this link". The rows are groups of data the page hands `@repo/ui`'s palette,
+  Base UI's Autocomplete, which owns the field's keys, the light and the roles
+  (A PICKER IS BASE UI'S, in `packages/ui/CLAUDE.md`). ⌘F IS NOT ONE OF THEM:
+  it searches the open item, with its own chord and bar. Rejected: searching
+  through the cell (the replica holds the same index, offline); a search field
+  of the grid's own. `apps/workspace/src/app/palette/command-palette.tsx`.
 
 - **THE PANEL STARTS CLOSED, IS FLAT-TABBED, AND IS DRAGGED LIKE THE RAIL.**
   `panelOpen` defaults off, and every entry that shows something in it opens it
-  through one `revealPanel` (`app/workspace.tsx`), because an entry that only
-  picks its tab or thread shows nothing in a closed panel. Its tabs are the flat
-  underline row of `@repo/ui/components/tabs`. Its width persists through the
-  rail's own Fluid resize handle (`panelWidth` beside `sidebarWidth` in
-  `app/prefs.ts`), because a second resize mechanism would be a second answer to
-  one drag, and is reported once a drag lets go, never per frame. Closed, a
-  sidebar is slid off-screen rather than unmounted, so it is `inert`
-  (`SidebarPanel` in `packages/ui/src/components/sidebar-core.tsx`): otherwise
-  its controls answer Tab and share their names with the surface that is open.
+  on its tab, a click on a highlight on Highlights with that one ringed and in
+  view. The tabs are Info, Highlights and History, about the open item or else
+  the one card selected, and the Agent, about the whole library. The width
+  persists through the rail's own resize handle (`panelWidth` in `app/prefs.ts`).
+  Rejected: a second resize mechanism. `apps/workspace/src/app/panel/panel.tsx`,
+  `apps/workspace/src/app/workspace.tsx`.
 
-- **THE PALETTE IS FLUID'S COMMAND MENU, AND IT HAS NO PRIMITIVE UNDER IT**. The
-  field keeps DOM focus and names the highlighted row through
-  `aria-activedescendant`, and the highlight is the one proximity pill every
-  other popup draws; cmdk was rejected: its filter was off on every page, and
-  its keyboard beside the pill was two answers to "which row is live?". ROWS ARE
-  CHILDREN, NOT DATA, diverging from Fluid's `items` array deliberately: eight
-  row shapes in a data array would be a second answer to what a row is. The
-  panel KEEPS the top edge a panel at its cap height would have, so the field
-  never moves as rows filter down. A chord draws one box per key from the one
-  modifier table (`@repo/ui/lib/hotkey-spelling`). ONE DIALOG FOR EVERY PAGE, so
-  a page switch never re-animates the backdrop; a page is a union member, so a
-  move page cannot exist without the entry it moves.
-  `packages/ui/src/components/command.tsx`,
-  `apps/workspace/src/app/palette/command-palette.tsx` and
-  `apps/workspace/src/app/palette/palette-page.tsx`.
+- **THE OPEN ITEM RIDES THE URL, AND SETTINGS COVERS A WORKSPACE THAT STAYS
+  MOUNTED.** `?item=<id>` is the open item (after the hash on the Mac): every open is a history entry, so
+  the browser's Back leaves the item and Forward reopens it, and a link or a
+  reload opens it, once the replica holds it (a card that folded answers only
+  for the run that made it, A FOLDED MAKE'S ID). Settings is a layer in the
+  pathless `_workspace` layout: the covered workspace is `inert`, its
+  `GLOBAL_SHORTCUTS` listener detached, and the way in flushes the open item.
+  Rejected: a back/forward stack of the page's own (the tab has the browser's);
+  a sibling Settings route (it unmounted the item).
+  `apps/workspace/src/routes/_workspace.tsx`.
 
-- **THE BUS IS APPLIED ONCE PER FRAME, AND A KIND REFETCHES ONLY WHAT IT
-  MOVES.** `ChangeBatch` folds every ws frame since the last animation frame and
-  flushes once, so a K-note rename is one knowledge sweep rather than K. Thread
-  kinds are weighed in total tables (`MOVES_THE_LIST`, `MOVES_THE_DETAIL`,
-  `MOVES_THE_TIMELINE`), so a streamed turn never refetches the thread list. The
-  note session hears one `files` event however many paths moved
-  (`packages/editor/src/host-io.ts`) and lists through the rail's own tree query
-  (`apps/workspace/src/app/vault-hooks.ts`). A reconnect sweeps every family the
-  bus reaches, which is why no window-focus re-walk backs it up.
-  `apps/workspace/src/app/change-batch.ts`, `app/actions/thread-hooks.ts`,
-  `app/workspace-context.tsx`, which flushes the batch per frame, and
-  `apps/workspace/src/app/__tests__/changed-message.test.ts`.
+- **A PAGE PREFERENCE IS A ROW, AND SO IS AN APPEARANCE DIAL.** What the page
+  remembers across a reload is one `PREFS` row (key, a zod schema decoding the
+  stored string and encoding the value, fallback), read and written only
+  through `readPref` / `writePref` / `usePref`; bytes a row cannot decode read
+  as its fallback (`apps/workspace/src/app/prefs.ts`). An appearance dial is
+  one `dial()` row naming its `--editor-*` token
+  (`apps/workspace/src/app/appearance-options.ts`). Labels and layout stay out:
+  Settings is laid out by hand. Rejected: a preference kept in the cell (a
+  theme is the device's, not the account's).
+  `tools/repo-guards/src/page-prefs.test.ts` refuses a keyed read outside it.
 
-- **THE NOTE STORE OWNS THE OPEN NOTE, THE URL MIRRORS IT, AND SETTINGS COVERS A
-  WORKSPACE THAT STAYS MOUNTED** (owner decision). `?note=` is read once, at
-  boot, as the deep link, and every open after that is mirrored into it with
-  `replace`, so the store's back/forward stacks are the one history: a pushed
-  entry per open let a browser Back move the rail's highlight off the note the
-  editor still held. Settings is a layer over the workspace in the pathless
-  `_workspace` layout, not a sibling route, which unmounted the note, its undo
-  history, the composer and zen. Covered, the workspace is `inert` and its
-  `GLOBAL_SHORTCUTS` listener detached, since inert does not stop a window
-  listener; the way in flushes the open note, since nothing else settles a title
-  mid-rename or an edit inside the debounce.
-  `apps/workspace/src/routes/_workspace.tsx`,
-  `apps/workspace/src/app/__tests__/workspace-runtime-mount.test.tsx` and
-  `apps/cli/src/workspace/__tests__/workspace-routing.booted.test.tsx`.
+- **THE PAGE'S TEXT IS NOT SELECTABLE UNLESS SOMEONE WOULD COPY IT.** `body` is
+  `user-select: none`, fields and the editor's editing hosts are `text`, and
+  what a person would copy (a conversation, a highlight's note, an old version,
+  an error) opts in with `select-text`
+  (`apps/workspace/src/styles/globals.css`). Rejected: selectable by default
+  with `select-none` on the chrome (every new button, label and row would have
+  to remember it).
 
-- **A PAGE PREFERENCE IS A ROW, AND SO IS AN APPEARANCE DIAL.** What the window
-  remembers across a reload is one `PREFS` row (key, a zod schema that decodes
-  the stored string and encodes the value back, fallback), read and written only
-  through `readPref` / `writePref` / `usePref`, so a key's reader and its writer
-  cannot disagree on its bytes, and bytes a row cannot decode read as its
-  fallback (`apps/workspace/src/app/prefs.ts`). An appearance dial is one
-  `dial()` row naming its `--editor-*` token
-  (`apps/workspace/src/app/appearance-options.ts`). One table shared with the
-  data dir was rejected: no preference is read by both programs, a data-dir
-  preference reaches the page through its `@repo/contract/local` contract, and a
-  data-dir file's shape must stay readable, so it is not derived from a contract
-  that may break freely. Labels and layout stay out of the rows, because
-  Settings is laid out by hand. A keyed storage read outside the table fails
-  `tools/repo-guards/src/page-prefs.test.ts`.
-- **THE WINDOW'S TEXT IS NOT SELECTABLE UNLESS SOMEONE WOULD COPY IT.** `body`
-  is `user-select: none`, fields and the editor's editing hosts are `text`, and
-  everything else a user would copy (the thread, a comment, an old version, a
-  path, an error, Settings › Advanced's raw state) opts in with `select-text`
-  (`apps/workspace/src/styles/globals.css`). Selectable by default with
-  `select-none` on the chrome was rejected: the chrome is most of the window,
-  and every new button, label and row would have to remember it, where the
-  opt-in is only ever owed by text that is the point of its surface. A
-  read-only editor renders `contenteditable="false"`, so it opts in too.
+- **A LIBRARY SCOPE HAS ONE SPELLING, `@repo/domain/library-scope`.** Which
+  part of the library a screen shows (all of it, Unsorted, a folder, a tag or
+  Deleted) is one set of zod arms (`packages/domain/src/library-scope.ts`), a
+  folder named by its id as the cell keeps it, read by the page's `PREFS` row
+  (`apps/workspace/src/app/prefs.ts`), the replica's listing and a view
+  context's `scope` (`agentViewContextSchema` in
+  `packages/contract/src/cloud/library/library-wire.ts`), which names any of
+  them but Deleted. Rejected: a scope per surface or per wire, spellings that
+  drift the first time a scope gains a kind; a folder by its path (a rename
+  would move it out of every remembered scope).
+
+- **THE LIBRARY IS HOME, AND AN ITEM IS SHOWN BY ITS KIND.** With nothing open
+  the page is the grid of the rail's scope, one card per item; an empty scope
+  says why and offers a next step
+  (`apps/workspace/src/app/library/library-view.tsx`). An item opens full size
+  in its place and takes the keyboard unless something holds it, so Escape goes
+  back (`apps/workspace/src/app/item/item-view.tsx`): a file's viewer over its
+  bytes where its host draws them (`/v1/blobs/<sha>` in the tab, the shell's
+  scheme on the Mac), a saved page's source above its text, a link not
+  yet read saying so, and the item's blocks in the editor over the replica
+  (`apps/workspace/src/app/item/item-stages.tsx`). Rejected: a list beside an
+  always-open item (saved pages read as text files).
+
+- **THE GRID'S SELECTION IS A STORE, A CLICK SELECTS AND A DOUBLE-CLICK OPENS.**
+  Finder's grammar by item id: a click selects, ⌘-click toggles, ⇧-click
+  extends from the anchor, arrows follow the columns, ⌘A takes the listing,
+  Space is Quick Look, Return opens
+  (`apps/workspace/src/app/library/library-selection.ts`). A double-click opens
+  on the click whose `detail` is 2, never the `dblclick`
+  (`apps/workspace/src/app/library/item-card.tsx`). The store is the
+  workspace's, so it outlives an open item, and the panel's Info and the
+  agent's view context follow it; an item that left the listing leaves the
+  selection. Rejected: click-to-open (the selection is the panel's subject and
+  the agent's context).
+
+- **A BULK VERB RUNS IN CHUNKS, UNDER ONE TOAST WITH STOP.** A move or a tag of
+  many items goes through the outbox fifty at a time and a purge through the
+  cell's own in its route's chunks, sequentially; a chunk that fails stops the
+  run and says how far it got, the closing sentence says only what landed, and
+  a run where none landed says that in place of a count
+  (`apps/workspace/src/app/library/bulk-actions.ts`). A delete of more than
+  fifty asks first; any delete toasts its Undo.
+
+- **A SAVE FROM THE WINDOW IS A PASTE OR A DROP THAT NO FIELD CLAIMED.** A paste
+  lands where nothing takes text, a drop where no field or editor took it; a
+  drop holding nothing to save keeps the browser's handling, and a drag started
+  inside the page never saves (WebKit fires no paste off an editable target, so
+  ⌘V there pastes into an off-screen catcher). Each link and file goes through
+  the outbox where the grid's scope saves (its folder, else Unsorted, a tag's
+  tag), files over links, and a folder or a file past the store's 100 MB is
+  refused before a byte is queued, the file picker held to the same cap.
+  Rejected: a save field of the grid's own.
+  `apps/workspace/src/app/library/capture/window-capture.ts`,
+  `capture-payload.ts`.
+
+- **AN ITEM'S INFO IS ITS FIELDS.** Info reads the item's fields from the
+  replica and writes each as one field op on the value it read: the open item's
+  properties through its editor's session, so the pause carries them, any other
+  item's pin, move, tags and title through the outbox, read again and written
+  once more when another device moved the field first, never merged
+  (`apps/workspace/src/app/panel/info-tab.tsx`,
+  `apps/workspace/src/app/library/library-verbs.ts`). Rejected: a form over the
+  item's markdown (a second reader of what the replica already parsed).
+
+- **HISTORY IS CHANGE SETS, AND UNDO IS ONE.** History lists the cell's change
+  sets that touched the item, newest first, by who and when, a page at a time
+  and the older on "Show older", so every set the cell keeps is in reach;
+  "Show this version" reads the item as a set left it, and Undo takes a whole
+  set back in a change set of its own, after the open item's unsaved edit is
+  written, so the undo meets the item as the person sees it and a line changed
+  since is kept; a set a rule held back, and one of which only kept items
+  remain, stays undoable and says so, in one sentence the History tab and the
+  agent's panel both say. An undo reads the list again however it ended, since
+  an open list hears nothing of what another device took back and a refusal can
+  be the first it learns of it. History is the cell's, so it waits for a
+  connection. Every undo waits in one queue, joined at the press with the open
+  item's write inside it, so the queue is the order of the presses, and while
+  anything waits in it every Undo stays down, History's and the agent panel's
+  two, whichever surface pressed it and through leaving and coming back, since
+  a set goes back once and the cell refuses a whole undo that names one already
+  undone. Rejected: holding each button by its own undo (a press from another
+  surface, or before leaving, left it live to a refusal); leaving Undo this
+  conversation live to read behind what waits (a long conversation's undos join
+  a batch at a time, so its read ran ahead of the next batch and named it);
+  writing the open item before joining the queue (a file still being kept let a
+  later press overtake it).
+  `apps/workspace/src/app/panel/history-tab.tsx`,
+  `apps/workspace/src/app/cloud/history-pages.ts`.
+
+- **THE AGENT PANEL IS THE ACCOUNT'S THREADS.** A conversation is the replica's
+  synced thread rows and events, the same on every device, drawn from the
+  contract's own union; the reply being written arrives on the socket and is
+  never stored. A send carries the screen it leaves from (the open item, or the
+  scope and the selection; none from Deleted); an approval's Approve or Cancel
+  answers `library.agent.respond` naming the event that asked; the day's
+  allowance and an agent switched off are said in the person's words. A
+  selection's Ask agent quotes the passage under what the composer holds, and
+  the field takes the keyboard for the question. Under
+  each finished turn "Undo this turn" takes its change set back, and "Undo this
+  conversation" every one of the conversation's, both after the open item's
+  unsaved edit is written: the sets are read from every page the cell answers,
+  the whole conversation's Undo offered once all are in and sent in as few
+  undos as the cell takes, and asked again as each turn ends, since a turn's
+  set seals with it. Its press reads them once more, and when none is left to
+  take back it sends nothing and says so. While a turn
+  is open, a turn waiting on an approval among them, every device draws Stop,
+  which turns down what it asked and ends the answer, and the page no Undo of
+  the conversation, since the open turn's set is out of its reach. Rejected: an
+  agent the device runs (a runtime and a model credential on every device); a
+  socket of the page's own to the conversation's object; one page of sets (a
+  long conversation's oldest turns lost their Undo); the list on screen at the
+  press (it can be a turn short of the cell, or hold what another device took
+  back). `apps/workspace/src/app/agent/agent-panel.tsx`, over
+  `packages/agent-panel/src/thread-entries.ts`, `thread-undo.ts`.
+
+- **TIDY MY LIBRARY IS A REQUEST FROM UNSORTED, AND THE FILING RULES ARE THE
+  CELL'S.** The grid's header and ⌘P open the agent's composer on a new
+  conversation holding the request, sent from Unsorted with nothing typed or
+  with what the person adds for this run; the request never says whether rules
+  exist, since every turn carries the rules the cell read for it. Settings'
+  Edit filing rules… opens the cell's rules, or the starter rules, which say
+  Unsorted is no folder and its items are the ones to file. Rejected: the
+  request typed into the field (a person could edit it away); rules in the
+  request (a second read beside the turn's).
+  `packages/agent-panel/src/tidy-library.ts`,
+  `apps/workspace/src/app/settings/filing-rules.ts`.
+
+- **A FILE IN A NOTE IS READ WHERE THE PAGE DRAWS ITS FILES, AND ONE PASTED
+  THERE WAITS IN THE OUTBOX.** The editor's host reads a note's picture or
+  file through the `PageLibrary`'s `readFile`: the tab its own unsent bytes,
+  then `/v1/blobs/<sha>`, which the browser keeps under the cloud's immutable
+  answer; the Mac its scheme, which serves its staged files, its cache or the
+  cloud's copy. A file pasted or dropped into a note is kept by the replica's
+  `keepFile`, so it draws at once and goes up ahead of the write naming it.
+  Rejected: a cache of the page's own (the browser's already holds the
+  answer); an `<img>` on `/v1/blobs` (a pasted file is not there until the
+  outbox sends it). `apps/workspace/src/app/item/page-editor-host.ts`,
+  `apps/workspace/src/app/cloud/page-library.ts`.
+
+- **THE MAC'S WINDOW HAS NO TITLE BAR, SO THE PAGE DRAWS WHAT ONE DOES.** Under
+  the macOS shell the traffic lights sit over the page's top-left corner
+  (`apps/desktop/src-tauri/src/window.rs`). The rail and Settings each open on a
+  childless strip that keeps the corner clear and drags the window; the top bar
+  over the grid or an open item moves clear of the lights while the rail is off
+  screen, closed or a sheet below its breakpoint, and drags by everything in it
+  but its controls, the one thing left to drag by then. A screen with neither,
+  the sign-in, a failed open or the crash screen, drags by its own background.
+  A tab and the shell on Linux have a title bar of their own and reserve
+  nothing. Rejected: the system's title bar (a bar above the page's own top
+  bar); a top bar that drags by its bare background alone (its title and count
+  press to nothing). `apps/workspace/src/app/title-bar.ts`,
+  `apps/workspace/src/app/top-bar.tsx`.
 
 ## Repo guards, vendoring and tooling
 
 - **A WORKSPACE TEST THAT LOGS A console.error FAILS.** React reports a setState
-  during another component's render, a missing key or an update outside `act` as
-  a console.error and nothing else, so a suite that only logs it stays green
-  over a real defect (`apps/workspace/src/app/__tests__/console-error-gate.ts`).
-  A test that provokes one on purpose silences it with its own spy. The CLI's
-  suites that drive the page's modules over a booted server are gated too; its
-  booted DOM suites are not (`apps/cli/vitest.config.ts`): the server they boot
-  logs every refused call by design.
+  during another component's render, a missing key or an update outside `act`
+  only as a console.error, so a suite that just logs it stays green over a real
+  defect (`apps/workspace/src/app/test-support/console-error-gate.ts`). A test
+  that provokes one on purpose silences it with its own spy.
 
-- **THE PAGE IS ITS OWN WORKSPACE, AND ITS SUITES THAT BOOT A SERVER LIVE IN THE
-  CLI** (owner decision). The shell embeds only the first-run page and the CLI
-  serves the app page, so the page inside the shell's workspace would make the
-  CLI's build hand-name the desktop's, the desktop's build take `^topo` to dodge
-  the cycle, and the CLI export its test harness to the page's suites.
-  `@repo/workspace` depends on neither: the desktop embeds its first-run build
-  (`frontendDist`) and the CLI stages its app page, each through `^build`, and
-  the suites that boot a server in-process sit in
-  `apps/cli/src/workspace/__tests__` over the page's exports, so no package
-  exports a harness. Only it reaches `@tauri-apps/*` (`SHELL_API_CLIENTS` in
-  `tools/repo-guards/src/dep-dag.test.ts`). Rejected: the page inside
-  `apps/desktop` behind a test tsconfig of its own, which keeps the cycle in the
-  task graph. `pnpm dev:workspace` (`apps/workspace/scripts/dev.ts`) is the
-  page's loop with no Rust.
+- **THE PAGE IS ITS OWN WORKSPACE, AND THE WORKER SERVES ITS BUILD** (owner
+  decision). `@repo/workspace` depends on neither app: the Worker copies its
+  build into its assets and answers it at `/library` (THE LIBRARY'S PAGE IS THE
+  WORKER'S, in `apps/web/CLAUDE.md`), the desktop embeds the same build
+  (`frontendDist`), each through `^build`. Only the page reaches
+  `@tauri-apps/*` (`SHELL_API_CLIENTS` in
+  `tools/repo-guards/src/dep-dag.test.ts`), and its loop is `pnpm dev:web`,
+  which rebuilds it as it changes. Rejected: the page inside `apps/web` (the
+  Mac embeds it too); a dev server of the page's own (a second origin, its
+  calls cross-site).

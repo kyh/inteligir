@@ -1,8 +1,10 @@
 // A changed display rewrites through an editor transaction the undo history never records:
 // the user did not type it, so one undo must still reach their own last edit. Parsing never
-// rewrites, so a wrong display on disk stays until an editor session recomputes it.
-// Only a bound expression that cannot resolve marks stale and keeps its last
-// display; a plain expression that cannot evaluate is left alone.
+// rewrites, so a wrong display stays until an editor session recomputes it. Only a bound
+// expression that cannot resolve marks stale and keeps its last display; a plain expression that
+// cannot evaluate is left alone. A bound ref names its item by id, so the pass reads only the
+// items its pills name, through the store the item's session reads (`../item/item-session.ts`),
+// and this item's own pills from the live value.
 
 import type { NodeEntry, SlateEditor, TElement } from "platejs";
 
@@ -12,15 +14,14 @@ import {
   parseExpression,
 } from "@repo/notes/formulas/expression";
 import { formatResult } from "@repo/notes/formulas/format-result";
+import { formulasInBlocks } from "@repo/notes/formulas/collect-formulas";
 import type { CollectedFormula } from "@repo/notes/formulas/collect-formulas";
 import { loadFormulaGraph, resolveExpression } from "@repo/notes/formulas/resolve-graph";
 import { parseFormulaMeta, serializeFormulaMeta } from "@repo/notes/formulas/formula-meta";
-import { noteIdOfProperties, parseProperties } from "@repo/notes/markdown/frontmatter";
-import { getEditorHostIo } from "@repo/editor/host-io";
 import { createDebouncer } from "@repo/editor/lib/debounce";
-import { isFormulaPill, rebuildRaw } from "@repo/editor/formulas/formula-entry";
+import { isFormulaPill, setFormulaPill } from "@repo/editor/formulas/formula-entry";
 import { stringProp } from "@repo/editor/node-props";
-import { readFrontmatterRaw } from "@repo/editor/properties/properties-node";
+import type { ItemStore } from "@repo/editor/item/item-session";
 
 const RECOMPUTE_DEBOUNCE_MS = 400;
 
@@ -51,15 +52,33 @@ const formulaEntries = (editor: SlateEditor): FormulaEntryInDoc[] => {
   return out;
 };
 
-// A note that cannot be read answers like an absent one: its refs go stale, never the whole pass.
-const readForeignFormulas = async (noteId: string): Promise<CollectedFormula[] | null> => {
-  const answer = await getEditorHostIo()
-    .readNoteFormulas({ noteId })
-    .catch(() => null);
-  return answer?.formulas ?? null;
+// what a pass reads: the item the editor holds, by its id, and the pills of any other item by
+// its id, or null for one this device lacks
+/** @internal */
+export interface FormulaReads {
+  readonly selfId: string;
+  readonly read: (itemId: string) => Promise<readonly CollectedFormula[] | null>;
+}
+
+// an item's pills as the store holds them: its note's, since the note is what the editor shows
+// and the article a fill read holds none
+const itemFormulas = async (
+  store: ItemStore,
+  itemId: string,
+): Promise<CollectedFormula[] | null> => {
+  const held = await store.item(itemId);
+  return held === null
+    ? null
+    : formulasInBlocks(
+        held.blocks.flatMap(({ block, section }) => (section === "note" ? [block] : [])),
+      );
 };
 
-export const recomputeFormulas = async (editor: SlateEditor): Promise<void> => {
+/** @internal */
+export const recomputeFormulas = async (
+  editor: SlateEditor,
+  reads: FormulaReads,
+): Promise<void> => {
   const before = editor.children;
   const entries = formulaEntries(editor);
   const executables = entries.filter((row) => row.collected.expression !== null);
@@ -67,17 +86,22 @@ export const recomputeFormulas = async (editor: SlateEditor): Promise<void> => {
     return;
   }
 
-  const selfNoteId = noteIdOfProperties(parseProperties(readFrontmatterRaw(editor) ?? ""));
+  const { selfId } = reads;
   const selfFormulas = entries.map((row) => row.collected);
-  const graph = await loadFormulaGraph(selfFormulas, selfNoteId, readForeignFormulas);
+  // an item that cannot be read answers like an absent one: its refs go stale, never the pass
+  const graph = await loadFormulaGraph(
+    selfFormulas,
+    selfId,
+    async (itemId) => await reads.read(itemId).catch(() => null),
+  );
   // an edit landed during the reads; the next settle reruns
   if (editor.children !== before) {
     return;
   }
 
-  const updates: { entry: NodeEntry<TElement>; props: Record<string, string> }[] = [];
+  const updates: { entry: NodeEntry<TElement>; props: { display: string; meta: string } }[] = [];
   for (const row of executables) {
-    const { expression, meta, display, source } = row.collected;
+    const { expression, meta, display } = row.collected;
     if (expression === null) {
       continue;
     }
@@ -85,18 +109,14 @@ export const recomputeFormulas = async (editor: SlateEditor): Promise<void> => {
     const outcome =
       refs.length === 0
         ? evaluateExpression(expression, () => null)
-        : resolveExpression(expression, graph, selfNoteId, selfFormulas);
+        : resolveExpression(expression, graph, selfId, selfFormulas);
     if (outcome.ok) {
       const nextDisplay = formatResult(outcome.value);
       if (nextDisplay !== display || meta.stale) {
         const nextMeta = serializeFormulaMeta({ ...meta, stale: false }) ?? "";
         updates.push({
           entry: row.entry,
-          props: {
-            display: nextDisplay,
-            meta: nextMeta,
-            raw: rebuildRaw(source, nextDisplay, nextMeta),
-          },
+          props: { display: nextDisplay, meta: nextMeta },
         });
       }
       continue;
@@ -105,7 +125,7 @@ export const recomputeFormulas = async (editor: SlateEditor): Promise<void> => {
       const nextMeta = serializeFormulaMeta({ ...meta, stale: true }) ?? "";
       updates.push({
         entry: row.entry,
-        props: { display, meta: nextMeta, raw: rebuildRaw(source, display, nextMeta) },
+        props: { display, meta: nextMeta },
       });
     }
   }
@@ -116,16 +136,16 @@ export const recomputeFormulas = async (editor: SlateEditor): Promise<void> => {
   editor.tf.withoutSaving(() => {
     editor.tf.withoutNormalizing(() => {
       for (const update of updates) {
-        editor.tf.setNodes(update.props, { at: update.entry[1] });
+        setFormulaPill(editor, update.entry[1], update.props);
       }
     });
   });
 };
 
 // Nothing awaits a scheduled pass, so a throw here would vanish; the display it left stays.
-const recomputeReporting = async (editor: SlateEditor): Promise<void> => {
+const recomputeReporting = async (editor: SlateEditor, reads: FormulaReads): Promise<void> => {
   try {
-    await recomputeFormulas(editor);
+    await recomputeFormulas(editor, reads);
   } catch (error) {
     console.error("formula recompute failed", error);
   }
@@ -133,17 +153,38 @@ const recomputeReporting = async (editor: SlateEditor): Promise<void> => {
 
 const schedulers = new WeakMap<SlateEditor, { schedule: () => void; cancel: () => void }>();
 
+// after an edit: a pass behind the recompute's own pause, for an editor that follows its item's
+// formulas; any other editor has none to run
 export const scheduleFormulaRecompute = (editor: SlateEditor): void => {
-  let scheduler = schedulers.get(editor);
-  if (scheduler === undefined) {
-    scheduler = createDebouncer(() => {
-      void recomputeReporting(editor);
-    }, RECOMPUTE_DEBOUNCE_MS);
-    schedulers.set(editor, scheduler);
-  }
-  scheduler.schedule();
+  schedulers.get(editor)?.schedule();
 };
 
-export const cancelFormulaRecompute = (editor: SlateEditor): void => {
-  schedulers.get(editor)?.cancel();
+// the item's pills recomputed once it opens, after each edit (`scheduleFormulaRecompute`) and when
+// another item changes, since a pill may name one; the answer stops all three
+export const followItemFormulas = (
+  editor: SlateEditor,
+  itemId: string,
+  store: ItemStore,
+): (() => void) => {
+  const reads: FormulaReads = {
+    read: async (id) => await itemFormulas(store, id),
+    selfId: itemId,
+  };
+  const scheduler = createDebouncer(() => {
+    void recomputeReporting(editor, reads);
+  }, RECOMPUTE_DEBOUNCE_MS);
+  schedulers.set(editor, scheduler);
+  scheduler.schedule();
+  const unsubscribe = store.onChange((change) => {
+    if (change.reset || [...change.ids].some((id) => id !== itemId)) {
+      scheduler.schedule();
+    }
+  });
+  return () => {
+    unsubscribe();
+    scheduler.cancel();
+    if (schedulers.get(editor) === scheduler) {
+      schedulers.delete(editor);
+    }
+  };
 };

@@ -1,0 +1,12 @@
+{
+  // the repo's strictness, then WXT's own generated config over it (`wxt prepare`, the `generate`
+  // task): its module settings and the types of what it builds
+  "extends": ["@kyh/tsconfig/base.json", "./.wxt/tsconfig.json"],
+  "compilerOptions": {
+    // the language Chrome 148 runs every page and the service worker in, not WXT's ESNext
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx"
+  },
+  "include": ["src", ".wxt/wxt.d.ts", "wxt.config.ts", "vitest.config.ts", "worker-conditions.ts"]
+}

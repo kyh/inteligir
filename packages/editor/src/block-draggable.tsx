@@ -25,6 +25,7 @@ import { shallow } from "zustand/shallow";
 import { cn } from "@repo/ui/lib/cn";
 
 import { blockId } from "@repo/editor/node-props";
+import { DRAG_OVERHANG_ATTR } from "@repo/editor/style-hooks";
 
 // A block's NodeIdPlugin id survives both an edit and a move; its node object survives only the move.
 const sortableIds = (children: readonly Descendant[]): string[] =>
@@ -125,6 +126,10 @@ const Draggable = ({ id, ...props }: PlateElementProps & { id: string }) => {
     editor.getApi(BlockMenuPlugin).blockMenu.show(id, { x: rect.left, y: rect.bottom + 4 });
   };
 
+  // the line where the dragged block would land hangs on this block's edge, which may be its
+  // run's, so this block's run stops clipping too while the drag is over it
+  const overhangsDrop = isOver && activeIndex !== index;
+
   // The two handles keep a native title, the one exception to the product tooltip: one
   // Tooltip root per block in a long note is a cost nobody measured.
   // CSS.Translate, not CSS.Transform: the sortable transform carries a scale when
@@ -135,6 +140,7 @@ const Draggable = ({ id, ...props }: PlateElementProps & { id: string }) => {
     <div
       ref={setNodeRef}
       style={isDragging ? { transform: CSS.Translate.toString(transform), transition } : undefined}
+      {...{ [DRAG_OVERHANG_ATTR]: isDragging || overhangsDrop ? "" : undefined }}
       className={cn("group/block relative", isDragging && "z-10 opacity-60")}
     >
       <div
@@ -180,7 +186,7 @@ const Draggable = ({ id, ...props }: PlateElementProps & { id: string }) => {
 
       {props.children}
 
-      {isOver && activeIndex !== index && (
+      {overhangsDrop && (
         <div
           contentEditable={false}
           className={cn(

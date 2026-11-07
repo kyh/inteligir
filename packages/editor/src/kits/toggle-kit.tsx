@@ -1,17 +1,14 @@
 // Nested block children, not Plate's flat indent-sibling model: TogglePlugin is kept for its
-// openIds store and chevron hooks, and its flat-model hider is inert here. Open state lives in
-// that store, never on the node, so collapsing cannot dirty the document.
+// openIds store and chevron hooks, and its flat-model hider is switched off below. Open state
+// lives in that store, never on the node, so collapsing cannot dirty the document.
 
 import { ElementApi, KEYS, PathApi, TextApi, createBlockStartInputRule } from "platejs";
 import type { Path } from "platejs";
 import type { PlateEditor } from "platejs/react";
-import { BaseTogglePlugin } from "@platejs/toggle";
 import { TogglePlugin } from "@platejs/toggle/react";
 
 import { stringProp } from "@repo/editor/node-props";
 import { ToggleElement } from "@repo/editor/nodes/toggle-node";
-
-export const ToggleBaseKit = [BaseTogglePlugin];
 
 export const wrapBlockInToggle = (editor: PlateEditor, at: Path): void => {
   editor.tf.withoutNormalizing(() => {
@@ -49,8 +46,21 @@ const toggleInputRule = createBlockStartInputRule({
   trigger: " ",
 });
 
+// The flat model's hider and its index are off: a toggle's body is its own children, so no
+// top-level block is enclosed by indent, and the hider was a store atom per block that every
+// change recomputed beside a walk of the top level, most of a keystroke in a long note.
+/** @internal */
+export const wrapNoBlock = (): undefined => {
+  /* no block is hidden by a toggle above it */
+};
+/** @internal */
+export const indexNoToggles = (): void => {
+  /* the toggle index stays empty, so no block reads as inside a closed toggle */
+};
+
 export const ToggleKit = [
   TogglePlugin.configure({ inputRules: [toggleInputRule] })
+    .extend({ render: { aboveNodes: wrapNoBlock }, useHooks: indexNoToggles })
     .withComponent(ToggleElement)
     .overrideEditor(({ editor, tf: { insertBreak, normalizeNode } }) => ({
       transforms: {
@@ -68,7 +78,7 @@ export const ToggleKit = [
           insertBreak();
         },
         // typing into an empty parsed toggle gives it inline children; wrap them into a paragraph.
-        // The headless gate never normalizes, so an empty toggle on disk stays byte-exact until edited.
+        // The codec's editor never normalizes, so an empty toggle stays byte-exact until edited.
         normalizeNode(entry) {
           const [node, path] = entry;
           if (

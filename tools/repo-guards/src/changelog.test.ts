@@ -143,7 +143,7 @@ describe("the changelog", () => {
         violations.push(`${CHANGELOG}:${section.line}  "## ${section.heading}" says nothing`);
       }
     }
-    expect(violations, `\n${violations.join("\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n")}\n`).toStrictEqual([]);
   });
 
   it("lists releases newest first", () => {
@@ -160,7 +160,7 @@ describe("the changelog", () => {
         );
       }
     }
-    expect(violations, `\n${violations.join("\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n")}\n`).toStrictEqual([]);
   });
 
   it("dates a section for the version the app ships as", () => {
@@ -182,7 +182,7 @@ describe("the release notes script", () => {
       `${TITLE}\n\n## 1.2.0 — 2026-10-02\n\n- The new thing.\n\n## 1.1.0 — 2026-09-01\n\n- The old thing.\n`,
       "1.2.0",
     );
-    expect(run).toEqual({ status: 0, stderr: "", stdout: "- The new thing.\n" });
+    expect(run).toStrictEqual({ status: 0, stderr: "", stdout: "- The new thing.\n" });
   });
 
   it("refuses an Unreleased top section and names the heading to write", () => {
@@ -212,10 +212,12 @@ describe("the release notes script", () => {
     const [top] = sectionsOf(readChangelog());
     expect(top, `${CHANGELOG} has no "## " section`).toBeDefined();
     const run = runScript(path.join(REPO_ROOT, RELEASE_NOTES_SCRIPT));
-    if (top === undefined || top.heading === UNRELEASED) {
-      expect(run.status, run.stderr).toBe(1);
-      return;
-    }
-    expect(run).toEqual({ status: 0, stderr: "", stdout: `${top.body}\n` });
+    // an unreleased top section has no notes to print, and the script says why on stderr
+    const unreleased = top === undefined || top.heading === UNRELEASED;
+    expect({ ...run, stderr: unreleased ? "" : run.stderr }, run.stderr).toStrictEqual(
+      unreleased
+        ? { status: 1, stderr: "", stdout: "" }
+        : { status: 0, stderr: "", stdout: `${top.body}\n` },
+    );
   });
 });

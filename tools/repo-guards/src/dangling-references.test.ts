@@ -16,14 +16,23 @@ const GENERATED_FILE = /(?:\.gen\.ts|pnpm-lock\.yaml)$/u;
 const DATA_DIR = /(?:^|\/)(?:fixtures|__fixtures__|seed)\//u;
 const DATA_FILES = new Map<string, string>([
   [
-    "packages/editor/src/__tests__/sample-notes.ts",
+    "packages/editor/src/test-support/sample-notes.ts",
     "sample note BODIES — the package names inside them are prose in a fake roadmap note, which is the input the parse is asserted against",
   ],
 ]);
 
-// each is a guard's own negative fixture; a blanket ignore-under-tests would hide the rot, which is
-// mostly in tests and configs.
-const DELIBERATE_NON_REFERENCES = new Map<string, string>();
+// each is a guard's own negative fixture, or a name that only looks like a path; a blanket
+// ignore-under-tests would hide the rot, which is mostly in tests and configs.
+const DELIBERATE_NON_REFERENCES = new Map<string, string>([
+  [
+    "tools/call",
+    "MCP's method that calls a tool, as a batch the connector refuses carries it on the wire (apps/web/src/worker/connector/connector-server.test.ts)",
+  ],
+  [
+    "tools/list",
+    "MCP's method that lists a server's tools, which the connector's cache hint is keyed by (apps/web/src/worker/connector/connector-server.ts)",
+  ],
+]);
 
 // this file names every key of the table above, so a hit here would keep a stale row alive.
 const GUARD_FILE = path.relative(REPO_ROOT, import.meta.filename);
@@ -146,7 +155,7 @@ describe("dangling references", () => {
         `  rule: a package this repo writes down must be a package this repo has — a comment, README or config naming a deleted workspace is a sentence a reader will act on\n` +
         `  fix: correct the name, delete the sentence, or add it to DELIBERATE_NON_REFERENCES in tools/repo-guards/src/dangling-references.test.ts with its reason\n` +
         `${dangling.join("\n")}\n`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("every repo-relative path written anywhere is a file or directory that exists", () => {
@@ -164,7 +173,7 @@ describe("dangling references", () => {
         `  rule: a path this repo writes down must resolve — an exclusion pointing at a renamed directory excludes nothing, and the guard around it passes for the wrong reason\n` +
         `  fix: repoint it, delete the sentence, or add it to DELIBERATE_NON_REFERENCES in tools/repo-guards/src/dangling-references.test.ts with its reason\n` +
         `${dangling.join("\n")}\n`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("no DATA_FILES or DELIBERATE_NON_REFERENCES entry outlives what it excuses", () => {
@@ -174,7 +183,7 @@ describe("dangling references", () => {
     expect(
       missing,
       `DATA_FILES names files that no longer exist:\n${missing.map((file) => `  ${file}`).join("\n")}`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
 
     const excused = new Set([...sweepWorkspaceNames().excused, ...sweepRepoPaths().excused]);
     const spent = [...DELIBERATE_NON_REFERENCES.keys()].filter((key) => !excused.has(key));
@@ -183,6 +192,6 @@ describe("dangling references", () => {
       `DELIBERATE_NON_REFERENCES rows that excuse nothing — no swept file outside this guard writes the name, or it now resolves:\n` +
         `${spent.map((key) => `  ${key}`).join("\n")}\n` +
         `  fix: delete the row from tools/repo-guards/src/dangling-references.test.ts`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });

@@ -39,7 +39,7 @@ const componentNames = (dir: string): string[] => {
   }
   return fs
     .readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".tsx"))
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".tsx") && !isTestFile(entry.name))
     .map((entry) => entry.name.replace(COMPONENT_FILE, ""));
 };
 
@@ -79,7 +79,7 @@ describe("gallery coverage", () => {
         `component nobody can find. Add a Demo section under ${GALLERY_DIR} for each, or\n` +
         `record it in NOT_DEMOED (tools/repo-guards/src/gallery-coverage.test.ts) with\n` +
         `the reason it cannot be shown honestly:\n${missing.join("\n")}`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("every NOT_DEMOED entry still names a real component", () => {
@@ -95,7 +95,7 @@ describe("gallery coverage", () => {
       `NOT_DEMOED names components that no longer exist — delete these rows:\n${stale
         .map((key) => `  ${key}`)
         .join("\n")}`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("every NON_COMPONENT_ROOTS entry is a root the exports map still publishes", () => {
@@ -106,7 +106,7 @@ describe("gallery coverage", () => {
       `NON_COMPONENT_ROOTS names roots @repo/ui no longer exports — delete these rows:\n${stale
         .map((dir) => `  ${dir}`)
         .join("\n")}`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("the gallery it reads exists", () => {

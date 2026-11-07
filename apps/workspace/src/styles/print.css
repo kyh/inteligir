@@ -11,6 +11,11 @@
     background: #fff !important;
   }
 
+  /* WebKit prints nothing a run off screen skipped, so every run of a long note draws. */
+  [data-slate-chunk] {
+    content-visibility: visible !important;
+  }
+
   /* A dialog left open must not print over the note. */
   [role="dialog"],
   [data-sonner-toaster] {

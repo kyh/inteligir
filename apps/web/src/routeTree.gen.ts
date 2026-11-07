@@ -25,6 +25,7 @@ import { Route as AppForgotPasswordRouteImport } from './routes/app/forgot-passw
 import { Route as AppResetPasswordRouteImport } from './routes/app/reset-password'
 import { Route as AppSignInRouteImport } from './routes/app/sign-in'
 import { Route as AppSignUpRouteImport } from './routes/app/sign-up'
+import { Route as ConnectExtensionRouteImport } from './routes/connect/extension'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -106,6 +107,11 @@ const AppSignUpRoute = AppSignUpRouteImport.update({
   path: '/sign-up',
   getParentRoute: () => AppRoute,
 } as any)
+const ConnectExtensionRoute = ConnectExtensionRouteImport.update({
+  id: '/connect/extension',
+  path: '/connect/extension',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -123,6 +129,7 @@ export interface FileRoutesByFullPath {
   '/app/reset-password': typeof AppResetPasswordRoute
   '/app/sign-in': typeof AppSignInRoute
   '/app/sign-up': typeof AppSignUpRoute
+  '/connect/extension': typeof ConnectExtensionRoute
   '/app/': typeof AppIndexRoute
 }
 export interface FileRoutesByTo {
@@ -140,6 +147,7 @@ export interface FileRoutesByTo {
   '/app/reset-password': typeof AppResetPasswordRoute
   '/app/sign-in': typeof AppSignInRoute
   '/app/sign-up': typeof AppSignUpRoute
+  '/connect/extension': typeof ConnectExtensionRoute
   '/app': typeof AppIndexRoute
 }
 export interface FileRoutesById {
@@ -159,6 +167,7 @@ export interface FileRoutesById {
   '/app/reset-password': typeof AppResetPasswordRoute
   '/app/sign-in': typeof AppSignInRoute
   '/app/sign-up': typeof AppSignUpRoute
+  '/connect/extension': typeof ConnectExtensionRoute
   '/app/': typeof AppIndexRoute
 }
 export interface FileRouteTypes {
@@ -179,6 +188,7 @@ export interface FileRouteTypes {
     | '/app/reset-password'
     | '/app/sign-in'
     | '/app/sign-up'
+    | '/connect/extension'
     | '/app/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -196,6 +206,7 @@ export interface FileRouteTypes {
     | '/app/reset-password'
     | '/app/sign-in'
     | '/app/sign-up'
+    | '/connect/extension'
     | '/app'
   id:
     | '__root__'
@@ -214,6 +225,7 @@ export interface FileRouteTypes {
     | '/app/reset-password'
     | '/app/sign-in'
     | '/app/sign-up'
+    | '/connect/extension'
     | '/app/'
   fileRoutesById: FileRoutesById
 }
@@ -228,6 +240,7 @@ export interface RootRouteChildren {
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
+  ConnectExtensionRoute: typeof ConnectExtensionRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -344,6 +357,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSignUpRouteImport
       parentRoute: typeof AppRoute
     }
+    '/connect/extension': {
+      id: '/connect/extension'
+      path: '/connect/extension'
+      fullPath: '/connect/extension'
+      preLoaderRoute: typeof ConnectExtensionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -378,6 +398,7 @@ const rootRouteChildren: RootRouteChildren = {
   RobotsDottxtRoute: RobotsDottxtRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
+  ConnectExtensionRoute: ConnectExtensionRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

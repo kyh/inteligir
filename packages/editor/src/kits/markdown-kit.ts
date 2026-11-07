@@ -1,22 +1,16 @@
 // Plate's deserializeMd is banned, and the stock paste parser runs it. Its regex htmlToJsx pre-pass
 // is fence-unaware: HTML inside a fence gets class→className and <!-- -->→{/* */} rewritten, and
-// the autosave writes those bytes to the vault. It also swallows parse errors into degraded models.
+// the item's next write keeps those bytes. It also swallows parse errors into degraded models.
 
-import { KEYS } from "platejs";
 import { MarkdownPlugin } from "@platejs/markdown";
 
 import { MD_REMARK_PLUGINS } from "@repo/notes/markdown/md-plugins";
 import { MD_RULES } from "@repo/editor/markdown/md-rules";
 import { mdToSlate } from "@repo/editor/markdown/md-to-slate";
-import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
-import { WIKI_INPUT_KEY } from "@repo/editor/wiki/wiki-input-key";
 
 export const MarkdownKit = [
   MarkdownPlugin.configure({
     options: {
-      // combobox trigger elements are UI state; an autosave mid-combobox must skip them rather
-      // than hit the serializer's "Unreachable code" fallback.
-      disallowedNodes: [KEYS.slashInput, WIKI_INPUT_KEY, FORMULA_INPUT_KEY],
       remarkPlugins: MD_REMARK_PLUGINS,
       rules: MD_RULES,
     },

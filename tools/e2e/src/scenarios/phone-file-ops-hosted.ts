@@ -1,119 +1,108 @@
-import { randomBytes } from "node:crypto";
-import { access, readFile, readdir } from "node:fs/promises";
+// the phone's verbs over items against a booted Worker, through the code its screens run: a
+// thought saved from the Library's field, a new note retitled, a photo added as an image item of
+// its own (its bytes staged, then uploaded), one moved to Deleted and restored; another device
+// pulls each, the photo's bytes drawn from the cloud by its own file cache.
+
 import path from "node:path";
+import { randomBytes } from "node:crypto";
+import { createPhoneSaves } from "@repo/mobile/items/phone-saves";
 import { expect, expectEq } from "../harness/assert";
 import { signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { gitIn } from "../harness/exec";
-import { hostedVaultEnv, signInOwner, syncUntil } from "../harness/hosted-vault";
-import { drained, phoneRuntime, untilMirrored } from "../harness/phone-runtime";
+import { drained, libraryOf, signedInPhone, untilItem } from "../harness/phone-runtime";
 import type { Scenario } from "../harness/scenario";
 
-const PLAN = "notes/plan.md";
-const HUB = "hub.md";
-const OLD = "notes/old.md";
-const COMMENTS_DIR = ".inteligir/comments";
-const PHOTO_NAME = "Photo 2026-09-26 14.30.05.jpg";
-
-// a JPEG's own start and end around a phone photo's worth of bytes: the vault reads the name, and
-// what crosses is what lands
-const photoBytes = (): Uint8Array =>
-  Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, ...randomBytes(900 * 1024), 0xff, 0xd9]);
-
-const exists = async (file: string): Promise<boolean> => {
-  try {
-    await access(file);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const commentStores = async (vaultDir: string): Promise<string[]> => {
-  const dir = path.join(vaultDir, COMMENTS_DIR);
-  return (await exists(dir)) ? await readdir(dir) : [];
-};
+// a JPEG's start of image and end of image around bytes of its own: what the phone added is what
+// another device draws
+const PHOTO = Uint8Array.from([
+  0xff,
+  0xd8,
+  0xff,
+  0xe0,
+  ...Array.from({ length: 512 }, (_, i) => i % 251),
+  0xff,
+  0xd9,
+]);
 
 export const phoneFileOpsHosted: Scenario = {
   description:
-    "the phone's own runtime creates a note, renames one another note links to, deletes one with a comment and adds a photo; after A syncs, A holds the rewritten link, the old name as the note's alias, no comment store and the photo's bytes",
+    "the phone saves a thought, makes and retitles a note, adds a photo as an image item and moves an item to Deleted and back, all through its own runtime against a booted Worker; another device pulls each, and draws the photo's bytes as the phone sent them",
   name: "phone-file-ops-hosted",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
     const worker = await ctx.cloudWorker();
-
-    ctx.log("creating the account; A signs in and pushes a linked note and one with a comment");
     await signUp(worker.origin);
-    const a = await ctx.boot({ extraEnv: hostedVaultEnv(worker.origin), name: "a" });
-    await signInOwner(a, "A", "E2E Device A");
-    for (const note of [
-      { content: "# Plan\n", path: PLAN },
-      { content: "See [[plan]] for the details.\n", path: HUB },
-      { content: "# Old\n\nA thought.\n", path: OLD },
-    ]) {
-      await a.api.vault.write({ ...note, guard: { kind: "overwrite" } });
-    }
-    // the starter vault ships comment stores of its own, so the note's is the one the comment adds
-    const seeded = new Set(await commentStores(a.vaultDir));
-    await a.api.comments.add({ id: "c1", path: OLD, text: "Still true?" });
-    const stores = await commentStores(a.vaultDir);
-    const added = stores.filter((name) => !seeded.has(name));
-    expectEq(added.length, 1, "the comment stores A's comment added");
-    const store = `${COMMENTS_DIR}/${added[0] ?? ""}`;
-    await syncUntil(a.api, "A after its notes", "clean");
-
-    ctx.log("the phone signs in and mirrors the vault");
-    const phone = await phoneRuntime(worker.origin, path.join(ctx.scratchDir, "phone"), {
-      online: true,
+    const phone = await signedInPhone(worker.origin, path.join(ctx.scratchDir, "phone"));
+    const mac = await signedInPhone(worker.origin, path.join(ctx.scratchDir, "mac"), "E2E Mac");
+    const { replica } = libraryOf(phone);
+    const saves = createPhoneSaves({
+      newBlockId: () => randomBytes(12).toString("hex"),
+      replica,
     });
-    await phone.start();
-    await untilMirrored(phone, [PLAN, HUB, OLD, store]);
 
-    ctx.log("the phone creates, renames, deletes and adds a photo");
-    const created = await phone.fileOps.create("");
-    expect(
-      created.kind === "created" && created.path === "Untitled.md",
-      `the phone's new note: ${JSON.stringify(created)}`,
+    ctx.log("the phone saves a thought, and makes a note it titles");
+    const thought = await saves.saveText("Call the printer\n\nabout the proofs", {
+      folderId: null,
+    });
+    expect(thought.kind === "saved", "the thought was saved");
+    const note = await saves.newNote({ folderId: null });
+    const held = await replica.item(note.id);
+    expectEq(
+      await replica.write(note.id, {
+        ops: [{ base: held?.fields.title ?? "", field: "title", op: "set", value: "Trip" }],
+      }),
+      { kind: "queued" },
+      "the note's title",
     );
-    const renamed = await phone.fileOps.rename(PLAN, "Roadmap");
-    expect(
-      renamed.kind === "renamed" &&
-        renamed.path === "notes/Roadmap.md" &&
-        renamed.unlinked.length === 0,
-      `the phone's rename: ${JSON.stringify(renamed)}`,
-    );
-    await phone.fileOps.remove(OLD);
-    const photo = photoBytes();
-    const written = await phone.fileOps.writeAsset(PHOTO_NAME, photo);
-    expect(
-      written.kind === "written" && written.path === `assets/${PHOTO_NAME}`,
-      `the phone's photo: ${JSON.stringify(written)}`,
-    );
-    await drained(phone, "after the phone's file verbs");
 
-    ctx.log("A syncs and holds every one of them");
-    await syncUntil(a.api, "A pulling the phone's changes", "clean");
-    const onA = (file: string): string => path.join(a.vaultDir, file);
-    expectEq(await readFile(onA("Untitled.md"), "utf-8"), "", "the new note on A");
-    expectEq(
-      await readFile(onA(HUB), "utf-8"),
-      "See [[Roadmap]] for the details.\n",
-      "the rewritten link on A",
+    ctx.log("the phone adds a photo as an image item, its bytes staged until they are sent");
+    const photo = await replica.createFile({
+      file: { bytes: new Uint8Array(PHOTO), mime: "image/jpeg" },
+      folderId: null,
+      name: "Photo 2026-11-05 10.00.00.jpg",
+      tags: [],
+    });
+    await drained(phone, "the phone's verbs");
+
+    ctx.log("the Mac pulls every one, and draws the photo from the cloud");
+    await untilItem(
+      mac,
+      note.id,
+      (item) => item?.fields.title === "Trip",
+      "the Mac pulls the note",
     );
-    expectEq(
-      await readFile(onA("notes/Roadmap.md"), "utf-8"),
-      "---\naliases:\n  - plan\n---\n# Plan\n",
-      "the renamed note, its old name kept as an alias, on A",
+    const thoughtOnMac = await untilItem(
+      mac,
+      thought.kind === "saved" ? thought.made.id : "",
+      (item) => item?.bodyHeld === true,
+      "the Mac pulls the thought",
     );
-    expect(!(await exists(onA(PLAN))), "the old name is gone from A");
-    expect(!(await exists(onA(OLD))), "the deleted note is gone from A");
-    expect(!(await exists(onA(store))), "the deleted note's comment store is gone from A");
-    const kept = await commentStores(a.vaultDir);
-    expectEq(kept.toSorted(), [...seeded].toSorted(), "the other notes' comment stores on A");
-    expect(
-      Buffer.from(await readFile(onA(`assets/${PHOTO_NAME}`))).equals(Buffer.from(photo)),
-      "the photo's bytes on A",
+    expectEq(thoughtOnMac?.fields.title, "Call the printer", "the thought's title");
+    const photoOnMac = await untilItem(
+      mac,
+      photo.id,
+      (item) => item?.fields.originalSha === photo.sha,
+      "the Mac pulls the photo",
     );
-    await gitIn(a.vaultDir, ["fsck", "--strict"]);
+    expectEq(photoOnMac?.fields.kind, "image", "the photo is an image item");
+    expect((await libraryOf(mac).files.fileUri(photo.sha)) !== null, "the Mac draws the photo");
+
+    ctx.log("the phone moves the note to Deleted and back");
+    await replica.deleteItems([note.id]);
+    await drained(phone, "the deletion");
+    await untilItem(
+      mac,
+      note.id,
+      (item) => item?.fields.deletedAt !== null,
+      "the Mac sees it deleted",
+    );
+    await replica.restoreItems([note.id]);
+    await drained(phone, "the restore");
+    await untilItem(
+      mac,
+      note.id,
+      (item) => item?.fields.deletedAt === null,
+      "the Mac sees it back",
+    );
   },
 };

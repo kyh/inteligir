@@ -1,14 +1,11 @@
 import { KEYS } from "platejs";
 import type { PlateEditor } from "platejs/react";
-import { BaseDatePlugin } from "@platejs/date";
 import { DatePlugin } from "@platejs/date/react";
 
 import { formatIsoDate } from "@repo/notes/iso-date";
 
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { DateElement } from "@repo/editor/nodes/date-node";
-
-export const DateBaseKit = [BaseDatePlugin];
 
 const insertDateChip = (editor: PlateEditor, iso: string): void => {
   insertVoidAndEscape(editor, { children: [{ text: "" }], date: iso, type: KEYS.date });

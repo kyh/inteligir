@@ -193,13 +193,13 @@ export const UnsupportedField = ({
 }) => (
   <div className="flex min-h-7 items-center px-1.5">
     <pre
-      title="Unsupported YAML — preserved byte-for-byte."
+      title="This value can't be edited here."
       className={cn(
         "max-w-full overflow-x-auto rounded-[6px] bg-muted/60 px-1.5 py-0.5",
         "font-mono text-body whitespace-pre text-muted-foreground",
       )}
     >
-      {prop.rawYaml === "" ? "—" : prop.rawYaml}
+      {prop.raw === "" ? "—" : prop.raw}
     </pre>
   </div>
 );

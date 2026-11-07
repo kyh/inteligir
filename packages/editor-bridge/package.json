@@ -1,0 +1,22 @@
+{
+  "name": "@repo/editor-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The wire between the phone's editor page and the native screen that hosts it: every frame each end sends, parsed by the end that receives it, in zod alone.",
+  "type": "module",
+  "exports": {
+    "./protocol": "./src/protocol.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/notes": "workspace:*",
+    "@repo/page-reader": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@kyh/tsconfig": "catalog:",
+    "typescript": "catalog:"
+  }
+}

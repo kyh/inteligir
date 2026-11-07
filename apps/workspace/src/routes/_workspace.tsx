@@ -1,39 +1,31 @@
-// CLAUDE.md § THE NOTE STORE OWNS THE OPEN NOTE. The child draws in a full-window layer here
-// rather than in its own component, so its crash boundary lands in the layer too instead of below
-// a workspace it left inert.
+// CLAUDE.md § THE OPEN ITEM RIDES THE URL, AND SETTINGS COVERS A WORKSPACE THAT STAYS MOUNTED.
+// The child draws in a full-window layer here rather than in its own component, so its crash
+// boundary lands in the layer too instead of below a workspace it left inert.
 
 import { createFileRoute, Outlet, useMatch, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
-import { useAgentsStatus } from "../app/agents/agent-hooks";
+
+import { replicaQueries } from "../app/cloud/replica-queries";
 import { Workspace } from "../app/workspace";
 
 const workspaceSearchSchema = z.object({
   // oxlint-disable-next-line unicorn/no-useless-undefined, promise/valid-params, promise/prefer-await-to-then -- zod's catch, not a promise's: it takes the fallback positionally and undefined IS the fallback
-  note: z.catch(z.string().min(1).optional(), undefined),
+  item: z.catch(z.uuid().optional(), undefined),
 });
 
 const WorkspaceLayout = () => {
-  const { note } = Route.useSearch();
+  const { item } = Route.useSearch();
   const navigate = useNavigate();
   // any child but the index draws over the workspace
   const covered = useMatch({ from: "/_workspace/", shouldThrow: false }) === undefined;
-  // ⌘K draws nothing until the vendors have answered, and a cold probe takes seconds: observed
-  // here, their answer stays cached past gcTime, so the composer draws its field at once.
-  useAgentsStatus();
   return (
     <>
       <Workspace
-        bootNote={note ?? null}
+        openItem={item ?? null}
         covered={covered}
-        onOpenNote={(path) => {
-          // replace, and on the current route: the note store keeps the one back/forward history,
-          // and a note that moves while Settings shows must not take Settings down, nor a boot
-          // that lands under /welcome drop the step it is on
-          void navigate({
-            replace: true,
-            search: (prior) => ({ ...prior, note: path ?? undefined }),
-            to: ".",
-          });
+        onOpenItem={(itemId) => {
+          // on the current route: an open that lands while Settings covers the workspace keeps it
+          void navigate({ search: (prior) => ({ ...prior, item: itemId ?? undefined }), to: "." });
         }}
       />
       {covered ? (
@@ -47,5 +39,13 @@ const WorkspaceLayout = () => {
 
 export const Route = createFileRoute("/_workspace")({
   component: WorkspaceLayout,
+  // the library this page holds is read before the grid draws: the replica answers from memory
+  loader: async ({ context }) => {
+    const queries = replicaQueries(context.library.replica);
+    await Promise.all([
+      context.queryClient.query({ ...queries.scopes(), staleTime: "static" }),
+      context.queryClient.query({ ...queries.folders(), staleTime: "static" }),
+    ]);
+  },
   validateSearch: workspaceSearchSchema,
 });

@@ -1,196 +1,203 @@
-//! What a page may ask the shell, one command per row of
-//! `apps/workspace/src/shell/ipc-contract.ts`. Each answers a plain value the page parses with that
-//! row's schema. A command that can be refused answers an `Answer`, so the page shows the refusal
-//! in the shell's words; one that can fail only by a fault answers a `Result`, whose `Err` rejects.
+//! What the page may ask the shell, one command per row of
+//! `apps/workspace/src/shell/ipc-contract.ts`. Each is `async`, takes its arguments owned and
+//! answers a `Result`, whose `ShellError` crosses as the call's rejection; the replica's and the
+//! files' work runs on a blocking thread, never the runtime's. Bytes cross raw both ways: a staged
+//! file comes in as the request's body, its sha and type in headers, and goes out as an
+//! `ipc::Response`.
 //!
-//! The app window reaches these through `capabilities/app-window.json`, which the shell grants that
-//! window for the server's exact origin alone (`window.rs`); the first run reaches only its four,
-//! through `capabilities/first-run.json`.
+//! The window reaches these through `capabilities/app-window.json`, which grants them to the app's
+//! own page alone.
 
-use std::path::Path;
+use tauri::ipc::{InvokeBody, Request, Response};
+use tauri::{AppHandle, Manager};
 
-use tauri::{AppHandle, Manager, WebviewWindow};
-use tauri_plugin_opener::OpenerExt;
-
-use crate::answer::Answer;
-use crate::diagnostics;
-use crate::first_run::{self, FirstRunChoice, FirstRunState, PickFolder, PickParent};
-use crate::paths;
-use crate::shell::{self, Outcome, Shell};
+use crate::account::Account;
+use crate::cloud::ShellConfig;
+use crate::credential::DeviceCredential;
+use crate::error::{ShellError, ShellResult};
+use crate::leaving::{self, Leaving};
+use crate::replica::{Row, Statement};
 use crate::update_state::UpdateState;
 use crate::updater::{self, Updates};
-use crate::vaults::VaultsState;
 
-/// Blocking work (a door call, a dialog, a server's start) runs off the async runtime's threads.
-async fn blocking<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
-    match tauri::async_runtime::spawn_blocking(work).await {
-        Ok(value) => value,
-        Err(error) => panic!("a blocking task panicked: {error}"),
-    }
-}
+/// The headers a staged file's sha and type ride beside its raw bytes.
+const FILE_SHA_HEADER: &str = "x-file-sha";
+const FILE_TYPE_HEADER: &str = "x-file-type";
 
-fn no_vault() -> String {
-    shell::NO_VAULT.to_owned()
-}
-
-#[tauri::command]
-pub async fn diagnostics_get_state(app: AppHandle) -> Result<diagnostics::State, String> {
-    app.state::<Shell>()
-        .with_diagnostics(|diagnostics, run| diagnostics.state(run))
-        .ok_or_else(no_vault)
-}
-
-#[tauri::command]
-pub async fn diagnostics_set_debug(
+/// Blocking work (SQLite, the disk, the Keychain) runs off the async runtime's threads.
+async fn blocking<T: Send + 'static>(
     app: AppHandle,
-    debug: bool,
-) -> Result<Answer<diagnostics::State>, String> {
-    app.state::<Shell>()
-        .with_diagnostics(|diagnostics, run| diagnostics.set_debug(debug, run))
-        .ok_or_else(no_vault)
-}
-
-/// A relaunch is the ordinary quit, which stops the server and flushes its commit, then a start;
-/// a refused one moves nothing.
-#[tauri::command]
-pub async fn diagnostics_restart(app: AppHandle) -> Result<Answer<diagnostics::State>, String> {
-    let answer = app
-        .state::<Shell>()
-        .with_diagnostics(|diagnostics, run| diagnostics.restart(run))
-        .ok_or_else(no_vault)?;
-    if matches!(answer, Answer::Done(_)) {
-        std::thread::spawn(move || app.restart());
-    }
-    Ok(answer)
+    work: impl FnOnce(&Account) -> ShellResult<T> + Send + 'static,
+) -> ShellResult<T> {
+    tauri::async_runtime::spawn_blocking(move || work(&app.state::<Account>()))
+        .await
+        .map_err(|error| ShellError::Invalid(format!("the shell's work stopped: {error}")))?
 }
 
 #[tauri::command]
-pub async fn diagnostics_open_data_folder(app: AppHandle) -> Answer {
-    blocking(move || shell::open_data_folder(&app).into()).await
+pub async fn shell_config(app: AppHandle) -> ShellResult<ShellConfig> {
+    Ok(app.state::<ShellConfig>().inner().clone())
 }
 
 #[tauri::command]
-pub async fn diagnostics_show_log(app: AppHandle) -> Answer {
-    blocking(move || shell::show_server_log(&app).into()).await
-}
-
-fn resolved(app: &AppHandle, path: &str) -> Result<std::path::PathBuf, String> {
-    let target = app.state::<Shell>().target().ok_or_else(no_vault)?;
-    paths::resolve_vault_entry(Path::new(&target.vault_dir), path)
+pub async fn credential_restore(app: AppHandle) -> ShellResult<Option<DeviceCredential>> {
+    blocking(app, Account::restore).await
 }
 
 #[tauri::command]
-pub async fn paths_reveal(app: AppHandle, path: String) -> Answer {
-    blocking(move || {
-        resolved(&app, &path)
-            .and_then(|entry| {
-                app.opener()
-                    .reveal_item_in_dir(entry)
-                    .map_err(|error| error.to_string())
-            })
-            .into()
+pub async fn credential_keep(app: AppHandle, credential: DeviceCredential) -> ShellResult<()> {
+    blocking(app, move |account| account.keep(&credential)).await
+}
+
+#[tauri::command]
+pub async fn credential_forget(app: AppHandle) -> ShellResult<Option<DeviceCredential>> {
+    blocking(app, Account::forget).await
+}
+
+#[tauri::command]
+pub async fn replica_all(
+    app: AppHandle,
+    sql: String,
+    params: Vec<serde_json::Value>,
+) -> ShellResult<Vec<Row>> {
+    blocking(app, move |account| {
+        account.replica().all(&Statement { sql, params })
     })
     .await
 }
 
 #[tauri::command]
-pub async fn paths_open(app: AppHandle, path: String) -> Answer {
-    blocking(move || {
-        resolved(&app, &path)
-            .and_then(|entry| {
-                app.opener()
-                    .open_path(entry.to_string_lossy(), None::<&str>)
-                    .map_err(|error| error.to_string())
-            })
-            .into()
+pub async fn replica_run(
+    app: AppHandle,
+    sql: String,
+    params: Vec<serde_json::Value>,
+) -> ShellResult<()> {
+    blocking(app, move |account| {
+        account.replica().run(&Statement { sql, params })
     })
     .await
 }
 
 #[tauri::command]
-pub async fn print_page(window: WebviewWindow) -> Answer {
-    window.print().map_err(|error| error.to_string()).into()
+pub async fn replica_begin(app: AppHandle) -> ShellResult<u64> {
+    blocking(app, |account| account.replica().begin()).await
 }
 
 #[tauri::command]
-pub async fn updates_get_state(app: AppHandle) -> UpdateState {
-    app.state::<Updates>().state()
-}
-
-#[tauri::command]
-pub async fn updates_check(app: AppHandle) -> UpdateState {
-    updater::check(&app, "settings").await
-}
-
-#[tauri::command]
-pub async fn updates_download(app: AppHandle) -> UpdateState {
-    updater::download(&app).await
-}
-
-#[tauri::command]
-pub async fn updates_install(app: AppHandle) -> UpdateState {
-    blocking(move || updater::install(&app)).await
-}
-
-#[tauri::command]
-pub async fn vaults_get_state(app: AppHandle) -> Result<VaultsState, String> {
-    shell::vaults_state(&app).ok_or_else(no_vault)
-}
-
-fn switch_answer(app: &AppHandle, outcome: Outcome) -> Answer<VaultsState> {
-    match outcome {
-        Outcome::Done => shell::vaults_state(app).ok_or_else(no_vault).into(),
-        Outcome::Refused(reason) | Outcome::Reported(reason) => Answer::refused(reason),
-    }
-}
-
-#[tauri::command]
-pub async fn vaults_pick(app: AppHandle) -> Answer<VaultsState> {
-    blocking(move || {
-        let outcome = match shell::pick_vault_dir(&app) {
-            None => Outcome::Done,
-            Some(picked) => shell::switch_vault(&app, &picked, true),
-        };
-        switch_answer(&app, outcome)
-    })
-    .await
-}
-
-/// Only a path this shell handed out comes back: the list is the page's whole vocabulary.
-#[tauri::command]
-pub async fn vaults_open(app: AppHandle, path: String) -> Answer<VaultsState> {
-    blocking(move || {
-        if !shell::is_remembered(&app, &path) {
-            return Answer::refused("That vault is not one the app remembers.");
-        }
-        let outcome = shell::switch_vault(&app, &path, false);
-        switch_answer(&app, outcome)
+pub async fn replica_tx_all(
+    app: AppHandle,
+    token: u64,
+    sql: String,
+    params: Vec<serde_json::Value>,
+) -> ShellResult<Vec<Row>> {
+    blocking(app, move |account| {
+        account.replica().all_in(token, Statement { sql, params })
     })
     .await
 }
 
 #[tauri::command]
-pub async fn vaults_forget(app: AppHandle, path: String) -> Result<VaultsState, String> {
-    shell::forget_vault(&app, &path);
-    shell::vaults_state(&app).ok_or_else(no_vault)
+pub async fn replica_tx_run(
+    app: AppHandle,
+    token: u64,
+    sql: String,
+    params: Vec<serde_json::Value>,
+) -> ShellResult<()> {
+    blocking(app, move |account| {
+        account.replica().run_in(token, Statement { sql, params })
+    })
+    .await
 }
 
 #[tauri::command]
-pub async fn first_run_get_state(app: AppHandle) -> Result<FirstRunState, String> {
-    first_run::state(&app)
+pub async fn replica_commit(app: AppHandle, token: u64) -> ShellResult<()> {
+    blocking(app, move |account| account.replica().commit(token)).await
 }
 
 #[tauri::command]
-pub async fn first_run_pick_parent(app: AppHandle) -> Result<PickParent, String> {
-    blocking(move || first_run::pick_parent(&app)).await
+pub async fn replica_rollback(app: AppHandle, token: u64) -> ShellResult<()> {
+    blocking(app, move |account| {
+        account.replica().rollback(token);
+        Ok(())
+    })
+    .await
+}
+
+/// A header the request must carry, as text.
+fn named(request: &Request<'_>, header: &str) -> ShellResult<String> {
+    request
+        .headers()
+        .get(header)
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| ShellError::Invalid(format!("a staged file names its {header}")))
+}
+
+/// A file the outbox will upload: its bytes are the request's raw body, its sha and the type it is
+/// sent as are headers, and the scheme serves it as that type until the cloud holds it. With no
+/// account signed in it is `signed-out`.
+#[tauri::command]
+pub async fn files_stage(app: AppHandle, request: Request<'_>) -> ShellResult<()> {
+    let InvokeBody::Raw(bytes) = request.body() else {
+        return Err(ShellError::Invalid(
+            "a staged file arrives as raw bytes".to_owned(),
+        ));
+    };
+    let sha = named(&request, FILE_SHA_HEADER)?;
+    let content_type = named(&request, FILE_TYPE_HEADER)?;
+    let bytes = bytes.clone();
+    blocking(app, move |account| {
+        account.stage(&sha, &bytes, &content_type)
+    })
+    .await
+}
+
+/// A staged file's bytes; one this Mac no longer holds is `missing`.
+#[tauri::command]
+pub async fn files_staged(app: AppHandle, sha: String) -> ShellResult<Response> {
+    blocking(app, move |account| {
+        account
+            .files()
+            .staged(&sha)?
+            .map(Response::new)
+            .ok_or(ShellError::Missing)
+    })
+    .await
 }
 
 #[tauri::command]
-pub async fn first_run_pick_folder(app: AppHandle) -> Result<PickFolder, String> {
-    blocking(move || first_run::pick_folder(&app)).await
+pub async fn files_unstage(app: AppHandle, sha: String) -> ShellResult<()> {
+    blocking(app, move |account| account.files().unstage(&sha)).await
 }
 
 #[tauri::command]
-pub async fn first_run_finish(app: AppHandle, choice: FirstRunChoice) -> Answer {
-    blocking(move || first_run::finish(&app, &choice)).await
+pub async fn files_clear_staged(app: AppHandle) -> ShellResult<()> {
+    blocking(app, |account| account.files().clear_staged()).await
+}
+
+#[tauri::command]
+pub async fn updates_get_state(app: AppHandle) -> ShellResult<UpdateState> {
+    Ok(app.state::<Updates>().state())
+}
+
+#[tauri::command]
+pub async fn updates_check(app: AppHandle) -> ShellResult<UpdateState> {
+    Ok(updater::check(&app, "settings").await)
+}
+
+/// Restart to Update: once the page wrote what it holds, installs the ready update and relaunches;
+/// the state answers only when nothing was ready, or the install failed.
+#[tauri::command]
+pub async fn updates_install(app: AppHandle) -> ShellResult<UpdateState> {
+    tauri::async_runtime::spawn_blocking(move || leaving::restart_to_update(&app))
+        .await
+        .map_err(|error| ShellError::Invalid(format!("the shell's work stopped: {error}")))
+}
+
+/// The page wrote what it held, as a quit or a restart asked it to (`leaving.rs`).
+#[tauri::command]
+pub async fn leaving_ready(app: AppHandle) -> ShellResult<()> {
+    app.state::<Leaving>().answered();
+    Ok(())
 }

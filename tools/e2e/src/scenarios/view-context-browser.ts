@@ -1,108 +1,115 @@
-import { readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
-import type { TimelineConversationRow, TimelineRow } from "@repo/contract/local/thread-timeline";
-import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
-import { modChord } from "../harness/agent-browser";
+// The screen a message leaves from, end to end: a send from the tab's agent panel reaches the cell
+// carrying the view context the page built, stored on the conversation's user message as every
+// device reads it, against the scripted Claude the Worker is bound to. From an open item it names
+// the item; from the grid, the scope and the card selected; from Deleted, nothing.
+
+import { z } from "zod";
+
+import { clickStartingWith, modChord } from "../harness/agent-browser";
+import type { AgentBrowser } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
+import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
+import { openLibraryTab } from "../harness/library-tab";
+import type { Library } from "../harness/library-tab";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { COMPOSER, EDITOR } from "../harness/selectors";
+import { BACK_TO_LIBRARY, COMPOSER, EDITOR, clickCard, libraryCard } from "../harness/selectors";
 
-const DOC_PATH = "Plans.md";
-const PARAGRAPH = "First paragraph to send.";
-const DOC = `# Plans
+const PLANS = { markdown: "# Plans\n\nA trip in spring.\n", title: "Plans" };
+const GROCERIES = { markdown: "# Groceries\n\nApples.\n", title: "Groceries" };
+const DEADLINE_MS = 60_000;
+// a day of more turns than the scenario sends, so no send meets the allowance
+const ALLOWANCE = { concurrentTurns: 2, dayCents: 1000, dayTurns: 10, turnCents: 50 };
 
-${PARAGRAPH}
-`;
-const MESSAGE = "make this shorter";
-const TURN_DEADLINE_MS = 30_000;
+const userMessageSchema = z.looseObject({
+  text: z.string(),
+  type: z.literal("user.message"),
+  viewContext: z.json().optional(),
+});
 
-const NO_ROWS: readonly TimelineRow[] = [];
+// the account's one conversation, and the person's messages in it, in the order they were sent
+const sentMessages = async (library: Library) => {
+  const { threads } = await library.agent.list({});
+  const [thread] = threads;
+  if (thread === undefined) {
+    return [];
+  }
+  const { events } = await library.agent.events({ limit: 500, threadId: thread.id });
+  return events.flatMap((row) => {
+    const parsed = userMessageSchema.safeParse(row.event);
+    return parsed.success ? [parsed.data] : [];
+  });
+};
 
-const hasUserRow = (rows: readonly TimelineRow[]): boolean =>
-  rows.some((row) => row.kind === "conversation" && row.role === "user");
+// sends from the composer and waits for the cell to hold that many of the person's messages,
+// and for the tab to draw that many ended turns
+const sendAndSettle = async (
+  browser: AgentBrowser,
+  library: Library,
+  text: string,
+  sent: number,
+) => {
+  await browser(["fill", COMPOSER, text]);
+  await browser(["press", "Enter"]);
+  const messages = await pollUntil(
+    async () => await sentMessages(library),
+    (held) => held.length === sent,
+    {
+      deadlineMs: DEADLINE_MS,
+      describe: (held) => `the cell holds ${String(held.length)} of ${String(sent)} messages`,
+    },
+  );
+  await pollUntil(
+    async () => await browser(["get", "count", "[data-thread] [data-turn-ended]"]),
+    (count) => count.trim() === String(sent),
+    { deadlineMs: DEADLINE_MS, describe: (count) => `${count.trim()} turns drawn as ended` },
+  );
+  const message = messages.at(-1);
+  expect(message !== undefined, "the cell holds no message");
+  expectEq(message.text, text, "the stored message's words");
+  return message.viewContext;
+};
 
 export const viewContextBrowser: Scenario = {
-  description: "the agent is told which note the message left from, and at what revision",
+  description:
+    "the agent is told which screen a message left from: an open item by its id, the grid by its scope and the card selected, and Deleted not at all, as the cell stores each on the conversation",
   name: "view-context-browser",
+  timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    const app = await ctx.boot({
-      extraEnv: { INTELIGIR_AGENT: "scripted" },
-      name: "solo",
-      // the only note, so the virgin boot opens it.
-      seedVault: async (vaultDir) => {
-        await writeFile(path.join(vaultDir, DOC_PATH), DOC, "utf-8");
+    let plansId = "";
+    let groceriesId = "";
+    const { browser, library } = await openLibraryTab(ctx, "view-context", {
+      path: () => `?item=${plansId}`,
+      ready: EDITOR,
+      seed: async (seeding) => {
+        const plans = await seeding.items.createNote(PLANS);
+        const groceries = await seeding.items.createNote(GROCERIES);
+        plansId = plans.item.id;
+        groceriesId = groceries.item.id;
       },
+      worker: { json: { AGENT_ALLOWANCE: ALLOWANCE } },
     });
-    const agentBrowser = await ctx.browser("view-context");
 
-    ctx.log(`opening ${app.baseUrl}/`);
-    await agentBrowser.openWorkspace(app);
-    const opened = await agentBrowser(["get", "text", EDITOR]);
-    expect(opened.includes(PARAGRAPH), `the browser did not open ${DOC_PATH} — got: ${opened}`);
+    ctx.log("a message from an open item names the item");
+    await browser(["press", modChord("k")]);
+    await browser(["wait", COMPOSER], DEADLINE_MS);
+    const fromItem = await sendAndSettle(browser, library, "Make this shorter.", 1);
+    expectEq(fromItem, { itemId: plansId, surface: "item" }, "the view context of an open item");
 
-    ctx.log("opening the action composer (⌘K) and sending");
-    await agentBrowser(["press", modChord("k")]);
-    await agentBrowser(["wait", COMPOSER], 30_000);
-    await agentBrowser(["fill", COMPOSER, MESSAGE]);
-    await agentBrowser(["press", modChord("Enter")]);
-
-    // idle alone does not mean the turn ran: the thread exists idle and empty for a beat before
-    // the turn starts, so also require the user's own message on the timeline.
-    ctx.log("waiting for the turn to settle");
-    const { rows } = await pollUntil(
-      async () => {
-        const listed = await app.api.threads.list({});
-        // the composer attaches the open note by default.
-        const chat = listed.threads.find(
-          (thread) => thread.originDocPath === DOC_PATH && thread.archivedAt === null,
-        );
-        if (chat === undefined || chat.status !== "idle") {
-          return { chat, rows: NO_ROWS };
-        }
-        const body = await app.api.threads.timeline({ threadId: chat.id });
-        expect(body.kind === "full", `expected the full timeline, got "${body.kind}"`);
-        return { chat, rows: body.timeline.rows };
-      },
-      (settled) => {
-        expect(settled.chat?.status !== "error", "the turn settled in error");
-        return hasUserRow(settled.rows);
-      },
-      {
-        deadlineMs: TURN_DEADLINE_MS,
-        describe: () => `no settled chat turn after ${TURN_DEADLINE_MS}ms`,
-      },
-    );
-
-    const sent = rows.find(
-      (row): row is TimelineConversationRow => row.kind === "conversation" && row.role === "user",
-    );
-    expect(sent !== undefined, "the user's message is not on the timeline");
-    expectEq(sent.text, MESSAGE, "the stored message text");
-    const context = sent.viewContext;
-    expect(context !== null, "the send carried no view context");
-    expectEq(context.resource, DOC_PATH, "the doc the user was looking at");
-    // the flush before the send is what makes the revision name the bytes on disk.
+    ctx.log("a message from the grid names its scope and the card selected");
+    await browser(["click", BACK_TO_LIBRARY]);
+    await browser(["wait", libraryCard(groceriesId)], DEADLINE_MS);
+    expectEq(await browser(["eval", clickCard(groceriesId)]), '"clicked"', "the card's click");
+    const fromGrid = await sendAndSettle(browser, library, "What is this one?", 2);
     expectEq(
-      context.revision,
-      await contentHashHex(await readFile(path.join(app.vaultDir, DOC_PATH), "utf-8")),
-      "the revision names the file as it is on disk",
+      fromGrid,
+      { itemIds: [groceriesId], scope: { kind: "all" }, selected: 1, surface: "library" },
+      "the view context of the grid",
     );
 
-    const answered = rows.find(
-      (row): row is TimelineConversationRow =>
-        row.kind === "conversation" && row.role === "assistant",
-    );
-    expect(answered !== undefined, "the scripted agent did not answer");
-    // the scripted driver echoes what turnPromptInput handed it: the only view an e2e has of the
-    // provider's prompt.
-    expect(
-      answered.text.includes(DOC_PATH),
-      `the prompt did not name the doc — got: ${answered.text}`,
-    );
-    expect(
-      answered.text.includes(MESSAGE),
-      `the prompt did not carry the user's own text — got: ${answered.text}`,
-    );
+    ctx.log("a message from Deleted names no screen");
+    await clickStartingWith(browser, '[aria-label="Deleted"]', "Deleted");
+    const fromDeleted = await sendAndSettle(browser, library, "Anything here?", 3);
+    expect(fromDeleted === undefined, `a send from Deleted carried ${JSON.stringify(fromDeleted)}`);
   },
 };

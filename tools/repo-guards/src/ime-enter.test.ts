@@ -20,12 +20,7 @@ const IMPORTS_HELPER =
   /import\s*\{[^}]*\bisImeComposing\b[^}]*\}\s*from\s*["']@repo\/ui\/lib\/ime["']/u;
 
 // a key that never reaches a text field has no composition to wait out
-const NOT_A_TEXT_FIELD = new Map<string, string>([
-  [
-    "packages/ui/src/ai/diff-table.tsx",
-    "Enter on a focused DiffRow toggles the row: a table row takes no text, so no composition runs there",
-  ],
-]);
+const NOT_A_TEXT_FIELD = new Map<string, string>();
 
 const handlerFiles = workspaces()
   .flatMap((workspace) => workspaceFiles(workspace).shipped)
@@ -57,7 +52,7 @@ describe("an Enter handler waits out an IME composition", () => {
         : `ENTER HANDLED WITHOUT THE COMPOSITION CHECK\n${offenders.map((file) => `  ${file}`).join("\n")}\n` +
             `  rule: a keydown that acts on Enter first asks isImeComposing (${IME_HELPER}), since the Enter that commits an IME candidate is not the user's Enter\n` +
             `  fix: return early on isImeComposing(event); a key that never reaches a text field is a NOT_A_TEXT_FIELD row with its reason`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 
   it("keeps no allowance its file no longer needs", () => {
@@ -69,6 +64,6 @@ describe("an Enter handler waits out an IME composition", () => {
       `NOT_A_TEXT_FIELD rows that no longer hold: ${stale.join(", ")}\n` +
         `  rule: a row excuses a file that tests Enter without the check; one that is gone, no longer tests Enter or now checks is a stale excuse\n` +
         `  fix: delete the row`,
-    ).toEqual([]);
+    ).toStrictEqual([]);
   });
 });

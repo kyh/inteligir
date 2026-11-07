@@ -1,5 +1,6 @@
-// No imports, on purpose: the contract validates a tag name against this, and every client that
-// loads the contract would otherwise load the markdown parser behind the scan.
+// No imports, on purpose: an item's fields validate a tag name against this
+// (`../library/library-item.ts`), which the contract loads in every client, and no markdown parser
+// may come along with it.
 
 export interface InlineTagSpan {
   start: number;
@@ -8,7 +9,7 @@ export interface InlineTagSpan {
 }
 
 // the name is letter-first (so `#123` and hex colors miss); one source string, so the inline
-// grammar and the name a rename accepts cannot drift.
+// grammar and `isTagName` cannot drift.
 const TAG_NAME_SOURCE = String.raw`\p{L}[\p{L}\p{N}_-]*(?:\/[\p{L}\p{N}_-]+)*`;
 // `#` must not follow a word char, `#` or `/` (so `C#`, `##h` and url fragments miss).
 // stateful `g` flag: use matchAll.

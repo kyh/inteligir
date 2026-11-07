@@ -24,8 +24,6 @@ const rootScripts = (): Record<string, string> => {
 
 describe("root script naming", () => {
   it("a script suffixed with a workspace directory drives that workspace", () => {
-    // both spellings count: apps/cli publishes as `inteligir`, so `package:cli` names the folder
-    // and filters the package.
     const byDir = new Map(workspaces().map((w) => [path.basename(w.dir), w]));
 
     const violations: string[] = [];
@@ -48,14 +46,15 @@ describe("root script naming", () => {
           `  fix: point the script at ${workspace.name}, or rename it after the workspace it really drives`,
       );
     }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 
   it("every workspace a root script claims to drive exists", () => {
     const names = new Set(workspaces().map((w) => w.name));
     const violations: string[] = [];
     for (const [script, command] of Object.entries(rootScripts())) {
-      for (const filtered of command.matchAll(/--filter[= ](?<target>[^\s]+)/gu)) {
+      // turbo's and pnpm's short -F too, which `turbo watch dev -F @repo/web...` spells
+      for (const filtered of command.matchAll(/(?<=^|\s)(?:--filter|-F)[= ](?<target>\S+)/gu)) {
         const target = (filtered.groups?.target ?? "").replace(/\.\.\.$/u, "");
         if (target === "" || names.has(target)) {
           continue;
@@ -63,11 +62,11 @@ describe("root script naming", () => {
         violations.push(
           `UNKNOWN WORKSPACE  ${script}\n` +
             `  runs: ${command}\n` +
-            `  rule: --filter names a workspace, and "${target}" is not one\n` +
+            `  rule: --filter (-F) names a workspace, and "${target}" is not one\n` +
             `  fix: filter a package that exists, or drop the script with the workspace it outlived`,
         );
       }
     }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+    expect(violations, `\n${violations.join("\n\n")}\n`).toStrictEqual([]);
   });
 });

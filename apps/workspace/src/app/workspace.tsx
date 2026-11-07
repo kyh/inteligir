@@ -1,716 +1,811 @@
-import { docStem } from "@repo/notes/knowledge/doc-file";
-import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
-import { quoteSelection } from "@repo/domain/quote-selection";
-import type { ViewContext } from "@repo/domain/view-context";
-import type { ViewContextSource } from "./thread-activity";
-import type { VaultMatchWire } from "@repo/contract/local/knowledge/knowledge-schema";
-import type { Thread } from "@repo/contract/local/threads/threads-schema";
-import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
+// The library's page: the rail of scopes, the grid of the scope or the item open in its place, and
+// the right panel (Info, Highlights, History, the agent), over the replica the page holds. Every
+// screen reads the replica and writes through its outbox; what only the cell answers goes as a
+// call that needs a connection. A link or a file pasted or dropped where no field takes it is
+// saved where the grid's scope saves. The open item rides the url (`?item=<id>`), so a reload, Back and a
+// link all open it, but for a card that folded, whose id answers only for the run that made it.
+
+import { viewContextOf } from "@repo/agent-panel/agent-send";
+import type { AgentViewContext } from "@repo/agent-panel/agent-send";
+import { BULK_ITEMS_MAX } from "@repo/contract/cloud/library/library-wire";
+import { listedScope } from "@repo/domain/library-scope";
+import type { LibraryScope } from "@repo/domain/library-scope";
+import { jumpToFindMatch } from "@repo/editor/find-bar";
+import type { ItemSession } from "@repo/editor/item/item-session";
+import { getLiveEditor } from "@repo/editor/live-editor";
+import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
+import { keptFileType } from "@repo/notes/items/item-kind";
+import type { ItemKind } from "@repo/notes/items/item-kind";
+import { isWebUrl } from "@repo/notes/items/item-url";
 import { confirm } from "@repo/ui/components/confirm-dialog";
-import { plural } from "@repo/ui/lib/plural";
-import { toast } from "@repo/ui/components/sonner";
-import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo, useRef, useState } from "react";
-import { useStore } from "zustand";
-import { client, orpc } from "./api";
-import { ActionComposer } from "./actions/action-composer";
-import { ActionsPanel } from "./actions/actions-panel";
-import type { PanelTab } from "./actions/actions-panel";
-import type { CommentFocus } from "./actions/comments-tab";
-import { useNoteComments, useNoteCommentMeta } from "./actions/comment-hooks";
-import { NoteTopbar } from "./note-topbar";
-import { NoteFooter } from "./note-footer";
-import { useThreads } from "./actions/thread-hooks";
-import { useTurnFinishToast } from "./actions/turn-finish-toast";
-import { useSyncConflictNotices } from "./sync-conflict-notices";
-import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
-import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
-import { EditorColumn } from "@repo/editor/editor-column";
-import { hideFindBar, jumpToFindMatch, openFindBar } from "@repo/editor/find-bar";
-import { insertTemplate } from "@repo/editor/insert-template";
-import { scrollToLinkTarget } from "@repo/editor/link-locate";
-import { getLiveEditor, whenLiveEditor } from "@repo/editor/live-editor";
-import { collectHeadings, goToHeading } from "@repo/editor/toc";
-import type { HeadingItem } from "@repo/editor/toc";
-import { removeFrontmatterId } from "@repo/notes/markdown/frontmatter";
-import { DAILY_TEMPLATE_PATH } from "@repo/notes/templates/folders";
-import { expandTemplate } from "@repo/notes/templates/placeholders";
-import { flushOpenNote } from "@repo/editor/note/open-note-flush";
-import { openDocPath } from "@repo/editor/note/open-doc";
-import { backTarget, createOpenNoteStore, forwardTarget } from "@repo/editor/note/open-note-store";
-import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
-import { exportNoteAsPdf } from "./note/export-pdf";
-import type { EditorHostActions, VaultActions } from "@repo/editor/host-io";
-import { dailyNoteFromTemplate, dailyNotePath, dailyNoteTemplate } from "./note/daily";
-import { readNoteViewContext } from "./note/note-view-context";
-import { setNotePinned } from "./note/pin-note";
-import type { PinNoteApi } from "./note/pin-note";
-import { VaultProvider } from "./note/vault-provider";
-import { CommandPalette } from "./palette/command-palette";
-import type { PaletteActions, PaletteEntry, PaletteRequest } from "./palette/command-palette";
-import { replaceInVault, summarizeReplace } from "./palette/vault-replace";
-import type { ReplaceProgressPort, VaultReplaceRequest } from "./palette/vault-replace";
 import { Sidebar } from "@repo/ui/components/sidebar";
 import { SidebarInset, SidebarProvider } from "@repo/ui/components/sidebar-core";
 import type { SidebarActions } from "@repo/ui/components/sidebar-core";
-import type { SettingsSection } from "./settings/settings-page";
-import { SidebarRailContent } from "./sidebar/sidebar";
-import { useTreeOps } from "./sidebar/tree-ops";
+import { toast } from "@repo/ui/components/sonner";
+import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
+import { plural } from "@repo/ui/lib/plural";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useStore } from "zustand";
+
 import {
-  canSyncNow,
-  useSyncNow,
-  untitledNotePath,
-  usePinnedPaths,
-  useVaultStatus,
-  useVaultTree,
-} from "./vault-hooks";
+  useLeaveGuard,
+  useReadFile,
+  useReplica,
+  useReplicaQueries,
+  useWire,
+} from "./cloud/library-context";
+import { refusalText } from "@repo/contract/cloud/refusal-text";
+import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
+import { ItemView } from "./item/item-view";
+import { leaveItem } from "./item/leave-item";
+import { installPageEditorHost } from "./item/page-editor-host";
+import type { PageEditorHost } from "./item/page-editor-host";
+import { runBulk } from "./library/bulk-actions";
+import { filesPayload } from "./library/capture/capture-payload";
+import type { CapturedLink, CapturePayload } from "./library/capture/capture-payload";
+import { useWindowCapture } from "./library/capture/window-capture";
+import { MoveDialog, NameDialog, TagDialog } from "./library/item-dialogs";
+import type { MoveRequest, NameRequest, TagRequest } from "./library/item-dialogs";
+import type { LibraryGridActions } from "./library/item-menu";
+import { createLibrarySelection } from "./library/library-selection";
+import {
+  createFolder,
+  deleteFolder,
+  moveItems,
+  pinItems,
+  renameFolder,
+  tagItems,
+} from "./library/library-verbs";
+import { LibraryView } from "./library/library-view";
+import { listingQuery, saveFolderOf, saveTagsOf, scopeTitle } from "./library/listing";
+import { CommandPalette } from "./palette/command-palette";
+import { Panel } from "./panel/panel";
+import type { PanelTab } from "./panel/panel";
 import { PREFS, readPref, usePref, writePref } from "./prefs";
-import { hasInsetTitleBar } from "./title-bar";
+import { Rail } from "./sidebar/rail";
 
 export interface WorkspaceProps {
-  // read once, at boot: after that the note store owns the open note and `onOpenNote` mirrors it
-  bootNote: string | null;
-  onOpenNote: (path: string | null) => void;
-  // another surface draws over the workspace: it goes inert and its window-level chords stand
-  // down. Its root isolates the z-indices inside, so a later sibling covers every one of them.
-  covered: boolean;
+  readonly openItem: string | null;
+  readonly onOpenItem: (itemId: string | null) => void;
+  // another surface draws over the workspace: it goes inert and its window-level chords stand down
+  readonly covered: boolean;
 }
 
-const EMPTY_ENTRIES: readonly VaultEntry[] = [];
-const EMPTY_THREADS: readonly Thread[] = [];
+// a bulk delete this large asks first; any fewer go at once, each recoverable from Deleted
+const DELETE_ASKS_OVER = 50;
+// how many items one bulk write chunk takes before the toast moves on
+const BULK_CHUNK = 50;
 
-// what the panel is asked to show; a comments reveal with no focus keeps the last one
-type PanelReveal =
-  | { tab: "actions"; threadId: string }
-  | { tab: "comments"; focus?: readonly string[] }
-  | { tab: "history" };
-
-// a note that never mounts (a refused open) must not leave a jump waiting forever
-const LIVE_EDITOR_WAIT_MS = 5000;
-
-const jumpWhenLive = async (
-  path: string,
-  needle: string,
-  ordinal: number,
-  options: TextMatchOptions,
-): Promise<void> => {
-  const editor = await whenLiveEditor(path, LIVE_EDITOR_WAIT_MS);
-  if (editor !== null) {
-    jumpToFindMatch(editor, needle, ordinal, options);
+const uploadPicked = async (
+  replica: ReturnType<typeof useReplica>,
+  files: readonly File[],
+  folderId: string | null,
+  tags: string[],
+): Promise<number> => {
+  let made = 0;
+  for (const file of files) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    await replica.createFile({
+      file: { bytes, mime: keptFileType(file.type) },
+      folderId,
+      name: file.name,
+      tags,
+    });
+    made += 1;
   }
+  return made;
 };
 
-// for verbs only: a render reads the editor through useLiveEditor, which re-renders as it mounts
-const openLiveEditor = (noteStore: OpenNoteStore) => {
-  const { openPath } = noteStore.state();
-  return openPath === null ? null : getLiveEditor(openPath);
+// a search's words, which the item it opened lands its find bar on once it has read its blocks
+interface PendingFind {
+  readonly itemId: string;
+  readonly query: string;
+}
+
+// the open item holds an edit its pause has not written yet
+const holdsUnsaved = (session: ItemSession): boolean => {
+  const status = session.status();
+  return status.kind === "open" && status.unsaved;
 };
 
-const showLinkWhenLive = async (sourcePath: string, target: string): Promise<void> => {
-  const editor = await whenLiveEditor(sourcePath, LIVE_EDITOR_WAIT_MS);
-  if (editor !== null && !scrollToLinkTarget(editor, target)) {
-    jumpToFindMatch(editor, target, 0);
-  }
-};
-
-const pinAndReport = async (api: PinNoteApi, path: string, pinned: boolean): Promise<void> => {
-  const outcome = await setNotePinned(api, path, pinned);
-  if (outcome.kind === "refused") {
-    toast.error(outcome.message);
-  }
-};
-
-const setPinned = (path: string, pinned: boolean): void => {
-  void pinAndReport(client, path, pinned);
-};
-
-// settles when the run is over, so the palette can show it running and offer the cancel
-const replaceAll = async (
-  request: VaultReplaceRequest,
-  port: ReplaceProgressPort,
-): Promise<void> => {
-  const noteCount = request.paths.length;
-  const confirmed = await confirm({
-    body: `Every match of "${request.needle}" becomes "${request.replacement}". A note stays recoverable from its History.`,
-    confirmLabel: "Replace all",
-    title: `Replace in ${plural(noteCount, "note")}?`,
-  });
-  if (!confirmed) {
+const findOnceOpen = (session: ItemSession, { itemId, query }: PendingFind): void => {
+  // answers whether the session is past opening, and lands the bar if it opened the item
+  const landed = (): boolean => {
+    const status = session.status();
+    if (status.kind === "opening" || status.kind === "unread") {
+      return false;
+    }
+    const editor = getLiveEditor(itemId);
+    if (status.kind === "open" && editor !== null) {
+      jumpToFindMatch(editor, query, 0);
+    }
+    return true;
+  };
+  if (landed()) {
     return;
   }
-  // the open note's buffer lands first, so its file is not the one that "changed since read"
-  await flushOpenNote();
-  const outcomes = await replaceInVault(client, request, port);
-  const summary = summarizeReplace(outcomes, noteCount - outcomes.length);
-  toast[summary.tone](summary.message);
+  const stop = session.subscribe(() => {
+    if (landed()) {
+      stop();
+    }
+  });
 };
 
-export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => {
-  const queryClient = useQueryClient();
-  const treeQuery = useVaultTree();
-  const statusQuery = useVaultStatus();
-
-  // Each open is a fresh request, keyed by its nonce so the palette mounts clean. A close keeps
-  // the last request mounted with `open` off, because unmounting the dialog cuts its exit tween;
-  // the next open replaces it.
-  const [palette, setPalette] = useState<{ request: PaletteRequest; open: boolean } | null>(null);
-  const openPalette = (entry: PaletteEntry): void => {
-    setPalette((current) => ({
-      open: true,
-      request: { ...entry, nonce: (current?.request.nonce ?? 0) + 1 },
-    }));
-  };
-  const closePalette = (): void => {
-    setPalette((current) => (current === null ? null : { ...current, open: false }));
-  };
-  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
-  const [shortcutModifier] = useState(platformShortcutModifier);
-  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
-  const [insetTitleBar] = useState(hasInsetTitleBar);
-
-  // The action surface's state lives beside the note, never above it, so no
-  // agent interaction can remount the editor.
-  const threadsQuery = useThreads();
-  const [composerOpen, setComposerOpen] = useState(false);
-  const [composerSeed, setComposerSeed] = useState<string | null>(null);
-  const [zen, setZen] = useState(false);
-  // Narrow selectors only: the store settles on every keystroke.
-  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
-  const [noteStore] = useState(createOpenNoteStore);
-  const openPath = useStore(noteStore.store, (state) => state.openPath);
-  // Trails `openPath` across a switch; the comment tint keys on it.
-  const loadedPath = useStore(noteStore.store, (state) => openDocPath(state.openDoc));
-  const back = useStore(noteStore.store, backTarget);
-  const forward = useStore(noteStore.store, forwardTarget);
-  // walked as the headings page opens, never in render: nothing re-renders the workspace when the
-  // document changes.
-  const listOpenHeadings = (): readonly HeadingItem[] => {
-    const editor = openLiveEditor(noteStore);
-    return editor === null ? [] : collectHeadings(editor);
-  };
-
-  const [panelThreadId, setPanelThreadId] = useState<string | null>(null);
-
+export const Workspace = ({ openItem, onOpenItem, covered }: WorkspaceProps) => {
+  const replica = useReplica();
+  const readFile = useReadFile();
+  const wire = useWire();
+  const queries = useReplicaQueries();
+  const navigate = useNavigate();
+  const modifier = platformShortcutModifier();
+  const [storedScope, storeScope] = usePref(PREFS.libraryScope);
+  const [sort, setSort] = usePref(PREFS.librarySort);
   const [panelOpen, setPanelOpen] = usePref(PREFS.panelOpen);
-  const [panelTab, setPanelTab] = useState<PanelTab>("actions");
-  // Here, not in the panel: the top bar's badge counts while the panel is collapsed.
-  const commentsQuery = useNoteComments(openPath);
-  const openCommentCount = (commentsQuery.data?.threads ?? []).filter(
-    (thread) => !thread.resolved,
-  ).length;
-
-  useNoteCommentMeta(loadedPath);
-
+  const [kind, setKind] = useState<ItemKind | null>(null);
+  const [tab, setTab] = useState<PanelTab>("info");
+  const [threadId, setThreadId] = useState<string | null>(null);
+  // the agent's composer holds Tidy my library's request, on a conversation of its own
+  const [tidying, setTidying] = useState(false);
+  // a passage the editor asked the agent about, until the composer takes it
+  const [passage, setPassage] = useState<string | null>(null);
+  const [namedHighlights, setNamedHighlights] = useState<readonly string[]>([]);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [moveRequest, setMoveRequest] = useState<MoveRequest | null>(null);
+  const [tagRequest, setTagRequest] = useState<TagRequest | null>(null);
+  const [nameRequest, setNameRequest] = useState<NameRequest | null>(null);
+  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
+  const [selection] = useState(createLibrarySelection);
+  const sessionRef = useRef<ItemSession | null>(null);
+  const findRef = useRef<PendingFind | null>(null);
+  // the open item's session, which Info's properties write through
+  const [session, setSession] = useState<ItemSession | null>(null);
+  const hostRef = useRef<PageEditorHost | null>(null);
+  const filesRef = useRef<HTMLInputElement | null>(null);
+  // the window's chord asks the rail, which below the breakpoint opens a sheet instead
+  const railRef = useRef<SidebarActions | null>(null);
   const [railOpen, setRailOpen] = useState(true);
-  // a provider's own toggle and the table's key both land here: showing either side leaves zen
-  const showRail = useCallback((show: boolean): void => {
-    if (show) {
-      setZen(false);
-    }
-    setRailOpen(show);
-  }, []);
-  const showPanel = useCallback(
-    (show: boolean): void => {
-      if (show) {
-        setZen(false);
-      }
-      setPanelOpen(show);
-    },
-    [setPanelOpen],
-  );
-  // the toggles the providers own, since below the mobile breakpoint a side is a sheet whose open
-  // state only its provider holds
-  const railActionsRef = useRef<SidebarActions | null>(null);
-  const panelActionsRef = useRef<SidebarActions | null>(null);
 
-  const [commentFocus, setCommentFocus] = useState<CommentFocus | null>(null);
-  // One verb for every entry that shows something in the panel: it starts closed, so an entry
-  // that only picks its tab or thread shows nothing.
-  const revealPanel = useCallback(
-    (target: PanelReveal): void => {
-      showPanel(true);
-      setPanelTab(target.tab);
-      if (target.tab === "actions") {
-        setPanelThreadId(target.threadId);
-      } else if (target.tab === "comments" && target.focus !== undefined) {
-        const ids = target.focus;
-        setCommentFocus((current) => ({ ids, nonce: (current?.nonce ?? 0) + 1 }));
-      }
-    },
-    [showPanel],
-  );
+  // the selection as it changes, which the panel's Info follows
+  const selected = useStore(selection.store, (state) => state.selected);
+  const folders = useQuery(queries.folders()).data ?? [];
+  const counts = useQuery(queries.scopes()).data;
+  const scope = listedScope(storedScope, folders);
+  const page = useQuery(queries.listing(listingQuery({ kind, scope, sort }))).data;
+  const listingRows = page?.items ?? [];
 
-  const openThread = (threadId: string): void => {
-    revealPanel({ tab: "actions", threadId });
+  const open = (itemId: string | null): void => {
+    void (async () => {
+      if (await leaveItem(sessionRef.current, confirm)) {
+        onOpenItem(itemId);
+      }
+    })();
   };
 
-  const readViewContext: ViewContextSource = async (): Promise<ViewContext | null> => {
-    const { editor } = noteStore.state();
-    if (editor.kind === "closed") {
-      return null;
+  const revealPanel = (next: PanelTab): void => {
+    setTab(next);
+    setPanelOpen(true);
+  };
+
+  const startTidy = (): void => {
+    setThreadId(null);
+    setTidying(true);
+    revealPanel("agent");
+  };
+
+  // a conversation chosen while a Tidy waits to be sent lets the Tidy go
+  const chooseThread = (next: string | null): void => {
+    setThreadId(next);
+    if (next !== null) {
+      setTidying(false);
     }
-    const { path } = editor;
-    return await readNoteViewContext(path, {
-      flush: async () => {
-        await flushOpenNote();
+  };
+  // offered while something waits to be filed or tagged
+  const tidyOffered = counts !== undefined && counts.unsorted + counts.untagged > 0;
+
+  // the editor's host, made once for the page: links open items, the chord's highlight lands on
+  // the item open now, "Ask the agent" quotes the passage in the panel's composer, and a click on
+  // a highlight opens Highlights on it
+  const hostAsksAgent = useEffectEvent((asked: string) => {
+    setTidying(false);
+    revealPanel("agent");
+    setPassage(asked);
+  });
+  const hostNamesHighlights = useEffectEvent((ids: readonly string[]) => {
+    revealPanel("annotations");
+    setNamedHighlights([...ids]);
+  });
+  const hostOpens = useEffectEvent((itemId: string) => {
+    open(itemId);
+  });
+  const hostShowsTag = useEffectEvent((tag: string) => {
+    storeScope({ kind: "tag", tag });
+    open(null);
+  });
+  useEffect(() => {
+    const host = installPageEditorHost({
+      askAgent: hostAsksAgent,
+      openAnnotations: hostNamesHighlights,
+      openItem: hostOpens,
+      readFile,
+      replica,
+      showTag: hostShowsTag,
+    });
+    hostRef.current = host;
+    const unsubscribe = replica.onChange(() => {
+      host.refreshTargets();
+    });
+    return () => {
+      unsubscribe();
+      hostRef.current = null;
+    };
+  }, [readFile, replica]);
+
+  // CLAUDE.md § THE TAB SENDS WHAT IT HOLDS UNTIL IT CLOSES, AND ASKS BEFORE LOSING IT: the open
+  // item's edit counts as held until its pause writes it, the Mac writes it before it quits, and a
+  // tab going out of sight writes it at once, since it may never come back into sight to finish the
+  // pause
+  const leave = useLeaveGuard();
+  useEffect(
+    () =>
+      session === null
+        ? undefined
+        : leave.hold({
+            holding: () => holdsUnsaved(session),
+            onMove: session.subscribe,
+            write: session.flush,
+          }),
+    [leave, session],
+  );
+  useEffect(() => {
+    const writeWhenHidden = (): void => {
+      if (document.visibilityState === "hidden") {
+        void sessionRef.current?.flush();
+      }
+    };
+    document.addEventListener("visibilitychange", writeWhenHidden);
+    return () => {
+      document.removeEventListener("visibilitychange", writeWhenHidden);
+    };
+  }, []);
+
+  useEffect(() => {
+    hostRef.current?.showing(openItem);
+    replica.focus(openItem);
+  }, [openItem, replica]);
+
+  // a selected item that left the listing (deleted, moved out of the scope) leaves the selection
+  useEffect(() => {
+    const listed = new Set((page?.items ?? []).map((row) => row.id));
+    const gone = [...selection.store.getState().selected].filter((id) => !listed.has(id));
+    if (gone.length > 0) {
+      selection.apply({ gone: new Set(gone), kind: "prune" });
+    }
+  }, [page, selection]);
+
+  const chooseScope = (next: LibraryScope): void => {
+    storeScope(next);
+    setKind(null);
+    selection.apply({ kind: "clear" });
+    open(null);
+  };
+
+  const openSettings = (): void => {
+    void (async () => {
+      await sessionRef.current?.flush();
+      await navigate({ search: true, to: "/settings" });
+    })();
+  };
+
+  useGlobalShortcuts({ enabled: !covered, modifier }, (action) => {
+    switch (action) {
+      case "open-agent": {
+        revealPanel("agent");
+        break;
+      }
+      case "open-palette": {
+        setPaletteOpen(true);
+        break;
+      }
+      case "open-settings": {
+        openSettings();
+        break;
+      }
+      case "toggle-panel": {
+        setPanelOpen(!panelOpen);
+        break;
+      }
+      case "toggle-rail": {
+        railRef.current?.toggle();
+        break;
+      }
+      // no default
+    }
+  });
+
+  const newNote = (): void => {
+    void (async () => {
+      const made = await replica.createNote({
+        blocks: [],
+        folderId: saveFolderOf(scope),
+        tags: saveTagsOf(scope),
+        title: "",
+      });
+      open(made.id);
+    })();
+  };
+
+  const saveLinks = (links: readonly CapturedLink[]): void => {
+    void (async () => {
+      const made = [];
+      try {
+        for (const link of links) {
+          const into = { folderId: saveFolderOf(scope), tags: saveTagsOf(scope), url: link.url };
+          made.push(
+            await replica.saveLink(link.title === null ? into : { ...into, title: link.title }),
+          );
+        }
+      } catch {
+        toast.error(
+          links.length === 1 ? "That link couldn't be saved." : "Not every link could be saved.",
+        );
+        return;
+      }
+      const [only, ...more] = made;
+      if (only === undefined) {
+        return;
+      }
+      if (more.length > 0) {
+        toast.success(`Saved ${plural(made.length, "link")}.`);
+        return;
+      }
+      toast.success(only.folded ? "Your library already holds that link." : "Saved.", {
+        action: {
+          label: "Open",
+          onClick: () => {
+            open(only.id);
+          },
+        },
+      });
+    })();
+  };
+
+  const saveLink = (url: string): void => {
+    saveLinks([{ title: null, url }]);
+  };
+
+  // what a paste, a drop or the file picker handed over: each file and each link saved where the
+  // grid's scope saves, and what could not be taken said
+  const savePayload = (payload: CapturePayload): void => {
+    for (const sentence of payload.refused) {
+      toast.error(sentence);
+    }
+    if (payload.urls.length > 0) {
+      saveLinks(payload.urls);
+    }
+    if (payload.files.length > 0) {
+      void (async () => {
+        const made = await uploadPicked(
+          replica,
+          payload.files,
+          saveFolderOf(scope),
+          saveTagsOf(scope),
+        );
+        toast.success(`Added ${plural(made, "file")}.`);
+      })();
+    }
+  };
+
+  const { catcherRef, dropInto } = useWindowCapture({
+    enabled: !covered,
+    into: () => (scope.kind === "folder" ? scopeTitle(scope, folders) : "Unsorted"),
+    modifier,
+    onCapture: savePayload,
+  });
+
+  const askSaveLink = (): void => {
+    setNameRequest({
+      confirm: "Save",
+      initial: "",
+      label: "The page's address",
+      onSubmit: saveLink,
+      refuse: (address) =>
+        isWebUrl(address) ? null : "Type the whole address, starting with https://",
+      title: "Save a link",
+    });
+  };
+
+  const removeItems = (rows: readonly ReplicaListingRow[]): void => {
+    void (async () => {
+      if (
+        rows.length > DELETE_ASKS_OVER &&
+        !(await confirm({
+          body: "They wait in Deleted, where you can restore them.",
+          confirmLabel: "Delete",
+          destructive: true,
+          title: `Delete ${plural(rows.length, "item")}?`,
+        }))
+      ) {
+        return;
+      }
+      const ids = rows.map((row) => row.id);
+      await replica.deleteItems(ids);
+      if (openItem !== null && ids.includes(openItem)) {
+        onOpenItem(null);
+      }
+      toast.success(`Moved ${plural(ids.length, "item")} to Deleted.`, {
+        action: {
+          label: "Undo",
+          onClick: () => {
+            void replica.restoreItems(ids);
+          },
+        },
+      });
+    })();
+  };
+
+  // calls only the cell answers, so each waits for a connection (CLAUDE.md § A CELL CALL PAUSES
+  // OFFLINE AND SAYS SO)
+  const purgeCall = useMutation(
+    wire.orpc.library.items.purge.mutationOptions({ scope: { id: "purge" } }),
+  );
+  const refreshCall = useMutation(
+    wire.orpc.library.items.refresh.mutationOptions({
+      onError: (cause) => {
+        toast.error(refusalText(cause, "The page couldn't be read again."));
       },
-      read: () => {
-        const current = noteStore.state().editor;
-        return current.kind === "open" && current.path === path
-          ? { content: current.content }
-          : null;
+      onSuccess: () => {
+        toast.success("Reading the page again.");
+      },
+    }),
+  );
+
+  const purge = (rows: readonly ReplicaListingRow[]): void => {
+    void (async () => {
+      if (
+        !(await confirm({
+          body: "Their text, files and highlights are gone for good. This can't be undone.",
+          confirmLabel: "Delete forever",
+          destructive: true,
+          title: `Delete ${plural(rows.length, "item")} forever?`,
+        }))
+      ) {
+        return;
+      }
+      await runBulk({
+        chunk: BULK_ITEMS_MAX,
+        done: (count) => `Deleted ${plural(count, "item")} forever.`,
+        items: rows.map((row) => row.id),
+        past: "deleted",
+        run: async (ids) => {
+          const { purged } = await purgeCall.mutateAsync({ ids: [...ids] });
+          return purged.length;
+        },
+        verb: "Deleting",
+      });
+    })();
+  };
+
+  const askMove = (ids: readonly string[]): void => {
+    setMoveRequest({
+      count: ids.length,
+      onMove: (folderId) => {
+        void runBulk({
+          chunk: BULK_CHUNK,
+          done: (count) => `Moved ${plural(count, "item")}.`,
+          items: ids,
+          past: "moved",
+          run: async (chunk) => await moveItems(replica, chunk, folderId),
+          verb: "Moving",
+        });
       },
     });
   };
 
-  const actionsRef = useRef<VaultActions | null>(null);
-  const noteColumnRef = useRef<HTMLElement | null>(null);
-  // Ordinary opens, Back and Forward included: the store's stacks recognize a back/forward move
-  // by value.
-  // held by hand, as showHistory is: VaultProvider re-points its merge-conflict toast in an effect
-  const setOpenNote = useCallback((path: string | null): void => {
-    if (path === null) {
-      return;
+  const askTag = (rows: readonly ReplicaListingRow[]): void => {
+    // the tags every subject carries, which the dialog offers to take off
+    let held: string[] = [...(rows[0]?.tags ?? [])];
+    for (const row of rows.slice(1)) {
+      held = held.filter((tag) => row.tags.includes(tag));
     }
-    actionsRef.current?.openFile(path);
-  }, []);
-
-  const showHistory = useCallback(
-    (path: string): void => {
-      setOpenNote(path);
-      revealPanel({ tab: "history" });
-    },
-    [setOpenNote, revealPanel],
-  );
-
-  useTurnFinishToast(showHistory);
-  useSyncConflictNotices(setOpenNote);
-
-  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
-  const [initialSidebarWidth] = useState(() => `${String(readPref(PREFS.sidebarWidth))}px`);
-  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
-  const [initialPanelWidth] = useState(() => `${String(readPref(PREFS.panelWidth))}px`);
-  // the rail's view and its tag, owned here for the same reason: a `#tag` chip deep in the note
-  // sets both, and it reaches the shell through the editor host's `showTag`
-  const [railView, chooseRailView] = usePref(PREFS.railView);
-  // The breadcrumb's ask, keyed by a nonce so naming the same folder twice reveals it twice; the
-  // tree consumes it, so the rail shows Files first. The nonce is counted here rather than off
-  // the ask, which is cleared once the tree has focused it.
-  const [reveal, setReveal] = useState<{ path: string; nonce: number } | null>(null);
-  const revealNonce = useRef(0);
-  const revealInTree = (path: string): void => {
-    chooseRailView("files");
-    revealNonce.current += 1;
-    setReveal({ nonce: revealNonce.current, path });
-  };
-  // held by hand: the tree's focus effect re-runs on its identity
-  const clearReveal = useCallback((): void => {
-    setReveal(null);
-  }, []);
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
-
-  const createNote = async (path: string, content = ""): Promise<void> => {
-    await actionsRef.current?.createFile(path, content);
-  };
-
-  const newUntitledNote = (parentDir: string): void => {
-    void createNote(untitledNotePath(parentDir, treeQuery.data));
-  };
-
-  // the live editor is keyed by path, so a note mid-switch answers no editor and the bar stays shut
-  const findInNote = (): void => {
-    const editor = openLiveEditor(noteStore);
-    if (editor !== null) {
-      openFindBar(editor);
-    }
-  };
-
-  // the note opens first; the find bar takes the match once its editor is live
-  const openMatch = (match: VaultMatchWire, needle: string, options: TextMatchOptions): void => {
-    setOpenNote(match.path);
-    void jumpWhenLive(match.path, needle, match.ordinal, options);
-  };
-
-  // the link element itself when the note still carries it; else the find bar shows the target
-  const openProblemLink = (sourcePath: string, target: string): void => {
-    setOpenNote(sourcePath);
-    void showLinkWhenLive(sourcePath, target);
-  };
-
-  // the template is read on every ⌘D rather than looked up in the tree, which can be stale; a
-  // refused read keeps the built-in shape, so the day's note opens either way.
-  const openDailyNote = (): void => {
-    const now = new Date();
-    void (async () => {
-      let content = dailyNoteTemplate(now);
-      try {
-        const template = await client.vault.read({ path: DAILY_TEMPLATE_PATH });
-        content = dailyNoteFromTemplate(template.content, now);
-      } catch {
-        // no template in this vault
-      }
-      // Create-exclusive rather than checking the tree first, which can be stale.
-      await createNote(dailyNotePath(now), content);
-    })();
-  };
-
-  const newNoteFromTemplate = (templatePath: string): void => {
-    void (async () => {
-      let template: string;
-      try {
-        ({ content: template } = await client.vault.read({ path: templatePath }));
-      } catch {
-        toast.error("Could not read the template.");
-        return;
-      }
-      const path = untitledNotePath("", treeQuery.data);
-      const body = expandTemplate(template, { now: new Date(), title: docStem(path) });
-      await createNote(path, removeFrontmatterId(body));
-    })();
-  };
-
-  const insertTemplateIntoNote = (templatePath: string): void => {
-    const editor = openLiveEditor(noteStore);
-    if (editor !== null) {
-      void insertTemplate(editor, templatePath);
-    }
-  };
-
-  const { syncNow, inFlight: syncInFlight } = useSyncNow();
-
-  const pinnedPaths = usePinnedPaths();
-  const openPinned = openPath !== null && pinnedPaths.has(openPath);
-
-  const treeOps = useTreeOps({
-    actions: actionsRef,
-    createNote,
-    setPinned,
-  });
-
-  const navigate = useNavigate();
-  // Settings covers a workspace that stays mounted, so no unmount settles a title mid-rename or
-  // an edit inside the autosave debounce: the blur and the flush stand in for it. The palette and
-  // the find bar are portaled, so the cover would hide neither: both close here.
-  const onOpenSettings = (section?: SettingsSection): void => {
-    closePalette();
-    const editor = openLiveEditor(noteStore);
-    if (editor !== null) {
-      hideFindBar(editor);
-    }
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-    void flushOpenNote();
-    // the router scrolls a hash's anchor into view once the page has rendered
-    if (section === undefined) {
-      void navigate({ search: true, to: "/settings" });
-    } else {
-      void navigate({ hash: section, search: true, to: "/settings" });
-    }
-  };
-
-  // Held by hand, with showRail, revealPanel and showPanel under it: VaultProvider re-installs the
-  // editor host whenever this changes, which a compiler bailout must not make every render.
-  const hostActions = useMemo<EditorHostActions>(
-    () => ({
-      agent: {
-        askAboutSelection: (selectionText) => {
-          setComposerSeed(quoteSelection(selectionText));
-          setComposerOpen(true);
-        },
-        showTag: (tag) => {
-          showRail(true);
-          chooseRailView("recent");
-          setSelectedTag(tag);
-        },
+    const ids = rows.map((row) => row.id);
+    setTagRequest({
+      count: rows.length,
+      held,
+      onChange: (change) => {
+        void runBulk({
+          chunk: BULK_CHUNK,
+          done: (count) => `Tagged ${plural(count, "item")}.`,
+          items: ids,
+          past: "tagged",
+          run: async (chunk) => await tagItems(replica, chunk, change),
+          verb: "Tagging",
+        });
       },
-      comments: {
-        // flushed before adding: the route derives `anchored` from disk
-        create: async (id, text) => {
-          const { openPath: path } = noteStore.state();
-          if (path === null) {
-            return false;
-          }
-          await flushOpenNote();
-          try {
-            await client.comments.add({ id, path, text });
-          } catch {
-            return false;
-          }
-          void queryClient.invalidateQueries({ queryKey: orpc.comments.key() });
-          return true;
-        },
-        open: (ids) => {
-          revealPanel({ focus: ids, tab: "comments" });
-        },
-      },
-    }),
-    [chooseRailView, showRail, noteStore, queryClient, revealPanel],
-  );
-
-  useGlobalShortcuts({ enabled: !covered, modifier: shortcutModifier }, (action) => {
-    switch (action) {
-      case "open-action-composer": {
-        setComposerSeed(null);
-        setComposerOpen((current) => !current);
-        break;
-      }
-      case "open-palette": {
-        if (palette?.open === true) {
-          closePalette();
-        } else {
-          openPalette({ page: "root" });
-        }
-        break;
-      }
-      case "find-in-note": {
-        findInNote();
-        break;
-      }
-      case "open-headings": {
-        openPalette({ outline: listOpenHeadings(), page: "headings" });
-        break;
-      }
-      case "open-settings": {
-        onOpenSettings();
-        break;
-      }
-      case "open-daily-note": {
-        openDailyNote();
-        break;
-      }
-      case "toggle-zen": {
-        setZen((current) => !current);
-        break;
-      }
-      case "toggle-rail": {
-        railActionsRef.current?.toggle();
-        break;
-      }
-      case "toggle-panel": {
-        panelActionsRef.current?.toggle();
-        break;
-      }
-      default: {
-        const exhaustive: never = action;
-        return exhaustive;
-      }
-    }
-  });
-
-  const canSync = canSyncNow(statusQuery.data) && !syncInFlight;
-
-  const treeEntries = treeQuery.data?.entries ?? EMPTY_ENTRIES;
-
-  const paletteActions: PaletteActions = {
-    goToHeading: (heading) => {
-      const editor = openLiveEditor(noteStore);
-      if (editor !== null) {
-        goToHeading(editor, heading);
-      }
-    },
-    moveNote: treeOps.moveEntry,
-    newNote: newUntitledNote,
-    newNoteFromTemplate,
-    note:
-      openPath === null
-        ? null
-        : {
-            exportPdf: () => {
-              void exportNoteAsPdf(docStem(openPath));
-            },
-            findInNote,
-            insertTemplate: insertTemplateIntoNote,
-            listHeadings: listOpenHeadings,
-            path: openPath,
-            pinned: openPinned,
-            togglePin: () => {
-              setPinned(openPath, !openPinned);
-            },
-          },
-    openDailyNote,
-    openDeletedNotes: () => {
-      chooseRailView("deleted");
-    },
-    openMatch,
-    openNote: setOpenNote,
-    openProblemLink,
-    openSettings: () => {
-      onOpenSettings();
-    },
-    openThread,
-    replaceAll,
-    syncNow,
+    });
   };
 
-  const noteMetadata = {
-    deleteNote: () => {
-      const { openPath: path } = noteStore.state();
-      if (path !== null) {
-        treeOps.removeEntry(path, "file");
-      }
+  const rowsOf = (ids: readonly string[]): ReplicaListingRow[] =>
+    ids.flatMap((id) => {
+      const row = replica.row(id);
+      return row === null ? [] : [row];
+    });
+
+  const actions: LibraryGridActions = {
+    askAgent: (rows) => {
+      selection.apply({ kind: "all", order: rows.map((row) => row.id) });
+      revealPanel("agent");
     },
-    openDeletedNotes: () => {
-      chooseRailView("deleted");
+    move: (rows) => {
+      askMove(rows.map((row) => row.id));
     },
-    setPinned: (pinned: boolean) => {
-      const { openPath: path } = noteStore.state();
-      if (path !== null) {
-        setPinned(path, pinned);
-      }
+    open: (row) => {
+      open(row.id);
     },
+    pin: (rows, pinned) => {
+      void pinItems(
+        replica,
+        rows.map((row) => row.id),
+        pinned,
+      );
+    },
+    purge,
+    refresh: (row) => {
+      refreshCall.mutate({ id: row.id });
+    },
+    remove: removeItems,
+    restore: (rows) => {
+      void replica.restoreItems(rows.map((row) => row.id));
+    },
+    tag: askTag,
   };
 
-  const threads = threadsQuery.data ?? EMPTY_THREADS;
+  // what the agent is told about the screen a message leaves from
+  const viewContext = (): AgentViewContext | undefined =>
+    viewContextOf({ kind, openItem, scope, selected: [...selection.store.getState().selected] });
+
+  // the panel's item: the open one, else the one card selected
+  const [onlySelected = null, ...moreSelected] = selected;
+  const panelItem = openItem ?? (moreSelected.length === 0 ? onlySelected : null);
 
   return (
-    <VaultProvider
-      initialPath={bootNote}
-      onOpenPath={onOpenNote}
-      onShowHistory={showHistory}
-      actionsRef={actionsRef}
-      hostActions={hostActions}
-      store={noteStore}
-    >
-      <div inert={covered} className="isolate flex h-dvh flex-col bg-surface text-ink print:h-auto">
+    <>
+      <div className="h-dvh" inert={covered}>
         <SidebarProvider
-          className="min-h-0 flex-1 overflow-hidden print:h-auto print:overflow-visible"
-          open={railOpen && !zen}
-          onOpenChange={showRail}
-          shortcut={bindingFor("toggle-rail", shortcutModifier)}
+          className="h-full"
+          open={railOpen}
+          onOpenChange={setRailOpen}
+          actionsRef={railRef}
+          shortcut={bindingFor("toggle-rail", modifier)}
+          width={`${String(readPref(PREFS.sidebarWidth))}px`}
           onWidthCommitted={(px) => {
             writePref(PREFS.sidebarWidth, px);
           }}
-          actionsRef={railActionsRef}
-          peek
-          width={initialSidebarWidth}
         >
-          <Sidebar variant="floating" className="h-full print:hidden">
-            <SidebarRailContent
-              openPath={openPath}
-              onOpenFile={setOpenNote}
-              ops={treeOps}
-              onMoveRequest={(path) => {
-                openPalette({ page: "move-to-folder", subject: path });
-              }}
-              view={railView}
-              onViewChange={chooseRailView}
-              selectedTag={selectedTag}
-              onSelectTag={setSelectedTag}
-              reveal={reveal}
-              onRevealConsumed={clearReveal}
+          <Sidebar variant="floating" label="Sidebar" className="h-full print:hidden">
+            <Rail
+              scope={scope}
+              itemOpen={openItem !== null}
+              onScope={chooseScope}
               onOpenSearch={() => {
-                openPalette({ page: "root" });
+                setPaletteOpen(true);
               }}
-              searchShortcut={bindingFor("open-palette", shortcutModifier)}
-              onSyncNow={syncNow}
-              onOpenSettings={onOpenSettings}
+              onOpenSettings={openSettings}
+              folders={{
+                create: (parentId) => {
+                  setNameRequest({
+                    confirm: "Create",
+                    initial: "",
+                    label: "Folder name",
+                    onSubmit: (name) => {
+                      void createFolder(replica, name, parentId);
+                    },
+                    title: "New folder",
+                  });
+                },
+                remove: (folderId, name) => {
+                  void (async () => {
+                    if (
+                      await confirm({
+                        body: "Its items move to Unsorted.",
+                        confirmLabel: "Delete folder",
+                        destructive: true,
+                        title: `Delete the folder “${name}”?`,
+                      })
+                    ) {
+                      await deleteFolder(replica, folderId);
+                    }
+                  })();
+                },
+                rename: (folderId, name) => {
+                  setNameRequest({
+                    confirm: "Rename",
+                    initial: name,
+                    label: "Folder name",
+                    onSubmit: (next) => {
+                      void renameFolder(replica, folderId, next);
+                    },
+                    title: "Rename folder",
+                  });
+                },
+              }}
             />
           </Sidebar>
           <SidebarInset className="relative bg-surface">
             <SidebarProvider
-              className="min-h-0 h-full flex-1"
-              open={panelOpen && !zen}
-              onOpenChange={showPanel}
-              shortcut={bindingFor("toggle-panel", shortcutModifier)}
+              className="h-full min-h-0 flex-1"
+              open={panelOpen}
+              onOpenChange={setPanelOpen}
+              shortcut={bindingFor("toggle-panel", modifier)}
+              width={`${String(readPref(PREFS.panelWidth))}px`}
               onWidthCommitted={(px) => {
                 writePref(PREFS.panelWidth, px);
               }}
-              actionsRef={panelActionsRef}
-              width={initialPanelWidth}
             >
-              <SidebarInset ref={noteColumnRef} className="relative bg-surface">
-                {zen ? null : (
-                  <NoteTopbar
-                    path={openPath}
-                    railOpen={railOpen && !zen}
-                    onToggleRail={() => {
-                      railActionsRef.current?.toggle();
+              <SidebarInset className="relative bg-surface">
+                {openItem === null ? (
+                  <LibraryView
+                    railOpen={railOpen}
+                    scope={scope}
+                    title={scopeTitle(scope, folders)}
+                    page={page}
+                    kind={kind}
+                    onKindChange={setKind}
+                    sort={sort}
+                    onSortChange={setSort}
+                    selection={selection}
+                    actions={actions}
+                    add={{
+                      addFiles: () => {
+                        filesRef.current?.click();
+                      },
+                      newFolder: () => {
+                        setNameRequest({
+                          confirm: "Create",
+                          initial: "",
+                          label: "Folder name",
+                          onSubmit: (name) => {
+                            void createFolder(replica, name, saveFolderOf(scope));
+                          },
+                          title: "New folder",
+                        });
+                      },
+                      newNote,
+                      saveLink: askSaveLink,
                     }}
-                    insetTitleBar={insetTitleBar}
-                    canBack={back !== null}
-                    canForward={forward !== null}
+                    onEmptyDeleted={() => {
+                      purge(listingRows);
+                    }}
+                    onTidy={tidyOffered ? startTidy : null}
+                  />
+                ) : (
+                  <ItemView
+                    railOpen={railOpen}
+                    itemId={openItem}
                     onBack={() => {
-                      setOpenNote(back);
+                      open(null);
                     }}
-                    onForward={() => {
-                      setOpenNote(forward);
+                    onTogglePanel={() => {
+                      setPanelOpen(!panelOpen);
                     }}
-                    onFindInNote={findInNote}
-                    onOpenFolder={(folder) => {
-                      revealInTree(folder);
-                      showRail(true);
-                    }}
-                    commentCount={openCommentCount}
-                    onOpenComments={() => {
-                      revealPanel({ tab: "comments" });
-                    }}
-                    onExportPdf={() => {
-                      const { openPath: path } = noteStore.state();
-                      if (path !== null) {
-                        exportNoteAsPdf(docStem(path));
+                    onSession={(opened) => {
+                      sessionRef.current = opened;
+                      setSession(opened);
+                      const find = findRef.current;
+                      if (opened !== null && find?.itemId === openItem) {
+                        findRef.current = null;
+                        findOnceOpen(opened, find);
                       }
                     }}
                   />
                 )}
-                <div
-                  data-editor-scroller=""
-                  className="min-h-0 flex-1 overflow-y-auto print:overflow-visible"
-                >
-                  <EditorColumn />
-                </div>
-                {zen ? null : <NoteFooter path={openPath} />}
-                <ActionComposer
-                  open={composerOpen}
-                  onOpenChange={(next) => {
-                    // a press or an Escape in the layer over a covered workspace is not one at
-                    // the composer, which the way back finds as it was left
-                    if (next || !covered) {
-                      setComposerOpen(next);
-                    }
-                  }}
-                  seed={composerSeed}
-                  docPath={openPath}
-                  readViewContext={readViewContext}
-                  onLaunched={openThread}
-                  container={noteColumnRef}
-                />
+                {dropInto === null ? null : (
+                  <div
+                    aria-live="polite"
+                    className="pointer-events-none absolute inset-3 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-primary/50 bg-surface/80 text-title font-medium text-ink"
+                  >
+                    Drop to save to {dropInto}
+                  </div>
+                )}
               </SidebarInset>
-              <Sidebar side="right" className="h-full print:hidden">
-                <ActionsPanel
-                  docPath={openPath}
-                  tab={panelTab}
-                  onTabChange={setPanelTab}
-                  commentFocus={commentFocus}
-                  selectedThreadId={panelThreadId}
-                  onSelectThread={setPanelThreadId}
-                  onOpenDoc={setOpenNote}
-                  noteMetadata={noteMetadata}
-                  modifier={shortcutModifier}
+              <Sidebar side="right" label="Panel" className="h-full print:hidden">
+                <Panel
+                  itemId={panelItem}
+                  session={panelItem !== null && panelItem === openItem ? session : null}
+                  tab={tab}
+                  onTab={setTab}
+                  threadId={threadId}
+                  onThread={chooseThread}
+                  tidying={tidying}
+                  onTidyEnd={() => {
+                    setTidying(false);
+                  }}
+                  passage={passage}
+                  onPassageTaken={() => {
+                    setPassage(null);
+                  }}
+                  namedHighlights={namedHighlights}
+                  viewContext={viewContext}
+                  flushOpen={async () => {
+                    await sessionRef.current?.flush();
+                  }}
+                  infoActions={{
+                    move: (itemId) => {
+                      askMove([itemId]);
+                    },
+                    tag: (itemId) => {
+                      askTag(rowsOf([itemId]));
+                    },
+                  }}
                 />
               </Sidebar>
             </SidebarProvider>
           </SidebarInset>
-          {palette === null ? null : (
-            <CommandPalette
-              key={palette.request.nonce}
-              open={palette.open}
-              request={palette.request}
-              modifier={shortcutModifier}
-              onOpenChange={(open) => {
-                if (!open) {
-                  closePalette();
-                }
-              }}
-              entries={treeEntries}
-              threads={threads}
-              canSync={canSync}
-              actions={paletteActions}
-            />
-          )}
         </SidebarProvider>
       </div>
-    </VaultProvider>
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        actions={{
+          askAgent: () => {
+            revealPanel("agent");
+          },
+          askSaveLink,
+          newNote,
+          openHit: (itemId, query) => {
+            const find = { itemId, query };
+            if (itemId === openItem && sessionRef.current !== null) {
+              findOnceOpen(sessionRef.current, find);
+              return;
+            }
+            findRef.current = find;
+            open(itemId);
+          },
+          openSettings,
+          saveLink,
+          startTidy,
+        }}
+      />
+      <textarea
+        ref={catcherRef}
+        aria-hidden
+        tabIndex={-1}
+        className="pointer-events-none fixed -top-full left-0 size-px opacity-0"
+      />
+      <input
+        ref={filesRef}
+        type="file"
+        multiple
+        hidden
+        aria-label="Add files"
+        onChange={(event) => {
+          const files = [...(event.currentTarget.files ?? [])];
+          event.currentTarget.value = "";
+          if (files.length > 0) {
+            savePayload(filesPayload(files));
+          }
+        }}
+      />
+      <MoveDialog
+        request={moveRequest}
+        folders={folders}
+        onClose={() => {
+          setMoveRequest(null);
+        }}
+      />
+      <TagDialog
+        request={tagRequest}
+        onClose={() => {
+          setTagRequest(null);
+        }}
+      />
+      <NameDialog
+        request={nameRequest}
+        onClose={() => {
+          setNameRequest(null);
+        }}
+      />
+    </>
   );
 };

@@ -1,22 +1,17 @@
-import { basenamePath, extnamePath, joinPath, vaultCollisionKey } from "./vault-path";
+import { basenamePath, extnamePath, joinPath } from "./folder-path";
 
 const DOC_EXTENSIONS = new Set([".md", ".markdown", ".mdx", ".txt"]);
-
-export const DEFAULT_DOC_EXTENSION = ".md";
 
 export const isDocPath = (path: string): boolean =>
   DOC_EXTENSIONS.has(extnamePath(path).toLowerCase());
 
+/** @internal */
 export const docExtension = (path: string): string => (isDocPath(path) ? extnamePath(path) : "");
 
 export const docStem = (path: string): string => {
   const name = basenamePath(path);
   return name.slice(0, name.length - docExtension(path).length);
 };
-
-// a name typed without a doc extension is a title, whatever dots it holds: `Node.js` is a note
-export const withDocExtension = (name: string): string =>
-  isDocPath(name) ? name : `${name}${DEFAULT_DOC_EXTENSION}`;
 
 // The one extension a link may leave off, and it is not the doc extensions: `[[todo]]` never
 // reaches `todo.txt`, as in Obsidian. A second spelling of this rule is a writer minting a link
@@ -34,33 +29,47 @@ export const wikiLinkPath = (path: string): string =>
 // the name a bare `[[name]]` answers to; `docStem` is the title, which hides every doc extension
 export const wikiLinkName = (path: string): string => wikiLinkPath(basenamePath(path));
 
-// A listing shows what the user wrote. A dot-entry (the comment store's `.inteligir/`, another
-// app's `.obsidian/`, the OS's `.DS_Store`) is nobody's to open here; the server's listing stays
-// complete because the CLI and the agent read it.
-export const isVaultMetadataPath = (path: string): boolean =>
+// What an import makes an item of is what the user wrote. A dot-entry (the annotation store's
+// `.inteligir/`, another app's `.obsidian/`) is nobody's to open here.
+export const isDotEntryPath = (path: string): boolean =>
   path.split("/").some((segment) => segment.startsWith("."));
 
-// Keyed on both sides because the disk may fold case and normalization; the server's `absent`
-// guard stays the real one.
-export const takenIgnoringCase = (takenPaths: Iterable<string>): ((path: string) => boolean) => {
-  const taken = new Set(Array.from(takenPaths, vaultCollisionKey));
-  return (path) => taken.has(vaultCollisionKey(path));
+const OS_LITTER_NAMES = new Set([".ds_store", "__macosx", "desktop.ini", "thumbs.db"]);
+
+// what an operating system leaves in any folder it shows or zips, a Mac's `._` twin of a file
+// among it: nobody's item wherever it lies, even in a folder that takes a dot-entry as a file
+export const isOsLitterPath = (path: string): boolean =>
+  path
+    .split("/")
+    .some((segment) => segment.startsWith("._") || OS_LITTER_NAMES.has(segment.toLowerCase()));
+
+// a free spelling of a name, and which of its spellings it is (1 for the name itself)
+export interface FreePath {
+  readonly path: string;
+  readonly n: number;
+}
+
+// The first of `stem`, `stem 2`, `stem 3`… under `dir`, extension kept, that `isTaken` refuses,
+// counting from the `from`th, and the count it took, so a writer naming many files alike resumes
+// where its last search for that name stopped.
+export const freePathFrom = (
+  dir: string,
+  stem: string,
+  extension: string,
+  isTaken: (path: string) => boolean,
+  from: number,
+): FreePath => {
+  for (let n = Math.max(1, from); ; n += 1) {
+    const path = joinPath(dir, `${n === 1 ? stem : `${stem} ${String(n)}`}${extension}`);
+    if (!isTaken(path)) {
+      return { n, path };
+    }
+  }
 };
 
-// The first of `stem`, `stem 2`, `stem 3`… under `dir`, extension kept, that `isTaken` refuses.
 export const freePath = (
   dir: string,
   stem: string,
   extension: string,
   isTaken: (path: string) => boolean,
-): string => {
-  for (let n = 1; ; n += 1) {
-    const path = joinPath(dir, `${n === 1 ? stem : `${stem} ${String(n)}`}${extension}`);
-    if (!isTaken(path)) {
-      return path;
-    }
-  }
-};
-
-export const freeDocPath = (dir: string, stem: string, takenPaths: Iterable<string>): string =>
-  freePath(dir, stem, DEFAULT_DOC_EXTENSION, takenIgnoringCase(takenPaths));
+): string => freePathFrom(dir, stem, extension, isTaken, 1).path;

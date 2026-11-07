@@ -1,22 +1,14 @@
+// What `account.*` (`../account/account-contract.ts`) reads and answers about a device: the
+// sign-in that mints its credential, the credential's shape, and the account's devices.
+
 import { z } from "zod";
-import type { CloudErrorCode } from "../cloud-errors";
 
-export const DEVICE_API_PATHS = {
-  list: "/v1/device/list",
-  login: "/v1/device/login",
-  revoke: "/v1/device/revoke",
-  signOut: "/v1/device/sign-out",
-  // creates the account and answers this device's credential, the login's answer
-  signUp: "/v1/device/sign-up",
-} as const;
-
-// the prefix routes a bearer to the device table without asking better auth, so a session
-// token and a device credential cannot shadow each other
+// a bearer without the prefix is refused before its hash and the D1 read; the Authorization
+// header, not the prefix, is what says a request's credential is a device's
 export const DEVICE_CREDENTIAL_PREFIX = "igd_";
 export const DEVICE_CREDENTIAL_PATTERN = /^igd_[0-9a-f]{64}$/u;
 
-// exported: the local app's own route bounds the same field, and a hand-copied number passes
-// locally but is refused here as a shape error
+/** @internal */
 export const DEVICE_NAME_MAX_LENGTH = 64;
 
 // a raw hostname can be empty or over the cloud's ceiling, refused steps later as a shape error
@@ -37,50 +29,21 @@ export const deviceLoginRequestSchema = z.strictObject({
   email: z.string().trim().toLowerCase().pipe(z.email()),
   password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
 });
-export type DeviceLoginRequest = z.infer<typeof deviceLoginRequestSchema>;
 
-// what the login route answers besides bad-request; a client switches on these and nothing else
-export const DEVICE_LOGIN_REFUSALS = [
-  "invalid-credentials",
-  "device-limit",
-  "rate-limited",
-] as const satisfies readonly CloudErrorCode[];
-export type DeviceLoginRefusal = (typeof DEVICE_LOGIN_REFUSALS)[number];
-
-export const isDeviceLoginRefusal = (code: CloudErrorCode): code is DeviceLoginRefusal =>
-  DEVICE_LOGIN_REFUSALS.some((refusal) => refusal === code);
-
-// a new account holds no device, so the cap is not among them; the window is the invite gate's
-export const DEVICE_SIGN_UP_REFUSALS = [
-  "invite-refused",
-  "account-exists",
-  "rate-limited",
-] as const satisfies readonly CloudErrorCode[];
-export type DeviceSignUpRefusal = (typeof DEVICE_SIGN_UP_REFUSALS)[number];
-
-export const isDeviceSignUpRefusal = (code: CloudErrorCode): code is DeviceSignUpRefusal =>
-  DEVICE_SIGN_UP_REFUSALS.some((refusal) => refusal === code);
-
-// the credential at rest is parsed on every read: a malformed record must read as
-// "signed out", never as a credential the cloud refuses on every request forever
-const deviceCredentialFields = {
+// the account rides the answer that mints the credential, so a client knows whose library it opens
+// from its first request on, and a device that names the account keeps it beside the bearer
+export const deviceLoginResponseSchema = z.object({
   credential: z.string().regex(DEVICE_CREDENTIAL_PATTERN),
   deviceId: z.string().min(1),
-};
-export const deviceCredentialSchema = z.strictObject(deviceCredentialFields);
-export type DeviceCredential = z.infer<typeof deviceCredentialSchema>;
-
-// the account rides the answer that mints the credential, so a client knows whose vault it syncs
-// from its first request on; the stored credential stays the bearer alone
-export const deviceLoginResponseSchema = z.object({
-  ...deviceCredentialFields,
   email: z.string().min(1),
   userId: z.string().min(1),
 });
 export type DeviceLoginResponse = z.infer<typeof deviceLoginResponseSchema>;
 
-export const deviceSchema = z.object({
+const deviceSchema = z.object({
   createdAt: z.number().int(),
+  // this is the device asking; a browser's session is no device, so it finds none
+  current: z.boolean(),
   id: z.string().min(1),
   lastSeenAt: z.number().int().nullable(),
   name: z.string(),
@@ -96,10 +59,8 @@ export type ListDevicesResponse = z.infer<typeof listDevicesResponseSchema>;
 export const revokeDeviceRequestSchema = z.strictObject({
   deviceId: z.string().min(1),
 });
-export type RevokeDeviceRequest = z.infer<typeof revokeDeviceRequestSchema>;
 
-// also the sign-out's answer: that route is this revoke with the credential naming the device
+// also the sign-out's answer: that row is this revoke with the credential naming the device
 export const revokeDeviceResponseSchema = z.object({
   revoked: z.literal(true),
 });
-export type RevokeDeviceResponse = z.infer<typeof revokeDeviceResponseSchema>;

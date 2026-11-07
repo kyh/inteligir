@@ -2,8 +2,9 @@
   "name": "@repo/agent-skills",
   "version": "0.1.0",
   "private": true,
-  "description": "The inteligir dialect's spec, served to agents as files",
+  "description": "The built-in agent's instructions and the inteligir dialect's spec, read as files",
   "exports": {
+    "./built-in-agent.md": "./built-in-agent.md",
     "./skills/*": "./skills/*"
   }
 }

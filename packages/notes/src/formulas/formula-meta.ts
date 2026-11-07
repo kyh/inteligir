@@ -20,9 +20,6 @@ export const parseFormulaMeta = (meta?: string): FormulaMeta => {
       parsed.name = value;
     } else if (key === "stale") {
       parsed.stale = value === "1" || value === "true";
-    } else if (key === "format") {
-      // accepted and dropped on rewrite, per the skill
-      continue;
     } else if (key !== "") {
       parsed.unknown.push({ key, value });
     }

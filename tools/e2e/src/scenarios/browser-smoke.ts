@@ -1,165 +1,153 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
 import { z } from "zod";
-import { modChord } from "../harness/agent-browser";
-import type { AgentBrowser } from "../harness/agent-browser";
+import { modChord, parseEval, untilBodyHolds } from "../harness/agent-browser";
+import type { ScenarioBrowser } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
-import { exec, hermeticProcessEnv } from "../harness/exec";
-import type { AppInstance } from "../harness/instance";
+import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
+import { openLibraryTab, untilItemText } from "../harness/library-tab";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { EDITOR, PALETTE_INPUT, SIDEBAR } from "../harness/selectors";
+import { EDITOR, PALETTE_INPUT, doubleClickCard, libraryCard } from "../harness/selectors";
 
 const MOUNT_DEADLINE_MS = 60_000;
 // a late async failure must not slip in after the error sweep.
 const QUIESCENCE_MS = 1000;
-// longer than the note's save debounce, so a corrupted buffer has reached disk by the read.
-const SAVE_SETTLE_MS = 2500;
 const PALETTE_CHORD = modChord("p");
-// the one thing the signed-out page must say: the command that signs a browser in.
-const SIGNED_OUT_NAMES = "inteligir open";
+const PHONE_WIDTH = 375;
+const WELCOME = "Welcome to your library";
+const TYPED = " Typed in the tab.";
 
-const pageIsMounted = (bodyText: string): boolean =>
-  // the welcome content only arrives through a vault.read round trip; the sync pill proves the
-  // status query ran.
-  bodyText.includes("Welcome to inteligir") && bodyText.includes("Only on this Mac");
-
-// here, not a unit test: no test task waits on a build, so a unit test over dist/ reads the previous
-// build or one mid-write.
-const assertDocumentPolicy = async (app: AppInstance): Promise<void> => {
-  // a plain GET is anything on this machine; only a handoff a holder of the bearer minted signs a
-  // browser in.
-  const bare = await fetch(`${app.baseUrl}/`, { headers: { accept: "text/html" } });
-  expect(bare.status === 401, `a plain GET / answered ${bare.status}, not the signed-out page`);
-  const leaked = bare.headers.get("set-cookie");
-  expect(leaked === null, `a plain GET / handed out a session cookie: ${String(leaked)}`);
-  const signedOut = await bare.text();
+// here, not a unit test: no test task waits on a build, so a unit test over the assets reads the
+// previous build or one mid-write
+const assertDocumentPolicy = async (origin: string): Promise<void> => {
+  for (const path of [LIBRARY_PAGE_PATH, `${LIBRARY_PAGE_PATH}/settings`]) {
+    const response = await fetch(`${origin}${path}`, { headers: { accept: "text/html" } });
+    expect(response.ok, `GET ${path} answered ${String(response.status)}`);
+    const policy = response.headers.get("content-security-policy") ?? "";
+    expect(
+      policy.includes("script-src 'self' 'wasm-unsafe-eval'"),
+      `${path}'s document does not carry the page's policy: ${policy}`,
+    );
+    const html = await response.text();
+    expect(html.includes('<div id="root"'), `${path} did not answer the page's document`);
+    const inline = (html.match(/<script\b(?![^>]*\bsrc=)[^>]*>/gu) ?? []).filter(
+      (tag) => !tag.includes("application/json"),
+    );
+    expect(inline.length === 0, `the document carries inline scripts:\n${inline.join("\n")}`);
+  }
+  const site = await fetch(`${origin}/libraryish`);
+  await site.arrayBuffer();
   expect(
-    signedOut.includes(SIGNED_OUT_NAMES),
-    `the signed-out page does not name \`${SIGNED_OUT_NAMES}\`:\n${signedOut}`,
-  );
-
-  const handoff = await fetch(await app.browserUrl("/"), { redirect: "manual" });
-  expect(
-    handoff.status === 303 && handoff.headers.get("location") === `${app.baseUrl}/`,
-    `the handoff answered ${handoff.status} to ${String(handoff.headers.get("location"))}`,
-  );
-  const cookie = handoff.headers.get("set-cookie") ?? "";
-  expect(
-    cookie.includes("HttpOnly") && cookie.includes("SameSite=Strict"),
-    `the handoff did not hand the browser its session cookie: ${cookie}`,
-  );
-
-  const [session = ""] = cookie.split(";");
-  const response = await fetch(`${app.baseUrl}/`, {
-    headers: { accept: "text/html", cookie: session },
-  });
-  expect(response.ok, `GET / with the session cookie answered ${response.status}`);
-  const policy = response.headers.get("content-security-policy") ?? "";
-  expect(policy.length > 0, "the served document carries no content-security-policy");
-
-  // 'self' is the whole script allowance, so an inline script in the shipped document is one the
-  // browser refuses.
-  expect(
-    policy.includes("script-src 'self'"),
-    `the policy does not admit the bundle's own script: ${policy}`,
-  );
-  const html = await response.text();
-  const inline = (html.match(/<script\b(?![^>]*\bsrc=)[^>]*>/gu) ?? []).filter(
-    (tag) => !tag.includes("application/json"),
-  );
-  expect(
-    inline.length === 0,
-    `the built document carries inline scripts this policy refuses:\n${inline.join("\n")}`,
+    site.status === 404,
+    `a path that only starts like the page's answered ${String(site.status)}`,
   );
 };
 
-// in a browser of its own: its cookie jar starts empty, and the signed-out page's own 401 load
-// stays out of the console the main session sweeps.
-const assertSignedOutJourney = async (
-  freshBrowser: AgentBrowser,
-  app: AppInstance,
-  repoRoot: string,
-  log: (message: string) => void,
-): Promise<void> => {
-  log(`a fresh browser opening the bare ${app.baseUrl}/ gets the signed-out page`);
-  await freshBrowser(["open", `${app.baseUrl}/`], 60_000);
-  const signedOut = await freshBrowser(["get", "text", "body"]);
-  expect(
-    signedOut.includes(SIGNED_OUT_NAMES),
-    `the bare URL did not show the signed-out page:\n${signedOut.slice(0, 2000)}`,
+// the policy's tables are the site's widest thing: one that sets the page's width sends the page
+// sideways and takes the fixed header off a phone's screen, on a width no suite renders
+const assertPhoneWidth = async (browser: ScenarioBrowser, origin: string): Promise<void> => {
+  await browser(["set", "viewport", String(PHONE_WIDTH), "812"]);
+  await browser(["open", `${origin}/privacy`], 60_000);
+  const { header, page } = parseEval(
+    await browser([
+      "eval",
+      `JSON.stringify({
+        header: document.querySelector("header").getBoundingClientRect().right,
+        page: document.documentElement.scrollWidth,
+      })`,
+    ]),
+    z.object({ header: z.number(), page: z.number() }),
   );
-
-  log("the link `inteligir open --json` prints signs that browser in");
-  const opened = await exec(
-    path.join(repoRoot, "apps", "cli", "bin", "inteligir"),
-    ["open", "--json"],
-    {
-      env: { ...hermeticProcessEnv(), INTELIGIR_DATA_DIR: app.dataDir },
-      timeoutMs: 60_000,
-    },
-  );
-  const { url } = z.object({ url: z.string() }).parse(JSON.parse(opened.stdout));
-  await freshBrowser(["open", url], 60_000);
-  await freshBrowser(["wait", SIDEBAR], 90_000);
+  expect(page <= PHONE_WIDTH, `the privacy page is ${String(page)}px wide on a phone`);
+  expect(header <= PHONE_WIDTH, `the site's header ends at ${String(header)}px on a phone`);
 };
 
 export const browserSmoke: Scenario = {
   description:
-    "headless page load: the REAL policy on the served document, the signed-out page a bare URL gets and the `inteligir open` link that signs a browser in, the title, SPA mount, API reached, the palette chord safe, clean console after a settle window",
+    "the library's page served by the built Worker at /library under its own policy, a signed-out tab sent to the site's sign-in and back, a bare sign-in landing in the library, the replica pulled into the tab, an item opened and edited into the cell, the palette chord safe over the editor, and a clean console after a settle window",
   name: "browser-smoke",
+  timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    const app = await ctx.boot({ name: "solo" });
-    ctx.log("asserting the served document carries the real policy");
-    await assertDocumentPolicy(app);
+    let welcomeId = "";
+    const tab = await openLibraryTab(ctx, "smoke", {
+      seed: async (library) => {
+        const { item } = await library.items.createNote({
+          markdown: `# ${WELCOME}\n\nStart here.`,
+          title: WELCOME,
+        });
+        welcomeId = item.id;
+      },
+    });
+    const { browser, library, worker } = tab;
 
-    const freshBrowser = await ctx.browser("smoke-signed-out");
-    await assertSignedOutJourney(freshBrowser, app, ctx.repoRoot, ctx.log);
-    await freshBrowser.close();
+    ctx.log("the document carries the page's own policy on every path under its prefix");
+    await assertDocumentPolicy(worker.origin);
 
-    const agentBrowser = await ctx.browser("smoke");
-    ctx.log(`opening ${app.baseUrl}/: the SPA mounts and the virgin-boot note opens`);
-    await agentBrowser.openWorkspace(app);
+    ctx.log("a tab with no session is sent to the site's sign-in, told to come back");
+    const fresh = await ctx.browser("smoke-signed-out");
+    await fresh(["open", `${worker.origin}/library/settings`], 60_000);
+    await pollUntil(
+      async () => await fresh(["get", "url"]),
+      (url) => url.includes("/app/sign-in"),
+      {
+        deadlineMs: MOUNT_DEADLINE_MS,
+        describe: (url) => `the signed-out tab stayed on ${url}`,
+      },
+    );
+    const back = new URL(await fresh(["get", "url"])).searchParams.get("next");
+    expect(back === `${LIBRARY_PAGE_PATH}/settings`, `the sign-in comes back to ${String(back)}`);
 
-    const title = await agentBrowser(["get", "title"]);
+    ctx.log("a sign-in nothing asked to come back from lands in the library");
+    await fresh.signInBare(worker);
+    await fresh.close();
+
+    ctx.log("the site's widest page keeps a phone's width");
+    const phone = await ctx.browser("smoke-phone");
+    await assertPhoneWidth(phone, worker.origin);
+    await phone.close();
+
+    ctx.log("the signed-in tab pulled the library: the seeded item's card is in the grid");
+    await browser(["wait", libraryCard(welcomeId)], MOUNT_DEADLINE_MS);
+    const title = await browser(["get", "title"]);
     expect(title === "inteligir", `document title is ${JSON.stringify(title)}`);
 
-    ctx.log("waiting for the page to reach the API");
-    await pollUntil(async () => await agentBrowser(["get", "text", "body"]), pageIsMounted, {
-      deadlineMs: MOUNT_DEADLINE_MS,
-      describe: (body) => `the SPA never reached the API; body text:\n${body.slice(0, 2000)}`,
-      intervalMs: 500,
-    });
-
-    // disk is the oracle, not rendered text: decorations move with the caret, bytes do not, and
-    // the palette's focus steal flushes the editor, so a corrupted buffer would land.
-    ctx.log("the palette chord opens the palette without editing the note under it");
-    const welcomeFile = path.join(app.vaultDir, "Welcome.md");
-    const beforeChord = await readFile(welcomeFile, "utf-8");
-    await agentBrowser(["click", EDITOR]);
-    await agentBrowser(["press", "End"]);
-    await agentBrowser(["press", PALETTE_CHORD]);
-    await agentBrowser(["wait", PALETTE_INPUT], 30_000);
-    await agentBrowser(["press", "Escape"]);
-    await delay(SAVE_SETTLE_MS);
-    const afterChord = await readFile(welcomeFile, "utf-8");
+    ctx.log("a double-click opens the item in the editor, and the url names it");
     expect(
-      afterChord === beforeChord,
-      `${PALETTE_CHORD} changed Welcome.md on disk:\n${JSON.stringify(afterChord)}`,
+      parseEval(await browser(["eval", doubleClickCard(welcomeId)]), z.string()) === "opened",
+      "the card was not found to open",
     );
+    await browser(["wait", EDITOR], MOUNT_DEADLINE_MS);
+    await untilBodyHolds(browser, ["Start here."]);
+
+    ctx.log("typing lands in the cell through the outbox");
+    await browser(["click", `${EDITOR} p`]);
+    await browser(["press", "End"]);
+    await browser(["keyboard", "type", TYPED]);
+    await untilItemText(
+      library,
+      welcomeId,
+      (markdown) => markdown.includes(TYPED.trim()),
+      "the edit never reached the cell",
+    );
+
+    ctx.log("the palette chord opens the palette without editing the item under it");
+    const before = await untilItemText(library, welcomeId, () => true, "unread");
+    await browser(["press", PALETTE_CHORD]);
+    await browser(["wait", PALETTE_INPUT], 30_000);
+    await browser(["press", "Escape"]);
+    await delay(2500);
+    const after = await untilItemText(library, welcomeId, () => true, "unread");
+    expect(after === before, `${PALETTE_CHORD} changed the item:\n${after}`);
 
     ctx.log("settling, then sweeping for page and console errors");
     await delay(QUIESCENCE_MS);
-    const settledBody = await agentBrowser(["get", "text", "body"]);
-    expect(pageIsMounted(settledBody), "the page stays mounted through the settle window");
-
-    const pageErrors = await agentBrowser(["errors"]);
+    const pageErrors = await browser(["errors"]);
     expect(
       pageErrors.length === 0 || /^no /iu.test(pageErrors),
       `page errors were raised:\n${pageErrors}`,
     );
-    const consoleOutput = await agentBrowser(["console"]);
+    const consoleOutput = await browser(["console"]);
     const errorLines = consoleOutput
       .split("\n")
       .filter((line) => /^\s*\[?err(?:or)?\]?\b/iu.test(line));

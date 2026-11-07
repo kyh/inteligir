@@ -21,7 +21,7 @@ export interface DiffLinesOptions {
 // about four million entries here, where two notes this far apart read as a rewrite anyway.
 const DEFAULT_MAX_EDIT_DISTANCE = 2000;
 
-// lf alone, not source-lines' eol-aware `splitLines`: the merge joins segments back into the
+// lf alone, not every terminator source-lines splits at: the merge joins segments back into the
 // file's bytes, so a `\r` must stay inside a line's content rather than become a terminator.
 export const splitLinesLf = (text: string): string[] => text.split("\n");
 

@@ -8,7 +8,7 @@ import type { LucideIcon } from "lucide-react";
 import { Button } from "@repo/ui/components/button";
 import { cn } from "@repo/ui/lib/cn";
 
-import { openExternalUrl } from "@repo/editor/lib/url";
+import { openExternalUrl } from "@repo/editor/lib/open-external-url";
 
 type RemoteContentKind = "image" | "page" | "pdf" | "video";
 
@@ -40,7 +40,7 @@ export const RemoteContentCard = ({
       <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
         <div className="min-w-0 self-stretch">
-          <p className="m-0 text-subtitle">Remote content, not loaded</p>
+          <p className="m-0 text-subtitle">Web content, not loaded</p>
           <p className="m-0 truncate text-body text-muted-foreground">{url}</p>
         </div>
         <Button

@@ -1,145 +1,139 @@
-import path from "node:path";
+// Undo in the tab, over the cell's change sets: a turn of the built-in agent rewrites a line of the
+// open item, and the conversation's "Undo this turn", pressed while a line the person typed since
+// still waits on the editor's pause, takes the agent's line back and keeps the person's; History
+// lists that undo as a change set of its own, and its Undo, pressed offline, says it needs a
+// connection and brings the agent's line back once the tab is online again.
+
 import { z } from "zod";
-import { modChord, parseEval, untilBodyHolds } from "../harness/agent-browser";
-import { expect, expectEq } from "../harness/assert";
-import { readOrNull } from "../harness/exec";
+import { caretToEndOf, clickButtonIn, parseEval, press } from "../harness/agent-browser";
+import type { AgentBrowser } from "../harness/agent-browser";
+import { expect } from "../harness/assert";
+import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
+import { openLibraryTab, untilItemText } from "../harness/library-tab";
+import type { Library } from "../harness/library-tab";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import {
-  clickToastAction,
-  COMPOSER,
-  EDITOR,
-  PALETTE_INPUT,
-  TOAST_TEXT,
-} from "../harness/selectors";
-import { agentNote, runTurn } from "../harness/threads";
+import { EDITOR, TOAST_TEXT } from "../harness/selectors";
 
-const MESSAGE = "draft the plan";
-const SECOND_TITLE = "Two drafts to take back";
-// typed at the top, so the heading and a blank line stand between it and the line each turn
-// rewrites, which is what lets the undo keep it.
-const USER_LINE = "Call Sam about the draft";
+const TITLE = "Draft";
+const FIRST = "First draft.";
+const SECOND = "Second draft.";
+const KEPT = "Keep this paragraph.";
+const TYPED = " Typed since.";
+const DOC = `# ${TITLE}\n\n${FIRST}\n\n${KEPT}\n`;
+const PANEL_TOGGLE = 'button[aria-label="Info, highlights, History and the agent"]';
+const PANEL = '[data-side="right"]';
 const DEADLINE_MS = 30_000;
-const NO_DIALOG = `document.querySelector('[data-slot="dialog-content"]') === null`;
+const NEEDS_CONNECTION = "Needs a connection";
 
-const UNDO_BUTTONS = `[...document.querySelectorAll("button")].filter((el) => el.textContent.trim() === "Undo changes")`;
-const UNDO_BUTTON_COUNT = `String(${UNDO_BUTTONS}.length)`;
-// the last reply's footer: turn 2 sits below turn 1.
-const CLICK_LAST_UNDO = `(() => {
-  const button = ${UNDO_BUTTONS}.at(-1);
-  if (!button) return "missing";
-  button.click();
-  return "clicked";
-})()`;
+const editorText = async (browser: AgentBrowser): Promise<string> =>
+  parseEval(
+    await browser(["eval", `String(document.querySelector('${EDITOR}')?.textContent ?? "")`]),
+    z.string(),
+  );
+
+const untilEditor = async (
+  browser: AgentBrowser,
+  holds: (text: string) => boolean,
+  what: string,
+): Promise<void> => {
+  await pollUntil(async () => await editorText(browser), holds, {
+    deadlineMs: DEADLINE_MS,
+    describe: (text) => `${what}; the editor holds:\n${text}`,
+  });
+};
+
+// the account's conversation, once its turn has ended
+const untilIdle = async (library: Library, threadId: string): Promise<void> => {
+  await pollUntil(
+    async () => {
+      const { threads } = await library.agent.list({});
+      return threads.find((thread) => thread.id === threadId)?.status ?? null;
+    },
+    (status) => status === "idle",
+    {
+      deadlineMs: DEADLINE_MS,
+      describe: (status) => `the turn never ended: the thread is ${String(status)}`,
+    },
+  );
+};
 
 export const undoBrowser: Scenario = {
   description:
-    "a ⌘K action's finish toast offers Undo, which removes the note it made and the reply says Changes undone; a reply's Undo changes, clicked inside the autosave debounce, takes its turn back and keeps a line typed since, on disk and in the editor",
+    "in the tab: a built-in agent's turn rewrites a line of the open item; its Undo this turn, pressed inside the editor's pause after a line typed elsewhere in the item, takes the agent's line back and keeps the typed one, in the cell and the editor; History lists the undo as a change set of its own, whose Undo pressed offline says it needs a connection and brings the agent's line back once online",
   name: "undo-browser",
+  timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    const app = await ctx.boot({
-      extraEnv: { INTELIGIR_AGENT: "scripted" },
-      name: "solo",
+    let itemId = "";
+    const { browser, library } = await openLibraryTab(ctx, "undo", {
+      path: () => `?item=${itemId}`,
+      ready: EDITOR,
+      seed: async (seeding) => {
+        const { item } = await seeding.items.createNote({ markdown: DOC, title: TITLE });
+        itemId = item.id;
+      },
     });
-    const agentBrowser = await ctx.browser("undo");
+    await untilEditor(browser, (text) => text.includes(KEPT), "the item never opened");
 
-    ctx.log(`opening ${app.baseUrl}/`);
-    await agentBrowser.openWorkspace(app);
-
-    ctx.log("⌘K sends; the finished turn toasts the notes it edited");
-    await agentBrowser(["press", modChord("k")]);
-    await agentBrowser(["wait", COMPOSER], 30_000);
-    await agentBrowser(["fill", COMPOSER, MESSAGE]);
-    await agentBrowser(["press", modChord("Enter")]);
-    await pollUntil(
-      async () => parseEval(await agentBrowser(["eval", TOAST_TEXT]), z.string()),
-      (text) => text.includes("Agent edited 1 note"),
-      {
-        deadlineMs: DEADLINE_MS,
-        describe: (text) => `no finish toast — the toasts said:\n${text}`,
-      },
-    );
-    const { threads } = await app.api.threads.list({});
-    const [launched] = threads;
-    expect(launched !== undefined, "the composer made no action");
-    const firstFile = path.join(app.vaultDir, "Agent", `${launched.id}.md`);
-    expectEq(await readOrNull(firstFile), agentNote(MESSAGE), "the note the turn made");
-
-    ctx.log("the toast's Undo takes the note back, and the reply says its changes were undone");
-    const clicked = parseEval(
-      await agentBrowser(["eval", clickToastAction("Agent edited 1 note")]),
-      z.string(),
-    );
-    expectEq(clicked, "clicked", "the toast's Undo");
-    await pollUntil(
-      async () => await readOrNull(firstFile),
-      (text) => text === null,
-      {
-        deadlineMs: DEADLINE_MS,
-        describe: (text) => `the undone note is still on disk:\n${text ?? ""}`,
-      },
-    );
-    await untilBodyHolds(agentBrowser, ["Changes undone"]);
-
-    ctx.log("a second action's two turns rewrite its note");
-    const { thread: second } = await app.api.threads.create({ title: SECOND_TITLE });
-    const secondPath = `Agent/${second.id}.md`;
-    const secondFile = path.join(app.vaultDir, secondPath);
-    await runTurn(app.api, second.id, "first draft");
-    await runTurn(app.api, second.id, "second draft");
-    expectEq(await readOrNull(secondFile), agentNote("second draft"), "the second turn's bytes");
-
-    ctx.log("open the note, and that action's transcript from ⌘P");
-    await agentBrowser.openWorkspace(app, { path: `/?note=${encodeURIComponent(secondPath)}` });
-    await agentBrowser(["click", EDITOR]);
-    await agentBrowser(["press", modChord("p")]);
-    await agentBrowser(["wait", PALETTE_INPUT], 30_000);
-    await agentBrowser(["find", "role", "option", "click", "--name", "Actions", "--exact"]);
-    await agentBrowser(["find", "role", "option", "click", "--name", SECOND_TITLE]);
-    // a palette that closed on a pick covers the note until its exit tween ends
-    await agentBrowser(["wait", "--fn", NO_DIALOG], 30_000);
-    await pollUntil(
-      async () => parseEval(await agentBrowser(["eval", UNDO_BUTTON_COUNT]), z.string()),
-      (count) => count === "2",
-      {
-        deadlineMs: DEADLINE_MS,
-        describe: (count) => `expected an Undo changes on each of 2 replies, saw ${count}`,
-      },
-    );
-
-    ctx.log("type a line at the top, and undo the second turn before the autosave lands");
-    await agentBrowser(["click", `${EDITOR} h1`]);
-    await agentBrowser(["press", "Home"]);
-    await agentBrowser(["keyboard", "type", USER_LINE]);
-    await agentBrowser(["press", "Enter"]);
-    expectEq(
-      parseEval(await agentBrowser(["eval", CLICK_LAST_UNDO]), z.string()),
-      "clicked",
-      "the second reply's Undo changes",
-    );
-
-    const kept = (text: string | null): boolean =>
-      text !== null &&
-      text.includes(USER_LINE) &&
-      text.includes("first draft") &&
-      !text.includes("second draft");
-    await pollUntil(async () => await readOrNull(secondFile), kept, {
-      deadlineMs: DEADLINE_MS,
-      describe: (text) =>
-        `disk never held the first draft beside the typed line:\n${text ?? "(no file)"}`,
+    ctx.log("a turn of the agent rewrites the first line, and the open item shows it");
+    const { seq } = await library.items.read({ id: itemId });
+    const edit = { baseSeq: seq, edits: [{ newText: SECOND, oldText: FIRST }], id: itemId };
+    const { threadId } = await library.agent.send({
+      text: `Rewrite the draft.\ncall edit_item ${JSON.stringify(edit)}`,
     });
-    await pollUntil(async () => await agentBrowser(["get", "text", EDITOR]), kept, {
-      deadlineMs: DEADLINE_MS,
-      describe: (text) => `the editor never showed the first draft and the typed line:\n${text}`,
-    });
+    await untilIdle(library, threadId);
+    await untilEditor(browser, (text) => text.includes(SECOND), "the agent's line never showed");
+
+    ctx.log("the conversation is in the panel, its turn offering Undo this turn");
+    await browser(["click", PANEL_TOGGLE]);
+    // pressed where it is, not where a pointer finds it: the panel slides in as it opens
+    await clickButtonIn(browser, PANEL, "Agent");
+    await press(browser, `[data-thread-id="${threadId}"]`);
+    await browser(["wait", `[data-thread="${threadId}"] [data-turn-ended]`], DEADLINE_MS);
+
+    ctx.log("a line typed in another paragraph, and Undo this turn inside the editor's pause");
+    await caretToEndOf(browser, KEPT);
+    await browser(["keyboard", "type", TYPED]);
+    await clickButtonIn(browser, `[data-thread="${threadId}"]`, "Undo this turn");
+    const kept = (text: string): boolean =>
+      text.includes(FIRST) && text.includes(`${KEPT}${TYPED}`) && !text.includes(SECOND);
+    await untilItemText(
+      library,
+      itemId,
+      kept,
+      "the cell never held the first line and the typed one",
+    );
+    await untilEditor(browser, kept, "the editor never showed the first line and the typed one");
+
+    ctx.log("History lists the undo; its Undo pressed offline waits, and says so");
+    const { changeSets } = await library.history.list({ itemId });
+    const undone = changeSets.find((set) => set.actor === "undo");
+    expect(undone !== undefined, `History holds no undo: ${JSON.stringify(changeSets)}`);
+    await clickButtonIn(browser, PANEL, "History");
+    await browser(["wait", `[data-change-set="${undone.id}"]`], DEADLINE_MS);
+    await browser(["set", "offline", "on"]);
+    await clickButtonIn(browser, `[data-change-set="${undone.id}"]`, "Undo");
     await pollUntil(
-      async () => parseEval(await agentBrowser(["eval", UNDO_BUTTON_COUNT]), z.string()),
-      (count) => count === "1",
+      async () => parseEval(await browser(["eval", TOAST_TEXT]), z.string()),
+      (text) => text.includes(NEEDS_CONNECTION),
       {
         deadlineMs: DEADLINE_MS,
-        describe: (count) => `the undone reply still offers Undo changes (${count} left)`,
+        describe: (text) => `the offline Undo never said it needs a connection; toasts:\n${text}`,
       },
     );
-    await untilBodyHolds(agentBrowser, ["Changes undone"]);
+    const waited = await untilItemText(library, itemId, () => true, "unread");
+    expect(!waited.includes(SECOND), `the offline Undo reached the cell:\n${waited}`);
+
+    ctx.log("back online, the Undo goes and brings the agent's line back");
+    await browser(["set", "offline", "off"]);
+    const back = (text: string): boolean =>
+      text.includes(SECOND) && text.includes(`${KEPT}${TYPED}`) && !text.includes(FIRST);
+    await untilItemText(
+      library,
+      itemId,
+      back,
+      "the undone undo never brought the agent's line back",
+    );
+    await untilEditor(browser, back, "the editor never showed the agent's line again");
   },
 };

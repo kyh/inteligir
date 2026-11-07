@@ -1,0 +1,9 @@
+{
+  "extends": "@kyh/tsconfig/base.json",
+  "compilerOptions": {
+    // ES2023, a ceiling: the phone runs this on Hermes, which ships no ES2024+ stdlib
+    "lib": ["ES2023"],
+    "types": []
+  },
+  "include": ["src", "vitest.config.ts"]
+}

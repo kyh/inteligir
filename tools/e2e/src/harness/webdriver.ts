@@ -1,8 +1,6 @@
 // The W3C WebDriver calls the shell scenarios make, against tauri-driver, which fronts
-// WebKitWebDriver on Linux. A session is the shell's FIRST window alone: Tauri hands WebKit's
-// automation the first web view it makes, and every vault's window lives in a web context of its
-// own, so a window made after the first (a vault switch's, the app's after a first run) is watched
-// from outside, through the server and its log.
+// WebKitWebDriver on Linux. A session is the shell's one window, which tauri-driver starts the
+// shell for and which ends with it.
 
 import { z } from "zod";
 import { pollUntil } from "./poll";
@@ -82,6 +80,12 @@ export interface WebDriverSession {
   // in it has loaded, so a scenario waits for what it is about to use
   waitUntil: (expression: string, deadlineMs: number) => Promise<void>;
   textOf: (selector: string) => Promise<string>;
+  // types into the first element the selector names, through the browser's own keys, as a person
+  // types into a field or an editor
+  typeInto: (selector: string, text: string) => Promise<void>;
+  // the window as WebKit drew it, a PNG: what a frame shows that no script in the page can read
+  // (a PDF's viewer, another origin's document), read with png-pixels.ts
+  screenshot: () => Promise<Uint8Array>;
   close: () => Promise<void>;
 }
 
@@ -126,6 +130,18 @@ export const openSession = async (
     await command(
       origin,
       { body: {}, method: "POST", path: `${at}/element/${found[ELEMENT_KEY]}/click` },
+      z.null(),
+    );
+  };
+  const typeInto = async (selector: string, text: string): Promise<void> => {
+    const found = await command(
+      origin,
+      { body: { using: "css selector", value: selector }, method: "POST", path: `${at}/element` },
+      elementSchema,
+    );
+    await command(
+      origin,
+      { body: { text }, method: "POST", path: `${at}/element/${found[ELEMENT_KEY]}/value` },
       z.null(),
     );
   };
@@ -191,6 +207,15 @@ export const openSession = async (
         },
         schema,
       ),
+    screenshot: async () => {
+      const encoded = await command(
+        origin,
+        { method: "GET", path: `${at}/screenshot` },
+        z.string().min(1),
+      );
+      return new Uint8Array(Buffer.from(encoded, "base64"));
+    },
+    typeInto,
     textOf: async (selector) =>
       await run(
         `return document.querySelector(${JSON.stringify(selector)})?.innerText ?? ""`,

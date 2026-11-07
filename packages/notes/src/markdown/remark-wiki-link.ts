@@ -1,24 +1,24 @@
 // own micromark constructs rather than an npm package: the published wiki-link packages are
-// years stale and lack embeds. `body` is the raw source between the brackets, verbatim;
-// anchor/alias splitting is display-time only. a single `]` inside the body rejects the whole
-// construct, which then falls through to standard link parsing.
+// years stale and lack embeds. `body` is the raw source between the brackets, verbatim but for a
+// table row's own `\|`; anchor/alias splitting is display-time only. a single `]` inside the body
+// rejects the whole construct, which then falls through to standard link parsing.
 
 // remark-stringify's augmentation declares `Data.toMarkdownExtensions` (types-only).
 /// <reference types="remark-stringify" />
 
-import type { Node } from "mdast";
+import type { Node, Parents } from "mdast";
 import type {
   CompileContext,
   Extension as FromMarkdownExtension,
   Token,
 } from "mdast-util-from-markdown";
-import type { Options as ToMarkdownExtension } from "mdast-util-to-markdown";
+import type { State as WriteState, Options as ToMarkdownExtension } from "mdast-util-to-markdown";
 import { markdownLineEnding } from "micromark-util-character";
 import { codes } from "micromark-util-symbol";
 import type { Code, Effects, Extension as MicromarkExtension, State } from "micromark-util-types";
 import type { Plugin, Processor } from "unified";
 
-import { isEscapedAt } from "./line-scan";
+import { escapeCellPipes, isEscapedAt, readCellPipes } from "./line-scan";
 
 export interface WikiLink extends Node {
   type: "wikiLink";
@@ -146,20 +146,30 @@ const wikiFromMarkdown: FromMarkdownExtension = {
     wikiLinkBody(this: CompileContext, token: Token) {
       const node = this.stack.at(-1);
       if (node && (node.type === "wikiLink" || node.type === "wikiEmbed")) {
-        node.body = this.sliceSerialize(token);
+        const source = this.sliceSerialize(token);
+        node.body = this.data.inTable === true ? readCellPipes(source) : source;
       }
     },
   },
 };
 
+// a title's own last backslash, `[[a\|shown]]`, stands escaped in a cell: the body's dialect reads
+// `\\` as that backslash
+const bodyAsWritten = (body: string, state: WriteState): string =>
+  state.stack.includes("tableCell") ? escapeCellPipes(body, String.raw`\\\|`) : body;
+
 const wikiToMarkdown: ToMarkdownExtension = {
   handlers: {
-    wikiEmbed: Object.assign((node: WikiEmbed) => `![[${node.body}]]`, {
-      peek: () => "!",
-    }),
-    wikiLink: Object.assign((node: WikiLink) => `[[${node.body}]]`, {
-      peek: () => "[",
-    }),
+    wikiEmbed: Object.assign(
+      (node: WikiEmbed, _parent: Parents | undefined, state: WriteState) =>
+        `![[${bodyAsWritten(node.body, state)}]]`,
+      { peek: () => "!" },
+    ),
+    wikiLink: Object.assign(
+      (node: WikiLink, _parent: Parents | undefined, state: WriteState) =>
+        `[[${bodyAsWritten(node.body, state)}]]`,
+      { peek: () => "[" },
+    ),
   },
 };
 
@@ -175,10 +185,6 @@ export interface WikiBody {
   anchor?: string;
   alias?: string;
 }
-
-// `targetRange` is the raw slice a rename rewrites; when the title carries `\#`/`\\` escapes it
-// covers the escaped bytes while `target` is unescaped, so a rename writes its target escaped.
-export type WikiBodyRange = WikiBody & { targetRange?: { start: number; end: number } };
 
 // the resolved-link form puts the target note's uuid after the pipe.
 const UUID_ALIAS_RE = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/iu;
@@ -214,22 +220,16 @@ const anchorIndex = (head: string): number => {
   return -1;
 };
 
-export const parseWikiBodyRange = (body: string): WikiBodyRange => {
+export const parseWikiBody = (body: string): WikiBody => {
   // the last pipe starts the alias: a title containing `|` is legal when paired with a
   // resolved-uuid suffix.
   const pipe = body.lastIndexOf("|");
   const head = pipe === -1 ? body : body.slice(0, pipe);
   const alias = pipe === -1 ? undefined : body.slice(pipe + 1).trim();
   const hash = anchorIndex(head);
-  const segment = hash === -1 ? head : head.slice(0, hash);
-  const rawTarget = segment.trim();
-  const target = unescapeWikiText(rawTarget);
+  const target = unescapeWikiText((hash === -1 ? head : head.slice(0, hash)).trim());
   const anchor = hash === -1 ? undefined : unescapeWikiText(head.slice(hash + 1).trim());
-  const result: WikiBodyRange = { target };
-  if (target !== "") {
-    const start = segment.length - segment.trimStart().length;
-    result.targetRange = { end: start + rawTarget.length, start };
-  }
+  const result: WikiBody = { target };
   if (anchor !== undefined && anchor !== "") {
     result.anchor = anchor;
   }
@@ -237,20 +237,6 @@ export const parseWikiBodyRange = (body: string): WikiBodyRange => {
     result.alias = alias;
   }
   return result;
-};
-
-export const parseWikiBody = (body: string): WikiBody => {
-  const { targetRange: _range, ...display } = parseWikiBodyRange(body);
-  return display;
-};
-
-// the resolved-link uuid alias is identity plumbing, not display text: it shows as no alias.
-export const wikiLinkLabel = (body: string): string => {
-  const { alias, anchor, target } = parseWikiBody(body);
-  if (alias !== undefined && !isUuidWikiAlias(alias)) {
-    return alias;
-  }
-  return anchor === undefined ? target : `${target}#${anchor}`;
 };
 
 interface WikiBodyParts {

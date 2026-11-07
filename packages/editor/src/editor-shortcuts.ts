@@ -12,8 +12,6 @@ import {
   turnIntoSelection,
 } from "@repo/editor/block-transforms";
 import type { TurnIntoId } from "@repo/editor/block-transforms";
-import { liveEditorPath } from "@repo/editor/live-editor";
-import { focusNoteTitle } from "@repo/editor/note-title-focus";
 
 export interface ShortcutKeyEvent {
   altKey: boolean;
@@ -28,13 +26,12 @@ export interface ShortcutKeyEvent {
 }
 
 export type EditorShortcutAction =
-  | "focus-note-title"
   | "toggle-code-mark"
   | "toggle-todo-list"
   | "toggle-numbered-list"
   | "toggle-bulleted-list";
 
-// `hotkey` is is-hotkey's spelling; the palette's shortcuts page spells it for the platform.
+// `hotkey` is is-hotkey's spelling, which `spellHotkey` spells for the platform.
 export interface EditorShortcut<Action extends string = EditorShortcutAction> {
   readonly hotkey: string;
   readonly action: Action;
@@ -47,8 +44,8 @@ export const CODE_MARK_SHORTCUT: EditorShortcut<"toggle-code-mark"> = {
   label: "Inline code",
 };
 
+/** @internal */
 export const EDITOR_SHORTCUTS: readonly EditorShortcut[] = [
-  { action: "focus-note-title", hotkey: "mod+t", label: "Edit the note title" },
   CODE_MARK_SHORTCUT,
   { action: "toggle-todo-list", hotkey: "mod+shift+c", label: "To-do list" },
   { action: "toggle-numbered-list", hotkey: "mod+shift+l", label: "Numbered list" },
@@ -56,6 +53,7 @@ export const EDITOR_SHORTCUTS: readonly EditorShortcut[] = [
 ];
 
 export const matchesHotkey = (hotkey: string, event: ShortcutKeyEvent): boolean =>
+  // oxlint-disable-next-line typescript/no-unsafe-call -- platejs re-exports is-hotkey, which ships no types, so the type-aware pass reads the call as an unresolved type
   Boolean(isHotkey(hotkey, event));
 
 export const editorShortcutFor = <Action extends string>(
@@ -82,9 +80,6 @@ const LIST_FOR_ACTION = {
 // a surface with no key (the touch toolbar) runs the same rows through here
 export const runEditorShortcut = (editor: PlateEditor, action: EditorShortcutAction): boolean => {
   switch (action) {
-    case "focus-note-title": {
-      return focusNoteTitle(liveEditorPath(editor));
-    }
     case "toggle-code-mark": {
       // a code mark inside a code block is nonsense the serializer would nest
       if (inCodeBlock(editor)) {
@@ -107,6 +102,7 @@ export const runEditorShortcut = (editor: PlateEditor, action: EditorShortcutAct
   }
 };
 
+/** @internal */
 export const handleEditorShortcut = (editor: PlateEditor, event: ShortcutKeyEvent): void => {
   const row = editorShortcutFor(EDITOR_SHORTCUTS, event);
   if (row !== null && runEditorShortcut(editor, row.action)) {

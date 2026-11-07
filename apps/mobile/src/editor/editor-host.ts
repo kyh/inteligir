@@ -1,33 +1,37 @@
 // The native end of the editor page's bridge, and the one policy for what the WebView may load.
-// Pure: the screen attaches the WebView and hands it the ports over the phone's store, so every
+// Pure: the screen attaches the WebView and hands it the ports over the phone's replica, so every
 // frame it answers or drops runs under test. A frame counts only when it came from the page's own
 // document (a child frame's message names its own address) and, after `init`, carries the nonce
 // this load was given; a fresh load of the page gets a fresh nonce.
 
-import { nativeFrameScript, parsePageFrame } from "@repo/mobile-editor/bridge-protocol";
+import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
+import { nativeFrameScript, parsePageFrame } from "@repo/editor-bridge/protocol";
 import type {
+  ItemInit,
   NativeFrame,
   PageFrame,
-  PageInit,
   RequestKind,
   RequestPayload,
   RequestResult,
   Unstamped,
-} from "@repo/mobile-editor/bridge-protocol";
+} from "@repo/editor-bridge/protocol";
 import { messageOf } from "../lib/error-message";
+import { sameDocument } from "../lib/same-document";
 
-// every question the page asks, answered by the phone
+// every question an item's page asks, answered from the phone's replica
 export type EditorRequestPorts = {
   readonly [K in RequestKind]: (payload: RequestPayload<K>) => Promise<RequestResult<K>>;
 };
 
-// what the page says on its own; a `flushed` is the host's to settle
-export type EditorPageEvent = Exclude<PageFrame, { type: "request" | "ready" | "flushed" }>;
-
-// what the phone tells a loaded page on its own
-export type EditorNativeEvent = Unstamped<
-  Extract<NativeFrame, { type: "vaultChanged" | "commentMeta" | "commentsRemoved" }>
+// what the page says on its own; a `flushed` is the host's to settle, and the headless page's
+// answers are its own host's
+export type EditorPageEvent = Exclude<
+  PageFrame,
+  { type: "request" | "ready" | "flushed" | "fillAnswer" | "mergeAnswer" }
 >;
+
+// what the phone tells a loaded page on its own: the replica moved
+type EditorNativeEvent = Unstamped<Extract<NativeFrame, { type: "itemChanged" }>>;
 
 // the part of the WebView the host drives
 interface EditorView {
@@ -38,10 +42,10 @@ interface EditorView {
 export interface EditorHostArgs {
   // the page's own address: a frame from any other document is dropped
   pageUrl: string;
-  // what the first load's `init` says; a later load opens the note the page last said it shows,
-  // which a rename moves, with no focus, since the keyboard it would raise is one the user never
-  // asked for again
-  init: Omit<PageInit, "nonce" | "type">;
+  // what the first load's `init` says; a later load opens the same item with no focus, since the
+  // keyboard it would raise is one the person never asked for again. Every load names the
+  // library's size cap, which the page holds a pasted file to
+  init: Omit<ItemInit, "fileMaxBytes" | "mode" | "nonce" | "type">;
   mintNonce: () => string;
   ports: EditorRequestPorts;
   onEvent: (event: EditorPageEvent) => void;
@@ -55,7 +59,7 @@ export interface EditorHost {
   // a message the WebView delivered, with the address of the document that sent it
   receive: (message: { data: string; url: string }) => void;
   send: (event: EditorNativeEvent) => void;
-  // true once the page says the open note's edits are written; false when it failed, did not
+  // true once the page says the open item's edits are written; false when it failed, did not
   // answer in time or went away first. no page loaded holds no edits, so that is true at once.
   flush: () => Promise<boolean>;
   // iOS killed the page's content process: the page loads again, and nothing is sent until it
@@ -63,23 +67,9 @@ export interface EditorHost {
   reload: () => void;
 }
 
-// long enough for a serialize and a write through the bridge, short enough that leaving a note
-// never waits on a page that stopped answering
+// long enough for a diff and a write through the bridge, short enough that leaving an item never
+// waits on a page that stopped answering
 const FLUSH_TIMEOUT_MS = 3000;
-
-// a fragment never names another document, and WebKit may hand back escapes the uri was given raw
-const documentOf = (url: string): string => {
-  const hash = url.indexOf("#");
-  const bare = hash === -1 ? url : url.slice(0, hash);
-  try {
-    return decodeURI(bare);
-  } catch {
-    return bare;
-  }
-};
-
-const sameDocument = (url: string, pageUrl: string): boolean =>
-  documentOf(url) === documentOf(pageUrl);
 
 const isHttpUrl = (url: string): boolean => /^https?:\/\//iu.test(url);
 
@@ -123,7 +113,6 @@ export const createEditorHost = (args: EditorHostArgs): EditorHost => {
   const flushes = new Map<number, (ok: boolean) => void>();
   let view: EditorView | null = null;
   let nonce: string | null = null;
-  let { path } = args.init;
   let loads = 0;
   let nextFlushId = 0;
 
@@ -184,9 +173,10 @@ export const createEditorHost = (args: EditorHostArgs): EditorHost => {
     loads += 1;
     deliver({
       ...args.init,
+      fileMaxBytes: BLOB_MAX_BYTES,
       focus: first ? args.init.focus : null,
+      mode: "item",
       nonce,
-      path,
       type: "init",
     });
   };
@@ -245,8 +235,8 @@ export const createEditorHost = (args: EditorHostArgs): EditorHost => {
         settle?.(frame.ok);
         return;
       }
-      if (frame.type === "opened" && frame.path !== null) {
-        ({ path } = frame);
+      if (frame.type === "fillAnswer" || frame.type === "mergeAnswer") {
+        return;
       }
       args.onEvent(frame);
     },

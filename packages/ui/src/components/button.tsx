@@ -9,7 +9,7 @@ import { Tooltip } from "@repo/ui/components/tooltip";
 import type { IconComponent } from "@repo/ui/lib/icon";
 import { radius } from "@repo/ui/lib/radius";
 import { useSizeVariant } from "@repo/ui/lib/size-context";
-import { isTextChild } from "@repo/ui/lib/text-children";
+import { childList, isTextChild } from "@repo/ui/lib/text-children";
 import { cn } from "@repo/ui/lib/cn";
 
 const buttonStructure = cva(
@@ -120,7 +120,7 @@ const labelTrimClass = "[text-box:trim-both_cap_alphabetic]";
 // them: inside the trimmed block an inline svg does not size the block and is pushed out of its
 // line box, above the label.
 const labelChildren = (children: ReactNode): ReactNode[] => {
-  const nodes: ReactNode[] = Array.isArray(children) ? children : [children];
+  const nodes = childList(children);
   const out: ReactNode[] = [];
   let run: ReactNode[] = [];
   const flush = (key: number): void => {

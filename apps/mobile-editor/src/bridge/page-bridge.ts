@@ -1,6 +1,11 @@
 import { deferred } from "@repo/editor/deferred";
 import type { Deferred } from "@repo/editor/deferred";
-import { PAGE_RECEIVER, pageFrameSchema, parseNativeFrame, REQUESTS } from "./protocol";
+import {
+  PAGE_RECEIVER,
+  pageFrameSchema,
+  parseNativeFrame,
+  REQUESTS,
+} from "@repo/editor-bridge/protocol";
 import type {
   NativeFrame,
   PageFrame,
@@ -9,7 +14,7 @@ import type {
   RequestPayload,
   RequestResult,
   Unstamped,
-} from "./protocol";
+} from "@repo/editor-bridge/protocol";
 
 declare global {
   interface Window {
@@ -23,9 +28,10 @@ declare global {
 type PageEvent = Unstamped<Exclude<PageFrame, { type: "request" | "ready" }>>;
 
 // what the native end tells a connected page on its own
+/** @internal */
 export type NativeEvent = Extract<
   NativeFrame,
-  { type: "vaultChanged" | "flush" | "commentMeta" | "commentsRemoved" }
+  { type: "itemChanged" | "flush" | "fillJob" | "mergeJob" }
 >;
 
 // both ways, a frame is the JSON text of one, parsed by the end that receives it
@@ -49,17 +55,19 @@ export interface ConnectedPage {
   readonly init: PageInit;
 }
 
+/** @internal */
 export const REQUEST_TIMEOUT_MS = 10_000;
 
-// The native end answers every request, and a mutation timed out here still lands there, so these
-// wait rather than report a failure that did not happen. A write keeps its deadline: it is guarded,
-// so its retry finds what landed. The picker waits on the user, for as long as they browse.
+// The native end answers every request, and a highlight timed out here still lands there, so these
+// wait rather than report a failure that did not happen; a file's bytes take as long as the
+// phone's download or their copy across the bridge does, so a picture waits for them rather than
+// say it is missing. A write keeps its deadline: it is guarded by its bases, so its retry finds
+// what landed.
 const NO_DEADLINE: ReadonlySet<RequestKind> = new Set([
-  "addComment",
-  "pickImage",
-  "remove",
-  "rename",
-  "writeAsset",
+  "addHighlight",
+  "keepFile",
+  "noteHighlight",
+  "readFile",
 ]);
 
 interface Pending {

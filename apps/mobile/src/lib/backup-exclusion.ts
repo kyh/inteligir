@@ -1,6 +1,7 @@
-// iOS copies Documents into the phone's iCloud backup. What the mirror holds downloads again from
-// the hosted vault, so its directory is kept out (owner decision), and so is the outbox's: the rows
-// naming its staged photos live in that database, so a backup would restore bytes nothing sends.
+// iOS copies Documents into the phone's iCloud backup. What the replica holds downloads again from
+// the account's library, so its database and the pinned files' folder are kept out (owner
+// decision): a staged photo's outbox row lives in that database, so a backup would restore bytes
+// nothing sends.
 // The native half is modules/backup-exclusion, linked on iOS alone because the phone ships for
 // iPhone only.
 

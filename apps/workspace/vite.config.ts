@@ -1,51 +1,67 @@
 import path from "node:path";
+import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
+import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
-import viteReact from "@vitejs/plugin-react";
+import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
+import type { Logger } from "babel-plugin-react-compiler";
 import { defineConfig } from "vite";
 
 const here = import.meta.dirname;
 const src = path.resolve(here, "src");
 
-// Two builds: the CLI stages the app page for every vault's server to answer
-// (apps/cli/scripts/build.ts), and the shell embeds the first-run page alone (`frontendDist` in
-// apps/desktop/src-tauri/tauri.conf.json), since the first run opens before any server exists.
-const PAGES = {
-  app: { input: "index.html", outDir: "dist/app" },
-  "first-run": { input: "first-run.html", outDir: "dist/first-run" },
-} as const;
+// the prefix the Worker serves the page under, which every asset url the build writes starts with;
+// the build lays its files under it too, so `dist/` mirrors the paths both hosts serve: the
+// Worker's assets (apps/web/vite.config.ts) and the Mac's bundle (`frontendDist`), where the page
+// is `library/` on the app's own origin
+const BASE = `${LIBRARY_PAGE_PATH}/`;
 
-// fixed because `tauri dev` waits on it (`devUrl`); clear of `pnpm dev:web`'s pinned 5174, which
-// Vite's default search from 5173 walks onto
-const DEV_PORT = 31_000;
+// a component the compiler skipped, said as the build runs (react.dev/reference/react-compiler/
+// logger): the card grid is the one it may name (packages/ui/CLAUDE.md § THE CARD GRID IS
+// VIRTUALIZED BY UNIFORM ROWS)
+const reportSkips: Logger = {
+  logEvent: (filename, event) => {
+    if (event.kind !== "CompileError" && event.kind !== "PipelineError") {
+      return;
+    }
+    const at = event.fnLoc === null ? "" : `:${String(event.fnLoc.start.line)}`;
+    const why = event.kind === "CompileError" ? event.detail.reason : event.data;
+    console.warn(`React Compiler skipped ${filename ?? "a module"}${at}: ${why}`);
+  },
+};
 
-export default defineConfig(({ mode }) => {
-  const page = mode === "first-run" ? PAGES["first-run"] : PAGES.app;
-  return {
-    build: {
-      emptyOutDir: true,
-      outDir: path.resolve(here, page.outDir),
-      rolldownOptions: { input: path.resolve(src, page.input) },
+export default defineConfig({
+  base: BASE,
+  build: {
+    // one script on purpose (below), about 4.4 MB and 1.4 MB compressed, so the ceiling (kB) is
+    // there to catch a dependency that doubles it
+    chunkSizeWarningLimit: 6000,
+    emptyOutDir: true,
+    outDir: path.resolve(here, "dist", LIBRARY_PAGE_PATH.slice(1)),
+    rolldownOptions: {
+      input: path.resolve(src, "index.html"),
+      // CLAUDE.md § THE PAGE IS ONE BUNDLE: every dynamic import (the editor's lazy nodes: KaTeX,
+      // Mermaid, the calendar, the wiki chip) is inlined, so nothing is fetched after the page
+      // loads, and a tab that lost its connection never meets a chunk it cannot fetch
+      output: { codeSplitting: false },
     },
-    // tauri dev prints the shell's own lines into this terminal
-    clearScreen: false,
-    // `compiler` loads the otherwise-unimported `oxc-transform-react` devDependency.
-    plugins: [
-      tanstackRouter({
-        autoCodeSplitting: true,
-        generatedRouteTree: path.resolve(src, "routeTree.gen.ts"),
-        routesDirectory: path.resolve(src, "routes"),
-        target: "react",
-      }),
-      viteReact({ compiler: { logDiagnostics: true } }),
-      tailwindcss(),
-    ],
-    root: src,
-    server: {
-      // the page's files arrive through its server, but the hot-reload socket dials here directly
-      hmr: { clientPort: DEV_PORT, host: "localhost" },
-      port: DEV_PORT,
-      strictPort: true,
-    },
-  };
+  },
+  clearScreen: false,
+  // SQLite's wasm loads its own module beside it, which the dep optimizer would move away from it
+  // (https://www.npmjs.com/package/@sqlite.org/sqlite-wasm#usage-with-vite)
+  optimizeDeps: { exclude: ["@sqlite.org/sqlite-wasm"] },
+  plugins: [
+    tanstackRouter({
+      // one bundle (above): a route split off would be a lazy import inlined straight back
+      autoCodeSplitting: false,
+      generatedRouteTree: path.resolve(src, "routeTree.gen.ts"),
+      routesDirectory: path.resolve(src, "routes"),
+      target: "react",
+    }),
+    viteReact(),
+    // the React Compiler, react.dev's Vite path (react.dev/learn/react-compiler/installation)
+    babel({ presets: [reactCompilerPreset({ logger: reportSkips })] }),
+    tailwindcss(),
+  ],
+  root: src,
 });

@@ -9,16 +9,10 @@ import {
 } from "@repo/contract/cloud/device/device-schema";
 import { Button } from "@repo/ui/components/button";
 
-import {
-  AuthError,
-  AuthField,
-  AuthShell,
-  fieldValue,
-  useAuthSubmit,
-} from "@/components/auth-shell";
-import { AUTH_FALLBACK_ERROR } from "@/lib/auth-client";
-import { SIGNED_IN_HOME } from "@/lib/next-path";
-import { currentSession, ssrWhenSignedOut } from "@/lib/session-guard";
+import { AuthError, AuthField, AuthShell, fieldValue, useAuthSubmit } from "#components/auth-shell";
+import { AUTH_FALLBACK_ERROR } from "#lib/auth-client";
+import { authPageSearchSchema, signedInLanding } from "#lib/next-path";
+import { currentSession, ssrWhenSignedOut } from "#lib/session-guard";
 
 const refusalSchema = z.looseObject({ message: z.string().min(1) });
 
@@ -29,6 +23,7 @@ const refusalMessage = async (response: Response): Promise<string> => {
 
 const SignUpPage = () => {
   const router = useRouter();
+  const { next } = Route.useSearch();
   const { error, onSubmit, pending } = useAuthSubmit(async (form) => {
     const request: SignUpRequest = {
       email: fieldValue(form, "email"),
@@ -45,7 +40,7 @@ const SignUpPage = () => {
     if (!response.ok) {
       return await refusalMessage(response);
     }
-    await router.navigate({ to: SIGNED_IN_HOME });
+    await router.navigate({ href: signedInLanding(next), reloadDocument: true });
     return null;
   });
 
@@ -56,7 +51,7 @@ const SignUpPage = () => {
       footer={
         <>
           Already have an account?{" "}
-          <Link to="/app/sign-in" className="underline underline-offset-4">
+          <Link to="/app/sign-in" search={{ next }} className="underline underline-offset-4">
             Sign in
           </Link>
         </>
@@ -102,10 +97,11 @@ const SignUpPage = () => {
 
 export const Route = createFileRoute("/app/sign-up")({
   ssr: ssrWhenSignedOut,
-  beforeLoad: async () => {
+  validateSearch: authPageSearchSchema,
+  beforeLoad: async ({ search }) => {
     const session = await currentSession();
     if (session.kind === "signed-in") {
-      redirect({ to: SIGNED_IN_HOME, throw: true });
+      redirect({ href: signedInLanding(search.next), reloadDocument: true, throw: true });
     }
   },
   component: SignUpPage,

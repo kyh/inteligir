@@ -1,4 +1,4 @@
-# CLOUDFLARE_API_TOKEN needs Workers Scripts: Edit + Workers Routes: Edit (inteligir.com).
+# CLOUDFLARE_API_TOKEN holds the scopes apps/web/README.md § Build & deploy names.
 # The D1 schema is not applied here: push it from a local machine before merging code
 # that needs it, or the deploy 500s against the old schema.
 name: Deploy
@@ -82,10 +82,19 @@ jobs:
           runtime: node@24
           cache: true
 
+      # the Build Output carries AGENT_GATEWAY_URL as the build evaluated it, and `--prebuilt`
+      # uploads it unchanged, so a build that named no gateway is refused before it ships
       - name: Build & deploy web
-        run: pnpm turbo run build --filter=@repo/web... && pnpm -F @repo/web exec cf deploy --prebuilt
+        run: |
+          pnpm turbo run build --filter=@repo/web...
+          jq -e '.env.AGENT_GATEWAY_URL.value | startswith("https://gateway.ai.cloudflare.com/v1/")' \
+            apps/web/.cloudflare/output/v0/workers/default/worker.config.json
+          pnpm -F @repo/web exec cf deploy --prebuilt
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # the account of the built-in agent's AI Gateway, which apps/web/cloudflare.config.ts
+          # names as the deploy evaluates it; without it the agent refuses every send
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Mark what was deployed
         run: |

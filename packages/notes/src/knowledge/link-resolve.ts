@@ -3,22 +3,16 @@
 // so the answer is independent of insertion order. Md urls are literal paths:
 // file-relative, then root-relative, no alias tiers.
 
-import { isUuidWikiAlias, serializeWikiBody } from "../markdown/remark-wiki-link";
+import { isUuidWikiAlias } from "../markdown/remark-wiki-link";
 import { IMPLIED_LINK_EXTENSION, wikiLinkName, wikiLinkPath } from "./doc-file";
-import { basenamePath, dirnamePath, extnamePath, joinPath, normalizePath } from "./vault-path";
+import { basenamePath, dirnamePath, extnamePath, joinPath, normalizePath } from "./folder-path";
 
 export interface TargetResolver {
   resolveWiki: (target: string, alias?: string) => string | null;
   resolveMd: (target: string, fromPath: string) => string | null;
-  // the doc whose frontmatter `id` this is; a copied file carries its original's, so it breaks
-  // like every other tier
-  resolveNoteId: (id: string) => string | null;
 }
 
-const pickBest = (candidates: readonly string[]): string | null => {
-  if (candidates.length === 0) {
-    return null;
-  }
+const pickBest = (candidates: Iterable<string>): string | null => {
   let best: string | null = null;
   let bestSegments = Number.POSITIVE_INFINITY;
   for (const path of candidates) {
@@ -39,75 +33,76 @@ const pickBest = (candidates: readonly string[]): string | null => {
 // the keys the name tier files a path under: its basename, and that without the extension a link
 // may leave off. a bare name (no `/`) answers to exactly the paths filed under it, case aside: the
 // exact tiers reach only root files, which are filed there too
+/** @internal */
 export const wikiNameKeys = (path: string): readonly string[] => {
   const base = basenamePath(path);
   const name = wikiLinkName(path);
   return name === base ? [base] : [base, name];
 };
 
-const push = (map: Map<string, string[]>, key: string, path: string): void => {
-  const list = map.get(key);
-  if (list) {
-    list.push(path);
+const add = (map: Map<string, Set<string>>, key: string, path: string): void => {
+  const owners = map.get(key);
+  if (owners) {
+    owners.add(path);
   } else {
-    map.set(key, [path]);
+    map.set(key, new Set([path]));
   }
 };
 
-// alias keys are normalized like written targets so an alias containing `/` matches the same clean form
-export const buildResolver = (
-  paths: Iterable<string>,
-  aliasEntries?: Iterable<readonly [alias: string, path: string]>,
-  idEntries?: Iterable<readonly [id: string, path: string]>,
-): TargetResolver => {
-  const exact = new Set<string>();
-  const exactLower = new Map<string, string[]>();
-  const byName = new Map<string, string[]>();
-  const byNameLower = new Map<string, string[]>();
-  const aliasCs = new Map<string, string[]>();
-  const aliasCi = new Map<string, string[]>();
-  const idOwners = new Map<string, string[]>();
+const ownersOf = (map: Map<string, Set<string>>, key: string): Iterable<string> =>
+  map.get(key) ?? [];
 
-  for (const raw of paths) {
+// alias keys are normalized like written targets so an alias containing `/` matches the same clean form
+const filedResolver = (): TargetResolver & {
+  addPath: (path: string) => void;
+  addAlias: (path: string, alias: string) => void;
+  addNoteId: (path: string, id: string) => void;
+} => {
+  const exact = new Set<string>();
+  const exactLower = new Map<string, Set<string>>();
+  const byName = new Map<string, Set<string>>();
+  const byNameLower = new Map<string, Set<string>>();
+  const aliasCs = new Map<string, Set<string>>();
+  const aliasCi = new Map<string, Set<string>>();
+  const idOwners = new Map<string, Set<string>>();
+
+  const addPath = (raw: string): void => {
     const path = normalizePath(raw);
     if (path === "" || exact.has(path)) {
-      continue;
+      return;
     }
     exact.add(path);
-    push(exactLower, path.toLowerCase(), path);
+    add(exactLower, path.toLowerCase(), path);
     for (const key of wikiNameKeys(path)) {
-      push(byName, key, path);
-      push(byNameLower, key.toLowerCase(), path);
+      add(byName, key, path);
+      add(byNameLower, key.toLowerCase(), path);
     }
-  }
+  };
 
-  if (aliasEntries) {
-    for (const [alias, rawOwner] of aliasEntries) {
-      const key = normalizePath(alias.trim());
-      const owner = normalizePath(rawOwner);
-      if (key === "" || owner === "") {
-        continue;
-      }
-      push(aliasCs, key, owner);
-      push(aliasCi, key.toLowerCase(), owner);
+  const addAlias = (raw: string, alias: string): void => {
+    const owner = normalizePath(raw);
+    const key = normalizePath(alias.trim());
+    if (owner === "" || key === "") {
+      return;
     }
-  }
+    add(aliasCs, key, owner);
+    add(aliasCi, key.toLowerCase(), owner);
+  };
 
-  if (idEntries) {
-    for (const [id, rawOwner] of idEntries) {
-      const owner = normalizePath(rawOwner);
-      if (id === "" || owner === "") {
-        continue;
-      }
-      push(idOwners, id, owner);
+  // a copy carries its original's id, and an owner listed under two ids answers to both
+  const addNoteId = (raw: string, id: string): void => {
+    const owner = normalizePath(raw);
+    if (owner === "" || id === "") {
+      return;
     }
-  }
+    add(idOwners, id, owner);
+  };
 
   const lookupExact = (candidate: string): string | null => {
     if (exact.has(candidate)) {
       return candidate;
     }
-    return pickBest(exactLower.get(candidate.toLowerCase()) ?? []);
+    return pickBest(ownersOf(exactLower, candidate.toLowerCase()));
   };
 
   // the basename tier: exact spelling first, then case-insensitively
@@ -118,26 +113,27 @@ export const buildResolver = (
       const suffixes = [`/${clean}`, `/${clean}${IMPLIED_LINK_EXTENSION}`];
       const key = basenamePath(clean);
       const cs = pickBest(
-        (byName.get(key) ?? []).filter((p) => suffixes.some((s) => p.endsWith(s))),
+        [...ownersOf(byName, key)].filter((p) => suffixes.some((s) => p.endsWith(s))),
       );
       if (cs !== null) {
         return cs;
       }
       const lowerSuffixes = suffixes.map((s) => s.toLowerCase());
       return pickBest(
-        (byNameLower.get(key.toLowerCase()) ?? []).filter((p) =>
+        [...ownersOf(byNameLower, key.toLowerCase())].filter((p) =>
           lowerSuffixes.some((s) => p.toLowerCase().endsWith(s)),
         ),
       );
     }
-    const cs = pickBest(byName.get(clean) ?? []);
+    const cs = pickBest(ownersOf(byName, clean));
     if (cs !== null) {
       return cs;
     }
-    return pickBest(byNameLower.get(clean.toLowerCase()) ?? []);
+    return pickBest(ownersOf(byNameLower, clean.toLowerCase()));
   };
 
-  const resolveNoteId = (id: string): string | null => pickBest(idOwners.get(id) ?? []);
+  // a copied file carries its original's `id`, so it breaks like every other tier
+  const resolveNoteId = (id: string): string | null => pickBest(ownersOf(idOwners, id));
 
   const resolveWiki = (target: string, alias?: string): string | null => {
     // a uuid-shaped alias names the target by frontmatter id; a display alias never does
@@ -165,11 +161,11 @@ export const buildResolver = (
     }
 
     // a real filename always beats an alias, and an alias may contain `/`
-    const aliasHit = pickBest(aliasCs.get(clean) ?? []);
+    const aliasHit = pickBest(ownersOf(aliasCs, clean));
     if (aliasHit !== null) {
       return aliasHit;
     }
-    return pickBest(aliasCi.get(clean.toLowerCase()) ?? []);
+    return pickBest(ownersOf(aliasCi, clean.toLowerCase()));
   };
 
   const resolveMd = (target: string, fromPath: string): string | null => {
@@ -198,7 +194,26 @@ export const buildResolver = (
     return null;
   };
 
-  return { resolveMd, resolveNoteId, resolveWiki };
+  return { addAlias, addNoteId, addPath, resolveMd, resolveWiki };
+};
+
+export const buildResolver = (
+  paths: Iterable<string>,
+  aliasEntries?: Iterable<readonly [alias: string, path: string]>,
+  idEntries?: Iterable<readonly [id: string, path: string]>,
+): TargetResolver => {
+  const filed = filedResolver();
+  for (const path of paths) {
+    filed.addPath(path);
+  }
+  for (const [alias, owner] of aliasEntries ?? []) {
+    filed.addAlias(owner, alias);
+  }
+  for (const [id, owner] of idEntries ?? []) {
+    filed.addNoteId(owner, id);
+  }
+  const { resolveMd, resolveWiki } = filed;
+  return { resolveMd, resolveWiki };
 };
 
 // the shortest target that resolves back to `path`: its name, else its path, spelled without the
@@ -215,12 +230,31 @@ export const wikiTargetForPath = (
   );
 };
 
-// the whole `[[…]]` for `path`, spelled as the `[[` picker writes it; null for a name no link can
-// carry, so a caller writes nothing rather than a link that lands elsewhere
-export const wikiLinkFor = (
-  path: string,
-  resolveWiki: (target: string) => string | null,
-): string | null => {
-  const body = serializeWikiBody({ target: wikiTargetForPath(path, resolveWiki) });
-  return body === null ? null : `[[${body}]]`;
-};
+// The keys, folded as the resolver's case-blind tiers fold them, that let a writer with no room
+// for the whole library's resolver still spell `wikiTargetForPath` (the cloud's export, a page at
+// a time): every path that can answer one of the targets `wikiTargetForPath(path)` tries, by the
+// exact, the name or the alias tier, is filed under one of `wikiTargetKeys(path)`, so a resolver
+// over the paths filed under them answers each of those targets as one over every path does.
+
+const foldedKeys = (keys: readonly string[]): string[] => [
+  ...new Set(keys.map((key) => key.toLowerCase())),
+];
+
+// the keys a path with these aliases is filed under: its basename, its link name, each alias
+export const wikiFilingKeys = (path: string, aliases: readonly string[]): string[] =>
+  foldedKeys([
+    basenamePath(path),
+    wikiLinkName(path),
+    ...aliases.map((alias) => normalizePath(alias.trim())).filter((key) => key !== ""),
+  ]);
+
+// the keys whose paths can answer a target `wikiTargetForPath(path)` tries: each target's basename,
+// with and without the extension a link leaves off, and the target itself, an alias's key
+export const wikiTargetKeys = (path: string): string[] =>
+  foldedKeys(
+    [wikiLinkName(path), wikiLinkPath(path), path].flatMap((target) => {
+      const clean = normalizePath(target);
+      const base = basenamePath(clean);
+      return [base, `${base}${IMPLIED_LINK_EXTENSION}`, clean];
+    }),
+  );

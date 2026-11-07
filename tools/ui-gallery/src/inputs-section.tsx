@@ -3,15 +3,6 @@ import { Input } from "@repo/ui/components/input";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { Label } from "@repo/ui/components/label";
 import { RadioGroup, RadioGroupItem } from "@repo/ui/components/radio-group";
-import {
-  PromptBar,
-  PromptBarAction,
-  PromptBarField,
-  PromptBarSend,
-  PromptBarSource,
-  PromptBarSources,
-  PromptBarToolbar,
-} from "@repo/ui/ai/prompt-bar";
 import { Switch } from "@repo/ui/components/switch";
 import { Textarea } from "@repo/ui/components/textarea";
 import { useState } from "react";
@@ -20,15 +11,14 @@ import { Demo, DemoCase, GallerySection } from "./gallery-chrome";
 
 const noop = (): void => undefined;
 
-type Transport = "http" | "stdio" | "oauth";
+type EditorFont = "sans" | "serif" | "mono";
 
 export const InputsSection = () => {
   const [checked, setChecked] = useState(true);
   const [enabled, setEnabled] = useState(true);
-  const [transport, setTransport] = useState<Transport>("http");
+  const [font, setFont] = useState<EditorFont>("sans");
   const [message, setMessage] = useState("");
   const [sent, setSent] = useState<string | null>(null);
-  const [prompt, setPrompt] = useState("");
 
   return (
     <GallerySection id="inputs" title="Inputs">
@@ -38,8 +28,8 @@ export const InputsSection = () => {
           <Input id="gallery-title" defaultValue="Release checklist" />
         </div>
         <div className="w-72 space-y-1.5">
-          <Label htmlFor="gallery-disabled">Vault location</Label>
-          <Input id="gallery-disabled" defaultValue="~/notes" disabled />
+          <Label htmlFor="gallery-disabled">Account</Label>
+          <Input id="gallery-disabled" defaultValue="you@example.com" disabled />
         </div>
       </Demo>
 
@@ -84,10 +74,10 @@ export const InputsSection = () => {
         purpose="One of a few choices, all on screen at once; one tab stop, the arrows move it."
       >
         <DemoCase label="live">
-          <RadioGroup aria-label="Transport" value={transport} onValueChange={setTransport}>
-            <RadioGroupItem value="http">URL</RadioGroupItem>
-            <RadioGroupItem value="stdio">Command</RadioGroupItem>
-            <RadioGroupItem value="oauth">OAuth</RadioGroupItem>
+          <RadioGroup aria-label="Font" value={font} onValueChange={setFont}>
+            <RadioGroupItem value="sans">Sans</RadioGroupItem>
+            <RadioGroupItem value="serif">Serif</RadioGroupItem>
+            <RadioGroupItem value="mono">Mono</RadioGroupItem>
           </RadioGroup>
         </DemoCase>
         <DemoCase label="disabled">
@@ -118,40 +108,6 @@ export const InputsSection = () => {
               setMessage("");
             }}
           />
-        </div>
-      </Demo>
-      <Demo
-        name="PromptBar · PromptBarSources · PromptBarToolbar"
-        purpose="The other composer shape: context chips above, a toolbar of controls below the field."
-        note="Not the product's ⌘K composer — that one is InputMessage. Shown because both ship."
-        stack
-      >
-        <div className="w-full max-w-xl">
-          <PromptBar>
-            <PromptBarSources>
-              <PromptBarSource onRemove={noop}>Getting Started.md</PromptBarSource>
-              <PromptBarSource onRemove={noop}>Use Cases.md</PromptBarSource>
-            </PromptBarSources>
-            <PromptBarField
-              value={prompt}
-              placeholder="Ask about these notes…"
-              onChange={(event) => {
-                setPrompt(event.target.value);
-              }}
-              onSend={() => {
-                setPrompt("");
-              }}
-            />
-            <PromptBarToolbar>
-              <PromptBarAction label="Attach">@</PromptBarAction>
-              <PromptBarAction label="Commands">/</PromptBarAction>
-              <PromptBarSend
-                onClick={() => {
-                  setPrompt("");
-                }}
-              />
-            </PromptBarToolbar>
-          </PromptBar>
         </div>
       </Demo>
     </GallerySection>

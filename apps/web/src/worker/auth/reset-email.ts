@@ -1,8 +1,8 @@
-// Never throws: the reset-request response must stay neutral, so an absent binding (a dev
-// config without send_email) warns and returns, and a rejected send (domain not onboarded,
-// E_SENDER_NOT_VERIFIED) logs and returns.
+import { errorFields } from "../log";
 
-const DEFAULT_FROM_ADDRESS = "no-reply@inteligir.app";
+// Never throws: the reset-request response must stay neutral, so an absent transport (a preview or
+// a dev config, with no send_email binding or sender) warns and returns, and a rejected send
+// (domain not onboarded, E_SENDER_NOT_VERIFIED) logs and returns.
 
 const FROM_NAME = "inteligir";
 
@@ -30,7 +30,7 @@ const composeResetEmail = (url: string): ResetEmail => ({
   ].join("\n"),
 });
 
-// narrower than Env, which types the binding always-present, so the absent-binding path is representable
+// what the send reads of Env: the two bindings only production declares (cloudflare.config.ts)
 export interface ResetEmailEnv {
   readonly EMAIL?: SendEmail;
   readonly RESET_FROM_ADDRESS?: string;
@@ -41,20 +41,20 @@ export const sendResetEmail = async (
   to: string,
   url: string,
 ): Promise<void> => {
-  if (env.EMAIL === undefined) {
-    console.warn("password reset: no EMAIL binding — reset email not sent");
+  if (env.EMAIL === undefined || env.RESET_FROM_ADDRESS === undefined) {
+    console.warn({ event: "reset-email-skipped", reason: "no EMAIL binding or sender" });
     return;
   }
   const { subject, text, html } = composeResetEmail(url);
   try {
     await env.EMAIL.send({
-      from: { email: env.RESET_FROM_ADDRESS ?? DEFAULT_FROM_ADDRESS, name: FROM_NAME },
+      from: { email: env.RESET_FROM_ADDRESS, name: FROM_NAME },
       html,
       subject,
       text,
       to,
     });
   } catch (error) {
-    console.error("password reset: email send failed", error);
+    console.error({ event: "reset-email-failed", ...errorFields(error) });
   }
 };

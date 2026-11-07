@@ -4,7 +4,7 @@
 
 import type { Nodes } from "mdast";
 
-export const BOM = "\uFEFF";
+const BOM = "\uFEFF";
 
 type Positioned = Pick<Nodes, "position">;
 type Point = NonNullable<Positioned["position"]>["start"];

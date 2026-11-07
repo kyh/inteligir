@@ -1,14 +1,12 @@
-import { readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
-import { parseEval } from "../harness/agent-browser";
+import { caretToEndOf, parseEval } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
+import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
+import { openLibraryTab, untilItemText } from "../harness/library-tab";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { EDITOR, OPTION, OPTION_COUNT } from "../harness/selectors";
 
-const DOC_PATH = "Plans.md";
 const PARAGRAPH = "First paragraph.";
 const DOC = `# Plans
 
@@ -16,39 +14,26 @@ ${PARAGRAPH}
 `;
 
 const HEADING = "Slash heading";
-const SAVE_DEADLINE_MS = 15_000;
 
 export const slashMenuBrowser: Scenario = {
-  description: "a typed slash opens the menu, and the picked construct lands in the file",
+  description: "a typed slash opens the menu, and the picked construct lands in the item",
   name: "slash-menu-browser",
+  timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
-    const app = await ctx.boot({
-      name: "solo",
-      // the only note, so the virgin boot opens it.
-      seedVault: async (vaultDir) => {
-        await writeFile(path.join(vaultDir, DOC_PATH), DOC, "utf-8");
+    let itemId = "";
+    ctx.log("opening the item by its deep link");
+    const { browser: agentBrowser, library } = await openLibraryTab(ctx, "slash", {
+      path: () => `?item=${itemId}`,
+      ready: EDITOR,
+      seed: async (seeding) => {
+        const { item } = await seeding.items.createNote({ markdown: DOC, title: "Plans" });
+        itemId = item.id;
       },
     });
-    const agentBrowser = await ctx.browser("slash");
-
-    ctx.log(`opening ${app.baseUrl}/`);
-    await agentBrowser.openWorkspace(app);
 
     ctx.log("putting the caret at the end of the paragraph and opening a fresh block");
-    await agentBrowser(["find", "text", PARAGRAPH, "click"]);
-    // End can race focus settling, and an Enter from mid-paragraph splits it and the block
-    // transform eats the tail.
-    const CARET_AT_END =
-      "String((() => { const sel = window.getSelection(); if (!sel || sel.rangeCount === 0) return false; const r = sel.getRangeAt(0); return r.collapsed && r.endContainer.textContent !== null && r.endOffset === r.endContainer.textContent.length; })())";
-    await pollUntil(
-      async () => {
-        await agentBrowser(["press", "End"]);
-        await delay(100);
-        return parseEval(await agentBrowser(["eval", CARET_AT_END]), z.string());
-      },
-      (atEnd) => atEnd === "true",
-      { deadlineMs: 15_000, describe: () => "the caret never reached the paragraph's end" },
-    );
+    // an Enter from mid-paragraph splits it, and the block transform eats the tail
+    await caretToEndOf(agentBrowser, PARAGRAPH);
     await agentBrowser(["press", "Enter"]);
 
     ctx.log("typing the slash");
@@ -95,16 +80,14 @@ export const slashMenuBrowser: Scenario = {
       `the inserted block did not render as a heading — got: ${isHeading}`,
     );
 
-    ctx.log("and the bytes reach the file");
-    const onDisk = await pollUntil(
-      async () => await readFile(path.join(app.vaultDir, DOC_PATH), "utf-8"),
-      (bytes) => bytes.includes(`## ${HEADING}`),
-      {
-        deadlineMs: SAVE_DEADLINE_MS,
-        describe: (bytes) => `the note never saved; on disk:\n${bytes}`,
-      },
+    ctx.log("and the heading reaches the cell");
+    const saved = await untilItemText(
+      library,
+      itemId,
+      (markdown) => markdown.includes(`## ${HEADING}`),
+      "the heading never reached the cell",
     );
-    expect(!onDisk.includes("/h2"), `the query text survived the insert:\n${onDisk}`);
-    expect(onDisk.includes(PARAGRAPH), `the seeded paragraph was lost:\n${onDisk}`);
+    expect(!saved.includes("/h2"), `the query text survived the insert:\n${saved}`);
+    expect(saved.includes(PARAGRAPH), `the seeded paragraph was lost:\n${saved}`);
   },
 };

@@ -1,22 +1,19 @@
-// The skills reach an agent as files: the CLI resolves ONE probe file through the package's
-// exports map and hands the directory over. A renamed probe resolves nothing, and the resolver
-// answers null rather than throwing, so the pointer disappears from every checkout with no error
-// anywhere. This holds the probe, the set and the hub's index together.
+// The skills are the built-in agent's dialect, and its system prompt is built from them:
+// apps/web/scripts/agent-prompt.ts writes the prompt every conversation freezes as a module of the
+// Worker's, from this package in the order the hub's index names the skills. This holds the set and
+// the hub's index together, and the module to what the script writes.
 
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { REPO_ROOT, sourceOf, trackedFiles } from "./repo";
+import { REPO_ROOT } from "./repo";
 
 const SKILLS_DIR = "packages/agent-skills/skills";
-const RESOLVER = "apps/cli/src/server/agents/agent-shell-env.ts";
 const HUB = "inteligir-notes";
 const HUB_INDEX_HEADING = "## Focused Contracts";
 
-const PROBE_LITERAL = /require\.resolve\("@repo\/agent-skills\/skills\/(?<probe>[^"]+)"\)/u;
-const FRONTMATTER_NAME = /^name:\s*(?<name>\S+)\s*$/mu;
-const FRONTMATTER_DESCRIPTION = /^description:\s*(?<description>\S.*)$/mu;
 const HUB_ROW = /^- .*`(?<skill>inteligir-[a-z-]+)`/gmu;
 
 // read as text: @repo/notes is no dependency of this package, and the constants are plain literals.
@@ -24,8 +21,9 @@ const FENCE_LANGS = "packages/notes/src/markdown/fence-langs.ts";
 const EXPORTED_LANG = /^export const \w+_LANG = "(?<lang>[^"]+)";$/gmu;
 const FENCE_OPENING = /^\s*(?:`{3,}|~{3,})\s*(?<lang>inteligir-[a-z-]+)(?=\s|$)/u;
 
-// the starter vault a first run copies: the notes a new user reads first and imitates after.
-const SEED_DIR = "apps/cli/seed/";
+const AGENT_PROMPT_SCRIPT = "apps/web/scripts/agent-prompt.ts";
+
+const readRepoFile = (file: string): string => fs.readFileSync(path.join(REPO_ROOT, file), "utf-8");
 
 const skillDirs = (): string[] =>
   fs
@@ -55,14 +53,6 @@ const taughtFenceLangs = (): FenceSite[] =>
     fenceOpenings(`${SKILLS_DIR}/${dir}/SKILL.md`, skillText(dir) ?? ""),
   );
 
-const seedNotes = (): string[] =>
-  trackedFiles().filter((file) => file.startsWith(SEED_DIR) && file.endsWith(".md"));
-
-const seededFenceLangs = (): FenceSite[] =>
-  seedNotes().flatMap((file) =>
-    fenceOpenings(file, fs.readFileSync(path.join(REPO_ROOT, file), "utf-8")),
-  );
-
 const unknownOpenings = (exported: readonly string[], sites: readonly FenceSite[]): string[] =>
   sites
     .filter(({ lang }) => !exported.includes(lang))
@@ -84,43 +74,13 @@ describe("the agent skills", () => {
     expect(skillDirs()).toContain(HUB);
   });
 
-  it("every skill directory carries a SKILL.md whose frontmatter names the directory", () => {
-    const violations: string[] = [];
-    for (const dir of skillDirs()) {
-      const text = skillText(dir);
-      if (text === null) {
-        violations.push(`${SKILLS_DIR}/${dir} — no SKILL.md`);
-        continue;
-      }
-      const name = FRONTMATTER_NAME.exec(text)?.groups?.name;
-      if (name !== dir) {
-        violations.push(`${SKILLS_DIR}/${dir}/SKILL.md — frontmatter name is ${name ?? "missing"}`);
-      }
-      if (FRONTMATTER_DESCRIPTION.exec(text) === null) {
-        violations.push(`${SKILLS_DIR}/${dir}/SKILL.md — frontmatter has no description`);
-      }
-    }
+  it("every skill directory carries a SKILL.md", () => {
+    const missing = skillDirs().filter((dir) => skillText(dir) === null);
     expect(
-      violations,
-      violations.length === 0
-        ? ""
-        : `SKILL FILES OUT OF SHAPE\n${violations.map((line) => `  ${line}`).join("\n")}\n` +
-            `  rule: a skill is one directory with one SKILL.md whose frontmatter name is the directory — the agent reads these by that name`,
-    ).toEqual([]);
-  });
-
-  it("the resolver's probe file exists, so a rename cannot silently drop the pointer", () => {
-    const probe = PROBE_LITERAL.exec(sourceOf(RESOLVER))?.groups?.probe;
-    expect(probe, `${RESOLVER} no longer resolves a skill file with require.resolve`).toBeDefined();
-    if (probe === undefined) {
-      return;
-    }
-    const file = path.join(SKILLS_DIR, probe);
-    expect(
-      fs.existsSync(path.join(REPO_ROOT, file)),
-      `${RESOLVER} probes ${file}, which does not exist\n` +
-        `  rule: resolveSkillsDir answers null when the probe is missing, and a null pointer is a prompt with no skills and no error — move the probe with the file`,
-    ).toBe(true);
+      missing,
+      `SKILL FILES OUT OF SHAPE\n${missing.map((dir) => `  ${SKILLS_DIR}/${dir} — no SKILL.md`).join("\n")}\n` +
+        `  rule: a skill is one directory with one SKILL.md, the file the prompt script reads by the name in the hub's index`,
+    ).toStrictEqual([]);
   });
 
   it("the hub names every focused skill and nothing that is not one", () => {
@@ -141,22 +101,21 @@ describe("the agent skills", () => {
     expect(
       [...missing.map((dir) => `unlisted: ${dir}`), ...phantom.map((name) => `phantom: ${name}`)],
       `THE HUB'S INDEX DISAGREES WITH THE SKILL SET\n` +
-        `  rule: the first turn points the agent at ${HUB} and the hub is where it learns the rest exist — a skill it does not list is never read, a name it lists that has no directory is a dead end`,
-    ).toEqual([]);
+        `  rule: the prompt holds ${HUB} and then each skill its index names, in that order — a skill it does not list never reaches the agent, a name it lists that has no directory stops the prompt being built`,
+    ).toStrictEqual([]);
   });
 
   describe("the dialect's fence languages", () => {
-    const exported = [...sourceOf(FENCE_LANGS).matchAll(EXPORTED_LANG)].map(
+    const exported = [...readRepoFile(FENCE_LANGS).matchAll(EXPORTED_LANG)].map(
       (match) => match.groups?.lang ?? "",
     );
 
-    it("finds both sides and the seed notes at all", () => {
+    it("finds both sides at all", () => {
       expect(
         exported.length,
         `${FENCE_LANGS} exports no *_LANG literal a skill teaches`,
       ).toBeGreaterThan(1);
       expect(taughtFenceLangs().length).toBeGreaterThan(1);
-      expect(seedNotes().length, `no tracked .md under ${SEED_DIR}`).toBeGreaterThan(1);
     });
 
     it("are taught exactly as the parser spells them", () => {
@@ -167,18 +126,7 @@ describe("the agent skills", () => {
           ? ""
           : `SKILLS AND THE PARSER SPELL THE FENCES DIFFERENTLY\n${drift.map((line) => `  ${line}`).join("\n")}\n` +
               `  rule: ${UNKNOWN_RULE}, and a skill that teaches one has the agent write blocks nobody sees; a fence no skill teaches is a construct the agent never writes`,
-      ).toEqual([]);
-    });
-
-    it("are seeded only as the parser spells them", () => {
-      const seeded = unknownOpenings(exported, seededFenceLangs());
-      expect(
-        seeded,
-        seeded.length === 0
-          ? ""
-          : `A SEED NOTE OPENS A FENCE THE PARSER DOES NOT KNOW\n${seeded.map((line) => `  ${line}`).join("\n")}\n` +
-              `  rule: ${UNKNOWN_RULE}; the seed is what a new user reads first and copies`,
-      ).toEqual([]);
+      ).toStrictEqual([]);
     });
 
     it("catches a renamed spelling from both sides", () => {
@@ -201,10 +149,24 @@ describe("the agent skills", () => {
         `  ~~~~${lang} x`,
         "  ~~~~",
       ];
-      expect(unknownOpenings(exported, fenceOpenings("note.md", note.join("\n")))).toEqual([
+      expect(unknownOpenings(exported, fenceOpenings("note.md", note.join("\n")))).toStrictEqual([
         `note.md:1 — opens \`${lang}\`, which ${FENCE_LANGS} does not export`,
         `note.md:7 — opens \`${lang}\`, which ${FENCE_LANGS} does not export`,
       ]);
     });
+  });
+});
+
+describe("the built-in agent's system prompt", () => {
+  it("is what scripts/agent-prompt.ts writes from the skills", { timeout: 30_000 }, () => {
+    // node starts and reads every skill: well under a second here, seconds on a loaded runner;
+    // the script refuses a prompt past its cap, and writes nothing of an account or a request
+    expect(() =>
+      execFileSync("node", [AGENT_PROMPT_SCRIPT, "--check"], {
+        cwd: REPO_ROOT,
+        encoding: "utf-8",
+        stdio: "pipe",
+      }),
+    ).not.toThrow();
   });
 });

@@ -43,6 +43,7 @@ export type CanvasParse =
   | { ok: true; grid: boolean[][]; labels: z.infer<typeof labelSchema>[] }
   | { ok: false; reason: string };
 
+/** @internal */
 export const parseCanvasPayload = (value: string): CanvasParse => {
   const lines = value.split("\n");
   const [headerLine, labelLine] = lines;

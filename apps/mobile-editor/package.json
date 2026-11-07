@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./bridge-protocol": "./src/bridge/protocol.ts"
+    "./headless-mode": "./src/headless/headless-mode.ts"
   },
   "scripts": {
     "build": "vite build",
@@ -13,21 +13,26 @@
   },
   "dependencies": {
     "@repo/editor": "workspace:*",
+    "@repo/editor-bridge": "workspace:*",
     "@repo/notes": "workspace:*",
+    "@repo/page-reader": "workspace:*",
     "@repo/ui": "workspace:*",
     "react": "catalog:",
-    "react-dom": "catalog:",
-    "zod": "catalog:"
+    "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@babel/core": "catalog:",
+    "@kyh/tsconfig": "catalog:",
+    "@rolldown/plugin-babel": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@testing-library/react": "catalog:",
+    "@types/babel__core": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
+    "babel-plugin-react-compiler": "catalog:",
     "jsdom": "catalog:",
-    "oxc-transform-react": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"

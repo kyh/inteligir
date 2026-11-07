@@ -97,12 +97,12 @@ export const workspaces = (): Workspace[] => {
   return cachedWorkspaces;
 };
 
-// `apps/cli` → `apps`; workspace-coverage.test.ts holds every workspace one level under its group.
+// `apps/web` → `apps`; workspace-coverage.test.ts holds every workspace one level under its group.
 export const workspaceGroups = (): string[] =>
   [...new Set(workspaces().map((workspace) => path.dirname(workspace.dir)))].toSorted();
 
-// membership by workspaces(), never by name prefix: `inteligir` breaks the @repo/ convention and is
-// exactly the dependency a shipping surface installs.
+// membership by workspaces(), never by name prefix: a workspace is whatever pnpm-workspace.yaml
+// lists, whatever its name
 export const manifestWorkspaceDeps = (manifest: Manifest): Set<string> => {
   const all = {
     ...manifest.dependencies,
@@ -154,9 +154,7 @@ export const trackedFiles = (): string[] => {
 };
 
 export const isTestFile = (relativePath: string): boolean =>
-  /(?:^|\/)__tests__\//u.test(relativePath) ||
-  /(?:^|\/)test-support\//u.test(relativePath) ||
-  /\.test\.[cm]?tsx?$/u.test(relativePath);
+  /(?:^|\/)test-support\//u.test(relativePath) || /\.test\.[cm]?tsx?$/u.test(relativePath);
 
 export interface WorkspaceFiles {
   shipped: string[];
@@ -165,8 +163,7 @@ export interface WorkspaceFiles {
 
 const cachedFiles = new Map<string, WorkspaceFiles>();
 
-// shipped is `src/**` only: build scripts, configs and the editor's dev/ demo are not what a
-// dependent gets.
+// shipped is `src/**` only: build scripts and configs are not what a dependent gets.
 export const workspaceFiles = (workspace: Workspace): WorkspaceFiles => {
   const cached = cachedFiles.get(workspace.name);
   if (cached !== undefined) {
@@ -219,9 +216,8 @@ const IMPORT_SPECIFIER = /\b(?:from|import|require)\s*\(?\s*["'](?<specifier>[^"
 
 const cachedSources = new Map<string, string>();
 
-// full-line comments dropped, so prose naming a package or a change kind cannot invent one; a
-// trailing comment is left alone because stripping it safely means parsing the line, and eating
-// real code fails open.
+// full-line comments dropped, so prose naming a package cannot invent one; a trailing comment is
+// left alone because stripping it safely means parsing the line, and eating real code fails open.
 export const sourceOf = (relativePath: string): string => {
   const cached = cachedSources.get(relativePath);
   if (cached !== undefined) {
