@@ -183,9 +183,9 @@ how it ships.
   `.dark`), so the system scheme recolours every class, named as the web's
   tokens are (`bg-card`), a placeholder included (`placeholder:`). A colour
   React Native takes as a value (a navigator's options, an indicator, a
-  background) reads `apps/mobile/src/lib/palette.ts`, which
-  `apps/mobile/src/styles.test.ts` holds equal to the compiled sheet in both
-  schemes. Rejected: `StyleSheet.create` over a copied palette (a second
+  background) reads `apps/mobile/src/lib/palette.ts`, which holds only those,
+  and which `apps/mobile/src/styles.test.ts` holds equal to the compiled sheet
+  in both schemes. Rejected: `StyleSheet.create` over a copied palette (a second
   spelling in each screen); `@repo/ui` (DOM, which the dep-dag guard refuses).
 
 - **THE PHONE'S STYLE PINS ARE NATIVEWIND'S RELEASE CANDIDATE PAIR, SET UP AS

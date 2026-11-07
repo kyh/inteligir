@@ -20,10 +20,17 @@ import type { Palette } from "@/lib/palette";
 
 const SHEET = path.join(import.meta.dirname, "styles.css");
 
-const isToken = (key: string): key is keyof Palette => Object.hasOwn(paletteFor(false), key);
+const SOURCE = readFileSync(SHEET, "utf-8");
 
-// every token palette.ts holds, so a color added there alone fails the sheet's check
-const TOKENS = Object.keys(paletteFor(false)).filter(isToken);
+// every token the sheet's theme names, so one added there is checked too
+const TOKENS = [...SOURCE.matchAll(/--color-(?<token>[a-z-]+):/gu)].flatMap(
+  (match) => match.groups?.token ?? [],
+);
+
+const isValue = (key: string): key is keyof Palette => Object.hasOwn(paletteFor(false), key);
+
+// the tokens a prop reads as a value
+const VALUES = Object.keys(paletteFor(false)).filter(isValue);
 
 const SIZES = [12, 13, 14, 15, 16, 30] as const;
 
@@ -41,7 +48,7 @@ const hex = (value: StyleDescriptor): string => {
 
 // the classes this suite reads besides the sources' own, spelled for Tailwind to generate
 const PROBES = [
-  ...TOKENS.map((token) => `bg-${cssName(token)}`),
+  ...TOKENS.map((token) => `bg-${token}`),
   "p-4",
   "rounded-lg",
   "leading-[22px]",
@@ -50,7 +57,7 @@ const PROBES = [
 ];
 
 const compiled = async (): Promise<ReactNativeCssStyleSheet> => {
-  const source = `${readFileSync(SHEET, "utf-8")}\n@source inline("${PROBES.join(" ")}");\n`;
+  const source = `${SOURCE}\n@source inline("${PROBES.join(" ")}");\n`;
   const { css } = await postcss([tailwind()]).process(source, { from: SHEET });
   return compile(css, {
     filename: SHEET,
@@ -82,12 +89,12 @@ const schemesOf = (name: string): Schemes => {
 };
 
 describe("the phone's stylesheet", () => {
-  it("declares each palette token at palette.ts's value in light and in dark", () => {
+  it("holds each color a prop reads at palette.ts's value in light and in dark", () => {
     expect(
-      TOKENS.map((token) => ({ token, ...schemesOf(cssName(token)) })),
-      "src/styles.css and src/lib/palette.ts spell one palette twice: change a color in both",
+      VALUES.map((token) => ({ token, ...schemesOf(cssName(token)) })),
+      "src/styles.css and src/lib/palette.ts spell these colors twice: change one in both",
     ).toStrictEqual(
-      TOKENS.map((token) => ({
+      VALUES.map((token) => ({
         dark: [paletteFor(true)[token]],
         light: [paletteFor(false)[token]],
         token,
@@ -95,20 +102,19 @@ describe("the phone's stylesheet", () => {
     );
   });
 
-  it("declares no dark variable palette.ts does not hold", () => {
+  it("declares every token once in light and once in dark, and no dark variable beside them", () => {
+    expect(
+      TOKENS.map(schemesOf).map(({ dark, light }) => [dark.length, light.length]),
+    ).toStrictEqual(TOKENS.map(() => [1, 1]));
     const darkOnly = (sheet.vr ?? [])
       .filter(([, values]) => values.some((value) => isDark(value[1])))
       .map(([name]) => name);
-    expect(darkOnly.toSorted()).toStrictEqual(TOKENS.map(cssName).toSorted());
+    expect(darkOnly.toSorted()).toStrictEqual(TOKENS.toSorted());
   });
 
   it("draws each token's class from the token's own variable", () => {
-    expect(
-      TOKENS.map((token) => JSON.stringify(declarationsOf(`bg-${cssName(token)}`))),
-    ).toStrictEqual(
-      TOKENS.map((token) =>
-        JSON.stringify([[[{}, "var", cssName(token), 1], "backgroundColor", 1]]),
-      ),
+    expect(TOKENS.map((token) => JSON.stringify(declarationsOf(`bg-${token}`)))).toStrictEqual(
+      TOKENS.map((token) => JSON.stringify([[[{}, "var", token, 1], "backgroundColor", 1]])),
     );
   });
 

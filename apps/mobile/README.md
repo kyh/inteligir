@@ -69,9 +69,10 @@ sheet is imported once, by `app/_layout.tsx`.
   system's scheme recolours every screen with no `dark:` in it.
 - **A value outside a class reads `lib/palette.ts`**: a navigator's options, an
   `ActivityIndicator`, a safe area's or a WebView's background, through
-  `useTheme()`; a field's placeholder is a `placeholder:` class. Its values are the sheet's,
-  and `src/styles.test.ts` compiles the sheet as Metro does and holds the two
-  equal in both schemes, so a color changes in both or the suite fails.
+  `useTheme()`; a field's placeholder is a `placeholder:` class. It holds only
+  the tokens read that way, at the sheet's values, and `src/styles.test.ts`
+  compiles the sheet as Metro does and holds the two equal in both schemes, so
+  such a color changes in both or the suite fails.
 - **A rem is the web's.** react-native-css reads every rem at the sheet's
   `:root` font size, 16px, so Tailwind's spacing and radii are the web's:
   `p-4` is 16, `rounded-lg` 8. The sheet imports Tailwind's theme and preflight
@@ -195,10 +196,10 @@ sign-in form never flashes over a device that is signed in.
   brings a manifest or a permission fails it until `app.config.js` says why.
 - **The stylesheet** (`src/styles.test.ts`): it compiles `src/styles.css` with
   the screens' own classes, Tailwind under PostCSS and then react-native-css as
-  Metro does, and holds each token's light and dark value to `lib/palette.ts`,
-  each color class to its token's variable, a rem to 16px, a size class to a
-  size alone, a line-height and a placeholder class to what they draw, and no
-  multi-line field to `py-*`.
+  Metro does, and holds every token to one light and one dark value, those a
+  prop reads to `lib/palette.ts`, each color class to its token's variable, a
+  rem to 16px, a size class to a size alone, a line-height and a placeholder
+  class to what they draw, and no multi-line field to `py-*`.
 - **The bundle**: `pnpm build` runs `expo export --platform ios`, so every
   `pnpm verify` and CI run compiles the phone's JavaScript to Hermes bytecode,
   and the stylesheet into it, offline, on Linux and macOS alike.
