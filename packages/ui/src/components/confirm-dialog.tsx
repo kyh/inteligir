@@ -12,7 +12,7 @@ import {
 } from "@repo/ui/components/alert-dialog";
 import { Button } from "@repo/ui/components/button";
 
-interface ConfirmOptions {
+export interface ConfirmOptions {
   title: React.ReactNode;
   body?: React.ReactNode;
   confirmLabel?: React.ReactNode;

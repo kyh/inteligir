@@ -13,6 +13,7 @@ import type { FakeCell } from "@repo/library-replica/test-support/fake-cell";
 import { openDevice, paragraph } from "@repo/library-replica/test-support/replica-harness";
 import type { TestDevice } from "@repo/library-replica/test-support/replica-harness";
 import type { LibraryOp } from "@repo/notes/library/block-ops";
+import { BLOCK_MAX_BYTES } from "@repo/notes/library/library-nodes";
 import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
 
 import { itemView } from "@repo/editor/codec/item-view";
@@ -22,7 +23,7 @@ import { replicaMerge } from "@repo/editor/stale-write";
 
 import { readElement } from "./item-diff";
 import { itemProperties } from "./item-properties";
-import { createItemSession, ITEM_IDLE_MS, KEPT_CHANGING } from "./item-session";
+import { BLOCK_HELD_BACK, createItemSession, ITEM_IDLE_MS, KEPT_CHANGING } from "./item-session";
 import type { ItemSession, ItemStore, ItemStoreChange } from "./item-session";
 
 const code = (id: string, lines: readonly string[]): LibraryBlock => ({
@@ -496,6 +497,62 @@ describe("an item open in the editor", () => {
     expect(session.status()).toMatchObject({ failure: null, unsaved: false });
     await phone.replica.sync();
     expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
+  });
+
+  it("says a block no write can store and holds it unsaved, until it can be written", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), paragraph("p2", "x")]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("y".repeat(BLOCK_MAX_BYTES), { at: { offset: 1, path: [1, 0] } });
+    session.edited();
+    await pause(phone, session);
+    expect(session.status()).toMatchObject({ failure: BLOCK_HELD_BACK, unsaved: true });
+    await session.flush();
+    expect(session.status()).toMatchObject({ failure: BLOCK_HELD_BACK, unsaved: true });
+    editor.undo();
+    session.edited();
+    await pause(phone, session);
+    expect(session.status()).toMatchObject({ failure: null, unsaved: false });
+    await phone.replica.sync();
+    expect(cellBlock(cell, id, "p2")).toStrictEqual(paragraph("p2", "x"));
+  });
+
+  it("writes the blocks it can beside the one it holds back", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first"), paragraph("p2", "x")]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("!", { at: { offset: 5, path: [0, 0] } });
+    editor.tf.insertText("y".repeat(BLOCK_MAX_BYTES), { at: { offset: 1, path: [1, 0] } });
+    session.edited();
+    await pause(phone, session);
+    expect(session.status()).toMatchObject({ failure: BLOCK_HELD_BACK, unsaved: true });
+    await phone.replica.sync();
+    expect(cellBlock(cell, id, "p1")).toStrictEqual(paragraph("p1", "first!"));
+    expect(cellBlock(cell, id, "p2")).toStrictEqual(paragraph("p2", "x"));
+  });
+
+  it("keeps a block it holds back on screen when another device changes that block", async () => {
+    const { cell, mac, phone } = await devices();
+    const id = await landedNote(cell, mac, phone, [paragraph("p1", "first")]);
+    const { editor, session } = await openOn(phone, id);
+    editor.tf.insertText("y".repeat(BLOCK_MAX_BYTES), { at: { offset: 5, path: [0, 0] } });
+    session.edited();
+    await pause(phone, session);
+    const onMac = await mac.replica.item(id);
+    await mac.replica.write(id, {
+      ops: [
+        {
+          baseHash: onMac?.blocks[0]?.hash ?? "",
+          block: paragraph("p1", "the Mac's"),
+          op: "put",
+        },
+      ],
+    });
+    await mac.replica.sync();
+    await phone.replica.sync();
+    await session.flush();
+    expect(NodeApi.string(editor.children[0] ?? { text: "" }).startsWith("firsty")).toBe(true);
+    expect(session.status()).toMatchObject({ failure: BLOCK_HELD_BACK, unsaved: true });
   });
 
   it("opens with no undo reaching what the editor held before the item", async () => {

@@ -118,7 +118,19 @@ describe("an item's value as the ops it writes", () => {
     const value = valueOf(item).with(0, { children: [{ text: "x" }], id: "n0", type: "nope" });
     const diff = diffValue(item.blocks, value);
     expect(diff.ops).toStrictEqual([]);
-    expect(diff.heldBack).toMatchObject([{ index: 0 }]);
+    expect(diff.heldBack).toStrictEqual(["n0"]);
+  });
+
+  it("reads a block around a picker still open in it, whose query nobody has written yet", () => {
+    const item = itemOf(1, 0);
+    const picking: TElement = {
+      children: [{ text: "n 0 [" }, { children: [{ text: "" }], type: "wiki_input" }, { text: "" }],
+      id: "n0",
+      type: "p",
+    };
+    const diff = diffValue(item.blocks, [picking]);
+    expect(diff.heldBack).toStrictEqual([]);
+    expect(diff.ops).toMatchObject([{ block: paragraph("n0", "n 0 ["), op: "put" }]);
   });
 
   it("files a block typed after the article's first block in the article", () => {

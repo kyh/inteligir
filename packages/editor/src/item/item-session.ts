@@ -7,8 +7,9 @@
 // both changed is merged three ways (`@repo/editor/stale-write`), and an edit outlives a drop
 // either way round. A write the store refuses on a base that moved under it settles the same way
 // and goes again, and a merge that kept this device's lines over another's change to the same ones
-// is said, whether this session or the replica's outbox made it. Construction is inert: nothing
-// reads, subscribes or schedules until `start()`.
+// is said, whether this session or the replica's outbox made it. A block no write can store stays
+// in the editor as the person left it, counted unsaved and said, so a host holds the leave.
+// Construction is inert: nothing reads, subscribes or schedules until `start()`.
 
 import { NodeApi, TextApi } from "platejs";
 import type { Point, SlateEditor, TElement } from "platejs";
@@ -86,9 +87,8 @@ export type ItemSessionStatus =
       readonly fields: LibraryItemFields;
       // an edit the store has not queued yet
       readonly unsaved: boolean;
-      // the blocks no write can store, which stay as they were last written
-      readonly heldBack: number;
-      // why the last write or landing failed, null once one went through
+      // why an edit is not saved, in the person's words: the last write or landing failed, or a
+      // block here is one no write can store; null once neither holds
       readonly failure: string | null;
     };
 
@@ -113,6 +113,9 @@ export const ITEM_IDLE_MS = 800;
 const SETTLE_TRIES = 3;
 /** @internal */
 export const KEPT_CHANGING = "This item kept changing elsewhere while it saved. It will try again.";
+/** @internal */
+export const BLOCK_HELD_BACK =
+  "Part of this item can't be saved. Shorten or change it, or leaving loses what changed there.";
 
 // a stored block as the element the editor holds
 /** @internal */
@@ -170,6 +173,8 @@ interface Landing {
   readonly mine: ReadonlyMap<string, ReadBlock>;
   readonly touched: ReadonlySet<string>;
   readonly movedHere: ReadonlySet<string>;
+  // the blocks this editor holds that no write can store, and so no merge can read
+  readonly heldBack: ReadonlySet<string | null>;
   readonly merge: (sides: BlockSides) => MergedBlock;
   readonly overlapped: Set<string>;
 }
@@ -183,7 +188,8 @@ const landingOf = (
 ): Landing => {
   const touched = new Set<string>();
   const movedHere = new Set<string>();
-  for (const op of diffValue(base.blocks, value, reads).ops) {
+  const diff = diffValue(base.blocks, value, reads);
+  for (const op of diff.ops) {
     if (op.op === "move") {
       movedHere.add(op.blockId);
     } else if (op.op === "drop") {
@@ -199,15 +205,24 @@ const landingOf = (
       mine.set(read.block.id, read);
     }
   }
-  return { base, merge, mine, movedHere, overlapped: new Set(), theirs: stateOf(item), touched };
+  return {
+    base,
+    heldBack: new Set(diff.heldBack),
+    merge,
+    mine,
+    movedHere,
+    overlapped: new Set(),
+    theirs: stateOf(item),
+    touched,
+  };
 };
 
-// a block only one side changed takes that side, one both changed is merged, and an edit outlives
-// a drop either way round
+// a block only one side changed takes that side, one both changed is merged, an edit outlives a
+// drop either way round, and one held back stays, since it is the one copy of what the person wrote
 const decide = (landing: Landing, id: string): Decision => {
   const was = landing.base.blocks.get(id);
   const now = landing.theirs.blocks.get(id);
-  if (was?.hash === now?.hash) {
+  if (was?.hash === now?.hash || landing.heldBack.has(id)) {
     return KEEP;
   }
   const ours = landing.mine.get(id);
@@ -292,7 +307,7 @@ export const createItemSession = (
   const listeners = new Set<() => void>();
   let acked: ItemState | null = null;
   let pendingFields: FieldOp[] = [];
-  let heldBack = 0;
+  let holdsBack = false;
   let failure: string | null = null;
   // an edit the tries ran out on: no write has queued it yet
   let behind = false;
@@ -312,11 +327,10 @@ export const createItemSession = (
     } else {
       const laid = pendingFields.length === 0 ? null : applyOps(acked, pendingFields);
       snapshot = {
-        failure,
+        failure: failure ?? (holdsBack ? BLOCK_HELD_BACK : null),
         fields: laid?.kind === "applied" ? laid.state.fields : acked.fields,
-        heldBack,
         kind: "open",
-        unsaved: cancelIdle !== null || pendingFields.length > 0 || behind,
+        unsaved: cancelIdle !== null || pendingFields.length > 0 || behind || holdsBack,
       };
     }
     for (const listener of listeners) {
@@ -451,7 +465,7 @@ export const createItemSession = (
         return "done";
       }
       const diff = diffValue(base.blocks, editor.children, reads);
-      heldBack = diff.heldBack.length;
+      holdsBack = diff.heldBack.length > 0;
       const sentFields = pendingFields;
       const ops = [...diff.ops, ...sentFields];
       if (ops.length === 0) {

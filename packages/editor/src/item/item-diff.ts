@@ -8,8 +8,10 @@
 // elements inside a block are the editor's own (a table's cells are keyed by them) and no block
 // stores one, so a block laid in from elsewhere, which Plate names again inside, hashes as it was
 // stored. An element no block can store is held back, and its acknowledged block left as it stands.
+// A picker open in a block is read around, since its query is nobody's writing yet.
 
-import type { TElement } from "platejs";
+import { ElementApi } from "platejs";
+import type { Descendant, TElement } from "platejs";
 
 import { blockHash } from "@repo/notes/library/block-hash";
 import type { LibraryOp, StoredBlock } from "@repo/notes/library/block-ops";
@@ -17,14 +19,15 @@ import { placeInOrder } from "@repo/notes/library/block-order";
 import { blockIdSchema, storableBlockSchema } from "@repo/notes/library/library-nodes";
 import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
 
+import { PICKER_INPUT_TYPES } from "@repo/editor/combobox-input";
 import { stringProp } from "@repo/editor/node-props";
 import { namedBlockJson, tidyBlock } from "../codec/read-blocks";
 
-// one top-level element as the block it stores, in the one spelling a block is stored in, or why
-// it stores none
+// one top-level element as the block it stores, in the one spelling a block is stored in, or the
+// id of one that stores none
 export type ReadElement =
   | { readonly kind: "block"; readonly block: LibraryBlock; readonly hash: string }
-  | { readonly kind: "refused"; readonly id: string | null; readonly reason: string };
+  | { readonly kind: "refused"; readonly id: string | null };
 
 // the element's block, read once per element object: an element Slate left as it was is the
 // same object, so a value of thousands of blocks is read only where it changed
@@ -33,36 +36,43 @@ export type ElementReads = WeakMap<TElement, ReadElement>;
 const validId = (value: string | undefined): string | null =>
   value !== undefined && blockIdSchema.validate(value) ? value : null;
 
+const withoutPickers = (element: TElement): TElement => ({
+  ...element,
+  children: element.children.flatMap((child): Descendant[] => {
+    if (!ElementApi.isElement(child)) {
+      return [child];
+    }
+    return PICKER_INPUT_TYPES.includes(child.type) ? [] : [withoutPickers(child)];
+  }),
+});
+
 export const readElement = (element: TElement, reads?: ElementReads): ReadElement => {
   const known = reads?.get(element);
   if (known !== undefined) {
     return known;
   }
   const id = validId(stringProp(element, "id"));
-  let read: ReadElement;
-  if (id === null) {
-    read = { id: null, kind: "refused", reason: "it has no block id" };
-  } else {
+  let read: ReadElement = { id, kind: "refused" };
+  if (id !== null) {
     const parsed = storableBlockSchema.safeParse(
-      namedBlockJson({ element: tidyBlock(element), ref: validId(stringProp(element, "ref")) }, id),
+      namedBlockJson(
+        { element: tidyBlock(withoutPickers(element)), ref: validId(stringProp(element, "ref")) },
+        id,
+      ),
     );
-    read = parsed.success
-      ? { block: parsed.data, hash: blockHash(parsed.data), kind: "block" }
-      : { id, kind: "refused", reason: parsed.error.issues[0]?.message ?? "it is not storable" };
+    if (parsed.success) {
+      read = { block: parsed.data, hash: blockHash(parsed.data), kind: "block" };
+    }
   }
   reads?.set(element, read);
   return read;
 };
 
-interface HeldBack {
-  readonly index: number;
-  readonly reason: string;
-}
-
 export interface ValueDiff {
   readonly ops: readonly LibraryOp[];
-  // the elements no block can store, which this diff leaves as they were acknowledged
-  readonly heldBack: readonly HeldBack[];
+  // the ids of the elements no block can store, null for one with none, which this diff leaves as
+  // they were acknowledged
+  readonly heldBack: readonly (string | null)[];
 }
 
 interface Placed {
@@ -104,21 +114,21 @@ export const diffValue = (
   value: readonly TElement[],
   reads?: ElementReads,
 ): ValueDiff => {
-  const heldBack: HeldBack[] = [];
+  const heldBack: (string | null)[] = [];
   const kept = new Set<string>();
   const blocks: LibraryBlock[] = [];
   const hashes = new Map<string, string>();
-  for (const [index, element] of value.entries()) {
+  for (const element of value) {
     const read = readElement(element, reads);
     if (read.kind === "refused") {
-      heldBack.push({ index, reason: read.reason });
+      heldBack.push(read.id);
       if (read.id !== null) {
         kept.add(read.id);
       }
       continue;
     }
     if (hashes.has(read.block.id) || kept.has(read.block.id)) {
-      heldBack.push({ index, reason: "another block holds its id" });
+      heldBack.push(read.block.id);
       continue;
     }
     blocks.push(read.block);

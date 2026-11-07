@@ -11,6 +11,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { blockHash } from "@repo/notes/library/block-hash";
 import { applyOps, orderedBlocks } from "@repo/notes/library/block-ops";
 import type { ItemState } from "@repo/notes/library/block-ops";
+import { BLOCK_MAX_BYTES } from "@repo/notes/library/library-nodes";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { noteFields } from "@repo/notes/test-support/library-items";
 
@@ -19,6 +20,7 @@ import type { Deferred } from "@repo/editor/deferred";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 import { ItemEditor, MISSING_ITEM } from "./item-editor";
+import { BLOCK_HELD_BACK } from "./item-session";
 import type { HeldItem, ItemSession, ItemSessionPorts, ItemStore } from "./item-session";
 
 // every editor the surface makes, in the order it makes them, so a case can type into one
@@ -209,6 +211,29 @@ describe("an item's surface", () => {
     read.resolve(null);
     await expect(screen.findByText("the item's text")).resolves.toBeDefined();
     expect(editable()).not.toBeNull();
+  });
+
+  it("says beside the text why an edit is not saved, until it is", async () => {
+    const items = new Map([[A, itemOf("A", paragraph("a1", "A one"))]]);
+    const { store } = memoryStore(items);
+    render(<Host itemId={A} ports={portsOver(store)} />);
+    await expect(screen.findByText("A one")).resolves.toBeDefined();
+    const editor = made.editors.at(-1);
+    const session = lastSession();
+    act(() => {
+      editor?.tf.insertText("y".repeat(BLOCK_MAX_BYTES), { at: { offset: 5, path: [0, 0] } });
+    });
+    await act(async () => {
+      await session.flush();
+    });
+    expect(screen.getByRole("alert").textContent).toBe(BLOCK_HELD_BACK);
+    act(() => {
+      editor?.undo();
+    });
+    await act(async () => {
+      await session.flush();
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("says an item this device does not hold is not here, with no editor to type into", async () => {

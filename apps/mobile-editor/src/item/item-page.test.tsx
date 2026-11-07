@@ -2,10 +2,12 @@ import { act, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, test } from "vitest";
 
 import { getEditorHostActions, getEditorHostIo } from "@repo/editor/host-io";
-import { createItemSession, ITEM_IDLE_MS } from "@repo/editor/item/item-session";
+import { BLOCK_HELD_BACK, createItemSession, ITEM_IDLE_MS } from "@repo/editor/item/item-session";
+import { getLiveEditor } from "@repo/editor/live-editor";
 import { headlessEditor } from "@repo/editor/markdown/markdown-doc";
 import { blockHash } from "@repo/notes/library/block-hash";
 import type { ItemState } from "@repo/notes/library/block-ops";
+import { BLOCK_MAX_BYTES } from "@repo/notes/library/library-nodes";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { noteFields } from "@repo/notes/test-support/library-items";
 
@@ -289,6 +291,31 @@ describe("an item page over the phone's replica", () => {
     await waitFor(() => {
       expect(phone.events("flushed")).toMatchObject([{ id: 4, ok: true }]);
     });
+  });
+
+  it("tells the phone a block no write can store is unsaved, and answers a flush that it failed", async () => {
+    const phone = createFakePhone({ [ITEM]: itemOf(paragraph("p1", "Hello from the item.")) });
+    const { bridge, init } = await connectItem(phone);
+    const container = document.createElement("div");
+    document.body.append(container);
+    act(() => {
+      mounted = mountItemPage({ bridge, container, init });
+    });
+    await expect(screen.findByText("Hello from the item.")).resolves.toBeDefined();
+    act(() => {
+      getLiveEditor(ITEM)?.tf.insertText("y".repeat(BLOCK_MAX_BYTES), {
+        at: { offset: 5, path: [0, 0] },
+      });
+    });
+    phone.deliver({ id: 4, nonce: PHONE_NONCE, type: "flush" });
+    await waitFor(() => {
+      expect(phone.events("flushed")).toMatchObject([{ id: 4, ok: false }]);
+    });
+    expect(phone.events("editorState").at(-1)).toMatchObject({
+      dirty: true,
+      saveError: BLOCK_HELD_BACK,
+    });
+    expect(screen.getByRole("alert").textContent).toBe(BLOCK_HELD_BACK);
   });
 });
 
