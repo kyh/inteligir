@@ -21,6 +21,22 @@ export const escapeBarePipes = (raw: string): string => {
   return escaped;
 };
 
+// a span the grammar holds literally writes its pipes as a table row needs them: gfm pairs a row's
+// backslashes, so `\\|` is an escaped backslash and then a divider. a pipe the span keeps behind a
+// backslash of its own has no spelling that reads back through `readCellPipes`, so each span names
+// what stands for it.
+export const escapeCellPipes = (raw: string, ownEscape: string): string =>
+  raw.replaceAll(/\\[\s\S]|\|/gu, (run) => {
+    if (run === "|") {
+      return String.raw`\|`;
+    }
+    return run === String.raw`\|` ? ownEscape : run;
+  });
+
+// gfm's reading of a cell's inline code, which a literal span of ours shares
+export const readCellPipes = (raw: string): string =>
+  raw.replaceAll(/\\[\\|]/gu, (run) => (run === String.raw`\|` ? "|" : run));
+
 // a backtick run pairs with the next run of the same length (CommonMark).
 export const codeSpanRanges = (line: string): Range[] => {
   const runs: Range[] = [];

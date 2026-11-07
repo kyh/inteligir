@@ -493,9 +493,12 @@ const CORPUS = {
   "table-inline-jsx":
     '| <date value="2026-01-01" /> |\n| --------------------------- |\n| y                           |\n',
   "table-inside-toggle": "<toggle>\n  | a |\n  | - |\n  | b |\n</toggle>\n",
+  "table-math-pipe": "| $$\\|x\\|$$ |\n| - |\n| $$a\\\\\\|b$$ |\n",
   "table-ragged-body-long": "| a |\n| - |\n| 1 | 2 |\n",
   "table-ragged-body-short": "| a | b |\n| - | - |\n| 1 |\n",
   "table-ragged-header": "| a |\n| - | - |\n",
+  "table-wiki-alias":
+    "| [[Note\\|shown]] | b |\n| - | - |\n| ![[img.png\\|300]] | [[a\\\\\\|c]] |\n",
   "tabs-in-toggle": ":::toggle\n:::tabs\n=== A\nx\n:::\n:::\n",
   "tilde-fence": "~~~js\ncode\n~~~\n",
   "todo-capital-x": "- [X] done\n",

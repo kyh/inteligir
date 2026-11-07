@@ -3,9 +3,16 @@
 // extensions.
 
 import type { Break, ListItem, Nodes, ThematicBreak } from "mdast";
+import type {
+  CompileContext,
+  Extension as FromMarkdownExtension,
+  Token,
+} from "mdast-util-from-markdown";
+import type { InlineMath } from "mdast-util-math";
 import type { Handle, Options as ToMarkdownOptions } from "mdast-util-to-markdown";
 import type { Plugin, Processor } from "unified";
 import { gfmTaskListItemToMarkdown } from "mdast-util-gfm-task-list-item";
+import { mathFromMarkdown, mathToMarkdown } from "mdast-util-math";
 import { defaultHandlers } from "mdast-util-to-markdown";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkGfm from "remark-gfm";
@@ -13,6 +20,7 @@ import remarkMath from "remark-math";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
+import { escapeCellPipes, readCellPipes } from "./line-scan";
 import { remarkContainers } from "./remark-containers";
 import { remarkInlineConstructs } from "./remark-inline-constructs";
 import { remarkInlineHtml } from "./remark-inline-html";
@@ -93,12 +101,46 @@ const listItemEmptyTodoPlaceholder: Handle = (node: Nodes, parent, state, info) 
   return gfmListItem(node, parent, state, info);
 };
 
+const MATH_OPTIONS = { singleDollarTextMath: false };
+
+const inlineMathHandle = mathToMarkdown(MATH_OPTIONS).handlers?.inlineMath;
+const exitInlineMath = mathFromMarkdown().exit?.mathText;
+if (!inlineMathHandle || !exitInlineMath) {
+  throw new Error("mdast-util-math ships no inline math handlers — pipeline cannot start");
+}
+
+// gfm carries inline code through a row and has no word for inline math, whose pipes would end the
+// cell. TeX's own `\|` reads back as a pipe here, so it goes as the same bar by its other name.
+const inlineMathInRow: Handle = (node: InlineMath, parent, state, info) =>
+  inlineMathHandle(
+    state.stack.includes("tableCell")
+      ? { ...node, value: escapeCellPipes(node.value, String.raw`\Vert `) }
+      : node,
+    parent,
+    state,
+    info,
+  );
+
+const inlineMathFromRow: FromMarkdownExtension = {
+  exit: {
+    mathText(this: CompileContext, token: Token) {
+      exitInlineMath.call(this, token);
+      const parent = this.stack.at(-1);
+      const math = parent !== undefined && "children" in parent ? parent.children.at(-1) : null;
+      if (this.data.inTable === true && math?.type === "inlineMath") {
+        math.value = readCellPipes(math.value);
+      }
+    },
+  },
+};
+
 // `-` bullets match Obsidian (remark's default is `*`). `resourceLink: true` bans the `<url>`
 // autolink form, so a link has one spelling: its bare literal (md-rules) or `[text](url)`.
 export const MD_STRINGIFY = {
   bullet: "-",
   handlers: {
     break: hardBreakAfterBareUrl,
+    inlineMath: inlineMathInRow,
     listItem: listItemEmptyTodoPlaceholder,
     thematicBreak: thematicBreakNeverFrontmatter,
   },
@@ -109,8 +151,9 @@ export const MD_STRINGIFY = {
 
 // single-dollar math is off: "$5 and $6" must never render as math. Plate types remarkPlugins
 // as Plugin[] (no [plugin, options] tuples), so options are bound via named wrappers.
-const remarkMathNoSingleDollar: Plugin = function remarkMathNoSingleDollar() {
-  remarkMath.call(this, { singleDollarTextMath: false });
+const remarkMathNoSingleDollar: Plugin = function remarkMathNoSingleDollar(this: Processor) {
+  remarkMath.call(this, MATH_OPTIONS);
+  (this.data().fromMarkdownExtensions ??= []).push(inlineMathFromRow);
 };
 
 const remarkOpaqueCanonical: Plugin = function remarkOpaqueCanonical() {

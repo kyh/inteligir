@@ -120,6 +120,20 @@ const NOTE = [
   "",
 ].join("\n");
 
+const groupOf = (label: string): string =>
+  `:::tabs\n=== ${label}\nbody here now\n\n=== Second\nmore\n:::\n`;
+
+// a table's row, read back: how many cells it holds, and what each one reads as
+const cellsOf = (blocks: Map<string, StoredBlock>) => {
+  const table = [...blocks.values()].find(({ block }) => block.type === "table");
+  if (table === undefined || !("children" in table.block)) {
+    throw new Error("no table landed");
+  }
+  return JSON.stringify(table.block.children.at(-1));
+};
+
+const withoutIds = (cells: string): string => cells.replaceAll(/"id":"[^"]*",?/gu, "");
+
 describe("the agent's view of an item", () => {
   it("writes a link with its item's live title and id", () => {
     expect(textOf(storedOf(NOTE))).toContain(`[[Other note|${OTHER_ID}]]`);
@@ -584,6 +598,71 @@ describe("an edit made on the view", () => {
   });
 });
 
+describe("a link or an equation in a table cell", () => {
+  it.each([
+    ["a link", "| a | b |\n| - | - |\n| [[Other note]] | word |\n"],
+    [
+      "an aliased link",
+      String.raw`| a | b |
+| - | - |
+| [[Other note\|shown]] | word |
+`,
+    ],
+    [
+      "an embed",
+      String.raw`| a | b |
+| - | - |
+| ![[Other note\|300]] | word |
+`,
+    ],
+  ])("keeps %s and its row through an edit of the next cell", (_label, table) => {
+    const blocks = storedOf(table);
+    const before = cellsOf(blocks);
+    expect(before).toContain(OTHER_ID);
+    const edited = editItemView(blocks, [{ newText: "changed", oldText: "word" }], portsWith());
+    if (edited.kind !== "changed") {
+      throw new Error(`the edit refused: ${JSON.stringify(edited)}`);
+    }
+    expect(withoutIds(cellsOf(landed(blocks, edited.ops)))).toBe(
+      withoutIds(before).replace("word", "changed"),
+    );
+  });
+
+  it("keeps the row through a quote placed in the next cell", () => {
+    const blocks = storedOf("| a | b |\n| - | - |\n| [[Other note]] | some words here |\n");
+    const placed = placeItemQuotes(blocks, [{ id: "q1", quote: "words" }], portsWith());
+    expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
+    const row = cellsOf(landed(blocks, placed.ops));
+    expect(row).toContain(OTHER_ID);
+    expect(row.match(/"type":"td"/gu)).toHaveLength(2);
+  });
+
+  it("finds a quote by the pipes an equation in a cell shows", () => {
+    const blocks = storedOf(String.raw`| a |
+| - |
+| $$\|x\|$$ and words |
+`);
+    const placed = placeItemQuotes(blocks, [{ id: "q1", quote: "|x| and" }], portsWith());
+    expect(placed).toMatchObject({ missing: [], placed: ["q1"] });
+  });
+
+  it("keeps an equation's pipes in its cell through an edit of the next cell", () => {
+    const blocks = storedOf(String.raw`| a | b |
+| - | - |
+| $$\|x\| + \Vert y$$ | word |
+`);
+    const before = cellsOf(blocks);
+    expect(before).toContain(String.raw`|x| + \\Vert y`);
+    const edited = editItemView(blocks, [{ newText: "changed", oldText: "word" }], portsWith());
+    if (edited.kind !== "changed") {
+      throw new Error(`the edit refused: ${JSON.stringify(edited)}`);
+    }
+    expect(withoutIds(cellsOf(landed(blocks, edited.ops)))).toBe(
+      withoutIds(before).replace("word", "changed"),
+    );
+  });
+});
+
 describe("a highlight placed by its quote", () => {
   it("lands its markers in the page first, putting only the block it wraps", () => {
     const text = [
@@ -653,9 +732,6 @@ describe("a highlight placed by its quote", () => {
   });
 
   describe("a tab's label holding an address", () => {
-    const groupOf = (label: string): string =>
-      `:::tabs\n=== ${label}\nbody here now\n\n=== Second\nmore\n:::\n`;
-
     it.each([
       [String.raw`https\://x.cd docs`, "docs"],
       [String.raw`https\://x.cd`, "https://x.cd"],

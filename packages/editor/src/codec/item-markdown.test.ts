@@ -960,6 +960,56 @@ describe("one file as its item", () => {
     expect(pieces.filter((piece) => /\p{Cs}/u.test(piece))).toStrictEqual([]);
   });
 
+  it.each([
+    [String.raw`[[Other\|shown]]`, String.raw`[[Other\|shown]]`],
+    [String.raw`![[Other\|300]]`, String.raw`![[Other\|300]]`],
+    ["[[Other]]", "[[Other]]"],
+    [String.raw`[[a\\\|shown]]`, String.raw`[[a\\\|shown]]`],
+    [String.raw`$$\|x\|$$`, String.raw`$$\|x\|$$`],
+    [String.raw`$$a\\\|b$$`, String.raw`$$a\\\|b$$`],
+    [String.raw`*$$\|x\|$$*`, String.raw`$$\|x\|$$`],
+  ])("reads %s in a cell by the table's spelling, and writes it so", (cell, written) => {
+    const item = imported(`| a | b |\n| - | - |\n| ${cell} | word |\n`);
+    expect(item.leftOut).toBe(0);
+    expect(exported(item).text).toContain(`| ${written} |`);
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it("writes TeX's own double bar in a cell so it stays one", () => {
+    const item = typedItem("note", [
+      {
+        children: [
+          {
+            children: [
+              {
+                children: [
+                  {
+                    children: [
+                      { text: "" },
+                      {
+                        children: [{ text: "" }],
+                        texExpression: String.raw`\|x\|`,
+                        type: "inline_equation",
+                      },
+                      { text: "" },
+                    ],
+                    type: "p",
+                  },
+                ],
+                type: "td",
+              },
+            ],
+            type: "tr",
+          },
+        ],
+        id: "t",
+        type: "table",
+      },
+    ]);
+    expect(exported(item).text).toContain(String.raw`$$\Vert x\Vert $$`);
+    expect(JSON.stringify(reimported(item).blocks)).toContain(String.raw`\\Vert x\\Vert `);
+  });
+
   it("keeps the words of a link and the source of an image that name no address", () => {
     const item = imported(
       "Before [words]() after.\n\n- ![seen]()\n- [listed]()\n\n> [quoted](<>)\n\n| a |\n| - |\n| [cell]() |\n",

@@ -417,6 +417,16 @@ alone, and no walk narrows structurally.
   phone's page keeps the ids and hashes, which name nothing, past a sign-out.
   `packages/editor/src/heading-collapse.tsx`.
 
+- **A SPAN HELD LITERALLY KEEPS ITS PIPES IN A TABLE CELL.** A wiki body and an
+  inline equation are read as source, so a row's `\|` reaches them: each drops
+  it on the read, as gfm does for inline code, and writes a bare pipe that way,
+  which is how Obsidian spells `[[Title\|alias]]`. TeX's own `\|` would read
+  back as a pipe, so in a cell it is written `\Vert`, the same bar. Rejected:
+  `\vert` for a bare pipe (it means nothing in `\begin{array}{c|c}` or
+  `\text{a|b}`), and escaping with no read (`|x|` would come back as `\|x\|`, a
+  different bar). `packages/notes/src/markdown/line-scan.ts`,
+  `packages/notes/src/markdown/md-plugins.ts`.
+
 ## The open item's merge
 
 - **THE MERGE'S LINE DIFF IS BOUNDED, AND A MERGE THAT KEPT MINE OVER AN
