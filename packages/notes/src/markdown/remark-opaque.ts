@@ -10,7 +10,7 @@ import type { Options as ToMarkdownOptions, State } from "mdast-util-to-markdown
 import type { Plugin, Processor } from "unified";
 import { toMarkdown } from "mdast-util-to-markdown";
 
-import { escapeBarePipes } from "./line-scan";
+import { cellSafe } from "./line-scan";
 import { isMdastRoot } from "./mdast-nodes";
 
 export interface OpaqueInline extends Node {
@@ -149,13 +149,11 @@ const makeOpaque = (node: Nodes, options: ToMarkdownOptions): void => {
   }
 };
 
-// gfm-table has unescaped a text's pipes by the time a spelling is read from it, and a tag's
-// children render with no table around them, so the cell's escape is written back here
 const opaqueToMarkdown: ToMarkdownOptions = {
   handlers: {
     opaqueInline: Object.assign(
       (node: OpaqueInline, _parent: Parents | undefined, state: State) =>
-        state.stack.includes("tableCell") ? escapeBarePipes(node.value) : node.value,
+        cellSafe(node.value, state),
       { peek: () => "<" },
     ),
   },

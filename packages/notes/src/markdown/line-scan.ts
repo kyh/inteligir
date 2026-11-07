@@ -1,3 +1,5 @@
+import type { State } from "mdast-util-to-markdown";
+
 export interface Range {
   start: number;
   end: number;
@@ -20,6 +22,12 @@ export const escapeBarePipes = (raw: string): string => {
   }
   return escaped;
 };
+
+// gfm-table has unescaped a cell's pipes before a pill or a held source is read out of its text,
+// and a tag's children render with no table around them, so what holds its own bytes writes the
+// cell's escape back, or the next parse ends the cell at its first pipe
+export const cellSafe = (raw: string, state: State): string =>
+  state.stack.includes("tableCell") ? escapeBarePipes(raw) : raw;
 
 // a backtick run pairs with the next run of the same length (CommonMark).
 export const codeSpanRanges = (line: string): Range[] => {
