@@ -22,9 +22,8 @@ import { blobKey } from "./cell-blobs";
 import { addFileBytes } from "./cell-quota";
 import { cellStorageOf } from "./cell-storage";
 
-const sha256Hex = async (bytes: Uint8Array): Promise<string> => {
-  return hexFromBytes(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
-};
+const sha256Hex = async (bytes: Uint8Array): Promise<string> =>
+  hexFromBytes(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
 
 const fileOf = async (text: string) => {
   const bytes = new TextEncoder().encode(text);
