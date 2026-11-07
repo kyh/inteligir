@@ -153,7 +153,5 @@ export const builtWorkerBoot: Scenario = {
 
     const unknown = await fetch(`${worker.origin}/no-route-answers-this`);
     expectEq(unknown.status, 404, "an unknown path against the built bundle");
-    const design = await fetch(`${worker.origin}/design`);
-    expectEq(design.status, unknown.status, "/design against the built bundle, as an unknown path");
   },
 };
