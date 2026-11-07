@@ -377,15 +377,21 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   thumbnail made in the cell (its CPU holds every write). `apps/web/src/worker/fill/read-page.ts`,
   `packages/notes/src/items/link-fill.ts`.
 
-- **A FILE NO ITEM HAS NAMED IS LET GO ONCE NOTHING WILL, AND ONE AN ITEM NAMED
-  STAYS.** A file's row that lands waits a day under an `unnamed` job, which an
-  item naming it drops; an import that ends however it ended lets its files
-  go, a reading that lands nowhere hands its cover to the alarm's next run,
-  and none goes while an import runs, whose plan may name it. Once named, a
-  revision may hold it, so it stays. Rejected: releasing by `refs` alone (a
-  file only history holds would go); a sweep of rows with no refs (the same).
-  `apps/web/src/worker/library/cell-blobs.ts`, `cell-imports.ts`,
-  `cell-fills.ts`.
+- **A FILE IS LET GO ONCE NOTHING NAMES IT OR WILL.** A file stays while an
+  item names it or any item's history does, and `history_blobs` keeps which
+  files each fields part and block version names, so the ask is one lookup. A
+  file that lands, or that an item stops naming, waits a day under an `unnamed`
+  job, which an item naming it drops; a purge, or a prune dropping the last
+  history naming it, hands it to the alarm's next run, since Delete forever
+  frees room at once; an import that ends however it ended lets its files go, a
+  reading that lands nowhere hands its cover to the alarm's next run, and none
+  goes while an import runs or an export writes, whose plans may name it.
+  Rejected: releasing by `refs` alone (a file only history holds would go); a
+  sweep of rows with no refs (the same); searching history's JSON for the sha
+  (a read of every part per file, whose CPU holds every write); releasing
+  inside the purge (it cannot wait out a running import).
+  `apps/web/src/worker/library/cell-blobs.ts`, `cell-parts.ts`,
+  `history-prune.ts`, `cell-imports.ts`, `cell-fills.ts`.
 
 - **THE CONNECTOR'S OAUTH IS `@cloudflare/workers-oauth-provider`'S, ON KV,
   NAMED FROM ONE ORIGIN PER DEPLOYMENT** (owner decision). The provider owns

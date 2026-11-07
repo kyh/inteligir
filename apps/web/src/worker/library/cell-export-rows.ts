@@ -27,6 +27,11 @@ export const ROWS = {
 } as const;
 type RowKind = (typeof ROWS)[keyof typeof ROWS];
 
+// whether an export is being written: its plan may hold a file no item names any more, so none is
+// let go meanwhile
+export const exportsWriting = (sql: SqlStatements): boolean =>
+  sql.all("SELECT 1 FROM export_jobs WHERE state = 'writing' LIMIT 1", []).length > 0;
+
 export interface ExportRow {
   readonly key: string;
   readonly idx: number;

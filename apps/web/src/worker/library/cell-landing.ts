@@ -226,7 +226,7 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
   }
   const named = refs.map((ref) => ref.sha);
   if (before === null || !sameShas(priorShas, named)) {
-    storeItemBlobs(storage, itemId, refs);
+    storeItemBlobs(storage, itemId, refs, scope.now);
   }
   storeAnnotationRows(storage, landing.annotations, seq);
   runPlan(

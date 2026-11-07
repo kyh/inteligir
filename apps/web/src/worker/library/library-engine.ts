@@ -40,6 +40,7 @@ import {
 } from "./cell-blobs";
 import type { StoredObject, UploadRequest, UploadRoom } from "./cell-blobs";
 import { cellCodec } from "./cell-codec";
+import { exportsWriting } from "./cell-export-rows";
 import { claimFills, FILL_ACTOR, fillWaits, landFill, readingFiles, sentFills } from "./cell-fills";
 import type { ClaimedFill } from "./cell-fills";
 import type { CellIds } from "./cell-ids";
@@ -151,8 +152,9 @@ const PAYLOADS = {
 const STORAGE_JOBS = ["seal", "prune", "upload", "unnamed"] as const;
 
 const PRUNE_AGAIN_MS = 1000;
-// a file no item named is asked about again this long after, while an import may yet name it
-const IMPORT_AGAIN_MS = 10 * 60_000;
+// a file no item names is asked about again this long after, while an import or an export may
+// yet name it
+const PLAN_AGAIN_MS = 10 * 60_000;
 
 // what a write took on its first landing: the library's next sequence number and its actor's set
 interface Taken {
@@ -259,8 +261,9 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       item: landWrite(scope, actor, input),
     }));
 
-  // emptying Deleted: the item keeps its id and sequence as a tombstone, and its body, highlights
-  // and history go; it joins no set, since nothing can take it back
+  // emptying Deleted: the item keeps its id and sequence as a tombstone, its body, highlights and
+  // history go, and the alarm lets go the files nothing else names; it joins no set, since nothing
+  // can take it back
   const purgeItems = (input: PurgeItemsInput) =>
     transact({ answer: purgedSchema, openSet: noSet, opId: input.opId }, (scope) => {
       const purged: string[] = [];
@@ -278,7 +281,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
           storage,
           storeTombstone({ deletedAt: item.fields.deletedAt, id, seq, updatedAt: scope.now }),
         );
-        dropItemBlobs(storage, id, shas);
         for (const table of [
           "revisions",
           "snapshot_parts",
@@ -287,6 +289,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         ] as const) {
           storage.run(`DELETE FROM ${table} WHERE item_id = ?`, [id]);
         }
+        dropItemBlobs(storage, id, shas, scope.now);
         runPlan(
           storage,
           recordChanges([
@@ -469,8 +472,8 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
       }
       case "unnamed": {
         const { sha } = PAYLOADS.unnamed.parse(job.payload);
-        if (importsRunning(storage)) {
-          awaitNameAgain(storage, sha, now + IMPORT_AGAIN_MS);
+        if (importsRunning(storage) || exportsWriting(storage)) {
+          awaitNameAgain(storage, sha, now + PLAN_AGAIN_MS);
         } else {
           releaseUnnamed(storage, [sha], { now, seq: () => runPlan(storage, nextHead()) });
         }

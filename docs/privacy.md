@@ -367,8 +367,11 @@ we may either delete it, anonymize it, or isolate it from further processing.
 Specifically, in our cloud:
 
 - Your library keeps each item's newest 100 versions, every version from the
-  last 30 days, and before that the last version of each day, until the account
-  is deleted. Deleting an item moves it to Deleted, not out of its history.
+  last 30 days, and before that the last version of each day, until the item is
+  deleted for good or the account is deleted. Deleting an item moves it to
+  Deleted, not out of its history; emptying Deleted, or Delete forever, removes
+  the item's text, highlights and history at once, and each of its files once no
+  other item and no other item's history shows it.
 - Device rows (including revoked ones) persist as the dashboard's audit trail
   until account deletion. A device's throttling counters are deleted when it is
   revoked.
@@ -612,8 +615,8 @@ These are the edges of that protection, stated plainly:
   passcode. Revoke it from Settings › Account on a Mac: it erases its
   copy the next time it goes online, but a phone that never does keeps it.
 - **Deleting an item does not delete its history**: its versions stay in your
-  library's history, as [Retention](#retention) says, until the account is
-  deleted. There is no purge.
+  library's history, as [Retention](#retention) says, until you delete the item
+  for good or delete the account.
 - **An image or file you paste, drop or save is kept as the file it was**, on
   every device and in the browser alike, with any location or camera details it
   carries, a picture pasted into a note's text on the phone included; only a

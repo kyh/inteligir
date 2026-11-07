@@ -17,7 +17,7 @@ import type { SqlPlan, SqlRow } from "./library-sql";
 
 // bump on any change below, and on any change to the JSON a replica's outbox row holds
 // (`@repo/library-replica`), which no build reads in another's shape
-export const LIBRARY_SCHEMA_VERSION = 9;
+export const LIBRARY_SCHEMA_VERSION = 10;
 
 // STRICT tables are SQLite 3.37; a replica's engine is checked against it at open. The cell's is
 // the platform's own, and a Durable Object refuses sqlite_version() ("not authorized to use
@@ -287,6 +287,15 @@ const CELL_DDL = [
     json TEXT NOT NULL,
     PRIMARY KEY (item_id, hash)
   ) STRICT`,
+  // the files each fields part and block version names, so whether any item's history still holds
+  // a file is one lookup, never a read of the history itself
+  `CREATE TABLE IF NOT EXISTS history_blobs (
+    item_id TEXT NOT NULL,
+    hash TEXT NOT NULL,
+    sha256 TEXT NOT NULL,
+    PRIMARY KEY (item_id, hash, sha256)
+  ) STRICT, WITHOUT ROWID`,
+  `CREATE INDEX IF NOT EXISTS history_blobs_sha ON history_blobs (sha256)`,
   `CREATE TABLE IF NOT EXISTS applied_ops (
     op_id TEXT PRIMARY KEY,
     change_set_id TEXT,

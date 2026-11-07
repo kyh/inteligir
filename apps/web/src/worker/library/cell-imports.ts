@@ -6,6 +6,7 @@
 // file it read, and every file it kept that no item came to name, are let go then.
 
 import { readBlobRow, releaseUnnamed } from "./cell-blobs";
+import { exportsWriting } from "./cell-export-rows";
 import { apart } from "./cell-import-host";
 import type { ImportHost, StepOutcome } from "./cell-import-host";
 import {
@@ -69,7 +70,8 @@ const readJob = (host: ImportHost, id: string): ImportJob | null => {
 
 // an ended job's set closed, its plan let go, and with it the file it read and every file its first
 // pass kept that no item names, however it ended (done, cancelled, the library full, failed); while
-// another import runs, whose plan may name one, they wait for the alarm instead (`./cell-blobs`)
+// another import runs or an export writes, whose plans may name one, they wait for the alarm
+// instead (`./cell-blobs`)
 const finish = (host: ImportHost, id: string): void => {
   const job = readJob(host, id);
   const setId = job?.changeSetId ?? null;
@@ -81,7 +83,7 @@ const finish = (host: ImportHost, id: string): void => {
     const kept =
       job === null ? [] : [job.sha, ...(job.source === "markdown" ? keptFileShas(sql, id) : [])];
     dropImportRuns(sql, id);
-    if (!importsRunning(sql)) {
+    if (!importsRunning(sql) && !exportsWriting(sql)) {
       releaseUnnamed(sql, kept, scope);
     }
   });

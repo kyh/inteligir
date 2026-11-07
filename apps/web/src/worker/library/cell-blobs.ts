@@ -2,13 +2,15 @@
 // name only a file the library already holds, and the file's row lands once the bytes do. A device
 // asks for room before it uploads, the cell holds it against the quota, and once the upload is in
 // R2 the cell reads its size there and lands the row; room held past an hour with no upload is let
-// go by the alarm, and so is what such an upload, or one the cell refused, left in R2. A file no
-// item has named yet is let go once nothing will: when the import that kept it ends, at the alarm's
-// next run after the reading that kept it lands nowhere, and by the alarm a day after it landed
-// otherwise, but never while an import runs, whose plan may name it. Once an item names it, a
-// revision may too, so it stays.
+// go by the alarm, and so is what such an upload, or one the cell refused, left in R2. A file stays
+// while an item names it or any item's history does (`history_blobs`), and once nothing does or
+// will it is let go: when the import that kept it ends, at the alarm's next run after the reading
+// that kept it lands nowhere or the last history naming it went, and by the alarm a day after it
+// landed or an item stopped naming it otherwise, but never while an import runs or an export
+// writes, whose plans may name it.
 
 import type { ItemState } from "@repo/notes/library/block-ops";
+import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import { readMeta, recordChanges, writeMeta } from "@repo/notes/library/library-queries";
 import type { BlobRole } from "@repo/notes/library/library-schema";
 import { collectFileShas } from "@repo/notes/library/library-nodes";
@@ -30,11 +32,8 @@ export interface BlobRef {
   readonly role: BlobRole;
 }
 
-// every file an item names: its original, cover and page copy by field, and each image, video or
-// file its body embeds
-export const blobRefsOf = (state: ItemState): BlobRef[] => {
+const fieldRefsOf = ({ copySha, coverSha, originalSha }: LibraryItemFields): BlobRef[] => {
   const refs: BlobRef[] = [];
-  const { copySha, coverSha, originalSha } = state.fields;
   if (originalSha !== null) {
     refs.push({ role: "original", sha: originalSha });
   }
@@ -44,6 +43,16 @@ export const blobRefsOf = (state: ItemState): BlobRef[] => {
   if (copySha !== null) {
     refs.push({ role: "copy", sha: copySha });
   }
+  return refs;
+};
+
+export const fieldFilesOf = (fields: LibraryItemFields): string[] =>
+  fieldRefsOf(fields).map((ref) => ref.sha);
+
+// every file an item names: its original, cover and page copy by field, and each image, video or
+// file its body embeds
+export const blobRefsOf = (state: ItemState): BlobRef[] => {
+  const refs = fieldRefsOf(state.fields);
   const embedded = new Set<string>();
   for (const stored of state.blocks.values()) {
     collectFileShas(stored.block, embedded);
@@ -98,7 +107,27 @@ export const itemBlobShas = (sql: SqlStatements, itemId: string): string[] =>
     .all("SELECT sha256 FROM item_blobs WHERE item_id = ?", [itemId])
     .map((row) => shaRowSchema.parse(row).sha256);
 
-// ---- files no item has named ----
+// ---- files history names ----
+
+// what a fields part or a block version of the item names, kept with it
+export const keepHistoryFiles = (
+  sql: SqlStatements,
+  itemId: string,
+  hash: string,
+  shas: readonly string[],
+): void => {
+  for (const statement of chunkStatement({
+    each: "(?, ?, ?)",
+    head: "INSERT INTO history_blobs (item_id, hash, sha256) VALUES ",
+    rows: [...new Set(shas)].map((sha) => [itemId, hash, sha]),
+    separator: ", ",
+    tail: " ON CONFLICT DO NOTHING",
+  })) {
+    sql.run(statement.sql, statement.params);
+  }
+};
+
+// ---- files nothing names ----
 
 // how long a file no item names waits for one, longer than any device's upload and its write
 const UNNAMED_HOLD_MS = 24 * 60 * 60_000;
@@ -108,14 +137,36 @@ const unnamedJobId = (sha: string): string => `unnamed:${sha}`;
 const unnamedJob = (sha: string) =>
   ({ id: unnamedJobId(sha), kind: "unnamed", payload: JSON.stringify({ sha }) }) as const;
 
-// a file just landed waits for an item to name it
-const awaitName = (storage: CellStorage, sha: string, now: number): void => {
-  scheduleJob(storage, unnamedJob(sha), now + UNNAMED_HOLD_MS);
+// a file just landed, or one an item just stopped naming, waits for an item to name it
+const awaitName = (sql: SqlStatements, sha: string, now: number): void => {
+  scheduleJob(sql, unnamedJob(sha), now + UNNAMED_HOLD_MS);
 };
 
-// the alarm asks again later about a file something may still name (an import running)
-export const awaitNameAgain = (storage: CellStorage, sha: string, at: number): void => {
-  scheduleJob(storage, unnamedJob(sha), at);
+// the alarm asks about a file at `at`: now once its last name went, later while something may
+// still name it
+export const awaitNameAgain = (sql: SqlStatements, sha: string, at: number): void => {
+  scheduleJob(sql, unnamedJob(sha), at);
+};
+
+// parts and block versions of the item history let go: the alarm's next run asks about what they
+// named
+export const dropHistoryFiles = (
+  sql: SqlStatements,
+  itemId: string,
+  hashes: readonly string[],
+  now: number,
+): void => {
+  const shas = hashes.flatMap((hash) =>
+    sql
+      .all("DELETE FROM history_blobs WHERE item_id = ? AND hash = ? RETURNING sha256", [
+        itemId,
+        hash,
+      ])
+      .map((row) => shaRowSchema.parse(row).sha256),
+  );
+  for (const sha of new Set(shas)) {
+    awaitNameAgain(sql, sha, now);
+  }
 };
 
 // files that may name nothing now, asked about at the alarm's next run rather than at their day's
@@ -143,11 +194,10 @@ export const storeItemBlobs = (
   sql: SqlStatements,
   itemId: string,
   refs: readonly BlobRef[],
+  now: number,
 ): void => {
-  named(
-    sql,
-    refs.map((ref) => ref.sha),
-  );
+  const shas = refs.map((ref) => ref.sha);
+  named(sql, shas);
   const before = itemBlobShas(sql, itemId);
   sql.run("DELETE FROM item_blobs WHERE item_id = ?", [itemId]);
   for (const statement of chunkStatement({
@@ -159,16 +209,29 @@ export const storeItemBlobs = (
   })) {
     sql.run(statement.sql, statement.params);
   }
-  recountRefs(sql, [...before, ...refs.map((ref) => ref.sha)]);
+  recountRefs(sql, [...before, ...shas]);
+  for (const sha of before) {
+    if (!shas.includes(sha)) {
+      awaitName(sql, sha, now);
+    }
+  }
 };
 
+// a purged item, its rows gone: the files it named, `shas`, and those its history did are asked
+// about at the alarm's next run, which an import or an export may put off
 export const dropItemBlobs = (
   sql: SqlStatements,
   itemId: string,
   shas: readonly string[],
+  now: number,
 ): void => {
-  sql.run("DELETE FROM item_blobs WHERE item_id = ?", [itemId]);
+  const history = sql
+    .all("DELETE FROM history_blobs WHERE item_id = ? RETURNING sha256", [itemId])
+    .map((row) => shaRowSchema.parse(row).sha256);
   recountRefs(sql, shas);
+  for (const sha of new Set([...shas, ...history])) {
+    awaitNameAgain(sql, sha, now);
+  }
 };
 
 const blobRowSchema = z.object({
@@ -301,9 +364,9 @@ export const refuseUpload = (storage: CellStorage, sha: string, now: number): vo
 
 const releasableSchema = z.object({ bytes: z.number().int().nonnegative(), refs: z.number() });
 
-// a file no item has ever named, let go: its row leaves the library and every replica at `seq`,
-// its bytes leave the quota, and what R2 holds of it is a stray the alarm takes out; a file an item
-// names, or once named, which a revision may hold, stays
+// a file nothing names, let go: its row leaves the library and every replica at `seq`, its bytes
+// leave the quota, and what R2 holds of it is a stray the alarm takes out; a file an item or any
+// item's history names stays
 export const releaseUnnamed = (
   storage: CellStorage,
   shas: readonly string[],
@@ -312,8 +375,9 @@ export const releaseUnnamed = (
   for (const sha of new Set(shas)) {
     const [raw] = storage.all(
       `SELECT bytes, refs FROM blobs WHERE sha256 = ?
-         AND EXISTS (SELECT 1 FROM jobs WHERE id = ?)`,
-      [sha, unnamedJobId(sha)],
+         AND EXISTS (SELECT 1 FROM jobs WHERE id = ?)
+         AND NOT EXISTS (SELECT 1 FROM history_blobs WHERE sha256 = ?)`,
+      [sha, unnamedJobId(sha), sha],
     );
     dropJob(storage, unnamedJobId(sha));
     const row = raw === undefined ? null : releasableSchema.parse(raw);
