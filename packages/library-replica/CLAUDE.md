@@ -72,8 +72,9 @@ and cited.
 - **THE BROWSER TAB'S REPLICA AND THE SUITES' ARE SQLITE'S OWN WASM, IN
   MEMORY.** `@sqlite.org/sqlite-wasm` with FTS5, one connection serving every
   call in order, a transaction `BEGIN IMMEDIATE` to `COMMIT`; it imports
-  nothing of the package's but types, so the Worker's suite holds it on its
-  node side, since workerd compiles no WebAssembly a module did not ship.
+  nothing of the package's but types and the serial lock, by the package's
+  name, so the Worker's suite holds it on its node side, since workerd
+  compiles no WebAssembly a module did not ship.
   Rejected: a fake SQL in the suites (the shared plans would go untried); the
   wasm in workerd (sqlite-wasm compiles its glue at load).
   `packages/library-replica/src/memory-sql.ts`,
