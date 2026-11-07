@@ -350,7 +350,8 @@ describe("deleting the account from its cell", () => {
     const gone = { kind: "gone" };
     const before = { alarm: expect.any(Number), devices: 1, files: 1, grants: 1, items: 1 };
     expect(Object.fromEntries(seen)).toStrictEqual({
-      agent: { ...before, read: gone, threads: 0 },
+      // a thread's purge settles through the cell, which keeps no alarm past the tombstone
+      agent: { ...before, alarm: null, read: gone, threads: 0 },
       credentials: {
         alarm: null,
         devices: 0,
