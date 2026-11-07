@@ -105,8 +105,9 @@ through the Service or otherwise includes:
     named for the device or the assistant that made it and the built-in agent's
     for the conversation that made them. Your library is reachable only with a
     credential from your own account, and holds about 1 GB, history included: a
-    full one still opens and downloads everywhere, but takes no new changes,
-    which wait on your devices until it has room. A file over 100 MB is never
+    full one still opens and downloads everywhere, but takes no new changes:
+    the device that made one says so, and the change is not in your library
+    until you send it again once there is room. A file over 100 MB is never
     kept. It is encrypted at rest by Cloudflare, but we can read it — there is no
     end-to-end encryption.
 - **Other data** not specifically listed here, which we will use as described in
@@ -163,10 +164,12 @@ as:
   answers, the pages of our website included — the address asked for, less
   anything after a `?` in it, the answer's status and the time — and keeps that
   log for up to seven days, for us to diagnose failures with; about one request
-  in a hundred is traced in more detail. The address names a route, never one of your files: when your phone
-  opens an item or an attachment, the file's name travels inside the request,
-  which neither the log nor the trace keeps. Our cloud's own error lines name a
-  route, never a file.
+  in a hundred is traced in more detail. An address never holds a file's name
+  or anything you wrote: the apps' calls carry those in the request's body, a
+  file's address holds a fingerprint of its contents, which identifies that
+  exact file, and an export's holds its id. Our cloud's own error lines give
+  that address, or the name of the call that failed, with the opening of the
+  error's message, which can quote what the call was given.
 
 For more information concerning our automatic collection of data, please see the
 [Tracking & Other Technologies](#tracking--other-technologies) section below.
@@ -241,13 +244,14 @@ The apps also hold to these, plainly:
   send only an address, which our cloud then fetches and reads as it does any
   link your library holds unread (above): a link or a picture you save
   from the right-click menu, and a page the extension cannot read in your
-  browser (the browser's own pages, the Web Store, a PDF, a page too large to
-  read there or to send, or one it found no text in), which goes with its title
-  and the passage you selected. A picture a page drew itself, which has no address, is
-  uploaded to your library as a file of its own. A save made while you are
-  offline waits in the browser's storage for the extension as the page's
-  address, title and the passage you selected, and is sent, for our cloud to
-  read, once you are back online.
+  browser (the Web Store, a PDF, a page too large to read there or to send, or
+  one it found no text in), which goes with its title and the passage you
+  selected. The browser's own pages are never saved: the extension says it
+  can't save them and sends nothing. A picture a page drew itself, which has no
+  address, is uploaded to your library as a file of its own. A save made while
+  you are offline waits in the browser's storage for the extension as the
+  page's address, title and the passage you selected, and is sent, for our cloud
+  to read, once you are back online.
 - **Sharing from your iPhone.** Sharing a page to Inteligir has the phone fetch
   that page once, from the phone, and save what it read, its address, title,
   text and cover, into your library, like any other edit on the phone; text you
@@ -274,10 +278,11 @@ The apps also hold to these, plainly:
 - **Where a phone photo was taken.** The phone opens the camera only when you
   take a photo to add to your library, and from your photo library it receives
   only the photo you pick. It keeps a copy at most 2048 pixels on its long
-  side, saved again as a JPEG without its location or any other camera details
-  and named for when you added it; only that copy reaches your library. A
-  picture you paste into a note's text is not saved again: it reaches your
-  library as the file you pasted, with whatever details it carries.
+  side, saved again as a JPEG, or a PNG if it was one, without its location or
+  any other camera details and named for when you added it; only that copy
+  reaches your library. A picture you paste into a note's text is not saved
+  again: it reaches your library as the file you pasted, with whatever details
+  it carries.
 - **The Mac's copy of your library, and its sign-in.** The Mac app keeps a
   copy of your library, and the files you open from it, in its own
   folders on that Mac, so it reads them with no connection; signing out deletes
@@ -453,12 +458,12 @@ and email delivery). Specifically:
   its KV storage holds each assistant you connected: what it registered (its
   name and the addresses it gave), its grant, filed under your account with
   its name and what you let it do, and its tokens, kept only as hashes;
-  storage it keeps for your account alone (your own Durable Objects, and the
-  R2 storage named for your library, which holds your files) holds your
-  library, your devices' live connections and each conversation with the
-  built-in agent; its Queues hold each link your library asked our cloud to
-  read, as your account's id, the item's and its address, until our cloud has
-  read it or recorded that it could not; its AI Gateway
+  your own Durable Objects hold your library, your devices' live connections
+  and each conversation with the built-in agent; its R2 storage holds your
+  files and exports, under your account's own prefix; its Queues hold each
+  link your library asked our cloud to read, as your account's id, the item's
+  and its address, until our cloud has read it or recorded that it could not;
+  its AI Gateway
   passes each request the built-in agent makes to Anthropic, and is asked to
   keep only its metadata (the model, how many tokens, its status and how long
   it took), never what it carries; its email sending delivers your
@@ -580,8 +585,7 @@ account row itself goes:
    else, so a request already on its way still finds it closed.
 4. **The files your library names** (images, PDFs and the like) are deleted
    from our storage.
-5. **Every assistant's access, and the built-in agent's, is revoked**, its
-   tokens with it.
+5. **Every assistant's access is revoked**, its tokens with it.
 6. **Every device row you own**, with its throttling counters, is deleted from
    D1, and **your email is dropped from the invite you redeemed** (the code
    stays burned). This is late on purpose: until then your device can still ask
@@ -614,12 +618,16 @@ the personal information we collect. However, security risk is inherent in all
 internet and information technologies and we cannot guarantee the security of
 your personal information.
 
-Everything our cloud keeps for your account, but the throttling rows and
-Cloudflare's request log, lands in infrastructure scoped to your account — a
-Cloudflare D1 row keyed to your user, your own per-user Durable Objects, or
-storage named for your library alone — never in anything shared across accounts.
-Your password and each device credential are kept only as hashes, and the apps
-talk to our cloud over HTTPS.
+Your library and your conversations with the built-in agent live in Durable
+Objects of your own. The rest of what our cloud keeps for your account is filed
+under your account in storage every account shares: rows in Cloudflare D1 that
+name your account, your files and exports under your account's own prefix in
+R2, and each assistant's grant and tokens under your account in KV. A few things
+are not filed that way: the throttling rows, an unused reset link's row, what an
+assistant registered, a link waiting in the Queue for our cloud to read it,
+which has your account's id beside it, and Cloudflare's request log. Your
+password and each device credential are kept only as hashes, and the apps talk
+to our cloud over HTTPS.
 
 These are the edges of that protection, stated plainly:
 

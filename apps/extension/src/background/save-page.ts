@@ -1,11 +1,12 @@
 // A save from this browser: the tab read here, over the page as the person sees it, and saved
 // through `items.save` with its facts, its article, its cover and the passage the person had
-// selected, so the library holds it read from the first moment; a page the browser will not let
-// it script (its own pages, the Web Store, the PDF viewer), one past the capture's cap, one it read
-// no text from, or one whose reading the cloud refuses as a call, is saved as its link, for the
-// cloud's fill to read. Every save is queued before its first call (./save-queue), and one the
-// cloud did not answer is sent again as its link. A link or a picture a right-click names is saved
-// by its address, and a picture a page drew from its own bytes as a file of its own.
+// selected, so the library holds it read from the first moment; a web page the browser will not let
+// it script (the Web Store, the PDF viewer), one past the capture's cap, one it read no text from,
+// or one whose reading the cloud refuses as a call, is saved as its link, for the cloud's fill to
+// read, and a page with no web address is refused. Every save is queued before its first call
+// (./save-queue), and one the cloud did not answer is sent again as its link. A link or a picture
+// a right-click names is saved by its address, and a picture a page drew from its own bytes as a
+// file of its own.
 
 import { BLOB_MAX_BYTES } from "@repo/contract/cloud/library/library-blobs";
 import { ANNOTATION_QUOTE_MAX } from "@repo/notes/annotations/store-schema";
