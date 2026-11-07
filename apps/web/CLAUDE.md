@@ -330,13 +330,14 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   its tags, and in the same write places every highlight that keeps a quote by that quote,
   since the markers went with the old article; one the note holds stays where
   it is, a selection the item keeps adds nothing, and a read with no article
-  leaves the item's. A page files the item only where it has no folder, and a
-  link moves it only to a folder it names, so a save from no folder (All, a tag,
-  the share sheet) leaves it where it is, and taking it out of a folder is
-  organize's. Rejected: keeping the first article (a resave never shows the page
-  as it reads now); answering `exists` (the popup's highlight did nothing); a
-  link's null folder unfiling the item (a re-save from All moved it to Unsorted
-  and said nothing). `apps/web/src/worker/library/cell-saves.ts`.
+  leaves the item's. A page files the item only where it has no folder, a
+  deleted one being none, as the listing reads it, and a link moves it only to a
+  folder it names, so a save from no folder (All, a tag, the share sheet) leaves
+  it where it is, and taking it out of a folder is organize's. Rejected: keeping
+  the first article (a resave never shows the page as it reads now); answering
+  `exists` (the popup's highlight did nothing); a link's null folder unfiling
+  the item (a re-save from All moved it to Unsorted and said nothing).
+  `apps/web/src/worker/library/cell-saves.ts`.
 
 - **A SAVED LINK IS READ OFF THE FILL QUEUE, ASKED FOR IN THE WRITE THAT MADE IT
   WAIT.** The write lands a `fill` job row in its own transaction, and the cell
@@ -375,12 +376,14 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   only where the page gave one, renames only an item still named by its
   address, and never touches the note; an item deleted, read or readdressed
   meanwhile lands nothing, so a message met twice lands once. A page whose
-  redirects end at another live item's address folds onto it, the stub's tags
-  and note with it, and a fold sets the fields by the same rule, one function
-  a device's save calls too. The stub goes to Deleted read, so restoring it
+  redirects end at another live item's address folds onto it, the stub's
+  folder, tags and note with it, and a fold sets the fields and files the item
+  by a device save's own rules, in the one function that save calls too, so a
+  filed item stays where it is. The stub goes to Deleted read, so restoring it
   asks no reading that would only fold it again. Rejected: bases the consumer
   read (a reading nobody edited around would conflict with every save
-  meanwhile).
+  meanwhile); a link's own rule moving a filed item to the stub's folder (a
+  reading long after the save would refile the item and say nothing).
   `apps/web/src/worker/library/cell-fills.ts`, `cell-saves.ts`.
 
 - **AN IMPORT IS A CELL JOB RUN A PAGE AT A TIME, ITS PLAN IN ROWS.**

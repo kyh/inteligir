@@ -26,6 +26,8 @@ import { cellOf, inCell } from "../test-support/library-cell";
 import { R2_FAULTS } from "../test-support/library-files";
 import { remoteReplicaSql } from "../test-support/remote-replica-sql";
 
+const BODIES = "/v1/rpc/library/sync/bodies";
+
 const textOf = (block: LibraryBlock): string =>
   block.children.map((child) => ("text" in child ? child.text : "")).join("");
 
@@ -86,6 +88,8 @@ interface Device {
   readonly holdRead: (statement: string) => HeldRead;
   // no item's body reaches the device until the suite says so again
   readonly withholdBodies: (withheld: boolean) => void;
+  // this runs just before the next bodies call goes, once the device's pull has answered
+  readonly beforeBodies: (run: () => Promise<void>) => void;
 }
 
 // a database whose reads a suite can stop one at a time
@@ -129,6 +133,7 @@ const deviceOn = async (cookie: string, name: string): Promise<Device> => {
   const asked: string[] = [];
   let lose = false;
   let noBodies = false;
+  let ahead: (() => Promise<void>) | null = null;
   let minted = 0;
   const prefix = devices.toString(16).padStart(4, "0");
   const blobs = stagedInMemory();
@@ -147,8 +152,13 @@ const deviceOn = async (cookie: string, name: string): Promise<Device> => {
       fetch: async (request) => {
         const { pathname } = new URL(request.url);
         asked.push(pathname);
-        if (noBodies && pathname === "/v1/rpc/library/sync/bodies") {
+        if (noBodies && pathname === BODIES) {
           throw new TypeError("the body did not come");
+        }
+        if (pathname === BODIES) {
+          const run = ahead;
+          ahead = null;
+          await run?.();
         }
         const signed = new Request(request);
         for (const [key, value] of Object.entries(headers)) {
@@ -170,6 +180,9 @@ const deviceOn = async (cookie: string, name: string): Promise<Device> => {
   }
   return {
     asked,
+    beforeBodies: (run) => {
+      ahead = run;
+    },
     blobs,
     holdRead,
     loseAnswer: () => {
@@ -295,6 +308,15 @@ const openOnUnpulledAddress = async (phone: Device, laptop: Device) => {
     url,
   });
   return { holder, open: await openOn(phone, card.id) };
+};
+
+// the laptop writes the item between the phone's pull and its bodies call, so the body that comes
+// is newer than the row the phone just laid
+const writeBetweenPullAndBodies = (phone: Device, laptop: Device, itemId: string): void => {
+  phone.beforeBodies(async () => {
+    await write(laptop.replica, itemId, [{ key: "status", op: "property", value: "theirs" }]);
+    await laptop.replica.sync();
+  });
 };
 
 const folderMade = async (device: Device, id: string, name: string): Promise<string> => {
@@ -1013,6 +1035,89 @@ describe("the replica engine against the account's cell", () => {
       expect(open.session.status()).toMatchObject({ failure: null, kind: "open", unsaved: false });
       await laptop.replica.sync();
       await expect(textIn(laptop.replica, holder.id, "a1")).resolves.toBe("page one EDITED");
+      await expect(textIn(laptop.replica, holder.id, "a2")).resolves.toBe("page two");
+      await expect(textIn(laptop.replica, holder.id, "n1")).resolves.toBe("my note");
+    },
+  );
+
+  it(
+    "keeps an edit of a save through a body that comes newer than the row just pulled",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("fold-body-ahead");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      const { holder, open } = await openOnUnpulledAddress(phone, laptop);
+
+      open.editor.tf.insertText(" EDITED", { at: { offset: 8, path: [0, 0] } });
+      open.session.edited();
+      writeBetweenPullAndBodies(phone, laptop, holder.id);
+      await phone.replica.sync();
+      await open.caughtUp();
+      open.endPause();
+      await open.caughtUp();
+
+      expect(open.words()).toContain("page one EDITED");
+      expect(open.words()).toContain("page two");
+      expect(open.session.status()).toMatchObject({
+        failure: BODY_TO_COME,
+        kind: "open",
+        unsaved: true,
+      });
+      expect(writesBy(phone)).toBe(0);
+      expect(phone.asked.filter((path) => path === BODIES)).toHaveLength(1);
+
+      await phone.replica.sync();
+      await open.caughtUp();
+      open.endPause();
+      await open.caughtUp();
+      await phone.replica.sync();
+
+      expect(open.words()).toContain("page one EDITED");
+      expect(open.words()).toContain("page two");
+      expect(open.session.status()).toMatchObject({ failure: null, kind: "open", unsaved: false });
+      expect(phone.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
+      await laptop.replica.sync();
+      await expect(textIn(laptop.replica, holder.id, "a1")).resolves.toBe("page one EDITED");
+      await expect(textIn(laptop.replica, holder.id, "a2")).resolves.toBe("page two");
+    },
+  );
+
+  it(
+    "reads no part of a body as the whole, when a write lands past a body newer than its row",
+    { timeout: 30_000 },
+    async () => {
+      const { cookie } = await account("fold-body-ahead-part");
+      const laptop = await deviceOn(cookie, "Laptop");
+      const phone = await deviceOn(cookie, "Phone");
+      const { holder, open } = await openOnUnpulledAddress(phone, laptop);
+
+      writeBetweenPullAndBodies(phone, laptop, holder.id);
+      await phone.replica.sync();
+      open.editor.tf.insertNodes(paragraph("n1", "my note"), { at: [0] });
+      open.session.edited();
+      open.endPause();
+      await open.caughtUp();
+      phone.withholdBodies(true);
+      await phone.replica.sync();
+      await open.caughtUp();
+
+      expect(open.words()).toContain("page one");
+      expect(open.words()).toContain("page two");
+      expect(open.words()).toContain("my note");
+      expect(writesBy(phone)).toBe(1);
+      await expect(phone.replica.item(holder.id)).resolves.toMatchObject({
+        blocks: [],
+        bodyHeld: false,
+      });
+
+      phone.withholdBodies(false);
+      await phone.replica.sync();
+      await open.caughtUp();
+
+      expect(open.session.status()).toMatchObject({ failure: null, kind: "open", unsaved: false });
+      await laptop.replica.sync();
+      await expect(textIn(laptop.replica, holder.id, "a1")).resolves.toBe("page one");
       await expect(textIn(laptop.replica, holder.id, "a2")).resolves.toBe("page two");
       await expect(textIn(laptop.replica, holder.id, "n1")).resolves.toBe("my note");
     },

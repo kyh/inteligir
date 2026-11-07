@@ -22,7 +22,8 @@ and cited.
   transaction, every row only over a lower sequence, and an address goes to the
   item holding it at the higher one, whichever came first; a moved item's body
   is wanted at its row's sequence and fetched the open item first, then the
-  newest, laid only under the row it was sent for. An answer naming another
+  newest, laid only under the row it was sent for, and one that meets another
+  row leaves the want standing for the next pass. An answer naming another
   epoch wipes the rows, keeps the outbox and pulls from nothing. A row held
   ahead of every block is a body still to come, and a write on a block it may
   hold, or on a base that moved, answers `waiting` until it lands, while a field
@@ -31,7 +32,9 @@ and cited.
   comes. Rejected: bodies in the log (a page of long notes); dropping the outbox
   on a reset (the person's writes lost); a write judged over a body not here (no
   blocks calls a put moved and a drop or a move already true, and a `changed`
-  answered over none empties the editor).
+  answered over none empties the editor); dropping the want of a body newer than
+  its row, for the row's own change to want again (until that change came, the
+  row read as a body held with nothing in it).
   `packages/library-replica/src/replica-pull.ts`, `replica-rows.ts`,
   `replica-commands.ts`.
 

@@ -23,7 +23,7 @@ import type { CellActor } from "./cell-actor";
 import { readAnnotationRows } from "./cell-annotations";
 import type { AnnotationRows } from "./cell-annotations";
 import type { CellCodec } from "./cell-codec";
-import { folderOfTarget } from "./cell-folders";
+import { folderOfTarget, standingFolder } from "./cell-folders";
 import type { FolderTarget } from "./cell-folders";
 import type { CellIds } from "./cell-ids";
 import { urlHolder } from "./cell-landing";
@@ -228,8 +228,8 @@ const appendedNote = (
 
 // a page onto the item holding its address: its article replaces the item's, unless the read
 // found none, and the item's highlights are placed again in it; its fields land as a reading's do,
-// its folder only where the item has none, its tags join the item's, and a note it brings goes
-// after the item's own
+// a folder that stands only where the item is in none that does, its tags join the item's, and a
+// note it brings goes after the item's own
 export const foldPage = (
   scope: LandingScope,
   actor: CellActor,
@@ -240,11 +240,12 @@ export const foldPage = (
   highlight: Highlight,
   note: MarkdownBlocks | null,
 ): LiveItemRow => {
+  const folderId = standingFolder(scope.storage, input.folderId);
   const ops: LibraryOp[] = [
     ...articleOps(held, input),
     ...pageFieldOps(held.fields, input, scope.now),
-    ...(held.fields.folderId === null && input.folderId !== null
-      ? [{ base: null, field: "folderId", op: "set", value: input.folderId } as const]
+    ...(folderId !== null && standingFolder(scope.storage, held.fields.folderId) === null
+      ? [{ base: held.fields.folderId, field: "folderId", op: "set", value: folderId } as const]
       : []),
     ...tagsOp(held.fields, input.tags),
     ...(note === null ? [] : appendedNote(held, note.blocks)),

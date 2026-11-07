@@ -687,6 +687,29 @@ describe("the replica's pull", () => {
     await expect(replicaText(phone.replica, id, "p2")).resolves.toBe("second");
   });
 
+  it("keeps wanting a body that comes newer than its row, asking it once a pass", async () => {
+    const cell = createFakeCell();
+    const mac = await openDevice(cell, "mac");
+    const id = await landedNote(cell, mac);
+    const network = heldNetwork(cell, "phone");
+    const phone = await openDevice(cell, "phone", { network: network.device });
+
+    const body = network.hold(BODIES);
+    const syncing = phone.replica.sync();
+    await body.reached;
+    await write(mac.replica, id, [await putText(mac.replica, id, "p1", "moved on")]);
+    await mac.replica.sync();
+    body.release();
+    await syncing;
+
+    expect(cell.calls.filter((call) => call === "phone library/sync/bodies")).toHaveLength(1);
+    await expect(phone.replica.item(id)).resolves.toMatchObject({ blocks: [], bodyHeld: false });
+
+    await phone.replica.sync();
+    await expect(replicaText(phone.replica, id, "p1")).resolves.toBe("moved on");
+    await expect(phone.replica.item(id)).resolves.toMatchObject({ bodyHeld: true });
+  });
+
   it("goes on writing to a note it made while the body of its landing is still wanted", async () => {
     const cell = createFakeCell();
     const phone = await openDevice(cell, "phone");
