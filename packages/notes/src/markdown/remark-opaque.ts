@@ -40,6 +40,7 @@ type GrammarNodeType = Exclude<Nodes["type"], PlateDeclaredType>;
 // rejects the table until someone decides whether the editor holds it as source.
 const HELD_AS_SOURCE: Record<GrammarNodeType, boolean> = {
   articleSection: false,
+  blockRef: false,
   blockquote: false,
   break: false,
   code: false,

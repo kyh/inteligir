@@ -4,6 +4,7 @@
 // again until its bytes hold still, so a file a person wrote by hand reads as the value its own
 // export reads back as.
 
+import type { RootContent } from "mdast";
 import { ElementApi } from "platejs";
 import type { Descendant, TElement } from "platejs";
 
@@ -50,8 +51,12 @@ export const embedFiles = (nodes: readonly Descendant[], ports: ReadPorts): Desc
     return { ...node, children: embedFiles(node.children, ports) };
   });
 
-// a value as writing it and reading it back would leave it
-export const settled = (value: TElement[]): TElement[] => {
+// a value as writing it and reading it back would leave it; `read` is what its own reading took
+// out of the tree beyond the grammar, which the written bytes spell again
+export const settled = (
+  value: TElement[],
+  read?: (flow: RootContent[]) => RootContent[],
+): TElement[] => {
   if (value.length === 0) {
     return value;
   }
@@ -60,11 +65,11 @@ export const settled = (value: TElement[]): TElement[] => {
   try {
     let written = serializeNote(editor, current);
     for (let pass = 0; pass < SETTLE_PASSES; pass += 1) {
-      const read = mdToSlate(editor, written);
-      if (!read.ok) {
+      const back = mdToSlate(editor, written, read);
+      if (!back.ok) {
         return current;
       }
-      current = elementsOf(read.nodes);
+      current = elementsOf(back.nodes);
       const again = serializeNote(editor, current);
       if (again === written) {
         return current;

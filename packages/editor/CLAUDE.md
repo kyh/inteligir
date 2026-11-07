@@ -82,8 +82,9 @@ alone, and no walk narrows structurally.
   TEXT.** Pills, dates, annotation markers and `:::` lines are read from
   finished text, so a backslash before one's first character keeps it text
   (`\@2026-08-22`), and the serializer writes that escape before typed text the
-  next parse would read as one, so what a person types stays text.
-  `packages/notes/src/markdown/text-escapes.ts`,
+  next parse would read as one, so what a person types stays text. Obsidian's
+  spellings in a note hold to the same rule (MARKDOWN IS A CODEC BESIDE THE
+  LIBRARY). `packages/notes/src/markdown/text-escapes.ts`,
   `packages/notes/src/markdown/remark-inline-constructs.ts`.
 
 - **THE DIALECT HAS NO JSX**: its blocks are one `:::` line grammar that nests
@@ -304,7 +305,13 @@ alone, and no walk narrows structurally.
   codec only names what the dialect spells by words: a link's title to its
   item's id on the way in (`read-blocks.ts`), and on the way out an id to the
   name the caller spells it with and a sha to a path (`write-blocks.ts`).
-  Obsidian's `==mark==`, `%%x%%` and `^ref` read in the note's section only.
+  Obsidian's `==mark==`, `%%x%%` and `^ref` read in the note's section only,
+  off its tree ahead of the settle, where an escape still shows, so text a
+  person typed that looks like one comes back as text; a `ref` is a node of its
+  own from there to the block, written bare where typed text is escaped.
+  Rejected: reading them from the settled value (an escape is gone there, so an
+  export's `x\==1==y` came back a highlight), and from text a page wrote (the
+  page keeps its words). `packages/notes/src/markdown/remark-obsidian.ts`.
   A block no store takes is counted among what an import could not read, and
   an edit, a note the agent writes or a save's note holding one is turned
   down; a link or image with no address is its words or its source, so it

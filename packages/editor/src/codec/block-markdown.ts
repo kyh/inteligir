@@ -107,8 +107,7 @@ export const blockFromMarkdown = (
   if (!converted.ok) {
     return null;
   }
-  const { blocks } = readBlocks(elementsOf(converted.nodes), readPorts(files), null);
-  const [only, ...rest] = blocks;
+  const [only, ...rest] = readBlocks(elementsOf(converted.nodes), readPorts(files));
   if (only === undefined || rest.length > 0) {
     return null;
   }

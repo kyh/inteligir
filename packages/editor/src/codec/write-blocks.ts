@@ -10,6 +10,7 @@ import type { Descendant, TElement, TText } from "platejs";
 import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
 
 import { WIKI_EMBED_KEY, WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
+import { BLOCK_REF_KEY } from "@repo/editor/markdown/md-rules";
 import { wikiNode } from "@repo/editor/wiki/wiki-node";
 
 import { INLINE_REF_TYPES, INLINE_TYPES } from "./read-blocks";
@@ -116,12 +117,19 @@ const writeNode = (node: LibraryNode, ports: WritePorts): Descendant => {
   }
 };
 
+const refNode = (ref: string, own: boolean): TElement => ({
+  children: [leaf("", {})],
+  own,
+  ref,
+  type: BLOCK_REF_KEY,
+});
+
 // a block's `ref` at the end of its own last line, or on a line of its own after it
 const withRef = (block: TElement, ref: string): TElement[] => {
   if (!INLINE_REF_TYPES.has(block.type)) {
-    return [block, { children: [leaf(`^${ref}`, {})], type: "p" }];
+    return [block, { children: [refNode(ref, true)], type: "p" }];
   }
-  return [{ ...block, children: tidyInlines([...block.children, leaf(` ^${ref}`, {})]) }];
+  return [{ ...block, children: tidyInlines([...block.children, refNode(ref, false)]) }];
 };
 
 // blocks as the editor's value, ready for the rule table
