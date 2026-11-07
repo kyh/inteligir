@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { clearShell, mockShell } from "../shell/test-support/mock-shell";
 import { AppearanceProvider } from "./appearance";
+import { RenderCrash } from "./render-crash";
 import { SettingsPage } from "./settings/settings-page";
 import { fakePageLibrary, renderOnLibrary } from "./test-support/fake-page-library";
 import { Workspace } from "./workspace";
@@ -181,6 +182,25 @@ describe("the window's top edge under the Mac's shell", () => {
     const strip = firstChildOf(screen.getByRole("navigation", { name: "Settings" }));
     expectDragStrip(strip);
     expect(strip.nextElementSibling).toBe(screen.getByRole("button", { name: "Library" }));
+  });
+});
+
+describe("the window's top edge on the crash screen", () => {
+  it("drags the window by the screen's own background", () => {
+    underTheShellOn(MAC);
+    renderOnLibrary(
+      <RenderCrash
+        error={new Error("a render that threw")}
+        reset={() => {
+          // the suite reads the screen and presses nothing
+        }}
+      />,
+      emptyLibrary(),
+    );
+    const heading = screen.getByRole("heading", {
+      name: "Something went wrong showing your library.",
+    });
+    expect(heading.closest("[data-tauri-drag-region]")).not.toBeNull();
   });
 });
 
