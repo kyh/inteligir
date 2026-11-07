@@ -46,12 +46,6 @@ describe("signing in from a page that needs a session", () => {
     expect(internalNextPath(location.search.next)).toBe(asked);
   });
 
-  it("sends bare /app to the signed-in home, which asks for a session the same way", async () => {
-    const { location } = await land("/app");
-    expect(location.pathname).toBe("/app/sign-in");
-    expect({ ...location.search }).toStrictEqual({ next: SIGNED_IN_HOME });
-  });
-
   it("drops a next that is not a path rather than failing the sign-in page", async () => {
     const { matches } = await land("/app/sign-in?next=5");
     const signIn = matches.at(-1);

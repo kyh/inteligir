@@ -701,3 +701,18 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   answer (each door, a file's immutable read among them, carrying a header none
   of them owns). `apps/web/src/worker/auth/auth.ts`,
   `apps/workspace/src/app/cloud/session-keeper.ts`.
+
+- **A SIGN-IN OR SIGN-UP LANDS IN THE LIBRARY UNLESS SOMETHING ASKED IT BACK, AND
+  THE SITE LINKS THE LIBRARY.** `signedInLanding` follows a `next` the
+  open-redirect guard passes, else `/library`, by a document load, since the
+  site's router holds neither that page nor the consent page; sign-in and
+  sign-up hand `next` to each other. One link, in the site's header and on
+  Devices, serves someone signed in and someone not, since the page sends a
+  signed-out tab to sign in and back; its document answers `noindex`, as the
+  account pages do, since that link hands a crawler an empty shell. Rejected:
+  Devices as the landing (a person with only a browser never reached their
+  library); a sign-out passing its own `next` (the landing is already the
+  library); `Disallow` in robots.txt (a page it blocks can still be listed by
+  its link). `apps/web/src/lib/next-path.ts`,
+  `apps/web/src/components/library-link.tsx`,
+  `apps/web/src/worker/library/library-page.ts`.

@@ -11,6 +11,7 @@ import type { V1Client } from "@repo/contract/cloud/v1";
 import { Button } from "@repo/ui/components/button";
 
 import { AuthError, CONNECTION_FAILED } from "#components/auth-shell";
+import { LibraryLink } from "#components/library-link";
 import { currentSession } from "#lib/session-guard";
 import { siteConfig } from "#lib/site-config";
 import { isOrpcError } from "@repo/contract/cloud/v1/errors";
@@ -33,9 +34,12 @@ const isSignedOut = (cause: unknown): boolean =>
 
 const DevicesShell = ({ children }: { children: React.ReactNode }) => (
   <main className="mx-auto w-full max-w-lg px-6 py-16">
-    <Link to="/" className="mb-8 block text-sm font-medium tracking-tight">
-      {siteConfig.name}
-    </Link>
+    <div className="mb-8 flex items-baseline justify-between gap-4">
+      <Link to="/" className="text-sm font-medium tracking-tight">
+        {siteConfig.name}
+      </Link>
+      <LibraryLink className="text-sm text-muted-foreground underline underline-offset-4" />
+    </div>
     <h1 className="text-lg font-medium tracking-tight">Devices</h1>
     <p className="mt-1 text-sm text-muted-foreground">
       To add a Mac or a phone, sign in on it with this account. Revoking a device cuts it off at

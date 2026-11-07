@@ -46,6 +46,8 @@ const documentHeaders = (url: URL) =>
     "content-type": "text/html; charset=utf-8",
     "referrer-policy": "no-referrer",
     "x-content-type-options": "nosniff",
+    // the site links the page, and its document is an empty shell until someone signed in opens it
+    "x-robots-tag": "noindex, nofollow",
   }) satisfies Record<string, string>;
 
 // what the handler reads of the assets binding

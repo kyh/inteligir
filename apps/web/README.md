@@ -1,12 +1,12 @@
 # `@repo/web` — inteligir.com
 
 One Cloudflare Worker serving the marketing site and the whole cloud from
-one origin: the TanStack Start pages, Better Auth on D1, device login, each
-account's library cell (a SQLite Durable Object holding the library and its
-devices' sockets), the connector a person's own assistant reaches the library
-through. The wire contract is `@repo/contract/cloud` — the Worker implements
-it, and the Mac app, the library's browser tab, the phone and the extension
-consume it.
+one origin: the TanStack Start pages, the library's page at `/library`, Better
+Auth on D1, device login, each account's library cell (a SQLite Durable Object
+holding the library and its devices' sockets), the connector a person's own
+assistant reaches the library through. The wire contract is
+`@repo/contract/cloud` — the Worker implements it; the library's page (the Mac
+app's window and the browser tab), the phone and the extension consume it.
 
 ## Layout
 
@@ -20,6 +20,8 @@ src/
     app/             /app/sign-in, /app/sign-up, /app/forgot-password,
                      /app/reset-password and /app/devices (the last two
                      client-only)
+    connect/         /connect/extension, which hands the browser extension a
+                     credential of its own (client-only)
   components/        The site's own components (auth card, header, theme, orb)
   lib/               Better Auth client, session guard, site config (the
                      Download button's fixed dmg link among it), page markdown
@@ -44,7 +46,8 @@ src/
                      bytes in R2 (blob-routes.ts), the readings it sends to
                      the fill queue (cell-fills.ts), its imports and exports
                      (cell-imports.ts, cell-exports.ts) and an export's zip
-                     (export-routes.ts)
+                     (export-routes.ts); beside the cell, the library's page,
+                     answered from the assets (library-page.ts)
     connector/       The connector: its OAuth on @cloudflare/workers-oauth-provider
                      (connector-auth.ts), the consent page an assistant
                      sends the person to (consent-route.ts), the route that
@@ -150,11 +153,13 @@ own (`.dev.vars.example`).
 | `/terms`                    | —               | Renders `docs/terms.md` itself (SSR) — never a copy                           |
 | `/llms.txt`, `/sitemap.xml` | —               | Agent and crawler files, beside `/robots.txt`                                 |
 | `/*` (anything else)        | —               | 404; a markdown recovery body to `Accept: text/markdown`                      |
+| `/app`                      | —               | Redirects to `SIGNED_IN_HOME`, the library; the layout has no page of its own |
 | `/app/sign-in`              | —               | Sign-in (SSR when signed out — see `lib/session-guard.ts`)                    |
 | `/app/sign-up`              | —               | Sign-up form; submits to the invite gate                                      |
 | `/app/forgot-password`      | —               | Requests the reset link                                                       |
 | `/app/reset-password`       | —               | Where the emailed link lands (client-only, `no-store`, no referrer)           |
 | `/app/devices`              | session         | The device table: list and revoke                                             |
+| `/library`, `/library/*`    | —               | The library in a tab, `@repo/workspace`; a signed-out visit goes to sign-in   |
 | `/api/auth/*`               | —               | Better Auth (email+password, session cookie)                                  |
 | `POST /api/sign-up`         | —               | The invite gate in front of Better Auth's sign-up, for the site's form        |
 | `GET /v1/socket`            | ticket          | The library-moved socket, on a minute's ticket in the query; hibernatable     |
@@ -269,10 +274,10 @@ and end them, and the account's deletion revokes every one.
 - **The site's pages ask for a session in the route, and remember the way
   back.** `/app/devices` is `ssr: false`; its `beforeLoad` sends a signed-out
   visit to `/app/sign-in?next=<the page>`, and its loader does the same when
-  the list answers `UNAUTHORIZED`. Sign-in and sign-up, whose links to each
-  other carry it, follow `next` through `internalNextPath`
-  (`src/lib/next-path.ts`, the open-redirect guard), else land on
-  `SIGNED_IN_HOME`, as bare `/app` does. The list loads in
+  the list answers `UNAUTHORIZED`. Sign-in and sign-up follow `next` through
+  `internalNextPath` (`src/lib/next-path.ts`, the open-redirect guard), each
+  handing it to the other, else land in the library, `SIGNED_IN_HOME`, as bare
+  `/app` does, each by a document load. The list loads in
   the route's loader through `account.devices` on the session's cookie, and a
   refusal is said in its declared words (`refusalText`), so a failure is the
   route's error view with a retry, never a page stuck on Loading. The auth forms submit

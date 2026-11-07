@@ -1,5 +1,10 @@
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
+import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { describe, expect, it } from "vitest";
 
+import { routeTree } from "../routeTree.gen";
+import { PAGES } from "./page-meta";
 import {
   aboutMarkdown,
   contactMarkdown,
@@ -13,6 +18,43 @@ import { serializeJsonLd, siteGraph } from "./structured-data";
 
 // the floor agent-readiness checks hold a trust page and the homepage's raw text to
 const MIN_CHARS = 500;
+
+// the whole document a route answers: its head, its JSON-LD and what a person sees
+const renderedDocument = async (path: string): Promise<string> => {
+  const router = createRouter({
+    history: createMemoryHistory({ initialEntries: [path] }),
+    routeTree,
+  });
+  await router.load();
+  return renderToString(createElement(RouterProvider, { router }));
+};
+
+// a claim can break across a source line, a quoted llms.txt line or an element
+const flowing = (text: string): string =>
+  text
+    .replaceAll(/<[^>]*>/gu, " ")
+    .replaceAll(/[\s>]+/gu, " ")
+    .replaceAll("&#x27;", "'");
+
+const RETIRED_CLAIMS: readonly (readonly [string, RegExp])[] = [
+  ["a plan of the person's own", /\bown (?:[\w-]+ ){0,4}plan\b|\bClaude plan\b|\bChatGPT plan\b/iu],
+  ["an optional account", /\boptional account\b|\baccount is optional\b/iu],
+  ["no cloud behind the library", /\bno cloud request\b/iu],
+  ["a folder the person owns", /\bfolders? (?:you|they) (?:own|choose)\b|\bfiles you own\b/iu],
+  [
+    "plain files on the Mac",
+    /\bplain (?:files|markdown)\b|\bfolder on (?:your|the user's) Mac\b/iu,
+  ],
+  ["a folder opened in place", /\bObsidian folder opens\b/iu],
+  ["a 10 MB limit on files", /\b10 MB\b/u],
+  ["no model call through us", /\bnever routes a model call\b/iu],
+  ["the app and agent on the Mac alone", /\bruns? on (?:your|that) Mac\b/iu],
+  ["the Mac as where data starts", /\bleaves? (?:your|the user's) Mac\b/iu],
+  ["a library on the Mac alone", /\blibrary on your Mac\b/iu],
+];
+
+const claimsIn = (text: string): string[] =>
+  RETIRED_CLAIMS.filter(([, pattern]) => pattern.test(flowing(text))).map(([claim]) => claim);
 
 describe("the site's markdown", () => {
   it.each([
@@ -37,8 +79,46 @@ describe("the site's markdown", () => {
     expect(prose).not.toMatch(/\b(?:CLI|PATH|MCP)\b/u);
   });
 
+  it.each([
+    ["home", homeMarkdown],
+    ["about", aboutMarkdown],
+    ["contact", contactMarkdown],
+    ["llms.txt", llmsTxt],
+  ])("%s makes none of the replaced product's claims", (_page, markdown) => {
+    expect(claimsIn(markdown)).toStrictEqual([]);
+  });
+
+  it.each([
+    ["home", homeMarkdown],
+    ["about", aboutMarkdown],
+    ["llms.txt", llmsTxt],
+  ])("%s says what the product is", (_page, markdown) => {
+    const text = flowing(markdown);
+    expect(text).toMatch(/\baccount is required\b/iu);
+    expect(text).toMatch(/\bfirst 1 GB is free\b/iu);
+    expect(text).toMatch(/\bkeeps? a copy\b/iu);
+    expect(text).toMatch(/\bfile (?:you open|opened on it)\b/iu);
+    expect(text).toMatch(/\bagent is built in\b|\bbuilt-in (?:AI )?agent\b/iu);
+    expect(text).toMatch(/\b100 MB\b/u);
+    expect(text).toMatch(/\bcloud reads\b/iu);
+  });
+
   it("gives the contact email", () => {
     expect(contactMarkdown).toContain(siteConfig.contact.email);
+  });
+
+  it.each([
+    ["home", homeMarkdown],
+    ["llms.txt", llmsTxt],
+  ])("%s links the library", (_page, markdown) => {
+    expect(markdown).toContain(`(${siteConfig.url}/library)`);
+  });
+
+  it("keeps llms.txt free of the engine's words", () => {
+    const prose = llmsTxt.replaceAll(/\]\([^)]*\)/gu, "]");
+    expect(prose).not.toMatch(/\bvaults?\b/iu);
+    expect(prose).not.toMatch(/\b(?:git|commits?|remotes?|repos?|repository|terminal)\b/iu);
+    expect(prose).not.toMatch(/\b(?:CLI|PATH|MCP)\b/u);
   });
 
   it("shapes llms.txt per llmstxt.org with when-to-use guidance", () => {
@@ -64,6 +144,45 @@ describe("the site's markdown", () => {
     expect(body).toContain("`/nope`");
     expect(body).toContain(`${siteConfig.url}/llms.txt`);
     expect(body).toContain(`${siteConfig.url}/sitemap.xml`);
+  });
+});
+
+describe("what a page says about the product", () => {
+  it.each(["/", "/about", "/contact"])(
+    "%s makes none of the replaced product's claims, head and JSON-LD included",
+    async (path) => {
+      expect(claimsIn(await renderedDocument(path))).toStrictEqual([]);
+    },
+  );
+
+  it("says what the app needs beside the Download button", async () => {
+    const text = flowing(await renderedDocument("/"));
+    expect(text).toContain("For Macs with Apple silicon.");
+    expect(text).toMatch(
+      /An account is required, by invite for now, and its first 1 GB is free\./u,
+    );
+    expect(text).toContain("The agent is built in.");
+  });
+
+  it.each(["/", "/about", "/contact", "/privacy", "/terms"])(
+    "%s offers the way into the library",
+    async (path) => {
+      await expect(renderedDocument(path)).resolves.toMatch(
+        /<a\b[^>]*href="\/library"[^>]*>Open your library<\/a>/u,
+      );
+    },
+  );
+
+  it.each(Object.values(PAGES).map((page) => [page.path, page.description] as const))(
+    "%s describes itself in the product's terms",
+    (_path, description) => {
+      expect(claimsIn(description)).toStrictEqual([]);
+    },
+  );
+
+  it("describes the site and the app in the product's terms", () => {
+    expect(claimsIn(siteConfig.description)).toStrictEqual([]);
+    expect(claimsIn(serializeJsonLd(siteGraph()))).toStrictEqual([]);
   });
 });
 

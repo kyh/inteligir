@@ -1,8 +1,9 @@
 import { z } from "zod";
 
-// where a sign-in or sign-up lands when nothing asked to come back: the one page a session
-// opens, so the landing shows the account is signed in
-export const SIGNED_IN_HOME = "/app/devices";
+import { LIBRARY_PAGE_PATH } from "@repo/contract/cloud/library-page";
+
+// where a sign-in or sign-up lands when nothing asked to come back
+export const SIGNED_IN_HOME = LIBRARY_PAGE_PATH;
 
 // the way back the sign-in and sign-up pages carry; a malformed `next` is dropped, not refused, so
 // a bad link still reaches the form, and internalNextPath decides a well-formed one may be followed
@@ -41,6 +42,6 @@ export const internalNextPath = (value: string | undefined): string | null => {
   return `${resolved.pathname}${resolved.search}${resolved.hash}`;
 };
 
-// where a session goes once it has one, by a document load: the way back may be a page the Worker
-// answers before this router (an assistant's consent page)
+// where a session goes once it has one, by a document load: the landing may be a page the Worker
+// answers before this router (the library, an assistant's consent page)
 export const signedInLanding = (next?: string): string => internalNextPath(next) ?? SIGNED_IN_HOME;

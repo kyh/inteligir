@@ -15,7 +15,7 @@ const DOC_PAGES = [
 
 // what someone deciding whether to download reads
 const LANDING_CTA = "Download for Mac";
-const LANDING_REQUIREMENTS = ["Apple silicon", "a paid Claude plan or any ChatGPT plan"];
+const LANDING_REQUIREMENTS = ["Apple silicon", "An account is required, by invite for now"];
 
 const PACKAGE_SCRIPT = path.join("apps", "desktop", "scripts", "package.ts");
 const LATEST_DOWNLOAD = "https://github.com/kyh/inteligir/releases/latest/download/";

@@ -35,6 +35,13 @@ describe("the library's page", () => {
     }
   });
 
+  it("keeps its document out of search results, though the site links it", async () => {
+    for (const path of ["/library", "/library/settings"]) {
+      const response = await ask(path);
+      expect(response.headers.get("x-robots-tag"), path).toBe("noindex, nofollow");
+    }
+  });
+
   it("answers a file the build holds as it is", async () => {
     const response = await handleLibraryPage(
       new Request("https://inteligir.com/library/favicon.svg"),
