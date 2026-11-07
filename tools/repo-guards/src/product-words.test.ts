@@ -285,7 +285,7 @@ describe("product surfaces speak the person's words", () => {
       ['  "Uses this Mac\'s git credentials."', "an engine word", false],
       ['  "Run it from the CLI first"', "an uppercase engine word", false],
       ["const page = `# Home\n\nYour vault is kept.\n`;", "a template's later line", false],
-      ["`## ${name}\n\n- **Saved** to the ${x} repo (for now)\n`", "a page's markdown", false],
+      [`\`## \${name}\n\n- **Saved** to the \${x} repo (for now)\n\``, "a page's markdown", false],
     ];
     const blind = planted.flatMap(([line, what, jsx]) =>
       scanScript("planted", line.split("\n"), jsx).length === 0
@@ -299,7 +299,7 @@ describe("product surfaces speak the person's words", () => {
       ['            "[desktop] {} is not a recent-vaults list; starting over",', false],
       ['label: "Folder path",', false],
       [`  const url = \`https://example.com/\${path}\`; // the vault's door`, false],
-      ["const page = `# Home\n\n${vault.name} is kept.\n`;", false],
+      [`const page = \`# Home\n\n\${vault.name} is kept.\n\`;`, false],
     ];
     const noisy = quiet.flatMap(([line, jsx]) =>
       scanScript("planted", line.split("\n"), jsx).length > 0 ? [`FALSE HIT  ${line}`] : [],
