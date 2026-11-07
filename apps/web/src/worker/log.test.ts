@@ -33,8 +33,9 @@ describe("an error's logged fields", () => {
   });
 
   it("keeps a stack's frames alone, since a stack opens with the whole message", () => {
-    const { stack } = errorFields(new Error("private text ".repeat(100)));
-    expect(stack).not.toContain("private text");
-    expect(stack).toMatch(/^\s+at /u);
+    const fields = errorFields(new TypeError("private text ".repeat(100)));
+    expect(fields.name).toBe("TypeError");
+    expect(fields.stack).not.toContain("private text");
+    expect(fields.stack).toMatch(/^\s+at /u);
   });
 });

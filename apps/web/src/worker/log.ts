@@ -1,4 +1,5 @@
 interface ErrorFields {
+  name: string | undefined;
   message: string;
   stack: string | undefined;
   // what each wrapper wrapped, outermost first: a Drizzle "Failed query" names the SQL, and only
@@ -28,6 +29,7 @@ export const errorFields = (cause: unknown): ErrorFields => {
     next = next instanceof Error ? next.cause : undefined;
   }
   return {
+    name: cause instanceof Error ? cause.name : undefined,
     message: clipped(cause instanceof Error ? cause.message : String(cause)),
     stack: cause instanceof Error ? cause.stack?.match(STACK_FRAME)?.join("\n") : undefined,
     causes,
