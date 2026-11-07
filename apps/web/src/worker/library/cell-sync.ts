@@ -17,7 +17,6 @@ import type { SqlRow, SqlStatements } from "@repo/notes/library/library-sql";
 import { z } from "zod";
 
 import { annotationWireRow, readAnnotationRow } from "./cell-annotations";
-import { readBlobRow } from "./cell-blobs";
 
 type LibraryChange = z.infer<typeof libraryChangeSchema>;
 type StoredBlockRow = z.infer<typeof storedBlockSchema>;
@@ -186,9 +185,6 @@ const changeOf = (sql: SqlStatements, entry: ChangeEntry): LibraryChange => {
     case "annotation": {
       const row = entry.gone ? null : readAnnotationRow(sql, id);
       return { id, kind: "annotation", row: row === null ? null : annotationWireRow(row), seq };
-    }
-    case "blob": {
-      return { id, kind: "blob", row: entry.gone ? null : readBlobRow(sql, id), seq };
     }
     case "thread": {
       return { id, kind: "thread", row: entry.gone ? null : threadRowOf(sql, id), seq };

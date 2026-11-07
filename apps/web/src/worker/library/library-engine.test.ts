@@ -289,7 +289,7 @@ describe("a write to the library cell", () => {
         held: false,
       });
       const settled = library.settle(sha, { bytes: 10, mime: "image/png" }, library.blobRemovals());
-      expect(settled.ok && settled.head).toBe(2);
+      expect(settled.ok && settled.value).toStrictEqual({ settled: true });
       landedValue(library.write(FILL_ACTOR, { itemId, ops: [insert] }));
       expect(landedValue(library.reserve({ bytes: 10, mime: "image/png", sha }))).toStrictEqual({
         held: true,
@@ -343,7 +343,7 @@ describe("a write to the library cell", () => {
       // a settle that looked in R2 before the removal ended lands nothing; one after it lands
       expect(landedValue(library.settle(sha, png(500), before))).toStrictEqual({ settled: false });
       const settled = library.settle(sha, png(500), library.blobRemovals());
-      expect(settled).toStrictEqual({ head: 1, ok: true, value: { settled: true } });
+      expect(settled).toStrictEqual({ head: null, ok: true, value: { settled: true } });
     });
   });
 

@@ -24,7 +24,7 @@ import { z } from "zod";
 
 import { annotationGrowth, annotationStoreOf, storeAnnotationRows } from "./cell-annotations";
 import type { AnnotationRows, AnnotationsLanded } from "./cell-annotations";
-import { blobRefsOf, missingBlobs, storeItemBlobs } from "./cell-blobs";
+import { itemFilesOf, missingBlobs, storeItemBlobs } from "./cell-blobs";
 import { encodeParts, keepSuperseded, partsFit } from "./cell-parts";
 import { holdRoomFor } from "./cell-quota";
 import { refuse } from "./cell-refusal";
@@ -167,7 +167,7 @@ const sameShas = (a: readonly string[], b: readonly string[]): boolean => {
 // change
 interface Checked {
   readonly derived: ReturnType<typeof deriveItem>;
-  readonly refs: ReturnType<typeof blobRefsOf>;
+  readonly shas: readonly string[];
   readonly priorShas: readonly string[];
   readonly blocks: BlockDiff;
 }
@@ -193,11 +193,11 @@ const checkLanding = (scope: LandingScope, landing: Landing): Checked => {
       refuse({ itemId: holder.id, kind: "url-held", seq: holder.seq });
     }
   }
-  const refs = blobRefsOf(after);
-  const priorShas = before === null ? [] : blobRefsOf(before.state).map((ref) => ref.sha);
+  const shas = itemFilesOf(after);
+  const priorShas = before === null ? [] : itemFilesOf(before.state);
   const missing = missingBlobs(
     storage,
-    refs.map((ref) => ref.sha).filter((sha) => !priorShas.includes(sha)),
+    shas.filter((sha) => !priorShas.includes(sha)),
   );
   if (missing.length > 0) {
     refuse({ kind: "blob-missing", shas: missing });
@@ -211,14 +211,14 @@ const checkLanding = (scope: LandingScope, landing: Landing): Checked => {
       (before === null ? 0 : fieldBytes(before.state.fields)) +
       annotationGrowth(before?.rows ?? new Map(), landing.annotations),
   );
-  return { blocks, derived, priorShas, refs };
+  return { blocks, derived, priorShas, shas };
 };
 
 // the row the item lands as; refuses a change no rule admits, before anything is written
 export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => {
   const { storage } = scope;
   const { after, before, itemId } = landing;
-  const { blocks, derived, priorShas, refs } = checkLanding(scope, landing);
+  const { blocks, derived, priorShas, shas } = checkLanding(scope, landing);
   const seq = scope.seq();
   const set = scope.set();
   touchItem(
@@ -259,9 +259,8 @@ export const landItem = (scope: LandingScope, landing: Landing): LiveItemRow => 
       runPlan(storage, storeSearchRow(itemId, derived.search));
     }
   }
-  const named = refs.map((ref) => ref.sha);
-  if (before === null || !sameShas(priorShas, named)) {
-    storeItemBlobs(storage, itemId, refs, scope.now);
+  if (before === null || !sameShas(priorShas, shas)) {
+    storeItemBlobs(storage, itemId, shas, scope.now);
   }
   storeAnnotationRows(storage, landing.annotations, seq);
   runPlan(

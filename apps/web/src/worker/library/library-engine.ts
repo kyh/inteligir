@@ -31,7 +31,6 @@ import {
   dropItemBlobs,
   endRemoval,
   hurryUnnamed,
-  itemBlobShas,
   refuseUpload,
   releaseUnnamed,
   releaseUpload,
@@ -277,7 +276,6 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         }
         const seq = scope.seq();
         const highlights = [...readAnnotationRows(storage, id).keys()];
-        const shas = itemBlobShas(storage, id);
         runPlan(
           storage,
           storeTombstone({ deletedAt: item.fields.deletedAt, id, seq, updatedAt: scope.now }),
@@ -290,7 +288,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         ] as const) {
           storage.run(`DELETE FROM ${table} WHERE item_id = ?`, [id]);
         }
-        dropItemBlobs(storage, id, shas, scope.now);
+        dropItemBlobs(storage, id, scope.now);
         runPlan(
           storage,
           recordChanges([
@@ -338,14 +336,9 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
   ): CellResult<UploadSettlement> => {
     const result = transact(
       { answer: z.object({ settled: z.boolean() }), openSet: noSet, opId: undefined },
-      (scope) => {
-        const settled = settleUpload(storage, bytesCap, { removalsSeen, sha, stored }, scope.now);
-        if (settled.landed) {
-          const seq = scope.seq();
-          runPlan(storage, recordChanges([{ gone: false, id: sha, kind: "blob", seq }]));
-        }
-        return { settled: settled.settled };
-      },
+      (scope) => ({
+        settled: settleUpload(storage, bytesCap, { removalsSeen, sha, stored }, scope.now),
+      }),
     );
     if (!result.ok && result.refusal.kind === "quota") {
       storage.transaction(() => {
@@ -476,7 +469,7 @@ export const openLibraryEngine = (deps: LibraryEngineDeps) => {
         if (importsRunning(storage) || exportsWriting(storage)) {
           awaitNameAgain(storage, sha, now + PLAN_AGAIN_MS);
         } else {
-          releaseUnnamed(storage, [sha], { now, seq: () => runPlan(storage, nextHead()) });
+          releaseUnnamed(storage, [sha], now);
         }
         break;
       }

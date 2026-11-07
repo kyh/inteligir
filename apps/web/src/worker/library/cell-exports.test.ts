@@ -222,6 +222,7 @@ const summaryOf = async (accountId: string) =>
       items: read
         .map((item) => ({
           article: textOf(item.id, "article"),
+          cover: sql.exec("SELECT cover_sha FROM items WHERE id = ?", item.id).one().cover_sha,
           fields: {
             author: item.fields.author,
             kind: item.fields.kind,
@@ -230,12 +231,9 @@ const summaryOf = async (accountId: string) =>
             url: item.fields.url,
           },
           files: sql
-            .exec(
-              "SELECT role, sha256 FROM item_blobs WHERE item_id = ? ORDER BY role, sha256",
-              item.id,
-            )
+            .exec("SELECT sha256 FROM item_blobs WHERE item_id = ? ORDER BY sha256", item.id)
             .toArray()
-            .map((row) => [row.role, row.sha256]),
+            .map((row) => row.sha256),
           // every item another links names by its title, whatever its id in this library
           links: [...titleById].flatMap(([id, title]) =>
             id !== item.id && JSON.stringify(item).includes(id) ? [title] : [],
@@ -283,7 +281,7 @@ describe("an export", () => {
       // the fixture holds what a faithful round trip must carry
       const link = before.items.find((item) => item.title === "A page worth reading");
       expect(link?.article).toHaveLength(2);
-      expect(link?.files.map(([role]) => role)).toStrictEqual(["cover"]);
+      expect(link?.files).toStrictEqual([link?.cover]);
       expect(before.highlights).toHaveLength(2);
       await expect(summaryOf(into)).resolves.toStrictEqual(before);
     },

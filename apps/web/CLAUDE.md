@@ -276,9 +276,11 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   the request's range and preconditions: 206 from `object.range` for any single
   range, one spanning the file included, 416 for one past the end, a
   multi-part ask whole, 304 and 412; every file but a PDF is served under a
-  script-less sandbox. Rejected: a byte-range parser of our own (R2 parses the
-  header); a signed URL (a credential in a logged address).
-  `apps/web/src/worker/library/blob-routes.ts`.
+  script-less sandbox. A file's row is the cell's alone: a device asks for a
+  file by the sha an item's row names, and takes its type from the answer.
+  Rejected: a byte-range parser of our own (R2 parses the header); a signed
+  URL (a credential in a logged address); a file's row synced to every device
+  (nothing there reads it). `apps/web/src/worker/library/blob-routes.ts`.
 
 - **THE WORKER'S PROGRAM HAS NO DOM, SO A DEPENDENCY'S TYPES THAT REFERENCE IT
   ARE MAPPED TO A STUB.** The codec's code-block kit reaches highlight.js,

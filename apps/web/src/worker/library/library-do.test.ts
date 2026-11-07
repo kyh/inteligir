@@ -229,7 +229,7 @@ describe("the library cell", () => {
       httpMetadata: { contentType: "image/png" },
     });
     await expect(stub.settleBlob(SHA)).resolves.toStrictEqual({
-      head: 1,
+      head: null,
       ok: true,
       value: { settled: true },
     });

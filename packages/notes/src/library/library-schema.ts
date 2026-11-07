@@ -29,17 +29,12 @@ export const LIBRARY_CHANGE_KINDS = [
   "item",
   "folder",
   "annotation",
-  "blob",
   "thread",
   "thread_event",
 ] as const;
 export type LibraryChangeKind = (typeof LIBRARY_CHANGE_KINDS)[number];
 
 const TAG_ORIGINS = ["field", "inline"] as const;
-// what an item holds a file as: its original, its cover, a thumbnail, its page copy, or an image
-// or file its body embeds
-const BLOB_ROLES = ["original", "cover", "thumb", "copy", "embed"] as const;
-export type BlobRole = (typeof BLOB_ROLES)[number];
 // who a change set is by: the person, the built-in agent, a connected assistant, an import, the
 // cloud reading a page, or an undo
 export const CHANGE_SET_ACTORS = [
@@ -177,20 +172,6 @@ const SYNCED_DDL = [
     seq INTEGER NOT NULL
   ) STRICT`,
   `CREATE INDEX IF NOT EXISTS annotations_item ON annotations (item_id)`,
-  `CREATE TABLE IF NOT EXISTS blobs (
-    sha256 TEXT PRIMARY KEY,
-    bytes INTEGER NOT NULL,
-    mime TEXT NOT NULL,
-    w INTEGER,
-    h INTEGER,
-    refs INTEGER NOT NULL
-  ) STRICT, WITHOUT ROWID`,
-  `CREATE TABLE IF NOT EXISTS item_blobs (
-    item_id TEXT NOT NULL,
-    sha256 TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN (${oneOf(BLOB_ROLES)})),
-    PRIMARY KEY (item_id, sha256, role)
-  ) STRICT, WITHOUT ROWID`,
   SEARCH_DDL,
   `CREATE TABLE IF NOT EXISTS threads (
     id TEXT PRIMARY KEY,
@@ -220,16 +201,28 @@ const SYNCED_DDL = [
   `CREATE INDEX IF NOT EXISTS changes_seq ON changes (seq)`,
 ] as const;
 
-// the cell's alone: History, the op ledger, the uploads it holds room for, the built-in agent,
-// imports and exports, and the jobs its alarm runs. A change set's item names its before and after
-// by part: an item's fields, its manifest (each block's id, hash, order key and section) and its
-// highlights are each kept once per item under their content hash (`snapshot_parts`), so a
-// revision that changed one block stores one new manifest and nothing else, and no row nears a
-// Durable Object's 2 MB. A set's after is null while the set is open and the item is as it left
-// it; it is written when the set seals, or when another set is about to change the item. A block a
-// write replaces or drops keeps its content in `block_versions`, which the prune job sweeps of what
-// no part names.
+// the cell's alone: the files it holds and the items naming each, which no device reads, since a
+// device asks for a file by the sha an item's row names; History, the op ledger, the uploads it
+// holds room for, the built-in agent, imports and exports, and the jobs its alarm runs. A change
+// set's item names its before and after by part: an item's fields, its manifest (each block's id,
+// hash, order key and section) and its highlights are each kept once per item under their content
+// hash (`snapshot_parts`), so a revision that changed one block stores one new manifest and nothing
+// else, and no row nears a Durable Object's 2 MB. A set's after is null while the set is open and
+// the item is as it left it; it is written when the set seals, or when another set is about to
+// change the item. A block a write replaces or drops keeps its content in `block_versions`, which
+// the prune job sweeps of what no part names.
 const CELL_DDL = [
+  `CREATE TABLE IF NOT EXISTS blobs (
+    sha256 TEXT PRIMARY KEY,
+    bytes INTEGER NOT NULL,
+    mime TEXT NOT NULL,
+    refs INTEGER NOT NULL
+  ) STRICT, WITHOUT ROWID`,
+  `CREATE TABLE IF NOT EXISTS item_blobs (
+    item_id TEXT NOT NULL,
+    sha256 TEXT NOT NULL,
+    PRIMARY KEY (item_id, sha256)
+  ) STRICT, WITHOUT ROWID`,
   `CREATE TABLE IF NOT EXISTS change_sets (
     id TEXT PRIMARY KEY,
     actor TEXT NOT NULL

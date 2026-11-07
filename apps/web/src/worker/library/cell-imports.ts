@@ -84,7 +84,7 @@ const finish = (host: ImportHost, id: string): void => {
       job === null ? [] : [job.sha, ...(job.source === "markdown" ? keptFileShas(sql, id) : [])];
     dropImportRuns(sql, id);
     if (!importsRunning(sql) && !exportsWriting(sql)) {
-      releaseUnnamed(sql, kept, scope);
+      releaseUnnamed(sql, kept, scope.now);
     }
   });
 };

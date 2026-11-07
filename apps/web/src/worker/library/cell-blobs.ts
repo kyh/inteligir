@@ -11,8 +11,7 @@
 
 import type { ItemState } from "@repo/notes/library/block-ops";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
-import { readMeta, recordChanges, writeMeta } from "@repo/notes/library/library-queries";
-import type { BlobRole } from "@repo/notes/library/library-schema";
+import { readMeta, writeMeta } from "@repo/notes/library/library-queries";
 import { collectFileShas } from "@repo/notes/library/library-nodes";
 import { chunkStatement, runPlan } from "@repo/notes/library/library-sql";
 import type { SqlStatements } from "@repo/notes/library/library-sql";
@@ -27,40 +26,17 @@ export const blobKey = (accountId: string, sha: string): string => `acct/${accou
 // everything R2 holds for one account, which its deletion empties
 export const accountBlobPrefix = (accountId: string): string => `acct/${accountId}/`;
 
-export interface BlobRef {
-  readonly sha: string;
-  readonly role: BlobRole;
-}
-
-const fieldRefsOf = ({ copySha, coverSha, originalSha }: LibraryItemFields): BlobRef[] => {
-  const refs: BlobRef[] = [];
-  if (originalSha !== null) {
-    refs.push({ role: "original", sha: originalSha });
-  }
-  if (coverSha !== null) {
-    refs.push({ role: "cover", sha: coverSha });
-  }
-  if (copySha !== null) {
-    refs.push({ role: "copy", sha: copySha });
-  }
-  return refs;
-};
-
-export const fieldFilesOf = (fields: LibraryItemFields): string[] =>
-  fieldRefsOf(fields).map((ref) => ref.sha);
+export const fieldFilesOf = ({ copySha, coverSha, originalSha }: LibraryItemFields): string[] =>
+  [originalSha, coverSha, copySha].filter((sha) => sha !== null);
 
 // every file an item names: its original, cover and page copy by field, and each image, video or
 // file its body embeds
-export const blobRefsOf = (state: ItemState): BlobRef[] => {
-  const refs = fieldRefsOf(state.fields);
-  const embedded = new Set<string>();
+export const itemFilesOf = (state: ItemState): string[] => {
+  const shas = new Set(fieldFilesOf(state.fields));
   for (const stored of state.blocks.values()) {
-    collectFileShas(stored.block, embedded);
+    collectFileShas(stored.block, shas);
   }
-  for (const sha of embedded) {
-    refs.push({ role: "embed", sha });
-  }
-  return refs;
+  return [...shas];
 };
 
 const shaRowSchema = z.object({ sha256: z.string() });
@@ -101,11 +77,6 @@ const recountRefs = (sql: SqlStatements, shas: readonly string[]): void => {
     sql.run(statement.sql, statement.params);
   }
 };
-
-export const itemBlobShas = (sql: SqlStatements, itemId: string): string[] =>
-  sql
-    .all("SELECT sha256 FROM item_blobs WHERE item_id = ?", [itemId])
-    .map((row) => shaRowSchema.parse(row).sha256);
 
 // ---- files history names ----
 
@@ -190,22 +161,25 @@ const named = (sql: SqlStatements, shas: readonly string[]): void => {
   }
 };
 
+const deleteItemBlobs = (sql: SqlStatements, itemId: string): string[] =>
+  sql
+    .all("DELETE FROM item_blobs WHERE item_id = ? RETURNING sha256", [itemId])
+    .map((row) => shaRowSchema.parse(row).sha256);
+
 export const storeItemBlobs = (
   sql: SqlStatements,
   itemId: string,
-  refs: readonly BlobRef[],
+  shas: readonly string[],
   now: number,
 ): void => {
-  const shas = refs.map((ref) => ref.sha);
   named(sql, shas);
-  const before = itemBlobShas(sql, itemId);
-  sql.run("DELETE FROM item_blobs WHERE item_id = ?", [itemId]);
+  const before = deleteItemBlobs(sql, itemId);
   for (const statement of chunkStatement({
-    each: "(?, ?, ?)",
-    head: "INSERT INTO item_blobs (item_id, sha256, role) VALUES ",
-    rows: refs.map((ref) => [itemId, ref.sha, ref.role]),
+    each: "(?, ?)",
+    head: "INSERT INTO item_blobs (item_id, sha256) VALUES ",
+    rows: shas.map((sha) => [itemId, sha]),
     separator: ", ",
-    tail: " ON CONFLICT DO NOTHING",
+    tail: "",
   })) {
     sql.run(statement.sql, statement.params);
   }
@@ -217,14 +191,10 @@ export const storeItemBlobs = (
   }
 };
 
-// a purged item, its rows gone: the files it named, `shas`, and those its history did are asked
-// about at the alarm's next run, which an import or an export may put off
-export const dropItemBlobs = (
-  sql: SqlStatements,
-  itemId: string,
-  shas: readonly string[],
-  now: number,
-): void => {
+// a purged item: the files it and its history named are asked about at the alarm's next run, which
+// an import or an export may put off
+export const dropItemBlobs = (sql: SqlStatements, itemId: string, now: number): void => {
+  const shas = deleteItemBlobs(sql, itemId);
   const history = sql
     .all("DELETE FROM history_blobs WHERE item_id = ? RETURNING sha256", [itemId])
     .map((row) => shaRowSchema.parse(row).sha256);
@@ -234,22 +204,11 @@ export const dropItemBlobs = (
   }
 };
 
-const blobRowSchema = z.object({
-  bytes: z.number().int().nonnegative(),
-  h: z.number().int().positive().nullable(),
-  mime: z.string(),
-  sha256: z.string(),
-  w: z.number().int().positive().nullable(),
-});
+const blobRowSchema = z.object({ bytes: z.number().int().nonnegative(), mime: z.string() });
 
-// a pulled file row, as the wire names its fields
 export const readBlobRow = (sql: SqlStatements, sha: string) => {
-  const [raw] = sql.all("SELECT sha256, bytes, mime, w, h FROM blobs WHERE sha256 = ?", [sha]);
-  if (raw === undefined) {
-    return null;
-  }
-  const row = blobRowSchema.parse(raw);
-  return { bytes: row.bytes, h: row.h, mime: row.mime, sha: row.sha256, w: row.w };
+  const [raw] = sql.all("SELECT bytes, mime FROM blobs WHERE sha256 = ?", [sha]);
+  return raw === undefined ? null : blobRowSchema.parse(raw);
 };
 
 // ---- uploads ----
@@ -364,13 +323,12 @@ export const refuseUpload = (storage: CellStorage, sha: string, now: number): vo
 
 const releasableSchema = z.object({ bytes: z.number().int().nonnegative(), refs: z.number() });
 
-// a file nothing names, let go: its row leaves the library and every replica at `seq`, its bytes
-// leave the quota, and what R2 holds of it is a stray the alarm takes out; a file an item or any
-// item's history names stays
+// a file nothing names, let go: its row leaves the library, its bytes leave the quota, and what R2
+// holds of it is a stray the alarm takes out; a file an item or any item's history names stays
 export const releaseUnnamed = (
   storage: CellStorage,
   shas: readonly string[],
-  at: { readonly seq: () => number; readonly now: number },
+  now: number,
 ): void => {
   for (const sha of new Set(shas)) {
     const [raw] = storage.all(
@@ -384,11 +342,10 @@ export const releaseUnnamed = (
     if (row?.refs === 0) {
       storage.run("DELETE FROM blobs WHERE sha256 = ?", [sha]);
       addFileBytes(storage, -row.bytes);
-      runPlan(storage, recordChanges([{ gone: true, id: sha, kind: "blob", seq: at.seq() }]));
       ensureJob(
         storage,
         { id: strayJobId(sha), kind: "stray", payload: JSON.stringify({ sha }) },
-        at.now,
+        now,
       );
     }
   }
@@ -416,16 +373,10 @@ export interface StoredObject {
   readonly mime: string;
 }
 
-// `landed` when the file's row is new, which moves the library's head
-export interface UploadSettled {
-  readonly settled: boolean;
-  readonly landed: boolean;
-}
-
 // the file's row lands at the size R2 holds; an upload whose room was let go meanwhile is taken
 // in again if it still fits. `removalsSeen` is `blobRemovals` as it stood before R2 was read: a
 // stray's removal waiting, or one ended since, may have taken what R2 showed, so the device
-// uploads again into the room it holds
+// uploads again into the room it holds. False when no file row holds the sha
 export const settleUpload = (
   storage: CellStorage,
   bytesCap: number,
@@ -435,31 +386,32 @@ export const settleUpload = (
     readonly removalsSeen: number;
   },
   now: number,
-): UploadSettled => {
+): boolean => {
   const { removalsSeen, sha, stored } = upload;
   if (heldShas(storage, [sha]).size > 0) {
-    return { landed: false, settled: true };
+    return true;
   }
   if (strayPending(storage, sha) || blobRemovals(storage) !== removalsSeen) {
-    return { landed: false, settled: false };
+    return false;
   }
   const held = heldUpload(storage, sha);
   if (stored === null) {
     if (held !== null) {
       releaseHeld(storage, sha, held.bytes);
     }
-    return { landed: false, settled: false };
+    return false;
   }
   const reserved = held?.bytes ?? 0;
   holdRoomFor(storage, bytesCap, stored.bytes - reserved);
   if (held !== null) {
     releaseHeld(storage, sha, reserved);
   }
-  storage.run(
-    "INSERT INTO blobs (sha256, bytes, mime, w, h, refs) VALUES (?, ?, ?, NULL, NULL, 0)",
-    [sha, stored.bytes, held?.mime ?? stored.mime],
-  );
+  storage.run("INSERT INTO blobs (sha256, bytes, mime, refs) VALUES (?, ?, ?, 0)", [
+    sha,
+    stored.bytes,
+    held?.mime ?? stored.mime,
+  ]);
   addFileBytes(storage, stored.bytes);
   awaitName(storage, sha, now);
-  return { landed: true, settled: true };
+  return true;
 };

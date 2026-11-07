@@ -114,13 +114,6 @@ describe("a file nothing names any more", () => {
       expect(fileRows(cell, sha)).toBe(0);
       expect(bytesUsed(cell)).toBe(0);
       await expect(inR2(cell, sha)).resolves.toBe(false);
-      const pulled = cell.library.pull({ cursor: 0, epoch: null });
-      expect(pulled).toMatchObject({ ok: true });
-      const changes = pulled.ok && pulled.value.kind === "changes" ? pulled.value.changes : [];
-      expect(changes.find((change) => change.id === sha)).toMatchObject({
-        kind: "blob",
-        row: null,
-      });
     });
   });
 

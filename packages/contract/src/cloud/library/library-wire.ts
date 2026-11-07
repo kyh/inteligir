@@ -147,14 +147,6 @@ const annotationRowSchema = z.object({
   updatedAt: seconds,
 });
 
-const blobRowSchema = z.object({
-  bytes: z.number().int().nonnegative(),
-  h: z.number().int().positive().nullable(),
-  mime: z.string().min(1),
-  sha: shaSchema,
-  w: z.number().int().positive().nullable(),
-});
-
 // where a thread's built-in agent stands: nothing running, a send waiting for its thread's turn or
 // for one of the account's, a turn running, or a turn waiting on the person's approval. A turn the
 // allowance stopped leaves its thread idle, and the next send goes on with it
@@ -190,7 +182,6 @@ export const libraryChangeSchema = z.discriminatedUnion("kind", [
   changeOf("item", itemRowSchema),
   changeOf("folder", folderRowSchema),
   changeOf("annotation", annotationRowSchema),
-  changeOf("blob", blobRowSchema),
   changeOf("thread", threadRowSchema),
   changeOf("thread_event", threadEventRowSchema),
 ]);

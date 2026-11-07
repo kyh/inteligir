@@ -162,7 +162,6 @@ const ITEM_TABLES_BY_ID = [
   "DELETE FROM links WHERE source_id = ?",
   "DELETE FROM item_tags WHERE item_id = ?",
   "DELETE FROM annotations WHERE item_id = ?",
-  "DELETE FROM item_blobs WHERE item_id = ?",
 ] as const;
 
 const DELETE_SEARCH_ROW =
