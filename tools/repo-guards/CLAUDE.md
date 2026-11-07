@@ -148,7 +148,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 - **A SCRIPT LOADS NO EXTENSIONLESS MODULE, AND ONE SCRIPT STAYS JS.** A module
   whose imports name no extension (most of the contract's) cannot load in a
   script, so a script parses only the fields it reads
-  (`apps/desktop/scripts/smoke-packaged.ts`). `.github/scripts/worker-preview.mjs`
+  (`apps/desktop/scripts/rust-notices.ts`). `.github/scripts/worker-preview.mjs`
   stays JS: its first step runs before the job sets up the repo's node.
 
 - **A TEST SITS BESIDE THE MODULE IT TESTS, AND A PACKAGE'S SHARED TEST CODE IS
