@@ -17,6 +17,7 @@ import { Alert, KeyboardAvoidingView, Linking, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import type { ItemInit } from "@repo/editor-bridge/protocol";
+import { shownTitle } from "@repo/notes/items/item-name";
 import { createAnnotationEdits } from "@/annotations/annotation-edits";
 import { AnnotationsSheet } from "@/annotations/annotations-sheet";
 import { loadVerdict, openWindowVerdict } from "@/editor/editor-host";
@@ -216,7 +217,11 @@ const ItemScreen = () => {
 
   return (
     <SafeAreaView style={screenOf(theme.background)} edges={["left", "right"]}>
-      <Stack.Screen options={{ title: item?.card.title ?? "" }} />
+      <Stack.Screen
+        options={{
+          title: item === null || item === undefined ? "" : shownTitle(item.card.title),
+        }}
+      />
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Menu accessibilityLabel="More" hidden={item === null} icon="ellipsis.circle">
           <Stack.Toolbar.MenuAction

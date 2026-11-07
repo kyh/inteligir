@@ -4,6 +4,7 @@
 
 import { FileKindIcon } from "@repo/editor/nodes/file-card";
 import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
+import { shownTitle } from "@repo/notes/items/item-name";
 import {
   MediaCard,
   MediaCardBadge,
@@ -156,12 +157,13 @@ export const ItemCard = ({
   onMenu,
 }: ItemCardProps) => {
   const playable = (row.kind === "video" || row.kind === "audio") && row.fields.coverSha !== null;
+  const title = shownTitle(row.title);
   return (
     <MediaCard
       selected={selected}
       tabIndex={tabStop ? 0 : -1}
       data-item-id={row.id}
-      aria-label={row.title}
+      aria-label={title}
       // each gesture is the card's only where it landed on the card: the unread reason's popover
       // is its child in React's tree, and a double-click selecting a word there would open the item
       onClick={(event) => {
@@ -221,7 +223,7 @@ export const ItemCard = ({
         )}
       </MediaCardCover>
       <MediaCardBody>
-        <MediaCardTitle>{row.title}</MediaCardTitle>
+        <MediaCardTitle>{title}</MediaCardTitle>
         <MediaCardMeta>{cardMeta(row, nowMs)}</MediaCardMeta>
         {row.fields.description === null ? null : (
           <MediaCardDescription>{row.fields.description}</MediaCardDescription>

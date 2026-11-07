@@ -14,7 +14,7 @@ import {
   serializeWikiBody,
 } from "@repo/notes/markdown/remark-wiki-link";
 import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
-import { UNTITLED } from "@repo/notes/items/item-name";
+import { shownTitle } from "@repo/notes/items/item-name";
 
 import { OPAQUE_KEY, WIKI_EMBED_KEY } from "@repo/editor/dialect-node-keys";
 import type { WIKI_LINK_KEY } from "@repo/editor/dialect-node-keys";
@@ -146,5 +146,5 @@ export const wikiLabelOf = (fields: WikiNodeFields): string => {
   if (anchor !== undefined) {
     return `${fields.title}#${anchor}`;
   }
-  return fields.title === "" ? UNTITLED : fields.title;
+  return shownTitle(fields.title);
 };

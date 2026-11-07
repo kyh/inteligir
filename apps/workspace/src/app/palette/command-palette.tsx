@@ -4,6 +4,7 @@
 // bar on the words, and a typed web address offers to save it. The commands are the page's verbs
 // that need no item: a new note, a link, the agent and Tidy my library, Settings.
 
+import { shownTitle } from "@repo/notes/items/item-name";
 import { isWebUrl } from "@repo/notes/items/item-url";
 import {
   CommandDialog,
@@ -108,7 +109,7 @@ export const CommandPalette = ({
             items: hits.map((hit): PaletteRow => ({
               action: "Open",
               hit: { itemId: hit.itemId, snippet: hit.snippet },
-              label: hit.title,
+              label: shownTitle(hit.title),
               onSelect: run(() => {
                 actions.openHit(hit.itemId, typed);
               }),

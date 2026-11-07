@@ -47,7 +47,9 @@ const drawPalette = () => {
       await Promise.resolve(
         query === "spring"
           ? [{ itemId: PLANS, score: 1, snippet: "a trip in spring", title: "Plans" }]
-          : [],
+          : query === "#todo"
+            ? [{ itemId: PLANS, score: 1, snippet: "", title: "" }]
+            : [],
       ),
   );
   const { library } = fakePageLibrary({ answer: () => ({}), search });
@@ -121,6 +123,12 @@ describe("the palette", () => {
     expect(screen.getByText("Open")).toBeDefined();
     fireEvent.keyDown(field(), { key: "Enter" });
     expect(actions.openHit).toHaveBeenCalledWith(PLANS, "spring");
+  });
+
+  it("calls a hit with no title Untitled", async () => {
+    drawPalette();
+    fireEvent.change(field(), { target: { value: "#todo" } });
+    await expect(screen.findByRole("option", { name: /Untitled/u })).resolves.toBeDefined();
   });
 
   it("offers to save a typed web address", async () => {

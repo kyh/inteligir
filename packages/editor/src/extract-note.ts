@@ -8,7 +8,7 @@
 import { KEYS, NodeApi, PathApi } from "platejs";
 import type { Path, SlateEditor, TElement } from "platejs";
 
-import { UNTITLED } from "@repo/notes/items/item-name";
+import { shownTitle } from "@repo/notes/items/item-name";
 import { ordsBetween } from "@repo/notes/library/block-order";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 import { toast } from "@repo/ui/components/sonner";
@@ -30,7 +30,7 @@ export const extractionTitle = (blocks: readonly TElement[]): string => {
   const source = blocks.find((block) => HEADING_TYPES.has(block.type)) ?? blocks[0];
   const line = source === undefined ? "" : (NodeApi.string(source).split("\n")[0] ?? "");
   const title = line.slice(0, TITLE_MAX_CHARS).trim();
-  return title === "" ? UNTITLED : title;
+  return shownTitle(title);
 };
 
 // the top-level blocks the selection touches: a partly selected list leaves as a whole

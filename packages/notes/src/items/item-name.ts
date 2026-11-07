@@ -116,6 +116,9 @@ const lastPathSegment = (url: string): string => {
 
 export const UNTITLED = "Untitled";
 
+// a title as a surface draws it: an item with no name and no words still has a row to fill
+export const shownTitle = (title: string): string => (title === "" ? UNTITLED : title);
+
 // `<host> - <its last path segment, humanized>`, or the host alone
 export const itemNameFromUrl = (url: string): string => {
   const host = urlHost(url);

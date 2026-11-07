@@ -3,6 +3,7 @@
 // Escape closes, Enter opens the item, and the focus goes back to the card it was opened from.
 
 import type { ReplicaListingRow } from "@repo/library-replica/library-replica";
+import { shownTitle } from "@repo/notes/items/item-name";
 import { Badge } from "@repo/ui/components/badge";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
@@ -100,7 +101,7 @@ export const QuickLook = ({ row, onClose, onOpen, onStep }: QuickLookProps) => {
       }}
     >
       <DialogContent className="max-w-xl" onKeyDown={onKeyDown}>
-        <DialogTitle>{row?.title ?? ""}</DialogTitle>
+        <DialogTitle>{row === null ? "" : shownTitle(row.title)}</DialogTitle>
         {row === null ? null : <Look row={row} />}
       </DialogContent>
     </Dialog>

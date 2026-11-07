@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import { checkNoteName } from "../test-support/note-name";
-import { itemNameFromTitle, itemNameFromUrl } from "./item-name";
+import { itemNameFromTitle, itemNameFromUrl, shownTitle, UNTITLED } from "./item-name";
 import { mulberry32, pick } from "../test-support/seeded-random";
+
+describe(shownTitle, () => {
+  it.each([
+    ["", UNTITLED],
+    ["Groceries", "Groceries"],
+  ])("%j reads as %j", (title, shown) => {
+    expect(shownTitle(title)).toBe(shown);
+  });
+});
 
 describe(itemNameFromTitle, () => {
   it.each([

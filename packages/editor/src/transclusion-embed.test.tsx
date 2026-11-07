@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { LibraryBlock } from "@repo/notes/library/library-nodes";
 
 import { EMBED_PART_GONE } from "@repo/editor/transclusion-guard";
+import { WIKI_INPUT_KEY } from "@repo/editor/wiki/wiki-input-key";
 
 import { EditorHarness } from "./test-support/editor-harness";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
@@ -285,6 +286,20 @@ describe("a link written to an item with no title", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Untitled" }));
     expect(screen.queryByText("Create")).toBeNull();
     expect(calls).toStrictEqual([]);
+  });
+});
+
+describe("the link picker", () => {
+  it("calls an item with no title Untitled", async () => {
+    installFakeEditorHost({ linkTargets: [{ id: TARGET_ID, title: "" }] });
+    const value: Value = [
+      {
+        children: [{ text: "" }, { children: [{ text: "" }], type: WIKI_INPUT_KEY }, { text: "" }],
+        type: "p",
+      },
+    ];
+    render(<EditorHarness itemId={HUB_ID} value={value} />);
+    await expect(screen.findByRole("option", { name: "Untitled" })).resolves.toBeDefined();
   });
 });
 
