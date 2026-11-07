@@ -210,6 +210,35 @@ describe("a page's reading, landed", () => {
     });
   });
 
+  it("leaves a folded link read, so it stays where a person restores it", async () => {
+    const accountId = newAccountId();
+    await inCell(cellOf(accountId), async (state) => {
+      const engine = openCellLibrary(state, env);
+      const library = libraryIn(state, accountId, engine);
+      const holder = await library.items.saveLink({ url: "https://pages.example/final" });
+      engine.landReading(
+        read({ itemId: holder.item.id, url: "https://pages.example/final" }, [
+          paragraph("h", "Held."),
+        ]),
+      );
+      const stub = await library.items.saveLink({ url: "https://short.example/x" });
+      await sendFills(state, env, engine);
+      engine.landReading(
+        read(
+          { itemId: stub.item.id, url: "https://short.example/x" },
+          [paragraph("f", "Folded.")],
+          { finalUrl: "https://pages.example/final" },
+        ),
+      );
+      await library.items.restore({ ids: [stub.item.id] });
+      expect(stateOf(state, stub.item.id)?.fields).toMatchObject({
+        deletedAt: null,
+        fetchState: "filled",
+      });
+      expect(fillJobs(state)).toStrictEqual([]);
+    });
+  });
+
   it("folds by the reading's own rule: a fact only where the page gave one, a title only over the address", async () => {
     const accountId = newAccountId();
     await inCell(cellOf(accountId), async (state) => {

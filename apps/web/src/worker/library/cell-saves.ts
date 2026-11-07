@@ -128,6 +128,12 @@ const FACT_FIELDS = ["author", "description", "lang", "published", "site"] as co
 // anything (a value it did not give never removes one an import gave), its cover where it brought
 // one, the reading's own state, and its title (empty when it gave none) only over the address the
 // item is still named by
+export const readOps = (fields: LibraryItemFields, now: number): LibraryOp[] => [
+  { base: fields.fetchError, field: "fetchError", op: "set", value: null },
+  { base: fields.fetchState, field: "fetchState", op: "set", value: "filled" },
+  { base: fields.fetchedAt, field: "fetchedAt", op: "set", value: now },
+];
+
 export const pageFieldOps = (
   fields: LibraryItemFields,
   page: Pick<ReadPage, "coverSha" | "facts" | "title">,
@@ -143,11 +149,7 @@ export const pageFieldOps = (
   if (page.coverSha !== null) {
     ops.push({ base: fields.coverSha, field: "coverSha", op: "set", value: page.coverSha });
   }
-  ops.push(
-    { base: fields.fetchError, field: "fetchError", op: "set", value: null },
-    { base: fields.fetchState, field: "fetchState", op: "set", value: "filled" },
-    { base: fields.fetchedAt, field: "fetchedAt", op: "set", value: now },
-  );
+  ops.push(...readOps(fields, now));
   if (page.title !== "" && fields.url !== null && fields.title === itemNameFromUrl(fields.url)) {
     ops.push({ base: fields.title, field: "title", op: "set", value: page.title });
   }

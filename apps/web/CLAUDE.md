@@ -344,8 +344,10 @@ conversation with the built-in agent. `AGENTS.md` § Decisions says how a bullet
   meanwhile lands nothing, so a message met twice lands once. A page whose
   redirects end at another live item's address folds onto it, the stub's tags
   and note with it, and a fold sets the fields by the same rule, one function
-  a device's save calls too. Rejected: bases the consumer read (a reading
-  nobody edited around would conflict with every save meanwhile).
+  a device's save calls too. The stub goes to Deleted read, so restoring it
+  asks no reading that would only fold it again. Rejected: bases the consumer
+  read (a reading nobody edited around would conflict with every save
+  meanwhile).
   `apps/web/src/worker/library/cell-fills.ts`, `cell-saves.ts`.
 
 - **AN IMPORT IS A CELL JOB RUN A PAGE AT A TIME, ITS PLAN IN ROWS.**

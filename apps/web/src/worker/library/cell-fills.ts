@@ -28,7 +28,15 @@ import { deferJob, dueJobs, scheduleJob } from "./cell-jobs";
 import type { DueJob } from "./cell-jobs";
 import { urlHolder } from "./cell-landing";
 import type { LandingScope, LiveItemRow } from "./cell-landing";
-import { articleOps, changes, foldPage, pageFieldOps, quoteOps, quotesOf } from "./cell-saves";
+import {
+  articleOps,
+  changes,
+  foldPage,
+  pageFieldOps,
+  quoteOps,
+  quotesOf,
+  readOps,
+} from "./cell-saves";
 import { landWrite } from "./cell-writes";
 
 // who a page's reading is by, in History's words
@@ -224,8 +232,9 @@ const landRead = (
 };
 
 // a stub whose page turned out to be another item's: the page lands on that item as a save of it
-// would, the stub's tags and note go with it, and the stub goes to Deleted, where it can be
-// restored. The fold is one change set of the fill's, both items in it
+// would, the stub's tags and note go with it, and the stub goes to Deleted read, where it can be
+// restored and stays, since one still waiting would be asked again and fold again. The fold is
+// one change set of the fill's, both items in it
 const foldOnto = (
   scope: LandingScope,
   codec: CellCodec,
@@ -247,10 +256,12 @@ const foldOnto = (
     null,
     [...stub.state.blocks.values()].filter((stored) => stored.section === "note"),
   );
-  landWrite(scope, FILL_ACTOR, {
-    itemId: stub.id,
-    ops: [{ base: stub.state.fields.deletedAt, field: "deletedAt", op: "set", value: scope.now }],
-  });
+  const { fields } = stub.state;
+  const ops: LibraryOp[] = [
+    { base: fields.deletedAt, field: "deletedAt", op: "set", value: scope.now },
+    ...readOps(fields, scope.now),
+  ];
+  landWrite(scope, FILL_ACTOR, { itemId: stub.id, ops: ops.filter(changes) });
 };
 
 // whether the item still waits for this reading: live, unread, at the address it was asked at
@@ -323,9 +334,7 @@ export const landFill = (
           op: "set",
           value: landing.originalName,
         },
-        { base: fields.fetchError, field: "fetchError", op: "set", value: null },
-        { base: fields.fetchState, field: "fetchState", op: "set", value: "filled" },
-        { base: fields.fetchedAt, field: "fetchedAt", op: "set", value: scope.now },
+        ...readOps(fields, scope.now),
       ];
       landWrite(scope, FILL_ACTOR, { itemId: item.id, ops: ops.filter(changes) });
       return { kind: "filled" };
