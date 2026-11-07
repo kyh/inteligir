@@ -176,9 +176,11 @@ alone, and no walk narrows structurally.
 - **AN EMBED IS ONE LEVEL OF STATIC RENDER, AND EVERY VOID HAS A STATIC ROW.**
   An embed inside an embed stays a chip, the nesting stop, so the only cycle
   left to refuse is a note embedding itself
-  (`packages/editor/src/transclusion-guard.ts`). PlateStatic's default element
-  draws a void empty or throws, so the static table holds a row for every void
-  (`packages/editor/src/transclusion.tsx`).
+  (`packages/editor/src/transclusion-guard.ts`). An embed of a heading draws
+  its section, to the next heading of its level or above, an embed of a block
+  that block, and an anchor gone says so rather than drawing all of the item.
+  PlateStatic's default element draws a void empty or throws, so the static
+  table holds a row for every void (`packages/editor/src/transclusion.tsx`).
 
 - **A SAVE KEEPS EVERY LINE BREAK.** The rule table keeps the leading `"\n"`
   (a soft break after an inline node) that Plate's default text rule drops. A
