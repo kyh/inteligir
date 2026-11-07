@@ -47,7 +47,6 @@ export interface NewItem {
   readonly annotations?: readonly AnnotationOp[] | undefined;
 }
 
-// an item's fields before its writer sets any: a note saved now, filed nowhere
 const secondsOf = (scope: LandingScope): number => Math.floor(scope.now / 1000);
 
 const placedState = (fields: LibraryItemFields, blocks: readonly PlacedBlock[]): ItemState => ({
@@ -386,10 +385,12 @@ export const organizeItems = (
 export interface BulkAnswer {
   readonly changed: string[];
   readonly missing: string[];
+  // left in Deleted, each address another live item's now
+  readonly addressHeld: string[];
 }
 
-// to Deleted, or back: an item already where it is asked to be counts as changed, an id naming
-// no live item as missing, and so does an item whose address another live item holds now
+// to Deleted, or back: an item already where it is asked to be counts as changed, and an id naming
+// no live item as missing
 export const setDeleted = (
   scope: LandingScope,
   actor: CellActor,
@@ -397,6 +398,7 @@ export const setDeleted = (
 ): BulkAnswer => {
   const changed: string[] = [];
   const missing: string[] = [];
+  const addressHeld: string[] = [];
   for (const itemId of new Set(input.ids)) {
     const item = runPlan(scope.storage, readItem(itemId));
     if (item?.kind !== "live") {
@@ -419,10 +421,10 @@ export const setDeleted = (
       if (!(error instanceof RefusedWriteError) || error.refusal.kind !== "url-held") {
         throw error;
       }
-      missing.push(itemId);
+      addressHeld.push(itemId);
     }
   }
-  return { changed, missing };
+  return { addressHeld, changed, missing };
 };
 
 // a url item's page read again: it waits, pending, for the cloud to read it; an item with no

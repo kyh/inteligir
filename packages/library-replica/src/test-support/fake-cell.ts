@@ -502,7 +502,11 @@ export const createFakeCell = (): FakeCell => {
   };
 
   const landedSchema = z.object({ item: liveItemRowSchema });
-  const restoredSchema = z.object({ missing: z.array(z.string()), restored: z.array(z.string()) });
+  const restoredSchema = z.object({
+    addressHeld: z.array(z.string()),
+    missing: z.array(z.string()),
+    restored: z.array(z.string()),
+  });
   const os = implement(v1Contract);
 
   const router = {
@@ -564,16 +568,22 @@ export const createFakeCell = (): FakeCell => {
         }),
         restore: os.library.items.restore.handler(({ input }) =>
           once(input.opId, restoredSchema, () => {
-            const restored = input.ids.filter((id) => {
-              const address = items.get(id)?.fields.url ?? null;
+            const known = input.ids.filter((id) => items.has(id));
+            const addressHeld = known.filter((id) => {
+              const address = held(id).fields.url;
               const holder = address === null ? null : holderOf(address);
-              return items.has(id) && (holder === null || holder === id);
+              return holder !== null && holder !== id;
             });
+            const restored = known.filter((id) => !addressHeld.includes(id));
             for (const id of restored) {
               const item = held(id);
               land(id, { ...item.fields, deletedAt: null }, item.blocks);
             }
-            return { missing: input.ids.filter((id) => !restored.includes(id)), restored };
+            return {
+              addressHeld,
+              missing: input.ids.filter((id) => !known.includes(id)),
+              restored,
+            };
           }),
         ),
         save: os.library.items.save.handler(({ input }) =>

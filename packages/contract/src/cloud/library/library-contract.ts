@@ -336,9 +336,10 @@ const itemsContract = {
     .input(z.strictObject({ ids, opId }))
     .output(z.object({ deleted: changedIds, missing: changedIds })),
 
+  // `addressHeld`: left in Deleted, each address another live item's now
   restore: signedBase
     .input(z.strictObject({ ids, opId }))
-    .output(z.object({ missing: changedIds, restored: changedIds })),
+    .output(z.object({ addressHeld: changedIds, missing: changedIds, restored: changedIds })),
 
   // emptying Deleted: an item's body and highlights go, and its id stays as a tombstone
   purge: signedBase

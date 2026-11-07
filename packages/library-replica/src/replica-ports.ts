@@ -28,7 +28,7 @@ export interface ReplicaClock {
 
 // `/v1` as the host reaches it: the cloud's origin and a fetch that adds the device's credential
 // and build (or, in the browser tab, the session's cookie). The RPC link and every file upload go
-// through it
+// through it; the host keeps the request's signal, by which a close calls a call off
 export interface ReplicaTransport {
   readonly origin: string;
   readonly fetch: (request: Request) => Promise<Response>;

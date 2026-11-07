@@ -1369,7 +1369,7 @@ describe("a close while a call is on its way", () => {
 describe("a restore the cell refuses", () => {
   const ADDRESS = "https://example.com/article";
   const ADDRESS_HELD =
-    "Another item already holds this address. Delete it and try again, or let this go.";
+    "Another item already holds this address. Delete it and try again, or let this change go.";
 
   // an item in Deleted, and the item saved at its address since
   const savedAgain = async (phone: TestDevice) => {
@@ -1433,14 +1433,15 @@ describe("a restore the cell refuses", () => {
     expect(phone.replica.row(note)?.deletedAt).toBeNull();
   });
 
-  it("says nothing of an item with no address the cell no longer holds", async () => {
+  it("says nothing of an address no other item holds, on an item the cell no longer has", async () => {
     const cell = createFakeCell();
     const phone = await openDevice(cell, "phone");
-    const note = await landedNote(cell, phone);
-    await phone.replica.deleteItems([note]);
+    const { id } = await phone.replica.saveLink({ folderId: null, tags: [], url: ADDRESS });
     await phone.replica.sync();
-    cell.forgetItem(note);
-    await phone.replica.restoreItems([note]);
+    await phone.replica.deleteItems([id]);
+    await phone.replica.sync();
+    cell.forgetItem(id);
+    await phone.replica.restoreItems([id]);
     await phone.replica.sync();
     expect(phone.replica.status()).toMatchObject({ failure: null, parked: [], unsent: 0 });
   });

@@ -4,15 +4,15 @@
 // under the same op id, which the cell answers once; the files it names go to `/v1/blobs` first. A
 // CONFLICT settles through the block merge and goes again; a refusal no resend passes parks the
 // row for the person, holding the rows on its items or folders behind it while everything else
-// goes on; no answer stops the pass with every row kept. The outbox's changes run one at a time, each over
-// the rows as the one before it left them, so a write that joins a row and the pass that pins it
-// never decide on two different rows.
+// goes on; no answer stops the pass with every row kept. The outbox's changes run one at a time,
+// each over the rows as the one before it left them, so a write that joins a row and the pass that
+// pins it never decide on two different rows.
 
 import { isDefinedError, safe } from "@orpc/client";
 import type { V1Client } from "@repo/contract/cloud/v1";
 import type { StoredBlock } from "@repo/notes/library/block-ops";
 import { sameJson } from "@repo/notes/library/canonical-json";
-import { readItem, readItemState } from "@repo/notes/library/library-queries";
+import { readItemState } from "@repo/notes/library/library-queries";
 import { runPlanAsync } from "@repo/notes/library/library-sql";
 import type { SqlPlan } from "@repo/notes/library/library-sql";
 import type { liveItemRowSchema } from "@repo/contract/cloud/library/library-wire";
@@ -59,7 +59,7 @@ export const STAGED_FILE_GONE = "This file is no longer on this device.";
 const FILE_NOT_STAGED = "A file this names was never on this device.";
 const KEPT_CHANGING = "Your library kept changing while this device saved. It will try again.";
 const ADDRESS_HELD =
-  "Another item already holds this address. Delete it and try again, or let this go.";
+  "Another item already holds this address. Delete it and try again, or let this change go.";
 
 export interface OutboxContext {
   readonly sql: ReplicaSql;
@@ -141,20 +141,6 @@ const nextToSend = (rows: readonly OutboxRow[]): OutboxRow | null => {
     }
   }
   return null;
-};
-
-// the items among a restore's `missing` that hold an address, which another live item must hold
-// too, since the cell restores one only while none does; one with no address is gone from the
-// cell, as the pull says
-const withAddress = function* withAddress(ids: readonly string[]): SqlPlan<string[]> {
-  const addressed: string[] = [];
-  for (const id of ids) {
-    const item = yield* readItem(id);
-    if (item?.kind === "live" && item.fields.url !== null) {
-      addressed.push(id);
-    }
-  }
-  return addressed;
 };
 
 const touchedItems = (ids: readonly string[]): Touched => {
@@ -553,10 +539,12 @@ export const createOutbox = (context: OutboxContext): Outbox => {
     }
     // the cell keeps this answer under the row's op id, so what it left goes again under a new one;
     // what it did restore stands once the pull brings it
-    const left = "restored" in answer ? await runPlanAsync(sql, withAddress(answer.missing)) : [];
-    if (left.length > 0) {
-      const rest = { op: { ids: left, kind: "restore" as const }, opId: context.newId() };
-      return await park(row, ADDRESS_HELD, rest);
+    if ("restored" in answer && answer.addressHeld.length > 0) {
+      const ids = answer.addressHeld;
+      return await park(row, ADDRESS_HELD, {
+        op: { ids, kind: "restore" },
+        opId: context.newId(),
+      });
     }
     const changed = "deleted" in answer ? answer.deleted : answer.restored;
     return await land(
