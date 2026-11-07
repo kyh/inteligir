@@ -6,6 +6,7 @@
 // Pure: the share inbox and the tests read it.
 
 import { urlKey } from "@repo/notes/items/item-url";
+import { linkTail } from "./link-in-text";
 
 interface SharedLink {
   kind: "link";
@@ -49,18 +50,22 @@ const besideLink = (text: string | null, url: string): string | null => {
   const key = urlKey(url);
   const left = filled(
     text
-      .replaceAll(WEB_TOKEN, (token) => (key !== null && urlKey(token) === key ? "" : token))
+      .replaceAll(WEB_TOKEN, (token) =>
+        key !== null && urlKey(linkTail(token)) === key ? "" : token,
+      )
       .replaceAll(/[ \t]{2,}/gu, " "),
   );
   return left !== null && /[\p{L}\p{N}]/u.test(left) ? left : null;
 };
 
 export const sharedSaveOf = (intent: ShareHandoff): SharedSave => {
-  const url = filled(intent.webUrl);
+  const given = filled(intent.webUrl);
   const text = filled(intent.text);
-  if (url === null) {
+  if (given === null) {
     return text === null ? { kind: "nothing" } : { kind: "text", text };
   }
+  // the share extension finds this address in text, so it can end in the sentence's own punctuation
+  const url = linkTail(given);
   return {
     kind: "link",
     // the link itself often rides along in the text, which says nothing more

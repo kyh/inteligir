@@ -54,7 +54,7 @@ const QUOTE_CLOSER_OF: ReadonlyMap<string, string> = new Map([
 const countOf = (text: string, ch: string): number => text.split(ch).length - 1;
 
 // a closing bracket ends the link only while the link holds fewer of its opener than of it
-const linkTail = (candidate: string): string => {
+export const linkTail = (candidate: string): string => {
   let url = candidate;
   for (let last = url.at(-1); last !== undefined; last = url.at(-1)) {
     const opener = OPENER_OF.get(last);

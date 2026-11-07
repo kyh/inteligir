@@ -66,6 +66,28 @@ describe("what a share asks the phone to save", () => {
     });
   });
 
+  it("leaves the sentence's punctuation out of a link found in text, and its own marks in", () => {
+    expect(
+      sharedSaveOf({
+        meta: null,
+        text: "Worth a look https://example.com/z.",
+        webUrl: "https://example.com/z.",
+      }),
+    ).toStrictEqual({
+      kind: "link",
+      note: "Worth a look",
+      title: null,
+      url: "https://example.com/z",
+    });
+    const own = "https://example.com/it's_(here)";
+    expect(sharedSaveOf({ meta: null, text: null, webUrl: own })).toStrictEqual({
+      kind: "link",
+      note: null,
+      title: null,
+      url: own,
+    });
+  });
+
   it("hands text alone to the text save, which finds a link inside it", () => {
     expect(sharedSaveOf({ meta: null, text: "  a thought  ", webUrl: null })).toStrictEqual({
       kind: "text",
