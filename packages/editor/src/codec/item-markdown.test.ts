@@ -341,6 +341,22 @@ describe("today's markdown imports losslessly", () => {
   });
 });
 
+describe("one file's `title:`", () => {
+  it.each([
+    ['title: ""', ""],
+    ['title: "   "', ""],
+    ["title: Home", "Home"],
+  ])("reads %s as the item's title and leaves no property", (line, title) => {
+    const { fields } = imported(`---\n${line}\n---\nGroceries\n`);
+    expect(fields).toMatchObject({ properties: {}, title });
+  });
+
+  it("gives way to the file's name where it holds no text, and stays a property", () => {
+    const { fields } = imported("---\ntitle:\n---\nGroceries\n");
+    expect(fields).toMatchObject({ properties: { title: null }, title: "Fixture" });
+  });
+});
+
 describe("one file as its item", () => {
   it("reads the frontmatter into fields, and every other key as a typed property", () => {
     const item = imported(

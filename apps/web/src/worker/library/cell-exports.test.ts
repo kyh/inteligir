@@ -339,6 +339,31 @@ describe("an export", () => {
   );
 
   it(
+    "brings back a note with no title of its own, its card still following its first line",
+    { timeout: 30_000 },
+    async () => {
+      const from = newAccountId();
+      await inCell(cellOf(from), async (state) => {
+        await libraryIn(state, from).items.createNote({ markdown: "Groceries" });
+      });
+      const { export: written } = await exported(from);
+      const zip = await zipIn(from, written.id);
+      expect(await pathsIn(zip)).toStrictEqual(["Untitled.md"]);
+
+      const into = newAccountId();
+      await imported(into, zip);
+      await inCell(cellOf(into), async (state) => {
+        const { items } = await libraryIn(state, into).items.list({});
+        expect(items.map((item) => item.title)).toStrictEqual(["Groceries"]);
+        expect(state.storage.sql.exec("SELECT title, properties FROM items").one()).toStrictEqual({
+          properties: "{}",
+          title: "",
+        });
+      });
+    },
+  );
+
+  it(
     "brings back as text what a person typed in the spelling of a highlight, a comment or a ref",
     { timeout: 30_000 },
     async () => {

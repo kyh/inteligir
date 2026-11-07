@@ -62,6 +62,13 @@ const textProp = (parsed: ParsedProperties, key: string): string | null => {
 const propOf = (parsed: ParsedProperties, key: string): TypedProperty | undefined =>
   parsed.kind === "valid" ? parsed.properties.find((prop) => prop.key === key) : undefined;
 
+// what a `title:` names, "" among it: an export writes that for an item with no title of its own,
+// whose card follows its body, so the file's name must not stand in for it
+const namedTitle = (parsed: ParsedProperties): string | null => {
+  const prop = propOf(parsed, "title");
+  return prop?.type === "text" || prop?.type === "date" ? prop.value.trim() : null;
+};
+
 const isPinned = (parsed: ParsedProperties): boolean => {
   const prop = propOf(parsed, "pinned");
   return prop?.type === "checkbox" && prop.value;
@@ -188,7 +195,7 @@ const unreadValues = (
     ["published", fields.published !== null],
     ["saved", true],
     ["site", fields.site !== null],
-    ["title", textProp(parsed, "title") !== null],
+    ["title", namedTitle(parsed) !== null],
     ["url", fields.url !== null],
   ]);
   const restOf = (key: string, value: PropertyValue): PropertyValue | undefined => {
@@ -242,7 +249,7 @@ export const readFrontmatter = (
     savedAt: facts.savedMs ?? now,
     site: cut(facts.site, ITEM_FIELD_CAPS.line),
     tags: uniqueTags(yaml),
-    title: cut(textProp(parsed, "title") ?? name, ITEM_FIELD_CAPS.line) ?? "",
+    title: cut(namedTitle(parsed) ?? name, ITEM_FIELD_CAPS.line) ?? "",
     url,
   };
   const properties: Record<string, PropertyValue> = {};

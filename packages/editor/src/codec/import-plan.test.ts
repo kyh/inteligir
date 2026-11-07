@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { blockHash } from "@repo/notes/library/block-hash";
 import type { StoredBlock } from "@repo/notes/library/block-ops";
+import { deriveItem } from "@repo/notes/library/derive-item";
 import { ITEM_FIELD_CAPS } from "@repo/notes/library/library-item";
 import { collectFileShas } from "@repo/notes/library/library-nodes";
 import type { LibraryBlock, LibraryNode } from "@repo/notes/library/library-nodes";
@@ -467,20 +468,20 @@ const exportInSteps = (
   ];
 };
 
+const storedOf = (item: LibraryItem): [string, StoredBlock][] =>
+  item.blocks.map((placed) => [placed.block.id, { ...placed, hash: blockHash(placed.block) }]);
+
+const asFields = (item: LibraryItem): ExportItem["fields"] => ({
+  ...item.fields,
+  deletedAt: null,
+  folderId: item.folderPath === "" ? null : item.folderPath,
+});
+
 const exportOf = (library: ReadLibrary, rules: string | null = null): ExportFile[] => {
   const items = library.items.map((item): ExportItem => ({
     annotations: item.annotations,
-    blocks: new Map(
-      item.blocks.map((placed): [string, StoredBlock] => [
-        placed.block.id,
-        { ...placed, hash: blockHash(placed.block) },
-      ]),
-    ),
-    fields: {
-      ...item.fields,
-      deletedAt: null,
-      folderId: item.folderPath === "" ? null : item.folderPath,
-    },
+    blocks: new Map(storedOf(item)),
+    fields: asFields(item),
     id: item.itemId,
   }));
   return exportInSteps(library, items, rules);
@@ -651,6 +652,45 @@ describe("export, then import, gives the library back", () => {
       expect(items.map((item) => item.folderPath)).toStrictEqual(["MyVault/Notes"]);
       expect(folders.map((folder) => folder.name).toSorted()).toStrictEqual(["MyVault", "Notes"]);
     });
+  });
+
+  it("keeps two items with no title of their own, and a link to one", () => {
+    const first = readFolder(
+      {
+        "Links.md": "See [[a]].\n",
+        "a.md": "Groceries\n",
+        "b.md": "Call the dentist\n",
+      },
+      new Map(),
+    );
+    const files = exportOf({
+      ...first,
+      items: first.items.map((item) =>
+        item.fields.title === "Links" ? item : { ...item, fields: { ...item.fields, title: "" } },
+      ),
+    });
+    const texts = Object.fromEntries(
+      files.flatMap((file) => (file.kind === "text" ? [[file.path, file.text]] : [])),
+    );
+    expect(Object.keys(texts).toSorted()).toStrictEqual([
+      "Links.md",
+      "Untitled 2.md",
+      "Untitled.md",
+    ]);
+
+    const back = readFolder(texts, new Map());
+    expect(back.items.map((item) => item.fields.title).toSorted()).toStrictEqual(["", "", "Links"]);
+    expect(back.items.map((item) => item.fields.properties)).toStrictEqual([{}, {}, {}]);
+    expect(
+      back.items
+        .map((item) => deriveItem(asFields(item), new Map(storedOf(item))).card.title)
+        .toSorted(),
+    ).toStrictEqual(["Call the dentist", "Groceries", "Links"]);
+    const link = nodesOf(byTitle(back, "Links")).find(
+      (node) => "type" in node && node.type === "wikiLink",
+    );
+    const reached = back.items.find((item) => textOf(item) === "Groceries");
+    expect(link).toMatchObject({ itemId: reached?.itemId, title: "" });
   });
 
   it("keeps the title of an item whose file took another spelling", () => {
