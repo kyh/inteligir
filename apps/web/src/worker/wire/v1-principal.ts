@@ -32,7 +32,7 @@ const verifyPrincipal = async (
   if (!fromOwnPage(request)) {
     return null;
   }
-  const signedIn = await createAuth(env, ctx.exports, new URL(request.url).origin).api.getSession({
+  const signedIn = await createAuth(env, ctx, new URL(request.url).origin).api.getSession({
     headers: request.headers,
   });
   return signedIn === null

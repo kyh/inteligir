@@ -228,7 +228,7 @@ and end them, and the account's deletion revokes every one.
 
 ## Auth
 
-- `src/worker/auth/auth.ts::createAuth(env, baseURL)` builds a **per-request**
+- `src/worker/auth/auth.ts::createAuth(env, ctx, baseURL)` builds a **per-request**
   Better Auth instance (D1 is a runtime binding, not a module singleton;
   `baseURL` is the request origin, so localhost/preview/prod all work with no
   config). No plugins: a browser holds Better Auth's session cookie and

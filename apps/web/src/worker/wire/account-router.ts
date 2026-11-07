@@ -110,7 +110,7 @@ const accountRouter = os.router({
     if (!(await spendDeviceBudget(env, db, "accountDelete", holderIdOf(principal)))) {
       throw errors.TOO_MANY_REQUESTS();
     }
-    const deletion = await deleteAccountWithPassword(env, context.ctx.exports, db, {
+    const deletion = await deleteAccountWithPassword(env, context.ctx, db, {
       origin: originOf(context.request),
       password: input.password,
       userId: principal.accountId,
@@ -149,11 +149,7 @@ const accountRouter = os.router({
     if (!(await spendCallerBudget(env, db, "login", request))) {
       throw errors.TOO_MANY_REQUESTS();
     }
-    const result = await loginDevice(
-      db,
-      createAuth(env, context.ctx.exports, originOf(request)),
-      input,
-    );
+    const result = await loginDevice(db, createAuth(env, context.ctx, originOf(request)), input);
     if (!result.loggedIn) {
       throw result.failure === "device-limit"
         ? errors.DEVICE_LIMIT()
@@ -182,7 +178,7 @@ const accountRouter = os.router({
     }
     const result = await signUpDevice(
       db,
-      createSignUpAuth(env, context.ctx.exports, originOf(request)),
+      createSignUpAuth(env, context.ctx, originOf(request)),
       input,
     );
     if (result.signedUp) {

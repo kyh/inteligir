@@ -110,7 +110,7 @@ export const handleConsent = async (
     return new Response(null, { headers: { allow: "GET, POST" }, status: 405 });
   }
   const url = new URL(request.url);
-  const signedIn = await createAuth(env, ctx.exports, url.origin).api.getSession({
+  const signedIn = await createAuth(env, ctx, url.origin).api.getSession({
     headers: request.headers,
   });
   if (signedIn === null) {

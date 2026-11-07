@@ -17,7 +17,7 @@ type AccountDeletion = "deleted" | "invalid-credentials" | "gone";
 // path
 export const deleteAccountWithPassword = async (
   env: Env,
-  exports: Cloudflare.Exports,
+  ctx: ExecutionContext,
   db: Db,
   request: { readonly origin: string; readonly userId: string; readonly password: string },
 ): Promise<AccountDeletion> => {
@@ -25,7 +25,7 @@ export const deleteAccountWithPassword = async (
   if (row === undefined) {
     return "gone";
   }
-  const auth = createAuth(env, exports, request.origin);
+  const auth = createAuth(env, ctx, request.origin);
   const signedIn = await signInWithPassword(auth, row.email, request.password);
   if (signedIn === null) {
     return "invalid-credentials";

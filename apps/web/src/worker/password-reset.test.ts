@@ -2,6 +2,7 @@ import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
 } from "@repo/contract/cloud/device/device-schema";
+import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { eq } from "drizzle-orm";
 import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
@@ -11,6 +12,7 @@ import { createDb } from "./db/client";
 import { verification } from "./db/schema";
 import { drained, ORIGIN, signUpUser } from "./test-support/cloud-helpers";
 import {
+  answerToReset,
   envWith,
   extractResetLink,
   firstEmail,
@@ -67,6 +69,27 @@ describe("password reset", () => {
     const unknown = await requestReset("nobody-ever-signed-up@example.com", testEnv);
     expect(unknown.status).toBe(known.status);
     await expect(unknown.text()).resolves.toBe(knownBody);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("answers a known email before its mail has gone, so the time says no more than the body", async () => {
+    await signUpUser("timing@example.com");
+    const held: (() => void)[] = [];
+    // oxlint-disable-next-line promise/avoid-new -- the test says when the mail goes, which only a promise can hold
+    const gate = new Promise<void>((resolve) => {
+      held.push(resolve);
+    });
+    const { EMAIL, sent } = recordingEmail(gate);
+    const ctx = createExecutionContext();
+
+    const response = await answerToReset("timing@example.com", envWith(EMAIL), ctx);
+    expect(response.status).toBe(200);
+    expect(sent).toHaveLength(0);
+
+    for (const release of held) {
+      release();
+    }
+    await waitOnExecutionContext(ctx);
     expect(sent).toHaveLength(1);
   });
 

@@ -69,7 +69,7 @@ const formRefusal = (status: number, message: string): Response =>
 const forwardSignUp = async (
   request: Request,
   env: Env,
-  exports: Cloudflare.Exports,
+  ctx: ExecutionContext,
   body: SignUpRequest,
 ): Promise<Response> => {
   const { origin } = new URL(request.url);
@@ -82,7 +82,7 @@ const forwardSignUp = async (
     headers,
     method: "POST",
   });
-  return await createSignUpAuth(env, exports, origin).handler(forwarded);
+  return await createSignUpAuth(env, ctx, origin).handler(forwarded);
 };
 
 export const handleInviteSignUp = async (
@@ -106,7 +106,7 @@ export const handleInviteSignUp = async (
     return formRefusal(403, INVITE_REFUSED);
   }
 
-  const response = await forwardSignUp(request, env, ctx.exports, parsed);
+  const response = await forwardSignUp(request, env, ctx, parsed);
   if (!response.ok) {
     await releaseInvite(db, parsed.inviteCode, parsed.email);
   }

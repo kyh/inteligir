@@ -99,7 +99,7 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
   }
 
   if (url.pathname.startsWith("/api/auth/")) {
-    return await createAuth(env, ctx.exports, url.origin).handler(request);
+    return await createAuth(env, ctx, url.origin).handler(request);
   }
 
   // the site's sign-up form, which its own page posts and which ships in the same deploy

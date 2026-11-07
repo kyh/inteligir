@@ -43,12 +43,7 @@ const DISABLED_PATHS = [
   "/verify-password",
 ];
 
-const buildAuth = (
-  env: Env,
-  exports: Cloudflare.Exports,
-  baseURL: string,
-  disableSignUp: boolean,
-) =>
+const buildAuth = (env: Env, ctx: ExecutionContext, baseURL: string, disableSignUp: boolean) =>
   betterAuth({
     advanced: {
       // the default reads x-forwarded-for and, finding more than one hop there, keys every such
@@ -64,7 +59,7 @@ const buildAuth = (
       session: {
         delete: {
           after: async (ended) => {
-            await severSockets(exports, ended.userId, { id: ended.id, kind: "session" });
+            await severSockets(ctx.exports, ended.userId, { id: ended.id, kind: "session" });
           },
         },
       },
@@ -82,8 +77,11 @@ const buildAuth = (
       revokeSessionsOnPasswordReset: true,
       // the forgot-password page requests with redirectTo /app/reset-password, so the URL's GET leg
       // lands on the site's route (apps/web/src/routes/app/reset-password.tsx)
+      // left to the runtime rather than awaited: an unknown address sends nothing, so a request
+      // that waited on the mail would say by its time which addresses hold an account
       sendResetPassword: async ({ user, url }) => {
-        await sendResetEmail(env, user.email, url);
+        ctx.waitUntil(sendResetEmail(env, user.email, url));
+        await Promise.resolve();
       },
     },
     // D1 storage: the default in-memory store is per isolate, so the limit multiplies across isolates and resets on recycle
@@ -104,18 +102,18 @@ const buildAuth = (
         // retry. The library cell runs the account's purge, in its order, its credentials last
         // (../library/account-purge.ts).
         beforeDelete: async (user) => {
-          await libraryCell(exports, user.id).purge(user.email);
+          await libraryCell(ctx.exports, user.id).purge(user.email);
         },
         enabled: true,
       },
     },
   });
 
-export const createAuth = (env: Env, exports: Cloudflare.Exports, baseURL: string) =>
-  buildAuth(env, exports, baseURL, true);
+export const createAuth = (env: Env, ctx: ExecutionContext, baseURL: string) =>
+  buildAuth(env, ctx, baseURL, true);
 
 // Better Auth reads disableSignUp off the instance options with no per-call override, so the
 // invite gate's two doors (./invite.ts, ../device/sign-up.ts) need this second instance; the flag
 // also shuts auth.api.signUpEmail.
-export const createSignUpAuth = (env: Env, exports: Cloudflare.Exports, baseURL: string) =>
-  buildAuth(env, exports, baseURL, false);
+export const createSignUpAuth = (env: Env, ctx: ExecutionContext, baseURL: string) =>
+  buildAuth(env, ctx, baseURL, false);
