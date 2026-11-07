@@ -22,9 +22,13 @@ import type {
   PlannedDoc,
   ReadFiles,
 } from "@repo/editor/codec/import-plan";
-import { mediaTypeOfName, UNKNOWN_FILE_TYPE } from "@repo/notes/items/item-kind";
+import {
+  LIBRARY_RULES_PATH,
+  mediaTypeOfName,
+  UNKNOWN_FILE_TYPE,
+} from "@repo/notes/items/item-kind";
 import { urlKey } from "@repo/notes/items/item-url";
-import { dirnamePath } from "@repo/notes/knowledge/folder-path";
+import { dirnamePath, normalizePath } from "@repo/notes/knowledge/folder-path";
 import { libraryItemFieldsSchema } from "@repo/notes/library/library-item";
 import { readItem } from "@repo/notes/library/library-queries";
 import { runPlan } from "@repo/notes/library/library-sql";
@@ -64,6 +68,7 @@ import { landNew, setDeleted, storeAdds } from "./cell-items";
 import { ITEM_TEXT_MAX_BYTES, urlHolder } from "./cell-landing";
 import type { LandingScope } from "./cell-landing";
 import type { CellStorage } from "./cell-storage";
+import { filingRules } from "./library-rules";
 
 // a file read whole to hash it; a larger one is read twice, once to hash it and once to store it
 const BUFFERED_MAX_BYTES = 8 * 1024 * 1024;
@@ -83,7 +88,7 @@ const PAGE_FILES = 100;
 const ALL = { from: 0, limit: 1_000_000 } as const;
 
 const NOT_A_ZIP =
-  "This file isn't a zip of notes. Choose a .zip of a folder of Markdown files, or of an Obsidian folder.";
+  "This file isn't a zip of notes. Choose a .zip of a folder of Markdown files, such as your Obsidian folder.";
 
 const zipEntrySchema = z.object({
   compressedSize: z.number(),
@@ -152,6 +157,7 @@ const folderIdOf = (scope: LandingScope, host: ImportHost, path: string): string
 
 type EntryRead =
   | { readonly kind: "row"; readonly value: Entry }
+  | { readonly kind: "held" }
   | { readonly kind: "skipped" }
   | { readonly kind: "unreadable" }
   | { readonly kind: "full" };
@@ -200,6 +206,17 @@ const keepEntryFile = async (
 const rowOf = (entry: ZipEntry, value: Entry): EntryRead =>
   fitsImportRow({ idx: entry.index, value }) ? { kind: "row", value } : { kind: "unreadable" };
 
+// the file an export writes of the filing rules, saying what they say: the library holds that
+// already, as a held note, and it never enters the plan, where a link could resolve to an item
+// that will not land. Any other text under that name is a note, never rules.
+const isRulesHeld = (host: ImportHost, path: string, text: string): boolean => {
+  if (normalizePath(path) !== LIBRARY_RULES_PATH) {
+    return false;
+  }
+  const rules = host.library.read(filingRules);
+  return rules.ok && rules.value === text;
+};
+
 const readEntry = async (
   host: ImportHost,
   source: ByteSource,
@@ -212,6 +229,9 @@ const readEntry = async (
     }
     case "doc": {
       const text = await textOf(source, entry, ITEM_TEXT_MAX_BYTES);
+      if (isRulesHeld(host, entry.path, text)) {
+        return { kind: "held" };
+      }
       const front = text.slice(0, frontmatterEnd(text) ?? 0);
       return rowOf(entry, { kind, path: entry.path, text: front, zip: entry });
     }
@@ -248,6 +268,7 @@ const readEntrySafely = async (
 
 // what a path read counts toward
 const ENTRY_COUNTS = {
+  held: { alreadySaved: 1 },
   row: undefined,
   skipped: { skipped: 1 },
   unreadable: { unreadable: 1 },

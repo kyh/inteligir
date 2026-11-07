@@ -8,6 +8,7 @@ import type { ItemSession, ItemSessionPorts } from "@repo/editor/item/item-sessi
 import { mergeConflictLine } from "@repo/editor/item/merge-conflict-line";
 import { setAnnotationMeta } from "@repo/editor/annotations/annotation-store";
 import { setFindBarAnchor } from "@repo/editor/find-bar";
+import { UNTITLED } from "@repo/notes/items/item-name";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
@@ -55,7 +56,7 @@ const TitleField = ({ itemId, title }: { itemId: string; title: string }) => {
       spellCheck={false}
       className="min-w-0 flex-1 truncate bg-transparent text-title font-medium outline-none"
       value={draft ?? title}
-      placeholder="Untitled"
+      placeholder={UNTITLED}
       onChange={(event) => {
         setDraft(event.target.value);
       }}

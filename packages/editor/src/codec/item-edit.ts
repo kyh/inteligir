@@ -19,6 +19,8 @@ import { canonicalJson } from "@repo/notes/library/canonical-json";
 import type { LibraryBlock, LibraryNode, LibrarySection } from "@repo/notes/library/library-nodes";
 import type { FlowSpan } from "@repo/notes/markdown/flow-spans";
 import { splitMarkerIds } from "@repo/notes/markdown/remark-inline-constructs";
+import { obsidianReader } from "@repo/notes/markdown/remark-obsidian";
+import type { ObsidianHighlight, ObsidianReader } from "@repo/notes/markdown/remark-obsidian";
 import { isUuidWikiAlias } from "@repo/notes/markdown/remark-wiki-link";
 import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
 import { diffLines } from "@repo/notes/text/line-diff";
@@ -30,7 +32,7 @@ import { itemView, viewFileAt } from "./item-view";
 import type { ItemView, ViewBlock, ViewPorts } from "./item-view";
 import { nameDrafts } from "./name-blocks";
 import { readBlocks } from "./read-blocks";
-import type { LibraryFile, ReadHighlight, ReadPorts, Reached } from "./read-blocks";
+import type { LibraryFile, ReadPorts, Reached } from "./read-blocks";
 import { elementsOf, embedFiles, settled } from "./read-markdown";
 
 export interface ViewEdit {
@@ -71,7 +73,7 @@ interface ViewChange {
   // highlights the edit took a marker edge of out of the text, by id
   readonly dropped: readonly string[];
   // bare highlights an `==x==` in the new text made, for the caller to store
-  readonly highlights: readonly ReadHighlight[];
+  readonly highlights: readonly ObsidianHighlight[];
 }
 
 export type EditOutcome = ViewChange | { readonly kind: "refused"; readonly refusal: EditRefusal };
@@ -92,6 +94,8 @@ interface Stretch {
 interface Edited {
   readonly edit: number;
   readonly value: TElement[];
+  // what read the value's Obsidian spellings: a note's, and none for a page's
+  readonly reader: ObsidianReader | null;
 }
 
 interface EditedStretch extends Stretch {
@@ -178,16 +182,22 @@ type Cut =
 
 const failed = (reason: CutFailure): Cut => ({ ok: false, reason });
 
-// the editor's value a stretch's edited text reads as; null when it nests deeper than the
+// the value a stretch's edited text reads as in its section; null when it nests deeper than the
 // conversion reaches
-const valueOf = (text: string): TElement[] | null => {
-  const converted = mdToSlate(headlessEditor(), text);
-  return converted.ok ? elementsOf(converted.nodes) : null;
+const editedAs = (
+  text: string,
+  section: LibrarySection,
+  edit: number,
+  ports: EditPorts,
+): Edited | null => {
+  const reader = section === "note" ? obsidianReader(ports.newAnnotationId) : null;
+  const converted = mdToSlate(headlessEditor(), text, reader?.read);
+  return converted.ok ? { edit, reader, value: elementsOf(converted.nodes) } : null;
 };
 
 // the edited text of a run of pieces cut at each section line it still holds once, each stretch
 // between two lines one edited piece in its own section, read as it is cut
-const cutAtLines = (run: readonly Piece[], text: string, edit: number): Cut => {
+const cutAtLines = (run: readonly Piece[], text: string, edit: number, ports: EditPorts): Cut => {
   const out: Piece[] = [];
   let cursor = 0;
   let blocks: ViewBlock[] = [];
@@ -200,11 +210,11 @@ const cutAtLines = (run: readonly Piece[], text: string, edit: number): Cut => {
     if (at === null) {
       return "section";
     }
-    const value = valueOf(part);
-    if (value === null) {
+    const edited = editedAs(part, at, edit, ports);
+    if (edited === null) {
       return "too-deep";
     }
-    out.push({ blocks, edited: { edit, value }, kind: "blocks", section: at, text: part });
+    out.push({ blocks, edited, kind: "blocks", section: at, text: part });
     blocks = [];
     return "cut";
   };
@@ -238,7 +248,7 @@ const cutAtLines = (run: readonly Piece[], text: string, edit: number): Cut => {
 
 // one range of the current text replaced: the pieces it touches, and a block on either side of
 // the lines it starts or ends in, read again as one
-const replaceRange = (pieces: readonly Piece[], range: Range): Cut => {
+const replaceRange = (pieces: readonly Piece[], range: Range, ports: EditPorts): Cut => {
   let at = 0;
   const spans = pieces.map((piece) => {
     const span = { end: at + piece.text.length, start: at };
@@ -265,7 +275,7 @@ const replaceRange = (pieces: readonly Piece[], range: Range): Cut => {
   const run = pieces.slice(first, last + 1);
   const whole = run.map((piece) => piece.text).join("");
   const text = whole.slice(0, range.start - from) + range.text + whole.slice(range.end - from);
-  const cut = cutAtLines(run, text, range.edit);
+  const cut = cutAtLines(run, text, range.edit, ports);
   return cut.ok
     ? { ok: true, pieces: [...pieces.slice(0, first), ...cut.pieces, ...pieces.slice(last + 1)] }
     : cut;
@@ -355,7 +365,7 @@ const contentKey = (block: LibraryBlock): string => {
 interface PieceChange extends Lined {
   // the blocks the piece's text now reads as
   readonly blocks: readonly LibraryBlock[];
-  readonly highlights: readonly ReadHighlight[];
+  readonly highlights: readonly ObsidianHighlight[];
   readonly edit: number;
   // the blocks the text held that no store takes
   readonly refused: number;
@@ -364,12 +374,12 @@ interface PieceChange extends Lined {
 // an edited piece's value as the blocks it reads as, in its section
 const readPiece = (piece: EditedStretch, ports: EditPorts) => {
   const read = readPortsFor(piece.blocks, ports);
-  const drafts = readBlocks(
-    settled(elementsOf(embedFiles(piece.edited.value, read))),
-    read,
-    piece.section === "note" ? ports : null,
-  );
-  return { highlights: drafts.highlights, named: nameDrafts(drafts.blocks, ports.newBlockId) };
+  const { reader, value } = piece.edited;
+  const drafts = readBlocks(settled(elementsOf(embedFiles(value, read)), reader?.read), read);
+  return {
+    highlights: reader?.highlights ?? [],
+    named: nameDrafts(drafts, ports.newBlockId),
+  };
 };
 
 interface Lined {
@@ -524,12 +534,11 @@ export const editItemView = (
     if (found.length > 1) {
       return { kind: "refused", refusal: { count: found.length, edit: index, kind: "ambiguous" } };
     }
-    const next = replaceRange(pieces, {
-      edit: index,
-      end: start + edit.oldText.length,
-      start,
-      text: edit.newText,
-    });
+    const next = replaceRange(
+      pieces,
+      { edit: index, end: start + edit.oldText.length, start, text: edit.newText },
+      ports,
+    );
     if (!next.ok) {
       return { kind: "refused", refusal: { edit: index, kind: next.reason } };
     }
@@ -589,12 +598,16 @@ export const placeItemQuotes = (
       suffix += 1;
     }
     if (placing.content !== before) {
-      const next = replaceRange(pieces, {
-        edit: 0,
-        end: offset + before.length - suffix,
-        start: offset + prefix,
-        text: placing.content.slice(prefix, placing.content.length - suffix),
-      });
+      const next = replaceRange(
+        pieces,
+        {
+          edit: 0,
+          end: offset + before.length - suffix,
+          start: offset + prefix,
+          text: placing.content.slice(prefix, placing.content.length - suffix),
+        },
+        ports,
+      );
       if (!next.ok) {
         // the markers change no nesting and touch no section line, and the text around them is
         // the view of stored blocks, which nest no deeper than the vocabulary allows

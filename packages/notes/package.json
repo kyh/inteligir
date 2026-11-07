@@ -64,6 +64,7 @@
     "./markdown/remark-containers": "./src/markdown/remark-containers.ts",
     "./markdown/remark-inline-constructs": "./src/markdown/remark-inline-constructs.ts",
     "./markdown/remark-inline-html": "./src/markdown/remark-inline-html.ts",
+    "./markdown/remark-obsidian": "./src/markdown/remark-obsidian.ts",
     "./markdown/remark-opaque": "./src/markdown/remark-opaque.ts",
     "./markdown/remark-wiki-link": "./src/markdown/remark-wiki-link.ts",
     "./test-support/annotation-markers": "./src/test-support/annotation-markers.ts",

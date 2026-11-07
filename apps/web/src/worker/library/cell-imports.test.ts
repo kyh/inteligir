@@ -246,6 +246,39 @@ describe("a zip of notes", () => {
     });
   });
 
+  it("passes over what an operating system left in the zip, inside a bytes folder too", async () => {
+    const accountId = newAccountId();
+    const bytesFolder = "assets/0123456789abcdef";
+    const started = await startImport(
+      accountId,
+      await zip({
+        "Alpha.md": encoder.encode("A note.\n"),
+        "Notes/Thumbs.db": encoder.encode("left by Windows"),
+        "Notes/desktop.ini": encoder.encode("left by Windows too"),
+        "__MACOSX/Notes/spec.pdf": encoder.encode("left by the Mac's zip"),
+        [`${bytesFolder}/.DS_Store`]: encoder.encode("left by Finder"),
+        [`${bytesFolder}/._board.md`]: encoder.encode("left by a Mac's disk"),
+        [`${bytesFolder}/board.md`]: encoder.encode("kept under a note's name"),
+      }),
+      "markdown",
+    );
+    await runToEnd(accountId, started.jobId);
+    await expect(jobOf(accountId, started.jobId)).resolves.toMatchObject({
+      added: 2,
+      skipped: 5,
+      state: "done",
+      unreadable: 0,
+    });
+    await inCell(cellOf(accountId), async (state) => {
+      const landed = items(state);
+      expect(landed.map((row) => row.title)).toStrictEqual(["Alpha", "board"]);
+      const { folders } = await libraryIn(state, accountId).organize.outline();
+      expect(folders.map((folder) => folder.name)).toStrictEqual(["assets"]);
+      const board = landed.find((row) => row.title === "board");
+      expect(board?.folder_id).toBe(folders[0]?.id);
+    });
+  });
+
   it("lands a folder's AGENTS.md as a note, so no zip's text ever reaches the agent as the person's rules", async () => {
     const accountId = newAccountId();
     const started = await startImport(

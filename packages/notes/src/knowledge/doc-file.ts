@@ -30,9 +30,18 @@ export const wikiLinkPath = (path: string): string =>
 export const wikiLinkName = (path: string): string => wikiLinkPath(basenamePath(path));
 
 // What an import makes an item of is what the user wrote. A dot-entry (the annotation store's
-// `.inteligir/`, another app's `.obsidian/`, the OS's `.DS_Store`) is nobody's to open here.
+// `.inteligir/`, another app's `.obsidian/`) is nobody's to open here.
 export const isDotEntryPath = (path: string): boolean =>
   path.split("/").some((segment) => segment.startsWith("."));
+
+const OS_LITTER_NAMES = new Set([".ds_store", "__macosx", "desktop.ini", "thumbs.db"]);
+
+// what an operating system leaves in any folder it shows or zips, a Mac's `._` twin of a file
+// among it: nobody's item wherever it lies, even in a folder that takes a dot-entry as a file
+export const isOsLitterPath = (path: string): boolean =>
+  path
+    .split("/")
+    .some((segment) => segment.startsWith("._") || OS_LITTER_NAMES.has(segment.toLowerCase()));
 
 // a free spelling of a name, and which of its spellings it is (1 for the name itself)
 export interface FreePath {

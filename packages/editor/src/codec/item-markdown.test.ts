@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 
 import type { StoredBlock } from "@repo/notes/library/block-ops";
 import { blockHash } from "@repo/notes/library/block-hash";
+import { ordsBetween } from "@repo/notes/library/block-order";
 import { BLOCK_MAX_BYTES } from "@repo/notes/library/library-nodes";
+import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
 
 import { generateDoc } from "../test-support/markdown-doc-generator";
 import { CODEC_NOW, pretendLibrary, withoutId } from "../test-support/codec-ports";
@@ -89,6 +91,209 @@ const FRONTMATTER_RE = /^---\n(?<yaml>[\s\S]*?)\n---\n(?:\n|$)/u;
 
 // a file's body, its frontmatter aside: what the person wrote below it
 const bodyOf = (text: string): string => text.replace(FRONTMATTER_RE, "");
+
+// an item as the editor stores it, each block what a person typed, whatever its text spells
+const typedItem = (section: LibrarySection, blocks: readonly LibraryBlock[]): ImportedItem => {
+  const ords = ordsBetween(null, null, blocks.length);
+  return {
+    annotations: {},
+    blocks: blocks.map((block, index) => ({ block, ord: ords[index] ?? "a0", section })),
+    fields: { ...imported("").fields, title: "Typed" },
+    leftOut: 0,
+  };
+};
+
+const typedLine = (text: string, id = "typed"): LibraryBlock => ({
+  children: [{ text }],
+  id,
+  type: "p",
+});
+
+const typedBody = (text: string): string =>
+  bodyOf(exported(typedItem("note", [typedLine(text)])).text);
+
+describe("Obsidian's spellings, through a real export and import", () => {
+  const LOOK_ALIKES = [
+    "area is r ^2",
+    "x==1==y",
+    "a==b and c==d",
+    "==at the start==",
+    "50%% and 60%%",
+    "%%at the start%%",
+    "^abc",
+    "%%a ==b== c%%",
+    "two lines ^x\nand ==more==",
+  ];
+
+  it.each(LOOK_ALIKES)("keeps %j, typed in a note, as the text it is", (text) => {
+    const typed = typedItem("note", [typedLine("Before.", "before"), typedLine(text)]);
+    const back = reimported(typed);
+    expect(content(back)).toStrictEqual(content(typed));
+    expect(content(reimported(back))).toStrictEqual(content(typed));
+  });
+
+  it.each(LOOK_ALIKES)("keeps %j, typed in a page, as the text it is", (text) => {
+    const typed = typedItem("article", [typedLine("Before.", "before"), typedLine(text)]);
+    expect(content(reimported(typed))).toStrictEqual(content(typed));
+  });
+
+  it("keeps whatever typed text strings the spellings' pieces together", () => {
+    const pieces = [
+      "=",
+      "==",
+      "%",
+      "%%",
+      "^",
+      " ",
+      "a",
+      "-",
+      "1",
+      "i:",
+      "\\",
+      "==x==",
+      "%%c%%",
+      " ^r",
+    ];
+    // a fixed walk through them, so a failure names a text that fails again
+    let state = 20_261_106;
+    const pick = (bound: number): number => {
+      state = (state * 1_664_525 + 1_013_904_223) % 4_294_967_296;
+      return Math.floor((state / 4_294_967_296) * bound);
+    };
+    for (let round = 0; round < 200; round += 1) {
+      const text = Array.from({ length: 1 + pick(8) }, () => pieces[pick(pieces.length)] ?? "")
+        .join("")
+        .trim();
+      const typed = typedItem("note", [typedLine(`${text}.`), typedLine(text, "second")]);
+      expect(content(reimported(typed)), JSON.stringify(text)).toStrictEqual(content(typed));
+    }
+  });
+
+  it("keeps them typed anywhere a person writes", () => {
+    const typed = typedItem("note", [
+      { children: [{ text: "A title ^2" }], id: "heading", type: "h2" },
+      {
+        children: [{ text: "an item ^2 ==and== %%more%%" }],
+        id: "item",
+        indent: 1,
+        listStyleType: "disc",
+        type: "p",
+      },
+      { children: [{ bold: true, text: "==bold==" }], id: "bold", type: "p" },
+      {
+        children: [{ children: [{ text: "==quoted== ^2" }], type: "p" }],
+        id: "quote",
+        type: "blockquote",
+      },
+    ]);
+    expect(content(reimported(typed))).toStrictEqual(content(typed));
+  });
+
+  it.each([...LOOK_ALIKES, "@2026-08-22", "{{1+1}}", "%%i:abc:start%%"])(
+    "keeps %j, typed first in a to-do, as the text it is",
+    (text) => {
+      const todo = (checked: boolean, id: string): LibraryBlock => ({
+        checked,
+        children: [{ text }],
+        id,
+        indent: 1,
+        listStyleType: "todo",
+        type: "p",
+      });
+      const typed = typedItem("note", [todo(false, "open"), todo(true, "done")]);
+      expect(content(reimported(typed))).toStrictEqual(content(typed));
+    },
+  );
+
+  it("reads a real highlight and ref in a to-do", () => {
+    const item = imported("- [ ] ==first== then ^ref\n");
+    expect(Object.values(item.annotations).map(({ quote }) => quote)).toStrictEqual(["first"]);
+    expect(item.blocks.map(({ block }) => block.ref)).toStrictEqual(["ref"]);
+  });
+
+  it("answers a file nested past what its spellings are read through as too deep", () => {
+    for (const depth of [3000, 6000, 12_000]) {
+      const text = `${"> ".repeat(depth)}x\n`;
+      expect(
+        importItem({ annotations: null, name: "Deep", text }, library.importPorts()),
+      ).toStrictEqual({ ok: false, reason: "too-deep" });
+    }
+  });
+
+  it("writes the escape that keeps typed text text, and none where nothing would read", () => {
+    expect(typedBody("x==1==y")).toBe("x\\==1==y\n");
+    expect(typedBody("50%% and 60%%")).toBe("50\\%% and 60%%\n");
+    expect(typedBody("area is r ^2")).toBe("area is r \\^2\n");
+    expect(typedBody("^abc")).toBe("\\^abc\n");
+    expect(typedBody("a == b, 2 ^ 3 and 100%")).toBe("a == b, 2 ^ 3 and 100%\n");
+    expect(typedBody("x^2 and y^3 are powers")).toBe("x^2 and y^3 are powers\n");
+  });
+
+  it("reads a real highlight, comment and ref, and writes each back as it stands", () => {
+    const first = imported(
+      [
+        "An ==important== line %%not shown%% here. ^goal",
+        "",
+        "==at the start==",
+        "",
+        "- an item ^item",
+        "",
+        "| a |",
+        "| - |",
+        "| 1 |",
+        "",
+        "^tbl",
+        "",
+      ].join("\n"),
+    );
+    expect(Object.values(first.annotations).map(({ quote }) => quote)).toStrictEqual([
+      "important",
+      "at the start",
+    ]);
+    expect(first.blocks.map(({ block }) => block.ref)).toStrictEqual([
+      "goal",
+      undefined,
+      "item",
+      "tbl",
+    ]);
+    const stored = JSON.stringify(first.blocks);
+    expect(stored).toContain('"source":"%%not shown%%"');
+    expect(stored).not.toContain("==");
+    expect(stored).not.toContain("^");
+    expect(content(reimported(first))).toStrictEqual(content(first));
+  });
+
+  it("takes a backslash in a hand-written file as the person's text", () => {
+    const item = imported("\\==kept== and a \\%%comment%% then a \\^ref\n\n\\^own\n");
+    expect(item.annotations).toStrictEqual({});
+    expect(item.blocks.map(({ block }) => block.ref)).toStrictEqual([undefined, undefined]);
+    expect(item.blocks.map(({ block }) => block.children)).toStrictEqual([
+      [{ text: "==kept== and a %%comment%% then a ^ref" }],
+      [{ text: "^own" }],
+    ]);
+  });
+
+  it("reads none of them inside a link's words or a code span", () => {
+    const item = imported("[==a== %%b%%](https://example.com) and `==c== %%d%%`\n");
+    expect(item.annotations).toStrictEqual({});
+    expect(JSON.stringify(item.blocks)).not.toContain('"type":"opaque"');
+    expect(content(reimported(item))).toStrictEqual(content(item));
+  });
+
+  it("keeps a ref on a block a person emptied, and a second ref as the words it is", () => {
+    const emptied = typedItem("note", [
+      typedLine("Above.", "above"),
+      { children: [{ text: "" }], id: "empty", ref: "kept", type: "p" },
+    ]);
+    expect(content(reimported(emptied))).toStrictEqual(content(emptied));
+    const twice = imported("Named. ^one\n\n^two\n");
+    expect(twice.blocks.map(({ block }) => [block.ref, block.children])).toStrictEqual([
+      ["one", [{ text: "Named." }]],
+      [undefined, [{ text: "^two" }]],
+    ]);
+    expect(content(reimported(twice))).toStrictEqual(content(twice));
+  });
+});
 
 // the canonical files whose body an import changes, each by what it changes and why; every other
 // one exports its body byte for byte

@@ -79,6 +79,21 @@ export const textCutter = (node: Text): ((start: number, end: number) => Text) =
   };
 };
 
+// GFM takes the space after a todo's checkbox off the item's first text only as its paragraph
+// closes, so the escapes noted while that text was read each stand one too far along
+const alignTodoEscapes: Transform = (tree) => {
+  visit(tree, "listItem", (item) => {
+    const line = item.children.find((child) => child.type === "paragraph");
+    const head = line?.children[0];
+    const escapes = head?.type === "text" ? head.data?.escapes : undefined;
+    if (item.checked !== null && item.checked !== undefined && escapes !== undefined) {
+      for (const [index, at] of escapes.entries()) {
+        escapes[index] = at - 1;
+      }
+    }
+  });
+};
+
 const escapesOf = (node: Nodes): readonly number[] =>
   node.type === "text" ? (node.data?.escapes ?? []) : [];
 
@@ -157,6 +172,6 @@ export const remarkTextEscapes: Plugin = function remarkTextEscapes(this: Proces
   data.fromMarkdownExtensions ??= [];
   // the note before every other extension's transform, GFM's literal autolinks among them, and the
   // escapes' own exit and their hand-on after them
-  data.fromMarkdownExtensions.unshift({ transforms: [noteChildren] });
+  data.fromMarkdownExtensions.unshift({ transforms: [alignTodoEscapes, noteChildren] });
   data.fromMarkdownExtensions.push(escapesFromMarkdown, { transforms: [handOnEscapes] });
 };

@@ -16,6 +16,7 @@ import { unified } from "unified";
 import { remarkContainers } from "./remark-containers";
 import { remarkInlineConstructs } from "./remark-inline-constructs";
 import { remarkInlineHtml } from "./remark-inline-html";
+import { remarkObsidian } from "./remark-obsidian";
 import { remarkOpaque } from "./remark-opaque";
 import { remarkWikiLink } from "./remark-wiki-link";
 import { remarkTextEscapes } from "./text-escapes";
@@ -130,6 +131,7 @@ export const MD_REMARK_PLUGINS: Plugin[] = [
   remarkInlineHtml,
   remarkWikiLink,
   remarkInlineConstructs,
+  remarkObsidian,
   remarkContainers,
   remarkOpaqueCanonical,
 ];

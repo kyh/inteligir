@@ -21,6 +21,8 @@ import { ordsBetween } from "@repo/notes/library/block-order";
 import type { LibraryItemFields } from "@repo/notes/library/library-item";
 import type { LibraryBlock, LibrarySection } from "@repo/notes/library/library-nodes";
 import { parseMdast } from "@repo/notes/markdown/parse";
+import { obsidianReader } from "@repo/notes/markdown/remark-obsidian";
+import type { ObsidianHighlight } from "@repo/notes/markdown/remark-obsidian";
 import type { WikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 import { headlessEditor, serializeNote } from "@repo/editor/markdown/markdown-doc";
@@ -33,7 +35,7 @@ import type { FileFields } from "./item-fields";
 import { nameDrafts } from "./name-blocks";
 import { readBlocks } from "./read-blocks";
 import { elementsOf, embedFiles, settled } from "./read-markdown";
-import type { LibraryFile, Reached, ReadHighlight } from "./read-blocks";
+import type { LibraryFile, Reached } from "./read-blocks";
 import { leaf } from "./slate-leaves";
 import { writeBlocks } from "./write-blocks";
 import type { WritePorts } from "./write-blocks";
@@ -162,7 +164,10 @@ const placed = (blocks: readonly LibraryBlock[], section: LibrarySection): Place
   return blocks.map((block, index) => ({ block, ord: ords[index] ?? "a0", section }));
 };
 
-const highlightEntries = (highlights: readonly ReadHighlight[], now: number): AnnotationStore => {
+const highlightEntries = (
+  highlights: readonly ObsidianHighlight[],
+  now: number,
+): AnnotationStore => {
   const seconds = Math.floor(now / 1000);
   const store: AnnotationStore = {};
   for (const { id, quote } of highlights) {
@@ -206,7 +211,7 @@ interface ReadAnnotations {
 // the store the file's highlights were kept in, and the bare highlights its `==x==` made
 const annotationsOf = (
   written: string | null,
-  highlights: readonly ReadHighlight[],
+  highlights: readonly ObsidianHighlight[],
   now: number,
 ): ReadAnnotations => {
   const store = written === null ? null : parseAnnotationStore(written);
@@ -219,9 +224,12 @@ const annotationsOf = (
 
 // one markdown file as its item
 export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport => {
+  const person = obsidianReader(ports.newAnnotationId);
   let parts: Parts;
   try {
-    parts = partsOf(parseMdast(source.text).root);
+    const parsed = partsOf(parseMdast(source.text).root);
+    const before = person.read(parsed.before);
+    parts = { ...parsed, after: person.read(parsed.after), before };
   } catch (error) {
     if (error instanceof RangeError) {
       return { ok: false, reason: "too-deep" };
@@ -233,14 +241,13 @@ export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport =
     return { ok: false, reason: "too-deep" };
   }
   const front = readFrontmatter(parts.yaml, source.name, ports.now);
-  const { after, article, before } = values;
-  const sections = [before, article, after];
+  const sections = [values.before, values.article, values.after];
   const held = takeHeldFiles(
-    { all: sections, first: sections.find((blocks) => blocks.length > 0) ?? before },
+    { all: sections, first: sections.find((blocks) => blocks.length > 0) ?? values.before },
     front.fields.kind,
     ports,
   );
-  const note = [...before, ...after];
+  const note = [...values.before, ...values.after];
   if (front.invalidYaml !== null) {
     note.unshift(yamlCodeBlock(front.invalidYaml));
   }
@@ -248,12 +255,11 @@ export const importItem = (source: ItemSource, ports: ImportPorts): ItemImport =
     image: (url: string): LibraryFile | null => ports.file(url),
     wiki: ports.wiki,
   };
-  const read = (value: TElement[]): TElement[] => settled(elementsOf(embedFiles(value, readPorts)));
-  const noteRead = readBlocks(read(note), readPorts, ports);
-  const pageRead = readBlocks(read(article), readPorts, null);
-  const noteBlocks = nameDrafts(noteRead.blocks, ports.newBlockId);
-  const pageBlocks = nameDrafts(pageRead.blocks, ports.newBlockId);
-  const highlights = annotationsOf(source.annotations, noteRead.highlights, ports.now);
+  const noteValue = settled(elementsOf(embedFiles(note, readPorts)), person.read);
+  const pageValue = settled(elementsOf(embedFiles(values.article, readPorts)));
+  const noteBlocks = nameDrafts(readBlocks(noteValue, readPorts), ports.newBlockId);
+  const pageBlocks = nameDrafts(readBlocks(pageValue, readPorts), ports.newBlockId);
+  const highlights = annotationsOf(source.annotations, person.highlights, ports.now);
   return {
     item: {
       annotations: highlights.annotations,
@@ -280,8 +286,8 @@ export const articleBlocks = (markdown: string, newBlockId: () => string): Artic
   if (!converted.ok) {
     return null;
   }
-  const drafts = readBlocks(settled(elementsOf(converted.nodes)), PAGE_PORTS, null);
-  const named = nameDrafts(drafts.blocks, newBlockId);
+  const drafts = readBlocks(settled(elementsOf(converted.nodes)), PAGE_PORTS);
+  const named = nameDrafts(drafts, newBlockId);
   return { blocks: placed(named.blocks, "article") };
 };
 

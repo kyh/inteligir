@@ -98,6 +98,13 @@ const landed = (
 
 const textOf = (blocks: Map<string, StoredBlock>): string => itemView(blocks, portsWith()).markdown;
 
+// each block's ref and the text it stands on, in reading order
+const textBlocks = (blocks: Map<string, StoredBlock>) =>
+  itemView(blocks, portsWith()).blocks.map(({ block }) => ({
+    ref: block.ref,
+    text: block.children.map((child) => ("text" in child ? child.text : "")).join(""),
+  }));
+
 const NOTE = [
   "# Plan",
   "",
@@ -354,6 +361,76 @@ describe("an edit made on the view", () => {
     }
     const links = JSON.stringify(outcome.ops).match(new RegExp(OTHER_ID, "gu")) ?? [];
     expect(links).toHaveLength(2);
+  });
+
+  it("keeps typed text that looks like Obsidian's through an edit of its block", () => {
+    const blocks = storedOf(
+      "Area is r \\^2 and x\\==1==y and 50\\%% or 60%%\n\nEnds on r \\^2\n\n\\^alone\n",
+    );
+    const view = textOf(blocks);
+    expect(view).toContain("Area is r ^2 and x\\==1==y and 50\\%% or 60%%");
+    expect(view).toContain("Ends on r \\^2");
+    expect(view).toContain("\\^alone");
+    const outcome = editItemView(
+      blocks,
+      [
+        { newText: "The area", oldText: "Area" },
+        { newText: "Ending", oldText: "Ends" },
+        { newText: "\\^kept", oldText: "\\^alone" },
+      ],
+      portsWith(),
+    );
+    if (outcome.kind !== "changed") {
+      throw new Error(outcome.refusal.kind);
+    }
+    expect(outcome.highlights).toStrictEqual([]);
+    expect(textBlocks(landed(blocks, outcome.ops))).toStrictEqual([
+      { ref: undefined, text: "The area is r ^2 and x==1==y and 50%% or 60%%" },
+      { ref: undefined, text: "Ending on r ^2" },
+      { ref: undefined, text: "^kept" },
+    ]);
+  });
+
+  it("reads the spellings an edit writes in the note, the last edit's alone", () => {
+    const blocks = storedOf(NOTE);
+    const outcome = editItemView(
+      blocks,
+      [
+        { newText: "and ==stays== once.", oldText: "and stays." },
+        {
+          newText: "and ==stays== twice %%hidden%% here. ^named",
+          oldText: "and ==stays== once.",
+        },
+      ],
+      portsWith(),
+    );
+    if (outcome.kind !== "changed") {
+      throw new Error(outcome.refusal.kind);
+    }
+    expect(outcome.highlights).toStrictEqual([{ id: "new-highlight", quote: "stays" }]);
+    const [put] = outcome.ops;
+    expect(put).toMatchObject({ block: { ref: "named" }, op: "put" });
+    const written = JSON.stringify(put);
+    expect(written).toContain('"source":"%%hidden%%"');
+    expect(written).toContain('"type":"annotationMarker"');
+    expect(written).not.toContain("==");
+  });
+
+  it("reads no spelling an edit writes in a page", () => {
+    const blocks = storedOf(`Note.\n\n:::article\n\nThe page says.\n\n:::\n`);
+    const outcome = editItemView(
+      blocks,
+      [{ newText: "The ==page== %%says%% so. ^x", oldText: "The page says." }],
+      portsWith(),
+    );
+    if (outcome.kind !== "changed") {
+      throw new Error(outcome.refusal.kind);
+    }
+    expect(outcome.highlights).toStrictEqual([]);
+    expect(textBlocks(landed(blocks, outcome.ops)).at(-1)).toStrictEqual({
+      ref: undefined,
+      text: "The ==page== %%says%% so. ^x",
+    });
   });
 
   it("refuses an old text it cannot place once", () => {

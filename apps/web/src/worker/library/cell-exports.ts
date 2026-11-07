@@ -245,12 +245,20 @@ const headSchema = z.object({
 
 const aliasesSchema = z.array(z.string());
 
+// the one row of the rules the plan took the name for; a person's edit after the plan is not this
+// export's, since a name the plan gave an item may be the one those rules would need
+const RULES_KEY = "rules";
+
 // a page of the live items given their files, the first page with the rules' name and the
 // folders' paths; the last moves the export on to its items
 const planPage = (sql: SqlStatements, job: Writing, limits: ExportLimits): Writing => {
   const store = runStore(job.id, (work) => work(sql));
   if (job.cursor === 0) {
-    beginExport(store);
+    const rules = filingRules(sql);
+    beginExport(store, rules);
+    if (rules !== null) {
+      putRows(sql, job.id, ROWS.rules, [{ idx: 0, key: RULES_KEY, value: rules }]);
+    }
     putRows(
       sql,
       job.id,
@@ -414,7 +422,7 @@ const writeEntries = async (
     target: targetOf(look, job.id),
   };
   if (job.phase === "docs" && job.cursor === 0 && job.entries === 0) {
-    const rules = look(filingRules);
+    const rules = look((sql) => rowValue(sql, job.id, ROWS.rules, RULES_KEY));
     if (rules !== null) {
       await write(rulesFile(rules));
     }

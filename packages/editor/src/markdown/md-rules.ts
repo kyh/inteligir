@@ -38,6 +38,7 @@ import type {
   TabPanel,
   Toggle,
 } from "@repo/notes/markdown/remark-containers";
+import type { BlockRef } from "@repo/notes/markdown/remark-obsidian";
 import type { OpaqueInline } from "@repo/notes/markdown/remark-opaque";
 import { formulaRawOf, parseFormulaRaw } from "@repo/notes/markdown/remark-inline-constructs";
 import type {
@@ -350,6 +351,10 @@ const blockquoteRule: NonNullable<MdRules["blockquote"]> = {
 // inside `:::article` after the person's note
 export const ARTICLE_SECTION_KEY = "article_section";
 
+// a block's `ref` on its way between a note's markdown and the block: only the codec holds one,
+// which is why it is no editor node, and it is off the line before anything stores it
+export const BLOCK_REF_KEY = "blockRef";
+
 // the editor holds no section, so a pasted `:::article` reads as the blocks inside it
 const articleSectionRule: WideMdRule = {
   deserialize: (
@@ -385,6 +390,20 @@ export const MD_RULES: MdRules = {
   },
 
   articleSection: articleSectionRule,
+
+  [BLOCK_REF_KEY]: {
+    deserialize: (node: BlockRef): TElement => ({
+      children: [{ text: "" }],
+      own: node.own,
+      ref: node.ref,
+      type: BLOCK_REF_KEY,
+    }),
+    serialize: (node: TElement): BlockRef => ({
+      own: node.own === true,
+      ref: stringProp(node, "ref") ?? "",
+      type: "blockRef",
+    }),
+  },
 
   // remark-stringify escapes `[` at phrasing start, which would re-emit an alert marker as
   // `> \[!NOTE]`; an alert's body is serialized apart and quoted as one verbatim `html` block.

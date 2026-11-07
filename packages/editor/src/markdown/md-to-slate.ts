@@ -3,7 +3,7 @@
 // kit is part of BASE_KIT.
 
 import { getMergedOptionsDeserialize, mdastToSlate } from "@platejs/markdown";
-import type { Root } from "mdast";
+import type { Root, RootContent } from "mdast";
 import type { Descendant, SlateEditor } from "platejs";
 
 import { parseMdast } from "@repo/notes/markdown/parse";
@@ -28,9 +28,15 @@ export const rootToSlate = (editor: SlateEditor, root: Root): MdToSlate => {
   }
 };
 
-export const mdToSlate = (editor: SlateEditor, md: string): MdToSlate => {
+// `read` reads what the parse's flow holds beyond the grammar, while the tree still shows it
+export const mdToSlate = (
+  editor: SlateEditor,
+  md: string,
+  read: (flow: RootContent[]) => RootContent[] = (flow) => flow,
+): MdToSlate => {
   try {
-    return rootToSlate(editor, parseMdast(md).root);
+    const { root } = parseMdast(md);
+    return rootToSlate(editor, { ...root, children: read(root.children) });
   } catch (error) {
     if (error instanceof RangeError) {
       return { ok: false, reason: { kind: "too-deep" } };

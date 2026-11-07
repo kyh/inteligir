@@ -185,7 +185,11 @@ const readFolder = (
     }
   }
   for (const [path, sha] of binaries) {
-    entries.push({ kind: "file", path, sha });
+    if (importPathKind(path) === "file") {
+      entries.push({ kind: "file", path, sha });
+    } else {
+      skipped.push(path);
+    }
   }
   const plan = planImport(entries, ids);
   const reader = openPlan(plan);
@@ -400,7 +404,11 @@ describe("an Obsidian vault read into the library", () => {
 // the plan's steps as a writer with room for the whole library takes them, over a store in memory:
 // every item given its file first, each written with its links spelled from the files that share
 // their keys, the files the items hold last
-const exportInSteps = (library: ReadLibrary, items: readonly ExportItem[]): ExportFile[] => {
+const exportInSteps = (
+  library: ReadLibrary,
+  items: readonly ExportItem[],
+  rules: string | null,
+): ExportFile[] => {
   const taken = new Map<string, string>();
   const searched = new Map<string, number>();
   const placed = new Map<string, { readonly path: string; readonly sha: string }>();
@@ -418,7 +426,7 @@ const exportInSteps = (library: ReadLibrary, items: readonly ExportItem[]): Expo
     },
     taken: (key) => taken.has(key),
   };
-  beginExport(store);
+  beginExport(store, rules);
   const folders = exportFolderPaths(library.folders);
   const planned = new Map<string, PlannedExportDoc & { readonly aliases: readonly string[] }>();
   for (const item of items) {
@@ -449,7 +457,7 @@ const exportInSteps = (library: ReadLibrary, items: readonly ExportItem[]): Expo
   ];
 };
 
-const exportOf = (library: ReadLibrary): ExportFile[] => {
+const exportOf = (library: ReadLibrary, rules: string | null = null): ExportFile[] => {
   const items = library.items.map((item): ExportItem => ({
     annotations: item.annotations,
     blocks: new Map(
@@ -465,7 +473,7 @@ const exportOf = (library: ReadLibrary): ExportFile[] => {
     },
     id: item.itemId,
   }));
-  return exportInSteps(library, items);
+  return exportInSteps(library, items, rules);
 };
 
 // where an export writes bytes no name came with: under their sha
@@ -530,6 +538,51 @@ describe("export, then import, gives the library back", () => {
     },
   );
 
+  it("keeps a file a person saved under a name an operating system leaves behind", () => {
+    const sha = shaOf("Thumbs.db");
+    const saved = readFolder({}, new Map([["kept.bin", sha]]));
+    const files = exportOf({
+      ...saved,
+      items: saved.items.map((item) => ({
+        ...item,
+        fields: { ...item.fields, originalName: "Thumbs.db" },
+      })),
+    });
+    const texts = Object.fromEntries(
+      files.flatMap((file) => (file.kind === "text" ? [[file.path, file.text]] : [])),
+    );
+    const bytes = new Map(
+      files.flatMap((file) => (file.kind === "bytes" ? [[file.path, file.sha] as const] : [])),
+    );
+    expect(readFolder(texts, bytes).items.map((item) => item.fields)).toMatchObject([
+      { kind: "file", originalSha: sha },
+    ]);
+  });
+
+  it.each(["__MACOSX", "Thumbs.db", "desktop.ini", "DESKTOP.INI"])(
+    "keeps the items of a person's folder named %s",
+    (name) => {
+      const first = readFolder({ "Filed/Kept.md": "A note.\n" }, new Map());
+      const texts = Object.fromEntries(
+        exportOf({
+          ...first,
+          folders: first.folders.map((folder) => ({ ...folder, name })),
+        }).flatMap((file) => (file.kind === "text" ? [[file.path, file.text]] : [])),
+      );
+      const back = readFolder(texts, new Map());
+      expect(back.skipped).toStrictEqual([]);
+      expect(back.items.map((item) => item.fields.title)).toStrictEqual(["Kept"]);
+      expect(back.folders.map((folder) => folder.name)).toStrictEqual([`${name} (folder)`]);
+    },
+  );
+
+  it.each([".env", ".gitignore", "notes.md", "Thumbs.db.bak"])(
+    "reads %s as a file in a bytes folder",
+    (name) => {
+      expect(importPathKind(`assets/0123456789abcdef/${name}`)).toBe("file");
+    },
+  );
+
   it("keeps the title of an item whose file took another spelling", () => {
     const first = readFolder(
       {
@@ -540,7 +593,9 @@ describe("export, then import, gives the library back", () => {
       new Map(),
     );
     const texts = Object.fromEntries(
-      exportOf(first).flatMap((file) => (file.kind === "text" ? [[file.path, file.text]] : [])),
+      exportOf(first, "File under Inbox.\n").flatMap((file) =>
+        file.kind === "text" ? [[file.path, file.text]] : [],
+      ),
     );
     expect(Object.keys(texts).toSorted()).toStrictEqual(["AGENTS 2.md", "Home 2.md", "Home.md"]);
     const titles = readFolder(texts, new Map()).items.map((item) => item.fields.title);

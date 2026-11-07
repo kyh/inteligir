@@ -199,8 +199,9 @@ stays Unsorted until it is filed, whatever it is tagged.
 row of the account's library cell (`apps/web/src/worker/library/library-rules.ts`)
 written only from Settings › Account, which every turn of the built-in agent
 carries after the person's message. Tidy my library files and tags by them. An
-export writes them as `AGENTS.md`, and an import reads any `AGENTS.md` as a note,
-never as filing rules. Not the repo's `AGENTS.md`.
+export writes them as `AGENTS.md`, and an import reads an `AGENTS.md` as a note,
+never as filing rules, unless it says what the library's rules say, when it adds
+nothing. Not the repo's `AGENTS.md`.
 
 **fill** — the cloud's reading of a link the library holds unread (a
 `saveLink`, a refresh, an import's): the cell asks the fill queue, and the

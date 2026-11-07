@@ -164,7 +164,7 @@ const splitTextNode = (node: Text, inLink: boolean): PhrasingContent[] | null =>
   return out;
 };
 
-const LINK_LIKE: ReadonlySet<string> = new Set(["link", "linkReference"]);
+export const LINK_LIKE: ReadonlySet<string> = new Set(["link", "linkReference"]);
 
 const walk = (parent: Parent, inLink: boolean): void => {
   for (let index = parent.children.length - 1; index >= 0; index -= 1) {
@@ -187,7 +187,7 @@ const walk = (parent: Parent, inLink: boolean): void => {
 };
 
 // where text is not prose the next parse splits: a url, a title, an image's alt
-const NOT_PROSE: ConstructName[] = [
+export const NOT_PROSE: ConstructName[] = [
   "autolink",
   "destinationLiteral",
   "destinationRaw",
