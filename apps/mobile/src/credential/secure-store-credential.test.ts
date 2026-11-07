@@ -7,7 +7,7 @@ import { serializeCredential } from "./credential-codec";
 // new phone, and the one this app writes
 const WHEN_UNLOCKED = 5;
 const AFTER_FIRST_UNLOCK = 0;
-const AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY = 1;
+const WHEN_UNLOCKED_THIS_DEVICE_ONLY = 6;
 
 interface Item {
   value: string;
@@ -19,7 +19,7 @@ interface Item {
 const fakeKeychain = (held: Record<string, Item> = {}) => {
   const items = new Map(Object.entries(held));
   const keychain: Keychain = {
-    AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+    WHEN_UNLOCKED_THIS_DEVICE_ONLY,
     deleteItemAsync: async (key) => {
       items.delete(key);
     },
@@ -39,13 +39,13 @@ const CREDENTIAL = {
 };
 
 describe("the phone's stored credential", () => {
-  it("is kept for this phone alone, so no backup restores it onto another", async () => {
+  it("is kept for this phone alone, so no backup restores it onto another, and only while unlocked", async () => {
     const { items, keychain } = fakeKeychain();
     const credentials = createKeychainCredentials(keychain);
 
     await credentials.write(CREDENTIAL);
 
-    expect(items.get("device-credential")?.accessible).toBe(AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY);
+    expect(items.get("device-credential")?.accessible).toBe(WHEN_UNLOCKED_THIS_DEVICE_ONLY);
     await expect(credentials.read()).resolves.toStrictEqual(CREDENTIAL);
   });
 
@@ -62,7 +62,7 @@ describe("the phone's stored credential", () => {
 
     await credentials.write(CREDENTIAL);
 
-    expect(items.get("device-credential")?.accessible).toBe(AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY);
+    expect(items.get("device-credential")?.accessible).toBe(WHEN_UNLOCKED_THIS_DEVICE_ONLY);
     await expect(credentials.read()).resolves.toStrictEqual(CREDENTIAL);
     await credentials.clear();
     await expect(credentials.read()).resolves.toBeNull();

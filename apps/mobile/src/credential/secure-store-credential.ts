@@ -7,7 +7,7 @@ import { parseStoredCredential, serializeCredential } from "./credential-codec";
 
 export type Keychain = Pick<
   typeof SecureStore,
-  "AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY" | "deleteItemAsync" | "getItemAsync" | "setItemAsync"
+  "WHEN_UNLOCKED_THIS_DEVICE_ONLY" | "deleteItemAsync" | "getItemAsync" | "setItemAsync"
 >;
 
 const CREDENTIAL_KEY = "device-credential";
@@ -19,15 +19,14 @@ export const createKeychainCredentials = (keychain: Keychain): CredentialStore =
 
   read: async () => parseStoredCredential(await keychain.getItemAsync(CREDENTIAL_KEY)),
 
-  // AFTER_FIRST_UNLOCK so a background sync can read it after a reboot without exposing it on the
-  // lock screen; THIS_DEVICE_ONLY so no backup restores it onto another phone, which would then
-  // act as this device. The key is deleted first because a set over an existing item updates only
-  // its value, keeping the accessibility it was written with, and a revoked credential stays
-  // stored until the next sign-in writes over it.
+  // WHEN_UNLOCKED since nothing reads it behind a lock screen: the app runs nothing in the
+  // background, and a share opens it in front. THIS_DEVICE_ONLY so no backup restores it onto
+  // another phone, which would then act as this device. The key is deleted first because a set
+  // over an existing item updates only its value, keeping the accessibility it was written with.
   write: async (credential) => {
     await keychain.deleteItemAsync(CREDENTIAL_KEY);
     await keychain.setItemAsync(CREDENTIAL_KEY, serializeCredential(credential), {
-      keychainAccessible: keychain.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+      keychainAccessible: keychain.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
     });
   },
 });
