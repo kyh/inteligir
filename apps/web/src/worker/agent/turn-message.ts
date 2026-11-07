@@ -5,9 +5,6 @@
 // system message applies to every later turn too, and the view context never does
 // (packages/agent-skills/built-in-agent.md says how the agent reads each).
 
-import type { SqlStatements } from "@repo/notes/library/library-sql";
-
-import { readLibraryRules } from "../library/library-rules";
 import type { TurnMessage } from "./turn-rows";
 
 interface TextBlock {
@@ -35,9 +32,3 @@ export const turnUserMessage = (message: TurnMessage): TextBlock[] => {
 // what a conversation that carried filing rules is told once the person has cleared them
 export const RULES_CLEARED =
   "The person has cleared their filing rules. None apply from here on, including any you followed earlier in this conversation.";
-
-// the person's filing rules, or null while the library keeps none
-export const filingRules = (sql: SqlStatements): string | null => {
-  const rules = readLibraryRules(sql);
-  return rules === null || rules.trim() === "" ? null : rules;
-};

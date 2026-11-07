@@ -12,9 +12,15 @@ const LIBRARY_RULES_META = "library_rules";
 
 const rulesSchema = z.string().nullable();
 
-// the filing rules the library keeps, null while it keeps none
+// the page as the person left it, blank or not, null before they wrote one
 export const readLibraryRules = (sql: SqlStatements): string | null =>
   rulesSchema.parse(runPlan(sql, readMeta(LIBRARY_RULES_META)));
+
+// the rules the library holds the agent to, null while the page is missing or blank
+export const filingRules = (sql: SqlStatements): string | null => {
+  const rules = readLibraryRules(sql);
+  return rules === null || rules.trim() === "" ? null : rules;
+};
 
 export const writeLibraryRules = (sql: SqlStatements, rules: string): void => {
   runPlan(sql, writeMeta(LIBRARY_RULES_META, rules));

@@ -60,7 +60,7 @@ import type { DocRow, ExportRow, Look, RunStore } from "./cell-export-rows";
 import { liveFolders } from "./cell-folders";
 import { apart, PAGE_MS } from "./cell-import-host";
 import type { ImportHost } from "./cell-import-host";
-import { readLibraryRules } from "./library-rules";
+import { filingRules } from "./library-rules";
 import type { CellIds } from "./cell-ids";
 import { dropJob, dueJobs, retryJob, scheduleJob } from "./cell-jobs";
 import type { DueJob } from "./cell-jobs";
@@ -428,7 +428,7 @@ const writeEntries = async (
     target: targetOf(look, job.id),
   };
   if (job.phase === "docs" && job.cursor === 0 && job.entries === 0) {
-    const rules = look(readLibraryRules);
+    const rules = look(filingRules);
     if (rules !== null) {
       await write(rulesFile(rules));
     }

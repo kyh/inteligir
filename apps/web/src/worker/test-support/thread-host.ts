@@ -19,12 +19,13 @@ import type { CallInFlight, StepResult, ThreadCell, ThreadHost } from "../agent/
 import { deployedDefinition } from "../agent/thread-request";
 import type { ThreadDefinition } from "../agent/thread-request";
 import { openThreadSchema } from "../agent/thread-schema";
-import { filingRules, turnUserMessage } from "../agent/turn-message";
+import { turnUserMessage } from "../agent/turn-message";
 import { bookTurn, dayOf } from "../agent/agent-allowance";
 import { createThread, insertTurn, setThreadStatus } from "../agent/turn-rows";
 import { openCellLibrary } from "../library/cell-library";
 import { cellStorageOf } from "../library/cell-storage";
 import { libraryCellName } from "../library/library-cell";
+import { filingRules } from "../library/library-rules";
 import type { AgentAccount } from "./agent-turns";
 import { threadOf, valueOf } from "./agent-turns";
 import { cellOf, inCell } from "./library-cell";

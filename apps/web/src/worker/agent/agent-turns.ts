@@ -53,7 +53,7 @@ import {
 } from "./agent-allowance";
 import type { Allowance, PriceTable } from "./agent-allowance";
 import { agentConfigured } from "./anthropic-client";
-import { filingRules, turnUserMessage } from "./turn-message";
+import { turnUserMessage } from "./turn-message";
 import {
   agentIsOn,
   createThread,

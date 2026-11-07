@@ -272,6 +272,17 @@ describe("an export", () => {
     },
   );
 
+  it("writes no file for filing rules the person cleared, which an import would land as a note", async () => {
+    const accountId = newAccountId();
+    await withLibrary(accountId);
+    await inCell(cellOf(accountId), async (state) => {
+      await libraryIn(state, accountId).agent.setRules({ rules: "  \n" });
+    });
+    const { export: written } = await exported(accountId);
+    const entries = await entriesOf(await zipIn(accountId, written.id));
+    expect([...entries.keys()]).not.toContain("AGENTS.md");
+  });
+
   it("is written over many runs, an eviction among them, into the entries one run writes", async () => {
     const accountId = newAccountId();
     // a file past two parts' length, so runs upload parts and hand the bytes past them on
