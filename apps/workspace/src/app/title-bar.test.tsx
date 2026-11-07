@@ -21,6 +21,7 @@ const LINUX = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15";
 const ITEM = "0199a4c2-0000-7000-8000-0000000000b1";
 // the bar's left inset, the one thing a suite without layout can read of the corner
 const CLEAR_OF_THE_LIGHTS = "pl-[4.5rem]";
+const CLEAR_BELOW_THE_BREAKPOINT = `max-md:${CLEAR_OF_THE_LIGHTS}`;
 
 const inABrowserTab = (): void => {
   vi.spyOn(navigator, "userAgent", "get").mockReturnValue(MAC);
@@ -131,17 +132,18 @@ describe("the window's top edge under the Mac's shell", () => {
   it.each([
     ["the library's", libraryBar],
     ["an open item's", itemBar],
-  ])("keeps %s bar clear of the lights only while the rail is closed", async (_bar, opened) => {
+  ])("keeps %s bar clear of the lights only while the rail is off screen", async (_bar, opened) => {
     underTheShellOn(MAC);
     const bar = await opened();
-    expect(bar.className).not.toContain(CLEAR_OF_THE_LIGHTS);
+    expect(bar.classList.contains(CLEAR_OF_THE_LIGHTS)).toBe(false);
+    expect(bar.classList.contains(CLEAR_BELOW_THE_BREAKPOINT)).toBe(true);
     toggleRail();
     await waitFor(() => {
-      expect(bar.className).toContain(CLEAR_OF_THE_LIGHTS);
+      expect(bar.classList.contains(CLEAR_OF_THE_LIGHTS)).toBe(true);
     });
     toggleRail();
     await waitFor(() => {
-      expect(bar.className).not.toContain(CLEAR_OF_THE_LIGHTS);
+      expect(bar.classList.contains(CLEAR_OF_THE_LIGHTS)).toBe(false);
     });
   });
 
@@ -149,11 +151,11 @@ describe("the window's top edge under the Mac's shell", () => {
     ["the library's", libraryBar],
     ["an open item's", itemBar],
   ])(
-    "drags the window by %s bar, all there is to drag with the rail closed",
+    "drags the window by whatever a press lands on in %s bar, all there is to drag with the rail closed",
     async (_bar, opened) => {
       underTheShellOn(MAC);
       const bar = await opened();
-      expect(bar.dataset.tauriDragRegion).toBe("true");
+      expect(bar.dataset.tauriDragRegion).toBe("deep");
     },
   );
 
@@ -195,12 +197,14 @@ describe("the window's top edge with a title bar of its own", () => {
     arrange();
     const bar = await libraryBar();
     expect(railHeader().querySelector("[data-tauri-drag-region]")).toBeNull();
+    expect(bar.dataset.tauriDragRegion).toBeUndefined();
+    expect(bar.classList.contains(CLEAR_BELOW_THE_BREAKPOINT)).toBe(false);
     toggleRail();
     await waitFor(() => {
       expect(document.querySelector<HTMLElement>('[data-slot="sidebar"]')?.dataset.state).toBe(
         "collapsed",
       );
     });
-    expect(bar.className).not.toContain(CLEAR_OF_THE_LIGHTS);
+    expect(bar.classList.contains(CLEAR_OF_THE_LIGHTS)).toBe(false);
   });
 });
